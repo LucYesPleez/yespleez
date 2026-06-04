@@ -2134,3 +2134,16 @@ async function confirmWithdraw() {
   showToast('Withdrawn from slot.', 'success');
   renderAll(); enterArtistDashboard();
 }
+
+// ── Withdraw from event (artist) ───────────────────
+
+async function withdrawFromEvent(eventId, slotId) {
+  const slotLabel = (() => {
+    let label = 'slot';
+    (eventData?.days || []).forEach(d => d.slots.forEach(s => {
+      if (s.id === slotId) label = s.time + ' ' + s.ampm;
+    }));
+    return label;
+  })();
+  openWithdrawConfirm(eventId, slotId, slotLabel);
+}
