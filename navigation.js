@@ -88,6 +88,7 @@ function updateToggleVisibility(mode) {
 
 async function enterDashboard() {
   isHost = false;
+  hostProfile = {};
   const email = currentUser?.email || '';
   document.getElementById('dashUserEmail').textContent = email ? `${email}` : '';
   document.getElementById('shareLinkBtn').style.display = 'none';
@@ -120,6 +121,7 @@ function switchDashTab(tab) {
 // ── Artist dashboard ───────────────────────────────
 
 async function enterArtistDashboard() {
+  artistProfile = {};
   const email = currentUser?.email || '';
   document.getElementById('artistDashUserEmail').textContent = email;
   if (!DEMO && currentUser?.id && currentUser.id !== 'guest') {
