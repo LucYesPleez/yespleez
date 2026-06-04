@@ -125,6 +125,9 @@ async function doSignOut() {
   currentUser = null; currentSession = null;
   localStorage.removeItem('yp_session');
   allEvents = []; currentEventId = null; eventData = null; isHost = false;
+  artistProfile = {}; hostProfile = {};
+  localStorage.removeItem('yp_artist_profile');
+  localStorage.removeItem('yp_host_profile');
   if (pollTimer) clearInterval(pollTimer);
   show('authScreen');
 }
