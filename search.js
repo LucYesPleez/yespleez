@@ -270,3 +270,71 @@ async function runSearch() {
     resultsEl.appendChild(card);
   });
 }
+
+// ── Apply to event modal ───────────────────────────
+
+let _applyEventId   = null;
+let _applyEventName = '';
+
+function openApplyModalForEvent(eventId, eventName, btn) {
+  if (!currentUser?.id || currentUser.id === 'guest') {
+    showToast('Sign in to apply for events', 'error'); return;
+  }
+  _applyEventId = eventId;
+  _applyEventName = eventName;
+  document.getElementById('applyEventName').textContent = eventName;
+  document.getElementById('applyNote').value = '';
+  document.getElementById('applyNoteCount').textContent = '0 / 250';
+  document.getElementById('applyOverlay').classList.add('open');
+}
+
+function closeApplyModal() {
+  document.getElementById('applyOverlay').classList.remove('open');
+  _applyEventId = null;
+}
+
+async function submitApplication() {
+  if (!_applyEventId) return;
+  const btn = document.getElementById('applySubmitBtn');
+  btn.disabled = true; btn.textContent = 'SUBMITTING...';
+  const note = document.getElementById('applyNote').value.trim();
+  try {
+    const headers = {
+      'apikey': SUPABASE_KEY,
+      'Authorization': `Bearer ${currentSession.access_token}`,
+      'Content-Type': 'application/json',
+      'Prefer': 'return=minimal'
+    };
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/applications`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        event_id:  _applyEventId,
+        artist_id: currentUser.id,
+        note:      note,
+        status:    'pending'
+      })
+    });
+    if (res.ok || res.status === 201) {
+      closeApplyModal();
+      showToast('Application submitted! ✓', 'success');
+      const applyBtn = document.querySelector('#publicEventContent button');
+      if (applyBtn) {
+        applyBtn.textContent = 'APPLICATION SENT ✓';
+        applyBtn.style.background = 'var(--card2)';
+        applyBtn.style.color = 'var(--neon2)';
+        applyBtn.disabled = true;
+      }
+    } else {
+      const err = await res.json().catch(() => ({}));
+      if (err.code === '23505') {
+        showToast('You\'ve already applied to this event', 'error');
+      } else {
+        showToast(`Error: ${err.message || res.status}`, 'error');
+      }
+    }
+  } catch(e) {
+    showToast(`Failed: ${e.message}`, 'error');
+  }
+  btn.disabled = false; btn.textContent = 'SUBMIT APPLICATION →';
+}
