@@ -765,6 +765,59 @@ function openModal(key, hint, preferenceRank) {
   setTimeout(() => document.getElementById('inputName').focus(), 100);
 }
 
+async function searchArtistsForAssign(query) {
+  const resultsEl = document.getElementById('hostArtistResults');
+  if (!query || query.length < 2) { resultsEl.style.display = 'none'; return; }
+  try {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/profiles?type=eq.artist&dj_name=ilike.*${encodeURIComponent(query)}*&select=user_id,dj_name,genre_string,mix_link,soundcloud,instagram,avatar&limit=8`,
+      { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${currentSession?.access_token || SUPABASE_KEY}` } }
+    );
+    const artists = res.ok ? await res.json() : [];
+    resultsEl.innerHTML = '';
+    if (!artists.length) {
+      resultsEl.innerHTML = '<div style="padding:10px 12px;font-size:13px;color:var(--muted);">No artists found</div>';
+      resultsEl.style.display = 'block';
+      return;
+    }
+    artists.forEach(a => {
+      const item = document.createElement('div');
+      item.style.cssText = 'padding:10px 12px;cursor:pointer;border-bottom:1px solid var(--border);display:flex;flex-direction:column;gap:2px;';
+      item.innerHTML = `<div style="font-family:\'Bebas Neue\',sans-serif;font-size:16px;color:var(--text);">${esc(a.dj_name)}</div><div style="font-size:11px;color:var(--muted);">${esc(a.genre_string || '')}</div>`;
+      item.onmousedown = async (e) => {
+        e.preventDefault();
+        resultsEl.style.display = 'none';
+        document.getElementById('hostArtistSearch').value = '';
+        // Auto-assign immediately
+        const notes = '';
+        const ok = await upsertClaim(activeKey, a.dj_name, a.genre_string || '', notes, []);
+        if (ok) {
+          claims[activeKey] = { name: a.dj_name, genre: a.genre_string || '', notes: '', backups: [], mixLink: a.mix_link || '', user_id: a.user_id };
+          const slotLabel = (() => { let l='slot'; (eventData?.days||[]).forEach(d=>d.slots.forEach(s=>{if(s.id===activeKey)l=s.time+' '+s.ampm;})); return l; })();
+          pushNotif('🎧', `${a.dj_name} assigned to ${slotLabel}`, 'host');
+          closeModal();
+          renderManage();
+          renderAll();
+          setTimeout(loadClaims, 600);
+          showToast(`${a.dj_name} assigned ✓`, 'success');
+        } else {
+          showToast('Assignment failed — try again.', 'error');
+        }
+      };
+      resultsEl.appendChild(item);
+    });
+    resultsEl.style.display = 'block';
+  } catch(e) { console.warn('searchArtistsForAssign error:', e); }
+}
+
+function clearArtistSelection() {
+  document.getElementById('hostArtistSelected').style.display = 'none';
+  document.getElementById('hostArtistSelectedName').textContent = '';
+  document.getElementById('hostArtistSelectedGenre').textContent = '';
+  document.getElementById('hostArtistSearch').value = '';
+  document.getElementById('hostArtistResults').style.display = 'none';
+}
+
 function closeModal() { document.getElementById('overlay').classList.remove('open'); activeKey = null; }
 
 async function confirmClaim() {
