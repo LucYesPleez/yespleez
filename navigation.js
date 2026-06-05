@@ -30,7 +30,15 @@ function showToast(msg, type = 'success') {
 
 // ── Role selector ──────────────────────────────────
 
-function showRoleSelector() {
+async function showRoleSelector() {
+  if (!DEMO && currentUser?.id) {
+    const [hostRow, artistRow] = await Promise.all([
+      loadProfileFromSupabase('host'),
+      loadProfileFromSupabase('artist')
+    ]);
+    if (hostRow && (hostRow.name || hostRow.dj_name)) hostProfile = mapDbToHostProfile(hostRow);
+    if (artistRow && (artistRow.dj_name || artistRow.name)) artistProfile = mapDbToArtistProfile(artistRow);
+  }
   updateRoleCards();
   show('roleScreen');
 }
@@ -194,4 +202,3 @@ function debounceSearch() {
   clearTimeout(_searchDebounce);
   _searchDebounce = setTimeout(runSearch, 350);
 }
-
