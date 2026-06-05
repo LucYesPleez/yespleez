@@ -11,6 +11,7 @@
   trialBanner.id = 'trialBanner';
   trialBanner.style.cssText = 'position:fixed;bottom:80px;left:0;right:0;z-index:9998;background:#1a1a00;border-top:1px solid var(--gold);border-bottom:1px solid var(--gold);color:var(--gold);font-size:11px;letter-spacing:2px;text-align:center;padding:7px;font-family:Bebas Neue,sans-serif;white-space:nowrap;overflow:hidden;';
   document.body.append(trialBanner);
+  trialBanner.style.display = 'none';
 
   const params  = new URLSearchParams(location.search);
   const eventId = params.get('event');
