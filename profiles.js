@@ -46,6 +46,7 @@ async function upsertProfileToSupabase(profile, type) {
       avatar:            profile.avatar        || '',
       years:             profile.years         || '',
       label:             profile.label         || '',
+      card_pills:        profile.cardPills     || '',
       updated_at:        new Date().toISOString()
     };
     const token = currentSession.access_token;
