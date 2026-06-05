@@ -1062,8 +1062,15 @@ function renderManage() {
       assignBtn.onclick = e => { e.stopPropagation(); const hint = s.time+' '+s.ampm+' · '+s.dur+(s.label?' · '+s.label:''); openModal(s.id, hint, 1); };
       actCol.appendChild(assignBtn);
     } else {
-      infoCol.innerHTML = '<div class="dj-name">🎧 '+claim.name+'</div>';
-      if (claim.genre) infoCol.innerHTML += '<div class="dj-genre">'+claim.genre+'</div>';
+      const mgGenreStr = claim.genre || '';
+      const mgHasPills = mgGenreStr.includes(' · ');
+      const mgPillsHtml = mgHasPills
+      ? `<div class="dj-pills">${mgGenreStr.split(' · ').map(p => `<span class="dj-pill">${p.trim()}</span>`).join('')}</div>`
+      : '';
+      const mgDescHtml = !mgHasPills && mgGenreStr
+      ? '<div class="dj-genre">'+mgGenreStr+'</div>'
+      : '';
+      infoCol.innerHTML = `<div class="dj-name-row"><span class="dj-name">🎧 ${claim.name}</span>${mgPillsHtml}</div>${mgDescHtml}`;
       if (claim.notes) infoCol.innerHTML += '<div class="dj-note">📝 '+claim.notes+'</div>';
       if (claim.backups?.length) infoCol.innerHTML += '<div class="rank-badge">+'+claim.backups.length+' backup'+(claim.backups.length>1?'s':'')+'</div>';
       if (s.label) infoCol.innerHTML += '<div class="slot-badge '+(isLounge?'cyan':'')+'">' +s.label+'</div>';
