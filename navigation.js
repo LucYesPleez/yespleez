@@ -30,15 +30,7 @@ function showToast(msg, type = 'success') {
 
 // ── Role selector ──────────────────────────────────
 
-async function showRoleSelector() {
-  if (!DEMO && currentUser?.id) {
-    const [hostRow, artistRow] = await Promise.all([
-      loadProfileFromSupabase('host'),
-      loadProfileFromSupabase('artist')
-    ]);
-    if (hostRow && (hostRow.name || hostRow.dj_name)) hostProfile = mapDbToHostProfile(hostRow);
-    if (artistRow && (artistRow.dj_name || artistRow.name)) artistProfile = mapDbToArtistProfile(artistRow);
-  }
+function showRoleSelector() {
   updateRoleCards();
   show('roleScreen');
 }
@@ -96,7 +88,6 @@ function updateToggleVisibility(mode) {
 
 async function enterDashboard() {
   isHost = false;
-  hostProfile = {};
   const email = currentUser?.email || '';
   document.getElementById('dashUserEmail').textContent = email ? `${email}` : '';
   document.getElementById('shareLinkBtn').style.display = 'none';
@@ -129,7 +120,6 @@ function switchDashTab(tab) {
 // ── Artist dashboard ───────────────────────────────
 
 async function enterArtistDashboard() {
-  artistProfile = {};
   const email = currentUser?.email || '';
   document.getElementById('artistDashUserEmail').textContent = email;
   if (!DEMO && currentUser?.id && currentUser.id !== 'guest') {
@@ -140,7 +130,7 @@ async function enterArtistDashboard() {
     }
   }
   updateArtistDashCard();
-  renderArtistDashGigs();
+  renderArtistDashGigsWithManual();
   loadMyApplications();
   mergePendingArtistNotifs();
   updateToggleVisibility('artist');
