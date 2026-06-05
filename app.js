@@ -41,7 +41,6 @@ document.getElementById('lineupRadioOverlay').addEventListener('click', e => { i
 document.getElementById('confirmRemoveOverlay').addEventListener('click', e => { if (e.target.id==='confirmRemoveOverlay') closeConfirmRemove(); });
 document.getElementById('applyOverlay').addEventListener('click', e => { if (e.target.id==='applyOverlay') closeApplyModal(); });
 document.getElementById('becomeMemberOverlay').addEventListener('click', e => { if (e.target.id==='becomeMemberOverlay') closeMemberModal(); });
-document.getElementById('addGigOverlay').addEventListener('click', e => { if (e.target.id==='addGigOverlay') closeAddGigModal(); });
 document.getElementById('withdrawConfirmOverlay').addEventListener('click', e => { if (e.target.id==='withdrawConfirmOverlay') closeWithdrawConfirm(); });
 document.getElementById('approvalCodesOverlay').addEventListener('click', e => { if (e.target.id==='approvalCodesOverlay') closeApprovalCodes(); });
 document.getElementById('insertSlotOverlay').addEventListener('click', e => { if (e.target.id==='insertSlotOverlay') closeInsertSlot(); });
