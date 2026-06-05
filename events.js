@@ -2065,6 +2065,7 @@ function renderProfileSubgenres() {
   const selected = Array.from(document.querySelectorAll('#profileGenreChips .vibe-btn.selected')).map(b => b.textContent.trim());
   const subWrap = document.getElementById('profileSubgenreChips'); subWrap.innerHTML = '';
   selected.forEach(g => { if (!PSUB[g]) return; PSUB[g].forEach(sub => { const chip = document.createElement('button'); chip.type = 'button'; chip.className = 'vibe-btn'; chip.textContent = sub; chip.onclick = () => chip.classList.toggle('selected'); subWrap.appendChild(chip); }); });
+renderCardPillsPicker();
 }
 
 function getProfileGenreString() {
