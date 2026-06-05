@@ -701,7 +701,7 @@ function renderAll() {
         if (!setTimesLocked || isHost) {
           const claimBtn = document.createElement('button');
           claimBtn.className = 'btn-claim'; claimBtn.textContent = 'CLAIM';
-          claimBtn.onclick = () => openModal(s.id, hint, 1);
+          claimBtn.onclick = () => autoClaimSlot(s.id);
           actionBlock.appendChild(claimBtn);
         } else {
           const lockedLabel = document.createElement('div');
