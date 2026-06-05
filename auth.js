@@ -56,6 +56,15 @@ async function sbRest(path, options = {}, token = null) {
   return res.json();
 }
 
+// ── Clear cached profiles (call on every login) ────
+
+function clearCachedProfiles() {
+  artistProfile = {};
+  hostProfile   = {};
+  localStorage.removeItem('yp_artist_profile');
+  localStorage.removeItem('yp_host_profile');
+}
+
 // ── Auth tab UI ────────────────────────────────────
 
 function switchAuthTab(tab) {
@@ -80,6 +89,7 @@ async function doLogin() {
     errEl.textContent = data.error_description || data.msg || 'Invalid email or password.';
     errEl.classList.add('show'); return;
   }
+  clearCachedProfiles();
   currentSession = data;
   currentUser = data.user;
   localStorage.setItem('yp_session', JSON.stringify(data));
@@ -104,6 +114,7 @@ async function doSignup() {
     errEl.classList.add('show'); return;
   }
   if (data.access_token) {
+    clearCachedProfiles();
     currentSession = data; currentUser = data.user;
     localStorage.setItem('yp_session', JSON.stringify(data));
     showRoleSelector();
@@ -125,9 +136,7 @@ async function doSignOut() {
   currentUser = null; currentSession = null;
   localStorage.removeItem('yp_session');
   allEvents = []; currentEventId = null; eventData = null; isHost = false;
-  artistProfile = {}; hostProfile = {};
-  localStorage.removeItem('yp_artist_profile');
-  localStorage.removeItem('yp_host_profile');
+  clearCachedProfiles();
   if (pollTimer) clearInterval(pollTimer);
   show('authScreen');
 }
@@ -144,6 +153,7 @@ async function tryRestoreSession() {
       try {
         const res = await sbAuthPost('token?grant_type=refresh_token', { refresh_token: s.refresh_token });
         if (res.access_token) {
+          clearCachedProfiles();
           currentSession = res; currentUser = res.user;
           localStorage.setItem('yp_session', JSON.stringify(res));
           return true;
@@ -157,6 +167,7 @@ async function tryRestoreSession() {
       if (res.ok) {
         const user = await res.json();
         if (user.id) {
+          clearCachedProfiles();
           currentSession = s; currentUser = user;
           return true;
         }
