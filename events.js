@@ -800,7 +800,7 @@ async function confirmClaim() {
       }
     }
     const mixLink = artistProfile?.mixLink || '';
-    claims[activeKey] = { name, genre, notes, backups, mixLink };
+    claims[activeKey] = { name, genre, notes, backups, mixLink, user_id: currentUser?.id || null };
     const slotLabel = (() => { let l='slot'; (eventData?.days||[]).forEach(d=>d.slots.forEach(s=>{if(s.id===activeKey)l=s.time+' '+s.ampm;})); return l; })();
     pushNotif('🎧', `${name} claimed the ${slotLabel} slot`, 'host');
     closeModal();
