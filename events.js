@@ -852,7 +852,7 @@ async function loadClaims() {
 async function upsertClaim(slotId, name, genre, notes, backups) {
   const res = await sbFetch('claims', {
     method: 'POST',
-    body: JSON.stringify({ event_id: currentEventId, slot_id: slotId, name, genre, notes, backups, updated_at: new Date().toISOString() })
+    body: JSON.stringify({ event_id: currentEventId, slot_id: slotId, name, genre, notes, backups, updated_at: new Date().toISOString(), user_id: currentUser?.id || null })
   });
   return res.ok;
 }
