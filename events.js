@@ -579,7 +579,6 @@ function showSignup() {
   document.getElementById('eventGenres').textContent = eventData.genres || '';
   document.getElementById('manageBtn').style.display    = isHost ? 'inline-block' : 'none';
   document.getElementById('editBtn').style.display      = isHost ? 'inline-block' : 'none';
-  document.getElementById('hostDashBtn').style.display  = isHost ? 'inline-block' : 'none';
   document.getElementById('hostLoginBtn').style.display = isHost ? 'none' : 'inline-block';
   document.getElementById('hostPanel').style.display    = isHost ? '' : 'none';
   if (pollTimer) clearInterval(pollTimer);
