@@ -1066,7 +1066,7 @@ function renderManage() {
       actCol.appendChild(assignBtn);
     } else {
       const mgGenreStr = claim.genre || '';
-      const mgHasPills = mgGenreStr.includes(' · ');
+      const mgHasPills = mgGenreStr.length > 0;
       const mgPillsHtml = mgHasPills
       ? `<div class="dj-pills">${mgGenreStr.split(' · ').map(p => `<span class="dj-pill">${p.trim()}</span>`).join('')}</div>`
       : '';
