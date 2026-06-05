@@ -551,7 +551,7 @@ async function loadPublicEvent(eventId) {
     eventData = ev.config || {};
     eventData.id = ev.id;
     hostControls = ev.host_controls || { artistRemove: true, rankedBackups: true, genrePicker: true };
-    isHost = false;
+    isHost = !!(currentUser && currentUser.id === ev.host_id);
     return true;
   } catch(e) {
     showToast('Could not load event.', 'error'); return false;
