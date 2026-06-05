@@ -844,7 +844,7 @@ async function loadClaims() {
     if (!res.ok) throw new Error();
     const rows = await res.json();
     claims = {};
-    rows.forEach(r => { claims[r.slot_id] = { name: r.name, genre: r.genre || '', notes: r.notes || '', backups: r.backups || [] }; });
+    rows.forEach(r => { claims[r.slot_id] = { name: r.name, genre: r.genre || '', notes: r.notes || '', backups: r.backups || [], user_id: r.user_id || null }; });
     setSync(true); renderAll();
   } catch { setSync(false); }
 }
