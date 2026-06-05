@@ -617,13 +617,16 @@ function renderHostSummary() {
 
 function toggleLock(slotId) { lockedSlots[slotId] = !lockedSlots[slotId]; renderHostSummary(); }
 
-function timeToMins24(time, ampm) {
+function timeToMins24(time, ampm, allSlots) {
   if (!time) return 0;
   const [h, m] = time.split(':').map(Number);
   let h24 = h;
   if (ampm === 'AM') { if (h24 === 12) h24 = 0; }
   else               { if (h24 !== 12) h24 += 12; }
-  return h24 * 60 + (m || 0);
+  const mins = h24 * 60 + (m || 0);
+  // If this is an early AM slot (before 6am) treat it as next day so it sorts after PM slots
+  if (h24 < 6) return mins + 24 * 60;
+  return mins;
 }
 
 function renderAll() {
