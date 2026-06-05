@@ -2134,16 +2134,142 @@ async function confirmWithdraw() {
   showToast('Withdrawn from slot.', 'success');
   renderAll(); enterArtistDashboard();
 }
+// ── Manual gig CRUD ────────────────────────────────
 
-// ── Withdraw from event (artist) ───────────────────
+async function loadManualGigs() {
+  if (DEMO || !currentUser?.id || currentUser.id === 'guest') return [];
+  try {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/gigs?artist_id=eq.${currentUser.id}&order=created_at.desc`,
+      { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${currentSession.access_token}` } }
+    );
+    return res.ok ? await res.json() : [];
+  } catch(e) { return []; }
+}
 
-async function withdrawFromEvent(eventId, slotId) {
-  const slotLabel = (() => {
-    let label = 'slot';
-    (eventData?.days || []).forEach(d => d.slots.forEach(s => {
-      if (s.id === slotId) label = s.time + ' ' + s.ampm;
-    }));
-    return label;
-  })();
-  openWithdrawConfirm(eventId, slotId, slotLabel);
+async function saveManualGig(gig) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/gigs`, {
+    method: 'POST',
+    headers: {
+      'apikey': SUPABASE_KEY,
+      'Authorization': `Bearer ${currentSession.access_token}`,
+      'Content-Type': 'application/json',
+      'Prefer': 'return=representation'
+    },
+    body: JSON.stringify({
+      artist_id:  currentUser.id,
+      event_name: gig.event_name,
+      venue:      gig.venue,
+      date:       gig.date,
+      poster_url: gig.poster_url || ''
+    })
+  });
+  return res.ok ? await res.json() : null;
+}
+
+async function deleteManualGig(gigId) {
+  await fetch(`${SUPABASE_URL}/rest/v1/gigs?id=eq.${gigId}`, {
+    method: 'DELETE',
+    headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${currentSession.access_token}` }
+  });
+}
+
+// ── Add gig modal ──────────────────────────────────
+
+function openAddGigModal() {
+  document.getElementById('addGigName').value   = '';
+  document.getElementById('addGigVenue').value  = '';
+  document.getElementById('addGigDate').value   = '';
+  document.getElementById('addGigOverlay').classList.add('open');
+}
+
+function closeAddGigModal() {
+  document.getElementById('addGigOverlay').classList.remove('open');
+}
+
+async function submitAddGig() {
+  const name  = document.getElementById('addGigName').value.trim();
+  const venue = document.getElementById('addGigVenue').value.trim();
+  const date  = document.getElementById('addGigDate').value.trim();
+  if (!name) { showToast('Enter an event name.', 'error'); return; }
+  const btn = document.getElementById('addGigSubmitBtn');
+  btn.disabled = true; btn.textContent = 'SAVING...';
+  const result = await saveManualGig({ event_name: name, venue, date });
+  btn.disabled = false; btn.textContent = 'ADD GIG →';
+  if (result) {
+    closeAddGigModal();
+    showToast('Gig added ✓', 'success');
+    renderArtistDashGigsWithManual();
+  } else {
+    showToast('Failed to save — try again.', 'error');
+  }
+}
+
+// ── Render gigs (YesPleez events + manual gigs) ────
+
+async function renderArtistDashGigsWithManual() {
+  const list = document.getElementById('artistDashGigs'); if (!list) return;
+  const manualGigs = await loadManualGigs();
+
+  // YesPleez booked gigs (existing logic)
+  const ypGigs = [];
+  if (DEMO) {
+    // demo gigs already handled in renderArtistDashGigs
+  }
+
+  list.innerHTML = '';
+
+  // Render YesPleez gigs (teal border + "on YesPleez" tag)
+  if (ypGigs.length) {
+    ypGigs.forEach(g => {
+      const card = document.createElement('div');
+      card.className = 'gig-card';
+      card.style.cssText = 'border:1.5px solid var(--neon2);background:rgba(0,229,255,.04);cursor:pointer;';
+      card.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px;">
+          <div class="gig-event-name">${esc(g.eventName)}</div>
+          <span style="font-family:'Bebas Neue',sans-serif;font-size:9px;letter-spacing:1.5px;color:var(--neon2);background:rgba(0,229,255,.12);border:1px solid rgba(0,229,255,.3);border-radius:10px;padding:2px 8px;white-space:nowrap;flex-shrink:0;margin-left:8px;">on YesPleez</span>
+        </div>
+        <div class="gig-meta">${esc(g.venue)}${g.date ? ' · ' + esc(g.date) : ''}</div>
+        ${g.slotTime ? `<span class="gig-slot visible">${esc(g.slotTime)} · ${esc(g.slotDur)}</span>` : '<span class="gig-slot private">Not yet booked</span>'}
+      `;
+      if (g.days?.length) card.onclick = () => openArtistEvent(g);
+      list.appendChild(card);
+    });
+  }
+
+  // Render manual gigs (purple border, no tag)
+  if (manualGigs.length) {
+    manualGigs.forEach(g => {
+      const card = document.createElement('div');
+      card.className = 'gig-card';
+      card.style.cssText = 'border:1.5px solid var(--purple);background:rgba(176,96,255,.04);position:relative;';
+      card.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px;">
+          <div class="gig-event-name">${esc(g.event_name)}</div>
+          <button onclick="event.stopPropagation();confirmDeleteGig('${g.id}')" style="background:none;border:none;color:var(--muted);font-size:14px;cursor:pointer;padding:0 4px;line-height:1;">✕</button>
+        </div>
+        <div class="gig-meta">${g.venue ? esc(g.venue) : ''}${g.date ? ' · ' + esc(g.date) : ''}</div>
+      `;
+      list.appendChild(card);
+    });
+  }
+
+  if (!ypGigs.length && !manualGigs.length) {
+    list.innerHTML = '<div style="font-size:13px;color:var(--muted);padding:8px 0;">No upcoming gigs yet.</div>';
+  }
+
+  // Add gig button at the bottom
+  const addBtn = document.createElement('button');
+  addBtn.className = 'btn-ghost';
+  addBtn.style.cssText = 'width:100%;margin-top:10px;border-color:var(--purple);color:var(--purple);font-size:12px;';
+  addBtn.textContent = '+ ADD A GIG';
+  addBtn.onclick = openAddGigModal;
+  list.appendChild(addBtn);
+}
+
+async function confirmDeleteGig(gigId) {
+  await deleteManualGig(gigId);
+  showToast('Gig removed', 'success');
+  renderArtistDashGigsWithManual();
 }
