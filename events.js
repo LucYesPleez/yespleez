@@ -2166,7 +2166,7 @@ function loadProfileData() {
     setTimeout(() => { document.querySelectorAll('#profileSubgenreChips .vibe-btn').forEach(btn => { if (parts.includes(btn.textContent.trim())) btn.classList.add('selected'); }); }, 50);
     document.querySelectorAll('#profileVibePicker .vibe-btn').forEach(btn => { if (ALL_VIBES.includes(btn.textContent.trim()) && parts.includes(btn.textContent.trim())) btn.classList.add('selected'); });
   }
-  setTimeout(() => renderCardPillsPicker(), 150);
+  setTimeout(() => renderCardPillsPicker(), 300);
 }
 
 function renderUpcomingGigs() {
