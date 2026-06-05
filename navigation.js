@@ -163,7 +163,8 @@ function goBack() {
 }
 
 function goToDash() {
-  if (currentMode === 'artist') enterArtistDashboard();
+  if (isHost) enterDashboard();
+  else if (currentMode === 'artist') enterArtistDashboard();
   else enterDashboard();
 }
 
