@@ -795,6 +795,31 @@ async function searchArtistsForAssign(query) {
           claims[activeKey] = { name: a.dj_name, genre: a.genre_string || '', notes: '', backups: [], mixLink: a.mix_link || '', user_id: a.user_id };
           const slotLabel = (() => { let l='slot'; (eventData?.days||[]).forEach(d=>d.slots.forEach(s=>{if(s.id===activeKey)l=s.time+' '+s.ampm;})); return l; })();
           pushNotif('🎧', `${a.dj_name} assigned to ${slotLabel}`, 'host');
+          async function autoClaimSlot(slotId) {
+  if (!currentUser || currentUser.id === 'guest') {
+    showToast('Create a profile to claim slots.', 'error');
+    setTimeout(() => show('authScreen'), 1200);
+    return;
+  }
+  const name = artistProfile?.djName;
+  const genre = artistProfile?.genreString;
+  if (!name || !genre) {
+    showToast('Complete your profile first — takes 2 mins!', 'error');
+    setTimeout(() => showProfile(), 1200);
+    return;
+  }
+  const ok = await upsertClaim(slotId, name, genre, '', []);
+  if (ok) {
+    claims[slotId] = { name, genre, notes: '', backups: [], mixLink: artistProfile?.mixLink || '', user_id: currentUser.id };
+    const slotLabel = (() => { let l='slot'; (eventData?.days||[]).forEach(d=>d.slots.forEach(s=>{if(s.id===slotId)l=s.time+' '+s.ampm;})); return l; })();
+    pushNotif('🎧', `${name} claimed the ${slotLabel} slot`, 'host');
+    renderAll();
+    setTimeout(loadClaims, 600);
+    showToast(`Slot claimed ✓`, 'success');
+  } else {
+    showToast('Something went wrong — try again.', 'error');
+  }
+}
           closeModal();
           renderManage();
           renderAll();
