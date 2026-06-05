@@ -657,8 +657,11 @@ function renderAll() {
       infoBlock.className = 'slot-info';
       const hint = s.time + ' ' + s.ampm + ' · ' + s.dur + (s.label ? ' · ' + s.label : '');
       if (entry) {
-        infoBlock.innerHTML = `<div class="dj-name">🎧 ${entry.name}</div>`;
-        if (entry.genre) infoBlock.innerHTML += `<div class="dj-genre">${entry.genre}</div>`;
+        const genreParts = (entry.genre || '').split(' · ').map(p => p.trim()).filter(Boolean);
+        const pillsHtml = genreParts.length
+        ? `<div class="dj-pills">${genreParts.map(p => `<span class="dj-pill">${p}</span>`).join('')}</div>`
+        : '';
+        infoBlock.innerHTML = `<div class="dj-name-row"><span class="dj-name">🎧 ${entry.name}</span>${pillsHtml}</div>`;
         if (entry.notes && (isHost || (currentUser && currentUser.id === entry.user_id))) infoBlock.innerHTML += `<div class="dj-note">📝 ${entry.notes}</div>`;
         if (entry.backups?.length) infoBlock.innerHTML += `<div class="rank-badge">+${entry.backups.length} backup${entry.backups.length>1?'s':''}</div>`;
         if (s.label) infoBlock.innerHTML += `<div class="slot-badge ${isLounge?'cyan':''}">${s.label}</div>`;
