@@ -2057,7 +2057,7 @@ function toggleProfileVibe(btn) {
 
 function initProfileGenres() {
   const wrap = document.getElementById('profileGenreChips'); if (wrap.children.length > 0) return;
-  ALL_GENRES.forEach(g => { const chip = document.createElement('button'); chip.type = 'button'; chip.className = 'vibe-btn'; chip.textContent = g; chip.onclick = () => { chip.classList.toggle('selected'); renderProfileSubgenres(); }; wrap.appendChild(chip); });
+  ALL_GENRES.forEach(g => { const chip = document.createElement('button'); chip.type = 'button'; chip.className = 'vibe-btn'; chip.textContent = g; chip.onclick = () => { chip.classList.toggle('selected'); renderProfileSubgenres(); renderCardPillsPicker(); }; wrap.appendChild(chip); });
 }
 
 function renderProfileSubgenres() {
