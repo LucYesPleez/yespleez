@@ -948,7 +948,7 @@ function renderMultiSubgenreAccordion() {
 function getSelectedSubgenres() {
   const single = Array.from(document.querySelectorAll('#subgenreChips .vibe-btn.selected')).map(b => b.textContent.trim());
   const multi  = Array.from(document.querySelectorAll('#multiSubgenreAccordion .vibe-btn.selected')).map(b => b.textContent.trim());
-  return [...single, ...multi];
+  return [...new Set([...single, ...multi])];
 }
 
 function getSelectedGenres() {
