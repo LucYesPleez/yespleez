@@ -2068,6 +2068,46 @@ function renderProfileSubgenres() {
 renderCardPillsPicker();
 }
 
+function renderCardPillsPicker() {
+  const section = document.getElementById('cardPillsSection');
+  const picker = document.getElementById('cardPillsPicker');
+  if (!section || !picker) return;
+  const genres = Array.from(document.querySelectorAll('#profileGenreChips .vibe-btn.selected')).map(b => b.textContent.trim());
+  const subs = Array.from(document.querySelectorAll('#profileSubgenreChips .vibe-btn.selected')).map(b => b.textContent.trim());
+  const vibes = Array.from(document.querySelectorAll('#profileVibePicker .vibe-btn.selected')).map(b => b.textContent.trim());
+  const all = [...new Set([...genres, ...subs, ...vibes])];
+  if (!all.length) { section.style.display = 'none'; return; }
+  section.style.display = '';
+  const existing = artistProfile.cardPills ? artistProfile.cardPills.split(' · ') : [];
+  picker.innerHTML = '';
+  all.forEach(tag => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'vibe-btn' + (existing.includes(tag) ? ' selected' : '');
+    btn.textContent = tag;
+    btn.onclick = () => {
+      const selected = picker.querySelectorAll('.vibe-btn.selected');
+      if (btn.classList.contains('selected')) {
+        btn.classList.remove('selected');
+      } else if (selected.length < 5) {
+        btn.classList.add('selected');
+      } else {
+        showToast('Max 5 card tags', 'error');
+        return;
+      }
+      document.getElementById('cardPillsCount').textContent = picker.querySelectorAll('.vibe-btn.selected').length + ' / 5 selected';
+    };
+    picker.appendChild(btn);
+  });
+  document.getElementById('cardPillsCount').textContent = existing.filter(t => all.includes(t)).length + ' / 5 selected';
+}
+
+function getCardPills() {
+  const picker = document.getElementById('cardPillsPicker');
+  if (!picker) return '';
+  return Array.from(picker.querySelectorAll('.vibe-btn.selected')).map(b => b.textContent.trim()).join(' · ');
+}
+
 function getProfileGenreString() {
   const genres = Array.from(document.querySelectorAll('#profileGenreChips .vibe-btn.selected')).map(b => b.textContent.trim());
   const subs   = Array.from(document.querySelectorAll('#profileSubgenreChips .vibe-btn.selected')).map(b => b.textContent.trim());
