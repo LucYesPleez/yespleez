@@ -659,7 +659,7 @@ function renderAll() {
       if (entry) {
         infoBlock.innerHTML = `<div class="dj-name">🎧 ${entry.name}</div>`;
         if (entry.genre) infoBlock.innerHTML += `<div class="dj-genre">${entry.genre}</div>`;
-        if (entry.notes) infoBlock.innerHTML += `<div class="dj-note">📝 ${entry.notes}</div>`;
+        if (entry.notes && (isHost || (currentUser && currentUser.id === entry.user_id))) infoBlock.innerHTML += `<div class="dj-note">📝 ${entry.notes}</div>`;
         if (entry.backups?.length) infoBlock.innerHTML += `<div class="rank-badge">+${entry.backups.length} backup${entry.backups.length>1?'s':''}</div>`;
         if (s.label) infoBlock.innerHTML += `<div class="slot-badge ${isLounge?'cyan':''}">${s.label}</div>`;
         slot.style.cursor = 'pointer';
