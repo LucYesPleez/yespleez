@@ -194,3 +194,4 @@ function debounceSearch() {
   clearTimeout(_searchDebounce);
   _searchDebounce = setTimeout(runSearch, 350);
 }
+
