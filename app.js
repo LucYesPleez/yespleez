@@ -9,7 +9,7 @@
   // Free trial banner
   const trialBanner = document.createElement('div');
   trialBanner.id = 'trialBanner';
-  trialBanner.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:9998;background:#1a1a00;border-top:1px solid var(--gold);color:var(--gold);font-size:11px;letter-spacing:2px;text-align:center;padding:7px;font-family:Bebas Neue,sans-serif;';
+  trialBanner.style.cssText = 'position:fixed;bottom:60px;left:0;right:0;z-index:9998;background:#1a1a00;border-top:1px solid var(--gold);color:var(--gold);font-size:11px;letter-spacing:2px;text-align:center;padding:7px;font-family:Bebas Neue,sans-serif;';
   document.body.prepend(trialBanner);
 
   const params  = new URLSearchParams(location.search);
