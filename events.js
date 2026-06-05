@@ -2168,7 +2168,6 @@ function loadProfileData() {
   }
   setTimeout(() => renderCardPillsPicker(), 150);
 }
-}
 
 function renderUpcomingGigs() {
   const list = document.getElementById('upcomingGigsList'); if (!list) return;
