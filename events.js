@@ -2050,7 +2050,10 @@ function selectABN(hasABN) { document.getElementById('abnYesBtn').className = 'f
 function selectGST(registered) { document.getElementById('gstYesBtn').className = 'fee-toggle-btn' + (registered ? ' selected-tickets' : ''); document.getElementById('gstNoBtn').className = 'fee-toggle-btn' + (!registered ? ' selected-fee' : ''); artistProfile.gstRegistered = registered; }
 
 function getProfileVibes() { return Array.from(document.querySelectorAll('#profileVibePicker .vibe-btn.selected')).map(b => b.textContent.trim()); }
-function toggleProfileVibe(btn) { btn.classList.toggle('selected'); }
+function toggleProfileVibe(btn) {
+  btn.classList.toggle('selected');
+  renderCardPillsPicker();
+}
 
 function initProfileGenres() {
   const wrap = document.getElementById('profileGenreChips'); if (wrap.children.length > 0) return;
