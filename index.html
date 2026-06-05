@@ -1267,7 +1267,27 @@ header { text-align: center; margin-bottom: 32px; }
 .time-dur  { font-size: 11px; color: var(--gold); margin-top: 2px; }
 
 .slot-info { min-width: 0; }
-.dj-name  { font-weight: 600; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dj-name-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.dj-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.dj-pill {
+  font-size: 10px;
+  font-family: 'DM Sans', sans-serif;
+  background: rgba(0,229,255,0.08);
+  border: 1px solid rgba(0,229,255,0.25);
+  color: var(--neon2);
+  border-radius: 20px;
+  padding: 2px 8px;
+  white-space: nowrap;
+}
 .dj-genre { font-size: 13px; color: var(--muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* ── MINI PLAYER ── */
