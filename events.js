@@ -2166,7 +2166,18 @@ function loadProfileData() {
     setTimeout(() => { document.querySelectorAll('#profileSubgenreChips .vibe-btn').forEach(btn => { if (parts.includes(btn.textContent.trim())) btn.classList.add('selected'); }); }, 50);
     document.querySelectorAll('#profileVibePicker .vibe-btn').forEach(btn => { if (ALL_VIBES.includes(btn.textContent.trim()) && parts.includes(btn.textContent.trim())) btn.classList.add('selected'); });
   }
-  setTimeout(() => renderCardPillsPicker(), 300);
+ setTimeout(() => {
+  renderCardPillsPicker();
+  setTimeout(() => {
+    const savedPills = (artistProfile.cardPills || '').split(' · ').filter(Boolean);
+    document.querySelectorAll('#cardPillsPicker .vibe-btn').forEach(btn => {
+      if (savedPills.includes(btn.textContent.trim())) btn.classList.add('selected');
+    });
+    const count = document.querySelectorAll('#cardPillsPicker .vibe-btn.selected').length;
+    const countEl = document.getElementById('cardPillsCount');
+    if (countEl) countEl.textContent = count + ' / 5 selected';
+  }, 100);
+}, 300);
 }
 
 function renderUpcomingGigs() {
