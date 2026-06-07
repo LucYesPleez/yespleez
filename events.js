@@ -599,7 +599,7 @@ function showSignup() {
   // Apply bar — shown for non-hosts on non-read-only events
   const applyBar = document.getElementById('applyBar');
   if (applyBar) {
-    const showApplyBar = !isHost && !isReadOnly && currentUser?.id && currentUser.id !== 'guest';
+    const showApplyBar = !isHost && !isReadOnly && currentUser?.id && currentUser.id !== 'guest' && (hostControls.applicationsOpen === true);
     applyBar.style.display = showApplyBar ? '' : 'none';
     if (showApplyBar) {
       // Restore saved code from localStorage
@@ -824,8 +824,8 @@ function renderAll() {
               noEl.textContent = 'Not in your code';
               actionBlock.appendChild(noEl);
             }
-          } else {
-            // No code — show APPLY button
+          } else if (hostControls.applicationsOpen) {
+            // No code but applications are open — show APPLY button
             const applyBtn = document.createElement('button');
             applyBtn.style.cssText = 'padding:6px 14px;background:transparent;border:1px solid var(--neon2);border-radius:6px;color:var(--neon2);font-family:\'Bebas Neue\',sans-serif;font-size:13px;letter-spacing:1px;cursor:pointer;white-space:nowrap;';
             applyBtn.textContent = _hasApplied ? 'APPLIED ✓' : 'APPLY';
@@ -1233,6 +1233,14 @@ function renderManage() {
   if (titleEl) titleEl.textContent = eventData.name || 'EVENT';
   if (subtitleEl) subtitleEl.textContent = [eventData.venue, eventData.date].filter(Boolean).join(' · ');
   if (slotCountEl) slotCountEl.textContent = takenSlots + ' of ' + totalSlots + ' slots filled';
+  // Applications toggle state
+  const appsOpen = hostControls.applicationsOpen || false;
+  const toggleBtn = document.getElementById('appsToggleBtn');
+  if (toggleBtn) {
+    toggleBtn.textContent = appsOpen ? 'APPLICATIONS: OPEN ✓' : 'APPLICATIONS: CLOSED';
+    toggleBtn.style.borderColor = appsOpen ? 'var(--neon2)' : 'var(--border)';
+    toggleBtn.style.color = appsOpen ? 'var(--neon2)' : 'var(--muted)';
+  }
   // Show poster if available
   const managePosterEl = document.getElementById('managePoster');
   if (managePosterEl) {
@@ -1723,11 +1731,10 @@ async function loadApplications() {
     );
     if (!rows || !rows.length) {
       listEl.innerHTML = '<div style="text-align:center;color:var(--muted);font-size:13px;padding:24px;">No pending applications.</div>';
-      document.getElementById('appsBadge').style.display = 'none';
+      ['manageAppsBadge','overlayAppsBadge'].forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
       return;
     }
-    document.getElementById('appsBadge').textContent = rows.length;
-    document.getElementById('appsBadge').style.display = '';
+    ['manageAppsBadge','overlayAppsBadge'].forEach(id => { const el = document.getElementById(id); if (el) { el.textContent = rows.length; el.style.display = ''; } });
     // Load artist profiles in parallel
     const profileMap = {};
     await Promise.all(rows.map(async r => {
@@ -1937,6 +1944,24 @@ function toggleLockSetTimes() {
   }
 }
 
+function toggleApplicationsOpen() {
+  hostControls.applicationsOpen = !hostControls.applicationsOpen;
+  const open = hostControls.applicationsOpen;
+  const btn = document.getElementById('appsToggleBtn');
+  if (btn) {
+    btn.textContent = open ? 'APPLICATIONS: OPEN ✓' : 'APPLICATIONS: CLOSED';
+    btn.style.borderColor = open ? 'var(--neon2)' : 'var(--border)';
+    btn.style.color = open ? 'var(--neon2)' : 'var(--muted)';
+  }
+  showToast(open ? 'Applications are now OPEN ✓' : 'Applications closed', 'success');
+  if (!DEMO && currentEventId && currentSession?.access_token) {
+    sbRest(`events?id=eq.${currentEventId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ host_controls: { ...hostControls } })
+    }, currentSession.access_token).catch(() => {});
+  }
+}
+
 // ── Artist event view ──────────────────────────────
 
 function openArtistEvent(gig) {
@@ -1952,8 +1977,6 @@ function openArtistEvent(gig) {
   document.getElementById('eventGenres').textContent = '';
   document.getElementById('manageBtn').style.display    = 'none';
   document.getElementById('editBtn').style.display      = 'none';
-  document.getElementById('hostDashBtn').style.display  = 'none';
-  document.getElementById('hostLoginBtn').style.display = 'none';
   document.getElementById('hostPanel').style.display    = 'none';
   if (pollTimer) clearInterval(pollTimer);
   renderAll();

@@ -2254,7 +2254,7 @@ body.player-open .screen.active { padding-bottom: 80px; }
     <div style="display:flex;gap:0;margin-bottom:16px;border-bottom:1px solid var(--border);">
       <button id="tabAppsBtn" onclick="switchAppsTab('applications')"
         style="flex:1;padding:10px;background:none;border:none;border-bottom:2px solid var(--neon2);color:var(--neon2);font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:1px;cursor:pointer;">
-        📬 APPLICATIONS <span id="appsBadge" style="display:none;background:var(--neon);color:#fff;border-radius:10px;font-size:10px;padding:1px 6px;margin-left:4px;"></span>
+        📬 APPLICATIONS <span id="overlayAppsBadge" style="display:none;background:var(--neon);color:#fff;border-radius:10px;font-size:10px;padding:1px 6px;margin-left:4px;"></span>
       </button>
       <button id="tabCodesBtn" onclick="switchAppsTab('codes')"
         style="flex:1;padding:10px;background:none;border:none;border-bottom:2px solid transparent;color:var(--muted);font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:1px;cursor:pointer;">
@@ -2695,9 +2695,18 @@ body.player-open .screen.active { padding-bottom: 80px; }
       </div>
     </div>
 
-    <div style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;">
+    <div style="display:flex;gap:10px;margin-bottom:10px;flex-wrap:wrap;">
       <button class="btn-lock-times" id="lockTimesBtn" onclick="toggleLockSetTimes()" style="flex:1;margin-top:0;">🔒 LOCK SET TIMES</button>
-      <button class="btn-ghost" id="appsBtn" onclick="openApprovalCodes()" style="flex:1;padding:13px;border-radius:10px;font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:2px;border-color:var(--neon2);color:var(--neon2);">📬 APPLICATIONS</button>
+      <button id="appsToggleBtn" onclick="toggleApplicationsOpen()"
+        style="flex:1;margin-top:0;padding:13px;border-radius:10px;font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:1px;cursor:pointer;border:1px solid var(--border);color:var(--muted);background:transparent;">
+        APPLICATIONS: CLOSED
+      </button>
+    </div>
+    <div style="margin-bottom:20px;">
+      <button class="btn-ghost" id="appsBtn" onclick="openApprovalCodes()"
+        style="width:100%;padding:11px;border-radius:10px;font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:2px;border-color:var(--neon2);color:var(--neon2);">
+        📬 VIEW APPLICATIONS <span id="manageAppsBadge" style="display:none;background:var(--neon);color:#fff;border-radius:10px;font-size:10px;padding:1px 6px;margin-left:4px;"></span>
+      </button>
     </div>
 
     <div id="manageList"></div>
