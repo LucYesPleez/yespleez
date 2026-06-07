@@ -1778,7 +1778,8 @@ async function loadApplications() {
       listEl.appendChild(card);
     });
   } catch(e) {
-    listEl.innerHTML = `<div style="text-align:center;color:var(--muted);font-size:13px;padding:20px;">Could not load applications.</div>`;
+    console.error('loadApplications error:', e);
+    listEl.innerHTML = `<div style="text-align:center;color:var(--muted);font-size:13px;padding:20px;">Error: ${e.message}</div>`;
   }
 }
 
