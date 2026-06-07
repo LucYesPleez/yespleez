@@ -557,7 +557,8 @@ async function loadPublicEvent(eventId) {
     if (!eventData.poster && ev.poster) eventData.poster = ev.poster;
     currentEventHostId = ev.host_id || null;
     hostControls = ev.host_controls || { artistRemove: true, rankedBackups: true, genrePicker: true };
-    isHost = !!(currentUser && currentUser.id === ev.host_id);
+    isHost = false;    // public path is always view-only — host must use their dashboard
+    isReadOnly = true;
     return true;
   } catch(e) {
     showToast('Could not load event.', 'error'); return false;

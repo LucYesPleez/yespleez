@@ -87,8 +87,6 @@ function clearArtistSelection() {
 async function openPublicEvent(ev) {
   const ok = await loadPublicEvent(ev.id);
   if (!ok) return;
-  isHost = false;
-  isReadOnly = true;
   showSignup();
 }
 
