@@ -659,7 +659,8 @@ function renderAll() {
       infoBlock.className = 'slot-info';
       const hint = s.time + ' ' + s.ampm + ' · ' + s.dur + (s.label ? ' · ' + s.label : '');
       if (entry) {
-        const genreParts = (entry.genre || '').split(' · ').map(p => p.trim()).filter(Boolean);
+        const pillSource = entry.cardPills || entry.genre || '';
+        const genreParts = pillSource.split(' · ').map(p => p.trim()).filter(Boolean).slice(0, 5);
         const pillsHtml = genreParts.length
         ? `<div class="dj-pills">${genreParts.map(p => `<span class="dj-pill">${p}</span>`).join('')}</div>`
         : '';
@@ -777,9 +778,10 @@ async function autoClaimSlot(slotId) {
     setTimeout(() => showProfile(), 1200);
     return;
   }
-  const ok = await upsertClaim(slotId, name, genre, '', []);
+  const cardPills = artistProfile?.cardPills || '';
+  const ok = await upsertClaim(slotId, name, genre, '', [], cardPills);
   if (ok) {
-    claims[slotId] = { name, genre, notes: '', backups: [], mixLink: artistProfile?.mixLink || '', user_id: currentUser.id };
+    claims[slotId] = { name, genre, notes: '', backups: [], cardPills, mixLink: artistProfile?.mixLink || '', user_id: currentUser.id };
     const slotLabel = (() => { let l='slot'; (eventData?.days||[]).forEach(d=>d.slots.forEach(s=>{if(s.id===slotId)l=s.time+' '+s.ampm;})); return l; })();
     pushNotif('🎧', `${name} claimed the ${slotLabel} slot`, 'host');
     renderAll();
@@ -795,7 +797,7 @@ async function searchArtistsForAssign(query) {
   if (!query || query.length < 2) { resultsEl.style.display = 'none'; return; }
   try {
     const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/profiles?type=eq.artist&dj_name=ilike.*${encodeURIComponent(query)}*&select=user_id,dj_name,genre_string,mix_link,soundcloud,instagram,avatar&limit=8`,
+      `${SUPABASE_URL}/rest/v1/profiles?type=eq.artist&dj_name=ilike.*${encodeURIComponent(query)}*&select=user_id,dj_name,genre_string,card_pills,mix_link,soundcloud,instagram,avatar&limit=8`,
       { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${currentSession?.access_token || SUPABASE_KEY}` } }
     );
     const artists = res.ok ? await res.json() : [];
@@ -815,9 +817,9 @@ async function searchArtistsForAssign(query) {
         document.getElementById('hostArtistSearch').value = '';
         // Auto-assign immediately
         const notes = '';
-        const ok = await upsertClaim(activeKey, a.dj_name, a.genre_string || '', notes, []);
+        const ok = await upsertClaim(activeKey, a.dj_name, a.genre_string || '', notes, [], a.card_pills || '');
         if (ok) {
-          claims[activeKey] = { name: a.dj_name, genre: a.genre_string || '', notes: '', backups: [], mixLink: a.mix_link || '', user_id: a.user_id };
+          claims[activeKey] = { name: a.dj_name, genre: a.genre_string || '', notes: '', backups: [], cardPills: a.card_pills || '', mixLink: a.mix_link || '', user_id: a.user_id };
           const slotLabel = (() => { let l='slot'; (eventData?.days||[]).forEach(d=>d.slots.forEach(s=>{if(s.id===activeKey)l=s.time+' '+s.ampm;})); return l; })();
           pushNotif('🎧', `${a.dj_name} assigned to ${slotLabel}`, 'host');
           closeModal();
@@ -928,15 +930,15 @@ async function loadClaims() {
     if (!res.ok) throw new Error();
     const rows = await res.json();
     claims = {};
-    rows.forEach(r => { claims[r.slot_id] = { name: r.name, genre: r.genre || '', notes: r.notes || '', backups: r.backups || [], user_id: r.user_id || null }; });
+    rows.forEach(r => { claims[r.slot_id] = { name: r.name, genre: r.genre || '', notes: r.notes || '', backups: r.backups || [], cardPills: r.card_pills || '', user_id: r.user_id || null }; });
     setSync(true); renderAll();
   } catch { setSync(false); }
 }
 
-async function upsertClaim(slotId, name, genre, notes, backups) {
+async function upsertClaim(slotId, name, genre, notes, backups, cardPills = '') {
   const res = await sbFetch('claims', {
     method: 'POST',
-    body: JSON.stringify({ event_id: currentEventId, slot_id: slotId, name, genre, notes, backups, updated_at: new Date().toISOString(), user_id: currentUser?.id || null })
+    body: JSON.stringify({ event_id: currentEventId, slot_id: slotId, name, genre, notes, backups, card_pills: cardPills, updated_at: new Date().toISOString(), user_id: currentUser?.id || null })
   });
   return res.ok;
 }
@@ -1144,9 +1146,10 @@ function renderManage() {
       actCol.appendChild(assignBtn);
     } else {
       const mgGenreStr = claim.genre || '';
-      const mgHasPills = mgGenreStr.length > 0;
+      const mgPillSource = claim.cardPills || mgGenreStr;
+      const mgHasPills = mgPillSource.length > 0;
       const mgPillsHtml = mgHasPills
-      ? `<div class="dj-pills">${mgGenreStr.split(' · ').map(p => `<span class="dj-pill">${p.trim()}</span>`).join('')}</div>`
+      ? `<div class="dj-pills">${mgPillSource.split(' · ').map(p => p.trim()).filter(Boolean).slice(0, 5).map(p => `<span class="dj-pill">${p}</span>`).join('')}</div>`
       : '';
       const mgDescHtml = !mgHasPills && mgGenreStr
       ? '<div class="dj-genre">'+mgGenreStr+'</div>'
