@@ -1979,21 +1979,11 @@ function toggleApplicationsOpen() {
 // ── Artist event view ──────────────────────────────
 
 function openArtistEvent(gig) {
-  currentEventId = gig.eventId;
-  eventData = { name: gig.eventName, days: gig.days, id: gig.eventId };
-  hostControls = gig.host_controls || {};
-  claims = gig.claims || {};
-  isHost = false;
-  setTimesLocked = gig.locked || false;
-  show('signupScreen');
-  document.getElementById('eventTitle').textContent  = gig.eventName || '';
-  document.getElementById('eventMeta').textContent   = [gig.venue, gig.date].filter(Boolean).join(' · ');
-  document.getElementById('eventGenres').textContent = '';
-  document.getElementById('manageBtn').style.display    = 'none';
-  document.getElementById('editBtn').style.display      = 'none';
-  document.getElementById('hostPanel').style.display    = 'none';
-  if (pollTimer) clearInterval(pollTimer);
-  renderAll();
+  // Use the same loadPublicEvent + showSignup path as Discover so claims load fully
+  loadPublicEvent(gig.eventId).then(ok => {
+    if (ok) showSignup();
+    else showToast('Could not load event.', 'error');
+  });
 }
 
 // ── Manage screen slot manipulation ───────────────
@@ -2886,11 +2876,7 @@ async function renderArtistDashGigsWithManual() {
     if (g.eventId) {
       card.style.cursor = 'pointer';
       card.title = 'Tap to view set times';
-      card.onclick = () => openArtistEvent({
-        eventId: g.eventId, eventName: g.eventName,
-        venue: g.venue, date: g.date,
-        days: g.days, claims: {}, host_controls: {}, locked: false
-      });
+      card.onclick = () => openArtistEvent({ eventId: g.eventId });
     }
     list.appendChild(card);
   });
