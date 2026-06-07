@@ -734,6 +734,22 @@ function timeToMins24(time, ampm, allSlots) {
   return mins;
 }
 
+// ── Shared slot card info builder ──────────────────
+// Used by both renderAll (set times view) and renderManage (host manage view)
+// so any change here applies everywhere automatically.
+
+function buildSlotInfoHtml(entry, s, isLounge) {
+  const pillSource = entry.cardPills || entry.genre || '';
+  const genreParts = pillSource.split(' · ').map(p => p.trim()).filter(Boolean).slice(0, 5);
+  const pillsHtml = genreParts.length
+    ? `<div class="dj-pills" style="margin-top:4px;">${genreParts.map(p => `<span class="dj-pill">${p}</span>`).join('')}</div>`
+    : '';
+  const soundPill = entry.sound
+    ? `<span style="background:rgba(255,184,48,.15);border:1px solid rgba(255,184,48,.4);border-radius:20px;color:var(--gold);font-size:11px;padding:2px 9px;font-style:italic;white-space:nowrap;margin-left:6px;">${entry.sound}</span>`
+    : '';
+  return `<div class="dj-name-row"><span class="dj-name">🎧 ${entry.name}</span>${soundPill}</div>${pillsHtml}`;
+}
+
 function renderAll() {
   const list = document.getElementById('daysList');
   list.innerHTML = '';
@@ -765,13 +781,7 @@ function renderAll() {
       infoBlock.className = 'slot-info';
       const hint = s.time + ' ' + s.ampm + ' · ' + s.dur + (s.label ? ' · ' + s.label : '');
       if (entry) {
-        const pillSource = entry.cardPills || entry.genre || '';
-        const genreParts = pillSource.split(' · ').map(p => p.trim()).filter(Boolean).slice(0, 5);
-        const pillsHtml = genreParts.length
-        ? `<div class="dj-pills" style="margin-top:4px;">${genreParts.map(p => `<span class="dj-pill">${p}</span>`).join('')}</div>`
-        : '';
-        const soundHtml = entry.sound ? `<div style="font-size:12px;color:var(--gold);font-style:italic;margin-top:2px;opacity:.9;">${entry.sound}</div>` : '';
-        infoBlock.innerHTML = `<div class="dj-name-row"><span class="dj-name">🎧 ${entry.name}</span></div>${soundHtml}${pillsHtml}`;
+        infoBlock.innerHTML = buildSlotInfoHtml(entry, s, isLounge);
         if (entry.notes && (isHost || (currentUser && currentUser.id === entry.user_id))) infoBlock.innerHTML += `<div class="dj-note">📝 ${entry.notes}</div>`;
         if (entry.backups?.length) infoBlock.innerHTML += `<div class="rank-badge">+${entry.backups.length} backup${entry.backups.length>1?'s':''}</div>`;
         if (s.label) infoBlock.innerHTML += `<div class="slot-badge ${isLounge?'cyan':''}">${s.label}</div>`;
@@ -1308,17 +1318,7 @@ function renderManage() {
       assignBtn.onclick = e => { e.stopPropagation(); const hint = s.time+' '+s.ampm+' · '+s.dur+(s.label?' · '+s.label:''); openModal(s.id, hint, 1); };
       actCol.appendChild(assignBtn);
     } else {
-      const mgGenreStr = claim.genre || '';
-      const mgPillSource = claim.cardPills || mgGenreStr;
-      const mgHasPills = mgPillSource.length > 0;
-      const mgPillsHtml = mgHasPills
-      ? `<div class="dj-pills" style="margin-top:4px;">${mgPillSource.split(' · ').map(p => p.trim()).filter(Boolean).slice(0, 5).map(p => `<span class="dj-pill">${p}</span>`).join('')}</div>`
-      : '';
-      const mgDescHtml = !mgHasPills && mgGenreStr
-      ? '<div class="dj-genre">'+mgGenreStr+'</div>'
-      : '';
-      const mgSoundHtml = claim.sound ? `<div style="font-size:12px;color:var(--gold);font-style:italic;margin-top:2px;opacity:.9;">${claim.sound}</div>` : '';
-      infoCol.innerHTML = `<div class="dj-name-row"><span class="dj-name">🎧 ${claim.name}</span></div>${mgSoundHtml}${mgPillsHtml}${mgDescHtml}`;
+      infoCol.innerHTML = buildSlotInfoHtml(claim, s, isLounge);
       if (claim.notes) infoCol.innerHTML += '<div class="dj-note">📝 '+claim.notes+'</div>';
       if (claim.backups?.length) infoCol.innerHTML += '<div class="rank-badge">+'+claim.backups.length+' backup'+(claim.backups.length>1?'s':'')+'</div>';
       if (s.label) infoCol.innerHTML += '<div class="slot-badge '+(isLounge?'cyan':'')+'">' +s.label+'</div>';
