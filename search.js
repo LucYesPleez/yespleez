@@ -93,6 +93,15 @@ async function openPublicEvent(ev) {
   const canApply = currentMode === 'artist' && currentUser?.id && currentUser.id !== 'guest';
   const poster = cfg.poster || ev.poster || '';
 
+  // Populate header (matches manage screen style)
+  const totalSlots = (cfg.days || []).reduce((n,d) => n + (d.slots||[]).length, 0);
+  const titleEl = document.getElementById('publicEventTitle');
+  const subtitleEl = document.getElementById('publicEventSubtitle');
+  const tagEl = document.getElementById('publicEventTag');
+  if (titleEl) titleEl.textContent = ev.name || 'EVENT';
+  if (subtitleEl) subtitleEl.textContent = [venue, date].filter(Boolean).join(' · ') + (totalSlots ? ` · ${totalSlots} slots` : '');
+  if (tagEl) tagEl.textContent = isOpen ? 'LIVE EVENT' : 'UPCOMING EVENT';
+
   // Show screen immediately with loading state
   document.getElementById('publicEventContent').innerHTML = `
     <div style="text-align:center;padding:60px 20px;color:var(--muted);font-size:13px;">Loading lineup…</div>
@@ -113,9 +122,10 @@ async function openPublicEvent(ev) {
   const slotRowsHtml = (cfg.days || []).map(day => {
     const slots = day.slots || [];
     if (!slots.length) return '';
+    const dayDivider = (day.name || day.label) ? `<div class="day-divider"><div class="day-divider-name">${day.name||day.label}</div><div class="day-divider-line"></div></div>` : '';
     return `
-      <div style="margin-bottom:20px;">
-        ${day.label || day.name ? `<div style="font-family:'Bebas Neue',sans-serif;font-size:12px;letter-spacing:3px;color:var(--neon);margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--border);">${day.label || day.name}</div>` : ''}
+      <div style="margin-bottom:8px;">
+        ${dayDivider}
         ${slots.map(slot => {
           const claim = claimsMap[slot.id] || null;
           const isLounge  = slot.label?.toLowerCase().includes('lounge');
@@ -145,23 +155,16 @@ async function openPublicEvent(ev) {
   }).join('');
 
   const eventHtml = `
-    ${poster ? `<div style="width:100%;aspect-ratio:1;background:url(${poster}) center/cover no-repeat;border-radius:12px;margin-bottom:16px;"></div>` : ''}
-    <div style="margin-bottom:16px;">
-      <div style="font-family:'Bebas Neue',sans-serif;font-size:36px;letter-spacing:2px;line-height:1;margin-bottom:8px;">${ev.name}</div>
-      ${venue ? `<div style="font-size:13px;color:var(--muted);margin-bottom:3px;">📍 ${venue}</div>` : ''}
-      ${date ? `<div style="font-size:13px;color:var(--muted);margin-bottom:3px;">📅 ${date}</div>` : ''}
-      ${genres ? `<div style="font-size:12px;color:var(--neon2);margin-top:6px;">${genres}</div>` : ''}
-      <div style="display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap;">
-        <span style="background:rgba(255,184,48,.12);border:1px solid var(--gold);color:var(--gold);border-radius:20px;font-size:10px;padding:3px 12px;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;">${isOpen ? 'LIVE' : 'UPCOMING'}</span>
-      </div>
-    </div>
+    ${poster ? `<div style="width:100%;aspect-ratio:16/9;background:url(${poster}) center/cover no-repeat;border-radius:12px;margin-bottom:16px;"></div>` : ''}
+    ${genres ? `<div style="font-size:12px;color:var(--neon2);margin-bottom:12px;">${genres}</div>` : ''}
     ${isOpen && canApply ? `
     <button onclick="openApplyModalForEvent('${ev.id}','${ev.name.replace(/'/g,"\\'")}',this)"
       style="background:var(--neon2);color:#0a0a0f;font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:2px;padding:14px;border:none;border-radius:12px;cursor:pointer;width:100%;margin-bottom:20px;font-weight:700;">
       APPLY FOR THIS EVENT →
     </button>` : ''}
-    <div style="font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:2px;color:var(--muted);margin-bottom:12px;">LINEUP</div>
-    ${slotRowsHtml || '<div style="text-align:center;padding:20px;color:var(--muted);font-size:13px;">No set times published yet</div>'}
+    <div id="publicManageList">
+      ${slotRowsHtml || '<div style="text-align:center;padding:20px;color:var(--muted);font-size:13px;">No set times published yet</div>'}
+    </div>
   `;
   document.getElementById('publicEventContent').innerHTML = eventHtml;
 }
