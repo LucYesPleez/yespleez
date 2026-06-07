@@ -2432,18 +2432,22 @@ body.player-open .screen.active { padding-bottom: 80px; }
           <label>FEE (AUD)</label>
           <input type="number" id="profileFee" placeholder="e.g. 300" min="0" autocomplete="off">
         </div>
-        <div style="display:flex;flex-direction:column;gap:8px;margin-top:4px;">
-          <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:13px;color:var(--muted);user-select:none;">
-            <input type="checkbox" id="profileFeePlusTravelLocal" style="accent-color:var(--neon2);width:16px;height:16px;cursor:pointer;">
-            Fee + travel (unless local)
-          </label>
-          <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:13px;color:var(--muted);user-select:none;">
-            <input type="checkbox" id="profileFeeNegotiable" style="accent-color:var(--neon2);width:16px;height:16px;cursor:pointer;">
-            Fee negotiable
-          </label>
-        </div>
-        <div style="font-size:11px;color:var(--muted);margin-top:8px;line-height:1.5;">This helps promoters budget their lineups.</div>
       </div>
+      <div style="display:flex;flex-direction:column;gap:10px;margin-top:10px;">
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:13px;color:var(--muted);user-select:none;">
+          <input type="checkbox" id="profileFeeLocal" style="accent-color:var(--neon2);width:16px;height:16px;cursor:pointer;">
+          I'm local to the event
+        </label>
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:13px;color:var(--muted);user-select:none;">
+          <input type="checkbox" id="profileFeePlusTravelLocal" style="accent-color:var(--neon2);width:16px;height:16px;cursor:pointer;">
+          Fee + travel
+        </label>
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:13px;color:var(--muted);user-select:none;">
+          <input type="checkbox" id="profileFeeNegotiable" style="accent-color:var(--neon2);width:16px;height:16px;cursor:pointer;">
+          Negotiable
+        </label>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-top:8px;line-height:1.5;">This helps promoters budget their lineups.</div>
     </div>
 
     <!-- Emergency contact -->
