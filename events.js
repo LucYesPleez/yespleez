@@ -880,7 +880,9 @@ async function confirmClaim() {
   const backups = getBackupSelections();
   document.getElementById('confirmBtn').disabled = true;
   document.getElementById('confirmBtn').textContent = 'SAVING...';
-  const ok = await upsertClaim(activeKey, name, genre, notes, backups);
+  const cardPills = isHost ? (claims[activeKey]?.cardPills || '') : (artistProfile?.cardPills || '');
+  const sound     = isHost ? (claims[activeKey]?.sound     || '') : (artistProfile?.sound     || '');
+  const ok = await upsertClaim(activeKey, name, genre, notes, backups, cardPills, sound);
   if (ok) {
     const codeInput = document.getElementById('inputApprovalCode');
     if (codeInput && approvalCodes[currentEventId]) {
@@ -891,8 +893,7 @@ async function confirmClaim() {
       }
     }
     const mixLink = isHost ? (claims[activeKey]?.mixLink || '') : (artistProfile?.mixLink || '');
-    const cardPills = isHost ? (claims[activeKey]?.cardPills || '') : (artistProfile?.cardPills || '');
-    claims[activeKey] = { name, genre, notes, backups, mixLink, cardPills, user_id: currentUser?.id || null };
+    claims[activeKey] = { name, genre, notes, backups, mixLink, cardPills, sound, user_id: currentUser?.id || null };
     const slotLabel = (() => { let l='slot'; (eventData?.days||[]).forEach(d=>d.slots.forEach(s=>{if(s.id===activeKey)l=s.time+' '+s.ampm;})); return l; })();
     pushNotif('🎧', `${name} claimed the ${slotLabel} slot`, 'host');
     closeModal();
@@ -936,15 +937,15 @@ async function loadClaims() {
     if (!res.ok) throw new Error();
     const rows = await res.json();
     claims = {};
-    rows.forEach(r => { claims[r.slot_id] = { name: r.name, genre: r.genre || '', notes: r.notes || '', backups: r.backups || [], cardPills: r.card_pills || '', user_id: r.user_id || null }; });
+    rows.forEach(r => { claims[r.slot_id] = { name: r.name, genre: r.genre || '', notes: r.notes || '', backups: r.backups || [], cardPills: r.card_pills || '', sound: r.sound || '', mixLink: r.mix_link || '', user_id: r.user_id || null }; });
     setSync(true); renderAll();
   } catch { setSync(false); }
 }
 
-async function upsertClaim(slotId, name, genre, notes, backups, cardPills = '') {
+async function upsertClaim(slotId, name, genre, notes, backups, cardPills = '', sound = '') {
   const res = await sbFetch('claims', {
     method: 'POST',
-    body: JSON.stringify({ event_id: currentEventId, slot_id: slotId, name, genre, notes, backups, card_pills: cardPills, updated_at: new Date().toISOString(), user_id: currentUser?.id || null })
+    body: JSON.stringify({ event_id: currentEventId, slot_id: slotId, name, genre, notes, backups, card_pills: cardPills, sound, updated_at: new Date().toISOString(), user_id: currentUser?.id || null })
   });
   return res.ok;
 }

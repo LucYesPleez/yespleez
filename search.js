@@ -123,12 +123,12 @@ async function openPublicEvent(ev) {
           const pills = claim?.card_pills ? claim.card_pills.split(' · ').filter(Boolean).slice(0,5) : [];
           const isLounge = slot.label?.toLowerCase().includes('lounge');
           const isSpecial = slot.label && !isLounge;
-          const slotClass = claimed ? (isLounge ? 'claimed lounge' : isSpecial ? 'claimed special' : 'claimed') : '';
+          const slotClass = (claimed ? ' taken' : '') + (isSpecial ? ' special' : '') + (isLounge ? ' lounge' : '');
           const soundHtml = sound ? `<span style="color:var(--neon2);font-size:12px;font-style:italic;margin-left:6px;opacity:.85;">• ${sound}</span>` : '';
           const pillsHtml = pills.length ? `<div class="dj-pills" style="margin-top:4px;">${pills.map(p => `<span class="dj-pill">${p}</span>`).join('')}</div>` : '';
           const badgeHtml = slot.label ? `<div class="slot-badge ${isLounge?'cyan':''}">${slot.label}</div>` : '';
           return `
-          <div class="slot ${slotClass}" style="margin-bottom:8px;">
+          <div class="slot${slotClass}" style="margin-bottom:8px;">
             <div class="time-block">
               <div class="time-num">${slot.time || '--'}</div>
               <div class="time-ampm">${slot.ampm || ''}</div>
