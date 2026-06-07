@@ -257,7 +257,8 @@ async function submitApplication() {
   if (!_applyEventId) return;
   const btn = document.getElementById('applySubmitBtn');
   btn.disabled = true; btn.textContent = 'SUBMITTING...';
-  const note = document.getElementById('applyNote').value.trim();
+  const noteEl = document.getElementById('applyNote');
+  const note = noteEl ? noteEl.value.trim() : '';
   try {
     const headers = {
       'apikey': SUPABASE_KEY,
