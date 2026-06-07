@@ -827,6 +827,14 @@ function renderAll() {
           }
         }
       }
+      // Artist can leave their own slot even in read-only view
+      if (entry && !isHost && entry.user_id && entry.user_id === currentUser?.id) {
+        const leaveBtn = document.createElement('button');
+        leaveBtn.style.cssText = 'padding:5px 12px;background:transparent;border:1px solid var(--neon);border-radius:6px;color:var(--neon);font-family:\'Bebas Neue\',sans-serif;font-size:12px;letter-spacing:1px;cursor:pointer;white-space:nowrap;';
+        leaveBtn.textContent = 'LEAVE';
+        leaveBtn.onclick = () => openLeaveSlotConfirm(s.id);
+        actionBlock.appendChild(leaveBtn);
+      }
       // Apply button shows for non-hosts with no code when apps are open — outside isReadOnly gate
       if (!entry && !isHost && !_eventCode && hostControls.applicationsOpen && currentUser?.id && currentUser.id !== 'guest') {
         const applyBtn = document.createElement('button');
@@ -1076,7 +1084,10 @@ async function upsertClaim(slotId, name, genre, notes, backups, cardPills = '', 
 }
 
 async function deleteClaim(slotId) {
-  return (await sbFetch(`claims?event_id=eq.${currentEventId}&slot_id=eq.${encodeURIComponent(slotId)}`, { method: 'DELETE' })).ok;
+  try {
+    await sbRest(`claims?event_id=eq.${currentEventId}&slot_id=eq.${encodeURIComponent(slotId)}`, { method: 'DELETE' }, currentSession?.access_token || null);
+    return true;
+  } catch { return false; }
 }
 
 function setSync(live) {
@@ -2775,7 +2786,7 @@ function buildGigCard(data, type, onDelete) {
       <div class="gig-event-name">${name}</div>
       <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;margin-left:8px;">
         <span style="font-family:'Bebas Neue',sans-serif;font-size:9px;letter-spacing:1.5px;color:${badgeColor};background:${badgeBg};border:1px solid ${badgeBorder};border-radius:10px;padding:2px 8px;white-space:nowrap;">${badgeText}</span>
-        <button class="gig-remove-btn" style="background:none;border:none;color:var(--muted);font-size:14px;cursor:pointer;padding:0 4px;line-height:1;opacity:0.6;">✕</button>
+        <button class="gig-remove-btn" style="background:rgba(255,45,120,.12);border:1px solid rgba(255,45,120,.4);border-radius:6px;color:var(--neon);font-size:12px;cursor:pointer;padding:3px 8px;line-height:1;">✕ LEAVE</button>
       </div>
     </div>
     <div class="gig-meta">${venue}${venue && date ? ' · ' : ''}${date}</div>
@@ -2796,6 +2807,37 @@ function buildGigCard(data, type, onDelete) {
 }
 
 let _removeGigEventId = null;
+
+// ── Leave slot confirm (from event view) ────────────
+
+let _leaveSlotId = null;
+
+function openLeaveSlotConfirm(slotId) {
+  _leaveSlotId = slotId;
+  const overlay = document.getElementById('leaveSlotConfirmOverlay');
+  if (overlay) overlay.classList.add('open');
+}
+
+function closeLeaveSlotConfirm() {
+  _leaveSlotId = null;
+  const overlay = document.getElementById('leaveSlotConfirmOverlay');
+  if (overlay) overlay.classList.remove('open');
+}
+
+async function confirmLeaveSlot() {
+  if (!_leaveSlotId) return;
+  const btn = document.getElementById('leaveSlotConfirmBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'LEAVING...'; }
+  const ok = await deleteClaim(_leaveSlotId);
+  if (ok) {
+    closeLeaveSlotConfirm();
+    showToast('Removed from slot ✓', 'success');
+    loadClaims();
+  } else {
+    showToast('Could not remove — try again.', 'error');
+  }
+  if (btn) { btn.disabled = false; btn.textContent = 'YES, LEAVE SLOT'; }
+}
 
 function openRemoveGigConfirm(eventId, eventName) {
   _removeGigEventId = eventId;
