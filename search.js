@@ -217,15 +217,34 @@ async function runSearch() {
 let _applyEventId   = null;
 let _applyEventName = '';
 
-function openApplyModalForEvent(eventId, eventName, btn) {
+function openApplyModalForEvent(eventId, eventName) {
   if (!currentUser?.id || currentUser.id === 'guest') {
     showToast('Sign in to apply for events', 'error'); return;
   }
   _applyEventId = eventId;
   _applyEventName = eventName;
   document.getElementById('applyEventName').textContent = eventName;
-  document.getElementById('applyNote').value = '';
-  document.getElementById('applyNoteCount').textContent = '0 / 250';
+
+  // Build profile preview
+  const p = artistProfile || {};
+  const name     = p.djName || p.name || 'Your DJ name';
+  const genres   = (p.genreString || '').split(' · ').filter(Boolean).slice(0, 5);
+  const pillsHtml = genres.map(g => `<span class="dj-pill">${g}</span>`).join('');
+  const avatarHtml = p.avatar
+    ? `<img src="${p.avatar}" style="width:52px;height:52px;border-radius:6px;object-fit:cover;border:2px solid var(--neon2);flex-shrink:0;">`
+    : `<div style="width:52px;height:52px;border-radius:6px;background:var(--card);border:2px solid var(--neon2);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;">🎧</div>`;
+  document.getElementById('applyProfilePreview').innerHTML = `
+    <div style="display:flex;gap:12px;align-items:flex-start;">
+      ${avatarHtml}
+      <div style="flex:1;min-width:0;">
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:1px;">${name}</div>
+        ${p.location ? `<div style="font-size:11px;color:var(--muted);margin-bottom:4px;">📍 ${p.location}</div>` : ''}
+        ${pillsHtml ? `<div class="dj-pills" style="margin-top:4px;">${pillsHtml}</div>` : ''}
+        ${p.sound ? `<div style="font-size:12px;color:var(--neon2);font-style:italic;margin-top:6px;">${p.sound}</div>` : ''}
+        ${p.mixLink ? `<div style="font-size:11px;color:var(--muted);margin-top:4px;">▶ Mix link included</div>` : ''}
+      </div>
+    </div>`;
+
   document.getElementById('applyOverlay').classList.add('open');
 }
 
@@ -258,14 +277,10 @@ async function submitApplication() {
     });
     if (res.ok || res.status === 201) {
       closeApplyModal();
-      showToast('Application submitted! ✓', 'success');
-      const applyBtn = document.querySelector('#publicEventContent button');
-      if (applyBtn) {
-        applyBtn.textContent = 'APPLICATION SENT ✓';
-        applyBtn.style.background = 'var(--card2)';
-        applyBtn.style.color = 'var(--neon2)';
-        applyBtn.disabled = true;
-      }
+      showToast('Application sent! The promoter will be in touch ✓', 'success');
+      _hasApplied = true;
+      if (typeof updateApplyBarState === 'function') updateApplyBarState();
+      if (typeof renderAll === 'function') renderAll();
     } else {
       const err = await res.json().catch(() => ({}));
       if (err.code === '23505') {
@@ -277,5 +292,5 @@ async function submitApplication() {
   } catch(e) {
     showToast(`Failed: ${e.message}`, 'error');
   }
-  btn.disabled = false; btn.textContent = 'SUBMIT APPLICATION →';
+  btn.disabled = false; btn.textContent = 'SEND APPLICATION →';
 }

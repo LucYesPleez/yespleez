@@ -29,6 +29,8 @@ let activeKey      = null;   // slot key being claimed
 let isHost            = false;  // is current viewer the host of current event?
 let isReadOnly        = false;  // true when viewing an event from Discover (no edits allowed)
 let currentEventHostId = null;  // host_id of the currently loaded event
+let _eventCode        = null;   // { code, slotIds: null|string[] } validated code for current event
+let _hasApplied       = false;  // whether current user has already applied to current event
 let pollTimer      = null;
 let currentMode    = null;   // 'host' or 'artist'
 

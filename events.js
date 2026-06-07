@@ -594,11 +594,95 @@ function showSignup() {
     if (posterSrc) { posterImg.src = posterSrc; posterWrap.style.display = ''; }
     else { posterWrap.style.display = 'none'; }
   }
-  document.getElementById('hostLoginBtn').style.display = isHost ? 'none' : 'inline-block';
   document.getElementById('hostPanel').style.display    = isHost ? '' : 'none';
+
+  // Apply bar — shown for non-hosts on non-read-only events
+  const applyBar = document.getElementById('applyBar');
+  if (applyBar) {
+    const showApplyBar = !isHost && !isReadOnly && currentUser?.id && currentUser.id !== 'guest';
+    applyBar.style.display = showApplyBar ? '' : 'none';
+    if (showApplyBar) {
+      // Restore saved code from localStorage
+      _eventCode = null;
+      _hasApplied = false;
+      try {
+        const saved = localStorage.getItem(`yp_code_${currentEventId}`);
+        if (saved) _eventCode = JSON.parse(saved);
+      } catch(e) {}
+      updateApplyBarState();
+      // Check if already applied
+      checkAlreadyApplied();
+    }
+  }
+
   if (pollTimer) clearInterval(pollTimer);
   loadClaims();
   pollTimer = setInterval(loadClaims, 5000);
+}
+
+function updateApplyBarState() {
+  const btn = document.getElementById('applyTopBtn');
+  if (!btn) return;
+  if (_eventCode) {
+    btn.textContent = 'CODE ACCEPTED ✓';
+    btn.style.background = 'rgba(0,229,255,.15)';
+    btn.style.color = 'var(--neon2)';
+    btn.style.border = '1px solid var(--neon2)';
+    btn.onclick = null;
+    btn.style.cursor = 'default';
+    document.getElementById('codeEntryWrap').style.display = 'none';
+    document.querySelector('#applyBar button[onclick*="codeEntryWrap"]').style.display = 'none';
+  } else if (_hasApplied) {
+    btn.textContent = 'APPLICATION SENT ✓';
+    btn.style.background = 'rgba(0,229,255,.1)';
+    btn.style.color = 'var(--neon2)';
+    btn.style.border = '1px solid var(--neon2)';
+    btn.onclick = null;
+    btn.style.cursor = 'default';
+  } else {
+    btn.textContent = 'APPLY TO PLAY';
+    btn.style.background = 'linear-gradient(135deg,var(--neon2),#00a8ff)';
+    btn.style.color = '#0a0a0f';
+    btn.style.border = 'none';
+    btn.style.cursor = 'pointer';
+    btn.onclick = () => openApplyModalForEvent(currentEventId, eventData.name || '');
+  }
+}
+
+async function checkAlreadyApplied() {
+  if (!currentUser?.id || currentUser.id === 'guest' || !currentEventId) return;
+  try {
+    const rows = await sbRest(
+      `applications?event_id=eq.${currentEventId}&artist_id=eq.${currentUser.id}&select=id`,
+      { method: 'GET' },
+      currentSession?.access_token || null
+    );
+    if (rows && rows.length) {
+      _hasApplied = true;
+      updateApplyBarState();
+      renderAll();
+    }
+  } catch(e) {}
+}
+
+async function validateEventCode(code) {
+  if (!code || !code.trim()) { showToast('Enter a code first', 'error'); return; }
+  const clean = code.trim().toUpperCase();
+  try {
+    const rows = await sbRest(
+      `approval_codes?event_id=eq.${currentEventId}&code=eq.${encodeURIComponent(clean)}&select=*`,
+      { method: 'GET' },
+      currentSession?.access_token || null
+    );
+    if (!rows || !rows.length) { showToast('Code not recognised', 'error'); return; }
+    _eventCode = { code: clean, slotIds: rows[0].slot_ids || null };
+    localStorage.setItem(`yp_code_${currentEventId}`, JSON.stringify(_eventCode));
+    showToast('Code accepted — slots unlocked ✓', 'success');
+    updateApplyBarState();
+    renderAll();
+  } catch(e) {
+    showToast('Could not validate code', 'error');
+  }
 }
 
 function renderHostSummary() {
@@ -719,16 +803,35 @@ function renderAll() {
             actionBlock.appendChild(want2); actionBlock.appendChild(want3);
           }
         } else {
-          if (!setTimesLocked || isHost) {
-            const claimBtn = document.createElement('button');
-            claimBtn.className = 'btn-claim'; claimBtn.textContent = 'CLAIM';
-            claimBtn.onclick = () => autoClaimSlot(s.id);
-            actionBlock.appendChild(claimBtn);
+          if (isHost) {
+            if (!setTimesLocked) {
+              const claimBtn = document.createElement('button');
+              claimBtn.className = 'btn-claim'; claimBtn.textContent = 'CLAIM';
+              claimBtn.onclick = () => autoClaimSlot(s.id);
+              actionBlock.appendChild(claimBtn);
+            }
+          } else if (_eventCode) {
+            // Artist has a valid code — check slot permissions
+            const permitted = !_eventCode.slotIds || _eventCode.slotIds.includes(s.id);
+            if (permitted && !setTimesLocked) {
+              const claimBtn = document.createElement('button');
+              claimBtn.className = 'btn-claim'; claimBtn.textContent = 'CLAIM';
+              claimBtn.onclick = () => autoClaimSlot(s.id);
+              actionBlock.appendChild(claimBtn);
+            } else if (!permitted) {
+              const noEl = document.createElement('div');
+              noEl.style.cssText = 'font-size:10px;color:var(--muted);font-style:italic;text-align:right;';
+              noEl.textContent = 'Not in your code';
+              actionBlock.appendChild(noEl);
+            }
           } else {
-            const lockedLabel = document.createElement('div');
-            lockedLabel.style.cssText = 'font-size:11px;color:var(--muted);font-style:italic;';
-            lockedLabel.textContent = 'Slot locked';
-            actionBlock.appendChild(lockedLabel);
+            // No code — show APPLY button
+            const applyBtn = document.createElement('button');
+            applyBtn.style.cssText = 'padding:6px 14px;background:transparent;border:1px solid var(--neon2);border-radius:6px;color:var(--neon2);font-family:\'Bebas Neue\',sans-serif;font-size:13px;letter-spacing:1px;cursor:pointer;white-space:nowrap;';
+            applyBtn.textContent = _hasApplied ? 'APPLIED ✓' : 'APPLY';
+            applyBtn.disabled = _hasApplied;
+            if (!_hasApplied) applyBtn.onclick = () => openApplyModalForEvent(currentEventId, eventData.name || '');
+            actionBlock.appendChild(applyBtn);
           }
         }
       }

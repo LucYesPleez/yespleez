@@ -1696,18 +1696,13 @@ body.player-open .screen.active { padding-bottom: 80px; }
 <!-- APPLY MODAL -->
 <div class="overlay" id="applyOverlay">
   <div class="edit-event-modal">
-    <h2 style="color:var(--neon2);margin-bottom:4px;">APPLY</h2>
+    <h2 style="color:var(--neon2);margin-bottom:2px;">APPLY TO PLAY</h2>
     <div id="applyEventName" style="font-size:13px;color:var(--muted);margin-bottom:16px;"></div>
-    <div class="field">
-      <label>NOTE TO PROMOTER <span style="color:var(--muted);font-size:11px;">OPTIONAL</span></label>
-      <textarea id="applyNote" maxlength="250" placeholder="Anything you want the promoter to know about your set, availability, or why you'd be a great fit…"
-        style="background:var(--card2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;padding:12px;width:100%;box-sizing:border-box;min-height:90px;resize:none;outline:none;"
-        oninput="document.getElementById('applyNoteCount').textContent=this.value.length+' / 250'"></textarea>
-      <div id="applyNoteCount" style="text-align:right;font-size:11px;color:var(--muted);margin-top:4px;">0 / 250</div>
-    </div>
-    <div style="font-size:12px;color:var(--muted);margin-bottom:16px;line-height:1.6;">Your profile will be sent to the promoter automatically.</div>
+    <div style="font-size:10px;letter-spacing:2px;color:var(--muted);margin-bottom:8px;">YOUR APPLICATION</div>
+    <div id="applyProfilePreview" style="background:var(--card2);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:16px;"></div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:16px;line-height:1.6;text-align:center;">The promoter will receive your full profile. They'll send you a code if you're accepted.</div>
     <div class="edit-modal-btns">
-      <button class="btn-primary" id="applySubmitBtn" onclick="submitApplication()" style="background:var(--neon2);color:#0a0a0f;font-weight:700;">SUBMIT APPLICATION →</button>
+      <button class="btn-primary" id="applySubmitBtn" onclick="submitApplication()" style="background:var(--neon2);color:#0a0a0f;font-weight:700;font-size:16px;padding:14px 20px;">SEND APPLICATION →</button>
       <button class="btn-ghost" onclick="closeApplyModal()" style="margin-top:8px;">Cancel</button>
     </div>
   </div>
@@ -2087,6 +2082,29 @@ body.player-open .screen.active { padding-bottom: 80px; }
     <div class="sync-bar">
       <div class="sync-dot" id="syncDot"></div>
       <span id="syncLabel">Connecting...</span>
+    </div>
+
+    <!-- Artist apply / code bar (hidden for hosts) -->
+    <div id="applyBar" style="display:none;margin-bottom:16px;">
+      <button id="applyTopBtn" onclick="openApplyModalForEvent(currentEventId, eventData.name||'')"
+        style="width:100%;padding:13px;background:linear-gradient(135deg,var(--neon2),#00a8ff);border:none;border-radius:10px;color:#0a0a0f;font-family:'Bebas Neue',sans-serif;font-size:17px;letter-spacing:2px;cursor:pointer;">
+        APPLY TO PLAY
+      </button>
+      <div id="codeEntryWrap" style="margin-top:10px;display:none;">
+        <div style="display:flex;gap:8px;">
+          <input id="codeInput" type="text" placeholder="ENTER YOUR CODE" maxlength="20"
+            style="flex:1;background:var(--card2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:2px;padding:10px 14px;outline:none;text-transform:uppercase;"
+            onkeydown="if(event.key==='Enter')validateEventCode(this.value)">
+          <button onclick="validateEventCode(document.getElementById('codeInput').value)"
+            style="padding:10px 18px;background:var(--neon);border:none;border-radius:8px;color:#fff;font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:1px;cursor:pointer;">UNLOCK</button>
+        </div>
+      </div>
+      <div style="text-align:center;margin-top:8px;">
+        <button onclick="document.getElementById('codeEntryWrap').style.display=document.getElementById('codeEntryWrap').style.display==='none'?'':'none'"
+          style="background:none;border:none;color:var(--muted);font-size:12px;cursor:pointer;text-decoration:underline;">
+          Already have a code?
+        </button>
+      </div>
     </div>
 
     <div id="daysList"></div>
