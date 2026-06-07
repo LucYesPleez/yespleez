@@ -764,6 +764,32 @@ function openModal(key, hint, preferenceRank) {
   setTimeout(() => document.getElementById('inputName').focus(), 100);
 }
 
+async function autoClaimSlot(slotId) {
+  if (!currentUser || currentUser.id === 'guest') {
+    showToast('Create a profile to claim slots.', 'error');
+    setTimeout(() => show('authScreen'), 1200);
+    return;
+  }
+  const name = artistProfile?.djName;
+  const genre = artistProfile?.genreString;
+  if (!name || !genre) {
+    showToast('Complete your profile first — takes 2 mins!', 'error');
+    setTimeout(() => showProfile(), 1200);
+    return;
+  }
+  const ok = await upsertClaim(slotId, name, genre, '', []);
+  if (ok) {
+    claims[slotId] = { name, genre, notes: '', backups: [], mixLink: artistProfile?.mixLink || '', user_id: currentUser.id };
+    const slotLabel = (() => { let l='slot'; (eventData?.days||[]).forEach(d=>d.slots.forEach(s=>{if(s.id===slotId)l=s.time+' '+s.ampm;})); return l; })();
+    pushNotif('🎧', `${name} claimed the ${slotLabel} slot`, 'host');
+    renderAll();
+    setTimeout(loadClaims, 600);
+    showToast(`Slot claimed ✓`, 'success');
+  } else {
+    showToast('Something went wrong — try again.', 'error');
+  }
+}
+
 async function searchArtistsForAssign(query) {
   const resultsEl = document.getElementById('hostArtistResults');
   if (!query || query.length < 2) { resultsEl.style.display = 'none'; return; }
@@ -794,31 +820,6 @@ async function searchArtistsForAssign(query) {
           claims[activeKey] = { name: a.dj_name, genre: a.genre_string || '', notes: '', backups: [], mixLink: a.mix_link || '', user_id: a.user_id };
           const slotLabel = (() => { let l='slot'; (eventData?.days||[]).forEach(d=>d.slots.forEach(s=>{if(s.id===activeKey)l=s.time+' '+s.ampm;})); return l; })();
           pushNotif('🎧', `${a.dj_name} assigned to ${slotLabel}`, 'host');
-          async function autoClaimSlot(slotId) {
-  if (!currentUser || currentUser.id === 'guest') {
-    showToast('Create a profile to claim slots.', 'error');
-    setTimeout(() => show('authScreen'), 1200);
-    return;
-  }
-  const name = artistProfile?.djName;
-  const genre = artistProfile?.genreString;
-  if (!name || !genre) {
-    showToast('Complete your profile first — takes 2 mins!', 'error');
-    setTimeout(() => showProfile(), 1200);
-    return;
-  }
-  const ok = await upsertClaim(slotId, name, genre, '', []);
-  if (ok) {
-    claims[slotId] = { name, genre, notes: '', backups: [], mixLink: artistProfile?.mixLink || '', user_id: currentUser.id };
-    const slotLabel = (() => { let l='slot'; (eventData?.days||[]).forEach(d=>d.slots.forEach(s=>{if(s.id===slotId)l=s.time+' '+s.ampm;})); return l; })();
-    pushNotif('🎧', `${name} claimed the ${slotLabel} slot`, 'host');
-    renderAll();
-    setTimeout(loadClaims, 600);
-    showToast(`Slot claimed ✓`, 'success');
-  } else {
-    showToast('Something went wrong — try again.', 'error');
-  }
-}
           closeModal();
           renderManage();
           renderAll();
@@ -1278,18 +1279,97 @@ async function loadAllApplications() {
     );
     const apps = res.ok ? await res.json() : [];
     if (!apps.length) { listEl.innerHTML = '<div style="font-size:13px;color:var(--muted);padding:12px 0;">No applications yet.</div>'; return; }
+
+    // Fetch profiles for all unique artist_ids in one request
+    const artistIds = [...new Set(apps.map(a => a.artist_id).filter(Boolean))];
+    let profileMap = {};
+    if (artistIds.length) {
+      const profRes = await fetch(
+        `${SUPABASE_URL}/rest/v1/profiles?user_id=in.(${artistIds.join(',')})&type=eq.artist&select=*`,
+        { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${currentSession.access_token}` } }
+      );
+      const profiles = profRes.ok ? await profRes.json() : [];
+      profiles.forEach(p => { profileMap[p.user_id] = p; });
+    }
+
     const evMap = {};
     allEvents.forEach(e => evMap[e.id] = e);
-    listEl.innerHTML = '';
+
+    // Group by event
+    const byEvent = {};
     apps.forEach(app => {
-      const ev = evMap[app.event_id];
-      const evName = ev?.name || 'Unknown Event';
-      const statusColor = app.status === 'accepted' ? 'var(--neon2)' : app.status === 'declined' ? 'var(--neon)' : 'var(--gold)';
-      const statusLabel = app.status === 'accepted' ? '✓ ACCEPTED' : app.status === 'declined' ? '✕ DECLINED' : '⏳ PENDING';
-      const card = document.createElement('div');
-      card.style.cssText = `background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:flex-start;gap:8px;`;
-      card.innerHTML = `<div><div style="font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:1px;">${app.artist_name || 'Artist'}</div><div style="font-size:12px;color:var(--muted);">${evName}</div></div><span style="font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:1px;color:${statusColor};">${statusLabel}</span>`;
-      listEl.appendChild(card);
+      if (!byEvent[app.event_id]) byEvent[app.event_id] = [];
+      byEvent[app.event_id].push(app);
+    });
+
+    listEl.innerHTML = '';
+    Object.entries(byEvent).forEach(([eventId, eventApps]) => {
+      const ev = evMap[eventId];
+      const evName = ev ? ev.name : 'Unknown Event';
+      const section = document.createElement('div');
+      section.style.marginBottom = '24px';
+      section.innerHTML = `<div style="font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:2px;color:var(--neon);margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--border);">${evName} · ${eventApps.length} APPLICATION${eventApps.length !== 1 ? 'S' : ''}</div>`;
+
+      eventApps.forEach(app => {
+        const profile = profileMap[app.artist_id];
+        const name = profile ? (profile.dj_name || profile.name || app.artist_name || 'Unknown Artist') : (app.artist_name || 'Unknown Artist');
+        const location = profile ? [profile.location, profile.state].filter(Boolean).join(', ') : '';
+        const genres = profile?.genre_string ? profile.genre_string.split(' · ').slice(0, 3).join(' · ') : '';
+        const mixLink = profile?.mix_link || profile?.soundcloud || profile?.mixcloud || '';
+        const avatarHtml = profile?.avatar
+          ? `<img src="${profile.avatar}" style="width:44px;height:44px;border-radius:50%;object-fit:cover;border:2px solid var(--neon2);flex-shrink:0;" onerror="this.outerHTML='<div style=\\'width:44px;height:44px;border-radius:50%;background:var(--card2);border:2px solid var(--neon2);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;\\'>🎧</div>'">`
+          : `<div style="width:44px;height:44px;border-radius:50%;background:var(--card2);border:2px solid var(--neon2);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">🎧</div>`;
+        const statusColor = app.status === 'accepted' ? 'var(--neon2)' : app.status === 'declined' ? 'var(--neon)' : 'var(--gold)';
+
+        const card = document.createElement('div');
+        card.style.cssText = 'background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:10px;';
+        card.innerHTML = `
+          <div style="display:flex;gap:12px;align-items:flex-start;margin-bottom:${app.note ? '10px' : '0'};">
+            ${avatarHtml}
+            <div style="flex:1;min-width:0;">
+              <div style="font-family:'Bebas Neue',sans-serif;font-size:17px;letter-spacing:1px;">${name}</div>
+              ${location ? `<div style="font-size:12px;color:var(--muted);">📍 ${location}</div>` : ''}
+              ${genres ? `<div style="font-size:11px;color:var(--neon2);margin-top:2px;">${genres}</div>` : ''}
+            </div>
+            <span style="font-size:10px;color:${statusColor};font-family:'Bebas Neue',sans-serif;letter-spacing:1px;flex-shrink:0;">${app.status.toUpperCase()}</span>
+          </div>
+          ${app.note ? `<div style="font-size:13px;color:var(--muted);background:var(--card2);border-radius:8px;padding:10px;margin-bottom:10px;line-height:1.6;">"${app.note}"</div>` : ''}
+          <div class="_app-actions" style="display:flex;gap:8px;flex-wrap:wrap;"></div>`;
+
+        const actionsEl = card.querySelector('._app-actions');
+
+        if (mixLink) {
+          const playBtn = document.createElement('button');
+          playBtn.style.cssText = 'background:rgba(0,229,255,.1);border:1px solid var(--neon2);border-radius:20px;color:var(--neon2);font-size:12px;padding:6px 14px;cursor:pointer;';
+          playBtn.textContent = '▶ Play Mix';
+          playBtn.onclick = () => openMiniPlayer(name, mixLink, '🎧');
+          actionsEl.appendChild(playBtn);
+        }
+
+        if (profile) {
+          const viewBtn = document.createElement('button');
+          viewBtn.style.cssText = 'background:var(--card2);border:1px solid var(--border);border-radius:20px;color:var(--text);font-size:12px;padding:6px 14px;cursor:pointer;';
+          viewBtn.textContent = 'View Profile';
+          viewBtn.onclick = () => openPublicProfile(profile);
+          actionsEl.appendChild(viewBtn);
+        }
+
+        if (app.status === 'pending') {
+          const acceptBtn = document.createElement('button');
+          acceptBtn.style.cssText = 'background:rgba(0,229,255,.15);border:1px solid var(--neon2);border-radius:20px;color:var(--neon2);font-size:12px;padding:6px 14px;cursor:pointer;font-weight:600;';
+          acceptBtn.textContent = '✓ Accept';
+          acceptBtn.onclick = () => updateApplicationStatus(app.id, 'accepted', actionsEl);
+          const declineBtn = document.createElement('button');
+          declineBtn.style.cssText = 'background:rgba(255,45,120,.1);border:1px solid var(--neon);border-radius:20px;color:var(--neon);font-size:12px;padding:6px 14px;cursor:pointer;';
+          declineBtn.textContent = '✕ Decline';
+          declineBtn.onclick = () => updateApplicationStatus(app.id, 'declined', actionsEl);
+          actionsEl.appendChild(acceptBtn);
+          actionsEl.appendChild(declineBtn);
+        }
+
+        section.appendChild(card);
+      });
+      listEl.appendChild(section);
     });
   } catch(e) { console.warn('loadAllApplications error:', e); }
 }
