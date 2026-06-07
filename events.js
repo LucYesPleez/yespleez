@@ -578,7 +578,14 @@ function showSignup() {
   document.getElementById('eventMeta').textContent   = [eventData.date, eventData.venue].filter(Boolean).join(' · ');
   document.getElementById('eventGenres').textContent = eventData.genres || '';
   document.getElementById('manageBtn').style.display    = isHost ? 'inline-block' : 'none';
-  document.getElementById('editBtn').style.display      = isHost ? 'inline-block' : 'none';
+  document.getElementById('editBtn').style.display      = (isHost && !isReadOnly) ? 'inline-block' : 'none';
+  const posterSrc = eventData.poster || '';
+  const posterWrap = document.getElementById('signupPosterWrap');
+  const posterImg  = document.getElementById('signupPoster');
+  if (posterWrap && posterImg) {
+    if (posterSrc) { posterImg.src = posterSrc; posterWrap.style.display = ''; }
+    else { posterWrap.style.display = 'none'; }
+  }
   document.getElementById('hostLoginBtn').style.display = isHost ? 'none' : 'inline-block';
   document.getElementById('hostPanel').style.display    = isHost ? '' : 'none';
   if (pollTimer) clearInterval(pollTimer);
