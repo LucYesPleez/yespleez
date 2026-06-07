@@ -797,7 +797,7 @@ async function searchArtistsForAssign(query) {
   if (!query || query.length < 2) { resultsEl.style.display = 'none'; return; }
   try {
     const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/profiles?type=eq.artist&dj_name=ilike.*${encodeURIComponent(query)}*&select=user_id,dj_name,genre_string,card_pills,mix_link,soundcloud,instagram,avatar&limit=8`,
+      `${SUPABASE_URL}/rest/v1/profiles?type=eq.artist&dj_name=ilike.*${encodeURIComponent(query)}*&select=user_id,dj_name,genre_string,card_pills,mix_link,soundcloud,mixcloud,instagram,avatar&limit=8`,
       { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${currentSession?.access_token || SUPABASE_KEY}` } }
     );
     const artists = res.ok ? await res.json() : [];
@@ -809,8 +809,12 @@ async function searchArtistsForAssign(query) {
     }
     artists.forEach(a => {
       const item = document.createElement('div');
-      item.style.cssText = 'padding:10px 12px;cursor:pointer;border-bottom:1px solid var(--border);display:flex;flex-direction:column;gap:2px;';
-      item.innerHTML = `<div style="font-family:\'Bebas Neue\',sans-serif;font-size:16px;color:var(--text);">${esc(a.dj_name)}</div><div style="font-size:11px;color:var(--muted);">${esc(a.genre_string || '')}</div>`;
+      item.style.cssText = 'padding:10px 12px;cursor:pointer;border-bottom:1px solid var(--border);display:flex;gap:10px;align-items:center;';
+      const avatarHtml = a.avatar
+        ? `<img src="${a.avatar}" style="width:36px;height:36px;border-radius:50%;object-fit:cover;border:1.5px solid var(--neon2);flex-shrink:0;" onerror="this.style.display='none'">`
+        : `<div style="width:36px;height:36px;border-radius:50%;background:var(--card2);border:1.5px solid var(--neon2);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;">🎧</div>`;
+      const pillsDisplay = (a.card_pills || a.genre_string || '').split(' · ').filter(Boolean).slice(0, 5).join(' · ');
+      item.innerHTML = `${avatarHtml}<div style="min-width:0;"><div style="font-family:'Bebas Neue',sans-serif;font-size:16px;color:var(--text);">${esc(a.dj_name)}</div><div style="font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(pillsDisplay)}</div></div>`;
       item.onmousedown = async (e) => {
         e.preventDefault();
         resultsEl.style.display = 'none';
@@ -885,8 +889,9 @@ async function confirmClaim() {
         approvalCodes[currentEventId][code].slotId = activeKey;
       }
     }
-    const mixLink = artistProfile?.mixLink || '';
-    claims[activeKey] = { name, genre, notes, backups, mixLink, user_id: currentUser?.id || null };
+    const mixLink = isHost ? (claims[activeKey]?.mixLink || '') : (artistProfile?.mixLink || '');
+    const cardPills = isHost ? (claims[activeKey]?.cardPills || '') : (artistProfile?.cardPills || '');
+    claims[activeKey] = { name, genre, notes, backups, mixLink, cardPills, user_id: currentUser?.id || null };
     const slotLabel = (() => { let l='slot'; (eventData?.days||[]).forEach(d=>d.slots.forEach(s=>{if(s.id===activeKey)l=s.time+' '+s.ampm;})); return l; })();
     pushNotif('🎧', `${name} claimed the ${slotLabel} slot`, 'host');
     closeModal();
