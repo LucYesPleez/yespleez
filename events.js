@@ -1684,7 +1684,7 @@ async function nominatimSearch(inputEl, dropdownId, hiddenId) {
   }, 400);
 }
 
-// ── Approval codes ─────────────────────────────────
+// ── Approval codes & Applications ──────────────────
 
 function generateCodeStr() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -1692,36 +1692,230 @@ function generateCodeStr() {
 }
 
 function openApprovalCodes() {
-  if (!approvalCodes[currentEventId]) approvalCodes[currentEventId] = {};
-  renderCodeList();
   document.getElementById('approvalCodesOverlay').classList.add('open');
+  switchAppsTab('applications');
+  loadApplications();
 }
 
-function closeApprovalCodes() { document.getElementById('approvalCodesOverlay').classList.remove('open'); }
+function closeApprovalCodes() {
+  document.getElementById('approvalCodesOverlay').classList.remove('open');
+}
 
-function generateCodes() {
-  const count = parseInt(document.getElementById('codeGenCount').value) || 8;
-  if (!approvalCodes[currentEventId]) approvalCodes[currentEventId] = {};
-  for (let i = 0; i < count; i++) {
-    let code;
-    do { code = generateCodeStr(); } while (approvalCodes[currentEventId][code]);
-    approvalCodes[currentEventId][code] = { used: false, slotId: null };
+function switchAppsTab(tab) {
+  const isApps = tab === 'applications';
+  document.getElementById('appsTabContent').style.display  = isApps ? '' : 'none';
+  document.getElementById('codesTabContent').style.display = isApps ? 'none' : '';
+  document.getElementById('tabAppsBtn').style.borderBottomColor = isApps ? 'var(--neon2)' : 'transparent';
+  document.getElementById('tabAppsBtn').style.color = isApps ? 'var(--neon2)' : 'var(--muted)';
+  document.getElementById('tabCodesBtn').style.borderBottomColor = isApps ? 'transparent' : 'var(--neon2)';
+  document.getElementById('tabCodesBtn').style.color = isApps ? 'var(--muted)' : 'var(--neon2)';
+  if (!isApps) loadCodesTab();
+}
+
+async function loadApplications() {
+  const listEl = document.getElementById('applicationsList');
+  listEl.innerHTML = '<div style="text-align:center;color:var(--muted);font-size:13px;padding:20px;">Loading…</div>';
+  try {
+    const rows = await sbRest(
+      `applications?event_id=eq.${currentEventId}&status=eq.pending&select=*&order=created_at.asc`,
+      { method: 'GET' },
+      currentSession?.access_token
+    );
+    if (!rows || !rows.length) {
+      listEl.innerHTML = '<div style="text-align:center;color:var(--muted);font-size:13px;padding:24px;">No pending applications.</div>';
+      document.getElementById('appsBadge').style.display = 'none';
+      return;
+    }
+    document.getElementById('appsBadge').textContent = rows.length;
+    document.getElementById('appsBadge').style.display = '';
+    // Load artist profiles in parallel
+    const profileMap = {};
+    await Promise.all(rows.map(async r => {
+      try {
+        const p = await sbRest(`profiles?user_id=eq.${r.artist_id}&type=eq.artist&limit=1`, { method: 'GET' }, currentSession?.access_token);
+        if (p && p[0]) profileMap[r.artist_id] = p[0];
+      } catch(e) {}
+    }));
+    listEl.innerHTML = '';
+    rows.forEach(app => {
+      const p = profileMap[app.artist_id] || {};
+      const name = p.dj_name || p.name || 'Unknown Artist';
+      const genres = (p.genre_string || '').split(' · ').filter(Boolean).slice(0,4);
+      const pillsHtml = genres.map(g => `<span class="dj-pill">${g}</span>`).join('');
+      const avatarHtml = p.avatar
+        ? `<img src="${p.avatar}" style="width:46px;height:46px;border-radius:6px;object-fit:cover;border:2px solid var(--neon2);flex-shrink:0;">`
+        : `<div style="width:46px;height:46px;border-radius:6px;background:var(--card);border:2px solid var(--neon2);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">🎧</div>`;
+      const card = document.createElement('div');
+      card.style.cssText = 'background:var(--card2);border:1px solid var(--border);border-radius:10px;padding:12px;';
+      card.innerHTML = `
+        <div style="display:flex;gap:10px;align-items:flex-start;margin-bottom:10px;">
+          ${avatarHtml}
+          <div style="flex:1;min-width:0;">
+            <div style="font-family:'Bebas Neue',sans-serif;font-size:17px;letter-spacing:1px;">${name}</div>
+            ${p.location ? `<div style="font-size:11px;color:var(--muted);">📍 ${p.location}</div>` : ''}
+            ${pillsHtml ? `<div class="dj-pills" style="margin-top:4px;">${pillsHtml}</div>` : ''}
+            ${p.sound ? `<div style="font-size:11px;color:var(--neon2);font-style:italic;margin-top:4px;">${p.sound}</div>` : ''}
+            ${p.mix_link ? `<div style="font-size:11px;color:var(--muted);margin-top:2px;">▶ Mix link: <a href="${p.mix_link}" target="_blank" style="color:var(--neon2);">listen</a></div>` : ''}
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button onclick="openAcceptModal('${app.id}','${app.artist_id}',${JSON.stringify(name).replace(/'/g,"\\'")})"
+            style="flex:1;padding:9px;background:var(--neon2);border:none;border-radius:8px;color:#0a0a0f;font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:1px;cursor:pointer;">
+            ACCEPT ✓
+          </button>
+          <button onclick="rejectApplication('${app.id}',this)"
+            style="flex:1;padding:9px;background:transparent;border:1px solid var(--neon);border-radius:8px;color:var(--neon);font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:1px;cursor:pointer;">
+            DECLINE ✕
+          </button>
+        </div>`;
+      listEl.appendChild(card);
+    });
+  } catch(e) {
+    listEl.innerHTML = `<div style="text-align:center;color:var(--muted);font-size:13px;padding:20px;">Could not load applications.</div>`;
   }
-  renderCodeList();
 }
 
-function renderCodeList() {
+async function rejectApplication(appId, btn) {
+  btn.disabled = true; btn.textContent = 'DECLINING...';
+  try {
+    await sbRest(`applications?id=eq.${appId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status: 'rejected' })
+    }, currentSession?.access_token);
+    btn.closest('div[style*="border-radius:10px"]').style.opacity = '.4';
+    btn.textContent = 'DECLINED';
+    showToast('Application declined', 'success');
+    setTimeout(() => loadApplications(), 800);
+  } catch(e) {
+    btn.disabled = false; btn.textContent = 'DECLINE ✕';
+    showToast('Could not decline application', 'error');
+  }
+}
+
+// ── Accept artist modal ─────────────────────────────
+
+let _acceptAppId    = null;
+let _acceptArtistId = null;
+let _acceptArtistName = '';
+
+function openAcceptModal(appId, artistId, artistName) {
+  _acceptAppId    = appId;
+  _acceptArtistId = artistId;
+  _acceptArtistName = artistName;
+  document.getElementById('acceptArtistName').textContent = artistName;
+  document.getElementById('accessAll').checked = true;
+  document.getElementById('slotPickerWrap').style.display = 'none';
+  document.getElementById('generatedCodeWrap').style.display = 'none';
+  document.getElementById('acceptActionsWrap').style.display = '';
+  document.getElementById('acceptConfirmBtn').textContent = 'GENERATE CODE →';
+  document.getElementById('acceptConfirmBtn').disabled = false;
+  // Build slot picker
+  const list = document.getElementById('slotPickerList');
+  list.innerHTML = '';
+  (eventData.days || []).forEach(day => {
+    const dayLabel = document.createElement('div');
+    dayLabel.style.cssText = 'font-family:"Bebas Neue",sans-serif;font-size:12px;letter-spacing:1px;color:var(--muted);padding:4px 0;margin-top:4px;';
+    dayLabel.textContent = day.name || '';
+    list.appendChild(dayLabel);
+    (day.slots || []).forEach(s => {
+      if (claims[s.id]) return; // skip taken slots
+      const label = document.createElement('label');
+      label.style.cssText = 'display:flex;align-items:center;gap:8px;padding:6px 4px;cursor:pointer;font-size:13px;';
+      label.innerHTML = `<input type="checkbox" value="${s.id}" style="accent-color:var(--neon2);">
+        <span>${s.time} ${s.ampm} · ${s.dur}${s.label?' · '+s.label:''}</span>`;
+      list.appendChild(label);
+    });
+  });
+  document.getElementById('acceptArtistOverlay').classList.add('open');
+}
+
+function closeAcceptModal() {
+  document.getElementById('acceptArtistOverlay').classList.remove('open');
+  _acceptAppId = null;
+}
+
+function setSlotAccess(type) {
+  document.getElementById('slotPickerWrap').style.display = type === 'specific' ? '' : 'none';
+}
+
+async function confirmAcceptArtist() {
+  const btn = document.getElementById('acceptConfirmBtn');
+  btn.disabled = true; btn.textContent = 'GENERATING...';
+  const useSpecific = document.getElementById('accessSpecific').checked;
+  let slotIds = null;
+  if (useSpecific) {
+    slotIds = Array.from(document.querySelectorAll('#slotPickerList input[type=checkbox]:checked')).map(c => c.value);
+    if (!slotIds.length) { showToast('Select at least one slot', 'error'); btn.disabled = false; btn.textContent = 'GENERATE CODE →'; return; }
+  }
+  const code = generateCodeStr();
+  try {
+    await sbRest('approval_codes', {
+      method: 'POST',
+      prefer: 'return=minimal',
+      body: JSON.stringify({
+        event_id:       currentEventId,
+        code:           code,
+        slot_ids:       slotIds,
+        artist_id:      _acceptArtistId,
+        application_id: _acceptAppId
+      })
+    }, currentSession?.access_token);
+    await sbRest(`applications?id=eq.${_acceptAppId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status: 'accepted' })
+    }, currentSession?.access_token);
+    // Show the generated code
+    document.getElementById('generatedCodeText').textContent = code;
+    document.getElementById('generatedCodeWrap').style.display = '';
+    document.getElementById('acceptActionsWrap').style.display = 'none';
+    showToast('Artist accepted! Share the code with them.', 'success');
+    loadApplications();
+  } catch(e) {
+    showToast('Could not generate code: ' + e.message, 'error');
+    btn.disabled = false; btn.textContent = 'GENERATE CODE →';
+  }
+}
+
+function copyGeneratedCode() {
+  const code = document.getElementById('generatedCodeText').textContent;
+  navigator.clipboard.writeText(code).then(() => showToast('Code copied!', 'success'));
+}
+
+async function loadCodesTab() {
   const el = document.getElementById('codeList');
-  if (!el) return;
-  const codes = approvalCodes[currentEventId] || {};
-  const entries = Object.entries(codes);
-  if (!entries.length) { el.innerHTML = '<div style="font-size:13px;color:var(--muted);text-align:center;padding:12px 0;">No codes generated yet.</div>'; return; }
-  el.innerHTML = entries.map(([code, data]) => `<div class="code-item${data.used?' used':''}">${code}${data.used?' · USED':''}</div>`).join('');
+  el.innerHTML = '<div style="font-size:12px;color:var(--muted);text-align:center;padding:8px;">Loading…</div>';
+  try {
+    const rows = await sbRest(
+      `approval_codes?event_id=eq.${currentEventId}&select=*&order=created_at.desc`,
+      { method: 'GET' },
+      currentSession?.access_token
+    );
+    if (!rows || !rows.length) { el.innerHTML = '<div style="font-size:13px;color:var(--muted);text-align:center;padding:12px;">No codes yet.</div>'; return; }
+    el.innerHTML = rows.map(r => {
+      const slotLabel = r.slot_ids?.length ? `· ${r.slot_ids.length} slot${r.slot_ids.length>1?'s':''}` : '· All slots';
+      const used = !!r.used_at;
+      return `<div class="code-item${used?' used':''}" style="display:flex;justify-content:space-between;align-items:center;">
+        <span style="font-family:'Bebas Neue',sans-serif;letter-spacing:2px;">${r.code}</span>
+        <span style="font-size:11px;color:var(--muted);">${slotLabel}${used?' · USED':''}</span>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    el.innerHTML = '<div style="font-size:12px;color:var(--muted);padding:8px;">Could not load codes.</div>';
+  }
 }
 
-function copyAllCodes() {
-  const codes = Object.keys(approvalCodes[currentEventId] || {}).filter(c => !approvalCodes[currentEventId][c].used);
-  navigator.clipboard.writeText(codes.join('\n')).then(() => showToast('Codes copied!', 'success'));
+async function copyAllCodes() {
+  try {
+    const rows = await sbRest(
+      `approval_codes?event_id=eq.${currentEventId}&used_at=is.null&select=code`,
+      { method: 'GET' },
+      currentSession?.access_token
+    );
+    const codes = (rows || []).map(r => r.code).join('\n');
+    navigator.clipboard.writeText(codes).then(() => showToast('Codes copied!', 'success'));
+  } catch(e) {
+    showToast('Could not copy codes', 'error');
+  }
 }
 
 // ── Locked set times ───────────────────────────────
