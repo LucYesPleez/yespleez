@@ -1738,37 +1738,18 @@ async function loadApplications() {
       return;
     }
     ['manageAppsBadge','overlayAppsBadge'].forEach(id => { const el = document.getElementById(id); if (el) { el.textContent = rows.length; el.style.display = ''; } });
-    // Load artist profiles in parallel (with timeout per fetch)
-    console.error('[Apps] loading profiles for', rows.length, 'apps');
-    const profileMap = {};
-    const fetchWithTimeout = (promise, ms=5000) => Promise.race([promise, new Promise((_,r)=>setTimeout(()=>r(new Error('timeout')),ms))]);
-    await Promise.all(rows.map(async r => {
-      try {
-        const p = await fetchWithTimeout(sbRest(`profiles?user_id=eq.${r.artist_id}&type=eq.artist&limit=1`, { method: 'GET' }, currentSession?.access_token));
-        if (p && p[0]) profileMap[r.artist_id] = p[0];
-      } catch(e) { console.error('[Apps] profile fetch error:', e.message); }
-    }));
-    console.error('[Apps] profiles loaded, rendering cards');
+    // Render cards immediately with basic info, then enrich with profile data
     listEl.innerHTML = '';
     rows.forEach(app => {
-      const p = profileMap[app.artist_id] || {};
-      const name = p.dj_name || p.name || 'Unknown Artist';
-      const genres = (p.genre_string || '').split(' · ').filter(Boolean).slice(0,4);
-      const pillsHtml = genres.map(g => `<span class="dj-pill">${g}</span>`).join('');
-      const avatarHtml = p.avatar
-        ? `<img src="${p.avatar}" style="width:46px;height:46px;border-radius:6px;object-fit:cover;border:2px solid var(--neon2);flex-shrink:0;">`
-        : `<div style="width:46px;height:46px;border-radius:6px;background:var(--card);border:2px solid var(--neon2);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">🎧</div>`;
+      let name = 'Unknown Artist';
       const card = document.createElement('div');
       card.style.cssText = 'background:var(--card2);border:1px solid var(--border);border-radius:10px;padding:12px;';
       card.innerHTML = `
         <div style="display:flex;gap:10px;align-items:flex-start;margin-bottom:10px;">
-          ${avatarHtml}
+          <div data-avatar style="width:46px;height:46px;border-radius:6px;background:var(--card);border:2px solid var(--neon2);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">🎧</div>
           <div style="flex:1;min-width:0;">
-            <div style="font-family:'Bebas Neue',sans-serif;font-size:17px;letter-spacing:1px;">${name}</div>
-            ${p.location ? `<div style="font-size:11px;color:var(--muted);">📍 ${p.location}</div>` : ''}
-            ${pillsHtml ? `<div class="dj-pills" style="margin-top:4px;">${pillsHtml}</div>` : ''}
-            ${p.sound ? `<div style="font-size:11px;color:var(--neon2);font-style:italic;margin-top:4px;">${p.sound}</div>` : ''}
-            ${p.mix_link ? `<div style="font-size:11px;color:var(--muted);margin-top:2px;">▶ Mix link: <a href="${p.mix_link}" target="_blank" style="color:var(--neon2);">listen</a></div>` : ''}
+            <div data-name style="font-family:'Bebas Neue',sans-serif;font-size:17px;letter-spacing:1px;">Loading…</div>
+            <div data-detail></div>
           </div>
         </div>
         <div style="display:flex;gap:8px;">
@@ -1778,6 +1759,28 @@ async function loadApplications() {
       card.querySelector('.app-accept-btn').onclick  = () => openAcceptModal(app.id, app.artist_id, name);
       card.querySelector('.app-decline-btn').onclick = function() { rejectApplication(app.id, this); };
       listEl.appendChild(card);
+      // Enrich card with profile data asynchronously (use null/anon key so RLS doesn't block)
+      sbRest(`profiles?user_id=eq.${app.artist_id}&type=eq.artist&limit=1`, { method: 'GET' }, null)
+        .then(pr => {
+          if (!pr || !pr[0]) return;
+          const prof = pr[0];
+          const enrichedName = prof.dj_name || prof.name || 'Unknown Artist';
+          const nameEl = card.querySelector('[data-name]');
+          if (nameEl) nameEl.textContent = enrichedName;
+          card.querySelector('.app-accept-btn').onclick = () => openAcceptModal(app.id, app.artist_id, enrichedName);
+          const genres = (prof.genre_string || '').split(' · ').filter(Boolean).slice(0,4);
+          const detailEl = card.querySelector('[data-detail]');
+          if (detailEl) detailEl.innerHTML = [
+            prof.location ? `<div style="font-size:11px;color:var(--muted);">📍 ${prof.location}</div>` : '',
+            genres.length ? `<div class="dj-pills" style="margin-top:4px;">${genres.map(g=>`<span class="dj-pill">${g}</span>`).join('')}</div>` : '',
+            prof.sound ? `<div style="font-size:11px;color:var(--neon2);font-style:italic;margin-top:4px;">${prof.sound}</div>` : '',
+            prof.mix_link ? `<div style="font-size:11px;color:var(--muted);margin-top:2px;">▶ Mix link: <a href="${prof.mix_link}" target="_blank" style="color:var(--neon2);">listen</a></div>` : ''
+          ].join('');
+          if (prof.avatar) {
+            const avatarEl = card.querySelector('[data-avatar]');
+            if (avatarEl) avatarEl.innerHTML = `<img src="${prof.avatar}" style="width:46px;height:46px;border-radius:6px;object-fit:cover;border:2px solid var(--neon2);">`;
+          }
+        }).catch(() => {});
     });
   } catch(e) {
     console.error('loadApplications error:', e);
