@@ -1317,8 +1317,8 @@ function renderManage() {
       const mgDescHtml = !mgHasPills && mgGenreStr
       ? '<div class="dj-genre">'+mgGenreStr+'</div>'
       : '';
-      const mgSoundHtml = claim.sound ? `<span style="color:var(--neon2);font-size:12px;font-style:italic;margin-left:6px;opacity:.85;">• ${claim.sound}</span>` : '';
-      infoCol.innerHTML = `<div class="dj-name-row"><span class="dj-name">🎧 ${claim.name}</span>${mgSoundHtml}</div>${mgPillsHtml}${mgDescHtml}`;
+      const mgSoundHtml = claim.sound ? `<div style="font-size:12px;color:var(--gold);font-style:italic;margin-top:2px;opacity:.9;">${claim.sound}</div>` : '';
+      infoCol.innerHTML = `<div class="dj-name-row"><span class="dj-name">🎧 ${claim.name}</span></div>${mgSoundHtml}${mgPillsHtml}${mgDescHtml}`;
       if (claim.notes) infoCol.innerHTML += '<div class="dj-note">📝 '+claim.notes+'</div>';
       if (claim.backups?.length) infoCol.innerHTML += '<div class="rank-badge">+'+claim.backups.length+' backup'+(claim.backups.length>1?'s':'')+'</div>';
       if (s.label) infoCol.innerHTML += '<div class="slot-badge '+(isLounge?'cyan':'')+'">' +s.label+'</div>';
