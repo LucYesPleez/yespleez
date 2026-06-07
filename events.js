@@ -595,17 +595,11 @@ function showSignup() {
   const canEdit = isHost && !isReadOnly && currentUser?.id && currentUser.id === currentEventHostId;
   document.getElementById('editBtn').style.display      = canEdit ? 'inline-block' : 'none';
   const posterSrc = eventData.poster || '';
-  const heroEl  = document.getElementById('signupHero');
-  const posterImg = document.getElementById('signupPoster');
-  if (heroEl) {
-    if (posterSrc) {
-      heroEl.style.backgroundImage = `url(${posterSrc})`;
-      heroEl.style.display = '';
-      if (posterImg) posterImg.src = posterSrc;
-    } else {
-      heroEl.style.display = 'none';
-      heroEl.style.backgroundImage = '';
-    }
+  const posterWrap = document.getElementById('signupPosterWrap');
+  const posterImg  = document.getElementById('signupPoster');
+  if (posterWrap && posterImg) {
+    if (posterSrc) { posterImg.src = posterSrc; posterWrap.style.display = ''; }
+    else { posterWrap.style.display = 'none'; }
   }
   document.getElementById('hostPanel').style.display    = isHost ? '' : 'none';
 

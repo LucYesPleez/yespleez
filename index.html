@@ -2055,16 +2055,9 @@ body.player-open .screen.active { padding-bottom: 80px; }
 <!-- ══════════ SIGNUP SCREEN ══════════ -->
 <div id="signupScreen" class="screen">
 
-  <!-- Poster hero (full-width, behind header) -->
-  <div id="signupHero" style="display:none;position:relative;width:100%;height:260px;background:center/cover no-repeat;cursor:pointer;" onclick="openPosterLightbox(document.getElementById('signupPoster').src)">
-    <div style="position:absolute;inset:0;background:linear-gradient(to bottom, rgba(10,10,15,.15) 0%, rgba(10,10,15,.55) 60%, var(--bg,#0a0a0f) 100%);"></div>
-  </div>
-  <!-- Hidden img tag used to hold poster src for lightbox -->
-  <img id="signupPoster" src="" alt="" style="display:none;">
-
   <!-- ARTIST VIEW event header + slots first -->
-  <div style="max-width:680px;margin:0 auto;padding:16px 16px 0;">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin:0 0 12px 0;">
+  <div style="max-width:680px;margin:0 auto;padding:24px 16px 0;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin:0 0 16px 0;">
       <button class="btn-back" onclick="goToDash()" style="padding:6px 14px;font-size:13px;">← Back</button>
       <div style="display:flex;gap:8px;">
         <button class="btn-ghost" id="editBtn" style="display:none;font-size:12px;padding:5px 14px;" onclick="goToTemplate()">✎ Edit Event</button>
@@ -2072,7 +2065,6 @@ body.player-open .screen.active { padding-bottom: 80px; }
       </div>
     </div>
     <header>
-      <div id="signupPosterWrap" style="display:none;"></div><!-- kept for JS compat -->
       <div class="top-tag">YESPLEEZ</div>
       <div id="eventTitle"></div>
       <div id="eventMeta"></div>
@@ -2111,6 +2103,13 @@ body.player-open .screen.active { padding-bottom: 80px; }
 
     <div class="tally">
       <strong id="takenCount">0</strong> of <strong id="totalCount">0</strong> slots filled
+    </div>
+
+    <!-- Event poster — shown below set times, tap to expand -->
+    <div id="signupPosterWrap" style="display:none;margin-top:24px;margin-bottom:8px;">
+      <img id="signupPoster" src="" alt="Event poster"
+        style="width:100%;border-radius:12px;display:block;cursor:pointer;border:1px solid var(--border);"
+        onclick="openPosterLightbox(this.src)">
     </div>
 
   </div>
