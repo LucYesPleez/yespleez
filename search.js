@@ -85,102 +85,11 @@ function clearArtistSelection() {
 // ── Open public event view (from discover) ─────────
 
 async function openPublicEvent(ev) {
-  const cfg = ev.config || {};
-  const venue = cfg.venue || '';
-  const date = cfg.date || '';
-  const genres = cfg.genres || '';
-  const isOpen = ev.status === 'live';
-  const canApply = currentMode === 'artist' && currentUser?.id && currentUser.id !== 'guest';
-  const poster = cfg.poster || ev.poster || '';
-
-  // Show screen first so elements have dimensions
-  document.getElementById('publicEventContent').innerHTML = `
-    <div style="text-align:center;padding:60px 20px;color:var(--muted);font-size:13px;">Loading lineup…</div>
-  `;
-  show('publicEventScreen');
-  _currentPublicEvent = ev;
-
-  // Populate header after screen is visible
-  const totalSlots = (cfg.days || []).reduce((n,d) => n + (d.slots||[]).length, 0);
-  setTimeout(() => {
-    const titleEl = document.getElementById('publicEventTitle');
-    const subtitleEl = document.getElementById('publicEventSubtitle');
-    const tagEl = document.getElementById('publicEventTag');
-    const slotCountEl = document.getElementById('publicEventSlotCount');
-    if (titleEl) {
-      titleEl.textContent = ev.name || 'EVENT';
-      titleEl.style.background = 'linear-gradient(135deg, #ffffff 30%, #ffb830)';
-      titleEl.style.webkitBackgroundClip = 'text';
-      titleEl.style.backgroundClip = 'text';
-      titleEl.style.webkitTextFillColor = 'transparent';
-      titleEl.style.color = 'transparent';
-    }
-    if (subtitleEl) subtitleEl.textContent = [venue, date].filter(Boolean).join(' · ');
-    if (slotCountEl) slotCountEl.textContent = totalSlots ? totalSlots + ' slots' : '';
-    if (tagEl) tagEl.textContent = isOpen ? 'LIVE EVENT' : 'UPCOMING EVENT';
-  }, 50);
-
-  // Fetch claims for this event to get artist names
-  let claimsMap = {};
-  try {
-    const claimRows = await sbRest(
-      `claims?event_id=eq.${ev.id}&select=slot_id,name,genre,card_pills,sound`,
-      { method: 'GET' }, currentSession?.access_token || null
-    );
-    (claimRows || []).forEach(c => { claimsMap[c.slot_id] = c; });
-  } catch(e) { console.warn('Could not load claims for public event:', e.message); }
-
-  const slotRowsHtml = (cfg.days || []).map(day => {
-    const slots = day.slots || [];
-    if (!slots.length) return '';
-    const dayDivider = (day.name || day.label) ? `<div class="day-divider"><div class="day-divider-name">${day.name||day.label}</div><div class="day-divider-line"></div></div>` : '';
-    return `
-      <div style="margin-bottom:8px;">
-        ${dayDivider}
-        ${slots.map(slot => {
-          const claim = claimsMap[slot.id] || null;
-          const isLounge  = slot.label?.toLowerCase().includes('lounge');
-          const isSpecial = slot.label && !isLounge;
-          const slotClass = 'slot' + (claim?' taken':'') + (isSpecial?' special':'') + (isLounge?' lounge':'');
-          const mgPillSource = claim ? (claim.card_pills || claim.genre || '') : '';
-          const mgHasPills = mgPillSource.length > 0;
-          const pillsHtml = mgHasPills
-            ? `<div class="dj-pills" style="margin-top:4px;">${mgPillSource.split(' · ').map(p=>p.trim()).filter(Boolean).slice(0,5).map(p=>`<span class="dj-pill">${p}</span>`).join('')}</div>`
-            : '';
-          const soundHtml = claim?.sound ? `<span style="color:var(--neon2);font-size:12px;font-style:italic;margin-left:6px;opacity:.85;">• ${claim.sound}</span>` : '';
-          const badgeHtml = slot.label ? `<div class="slot-badge ${isLounge?'cyan':''}">${slot.label}</div>` : '';
-          const infoHtml = claim
-            ? `<div class="dj-name-row"><span class="dj-name">🎧 ${claim.name}</span>${soundHtml}</div>${pillsHtml}${badgeHtml}`
-            : `<div class="empty-tag">Open slot</div>${badgeHtml}`;
-          return `
-          <div class="${slotClass}" style="margin-bottom:8px;">
-            <div class="time-block">
-              <div class="time-num">${slot.time||'--'}</div>
-              <div class="time-ampm">${slot.ampm||''}</div>
-              <div class="time-dur">${slot.dur||slot.duration||''}</div>
-            </div>
-            <div class="slot-info">${infoHtml}</div>
-          </div>`;
-        }).join('')}
-      </div>`;
-  }).join('');
-
-  const eventHtml = `
-    ${poster ? `<div style="width:100%;aspect-ratio:16/9;background:url(${poster}) center/cover no-repeat;border-radius:12px;margin-bottom:16px;"></div>` : ''}
-    ${genres ? `<div style="font-size:12px;color:var(--neon2);margin-bottom:12px;">${genres}</div>` : ''}
-    ${isOpen && canApply ? `
-    <button onclick="openApplyModalForEvent('${ev.id}','${ev.name.replace(/'/g,"\\'")}',this)"
-      style="background:var(--neon2);color:#0a0a0f;font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:2px;padding:14px;border:none;border-radius:12px;cursor:pointer;width:100%;margin-bottom:20px;font-weight:700;">
-      APPLY FOR THIS EVENT →
-    </button>` : ''}
-    <div id="publicManageList">
-      ${slotRowsHtml || '<div style="text-align:center;padding:20px;color:var(--muted);font-size:13px;">No set times published yet</div>'}
-    </div>
-  `;
-  document.getElementById('publicEventContent').innerHTML = eventHtml;
+  const ok = await loadPublicEvent(ev.id);
+  if (!ok) return;
+  isHost = false;
+  showSignup();
 }
-
-let _currentPublicEvent = null;
 
 // ── Full unified search (events + profiles) ────────
 
