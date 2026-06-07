@@ -693,11 +693,13 @@ function renderAll() {
           clearBtn.onclick = () => clearSlot(s.id);
           actionBlock.appendChild(clearBtn);
         }
-        const want2 = document.createElement('button');
-        want2.className = 'btn-also-want'; want2.textContent = 'OPT 2'; want2.onclick = () => openModal(s.id, hint, 2);
-        const want3 = document.createElement('button');
-        want3.className = 'btn-also-want'; want3.textContent = 'OPT 3'; want3.onclick = () => openModal(s.id, hint, 3);
-        actionBlock.appendChild(want2); actionBlock.appendChild(want3);
+        if (isHost) {
+          const want2 = document.createElement('button');
+          want2.className = 'btn-also-want'; want2.textContent = 'OPT 2'; want2.onclick = () => openModal(s.id, hint, 2);
+          const want3 = document.createElement('button');
+          want3.className = 'btn-also-want'; want3.textContent = 'OPT 3'; want3.onclick = () => openModal(s.id, hint, 3);
+          actionBlock.appendChild(want2); actionBlock.appendChild(want3);
+        }
       } else {
         if (!setTimesLocked || isHost) {
           const claimBtn = document.createElement('button');
