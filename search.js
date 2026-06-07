@@ -93,23 +93,25 @@ async function openPublicEvent(ev) {
   const canApply = currentMode === 'artist' && currentUser?.id && currentUser.id !== 'guest';
   const poster = cfg.poster || ev.poster || '';
 
-  // Populate header (matches manage screen style)
-  const totalSlots = (cfg.days || []).reduce((n,d) => n + (d.slots||[]).length, 0);
-  const titleEl = document.getElementById('publicEventTitle');
-  const subtitleEl = document.getElementById('publicEventSubtitle');
-  const tagEl = document.getElementById('publicEventTag');
-  const slotCountEl = document.getElementById('publicEventSlotCount');
-  if (titleEl) titleEl.textContent = ev.name || 'EVENT';
-  if (subtitleEl) subtitleEl.textContent = [venue, date].filter(Boolean).join(' · ');
-  if (slotCountEl) slotCountEl.textContent = totalSlots ? totalSlots + ' slots' : '';
-  if (tagEl) tagEl.textContent = isOpen ? 'LIVE EVENT' : 'UPCOMING EVENT';
-
-  // Show screen immediately with loading state
+  // Show screen first so elements have dimensions
   document.getElementById('publicEventContent').innerHTML = `
     <div style="text-align:center;padding:60px 20px;color:var(--muted);font-size:13px;">Loading lineup…</div>
   `;
   show('publicEventScreen');
   _currentPublicEvent = ev;
+
+  // Populate header after screen is visible
+  const totalSlots = (cfg.days || []).reduce((n,d) => n + (d.slots||[]).length, 0);
+  requestAnimationFrame(() => {
+    const titleEl = document.getElementById('publicEventTitle');
+    const subtitleEl = document.getElementById('publicEventSubtitle');
+    const tagEl = document.getElementById('publicEventTag');
+    const slotCountEl = document.getElementById('publicEventSlotCount');
+    if (titleEl) titleEl.textContent = ev.name || 'EVENT';
+    if (subtitleEl) subtitleEl.textContent = [venue, date].filter(Boolean).join(' · ');
+    if (slotCountEl) slotCountEl.textContent = totalSlots ? totalSlots + ' slots' : '';
+    if (tagEl) tagEl.textContent = isOpen ? 'LIVE EVENT' : 'UPCOMING EVENT';
+  });
 
   // Fetch claims for this event to get artist names
   let claimsMap = {};
