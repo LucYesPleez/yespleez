@@ -1819,6 +1819,8 @@ function openAcceptModal(appId, artistId, artistName) {
   document.getElementById('acceptActionsWrap').style.display = '';
   document.getElementById('acceptConfirmBtn').textContent = 'GENERATE CODE →';
   document.getElementById('acceptConfirmBtn').disabled = false;
+  const dismissBtn = document.querySelector('#acceptArtistOverlay .btn-ghost');
+  if (dismissBtn) { dismissBtn.textContent = 'Cancel'; dismissBtn.style.background = ''; dismissBtn.style.color = ''; }
   // Build slot picker
   const list = document.getElementById('slotPickerList');
   list.innerHTML = '';
@@ -1878,6 +1880,8 @@ async function confirmAcceptArtist() {
     document.getElementById('generatedCodeText').textContent = code;
     document.getElementById('generatedCodeWrap').style.display = '';
     document.getElementById('acceptActionsWrap').style.display = 'none';
+    const dismissBtn = document.querySelector('#acceptArtistOverlay .btn-ghost');
+    if (dismissBtn) { dismissBtn.textContent = 'DONE'; dismissBtn.style.background = 'var(--neon2)'; dismissBtn.style.color = '#0a0a0f'; }
     showToast('Artist accepted! Copy the code and share it with them.', 'success');
     loadApplications(); // refresh list (accepted app disappears from pending)
   } catch(e) {
