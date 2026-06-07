@@ -664,7 +664,8 @@ function renderAll() {
         const pillsHtml = genreParts.length
         ? `<div class="dj-pills">${genreParts.map(p => `<span class="dj-pill">${p}</span>`).join('')}</div>`
         : '';
-        infoBlock.innerHTML = `<div class="dj-name-row"><span class="dj-name">🎧 ${entry.name}</span>${pillsHtml}</div>`;
+        const soundHtml = entry.sound ? `<span style="color:var(--neon2);font-size:12px;font-style:italic;margin-left:6px;opacity:.85;">• ${entry.sound}</span>` : '';
+        infoBlock.innerHTML = `<div class="dj-name-row"><span class="dj-name">🎧 ${entry.name}</span>${soundHtml}</div>${pillsHtml}`;
         if (entry.notes && (isHost || (currentUser && currentUser.id === entry.user_id))) infoBlock.innerHTML += `<div class="dj-note">📝 ${entry.notes}</div>`;
         if (entry.backups?.length) infoBlock.innerHTML += `<div class="rank-badge">+${entry.backups.length} backup${entry.backups.length>1?'s':''}</div>`;
         if (s.label) infoBlock.innerHTML += `<div class="slot-badge ${isLounge?'cyan':''}">${s.label}</div>`;
@@ -779,9 +780,10 @@ async function autoClaimSlot(slotId) {
     return;
   }
   const cardPills = artistProfile?.cardPills || '';
-  const ok = await upsertClaim(slotId, name, genre, '', [], cardPills);
+  const sound = artistProfile?.sound || '';
+  const ok = await upsertClaim(slotId, name, genre, '', [], cardPills, sound);
   if (ok) {
-    claims[slotId] = { name, genre, notes: '', backups: [], cardPills, mixLink: artistProfile?.mixLink || '', user_id: currentUser.id };
+    claims[slotId] = { name, genre, notes: '', backups: [], cardPills, sound, mixLink: artistProfile?.mixLink || '', user_id: currentUser.id };
     const slotLabel = (() => { let l='slot'; (eventData?.days||[]).forEach(d=>d.slots.forEach(s=>{if(s.id===slotId)l=s.time+' '+s.ampm;})); return l; })();
     pushNotif('🎧', `${name} claimed the ${slotLabel} slot`, 'host');
     renderAll();
@@ -797,7 +799,7 @@ async function searchArtistsForAssign(query) {
   if (!query || query.length < 2) { resultsEl.style.display = 'none'; return; }
   try {
     const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/profiles?type=eq.artist&dj_name=ilike.*${encodeURIComponent(query)}*&select=user_id,dj_name,genre_string,card_pills,mix_link,soundcloud,mixcloud,instagram,avatar&limit=8`,
+      `${SUPABASE_URL}/rest/v1/profiles?type=eq.artist&dj_name=ilike.*${encodeURIComponent(query)}*&select=user_id,dj_name,genre_string,card_pills,sound,mix_link,soundcloud,mixcloud,instagram,avatar&limit=8`,
       { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${currentSession?.access_token || SUPABASE_KEY}` } }
     );
     const artists = res.ok ? await res.json() : [];
@@ -821,9 +823,9 @@ async function searchArtistsForAssign(query) {
         document.getElementById('hostArtistSearch').value = '';
         // Auto-assign immediately
         const notes = '';
-        const ok = await upsertClaim(activeKey, a.dj_name, a.genre_string || '', notes, [], a.card_pills || '');
+        const ok = await upsertClaim(activeKey, a.dj_name, a.genre_string || '', notes, [], a.card_pills || '', a.sound || '');
         if (ok) {
-          claims[activeKey] = { name: a.dj_name, genre: a.genre_string || '', notes: '', backups: [], cardPills: a.card_pills || '', mixLink: a.mix_link || '', user_id: a.user_id };
+          claims[activeKey] = { name: a.dj_name, genre: a.genre_string || '', notes: '', backups: [], cardPills: a.card_pills || '', sound: a.sound || '', mixLink: a.mix_link || '', user_id: a.user_id };
           const slotLabel = (() => { let l='slot'; (eventData?.days||[]).forEach(d=>d.slots.forEach(s=>{if(s.id===activeKey)l=s.time+' '+s.ampm;})); return l; })();
           pushNotif('🎧', `${a.dj_name} assigned to ${slotLabel}`, 'host');
           closeModal();
@@ -891,7 +893,8 @@ async function confirmClaim() {
     }
     const mixLink = isHost ? (claims[activeKey]?.mixLink || '') : (artistProfile?.mixLink || '');
     const cardPills = isHost ? (claims[activeKey]?.cardPills || '') : (artistProfile?.cardPills || '');
-    claims[activeKey] = { name, genre, notes, backups, mixLink, cardPills, user_id: currentUser?.id || null };
+    const sound = isHost ? (claims[activeKey]?.sound || '') : (artistProfile?.sound || '');
+    claims[activeKey] = { name, genre, notes, backups, mixLink, cardPills, sound, user_id: currentUser?.id || null };
     const slotLabel = (() => { let l='slot'; (eventData?.days||[]).forEach(d=>d.slots.forEach(s=>{if(s.id===activeKey)l=s.time+' '+s.ampm;})); return l; })();
     pushNotif('🎧', `${name} claimed the ${slotLabel} slot`, 'host');
     closeModal();
@@ -935,15 +938,15 @@ async function loadClaims() {
     if (!res.ok) throw new Error();
     const rows = await res.json();
     claims = {};
-    rows.forEach(r => { claims[r.slot_id] = { name: r.name, genre: r.genre || '', notes: r.notes || '', backups: r.backups || [], cardPills: r.card_pills || '', user_id: r.user_id || null }; });
+    rows.forEach(r => { claims[r.slot_id] = { name: r.name, genre: r.genre || '', notes: r.notes || '', backups: r.backups || [], cardPills: r.card_pills || '', sound: r.sound || '', user_id: r.user_id || null }; });
     setSync(true); renderAll();
   } catch { setSync(false); }
 }
 
-async function upsertClaim(slotId, name, genre, notes, backups, cardPills = '') {
+async function upsertClaim(slotId, name, genre, notes, backups, cardPills = '', sound = '') {
   const res = await sbFetch('claims', {
     method: 'POST',
-    body: JSON.stringify({ event_id: currentEventId, slot_id: slotId, name, genre, notes, backups, card_pills: cardPills, updated_at: new Date().toISOString(), user_id: currentUser?.id || null })
+    body: JSON.stringify({ event_id: currentEventId, slot_id: slotId, name, genre, notes, backups, card_pills: cardPills, sound, updated_at: new Date().toISOString(), user_id: currentUser?.id || null })
   });
   return res.ok;
 }
@@ -1150,19 +1153,22 @@ function renderManage() {
       assignBtn.onclick = e => { e.stopPropagation(); const hint = s.time+' '+s.ampm+' · '+s.dur+(s.label?' · '+s.label:''); openModal(s.id, hint, 1); };
       actCol.appendChild(assignBtn);
     } else {
-      const mgGenreStr = claim.genre || '';
-      const mgPillSource = claim.cardPills || mgGenreStr;
-      const mgHasPills = mgPillSource.length > 0;
-      const mgPillsHtml = mgHasPills
+      const mgPillSource = claim.cardPills || claim.genre || '';
+      const mgPillsHtml = mgPillSource
       ? `<div class="dj-pills">${mgPillSource.split(' · ').map(p => p.trim()).filter(Boolean).slice(0, 5).map(p => `<span class="dj-pill">${p}</span>`).join('')}</div>`
       : '';
-      const mgDescHtml = !mgHasPills && mgGenreStr
-      ? '<div class="dj-genre">'+mgGenreStr+'</div>'
-      : '';
-      infoCol.innerHTML = `<div class="dj-name-row"><span class="dj-name">🎧 ${claim.name}</span>${mgPillsHtml}</div>${mgDescHtml}`;
-      if (claim.notes) infoCol.innerHTML += '<div class="dj-note">📝 '+claim.notes+'</div>';
-      if (claim.backups?.length) infoCol.innerHTML += '<div class="rank-badge">+'+claim.backups.length+' backup'+(claim.backups.length>1?'s':'')+'</div>';
+      const mgSoundHtml = claim.sound ? `<span style="color:var(--neon2);font-size:12px;font-style:italic;margin-left:6px;opacity:.85;">• ${claim.sound}</span>` : '';
+      infoCol.innerHTML = `<div class="dj-name-row"><span class="dj-name">🎧 ${claim.name}</span>${mgSoundHtml}</div>${mgPillsHtml}`;
       if (s.label) infoCol.innerHTML += '<div class="slot-badge '+(isLounge?'cyan':'')+'">' +s.label+'</div>';
+
+      // Pin icon in top-right of card
+      const pinIcon = document.createElement('button');
+      pinIcon.style.cssText = `position:absolute;top:8px;right:8px;background:none;border:none;font-size:14px;cursor:pointer;opacity:${locked?'1':'0.25'};transition:opacity .15s;padding:2px;line-height:1;`;
+      pinIcon.textContent = '📌'; pinIcon.title = locked ? 'Unpin artist' : 'Pin artist';
+      pinIcon.onclick = e => { e.stopPropagation(); toggleLock(s.id); renderManage(); };
+      card.style.position = 'relative';
+      card.appendChild(pinIcon);
+
       const clearBtn = document.createElement('button'); clearBtn.className = 'btn-clear'; clearBtn.textContent = '✕';
       clearBtn.onclick = e=>{e.stopPropagation(); if(setTimesLocked){showLockedPopup();return;} clearSlot(s.id);renderManage();};
       const chevron = document.createElement('div');
@@ -1175,29 +1181,20 @@ function renderManage() {
         actCol.appendChild(playBtn);
       }
       actCol.appendChild(clearBtn); actCol.appendChild(chevron);
+
+      // Expanded panel — host notes only
       const detail = document.createElement('div');
-      detail.style.cssText = 'display:none;background:var(--card2);border:1px solid var(--border);border-top:none;border-radius:0 0 10px 10px;padding:14px 16px;';
-      if (claim.genre) { const g = document.createElement('div'); g.style.cssText = 'font-size:12px;color:var(--muted);line-height:1.6;word-break:break-word;margin-bottom:10px;'; g.textContent = claim.genre; detail.appendChild(g); }
-      if (claim.notes) { const n = document.createElement('div'); n.style.cssText = 'background:rgba(90,154,122,.08);border:1px solid rgba(90,154,122,.2);border-radius:6px;padding:8px 12px;font-size:13px;color:#7abf9a;line-height:1.5;margin-bottom:10px;word-break:break-word;'; n.innerHTML = '<span style="font-size:10px;letter-spacing:1.5px;color:var(--muted);font-family:Bebas Neue,sans-serif;display:block;margin-bottom:4px;">NOTES</span>'+claim.notes; detail.appendChild(n); }
-      if (claim.backups?.length) {
-        const bkWrap = document.createElement('div'); bkWrap.style.cssText = 'margin-bottom:10px;';
-        bkWrap.innerHTML = '<div style="font-size:10px;letter-spacing:1.5px;color:var(--neon2);font-family:Bebas Neue,sans-serif;margin-bottom:6px;">BACKUP PREFERENCES</div>';
-        claim.backups.forEach((bk,i) => { let lbl=bk; (eventData.days||[]).forEach(d=>d.slots.forEach(sl=>{if(sl.id===bk)lbl=(d.name?d.name.split(' ')[0].trim()+' · ':'')+sl.time+' '+sl.ampm+(sl.label?' · '+sl.label:'');})); bkWrap.innerHTML+='<span class="manage-backup-pill">#'+(i+1)+' '+lbl+'</span> '; });
-        detail.appendChild(bkWrap);
-      }
-      const detAct = document.createElement('div'); detAct.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;padding-top:4px;border-top:1px solid var(--border);margin-top:4px;';
-      const lockBtn = document.createElement('button'); lockBtn.className = 'btn-lock'+(locked?' locked':''); lockBtn.style.cssText = 'font-size:11px;flex:1;'; lockBtn.textContent = locked ? '📌 PINNED' : '📌 PIN ARTIST';
-      lockBtn.onclick = e=>{e.stopPropagation();toggleLock(s.id);renderManage();};
-      detAct.appendChild(lockBtn);
-      const notesWrap = document.createElement('div'); notesWrap.style.cssText = 'margin-top:12px;padding-top:10px;border-top:1px solid var(--border);';
+      detail.style.cssText = 'display:none;background:var(--card2);border:1px solid var(--border);border-top:none;border-radius:0 0 10px 10px;padding:12px 16px;';
+      const notesWrap = document.createElement('div');
       notesWrap.innerHTML = '<div class="host-notes-label">🔒 HOST NOTES (private)</div>';
       const notesTA = document.createElement('textarea'); notesTA.className = 'host-notes-input'; notesTA.rows = 2;
       notesTA.placeholder = 'Private notes — only you can see this...'; notesTA.value = hostNotes[s.id] || '';
       notesTA.oninput = () => { hostNotes[s.id] = notesTA.value; };
-      notesWrap.appendChild(notesTA); detail.appendChild(detAct); detail.appendChild(notesWrap);
+      notesWrap.appendChild(notesTA); detail.appendChild(notesWrap);
+
       let expanded = false;
       card.onclick = e => {
-        if (e.target.closest('.btn-clear')) return;
+        if (e.target.closest('.btn-clear') || e.target.closest('button[title]')) return;
         expanded = !expanded; detail.style.display = expanded ? '' : 'none';
         chevron.style.transform = expanded ? 'rotate(90deg)' : ''; card.style.borderRadius = expanded ? '10px 10px 0 0' : '';
       };
@@ -2208,7 +2205,7 @@ function closeMemberModal() { document.getElementById('becomeMemberOverlay').cla
 async function saveProfile() {
   if (currentUser?.id === 'guest') { document.getElementById('becomeMemberOverlay').classList.add('open'); return; }
   const btn = document.getElementById('saveProfileBtn'); btn.disabled = true; btn.textContent = 'SAVING...';
-  artistProfile = { ...artistProfile, djName: document.getElementById('profileDjName').value.trim(), label: document.getElementById('profileLabel').value.trim(), location: document.getElementById('profileLocation').value.trim(), state: document.getElementById('profileState').value, tagline: document.getElementById('profileTagline').value.trim(), bio: document.getElementById('profileBio').value.trim(), age: document.getElementById('profileAgeNone').checked ? 'prefer-not-to-say' : document.getElementById('profileAge').value.trim(), agePrivate: document.getElementById('profileAgePrivate').checked, ageNone: document.getElementById('profileAgeNone').checked, mixLink: document.getElementById('profileMixLink').value.trim(), experience: artistProfile.experience || '', techSetup: artistProfile.techSetup || '', feeType: artistProfile.feeType || '', fee: document.getElementById('profileFee').value.trim(), feePlusTravelLocal: document.getElementById('profileFeePlusTravelLocal').checked, feeNegotiable: document.getElementById('profileFeeNegotiable').checked, abn: document.getElementById('profileABN') ? document.getElementById('profileABN').value.trim() : '', emergencyName: document.getElementById('profileEmergencyName').value.trim(), emergencyPhone: document.getElementById('profileEmergencyPhone').value.trim(), emergencyRel: document.getElementById('profileEmergencyRel').value.trim(), genreString: getProfileGenreString(), cardPills: getCardPills(), soundcloud: document.getElementById('profileSoundcloud').value.trim(), mixcloud: document.getElementById('profileMixcloud').value.trim(), instagram: document.getElementById('profileInstagram').value.trim(), youtube: document.getElementById('profileYoutube').value.trim(), facebook: document.getElementById('profileFacebook').value.trim(), updatedAt: new Date().toISOString() };
+  artistProfile = { ...artistProfile, djName: document.getElementById('profileDjName').value.trim(), sound: document.getElementById('profileSound').value.trim(), label: document.getElementById('profileLabel').value.trim(), location: document.getElementById('profileLocation').value.trim(), state: document.getElementById('profileState').value, tagline: document.getElementById('profileTagline').value.trim(), bio: document.getElementById('profileBio').value.trim(), age: document.getElementById('profileAgeNone').checked ? 'prefer-not-to-say' : document.getElementById('profileAge').value.trim(), agePrivate: document.getElementById('profileAgePrivate').checked, ageNone: document.getElementById('profileAgeNone').checked, mixLink: document.getElementById('profileMixLink').value.trim(), experience: artistProfile.experience || '', techSetup: artistProfile.techSetup || '', feeType: artistProfile.feeType || '', fee: document.getElementById('profileFee').value.trim(), feePlusTravelLocal: document.getElementById('profileFeePlusTravelLocal').checked, feeNegotiable: document.getElementById('profileFeeNegotiable').checked, abn: document.getElementById('profileABN') ? document.getElementById('profileABN').value.trim() : '', emergencyName: document.getElementById('profileEmergencyName').value.trim(), emergencyPhone: document.getElementById('profileEmergencyPhone').value.trim(), emergencyRel: document.getElementById('profileEmergencyRel').value.trim(), genreString: getProfileGenreString(), cardPills: getCardPills(), soundcloud: document.getElementById('profileSoundcloud').value.trim(), mixcloud: document.getElementById('profileMixcloud').value.trim(), instagram: document.getElementById('profileInstagram').value.trim(), youtube: document.getElementById('profileYoutube').value.trim(), facebook: document.getElementById('profileFacebook').value.trim(), updatedAt: new Date().toISOString() };
   try { localStorage.setItem('yp_artist_profile', JSON.stringify(artistProfile)); } catch(e) {}
   await upsertProfileToSupabase(artistProfile, 'artist');
   btn.disabled = false; btn.textContent = 'SAVE PROFILE →';
@@ -2220,6 +2217,7 @@ function loadProfileData() {
   if (!DEMO) { try { const saved = localStorage.getItem('yp_artist_profile'); if (saved) artistProfile = JSON.parse(saved); } catch(e) {} }
   if (artistProfile.avatar) { const img = document.getElementById('avatarPreview'); img.onerror = () => { img.style.display = 'none'; document.getElementById('avatarPlaceholder').style.display = 'flex'; }; img.src = artistProfile.avatar; img.style.display = 'block'; document.getElementById('avatarPlaceholder').style.display = 'none'; }
   document.getElementById('profileDjName').value = artistProfile.djName || '';
+  document.getElementById('profileSound').value = artistProfile.sound || '';
   document.getElementById('profileLabel').value = artistProfile.label || '';
   document.getElementById('profileLocation').value = artistProfile.location || '';
   document.getElementById('profileState').value = artistProfile.state || '';
@@ -2241,7 +2239,7 @@ function loadProfileData() {
   document.getElementById('profileInstagram').value  = artistProfile.instagram  || '';
   document.getElementById('profileYoutube').value    = artistProfile.youtube    || '';
   document.getElementById('profileFacebook').value   = artistProfile.facebook   || '';
-  updateTaglineCount(); updateBioCount();
+  updateTaglineCount(); updateBioCount(); updateSoundCount();
   document.querySelectorAll('.exp-pill').forEach(p => p.classList.toggle('selected', p.textContent === artistProfile.experience));
   document.querySelectorAll('.tech-pill').forEach(p => p.classList.toggle('selected', p.textContent === artistProfile.techSetup));
   if (artistProfile.feeType) selectFeeType(artistProfile.feeType);
@@ -2286,6 +2284,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (bio) bio.addEventListener('input', updateBioCount);
 });
 
+function updateSoundCount() { const el = document.getElementById('profileSound'), ct = document.getElementById('soundCharCount'); if (el && ct) ct.textContent = `${el.value.length} / 35`; }
 function updateTaglineCount() { const el = document.getElementById('profileTagline'), ct = document.getElementById('taglineCharCount'); if (el && ct) ct.textContent = `${el.value.length} / 120`; }
 function updateBioCount() { const el = document.getElementById('profileBio'), ct = document.getElementById('bioCharCount'); if (el && ct) ct.textContent = `${el.value.length} / 500`; }
 

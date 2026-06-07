@@ -2252,8 +2252,8 @@ body.player-open .screen.active { padding-bottom: 80px; }
     <div class="profile-section">
       <div class="profile-section-title">WHO YOU ARE</div>
       <div class="field" style="margin-bottom:10px;">
-        <label>DJ / ARTIST NAME</label>
-        <input type="text" id="profileDjName" placeholder="What you perform as" autocomplete="off">
+        <label>DJ / ARTIST NAME <span style="color:var(--muted);font-size:10px;letter-spacing:0;font-family:'DM Sans',sans-serif;text-transform:none;">25 chars max</span></label>
+        <input type="text" id="profileDjName" placeholder="What you perform as" maxlength="25" autocomplete="off">
       </div>
       <div class="row2">
         <div class="field" style="margin-bottom:0">
@@ -2285,9 +2285,16 @@ body.player-open .screen.active { padding-bottom: 80px; }
       </div>
     </div>
 
+    <!-- Sound -->
+    <div class="profile-section">
+      <div class="profile-section-title">YOUR SOUND <span style="font-size:10px;color:var(--muted);letter-spacing:0;font-family:'DM Sans',sans-serif;text-transform:none;">shows on your slot card · 35 chars</span></div>
+      <input type="text" id="profileSound" placeholder="e.g. UK Garage Mashups & Dark Electronics" maxlength="35" autocomplete="off" oninput="updateSoundCount()" style="width:100%;background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:15px;padding:12px 14px;outline:none;box-sizing:border-box;">
+      <div style="text-align:right;font-size:11px;color:var(--muted);margin-top:4px;" id="soundCharCount">0 / 35</div>
+    </div>
+
     <!-- Tagline -->
     <div class="profile-section">
-      <div class="profile-section-title">TAGLINE <span style="font-size:10px;color:var(--muted);letter-spacing:0;font-family:'DM Sans',sans-serif;text-transform:none;">2 lines max what promoters see first</span></div>
+      <div class="profile-section-title">TAGLINE <span style="font-size:10px;color:var(--muted);letter-spacing:0;font-family:'DM Sans',sans-serif;text-transform:none;">2 lines max · what promoters see first</span></div>
       <textarea class="profile-bio" id="profileTagline" placeholder="Peak-time techno from Sydney. Builds slow, hits hard." maxlength="120" rows="2" style="min-height:56px;"></textarea>
       <div style="text-align:right;font-size:11px;color:var(--muted);margin-top:4px;" id="taglineCharCount">0 / 120</div>
     </div>
