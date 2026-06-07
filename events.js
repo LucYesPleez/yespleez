@@ -745,7 +745,7 @@ function buildSlotInfoHtml(entry, s, isLounge) {
     ? `<div class="dj-pills" style="margin-top:4px;">${genreParts.map(p => `<span class="dj-pill">${p}</span>`).join('')}</div>`
     : '';
   const soundHtml = entry.sound
-    ? `<span style="font-size:12px;color:#00c45a;margin-left:8px;font-style:italic;">${entry.sound}</span>`
+    ? `<span style="font-size:12px;color:#3a9e6a;margin-left:8px;">${entry.sound}</span>`
     : '';
   return `<div class="dj-name-row"><span class="dj-name">🎧 ${entry.name}</span>${soundHtml}</div>${pillsHtml}`;
 }
