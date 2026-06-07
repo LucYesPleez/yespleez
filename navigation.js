@@ -163,6 +163,7 @@ function goBack() {
 }
 
 function goToDash() {
+  isReadOnly = false;
   if (isHost) enterDashboard();
   else if (currentMode === 'artist') enterArtistDashboard();
   else enterDashboard();

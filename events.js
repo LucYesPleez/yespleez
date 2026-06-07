@@ -669,48 +669,52 @@ function renderAll() {
         if (entry.notes && (isHost || (currentUser && currentUser.id === entry.user_id))) infoBlock.innerHTML += `<div class="dj-note">📝 ${entry.notes}</div>`;
         if (entry.backups?.length) infoBlock.innerHTML += `<div class="rank-badge">+${entry.backups.length} backup${entry.backups.length>1?'s':''}</div>`;
         if (s.label) infoBlock.innerHTML += `<div class="slot-badge ${isLounge?'cyan':''}">${s.label}</div>`;
-        slot.style.cursor = 'pointer';
-        slot.onclick = (e) => {
-          if (e.target.closest('.btn-clear') || e.target.closest('.btn-also-want') || e.target.closest('.btn-claim')) return;
-          openModal(s.id, hint, 1);
-          setTimeout(() => {
-            document.getElementById('inputName').value  = entry.name  || '';
-            document.getElementById('inputNotes').value = entry.notes || '';
-            document.getElementById('confirmBtn').textContent = 'SAVE CHANGES ✓';
-            restoreGenreVibeState(entry.genre || '');
-          }, 40);
-        };
+        if (!isReadOnly) {
+          slot.style.cursor = 'pointer';
+          slot.onclick = (e) => {
+            if (e.target.closest('.btn-clear') || e.target.closest('.btn-also-want') || e.target.closest('.btn-claim')) return;
+            openModal(s.id, hint, 1);
+            setTimeout(() => {
+              document.getElementById('inputName').value  = entry.name  || '';
+              document.getElementById('inputNotes').value = entry.notes || '';
+              document.getElementById('confirmBtn').textContent = 'SAVE CHANGES ✓';
+              restoreGenreVibeState(entry.genre || '');
+            }, 40);
+          };
+        }
       } else {
         infoBlock.innerHTML = `<div class="empty-tag">Open slot</div>`;
         if (s.label) infoBlock.innerHTML += `<div class="slot-badge ${isLounge?'cyan':''}">${s.label}</div>`;
       }
       const actionBlock = document.createElement('div');
       actionBlock.style.cssText = 'display:flex;flex-direction:column;gap:5px;align-items:flex-end;flex-shrink:0;';
-      if (entry) {
-        if (canRemove) {
-          const clearBtn = document.createElement('button');
-          clearBtn.className = 'btn-clear'; clearBtn.textContent = '✕';
-          clearBtn.onclick = () => clearSlot(s.id);
-          actionBlock.appendChild(clearBtn);
-        }
-        if (isHost) {
-          const want2 = document.createElement('button');
-          want2.className = 'btn-also-want'; want2.textContent = 'OPT 2'; want2.onclick = () => openModal(s.id, hint, 2);
-          const want3 = document.createElement('button');
-          want3.className = 'btn-also-want'; want3.textContent = 'OPT 3'; want3.onclick = () => openModal(s.id, hint, 3);
-          actionBlock.appendChild(want2); actionBlock.appendChild(want3);
-        }
-      } else {
-        if (!setTimesLocked || isHost) {
-          const claimBtn = document.createElement('button');
-          claimBtn.className = 'btn-claim'; claimBtn.textContent = 'CLAIM';
-          claimBtn.onclick = () => autoClaimSlot(s.id);
-          actionBlock.appendChild(claimBtn);
+      if (!isReadOnly) {
+        if (entry) {
+          if (canRemove) {
+            const clearBtn = document.createElement('button');
+            clearBtn.className = 'btn-clear'; clearBtn.textContent = '✕';
+            clearBtn.onclick = () => clearSlot(s.id);
+            actionBlock.appendChild(clearBtn);
+          }
+          if (isHost) {
+            const want2 = document.createElement('button');
+            want2.className = 'btn-also-want'; want2.textContent = 'OPT 2'; want2.onclick = () => openModal(s.id, hint, 2);
+            const want3 = document.createElement('button');
+            want3.className = 'btn-also-want'; want3.textContent = 'OPT 3'; want3.onclick = () => openModal(s.id, hint, 3);
+            actionBlock.appendChild(want2); actionBlock.appendChild(want3);
+          }
         } else {
-          const lockedLabel = document.createElement('div');
-          lockedLabel.style.cssText = 'font-size:11px;color:var(--muted);font-style:italic;';
-          lockedLabel.textContent = 'Slot locked';
-          actionBlock.appendChild(lockedLabel);
+          if (!setTimesLocked || isHost) {
+            const claimBtn = document.createElement('button');
+            claimBtn.className = 'btn-claim'; claimBtn.textContent = 'CLAIM';
+            claimBtn.onclick = () => autoClaimSlot(s.id);
+            actionBlock.appendChild(claimBtn);
+          } else {
+            const lockedLabel = document.createElement('div');
+            lockedLabel.style.cssText = 'font-size:11px;color:var(--muted);font-style:italic;';
+            lockedLabel.textContent = 'Slot locked';
+            actionBlock.appendChild(lockedLabel);
+          }
         }
       }
       slot.appendChild(timeBlock); slot.appendChild(infoBlock); slot.appendChild(actionBlock);
