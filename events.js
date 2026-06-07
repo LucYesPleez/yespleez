@@ -1766,15 +1766,11 @@ async function loadApplications() {
           </div>
         </div>
         <div style="display:flex;gap:8px;">
-          <button onclick="openAcceptModal('${app.id}','${app.artist_id}',${JSON.stringify(name).replace(/'/g,"\\'")})"
-            style="flex:1;padding:9px;background:var(--neon2);border:none;border-radius:8px;color:#0a0a0f;font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:1px;cursor:pointer;">
-            ACCEPT ✓
-          </button>
-          <button onclick="rejectApplication('${app.id}',this)"
-            style="flex:1;padding:9px;background:transparent;border:1px solid var(--neon);border-radius:8px;color:var(--neon);font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:1px;cursor:pointer;">
-            DECLINE ✕
-          </button>
+          <button class="app-accept-btn" style="flex:1;padding:9px;background:var(--neon2);border:none;border-radius:8px;color:#0a0a0f;font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:1px;cursor:pointer;">ACCEPT ✓</button>
+          <button class="app-decline-btn" style="flex:1;padding:9px;background:transparent;border:1px solid var(--neon);border-radius:8px;color:var(--neon);font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:1px;cursor:pointer;">DECLINE ✕</button>
         </div>`;
+      card.querySelector('.app-accept-btn').onclick  = () => openAcceptModal(app.id, app.artist_id, name);
+      card.querySelector('.app-decline-btn').onclick = function() { rejectApplication(app.id, this); };
       listEl.appendChild(card);
     });
   } catch(e) {
