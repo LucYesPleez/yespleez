@@ -84,7 +84,7 @@ function clearArtistSelection() {
 
 // ── Open public event view (from discover) ─────────
 
-function openPublicEvent(ev) {
+async function openPublicEvent(ev) {
   const cfg = ev.config || {};
   const venue = cfg.venue || '';
   const date = cfg.date || '';
@@ -93,6 +93,23 @@ function openPublicEvent(ev) {
   const canApply = currentMode === 'artist' && currentUser?.id && currentUser.id !== 'guest';
   const poster = cfg.poster || ev.poster || '';
 
+  // Show screen immediately with loading state
+  document.getElementById('publicEventContent').innerHTML = `
+    <div style="text-align:center;padding:60px 20px;color:var(--muted);font-size:13px;">Loading lineup…</div>
+  `;
+  show('publicEventScreen');
+  _currentPublicEvent = ev;
+
+  // Fetch claims for this event to get artist names
+  let claimsMap = {};
+  try {
+    const claimRows = await sbRest(
+      `claims?event_id=eq.${ev.id}&select=slot_id,name,genre,card_pills,sound`,
+      { method: 'GET' }, currentSession?.access_token || null
+    );
+    (claimRows || []).forEach(c => { claimsMap[c.slot_id] = c; });
+  } catch(e) { console.warn('Could not load claims for public event:', e.message); }
+
   const slotRowsHtml = (cfg.days || []).map(day => {
     const slots = day.slots || [];
     if (!slots.length) return '';
@@ -100,12 +117,17 @@ function openPublicEvent(ev) {
       <div style="margin-bottom:20px;">
         ${day.label || day.name ? `<div style="font-family:'Bebas Neue',sans-serif;font-size:12px;letter-spacing:3px;color:var(--neon);margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--border);">${day.label || day.name}</div>` : ''}
         ${slots.map(slot => {
-          const claimed = slot.artistName || null;
-          const genre = slot.genre || '';
+          const claim = claimsMap[slot.id] || null;
+          const claimed = claim?.name || slot.artistName || null;
+          const genre = claim?.genre || slot.genre || '';
+          const sound = claim?.sound || '';
+          const pills = claim?.card_pills ? claim.card_pills.split(' · ').filter(Boolean).slice(0,5) : [];
           const isSpecial = slot.label && !slot.label.toLowerCase().includes('lounge');
           const isLounge = slot.label?.toLowerCase().includes('lounge');
           const borderCol = claimed ? (isLounge ? 'var(--neon2)' : isSpecial ? 'var(--gold)' : 'var(--neon)') : 'var(--border)';
           const bgCol = claimed ? (isLounge ? 'rgba(0,229,255,.05)' : isSpecial ? 'rgba(255,184,48,.05)' : 'rgba(255,45,120,.05)') : 'rgba(255,255,255,.02)';
+          const pillsHtml = pills.length ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;">${pills.map(p => `<span style="background:var(--card2);border:1px solid var(--border);border-radius:20px;font-size:10px;padding:2px 8px;color:var(--muted);">${p}</span>`).join('')}</div>` : '';
+          const soundHtml = sound ? `<span style="color:var(--neon2);font-size:11px;font-style:italic;margin-left:6px;opacity:.85;">• ${sound}</span>` : '';
           return `
           <div style="display:flex;align-items:stretch;border:1px solid ${borderCol};border-radius:10px;margin-bottom:8px;overflow:hidden;background:${bgCol};">
             <div style="background:${claimed ? borderCol : 'var(--card2)'};padding:10px 12px;display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:60px;flex-shrink:0;">
@@ -115,7 +137,7 @@ function openPublicEvent(ev) {
             </div>
             <div style="flex:1;padding:10px 12px;min-width:0;">
               ${claimed
-                ? `<div style="font-family:'Bebas Neue',sans-serif;font-size:17px;letter-spacing:.5px;">🎧 ${claimed}</div>${genre ? `<div style="font-size:11px;color:var(--muted);margin-top:2px;line-height:1.4;">${genre}</div>` : ''}`
+                ? `<div style="font-family:'Bebas Neue',sans-serif;font-size:17px;letter-spacing:.5px;">🎧 ${claimed}${soundHtml}</div>${pillsHtml}`
                 : `<div style="font-size:13px;color:var(--muted);font-style:italic;">Open slot</div>`}
               ${slot.label ? `<div style="margin-top:4px;display:inline-block;font-size:10px;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;color:${isLounge ? 'var(--neon2)' : 'var(--gold)'};border:1px solid ${isLounge ? 'var(--neon2)' : 'var(--gold)'};border-radius:20px;padding:2px 8px;">${slot.label}</div>` : ''}
             </div>
@@ -124,7 +146,7 @@ function openPublicEvent(ev) {
       </div>`;
   }).join('');
 
-  document.getElementById('publicEventContent').innerHTML = `
+  const eventHtml = `
     ${poster ? `<div style="width:100%;aspect-ratio:1;background:url(${poster}) center/cover no-repeat;border-radius:12px;margin-bottom:16px;"></div>` : ''}
     <div style="margin-bottom:16px;">
       <div style="font-family:'Bebas Neue',sans-serif;font-size:36px;letter-spacing:2px;line-height:1;margin-bottom:8px;">${ev.name}</div>
@@ -143,8 +165,7 @@ function openPublicEvent(ev) {
     <div style="font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:2px;color:var(--muted);margin-bottom:12px;">LINEUP</div>
     ${slotRowsHtml || '<div style="text-align:center;padding:20px;color:var(--muted);font-size:13px;">No set times published yet</div>'}
   `;
-  show('publicEventScreen');
-  _currentPublicEvent = ev;
+  document.getElementById('publicEventContent').innerHTML = eventHtml;
 }
 
 let _currentPublicEvent = null;
