@@ -739,10 +739,15 @@ function timeToMins24(time, ampm, allSlots) {
 // so any change here applies everywhere automatically.
 
 function buildSlotInfoHtml(entry, s, isLounge) {
-  const soundPill = entry.sound
-    ? `<div style="margin-top:5px;"><span class="dj-pill" style="font-style:italic;color:var(--text);opacity:.85;">${entry.sound}</span></div>`
+  const pillSource = entry.cardPills || entry.genre || '';
+  const genreParts = pillSource.split(' · ').map(p => p.trim()).filter(Boolean).slice(0, 5);
+  const pillsHtml = genreParts.length
+    ? `<div class="dj-pills" style="margin-top:4px;">${genreParts.map(p => `<span class="dj-pill">${p}</span>`).join('')}</div>`
     : '';
-  return `<div class="dj-name-row"><span class="dj-name">🎧 ${entry.name}</span></div>${soundPill}`;
+  const soundPill = entry.sound
+    ? `<span style="background:rgba(255,184,48,.15);border:1px solid rgba(255,184,48,.4);border-radius:20px;color:var(--gold);font-size:11px;padding:2px 9px;font-style:italic;white-space:nowrap;margin-left:6px;">${entry.sound}</span>`
+    : '';
+  return `<div class="dj-name-row"><span class="dj-name">🎧 ${entry.name}</span>${soundPill}</div>${pillsHtml}`;
 }
 
 function renderAll() {
