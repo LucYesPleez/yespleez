@@ -21,6 +21,7 @@ async function upsertProfileToSupabase(profile, type) {
       user_id:           currentUser.id,
       type:              type,
       dj_name:           profile.djName        || profile.name || '',
+      sound:             profile.sound         || '',
       name:              profile.name          || profile.djName || '',
       location:          profile.location      || '',
       state:             profile.state         || '',
@@ -106,6 +107,7 @@ async function loadProfileFromSupabase(type) {
 function mapDbToArtistProfile(row) {
   return {
     djName:             row.dj_name       || '',
+    sound:              row.sound         || '',
     label:              row.label         || '',
     location:           row.location      || '',
     state:              row.state         || '',
