@@ -102,16 +102,23 @@ async function openPublicEvent(ev) {
 
   // Populate header after screen is visible
   const totalSlots = (cfg.days || []).reduce((n,d) => n + (d.slots||[]).length, 0);
-  requestAnimationFrame(() => {
+  setTimeout(() => {
     const titleEl = document.getElementById('publicEventTitle');
     const subtitleEl = document.getElementById('publicEventSubtitle');
     const tagEl = document.getElementById('publicEventTag');
     const slotCountEl = document.getElementById('publicEventSlotCount');
-    if (titleEl) titleEl.textContent = ev.name || 'EVENT';
+    if (titleEl) {
+      titleEl.textContent = ev.name || 'EVENT';
+      titleEl.style.background = 'linear-gradient(135deg, #ffffff 30%, #ffb830)';
+      titleEl.style.webkitBackgroundClip = 'text';
+      titleEl.style.backgroundClip = 'text';
+      titleEl.style.webkitTextFillColor = 'transparent';
+      titleEl.style.color = 'transparent';
+    }
     if (subtitleEl) subtitleEl.textContent = [venue, date].filter(Boolean).join(' · ');
     if (slotCountEl) slotCountEl.textContent = totalSlots ? totalSlots + ' slots' : '';
     if (tagEl) tagEl.textContent = isOpen ? 'LIVE EVENT' : 'UPCOMING EVENT';
-  });
+  }, 50);
 
   // Fetch claims for this event to get artist names
   let claimsMap = {};
