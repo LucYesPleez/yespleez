@@ -73,6 +73,19 @@ body.auth-mode { overflow: hidden; height: 100dvh; }
 /* ══════════════════════════
    SHARED COMPONENTS
 ══════════════════════════ */
+.gradient-title {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: clamp(30px, 8vw, 46px);
+  line-height: .92;
+  display: block;
+  width: 100%;
+  background: linear-gradient(135deg, #fff 30%, var(--gold));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  color: transparent;
+}
+
 .yp-tag {
   display: inline-block; font-family: 'Bebas Neue', sans-serif;
   font-size: 11px; letter-spacing: 4px; color: var(--neon);
@@ -1673,7 +1686,7 @@ body.player-open .screen.active { padding-bottom: 80px; }
   <div style="max-width:720px;margin:0 auto;padding:16px 16px 80px;">
     <div style="margin-bottom:28px;">
       <div class="yp-tag" id="publicEventTag">PUBLIC VIEW</div>
-      <div style="font-family:'Bebas Neue',sans-serif;font-size:clamp(30px,8vw,46px);line-height:.92;display:block;width:100%;isolation:isolate;background:linear-gradient(135deg,#fff 30%,var(--gold));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;color:transparent;" id="publicEventTitle">EVENT</div>
+      <div class="gradient-title" id="publicEventTitle">EVENT</div>
       <div style="font-size:12px;color:var(--muted);margin-top:4px;" id="publicEventSubtitle"></div>
     </div>
     <div id="publicEventContent" style="padding-bottom:20px;"></div>
@@ -2579,7 +2592,7 @@ body.player-open .screen.active { padding-bottom: 80px; }
     <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:28px;">
       <div>
         <div class="yp-tag">HOST VIEW</div>
-        <div style="font-family:'Bebas Neue',sans-serif;font-size:clamp(30px,8vw,46px);line-height:.92;background:linear-gradient(135deg,#fff 30%,var(--gold));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;" id="manageTitle">ALL CLAIMS</div>
+        <div class="gradient-title" id="manageTitle">ALL CLAIMS</div>
         <div style="font-size:12px;color:var(--muted);margin-top:4px;" id="manageSubtitle"></div>
       </div>
       <div style="display:flex;gap:8px;align-items:flex-start;margin-top:8px;width:100%;">
