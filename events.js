@@ -2284,12 +2284,15 @@ function renderUpcomingGigs() {
 document.addEventListener('DOMContentLoaded', () => {
   const tagline = document.getElementById('profileTagline');
   const bio = document.getElementById('profileBio');
+  const sound = document.getElementById('profileSound');
   if (tagline) tagline.addEventListener('input', updateTaglineCount);
   if (bio) bio.addEventListener('input', updateBioCount);
+  if (sound) sound.addEventListener('input', updateSoundCount);
 });
 
 function updateTaglineCount() { const el = document.getElementById('profileTagline'), ct = document.getElementById('taglineCharCount'); if (el && ct) ct.textContent = `${el.value.length} / 120`; }
 function updateBioCount() { const el = document.getElementById('profileBio'), ct = document.getElementById('bioCharCount'); if (el && ct) ct.textContent = `${el.value.length} / 500`; }
+function updateSoundCount() { const el = document.getElementById('profileSound'), ct = document.getElementById('soundCharCount'); if (el && ct) ct.textContent = `${el.value.length} / 35`; }
 
 // ── Host profile ───────────────────────────────────
 
