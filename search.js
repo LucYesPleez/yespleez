@@ -204,6 +204,7 @@ async function runSearch() {
           </div>
           ${location ? `<div style="font-size:12px;color:var(--muted);margin-bottom:4px;">📍 ${location}</div>` : ''}
           ${genres ? `<div style="font-size:11px;color:${accentCol};margin-bottom:4px;line-height:1.5;">${genres}</div>` : ''}
+          ${row.sound ? `<div style="font-size:12px;color:var(--muted);font-style:italic;line-height:1.5;margin-bottom:2px;">${row.sound}</div>` : ''}
           ${bio ? `<div style="font-size:12px;color:var(--muted);line-height:1.5;">${bio}</div>` : ''}
         </div>`;
     }
