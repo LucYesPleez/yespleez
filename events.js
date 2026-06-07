@@ -745,9 +745,9 @@ function buildSlotInfoHtml(entry, s, isLounge) {
     ? `<div class="dj-pills" style="margin-top:4px;">${genreParts.map(p => `<span class="dj-pill">${p}</span>`).join('')}</div>`
     : '';
   const soundHtml = entry.sound
-    ? `<div style="font-size:12px;color:var(--neon2);margin-top:3px;">${entry.sound}</div>`
+    ? `<span style="font-size:12px;color:#00c45a;margin-left:8px;font-style:italic;">${entry.sound}</span>`
     : '';
-  return `<div class="dj-name-row"><span class="dj-name">🎧 ${entry.name}</span></div>${soundHtml}${pillsHtml}`;
+  return `<div class="dj-name-row"><span class="dj-name">🎧 ${entry.name}</span>${soundHtml}</div>${pillsHtml}`;
 }
 
 function renderAll() {
