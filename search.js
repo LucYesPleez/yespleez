@@ -98,8 +98,10 @@ async function openPublicEvent(ev) {
   const titleEl = document.getElementById('publicEventTitle');
   const subtitleEl = document.getElementById('publicEventSubtitle');
   const tagEl = document.getElementById('publicEventTag');
+  const slotCountEl = document.getElementById('publicEventSlotCount');
   if (titleEl) titleEl.textContent = ev.name || 'EVENT';
-  if (subtitleEl) subtitleEl.textContent = [venue, date].filter(Boolean).join(' · ') + (totalSlots ? ` · ${totalSlots} slots` : '');
+  if (subtitleEl) subtitleEl.textContent = [venue, date].filter(Boolean).join(' · ');
+  if (slotCountEl) slotCountEl.textContent = totalSlots ? totalSlots + ' slots' : '';
   if (tagEl) tagEl.textContent = isOpen ? 'LIVE EVENT' : 'UPCOMING EVENT';
 
   // Show screen immediately with loading state

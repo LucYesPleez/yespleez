@@ -1104,7 +1104,11 @@ function renderManage() {
   listEl.innerHTML = '';
   const totalSlots = (eventData.days||[]).reduce((n,d) => n+d.slots.length, 0);
   const takenSlots = Object.keys(claims).length;
-  if (subtitleEl) subtitleEl.textContent = (eventData.name||'') + ' · ' + takenSlots + ' of ' + totalSlots + ' slots filled';
+  const titleEl = document.getElementById('manageTitle');
+  const slotCountEl = document.getElementById('manageSlotCount');
+  if (titleEl) titleEl.textContent = eventData.name || 'EVENT';
+  if (subtitleEl) subtitleEl.textContent = [eventData.venue, eventData.date].filter(Boolean).join(' · ');
+  if (slotCountEl) slotCountEl.textContent = takenSlots + ' of ' + totalSlots + ' slots filled';
   // Show poster if available
   const managePosterEl = document.getElementById('managePoster');
   if (managePosterEl) {
