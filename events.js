@@ -1723,15 +1723,12 @@ function switchAppsTab(tab) {
 async function loadApplications() {
   const listEl = document.getElementById('applicationsList');
   listEl.innerHTML = '<div style="text-align:center;color:var(--muted);font-size:13px;padding:20px;">Loading…</div>';
-  console.error('[Apps] loading — eventId:', currentEventId, 'hasToken:', !!currentSession?.access_token);
-  listEl.innerHTML = `<div style="text-align:center;color:var(--muted);font-size:11px;padding:20px;">Loading… (event: ${currentEventId || 'NONE'})</div>`;
   try {
     const rows = await sbRest(
-      `applications?event_id=eq.${currentEventId}&select=*&order=created_at.asc`,
+      `applications?event_id=eq.${currentEventId}&status=eq.pending&select=*&order=created_at.asc`,
       { method: 'GET' },
       currentSession?.access_token
     );
-    console.error('[Apps] rows returned:', JSON.stringify(rows));
     if (!rows || !rows.length) {
       listEl.innerHTML = '<div style="text-align:center;color:var(--muted);font-size:13px;padding:24px;">No pending applications.</div>';
       ['manageAppsBadge','overlayAppsBadge'].forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
@@ -1877,12 +1874,12 @@ async function confirmAcceptArtist() {
       method: 'PATCH',
       body: JSON.stringify({ status: 'accepted' })
     }, currentSession?.access_token);
-    // Show the generated code
+    // Show the generated code and reload applications list in background
     document.getElementById('generatedCodeText').textContent = code;
     document.getElementById('generatedCodeWrap').style.display = '';
     document.getElementById('acceptActionsWrap').style.display = 'none';
-    showToast('Artist accepted! Share the code with them.', 'success');
-    loadApplications();
+    showToast('Artist accepted! Copy the code and share it with them.', 'success');
+    loadApplications(); // refresh list (accepted app disappears from pending)
   } catch(e) {
     showToast('Could not generate code: ' + e.message, 'error');
     btn.disabled = false; btn.textContent = 'GENERATE CODE →';
