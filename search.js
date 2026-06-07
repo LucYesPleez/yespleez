@@ -119,27 +119,25 @@ async function openPublicEvent(ev) {
         ${slots.map(slot => {
           const claim = claimsMap[slot.id] || null;
           const claimed = claim?.name || slot.artistName || null;
-          const genre = claim?.genre || slot.genre || '';
           const sound = claim?.sound || '';
           const pills = claim?.card_pills ? claim.card_pills.split(' · ').filter(Boolean).slice(0,5) : [];
-          const isSpecial = slot.label && !slot.label.toLowerCase().includes('lounge');
           const isLounge = slot.label?.toLowerCase().includes('lounge');
-          const borderCol = claimed ? (isLounge ? 'var(--neon2)' : isSpecial ? 'var(--gold)' : 'var(--neon)') : 'var(--border)';
-          const bgCol = claimed ? (isLounge ? 'rgba(0,229,255,.05)' : isSpecial ? 'rgba(255,184,48,.05)' : 'rgba(255,45,120,.05)') : 'rgba(255,255,255,.02)';
-          const pillsHtml = pills.length ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;">${pills.map(p => `<span style="background:var(--card2);border:1px solid var(--border);border-radius:20px;font-size:10px;padding:2px 8px;color:var(--muted);">${p}</span>`).join('')}</div>` : '';
-          const soundHtml = sound ? `<span style="color:var(--neon2);font-size:11px;font-style:italic;margin-left:6px;opacity:.85;">• ${sound}</span>` : '';
+          const isSpecial = slot.label && !isLounge;
+          const slotClass = claimed ? (isLounge ? 'claimed lounge' : isSpecial ? 'claimed special' : 'claimed') : '';
+          const soundHtml = sound ? `<span style="color:var(--neon2);font-size:12px;font-style:italic;margin-left:6px;opacity:.85;">• ${sound}</span>` : '';
+          const pillsHtml = pills.length ? `<div class="dj-pills" style="margin-top:4px;">${pills.map(p => `<span class="dj-pill">${p}</span>`).join('')}</div>` : '';
+          const badgeHtml = slot.label ? `<div class="slot-badge ${isLounge?'cyan':''}">${slot.label}</div>` : '';
           return `
-          <div style="display:flex;align-items:stretch;border:1px solid ${borderCol};border-radius:10px;margin-bottom:8px;overflow:hidden;background:${bgCol};">
-            <div style="background:${claimed ? borderCol : 'var(--card2)'};padding:10px 12px;display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:60px;flex-shrink:0;">
-              <div style="font-family:'Bebas Neue',sans-serif;font-size:20px;line-height:1;color:${claimed ? '#0a0a0f' : 'var(--muted)'};">${slot.time || '--'}</div>
-              <div style="font-size:9px;color:${claimed ? 'rgba(10,10,15,.7)' : 'var(--muted)'};letter-spacing:1px;">${slot.ampm || ''}</div>
-              <div style="font-size:9px;color:${claimed ? 'rgba(10,10,15,.6)' : 'var(--muted)'};margin-top:2px;">${slot.dur || slot.duration || ''}</div>
+          <div class="slot ${slotClass}" style="margin-bottom:8px;">
+            <div class="time-block">
+              <div class="time-num">${slot.time || '--'}</div>
+              <div class="time-ampm">${slot.ampm || ''}</div>
+              <div class="time-dur">${slot.dur || slot.duration || ''}</div>
             </div>
-            <div style="flex:1;padding:10px 12px;min-width:0;">
+            <div class="slot-info">
               ${claimed
-                ? `<div style="font-family:'Bebas Neue',sans-serif;font-size:17px;letter-spacing:.5px;">🎧 ${claimed}${soundHtml}</div>${pillsHtml}`
-                : `<div style="font-size:13px;color:var(--muted);font-style:italic;">Open slot</div>`}
-              ${slot.label ? `<div style="margin-top:4px;display:inline-block;font-size:10px;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;color:${isLounge ? 'var(--neon2)' : 'var(--gold)'};border:1px solid ${isLounge ? 'var(--neon2)' : 'var(--gold)'};border-radius:20px;padding:2px 8px;">${slot.label}</div>` : ''}
+                ? `<div class="dj-name-row"><span class="dj-name">🎧 ${claimed}</span>${soundHtml}</div>${pillsHtml}${badgeHtml}`
+                : `<div class="empty-tag">Open slot</div>${badgeHtml}`}
             </div>
           </div>`;
         }).join('')}
