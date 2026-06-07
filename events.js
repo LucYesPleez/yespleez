@@ -920,9 +920,10 @@ async function autoClaimSlot(slotId) {
     return;
   }
   const cardPills = artistProfile?.cardPills || '';
-  const ok = await upsertClaim(slotId, name, genre, '', [], cardPills);
+  const sound     = artistProfile?.sound     || '';
+  const ok = await upsertClaim(slotId, name, genre, '', [], cardPills, sound);
   if (ok) {
-    claims[slotId] = { name, genre, notes: '', backups: [], cardPills, mixLink: artistProfile?.mixLink || '', user_id: currentUser.id };
+    claims[slotId] = { name, genre, notes: '', backups: [], cardPills, sound, mixLink: artistProfile?.mixLink || '', user_id: currentUser.id };
     const slotLabel = (() => { let l='slot'; (eventData?.days||[]).forEach(d=>d.slots.forEach(s=>{if(s.id===slotId)l=s.time+' '+s.ampm;})); return l; })();
     pushNotif('🎧', `${name} claimed the ${slotLabel} slot`, 'host');
     renderAll();
@@ -938,7 +939,7 @@ async function searchArtistsForAssign(query) {
   if (!query || query.length < 2) { resultsEl.style.display = 'none'; return; }
   try {
     const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/profiles?type=eq.artist&dj_name=ilike.*${encodeURIComponent(query)}*&select=user_id,dj_name,genre_string,card_pills,mix_link,soundcloud,mixcloud,instagram,avatar&limit=8`,
+      `${SUPABASE_URL}/rest/v1/profiles?type=eq.artist&dj_name=ilike.*${encodeURIComponent(query)}*&select=user_id,dj_name,genre_string,card_pills,sound,mix_link,soundcloud,mixcloud,instagram,avatar&limit=8`,
       { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${currentSession?.access_token || SUPABASE_KEY}` } }
     );
     const artists = res.ok ? await res.json() : [];
@@ -962,9 +963,9 @@ async function searchArtistsForAssign(query) {
         document.getElementById('hostArtistSearch').value = '';
         // Auto-assign immediately
         const notes = '';
-        const ok = await upsertClaim(activeKey, a.dj_name, a.genre_string || '', notes, [], a.card_pills || '');
+        const ok = await upsertClaim(activeKey, a.dj_name, a.genre_string || '', notes, [], a.card_pills || '', a.sound || '');
         if (ok) {
-          claims[activeKey] = { name: a.dj_name, genre: a.genre_string || '', notes: '', backups: [], cardPills: a.card_pills || '', mixLink: a.mix_link || '', user_id: a.user_id };
+          claims[activeKey] = { name: a.dj_name, genre: a.genre_string || '', notes: '', backups: [], cardPills: a.card_pills || '', sound: a.sound || '', mixLink: a.mix_link || '', user_id: a.user_id };
           const slotLabel = (() => { let l='slot'; (eventData?.days||[]).forEach(d=>d.slots.forEach(s=>{if(s.id===activeKey)l=s.time+' '+s.ampm;})); return l; })();
           pushNotif('🎧', `${a.dj_name} assigned to ${slotLabel}`, 'host');
           closeModal();
