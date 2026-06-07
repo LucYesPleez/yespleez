@@ -662,9 +662,10 @@ function renderAll() {
         const pillSource = entry.cardPills || entry.genre || '';
         const genreParts = pillSource.split(' · ').map(p => p.trim()).filter(Boolean).slice(0, 5);
         const pillsHtml = genreParts.length
-        ? `<div class="dj-pills">${genreParts.map(p => `<span class="dj-pill">${p}</span>`).join('')}</div>`
+        ? `<div class="dj-pills" style="margin-top:4px;">${genreParts.map(p => `<span class="dj-pill">${p}</span>`).join('')}</div>`
         : '';
-        infoBlock.innerHTML = `<div class="dj-name-row"><span class="dj-name">🎧 ${entry.name}</span>${pillsHtml}</div>`;
+        const soundHtml = entry.sound ? `<span style="color:var(--neon2);font-size:12px;font-style:italic;margin-left:6px;opacity:.85;">• ${entry.sound}</span>` : '';
+        infoBlock.innerHTML = `<div class="dj-name-row"><span class="dj-name">🎧 ${entry.name}</span>${soundHtml}</div>${pillsHtml}`;
         if (entry.notes && (isHost || (currentUser && currentUser.id === entry.user_id))) infoBlock.innerHTML += `<div class="dj-note">📝 ${entry.notes}</div>`;
         if (entry.backups?.length) infoBlock.innerHTML += `<div class="rank-badge">+${entry.backups.length} backup${entry.backups.length>1?'s':''}</div>`;
         if (s.label) infoBlock.innerHTML += `<div class="slot-badge ${isLounge?'cyan':''}">${s.label}</div>`;
@@ -1154,12 +1155,13 @@ function renderManage() {
       const mgPillSource = claim.cardPills || mgGenreStr;
       const mgHasPills = mgPillSource.length > 0;
       const mgPillsHtml = mgHasPills
-      ? `<div class="dj-pills">${mgPillSource.split(' · ').map(p => p.trim()).filter(Boolean).slice(0, 5).map(p => `<span class="dj-pill">${p}</span>`).join('')}</div>`
+      ? `<div class="dj-pills" style="margin-top:4px;">${mgPillSource.split(' · ').map(p => p.trim()).filter(Boolean).slice(0, 5).map(p => `<span class="dj-pill">${p}</span>`).join('')}</div>`
       : '';
       const mgDescHtml = !mgHasPills && mgGenreStr
       ? '<div class="dj-genre">'+mgGenreStr+'</div>'
       : '';
-      infoCol.innerHTML = `<div class="dj-name-row"><span class="dj-name">🎧 ${claim.name}</span>${mgPillsHtml}</div>${mgDescHtml}`;
+      const mgSoundHtml = claim.sound ? `<span style="color:var(--neon2);font-size:12px;font-style:italic;margin-left:6px;opacity:.85;">• ${claim.sound}</span>` : '';
+      infoCol.innerHTML = `<div class="dj-name-row"><span class="dj-name">🎧 ${claim.name}</span>${mgSoundHtml}</div>${mgPillsHtml}${mgDescHtml}`;
       if (claim.notes) infoCol.innerHTML += '<div class="dj-note">📝 '+claim.notes+'</div>';
       if (claim.backups?.length) infoCol.innerHTML += '<div class="rank-badge">+'+claim.backups.length+' backup'+(claim.backups.length>1?'s':'')+'</div>';
       if (s.label) infoCol.innerHTML += '<div class="slot-badge '+(isLounge?'cyan':'')+'">' +s.label+'</div>';
