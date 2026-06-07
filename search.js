@@ -118,27 +118,27 @@ async function openPublicEvent(ev) {
         ${day.label || day.name ? `<div style="font-family:'Bebas Neue',sans-serif;font-size:12px;letter-spacing:3px;color:var(--neon);margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--border);">${day.label || day.name}</div>` : ''}
         ${slots.map(slot => {
           const claim = claimsMap[slot.id] || null;
-          const claimed = claim?.name || slot.artistName || null;
-          const sound = claim?.sound || '';
-          const pills = claim?.card_pills ? claim.card_pills.split(' · ').filter(Boolean).slice(0,5) : [];
-          const isLounge = slot.label?.toLowerCase().includes('lounge');
+          const isLounge  = slot.label?.toLowerCase().includes('lounge');
           const isSpecial = slot.label && !isLounge;
-          const slotClass = (claimed ? ' taken' : '') + (isSpecial ? ' special' : '') + (isLounge ? ' lounge' : '');
-          const soundHtml = sound ? `<span style="color:var(--neon2);font-size:12px;font-style:italic;margin-left:6px;opacity:.85;">• ${sound}</span>` : '';
-          const pillsHtml = pills.length ? `<div class="dj-pills" style="margin-top:4px;">${pills.map(p => `<span class="dj-pill">${p}</span>`).join('')}</div>` : '';
+          const slotClass = 'slot' + (claim?' taken':'') + (isSpecial?' special':'') + (isLounge?' lounge':'');
+          const mgPillSource = claim ? (claim.card_pills || claim.genre || '') : '';
+          const mgHasPills = mgPillSource.length > 0;
+          const pillsHtml = mgHasPills
+            ? `<div class="dj-pills" style="margin-top:4px;">${mgPillSource.split(' · ').map(p=>p.trim()).filter(Boolean).slice(0,5).map(p=>`<span class="dj-pill">${p}</span>`).join('')}</div>`
+            : '';
+          const soundHtml = claim?.sound ? `<span style="color:var(--neon2);font-size:12px;font-style:italic;margin-left:6px;opacity:.85;">• ${claim.sound}</span>` : '';
           const badgeHtml = slot.label ? `<div class="slot-badge ${isLounge?'cyan':''}">${slot.label}</div>` : '';
+          const infoHtml = claim
+            ? `<div class="dj-name-row"><span class="dj-name">🎧 ${claim.name}</span>${soundHtml}</div>${pillsHtml}${badgeHtml}`
+            : `<div class="empty-tag">Open slot</div>${badgeHtml}`;
           return `
-          <div class="slot${slotClass}" style="margin-bottom:8px;">
+          <div class="${slotClass}" style="margin-bottom:8px;">
             <div class="time-block">
-              <div class="time-num">${slot.time || '--'}</div>
-              <div class="time-ampm">${slot.ampm || ''}</div>
-              <div class="time-dur">${slot.dur || slot.duration || ''}</div>
+              <div class="time-num">${slot.time||'--'}</div>
+              <div class="time-ampm">${slot.ampm||''}</div>
+              <div class="time-dur">${slot.dur||slot.duration||''}</div>
             </div>
-            <div class="slot-info">
-              ${claimed
-                ? `<div class="dj-name-row"><span class="dj-name">🎧 ${claimed}</span>${soundHtml}</div>${pillsHtml}${badgeHtml}`
-                : `<div class="empty-tag">Open slot</div>${badgeHtml}`}
-            </div>
+            <div class="slot-info">${infoHtml}</div>
           </div>`;
         }).join('')}
       </div>`;
