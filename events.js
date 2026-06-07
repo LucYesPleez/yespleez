@@ -1738,14 +1738,17 @@ async function loadApplications() {
       return;
     }
     ['manageAppsBadge','overlayAppsBadge'].forEach(id => { const el = document.getElementById(id); if (el) { el.textContent = rows.length; el.style.display = ''; } });
-    // Load artist profiles in parallel
+    // Load artist profiles in parallel (with timeout per fetch)
+    console.error('[Apps] loading profiles for', rows.length, 'apps');
     const profileMap = {};
+    const fetchWithTimeout = (promise, ms=5000) => Promise.race([promise, new Promise((_,r)=>setTimeout(()=>r(new Error('timeout')),ms))]);
     await Promise.all(rows.map(async r => {
       try {
-        const p = await sbRest(`profiles?user_id=eq.${r.artist_id}&type=eq.artist&limit=1`, { method: 'GET' }, currentSession?.access_token);
+        const p = await fetchWithTimeout(sbRest(`profiles?user_id=eq.${r.artist_id}&type=eq.artist&limit=1`, { method: 'GET' }, currentSession?.access_token));
         if (p && p[0]) profileMap[r.artist_id] = p[0];
-      } catch(e) {}
+      } catch(e) { console.error('[Apps] profile fetch error:', e.message); }
     }));
+    console.error('[Apps] profiles loaded, rendering cards');
     listEl.innerHTML = '';
     rows.forEach(app => {
       const p = profileMap[app.artist_id] || {};
