@@ -1748,7 +1748,7 @@ async function loadApplications() {
         <div style="display:flex;gap:10px;align-items:flex-start;margin-bottom:10px;">
           <div data-avatar style="width:46px;height:46px;border-radius:6px;background:var(--card);border:2px solid var(--neon2);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">🎧</div>
           <div style="flex:1;min-width:0;">
-            <div data-name style="font-family:'Bebas Neue',sans-serif;font-size:17px;letter-spacing:1px;">Loading…</div>
+            <div data-name style="font-family:'Bebas Neue',sans-serif;font-size:17px;letter-spacing:1px;">Artist</div>
             <div data-detail></div>
           </div>
         </div>
@@ -1760,7 +1760,7 @@ async function loadApplications() {
       card.querySelector('.app-decline-btn').onclick = function() { rejectApplication(app.id, this); };
       listEl.appendChild(card);
       // Enrich card with profile data asynchronously (use null/anon key so RLS doesn't block)
-      sbRest(`profiles?user_id=eq.${app.artist_id}&type=eq.artist&limit=1`, { method: 'GET' }, null)
+      sbRest(`profiles?user_id=eq.${app.artist_id}&type=eq.artist&limit=1`, { method: 'GET' }, currentSession?.access_token || null)
         .then(pr => {
           if (!pr || !pr[0]) return;
           const prof = pr[0];
