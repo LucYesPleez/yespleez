@@ -1723,14 +1723,15 @@ function switchAppsTab(tab) {
 async function loadApplications() {
   const listEl = document.getElementById('applicationsList');
   listEl.innerHTML = '<div style="text-align:center;color:var(--muted);font-size:13px;padding:20px;">Loading…</div>';
-  console.log('[Apps] loading — eventId:', currentEventId, 'hasToken:', !!currentSession?.access_token);
+  console.error('[Apps] loading — eventId:', currentEventId, 'hasToken:', !!currentSession?.access_token);
+  listEl.innerHTML = `<div style="text-align:center;color:var(--muted);font-size:11px;padding:20px;">Loading… (event: ${currentEventId || 'NONE'})</div>`;
   try {
     const rows = await sbRest(
       `applications?event_id=eq.${currentEventId}&select=*&order=created_at.asc`,
       { method: 'GET' },
       currentSession?.access_token
     );
-    console.log('[Apps] rows returned:', rows);
+    console.error('[Apps] rows returned:', JSON.stringify(rows));
     if (!rows || !rows.length) {
       listEl.innerHTML = '<div style="text-align:center;color:var(--muted);font-size:13px;padding:24px;">No pending applications.</div>';
       ['manageAppsBadge','overlayAppsBadge'].forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
