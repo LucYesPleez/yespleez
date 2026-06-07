@@ -236,6 +236,10 @@ function openPublicProfile(row) {
       </div>
     </div>
     ${mixHtml}
+    ${row.sound ? `
+    <div style="background:rgba(19,19,31,.88);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:14px 16px;margin-bottom:12px;text-align:center;">
+      <div style="font-size:15px;color:var(--text);font-style:italic;line-height:1.5;">"${row.sound}"</div>
+    </div>` : ''}
     ${row.bio ? `
     <div style="background:rgba(19,19,31,.88);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:16px;margin-bottom:12px;">
       <div style="font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:2px;color:${accentColor};margin-bottom:8px;">ABOUT</div>
