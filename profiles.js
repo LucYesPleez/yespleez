@@ -48,6 +48,9 @@ async function upsertProfileToSupabase(profile, type) {
       years:             profile.years         || '',
       label:             profile.label         || '',
       card_pills:        profile.cardPills     || '',
+      emergency_name:    profile.emergencyName  || '',
+      emergency_phone:   profile.emergencyPhone || '',
+      emergency_rel:     profile.emergencyRel   || '',
       updated_at:        new Date().toISOString()
     };
     const token = currentSession.access_token;
@@ -123,6 +126,7 @@ function mapDbToArtistProfile(row) {
     feePlusTravelLocal: !!row.fee_plus_travel,
     feeNegotiable:      !!row.fee_negotiable,
     genreString:        row.genre_string  || '',
+    cardPills:          row.card_pills    || '',
     mixLink:            row.mix_link      || '',
     soundcloud:         row.soundcloud    || '',
     mixcloud:           row.mixcloud      || '',
@@ -130,6 +134,9 @@ function mapDbToArtistProfile(row) {
     youtube:            row.youtube       || '',
     facebook:           row.facebook      || '',
     avatar:             row.avatar        || '',
+    emergencyName:      row.emergency_name  || '',
+    emergencyPhone:     row.emergency_phone || '',
+    emergencyRel:       row.emergency_rel   || '',
     updatedAt:          row.updated_at    || ''
   };
 }
