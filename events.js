@@ -770,8 +770,8 @@ function renderAll() {
         const pillsHtml = genreParts.length
         ? `<div class="dj-pills" style="margin-top:4px;">${genreParts.map(p => `<span class="dj-pill">${p}</span>`).join('')}</div>`
         : '';
-        const soundHtml = entry.sound ? `<span style="color:var(--neon2);font-size:12px;font-style:italic;margin-left:6px;opacity:.85;">• ${entry.sound}</span>` : '';
-        infoBlock.innerHTML = `<div class="dj-name-row"><span class="dj-name">🎧 ${entry.name}</span>${soundHtml}</div>${pillsHtml}`;
+        const soundHtml = entry.sound ? `<div style="font-size:12px;color:var(--neon2);font-style:italic;margin-top:2px;opacity:.9;">${entry.sound}</div>` : '';
+        infoBlock.innerHTML = `<div class="dj-name-row"><span class="dj-name">🎧 ${entry.name}</span></div>${soundHtml}${pillsHtml}`;
         if (entry.notes && (isHost || (currentUser && currentUser.id === entry.user_id))) infoBlock.innerHTML += `<div class="dj-note">📝 ${entry.notes}</div>`;
         if (entry.backups?.length) infoBlock.innerHTML += `<div class="rank-badge">+${entry.backups.length} backup${entry.backups.length>1?'s':''}</div>`;
         if (s.label) infoBlock.innerHTML += `<div class="slot-badge ${isLounge?'cyan':''}">${s.label}</div>`;
