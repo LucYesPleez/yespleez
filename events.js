@@ -2466,9 +2466,11 @@ async function loadConfirmedYPGigs() {
         if (s.id === myClaimSlotId) { slotTime = s.time + ' ' + s.ampm; slotDur = s.dur; }
       }));
       return {
+        eventId:   ev.id,
         eventName: ev.name || cfg.name || 'Untitled Event',
         venue:     cfg.venue || '',
         date:      cfg.date  || '',
+        days:      cfg.days  || [],
         slotTime, slotDur
       };
     });
@@ -2520,7 +2522,17 @@ async function renderArtistDashGigsWithManual() {
   list.innerHTML = '';
 
   confirmedGigs.forEach(g => {
-    list.appendChild(buildGigCard(g, 'confirmed', null));
+    const card = buildGigCard(g, 'confirmed', null);
+    if (g.eventId) {
+      card.style.cursor = 'pointer';
+      card.title = 'Tap to view set times';
+      card.onclick = () => openArtistEvent({
+        eventId: g.eventId, eventName: g.eventName,
+        venue: g.venue, date: g.date,
+        days: g.days, claims: {}, host_controls: {}, locked: false
+      });
+    }
+    list.appendChild(card);
   });
 
   manualGigs.forEach(g => {
