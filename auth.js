@@ -37,15 +37,49 @@ async function sbAuthPost(path, body) {
   }
 }
 
+async function refreshSession() {
+  const saved = localStorage.getItem('yp_session');
+  if (!saved) return false;
+  try {
+    const s = JSON.parse(saved);
+    if (!s.refresh_token) return false;
+    const res = await sbAuthPost('token?grant_type=refresh_token', { refresh_token: s.refresh_token });
+    if (res.access_token) {
+      currentSession = res;
+      currentUser = res.user || currentUser;
+      localStorage.setItem('yp_session', JSON.stringify(res));
+      return true;
+    }
+  } catch {}
+  return false;
+}
+
 async function sbRest(path, options = {}, token = null) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+  const makeReq = (t) => fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
     ...options,
     headers: {
-      ...sbHeaders(token),
+      ...sbHeaders(t),
       'Prefer': options.prefer || (options.method === 'POST' ? 'resolution=merge-duplicates,return=representation' : 'return=representation'),
       ...(options.headers || {})
     }
   });
+
+  let res = await makeReq(token);
+
+  // Auto-refresh on 401 (expired JWT) then retry once
+  if (res.status === 401) {
+    const refreshed = await refreshSession();
+    if (refreshed) {
+      res = await makeReq(token === null ? null : currentSession.access_token);
+    } else {
+      // Can't refresh — send user back to login
+      currentUser = null; currentSession = null;
+      localStorage.removeItem('yp_session');
+      show('authScreen');
+      throw new Error('Session expired — please sign in again.');
+    }
+  }
+
   if (res.status === 204 || res.status === 201) {
     try { return await res.json(); } catch { return []; }
   }
