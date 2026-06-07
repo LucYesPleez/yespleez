@@ -74,6 +74,7 @@ function openEventSetTimes(ev) {
   currentEventId = ev.id;
   eventData = ev.config || {};
   eventData.id = ev.id;
+  currentEventHostId = ev.host_id || null;
   isHost = true;
   hostControls = ev.host_controls || { artistRemove: true, rankedBackups: true, genrePicker: true };
   document.getElementById('shareLinkBtn').style.display = '';
@@ -87,6 +88,7 @@ function openAllClaims(ev) {
   // Ensure name and poster are available from top-level event fields if not in config
   if (!eventData.name && ev.name) eventData.name = ev.name;
   if (!eventData.poster && ev.poster) eventData.poster = ev.poster;
+  currentEventHostId = ev.host_id || null;
   isHost = true;
   hostControls = ev.host_controls || { artistRemove: true, rankedBackups: true, genrePicker: true };
   setTimesLocked = ev.host_controls?.setTimesLocked || false;
@@ -102,6 +104,7 @@ function openEvent(ev) {
   currentEventId = ev.id;
   eventData = ev.config || {};
   eventData.id = ev.id;
+  currentEventHostId = ev.host_id || null;
   isHost = true;
   hostControls = ev.host_controls || { artistRemove: true, rankedBackups: true, genrePicker: true };
   document.getElementById('shareLinkBtn').style.display = ev.status === 'live' ? '' : 'none';
@@ -550,6 +553,9 @@ async function loadPublicEvent(eventId) {
     currentEventId = ev.id;
     eventData = ev.config || {};
     eventData.id = ev.id;
+    if (!eventData.name && ev.name) eventData.name = ev.name;
+    if (!eventData.poster && ev.poster) eventData.poster = ev.poster;
+    currentEventHostId = ev.host_id || null;
     hostControls = ev.host_controls || { artistRemove: true, rankedBackups: true, genrePicker: true };
     isHost = !!(currentUser && currentUser.id === ev.host_id);
     return true;
@@ -578,7 +584,8 @@ function showSignup() {
   document.getElementById('eventMeta').textContent   = [eventData.date, eventData.venue].filter(Boolean).join(' · ');
   document.getElementById('eventGenres').textContent = eventData.genres || '';
   document.getElementById('manageBtn').style.display    = isHost ? 'inline-block' : 'none';
-  document.getElementById('editBtn').style.display      = (isHost && !isReadOnly) ? 'inline-block' : 'none';
+  const canEdit = isHost && !isReadOnly && currentUser?.id && currentUser.id === currentEventHostId;
+  document.getElementById('editBtn').style.display      = canEdit ? 'inline-block' : 'none';
   const posterSrc = eventData.poster || '';
   const posterWrap = document.getElementById('signupPosterWrap');
   const posterImg  = document.getElementById('signupPoster');

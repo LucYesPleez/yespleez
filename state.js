@@ -26,8 +26,9 @@ let eventData      = null;   // the event config being viewed/edited
 let allEvents      = [];     // host's events list
 let claims         = {};     // slot claims for current event
 let activeKey      = null;   // slot key being claimed
-let isHost         = false;  // is current viewer the host of current event?
-let isReadOnly     = false;  // true when viewing an event from Discover (no edits allowed)
+let isHost            = false;  // is current viewer the host of current event?
+let isReadOnly        = false;  // true when viewing an event from Discover (no edits allowed)
+let currentEventHostId = null;  // host_id of the currently loaded event
 let pollTimer      = null;
 let currentMode    = null;   // 'host' or 'artist'
 
