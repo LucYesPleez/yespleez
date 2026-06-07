@@ -599,7 +599,7 @@ function showSignup() {
   // Apply bar — shown for non-hosts on non-read-only events
   const applyBar = document.getElementById('applyBar');
   if (applyBar) {
-    const showApplyBar = !isHost && !isReadOnly && currentUser?.id && currentUser.id !== 'guest' && (hostControls.applicationsOpen === true);
+    const showApplyBar = !isHost && currentUser?.id && currentUser.id !== 'guest' && (hostControls.applicationsOpen === true);
     applyBar.style.display = showApplyBar ? '' : 'none';
     if (showApplyBar) {
       // Restore saved code from localStorage
@@ -824,16 +824,17 @@ function renderAll() {
               noEl.textContent = 'Not in your code';
               actionBlock.appendChild(noEl);
             }
-          } else if (hostControls.applicationsOpen) {
-            // No code but applications are open — show APPLY button
-            const applyBtn = document.createElement('button');
-            applyBtn.style.cssText = 'padding:6px 14px;background:transparent;border:1px solid var(--neon2);border-radius:6px;color:var(--neon2);font-family:\'Bebas Neue\',sans-serif;font-size:13px;letter-spacing:1px;cursor:pointer;white-space:nowrap;';
-            applyBtn.textContent = _hasApplied ? 'APPLIED ✓' : 'APPLY';
-            applyBtn.disabled = _hasApplied;
-            if (!_hasApplied) applyBtn.onclick = () => openApplyModalForEvent(currentEventId, eventData.name || '');
-            actionBlock.appendChild(applyBtn);
           }
         }
+      }
+      // Apply button shows for non-hosts with no code when apps are open — outside isReadOnly gate
+      if (!entry && !isHost && !_eventCode && hostControls.applicationsOpen && currentUser?.id && currentUser.id !== 'guest') {
+        const applyBtn = document.createElement('button');
+        applyBtn.style.cssText = 'padding:6px 14px;background:transparent;border:1px solid var(--neon2);border-radius:6px;color:var(--neon2);font-family:\'Bebas Neue\',sans-serif;font-size:13px;letter-spacing:1px;cursor:pointer;white-space:nowrap;';
+        applyBtn.textContent = _hasApplied ? 'APPLIED ✓' : 'APPLY';
+        applyBtn.disabled = _hasApplied;
+        if (!_hasApplied) applyBtn.onclick = () => openApplyModalForEvent(currentEventId, eventData.name || '');
+        actionBlock.appendChild(applyBtn);
       }
       slot.appendChild(timeBlock); slot.appendChild(infoBlock); slot.appendChild(actionBlock);
       if (entry) initSlotSwipe(slot, s.id);
@@ -2748,26 +2749,22 @@ async function deleteManualGig(gigId) {
 
 function buildGigCard(data, type, onDelete) {
   const isConfirmed = type === 'confirmed';
-  const borderColor   = isConfirmed ? 'var(--neon2)'              : 'rgba(176,96,255,.7)';
-  const bgColor       = isConfirmed ? 'rgba(0,229,255,.04)'       : 'rgba(176,96,255,.04)';
-  const badgeColor    = isConfirmed ? 'var(--neon2)'              : 'rgba(176,96,255,.9)';
-  const badgeBg       = isConfirmed ? 'rgba(0,229,255,.12)'       : 'rgba(176,96,255,.12)';
-  const badgeBorder   = isConfirmed ? 'rgba(0,229,255,.3)'        : 'rgba(176,96,255,.3)';
-  const badgeText     = isConfirmed ? 'CONFIRMED ✓'               : 'SELF-LISTED';
+  const borderColor = isConfirmed ? 'var(--neon2)'        : 'rgba(176,96,255,.7)';
+  const bgColor     = isConfirmed ? 'rgba(0,229,255,.04)' : 'rgba(176,96,255,.04)';
+  const badgeColor  = isConfirmed ? 'var(--neon2)'        : 'rgba(176,96,255,.9)';
+  const badgeBg     = isConfirmed ? 'rgba(0,229,255,.12)' : 'rgba(176,96,255,.12)';
+  const badgeBorder = isConfirmed ? 'rgba(0,229,255,.3)'  : 'rgba(176,96,255,.3)';
+  const badgeText   = isConfirmed ? 'CONFIRMED ✓'         : 'SELF-LISTED';
 
-  const name  = esc(data.event_name || data.eventName || '');
-  const venue = esc(data.venue || '');
-  const date  = esc(data.date  || '');
+  const name     = esc(data.event_name || data.eventName || '');
+  const venue    = esc(data.venue || '');
+  const date     = esc(data.date  || '');
   const slotTime = data.slotTime ? esc(data.slotTime) : null;
   const slotDur  = data.slotDur  ? esc(data.slotDur)  : null;
 
   const card = document.createElement('div');
   card.className = 'gig-card';
   card.style.cssText = `border:1.5px solid ${borderColor};background:${bgColor};position:relative;`;
-
-  const deleteBtn = (!isConfirmed && onDelete)
-    ? `<button onclick="event.stopPropagation();${onDelete}" style="background:none;border:none;color:var(--muted);font-size:14px;cursor:pointer;padding:0 4px;line-height:1;">✕</button>`
-    : '';
 
   const slotHtml = slotTime
     ? `<span class="gig-slot visible">${slotTime}${slotDur ? ' · ' + slotDur : ''}</span>`
@@ -2778,13 +2775,60 @@ function buildGigCard(data, type, onDelete) {
       <div class="gig-event-name">${name}</div>
       <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;margin-left:8px;">
         <span style="font-family:'Bebas Neue',sans-serif;font-size:9px;letter-spacing:1.5px;color:${badgeColor};background:${badgeBg};border:1px solid ${badgeBorder};border-radius:10px;padding:2px 8px;white-space:nowrap;">${badgeText}</span>
-        ${deleteBtn}
+        <button class="gig-remove-btn" style="background:none;border:none;color:var(--muted);font-size:14px;cursor:pointer;padding:0 4px;line-height:1;opacity:0.6;">✕</button>
       </div>
     </div>
     <div class="gig-meta">${venue}${venue && date ? ' · ' : ''}${date}</div>
     ${slotHtml}
   `;
+
+  // Remove button — confirmed: unclaim from Supabase; manual: delete gig record
+  const removeBtn = card.querySelector('.gig-remove-btn');
+  if (isConfirmed && data.eventId) {
+    removeBtn.onclick = (e) => { e.stopPropagation(); openRemoveGigConfirm(data.eventId, name); };
+  } else if (!isConfirmed && onDelete) {
+    removeBtn.onclick = (e) => { e.stopPropagation(); confirmDeleteGig(data.id); };
+  } else {
+    removeBtn.style.display = 'none';
+  }
+
   return card;
+}
+
+let _removeGigEventId = null;
+
+function openRemoveGigConfirm(eventId, eventName) {
+  _removeGigEventId = eventId;
+  const overlay = document.getElementById('removeGigConfirmOverlay');
+  const nameEl  = document.getElementById('removeGigEventName');
+  if (nameEl) nameEl.textContent = eventName || 'this event';
+  if (overlay) overlay.classList.add('open');
+}
+
+function closeRemoveGigConfirm() {
+  _removeGigEventId = null;
+  const overlay = document.getElementById('removeGigConfirmOverlay');
+  if (overlay) overlay.classList.remove('open');
+}
+
+async function confirmRemoveGig() {
+  if (!_removeGigEventId) return;
+  const btn = document.getElementById('removeGigConfirmBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'REMOVING...'; }
+  try {
+    await sbRest(
+      `claims?user_id=eq.${currentUser.id}&event_id=eq.${_removeGigEventId}`,
+      { method: 'DELETE' },
+      currentSession.access_token
+    );
+    closeRemoveGigConfirm();
+    showToast('Removed from gig ✓', 'success');
+    renderArtistDashGigsWithManual();
+  } catch(e) {
+    showToast('Could not remove — try again.', 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'YES, REMOVE ME'; }
+  }
 }
 
 // ── Load confirmed YesPleez gigs for artist ────────

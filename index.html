@@ -2227,6 +2227,20 @@ body.player-open .screen.active { padding-bottom: 80px; }
   </div>
 </div>
 
+<!-- REMOVE SELF FROM GIG CONFIRM -->
+<div class="overlay" id="removeGigConfirmOverlay">
+  <div class="edit-event-modal" style="text-align:center;">
+    <h2 style="color:var(--neon);margin-bottom:8px;">REMOVE YOURSELF?</h2>
+    <p style="margin-bottom:6px;">You're about to remove yourself from</p>
+    <p style="font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:1px;color:var(--text);margin-bottom:16px;" id="removeGigEventName"></p>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:24px;">⚠️ Your slot will be freed up and the host will be able to rebook it.</p>
+    <div class="edit-modal-btns">
+      <button class="btn-primary" id="removeGigConfirmBtn" onclick="confirmRemoveGig()" style="background:var(--neon);color:#fff;">YES, REMOVE ME</button>
+      <button class="btn-ghost" onclick="closeRemoveGigConfirm()" style="margin-top:4px;">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <!-- DELETE EVENT CONFIRM MODAL -->
 <div class="overlay" id="deleteEventConfirmOverlay">
   <div class="edit-event-modal" style="text-align:center;">
