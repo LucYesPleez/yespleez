@@ -2078,31 +2078,8 @@ function updateArtistDashCard() {
 }
 
 function renderArtistDashGigs() {
-  const list = document.getElementById('artistDashGigs'); if (!list) return;
-  let gigs = [];
-  if (DEMO) {
-    const myName = artistProfile.djName || 'DJ Flames';
-    DEMO_EVENTS.forEach(ev => {
-      if (ev.status !== 'live') return;
-      const evClaims = demoClaims?.[ev.id] || {};
-      let mySlotId = null, mySlot = null;
-      Object.entries(evClaims).forEach(([slotId, claim]) => { if (claim.name === myName || claim.name === 'DJ Flames') mySlotId = slotId; });
-      if (mySlotId) (ev.config?.days || []).forEach(d => d.slots.forEach(s => { if (s.id === mySlotId) mySlot = s; }));
-      const isPrivate = ev.host_controls?.privateSetTimes;
-      gigs.push({ eventId: ev.id, eventName: ev.name || ev.config?.name, venue: ev.config?.venue || 'TBA', date: ev.config?.date || '', slotTime: mySlot ? mySlot.time + ' ' + mySlot.ampm : null, slotDur: mySlot ? mySlot.dur : null, private: isPrivate && !mySlot, days: ev.config?.days || [], host_controls: ev.host_controls, mySlotId, claims: demoClaims?.[ev.id] || {}, locked: setTimesLocked });
-    });
-    if (!gigs.find(g => g.eventName === 'Subsonic Winter 2025')) {
-      gigs.push({ eventId: 'demo-event-002', eventName: 'Subsonic Winter 2025', venue: 'Location TBA', date: 'July 19', slotTime: null, slotDur: null, private: true, days: [], host_controls: {privateSetTimes:true}, mySlotId: null, claims: {}, locked: false });
-    }
-  }
-  if (!gigs.length) { list.innerHTML = '<div style="font-size:13px;color:var(--muted);padding:8px 0;">No upcoming bookings yet.</div>'; return; }
-  list.innerHTML = '';
-  gigs.forEach(g => {
-    const card = document.createElement('div'); card.className = 'gig-card'; card.style.cursor = g.days?.length ? 'pointer' : 'default';
-    card.innerHTML = `<div class="gig-event-name">${g.eventName}</div><div class="gig-meta">${g.venue}${g.date ? ' · ' + g.date : ''}</div>${g.private ? '<span class="gig-slot private">🔒 Set time private — host will confirm closer to the event</span>' : g.slotTime ? `<span class="gig-slot visible">${g.slotTime} · ${g.slotDur}</span>` : '<span class="gig-slot private">Not yet booked</span>'}${g.days?.length ? '<div style="font-size:10px;color:var(--muted);margin-top:6px;letter-spacing:1px;">TAP TO VIEW SET TIMES →</div>' : ''}`;
-    if (g.days?.length) card.onclick = () => openArtistEvent(g);
-    list.appendChild(card);
-  });
+  // Route to unified renderer which handles both confirmed + manual gigs
+  renderArtistDashGigsWithManual();
 }
 
 function updateDashProfileCard() {
@@ -2414,6 +2391,90 @@ async function deleteManualGig(gigId) {
   });
 }
 
+// ── Unified gig card builder ───────────────────────
+// type: 'confirmed' | 'manual'
+// confirmed = cyan border, visible on public profile
+// manual    = purple border, only artist can see
+
+function buildGigCard(data, type, onDelete) {
+  const isConfirmed = type === 'confirmed';
+  const borderColor   = isConfirmed ? 'var(--neon2)'              : 'rgba(176,96,255,.7)';
+  const bgColor       = isConfirmed ? 'rgba(0,229,255,.04)'       : 'rgba(176,96,255,.04)';
+  const badgeColor    = isConfirmed ? 'var(--neon2)'              : 'rgba(176,96,255,.9)';
+  const badgeBg       = isConfirmed ? 'rgba(0,229,255,.12)'       : 'rgba(176,96,255,.12)';
+  const badgeBorder   = isConfirmed ? 'rgba(0,229,255,.3)'        : 'rgba(176,96,255,.3)';
+  const badgeText     = isConfirmed ? 'CONFIRMED ✓'               : 'SELF-LISTED';
+
+  const name  = esc(data.event_name || data.eventName || '');
+  const venue = esc(data.venue || '');
+  const date  = esc(data.date  || '');
+  const slotTime = data.slotTime ? esc(data.slotTime) : null;
+  const slotDur  = data.slotDur  ? esc(data.slotDur)  : null;
+
+  const card = document.createElement('div');
+  card.className = 'gig-card';
+  card.style.cssText = `border:1.5px solid ${borderColor};background:${bgColor};position:relative;`;
+
+  const deleteBtn = (!isConfirmed && onDelete)
+    ? `<button onclick="event.stopPropagation();${onDelete}" style="background:none;border:none;color:var(--muted);font-size:14px;cursor:pointer;padding:0 4px;line-height:1;">✕</button>`
+    : '';
+
+  const slotHtml = slotTime
+    ? `<span class="gig-slot visible">${slotTime}${slotDur ? ' · ' + slotDur : ''}</span>`
+    : isConfirmed ? `<span class="gig-slot private">Slot time TBC</span>` : '';
+
+  card.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px;">
+      <div class="gig-event-name">${name}</div>
+      <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;margin-left:8px;">
+        <span style="font-family:'Bebas Neue',sans-serif;font-size:9px;letter-spacing:1.5px;color:${badgeColor};background:${badgeBg};border:1px solid ${badgeBorder};border-radius:10px;padding:2px 8px;white-space:nowrap;">${badgeText}</span>
+        ${deleteBtn}
+      </div>
+    </div>
+    <div class="gig-meta">${venue}${venue && date ? ' · ' : ''}${date}</div>
+    ${slotHtml}
+  `;
+  return card;
+}
+
+// ── Load confirmed YesPleez gigs for artist ────────
+
+async function loadConfirmedYPGigs() {
+  if (DEMO || !currentUser?.id || currentUser.id === 'guest') return [];
+  try {
+    // Get all claims by this user, with event data
+    const claims = await sbRest(
+      `claims?user_id=eq.${currentUser.id}&select=slot_id,event_id`,
+      { method: 'GET' }, currentSession.access_token
+    );
+    if (!claims?.length) return [];
+
+    const eventIds = [...new Set(claims.map(c => c.event_id).filter(Boolean))];
+    if (!eventIds.length) return [];
+
+    const events = await sbRest(
+      `events?id=in.(${eventIds.join(',')})&select=id,name,config`,
+      { method: 'GET' }, currentSession.access_token
+    );
+    if (!events?.length) return [];
+
+    return events.map(ev => {
+      const cfg = ev.config || {};
+      const myClaimSlotId = claims.find(c => c.event_id === ev.id)?.slot_id;
+      let slotTime = null, slotDur = null;
+      (cfg.days || []).forEach(d => d.slots?.forEach(s => {
+        if (s.id === myClaimSlotId) { slotTime = s.time + ' ' + s.ampm; slotDur = s.dur; }
+      }));
+      return {
+        eventName: ev.name || cfg.name || 'Untitled Event',
+        venue:     cfg.venue || '',
+        date:      cfg.date  || '',
+        slotTime, slotDur
+      };
+    });
+  } catch(e) { console.warn('loadConfirmedYPGigs:', e.message); return []; }
+}
+
 // ── Add gig modal ──────────────────────────────────
 
 function openAddGigModal() {
@@ -2445,64 +2506,34 @@ async function submitAddGig() {
   }
 }
 
-// ── Render gigs (YesPleez events + manual gigs) ────
+// ── Render gigs (confirmed YesPleez + self-listed) ─
 
 async function renderArtistDashGigsWithManual() {
   const list = document.getElementById('artistDashGigs'); if (!list) return;
-  const manualGigs = await loadManualGigs();
+  list.innerHTML = '<div style="font-size:12px;color:var(--muted);padding:8px 0;">Loading...</div>';
 
-  // YesPleez booked gigs (existing logic)
-  const ypGigs = [];
-  if (DEMO) {
-    // demo gigs already handled in renderArtistDashGigs
-  }
+  const [confirmedGigs, manualGigs] = await Promise.all([
+    loadConfirmedYPGigs(),
+    loadManualGigs()
+  ]);
 
   list.innerHTML = '';
 
-  // Render YesPleez gigs (teal border + "on YesPleez" tag)
-  if (ypGigs.length) {
-    ypGigs.forEach(g => {
-      const card = document.createElement('div');
-      card.className = 'gig-card';
-      card.style.cssText = 'border:1.5px solid var(--neon2);background:rgba(0,229,255,.04);cursor:pointer;';
-      card.innerHTML = `
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px;">
-          <div class="gig-event-name">${esc(g.eventName)}</div>
-          <span style="font-family:'Bebas Neue',sans-serif;font-size:9px;letter-spacing:1.5px;color:var(--neon2);background:rgba(0,229,255,.12);border:1px solid rgba(0,229,255,.3);border-radius:10px;padding:2px 8px;white-space:nowrap;flex-shrink:0;margin-left:8px;">on YesPleez</span>
-        </div>
-        <div class="gig-meta">${esc(g.venue)}${g.date ? ' · ' + esc(g.date) : ''}</div>
-        ${g.slotTime ? `<span class="gig-slot visible">${esc(g.slotTime)} · ${esc(g.slotDur)}</span>` : '<span class="gig-slot private">Not yet booked</span>'}
-      `;
-      if (g.days?.length) card.onclick = () => openArtistEvent(g);
-      list.appendChild(card);
-    });
-  }
+  confirmedGigs.forEach(g => {
+    list.appendChild(buildGigCard(g, 'confirmed', null));
+  });
 
-  // Render manual gigs (purple border, no tag)
-  if (manualGigs.length) {
-    manualGigs.forEach(g => {
-      const card = document.createElement('div');
-      card.className = 'gig-card';
-      card.style.cssText = 'border:1.5px solid var(--purple);background:rgba(176,96,255,.04);position:relative;';
-      card.innerHTML = `
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px;">
-          <div class="gig-event-name">${esc(g.event_name)}</div>
-          <button onclick="event.stopPropagation();confirmDeleteGig('${g.id}')" style="background:none;border:none;color:var(--muted);font-size:14px;cursor:pointer;padding:0 4px;line-height:1;">✕</button>
-        </div>
-        <div class="gig-meta">${g.venue ? esc(g.venue) : ''}${g.date ? ' · ' + esc(g.date) : ''}</div>
-      `;
-      list.appendChild(card);
-    });
-  }
+  manualGigs.forEach(g => {
+    list.appendChild(buildGigCard(g, 'manual', `confirmDeleteGig('${g.id}')`));
+  });
 
-  if (!ypGigs.length && !manualGigs.length) {
+  if (!confirmedGigs.length && !manualGigs.length) {
     list.innerHTML = '<div style="font-size:13px;color:var(--muted);padding:8px 0;">No upcoming gigs yet.</div>';
   }
 
-  // Add gig button at the bottom
   const addBtn = document.createElement('button');
   addBtn.className = 'btn-ghost';
-  addBtn.style.cssText = 'width:100%;margin-top:10px;border-color:var(--purple);color:var(--purple);font-size:12px;';
+  addBtn.style.cssText = 'width:100%;margin-top:10px;border-color:rgba(176,96,255,.6);color:rgba(176,96,255,.9);font-size:12px;';
   addBtn.textContent = '+ ADD A GIG';
   addBtn.onclick = openAddGigModal;
   list.appendChild(addBtn);

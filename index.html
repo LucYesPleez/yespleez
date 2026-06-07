@@ -2829,6 +2829,28 @@ body.player-open .screen.active { padding-bottom: 80px; }
   </div>
 </div>
 
+<!-- ADD GIG MODAL -->
+<div class="overlay" id="addGigOverlay">
+  <div class="modal">
+    <h2>➕ ADD A GIG</h2>
+    <p class="modal-hint">Host not on YesPleez yet? Add it yourself — only you can see self-listed gigs.</p>
+    <div class="field" style="margin-bottom:12px;">
+      <label>EVENT NAME</label>
+      <input type="text" id="addGigName" placeholder="e.g. Subsonic Music Festival" maxlength="60" autocomplete="off">
+    </div>
+    <div class="field" style="margin-bottom:12px;">
+      <label>VENUE</label>
+      <input type="text" id="addGigVenue" placeholder="e.g. Civic Underground, Sydney" maxlength="60" autocomplete="off">
+    </div>
+    <div class="field" style="margin-bottom:16px;">
+      <label>DATE</label>
+      <input type="text" id="addGigDate" placeholder="e.g. 15 Mar 2025" maxlength="30" autocomplete="off">
+    </div>
+    <button class="btn-confirm" id="addGigSubmitBtn" onclick="submitAddGig()">ADD GIG →</button>
+    <button class="btn-cancel" onclick="closeAddGigModal()" style="margin-top:10px;width:100%;">Cancel</button>
+  </div>
+</div>
+
 <!-- TOAST -->
 <div class="toast" id="toast"></div>
 
