@@ -493,6 +493,213 @@ function calFilterRegion(region) {
   showToast(`${region}: ${evs.length} event${evs.length!==1?'s':''}`, 'success');
 }
 
+// ══════════════════════════════════════════════════
+//  ARTIST AVAILABILITY — Phase 2
+// ══════════════════════════════════════════════════
+
+// ── State ──────────────────────────────────────────
+let _myAvailDates   = new Set(); // 'YYYY-MM-DD' strings
+let _availViewMonth = new Date();
+
+// ── Supabase helpers ───────────────────────────────
+async function loadMyAvailability() {
+  if (DEMO || !currentUser?.id) { _myAvailDates = new Set(); return; }
+  try {
+    const { data, error } = await supabase
+      .from('artist_availability')
+      .select('available_date')
+      .eq('user_id', currentUser.id);
+    if (error) throw error;
+    _myAvailDates = new Set((data || []).map(r => r.available_date));
+  } catch(e) {
+    console.warn('loadMyAvailability:', e);
+    _myAvailDates = new Set();
+  }
+  renderAvailSummary();
+}
+
+async function toggleAvailabilityDate(dateStr) {
+  if (!currentUser?.id) return;
+  const had = _myAvailDates.has(dateStr);
+  if (had) {
+    _myAvailDates.delete(dateStr);
+    try {
+      await supabase.from('artist_availability')
+        .delete()
+        .eq('user_id', currentUser.id)
+        .eq('available_date', dateStr);
+    } catch(e) { console.warn('avail delete:', e); _myAvailDates.add(dateStr); }
+  } else {
+    _myAvailDates.add(dateStr);
+    try {
+      await supabase.from('artist_availability')
+        .upsert({ user_id: currentUser.id, available_date: dateStr }, { onConflict: 'user_id,available_date' });
+    } catch(e) { console.warn('avail upsert:', e); _myAvailDates.delete(dateStr); }
+  }
+  renderAvailGrid();
+  renderAvailList();
+  renderAvailSummary();
+}
+
+// ── Load another artist's availability (promoter view) ──
+async function loadArtistAvailability(userId) {
+  if (!userId) return [];
+  try {
+    const { data, error } = await supabase
+      .from('artist_availability')
+      .select('available_date')
+      .eq('user_id', userId)
+      .gte('available_date', new Date().toISOString().split('T')[0]);
+    if (error) throw error;
+    return (data || []).map(r => r.available_date).sort();
+  } catch(e) {
+    console.warn('loadArtistAvailability:', e);
+    return [];
+  }
+}
+
+// ── Availability summary in artist dash ───────────
+function renderAvailSummary() {
+  const el = document.getElementById('artistAvailSummary');
+  if (!el) return;
+  const today = new Date().toISOString().split('T')[0];
+  const upcoming = [..._myAvailDates].filter(d => d >= today).sort().slice(0, 5);
+  if (!upcoming.length) {
+    el.innerHTML = `<span style="color:var(--muted);">No upcoming dates marked — tap MANAGE to add your availability.</span>`;
+    return;
+  }
+  el.innerHTML = upcoming.map(d => {
+    const dt = new Date(d + 'T12:00:00');
+    const label = dt.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' });
+    return `<span style="display:inline-block;background:rgba(0,229,255,.1);border:1px solid rgba(0,229,255,.3);color:var(--neon2);border-radius:16px;padding:4px 12px;font-size:12px;margin:3px 4px 3px 0;letter-spacing:.5px;">${label}</span>`;
+  }).join('') + (([..._myAvailDates].filter(d=>d>=today).length > 5) ? `<span style="font-size:11px;color:var(--muted);margin-left:4px;">+${[..._myAvailDates].filter(d=>d>=today).length-5} more</span>` : '');
+}
+
+// ── Open / close overlay ───────────────────────────
+async function openAvailabilityManager() {
+  _availViewMonth = new Date(_availViewMonth.getFullYear(), _availViewMonth.getMonth(), 1);
+  // reset to current month on open
+  const now = new Date();
+  _availViewMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  document.getElementById('availabilityOverlay').classList.add('open');
+  await loadMyAvailability();
+  renderAvailMonthLabel();
+  renderAvailGrid();
+  renderAvailList();
+}
+
+function closeAvailabilityManager() {
+  document.getElementById('availabilityOverlay').classList.remove('open');
+}
+
+function availPrevMonth() {
+  _availViewMonth = new Date(_availViewMonth.getFullYear(), _availViewMonth.getMonth() - 1, 1);
+  renderAvailMonthLabel();
+  renderAvailGrid();
+}
+
+function availNextMonth() {
+  _availViewMonth = new Date(_availViewMonth.getFullYear(), _availViewMonth.getMonth() + 1, 1);
+  renderAvailMonthLabel();
+  renderAvailGrid();
+}
+
+// ── Render helpers ─────────────────────────────────
+function renderAvailMonthLabel() {
+  const el = document.getElementById('availMonthLabel');
+  if (!el) return;
+  el.textContent = _availViewMonth.toLocaleDateString('en-AU', { month: 'long', year: 'numeric' }).toUpperCase();
+}
+
+function renderAvailGrid() {
+  const grid = document.getElementById('availCalGrid');
+  if (!grid) return;
+  const year  = _availViewMonth.getFullYear();
+  const month = _availViewMonth.getMonth();
+  const today = new Date().toISOString().split('T')[0];
+
+  // Day of week that month starts on (0=Sun)
+  const firstDow = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+  let html = '';
+
+  // Leading empty cells
+  for (let i = 0; i < firstDow; i++) {
+    html += `<div></div>`;
+  }
+
+  for (let d = 1; d <= daysInMonth; d++) {
+    const mm = String(month + 1).padStart(2, '0');
+    const dd = String(d).padStart(2, '0');
+    const dateStr = `${year}-${mm}-${dd}`;
+    const isPast  = dateStr < today;
+    const isAvail = _myAvailDates.has(dateStr);
+    const isToday = dateStr === today;
+
+    let bg     = isPast ? 'rgba(255,255,255,.03)' : 'var(--card)';
+    let color  = isPast ? 'rgba(255,255,255,.2)'  : 'var(--text)';
+    let border = 'transparent';
+    let cursor = isPast ? 'default' : 'pointer';
+
+    if (isToday)  { border = 'var(--neon2)'; }
+    if (isAvail && !isPast) {
+      bg     = 'var(--neon2)';
+      color  = '#0a0a0f';
+      border = 'var(--neon2)';
+    }
+
+    html += `<div onclick="${isPast ? '' : `toggleAvailabilityDate('${dateStr}')`}"
+      style="
+        aspect-ratio:1;display:flex;align-items:center;justify-content:center;
+        border-radius:8px;font-size:13px;font-weight:600;
+        background:${bg};color:${color};
+        border:1.5px solid ${border};
+        cursor:${cursor};
+        transition:background .15s,border .15s;
+        position:relative;
+      ">${d}</div>`;
+  }
+
+  grid.innerHTML = html;
+}
+
+function renderAvailList() {
+  const el = document.getElementById('availList');
+  if (!el) return;
+  const today = new Date().toISOString().split('T')[0];
+  const upcoming = [..._myAvailDates].filter(d => d >= today).sort();
+  if (!upcoming.length) {
+    el.innerHTML = `<div style="color:var(--muted);font-size:13px;padding:8px 0;">No dates marked yet. Tap any date above to mark yourself available.</div>`;
+    return;
+  }
+  el.innerHTML = upcoming.map(d => {
+    const dt = new Date(d + 'T12:00:00');
+    const label = dt.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long' });
+    return `<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);">
+      <div style="font-size:13px;color:var(--text);">${label}</div>
+      <button onclick="toggleAvailabilityDate('${d}')" style="background:none;border:1px solid rgba(255,80,80,.4);color:rgba(255,80,80,.8);border-radius:6px;font-size:10px;letter-spacing:1px;padding:4px 10px;cursor:pointer;font-family:'Bebas Neue',sans-serif;">REMOVE</button>
+    </div>`;
+  }).join('');
+}
+
+// ── Show availability on public profile (promoter view) ──
+async function renderProfileAvailability(userId, containerEl) {
+  if (!containerEl) return;
+  const dates = await loadArtistAvailability(userId);
+  if (!dates.length) { containerEl.style.display = 'none'; return; }
+  containerEl.style.display = '';
+  const pills = dates.slice(0, 8).map(d => {
+    const dt = new Date(d + 'T12:00:00');
+    const label = dt.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' });
+    return `<span style="display:inline-block;background:rgba(0,229,255,.1);border:1px solid rgba(0,229,255,.3);color:var(--neon2);border-radius:16px;padding:5px 13px;font-size:12px;margin:3px 4px 3px 0;">${label}</span>`;
+  }).join('');
+  const extra = dates.length > 8 ? `<span style="font-size:11px;color:var(--muted);margin-left:4px;">+${dates.length-8} more</span>` : '';
+  containerEl.innerHTML = `
+    <div style="font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:2px;color:var(--neon2);margin-bottom:10px;">AVAILABLE DATES</div>
+    <div>${pills}${extra}</div>`;
+}
+
 // ── Clash detection (called from event form) ───────
 function checkEventClashes(lat, lng, date, evId) {
   const clashes = calDetectClashes(date, lat, lng, '');

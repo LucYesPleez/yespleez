@@ -1701,8 +1701,55 @@ body.player-open .screen.active { padding-bottom: 80px; }
     </div>
   </div>
 
+  <!-- Availability -->
+  <div style="margin-bottom:16px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+      <div class="profile-section-title">MY AVAILABILITY</div>
+      <button onclick="openAvailabilityManager()" style="background:none;border:1px solid rgba(0,229,255,.35);color:var(--neon2);border-radius:20px;font-size:11px;letter-spacing:1px;padding:5px 14px;cursor:pointer;font-family:'Bebas Neue',sans-serif;">MANAGE</button>
+    </div>
+    <div id="artistAvailSummary" style="font-size:13px;color:var(--muted);padding:4px 0;">Loading availability...</div>
+  </div>
+
   <div style="margin-top:8px;">
     <button class="btn-new-event" style="border-color:var(--neon2);color:var(--neon2);" onclick="showProfile()">+ UPDATE MY PROFILE</button>
+  </div>
+</div>
+
+<!-- ══════════ AVAILABILITY MANAGER OVERLAY ══════════ -->
+<div class="overlay" id="availabilityOverlay">
+  <div class="edit-event-modal" style="max-height:90dvh;overflow-y:auto;padding:24px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:26px;letter-spacing:2px;color:var(--neon2);">MY AVAILABILITY</div>
+      <button onclick="closeAvailabilityManager()" style="background:none;border:none;color:var(--muted);font-size:22px;cursor:pointer;line-height:1;">×</button>
+    </div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:20px;line-height:1.5;">Tap dates to mark yourself as available. Promoters can see this and search for available artists on specific dates.</div>
+
+    <!-- Month nav -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <button onclick="availPrevMonth()" style="background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:8px;width:34px;height:34px;cursor:pointer;font-size:14px;">←</button>
+      <div id="availMonthLabel" style="font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:2px;color:var(--text);"></div>
+      <button onclick="availNextMonth()" style="background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:8px;width:34px;height:34px;cursor:pointer;font-size:14px;">→</button>
+    </div>
+
+    <!-- Day-of-week headers -->
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:4px;">
+      <div style="text-align:center;font-size:10px;color:var(--muted);padding:4px 0;">S</div>
+      <div style="text-align:center;font-size:10px;color:var(--muted);padding:4px 0;">M</div>
+      <div style="text-align:center;font-size:10px;color:var(--muted);padding:4px 0;">T</div>
+      <div style="text-align:center;font-size:10px;color:var(--muted);padding:4px 0;">W</div>
+      <div style="text-align:center;font-size:10px;color:var(--muted);padding:4px 0;">T</div>
+      <div style="text-align:center;font-size:10px;color:var(--muted);padding:4px 0;">F</div>
+      <div style="text-align:center;font-size:10px;color:var(--muted);padding:4px 0;">S</div>
+    </div>
+
+    <!-- Calendar grid -->
+    <div id="availCalGrid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:24px;"></div>
+
+    <!-- Upcoming availability list -->
+    <div style="font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:2px;color:var(--neon2);margin-bottom:10px;">MARKED AVAILABLE</div>
+    <div id="availList" style="min-height:40px;"></div>
+
+    <button onclick="closeAvailabilityManager()" style="width:100%;background:var(--neon2);border:none;color:#0a0a0f;font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:2px;padding:14px;border-radius:10px;cursor:pointer;margin-top:16px;">DONE</button>
   </div>
 </div>
 

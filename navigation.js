@@ -147,6 +147,7 @@ async function enterArtistDashboard() {
   show('artistDashScreen');
   updateNotifDot();
   checkForClaimableProfile();
+  if (typeof loadMyAvailability === 'function') loadMyAvailability();
 }
 
 // ── Navigation helpers ─────────────────────────────

@@ -308,6 +308,7 @@ function openPublicProfile(row) {
       ${row.instagram ? `<div style="font-size:13px;color:var(--muted);margin-bottom:6px;">📸 @${row.instagram}</div>` : ''}
       ${row.website ? `<div style="font-size:13px;color:var(--neon2);">${row.website}</div>` : ''}
     </div>` : ''}
+    ${!isHost ? `<div id="publicProfileAvailability" style="background:rgba(19,19,31,.88);backdrop-filter:blur(10px);border:1px solid rgba(0,229,255,.18);border-radius:12px;padding:16px;margin-bottom:12px;display:none;"></div>` : ''}
     ${inviteBtn}
     <div id="publicProfileGigs"></div>
   `;
@@ -316,6 +317,11 @@ function openPublicProfile(row) {
   // Load confirmed YesPleez gigs for this artist (non-self-listed only)
   if (!isHost && row.user_id) {
     loadPublicProfileGigs(row.user_id, accentColor, accentRgb);
+    // Load availability for promoter view
+    if (typeof renderProfileAvailability === 'function') {
+      const availEl = document.getElementById('publicProfileAvailability');
+      renderProfileAvailability(row.user_id, availEl);
+    }
   }
 }
 
