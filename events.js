@@ -249,7 +249,8 @@ function buildTemplate(ev) {
   document.getElementById('inPostcode').value  = ev?.postcode || '';
   document.getElementById('inLat').value       = ev?.lat      || '';
   document.getElementById('inLng').value       = ev?.lng      || '';
-  document.getElementById('inGenres').value    = ev?.genres   || '';
+  document.getElementById('inGenres').value     = ev?.genres     || '';
+  document.getElementById('inTicketUrl').value  = ev?.ticket_url || '';
   const poster = ev?.poster || '';
   document.getElementById('inPoster').value = poster;
   if (poster) {
@@ -604,7 +605,8 @@ function readForm() {
     postcode: document.getElementById('inPostcode').value.trim() || null,
     lat:      document.getElementById('inLat').value ? parseFloat(document.getElementById('inLat').value) : null,
     lng:      document.getElementById('inLng').value ? parseFloat(document.getElementById('inLng').value) : null,
-    genres:   document.getElementById('inGenres').value.trim(),
+    genres:     document.getElementById('inGenres').value.trim(),
+    ticket_url: document.getElementById('inTicketUrl')?.value.trim() || '',
     poster: document.getElementById('inPoster').value || '',
     days,
     host_controls: {
@@ -732,11 +734,17 @@ async function showPublicEventPage(eventId) {
       const appsOpen    = cfg.applications_open === true;
       const hasSession  = !!(currentUser?.id && currentUser.id !== 'guest');
 
+      const ticketUrl = cfg.ticket_url || '';
       ctaEl.innerHTML = `
         <div style="display:flex;flex-direction:column;gap:10px;">
+          ${ticketUrl ? `
+            <a href="${ticketUrl.startsWith('http') ? ticketUrl : 'https://'+ticketUrl}" target="_blank" rel="noopener"
+              style="display:block;background:var(--neon2);color:#0a0a0f;font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:2px;padding:18px;border-radius:14px;cursor:pointer;font-weight:700;text-align:center;text-decoration:none;">
+              🎟 GET TICKETS →
+            </a>` : ''}
           ${isLive && appsOpen ? `
             <button onclick="pubEvApply('${ev.id}','${(ev.name||'').replace(/'/g,"\\'")}')"
-              style="background:var(--neon2);color:#0a0a0f;font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:2px;padding:16px;border:none;border-radius:12px;cursor:pointer;font-weight:700;">
+              style="background:${ticketUrl ? 'rgba(0,229,255,.12)' : 'var(--neon2)'};color:${ticketUrl ? 'var(--neon2)' : '#0a0a0f'};border:${ticketUrl ? '1.5px solid var(--neon2)' : 'none'};font-family:'Bebas Neue',sans-serif;font-size:${ticketUrl ? '16px' : '18px'};letter-spacing:2px;padding:${ticketUrl ? '14px' : '16px'};border-radius:12px;cursor:pointer;font-weight:700;">
               APPLY TO PLAY →
             </button>` : ''}
           ${hasSession ? `
@@ -2013,7 +2021,7 @@ async function loadAllApplications(forceRefresh = false) {
         card.style.cssText = 'background:var(--card);border:1px solid rgba(0,229,255,.2);border-radius:12px;padding:14px;margin-bottom:10px;cursor:pointer;';
         card.onmouseenter = () => { card.style.borderColor = 'rgba(0,229,255,.5)'; };
         card.onmouseleave = () => { card.style.borderColor = 'rgba(0,229,255,.2)'; };
-        if (profile) card.onclick = (e) => { if (!e.target.closest('button')) openPublicProfile(profile); };
+        card.onclick = (e) => { if (!e.target.closest('button')) openAppDrawer(app, profile || null); };
 
         // Top row: avatar + info + play icon + status badge
         const topRow = document.createElement('div');
@@ -2063,6 +2071,104 @@ async function loadAllApplications(forceRefresh = false) {
       listEl.appendChild(section);
     });
   } catch(e) { console.warn('loadAllApplications error:', e); }
+}
+
+// ── Application profile drawer ─────────────────────
+
+function openAppDrawer(app, profile) {
+  const body = document.getElementById('appDrawerBody');
+  const drawer = document.getElementById('appDrawer');
+  const backdrop = document.getElementById('appDrawerBackdrop');
+  if (!body || !drawer) return;
+
+  const name     = profile ? (profile.dj_name || profile.name || 'Artist') : (app.artist_name || 'Artist');
+  const location = profile ? [profile.location, profile.state].filter(Boolean).join(', ') : '';
+  const genres   = profile?.genre_string ? profile.genre_string.split(' · ') : [];
+  const mixLink  = profile?.mix_link || profile?.soundcloud || profile?.mixcloud || '';
+  const bio      = profile?.bio || '';
+  const sound    = profile?.sound || '';
+  const avatar   = profile?.avatar || '';
+  const statusColor = app.status === 'accepted' ? 'var(--neon2)' : app.status === 'declined' ? 'var(--neon)' : 'var(--gold)';
+
+  const avatarHtml = avatar
+    ? `<img src="${avatar}" style="width:64px;height:64px;border-radius:12px;object-fit:cover;border:2px solid var(--neon2);flex-shrink:0;">`
+    : `<div style="width:64px;height:64px;border-radius:12px;background:rgba(0,229,255,.1);border:2px solid rgba(0,229,255,.3);display:flex;align-items:center;justify-content:center;flex-shrink:0;"><svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3z"/><path d="M3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg></div>`;
+
+  body.innerHTML = `
+    <!-- Header -->
+    <div style="display:flex;align-items:flex-start;gap:14px;margin-bottom:18px;">
+      ${avatarHtml}
+      <div style="flex:1;min-width:0;">
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:26px;letter-spacing:2px;line-height:1;">${esc(name)}</div>
+        ${location ? `<div style="font-size:12px;color:var(--muted);margin-top:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:3px;"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg>${esc(location)}</div>` : ''}
+        <div style="margin-top:6px;"><span style="font-size:10px;color:${statusColor};font-family:'Bebas Neue',sans-serif;letter-spacing:1.5px;background:${statusColor}1a;border:1px solid ${statusColor}44;border-radius:10px;padding:2px 10px;">${app.status.toUpperCase()}</span></div>
+      </div>
+      <button onclick="closeAppDrawer()" style="background:none;border:none;color:var(--muted);font-size:22px;cursor:pointer;line-height:1;padding:0;flex-shrink:0;">×</button>
+    </div>
+
+    <!-- Mix player -->
+    ${mixLink ? `
+    <button onclick="openMiniPlayer('${esc(name).replace(/'/g,"\\'")}','${mixLink}','')"
+      style="width:100%;display:flex;align-items:center;gap:10px;background:rgba(0,229,255,.08);border:1.5px solid rgba(0,229,255,.3);border-radius:12px;padding:12px 16px;cursor:pointer;margin-bottom:14px;">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="var(--neon2)"><polygon points="6,3 20,12 6,21"/></svg>
+      <span style="font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:2px;color:var(--neon2);">PLAY DEMO MIX</span>
+    </button>` : ''}
+
+    <!-- Sound / vibe -->
+    ${sound ? `<div style="font-size:14px;color:var(--neon2);font-style:italic;margin-bottom:12px;line-height:1.5;">"${esc(sound)}"</div>` : ''}
+
+    <!-- Bio -->
+    ${bio ? `<div style="font-size:13px;color:var(--muted);line-height:1.7;margin-bottom:14px;">${esc(bio)}</div>` : ''}
+
+    <!-- Genres -->
+    ${genres.length ? `
+    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px;">
+      ${genres.map(g => `<span style="background:var(--card);border:1px solid var(--border);border-radius:16px;font-size:12px;padding:4px 12px;color:var(--text);">${esc(g)}</span>`).join('')}
+    </div>` : ''}
+
+    <!-- Application note -->
+    ${app.note ? `
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:16px;">
+      <div style="font-size:10px;letter-spacing:2px;color:var(--muted);font-family:'Bebas Neue',sans-serif;margin-bottom:6px;">NOTE FROM ARTIST</div>
+      <div style="font-size:13px;color:var(--text);line-height:1.6;">"${esc(app.note)}"</div>
+    </div>` : ''}
+
+    <!-- Action buttons -->
+    ${app.status === 'pending' ? `
+    <div style="display:flex;gap:10px;margin-top:4px;" id="appDrawerActions">
+      <button onclick="drawerUpdateApp('${app.id}','declined')"
+        style="flex:1;background:rgba(255,45,120,.1);border:1px solid var(--neon);color:var(--neon);font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:2px;padding:14px;border-radius:12px;cursor:pointer;">
+        ✕ DECLINE
+      </button>
+      <button onclick="drawerUpdateApp('${app.id}','accepted')"
+        style="flex:1;background:var(--neon2);border:none;color:#0a0a0f;font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:2px;padding:14px;border-radius:12px;cursor:pointer;font-weight:700;">
+        ✓ ACCEPT
+      </button>
+    </div>` : `
+    <div style="display:flex;gap:10px;margin-top:4px;">
+      ${profile ? `<button onclick="closeAppDrawer();openPublicProfile(${JSON.stringify(profile).replace(/"/g,'&quot;')})"
+        style="flex:1;background:var(--card);border:1px solid var(--border);color:var(--text);font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:2px;padding:12px;border-radius:12px;cursor:pointer;">
+        VIEW FULL PROFILE
+      </button>` : ''}
+    </div>`}
+  `;
+
+  backdrop.style.display = '';
+  requestAnimationFrame(() => { drawer.style.transform = 'translateY(0)'; });
+}
+
+function closeAppDrawer() {
+  const drawer   = document.getElementById('appDrawer');
+  const backdrop = document.getElementById('appDrawerBackdrop');
+  if (drawer)   drawer.style.transform = 'translateY(100%)';
+  if (backdrop) backdrop.style.display = 'none';
+}
+
+async function drawerUpdateApp(appId, status) {
+  const actionsEl = document.getElementById('appDrawerActions');
+  if (actionsEl) actionsEl.innerHTML = '<div style="text-align:center;color:var(--muted);font-size:13px;padding:8px;">Saving…</div>';
+  await updateApplicationStatus(appId, status, actionsEl);
+  closeAppDrawer();
 }
 
 async function updateApplicationStatus(appId, status, btnContainer) {

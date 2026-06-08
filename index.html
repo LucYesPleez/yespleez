@@ -1957,6 +1957,13 @@ body.player-open .screen.active { padding-bottom: 80px; }
   </div>
 </div>
 
+<!-- APPLICATION PROFILE DRAWER -->
+<div id="appDrawerBackdrop" onclick="closeAppDrawer()" style="display:none;position:fixed;inset:0;z-index:199;background:rgba(0,0,0,.5);backdrop-filter:blur(4px);"></div>
+<div id="appDrawer" style="position:fixed;bottom:0;left:0;right:0;z-index:200;background:var(--dark);border-radius:20px 20px 0 0;border-top:1px solid var(--border);max-height:88dvh;overflow-y:auto;transform:translateY(100%);transition:transform .3s cubic-bezier(.32,0,.67,0);max-width:680px;margin:0 auto;">
+  <div style="width:36px;height:4px;background:var(--border);border-radius:2px;margin:12px auto 0;"></div>
+  <div style="padding:16px 20px 32px;" id="appDrawerBody"></div>
+</div>
+
 <!-- APPLY MODAL -->
 <div class="overlay" id="applyOverlay">
   <div class="edit-event-modal">
@@ -2215,6 +2222,10 @@ body.player-open .screen.active { padding-bottom: 80px; }
     <div class="field">
       <label>Genres / Vibe <span style="opacity:.4;font-size:10px;text-transform:none;letter-spacing:0">(optional)</span></label>
       <input type="text" id="inGenres" placeholder="e.g. Techno · House · Breaks">
+    </div>
+    <div class="field">
+      <label>Ticket Link <span style="opacity:.4;font-size:10px;text-transform:none;letter-spacing:0">(optional — Humanitix, Eventbrite, etc.)</span></label>
+      <input type="url" id="inTicketUrl" placeholder="https://humanitix.com/your-event">
     </div>
     <div class="field">
       <label>EVENT POSTER <span style="opacity:.4;font-size:10px;text-transform:none;letter-spacing:0">(optional — screenshot or photo)</span></label>
