@@ -28,6 +28,57 @@ async function loadUserEvents() {
   }
 }
 
+// ── Shared event card builder (used by dashboard + discover) ──
+// mode: 'host' shows EDIT/ALL CLAIMS; 'discover' shows VIEW
+function buildEventCardEl(ev, mode) {
+  mode = mode || 'host';
+  const card = document.createElement('div');
+  card.className = 'event-card' + (ev.status === 'live' ? ' active-event' : '');
+  card.style.overflow = 'hidden';
+  card.style.padding = '0';
+  card.style.display = 'block';
+  const cfg = ev.config || {};
+  const slotCount = (cfg.days || []).reduce((n, d) => n + d.slots.length, 0);
+  const isLive = ev.status === 'live';
+  const poster = cfg.poster || ev.poster || '';
+  const focal  = cfg.poster_focal || '50% 50%';
+  const rightBtns = mode === 'host'
+    ? `<span class="event-card-status ${isLive ? 'live' : 'draft'}">${isLive ? 'LIVE' : 'DRAFT'}</span>
+       <button class="btn-signout" style="font-size:10px;padding:4px 12px;" id="edit-${ev.id}">EDIT →</button>`
+    : `<span class="event-card-status ${isLive ? 'live' : 'draft'}">${isLive ? 'LIVE' : 'UPCOMING'}</span>
+       <button class="btn-signout" style="font-size:10px;padding:4px 12px;">VIEW →</button>`;
+  card.innerHTML = `
+    <div style="position:relative;min-height:90px;overflow:hidden;border-radius:inherit;width:100%;">
+      ${poster ? `
+        <div style="position:absolute;inset:0;background:url(${poster}) ${focal}/cover no-repeat;"></div>
+        <div style="position:absolute;inset:0;background:linear-gradient(90deg,rgba(10,10,20,.92) 0%,rgba(10,10,20,.55) 50%,rgba(10,10,20,.80) 100%);"></div>
+      ` : ''}
+      <div style="position:relative;display:flex;align-items:stretch;min-height:90px;">
+        <div class="event-card-info" style="min-width:0;flex:1;padding:14px 12px;display:flex;flex-direction:column;justify-content:center;">
+          <div class="event-card-name">${esc(ev.name || 'Untitled Event')}</div>
+          <div class="event-card-meta">${esc([cfg.date, cfg.venue].filter(Boolean).join(' · '))}${slotCount ? ' · ' + slotCount + ' slots' : ''}</div>
+          ${mode === 'host' && isLive ? `<div style="margin-top:8px;">
+            <button class="btn-ghost" style="font-size:11px;padding:5px 12px;border-color:var(--gold);color:var(--gold);" id="ac-${ev.id}">ALL CLAIMS</button>
+          </div>` : ''}
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;justify-content:center;gap:8px;flex-shrink:0;padding:14px 12px;">
+          ${rightBtns}
+        </div>
+      </div>
+    </div>`;
+  if (mode === 'host') {
+    card.onclick = (e) => {
+      if (!e.target.closest('button')) { if (isLive) openAllClaims(ev); else openEvent(ev); }
+    };
+    if (isLive) card.querySelector('#ac-' + ev.id).onclick = (e) => { e.stopPropagation(); openAllClaims(ev); };
+    card.querySelector('#edit-' + ev.id).onclick = (e) => { e.stopPropagation(); openEvent(ev); };
+  } else {
+    card.onclick = (e) => { if (!e.target.closest('button')) openPublicEvent(ev); };
+    card.querySelector('.btn-signout').onclick = (e) => { e.stopPropagation(); openPublicEvent(ev); };
+  }
+  return card;
+}
+
 function renderEventList() {
   const listEl = document.getElementById('eventList');
   listEl.innerHTML = '';
@@ -35,50 +86,7 @@ function renderEventList() {
     listEl.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted);font-size:13px;">No events yet. Create your first one below.</div>';
     return;
   }
-  allEvents.forEach(ev => {
-    const card = document.createElement('div');
-    card.className = 'event-card' + (ev.status==='live' ? ' active-event' : '');
-    card.style.overflow = 'hidden';
-    const cfg = ev.config || {};
-    const slotCount = (cfg.days||[]).reduce((n,d)=>n+d.slots.length,0);
-    const isLive = ev.status === 'live';
-    const poster = cfg.poster || ev.poster || '';
-    card.style.padding = '0';
-    card.style.display = 'block';
-    const focal = cfg.poster_focal || '50% 50%';
-    card.innerHTML = `
-      <div style="position:relative;min-height:90px;overflow:hidden;border-radius:inherit;width:100%;">
-        ${poster ? `
-          <div style="position:absolute;inset:0;background:url(${poster}) ${focal}/cover no-repeat;"></div>
-          <div style="position:absolute;inset:0;background:linear-gradient(90deg,rgba(10,10,20,.92) 0%,rgba(10,10,20,.55) 50%,rgba(10,10,20,.80) 100%);"></div>
-        ` : ''}
-        <div style="position:relative;display:flex;align-items:stretch;min-height:90px;">
-          <div class="event-card-info" style="min-width:0;flex:1;padding:14px 12px;display:flex;flex-direction:column;justify-content:center;">
-            <div class="event-card-name">${esc(ev.name || 'Untitled Event')}</div>
-            <div class="event-card-meta">${esc([cfg.date, cfg.venue].filter(Boolean).join(' · '))}${slotCount ? ' · ' + slotCount + ' slots' : ''}</div>
-            ${isLive ? `<div style="margin-top:8px;">
-              <button class="btn-ghost" style="font-size:11px;padding:5px 12px;border-color:var(--gold);color:var(--gold);" id="ac-${ev.id}">ALL CLAIMS</button>
-            </div>` : ''}
-          </div>
-          <div style="display:flex;flex-direction:column;align-items:flex-end;justify-content:center;gap:8px;flex-shrink:0;padding:14px 12px;">
-            <span class="event-card-status ${isLive?'live':'draft'}">${isLive?'LIVE':'DRAFT'}</span>
-            <button class="btn-signout" style="font-size:10px;padding:4px 12px;" id="edit-${ev.id}">EDIT →</button>
-          </div>
-        </div>
-      </div>
-    `;
-    card.onclick = (e) => {
-      if (!e.target.closest('button')) {
-        if (isLive) openAllClaims(ev);
-        else openEvent(ev);
-      }
-    };
-    if (isLive) {
-      card.querySelector('#ac-' + ev.id).onclick = (e) => { e.stopPropagation(); openAllClaims(ev); };
-    }
-    card.querySelector('#edit-' + ev.id).onclick = (e) => { e.stopPropagation(); openEvent(ev); };
-    listEl.appendChild(card);
-  });
+  allEvents.forEach(ev => listEl.appendChild(buildEventCardEl(ev, 'host')));
 }
 
 // ── Poster focal point picker ──────────────────────

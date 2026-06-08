@@ -158,6 +158,44 @@ function mapDbToHostProfile(row) {
   };
 }
 
+// ── Shared profile card builder (used by discover) ────────────
+function buildProfileCardEl(row) {
+  const isHost    = row.type === 'host';
+  const name      = row.dj_name || row.name || 'Unknown';
+  const location  = [row.location, row.state].filter(Boolean).join(', ');
+  const sound     = row.sound || '';
+  const genres    = row.genre_string ? row.genre_string.split(' · ').slice(0, 4).join(' · ') : '';
+  const bio       = row.bio ? row.bio.substring(0, 80) + (row.bio.length > 80 ? '…' : '') : '';
+  const accentCol = isHost ? 'var(--neon)'  : 'var(--neon2)';
+  const accentRgb = isHost ? '255,45,120'   : '0,229,255';
+  const emoji     = isHost ? '🎛️' : '🎧';
+  const badge     = isHost
+    ? `<span style="background:rgba(255,45,120,.15);color:var(--neon);border:1px solid rgba(255,45,120,.3);border-radius:20px;font-size:10px;padding:2px 8px;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;">HOST</span>`
+    : `<span style="background:rgba(0,229,255,.12);color:var(--neon2);border:1px solid rgba(0,229,255,.25);border-radius:20px;font-size:10px;padding:2px 8px;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;">ARTIST</span>`;
+  const avatarHtml = row.avatar
+    ? `<img src="${row.avatar}" style="width:56px;height:56px;border-radius:10px;object-fit:cover;border:2px solid ${accentCol};flex-shrink:0;" onerror="this.style.display='none'">`
+    : `<div style="width:56px;height:56px;border-radius:10px;background:var(--card2);border:2px solid ${accentCol};display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0;">${emoji}</div>`;
+  const card = document.createElement('div');
+  // Match dash-profile-card exactly but with accent-coloured border
+  card.style.cssText = `background:var(--card);border:1px solid rgba(${accentRgb},.35);border-radius:14px;padding:16px 18px;margin-bottom:12px;display:flex;align-items:center;gap:16px;cursor:pointer;transition:border-color .2s;`;
+  card.onmouseenter = () => { card.style.borderColor = accentCol; };
+  card.onmouseleave = () => { card.style.borderColor = `rgba(${accentRgb},.35)`; };
+  card.onclick = () => openPublicProfile(row);
+  card.innerHTML = `
+    ${avatarHtml}
+    <div style="flex:1;min-width:0;">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:3px;">
+        <span style="font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${name}</span>
+        ${badge}
+      </div>
+      ${location ? `<div style="font-size:12px;color:var(--muted);margin-bottom:3px;">📍 ${location}</div>` : ''}
+      ${sound    ? `<div style="font-size:12px;color:${accentCol};margin-bottom:3px;">${sound}</div>`
+                 : genres ? `<div style="font-size:12px;color:${accentCol};margin-bottom:3px;">${genres}</div>` : ''}
+      ${bio      ? `<div style="font-size:12px;color:var(--muted);line-height:1.5;">${bio}</div>` : ''}
+    </div>`;
+  return card;
+}
+
 // ── Profile search ─────────────────────────────────
 
 async function searchProfiles(query, filterType, filterState) {

@@ -133,77 +133,9 @@ async function runSearch() {
   }
 
   allItems.forEach(item => {
-    const card = document.createElement('div');
-
-    if (item._type === 'event') {
-      // ── Event card: exact same structure as host dashboard renderEventList ──
-      const ev = item;
-      const cfg = ev.config || {};
-      const slotCount = (cfg.days || []).reduce((n, d) => n + d.slots.length, 0);
-      const isLive = ev.status === 'live';
-      const poster = cfg.poster || ev.poster || '';
-      const focal  = cfg.poster_focal || '50% 50%';
-      card.className = 'event-card' + (isLive ? ' active-event' : '');
-      card.style.overflow = 'hidden';
-      card.style.padding = '0';
-      card.style.display = 'block';
-      card.style.marginBottom = '12px';
-      card.innerHTML = `
-        <div style="position:relative;min-height:90px;overflow:hidden;border-radius:inherit;width:100%;">
-          ${poster ? `
-            <div style="position:absolute;inset:0;background:url(${poster}) ${focal}/cover no-repeat;"></div>
-            <div style="position:absolute;inset:0;background:linear-gradient(90deg,rgba(10,10,20,.92) 0%,rgba(10,10,20,.55) 50%,rgba(10,10,20,.80) 100%);"></div>
-          ` : ''}
-          <div style="position:relative;display:flex;align-items:stretch;min-height:90px;">
-            <div class="event-card-info" style="min-width:0;flex:1;padding:14px 12px;display:flex;flex-direction:column;justify-content:center;">
-              <div class="event-card-name">${ev.name || 'Untitled Event'}</div>
-              <div class="event-card-meta">${[cfg.date, cfg.venue].filter(Boolean).join(' · ')}${slotCount ? ' · ' + slotCount + ' slots' : ''}</div>
-            </div>
-            <div style="display:flex;flex-direction:column;align-items:flex-end;justify-content:center;gap:8px;flex-shrink:0;padding:14px 12px;">
-              <span class="event-card-status ${isLive ? 'live' : 'draft'}">${isLive ? 'LIVE' : 'UPCOMING'}</span>
-              <button class="btn-signout" style="font-size:10px;padding:4px 12px;">VIEW →</button>
-            </div>
-          </div>
-        </div>`;
-      card.onclick = (e) => { if (!e.target.closest('button')) openPublicEvent(ev); };
-      card.querySelector('.btn-signout').onclick = (e) => { e.stopPropagation(); openPublicEvent(ev); };
-
-    } else {
-      // ── Profile card: exact same structure as dash-profile-card ──
-      const row = item;
-      const isHostRow = row.type === 'host';
-      const name     = row.dj_name || row.name || 'Unknown';
-      const location = [row.location, row.state].filter(Boolean).join(', ');
-      const genres   = row.genre_string ? row.genre_string.split(' · ').slice(0, 4).join(' · ') : '';
-      const sound    = row.sound || '';
-      const bio      = row.bio ? row.bio.substring(0, 80) + (row.bio.length > 80 ? '…' : '') : '';
-      const accentCol = isHostRow ? 'var(--neon)' : 'var(--neon2)';
-      const accentRgb = isHostRow ? '255,45,120'  : '0,229,255';
-      const emoji     = isHostRow ? '🎛️' : '🎧';
-      const badge = isHostRow
-        ? `<span style="background:rgba(255,45,120,.15);color:var(--neon);border:1px solid rgba(255,45,120,.3);border-radius:20px;font-size:10px;padding:2px 8px;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;">HOST</span>`
-        : `<span style="background:rgba(0,229,255,.12);color:var(--neon2);border:1px solid rgba(0,229,255,.25);border-radius:20px;font-size:10px;padding:2px 8px;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;">ARTIST</span>`;
-      const avatarHtml = row.avatar
-        ? `<img src="${row.avatar}" style="width:56px;height:56px;border-radius:10px;object-fit:cover;border:1px solid var(--border);flex-shrink:0;" onerror="this.outerHTML='<div class=\\'dash-profile-avatar\\'>${emoji}</div>'">`
-        : `<div class="dash-profile-avatar">${emoji}</div>`;
-      card.className = 'dash-profile-card';
-      card.style.marginBottom = '12px';
-      card.innerHTML = `
-        ${avatarHtml}
-        <div style="flex:1;min-width:0;">
-          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:3px;">
-            <span style="font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${name}</span>
-            ${badge}
-          </div>
-          ${location ? `<div style="font-size:12px;color:var(--muted);margin-bottom:3px;">📍 ${location}</div>` : ''}
-          ${sound    ? `<div style="font-size:12px;color:${accentCol};margin-bottom:3px;">${sound}</div>` : genres ? `<div style="font-size:12px;color:${accentCol};margin-bottom:3px;">${genres}</div>` : ''}
-          ${bio      ? `<div style="font-size:12px;color:var(--muted);line-height:1.5;">${bio}</div>` : ''}
-        </div>`;
-      card.onclick = () => openPublicProfile(row);
-      card.onmouseenter = () => { card.style.borderColor = accentCol; };
-      card.onmouseleave = () => { card.style.borderColor = ''; };
-    }
-
+    const card = item._type === 'event'
+      ? buildEventCardEl(item, 'discover')
+      : buildProfileCardEl(item);
     resultsEl.appendChild(card);
   });
 }
