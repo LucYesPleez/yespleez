@@ -346,12 +346,42 @@ async function submitCreateUnclaimedProfile() {
       body: JSON.stringify(payload),
       prefer: 'return=minimal'
     }, currentSession.access_token);
-    showToast(`Profile created for ${name} ✓`, 'success');
-    closeCreateUnclaimedProfile();
     loadUnclaimedProfiles();
+    // Switch modal to invite step
+    showUnclaimedInviteStep(name);
   } catch(e) {
     showToast('Could not save: ' + e.message, 'error');
   }
+}
+
+function showUnclaimedInviteStep(name) {
+  const msg = `Hey ${name}! I've set up your artist profile on YesPleez and added you to the lineup 🎧\n\nSign up at yespleez.pages.dev — once you're in, you'll see a prompt to claim your profile. It'll be pre-filled with your details ready to go.\n\nSee you on the lineup! 🎶`;
+  const overlay = document.getElementById('createUnclaimedOverlay');
+  overlay.querySelector('div').innerHTML = `
+    <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:2px;color:var(--neon2);margin-bottom:8px;">PROFILE CREATED ✓</div>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:16px;">Copy the message below and send it to <strong style="color:var(--text);">${name}</strong> however you normally reach them.</p>
+    <div id="ucpInviteText" style="background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:14px;font-size:13px;color:var(--text);line-height:1.6;white-space:pre-wrap;margin-bottom:16px;">${msg}</div>
+    <div style="display:flex;gap:10px;">
+      <button onclick="closeCreateUnclaimedProfile()" style="flex:1;background:none;border:1px solid var(--border);border-radius:10px;color:var(--muted);font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:1px;padding:12px;cursor:pointer;">DONE</button>
+      <button onclick="copyInviteMessage()" id="ucpCopyBtn" style="flex:2;background:var(--neon2);border:none;border-radius:10px;color:#0a0a0f;font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:1px;padding:12px;cursor:pointer;font-weight:700;">COPY INVITE</button>
+    </div>
+  `;
+}
+
+function copyInviteMessage() {
+  const text = document.getElementById('ucpInviteText')?.textContent || '';
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.getElementById('ucpCopyBtn');
+    if (btn) { btn.textContent = 'COPIED ✓'; btn.style.background = 'var(--gold)'; }
+  }).catch(() => {
+    // Fallback for older browsers
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select(); document.execCommand('copy');
+    document.body.removeChild(ta);
+    const btn = document.getElementById('ucpCopyBtn');
+    if (btn) { btn.textContent = 'COPIED ✓'; btn.style.background = 'var(--gold)'; }
+  });
 }
 
 async function loadUnclaimedProfiles() {
@@ -368,16 +398,22 @@ async function loadUnclaimedProfiles() {
       list.innerHTML = '<div style="font-size:13px;color:var(--muted);padding:12px 0;">No profiles created yet.</div>';
       return;
     }
-    list.innerHTML = rows.map(r => `
-      <div style="background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">
-        <div style="min-width:0;">
-          <div style="font-family:'Bebas Neue',sans-serif;font-size:17px;letter-spacing:1px;">${r.name}</div>
-          ${r.sound ? `<div style="font-size:12px;color:var(--neon2);margin-top:2px;">${r.sound}</div>` : ''}
-          ${r.claim_email ? `<div style="font-size:11px;color:var(--muted);margin-top:4px;">✉ ${r.claim_email}</div>` : '<div style="font-size:11px;color:var(--muted);margin-top:4px;">No email set</div>'}
+    list.innerHTML = rows.map(r => {
+      const msg = `Hey ${r.name}! I've set up your artist profile on YesPleez and added you to the lineup 🎧\n\nSign up at yespleez.pages.dev — once you're in, you'll see a prompt to claim your profile. It'll be pre-filled with your details ready to go.\n\nSee you on the lineup! 🎶`;
+      const msgEsc = msg.replace(/`/g,'\\`').replace(/\$/g,'\\$');
+      return `
+      <div style="background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:10px;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:10px;">
+          <div style="min-width:0;">
+            <div style="font-family:'Bebas Neue',sans-serif;font-size:17px;letter-spacing:1px;">${r.name}</div>
+            ${r.sound ? `<div style="font-size:12px;color:var(--neon2);margin-top:2px;">${r.sound}</div>` : ''}
+            ${r.claim_email ? `<div style="font-size:11px;color:var(--muted);margin-top:4px;">✉ ${r.claim_email}</div>` : '<div style="font-size:11px;color:var(--muted);margin-top:4px;color:var(--muted);">No email set</div>'}
+          </div>
+          <button onclick="deleteUnclaimedProfile('${r.id}')" style="background:none;border:1px solid rgba(255,45,120,.3);border-radius:8px;color:var(--neon);font-size:11px;padding:4px 10px;cursor:pointer;white-space:nowrap;flex-shrink:0;">Remove</button>
         </div>
-        <button onclick="deleteUnclaimedProfile('${r.id}')" style="background:none;border:1px solid rgba(255,45,120,.3);border-radius:8px;color:var(--neon);font-size:11px;padding:4px 10px;cursor:pointer;white-space:nowrap;flex-shrink:0;">Remove</button>
-      </div>
-    `).join('');
+        <button onclick="(function(btn){navigator.clipboard.writeText(\`${msgEsc}\`).then(()=>{btn.textContent='COPIED ✓';btn.style.background='var(--gold)';setTimeout(()=>{btn.textContent='COPY INVITE';btn.style.background='';},2500)}).catch(()=>{})})(this)" style="width:100%;background:rgba(0,229,255,.08);border:1px solid rgba(0,229,255,.25);border-radius:8px;color:var(--neon2);font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:1px;padding:8px;cursor:pointer;">COPY INVITE</button>
+      </div>`;
+    }).join('');
   } catch(e) {
     list.innerHTML = '<div style="font-size:13px;color:var(--muted);padding:12px 0;">Could not load profiles.</div>';
   }
