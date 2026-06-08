@@ -53,7 +53,7 @@ function renderEventList() {
             <button class="btn-ghost" style="font-size:11px;padding:5px 12px;border-color:var(--gold);color:var(--gold);" id="ac-${ev.id}">ALL CLAIMS</button>
           </div>` : ''}
         </div>
-        ${poster ? `<div style="width:90px;flex-shrink:0;background:url(${poster}) center/cover no-repeat;"></div>` : ''}
+        ${poster ? `<div style="width:120px;flex-shrink:0;background:url(${poster}) center/cover no-repeat;"></div>` : ''}
         <div style="display:flex;flex-direction:column;align-items:flex-end;justify-content:center;gap:8px;flex-shrink:0;padding:14px 12px;">
           <span class="event-card-status ${isLive?'live':'draft'}">${isLive?'LIVE':'DRAFT'}</span>
           <button class="btn-signout" style="font-size:10px;padding:4px 12px;" id="edit-${ev.id}">EDIT →</button>
