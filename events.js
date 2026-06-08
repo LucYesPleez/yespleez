@@ -245,8 +245,11 @@ function buildTemplate(ev) {
   const endEl   = document.getElementById('inDateEnd');
   if (startEl) startEl.value = parsed.start;
   if (endEl)   endEl.value   = parsed.end;
-  document.getElementById('inVenue').value     = ev?.venue  || '';
-  document.getElementById('inGenres').value    = ev?.genres || '';
+  document.getElementById('inVenue').value     = ev?.venue    || '';
+  document.getElementById('inPostcode').value  = ev?.postcode || '';
+  document.getElementById('inLat').value       = ev?.lat      || '';
+  document.getElementById('inLng').value       = ev?.lng      || '';
+  document.getElementById('inGenres').value    = ev?.genres   || '';
   const poster = ev?.poster || '';
   document.getElementById('inPoster').value = poster;
   if (poster) {
@@ -583,10 +586,13 @@ function readForm() {
     if (name || slots.length) days.push({ name, slots });
   });
   return {
-    name:   document.getElementById('inEventName').value.trim(),
-    date:   document.getElementById('inDate').value.trim(),
-    venue:  document.getElementById('inVenue').value.trim(),
-    genres: document.getElementById('inGenres').value.trim(),
+    name:     document.getElementById('inEventName').value.trim(),
+    date:     document.getElementById('inDate').value.trim(),
+    venue:    document.getElementById('inVenue').value.trim(),
+    postcode: document.getElementById('inPostcode').value.trim() || null,
+    lat:      document.getElementById('inLat').value ? parseFloat(document.getElementById('inLat').value) : null,
+    lng:      document.getElementById('inLng').value ? parseFloat(document.getElementById('inLng').value) : null,
+    genres:   document.getElementById('inGenres').value.trim(),
     poster: document.getElementById('inPoster').value || '',
     days,
     host_controls: {
@@ -625,14 +631,14 @@ async function launchEvent() {
     if (currentEventId) {
       const rows = await sbRest(
         `events?id=eq.${currentEventId}`,
-        { method: 'PATCH', body: JSON.stringify({ name: cfg.name, config: cfg, host_controls: cfg.host_controls, applications_open: cfg.applications_open, is_public: cfg.is_public, status: 'live', updated_at: new Date().toISOString() }) },
+        { method: 'PATCH', body: JSON.stringify({ name: cfg.name, config: cfg, host_controls: cfg.host_controls, applications_open: cfg.applications_open, is_public: cfg.is_public, status: 'live', updated_at: new Date().toISOString(), ...(cfg.postcode && { postcode: cfg.postcode }), ...(cfg.lat && { lat: cfg.lat }), ...(cfg.lng && { lng: cfg.lng }) }) },
         token
       );
       ev = rows[0] || rows;
     } else {
       const rows = await sbRest(
         'events',
-        { method: 'POST', body: JSON.stringify({ name: cfg.name, config: cfg, host_controls: cfg.host_controls, applications_open: cfg.applications_open, is_public: cfg.is_public, host_id: currentUser.id, status: 'live' }) },
+        { method: 'POST', body: JSON.stringify({ name: cfg.name, config: cfg, host_controls: cfg.host_controls, applications_open: cfg.applications_open, is_public: cfg.is_public, host_id: currentUser.id, status: 'live', ...(cfg.postcode && { postcode: cfg.postcode }), ...(cfg.lat && { lat: cfg.lat }), ...(cfg.lng && { lng: cfg.lng }) }) },
         token
       );
       ev = rows[0] || rows;
@@ -1981,6 +1987,47 @@ function closePosterLightbox() { document.getElementById('posterLightbox').style
 function clearPoster() { document.getElementById('inPoster').value = ''; document.getElementById('posterPreview').src = ''; document.getElementById('posterPreviewWrap').style.display = 'none'; document.getElementById('posterPlaceholder').style.display = 'flex'; document.getElementById('posterFileInput').value = ''; }
 
 // ── Nominatim location autocomplete ───────────────
+
+// ── Venue search with postcode/lat/lng capture ─────
+let _venueNomTimer = null;
+function nominatimVenueSearch(inputEl) {
+  const q = inputEl.value.trim();
+  const dropdown = document.getElementById('venueLocationSuggestions');
+  if (q.length < 3) { dropdown.style.display = 'none'; return; }
+  clearTimeout(_venueNomTimer);
+  _venueNomTimer = setTimeout(async () => {
+    try {
+      const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&addressdetails=1&limit=6&countrycodes=au`;
+      const res = await fetch(url, { headers: { 'Accept-Language': 'en' } });
+      const results = await res.json();
+      dropdown.innerHTML = '';
+      if (!results.length) { dropdown.style.display = 'none'; return; }
+      results.forEach(r => {
+        const addr = r.address || {};
+        const venue = addr.amenity || addr.building || addr.leisure || addr.tourism || addr.city || addr.town || addr.village || r.display_name.split(',')[0];
+        const suburb = addr.suburb || addr.city || addr.town || addr.village || '';
+        const state = addr.state || '';
+        const postcode = addr.postcode || '';
+        const label = [venue, suburb, state, postcode].filter(Boolean).join(', ');
+        const item = document.createElement('div');
+        item.className = 'nominatim-item';
+        item.textContent = label;
+        item.onclick = () => {
+          inputEl.value = venue || q;
+          document.getElementById('inPostcode').value = postcode;
+          document.getElementById('inLat').value = r.lat || '';
+          document.getElementById('inLng').value = r.lon || '';
+          dropdown.style.display = 'none';
+        };
+        dropdown.appendChild(item);
+      });
+      dropdown.style.display = 'block';
+      document.addEventListener('click', function closeVenue(e) {
+        if (!dropdown.contains(e.target) && e.target !== inputEl) { dropdown.style.display = 'none'; document.removeEventListener('click', closeVenue); }
+      });
+    } catch(e) { console.warn('Venue search error:', e); }
+  }, 350);
+}
 
 let _nominatimTimer = null;
 async function nominatimSearch(inputEl, dropdownId, hiddenId) {

@@ -1950,7 +1950,11 @@ body.player-open .screen.active { padding-bottom: 80px; }
     </div>
     <div class="field">
       <label>Venue</label>
-      <input type="text" id="inVenue" placeholder="e.g. Vabooshna">
+      <input type="text" id="inVenue" placeholder="e.g. Vabooshna" autocomplete="off" oninput="nominatimVenueSearch(this)">
+      <div id="venueLocationSuggestions" class="nominatim-dropdown" style="display:none;"></div>
+      <input type="hidden" id="inPostcode">
+      <input type="hidden" id="inLat">
+      <input type="hidden" id="inLng">
     </div>
     <input type="hidden" id="inDate">
     <div class="field">
