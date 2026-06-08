@@ -79,13 +79,13 @@ function updateToggleVisibility(mode) {
   if (mode === 'host') {
     const el = document.getElementById('hostModeToggle');
     if (el) {
-      el.style.opacity = can ? '1' : '0.35';
+      el.style.opacity = '1';
       el.title = can ? 'Switch to Artist mode' : 'Create an artist profile to switch modes';
     }
   } else {
     const el = document.getElementById('artistModeToggle');
     if (el) {
-      el.style.opacity = can ? '1' : '0.35';
+      el.style.opacity = '1';
       el.title = can ? 'Switch to Host mode' : 'Create a host profile to switch modes';
     }
   }
