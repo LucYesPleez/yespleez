@@ -990,6 +990,11 @@ function openModal(key, hint, preferenceRank) {
     document.getElementById('hostArtistSearch').value = '';
     document.getElementById('hostArtistResults').style.display = 'none';
     document.getElementById('hostArtistSelected').style.display = 'none';
+    const invSearch = document.getElementById('hostInviteSearch');
+    const invResults = document.getElementById('hostInviteResults');
+    if (invSearch) invSearch.value = '';
+    if (invResults) invResults.style.display = 'none';
+    if (isHost) loadAcceptedPoolForSlot();
   }
   const codeSection = document.getElementById('approvalCodeSection');
   const hasCodesForEvent = approvalCodes[currentEventId] && Object.keys(approvalCodes[currentEventId]).length > 0;
@@ -1029,70 +1034,153 @@ async function autoClaimSlot(slotId) {
   }
 }
 
-async function searchArtistsForAssign(query) {
+// ── Accepted pool for slot assignment ─────────────
+let _acceptedPool = []; // cached for this event when modal opens
+
+async function loadAcceptedPoolForSlot() {
   const resultsEl = document.getElementById('hostArtistResults');
-  if (!query || query.length < 2) { resultsEl.style.display = 'none'; return; }
+  if (!resultsEl) return;
+  _acceptedPool = [];
+  if (!currentEventId) return;
   try {
-    const enc = encodeURIComponent(query);
-    const token = currentSession?.access_token || SUPABASE_KEY;
-    const headers = { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${token}` };
-
-    // Fetch claimed profiles + unclaimed profiles in parallel
-    const [claimedRes, unclaimedRes] = await Promise.all([
-      fetch(`${SUPABASE_URL}/rest/v1/profiles?type=eq.artist&dj_name=ilike.*${enc}*&select=user_id,dj_name,genre_string,card_pills,sound,mix_link,soundcloud,mixcloud,instagram,avatar&limit=8`, { headers }),
-      fetch(`${SUPABASE_URL}/rest/v1/unclaimed_profiles?name=ilike.*${enc}*&limit=8`, { headers })
-    ]);
-    const claimed   = claimedRes.ok   ? await claimedRes.json()   : [];
-    const unclaimed = unclaimedRes.ok ? await unclaimedRes.json() : [];
-
-    // Normalise unclaimed rows to same shape, add _unclaimed flag
-    const unclaimedNorm = unclaimed.map(u => ({
-      user_id: null, dj_name: u.name, genre_string: u.genre_string || '',
-      card_pills: u.card_pills || '', sound: u.sound || '', mix_link: u.mix_link || '',
-      avatar: null, _unclaimed: true, _ucpId: u.id
-    }));
-
-    // Deduplicate: if a real profile exists with the same name, drop the unclaimed version
-    const claimedNames = new Set(claimed.map(a => (a.dj_name || '').toLowerCase().trim()));
-    const filteredUnclaimed = unclaimedNorm.filter(u => !claimedNames.has((u.dj_name || '').toLowerCase().trim()));
-    const artists = [...claimed, ...filteredUnclaimed];
-    resultsEl.innerHTML = '';
-    if (!artists.length) {
-      resultsEl.innerHTML = '<div style="padding:10px 12px;font-size:13px;color:var(--muted);">No artists found</div>';
+    const headers = { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${currentSession.access_token}` };
+    const appsRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/applications?event_id=eq.${currentEventId}&status=eq.accepted&select=*`,
+      { headers }
+    );
+    const apps = appsRes.ok ? await appsRes.json() : [];
+    if (!apps.length) {
+      resultsEl.innerHTML = '<div style="padding:12px;font-size:12px;color:var(--muted);text-align:center;">No accepted artists yet.<br><span style="font-size:11px;">Accept applications or use invite below.</span></div>';
       resultsEl.style.display = 'block';
       return;
     }
-    artists.forEach(a => {
-      const item = document.createElement('div');
-      item.style.cssText = 'padding:10px 12px;cursor:pointer;border-bottom:1px solid var(--border);display:flex;gap:10px;align-items:center;';
-      const avatarHtml = a.avatar
-        ? `<img src="${a.avatar}" style="width:36px;height:36px;border-radius:50%;object-fit:cover;border:1.5px solid var(--neon2);flex-shrink:0;" onerror="this.style.display='none'">`
-        : `<div style="width:36px;height:36px;border-radius:50%;background:var(--card2);border:1.5px solid ${a._unclaimed ? 'var(--gold)' : 'var(--neon2)'};display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;">🎧</div>`;
-      const pillsDisplay = (a.card_pills || a.genre_string || '').split(' · ').filter(Boolean).slice(0, 3).join(' · ');
-      const unclaimedBadge = a._unclaimed ? `<span style="font-size:9px;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;background:rgba(255,180,0,.15);border:1px solid rgba(255,180,0,.4);color:var(--gold);border-radius:10px;padding:1px 6px;margin-left:6px;">UNCLAIMED</span>` : '';
-      item.innerHTML = `${avatarHtml}<div style="min-width:0;flex:1;"><div style="font-family:'Bebas Neue',sans-serif;font-size:16px;color:var(--text);">${esc(a.dj_name)}${unclaimedBadge}</div><div style="font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(pillsDisplay)}</div></div>`;
-      item.onmousedown = async (e) => {
-        e.preventDefault();
-        resultsEl.style.display = 'none';
-        document.getElementById('hostArtistSearch').value = '';
-        const ok = await upsertClaim(activeKey, a.dj_name, a.genre_string || '', '', [], a.card_pills || '', a.sound || '');
-        if (ok) {
-          claims[activeKey] = { name: a.dj_name, genre: a.genre_string || '', notes: '', backups: [], cardPills: a.card_pills || '', sound: a.sound || '', mixLink: a.mix_link || '', user_id: a.user_id };
-          const slotLabel = (() => { let l='slot'; (eventData?.days||[]).forEach(d=>d.slots.forEach(s=>{if(s.id===activeKey)l=s.time+' '+s.ampm;})); return l; })();
-          pushNotif('🎧', `${a.dj_name} assigned to ${slotLabel}`, 'host');
-          closeModal();
-          renderManage();
-          renderAll();
-          setTimeout(loadClaims, 600);
-          showToast(`${a.dj_name} assigned ✓`, 'success');
-        } else {
-          showToast('Assignment failed — try again.', 'error');
-        }
-      };
-      resultsEl.appendChild(item);
-    });
+    const artistIds = [...new Set(apps.map(a => a.artist_id).filter(Boolean))];
+    const profRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/profiles?user_id=in.(${artistIds.join(',')})&type=eq.artist&select=*`,
+      { headers }
+    );
+    const profiles = profRes.ok ? await profRes.json() : [];
+    const profMap = {};
+    profiles.forEach(p => { profMap[p.user_id] = p; });
+    _acceptedPool = apps.map(app => {
+      const p = profMap[app.artist_id] || {};
+      return { ...p, _appId: app.id, dj_name: p.dj_name || p.name || app.artist_name || 'Unknown' };
+    }).filter(a => a.dj_name);
+    renderAcceptedPool('');
+  } catch(e) { console.warn('loadAcceptedPoolForSlot error:', e); }
+}
+
+function renderAcceptedPool(query) {
+  const resultsEl = document.getElementById('hostArtistResults');
+  if (!resultsEl) return;
+  const filtered = query
+    ? _acceptedPool.filter(a => (a.dj_name || '').toLowerCase().includes(query.toLowerCase()))
+    : _acceptedPool;
+  if (!filtered.length) {
+    resultsEl.innerHTML = '<div style="padding:10px 12px;font-size:12px;color:var(--muted);">No match in accepted pool</div>';
     resultsEl.style.display = 'block';
-  } catch(e) { console.warn('searchArtistsForAssign error:', e); }
+    return;
+  }
+  resultsEl.innerHTML = '';
+  filtered.forEach(a => {
+    const item = document.createElement('div');
+    item.style.cssText = 'padding:10px 12px;cursor:pointer;border-bottom:1px solid var(--border);display:flex;gap:10px;align-items:center;';
+    item.onmouseenter = () => item.style.background = 'rgba(0,229,255,.06)';
+    item.onmouseleave = () => item.style.background = '';
+    const avatarHtml = a.avatar
+      ? `<img src="${a.avatar}" style="width:36px;height:36px;border-radius:50%;object-fit:cover;border:1.5px solid var(--neon2);flex-shrink:0;">`
+      : `<div style="width:36px;height:36px;border-radius:50%;background:var(--card2);border:1.5px solid var(--neon2);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;">🎧</div>`;
+    const sub = (a.sound || a.genre_string || '').split(' · ').slice(0, 2).join(' · ');
+    item.innerHTML = `${avatarHtml}<div style="min-width:0;flex:1;"><div style="font-family:'Bebas Neue',sans-serif;font-size:16px;">${esc(a.dj_name)}</div><div style="font-size:11px;color:var(--muted);">${esc(sub)}</div></div>`;
+    item.onmousedown = async (e) => {
+      e.preventDefault();
+      resultsEl.style.display = 'none';
+      document.getElementById('hostArtistSearch').value = '';
+      const ok = await upsertClaim(activeKey, a.dj_name, a.genre_string || '', '', [], a.card_pills || '', a.sound || '');
+      if (ok) {
+        claims[activeKey] = { name: a.dj_name, genre: a.genre_string || '', notes: '', backups: [], cardPills: a.card_pills || '', sound: a.sound || '', mixLink: a.mix_link || '', user_id: a.user_id };
+        const slotLabel = (() => { let l='slot'; (eventData?.days||[]).forEach(d=>d.slots.forEach(s=>{if(s.id===activeKey)l=s.time+' '+s.ampm;})); return l; })();
+        pushNotif('🎧', `${a.dj_name} assigned to ${slotLabel}`, 'host');
+        closeModal(); renderManage(); renderAll();
+        setTimeout(loadClaims, 600);
+        showToast(`${a.dj_name} assigned ✓`, 'success');
+      } else {
+        showToast('Assignment failed — try again.', 'error');
+      }
+    };
+    resultsEl.appendChild(item);
+  });
+  resultsEl.style.display = 'block';
+}
+
+function filterAcceptedPool(query) {
+  renderAcceptedPool(query);
+}
+
+// ── Invite artist to event ─────────────────────────
+let _inviteSearchDebounce = null;
+
+async function searchArtistsForInvite(query) {
+  clearTimeout(_inviteSearchDebounce);
+  _inviteSearchDebounce = setTimeout(async () => {
+    const resultsEl = document.getElementById('hostInviteResults');
+    if (!query || query.length < 2) { resultsEl.style.display = 'none'; return; }
+    try {
+      const enc = encodeURIComponent(`%${query}%`);
+      const headers = { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${currentSession.access_token}` };
+      const res = await fetch(
+        `${SUPABASE_URL}/rest/v1/profiles?type=eq.artist&or=(dj_name.ilike.${enc},name.ilike.${enc})&select=user_id,dj_name,name,sound,genre_string,avatar&limit=8`,
+        { headers }
+      );
+      const artists = res.ok ? await res.json() : [];
+      resultsEl.innerHTML = '';
+      if (!artists.length) {
+        resultsEl.innerHTML = '<div style="padding:10px 12px;font-size:12px;color:var(--muted);">No artists found</div>';
+        resultsEl.style.display = 'block';
+        return;
+      }
+      artists.forEach(a => {
+        const name = a.dj_name || a.name;
+        const alreadyInPool = _acceptedPool.some(p => p.user_id === a.user_id);
+        const item = document.createElement('div');
+        item.style.cssText = 'padding:10px 12px;cursor:pointer;border-bottom:1px solid var(--border);display:flex;gap:10px;align-items:center;';
+        item.onmouseenter = () => item.style.background = 'rgba(255,184,48,.06)';
+        item.onmouseleave = () => item.style.background = '';
+        const avatarHtml = a.avatar
+          ? `<img src="${a.avatar}" style="width:32px;height:32px;border-radius:50%;object-fit:cover;border:1.5px solid var(--gold);flex-shrink:0;">`
+          : `<div style="width:32px;height:32px;border-radius:50%;background:var(--card2);border:1.5px solid var(--gold);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;">🎧</div>`;
+        const alreadyBadge = alreadyInPool ? `<span style="font-size:9px;color:var(--neon2);font-family:'Bebas Neue',sans-serif;letter-spacing:1px;margin-left:4px;">ACCEPTED</span>` : '';
+        item.innerHTML = `${avatarHtml}<div style="flex:1;min-width:0;"><div style="font-family:'Bebas Neue',sans-serif;font-size:15px;">${esc(name)}${alreadyBadge}</div><div style="font-size:11px;color:var(--muted);">${esc(a.sound || '')}</div></div><span style="font-size:10px;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;color:var(--gold);border:1px solid rgba(255,184,48,.3);border-radius:10px;padding:2px 8px;flex-shrink:0;">${alreadyInPool ? 'IN POOL' : 'INVITE'}</span>`;
+        if (!alreadyInPool) {
+          item.onmousedown = async (e) => {
+            e.preventDefault();
+            resultsEl.style.display = 'none';
+            document.getElementById('hostInviteSearch').value = '';
+            await sendArtistInvite(a.user_id, name);
+          };
+        }
+        resultsEl.appendChild(item);
+      });
+      resultsEl.style.display = 'block';
+    } catch(e) { console.warn('searchArtistsForInvite error:', e); }
+  }, 300);
+}
+
+async function sendArtistInvite(artistId, artistName) {
+  try {
+    const headers = { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${currentSession.access_token}`, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' };
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/applications`, {
+      method: 'POST', headers,
+      body: JSON.stringify({ event_id: currentEventId, artist_id: artistId, status: 'invited', note: '' })
+    });
+    if (res.ok || res.status === 201) {
+      showToast(`Invite sent to ${artistName} ✓`, 'success');
+    } else {
+      const err = await res.json().catch(() => ({}));
+      if (err.code === '23505') showToast(`${artistName} already has an invite`, 'error');
+      else showToast('Could not send invite', 'error');
+    }
+  } catch(e) { showToast('Invite failed: ' + e.message, 'error'); }
 }
 
 function clearArtistSelection() {
@@ -1714,14 +1802,32 @@ async function loadMyApplications() {
       const evName = ev?.name || 'Unknown Event';
       const venue = ev?.config?.venue || '';
       const date = ev?.config?.date || '';
-      const statusColor = app.status === 'accepted' ? 'var(--neon2)' : app.status === 'declined' ? 'var(--neon)' : 'var(--gold)';
-      const statusLabel = app.status === 'accepted' ? '✓ ACCEPTED' : app.status === 'declined' ? '✕ DECLINED' : '⏳ PENDING';
+      const isInvited = app.status === 'invited';
+      const statusColor = app.status === 'accepted' ? 'var(--neon2)' : app.status === 'declined' ? 'var(--neon)' : isInvited ? 'var(--gold)' : 'var(--gold)';
+      const statusLabel = app.status === 'accepted' ? '✓ ACCEPTED' : app.status === 'declined' ? '✕ DECLINED' : isInvited ? '📩 INVITED' : '⏳ PENDING';
+      const borderCol = app.status === 'accepted' ? 'rgba(0,229,255,.3)' : app.status === 'declined' ? 'rgba(255,45,120,.3)' : 'rgba(255,184,48,.3)';
       const card = document.createElement('div');
-      card.style.cssText = `background:var(--card);border:1px solid ${statusColor === 'var(--gold)' ? 'rgba(255,184,48,.3)' : statusColor === 'var(--neon2)' ? 'rgba(0,229,255,.3)' : 'rgba(255,45,120,.3)'};border-radius:12px;padding:14px;margin-bottom:10px;`;
-      card.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;"><div style="flex:1;min-width:0;"><div style="font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:1px;">${evName}</div>${venue?`<div style="font-size:12px;color:var(--muted);">📍 ${venue}</div>`:''} ${date?`<div style="font-size:12px;color:var(--muted);">📅 ${date}</div>`:''}${app.note?`<div style="font-size:12px;color:var(--muted);margin-top:6px;font-style:italic;">"${app.note}"</div>`:''}</div><span style="font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:1px;color:${statusColor};flex-shrink:0;padding-top:2px;">${statusLabel}</span></div>`;
+      card.style.cssText = `background:var(--card);border:1px solid ${borderCol};border-radius:12px;padding:14px;margin-bottom:10px;`;
+      card.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:${isInvited ? '10px' : '0'};"><div style="flex:1;min-width:0;"><div style="font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:1px;">${evName}</div>${venue?`<div style="font-size:12px;color:var(--muted);">📍 ${venue}</div>`:''} ${date?`<div style="font-size:12px;color:var(--muted);">📅 ${date}</div>`:''}${isInvited?`<div style="font-size:12px;color:var(--gold);margin-top:4px;">You've been invited to perform — confirm your spot below.</div>`:app.note?`<div style="font-size:12px;color:var(--muted);margin-top:6px;font-style:italic;">"${app.note}"</div>`:''}</div><span style="font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:1px;color:${statusColor};flex-shrink:0;padding-top:2px;">${statusLabel}</span></div>${isInvited?`<div style="display:flex;gap:8px;"><button onclick="respondToInvite('${app.id}','accepted',this.parentElement)" style="flex:1;background:rgba(0,229,255,.15);border:1px solid var(--neon2);border-radius:20px;color:var(--neon2);font-size:13px;padding:8px;cursor:pointer;font-weight:600;">✓ Accept</button><button onclick="respondToInvite('${app.id}','declined',this.parentElement)" style="flex:1;background:rgba(255,45,120,.1);border:1px solid var(--neon);border-radius:20px;color:var(--neon);font-size:13px;padding:8px;cursor:pointer;">✕ Decline</button></div>`:''}`;
       listEl.appendChild(card);
     });
   } catch(e) { console.warn('loadMyApplications error:', e); }
+}
+
+async function respondToInvite(appId, status, btnContainer) {
+  const btns = btnContainer.querySelectorAll('button');
+  btns.forEach(b => { b.disabled = true; });
+  try {
+    const headers = { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${currentSession.access_token}`, 'Content-Type': 'application/json' };
+    await fetch(`${SUPABASE_URL}/rest/v1/applications?id=eq.${appId}`, {
+      method: 'PATCH', headers, body: JSON.stringify({ status })
+    });
+    showToast(status === 'accepted' ? 'You\'re on the list ✓' : 'Invite declined', status === 'accepted' ? 'success' : 'error');
+    loadMyApplications();
+  } catch(e) {
+    showToast('Could not respond: ' + e.message, 'error');
+    btns.forEach(b => { b.disabled = false; });
+  }
 }
 
 // ── Notify matching artists ────────────────────────

@@ -2875,19 +2875,29 @@ body.player-open .screen.active { padding-bottom: 80px; }
     <h2>CLAIM THIS SLOT</h2>
     <p class="modal-hint" id="modalHint"></p>
 
-    <!-- HOST ONLY: artist search from database -->
+    <!-- HOST ONLY: assign from accepted pool -->
     <div id="hostArtistSearchSection" style="display:none;margin-bottom:16px;">
-      <label>SEARCH ARTIST</label>
+      <label>ASSIGN FROM ACCEPTED POOL</label>
       <div style="position:relative;">
-        <input type="text" id="hostArtistSearch" placeholder="Type artist name…" autocomplete="off"
-          oninput="searchArtistsForAssign(this.value)"
+        <input type="text" id="hostArtistSearch" placeholder="Filter accepted artists…" autocomplete="off"
+          oninput="filterAcceptedPool(this.value)"
           style="padding-right:36px;">
       </div>
-      <div id="hostArtistResults" style="background:var(--card2);border:1px solid var(--neon);border-radius:8px;margin-top:4px;max-height:180px;overflow-y:auto;display:none;"></div>
+      <div id="hostArtistResults" style="background:var(--card2);border:1px solid var(--neon2);border-radius:8px;margin-top:4px;max-height:200px;overflow-y:auto;display:none;"></div>
       <div id="hostArtistSelected" style="display:none;margin-top:8px;background:rgba(0,229,255,.06);border:1px solid var(--neon2);border-radius:8px;padding:10px 12px;display:flex;align-items:center;gap:10px;">
         <span id="hostArtistSelectedName" style="font-family:'Bebas Neue',sans-serif;font-size:16px;color:var(--neon2);"></span>
         <span id="hostArtistSelectedGenre" style="font-size:11px;color:var(--muted);flex:1;"></span>
         <button onclick="clearArtistSelection()" style="background:none;border:none;color:var(--neon);font-size:16px;cursor:pointer;padding:0;">✕</button>
+      </div>
+      <!-- Invite path -->
+      <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:8px;">Artist not in the pool? Invite them first —</div>
+        <div style="position:relative;">
+          <input type="text" id="hostInviteSearch" placeholder="Search all artists to invite…" autocomplete="off"
+            oninput="searchArtistsForInvite(this.value)"
+            style="padding-right:36px;background:var(--bg);border-color:rgba(255,184,48,.3);color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;padding:10px 36px 10px 12px;border-radius:10px;border:1px solid rgba(255,184,48,.3);width:100%;box-sizing:border-box;outline:none;">
+        </div>
+        <div id="hostInviteResults" style="background:var(--card2);border:1px solid rgba(255,184,48,.35);border-radius:8px;margin-top:4px;max-height:160px;overflow-y:auto;display:none;"></div>
       </div>
       <div style="display:flex;align-items:center;gap:8px;margin:12px 0 8px;">
         <div style="flex:1;height:1px;background:var(--border);"></div>
