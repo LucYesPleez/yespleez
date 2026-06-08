@@ -244,8 +244,10 @@ function openPublicProfile(row) {
   const heroBg = document.getElementById('profileHeroBg');
   if (row.avatar) {
     heroBg.style.backgroundImage = `url(${row.avatar})`;
+    heroBg.style.filter = 'blur(28px)';
   } else {
-    heroBg.style.backgroundImage = '';
+    heroBg.style.backgroundImage = 'linear-gradient(135deg, rgba(255,45,120,.9) 0%, rgba(180,0,200,.7) 40%, rgba(0,229,255,.8) 100%)';
+    heroBg.style.filter = 'blur(0px)';
   }
 
   const mixLink = row.mix_link || row.soundcloud || row.mixcloud || '';
