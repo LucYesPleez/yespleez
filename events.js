@@ -44,8 +44,9 @@ function renderEventList() {
     const isLive = ev.status === 'live';
     const poster = cfg.poster || ev.poster || '';
     card.style.padding = '0';
+    card.style.display = 'block';
     card.innerHTML = `
-      <div style="display:flex;align-items:stretch;min-height:90px;overflow:hidden;border-radius:inherit;">
+      <div style="display:flex;align-items:stretch;min-height:90px;overflow:hidden;border-radius:inherit;width:100%;">
         <div class="event-card-info" style="min-width:0;flex:1;padding:14px 12px;display:flex;flex-direction:column;justify-content:center;">
           <div class="event-card-name">${esc(ev.name || 'Untitled Event')}</div>
           <div class="event-card-meta">${esc([cfg.date, cfg.venue].filter(Boolean).join(' · '))}${slotCount ? ' · ' + slotCount + ' slots' : ''}</div>
