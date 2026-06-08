@@ -123,7 +123,7 @@ function switchDashTab(tab) {
     if (content) content.style.display = tab===key ? '' : 'none';
   });
   if (tab === 'applications') loadAllApplications();
-  if (tab === 'artists') loadUnclaimedProfiles();
+  if (tab === 'artists') { loadAcceptedUnassignedArtists(); loadUnclaimedProfiles(); }
 }
 
 // ── Artist dashboard ───────────────────────────────

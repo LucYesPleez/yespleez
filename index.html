@@ -1905,7 +1905,14 @@ body.player-open .screen.active { padding-bottom: 80px; }
 
   <!-- Artists tab -->
   <div id="dashTabArtistsContent" style="display:none;padding-bottom:100px;">
-    <p style="font-size:13px;color:var(--muted);margin-bottom:16px;">Create profiles for artists before they sign up. They'll see a <strong style="color:var(--text);">Claim Your Profile</strong> prompt when they join.</p>
+
+    <!-- Accepted but not yet in a slot -->
+    <div style="font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:3px;color:var(--gold);margin-bottom:10px;">ACCEPTED · NEEDS SET TIME</div>
+    <div id="acceptedArtistsList" style="margin-bottom:24px;"></div>
+
+    <!-- Unclaimed profiles awaiting claim -->
+    <div style="font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:3px;color:var(--neon2);margin-bottom:4px;">AWAITING CLAIM</div>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:12px;">Create profiles for artists before they sign up. They'll see a <strong style="color:var(--text);">Claim Your Profile</strong> prompt when they join.</p>
     <div id="unclaimedProfilesList" style="margin-bottom:16px;">
       <div style="text-align:center;padding:40px;color:var(--muted);font-size:13px;">Loading...</div>
     </div>

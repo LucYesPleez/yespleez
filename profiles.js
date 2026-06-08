@@ -536,14 +536,47 @@ async function loadUnclaimedProfiles() {
       { method: 'GET' },
       currentSession.access_token
     );
-    if (!rows.length) {
-      list.innerHTML = '<div style="font-size:13px;color:var(--muted);padding:12px 0;">No profiles created yet.</div>';
+
+    // Check which claim_emails already have a profiles entry (i.e. have been claimed)
+    const emails = rows.map(r => r.claim_email).filter(Boolean);
+    let claimedEmails = new Set();
+    if (emails.length) {
+      try {
+        const claimed = await sbRest(
+          `profiles?type=eq.artist&email=in.(${emails.map(e => encodeURIComponent(e)).join(',')})&select=email`,
+          { method: 'GET' }, currentSession.access_token
+        );
+        (claimed || []).forEach(p => { if (p.email) claimedEmails.add(p.email.toLowerCase()); });
+      } catch(e) { /* silent — worst case we show all as unclaimed */ }
+    }
+
+    // Also check by name match against profiles (catches no-email claims)
+    const names = rows.map(r => r.name).filter(Boolean);
+    let claimedNames = new Set();
+    if (names.length) {
+      try {
+        const namedClaimed = await sbRest(
+          `profiles?type=eq.artist&or=(${names.map(n => `dj_name.eq.${encodeURIComponent(n)}`).join(',')})&select=dj_name`,
+          { method: 'GET' }, currentSession.access_token
+        );
+        (namedClaimed || []).forEach(p => { if (p.dj_name) claimedNames.add(p.dj_name.toLowerCase()); });
+      } catch(e) { /* silent */ }
+    }
+
+    const isClaimed = r =>
+      (r.claim_email && claimedEmails.has(r.claim_email.toLowerCase())) ||
+      (r.name && claimedNames.has(r.name.toLowerCase()));
+
+    const pending = rows.filter(r => !isClaimed(r));
+
+    if (!pending.length) {
+      list.innerHTML = '<div style="font-size:13px;color:var(--muted);padding:12px 0;">No profiles awaiting claim.</div>';
       return;
     }
-    // Store invite data for copy buttons to access
+
     window._ucpInviteData = {};
-    rows.forEach(r => { window._ucpInviteData[r.id] = { name: r.name, email: r.claim_email || '' }; });
-    list.innerHTML = rows.map(r => `
+    pending.forEach(r => { window._ucpInviteData[r.id] = { name: r.name, email: r.claim_email || '' }; });
+    list.innerHTML = pending.map(r => `
       <div style="background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:10px;">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:10px;">
           <div style="min-width:0;">
@@ -561,6 +594,77 @@ async function loadUnclaimedProfiles() {
     `).join('');
   } catch(e) {
     list.innerHTML = '<div style="font-size:13px;color:var(--muted);padding:12px 0;">Could not load profiles.</div>';
+  }
+}
+
+// ── Accepted artists not yet in a set slot ──────────
+async function loadAcceptedUnassignedArtists() {
+  const list = document.getElementById('acceptedArtistsList');
+  if (!list) return;
+  list.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted);font-size:13px;">Loading...</div>';
+  try {
+    if (!allEvents || !allEvents.length) { list.innerHTML = ''; return; }
+    const eventIds = allEvents.map(e => e.id);
+
+    // Fetch all accepted applications for host's events
+    const apps = await sbRest(
+      `applications?event_id=in.(${eventIds.join(',')})&status=eq.accepted&select=*`,
+      { method: 'GET' }, currentSession.access_token
+    );
+    if (!apps || !apps.length) { list.innerHTML = '<div style="font-size:13px;color:var(--muted);padding:8px 0;">No accepted artists yet.</div>'; return; }
+
+    // Build set of names already in slots across all events
+    const assignedNames = new Set();
+    allEvents.forEach(ev => {
+      (ev.config?.days || []).forEach(day => {
+        (day.slots || []).forEach(slot => {
+          if (slot.name) assignedNames.add(slot.name.toLowerCase().trim());
+        });
+      });
+    });
+
+    // Fetch profiles for these artist_ids
+    const artistIds = [...new Set(apps.map(a => a.artist_id))];
+    const profiles = await sbRest(
+      `profiles?user_id=in.(${artistIds.join(',')})&type=eq.artist&select=*`,
+      { method: 'GET' }, currentSession.access_token
+    );
+    const profileMap = {};
+    (profiles || []).forEach(p => { profileMap[p.user_id] = p; });
+
+    // Filter to unassigned only
+    const unassigned = apps.filter(app => {
+      const p = profileMap[app.artist_id];
+      const name = (p?.dj_name || p?.name || '').toLowerCase().trim();
+      return name && !assignedNames.has(name);
+    });
+
+    if (!unassigned.length) { list.innerHTML = '<div style="font-size:13px;color:var(--muted);padding:8px 0;">All accepted artists are in set times ✓</div>'; return; }
+
+    // Find event name for each app
+    const eventMap = {};
+    allEvents.forEach(ev => { eventMap[ev.id] = ev.name; });
+
+    list.innerHTML = unassigned.map(app => {
+      const p = profileMap[app.artist_id] || {};
+      const name = p.dj_name || p.name || 'Unknown';
+      const sound = p.sound || p.genre_string?.split(' · ').slice(0,2).join(' · ') || '';
+      const evName = eventMap[app.event_id] || '';
+      const avatarHtml = p.avatar
+        ? `<img src="${p.avatar}" style="width:44px;height:44px;border-radius:8px;object-fit:cover;border:1px solid rgba(0,229,255,.3);flex-shrink:0;">`
+        : `<div style="width:44px;height:44px;border-radius:8px;background:var(--card2);border:1px solid rgba(0,229,255,.3);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">🎧</div>`;
+      return `<div style="background:var(--bg);border:1px solid rgba(0,229,255,.2);border-radius:12px;padding:12px 14px;margin-bottom:10px;display:flex;align-items:center;gap:12px;">
+        ${avatarHtml}
+        <div style="flex:1;min-width:0;">
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:17px;letter-spacing:1px;">${name}</div>
+          ${sound ? `<div style="font-size:12px;color:var(--neon2);margin-top:1px;">${sound}</div>` : ''}
+          ${evName ? `<div style="font-size:11px;color:var(--muted);margin-top:3px;">Applied: ${evName}</div>` : ''}
+        </div>
+        <span style="font-size:10px;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;color:var(--gold);border:1px solid rgba(255,184,48,.3);border-radius:20px;padding:3px 10px;flex-shrink:0;">NEEDS SLOT</span>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    list.innerHTML = '<div style="font-size:13px;color:var(--muted);padding:8px 0;">Could not load.</div>';
   }
 }
 
