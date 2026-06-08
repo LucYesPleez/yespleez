@@ -47,8 +47,8 @@ function updateRoleCards() {
   const artistCard = document.querySelector('.role-card.artist-card');
   if (!hostCard || !artistCard) return;
 
-  const hostDot   = hostProfile.name    ? ' <span style="color:var(--neon);font-size:11px;margin-left:4px;">✓ Profile set up</span>' : '';
-  const artistDot = artistProfile.djName ? ' <span style="color:var(--neon2);font-size:11px;margin-left:4px;">✓ Profile set up</span>' : '';
+  const hostDot   = hostProfile.name    ? ' <span style="color:var(--neon);font-size:11px;margin-left:4px;white-space:nowrap;">✓ Profile set up</span>' : '';
+  const artistDot = artistProfile.djName ? ' <span style="color:var(--neon2);font-size:11px;margin-left:4px;white-space:nowrap;">✓ Profile set up</span>' : '';
 
   const hostDesc   = hostCard.querySelector('.role-card-desc');
   const artistDesc = artistCard.querySelector('.role-card-desc');
