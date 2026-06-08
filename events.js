@@ -826,7 +826,7 @@ function renderHostSummary() {
       html += `
         <div class="host-summary-row">
           <div><div class="hs-time">${s.time} ${s.ampm}</div><div style="font-size:10px;color:var(--muted);">${dayName||''}</div></div>
-          <div><div class="hs-artist">🎧 ${claim.name}</div><div class="hs-genre">${claim.genre||''}</div></div>
+          <div><div class="hs-artist"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:4px;"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3z"/><path d="M3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg>${claim.name}</div><div class="hs-genre">${claim.genre||''}</div></div>
           <div class="hs-backups">${(claim.backups||[]).length ? (claim.backups||[]).length + ' backup' + ((claim.backups||[]).length>1?'s':'') : ' '}</div>
           <button class="btn-lock ${locked?'locked':''}" onclick="toggleLock('${s.id}')">${locked ? '📌 ARTIST PINNED' : 'PIN ARTIST'}</button>
         </div>`;
@@ -878,7 +878,7 @@ function buildSlotInfoHtml(entry, s, isLounge) {
     : '';
   return `
     <div style="min-width:0;width:100%;">
-      <div class="dj-name-row"><span class="dj-name">🎧 ${entry.name}</span></div>
+      <div class="dj-name-row"><span class="dj-name"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:5px;"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3z"/><path d="M3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg>${entry.name}</span></div>
       ${descriptorHtml}
     </div>`;
 }
@@ -1145,7 +1145,7 @@ function renderAcceptedPool(query) {
     item.onmouseleave = () => item.style.background = '';
     const avatarHtml = a.avatar
       ? `<img src="${a.avatar}" style="width:36px;height:36px;border-radius:50%;object-fit:cover;border:1.5px solid var(--neon2);flex-shrink:0;">`
-      : `<div style="width:36px;height:36px;border-radius:50%;background:var(--card2);border:1.5px solid var(--neon2);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;">🎧</div>`;
+      : `<div style="width:36px;height:36px;border-radius:50%;background:var(--card2);border:1.5px solid var(--neon2);display:flex;align-items:center;justify-content:center;flex-shrink:0;"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3z"/><path d="M3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg></div>`;
     const sub = (a.sound || a.genre_string || '').split(' · ').slice(0, 2).join(' · ');
     item.innerHTML = `${avatarHtml}<div style="min-width:0;flex:1;"><div style="font-family:'Bebas Neue',sans-serif;font-size:16px;">${esc(a.dj_name)}</div><div style="font-size:11px;color:var(--muted);">${esc(sub)}</div></div>`;
     item.onmousedown = async (e) => {
@@ -1205,7 +1205,7 @@ async function searchArtistsForInvite(query) {
         item.onmouseleave = () => item.style.background = '';
         const avatarHtml = a.avatar
           ? `<img src="${a.avatar}" style="width:32px;height:32px;border-radius:50%;object-fit:cover;border:1.5px solid var(--gold);flex-shrink:0;">`
-          : `<div style="width:32px;height:32px;border-radius:50%;background:var(--card2);border:1.5px solid var(--gold);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;">🎧</div>`;
+          : `<div style="width:32px;height:32px;border-radius:50%;background:var(--card2);border:1.5px solid var(--gold);display:flex;align-items:center;justify-content:center;flex-shrink:0;"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3z"/><path d="M3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg></div>`;
         const alreadyBadge = alreadyInPool ? `<span style="font-size:9px;color:var(--neon2);font-family:'Bebas Neue',sans-serif;letter-spacing:1px;margin-left:4px;">ACCEPTED</span>` : '';
         item.innerHTML = `${avatarHtml}<div style="flex:1;min-width:0;"><div style="font-family:'Bebas Neue',sans-serif;font-size:15px;">${esc(name)}${alreadyBadge}</div><div style="font-size:11px;color:var(--muted);">${esc(a.sound || '')}</div></div><span style="font-size:10px;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;color:var(--gold);border:1px solid rgba(255,184,48,.3);border-radius:10px;padding:2px 8px;flex-shrink:0;">${alreadyInPool ? 'IN POOL' : 'INVITE'}</span>`;
         if (!alreadyInPool) {
@@ -1776,8 +1776,8 @@ async function loadAllApplications(forceRefresh = false) {
         const genres = profile?.genre_string ? profile.genre_string.split(' · ').slice(0, 3).join(' · ') : '';
         const mixLink = profile?.mix_link || profile?.soundcloud || profile?.mixcloud || '';
         const avatarHtml = profile?.avatar
-          ? `<img src="${profile.avatar}" style="width:44px;height:44px;border-radius:50%;object-fit:cover;border:2px solid var(--neon2);flex-shrink:0;" onerror="this.outerHTML='<div style=\\'width:44px;height:44px;border-radius:50%;background:var(--card2);border:2px solid var(--neon2);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;\\'>🎧</div>'">`
-          : `<div style="width:44px;height:44px;border-radius:50%;background:var(--card2);border:2px solid var(--neon2);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">🎧</div>`;
+          ? `<img src="${profile.avatar}" style="width:44px;height:44px;border-radius:50%;object-fit:cover;border:2px solid var(--neon2);flex-shrink:0;" onerror="this.style.display='none'">`
+          : `<div style="width:44px;height:44px;border-radius:50%;background:var(--card2);border:2px solid var(--neon2);display:flex;align-items:center;justify-content:center;flex-shrink:0;"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3z"/><path d="M3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg></div>`;
         const statusColor = app.status === 'accepted' ? 'var(--neon2)' : app.status === 'declined' ? 'var(--neon)' : 'var(--gold)';
 
         const card = document.createElement('div');
@@ -2125,7 +2125,7 @@ async function loadApplications() {
       card.style.cssText = 'background:var(--card2);border:1px solid var(--border);border-radius:10px;padding:12px;';
       card.innerHTML = `
         <div style="display:flex;gap:10px;align-items:flex-start;margin-bottom:10px;">
-          <div data-avatar style="width:46px;height:46px;border-radius:6px;background:var(--card);border:2px solid var(--neon2);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">🎧</div>
+          <div data-avatar style="width:46px;height:46px;border-radius:6px;background:var(--card);border:2px solid var(--neon2);display:flex;align-items:center;justify-content:center;flex-shrink:0;"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3z"/><path d="M3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg></div>
           <div style="flex:1;min-width:0;">
             <div data-name style="font-family:'Bebas Neue',sans-serif;font-size:17px;letter-spacing:1px;">Artist</div>
             <div data-detail></div>
@@ -2812,8 +2812,9 @@ function updateArtistDashCard() {
     taglineEl.textContent = artistProfile.tagline || artistProfile.location || '';
     genresEl.textContent  = artistProfile.genreString ? artistProfile.genreString.split(' · ').slice(0,4).join(' · ') : '';
     ctaEl.textContent = 'EDIT →'; card.classList.add('complete');
-    if (artistProfile.avatar) { avatarEl.innerHTML = `<img src="${artistProfile.avatar}" alt="" onerror="this.parentElement.textContent='🎧'">`; }
-    else { avatarEl.textContent = '🎧'; }
+    const _hpSvg = '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3z"/><path d="M3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg>';
+    if (artistProfile.avatar) { avatarEl.innerHTML = `<img src="${artistProfile.avatar}" alt="" onerror="this.style.display='none'">`; }
+    else { avatarEl.innerHTML = _hpSvg; }
     let playEl = document.getElementById('artistDashPlayBtn');
     if (artistProfile.mixLink) {
       if (!playEl) {

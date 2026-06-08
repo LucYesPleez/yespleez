@@ -39,7 +39,7 @@ async function searchArtistsForAssign(q) {
       <div onclick="selectArtistForAssign(${JSON.stringify(r).replace(/"/g,'&quot;')})"
         style="padding:10px 12px;cursor:pointer;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;"
         onmouseenter="this.style.background='rgba(0,229,255,.08)'" onmouseleave="this.style.background=''">
-        ${r.avatar ? `<img src="${r.avatar}" style="width:32px;height:32px;border-radius:4px;object-fit:cover;">` : `<div style="width:32px;height:32px;border-radius:4px;background:var(--card);display:flex;align-items:center;justify-content:center;font-size:16px;">🎧</div>`}
+        ${r.avatar ? `<img src="${r.avatar}" style="width:32px;height:32px;border-radius:4px;object-fit:cover;">` : `<div style="width:32px;height:32px;border-radius:4px;background:var(--card);display:flex;align-items:center;justify-content:center;"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3z"/><path d="M3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg></div>`}
         <div>
           <div style="font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:1px;">${r.dj_name || r.name}</div>
           ${r.genre_string ? `<div style="font-size:11px;color:var(--muted);">${r.genre_string.split(' · ').slice(0,3).join(' · ')}</div>` : ''}
@@ -158,7 +158,7 @@ function openApplyModalForEvent(eventId, eventName) {
   const pillsHtml = genres.map(g => `<span class="dj-pill">${g}</span>`).join('');
   const avatarHtml = p.avatar
     ? `<img src="${p.avatar}" style="width:52px;height:52px;border-radius:6px;object-fit:cover;border:2px solid var(--neon2);flex-shrink:0;">`
-    : `<div style="width:52px;height:52px;border-radius:6px;background:var(--card);border:2px solid var(--neon2);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;">🎧</div>`;
+    : `<div style="width:52px;height:52px;border-radius:6px;background:var(--card);border:2px solid var(--neon2);display:flex;align-items:center;justify-content:center;flex-shrink:0;"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3z"/><path d="M3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg></div>`;
   document.getElementById('applyProfilePreview').innerHTML = `
     <div style="display:flex;gap:12px;align-items:flex-start;">
       ${avatarHtml}

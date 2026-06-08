@@ -168,7 +168,7 @@ function buildProfileCardEl(row) {
   const bio       = row.bio ? row.bio.substring(0, 80) + (row.bio.length > 80 ? '…' : '') : '';
   const accentCol = isHost ? 'var(--neon)'  : 'var(--neon2)';
   const accentRgb = isHost ? '255,45,120'   : '0,229,255';
-  const emoji     = isHost ? '🎛️' : '🎧';
+  const emoji     = isHost ? '🎛️' : '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3z"/><path d="M3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg>';
   const badge     = isHost
     ? `<span style="background:rgba(255,45,120,.15);color:var(--neon);border:1px solid rgba(255,45,120,.3);border-radius:20px;font-size:10px;padding:2px 8px;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;">HOST</span>`
     : `<span style="background:rgba(0,229,255,.12);color:var(--neon2);border:1px solid rgba(0,229,255,.25);border-radius:20px;font-size:10px;padding:2px 8px;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;">ARTIST</span>`;
@@ -643,7 +643,7 @@ async function loadAcceptedUnassignedArtists() {
       const evName = eventMap[app.event_id] || '';
       const avatarHtml = p.avatar
         ? `<img src="${p.avatar}" style="width:44px;height:44px;border-radius:8px;object-fit:cover;border:1px solid rgba(0,229,255,.3);flex-shrink:0;">`
-        : `<div style="width:44px;height:44px;border-radius:8px;background:var(--card2);border:1px solid rgba(0,229,255,.3);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">🎧</div>`;
+        : `<div style="width:44px;height:44px;border-radius:8px;background:var(--card2);border:1px solid rgba(0,229,255,.3);display:flex;align-items:center;justify-content:center;flex-shrink:0;"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3z"/><path d="M3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg></div>`;
       const card = document.createElement('div');
       card.style.cssText = 'background:var(--bg);border:1px solid rgba(0,229,255,.2);border-radius:12px;padding:12px 14px;margin-bottom:10px;display:flex;align-items:center;gap:12px;cursor:pointer;';
       card.onmouseenter = () => { card.style.borderColor = 'rgba(0,229,255,.5)'; };
