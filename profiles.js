@@ -645,7 +645,8 @@ async function loadAcceptedUnassignedArtists() {
     const eventMap = {};
     allEvents.forEach(ev => { eventMap[ev.id] = ev.name; });
 
-    list.innerHTML = unassigned.map(app => {
+    list.innerHTML = '';
+    unassigned.forEach(app => {
       const p = profileMap[app.artist_id] || {};
       const name = p.dj_name || p.name || 'Unknown';
       const sound = p.sound || p.genre_string?.split(' · ').slice(0,2).join(' · ') || '';
@@ -653,7 +654,12 @@ async function loadAcceptedUnassignedArtists() {
       const avatarHtml = p.avatar
         ? `<img src="${p.avatar}" style="width:44px;height:44px;border-radius:8px;object-fit:cover;border:1px solid rgba(0,229,255,.3);flex-shrink:0;">`
         : `<div style="width:44px;height:44px;border-radius:8px;background:var(--card2);border:1px solid rgba(0,229,255,.3);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">🎧</div>`;
-      return `<div style="background:var(--bg);border:1px solid rgba(0,229,255,.2);border-radius:12px;padding:12px 14px;margin-bottom:10px;display:flex;align-items:center;gap:12px;">
+      const card = document.createElement('div');
+      card.style.cssText = 'background:var(--bg);border:1px solid rgba(0,229,255,.2);border-radius:12px;padding:12px 14px;margin-bottom:10px;display:flex;align-items:center;gap:12px;cursor:pointer;';
+      card.onmouseenter = () => { card.style.borderColor = 'rgba(0,229,255,.5)'; };
+      card.onmouseleave = () => { card.style.borderColor = 'rgba(0,229,255,.2)'; };
+      card.onclick = (e) => { if (!e.target.closest('button') && p.user_id) openPublicProfile(p); };
+      card.innerHTML = `
         ${avatarHtml}
         <div style="flex:1;min-width:0;">
           <div style="font-family:'Bebas Neue',sans-serif;font-size:17px;letter-spacing:1px;">${name}</div>
@@ -663,9 +669,9 @@ async function loadAcceptedUnassignedArtists() {
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;">
           <span style="font-size:10px;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;color:var(--gold);border:1px solid rgba(255,184,48,.3);border-radius:20px;padding:3px 10px;">NEEDS SLOT</span>
           <button onclick="removeAcceptedArtist('${app.id}', '${name}')" style="background:none;border:1px solid rgba(255,45,120,.3);border-radius:8px;color:var(--neon);font-size:11px;padding:3px 10px;cursor:pointer;white-space:nowrap;">Remove</button>
-        </div>
-      </div>`;
-    }).join('');
+        </div>`;
+      list.appendChild(card);
+    });
   } catch(e) {
     list.innerHTML = '<div style="font-size:13px;color:var(--muted);padding:8px 0;">Could not load.</div>';
   }
