@@ -143,6 +143,7 @@ async function enterArtistDashboard() {
   }
   updateArtistDashCard();
   renderArtistDashGigsWithManual();
+  renderProfileNudge();
   loadMyApplications();
   mergePendingArtistNotifs();
   updateToggleVisibility('artist');
@@ -152,6 +153,55 @@ async function enterArtistDashboard() {
   if (typeof loadMyAvailability === 'function') loadMyAvailability();
   if (typeof loadDbNotifs === 'function') loadDbNotifs();
   if (typeof startNotifPolling === 'function') startNotifPolling();
+}
+
+// ── Profile completeness nudge ─────────────────────
+
+function renderProfileNudge() {
+  const el = document.getElementById('profileNudge');
+  if (!el) return;
+
+  const p = artistProfile || {};
+  const missing = [];
+
+  if (!p.avatar)    missing.push({ label: 'Add a photo',    icon: '📸', action: "showProfile()" });
+  if (!p.mixLink)   missing.push({ label: 'Link a mix',     icon: '▶',  action: "showProfile()" });
+  if (!p.bio)       missing.push({ label: 'Write a bio',    icon: '✏️', action: "showProfile()" });
+  if (!p.genreString) missing.push({ label: 'Set your genres', icon: '🎵', action: "showProfile()" });
+
+  // Dismiss key — reset each time a new field is filled
+  const dismissKey = `yp_nudge_dismissed_${(missing.map(m=>m.label).join(','))}`;
+  try { if (localStorage.getItem(dismissKey)) { el.style.display = 'none'; return; } } catch(e) {}
+
+  if (!missing.length) { el.style.display = 'none'; return; }
+
+  // Completeness score
+  const total = 4;
+  const done  = total - missing.length;
+  const pct   = Math.round((done / total) * 100);
+  const color = pct >= 75 ? 'var(--neon2)' : pct >= 50 ? 'var(--gold)' : 'var(--neon)';
+
+  el.style.display = '';
+  el.innerHTML = `
+    <div style="background:rgba(255,45,120,.06);border:1px solid rgba(255,45,120,.25);border-radius:14px;padding:14px 16px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:2px;color:var(--neon);">COMPLETE YOUR PROFILE</div>
+        <button onclick="try{localStorage.setItem('${dismissKey}','1')}catch(e){}; document.getElementById('profileNudge').style.display='none';"
+          style="background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;line-height:1;padding:0;">×</button>
+      </div>
+      <!-- Progress bar -->
+      <div style="height:4px;background:rgba(255,255,255,.08);border-radius:2px;margin-bottom:12px;overflow:hidden;">
+        <div style="height:100%;width:${pct}%;background:${color};border-radius:2px;transition:width .4s;"></div>
+      </div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:10px;">${done}/${total} complete · Promoters skip incomplete profiles</div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;">
+        ${missing.map(m => `
+          <button onclick="${m.action}"
+            style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);color:var(--text);border-radius:20px;font-size:12px;padding:6px 14px;cursor:pointer;display:flex;align-items:center;gap:6px;">
+            <span>${m.icon}</span><span>${m.label}</span>
+          </button>`).join('')}
+      </div>
+    </div>`;
 }
 
 // ── Navigation helpers ─────────────────────────────

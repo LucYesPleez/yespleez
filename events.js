@@ -13,6 +13,8 @@ let lockedSlots   = {};
 
 // ── Event list ─────────────────────────────────────
 
+let _eventAnalytics = {}; // eventId → { appCount, pendingCount, claimedSlots, totalSlots }
+
 async function loadUserEvents() {
   const listEl = document.getElementById('eventList');
   listEl.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted);font-size:13px;">Loading...</div>';
@@ -23,9 +25,43 @@ async function loadUserEvents() {
     );
     allEvents = rows;
     renderEventList();
+    // Load analytics in background — updates cards when ready
+    loadEventAnalytics(rows);
   } catch(e) {
     listEl.innerHTML = `<div style="text-align:center;padding:40px;color:var(--neon);font-size:13px;">Could not load events ${e.message}</div>`;
   }
+}
+
+async function loadEventAnalytics(events) {
+  if (!events?.length || !currentSession?.access_token) return;
+  const ids = events.map(e => e.id);
+  try {
+    // Fetch application counts + claim counts in parallel
+    const [appsRes, claimsRes] = await Promise.all([
+      fetch(`${SUPABASE_URL}/rest/v1/applications?event_id=in.(${ids.join(',')})&select=event_id,status`,
+        { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${currentSession.access_token}` } }),
+      fetch(`${SUPABASE_URL}/rest/v1/claims?event_id=in.(${ids.join(',')})&select=event_id`,
+        { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${currentSession.access_token}` } })
+    ]);
+    const apps   = appsRes.ok   ? await appsRes.json()   : [];
+    const claims = claimsRes.ok ? await claimsRes.json() : [];
+
+    _eventAnalytics = {};
+    events.forEach(ev => {
+      const cfg        = ev.config || {};
+      const totalSlots = (cfg.days || []).reduce((n, d) => n + (d.slots || []).length, 0);
+      const evApps     = apps.filter(a => a.event_id === ev.id);
+      const evClaims   = claims.filter(c => c.event_id === ev.id);
+      _eventAnalytics[ev.id] = {
+        appCount:     evApps.length,
+        pendingCount: evApps.filter(a => a.status === 'pending').length,
+        claimedSlots: evClaims.length,
+        totalSlots
+      };
+    });
+    // Re-render cards with analytics data
+    renderEventList();
+  } catch(e) { console.warn('loadEventAnalytics:', e); }
 }
 
 // ── Shared event card builder (used by dashboard + discover) ──
@@ -56,6 +92,23 @@ function buildEventCardEl(ev, mode) {
       ? `<span style="font-size:9px;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;color:var(--neon2);border:1px solid rgba(0,229,255,.3);border-radius:2px;padding:2px 7px;">PUBLIC</span>`
       : `<span style="font-size:9px;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;color:var(--muted);border:1px solid var(--border);border-radius:2px;padding:2px 7px;">PRIVATE</span>`
     : '';
+  // Analytics row (host mode only, when data is loaded)
+  const analytics = (mode === 'host' && _eventAnalytics?.[ev.id]) ? _eventAnalytics[ev.id] : null;
+  const analyticsHtml = analytics ? (() => {
+    const { appCount, pendingCount, claimedSlots, totalSlots } = analytics;
+    const slotPct = totalSlots > 0 ? Math.round(claimedSlots / totalSlots * 100) : 0;
+    const slotColor = slotPct >= 80 ? 'var(--neon2)' : slotPct >= 50 ? 'var(--gold)' : 'var(--muted)';
+    const appBadge  = pendingCount > 0
+      ? `<span style="background:rgba(255,184,48,.15);border:1px solid rgba(255,184,48,.4);color:var(--gold);border-radius:10px;font-size:10px;padding:2px 8px;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;">${pendingCount} PENDING</span>`
+      : appCount > 0
+      ? `<span style="background:rgba(0,229,255,.08);border:1px solid rgba(0,229,255,.2);color:var(--neon2);border-radius:10px;font-size:10px;padding:2px 8px;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;">${appCount} APPL.</span>`
+      : '';
+    const slotBadge = totalSlots > 0
+      ? `<span style="color:${slotColor};font-size:10px;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;">${claimedSlots}/${totalSlots} SLOTS</span>`
+      : '';
+    return `<div style="display:flex;align-items:center;gap:8px;margin-top:6px;flex-wrap:wrap;">${appBadge}${slotBadge}</div>`;
+  })() : '';
+
   const rightBtns = mode === 'host'
     ? `<span class="event-card-status ${isLive ? 'live' : 'draft'}">${isLive ? 'LIVE' : 'DRAFT'}</span>
        ${appsTag}
@@ -74,6 +127,7 @@ function buildEventCardEl(ev, mode) {
         <div class="event-card-info" style="min-width:0;flex:1;padding:14px 12px;display:flex;flex-direction:column;justify-content:center;">
           <div class="event-card-name">${esc(ev.name || 'Untitled Event')}</div>
           <div class="event-card-meta">${esc([cfg.date, cfg.venue].filter(Boolean).join(' · '))}${slotCount ? ' · ' + slotCount + ' slots' : ''}</div>
+          ${analyticsHtml}
           ${mode === 'host' && isLive ? `<div style="margin-top:8px;">
             <button class="btn-ghost" style="font-size:11px;padding:5px 12px;border-color:var(--gold);color:var(--gold);" id="ac-${ev.id}">ALL CLAIMS</button>
           </div>` : ''}
