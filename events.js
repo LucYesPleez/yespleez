@@ -885,7 +885,7 @@ function renderAll() {
           if (canRemove) {
             const clearBtn = document.createElement('button');
             clearBtn.className = 'btn-clear'; clearBtn.textContent = '✕';
-            clearBtn.onclick = () => clearSlot(s.id);
+            clearBtn.onclick = () => confirmAction('Remove this artist from the slot?', () => clearSlot(s.id));
             actionBlock.appendChild(clearBtn);
           }
           if (isHost) {
@@ -1146,6 +1146,21 @@ async function confirmClaim() {
     showToast('Something went wrong — check your connection.', 'error');
   }
 }
+
+// ── Generic "are you sure?" overlay ───────────────
+function confirmAction(message, onConfirm) {
+  const overlay = document.getElementById('areYouSureOverlay');
+  const msg     = document.getElementById('areYouSureMsg');
+  const yesBtn  = document.getElementById('areYouSureYes');
+  if (!overlay || !msg || !yesBtn) { if (onConfirm) onConfirm(); return; }
+  msg.textContent = message;
+  const newYes = yesBtn.cloneNode(true); // remove old listeners
+  yesBtn.parentNode.replaceChild(newYes, newYes.cloneNode(true) || yesBtn);
+  document.getElementById('areYouSureYes').replaceWith(newYes);
+  newYes.onclick = () => { overlay.style.display = 'none'; if (onConfirm) onConfirm(); };
+  overlay.style.display = 'flex';
+}
+function closeAreYouSure() { document.getElementById('areYouSureOverlay').style.display = 'none'; }
 
 async function clearSlot(id) {
   saveManageState();
@@ -1438,7 +1453,7 @@ function renderManage() {
       const removeBtn = document.createElement('button');
       removeBtn.style.cssText = 'font-size:11px;flex:1;padding:8px;border-radius:8px;font-family:\'Bebas Neue\',sans-serif;letter-spacing:1px;cursor:pointer;background:rgba(255,45,120,.08);border:1px solid rgba(255,45,120,.35);color:var(--neon);';
       removeBtn.textContent = '✕ REMOVE ARTIST';
-      removeBtn.onclick = e=>{e.stopPropagation(); if(setTimesLocked){showLockedPopup();return;} clearSlot(s.id); renderManage();};
+      removeBtn.onclick = e=>{e.stopPropagation(); if(setTimesLocked){showLockedPopup();return;} confirmAction('Remove this artist from the slot?', () => { clearSlot(s.id); renderManage(); });};
       detAct.appendChild(lockBtn); detAct.appendChild(removeBtn);
       const notesWrap = document.createElement('div'); notesWrap.style.cssText = 'margin-top:12px;padding-top:10px;border-top:1px solid var(--border);';
       notesWrap.innerHTML = '<div class="host-notes-label">🔒 HOST NOTES (private)</div>';

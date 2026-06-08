@@ -520,14 +520,15 @@ async function loadUnclaimedProfiles() {
 }
 
 async function deleteUnclaimedProfile(id) {
-  if (!confirm('Remove this unclaimed profile?')) return;
-  try {
-    await sbRest(`unclaimed_profiles?id=eq.${id}`, { method: 'DELETE' }, currentSession.access_token);
-    showToast('Profile removed.', 'success');
-    loadUnclaimedProfiles();
-  } catch(e) {
-    showToast('Could not remove: ' + e.message, 'error');
-  }
+  confirmAction('Remove this artist profile?', async () => {
+    try {
+      await sbRest(`unclaimed_profiles?id=eq.${id}`, { method: 'DELETE' }, currentSession.access_token);
+      showToast('Profile removed.', 'success');
+      loadUnclaimedProfiles();
+    } catch(e) {
+      showToast('Could not remove: ' + e.message, 'error');
+    }
+  });
 }
 
 // Called on artist dashboard load — checks if email matches an unclaimed profile
