@@ -273,7 +273,7 @@ function openPublicProfile(row) {
     </button>` : '';
 
   const heroSpacer = row.avatar
-    ? `<div style="height:55vh;min-height:260px;max-height:420px;"></div>`
+    ? `<div style="height:65vh;min-height:300px;max-height:500px;"></div>`
     : `<div style="height:60px;"></div>`;
 
   document.getElementById('publicProfileContent').innerHTML = `
