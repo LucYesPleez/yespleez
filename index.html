@@ -3032,43 +3032,10 @@ body.player-open .screen.active { padding-bottom: 80px; }
 <script src="app.js?v=2"></script>
 
 
-<!-- ══════════ CREATE UNCLAIMED PROFILE MODAL ══════════ -->
+<!-- ══════════ CREATE/EDIT UNCLAIMED PROFILE MODAL ══════════ -->
 <div id="createUnclaimedOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9000;overflow-y:auto;padding:20px;">
   <div style="max-width:480px;margin:0 auto;background:var(--card);border:1px solid var(--border);border-radius:16px;padding:24px;">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
-      <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:2px;color:var(--text);">CREATE ARTIST PROFILE</div>
-      <button onclick="closeCreateUnclaimedProfile()" style="background:none;border:none;color:var(--muted);font-size:22px;cursor:pointer;">✕</button>
-    </div>
-    <div style="display:flex;flex-direction:column;gap:14px;">
-      <div>
-        <label style="font-size:11px;color:var(--muted);letter-spacing:1px;font-family:'Bebas Neue',sans-serif;">ARTIST NAME *</label>
-        <input id="ucpName" type="text" placeholder="e.g. DJ Tekka" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:15px;padding:10px 12px;margin-top:4px;box-sizing:border-box;">
-      </div>
-      <div>
-        <label style="font-size:11px;color:var(--muted);letter-spacing:1px;font-family:'Bebas Neue',sans-serif;">SOUND BIO <span style="color:var(--muted);font-family:'DM Sans',sans-serif;font-size:10px;text-transform:none;">(one-liner)</span></label>
-        <input id="ucpSound" type="text" placeholder="e.g. sinister minimal dank steeze" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:15px;padding:10px 12px;margin-top:4px;box-sizing:border-box;">
-      </div>
-      <div>
-        <label style="font-size:11px;color:var(--muted);letter-spacing:1px;font-family:'Bebas Neue',sans-serif;">GENRES / TAGS <span style="color:var(--muted);font-family:'DM Sans',sans-serif;font-size:10px;text-transform:none;">(separate with · )</span></label>
-        <input id="ucpGenres" type="text" placeholder="e.g. Techno · Minimal · Dark" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:15px;padding:10px 12px;margin-top:4px;box-sizing:border-box;">
-      </div>
-      <div>
-        <label style="font-size:11px;color:var(--muted);letter-spacing:1px;font-family:'Bebas Neue',sans-serif;">BIO</label>
-        <textarea id="ucpBio" rows="3" placeholder="A short description of the artist..." style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;padding:10px 12px;margin-top:4px;box-sizing:border-box;resize:vertical;"></textarea>
-      </div>
-      <div>
-        <label style="font-size:11px;color:var(--muted);letter-spacing:1px;font-family:'Bebas Neue',sans-serif;">MIX LINK <span style="color:var(--muted);font-family:'DM Sans',sans-serif;font-size:10px;text-transform:none;">(optional)</span></label>
-        <input id="ucpMixLink" type="url" placeholder="https://soundcloud.com/..." style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:15px;padding:10px 12px;margin-top:4px;box-sizing:border-box;">
-      </div>
-      <div>
-        <label style="font-size:11px;color:var(--muted);letter-spacing:1px;font-family:'Bebas Neue',sans-serif;">ARTIST EMAIL <span style="color:var(--muted);font-family:'DM Sans',sans-serif;font-size:10px;text-transform:none;">(optional — for auto-claim)</span></label>
-        <input id="ucpEmail" type="email" placeholder="artist@email.com" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:15px;padding:10px 12px;margin-top:4px;box-sizing:border-box;">
-      </div>
-    </div>
-    <div style="display:flex;gap:10px;margin-top:20px;">
-      <button onclick="closeCreateUnclaimedProfile()" style="flex:1;background:none;border:1px solid var(--border);border-radius:10px;color:var(--muted);font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:1px;padding:12px;cursor:pointer;">CANCEL</button>
-      <button onclick="submitCreateUnclaimedProfile()" style="flex:2;background:var(--neon2);border:none;border-radius:10px;color:#0a0a0f;font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:1px;padding:12px;cursor:pointer;font-weight:700;">SAVE PROFILE</button>
-    </div>
+    <!-- Content injected dynamically by _showUcpForm() -->
   </div>
 </div>
 

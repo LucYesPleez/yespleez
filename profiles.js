@@ -315,16 +315,81 @@ async function loadPublicProfileGigs(userId, accentColor, accentRgb) {
 
 // ── Unclaimed Profiles (host creates, artist claims) ──
 
+let _editingUcpId = null;
+
 function openCreateUnclaimedProfile() {
+  _editingUcpId = null;
   ['ucpName','ucpSound','ucpGenres','ucpBio','ucpMixLink','ucpEmail'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.value = '';
+    const el = document.getElementById(id); if (el) el.value = '';
   });
-  document.getElementById('createUnclaimedOverlay').style.display = 'flex';
+  _showUcpForm('CREATE ARTIST PROFILE', 'SAVE PROFILE');
+}
+
+function openEditUnclaimedProfile(id) {
+  const data = window._ucpInviteData?.[id];
+  if (!data) return;
+  _editingUcpId = id;
+  // Fetch full row to populate all fields
+  sbRest(`unclaimed_profiles?id=eq.${id}&limit=1`, { method: 'GET' }, currentSession.access_token)
+    .then(rows => {
+      if (!rows || !rows.length) return;
+      const r = rows[0];
+      const set = (elId, val) => { const el = document.getElementById(elId); if (el) el.value = val || ''; };
+      set('ucpName',    r.name);
+      set('ucpSound',   r.sound);
+      set('ucpGenres',  r.genre_string);
+      set('ucpBio',     r.bio);
+      set('ucpMixLink', r.mix_link);
+      set('ucpEmail',   r.claim_email);
+      _showUcpForm('EDIT ARTIST PROFILE', 'SAVE CHANGES');
+    })
+    .catch(() => showToast('Could not load profile.', 'error'));
+}
+
+function _showUcpForm(title, btnLabel) {
+  const overlay = document.getElementById('createUnclaimedOverlay');
+  overlay.querySelector('div').innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:2px;color:var(--text);">${title}</div>
+      <button onclick="closeCreateUnclaimedProfile()" style="background:none;border:none;color:var(--muted);font-size:22px;cursor:pointer;">✕</button>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:14px;">
+      <div>
+        <label style="font-size:11px;color:var(--muted);letter-spacing:1px;font-family:'Bebas Neue',sans-serif;">ARTIST NAME *</label>
+        <input id="ucpName" type="text" placeholder="e.g. DJ Tekka" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:15px;padding:10px 12px;margin-top:4px;box-sizing:border-box;">
+      </div>
+      <div>
+        <label style="font-size:11px;color:var(--muted);letter-spacing:1px;font-family:'Bebas Neue',sans-serif;">SOUND BIO <span style="color:var(--muted);font-family:'DM Sans',sans-serif;font-size:10px;text-transform:none;">(one-liner)</span></label>
+        <input id="ucpSound" type="text" placeholder="e.g. sinister minimal dank steeze" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:15px;padding:10px 12px;margin-top:4px;box-sizing:border-box;">
+      </div>
+      <div>
+        <label style="font-size:11px;color:var(--muted);letter-spacing:1px;font-family:'Bebas Neue',sans-serif;">GENRES / TAGS <span style="color:var(--muted);font-family:'DM Sans',sans-serif;font-size:10px;text-transform:none;">(separate with · )</span></label>
+        <input id="ucpGenres" type="text" placeholder="e.g. Techno · Minimal · Dark" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:15px;padding:10px 12px;margin-top:4px;box-sizing:border-box;">
+      </div>
+      <div>
+        <label style="font-size:11px;color:var(--muted);letter-spacing:1px;font-family:'Bebas Neue',sans-serif;">BIO</label>
+        <textarea id="ucpBio" rows="3" placeholder="A short description of the artist..." style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;padding:10px 12px;margin-top:4px;box-sizing:border-box;resize:vertical;"></textarea>
+      </div>
+      <div>
+        <label style="font-size:11px;color:var(--muted);letter-spacing:1px;font-family:'Bebas Neue',sans-serif;">MIX LINK <span style="color:var(--muted);font-family:'DM Sans',sans-serif;font-size:10px;text-transform:none;">(optional)</span></label>
+        <input id="ucpMixLink" type="url" placeholder="https://soundcloud.com/..." style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:15px;padding:10px 12px;margin-top:4px;box-sizing:border-box;">
+      </div>
+      <div>
+        <label style="font-size:11px;color:var(--muted);letter-spacing:1px;font-family:'Bebas Neue',sans-serif;">ARTIST EMAIL <span style="color:var(--muted);font-family:'DM Sans',sans-serif;font-size:10px;text-transform:none;">(optional — for auto-claim)</span></label>
+        <input id="ucpEmail" type="email" placeholder="artist@email.com" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:15px;padding:10px 12px;margin-top:4px;box-sizing:border-box;">
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:20px;">
+      <button onclick="closeCreateUnclaimedProfile()" style="flex:1;background:none;border:1px solid var(--border);border-radius:10px;color:var(--muted);font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:1px;padding:12px;cursor:pointer;">CANCEL</button>
+      <button onclick="submitCreateUnclaimedProfile()" style="flex:2;background:var(--neon2);border:none;border-radius:10px;color:#0a0a0f;font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:1px;padding:12px;cursor:pointer;font-weight:700;">${btnLabel}</button>
+    </div>
+  `;
+  overlay.style.display = 'flex';
 }
 
 function closeCreateUnclaimedProfile() {
   document.getElementById('createUnclaimedOverlay').style.display = 'none';
+  _editingUcpId = null;
 }
 
 async function submitCreateUnclaimedProfile() {
@@ -341,14 +406,24 @@ async function submitCreateUnclaimedProfile() {
     created_by:   currentUser.id
   };
   try {
-    await sbRest('unclaimed_profiles', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-      prefer: 'return=minimal'
-    }, currentSession.access_token);
-    loadUnclaimedProfiles();
-    // Switch modal to invite step
-    showUnclaimedInviteStep(name);
+    if (_editingUcpId) {
+      await sbRest(`unclaimed_profiles?id=eq.${_editingUcpId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+        prefer: 'return=minimal'
+      }, currentSession.access_token);
+      showToast(`Profile updated ✓`, 'success');
+      closeCreateUnclaimedProfile();
+      loadUnclaimedProfiles();
+    } else {
+      await sbRest('unclaimed_profiles', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+        prefer: 'return=minimal'
+      }, currentSession.access_token);
+      loadUnclaimedProfiles();
+      showUnclaimedInviteStep(name);
+    }
   } catch(e) {
     showToast('Could not save: ' + e.message, 'error');
   }
@@ -431,7 +506,10 @@ async function loadUnclaimedProfiles() {
             ${r.sound ? `<div style="font-size:12px;color:var(--neon2);margin-top:2px;">${r.sound}</div>` : ''}
             ${r.claim_email ? `<div style="font-size:11px;color:var(--muted);margin-top:4px;">✉ ${r.claim_email}</div>` : '<div style="font-size:11px;color:var(--muted);margin-top:4px;">No email set</div>'}
           </div>
-          <button onclick="deleteUnclaimedProfile('${r.id}')" style="background:none;border:1px solid rgba(255,45,120,.3);border-radius:8px;color:var(--neon);font-size:11px;padding:4px 10px;cursor:pointer;white-space:nowrap;flex-shrink:0;">Remove</button>
+          <div style="display:flex;gap:6px;flex-shrink:0;">
+            <button onclick="openEditUnclaimedProfile('${r.id}')" style="background:none;border:1px solid rgba(0,229,255,.3);border-radius:8px;color:var(--neon2);font-size:11px;padding:4px 10px;cursor:pointer;white-space:nowrap;">Edit</button>
+            <button onclick="deleteUnclaimedProfile('${r.id}')" style="background:none;border:1px solid rgba(255,45,120,.3);border-radius:8px;color:var(--neon);font-size:11px;padding:4px 10px;cursor:pointer;white-space:nowrap;">Remove</button>
+          </div>
         </div>
         <button onclick="copyUnclaimedInvite('${r.id}', this)" style="width:100%;background:rgba(0,229,255,.08);border:1px solid rgba(0,229,255,.25);border-radius:8px;color:var(--neon2);font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:1px;padding:8px;cursor:pointer;">COPY INVITE</button>
       </div>
