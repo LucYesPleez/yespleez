@@ -184,6 +184,7 @@ function openEventSetTimes(ev) {
   currentEventHostId = ev.host_id || null;
   isHost = true;
   hostControls = ev.host_controls || { artistRemove: true, rankedBackups: true, genrePicker: true };
+  lockedSlots = ev.host_controls?.lockedSlots || {};
   document.getElementById('shareLinkBtn').style.display = '';
   loadClaims().then(() => showSignup());
 }
@@ -199,6 +200,7 @@ function openAllClaims(ev) {
   isHost = true;
   hostControls = ev.host_controls || { artistRemove: true, rankedBackups: true, genrePicker: true };
   setTimesLocked = ev.host_controls?.setTimesLocked || false;
+  lockedSlots = ev.host_controls?.lockedSlots || {};
   loadClaims().then(() => {
     show('manageScreen');
     renderManage();
@@ -824,7 +826,23 @@ function renderHostSummary() {
   el.innerHTML = html;
 }
 
-function toggleLock(slotId) { lockedSlots[slotId] = !lockedSlots[slotId]; renderHostSummary(); }
+function toggleLock(slotId) {
+  if (lockedSlots[slotId]) delete lockedSlots[slotId]; else lockedSlots[slotId] = true;
+  // Sync master lock button: locked if ALL filled slots are pinned
+  const allSlots = (eventData.days || []).flatMap(d => d.slots);
+  const filledSlots = allSlots.filter(s => claims[s.id]);
+  setTimesLocked = filledSlots.length > 0 && filledSlots.every(s => lockedSlots[s.id]);
+  const btn = document.getElementById('lockTimesBtn');
+  if (btn) { btn.textContent = setTimesLocked ? '🔒 SET TIMES LOCKED' : '🔒 LOCK SET TIMES'; btn.classList.toggle('locked', setTimesLocked); }
+  renderHostSummary();
+  // Persist
+  if (!DEMO && currentEventId && currentSession?.access_token) {
+    sbRest(`events?id=eq.${currentEventId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ host_controls: { ...hostControls, setTimesLocked, lockedSlots } })
+    }, currentSession.access_token).catch(() => {});
+  }
+}
 
 function timeToMins24(time, ampm, allSlots) {
   if (!time) return 0;
@@ -2243,13 +2261,23 @@ function showLockedPopup() {
 
 function toggleLockSetTimes() {
   setTimesLocked = !setTimesLocked;
+  // Pin or unpin every filled artist slot as one action
+  const allSlots = (eventData.days || []).flatMap(d => d.slots);
+  allSlots.forEach(s => {
+    if (claims[s.id]) {
+      if (setTimesLocked) lockedSlots[s.id] = true;
+      else delete lockedSlots[s.id];
+    }
+  });
   const btn = document.getElementById('lockTimesBtn');
   if (btn) { btn.textContent = setTimesLocked ? '🔒 SET TIMES LOCKED' : '🔒 LOCK SET TIMES'; btn.classList.toggle('locked', setTimesLocked); }
+  renderManage();
+  renderHostSummary();
   // Persist to Supabase
   if (!DEMO && currentEventId && currentSession?.access_token) {
     sbRest(`events?id=eq.${currentEventId}`, {
       method: 'PATCH',
-      body: JSON.stringify({ host_controls: { ...hostControls, setTimesLocked } })
+      body: JSON.stringify({ host_controls: { ...hostControls, setTimesLocked, lockedSlots } })
     }, currentSession.access_token).catch(() => {});
   }
 }
