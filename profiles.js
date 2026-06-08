@@ -660,12 +660,30 @@ async function loadAcceptedUnassignedArtists() {
           ${sound ? `<div style="font-size:12px;color:var(--neon2);margin-top:1px;">${sound}</div>` : ''}
           ${evName ? `<div style="font-size:11px;color:var(--muted);margin-top:3px;">Applied: ${evName}</div>` : ''}
         </div>
-        <span style="font-size:10px;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;color:var(--gold);border:1px solid rgba(255,184,48,.3);border-radius:20px;padding:3px 10px;flex-shrink:0;">NEEDS SLOT</span>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;">
+          <span style="font-size:10px;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;color:var(--gold);border:1px solid rgba(255,184,48,.3);border-radius:20px;padding:3px 10px;">NEEDS SLOT</span>
+          <button onclick="removeAcceptedArtist('${app.id}', '${name}')" style="background:none;border:1px solid rgba(255,45,120,.3);border-radius:8px;color:var(--neon);font-size:11px;padding:3px 10px;cursor:pointer;white-space:nowrap;">Remove</button>
+        </div>
       </div>`;
     }).join('');
   } catch(e) {
     list.innerHTML = '<div style="font-size:13px;color:var(--muted);padding:8px 0;">Could not load.</div>';
   }
+}
+
+function removeAcceptedArtist(appId, name) {
+  confirmAction(`Remove ${name} from accepted artists?`, async () => {
+    try {
+      await sbRest(`applications?id=eq.${appId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status: 'declined' })
+      }, currentSession.access_token);
+      showToast(`${name} removed.`, 'success');
+      loadAcceptedUnassignedArtists();
+    } catch(e) {
+      showToast('Could not remove: ' + e.message, 'error');
+    }
+  });
 }
 
 async function deleteUnclaimedProfile(id) {
