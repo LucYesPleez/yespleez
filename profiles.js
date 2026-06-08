@@ -178,6 +178,8 @@ async function searchProfiles(query, filterType, filterState) {
       const q = encodeURIComponent(`%${query.trim()}%`);
       path += `&or=(dj_name.ilike.${q},name.ilike.${q},genre_string.ilike.${q},location.ilike.${q},bio.ilike.${q},tagline.ilike.${q})`;
     }
+    // Only show profiles where a name has been set — filters out shell accounts that signed up but never filled in a profile
+    path += `&or=(dj_name.neq.,name.neq.)`;
     path += `&order=updated_at.desc&limit=50`;
     const rows = await sbRest(path, { method: 'GET' }, currentSession?.access_token || null);
     return rows || [];
