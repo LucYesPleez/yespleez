@@ -955,11 +955,26 @@ async function searchArtistsForAssign(query) {
   const resultsEl = document.getElementById('hostArtistResults');
   if (!query || query.length < 2) { resultsEl.style.display = 'none'; return; }
   try {
-    const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/profiles?type=eq.artist&dj_name=ilike.*${encodeURIComponent(query)}*&select=user_id,dj_name,genre_string,card_pills,sound,mix_link,soundcloud,mixcloud,instagram,avatar&limit=8`,
-      { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${currentSession?.access_token || SUPABASE_KEY}` } }
-    );
-    const artists = res.ok ? await res.json() : [];
+    const enc = encodeURIComponent(query);
+    const token = currentSession?.access_token || SUPABASE_KEY;
+    const headers = { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${token}` };
+
+    // Fetch claimed profiles + unclaimed profiles in parallel
+    const [claimedRes, unclaimedRes] = await Promise.all([
+      fetch(`${SUPABASE_URL}/rest/v1/profiles?type=eq.artist&dj_name=ilike.*${enc}*&select=user_id,dj_name,genre_string,card_pills,sound,mix_link,soundcloud,mixcloud,instagram,avatar&limit=8`, { headers }),
+      fetch(`${SUPABASE_URL}/rest/v1/unclaimed_profiles?name=ilike.*${enc}*&limit=8`, { headers })
+    ]);
+    const claimed   = claimedRes.ok   ? await claimedRes.json()   : [];
+    const unclaimed = unclaimedRes.ok ? await unclaimedRes.json() : [];
+
+    // Normalise unclaimed rows to same shape, add _unclaimed flag
+    const unclaimedNorm = unclaimed.map(u => ({
+      user_id: null, dj_name: u.name, genre_string: u.genre_string || '',
+      card_pills: u.card_pills || '', sound: u.sound || '', mix_link: u.mix_link || '',
+      avatar: null, _unclaimed: true, _ucpId: u.id
+    }));
+
+    const artists = [...claimed, ...unclaimedNorm];
     resultsEl.innerHTML = '';
     if (!artists.length) {
       resultsEl.innerHTML = '<div style="padding:10px 12px;font-size:13px;color:var(--muted);">No artists found</div>';
@@ -971,16 +986,15 @@ async function searchArtistsForAssign(query) {
       item.style.cssText = 'padding:10px 12px;cursor:pointer;border-bottom:1px solid var(--border);display:flex;gap:10px;align-items:center;';
       const avatarHtml = a.avatar
         ? `<img src="${a.avatar}" style="width:36px;height:36px;border-radius:50%;object-fit:cover;border:1.5px solid var(--neon2);flex-shrink:0;" onerror="this.style.display='none'">`
-        : `<div style="width:36px;height:36px;border-radius:50%;background:var(--card2);border:1.5px solid var(--neon2);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;">🎧</div>`;
-      const pillsDisplay = (a.card_pills || a.genre_string || '').split(' · ').filter(Boolean).slice(0, 5).join(' · ');
-      item.innerHTML = `${avatarHtml}<div style="min-width:0;"><div style="font-family:'Bebas Neue',sans-serif;font-size:16px;color:var(--text);">${esc(a.dj_name)}</div><div style="font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(pillsDisplay)}</div></div>`;
+        : `<div style="width:36px;height:36px;border-radius:50%;background:var(--card2);border:1.5px solid ${a._unclaimed ? 'var(--gold)' : 'var(--neon2)'};display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;">🎧</div>`;
+      const pillsDisplay = (a.card_pills || a.genre_string || '').split(' · ').filter(Boolean).slice(0, 3).join(' · ');
+      const unclaimedBadge = a._unclaimed ? `<span style="font-size:9px;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;background:rgba(255,180,0,.15);border:1px solid rgba(255,180,0,.4);color:var(--gold);border-radius:10px;padding:1px 6px;margin-left:6px;">UNCLAIMED</span>` : '';
+      item.innerHTML = `${avatarHtml}<div style="min-width:0;flex:1;"><div style="font-family:'Bebas Neue',sans-serif;font-size:16px;color:var(--text);">${esc(a.dj_name)}${unclaimedBadge}</div><div style="font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(pillsDisplay)}</div></div>`;
       item.onmousedown = async (e) => {
         e.preventDefault();
         resultsEl.style.display = 'none';
         document.getElementById('hostArtistSearch').value = '';
-        // Auto-assign immediately
-        const notes = '';
-        const ok = await upsertClaim(activeKey, a.dj_name, a.genre_string || '', notes, [], a.card_pills || '', a.sound || '');
+        const ok = await upsertClaim(activeKey, a.dj_name, a.genre_string || '', '', [], a.card_pills || '', a.sound || '');
         if (ok) {
           claims[activeKey] = { name: a.dj_name, genre: a.genre_string || '', notes: '', backups: [], cardPills: a.card_pills || '', sound: a.sound || '', mixLink: a.mix_link || '', user_id: a.user_id };
           const slotLabel = (() => { let l='slot'; (eventData?.days||[]).forEach(d=>d.slots.forEach(s=>{if(s.id===activeKey)l=s.time+' '+s.ampm;})); return l; })();
