@@ -2035,7 +2035,7 @@ function switchAppsTab(tab) {
 }
 
 async function loadApplications() {
-  const listEl = document.getElementById('applicationsList');
+  const listEl = document.getElementById('overlayApplicationsList');
   listEl.innerHTML = '<div style="text-align:center;color:var(--muted);font-size:13px;padding:20px;">Loading…</div>';
   // Safety: show fallback if still loading after 8 seconds
   const loadTimeout = setTimeout(() => {
