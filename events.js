@@ -44,17 +44,15 @@ function renderEventList() {
     const isLive = ev.status === 'live';
     const poster = cfg.poster || ev.poster || '';
     card.innerHTML = `
-      ${poster ? `<div style="width:100%;height:100px;background:url(${poster}) center/cover no-repeat;position:relative;margin:-12px -12px 10px -12px;width:calc(100% + 24px);">
-        <div style="position:absolute;inset:0;background:linear-gradient(to bottom,transparent 30%,var(--card,#14141f) 100%);"></div>
-      </div>` : ''}
-      <div style="display:flex;align-items:flex-start;gap:10px;">
+      <div style="display:flex;align-items:center;gap:10px;">
         <div class="event-card-info" style="min-width:0;flex:1;">
           <div class="event-card-name">${esc(ev.name || 'Untitled Event')}</div>
-          <div class="event-card-meta">${esc([cfg.date, cfg.venue].filter(Boolean).join(' · '))} · ${slotCount} slots</div>
+          <div class="event-card-meta">${esc([cfg.date, cfg.venue].filter(Boolean).join(' · '))}${slotCount ? ' · ' + slotCount + ' slots' : ''}</div>
           ${isLive ? `<div style="margin-top:8px;">
             <button class="btn-ghost" style="font-size:11px;padding:5px 12px;border-color:var(--gold);color:var(--gold);" id="ac-${ev.id}">ALL CLAIMS</button>
           </div>` : ''}
         </div>
+        ${poster ? `<div style="width:72px;height:72px;flex-shrink:0;border-radius:8px;background:url(${poster}) center/cover no-repeat;border:1px solid var(--border);"></div>` : ''}
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;">
           <span class="event-card-status ${isLive?'live':'draft'}">${isLive?'LIVE':'DRAFT'}</span>
           <button class="btn-signout" style="font-size:10px;padding:4px 12px;" id="edit-${ev.id}">EDIT →</button>
