@@ -3262,7 +3262,7 @@ async function renderArtistDashGigsWithManual() {
 
   const addBtn = document.createElement('button');
   addBtn.className = 'btn-ghost';
-  addBtn.style.cssText = 'width:100%;margin-top:10px;border-color:rgba(176,96,255,.6);color:rgba(176,96,255,.9);font-size:12px;';
+  addBtn.style.cssText = 'width:100%;margin-top:10px;border-color:rgba(0,229,255,.4);color:var(--neon2);font-size:12px;';
   addBtn.textContent = '+ ADD A GIG';
   addBtn.onclick = openAddGigModal;
   list.appendChild(addBtn);
