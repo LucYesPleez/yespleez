@@ -1161,11 +1161,12 @@ body.auth-mode { overflow: hidden; height: 100dvh; }
 .btn-ai-generate {
   background: linear-gradient(135deg, var(--neon), #c4006e); border: none; color: #fff;
   font-family: 'Bebas Neue', sans-serif; font-size: 15px; letter-spacing: 2px;
-  padding: 11px 20px; border-radius: 8px; cursor: pointer; transition: opacity .15s;
+  padding: 11px 20px; border-radius: 8px; cursor: pointer; transition: opacity .2s;
   white-space: nowrap; flex-shrink: 0; box-shadow: 0 0 20px rgba(255,45,120,.3);
+  opacity: .45; filter: saturate(.7);
 }
-.btn-ai-generate:hover { opacity: .85; }
-.btn-ai-generate:disabled { opacity: .5; cursor: not-allowed; }
+.btn-ai-generate:hover { opacity: .6; filter: saturate(1); }
+.btn-ai-generate:disabled { opacity: .25; cursor: not-allowed; }
 
 .ai-loading {
   display: flex; align-items: center; gap: 12px; margin-top: 16px;
