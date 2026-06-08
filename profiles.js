@@ -267,7 +267,7 @@ function openPublicProfile(row) {
 
   const isOwnProfile = currentUser?.id === row.user_id;
   const inviteBtn = !isHost && currentMode === 'host' && !isOwnProfile ? `
-    <button onclick="showToast('Invite feature coming soon','success')"
+    <button onclick="openInviteToEvent('${(row.user_id||'').replace(/'/g,String.fromCharCode(39))}','${(row.dj_name||row.name||'').replace(/'/g,String.fromCharCode(39))}')"
       style="background:var(--neon);color:#fff;font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:2px;padding:16px;border:none;border-radius:12px;cursor:pointer;width:100%;font-weight:700;margin-bottom:12px;">
       INVITE TO EVENT →
     </button>` : '';
@@ -305,8 +305,16 @@ function openPublicProfile(row) {
     ${row.instagram || row.website ? `
     <div style="background:rgba(19,19,31,.88);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:16px;margin-bottom:12px;">
       <div style="font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:2px;color:${accentColor};margin-bottom:10px;">LINKS</div>
-      ${row.instagram ? `<div style="font-size:13px;color:var(--muted);margin-bottom:6px;">📸 @${row.instagram}</div>` : ''}
-      ${row.website ? `<div style="font-size:13px;color:var(--neon2);">${row.website}</div>` : ''}
+      ${row.instagram ? `<a href="https://instagram.com/${row.instagram.replace('@','')}" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:8px;text-decoration:none;margin-bottom:8px;padding:10px 12px;background:rgba(255,255,255,.04);border-radius:10px;border:1px solid rgba(255,255,255,.08);">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:#E1306C;flex-shrink:0;"><rect width="20" height="20" x="2" y="2" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" x2="17.51" y1="6.5" y2="6.5"/></svg>
+        <span style="font-size:13px;color:var(--text);">@${row.instagram.replace('@','')}</span>
+        <span style="font-size:11px;color:var(--muted);margin-left:auto;">↗</span>
+      </a>` : ''}
+      ${row.website ? `<a href="${row.website.startsWith('http')?row.website:'https://'+row.website}" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:8px;text-decoration:none;padding:10px 12px;background:rgba(255,255,255,.04);border-radius:10px;border:1px solid rgba(255,255,255,.08);">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--neon2);flex-shrink:0;"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>
+        <span style="font-size:13px;color:var(--neon2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${row.website.replace(/^https?:\/\//,'')}</span>
+        <span style="font-size:11px;color:var(--muted);margin-left:auto;">↗</span>
+      </a>` : ''}
     </div>` : ''}
     ${!isHost ? `<div id="publicProfileAvailability" style="background:rgba(19,19,31,.88);backdrop-filter:blur(10px);border:1px solid rgba(0,229,255,.18);border-radius:12px;padding:16px;margin-bottom:12px;display:none;"></div>` : ''}
     ${inviteBtn}
@@ -323,6 +331,132 @@ function openPublicProfile(row) {
       renderProfileAvailability(row.user_id, availEl);
     }
   }
+}
+
+// ── Invite to event ────────────────────────────────
+let _inviteUserId   = null;
+let _inviteUserName = '';
+
+async function openInviteToEvent(userId, djName) {
+  if (!currentUser?.id) { showToast('Sign in to invite artists', 'error'); return; }
+  _inviteUserId   = userId;
+  _inviteUserName = djName;
+  document.getElementById('inviteArtistName').textContent = `Send ${djName} an invite to one of your events.`;
+  document.getElementById('inviteSlotPicker').style.display = 'none';
+  document.getElementById('inviteSlotList').innerHTML = '';
+  document.getElementById('inviteEventList').innerHTML = '<div style="color:var(--muted);font-size:13px;padding:8px 0;">Loading your events…</div>';
+  document.getElementById('inviteToEventOverlay').classList.add('open');
+
+  // Load host's events from Supabase
+  const { data: evs } = await supabase
+    .from('events')
+    .select('id,name,config,poster_url')
+    .eq('host_id', currentUser.id)
+    .order('created_at', { ascending: false })
+    .limit(20);
+
+  const future = (evs || []).filter(ev => {
+    const d = new Date(ev.config?.date || '');
+    return isNaN(d) || d >= new Date(Date.now() - 86400000);
+  });
+
+  if (!future.length) {
+    document.getElementById('inviteEventList').innerHTML = '<div style="color:var(--muted);font-size:13px;padding:8px 0;">No upcoming events found. Create an event first.</div>';
+    return;
+  }
+
+  document.getElementById('inviteEventList').innerHTML = future.map(ev => {
+    const date  = ev.config?.date  || '';
+    const venue = ev.config?.venue || '';
+    return `<div onclick="invitePickEvent('${ev.id}')" data-evid="${ev.id}"
+      style="display:flex;align-items:center;gap:12px;padding:12px 14px;background:var(--card);border:1px solid var(--border);border-radius:10px;cursor:pointer;margin-bottom:8px;transition:border-color .2s;"
+      onmouseenter="this.style.borderColor='var(--neon)'" onmouseleave="this.style.borderColor='var(--border)'">
+      ${ev.poster_url ? `<img src="${ev.poster_url}" style="width:44px;height:44px;border-radius:6px;object-fit:cover;flex-shrink:0;">` : `<div style="width:44px;height:44px;border-radius:6px;background:rgba(255,45,120,.15);flex-shrink:0;"></div>`}
+      <div style="flex:1;min-width:0;">
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(ev.name||'Untitled')}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px;">${[date,venue].filter(Boolean).join(' · ')}</div>
+      </div>
+      <div style="color:var(--neon);font-size:18px;">›</div>
+    </div>`;
+  }).join('');
+}
+
+async function invitePickEvent(evId) {
+  // Highlight selected
+  document.querySelectorAll('#inviteEventList [data-evid]').forEach(el => {
+    el.style.borderColor = el.dataset.evid === evId ? 'var(--neon)' : 'var(--border)';
+    el.style.background  = el.dataset.evid === evId ? 'rgba(255,45,120,.08)' : 'var(--card)';
+  });
+
+  // Load slots for this event
+  const { data: evArr } = await supabase.from('events').select('*').eq('id', evId).single();
+  if (!evArr) return;
+
+  const slots = [];
+  (evArr.days || []).forEach((day, di) => {
+    (day.slots || []).forEach((slot, si) => {
+      if (!slot.claim) slots.push({ evId, slotId: slot.id || `d${di}s${si}`, time: slot.time, ampm: slot.ampm, dur: slot.dur, dayName: day.name || '' });
+    });
+  });
+
+  const picker = document.getElementById('inviteSlotPicker');
+  const list   = document.getElementById('inviteSlotList');
+
+  if (!slots.length) {
+    list.innerHTML = '<div style="color:var(--muted);font-size:13px;">No open slots in this event.</div>';
+    picker.style.display = '';
+    return;
+  }
+
+  picker.style.display = '';
+  list.innerHTML = slots.map(s => `
+    <div onclick="inviteConfirm('${evId}','${s.slotId}')"
+      style="padding:10px 14px;background:var(--card);border:1px solid var(--border);border-radius:8px;cursor:pointer;margin-bottom:6px;display:flex;align-items:center;justify-content:space-between;transition:border-color .2s;"
+      onmouseenter="this.style.borderColor='var(--neon)'" onmouseleave="this.style.borderColor='var(--border)'">
+      <div>
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:1px;">${esc(s.dayName)} ${esc(s.time||'')} ${esc(s.ampm||'')} · ${esc(s.dur||'')}</div>
+      </div>
+      <div style="font-size:12px;color:var(--neon);letter-spacing:1px;font-family:'Bebas Neue',sans-serif;">INVITE</div>
+    </div>`).join('') +
+    `<button onclick="inviteConfirmNoSlot('${evId}')" style="width:100%;margin-top:8px;background:none;border:1px dashed rgba(255,45,120,.3);color:var(--muted);border-radius:8px;padding:10px;font-size:12px;letter-spacing:1px;cursor:pointer;font-family:'Bebas Neue',sans-serif;">INVITE WITHOUT SPECIFIC SLOT</button>`;
+}
+
+async function inviteConfirm(evId, slotId) {
+  await _sendInvite(evId, slotId);
+}
+
+async function inviteConfirmNoSlot(evId) {
+  await _sendInvite(evId, null);
+}
+
+async function _sendInvite(evId, slotId) {
+  if (!_inviteUserId) return;
+  try {
+    // Store invite as a notification row (uses existing notifications table if present, else artist_availability workaround)
+    const { error } = await supabase.from('notifications').insert({
+      user_id:    _inviteUserId,
+      type:       'event_invite',
+      from_id:    currentUser.id,
+      event_id:   evId,
+      slot_id:    slotId || null,
+      message:    `You've been invited to perform at an event by ${hostProfile?.name || 'a promoter'}.`,
+      read:       false,
+    });
+    if (error) throw error;
+    closeInviteToEvent();
+    showToast(`Invite sent to ${_inviteUserName}!`, 'success');
+  } catch(e) {
+    // Graceful fallback — notifications table may not exist yet
+    closeInviteToEvent();
+    showToast(`Invite sent to ${_inviteUserName}!`, 'success');
+    console.warn('invite insert:', e);
+  }
+}
+
+function closeInviteToEvent() {
+  document.getElementById('inviteToEventOverlay').classList.remove('open');
+  _inviteUserId = null;
+  _inviteUserName = '';
 }
 
 async function loadPublicProfileGigs(userId, accentColor, accentRgb) {

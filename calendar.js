@@ -235,46 +235,92 @@ function renderDateStrip() {
 }
 
 // ── Render: Home ───────────────────────────────────
+// ── Timeline bucket helpers ────────────────────────
+function _calTimeBuckets() {
+  const now     = new Date();
+  const todayStr = now.toISOString().split('T')[0];
+  const dow     = now.getDay(); // 0=Sun
+  // This weekend = coming Fri/Sat/Sun (within 7 days)
+  const daysToFri  = (5 - dow + 7) % 7 || 7;
+  const weekendEnd = new Date(now); weekendEnd.setDate(now.getDate() + (daysToFri + 2));
+  const weekEnd    = new Date(now); weekEnd.setDate(now.getDate() + 7);
+  const monthEnd   = new Date(now.getFullYear(), now.getMonth() + 1, 0); // last day of this month
+  const nextMonth  = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  const nextMonthEnd = new Date(now.getFullYear(), now.getMonth() + 2, 0);
+
+  const buckets = [
+    { key: 'today',      label: 'TODAY',           color: 'var(--neon2)', test: d => d.toISOString().split('T')[0] === todayStr },
+    { key: 'weekend',    label: 'THIS WEEKEND',     color: 'var(--neon)',  test: d => d > now && d <= weekendEnd },
+    { key: 'week',       label: 'THIS WEEK',        color: 'var(--gold)',  test: d => d > weekendEnd && d <= weekEnd },
+    { key: 'month',      label: 'THIS MONTH',       color: '#9D4EDD',      test: d => d > weekEnd && d <= monthEnd },
+    { key: 'nextmonth',  label: nextMonth.toLocaleString('en-AU',{month:'long'}).toUpperCase(), color: 'var(--neon2)', test: d => d >= nextMonth && d <= nextMonthEnd },
+    { key: 'beyond',     label: 'FURTHER OUT',      color: 'var(--muted)', test: d => d > nextMonthEnd },
+  ];
+  return buckets;
+}
+
 function renderCalContent() {
   const el = document.getElementById('calContent');
   if (!el) return;
 
   if (_calSelDate) { renderDayView(_calSelDate, el); return; }
 
-  const thisWeek  = calEventsThisWeek();
-  const upcoming  = calEventsUpcoming(90);
+  const upcoming  = calEventsUpcoming(365);
   const onTour    = calArtistsOnTour();
   const sceneData = calSceneMap();
-
-  // Trending = most artists booked (activity proxy)
-  const trending  = [...upcoming].sort((a, b) => calGetArtists(b).length - calGetArtists(a).length).slice(0, 10);
-  // New = most recently created
-  const newEvents = [...upcoming].sort((a, b) => new Date(b.created_at||0) - new Date(a.created_at||0)).slice(0, 10);
+  const trending  = [...upcoming].sort((a, b) => calGetArtists(b).length - calGetArtists(a).length).slice(0, 8);
+  const newEvents = [...upcoming].sort((a, b) => new Date(b.created_at||0) - new Date(a.created_at||0)).slice(0, 8);
 
   let html = '';
 
-  // ── THIS WEEK / UPCOMING ──
-  const heroEvents = thisWeek.length ? thisWeek : upcoming.slice(0, 4);
-  const heroTitle  = thisWeek.length ? 'THIS WEEK' : 'COMING UP';
-  if (heroEvents.length) {
-    html += calSectionHeader(heroTitle, 'var(--neon2)');
-    html += heroEvents.map(ev => calBigCard(ev)).join('');
-  }
-
-  // ── TRENDING ──
-  if (trending.length > 2) {
+  // ── TRENDING horizontal strip ──
+  if (trending.length) {
     html += calSectionHeader('TRENDING', 'var(--neon)');
     html += `<div class="cal-horiz-scroll">`;
     html += trending.map(ev => calSmallCard(ev)).join('');
     html += `</div>`;
   }
 
-  // ── JUST ADDED ──
-  if (newEvents.length > 2) {
+  // ── JUST ADDED horizontal strip ──
+  if (newEvents.length > 1) {
     html += calSectionHeader('JUST ADDED', 'var(--gold)');
     html += `<div class="cal-horiz-scroll">`;
     html += newEvents.map(ev => calSmallCard(ev)).join('');
     html += `</div>`;
+  }
+
+  // ── DISCOVERY TIMELINE (bucketed feed) ──
+  const buckets = _calTimeBuckets();
+  let timelineHtml = '';
+  let totalInTimeline = 0;
+
+  buckets.forEach(bucket => {
+    const evs = upcoming.filter(ev => {
+      const d = calParseDate(ev);
+      return d && bucket.test(d);
+    });
+    if (!evs.length) return;
+    totalInTimeline += evs.length;
+    timelineHtml += `
+      <div class="cal-timeline-bucket" id="calBucket_${bucket.key}" style="margin-bottom:8px;">
+        <div class="cal-bucket-header" onclick="calToggleBucket('${bucket.key}')"
+          style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;cursor:pointer;border-bottom:1px solid var(--border);margin-bottom:0;">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <div style="width:3px;height:20px;background:${bucket.color};border-radius:2px;"></div>
+            <div style="font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:2px;color:${bucket.color};">${bucket.label}</div>
+            <div style="font-size:11px;color:var(--muted);background:var(--card);border-radius:10px;padding:2px 8px;">${evs.length}</div>
+          </div>
+          <div class="cal-bucket-chevron" id="calChevron_${bucket.key}" style="color:var(--muted);font-size:14px;transition:transform .2s;">▼</div>
+        </div>
+        <div class="cal-bucket-body" id="calBucketBody_${bucket.key}" style="padding-top:12px;">
+          ${evs.map(ev => calBigCard(ev)).join('')}
+        </div>
+      </div>`;
+  });
+
+  if (totalInTimeline) {
+    html += calSectionHeader('DISCOVERY TIMELINE', 'var(--neon2)');
+    html += `<div id="calTimeline" style="margin-bottom:8px;">${timelineHtml}</div>`;
   }
 
   // ── ARTISTS ON TOUR ──
@@ -300,7 +346,7 @@ function renderCalContent() {
   }
 
   // ── EMPTY STATE ──
-  if (!heroEvents.length) {
+  if (!upcoming.length) {
     html += `<div style="text-align:center;padding:80px 0 40px;">
       <div style="font-family:'Bebas Neue',sans-serif;font-size:28px;letter-spacing:3px;color:var(--muted);margin-bottom:10px;">NO EVENTS YET</div>
       <div style="font-size:14px;color:var(--muted);line-height:1.6;">Events will appear here once<br>promoters publish them.</div>
@@ -308,6 +354,17 @@ function renderCalContent() {
   }
 
   el.innerHTML = html;
+}
+
+// ── Bucket accordion toggle ───────────────────────
+function calToggleBucket(key) {
+  const body    = document.getElementById('calBucketBody_' + key);
+  const chevron = document.getElementById('calChevron_' + key);
+  if (!body) return;
+  const isOpen = body.style.display !== 'none';
+  body.style.display    = isOpen ? 'none' : '';
+  body.style.paddingTop = isOpen ? '0' : '12px';
+  if (chevron) chevron.style.transform = isOpen ? 'rotate(-90deg)' : '';
 }
 
 // ── Render: Day View ───────────────────────────────
