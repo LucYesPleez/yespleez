@@ -11,7 +11,7 @@ async function searchEvents(query) {
     let path = `events?select=*&status=eq.live&is_public=neq.false`;
     if (query && query.trim()) {
       const q = encodeURIComponent(`%${query.trim()}%`);
-      path += `&or=(name.ilike.${q},config->>venue.ilike.${q})`;
+      path += `&or=(name.ilike.${q},config->>venue.ilike.${q},config->>postcode.ilike.${q},config->>genres.ilike.${q})`;
     }
     path += `&order=created_at.desc&limit=50`;
     const rows = await sbRest(path, { method: 'GET' }, currentSession?.access_token || null);

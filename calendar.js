@@ -42,12 +42,18 @@ function _calFilterEvent(ev) {
   if (_calPostcodeLat !== null && _calPostcodeLng !== null) {
     const evLat = parseFloat(cfg.lat);
     const evLng = parseFloat(cfg.lng);
-    // If event has no coords, fall back to matching postcode string
     if (!isNaN(evLat) && !isNaN(evLng)) {
+      // Geocoded — use Haversine radius check
       const dist = _haversineKm(_calPostcodeLat, _calPostcodeLng, evLat, evLng);
       if (dist > _calPostcodeKm) return false;
+    } else {
+      // No coords — fall back to plain postcode string match on venue/postcode fields
+      const pcQuery = document.getElementById('calPostcodeInput')?.value.trim() || '';
+      if (pcQuery) {
+        const haystack = [cfg.postcode, cfg.venue, cfg.state, ev.name].filter(Boolean).join(' ');
+        if (!haystack.includes(pcQuery)) return false;
+      }
     }
-    // Events with no coords pass through (can't exclude what we can't measure)
   }
   return true;
 }

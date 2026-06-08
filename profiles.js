@@ -214,7 +214,7 @@ async function searchProfiles(query, filterType, filterState) {
     }
     if (query && query.trim()) {
       const q = encodeURIComponent(`%${query.trim()}%`);
-      path += `&or=(dj_name.ilike.${q},name.ilike.${q},genre_string.ilike.${q},location.ilike.${q},bio.ilike.${q},tagline.ilike.${q})`;
+      path += `&or=(dj_name.ilike.${q},name.ilike.${q},genre_string.ilike.${q},location.ilike.${q},bio.ilike.${q},tagline.ilike.${q},postcode.ilike.${q},state.ilike.${q})`;
     }
     // Only show profiles where a name has been set — filters out shell accounts that signed up but never filled in a profile
     path += `&or=(dj_name.neq.,name.neq.)`;
