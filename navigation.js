@@ -194,6 +194,10 @@ function copyPubLink() {
 let _searchDebounce = null;
 let _discoverOrigin = null;
 
+function showCalendar() {
+  showToast('📅 Calendar — coming soon!', 'success');
+}
+
 function showSearchScreen() {
   _discoverOrigin = currentMode || null;
   show('searchScreen');
