@@ -1412,18 +1412,16 @@ function renderManage() {
       if (claim.notes) infoCol.innerHTML += '<div class="dj-note">📝 '+claim.notes+'</div>';
       if (claim.backups?.length) infoCol.innerHTML += '<div class="rank-badge">+'+claim.backups.length+' backup'+(claim.backups.length>1?'s':'')+'</div>';
       if (s.label) infoCol.innerHTML += '<div class="slot-badge '+(isLounge?'cyan':'')+'">' +s.label+'</div>';
-      const clearBtn = document.createElement('button'); clearBtn.className = 'btn-clear'; clearBtn.textContent = '✕';
-      clearBtn.onclick = e=>{e.stopPropagation(); if(setTimesLocked){showLockedPopup();return;} clearSlot(s.id);renderManage();};
       const chevron = document.createElement('div');
       chevron.style.cssText = 'color:var(--muted);font-size:20px;line-height:1;transition:transform .2s;text-align:center;padding:2px 4px;'; chevron.textContent = '›';
+      const playBtn = document.createElement('button');
       if (claim.mixLink) {
-        const playBtn = document.createElement('button');
-        playBtn.style.cssText = 'background:none;border:none;color:var(--neon2);font-size:16px;cursor:pointer;padding:2px 4px;line-height:1;';
+        playBtn.style.cssText = 'background:none;border:1px solid rgba(0,229,255,.3);border-radius:6px;color:var(--neon2);font-size:14px;cursor:pointer;padding:4px 8px;line-height:1;';
         playBtn.textContent = '▶'; playBtn.title = 'Play mix';
         playBtn.onclick = e => { e.stopPropagation(); openMiniPlayer(claim.name, claim.mixLink, '🎧'); };
         actCol.appendChild(playBtn);
       }
-      actCol.appendChild(clearBtn); actCol.appendChild(chevron);
+      actCol.appendChild(chevron);
       const detail = document.createElement('div');
       detail.style.cssText = 'display:none;background:var(--card2);border:1px solid var(--border);border-top:none;border-radius:0 0 10px 10px;padding:14px 16px;';
       if (claim.genre) { const g = document.createElement('div'); g.style.cssText = 'font-size:12px;color:var(--muted);line-height:1.6;word-break:break-word;margin-bottom:10px;'; g.textContent = claim.genre; detail.appendChild(g); }
@@ -1437,7 +1435,11 @@ function renderManage() {
       const detAct = document.createElement('div'); detAct.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;padding-top:4px;border-top:1px solid var(--border);margin-top:4px;';
       const lockBtn = document.createElement('button'); lockBtn.className = 'btn-lock'+(locked?' locked':''); lockBtn.style.cssText = 'font-size:11px;flex:1;'; lockBtn.textContent = locked ? '📌 PINNED' : '📌 PIN ARTIST';
       lockBtn.onclick = e=>{e.stopPropagation();toggleLock(s.id);renderManage();};
-      detAct.appendChild(lockBtn);
+      const removeBtn = document.createElement('button');
+      removeBtn.style.cssText = 'font-size:11px;flex:1;padding:8px;border-radius:8px;font-family:\'Bebas Neue\',sans-serif;letter-spacing:1px;cursor:pointer;background:rgba(255,45,120,.08);border:1px solid rgba(255,45,120,.35);color:var(--neon);';
+      removeBtn.textContent = '✕ REMOVE ARTIST';
+      removeBtn.onclick = e=>{e.stopPropagation(); if(setTimesLocked){showLockedPopup();return;} clearSlot(s.id); renderManage();};
+      detAct.appendChild(lockBtn); detAct.appendChild(removeBtn);
       const notesWrap = document.createElement('div'); notesWrap.style.cssText = 'margin-top:12px;padding-top:10px;border-top:1px solid var(--border);';
       notesWrap.innerHTML = '<div class="host-notes-label">🔒 HOST NOTES (private)</div>';
       const notesTA = document.createElement('textarea'); notesTA.className = 'host-notes-input'; notesTA.rows = 2;
@@ -1446,7 +1448,6 @@ function renderManage() {
       notesWrap.appendChild(notesTA); detail.appendChild(detAct); detail.appendChild(notesWrap);
       let expanded = false;
       card.onclick = e => {
-        if (e.target.closest('.btn-clear')) return;
         expanded = !expanded; detail.style.display = expanded ? '' : 'none';
         chevron.style.transform = expanded ? 'rotate(90deg)' : ''; card.style.borderRadius = expanded ? '10px 10px 0 0' : '';
       };
