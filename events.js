@@ -43,10 +43,25 @@ function buildEventCardEl(ev, mode) {
   const isLive = ev.status === 'live';
   const poster = cfg.poster || ev.poster || '';
   const focal  = cfg.poster_focal || '50% 50%';
+  const appsOpen = ev.applications_open === true;
+  const isPublic = ev.is_public !== false;
+  const appsTag = isLive
+    ? appsOpen
+      ? `<span style="font-size:9px;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;color:var(--green);border:1px solid var(--green);border-radius:2px;padding:2px 7px;">APPLICATIONS OPEN</span>`
+      : `<span style="font-size:9px;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;color:var(--muted);border:1px solid var(--border);border-radius:2px;padding:2px 7px;">APPLICATIONS CLOSED</span>`
+    : '';
+  const privacyTag = mode === 'host'
+    ? isPublic
+      ? `<span style="font-size:9px;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;color:var(--neon2);border:1px solid rgba(0,229,255,.3);border-radius:2px;padding:2px 7px;">PUBLIC</span>`
+      : `<span style="font-size:9px;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;color:var(--muted);border:1px solid var(--border);border-radius:2px;padding:2px 7px;">PRIVATE</span>`
+    : '';
   const rightBtns = mode === 'host'
     ? `<span class="event-card-status ${isLive ? 'live' : 'draft'}">${isLive ? 'LIVE' : 'DRAFT'}</span>
+       ${appsTag}
+       ${privacyTag}
        <button class="btn-signout" style="font-size:10px;padding:4px 12px;" id="edit-${ev.id}">EDIT →</button>`
     : `<span class="event-card-status ${isLive ? 'live' : 'draft'}">${isLive ? 'LIVE' : 'UPCOMING'}</span>
+       ${appsTag}
        <button class="btn-signout" style="font-size:10px;padding:4px 12px;">VIEW →</button>`;
   card.innerHTML = `
     <div style="position:relative;min-height:90px;overflow:hidden;border-radius:inherit;width:100%;">
@@ -245,6 +260,8 @@ function buildTemplate(ev) {
   document.getElementById('toggleGenrePicker').checked   = hc.genrePicker   !== false;
   document.getElementById('togglePrivateSetTimes').checked = hc.privateSetTimes === true;
   document.getElementById('toggleSlipMode').checked = hc.slipMode === true;
+  document.getElementById('toggleApplicationsOpen').checked = ev?.applications_open === true;
+  document.getElementById('togglePublicEvent').checked = ev?.is_public !== false; // default true
   const builder = document.getElementById('daysBuilder');
   builder.innerHTML = '';
   (ev?.days || []).forEach(d => addDayCard(d));
@@ -571,7 +588,9 @@ function readForm() {
       genrePicker:   document.getElementById('toggleGenrePicker').checked,
       privateSetTimes: document.getElementById('togglePrivateSetTimes').checked,
       slipMode: document.getElementById('toggleSlipMode').checked,
-    }
+    },
+    applications_open: document.getElementById('toggleApplicationsOpen').checked,
+    is_public: document.getElementById('togglePublicEvent').checked,
   };
 }
 
@@ -599,14 +618,14 @@ async function launchEvent() {
     if (currentEventId) {
       const rows = await sbRest(
         `events?id=eq.${currentEventId}`,
-        { method: 'PATCH', body: JSON.stringify({ name: cfg.name, config: cfg, host_controls: cfg.host_controls, status: 'live', updated_at: new Date().toISOString() }) },
+        { method: 'PATCH', body: JSON.stringify({ name: cfg.name, config: cfg, host_controls: cfg.host_controls, applications_open: cfg.applications_open, is_public: cfg.is_public, status: 'live', updated_at: new Date().toISOString() }) },
         token
       );
       ev = rows[0] || rows;
     } else {
       const rows = await sbRest(
         'events',
-        { method: 'POST', body: JSON.stringify({ name: cfg.name, config: cfg, host_controls: cfg.host_controls, host_id: currentUser.id, status: 'live' }) },
+        { method: 'POST', body: JSON.stringify({ name: cfg.name, config: cfg, host_controls: cfg.host_controls, applications_open: cfg.applications_open, is_public: cfg.is_public, host_id: currentUser.id, status: 'live' }) },
         token
       );
       ev = rows[0] || rows;
@@ -690,7 +709,7 @@ function showSignup() {
   // Apply bar — shown for non-hosts on non-read-only events
   const applyBar = document.getElementById('applyBar');
   if (applyBar) {
-    const showApplyBar = !isHost && currentUser?.id && currentUser.id !== 'guest' && (hostControls.applicationsOpen === true);
+    const showApplyBar = !isHost && currentUser?.id && currentUser.id !== 'guest' && (eventData.applications_open === true);
     applyBar.style.display = showApplyBar ? '' : 'none';
     if (showApplyBar) {
       // Restore saved code from localStorage
@@ -1254,9 +1273,8 @@ function confirmAction(message, onConfirm) {
   const yesBtn  = document.getElementById('areYouSureYes');
   if (!overlay || !msg || !yesBtn) { if (onConfirm) onConfirm(); return; }
   msg.textContent = message;
-  const newYes = yesBtn.cloneNode(true); // remove old listeners
-  yesBtn.parentNode.replaceChild(newYes, newYes.cloneNode(true) || yesBtn);
-  document.getElementById('areYouSureYes').replaceWith(newYes);
+  const newYes = yesBtn.cloneNode(true);
+  yesBtn.replaceWith(newYes);
   newYes.onclick = () => { overlay.style.display = 'none'; if (onConfirm) onConfirm(); };
   overlay.style.display = 'flex';
 }
