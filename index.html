@@ -1560,13 +1560,12 @@ body.player-open .screen.active { padding-bottom: 80px; }
 <!-- ══════════ ARTIST DASHBOARD SCREEN ══════════ -->
 <div id="artistDashScreen" class="screen">
   <div class="artist-dash-header">
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;">
-      <div>
+      <div class="dash-title-block">
         <div class="yp-tag">YESPLEEZ</div>
         <div class="dash-title" style="font-size:clamp(28px,7vw,42px);line-height:.92;margin-top:8px;">ARTIST<br>DASHBOARD</div>
         <div class="dash-user" id="artistDashUserEmail"></div>
       </div>
-      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:4px;">
+      <div class="dash-actions" style="margin-top:4px;">
         <div class="mode-toggle" id="artistModeToggle" onclick="tryToggleMode()">
           <div class="mode-toggle-dot artist"></div>
           ARTIST MODE
@@ -1581,7 +1580,6 @@ body.player-open .screen.active { padding-bottom: 80px; }
           Search <span class="search-pill-icon">🔍</span>
         </button>
       </div>
-    </div>
   </div>
 
   <!-- Artist profile card -->
