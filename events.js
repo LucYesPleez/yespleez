@@ -43,8 +43,9 @@ function buildEventCardEl(ev, mode) {
   const isLive = ev.status === 'live';
   const poster = cfg.poster || ev.poster || '';
   const focal  = cfg.poster_focal || '50% 50%';
-  const appsOpen = ev.applications_open === true;
-  const isPublic = ev.is_public !== false;
+  // Read from config first (always written), fall back to top-level column
+  const appsOpen = cfg.applications_open === true || ev.applications_open === true;
+  const isPublic = (cfg.is_public !== false) && (ev.is_public !== false);
   const appsTag = isLive
     ? appsOpen
       ? `<span style="font-size:9px;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;color:var(--green);border:1px solid var(--green);border-radius:2px;padding:2px 7px;">APPLICATIONS OPEN</span>`
