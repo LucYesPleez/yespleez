@@ -530,7 +530,7 @@ body.auth-mode { overflow: hidden; height: 100dvh; }
 }
 .avatar-ring {
   width: min(80vw, 340px); height: min(80vw, 340px);
-  border-radius: 16px;
+  border-radius: 14px;
   border: 2px solid var(--neon); position: relative;
   background: var(--card2); display: flex; align-items: center;
   justify-content: center; cursor: pointer; overflow: hidden;
@@ -849,7 +849,7 @@ body.auth-mode { overflow: hidden; height: 100dvh; }
 }
 .inapp-warning-box {
   background: var(--card); border: 1px solid var(--neon);
-  border-radius: 16px; padding: 32px 24px; max-width: 340px;
+  border-radius: 14px; padding: 32px 24px; max-width: 340px;
   text-align: center;
   box-shadow: 0 0 40px rgba(255,45,120,.2), 0 0 80px rgba(0,229,255,.08);
 }
@@ -873,20 +873,20 @@ body.auth-mode { overflow: hidden; height: 100dvh; }
 /* ══════════════════════════
    ROLE SELECTOR SCREEN
 ══════════════════════════ */
-#roleScreen { max-width: 480px; margin: 0 auto; padding: 32px 24px 40px; text-align: center; }
+#roleScreen { max-width: 480px; margin: 0 auto; padding: 16px 24px 16px; text-align: center; }
 .role-title {
   font-family: 'Bebas Neue', sans-serif;
-  font-size: clamp(36px, 10vw, 52px); line-height: .9;
+  font-size: clamp(28px, 8vw, 42px); line-height: .9;
   background: linear-gradient(135deg, #fff 30%, var(--neon2));
   -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-  background-clip: text; margin-bottom: 8px;
+  background-clip: text; margin-bottom: 4px;
 }
-.role-sub { font-size: 12px; color: var(--muted); margin-bottom: 24px; line-height: 1.5; }
-.role-cards { display: flex; flex-direction: column; gap: 14px; }
+.role-sub { font-size: 11px; color: var(--muted); margin-bottom: 12px; line-height: 1.4; }
+.role-cards { display: flex; flex-direction: column; gap: 8px; }
 .role-card {
-  background: rgba(19,19,31,.35); border: 1px solid var(--border); border-radius: 16px;
-  padding: 28px 24px; cursor: pointer; transition: all .2s; text-align: left;
-  display: flex; align-items: center; gap: 20px;
+  background: rgba(19,19,31,.35); border: 1px solid var(--border); border-radius: 14px;
+  padding: 14px 20px; cursor: pointer; transition: all .2s; text-align: left;
+  display: flex; align-items: center; gap: 16px;
   backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px);
 }
 .role-card:hover { transform: translateY(-2px); }
@@ -895,16 +895,16 @@ body.auth-mode { overflow: hidden; height: 100dvh; }
 .role-card.discover-card:hover  { border-color: var(--gold);    box-shadow: 0 0 28px rgba(255,184,48,.18); }
 .role-card.calendar-card:hover  { border-color: #9D4EDD;         box-shadow: 0 0 28px rgba(157,78,221,.28); }
 .role-card.bands-card:hover     { border-color: #FF8C42;         box-shadow: 0 0 28px rgba(255,140,66,.28); }
-.role-card-icon { font-size: 44px; line-height: 1; flex-shrink: 0; }
+.role-card-icon { font-size: 32px; line-height: 1; flex-shrink: 0; }
 .role-card-body { flex: 1; min-width: 0; }
 .role-card-title {
-  font-family: 'Bebas Neue', sans-serif; font-size: 42px; letter-spacing: 1px;
-  margin-bottom: 4px; line-height: 1;
+  font-family: 'Bebas Neue', sans-serif; font-size: 28px; letter-spacing: 1px;
+  margin-bottom: 2px; line-height: 1;
 }
 .role-card.host-card .role-card-title   { color: var(--neon); }
 .role-card.artist-card .role-card-title { color: var(--neon2); }
 .role-card.discover-card .role-card-title { color: var(--gold); }
-.role-card-desc { font-size: 13px; color: var(--muted); line-height: 1.5; }
+.role-card-desc { font-size: 12px; color: var(--muted); line-height: 1.4; }
 
 
 /* ══════════════════════════
@@ -1092,7 +1092,7 @@ body.auth-mode { overflow: hidden; height: 100dvh; }
 
 /* Edit live event modal */
 .edit-event-modal {
-  background: var(--card); border: 1px solid var(--border); border-radius: 16px;
+  background: var(--card); border: 1px solid var(--border); border-radius: 14px;
   padding: 28px 24px; max-width: 360px; width: calc(100% - 48px);
   text-align: center;
 }
