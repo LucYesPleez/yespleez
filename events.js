@@ -1629,7 +1629,7 @@ async function loadAllApplications() {
         const statusColor = app.status === 'accepted' ? 'var(--neon2)' : app.status === 'declined' ? 'var(--neon)' : 'var(--gold)';
 
         const card = document.createElement('div');
-        card.style.cssText = 'background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:10px;';
+        card.style.cssText = 'background:var(--card);border:1px solid rgba(0,229,255,.2);border-radius:12px;padding:14px;margin-bottom:10px;';
         card.innerHTML = `
           <div style="display:flex;gap:12px;align-items:flex-start;margin-bottom:${app.note ? '10px' : '0'};">
             ${avatarHtml}
