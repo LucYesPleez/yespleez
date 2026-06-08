@@ -742,12 +742,19 @@ function buildSlotInfoHtml(entry, s, isLounge) {
   const pillSource = entry.cardPills || entry.genre || '';
   const genreParts = pillSource.split(' · ').map(p => p.trim()).filter(Boolean).slice(0, 5);
   const pillsHtml = genreParts.length
-    ? `<div class="dj-pills" style="margin-top:4px;">${genreParts.map(p => `<span class="dj-pill">${p}</span>`).join('')}</div>`
+    ? `<div class="dj-pills" style="justify-content:flex-end;margin-top:0;flex-wrap:wrap;gap:4px;">${genreParts.map(p => `<span class="dj-pill">${p}</span>`).join('')}</div>`
     : '';
   const soundHtml = entry.sound
-    ? `<span style="background:rgba(0,229,255,.1);border:1px solid rgba(0,229,255,.3);border-radius:20px;color:var(--neon2);font-size:10px;padding:1px 8px;margin-left:8px;white-space:nowrap;">${entry.sound}</span>`
+    ? `<span style="display:inline-block;margin-top:5px;font-size:10px;font-family:'DM Sans',sans-serif;background:rgba(0,229,255,0.08);border:1px solid rgba(0,229,255,0.25);color:var(--neon2);border-radius:20px;padding:2px 8px;white-space:nowrap;">${entry.sound}</span>`
     : '';
-  return `<div class="dj-name-row"><span class="dj-name">🎧 ${entry.name}</span>${soundHtml}</div>${pillsHtml}`;
+  return `
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;width:100%;">
+      <div style="min-width:0;flex:1;">
+        <div class="dj-name-row"><span class="dj-name">🎧 ${entry.name}</span></div>
+        ${soundHtml}
+      </div>
+      <div style="flex-shrink:0;max-width:55%;display:flex;align-items:flex-start;padding-top:2px;">${pillsHtml}</div>
+    </div>`;
 }
 
 function renderAll() {
