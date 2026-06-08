@@ -194,8 +194,16 @@ function copyPubLink() {
 let _searchDebounce = null;
 let _discoverOrigin = null;
 
-function showCalendar() {
-  showToast('Calendar — coming soon!', 'success');
+async function showCalendar() {
+  _calViewMonth = new Date();
+  _calSelDate   = null;
+  show('calendarScreen');
+  if (currentMode) updateToggleVisibility(currentMode);
+  renderCalHeader();
+  document.getElementById('calContent').innerHTML = '<div style="text-align:center;padding:60px 0;color:var(--muted);font-family:\'Bebas Neue\',sans-serif;letter-spacing:2px;font-size:16px;">LOADING...</div>';
+  await loadCalEvents();
+  renderCalHeader();
+  renderCalContent();
 }
 
 function showSearchScreen() {

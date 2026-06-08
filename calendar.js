@@ -1,0 +1,513 @@
+// ═══════════════════════════════════════════════════
+//  calendar.js — YesPleez Discovery Calendar
+//  Depends on: state.js, navigation.js, events.js
+// ═══════════════════════════════════════════════════
+
+// ── State ──────────────────────────────────────────
+let _calEvents    = [];
+let _calViewMonth = new Date();
+let _calSelDate   = null;    // 'YYYY-MM-DD'
+let _calLoaded    = false;
+
+// Entry is in navigation.js showCalendar()
+
+// ── Data loading ───────────────────────────────────
+async function loadCalEvents() {
+  if (DEMO) { _calEvents = []; _calLoaded = true; return; }
+  try {
+    const { data, error } = await supabase
+      .from('events')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    const now = Date.now() - 86400000 * 1; // include yesterday
+    _calEvents = (data || []).filter(ev => {
+      const d = calParseDate(ev);
+      return d && d.getTime() >= now;
+    }).sort((a, b) => calParseDate(a) - calParseDate(b));
+    _calLoaded = true;
+  } catch(e) {
+    console.warn('loadCalEvents:', e);
+    _calEvents = [];
+    _calLoaded = true;
+  }
+}
+
+// ── Date utilities ─────────────────────────────────
+function calParseDate(ev) {
+  const s = ev?.config?.date;
+  if (!s) return null;
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function calDateStr(ev) {
+  const d = calParseDate(ev);
+  if (!d) return null;
+  return d.toISOString().split('T')[0];
+}
+
+function calEventsByDate(dateStr) {
+  return _calEvents.filter(ev => calDateStr(ev) === dateStr);
+}
+
+function calEventsThisWeek() {
+  const now = new Date(); now.setHours(0,0,0,0);
+  const end = new Date(now); end.setDate(end.getDate() + 7);
+  return _calEvents.filter(ev => {
+    const d = calParseDate(ev);
+    return d && d >= now && d <= end;
+  });
+}
+
+function calEventsUpcoming(days = 90) {
+  const now = new Date(); now.setHours(0,0,0,0);
+  const end = new Date(now); end.setDate(end.getDate() + days);
+  return _calEvents.filter(ev => {
+    const d = calParseDate(ev);
+    return d && d >= now && d <= end;
+  });
+}
+
+// Get artist names from an event's slot claims
+function calGetArtists(ev) {
+  const names = [];
+  (ev.days || []).forEach(day => {
+    (day.slots || []).forEach(slot => {
+      if (slot.claim?.name) names.push(slot.claim.name);
+    });
+  });
+  return [...new Set(names)];
+}
+
+// Days in _calViewMonth that have events
+function calEventDatesInMonth() {
+  const y = _calViewMonth.getFullYear();
+  const m = _calViewMonth.getMonth();
+  const set = new Set();
+  _calEvents.forEach(ev => {
+    const d = calParseDate(ev);
+    if (d && d.getFullYear() === y && d.getMonth() === m) {
+      set.add(d.getDate());
+    }
+  });
+  return set;
+}
+
+// Artists playing 2+ upcoming events
+function calArtistsOnTour() {
+  const map = {};
+  calEventsUpcoming(120).forEach(ev => {
+    const d = calParseDate(ev);
+    if (!d) return;
+    calGetArtists(ev).forEach(name => {
+      if (!map[name]) map[name] = [];
+      map[name].push({
+        evName: ev.name || 'Event',
+        date: d,
+        evId: ev.id
+      });
+    });
+  });
+  return Object.entries(map)
+    .filter(([, gigs]) => gigs.length >= 2)
+    .sort((a, b) => b[1].length - a[1].length)
+    .slice(0, 6);
+}
+
+// Group events by location for scene map
+function calSceneMap() {
+  const map = {};
+  _calEvents.forEach(ev => {
+    // Try state field, then parse venue string, then postcode prefix
+    const venue = ev.config?.venue || '';
+    const state = ev.config?.state || '';
+    let region = state;
+    if (!region) {
+      // Try to extract state from venue string "Venue, City NSW"
+      const parts = venue.split(',');
+      const last = parts[parts.length - 1]?.trim() || '';
+      // Match AU state codes
+      const stateMatch = last.match(/\b(NSW|VIC|QLD|WA|SA|TAS|ACT|NT)\b/);
+      if (stateMatch) {
+        region = stateMatch[1];
+        // Also try to get city
+        const city = parts[parts.length - 2]?.trim();
+        if (city && city.length < 30) region = city + ', ' + stateMatch[1];
+      } else if (last.length > 1 && last.length < 30) {
+        region = last;
+      } else {
+        region = venue.split(',')[0]?.trim() || 'Other';
+      }
+    }
+    if (!region || region.length < 2) region = 'Other';
+    if (!map[region]) map[region] = [];
+    map[region].push(ev);
+  });
+  return Object.entries(map)
+    .sort((a, b) => b[1].length - a[1].length)
+    .slice(0, 8);
+}
+
+// ── Clash detection ────────────────────────────────
+function calDetectClashes(targetDate, targetLat, targetLng, genre) {
+  const R = 6371; // Earth radius km
+  function haversine(lat1, lon1, lat2, lon2) {
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) * Math.sin(dLon/2)**2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  }
+  if (!targetLat || !targetLng) return [];
+  return _calEvents.filter(ev => {
+    if (!ev.lat || !ev.lng) return false;
+    const d = calParseDate(ev);
+    if (!d) return false;
+    const tgt = new Date(targetDate);
+    if (Math.abs(d - tgt) > 86400000) return false; // must be same day
+    const dist = haversine(parseFloat(targetLat), parseFloat(targetLng), parseFloat(ev.lat), parseFloat(ev.lng));
+    return dist <= 50; // within 50km
+  });
+}
+
+// ── Render: Header ─────────────────────────────────
+function renderCalHeader() {
+  const label = document.getElementById('calMonthLabel');
+  if (label) {
+    label.textContent = _calViewMonth.toLocaleString('default', {
+      month: 'long', year: 'numeric'
+    }).toUpperCase();
+  }
+  renderDateStrip();
+}
+
+function renderDateStrip() {
+  const strip = document.getElementById('calDateStrip');
+  if (!strip) return;
+  const y     = _calViewMonth.getFullYear();
+  const m     = _calViewMonth.getMonth();
+  const total = new Date(y, m + 1, 0).getDate();
+  const today = new Date().toISOString().split('T')[0];
+  const eventDays = calEventDatesInMonth();
+  const DAY_NAMES = ['S','M','T','W','T','F','S'];
+
+  let html = '';
+  for (let d = 1; d <= total; d++) {
+    const ds      = `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const isToday = ds === today;
+    const isSel   = ds === _calSelDate;
+    const hasEvs  = eventDays.has(d);
+    const dow     = new Date(ds).getDay();
+
+    let bg, textCol;
+    if (isSel) {
+      bg = 'background:var(--neon2);';
+      textCol = 'color:#0a0a0f;';
+    } else if (isToday) {
+      bg = 'background:rgba(0,229,255,.12);border:1.5px solid var(--neon2);';
+      textCol = 'color:var(--neon2);';
+    } else {
+      bg = 'background:var(--card2);';
+      textCol = 'color:var(--text);';
+    }
+
+    const dot = hasEvs
+      ? `<div style="width:5px;height:5px;border-radius:50%;background:${isSel ? '#0a0a0f' : 'var(--neon)'};margin:2px auto 0;flex-shrink:0;"></div>`
+      : `<div style="height:7px;"></div>`;
+
+    html += `<div onclick="calSelectDate('${ds}')" style="flex-shrink:0;width:40px;text-align:center;cursor:pointer;border-radius:10px;padding:6px 4px 4px;${bg}${textCol}transition:all .15s;box-sizing:border-box;">
+      <div style="font-size:9px;opacity:.55;margin-bottom:2px;font-family:'DM Sans',sans-serif;">${DAY_NAMES[dow]}</div>
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:17px;letter-spacing:.5px;line-height:1;">${d}</div>
+      ${dot}
+    </div>`;
+  }
+  strip.innerHTML = html;
+
+  // Scroll selected or today into view
+  const target = _calSelDate || today;
+  if (target.startsWith(`${y}-${String(m+1).padStart(2,'0')}`)) {
+    const day = parseInt(target.split('-')[2]) - 1;
+    setTimeout(() => {
+      const pills = strip.children;
+      if (pills[day]) pills[day].scrollIntoView({ behavior:'smooth', inline:'center', block:'nearest' });
+    }, 60);
+  }
+}
+
+// ── Render: Home ───────────────────────────────────
+function renderCalContent() {
+  const el = document.getElementById('calContent');
+  if (!el) return;
+
+  if (_calSelDate) { renderDayView(_calSelDate, el); return; }
+
+  const thisWeek  = calEventsThisWeek();
+  const upcoming  = calEventsUpcoming(90);
+  const onTour    = calArtistsOnTour();
+  const sceneData = calSceneMap();
+
+  // Trending = most artists booked (activity proxy)
+  const trending  = [...upcoming].sort((a, b) => calGetArtists(b).length - calGetArtists(a).length).slice(0, 10);
+  // New = most recently created
+  const newEvents = [...upcoming].sort((a, b) => new Date(b.created_at||0) - new Date(a.created_at||0)).slice(0, 10);
+
+  let html = '';
+
+  // ── THIS WEEK / UPCOMING ──
+  const heroEvents = thisWeek.length ? thisWeek : upcoming.slice(0, 4);
+  const heroTitle  = thisWeek.length ? 'THIS WEEK' : 'COMING UP';
+  if (heroEvents.length) {
+    html += calSectionHeader(heroTitle, 'var(--neon2)');
+    html += heroEvents.map(ev => calBigCard(ev)).join('');
+  }
+
+  // ── TRENDING ──
+  if (trending.length > 2) {
+    html += calSectionHeader('TRENDING', 'var(--neon)');
+    html += `<div class="cal-horiz-scroll">`;
+    html += trending.map(ev => calSmallCard(ev)).join('');
+    html += `</div>`;
+  }
+
+  // ── JUST ADDED ──
+  if (newEvents.length > 2) {
+    html += calSectionHeader('JUST ADDED', 'var(--gold)');
+    html += `<div class="cal-horiz-scroll">`;
+    html += newEvents.map(ev => calSmallCard(ev)).join('');
+    html += `</div>`;
+  }
+
+  // ── ARTISTS ON TOUR ──
+  if (onTour.length) {
+    html += calSectionHeader('ARTISTS ON TOUR', '#9D4EDD');
+    html += onTour.map(([name, gigs]) => calTourCard(name, gigs)).join('');
+  }
+
+  // ── SCENE MAP ──
+  if (sceneData.length) {
+    html += calSectionHeader('SCENE MAP', 'var(--neon2)');
+    html += `<div class="cal-scene-grid">`;
+    html += sceneData.map(([region, evs], i) => {
+      const colors = ['var(--neon2)','var(--neon)','var(--gold)','#9D4EDD','#FF8C42','var(--neon2)','var(--neon)','var(--gold)'];
+      const c = colors[i % colors.length];
+      return `<div class="cal-scene-tile" onclick="calFilterRegion('${esc(region)}')" style="border-color:${c}20;">
+        <div style="font-size:10px;letter-spacing:1.5px;color:${c};font-family:'Bebas Neue',sans-serif;margin-bottom:4px;">REGION</div>
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:17px;letter-spacing:1px;color:var(--text);line-height:1.1;">${esc(region)}</div>
+        <div style="font-size:13px;color:${c};margin-top:6px;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;">${evs.length} EVENT${evs.length>1?'S':''}</div>
+      </div>`;
+    }).join('');
+    html += `</div>`;
+  }
+
+  // ── EMPTY STATE ──
+  if (!heroEvents.length) {
+    html += `<div style="text-align:center;padding:80px 0 40px;">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:28px;letter-spacing:3px;color:var(--muted);margin-bottom:10px;">NO EVENTS YET</div>
+      <div style="font-size:14px;color:var(--muted);line-height:1.6;">Events will appear here once<br>promoters publish them.</div>
+    </div>`;
+  }
+
+  el.innerHTML = html;
+}
+
+// ── Render: Day View ───────────────────────────────
+function renderDayView(dateStr, el) {
+  if (!el) el = document.getElementById('calContent');
+  const evs = calEventsByDate(dateStr);
+  const d   = new Date(dateStr + 'T12:00:00');
+  const dayLabel = d.toLocaleDateString('en-AU', {
+    weekday:'long', day:'numeric', month:'long'
+  }).toUpperCase();
+
+  let html = `
+    <div style="display:flex;align-items:center;gap:12px;margin:16px 0 20px;">
+      <button onclick="calClearDate()" style="background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:20px;padding:7px 16px;font-size:12px;letter-spacing:1px;font-family:'Bebas Neue',sans-serif;cursor:pointer;">← BACK</button>
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:2px;color:var(--neon2);line-height:1;">${dayLabel}</div>
+    </div>`;
+
+  if (!evs.length) {
+    html += `<div style="text-align:center;padding:60px 0;color:var(--muted);">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:2px;margin-bottom:8px;">QUIET NIGHT</div>
+      <div style="font-size:13px;line-height:1.6;">No events on this date.<br>Try a nearby day.</div>
+    </div>`;
+  } else {
+    html += evs.map(ev => calDayCard(ev)).join('');
+  }
+
+  el.innerHTML = html;
+}
+
+// ── Card builders ──────────────────────────────────
+function calBigCard(ev) {
+  const d       = calParseDate(ev);
+  const name    = esc(ev.name || 'EVENT');
+  const venue   = esc(ev.config?.venue || '');
+  const artists = calGetArtists(ev);
+  const poster  = ev.poster_url || '';
+  const dateStr = d ? d.toLocaleDateString('en-AU', { weekday:'short', day:'numeric', month:'short' }).toUpperCase() : '';
+
+  const cardBg = poster
+    ? `url('${poster}') center/cover no-repeat`
+    : `linear-gradient(135deg,rgba(255,45,120,.35) 0%,rgba(157,78,221,.25) 50%,rgba(0,229,255,.2) 100%)`;
+
+  return `<div class="cal-big-card" onclick="calOpenEvent('${ev.id}')" style="background:${cardBg};">
+    <div class="cal-big-card-overlay"></div>
+    <div class="cal-big-card-content">
+      ${dateStr ? `<div class="cal-card-date">${dateStr}</div>` : ''}
+      <div class="cal-card-name">${name}</div>
+      <div class="cal-card-meta">
+        ${venue ? `<span class="cal-card-venue">${venue}</span>` : ''}
+        ${artists.length ? `<span class="cal-card-pill">${artists.length} ARTIST${artists.length>1?'S':''}</span>` : ''}
+      </div>
+    </div>
+  </div>`;
+}
+
+function calSmallCard(ev) {
+  const d      = calParseDate(ev);
+  const name   = esc(ev.name || 'EVENT');
+  const poster = ev.poster_url || '';
+  const date   = d ? d.toLocaleDateString('en-AU', { day:'numeric', month:'short' }).toUpperCase() : '';
+  const artists = calGetArtists(ev);
+
+  const cardBg = poster
+    ? `url('${poster}') center/cover no-repeat`
+    : `linear-gradient(135deg,rgba(255,45,120,.4) 0%,rgba(0,229,255,.3) 100%)`;
+
+  return `<div class="cal-small-card" onclick="calOpenEvent('${ev.id}')" style="background:${cardBg};">
+    <div class="cal-small-card-overlay"></div>
+    <div class="cal-small-card-content">
+      ${date ? `<div style="font-size:10px;letter-spacing:1px;color:var(--neon2);margin-bottom:3px;">${date}</div>` : ''}
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:1px;color:#fff;line-height:1.1;">${name}</div>
+      ${artists.length ? `<div style="font-size:10px;color:rgba(255,255,255,.6);margin-top:4px;">${artists.length} artists</div>` : ''}
+    </div>
+  </div>`;
+}
+
+function calTourCard(name, gigs) {
+  const sorted = [...gigs].sort((a,b) => a.date - b.date);
+  const gigsHtml = sorted.slice(0,4).map(g => {
+    const dl = g.date.toLocaleDateString('en-AU', { day:'numeric', month:'short' }).toUpperCase();
+    return `<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--border);">
+      <div style="font-size:11px;color:var(--neon2);font-family:'Bebas Neue',sans-serif;letter-spacing:1px;width:52px;flex-shrink:0;">${dl}</div>
+      <div style="font-size:13px;color:var(--text);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(g.evName)}</div>
+    </div>`;
+  }).join('');
+
+  return `<div class="cal-tour-card" onclick="calFocusArtist('${esc(name)}')">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">
+      <div style="width:38px;height:38px;border-radius:50%;background:rgba(157,78,221,.18);border:1.5px solid #9D4EDD;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9D4EDD" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3z"/><path d="M3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg>
+      </div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:1px;color:var(--text);">${esc(name)}</div>
+        <div style="font-size:11px;color:#9D4EDD;letter-spacing:1.5px;font-family:'Bebas Neue',sans-serif;">${gigs.length} UPCOMING SHOW${gigs.length>1?'S':''}</div>
+      </div>
+    </div>
+    ${gigsHtml}
+  </div>`;
+}
+
+function calDayCard(ev) {
+  const name    = esc(ev.name || 'EVENT');
+  const venue   = esc(ev.config?.venue || '');
+  const poster  = ev.poster_url || '';
+  const artists = calGetArtists(ev);
+
+  const cardBg = poster
+    ? `url('${poster}') center/cover no-repeat`
+    : `linear-gradient(135deg,rgba(255,45,120,.35) 0%,rgba(0,229,255,.2) 100%)`;
+
+  const lineupHtml = artists.slice(0, 8).map(a =>
+    `<span style="font-size:12px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);border-radius:20px;padding:3px 12px;color:var(--text);">${esc(a)}</span>`
+  ).join('');
+  const extra = artists.length > 8
+    ? `<span style="font-size:12px;color:var(--muted);">+${artists.length-8} more</span>` : '';
+
+  return `<div style="border-radius:16px;overflow:hidden;margin-bottom:16px;cursor:pointer;border:1px solid rgba(255,255,255,.07);" onclick="calOpenEvent('${ev.id}')">
+    <div style="height:200px;background:${cardBg};position:relative;">
+      <div style="position:absolute;inset:0;background:linear-gradient(to bottom,rgba(10,10,15,0) 30%,rgba(10,10,15,.95) 100%);"></div>
+      <div style="position:absolute;bottom:0;left:0;right:0;padding:16px;">
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:clamp(28px,6vw,38px);letter-spacing:2px;color:#fff;line-height:.95;text-shadow:0 2px 12px rgba(0,0,0,.8);">${name}</div>
+        ${venue ? `<div style="font-size:13px;color:rgba(255,255,255,.65);margin-top:4px;">${venue}</div>` : ''}
+      </div>
+    </div>
+    ${artists.length ? `
+    <div style="background:var(--card);padding:14px 16px;">
+      <div style="font-size:10px;letter-spacing:2px;color:var(--neon2);margin-bottom:10px;font-family:'Bebas Neue',sans-serif;">LINEUP</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;">${lineupHtml}${extra}</div>
+    </div>` : ''}
+  </div>`;
+}
+
+function calSectionHeader(title, color) {
+  return `<div style="display:flex;align-items:center;gap:12px;margin:28px 0 14px;">
+    <div style="font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:3px;color:${color};">${title}</div>
+    <div style="flex:1;height:1px;background:linear-gradient(to right,${color}50,transparent);"></div>
+  </div>`;
+}
+
+// ── Interactions ───────────────────────────────────
+function calSelectDate(dateStr) {
+  _calSelDate = (_calSelDate === dateStr) ? null : dateStr;
+  renderDateStrip();
+  renderCalContent();
+}
+
+function calClearDate() {
+  _calSelDate = null;
+  renderDateStrip();
+  renderCalContent();
+}
+
+function calPrevMonth() {
+  _calViewMonth = new Date(_calViewMonth.getFullYear(), _calViewMonth.getMonth() - 1, 1);
+  renderCalHeader();
+}
+
+function calNextMonth() {
+  _calViewMonth = new Date(_calViewMonth.getFullYear(), _calViewMonth.getMonth() + 1, 1);
+  renderCalHeader();
+}
+
+function calOpenEvent(evId) {
+  const ev = _calEvents.find(e => e.id === evId);
+  if (!ev) return;
+  isReadOnly = true;
+  openEventSetTimes(ev);
+}
+
+function calFocusArtist(name) {
+  // Filter day view to events containing this artist
+  const evs = _calEvents.filter(ev => calGetArtists(ev).includes(name));
+  if (!evs.length) return;
+  // Show a summary toast for now; full artist drill-down in phase 2
+  showToast(`${name} — ${evs.length} upcoming show${evs.length>1?'s':''}`, 'success');
+}
+
+function calFilterRegion(region) {
+  const evs = _calEvents.filter(ev => {
+    const v = (ev.config?.venue || '') + ' ' + (ev.config?.state || '');
+    return v.toLowerCase().includes(region.toLowerCase());
+  });
+  showToast(`${region}: ${evs.length} event${evs.length!==1?'s':''}`, 'success');
+}
+
+// ── Clash detection (called from event form) ───────
+function checkEventClashes(lat, lng, date, evId) {
+  const clashes = calDetectClashes(date, lat, lng, '');
+  const others  = clashes.filter(ev => ev.id !== evId);
+  if (!others.length) return;
+
+  const warn = document.getElementById('calClashWarning');
+  if (!warn) return;
+  warn.style.display = '';
+  warn.innerHTML = `
+    <div style="background:rgba(255,184,48,.08);border:1px solid rgba(255,184,48,.35);border-radius:10px;padding:12px 14px;margin-top:8px;">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:1.5px;color:var(--gold);margin-bottom:8px;">
+        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:5px;"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+        ${others.length} COMPETING EVENT${others.length>1?'S':''} NEARBY
+      </div>
+      ${others.slice(0,3).map(ev => `<div style="font-size:12px;color:var(--muted);padding:3px 0;">${esc(ev.name||'Event')} · ${esc(ev.config?.venue||'')} · ${calParseDate(ev)?.toLocaleDateString('en-AU',{day:'numeric',month:'short'})||''}</div>`).join('')}
+    </div>`;
+}
