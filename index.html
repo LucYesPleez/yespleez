@@ -1898,6 +1898,11 @@ body.player-open .screen.active { padding-bottom: 80px; }
 
   <!-- Applications tab -->
   <div id="dashTabApplicationsContent" style="display:none;">
+    <div style="margin-bottom:14px;">
+      <select id="appEventFilter" onchange="loadAllApplications()" style="width:100%;background:var(--card);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;padding:10px 14px;outline:none;appearance:none;-webkit-appearance:none;cursor:pointer;">
+        <option value="all">All Events</option>
+      </select>
+    </div>
     <div id="applicationsList" style="padding-bottom:100px;">
       <div style="text-align:center;padding:40px;color:var(--muted);font-size:13px;">Loading applications...</div>
     </div>

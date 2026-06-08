@@ -1553,17 +1553,34 @@ async function confirmDeleteEvent() { document.getElementById('deleteEventConfir
 // ── Applications ───────────────────────────────────
 
 async function loadAllApplications() {
-  if (!currentEventId || DEMO) return;
-  const listEl = document.getElementById('dashTabApplicationsContent');
+  if (DEMO) return;
+  const listEl = document.getElementById('applicationsList');
   if (!listEl) return;
+  if (!allEvents || !allEvents.length) {
+    listEl.innerHTML = '<div style="font-size:13px;color:var(--muted);padding:12px 0;">No events yet.</div>'; return;
+  }
+
+  // Populate event filter dropdown (preserve current selection)
+  const filterEl = document.getElementById('appEventFilter');
+  if (filterEl) {
+    const prev = filterEl.value;
+    filterEl.innerHTML = '<option value="all">All Events</option>' +
+      allEvents.map(e => `<option value="${e.id}">${e.name}</option>`).join('');
+    if (prev && [...filterEl.options].some(o => o.value === prev)) filterEl.value = prev;
+  }
+  const selectedEvent = filterEl ? filterEl.value : 'all';
+
+  listEl.innerHTML = '<div style="text-align:center;padding:30px;color:var(--muted);font-size:13px;">Loading...</div>';
   try {
-    const ids = allEvents.map(e => e.id).join(',');
+    const ids = selectedEvent === 'all'
+      ? allEvents.map(e => e.id).join(',')
+      : selectedEvent;
     const res = await fetch(
       `${SUPABASE_URL}/rest/v1/applications?event_id=in.(${ids})&order=created_at.desc`,
       { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${currentSession.access_token}` } }
     );
     const apps = res.ok ? await res.json() : [];
-    if (!apps.length) { listEl.innerHTML = '<div style="font-size:13px;color:var(--muted);padding:12px 0;">No applications yet.</div>'; return; }
+    if (!apps.length) { listEl.innerHTML = '<div style="font-size:13px;color:var(--muted);padding:12px 0;">No applications for this event yet.</div>'; return; }
 
     // Fetch profiles for all unique artist_ids in one request
     const artistIds = [...new Set(apps.map(a => a.artist_id).filter(Boolean))];
@@ -1593,7 +1610,12 @@ async function loadAllApplications() {
       const evName = ev ? ev.name : 'Unknown Event';
       const section = document.createElement('div');
       section.style.marginBottom = '24px';
-      section.innerHTML = `<div style="font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:2px;color:var(--neon);margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--border);">${evName} · ${eventApps.length} APPLICATION${eventApps.length !== 1 ? 'S' : ''}</div>`;
+      // Only show event header when viewing all events
+      if (selectedEvent === 'all') {
+        section.innerHTML = `<div style="font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:2px;color:var(--neon);margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--border);">${evName} · ${eventApps.length} APPLICATION${eventApps.length !== 1 ? 'S' : ''}</div>`;
+      } else {
+        section.innerHTML = `<div style="font-family:'Bebas Neue',sans-serif;font-size:12px;letter-spacing:1px;color:var(--muted);margin-bottom:10px;">${eventApps.length} APPLICATION${eventApps.length !== 1 ? 'S' : ''}</div>`;
+      }
 
       eventApps.forEach(app => {
         const profile = profileMap[app.artist_id];
