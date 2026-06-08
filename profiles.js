@@ -241,13 +241,16 @@ function openPublicProfile(row) {
   const accentColor = isHost ? 'var(--neon)' : 'var(--neon2)';
   const accentRgb = isHost ? '255,45,120' : '0,229,255';
 
-  const heroBg = document.getElementById('profileHeroBg');
+  const heroBg  = document.getElementById('profileHeroBg');
+  const heroImg = document.getElementById('profileHeroImg');
   if (row.avatar) {
     heroBg.style.backgroundImage = `url(${row.avatar})`;
     heroBg.style.filter = 'blur(28px)';
+    if (heroImg) { heroImg.style.backgroundImage = `url(${row.avatar})`; heroImg.style.display = ''; }
   } else {
     heroBg.style.backgroundImage = 'linear-gradient(135deg, rgba(255,45,120,.9) 0%, rgba(180,0,200,.7) 40%, rgba(0,229,255,.8) 100%)';
     heroBg.style.filter = 'blur(0px)';
+    if (heroImg) { heroImg.style.backgroundImage = ''; heroImg.style.display = 'none'; }
   }
 
   const mixLink = row.mix_link || row.soundcloud || row.mixcloud || '';

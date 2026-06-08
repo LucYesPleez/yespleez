@@ -1686,17 +1686,21 @@ body.player-open .screen.active { padding-bottom: 80px; }
   <div style="position:fixed;inset:0;z-index:1;display:flex;justify-content:center;overflow:hidden;pointer-events:none;">
     <div id="profileHeroBg" style="width:100%;height:100%;background-size:cover;background-position:center 20%;background-repeat:no-repeat;filter:blur(28px);transform:scale(1.12);transform-origin:center top;"></div>
   </div>
-  <!-- Gradient overlay -->
+  <!-- Hero photo — clear, centred, sits above blur layer -->
   <div style="position:fixed;inset:0;z-index:2;display:flex;justify-content:center;pointer-events:none;">
-    <div style="width:100%;max-width:680px;height:100%;background:linear-gradient(to bottom, rgba(10,10,15,0.25) 0%, rgba(10,10,15,0.15) 35%, rgba(10,10,15,0.85) 65%, rgba(10,10,15,1) 85%);"></div>
+    <div id="profileHeroImg" style="width:100%;max-width:680px;height:55vh;min-height:260px;max-height:420px;background-size:cover;background-position:center 20%;background-repeat:no-repeat;display:none;"></div>
+  </div>
+  <!-- Gradient overlay -->
+  <div style="position:fixed;inset:0;z-index:3;display:flex;justify-content:center;pointer-events:none;">
+    <div style="width:100%;height:100%;background:linear-gradient(to bottom, rgba(10,10,15,0.1) 0%, rgba(10,10,15,0.05) 30%, rgba(10,10,15,0.75) 60%, rgba(10,10,15,1) 80%);"></div>
   </div>
   <!-- Back button + search -->
-  <div style="position:relative;z-index:10;padding:16px 16px 0;display:flex;align-items:center;justify-content:space-between;max-width:680px;margin:0 auto;">
+  <div style="position:relative;z-index:20;padding:16px 16px 0;display:flex;align-items:center;justify-content:space-between;max-width:680px;margin:0 auto;">
     <button class="btn-back" onclick="show('searchScreen')" style="background:rgba(10,10,15,.4);backdrop-filter:blur(8px);border-radius:20px;padding:6px 14px;border:1px solid rgba(255,255,255,.15);">← Back</button>
     <button class="search-pill" onclick="showSearchScreen()" style="background:rgba(10,10,15,.4);backdrop-filter:blur(8px);">Search <span class="search-pill-icon">🔍</span></button>
   </div>
 
-  <div id="publicProfileContent" style="position:relative;z-index:10;padding:0 16px 120px;max-width:680px;margin:0 auto;"></div>
+  <div id="publicProfileContent" style="position:relative;z-index:20;padding:0 16px 120px;max-width:680px;margin:0 auto;"></div>
 </div>
 
 <!-- ══════════════════════════════════════════════
