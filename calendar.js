@@ -12,33 +12,105 @@ let _calLoaded    = false;
 // Entry is in navigation.js showCalendar()
 
 // ── Filter state ───────────────────────────────────
-let _calGenreFilter = '';
-let _calStateFilter = '';
+let _calGenreFilter  = '';
+let _calStateFilter  = '';
+let _calPostcodeLat  = null;
+let _calPostcodeLng  = null;
+let _calPostcodeKm   = 50;
+let _calPostcodeTimer = null;
+
+// Haversine distance in km
+function _haversineKm(lat1, lng1, lat2, lng2) {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) * Math.sin(dLng/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
 
 function _calFilterEvent(ev) {
-  if (!_calGenreFilter && !_calStateFilter) return true;
   const cfg = ev.config || {};
+
   if (_calGenreFilter) {
     const genres = (cfg.genres || ev.genres || '').toLowerCase();
     if (!genres.includes(_calGenreFilter.toLowerCase())) return false;
   }
   if (_calStateFilter) {
-    const venue = (cfg.venue || cfg.state || ev.name || '').toLowerCase();
-    const state = _calStateFilter.toLowerCase();
-    if (!venue.includes(state)) return false;
+    const venue = (cfg.venue || cfg.state || '').toLowerCase();
+    if (!venue.includes(_calStateFilter.toLowerCase())) return false;
+  }
+  if (_calPostcodeLat !== null && _calPostcodeLng !== null) {
+    const evLat = parseFloat(cfg.lat);
+    const evLng = parseFloat(cfg.lng);
+    // If event has no coords, fall back to matching postcode string
+    if (!isNaN(evLat) && !isNaN(evLng)) {
+      const dist = _haversineKm(_calPostcodeLat, _calPostcodeLng, evLat, evLng);
+      if (dist > _calPostcodeKm) return false;
+    }
+    // Events with no coords pass through (can't exclude what we can't measure)
   }
   return true;
 }
 
+// ── Postcode input handler ─────────────────────────
+function calPostcodeInput(inputEl) {
+  const val = inputEl.value.trim();
+  const statusEl = document.getElementById('calPostcodeStatus');
+  const radiusSel = document.getElementById('calRadiusFilter');
+
+  clearTimeout(_calPostcodeTimer);
+
+  if (!val || val.length < 4) {
+    // Clear postcode filter
+    _calPostcodeLat = null;
+    _calPostcodeLng = null;
+    if (statusEl) statusEl.style.display = 'none';
+    if (radiusSel) radiusSel.style.display = 'none';
+    inputEl.style.borderColor = '';
+    calApplyFilters();
+    return;
+  }
+
+  if (statusEl) { statusEl.textContent = '…'; statusEl.style.display = ''; }
+
+  _calPostcodeTimer = setTimeout(async () => {
+    try {
+      const url = `https://nominatim.openstreetmap.org/search?postalcode=${encodeURIComponent(val)}&country=AU&format=json&limit=1`;
+      const res  = await fetch(url, { headers: { 'Accept-Language': 'en' } });
+      const data = await res.json();
+      if (!data.length) {
+        if (statusEl) { statusEl.textContent = '?'; statusEl.style.color = 'var(--neon)'; statusEl.style.display = ''; }
+        _calPostcodeLat = null; _calPostcodeLng = null;
+        inputEl.style.borderColor = 'rgba(255,45,120,.5)';
+        calApplyFilters();
+        return;
+      }
+      _calPostcodeLat = parseFloat(data[0].lat);
+      _calPostcodeLng = parseFloat(data[0].lon);
+      _calPostcodeKm  = parseInt(document.getElementById('calRadiusFilter')?.value || '50');
+      if (statusEl) { statusEl.textContent = '✓'; statusEl.style.color = 'var(--neon2)'; statusEl.style.display = ''; }
+      if (radiusSel) radiusSel.style.display = '';
+      inputEl.style.borderColor = 'var(--neon2)';
+      // Save to localStorage for next visit
+      try { localStorage.setItem('yp_cal_postcode', val); } catch(e) {}
+      calApplyFilters();
+    } catch(e) {
+      if (statusEl) statusEl.style.display = 'none';
+      _calPostcodeLat = null; _calPostcodeLng = null;
+      calApplyFilters();
+    }
+  }, 600);
+}
+
 function calApplyFilters() {
-  _calGenreFilter = document.getElementById('calGenreFilter')?.value || '';
-  _calStateFilter = document.getElementById('calStateFilter')?.value || '';
-  const hasFilter = !!(_calGenreFilter || _calStateFilter);
+  _calGenreFilter = document.getElementById('calGenreFilter')?.value  || '';
+  _calStateFilter = document.getElementById('calStateFilter')?.value  || '';
+  _calPostcodeKm  = parseInt(document.getElementById('calRadiusFilter')?.value || '50');
+  const hasFilter = !!(_calGenreFilter || _calStateFilter || _calPostcodeLat !== null);
   const clearBtn  = document.getElementById('calFilterClear');
   const countEl   = document.getElementById('calFilterCount');
   if (clearBtn) clearBtn.style.display = hasFilter ? '' : 'none';
   renderCalContent();
-  // Update count after render
   if (countEl) {
     const visible = _calEvents.filter(_calFilterEvent).length;
     if (hasFilter) { countEl.textContent = `${visible} event${visible!==1?'s':''}`; countEl.style.display = ''; }
@@ -49,15 +121,36 @@ function calApplyFilters() {
 function calClearFilters() {
   _calGenreFilter = '';
   _calStateFilter = '';
+  _calPostcodeLat = null;
+  _calPostcodeLng = null;
   const gf = document.getElementById('calGenreFilter');
   const sf = document.getElementById('calStateFilter');
+  const pf = document.getElementById('calPostcodeInput');
+  const rf = document.getElementById('calRadiusFilter');
+  const st = document.getElementById('calPostcodeStatus');
   if (gf) gf.value = '';
   if (sf) sf.value = '';
+  if (pf) { pf.value = ''; pf.style.borderColor = ''; }
+  if (rf) rf.style.display = 'none';
+  if (st) st.style.display = 'none';
+  try { localStorage.removeItem('yp_cal_postcode'); } catch(e) {}
   const clearBtn = document.getElementById('calFilterClear');
   const countEl  = document.getElementById('calFilterCount');
   if (clearBtn) clearBtn.style.display = 'none';
   if (countEl)  countEl.style.display  = 'none';
   renderCalContent();
+}
+
+// Restore saved postcode on calendar open
+function calRestorePostcode() {
+  try {
+    const saved = localStorage.getItem('yp_cal_postcode');
+    const inputEl = document.getElementById('calPostcodeInput');
+    if (saved && inputEl) {
+      inputEl.value = saved;
+      calPostcodeInput(inputEl);
+    }
+  } catch(e) {}
 }
 
 // ── Data loading ───────────────────────────────────

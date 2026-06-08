@@ -208,6 +208,7 @@ async function showCalendar() {
   document.getElementById('calContent').innerHTML = '<div style="text-align:center;padding:60px 0;color:var(--muted);font-family:\'Bebas Neue\',sans-serif;letter-spacing:2px;font-size:16px;">LOADING...</div>';
   await loadCalEvents();
   renderCalHeader();
+  calRestorePostcode();
   renderCalContent();
 }
 
