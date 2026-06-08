@@ -78,7 +78,7 @@ function buildEventCardEl(ev, mode) {
             <button class="btn-ghost" style="font-size:11px;padding:5px 12px;border-color:var(--gold);color:var(--gold);" id="ac-${ev.id}">ALL CLAIMS</button>
           </div>` : ''}
         </div>
-        <div style="display:flex;flex-direction:column;align-items:flex-end;justify-content:center;gap:8px;flex-shrink:0;padding:14px 12px;">
+        <div style="display:flex;flex-direction:column;align-items:flex-end;justify-content:center;gap:8px;flex-shrink:0;padding:14px 10px 14px 12px;">
           ${rightBtns}
         </div>
       </div>
