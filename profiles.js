@@ -579,6 +579,8 @@ async function deleteUnclaimedProfile(id) {
 // Called on artist dashboard load — checks if email matches an unclaimed profile
 async function checkForClaimableProfile() {
   if (!currentSession?.access_token || !currentUser?.email) return;
+  // If user already has a named artist profile, they've already claimed — don't show banner
+  if (artistProfile && (artistProfile.djName || artistProfile.name)) return;
   const email = currentUser.email.toLowerCase();
   try {
     const rows = await sbRest(
