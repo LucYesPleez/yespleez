@@ -1043,7 +1043,10 @@ async function searchArtistsForAssign(query) {
       avatar: null, _unclaimed: true, _ucpId: u.id
     }));
 
-    const artists = [...claimed, ...unclaimedNorm];
+    // Deduplicate: if a real profile exists with the same name, drop the unclaimed version
+    const claimedNames = new Set(claimed.map(a => (a.dj_name || '').toLowerCase().trim()));
+    const filteredUnclaimed = unclaimedNorm.filter(u => !claimedNames.has((u.dj_name || '').toLowerCase().trim()));
+    const artists = [...claimed, ...filteredUnclaimed];
     resultsEl.innerHTML = '';
     if (!artists.length) {
       resultsEl.innerHTML = '<div style="padding:10px 12px;font-size:13px;color:var(--muted);">No artists found</div>';
