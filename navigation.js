@@ -112,6 +112,8 @@ async function enterDashboard() {
   updateNotifDot();
   await loadUserEvents();
   if (!DEMO) loadPendingAppsBadge();
+  if (typeof loadDbNotifs === 'function') loadDbNotifs();
+  if (typeof startNotifPolling === 'function') startNotifPolling();
 }
 
 function switchDashTab(tab) {
@@ -148,6 +150,8 @@ async function enterArtistDashboard() {
   updateNotifDot();
   checkForClaimableProfile();
   if (typeof loadMyAvailability === 'function') loadMyAvailability();
+  if (typeof loadDbNotifs === 'function') loadDbNotifs();
+  if (typeof startNotifPolling === 'function') startNotifPolling();
 }
 
 // ── Navigation helpers ─────────────────────────────
