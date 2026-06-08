@@ -163,7 +163,12 @@ function mapDbToHostProfile(row) {
 async function searchProfiles(query, filterType, filterState) {
   try {
     let path = `profiles?select=*`;
-    if (filterType && filterType !== 'all') path += `&type=eq.${filterType}`;
+    // Always restrict to known types — prevents ghost/duplicate rows from surfacing
+    if (filterType && filterType !== 'all') {
+      path += `&type=eq.${filterType}`;
+    } else {
+      path += `&type=in.(artist,host)`;
+    }
     if (filterState && filterState !== 'all') {
       const s = encodeURIComponent(`%${filterState}%`);
       // Match on state column OR location column (covers both storage patterns)
