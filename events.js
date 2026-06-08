@@ -1148,6 +1148,7 @@ function renderAcceptedPool(query) {
       document.getElementById('hostArtistSearch').value = '';
       const ok = await upsertClaim(activeKey, a.dj_name, a.genre_string || '', '', [], a.card_pills || '', a.sound || '');
       if (ok) {
+        saveManageState();
         claims[activeKey] = { name: a.dj_name, genre: a.genre_string || '', notes: '', backups: [], cardPills: a.card_pills || '', sound: a.sound || '', mixLink: a.mix_link || '', user_id: a.user_id };
         const slotLabel = (() => { let l='slot'; (eventData?.days||[]).forEach(d=>d.slots.forEach(s=>{if(s.id===activeKey)l=s.time+' '+s.ampm;})); return l; })();
         pushNotif('🎧', `${a.dj_name} assigned to ${slotLabel}`, 'host');
@@ -1631,6 +1632,7 @@ function renderManage() {
 function shiftArtist(fromSlotId, toSlotId) {
   if (!fromSlotId||!toSlotId||fromSlotId===toSlotId) return;
   if (setTimesLocked) { showLockedPopup(); return; }
+  saveManageState();
   if (lockedSlots[fromSlotId]) {showToast('That artist is pinned. Unpin them first.','error');return;}
   const orderedIds=[]; (eventData.days||[]).forEach(d=>d.slots.forEach(s=>orderedIds.push(s.id)));
   const fromIdx=orderedIds.indexOf(fromSlotId), toIdx=orderedIds.indexOf(toSlotId);
