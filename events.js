@@ -389,6 +389,10 @@ function parseDateToInput(dateStr) {
   return { start: startDate, end: endDate };
 }
 
+function generateLineup() {
+  showToast('⚡ AI Lineup Generator — coming soon!', 'success');
+}
+
 function generateSlots() {
   const numDays  = parseInt(document.getElementById('qgDays').value) || 1;
   const startStr = document.getElementById('qgStart').value || '16:00';
