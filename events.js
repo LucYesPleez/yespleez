@@ -63,7 +63,6 @@ function renderEventList() {
           <div style="display:flex;flex-direction:column;align-items:flex-end;justify-content:center;gap:8px;flex-shrink:0;padding:14px 12px;">
             <span class="event-card-status ${isLive?'live':'draft'}">${isLive?'LIVE':'DRAFT'}</span>
             <button class="btn-signout" style="font-size:10px;padding:4px 12px;" id="edit-${ev.id}">EDIT →</button>
-            ${poster ? `<button id="focal-${ev.id}" title="Adjust crop" style="background:rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.2);border-radius:6px;color:rgba(255,255,255,.6);font-size:10px;padding:3px 7px;cursor:pointer;margin-top:2px;">⊕ crop</button>` : ''}
           </div>
         </div>
       </div>
@@ -78,14 +77,19 @@ function renderEventList() {
       card.querySelector('#ac-' + ev.id).onclick = (e) => { e.stopPropagation(); openAllClaims(ev); };
     }
     card.querySelector('#edit-' + ev.id).onclick = (e) => { e.stopPropagation(); openEvent(ev); };
-    if (poster) {
-      card.querySelector('#focal-' + ev.id).onclick = (e) => { e.stopPropagation(); openFocalPicker(ev.id, poster, focal); };
-    }
     listEl.appendChild(card);
   });
 }
 
 // ── Poster focal point picker ──────────────────────
+
+function openFocalPickerFromEdit() {
+  const posterUrl = document.getElementById('inPoster')?.value || document.getElementById('posterPreview')?.src || '';
+  if (!posterUrl) { showToast('Upload a poster first.', 'error'); return; }
+  const ev = allEvents.find(e => e.id === currentEventId);
+  const currentFocal = ev?.config?.poster_focal || '50% 50%';
+  openFocalPicker(currentEventId, posterUrl, currentFocal);
+}
 
 function openFocalPicker(eventId, posterUrl, currentFocal) {
   window._focalEventId = eventId;

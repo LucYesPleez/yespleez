@@ -1949,6 +1949,7 @@ body.player-open .screen.active { padding-bottom: 80px; }
           <img id="posterPreview" style="width:100%;max-height:200px;object-fit:cover;border-radius:8px;display:block;cursor:pointer;" onclick="openPosterLightbox(this.src)" title="Tap to view full size">
           <div style="display:flex;gap:8px;margin-top:8px;">
             <button onclick="event.stopPropagation();openPosterLightbox(document.getElementById('posterPreview').src)" style="flex:1;background:none;border:1px solid var(--border);color:var(--muted);border-radius:6px;padding:4px 12px;font-size:11px;cursor:pointer;">🔍 Full view</button>
+            <button onclick="event.stopPropagation();openFocalPickerFromEdit()" style="flex:1;background:none;border:1px solid var(--neon2);color:var(--neon2);border-radius:6px;padding:4px 12px;font-size:11px;cursor:pointer;">⊕ Adjust crop</button>
             <button onclick="event.stopPropagation();clearPoster()" style="flex:1;background:none;border:1px solid var(--neon);color:var(--neon);border-radius:6px;padding:4px 12px;font-size:11px;cursor:pointer;">REMOVE</button>
           </div>
         </div>
