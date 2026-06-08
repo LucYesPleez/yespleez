@@ -1652,8 +1652,10 @@ function deleteCurrentEvent() { if (currentEventId) document.getElementById('del
 async function confirmDeleteEvent() { document.getElementById('deleteEventConfirmOverlay').classList.remove('open'); if (currentEventId) await deleteEvent(currentEventId); }
 
 // ── Applications ───────────────────────────────────
+let _appsCache = null;      // raw apps array
+let _appsProfCache = null;  // profileMap
 
-async function loadAllApplications() {
+async function loadAllApplications(forceRefresh = false) {
   if (DEMO) return;
   const listEl = document.getElementById('applicationsList');
   if (!listEl) return;
@@ -1671,36 +1673,47 @@ async function loadAllApplications() {
   }
   const selectedEvent = filterEl ? filterEl.value : 'all';
 
-  listEl.innerHTML = '<div style="text-align:center;padding:30px;color:var(--muted);font-size:13px;">Loading...</div>';
   try {
-    const ids = selectedEvent === 'all'
-      ? allEvents.map(e => e.id).join(',')
-      : selectedEvent;
-    const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/applications?event_id=in.(${ids})&order=created_at.desc`,
-      { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${currentSession.access_token}` } }
-    );
-    const apps = res.ok ? await res.json() : [];
-    if (!apps.length) { listEl.innerHTML = '<div style="font-size:13px;color:var(--muted);padding:12px 0;">No applications for this event yet.</div>'; return; }
-
-    // Fetch profiles for all unique artist_ids in one request
-    const artistIds = [...new Set(apps.map(a => a.artist_id).filter(Boolean))];
-    let profileMap = {};
-    if (artistIds.length) {
-      const profRes = await fetch(
-        `${SUPABASE_URL}/rest/v1/profiles?user_id=in.(${artistIds.join(',')})&type=eq.artist&select=*`,
+    // Only re-fetch from Supabase when cache is empty, forced, or event filter changed to a new event
+    if (forceRefresh || !_appsCache) {
+      listEl.innerHTML = '<div style="text-align:center;padding:30px;color:var(--muted);font-size:13px;">Loading...</div>';
+      const allIds = allEvents.map(e => e.id).join(',');
+      // Fetch apps + profiles in parallel (apps for all events, profiles fetched once)
+      const res = await fetch(
+        `${SUPABASE_URL}/rest/v1/applications?event_id=in.(${allIds})&order=created_at.desc&select=id,event_id,artist_id,status,note,created_at`,
         { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${currentSession.access_token}` } }
       );
-      const profiles = profRes.ok ? await profRes.json() : [];
-      profiles.forEach(p => { profileMap[p.user_id] = p; });
+      const apps = res.ok ? await res.json() : [];
+      _appsCache = apps;
+
+      const artistIds = [...new Set(apps.map(a => a.artist_id).filter(Boolean))];
+      if (artistIds.length) {
+        const profRes = await fetch(
+          `${SUPABASE_URL}/rest/v1/profiles?user_id=in.(${artistIds.join(',')})&type=eq.artist&select=user_id,dj_name,name,location,state,genre_string,sound,mix_link,soundcloud,mixcloud,avatar`,
+          { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${currentSession.access_token}` } }
+        );
+        const profiles = profRes.ok ? await profRes.json() : [];
+        _appsProfCache = {};
+        profiles.forEach(p => { _appsProfCache[p.user_id] = p; });
+      } else {
+        _appsProfCache = {};
+      }
     }
+
+    const apps = _appsCache || [];
+    const profileMap = _appsProfCache || {};
+
+    // Filter by selected event client-side (no extra fetch needed)
+    const filteredApps = selectedEvent === 'all' ? apps : apps.filter(a => a.event_id === selectedEvent);
+
+    if (!filteredApps.length) { listEl.innerHTML = '<div style="font-size:13px;color:var(--muted);padding:12px 0;">No applications for this event yet.</div>'; return; }
 
     const evMap = {};
     allEvents.forEach(e => evMap[e.id] = e);
 
     // Group by event
     const byEvent = {};
-    apps.forEach(app => {
+    filteredApps.forEach(app => {
       if (!byEvent[app.event_id]) byEvent[app.event_id] = [];
       byEvent[app.event_id].push(app);
     });
@@ -1793,7 +1806,8 @@ async function updateApplicationStatus(appId, status, btnContainer) {
       body: JSON.stringify({ status })
     });
     showToast(`Application ${status}`, 'success');
-    loadAllApplications();
+    _appsCache = null; // invalidate cache
+    loadAllApplications(true);
   } catch(e) { showToast('Update failed', 'error'); }
 }
 

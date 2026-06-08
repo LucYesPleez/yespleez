@@ -122,8 +122,8 @@ function switchDashTab(tab) {
     if (btn) { btn.style.borderBottomColor = tab===key ? 'var(--neon2)' : 'transparent'; btn.style.color = tab===key ? 'var(--text)' : 'var(--muted)'; }
     if (content) content.style.display = tab===key ? '' : 'none';
   });
-  if (tab === 'applications') loadAllApplications();
-  if (tab === 'artists') { loadAcceptedUnassignedArtists(); loadUnclaimedProfiles(); }
+  if (tab === 'applications') { _appsCache = null; loadAllApplications(); }
+  if (tab === 'artists') Promise.all([loadAcceptedUnassignedArtists(), loadUnclaimedProfiles()]);
 }
 
 // ── Artist dashboard ───────────────────────────────

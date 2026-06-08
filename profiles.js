@@ -537,31 +537,19 @@ async function loadUnclaimedProfiles() {
       currentSession.access_token
     );
 
-    // Check which claim_emails already have a profiles entry (i.e. have been claimed)
+    // Check claimed status by email + name in parallel
     const emails = rows.map(r => r.claim_email).filter(Boolean);
-    let claimedEmails = new Set();
-    if (emails.length) {
-      try {
-        const claimed = await sbRest(
-          `profiles?type=eq.artist&email=in.(${emails.map(e => encodeURIComponent(e)).join(',')})&select=email`,
-          { method: 'GET' }, currentSession.access_token
-        );
-        (claimed || []).forEach(p => { if (p.email) claimedEmails.add(p.email.toLowerCase()); });
-      } catch(e) { /* silent — worst case we show all as unclaimed */ }
-    }
-
-    // Also check by name match against profiles (catches no-email claims)
-    const names = rows.map(r => r.name).filter(Boolean);
-    let claimedNames = new Set();
-    if (names.length) {
-      try {
-        const namedClaimed = await sbRest(
-          `profiles?type=eq.artist&or=(${names.map(n => `dj_name.eq.${encodeURIComponent(n)}`).join(',')})&select=dj_name`,
-          { method: 'GET' }, currentSession.access_token
-        );
-        (namedClaimed || []).forEach(p => { if (p.dj_name) claimedNames.add(p.dj_name.toLowerCase()); });
-      } catch(e) { /* silent */ }
-    }
+    const names  = rows.map(r => r.name).filter(Boolean);
+    const [claimedByEmail, claimedByName] = await Promise.all([
+      emails.length
+        ? sbRest(`profiles?type=eq.artist&email=in.(${emails.map(e => encodeURIComponent(e)).join(',')})&select=email`, { method: 'GET' }, currentSession.access_token).catch(() => [])
+        : Promise.resolve([]),
+      names.length
+        ? sbRest(`profiles?type=eq.artist&or=(${names.map(n => `dj_name.eq.${encodeURIComponent(n)}`).join(',')})&select=dj_name`, { method: 'GET' }, currentSession.access_token).catch(() => [])
+        : Promise.resolve([])
+    ]);
+    const claimedEmails = new Set((claimedByEmail || []).map(p => p.email?.toLowerCase()).filter(Boolean));
+    const claimedNames  = new Set((claimedByName  || []).map(p => p.dj_name?.toLowerCase()).filter(Boolean));
 
     const isClaimed = r =>
       (r.claim_email && claimedEmails.has(r.claim_email.toLowerCase())) ||
