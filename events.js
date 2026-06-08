@@ -927,6 +927,14 @@ function renderAll() {
       }
       const actionBlock = document.createElement('div');
       actionBlock.style.cssText = 'display:flex;flex-direction:column;gap:5px;align-items:flex-end;flex-shrink:0;';
+      // Play button — visible to everyone if the artist has a mix link
+      if (entry && entry.mixLink) {
+        const playBtn = document.createElement('button');
+        playBtn.style.cssText = 'background:none;border:1px solid rgba(0,229,255,.3);border-radius:6px;color:var(--neon2);font-size:14px;cursor:pointer;padding:4px 8px;line-height:1;';
+        playBtn.textContent = '▶'; playBtn.title = 'Play mix';
+        playBtn.onclick = e => { e.stopPropagation(); openMiniPlayer(entry.name, entry.mixLink, '🎧'); };
+        actionBlock.appendChild(playBtn);
+      }
       if (!isReadOnly) {
         if (entry) {
           if (canRemove) {
