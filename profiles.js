@@ -259,7 +259,7 @@ function openPublicProfile(row) {
   const mixHtml = !isHost ? (mixLink ? `
     <button onclick="openMiniPlayer('${safeName}','${mixLink}','🎧')"
       style="background:rgba(${accentRgb},.12);border:1.5px solid ${accentColor};border-radius:12px;color:${accentColor};font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:2px;padding:14px 24px;cursor:pointer;width:100%;margin-bottom:12px;">
-      ▶ PLAY DEMO MIX
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="var(--neon2)" style="vertical-align:middle;margin-right:6px;"><polygon points="6,3 20,12 6,21"/></svg>PLAY DEMO MIX
     </button>` : `
     <div style="background:rgba(255,255,255,.04);border:1px dashed rgba(255,255,255,.15);border-radius:12px;padding:14px 24px;text-align:center;margin-bottom:12px;">
       <div style="font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:2px;color:var(--muted);">🎵 DEMO MIX COMING SOON</div>

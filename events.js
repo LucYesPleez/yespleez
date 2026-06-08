@@ -940,8 +940,8 @@ function renderAll() {
       // Play button — visible to everyone if the artist has a mix link
       if (entry && entry.mixLink) {
         const playBtn = document.createElement('button');
-        playBtn.style.cssText = 'background:none;border:1px solid rgba(0,229,255,.3);border-radius:6px;color:var(--neon2);font-size:14px;cursor:pointer;padding:4px 8px;line-height:1;';
-        playBtn.textContent = '▶'; playBtn.title = 'Play mix';
+        playBtn.style.cssText = 'background:none;border:1px solid rgba(0,229,255,.3);border-radius:6px;color:var(--neon2);cursor:pointer;padding:4px 8px;line-height:1;display:flex;align-items:center;justify-content:center;';
+        playBtn.innerHTML = '<svg viewBox="0 0 24 24" width="13" height="13" fill="var(--neon2)"><polygon points="6,3 20,12 6,21"/></svg>'; playBtn.title = 'Play mix';
         playBtn.onclick = e => { e.stopPropagation(); openMiniPlayer(entry.name, entry.mixLink, '🎧'); };
         actionBlock.appendChild(playBtn);
       }
@@ -1581,8 +1581,8 @@ function renderManage() {
       chevron.style.cssText = 'color:var(--muted);font-size:20px;line-height:1;transition:transform .2s;text-align:center;padding:2px 4px;'; chevron.textContent = '›';
       const playBtn = document.createElement('button');
       if (claim.mixLink) {
-        playBtn.style.cssText = 'background:none;border:1px solid rgba(0,229,255,.3);border-radius:6px;color:var(--neon2);font-size:14px;cursor:pointer;padding:4px 8px;line-height:1;';
-        playBtn.textContent = '▶'; playBtn.title = 'Play mix';
+        playBtn.style.cssText = 'background:none;border:1px solid rgba(0,229,255,.3);border-radius:6px;color:var(--neon2);cursor:pointer;padding:4px 8px;line-height:1;display:flex;align-items:center;justify-content:center;';
+        playBtn.innerHTML = '<svg viewBox="0 0 24 24" width="13" height="13" fill="var(--neon2)"><polygon points="6,3 20,12 6,21"/></svg>'; playBtn.title = 'Play mix';
         playBtn.onclick = e => { e.stopPropagation(); openMiniPlayer(claim.name, claim.mixLink, '🎧'); };
         actCol.appendChild(playBtn);
       }
@@ -1798,7 +1798,7 @@ async function loadAllApplications(forceRefresh = false) {
           </div>
           <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;">
             <span style="font-size:10px;color:${statusColor};font-family:'Bebas Neue',sans-serif;letter-spacing:1px;">${app.status.toUpperCase()}</span>
-            ${mixLink ? `<button class="_play-btn" style="background:none;border:1px solid rgba(0,229,255,.3);border-radius:6px;color:var(--neon2);font-size:14px;cursor:pointer;padding:4px 8px;line-height:1;" title="Play mix">▶</button>` : ''}
+            ${mixLink ? `<button class="_play-btn" style="background:none;border:1px solid rgba(0,229,255,.3);border-radius:6px;color:var(--neon2);cursor:pointer;padding:4px 8px;line-height:1;display:flex;align-items:center;justify-content:center;" title="Play mix"><svg viewBox="0 0 24 24" width="13" height="13" fill="var(--neon2)"><polygon points="6,3 20,12 6,21"/></svg></button>` : ''}
           </div>`;
         card.appendChild(topRow);
 
