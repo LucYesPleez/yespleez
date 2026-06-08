@@ -134,79 +134,74 @@ async function runSearch() {
 
   allItems.forEach(item => {
     const card = document.createElement('div');
-    card.className = 'search-card';
 
     if (item._type === 'event') {
+      // ── Event card: exact same structure as host dashboard renderEventList ──
       const ev = item;
       const cfg = ev.config || {};
-      const slots = (cfg.days || []).reduce((a, d) => a + (d.slots || []).length, 0);
+      const slotCount = (cfg.days || []).reduce((n, d) => n + d.slots.length, 0);
       const isLive = ev.status === 'live';
-      const borderCol = isLive ? 'rgba(0,196,90,.35)'   : 'rgba(0,180,200,.25)';
-      const bgCol     = isLive ? 'rgba(0,196,90,.04)'   : 'rgba(0,180,200,.03)';
-      const labelCol  = isLive ? '#00c45a'               : 'rgba(0,200,220,.8)';
-      const labelBg   = isLive ? 'rgba(0,196,90,.12)'   : 'rgba(0,180,200,.1)';
-      const labelBdr  = isLive ? 'rgba(0,196,90,.35)'   : 'rgba(0,180,200,.3)';
-      const glowRgb   = isLive ? '0,196,90'             : '0,180,200';
-      const hoverBorder = isLive ? 'rgba(0,196,90,.7)'  : 'rgba(0,180,200,.6)';
-      const statusTxt = isLive ? 'LIVE' : 'UPCOMING';
       const poster = cfg.poster || ev.poster || '';
-      card.style.cssText = `background:${bgCol};border:1px solid ${borderCol};border-radius:12px;overflow:hidden;margin-bottom:10px;cursor:pointer;transition:border-color .2s,box-shadow .2s;`;
-      card.onmouseenter = () => { card.style.borderColor = hoverBorder; card.style.boxShadow = `0 0 16px rgba(${glowRgb},.15)`; };
-      card.onmouseleave = () => { card.style.borderColor = borderCol; card.style.boxShadow = ''; };
-      card.onclick = () => openPublicEvent(ev);
+      const focal  = cfg.poster_focal || '50% 50%';
+      card.className = 'event-card' + (isLive ? ' active-event' : '');
+      card.style.overflow = 'hidden';
+      card.style.padding = '0';
+      card.style.display = 'block';
+      card.style.marginBottom = '12px';
       card.innerHTML = `
-        ${poster ? `<div style="width:100%;height:120px;background:url(${poster}) center/cover no-repeat;border-bottom:1px solid ${borderCol};position:relative;">
-          <div style="position:absolute;inset:0;background:linear-gradient(to bottom,transparent 40%,${bgCol} 100%);"></div>
-        </div>` : ''}
-        <div style="padding:14px;">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
-          <div style="flex:1;">
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap;">
-              <span style="font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:1px;">${ev.name}</span>
-              <span style="background:${labelBg};color:${labelCol};border:1px solid ${labelBdr};border-radius:20px;font-size:10px;padding:2px 8px;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;">${statusTxt}</span>
+        <div style="position:relative;min-height:90px;overflow:hidden;border-radius:inherit;width:100%;">
+          ${poster ? `
+            <div style="position:absolute;inset:0;background:url(${poster}) ${focal}/cover no-repeat;"></div>
+            <div style="position:absolute;inset:0;background:linear-gradient(90deg,rgba(10,10,20,.92) 0%,rgba(10,10,20,.55) 50%,rgba(10,10,20,.80) 100%);"></div>
+          ` : ''}
+          <div style="position:relative;display:flex;align-items:stretch;min-height:90px;">
+            <div class="event-card-info" style="min-width:0;flex:1;padding:14px 12px;display:flex;flex-direction:column;justify-content:center;">
+              <div class="event-card-name">${ev.name || 'Untitled Event'}</div>
+              <div class="event-card-meta">${[cfg.date, cfg.venue].filter(Boolean).join(' · ')}${slotCount ? ' · ' + slotCount + ' slots' : ''}</div>
             </div>
-            ${cfg.venue ? `<div style="font-size:12px;color:var(--muted);">📍 ${cfg.venue}</div>` : ''}
-            ${cfg.date  ? `<div style="font-size:12px;color:var(--muted);">📅 ${cfg.date}</div>` : ''}
-            ${cfg.genres ? `<div style="font-size:11px;color:${labelCol};margin-top:4px;">${cfg.genres}</div>` : ''}
+            <div style="display:flex;flex-direction:column;align-items:flex-end;justify-content:center;gap:8px;flex-shrink:0;padding:14px 12px;">
+              <span class="event-card-status ${isLive ? 'live' : 'draft'}">${isLive ? 'LIVE' : 'UPCOMING'}</span>
+              <button class="btn-signout" style="font-size:10px;padding:4px 12px;">VIEW →</button>
+            </div>
           </div>
-          <div style="text-align:right;flex-shrink:0;">
-            <div style="font-size:11px;color:var(--muted);margin-top:2px;">${slots} slots</div>
-          </div>
-        </div>
         </div>`;
+      card.onclick = (e) => { if (!e.target.closest('button')) openPublicEvent(ev); };
+      card.querySelector('.btn-signout').onclick = (e) => { e.stopPropagation(); openPublicEvent(ev); };
 
     } else {
+      // ── Profile card: exact same structure as dash-profile-card ──
       const row = item;
       const isHostRow = row.type === 'host';
-      const name      = row.dj_name || row.name || 'Unknown';
-      const location  = [row.location, row.state].filter(Boolean).join(', ');
-      const genres    = row.genre_string ? row.genre_string.split(' · ').slice(0,4).join(' · ') : '';
-      const bio       = row.bio ? row.bio.substring(0,80) + (row.bio.length > 80 ? '…' : '') : '';
+      const name     = row.dj_name || row.name || 'Unknown';
+      const location = [row.location, row.state].filter(Boolean).join(', ');
+      const genres   = row.genre_string ? row.genre_string.split(' · ').slice(0, 4).join(' · ') : '';
+      const sound    = row.sound || '';
+      const bio      = row.bio ? row.bio.substring(0, 80) + (row.bio.length > 80 ? '…' : '') : '';
       const accentCol = isHostRow ? 'var(--neon)' : 'var(--neon2)';
-      const accentRgb = isHostRow ? '255,45,120' : '0,229,255';
+      const accentRgb = isHostRow ? '255,45,120'  : '0,229,255';
+      const emoji     = isHostRow ? '🎛️' : '🎧';
       const badge = isHostRow
         ? `<span style="background:rgba(255,45,120,.15);color:var(--neon);border:1px solid rgba(255,45,120,.3);border-radius:20px;font-size:10px;padding:2px 8px;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;">HOST</span>`
         : `<span style="background:rgba(0,229,255,.12);color:var(--neon2);border:1px solid rgba(0,229,255,.25);border-radius:20px;font-size:10px;padding:2px 8px;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;">ARTIST</span>`;
       const avatarHtml = row.avatar
-        ? `<img src="${row.avatar}" style="width:52px;height:52px;border-radius:6px;object-fit:cover;border:2px solid ${accentCol};flex-shrink:0;" onerror="this.outerHTML='<div style=\\'width:52px;height:52px;border-radius:6px;background:var(--card2);border:2px solid ${accentCol};display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;\\'>${isHostRow ? '🎛️' : '🎧'}</div>'">`
-        : `<div style="width:52px;height:52px;border-radius:6px;background:var(--card2);border:2px solid ${accentCol};display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;">${isHostRow ? '🎛️' : '🎧'}</div>`;
-      const mixIcon = row.mix_link || row.soundcloud || row.mixcloud ? `<span style="font-size:13px;opacity:.7;margin-left:4px;" title="Has mix">▶</span>` : '';
-      card.style.cssText = `background:rgba(${accentRgb},.04);border:1px solid rgba(${accentRgb},.35);border-radius:12px;padding:14px;margin-bottom:10px;display:flex;gap:12px;align-items:flex-start;cursor:pointer;transition:border-color .2s,box-shadow .2s;`;
-      card.onmouseenter = () => { card.style.borderColor = accentCol; card.style.boxShadow = `0 0 16px rgba(${accentRgb},.15)`; };
-      card.onmouseleave = () => { card.style.borderColor = `rgba(${accentRgb},.35)`; card.style.boxShadow = ''; };
-      card.onclick = () => openPublicProfile(row);
+        ? `<img src="${row.avatar}" style="width:56px;height:56px;border-radius:10px;object-fit:cover;border:1px solid var(--border);flex-shrink:0;" onerror="this.outerHTML='<div class=\\'dash-profile-avatar\\'>${emoji}</div>'">`
+        : `<div class="dash-profile-avatar">${emoji}</div>`;
+      card.className = 'dash-profile-card';
+      card.style.marginBottom = '12px';
       card.innerHTML = `
         ${avatarHtml}
         <div style="flex:1;min-width:0;">
-          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px;">
-            <span style="font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:1px;">${name}</span>
-            ${badge}${mixIcon}
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:3px;">
+            <span style="font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${name}</span>
+            ${badge}
           </div>
-          ${location ? `<div style="font-size:12px;color:var(--muted);margin-bottom:4px;">📍 ${location}</div>` : ''}
-          ${genres ? `<div style="font-size:11px;color:${accentCol};margin-bottom:4px;line-height:1.5;">${genres}</div>` : ''}
-          ${row.sound ? `<div style="font-size:12px;color:var(--muted);font-style:italic;line-height:1.5;margin-bottom:2px;">${row.sound}</div>` : ''}
-          ${bio ? `<div style="font-size:12px;color:var(--muted);line-height:1.5;">${bio}</div>` : ''}
+          ${location ? `<div style="font-size:12px;color:var(--muted);margin-bottom:3px;">📍 ${location}</div>` : ''}
+          ${sound    ? `<div style="font-size:12px;color:${accentCol};margin-bottom:3px;">${sound}</div>` : genres ? `<div style="font-size:12px;color:${accentCol};margin-bottom:3px;">${genres}</div>` : ''}
+          ${bio      ? `<div style="font-size:12px;color:var(--muted);line-height:1.5;">${bio}</div>` : ''}
         </div>`;
+      card.onclick = () => openPublicProfile(row);
+      card.onmouseenter = () => { card.style.borderColor = accentCol; };
+      card.onmouseleave = () => { card.style.borderColor = ''; };
     }
 
     resultsEl.appendChild(card);
