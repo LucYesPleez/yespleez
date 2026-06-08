@@ -1487,14 +1487,8 @@ function renderManage() {
   if (titleEl) titleEl.textContent = eventData.name || 'EVENT';
   if (subtitleEl) subtitleEl.textContent = [eventData.venue, eventData.date].filter(Boolean).join(' · ');
   if (slotCountEl) slotCountEl.textContent = takenSlots + ' of ' + totalSlots + ' slots filled';
-  // Applications toggle state
-  const appsOpen = hostControls.applicationsOpen || false;
-  const toggleBtn = document.getElementById('appsToggleBtn');
-  if (toggleBtn) {
-    toggleBtn.textContent = appsOpen ? 'APPLICATIONS: OPEN ✓' : 'APPLICATIONS: CLOSED';
-    toggleBtn.style.borderColor = appsOpen ? 'var(--neon2)' : 'var(--border)';
-    toggleBtn.style.color = appsOpen ? 'var(--neon2)' : 'var(--muted)';
-  }
+  // Applications toggle state — read from eventData.applications_open (single source of truth)
+  syncAppsToggleBtn();
   // Show poster if available
   const managePosterEl = document.getElementById('managePoster');
   if (managePosterEl) {
@@ -2243,21 +2237,39 @@ function toggleLockSetTimes() {
   }
 }
 
-function toggleApplicationsOpen() {
-  hostControls.applicationsOpen = !hostControls.applicationsOpen;
-  const open = hostControls.applicationsOpen;
+// ── Single source of truth: eventData.applications_open ───────
+// Called when the edit-screen checkbox is changed by the user
+function onEditToggleApplicationsOpen(checked) {
+  eventData.applications_open = checked;
+  syncAppsToggleBtn();
+}
+
+function syncAppsToggleBtn() {
+  const open = eventData.applications_open === true;
   const btn = document.getElementById('appsToggleBtn');
   if (btn) {
     btn.textContent = open ? 'APPLICATIONS: OPEN ✓' : 'APPLICATIONS: CLOSED';
-    btn.style.borderColor = open ? 'var(--neon2)' : 'var(--border)';
-    btn.style.color = open ? 'var(--neon2)' : 'var(--muted)';
+    btn.style.borderColor = open ? 'var(--green)' : 'var(--border)';
+    btn.style.color = open ? 'var(--green)' : 'var(--muted)';
+    btn.style.background = open ? 'rgba(0,196,90,.08)' : 'transparent';
   }
-  showToast(open ? 'Applications are now OPEN ✓' : 'Applications closed', 'success');
+  // Keep edit-screen toggle in sync if visible
+  const chk = document.getElementById('toggleApplicationsOpen');
+  if (chk) chk.checked = open;
+}
+
+function toggleApplicationsOpen() {
+  eventData.applications_open = !(eventData.applications_open === true);
+  syncAppsToggleBtn();
+  const open = eventData.applications_open;
+  showToast(open ? 'Applications are now OPEN ✓' : 'Applications closed', open ? 'success' : 'error');
   if (!DEMO && currentEventId && currentSession?.access_token) {
     sbRest(`events?id=eq.${currentEventId}`, {
       method: 'PATCH',
-      body: JSON.stringify({ host_controls: { ...hostControls } })
-    }, currentSession.access_token).catch(() => {});
+      body: JSON.stringify({ config: { ...eventData }, applications_open: open })
+    }, currentSession.access_token)
+    .then(() => loadUserEvents())
+    .catch(() => {});
   }
 }
 
