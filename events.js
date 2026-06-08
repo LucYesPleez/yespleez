@@ -1730,49 +1730,52 @@ async function loadAllApplications() {
         const statusColor = app.status === 'accepted' ? 'var(--neon2)' : app.status === 'declined' ? 'var(--neon)' : 'var(--gold)';
 
         const card = document.createElement('div');
-        card.style.cssText = 'background:var(--card);border:1px solid rgba(0,229,255,.2);border-radius:12px;padding:14px;margin-bottom:10px;';
-        card.innerHTML = `
-          <div style="display:flex;gap:12px;align-items:flex-start;margin-bottom:${app.note ? '10px' : '0'};">
-            ${avatarHtml}
-            <div style="flex:1;min-width:0;">
-              <div style="font-family:'Bebas Neue',sans-serif;font-size:17px;letter-spacing:1px;">${name}</div>
-              ${location ? `<div style="font-size:12px;color:var(--muted);">📍 ${location}</div>` : ''}
-              ${genres ? `<div style="font-size:11px;color:var(--neon2);margin-top:2px;">${genres}</div>` : ''}
-            </div>
-            <span style="font-size:10px;color:${statusColor};font-family:'Bebas Neue',sans-serif;letter-spacing:1px;flex-shrink:0;">${app.status.toUpperCase()}</span>
-          </div>
-          ${app.note ? `<div style="font-size:13px;color:var(--muted);background:var(--card2);border-radius:8px;padding:10px;margin-bottom:10px;line-height:1.6;">"${app.note}"</div>` : ''}
-          <div class="_app-actions" style="display:flex;gap:8px;flex-wrap:wrap;"></div>`;
+        card.style.cssText = 'background:var(--card);border:1px solid rgba(0,229,255,.2);border-radius:12px;padding:14px;margin-bottom:10px;cursor:pointer;';
+        card.onmouseenter = () => { card.style.borderColor = 'rgba(0,229,255,.5)'; };
+        card.onmouseleave = () => { card.style.borderColor = 'rgba(0,229,255,.2)'; };
+        if (profile) card.onclick = (e) => { if (!e.target.closest('button')) openPublicProfile(profile); };
 
-        const actionsEl = card.querySelector('._app-actions');
+        // Top row: avatar + info + play icon + status badge
+        const topRow = document.createElement('div');
+        topRow.style.cssText = 'display:flex;gap:12px;align-items:flex-start;';
+        topRow.innerHTML = `
+          ${avatarHtml}
+          <div style="flex:1;min-width:0;">
+            <div style="font-family:'Bebas Neue',sans-serif;font-size:17px;letter-spacing:1px;">${name}</div>
+            ${location ? `<div style="font-size:12px;color:var(--muted);">📍 ${location}</div>` : ''}
+            ${genres ? `<div style="font-size:11px;color:var(--neon2);margin-top:2px;">${genres}</div>` : ''}
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;">
+            <span style="font-size:10px;color:${statusColor};font-family:'Bebas Neue',sans-serif;letter-spacing:1px;">${app.status.toUpperCase()}</span>
+            ${mixLink ? `<button class="_play-btn" style="background:none;border:1px solid rgba(0,229,255,.3);border-radius:6px;color:var(--neon2);font-size:14px;cursor:pointer;padding:4px 8px;line-height:1;" title="Play mix">▶</button>` : ''}
+          </div>`;
+        card.appendChild(topRow);
 
         if (mixLink) {
-          const playBtn = document.createElement('button');
-          playBtn.style.cssText = 'background:rgba(0,229,255,.1);border:1px solid var(--neon2);border-radius:20px;color:var(--neon2);font-size:12px;padding:6px 14px;cursor:pointer;';
-          playBtn.textContent = '▶ Play Mix';
-          playBtn.onclick = () => openMiniPlayer(name, mixLink, '🎧');
-          actionsEl.appendChild(playBtn);
+          topRow.querySelector('._play-btn').onclick = (e) => { e.stopPropagation(); openMiniPlayer(name, mixLink, '🎧'); };
         }
 
-        if (profile) {
-          const viewBtn = document.createElement('button');
-          viewBtn.style.cssText = 'background:var(--card2);border:1px solid var(--border);border-radius:20px;color:var(--text);font-size:12px;padding:6px 14px;cursor:pointer;';
-          viewBtn.textContent = 'View Profile';
-          viewBtn.onclick = () => openPublicProfile(profile);
-          actionsEl.appendChild(viewBtn);
+        if (app.note) {
+          const noteEl = document.createElement('div');
+          noteEl.style.cssText = 'font-size:13px;color:var(--muted);background:var(--card2);border-radius:8px;padding:10px;margin-top:10px;line-height:1.6;';
+          noteEl.textContent = `"${app.note}"`;
+          card.appendChild(noteEl);
         }
 
         if (app.status === 'pending') {
+          const actRow = document.createElement('div');
+          actRow.style.cssText = 'display:flex;gap:8px;justify-content:flex-end;margin-top:10px;';
           const acceptBtn = document.createElement('button');
-          acceptBtn.style.cssText = 'background:rgba(0,229,255,.15);border:1px solid var(--neon2);border-radius:20px;color:var(--neon2);font-size:12px;padding:6px 14px;cursor:pointer;font-weight:600;';
-          acceptBtn.textContent = '✓ Accept';
-          acceptBtn.onclick = () => updateApplicationStatus(app.id, 'accepted', actionsEl);
+          acceptBtn.style.cssText = 'background:rgba(0,229,255,.15);border:1px solid var(--neon2);border-radius:20px;color:var(--neon2);font-size:12px;padding:6px 16px;cursor:pointer;font-weight:600;font-family:\'Bebas Neue\',sans-serif;letter-spacing:1px;';
+          acceptBtn.textContent = '✓ ACCEPT';
+          acceptBtn.onclick = (e) => { e.stopPropagation(); updateApplicationStatus(app.id, 'accepted', actRow); };
           const declineBtn = document.createElement('button');
-          declineBtn.style.cssText = 'background:rgba(255,45,120,.1);border:1px solid var(--neon);border-radius:20px;color:var(--neon);font-size:12px;padding:6px 14px;cursor:pointer;';
-          declineBtn.textContent = '✕ Decline';
-          declineBtn.onclick = () => updateApplicationStatus(app.id, 'declined', actionsEl);
-          actionsEl.appendChild(acceptBtn);
-          actionsEl.appendChild(declineBtn);
+          declineBtn.style.cssText = 'background:rgba(255,45,120,.1);border:1px solid var(--neon);border-radius:20px;color:var(--neon);font-size:12px;padding:6px 16px;cursor:pointer;font-family:\'Bebas Neue\',sans-serif;letter-spacing:1px;';
+          declineBtn.textContent = '✕ DECLINE';
+          declineBtn.onclick = (e) => { e.stopPropagation(); updateApplicationStatus(app.id, 'declined', actRow); };
+          actRow.appendChild(declineBtn);
+          actRow.appendChild(acceptBtn);
+          card.appendChild(actRow);
         }
 
         section.appendChild(card);
