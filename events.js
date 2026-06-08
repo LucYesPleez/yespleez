@@ -37,6 +37,7 @@ function buildEventCardEl(ev, mode) {
   card.style.overflow = 'hidden';
   card.style.padding = '0';
   card.style.display = 'block';
+  card.style.marginBottom = '12px';
   const cfg = ev.config || {};
   const slotCount = (cfg.days || []).reduce((n, d) => n + d.slots.length, 0);
   const isLive = ev.status === 'live';
