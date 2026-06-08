@@ -817,7 +817,7 @@ function buildSlotInfoHtml(entry, s, isLounge) {
   // Single descriptor: sound bio first, fallback to genre/pills as one line
   const descriptor = entry.sound || entry.cardPills || entry.genre || '';
   const descriptorHtml = descriptor
-    ? `<div style="font-size:12px;color:var(--muted);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${descriptor}</div>`
+    ? `<span style="display:inline-block;margin-top:5px;font-size:10px;font-family:'DM Sans',sans-serif;background:rgba(0,229,255,0.08);border:1px solid rgba(0,229,255,0.25);color:var(--neon2);border-radius:20px;padding:2px 10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;">${descriptor}</span>`
     : '';
   return `
     <div style="min-width:0;width:100%;">
