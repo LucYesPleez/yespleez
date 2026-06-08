@@ -2755,6 +2755,13 @@ body.player-open .screen.active { padding-bottom: 80px; }
 <!-- ══════════ HOST MANAGE SCREEN ══════════ -->
 <div id="manageScreen" class="screen">
   <div style="max-width:720px;margin:0 auto;padding:16px 16px 80px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;">
+      <button class="btn-back" onclick="enterDashboard()" style="padding:16px 0;">← Back</button>
+      <div style="display:flex;gap:8px;">
+        <button id="undoBtn" onclick="undoManage()" title="Undo" style="background:none;border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:5px 12px;font-size:12px;cursor:pointer;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;opacity:.4;" disabled>↩</button>
+        <button id="redoBtn" onclick="redoManage()" title="Redo" style="background:none;border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:5px 12px;font-size:12px;cursor:pointer;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;opacity:.4;" disabled>↪</button>
+      </div>
+    </div>
 
     <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:28px;">
       <div>
@@ -2762,11 +2769,6 @@ body.player-open .screen.active { padding-bottom: 80px; }
         <div class="dash-title" id="manageTitle">EVENT</div>
         <div style="font-size:12px;color:var(--muted);margin-top:2px;" id="manageSubtitle"></div>
         <div style="font-size:12px;color:var(--muted);margin-top:2px;" id="manageSlotCount"></div>
-      </div>
-      <div style="display:flex;gap:8px;align-items:center;margin-top:4px;">
-        <button class="btn-back" onclick="enterDashboard()" style="margin:0;padding:6px 14px;font-size:13px;">← Back</button>
-        <button id="undoBtn" onclick="undoManage()" title="Undo" style="background:none;border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:5px 12px;font-size:12px;cursor:pointer;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;opacity:.4;" disabled>↩</button>
-        <button id="redoBtn" onclick="redoManage()" title="Redo" style="background:none;border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:5px 12px;font-size:12px;cursor:pointer;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;opacity:.4;" disabled>↪</button>
       </div>
       <div style="display:flex;gap:8px;align-items:flex-start;margin-top:8px;width:100%;">
         <button class="btn-ai-generate" onclick="generateLineup()" style="flex:1;">⚡ GENERATE LINEUP</button>
