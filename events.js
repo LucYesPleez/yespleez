@@ -45,19 +45,26 @@ function renderEventList() {
     const poster = cfg.poster || ev.poster || '';
     card.style.padding = '0';
     card.style.display = 'block';
+    const focal = cfg.poster_focal || '50% 50%';
     card.innerHTML = `
-      <div style="display:flex;align-items:stretch;min-height:90px;overflow:hidden;border-radius:inherit;width:100%;">
-        <div class="event-card-info" style="min-width:0;flex:1;padding:14px 12px;display:flex;flex-direction:column;justify-content:center;">
-          <div class="event-card-name">${esc(ev.name || 'Untitled Event')}</div>
-          <div class="event-card-meta">${esc([cfg.date, cfg.venue].filter(Boolean).join(' · '))}${slotCount ? ' · ' + slotCount + ' slots' : ''}</div>
-          ${isLive ? `<div style="margin-top:8px;">
-            <button class="btn-ghost" style="font-size:11px;padding:5px 12px;border-color:var(--gold);color:var(--gold);" id="ac-${ev.id}">ALL CLAIMS</button>
-          </div>` : ''}
-        </div>
-        ${poster ? `<div style="width:120px;flex-shrink:0;background:url(${poster}) center/cover no-repeat;"></div>` : ''}
-        <div style="display:flex;flex-direction:column;align-items:flex-end;justify-content:center;gap:8px;flex-shrink:0;padding:14px 12px;">
-          <span class="event-card-status ${isLive?'live':'draft'}">${isLive?'LIVE':'DRAFT'}</span>
-          <button class="btn-signout" style="font-size:10px;padding:4px 12px;" id="edit-${ev.id}">EDIT →</button>
+      <div style="position:relative;min-height:90px;overflow:hidden;border-radius:inherit;width:100%;">
+        ${poster ? `
+          <div style="position:absolute;inset:0;background:url(${poster}) ${focal}/cover no-repeat;"></div>
+          <div style="position:absolute;inset:0;background:linear-gradient(90deg,rgba(10,10,20,.92) 0%,rgba(10,10,20,.55) 50%,rgba(10,10,20,.80) 100%);"></div>
+        ` : ''}
+        <div style="position:relative;display:flex;align-items:stretch;min-height:90px;">
+          <div class="event-card-info" style="min-width:0;flex:1;padding:14px 12px;display:flex;flex-direction:column;justify-content:center;">
+            <div class="event-card-name">${esc(ev.name || 'Untitled Event')}</div>
+            <div class="event-card-meta">${esc([cfg.date, cfg.venue].filter(Boolean).join(' · '))}${slotCount ? ' · ' + slotCount + ' slots' : ''}</div>
+            ${isLive ? `<div style="margin-top:8px;">
+              <button class="btn-ghost" style="font-size:11px;padding:5px 12px;border-color:var(--gold);color:var(--gold);" id="ac-${ev.id}">ALL CLAIMS</button>
+            </div>` : ''}
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:flex-end;justify-content:center;gap:8px;flex-shrink:0;padding:14px 12px;">
+            <span class="event-card-status ${isLive?'live':'draft'}">${isLive?'LIVE':'DRAFT'}</span>
+            <button class="btn-signout" style="font-size:10px;padding:4px 12px;" id="edit-${ev.id}">EDIT →</button>
+            ${poster ? `<button id="focal-${ev.id}" title="Adjust crop" style="background:rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.2);border-radius:6px;color:rgba(255,255,255,.6);font-size:10px;padding:3px 7px;cursor:pointer;margin-top:2px;">⊕ crop</button>` : ''}
+          </div>
         </div>
       </div>
     `;
@@ -71,8 +78,72 @@ function renderEventList() {
       card.querySelector('#ac-' + ev.id).onclick = (e) => { e.stopPropagation(); openAllClaims(ev); };
     }
     card.querySelector('#edit-' + ev.id).onclick = (e) => { e.stopPropagation(); openEvent(ev); };
+    if (poster) {
+      card.querySelector('#focal-' + ev.id).onclick = (e) => { e.stopPropagation(); openFocalPicker(ev.id, poster, focal); };
+    }
     listEl.appendChild(card);
   });
+}
+
+// ── Poster focal point picker ──────────────────────
+
+function openFocalPicker(eventId, posterUrl, currentFocal) {
+  window._focalEventId = eventId;
+  window._focalPending = currentFocal || '50% 50%';
+  const modal = document.getElementById('focalPickerModal');
+  const img   = document.getElementById('focalPickerImg');
+  img.src = posterUrl;
+  img.onload = () => updateFocalCrosshair(window._focalPending);
+  modal.style.display = 'flex';
+}
+
+function closeFocalPicker() {
+  document.getElementById('focalPickerModal').style.display = 'none';
+}
+
+function updateFocalCrosshair(focal) {
+  const wrap = document.getElementById('focalPickerImgWrap');
+  const dot  = document.getElementById('focalCrosshair');
+  if (!wrap || !dot) return;
+  const parts = (focal || '50% 50%').split(' ');
+  const x = parseFloat(parts[0]) || 50;
+  const y = parseFloat(parts[1]) || 50;
+  dot.style.left = x + '%';
+  dot.style.top  = y + '%';
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const wrap = document.getElementById('focalPickerImgWrap');
+  if (wrap) {
+    wrap.addEventListener('click', (e) => {
+      const rect = wrap.getBoundingClientRect();
+      const x = Math.round((e.clientX - rect.left) / rect.width * 100);
+      const y = Math.round((e.clientY - rect.top)  / rect.height * 100);
+      window._focalPending = `${x}% ${y}%`;
+      updateFocalCrosshair(window._focalPending);
+    });
+  }
+});
+
+async function saveFocalPoint() {
+  const eventId = window._focalEventId;
+  const focal   = window._focalPending || '50% 50%';
+  const ev = allEvents.find(e => e.id === eventId);
+  if (!ev) return;
+  ev.config = ev.config || {};
+  ev.config.poster_focal = focal;
+  try {
+    await sbRest(`events?id=eq.${eventId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ config: ev.config }),
+      prefer: 'return=minimal'
+    }, currentSession.access_token);
+    closeFocalPicker();
+    renderEventList();
+    showToast('Crop saved ✓', 'success');
+  } catch(e) {
+    showToast('Could not save crop: ' + e.message, 'error');
+  }
 }
 
 // ── Event navigation ───────────────────────────────

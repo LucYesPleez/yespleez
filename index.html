@@ -3032,6 +3032,25 @@ body.player-open .screen.active { padding-bottom: 80px; }
 <script src="app.js?v=2"></script>
 
 
+<!-- ══════════ POSTER FOCAL POINT PICKER ══════════ -->
+<div id="focalPickerModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:9100;align-items:center;justify-content:center;padding:20px;">
+  <div style="max-width:560px;width:100%;background:var(--card);border:1px solid var(--border);border-radius:16px;overflow:hidden;">
+    <div style="padding:16px 20px;display:flex;justify-content:space-between;align-items:center;">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:2px;">ADJUST POSTER CROP</div>
+      <button onclick="closeFocalPicker()" style="background:none;border:none;color:var(--muted);font-size:22px;cursor:pointer;">✕</button>
+    </div>
+    <p style="padding:0 20px 12px;font-size:13px;color:var(--muted);margin:0;">Tap anywhere on the poster to set what shows in the dashboard card.</p>
+    <div id="focalPickerImgWrap" style="position:relative;cursor:crosshair;user-select:none;">
+      <img id="focalPickerImg" style="width:100%;display:block;pointer-events:none;">
+      <div id="focalCrosshair" style="position:absolute;width:22px;height:22px;border:2px solid #fff;border-radius:50%;transform:translate(-50%,-50%);pointer-events:none;box-shadow:0 0 0 2px rgba(0,0,0,.5),0 0 12px rgba(0,229,255,.6);"></div>
+    </div>
+    <div style="padding:16px 20px;display:flex;gap:10px;">
+      <button onclick="closeFocalPicker()" style="flex:1;background:none;border:1px solid var(--border);border-radius:10px;color:var(--muted);font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:1px;padding:12px;cursor:pointer;">CANCEL</button>
+      <button onclick="saveFocalPoint()" style="flex:2;background:var(--neon2);border:none;border-radius:10px;color:#0a0a0f;font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:1px;padding:12px;cursor:pointer;font-weight:700;">SAVE CROP</button>
+    </div>
+  </div>
+</div>
+
 <!-- ══════════ CREATE/EDIT UNCLAIMED PROFILE MODAL ══════════ -->
 <div id="createUnclaimedOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9000;overflow-y:auto;padding:20px;">
   <div style="max-width:480px;margin:0 auto;background:var(--card);border:1px solid var(--border);border-radius:16px;padding:24px;">
