@@ -164,10 +164,10 @@ function openApplyModalForEvent(eventId, eventName) {
       ${avatarHtml}
       <div style="flex:1;min-width:0;">
         <div style="font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:1px;">${name}</div>
-        ${p.location ? `<div style="font-size:11px;color:var(--muted);margin-bottom:4px;">📍 ${p.location}</div>` : ''}
+        ${p.location ? `<div style="font-size:11px;color:var(--muted);margin-bottom:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:2px;"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg>${p.location}</div>` : ''}
         ${pillsHtml ? `<div class="dj-pills" style="margin-top:4px;">${pillsHtml}</div>` : ''}
         ${p.sound ? `<div style="font-size:12px;color:var(--neon2);font-style:italic;margin-top:6px;">${p.sound}</div>` : ''}
-        ${p.mixLink ? `<div style="font-size:11px;color:var(--muted);margin-top:4px;">▶ Mix link included</div>` : ''}
+        ${p.mixLink ? `<div style="font-size:11px;color:var(--neon2);margin-top:4px;display:flex;align-items:center;gap:4px;"><svg viewBox="0 0 24 24" width="11" height="11" fill="var(--neon2)"><polygon points="6,3 20,12 6,21"/></svg>Mix link included</div>` : ''}
       </div>
     </div>`;
 

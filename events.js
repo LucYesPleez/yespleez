@@ -205,7 +205,7 @@ function openAllClaims(ev) {
     show('manageScreen');
     renderManage();
     const btn = document.getElementById('lockTimesBtn');
-    if (btn) { btn.textContent = setTimesLocked ? '🔒 SET TIMES LOCKED' : '🔒 LOCK SET TIMES'; btn.classList.toggle('locked', setTimesLocked); }
+    if (btn) { btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:5px;"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>' + (setTimesLocked ? 'SET TIMES LOCKED' : 'LOCK SET TIMES'); btn.classList.toggle('locked', setTimesLocked); }
   });
 }
 
@@ -393,7 +393,7 @@ function parseDateToInput(dateStr) {
 }
 
 function generateLineup() {
-  showToast('⚡ AI Lineup Generator — coming soon!', 'success');
+  showToast('AI Lineup Generator — coming soon!', 'success');
 }
 
 function generateSlots() {
@@ -828,7 +828,7 @@ function renderHostSummary() {
           <div><div class="hs-time">${s.time} ${s.ampm}</div><div style="font-size:10px;color:var(--muted);">${dayName||''}</div></div>
           <div><div class="hs-artist"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:4px;"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3z"/><path d="M3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg>${claim.name}</div><div class="hs-genre">${claim.genre||''}</div></div>
           <div class="hs-backups">${(claim.backups||[]).length ? (claim.backups||[]).length + ' backup' + ((claim.backups||[]).length>1?'s':'') : ' '}</div>
-          <button class="btn-lock ${locked?'locked':''}" onclick="toggleLock('${s.id}')">${locked ? '📌 ARTIST PINNED' : 'PIN ARTIST'}</button>
+          <button class="btn-lock ${locked?'locked':''}" onclick="toggleLock('${s.id}')">${locked ? '<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:4px;"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v3.76z"/></svg>ARTIST PINNED' : 'PIN ARTIST'}</button>
         </div>`;
     });
   }
@@ -843,7 +843,7 @@ function toggleLock(slotId) {
   const filledSlots = allSlots.filter(s => claims[s.id]);
   setTimesLocked = filledSlots.length > 0 && filledSlots.every(s => lockedSlots[s.id]);
   const btn = document.getElementById('lockTimesBtn');
-  if (btn) { btn.textContent = setTimesLocked ? '🔒 SET TIMES LOCKED' : '🔒 LOCK SET TIMES'; btn.classList.toggle('locked', setTimesLocked); }
+  if (btn) { btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:5px;"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>' + (setTimesLocked ? 'SET TIMES LOCKED' : 'LOCK SET TIMES'); btn.classList.toggle('locked', setTimesLocked); }
   renderHostSummary();
   // Persist
   if (!DEMO && currentEventId && currentSession?.access_token) {
@@ -1598,7 +1598,7 @@ function renderManage() {
         detail.appendChild(bkWrap);
       }
       const detAct = document.createElement('div'); detAct.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;padding-top:4px;border-top:1px solid var(--border);margin-top:4px;';
-      const lockBtn = document.createElement('button'); lockBtn.className = 'btn-lock'+(locked?' locked':''); lockBtn.style.cssText = 'font-size:11px;flex:1;'; lockBtn.textContent = locked ? '📌 PINNED' : '📌 PIN ARTIST';
+      const lockBtn = document.createElement('button'); lockBtn.className = 'btn-lock'+(locked?' locked':''); lockBtn.style.cssText = 'font-size:11px;flex:1;'; lockBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:4px;"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v3.76z"/></svg>' + (locked ? 'PINNED' : 'PIN ARTIST');
       lockBtn.onclick = e=>{e.stopPropagation();toggleLock(s.id);renderManage();};
       const removeBtn = document.createElement('button');
       removeBtn.style.cssText = 'font-size:11px;flex:1;padding:8px;border-radius:8px;font-family:\'Bebas Neue\',sans-serif;letter-spacing:1px;cursor:pointer;background:rgba(255,45,120,.08);border:1px solid rgba(255,45,120,.35);color:var(--neon);';
@@ -1606,7 +1606,7 @@ function renderManage() {
       removeBtn.onclick = e=>{e.stopPropagation(); if(setTimesLocked){showLockedPopup();return;} confirmAction('Remove this artist from the slot?', () => { clearSlot(s.id); renderManage(); });};
       detAct.appendChild(lockBtn); detAct.appendChild(removeBtn);
       const notesWrap = document.createElement('div'); notesWrap.style.cssText = 'margin-top:12px;padding-top:10px;border-top:1px solid var(--border);';
-      notesWrap.innerHTML = '<div class="host-notes-label">🔒 HOST NOTES (private)</div>';
+      notesWrap.innerHTML = '<div class="host-notes-label"><svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:4px;"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>HOST NOTES (private)</div>';
       const notesTA = document.createElement('textarea'); notesTA.className = 'host-notes-input'; notesTA.rows = 2;
       notesTA.placeholder = 'Private notes — only you can see this...'; notesTA.value = hostNotes[s.id] || '';
       notesTA.oninput = () => { hostNotes[s.id] = notesTA.value; };
@@ -1793,7 +1793,7 @@ async function loadAllApplications(forceRefresh = false) {
           ${avatarHtml}
           <div style="flex:1;min-width:0;">
             <div style="font-family:'Bebas Neue',sans-serif;font-size:17px;letter-spacing:1px;">${name}</div>
-            ${location ? `<div style="font-size:12px;color:var(--muted);">📍 ${location}</div>` : ''}
+            ${location ? `<div style="font-size:12px;color:var(--muted);"><svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:2px;"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg>${location}</div>` : ''}
             ${genres ? `<div style="font-size:11px;color:var(--neon2);margin-top:2px;">${genres}</div>` : ''}
           </div>
           <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;">
@@ -1872,11 +1872,11 @@ async function loadMyApplications() {
       const date = ev?.config?.date || '';
       const isInvited = app.status === 'invited';
       const statusColor = app.status === 'accepted' ? 'var(--neon2)' : app.status === 'declined' ? 'var(--neon)' : isInvited ? 'var(--gold)' : 'var(--gold)';
-      const statusLabel = app.status === 'accepted' ? '✓ ACCEPTED' : app.status === 'declined' ? '✕ DECLINED' : isInvited ? '📩 INVITED' : '⏳ PENDING';
+      const statusLabel = app.status === 'accepted' ? '✓ ACCEPTED' : app.status === 'declined' ? '✕ DECLINED' : isInvited ? '<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:3px;"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>INVITED' : 'PENDING';
       const borderCol = app.status === 'accepted' ? 'rgba(0,229,255,.3)' : app.status === 'declined' ? 'rgba(255,45,120,.3)' : 'rgba(255,184,48,.3)';
       const card = document.createElement('div');
       card.style.cssText = `background:var(--card);border:1px solid ${borderCol};border-radius:12px;padding:14px;margin-bottom:10px;`;
-      card.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:${isInvited ? '10px' : '0'};"><div style="flex:1;min-width:0;"><div style="font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:1px;">${evName}</div>${venue?`<div style="font-size:12px;color:var(--muted);">📍 ${venue}</div>`:''} ${date?`<div style="font-size:12px;color:var(--muted);">📅 ${date}</div>`:''}${isInvited?`<div style="font-size:12px;color:var(--gold);margin-top:4px;">You've been invited to perform — confirm your spot below.</div>`:app.note?`<div style="font-size:12px;color:var(--muted);margin-top:6px;font-style:italic;">"${app.note}"</div>`:''}</div><span style="font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:1px;color:${statusColor};flex-shrink:0;padding-top:2px;">${statusLabel}</span></div>${isInvited?`<div style="display:flex;gap:8px;"><button onclick="respondToInvite('${app.id}','accepted',this.parentElement)" style="flex:1;background:rgba(0,229,255,.15);border:1px solid var(--neon2);border-radius:20px;color:var(--neon2);font-size:13px;padding:8px;cursor:pointer;font-weight:600;">✓ Accept</button><button onclick="respondToInvite('${app.id}','declined',this.parentElement)" style="flex:1;background:rgba(255,45,120,.1);border:1px solid var(--neon);border-radius:20px;color:var(--neon);font-size:13px;padding:8px;cursor:pointer;">✕ Decline</button></div>`:''}`;
+      card.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:${isInvited ? '10px' : '0'};"><div style="flex:1;min-width:0;"><div style="font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:1px;">${evName}</div>${venue?`<div style="font-size:12px;color:var(--muted);"><svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:2px;"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg>${venue}</div>`:''} ${date?`<div style="font-size:12px;color:var(--muted);"><svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:2px;"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg>${date}</div>`:''}${isInvited?`<div style="font-size:12px;color:var(--gold);margin-top:4px;">You've been invited to perform — confirm your spot below.</div>`:app.note?`<div style="font-size:12px;color:var(--muted);margin-top:6px;font-style:italic;">"${app.note}"</div>`:''}</div><span style="font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:1px;color:${statusColor};flex-shrink:0;padding-top:2px;">${statusLabel}</span></div>${isInvited?`<div style="display:flex;gap:8px;"><button onclick="respondToInvite('${app.id}','accepted',this.parentElement)" style="flex:1;background:rgba(0,229,255,.15);border:1px solid var(--neon2);border-radius:20px;color:var(--neon2);font-size:13px;padding:8px;cursor:pointer;font-weight:600;">✓ Accept</button><button onclick="respondToInvite('${app.id}','declined',this.parentElement)" style="flex:1;background:rgba(255,45,120,.1);border:1px solid var(--neon);border-radius:20px;color:var(--neon);font-size:13px;padding:8px;cursor:pointer;">✕ Decline</button></div>`:''}`;
       listEl.appendChild(card);
     });
   } catch(e) { console.warn('loadMyApplications error:', e); }
@@ -2331,7 +2331,7 @@ function toggleLockSetTimes() {
     }
   });
   const btn = document.getElementById('lockTimesBtn');
-  if (btn) { btn.textContent = setTimesLocked ? '🔒 SET TIMES LOCKED' : '🔒 LOCK SET TIMES'; btn.classList.toggle('locked', setTimesLocked); }
+  if (btn) { btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:5px;"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>' + (setTimesLocked ? 'SET TIMES LOCKED' : 'LOCK SET TIMES'); btn.classList.toggle('locked', setTimesLocked); }
   renderManage();
   renderHostSummary();
   // Persist to Supabase
@@ -2827,7 +2827,7 @@ function updateArtistDashCard() {
     } else if (playEl) { playEl.remove(); }
   } else {
     nameEl.textContent = 'Set up your artist profile'; taglineEl.textContent = 'Promoters will see this — takes 2 mins';
-    genresEl.textContent = ''; avatarEl.textContent = '👤'; ctaEl.textContent = 'SET UP →'; card.classList.remove('complete');
+    genresEl.textContent = ''; avatarEl.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 1 0-16 0"/></svg>'; ctaEl.textContent = 'SET UP →'; card.classList.remove('complete');
   }
 }
 
@@ -2847,11 +2847,12 @@ function updateDashProfileCard() {
     nameEl.textContent = hostProfile.name; taglineEl.textContent = hostProfile.location || '';
     genresEl.textContent = hostProfile.genreString ? hostProfile.genreString.split(' · ').slice(0,4).join(' · ') : (hostProfile.bio ? hostProfile.bio.substring(0,60) + (hostProfile.bio.length > 60 ? '…' : '') : '');
     ctaEl.textContent = 'EDIT →'; card.classList.add('complete');
-    if (hostProfile.avatar) { avatarEl.innerHTML = `<img src="${hostProfile.avatar}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:9px;" onerror="this.parentElement.textContent='🎛️'">`; }
-    else { avatarEl.textContent = '🎛️'; }
+    const _msSvg = '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 20H8"/><path d="M17 9h.01"/><rect width="10" height="16" x="12" y="4" rx="2"/><path d="M8 6H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h4"/><circle cx="17" cy="15" r="1"/></svg>';
+    if (hostProfile.avatar) { avatarEl.innerHTML = `<img src="${hostProfile.avatar}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:9px;" onerror="this.style.display='none'">`; }
+    else { avatarEl.innerHTML = _msSvg; }
   } else {
     nameEl.textContent = 'Set up your host profile'; taglineEl.textContent = 'Your location & genres go here';
-    genresEl.textContent = ''; avatarEl.textContent = '🎛️'; ctaEl.textContent = 'EDIT →'; card.classList.remove('complete');
+    genresEl.textContent = ''; avatarEl.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 20H8"/><path d="M17 9h.01"/><rect width="10" height="16" x="12" y="4" rx="2"/><path d="M8 6H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h4"/><circle cx="17" cy="15" r="1"/></svg>'; ctaEl.textContent = 'EDIT →'; card.classList.remove('complete');
   }
 }
 
@@ -3010,7 +3011,7 @@ function renderUpcomingGigs() {
     gigs.push({ eventName: 'Subsonic Winter 2025', venue: 'Location TBA', date: 'July 19', slotTime: null, slotDur: null, private: true });
   }
   if (!gigs.length) { list.innerHTML = '<div style="font-size:13px;color:var(--muted);padding:12px 0;">No upcoming bookings yet.</div>'; return; }
-  list.innerHTML = gigs.map(g => `<div class="gig-card"><div class="gig-event-name">${g.eventName}</div><div class="gig-meta">${g.venue} · ${g.date}</div>${g.private ? '<span class="gig-slot private">🔒 Set time private — host will confirm closer to the event</span>' : `<span class="gig-slot visible">${g.slotTime} · ${g.slotDur}</span>`}</div>`).join('');
+  list.innerHTML = gigs.map(g => `<div class="gig-card"><div class="gig-event-name">${g.eventName}</div><div class="gig-meta">${g.venue} · ${g.date}</div>${g.private ? '<span class="gig-slot private"><svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:4px;"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Set time private — host will confirm closer to the event</span>' : `<span class="gig-slot visible">${g.slotTime} · ${g.slotDur}</span>`}</div>`).join('');
 }
 
 document.addEventListener('DOMContentLoaded', () => {
