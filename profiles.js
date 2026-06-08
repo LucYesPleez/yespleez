@@ -355,7 +355,8 @@ async function submitCreateUnclaimedProfile() {
 }
 
 function showUnclaimedInviteStep(name) {
-  const msg = `Hey ${name}! I've set up your artist profile on YesPleez and added you to the lineup 🎧\n\nSign up at yespleez.pages.dev — once you're in, you'll see a prompt to claim your profile. It'll be pre-filled with your details ready to go.\n\nSee you on the lineup! 🎶`;
+  const email = document.getElementById('ucpEmail')?.value.trim() || '';
+  const msg = buildInviteMsg(name, email);
   const overlay = document.getElementById('createUnclaimedOverlay');
   overlay.querySelector('div').innerHTML = `
     <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:2px;color:var(--neon2);margin-bottom:8px;">PROFILE CREATED ✓</div>
@@ -368,19 +369,40 @@ function showUnclaimedInviteStep(name) {
   `;
 }
 
+function buildInviteMsg(name, email) {
+  const emailLine = email ? `\n\nUse this email when you get there: ${email}` : '';
+  return `Hey ${name}! I've built your artist profile on YesPleez and put you on the lineup 🎧\n\nGo to yespleez.pages.dev — you'll see a prompt to claim your profile. It'll be pre-filled with your details ready to go.${emailLine}\n\nSee you on the lineup! 🎶`;
+}
+
 function copyInviteMessage() {
   const text = document.getElementById('ucpInviteText')?.textContent || '';
   navigator.clipboard.writeText(text).then(() => {
     const btn = document.getElementById('ucpCopyBtn');
     if (btn) { btn.textContent = 'COPIED ✓'; btn.style.background = 'var(--gold)'; }
   }).catch(() => {
-    // Fallback for older browsers
     const ta = document.createElement('textarea');
     ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
     document.body.appendChild(ta); ta.select(); document.execCommand('copy');
     document.body.removeChild(ta);
     const btn = document.getElementById('ucpCopyBtn');
     if (btn) { btn.textContent = 'COPIED ✓'; btn.style.background = 'var(--gold)'; }
+  });
+}
+
+function copyUnclaimedInvite(id, btn) {
+  const data = window._ucpInviteData?.[id];
+  if (!data) return;
+  const text = buildInviteMsg(data.name, data.email);
+  navigator.clipboard.writeText(text).then(() => {
+    btn.textContent = 'COPIED ✓'; btn.style.background = 'var(--gold)'; btn.style.color = '#0a0a0f';
+    setTimeout(() => { btn.textContent = 'COPY INVITE'; btn.style.background = ''; btn.style.color = ''; }, 2500);
+  }).catch(() => {
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select(); document.execCommand('copy');
+    document.body.removeChild(ta);
+    btn.textContent = 'COPIED ✓';
+    setTimeout(() => { btn.textContent = 'COPY INVITE'; }, 2500);
   });
 }
 
@@ -398,22 +420,22 @@ async function loadUnclaimedProfiles() {
       list.innerHTML = '<div style="font-size:13px;color:var(--muted);padding:12px 0;">No profiles created yet.</div>';
       return;
     }
-    list.innerHTML = rows.map(r => {
-      const msg = `Hey ${r.name}! I've set up your artist profile on YesPleez and added you to the lineup 🎧\n\nSign up at yespleez.pages.dev — once you're in, you'll see a prompt to claim your profile. It'll be pre-filled with your details ready to go.\n\nSee you on the lineup! 🎶`;
-      const msgEsc = msg.replace(/`/g,'\\`').replace(/\$/g,'\\$');
-      return `
+    // Store invite data for copy buttons to access
+    window._ucpInviteData = {};
+    rows.forEach(r => { window._ucpInviteData[r.id] = { name: r.name, email: r.claim_email || '' }; });
+    list.innerHTML = rows.map(r => `
       <div style="background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:10px;">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:10px;">
           <div style="min-width:0;">
             <div style="font-family:'Bebas Neue',sans-serif;font-size:17px;letter-spacing:1px;">${r.name}</div>
             ${r.sound ? `<div style="font-size:12px;color:var(--neon2);margin-top:2px;">${r.sound}</div>` : ''}
-            ${r.claim_email ? `<div style="font-size:11px;color:var(--muted);margin-top:4px;">✉ ${r.claim_email}</div>` : '<div style="font-size:11px;color:var(--muted);margin-top:4px;color:var(--muted);">No email set</div>'}
+            ${r.claim_email ? `<div style="font-size:11px;color:var(--muted);margin-top:4px;">✉ ${r.claim_email}</div>` : '<div style="font-size:11px;color:var(--muted);margin-top:4px;">No email set</div>'}
           </div>
           <button onclick="deleteUnclaimedProfile('${r.id}')" style="background:none;border:1px solid rgba(255,45,120,.3);border-radius:8px;color:var(--neon);font-size:11px;padding:4px 10px;cursor:pointer;white-space:nowrap;flex-shrink:0;">Remove</button>
         </div>
-        <button onclick="(function(btn){navigator.clipboard.writeText(\`${msgEsc}\`).then(()=>{btn.textContent='COPIED ✓';btn.style.background='var(--gold)';setTimeout(()=>{btn.textContent='COPY INVITE';btn.style.background='';},2500)}).catch(()=>{})})(this)" style="width:100%;background:rgba(0,229,255,.08);border:1px solid rgba(0,229,255,.25);border-radius:8px;color:var(--neon2);font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:1px;padding:8px;cursor:pointer;">COPY INVITE</button>
-      </div>`;
-    }).join('');
+        <button onclick="copyUnclaimedInvite('${r.id}', this)" style="width:100%;background:rgba(0,229,255,.08);border:1px solid rgba(0,229,255,.25);border-radius:8px;color:var(--neon2);font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:1px;padding:8px;cursor:pointer;">COPY INVITE</button>
+      </div>
+    `).join('');
   } catch(e) {
     list.innerHTML = '<div style="font-size:13px;color:var(--muted);padding:12px 0;">Could not load profiles.</div>';
   }
