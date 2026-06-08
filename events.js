@@ -369,6 +369,18 @@ function updateDateField() {
   } else {
     hidden.value = '';
   }
+  _triggerClashCheck();
+}
+
+function _triggerClashCheck() {
+  if (typeof checkEventClashes !== 'function') return;
+  const lat  = parseFloat(document.getElementById('inLat')?.value);
+  const lng  = parseFloat(document.getElementById('inLng')?.value);
+  const date = document.getElementById('inDateStart')?.value; // 'YYYY-MM-DD'
+  const warn = document.getElementById('calClashWarning');
+  if (warn) warn.style.display = 'none';
+  if (!lat || !lng || !date) return;
+  checkEventClashes(lat, lng, date, currentEventId || null);
 }
 
 function parseDateToInput(dateStr) {
@@ -2018,6 +2030,7 @@ function nominatimVenueSearch(inputEl) {
           document.getElementById('inLat').value = r.lat || '';
           document.getElementById('inLng').value = r.lon || '';
           dropdown.style.display = 'none';
+          _triggerClashCheck();
         };
         dropdown.appendChild(item);
       });

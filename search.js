@@ -90,10 +90,30 @@ async function openPublicEvent(ev) {
 
 // ── Full unified search (events + profiles) ────────
 
+// ── Availability date filter toggle ───────────────
+function toggleAvailFilter() {
+  const dateEl   = document.getElementById('searchAvailDate');
+  const toggleEl = document.getElementById('searchAvailToggle');
+  const isOpen   = dateEl.style.display !== 'none';
+  if (isOpen) {
+    dateEl.style.display = 'none';
+    dateEl.value = '';
+    toggleEl.style.color = 'var(--muted)';
+    toggleEl.style.borderColor = 'var(--border)';
+    runSearch();
+  } else {
+    dateEl.style.display = '';
+    toggleEl.style.color = 'var(--neon2)';
+    toggleEl.style.borderColor = 'var(--neon2)';
+    dateEl.focus();
+  }
+}
+
 async function runSearch() {
   const query       = document.getElementById('searchInput').value.trim();
   const typeFilter  = document.getElementById('searchTypeFilter').value;
   const stateFilter = document.getElementById('searchStateFilter').value;
+  const availDate   = document.getElementById('searchAvailDate')?.value || ''; // 'YYYY-MM-DD' or ''
   const resultsEl   = document.getElementById('searchResults');
   const placeholder = document.getElementById('searchPlaceholder');
 
@@ -107,17 +127,35 @@ async function runSearch() {
 
   const searchingProfiles = normType !== 'event';
   const searchingEvents   = normType === 'all' || normType === 'event';
-  const profileType       = (normType && normType !== 'all' && normType !== 'event') ? normType : '';
+  // If filtering by availability, only show artists
+  const effectiveProfileType = availDate
+    ? 'artist'
+    : ((normType && normType !== 'all' && normType !== 'event') ? normType : '');
 
-  const [profileRows, eventRows] = await Promise.all([
-    searchingProfiles ? searchProfiles(query, profileType, stateFilter === 'all' ? '' : stateFilter) : [],
-    searchingEvents   ? searchEvents(query) : []
+  let [profileRows, eventRows] = await Promise.all([
+    searchingProfiles ? searchProfiles(query, effectiveProfileType, stateFilter === 'all' ? '' : stateFilter) : [],
+    (searchingEvents && !availDate) ? searchEvents(query) : []
   ]);
+
+  // Filter profiles by availability date
+  if (availDate && profileRows.length) {
+    try {
+      const { data } = await supabase
+        .from('artist_availability')
+        .select('user_id')
+        .eq('available_date', availDate);
+      const availableIds = new Set((data || []).map(r => r.user_id));
+      profileRows = profileRows.filter(p => availableIds.has(p.user_id));
+    } catch(e) { console.warn('avail filter:', e); }
+  }
 
   document.getElementById('searchLoading')?.remove();
 
   if (!profileRows.length && !eventRows.length) {
-    resultsEl.insertAdjacentHTML('beforeend', '<div class="search-card" style="text-align:center;padding:40px;color:var(--muted);font-size:13px;">No results found.<br><span style="font-size:11px;">Try a different search or filter.</span></div>');
+    const msg = availDate
+      ? `No artists marked available on ${new Date(availDate + 'T12:00:00').toLocaleDateString('en-AU',{weekday:'long',day:'numeric',month:'long'})}.<br><span style="font-size:11px;">Try a different date or remove the availability filter.</span>`
+      : 'No results found.<br><span style="font-size:11px;">Try a different search or filter.</span>';
+    resultsEl.insertAdjacentHTML('beforeend', `<div class="search-card" style="text-align:center;padding:40px;color:var(--muted);font-size:13px;">${msg}</div>`);
     return;
   }
 
@@ -126,7 +164,10 @@ async function runSearch() {
     ...profileRows.map(row => ({ _type: 'profile', _ts: row.updated_at || row.created_at || '', ...row }))
   ].sort((a, b) => (b._ts > a._ts ? 1 : -1));
 
-  if (!query && normType === 'all' && stateFilter === 'all') {
+  if (availDate) {
+    const dateLabel = new Date(availDate + 'T12:00:00').toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long' });
+    resultsEl.insertAdjacentHTML('afterbegin', `<div style="font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:2px;color:var(--neon2);padding:0 0 12px;">AVAILABLE ON ${dateLabel.toUpperCase()} · ${profileRows.length} ARTIST${profileRows.length!==1?'S':''}</div>`);
+  } else if (!query && normType === 'all' && stateFilter === 'all') {
     resultsEl.insertAdjacentHTML('afterbegin', '<div style="font-family:\'Bebas Neue\',sans-serif;font-size:11px;letter-spacing:2px;color:var(--muted);padding:0 0 12px;">RECENTLY ADDED</div>');
   }
 
