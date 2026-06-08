@@ -43,17 +43,18 @@ function renderEventList() {
     const slotCount = (cfg.days||[]).reduce((n,d)=>n+d.slots.length,0);
     const isLive = ev.status === 'live';
     const poster = cfg.poster || ev.poster || '';
+    card.style.padding = '0';
     card.innerHTML = `
-      <div style="display:flex;align-items:center;gap:10px;">
-        <div class="event-card-info" style="min-width:0;flex:1;">
+      <div style="display:flex;align-items:stretch;min-height:90px;overflow:hidden;border-radius:inherit;">
+        <div class="event-card-info" style="min-width:0;flex:1;padding:14px 12px;display:flex;flex-direction:column;justify-content:center;">
           <div class="event-card-name">${esc(ev.name || 'Untitled Event')}</div>
           <div class="event-card-meta">${esc([cfg.date, cfg.venue].filter(Boolean).join(' · '))}${slotCount ? ' · ' + slotCount + ' slots' : ''}</div>
           ${isLive ? `<div style="margin-top:8px;">
             <button class="btn-ghost" style="font-size:11px;padding:5px 12px;border-color:var(--gold);color:var(--gold);" id="ac-${ev.id}">ALL CLAIMS</button>
           </div>` : ''}
         </div>
-        ${poster ? `<div style="width:72px;height:72px;flex-shrink:0;border-radius:8px;background:url(${poster}) center/cover no-repeat;border:1px solid var(--border);"></div>` : ''}
-        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;">
+        ${poster ? `<div style="width:90px;flex-shrink:0;background:url(${poster}) center/cover no-repeat;"></div>` : ''}
+        <div style="display:flex;flex-direction:column;align-items:flex-end;justify-content:center;gap:8px;flex-shrink:0;padding:14px 12px;">
           <span class="event-card-status ${isLive?'live':'draft'}">${isLive?'LIVE':'DRAFT'}</span>
           <button class="btn-signout" style="font-size:10px;padding:4px 12px;" id="edit-${ev.id}">EDIT →</button>
         </div>
