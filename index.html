@@ -1824,7 +1824,26 @@ body.player-open .screen.active { padding-bottom: 80px; }
     </div>
 
     <!-- Date strip -->
-    <div id="calDateStrip" style="display:flex;gap:6px;overflow-x:auto;padding:0 16px 12px;scrollbar-width:none;-webkit-overflow-scrolling:touch;max-width:680px;margin:0 auto;box-sizing:border-box;"></div>
+    <div id="calDateStrip" style="display:flex;gap:6px;overflow-x:auto;padding:0 16px 10px;scrollbar-width:none;-webkit-overflow-scrolling:touch;max-width:680px;margin:0 auto;box-sizing:border-box;"></div>
+
+    <!-- Filters -->
+    <div style="display:flex;gap:8px;overflow-x:auto;padding:0 16px 12px;scrollbar-width:none;-webkit-overflow-scrolling:touch;max-width:680px;margin:0 auto;box-sizing:border-box;align-items:center;">
+      <select id="calGenreFilter" onchange="calApplyFilters()" style="background:var(--card);border:1px solid var(--border);border-radius:20px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:12px;padding:6px 12px;outline:none;appearance:none;-webkit-appearance:none;cursor:pointer;flex-shrink:0;">
+        <option value="">All Genres</option>
+        <option>Drum & Bass</option><option>Techno</option><option>House</option>
+        <option>Jungle</option><option>Dubstep</option><option>Garage</option>
+        <option>Hip Hop</option><option>Afro</option><option>Psytrance</option>
+        <option>Breaks</option><option>Electronic</option>
+      </select>
+      <select id="calStateFilter" onchange="calApplyFilters()" style="background:var(--card);border:1px solid var(--border);border-radius:20px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:12px;padding:6px 12px;outline:none;appearance:none;-webkit-appearance:none;cursor:pointer;flex-shrink:0;">
+        <option value="">All States</option>
+        <option>NSW</option><option>VIC</option><option>QLD</option>
+        <option>WA</option><option>SA</option><option>TAS</option>
+        <option>ACT</option><option>NT</option>
+      </select>
+      <button id="calFilterClear" onclick="calClearFilters()" style="display:none;background:none;border:1px solid rgba(255,45,120,.4);color:var(--neon);border-radius:20px;font-family:'DM Sans',sans-serif;font-size:12px;padding:6px 12px;cursor:pointer;flex-shrink:0;white-space:nowrap;">✕ Clear</button>
+      <div id="calFilterCount" style="display:none;font-size:11px;color:var(--muted);white-space:nowrap;flex-shrink:0;"></div>
+    </div>
   </div>
 
   <!-- CALENDAR title + subtitle -->

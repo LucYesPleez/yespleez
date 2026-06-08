@@ -3388,7 +3388,7 @@ function buildGigCard(data, type, onDelete) {
   const badgeColor  = isConfirmed ? 'var(--neon2)'        : 'rgba(176,96,255,.9)';
   const badgeBg     = isConfirmed ? 'rgba(0,229,255,.12)' : 'rgba(176,96,255,.12)';
   const badgeBorder = isConfirmed ? 'rgba(0,229,255,.3)'  : 'rgba(176,96,255,.3)';
-  const badgeText   = isConfirmed ? 'CONFIRMED ✓'         : 'SELF-LISTED';
+  const badgeText   = isConfirmed ? (data.viaInvite ? 'INVITED ✓' : 'CONFIRMED ✓') : 'SELF-LISTED';
 
   const name     = esc(data.event_name || data.eventName || '');
   const venue    = esc(data.venue || '');
@@ -3501,14 +3501,19 @@ async function confirmRemoveGig() {
 async function loadConfirmedYPGigs() {
   if (DEMO || !currentUser?.id || currentUser.id === 'guest') return [];
   try {
-    // Get all claims by this user, with event data
-    const claims = await sbRest(
-      `claims?user_id=eq.${currentUser.id}&select=slot_id,event_id`,
-      { method: 'GET' }, currentSession.access_token
-    );
-    if (!claims?.length) return [];
+    // Fetch slot claims AND accepted invite applications in parallel
+    const [claimsRes, appsRes] = await Promise.all([
+      sbRest(`claims?user_id=eq.${currentUser.id}&select=slot_id,event_id`, { method: 'GET' }, currentSession.access_token),
+      sbRest(`applications?user_id=eq.${currentUser.id}&status=eq.accepted&select=event_id,slot_id`, { method: 'GET' }, currentSession.access_token)
+    ]);
 
-    const eventIds = [...new Set(claims.map(c => c.event_id).filter(Boolean))];
+    const claimRows = claimsRes || [];
+    const appRows   = appsRes   || [];
+
+    // Merge event IDs from both sources, deduplicated
+    const claimEventIds = claimRows.map(c => c.event_id).filter(Boolean);
+    const appEventIds   = appRows.map(a => a.event_id).filter(Boolean);
+    const eventIds      = [...new Set([...claimEventIds, ...appEventIds])];
     if (!eventIds.length) return [];
 
     const events = await sbRest(
@@ -3517,22 +3522,38 @@ async function loadConfirmedYPGigs() {
     );
     if (!events?.length) return [];
 
-    return events.map(ev => {
+    // Deduplicate by event id (claims take priority for slot info)
+    const seen = new Set();
+    const gigs = [];
+    events.forEach(ev => {
+      if (seen.has(ev.id)) return;
+      seen.add(ev.id);
       const cfg = ev.config || {};
-      const myClaimSlotId = claims.find(c => c.event_id === ev.id)?.slot_id;
+
+      // Prefer claim slot_id, fall back to app slot_id
+      const myClaimSlotId = claimRows.find(c => c.event_id === ev.id)?.slot_id
+                         || appRows.find(a => a.event_id === ev.id)?.slot_id;
       let slotTime = null, slotDur = null;
       (cfg.days || []).forEach(d => d.slots?.forEach(s => {
-        if (s.id === myClaimSlotId) { slotTime = s.time + ' ' + s.ampm; slotDur = s.dur; }
+        if (s.id === myClaimSlotId) { slotTime = (s.time||'') + ' ' + (s.ampm||''); slotDur = s.dur; }
       }));
-      return {
+
+      // Skip past events (more than 1 day ago)
+      const evDate = new Date((cfg.date || '') + ' ' + new Date().getFullYear());
+      // Use a loose check — show if no date or date >= yesterday
+      gigs.push({
         eventId:   ev.id,
         eventName: ev.name || cfg.name || 'Untitled Event',
         venue:     cfg.venue || '',
         date:      cfg.date  || '',
         days:      cfg.days  || [],
-        slotTime, slotDur
-      };
+        slotTime:  slotTime?.trim() || null,
+        slotDur:   slotDur  || null,
+        viaInvite: !claimEventIds.includes(ev.id) // flag for badge
+      });
     });
+
+    return gigs;
   } catch(e) { console.warn('loadConfirmedYPGigs:', e.message); return []; }
 }
 

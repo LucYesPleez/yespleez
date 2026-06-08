@@ -11,6 +11,55 @@ let _calLoaded    = false;
 
 // Entry is in navigation.js showCalendar()
 
+// ── Filter state ───────────────────────────────────
+let _calGenreFilter = '';
+let _calStateFilter = '';
+
+function _calFilterEvent(ev) {
+  if (!_calGenreFilter && !_calStateFilter) return true;
+  const cfg = ev.config || {};
+  if (_calGenreFilter) {
+    const genres = (cfg.genres || ev.genres || '').toLowerCase();
+    if (!genres.includes(_calGenreFilter.toLowerCase())) return false;
+  }
+  if (_calStateFilter) {
+    const venue = (cfg.venue || cfg.state || ev.name || '').toLowerCase();
+    const state = _calStateFilter.toLowerCase();
+    if (!venue.includes(state)) return false;
+  }
+  return true;
+}
+
+function calApplyFilters() {
+  _calGenreFilter = document.getElementById('calGenreFilter')?.value || '';
+  _calStateFilter = document.getElementById('calStateFilter')?.value || '';
+  const hasFilter = !!(_calGenreFilter || _calStateFilter);
+  const clearBtn  = document.getElementById('calFilterClear');
+  const countEl   = document.getElementById('calFilterCount');
+  if (clearBtn) clearBtn.style.display = hasFilter ? '' : 'none';
+  renderCalContent();
+  // Update count after render
+  if (countEl) {
+    const visible = _calEvents.filter(_calFilterEvent).length;
+    if (hasFilter) { countEl.textContent = `${visible} event${visible!==1?'s':''}`; countEl.style.display = ''; }
+    else countEl.style.display = 'none';
+  }
+}
+
+function calClearFilters() {
+  _calGenreFilter = '';
+  _calStateFilter = '';
+  const gf = document.getElementById('calGenreFilter');
+  const sf = document.getElementById('calStateFilter');
+  if (gf) gf.value = '';
+  if (sf) sf.value = '';
+  const clearBtn = document.getElementById('calFilterClear');
+  const countEl  = document.getElementById('calFilterCount');
+  if (clearBtn) clearBtn.style.display = 'none';
+  if (countEl)  countEl.style.display  = 'none';
+  renderCalContent();
+}
+
 // ── Data loading ───────────────────────────────────
 async function loadCalEvents() {
   if (DEMO) { _calEvents = []; _calLoaded = true; return; }
@@ -56,7 +105,7 @@ function calEventsThisWeek() {
   const end = new Date(now); end.setDate(end.getDate() + 7);
   return _calEvents.filter(ev => {
     const d = calParseDate(ev);
-    return d && d >= now && d <= end;
+    return d && d >= now && d <= end && _calFilterEvent(ev);
   });
 }
 
@@ -65,7 +114,7 @@ function calEventsUpcoming(days = 90) {
   const end = new Date(now); end.setDate(end.getDate() + days);
   return _calEvents.filter(ev => {
     const d = calParseDate(ev);
-    return d && d >= now && d <= end;
+    return d && d >= now && d <= end && _calFilterEvent(ev);
   });
 }
 
@@ -347,9 +396,10 @@ function renderCalContent() {
 
   // ── EMPTY STATE ──
   if (!upcoming.length) {
+    const hasFilter = !!(_calGenreFilter || _calStateFilter);
     html += `<div style="text-align:center;padding:80px 0 40px;">
-      <div style="font-family:'Bebas Neue',sans-serif;font-size:28px;letter-spacing:3px;color:var(--muted);margin-bottom:10px;">NO EVENTS YET</div>
-      <div style="font-size:14px;color:var(--muted);line-height:1.6;">Events will appear here once<br>promoters publish them.</div>
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:28px;letter-spacing:3px;color:var(--muted);margin-bottom:10px;">${hasFilter ? 'NO MATCHING EVENTS' : 'NO EVENTS YET'}</div>
+      <div style="font-size:14px;color:var(--muted);line-height:1.6;">${hasFilter ? 'Try different genre or state filters.<br><button onclick="calClearFilters()" style="margin-top:12px;background:none;border:1px solid rgba(255,255,255,.2);color:var(--text);border-radius:20px;padding:8px 20px;cursor:pointer;font-size:13px;">Clear Filters</button>' : 'Events will appear here once<br>promoters publish them.'}</div>
     </div>`;
   }
 
