@@ -312,3 +312,151 @@ async function loadPublicProfileGigs(userId, accentColor, accentRgb) {
     `;
   } catch(e) { console.warn('loadPublicProfileGigs:', e.message); }
 }
+
+// ── Unclaimed Profiles (host creates, artist claims) ──
+
+function openCreateUnclaimedProfile() {
+  ['ucpName','ucpSound','ucpGenres','ucpBio','ucpMixLink','ucpEmail'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  document.getElementById('createUnclaimedOverlay').style.display = 'flex';
+}
+
+function closeCreateUnclaimedProfile() {
+  document.getElementById('createUnclaimedOverlay').style.display = 'none';
+}
+
+async function submitCreateUnclaimedProfile() {
+  const name = document.getElementById('ucpName').value.trim();
+  if (!name) { showToast('Artist name is required.', 'error'); return; }
+  const payload = {
+    name,
+    sound:        document.getElementById('ucpSound').value.trim(),
+    genre_string: document.getElementById('ucpGenres').value.trim(),
+    card_pills:   document.getElementById('ucpGenres').value.trim(),
+    bio:          document.getElementById('ucpBio').value.trim(),
+    mix_link:     document.getElementById('ucpMixLink').value.trim(),
+    claim_email:  document.getElementById('ucpEmail').value.trim().toLowerCase(),
+    created_by:   currentUser.id
+  };
+  try {
+    await sbRest('unclaimed_profiles', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+      prefer: 'return=minimal'
+    }, currentSession.access_token);
+    showToast(`Profile created for ${name} ✓`, 'success');
+    closeCreateUnclaimedProfile();
+    loadUnclaimedProfiles();
+  } catch(e) {
+    showToast('Could not save: ' + e.message, 'error');
+  }
+}
+
+async function loadUnclaimedProfiles() {
+  const list = document.getElementById('unclaimedProfilesList');
+  if (!list) return;
+  list.innerHTML = '<div style="text-align:center;padding:30px;color:var(--muted);font-size:13px;">Loading...</div>';
+  try {
+    const rows = await sbRest(
+      `unclaimed_profiles?created_by=eq.${currentUser.id}&order=created_at.desc`,
+      { method: 'GET' },
+      currentSession.access_token
+    );
+    if (!rows.length) {
+      list.innerHTML = '<div style="font-size:13px;color:var(--muted);padding:12px 0;">No profiles created yet.</div>';
+      return;
+    }
+    list.innerHTML = rows.map(r => `
+      <div style="background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">
+        <div style="min-width:0;">
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:17px;letter-spacing:1px;">${r.name}</div>
+          ${r.sound ? `<div style="font-size:12px;color:var(--neon2);margin-top:2px;">${r.sound}</div>` : ''}
+          ${r.claim_email ? `<div style="font-size:11px;color:var(--muted);margin-top:4px;">✉ ${r.claim_email}</div>` : '<div style="font-size:11px;color:var(--muted);margin-top:4px;">No email set</div>'}
+        </div>
+        <button onclick="deleteUnclaimedProfile('${r.id}')" style="background:none;border:1px solid rgba(255,45,120,.3);border-radius:8px;color:var(--neon);font-size:11px;padding:4px 10px;cursor:pointer;white-space:nowrap;flex-shrink:0;">Remove</button>
+      </div>
+    `).join('');
+  } catch(e) {
+    list.innerHTML = '<div style="font-size:13px;color:var(--muted);padding:12px 0;">Could not load profiles.</div>';
+  }
+}
+
+async function deleteUnclaimedProfile(id) {
+  if (!confirm('Remove this unclaimed profile?')) return;
+  try {
+    await sbRest(`unclaimed_profiles?id=eq.${id}`, { method: 'DELETE' }, currentSession.access_token);
+    showToast('Profile removed.', 'success');
+    loadUnclaimedProfiles();
+  } catch(e) {
+    showToast('Could not remove: ' + e.message, 'error');
+  }
+}
+
+// Called on artist dashboard load — checks if email matches an unclaimed profile
+async function checkForClaimableProfile() {
+  if (!currentSession?.access_token || !currentUser?.email) return;
+  const email = currentUser.email.toLowerCase();
+  try {
+    const rows = await sbRest(
+      `unclaimed_profiles?claim_email=eq.${encodeURIComponent(email)}&limit=1`,
+      { method: 'GET' },
+      currentSession.access_token
+    );
+    if (rows && rows.length) {
+      const profile = rows[0];
+      window._pendingClaimId = profile.id;
+      const banner = document.getElementById('claimProfileBanner');
+      const nameEl = document.getElementById('claimProfileBannerName');
+      if (banner && nameEl) {
+        nameEl.textContent = `"${profile.name}"${profile.sound ? ' — ' + profile.sound : ''}`;
+        banner.style.display = 'block';
+      }
+    }
+  } catch(e) { /* silent */ }
+}
+
+async function claimUnclaimedProfile(id) {
+  if (!id) return;
+  const btn = document.getElementById('claimProfileBannerBtn');
+  if (btn) { btn.textContent = 'CLAIMING...'; btn.disabled = true; }
+  try {
+    const rows = await sbRest(
+      `unclaimed_profiles?id=eq.${id}`,
+      { method: 'GET' },
+      currentSession.access_token
+    );
+    if (!rows || !rows.length) { showToast('Profile not found.', 'error'); return; }
+    const p = rows[0];
+    // Upsert into profiles
+    const payload = {
+      user_id:      currentUser.id,
+      type:         'artist',
+      dj_name:      p.name,
+      name:         p.name,
+      sound:        p.sound || '',
+      bio:          p.bio || '',
+      genre_string: p.genre_string || '',
+      card_pills:   p.card_pills || '',
+      mix_link:     p.mix_link || '',
+      updated_at:   new Date().toISOString()
+    };
+    await sbRest('profiles', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+      prefer: 'resolution=merge-duplicates,return=minimal'
+    }, currentSession.access_token);
+    // Delete unclaimed record
+    await sbRest(`unclaimed_profiles?id=eq.${id}`, { method: 'DELETE' }, currentSession.access_token);
+    window._pendingClaimId = null;
+    document.getElementById('claimProfileBanner').style.display = 'none';
+    showToast(`Profile claimed! Welcome, ${p.name} 🎧`, 'success');
+    // Reload artist profile
+    if (typeof loadArtistProfile === 'function') loadArtistProfile();
+  } catch(e) {
+    showToast('Could not claim: ' + e.message, 'error');
+  } finally {
+    if (btn) { btn.textContent = 'CLAIM MY PROFILE →'; btn.disabled = false; }
+  }
+}

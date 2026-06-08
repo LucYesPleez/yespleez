@@ -115,14 +115,15 @@ async function enterDashboard() {
 }
 
 function switchDashTab(tab) {
-  const isEvents = tab === 'events';
-  document.getElementById('dashTabEventsContent').style.display = isEvents ? '' : 'none';
-  document.getElementById('dashTabApplicationsContent').style.display = isEvents ? 'none' : '';
-  document.getElementById('dashTabEvents').style.borderBottomColor = isEvents ? 'var(--neon2)' : 'transparent';
-  document.getElementById('dashTabEvents').style.color = isEvents ? 'var(--text)' : 'var(--muted)';
-  document.getElementById('dashTabApplications').style.borderBottomColor = isEvents ? 'transparent' : 'var(--neon2)';
-  document.getElementById('dashTabApplications').style.color = isEvents ? 'var(--muted)' : 'var(--text)';
-  if (!isEvents) loadAllApplications();
+  ['Events','Applications','Artists'].forEach(t => {
+    const key = t.toLowerCase();
+    const btn = document.getElementById('dashTab'+t);
+    const content = document.getElementById('dashTab'+t+'Content');
+    if (btn) { btn.style.borderBottomColor = tab===key ? 'var(--neon2)' : 'transparent'; btn.style.color = tab===key ? 'var(--text)' : 'var(--muted)'; }
+    if (content) content.style.display = tab===key ? '' : 'none';
+  });
+  if (tab === 'applications') loadAllApplications();
+  if (tab === 'artists') loadUnclaimedProfiles();
 }
 
 // ── Artist dashboard ───────────────────────────────
@@ -145,6 +146,7 @@ async function enterArtistDashboard() {
   updateToggleVisibility('artist');
   show('artistDashScreen');
   updateNotifDot();
+  checkForClaimableProfile();
 }
 
 // ── Navigation helpers ─────────────────────────────
