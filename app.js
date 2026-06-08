@@ -18,8 +18,9 @@
   const hasSession = await tryRestoreSession();
 
   if (eventId) {
-    const ok = await loadPublicEvent(eventId);
-    if (ok) { showSignup(); return; }
+    // Show public landing page — no login required
+    const ok = await showPublicEventPage(eventId);
+    if (ok) return;
   }
 
   if (hasSession) {

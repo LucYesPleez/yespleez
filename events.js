@@ -678,6 +678,223 @@ function confirmEditEvent() { closeEditEventModal(); window._launchConfirmed = t
 function confirmNewEvent()  { closeEditEventModal(); startNewEvent(); }
 function closeEditEventModal() { document.getElementById('editEventOverlay').classList.remove('open'); window._launchConfirmed = false; }
 
+// ── Public event share page (no login required) ───
+
+async function showPublicEventPage(eventId) {
+  try {
+    // Use anon key — no auth token needed for public events
+    const res  = await fetch(`${SUPABASE_URL}/rest/v1/events?id=eq.${eventId}&select=*`, {
+      headers: { 'apikey': SUPABASE_KEY, 'Content-Type': 'application/json' }
+    });
+    if (!res.ok) throw new Error();
+    const rows = await res.json();
+    if (!rows.length) { showToast('Event not found.', 'error'); return false; }
+    const ev  = rows[0];
+    const cfg = ev.config || {};
+
+    // ── Hero background ──
+    const heroBg = document.getElementById('pubEvHeroBg');
+    if (heroBg && (ev.poster_url || cfg.poster)) {
+      heroBg.style.backgroundImage = `url(${ev.poster_url || cfg.poster})`;
+    }
+
+    // ── Poster ──
+    const posterWrap = document.getElementById('pubEvPosterWrap');
+    const posterImg  = document.getElementById('pubEvPoster');
+    if (posterImg && (ev.poster_url || cfg.poster)) {
+      posterImg.src = ev.poster_url || cfg.poster;
+      if (posterWrap) posterWrap.style.display = '';
+    }
+
+    // ── Name ──
+    const nameEl = document.getElementById('pubEvName');
+    if (nameEl) nameEl.textContent = ev.name || cfg.name || 'EVENT';
+
+    // ── Date ──
+    const dateEl = document.getElementById('pubEvDate');
+    if (dateEl && cfg.date) { dateEl.textContent = cfg.date; dateEl.style.display = ''; }
+
+    // ── Venue ──
+    const venueEl = document.getElementById('pubEvVenue');
+    if (venueEl && cfg.venue) {
+      venueEl.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:3px;"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg>${esc(cfg.venue)}`;
+      venueEl.style.display = '';
+    }
+
+    // ── Genres ──
+    const genresEl = document.getElementById('pubEvGenres');
+    if (genresEl && cfg.genres) { genresEl.textContent = cfg.genres; genresEl.style.display = ''; }
+
+    // ── CTA buttons ──
+    const ctaEl = document.getElementById('pubEvCTA');
+    if (ctaEl) {
+      const isLive      = ev.status === 'live';
+      const appsOpen    = cfg.applications_open === true;
+      const hasSession  = !!(currentUser?.id && currentUser.id !== 'guest');
+
+      ctaEl.innerHTML = `
+        <div style="display:flex;flex-direction:column;gap:10px;">
+          ${isLive && appsOpen ? `
+            <button onclick="pubEvApply('${ev.id}','${(ev.name||'').replace(/'/g,"\\'")}')"
+              style="background:var(--neon2);color:#0a0a0f;font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:2px;padding:16px;border:none;border-radius:12px;cursor:pointer;font-weight:700;">
+              APPLY TO PLAY →
+            </button>` : ''}
+          ${hasSession ? `
+            <button onclick="pubEvOpenInApp('${ev.id}')"
+              style="background:rgba(255,255,255,.08);color:var(--text);border:1px solid rgba(255,255,255,.15);font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:2px;padding:14px;border-radius:12px;cursor:pointer;">
+              OPEN IN APP
+            </button>` : `
+            <button onclick="pubEvJoinYesPleez()"
+              style="background:rgba(255,255,255,.08);color:var(--text);border:1px solid rgba(255,255,255,.15);font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:2px;padding:12px;border-radius:12px;cursor:pointer;">
+              JOIN YESPLEEZ TO APPLY
+            </button>`}
+        </div>`;
+    }
+
+    // ── Lineup ──
+    const lineupEl = document.getElementById('pubEvLineup');
+    if (lineupEl) _renderPubEvLineup(ev, lineupEl);
+
+    // Store for CTA handlers
+    window._pubEvData = ev;
+
+    show('publicEventScreen');
+
+    // Also set up internal state so "Open in App" works
+    currentEventId     = ev.id;
+    eventData          = { ...cfg, id: ev.id, name: ev.name };
+    currentEventHostId = ev.host_id || null;
+    isReadOnly         = true;
+    isHost             = false;
+
+    return true;
+  } catch(e) {
+    console.warn('showPublicEventPage:', e);
+    return false;
+  }
+}
+
+function _renderPubEvLineup(ev, el) {
+  const cfg  = ev.config || {};
+  const days = cfg.days || [];
+  if (!days.length) { el.innerHTML = ''; return; }
+
+  // Flatten all slots with a claim
+  const slots = [];
+  days.forEach(day => {
+    (day.slots || []).forEach(slot => {
+      if (slot.claim?.name) slots.push({ ...slot, dayName: day.name || '' });
+    });
+  });
+
+  // Show set-times only if not private
+  const privateSetTimes = ev.host_controls?.privateSetTimes === true;
+
+  let html = `<div style="font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:2px;color:var(--neon2);margin-bottom:14px;">`;
+  html += slots.length ? `LINEUP · ${slots.length} ARTIST${slots.length!==1?'S':''}` : 'LINEUP';
+  html += `</div>`;
+
+  if (!slots.length) {
+    html += `<div style="text-align:center;padding:20px 0;color:var(--muted);font-size:13px;">Lineup TBA</div>`;
+  } else {
+    // Group by day
+    const byDay = {};
+    slots.forEach(s => {
+      const k = s.dayName || 'Night';
+      if (!byDay[k]) byDay[k] = [];
+      byDay[k].push(s);
+    });
+    Object.entries(byDay).forEach(([dayName, daySlots]) => {
+      if (Object.keys(byDay).length > 1) {
+        html += `<div style="font-size:11px;letter-spacing:2px;color:var(--muted);margin:14px 0 8px;font-family:'Bebas Neue',sans-serif;">${esc(dayName)}</div>`;
+      }
+      daySlots.forEach(slot => {
+        const name    = esc(slot.claim.name || '');
+        const time    = (!privateSetTimes && slot.time) ? `${slot.time} ${slot.ampm || ''}`.trim() : '';
+        const dur     = (!privateSetTimes && slot.dur)  ? slot.dur : '';
+        const avatar  = slot.claim.avatar || '';
+        html += `
+          <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.06);">
+            ${avatar
+              ? `<img src="${avatar}" style="width:38px;height:38px;border-radius:8px;object-fit:cover;flex-shrink:0;">`
+              : `<div style="width:38px;height:38px;border-radius:8px;background:rgba(0,229,255,.1);border:1px solid rgba(0,229,255,.2);display:flex;align-items:center;justify-content:center;flex-shrink:0;"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3z"/><path d="M3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg></div>`}
+            <div style="flex:1;min-width:0;">
+              <div style="font-family:'Bebas Neue',sans-serif;font-size:17px;letter-spacing:1px;line-height:1.1;">${name}</div>
+              ${(time || dur) ? `<div style="font-size:11px;color:var(--muted);margin-top:2px;">${[time,dur].filter(Boolean).join(' · ')}</div>` : ''}
+            </div>
+          </div>`;
+      });
+    });
+  }
+
+  el.innerHTML = `<div style="background:rgba(19,19,31,.88);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:18px 16px;">${html}</div>`;
+}
+
+// ── CTA handlers ──────────────────────────────────
+
+function pubEvGoBack() {
+  const hasSession = !!(currentUser?.id && currentUser.id !== 'guest');
+  if (hasSession) {
+    if (currentMode === 'artist') enterArtistDashboard();
+    else enterDashboard();
+  } else {
+    show('authScreen');
+  }
+}
+
+function pubEvShare() {
+  const url = location.href;
+  if (navigator.share) {
+    navigator.share({ title: window._pubEvData?.name || 'YesPleez Event', url });
+  } else {
+    navigator.clipboard.writeText(url).then(() => showToast('Link copied!', 'success'));
+  }
+}
+
+function pubEvApply(evId, evName) {
+  const hasSession = !!(currentUser?.id && currentUser.id !== 'guest');
+  if (!hasSession) {
+    // Store intent, send to auth
+    try { localStorage.setItem('yp_post_auth_action', JSON.stringify({ action: 'apply', evId, evName })); } catch(e) {}
+    show('authScreen');
+    return;
+  }
+  openApplyModalForEvent(evId, evName);
+}
+
+function pubEvOpenInApp(evId) {
+  loadPublicEvent(evId).then(ok => { if (ok) showSignup(); });
+}
+
+function pubEvJoinYesPleez() {
+  try { localStorage.setItem('yp_post_auth_action', JSON.stringify({ action: 'view', evId: window._pubEvData?.id })); } catch(e) {}
+  show('authScreen');
+}
+
+// ── Post-auth action restore ──────────────────────
+function checkPostAuthAction() {
+  try {
+    const raw = localStorage.getItem('yp_post_auth_action');
+    if (!raw) { showRoleSelector(); return true; }
+    const { action, evId, evName } = JSON.parse(raw);
+    localStorage.removeItem('yp_post_auth_action');
+    if (action === 'apply' && evId) {
+      // Send to role selector first, then open apply modal from artist dash
+      const lastMode = localStorage.getItem('yp_last_mode');
+      currentMode = 'artist';
+      enterArtistDashboard().then(() => {
+        setTimeout(() => openApplyModalForEvent(evId, evName || ''), 400);
+      }).catch(() => {});
+      return true;
+    } else if (action === 'view' && evId) {
+      showPublicEventPage(evId);
+      return true;
+    }
+  } catch(e) {}
+  showRoleSelector();
+  return true;
+}
+
 // ── Public event load ──────────────────────────────
 
 async function loadPublicEvent(eventId) {

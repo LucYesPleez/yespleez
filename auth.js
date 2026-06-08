@@ -127,6 +127,7 @@ async function doLogin() {
   currentSession = data;
   currentUser = data.user;
   localStorage.setItem('yp_session', JSON.stringify(data));
+  if (typeof checkPostAuthAction === 'function') { checkPostAuthAction(); return; }
   showRoleSelector();
 }
 
