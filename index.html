@@ -2725,17 +2725,12 @@ body.player-open .screen.active { padding-bottom: 80px; }
   </div>
   <div style="max-width:720px;margin:0 auto;padding:16px 16px 80px;">
 
-    <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:28px;">
-      <div>
-        <div class="yp-tag">HOST VIEW</div>
-        <div class="gradient-title" id="manageTitle">EVENT</div>
-        <div style="font-size:12px;color:var(--muted);margin-top:2px;" id="manageSubtitle"></div>
-        <div style="font-size:12px;color:var(--muted);margin-top:2px;" id="manageSlotCount"></div>
-      </div>
-      <div style="display:flex;gap:8px;align-items:flex-start;margin-top:8px;width:100%;">
-        <button class="btn-ai-generate" onclick="generateLineup();show('signupScreen')" style="flex:1;">⚡ GENERATE LINEUP</button>
-        <button id="lineupRadioBtn" onclick="openLineupRadio()" style="display:none;flex:1;background:var(--neon2);border:none;color:#0a0a0f;font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:2px;padding:11px 20px;border-radius:8px;cursor:pointer;font-weight:700;">📻 LINEUP RADIO</button>
-      </div>
+    <!-- hidden elements kept for JS references -->
+    <div style="display:none;">
+      <div id="manageTitle"></div>
+      <div id="manageSubtitle"></div>
+      <div id="manageSlotCount"></div>
+      <button id="lineupRadioBtn" onclick="openLineupRadio()"></button>
     </div>
 
     <div style="display:flex;gap:10px;margin-bottom:10px;flex-wrap:wrap;">
