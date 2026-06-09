@@ -3,18 +3,86 @@
 //  Depends on: state.js, auth.js, profiles.js, events.js
 // ═══════════════════════════════════════════════════
 
+// ── Navigation history stack ───────────────────────
+
+const _navHistory = [];
+const _noNavScreens = new Set(['authScreen', 'roleScreen']);
+
+// Screen → human-readable title
+const _screenTitles = {
+  dashboardScreen:     'HOST DASHBOARD',
+  artistDashScreen:    'ARTIST DASHBOARD',
+  venueDashScreen:     'VENUE DASHBOARD',
+  calendarScreen:      'CALENDAR',
+  searchScreen:        'DISCOVER',
+  profileScreen:       'MY PROFILE',
+  artistProfileScreen: 'MY PROFILE',
+  venueProfileScreen:  'VENUE PROFILE',
+  hostProfileScreen:   'HOST PROFILE',
+  setTimesScreen:      'SET TIMES',
+  publicEventScreen:   'EVENT',
+  publicProfileScreen: 'PROFILE',
+};
+
 // ── Core screen switcher ───────────────────────────
 
-function show(id) {
+function show(id, opts = {}) {
+  const prev = document.querySelector('.screen.active')?.id;
+
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById(id).classList.add('active');
+
   const lockScreens = ['authScreen', 'roleScreen'];
-  document.body.classList.toggle('auth-mode', lockScreens.includes(id));
+  const isLocked = lockScreens.includes(id);
+  document.body.classList.toggle('auth-mode', isLocked);
+
+  // Push to history (skip auth/role, skip if same screen, skip if going back)
+  if (!isLocked && !opts._isBack && prev && prev !== id && !_noNavScreens.has(prev)) {
+    _navHistory.push(prev);
+    if (_navHistory.length > 30) _navHistory.shift();
+  }
+  if (opts._isBack) {
+    // already popped by navBack()
+  }
+
+  // Update global nav bar
+  _updateGlobalNav(id, isLocked);
+
   const banner = document.getElementById('trialBanner') || document.querySelector('.trial-banner');
   const bannerH = (banner && banner.offsetHeight) ? banner.offsetHeight : 0;
   document.querySelectorAll('.back-btn-sticky, .back-sticky, [id$="BackBtn"], .btn-back-sticky').forEach(el => {
     el.style.top = bannerH ? (bannerH + 'px') : '';
   });
+}
+
+function _updateGlobalNav(id, isLocked) {
+  const nav = document.getElementById('globalNav');
+  const titleEl = document.getElementById('gnavTitle');
+  const backBtn = document.getElementById('gnavBack');
+  if (!nav) return;
+
+  if (isLocked || _noNavScreens.has(id)) {
+    nav.classList.remove('visible');
+    document.body.classList.remove('has-global-nav');
+    return;
+  }
+
+  nav.classList.add('visible');
+  document.body.classList.add('has-global-nav');
+
+  if (titleEl) titleEl.textContent = _screenTitles[id] || '';
+
+  // Show back btn only if there's history to go back to
+  if (backBtn) {
+    backBtn.style.visibility = _navHistory.length > 0 ? 'visible' : 'hidden';
+  }
+}
+
+function navBack() {
+  if (!_navHistory.length) { showRoleSelector(); return; }
+  const prev = _navHistory.pop();
+  show(prev, { _isBack: true });
+  _updateGlobalNav(prev, false);
 }
 
 // ── Toast notifications ────────────────────────────
@@ -30,6 +98,7 @@ function showToast(msg, type = 'success') {
 // ── Role selector ──────────────────────────────────
 
 async function showRoleSelector() {
+  _navHistory.length = 0; // clear history at home
   if (!DEMO && currentUser?.id) {
     const [hostRow, artistRow] = await Promise.all([
       loadProfileFromSupabase('host'),
