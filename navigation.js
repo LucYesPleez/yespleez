@@ -36,7 +36,7 @@ function show(id, opts = {}) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById(id).classList.add('active');
 
-  const lockScreens = ['authScreen', 'roleScreen'];
+  const lockScreens = ['authScreen'];
   const isLocked = lockScreens.includes(id);
   document.body.classList.toggle('auth-mode', isLocked);
 
