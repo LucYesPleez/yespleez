@@ -3801,6 +3801,7 @@ function showPublicProfile(role) {
   else if (role === 'band')    p = (typeof bandProfile    !== 'undefined' ? bandProfile    : {});
   else if (role === 'standup') p = (typeof standupProfile !== 'undefined' ? standupProfile : {});
   else if (role === 'venue')   p = (typeof venueProfile   !== 'undefined' ? venueProfile   : {});
+  else if (role === 'host')    p = (typeof hostProfile    !== 'undefined' ? hostProfile    : {});
 
   const name = p.name || p.djName || p.dj_name || '';
   if (!name) { showToast('Set up your profile first', 'error'); return; }
@@ -3809,7 +3810,7 @@ function showPublicProfile(role) {
   const row = Object.assign({
     dj_name:      p.djName   || p.name || p.dj_name,
     name:         p.name     || p.djName,
-    type:         role === 'venue' ? 'host' : 'artist',
+    type:         (role === 'venue' || role === 'host') ? 'host' : 'artist',
     location:     p.location || p.suburb,
     state:        p.state,
     tagline:      p.tagline,
