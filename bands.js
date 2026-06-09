@@ -7,6 +7,42 @@ let bandProfile = {};
 let _bandsAvailDates = new Set();
 let _bandsAvailMonth = new Date();
 
+const _BAND_GENRES = ['Rock','Pop','Hip Hop','Electronic','Jazz','Blues','Folk','Country','R&B / Soul','Funk','Reggae','Metal','Punk','Latin','World','Classical','Experimental'];
+const _BAND_VIBES  = ['Indie','Alt Rock','Hard Rock','Classic Rock','Grunge','Psychedelic','Prog Rock','Garage','Post-Punk','Emo','Trap','Drill','Lo-Fi','Boom Bap','House','Techno','Drum & Bass','Ambient','Deep House','Synth Pop','Acoustic','Unplugged','High Energy','Dance Floor','Chill','Laid Back','Late Night','All Ages','Feel Good','Emotional','Dark','Party','Soulful','Groovy','Cinematic','Storytelling'];
+
+let _bandGenreSelected = new Set();
+let _bandVibeSelected  = new Set();
+
+function _renderBandTagGroup(containerId, tags, selected, toggleFn) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  el.innerHTML = tags.map(t => {
+    const on = selected.has(t);
+    return `<button type="button" onclick="${toggleFn}(this,'${t.replace(/'/g,"\\'")}')"
+      style="padding:6px 14px;border-radius:20px;font-size:12px;font-family:'DM Sans',sans-serif;cursor:pointer;transition:all .15s;
+      background:${on ? 'rgba(255,140,66,.2)' : 'rgba(255,255,255,.05)'};
+      border:1px solid ${on ? '#FF8C42' : 'rgba(255,255,255,.12)'};
+      color:${on ? '#FF8C42' : 'var(--muted)'};">${t}</button>`;
+  }).join('');
+}
+
+function toggleBandGenre(btn, tag) {
+  if (_bandGenreSelected.has(tag)) _bandGenreSelected.delete(tag);
+  else _bandGenreSelected.add(tag);
+  _renderBandTagGroup('bandGenrePicker', _BAND_GENRES, _bandGenreSelected, 'toggleBandGenre');
+}
+
+function toggleBandVibe(btn, tag) {
+  if (_bandVibeSelected.has(tag)) _bandVibeSelected.delete(tag);
+  else _bandVibeSelected.add(tag);
+  _renderBandTagGroup('bandVibePicker', _BAND_VIBES, _bandVibeSelected, 'toggleBandVibe');
+}
+
+function _renderBandTagPickers() {
+  _renderBandTagGroup('bandGenrePicker', _BAND_GENRES, _bandGenreSelected, 'toggleBandGenre');
+  _renderBandTagGroup('bandVibePicker',  _BAND_VIBES,  _bandVibeSelected,  'toggleBandVibe');
+}
+
 // ── Enter bands dashboard ──────────────────────────
 
 async function enterBandsDashboard() {
@@ -198,7 +234,14 @@ function showBandProfile() {
   setVal('bandMembersInput',     p.member_count || '');
   setVal('bandEstablishedInput', p.established_year || '');
   setVal('bandTypeInput',        p.band_type || '');
-  setVal('bandGenresInput',      p.genre_string || '');
+  // Restore genre + vibe tag selections
+  _bandGenreSelected = new Set();
+  _bandVibeSelected  = new Set();
+  (p.genre_string || '').split(',').map(s => s.trim()).filter(Boolean).forEach(t => {
+    if (_BAND_GENRES.includes(t)) _bandGenreSelected.add(t); else _bandVibeSelected.add(t);
+  });
+  (p.vibe_tags || '').split(',').map(s => s.trim()).filter(Boolean).forEach(t => _bandVibeSelected.add(t));
+  _renderBandTagPickers();
   setVal('bandBioInput',         p.bio || '');
   setVal('bandEpkInput',         p.mix_link || p.epk_link || '');
   setVal('bandContactInput',     p.contact_email || '');
@@ -228,7 +271,8 @@ async function saveBandProfile() {
   const members     = getVal('bandMembersInput');
   const established = getVal('bandEstablishedInput');
   const type        = getVal('bandTypeInput');
-  const genres      = getVal('bandGenresInput');
+  const genres      = [..._bandGenreSelected].join(', ');
+  const vibes       = [..._bandVibeSelected].join(', ');
   const bio         = getVal('bandBioInput');
   const epk         = getVal('bandEpkInput');
   const contact     = getVal('bandContactInput');
@@ -272,7 +316,8 @@ async function saveBandProfile() {
     member_count:     members ? parseInt(members) : null,
     established_year: established ? parseInt(established) : null,
     band_type:        type,
-    genre_string:     genres,
+    genre_string:     [genres, vibes].filter(Boolean).join(', '),
+    vibe_tags:        vibes,
     bio:              bio,
     mix_link:         epk,
     epk_link:         epk,
