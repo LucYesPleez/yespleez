@@ -8,7 +8,7 @@ let venueProfile = {};
 let _venueAvailDates = new Set();
 let _venueAvailMonth = new Date();
 
-const _VENUE_GENRES = ['Rock','Pop','Hip Hop','Electronic','Jazz','Blues','Folk','Country','R&B / Soul','Funk','Reggae','Metal','Punk','Latin','World','Classical','Experimental'];
+const _VENUE_GENRES = ['DJs','Live Bands','Solo Artists','Acoustic Acts','Cover Bands','Function Bands','Stand Up Comedy','Comedians','Poetry / Spoken Word','Jazz Acts','Open Mic','Trivia Nights','Karaoke','Other'];
 let _venueGenreSelected = new Set();
 
 function _renderVenueGenrePicker() {
