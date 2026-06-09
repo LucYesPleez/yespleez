@@ -433,98 +433,175 @@ function _calTimeBuckets() {
   return buckets;
 }
 
+// ── What's On: category badge ──────────────────────
+function calEventCategory(ev) {
+  const text = ((ev.name || '') + ' ' + (ev.config?.genres || '')).toLowerCase();
+  if (/comedy|standup|stand.up|open.mic|improv/i.test(text)) return { label: 'COMEDY',     color: '#FF8C42', dark: true };
+  if (/festival|fest\b/i.test(text))                          return { label: 'FESTIVAL',   color: '#9D4EDD', dark: false };
+  if (/dj.set|dj set|house|techno|dnb|drum|dubstep|garage|electronic|psytrance|breaks/i.test(text)) return { label: 'DJ SET', color: '#00E5FF', dark: true };
+  if (/open.mic|acoustic|folk|singer/i.test(text))            return { label: 'OPEN MIC',   color: '#FFD700', dark: true };
+  if (/party\b/i.test(text))                                   return { label: 'PARTY',      color: '#FF2D78', dark: false };
+  return { label: 'LIVE MUSIC', color: '#FF2D78', dark: false };
+}
+
+// ── What's On: horizontal scroll card ──────────────
+function calWhatsOnCard(ev, size) {
+  const d      = calParseDate(ev);
+  const name   = esc(ev.name || 'EVENT');
+  const venue  = esc(ev.config?.venue || '');
+  const genres = (ev.config?.genres || '').split(',').map(g => g.trim()).filter(Boolean).slice(0, 2);
+  const poster = ev.config?.poster || ev.poster_url || '';
+  const cat    = calEventCategory(ev);
+  const dateStr = d ? d.toLocaleDateString('en-AU', { weekday:'short', day:'numeric', month:'short' }) : '';
+  const w      = size === 'lg' ? '210px' : '160px';
+  const imgH   = size === 'lg' ? '210px' : '165px';
+  const bg     = poster ? `url('${poster}') center/cover no-repeat` : `linear-gradient(135deg,rgba(255,45,120,.5),rgba(157,78,221,.4),rgba(0,229,255,.3))`;
+
+  return `<div onclick="calOpenEvent('${ev.id}')" style="flex-shrink:0;width:${w};border-radius:16px;overflow:hidden;background:var(--card2);cursor:pointer;transition:transform .15s;" onmouseenter="this.style.transform='translateY(-3px)'" onmouseleave="this.style.transform=''">
+    <div style="position:relative;height:${imgH};background:${bg};">
+      <div style="position:absolute;inset:0;background:linear-gradient(to bottom,rgba(0,0,0,.1) 0%,rgba(0,0,0,0) 40%,rgba(0,0,0,.4) 100%);"></div>
+      <div style="position:absolute;top:10px;left:10px;background:${cat.color};color:${cat.dark?'#0a0a0f':'#fff'};border-radius:6px;padding:3px 8px;font-size:9px;font-weight:700;letter-spacing:.8px;font-family:'DM Sans',sans-serif;">${cat.label}</div>
+      <div style="position:absolute;top:8px;right:8px;width:28px;height:28px;background:rgba(0,0,0,.45);backdrop-filter:blur(4px);border-radius:50%;display:flex;align-items:center;justify-content:center;">
+        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+      </div>
+    </div>
+    <div style="padding:10px 10px 12px;">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:17px;letter-spacing:.5px;line-height:1.1;margin-bottom:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${name}</div>
+      ${venue ? `<div style="font-size:11px;color:var(--muted);display:flex;align-items:center;gap:4px;margin-bottom:3px;overflow:hidden;"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg><span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${venue}</span></div>` : ''}
+      ${dateStr ? `<div style="font-size:11px;color:var(--muted);display:flex;align-items:center;gap:4px;margin-bottom:6px;"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>${dateStr}</div>` : ''}
+      ${genres.length ? `<div style="display:flex;gap:4px;flex-wrap:wrap;">${genres.map(g => `<span style="background:rgba(255,255,255,.07);border-radius:6px;padding:2px 7px;font-size:9px;color:var(--muted);letter-spacing:.3px;">${esc(g)}</span>`).join('')}</div>` : ''}
+    </div>
+  </div>`;
+}
+
+// ── What's On: list row card ────────────────────────
+function calListCard(ev) {
+  const d      = calParseDate(ev);
+  const name   = esc(ev.name || 'EVENT');
+  const venue  = esc(ev.config?.venue || '');
+  const poster = ev.config?.poster || ev.poster_url || '';
+  const cat    = calEventCategory(ev);
+  const dayStr = d ? d.toLocaleDateString('en-AU', { weekday:'short', day:'numeric', month:'short' }) : '';
+
+  const bg = poster ? `url('${poster}') center/cover no-repeat` : `linear-gradient(135deg,rgba(255,45,120,.5),rgba(0,229,255,.3))`;
+
+  return `<div onclick="calOpenEvent('${ev.id}')" style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .15s;" onmouseenter="this.style.background='rgba(255,255,255,.03)'" onmouseleave="this.style.background=''">
+    <div style="width:60px;height:60px;border-radius:10px;background:${bg};flex-shrink:0;"></div>
+    <div style="flex:1;min-width:0;">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:.5px;line-height:1;margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${name}</div>
+      <div style="font-size:11px;color:var(--muted);display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+        ${venue ? `<span style="display:flex;align-items:center;gap:3px;"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg>${venue}</span>` : ''}
+        <span style="background:${cat.color};color:${cat.dark?'#0a0a0f':'#fff'};border-radius:4px;padding:1px 6px;font-size:9px;font-weight:700;">${cat.label}</span>
+      </div>
+    </div>
+    <div style="text-align:right;flex-shrink:0;min-width:72px;">
+      <div style="font-size:11px;color:var(--text);font-weight:600;white-space:nowrap;">${dayStr}</div>
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="1.5" style="margin-top:8px;display:block;margin-left:auto;"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+    </div>
+  </div>`;
+}
+
+// ── What's On: section block ────────────────────────
+function calWhatsOnSection(sectionId, label, dateBadge, badgeColor, evs, style) {
+  if (!evs.length) return '';
+
+  const header = `<div id="${sectionId}" style="display:flex;align-items:center;justify-content:space-between;padding:20px 16px 12px;">
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:2px;">${label}</div>
+      ${dateBadge ? `<div style="background:${badgeColor}22;border:1px solid ${badgeColor}66;border-radius:20px;padding:3px 10px;font-size:10px;letter-spacing:1px;color:${badgeColor};font-family:'DM Sans',sans-serif;font-weight:600;white-space:nowrap;">${dateBadge}</div>` : ''}
+    </div>
+    <div style="font-size:12px;color:var(--neon);cursor:pointer;display:flex;align-items:center;gap:3px;white-space:nowrap;" onclick="calToggleFullView()">View all <svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2.5'><path d='M9 18l6-6-6-6'/></svg></div>
+  </div>`;
+
+  let content;
+  if (style === 'list') {
+    content = `<div>${evs.map(ev => calListCard(ev)).join('')}</div>`;
+  } else {
+    content = `<div style="display:flex;gap:12px;overflow-x:auto;padding:0 16px 16px;scrollbar-width:none;-webkit-overflow-scrolling:touch;">
+      ${evs.map(ev => calWhatsOnCard(ev, style)).join('')}
+    </div>`;
+  }
+
+  return header + content;
+}
+
 function renderCalContent() {
   const el = document.getElementById('calContent');
   if (!el) return;
 
-  if (_calSelDate) { renderDayView(_calSelDate, el); return; }
+  // If full calendar panel is open, render day view there instead
+  if (_calSelDate) {
+    const dayEl = document.getElementById('calDayContent');
+    if (dayEl) renderDayView(_calSelDate, dayEl);
+    return;
+  }
 
-  const upcoming  = calEventsUpcoming(365);
-  const onTour    = calArtistsOnTour();
-  const sceneData = calSceneMap();
-  const trending  = [...upcoming].sort((a, b) => calGetArtists(b).length - calGetArtists(a).length).slice(0, 8);
-  const newEvents = [...upcoming].sort((a, b) => new Date(b.created_at||0) - new Date(a.created_at||0)).slice(0, 8);
+  const now      = new Date();
+  const todayStr = now.toISOString().split('T')[0];
+  const dow      = now.getDay();
+
+  // This weekend = coming Fri through Sun
+  const daysToFri = (5 - dow + 7) % 7 || 7;
+  const fri = new Date(now); fri.setDate(now.getDate() + daysToFri); fri.setHours(0,0,0,0);
+  const sun = new Date(fri); sun.setDate(fri.getDate() + 2); sun.setHours(23,59,59,999);
+
+  const tonight = _calEvents.filter(ev => {
+    const d = calParseDate(ev);
+    return d && d.toISOString().split('T')[0] === todayStr && _calFilterEvent(ev);
+  });
+
+  const weekend = _calEvents.filter(ev => {
+    const d = calParseDate(ev);
+    return d && d >= fri && d <= sun && _calFilterEvent(ev);
+  });
+
+  const twoWeeks = new Date(now); twoWeeks.setDate(now.getDate() + 14);
+  const comingUp = _calEvents.filter(ev => {
+    const d = calParseDate(ev);
+    if (!d || !_calFilterEvent(ev)) return false;
+    if (d.toISOString().split('T')[0] === todayStr) return false;
+    if (d >= fri && d <= sun) return false;
+    return d > now && d <= twoWeeks;
+  });
+
+  // Beyond 2 weeks
+  const further = calEventsUpcoming(365).filter(ev => {
+    const d = calParseDate(ev);
+    return d && d > twoWeeks && _calFilterEvent(ev);
+  });
+
+  // Update tab subtitles with live dates
+  const monthName = now.toLocaleString('en-AU', { month: 'long', year: 'numeric' });
+  const monthEl = document.getElementById('calTabMonthLabel');
+  const monthSubEl = document.getElementById('calTabMonthSub');
+  if (monthEl) monthEl.textContent = now.toLocaleString('en-AU', { month: 'long' }).toUpperCase();
+  if (monthSubEl) monthSubEl.textContent = monthName;
+
+  const todayBadge   = now.toLocaleDateString('en-AU', { weekday:'short', day:'numeric', month:'long' }).toUpperCase();
+  const weekendBadge = `${fri.toLocaleDateString('en-AU',{weekday:'short',day:'numeric',month:'short'})} – ${sun.toLocaleDateString('en-AU',{weekday:'short',day:'numeric',month:'short'})}`.toUpperCase();
 
   let html = '';
 
-  // ── TRENDING horizontal strip ──
-  if (trending.length) {
-    html += calSectionHeader('TRENDING', 'var(--neon)');
-    html += `<div class="cal-horiz-scroll">`;
-    html += trending.map(ev => calSmallCard(ev)).join('');
-    html += `</div>`;
-  }
+  html += calWhatsOnSection('calSecTonight', 'TONIGHT', todayBadge, '#FF2D78', tonight, 'sm');
+  html += calWhatsOnSection('calSecWeekend', 'THIS WEEKEND', weekendBadge, '#9D4EDD', weekend, 'lg');
+  html += calWhatsOnSection('calSecWeek', 'COMING UP', 'NEXT 2 WEEKS', 'var(--gold)', comingUp, 'list');
+  html += calWhatsOnSection('calSecMonth', 'FURTHER OUT', '', 'var(--neon2)', further.slice(0, 8), 'list');
 
-  // ── JUST ADDED horizontal strip ──
-  if (newEvents.length > 1) {
-    html += calSectionHeader('JUST ADDED', 'var(--gold)');
-    html += `<div class="cal-horiz-scroll">`;
-    html += newEvents.map(ev => calSmallCard(ev)).join('');
-    html += `</div>`;
-  }
+  // Browse Full Calendar CTA
+  html += `<div style="margin:8px 16px 24px;background:var(--card);border:1px solid var(--border);border-radius:16px;padding:20px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;" onclick="calToggleFullView()">
+    <div>
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:2px;margin-bottom:2px;">BROWSE FULL CALENDAR</div>
+      <div style="font-size:12px;color:var(--muted);">View by day, filter and plan ahead</div>
+    </div>
+    <button style="background:var(--card2);border:1px solid var(--border);color:var(--text);border-radius:20px;padding:10px 18px;font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:1px;cursor:pointer;white-space:nowrap;">Open Calendar →</button>
+  </div>`;
 
-  // ── DISCOVERY TIMELINE (bucketed feed) ──
-  const buckets = _calTimeBuckets();
-  let timelineHtml = '';
-  let totalInTimeline = 0;
-
-  buckets.forEach(bucket => {
-    const evs = upcoming.filter(ev => {
-      const d = calParseDate(ev);
-      return d && bucket.test(d);
-    });
-    if (!evs.length) return;
-    totalInTimeline += evs.length;
-    timelineHtml += `
-      <div class="cal-timeline-bucket" id="calBucket_${bucket.key}" style="margin-bottom:8px;">
-        <div class="cal-bucket-header" onclick="calToggleBucket('${bucket.key}')"
-          style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;cursor:pointer;border-bottom:1px solid var(--border);margin-bottom:0;">
-          <div style="display:flex;align-items:center;gap:10px;">
-            <div style="width:3px;height:20px;background:${bucket.color};border-radius:2px;"></div>
-            <div style="font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:2px;color:${bucket.color};">${bucket.label}</div>
-            <div style="font-size:11px;color:var(--muted);background:var(--card);border-radius:10px;padding:2px 8px;">${evs.length}</div>
-          </div>
-          <div class="cal-bucket-chevron" id="calChevron_${bucket.key}" style="color:var(--muted);font-size:14px;transition:transform .2s;">▼</div>
-        </div>
-        <div class="cal-bucket-body" id="calBucketBody_${bucket.key}" style="padding-top:12px;">
-          ${evs.map(ev => calBigCard(ev)).join('')}
-        </div>
-      </div>`;
-  });
-
-  if (totalInTimeline) {
-    html += calSectionHeader('DISCOVERY TIMELINE', 'var(--neon2)');
-    html += `<div id="calTimeline" style="margin-bottom:8px;">${timelineHtml}</div>`;
-  }
-
-  // ── ARTISTS ON TOUR ──
-  if (onTour.length) {
-    html += calSectionHeader('ARTISTS ON TOUR', '#9D4EDD');
-    html += onTour.map(([name, gigs]) => calTourCard(name, gigs)).join('');
-  }
-
-  // ── SCENE MAP ──
-  if (sceneData.length) {
-    html += calSectionHeader('SCENE MAP', 'var(--neon2)');
-    html += `<div class="cal-scene-grid">`;
-    html += sceneData.map(([region, evs], i) => {
-      const colors = ['var(--neon2)','var(--neon)','var(--gold)','#9D4EDD','#FF8C42','var(--neon2)','var(--neon)','var(--gold)'];
-      const c = colors[i % colors.length];
-      return `<div class="cal-scene-tile" onclick="calFilterRegion('${esc(region)}')" style="border-color:${c}20;">
-        <div style="font-size:10px;letter-spacing:1.5px;color:${c};font-family:'Bebas Neue',sans-serif;margin-bottom:4px;">REGION</div>
-        <div style="font-family:'Bebas Neue',sans-serif;font-size:17px;letter-spacing:1px;color:var(--text);line-height:1.1;">${esc(region)}</div>
-        <div style="font-size:13px;color:${c};margin-top:6px;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;">${evs.length} EVENT${evs.length>1?'S':''}</div>
-      </div>`;
-    }).join('');
-    html += `</div>`;
-  }
-
-  // ── EMPTY STATE ──
-  if (!upcoming.length) {
-    const hasFilter = !!(_calGenreFilter || _calStateFilter);
-    html += `<div style="text-align:center;padding:80px 0 40px;">
-      <div style="font-family:'Bebas Neue',sans-serif;font-size:28px;letter-spacing:3px;color:var(--muted);margin-bottom:10px;">${hasFilter ? 'NO MATCHING EVENTS' : 'NO EVENTS YET'}</div>
-      <div style="font-size:14px;color:var(--muted);line-height:1.6;">${hasFilter ? 'Try different genre or state filters.<br><button onclick="calClearFilters()" style="margin-top:12px;background:none;border:1px solid rgba(255,255,255,.2);color:var(--text);border-radius:20px;padding:8px 20px;cursor:pointer;font-size:13px;">Clear Filters</button>' : 'Events will appear here once<br>promoters publish them.'}</div>
+  // Empty state
+  if (!tonight.length && !weekend.length && !comingUp.length && !further.length) {
+    html = `<div style="text-align:center;padding:60px 16px;">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:32px;letter-spacing:3px;color:var(--muted);margin-bottom:10px;">NO EVENTS YET</div>
+      <div style="font-size:14px;color:var(--muted);line-height:1.6;">Events will appear here once<br>promoters publish them.</div>
+      <button onclick="calToggleFullView()" style="margin-top:20px;background:none;border:1px solid var(--border);color:var(--text);border-radius:20px;padding:10px 24px;font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:1px;cursor:pointer;">BROWSE CALENDAR</button>
     </div>`;
   }
 
@@ -540,6 +617,38 @@ function calToggleBucket(key) {
   body.style.display    = isOpen ? 'none' : '';
   body.style.paddingTop = isOpen ? '0' : '12px';
   if (chevron) chevron.style.transform = isOpen ? 'rotate(-90deg)' : '';
+}
+
+// ── Scroll to a What's On section by ID ───────────
+function calScrollToSection(id) {
+  // Make sure What's On panel is visible (not full calendar)
+  const fullPanel = document.getElementById('calFullPanel');
+  const whatsOn   = document.getElementById('calContent');
+  if (fullPanel && fullPanel.style.display !== 'none') {
+    fullPanel.style.display = 'none';
+    if (whatsOn) whatsOn.style.display = '';
+  }
+  const el = document.getElementById(id);
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// ── Toggle full calendar panel ────────────────────
+function calToggleFullView() {
+  const fullPanel = document.getElementById('calFullPanel');
+  const whatsOn   = document.getElementById('calContent');
+  if (!fullPanel) return;
+  const isOpen = fullPanel.style.display !== 'none';
+  if (isOpen) {
+    fullPanel.style.display = 'none';
+    if (whatsOn) whatsOn.style.display = '';
+  } else {
+    if (whatsOn) whatsOn.style.display = 'none';
+    fullPanel.style.display = '';
+    renderCalHeader();
+    _calSelDate = null;
+    const dayContent = document.getElementById('calDayContent');
+    if (dayContent) dayContent.innerHTML = '';
+  }
 }
 
 // ── Render: Day View ───────────────────────────────
