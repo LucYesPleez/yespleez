@@ -95,6 +95,9 @@ async function sbRest(path, options = {}, token = null) {
 function clearCachedProfiles() {
   artistProfile = {};
   hostProfile   = {};
+  if (typeof bandProfile    !== 'undefined') bandProfile    = {};
+  if (typeof standupProfile !== 'undefined') standupProfile = {};
+  if (typeof venueProfile   !== 'undefined') venueProfile   = {};
   localStorage.removeItem('yp_artist_profile');
   localStorage.removeItem('yp_host_profile');
 }
