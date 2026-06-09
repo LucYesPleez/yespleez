@@ -96,7 +96,7 @@ function _renderStandupAvailSummary(rows) {
   const el = document.getElementById('standupAvailSummary');
   if (!el) return;
   if (!rows.length) {
-    el.innerHTML = 'No availability set — tap <strong style="color:#FF9B6A;">MANAGE</strong> to add open dates.';
+    el.innerHTML = 'No availability set — tap <strong style="color:#FF88AA;">MANAGE</strong> to add open dates.';
     return;
   }
   const today = new Date().toISOString().split('T')[0];
@@ -109,7 +109,7 @@ function _renderStandupAvailSummary(rows) {
     ${upcoming.map(r => {
       const d = new Date(r.available_date + 'T12:00:00');
       const label = d.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' });
-      return `<div style="background:rgba(255,155,106,.1);border:1px solid rgba(255,155,106,.3);border-radius:8px;padding:5px 12px;font-size:12px;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;color:#FF9B6A;">${label.toUpperCase()}</div>`;
+      return `<div style="background:rgba(255,136,170,.1);border:1px solid rgba(255,136,170,.3);border-radius:8px;padding:5px 12px;font-size:12px;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;color:#FF88AA;">${label.toUpperCase()}</div>`;
     }).join('')}
     ${rows.length > 6 ? `<div style="font-size:12px;color:var(--muted);align-self:center;">+${rows.length - 6} more</div>` : ''}
   </div>`;
@@ -200,7 +200,7 @@ function _showStandupAvailOverlay() {
     overlay.innerHTML = `
       <div style="background:#0f0f1a;border-radius:20px 20px 0 0;width:100%;max-width:480px;padding:24px 20px 40px;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;">
-          <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:2px;color:#FF9B6A;">ACT AVAILABILITY</div>
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:2px;color:#FF88AA;">ACT AVAILABILITY</div>
           <button onclick="closeStandupAvailability()" style="background:none;border:none;color:var(--muted);font-size:24px;cursor:pointer;">×</button>
         </div>
         <div style="font-size:13px;color:var(--muted);margin-bottom:16px;">Tap dates you're available to perform. Venues and bookers can search for available acts on specific nights.</div>
@@ -258,7 +258,7 @@ function _renderStandupAvailGrid() {
     const isAvail = _standupAvailDates.has(dateStr);
     const isToday = dateStr === today;
     let bg = 'rgba(255,255,255,.04)', color = isPast ? 'rgba(255,255,255,.2)' : 'var(--text)', border = '1px solid transparent';
-    if (isAvail) { bg = 'rgba(232,121,249,.18)'; border = '1px solid rgba(232,121,249,.5)'; color = '#FF9B6A'; }
+    if (isAvail) { bg = 'rgba(232,121,249,.18)'; border = '1px solid rgba(232,121,249,.5)'; color = '#FF88AA'; }
     if (isToday) border = '1px solid rgba(255,255,255,.3)';
     html += `<div onclick="${isPast ? '' : `toggleStandupAvailDate('${dateStr}')`}"
       style="text-align:center;padding:7px 2px;border-radius:6px;font-size:13px;cursor:${isPast?'default':'pointer'};background:${bg};color:${color};border:${border};transition:background .15s;">${d}</div>`;
@@ -296,4 +296,5 @@ async function toggleStandupAvailDate(dateStr) {
     showToast('Could not update availability', 'error');
   }
 }
+
 
