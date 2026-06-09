@@ -162,57 +162,125 @@ async function _loadBandsUpcomingGigs() {
 
 // ── Band profile form ──────────────────────────────
 
+function _populateBandYearDropdown() {
+  const sel = document.getElementById('bandEstablishedInput');
+  if (!sel || sel.options.length > 2) return; // already populated
+  const currentYear = new Date().getFullYear();
+  for (let y = currentYear; y >= 1950; y--) {
+    const opt = document.createElement('option');
+    opt.value = y;
+    opt.textContent = y;
+    sel.appendChild(opt);
+  }
+}
+
+function previewBandAvatar(input) {
+  const file = input.files && input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const preview = document.getElementById('bandAvatarPreview');
+    if (preview) {
+      preview.innerHTML = `<img src="${e.target.result}" style="width:100%;height:100%;object-fit:cover;">`;
+    }
+  };
+  reader.readAsDataURL(file);
+}
+
 function showBandProfile() {
+  _populateBandYearDropdown();
   const p = bandProfile || {};
   const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
-  setVal('bandNameInput',      p.name || p.dj_name || '');
-  setVal('bandLocationInput',  p.suburb || p.location || '');
-  setVal('bandStateInput',     p.state || '');
-  setVal('bandMembersInput',   p.member_count || '');
-  setVal('bandTypeInput',      p.band_type || '');
-  setVal('bandGenresInput',    p.genre_string || '');
-  setVal('bandBioInput',       p.bio || '');
-  setVal('bandEpkInput',       p.mix_link || p.epk_link || '');
-  setVal('bandContactInput',   p.contact_email || '');
-  setVal('bandWebsiteInput',   p.website || '');
-  setVal('bandInstagramInput', p.instagram || '');
+  setVal('bandNameInput',        p.name || p.dj_name || '');
+  setVal('bandLocationInput',    p.suburb || p.location || '');
+  setVal('bandStateInput',       p.state || '');
+  setVal('bandPostcodeInput',    p.postcode || '');
+  setVal('bandMembersInput',     p.member_count || '');
+  setVal('bandEstablishedInput', p.established_year || '');
+  setVal('bandTypeInput',        p.band_type || '');
+  setVal('bandGenresInput',      p.genre_string || '');
+  setVal('bandBioInput',         p.bio || '');
+  setVal('bandEpkInput',         p.mix_link || p.epk_link || '');
+  setVal('bandContactInput',     p.contact_email || '');
+  setVal('bandWebsiteInput',     p.website || '');
+  setVal('bandInstagramInput',   p.instagram || '');
+  // Restore avatar preview
+  const preview = document.getElementById('bandAvatarPreview');
+  if (preview) {
+    if (p.avatar) {
+      preview.innerHTML = `<img src="${p.avatar}" style="width:100%;height:100%;object-fit:cover;">`;
+    } else {
+      preview.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="rgba(255,140,66,.6)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg><div style="font-size:10px;color:rgba(255,140,66,.6);margin-top:6px;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;">PHOTO</div>`;
+    }
+  }
+  // Reset file input
+  const fileInput = document.getElementById('bandAvatarInput');
+  if (fileInput) fileInput.value = '';
   show('bandProfileScreen');
 }
 
 async function saveBandProfile() {
   const getVal = id => { const el = document.getElementById(id); return el ? el.value.trim() : ''; };
-  const name    = getVal('bandNameInput');
-  const suburb  = getVal('bandLocationInput');
-  const state   = getVal('bandStateInput');
-  const members = getVal('bandMembersInput');
-  const type    = getVal('bandTypeInput');
-  const genres  = getVal('bandGenresInput');
-  const bio     = getVal('bandBioInput');
-  const epk     = getVal('bandEpkInput');
-  const contact = getVal('bandContactInput');
-  const website = getVal('bandWebsiteInput');
-  const instagram = getVal('bandInstagramInput');
+  const name        = getVal('bandNameInput');
+  const suburb      = getVal('bandLocationInput');
+  const state       = getVal('bandStateInput');
+  const postcode    = getVal('bandPostcodeInput');
+  const members     = getVal('bandMembersInput');
+  const established = getVal('bandEstablishedInput');
+  const type        = getVal('bandTypeInput');
+  const genres      = getVal('bandGenresInput');
+  const bio         = getVal('bandBioInput');
+  const epk         = getVal('bandEpkInput');
+  const contact     = getVal('bandContactInput');
+  const website     = getVal('bandWebsiteInput');
+  const instagram   = getVal('bandInstagramInput');
 
   if (!name) { showToast('Please enter a band or act name', 'error'); return; }
 
+  // Avatar upload
+  let avatarUrl = bandProfile?.avatar || null;
+  const fileInput = document.getElementById('bandAvatarInput');
+  const file = fileInput?.files?.[0];
+  if (file && !DEMO && currentSession?.access_token) {
+    try {
+      const ext  = file.name.split('.').pop();
+      const path = `band_avatars/${currentUser.id}_${Date.now()}.${ext}`;
+      const uploadRes = await fetch(`${SUPABASE_URL}/storage/v1/object/avatars/${path}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${currentSession.access_token}`,
+          'Content-Type': file.type,
+          'x-upsert': 'true'
+        },
+        body: file
+      });
+      if (uploadRes.ok) {
+        avatarUrl = `${SUPABASE_URL}/storage/v1/object/public/avatars/${path}`;
+      }
+    } catch(e) { console.warn('avatar upload:', e); }
+  }
+
   const payload = {
-    user_id:       currentUser.id,
-    type:          'band',
-    name:          name,
-    dj_name:       name,
-    suburb:        suburb,
-    location:      suburb,
-    state:         state,
-    member_count:  members ? parseInt(members) : null,
-    band_type:     type,
-    genre_string:  genres,
-    bio:           bio,
-    mix_link:      epk,
-    epk_link:      epk,
-    contact_email: contact,
-    website:       website,
-    instagram:     instagram,
-    updated_at:    new Date().toISOString()
+    user_id:          currentUser.id,
+    type:             'band',
+    name:             name,
+    dj_name:          name,
+    suburb:           suburb,
+    location:         suburb,
+    state:            state,
+    postcode:         postcode,
+    member_count:     members ? parseInt(members) : null,
+    established_year: established ? parseInt(established) : null,
+    band_type:        type,
+    genre_string:     genres,
+    bio:              bio,
+    mix_link:         epk,
+    epk_link:         epk,
+    contact_email:    contact,
+    website:          website,
+    instagram:        instagram,
+    avatar:           avatarUrl,
+    updated_at:       new Date().toISOString()
   };
 
   try {
