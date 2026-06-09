@@ -1680,7 +1680,22 @@ body.player-open .screen.active { padding-bottom: 80px; }
       </div>
     </div>
     <div class="role-card standup-card" onclick="enterStandupDashboard()">
-      <div class="role-card-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/></svg></div>
+      <div class="role-card-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+  <!-- Vintage mic head (oval capsule) -->
+  <ellipse cx="12" cy="8" rx="5" ry="6.5"/>
+  <!-- Grille lines -->
+  <line x1="8.2" y1="4" x2="15.8" y2="4"/>
+  <line x1="7.2" y1="6.5" x2="16.8" y2="6.5"/>
+  <line x1="7.1" y1="9" x2="16.9" y2="9"/>
+  <line x1="8.2" y1="11.5" x2="15.8" y2="11.5"/>
+  <!-- Yoke bracket -->
+  <path d="M7 8 L4.5 8 L4.5 16 L12 16"/>
+  <path d="M17 8 L19.5 8 L19.5 16 L12 16"/>
+  <!-- Stem -->
+  <line x1="12" y1="16" x2="12" y2="20"/>
+  <!-- Base -->
+  <rect x="7.5" y="20" width="9" height="2" rx="1"/>
+</svg></div>
       <div class="role-card-body">
         <div class="role-card-title" style="background:linear-gradient(135deg,#E879F9,#A855F7);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">STAND UP / POETRY</div>
         <div class="role-card-desc">Book gigs, share your sets, connect with comedy clubs and spoken word nights</div>
@@ -2048,7 +2063,7 @@ body.player-open .screen.active { padding-bottom: 80px; }
     style="background:rgba(232,121,249,.06);border:1px solid rgba(232,121,249,.25);border-radius:14px;padding:16px 18px;margin-bottom:20px;cursor:pointer;display:flex;align-items:center;gap:16px;transition:border-color .2s;"
     onmouseenter="this.style.borderColor='rgba(232,121,249,.5)'" onmouseleave="this.style.borderColor='rgba(232,121,249,.25)'">
     <div id="standupDashAvatar" style="width:52px;height:52px;border-radius:10px;background:rgba(232,121,249,.12);border:1.5px solid rgba(232,121,249,.3);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#E879F9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/></svg>
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#E879F9" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="8" rx="5" ry="6.5"/><line x1="8.2" y1="4" x2="15.8" y2="4"/><line x1="7.2" y1="6.5" x2="16.8" y2="6.5"/><line x1="7.1" y1="9" x2="16.9" y2="9"/><line x1="8.2" y1="11.5" x2="15.8" y2="11.5"/><path d="M7 8 L4.5 8 L4.5 16 L12 16"/><path d="M17 8 L19.5 8 L19.5 16 L12 16"/><line x1="12" y1="16" x2="12" y2="20"/><rect x="7.5" y="20" width="9" height="2" rx="1"/></svg>
     </div>
     <div style="flex:1;min-width:0;">
       <div style="font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:1px;color:var(--text);" id="standupDashName">Set up your act profile</div>
