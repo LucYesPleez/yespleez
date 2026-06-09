@@ -237,6 +237,7 @@ function openEventSetTimes(ev) {
   eventData.id = ev.id;
   currentEventHostId = ev.host_id || null;
   isHost = true;
+  isReadOnly = false;
   hostControls = ev.host_controls || { artistRemove: true, rankedBackups: true, genrePicker: true };
   lockedSlots = ev.host_controls?.lockedSlots || {};
   document.getElementById('shareLinkBtn').style.display = '';
@@ -252,6 +253,7 @@ function openAllClaims(ev) {
   if (!eventData.poster && ev.poster) eventData.poster = ev.poster;
   currentEventHostId = ev.host_id || null;
   isHost = true;
+  isReadOnly = false;
   hostControls = ev.host_controls || { artistRemove: true, rankedBackups: true, genrePicker: true };
   setTimesLocked = ev.host_controls?.setTimesLocked || false;
   lockedSlots = ev.host_controls?.lockedSlots || {};
@@ -269,6 +271,7 @@ function openEvent(ev) {
   eventData.id = ev.id;
   currentEventHostId = ev.host_id || null;
   isHost = true;
+  isReadOnly = false;
   hostControls = ev.host_controls || { artistRemove: true, rankedBackups: true, genrePicker: true };
   document.getElementById('shareLinkBtn').style.display = ev.status === 'live' ? '' : 'none';
   if (ev.status === 'live') {
