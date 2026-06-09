@@ -830,34 +830,14 @@ function calToggleBucket(key) {
 
 // ── Scroll to a What's On section by ID ───────────
 function calScrollToSection(id) {
-  // Make sure What's On panel is visible (not full calendar)
-  const fullPanel = document.getElementById('calFullPanel');
-  const whatsOn   = document.getElementById('calContent');
-  if (fullPanel && fullPanel.style.display !== 'none') {
-    fullPanel.style.display = 'none';
-    if (whatsOn) whatsOn.style.display = '';
-  }
   const el = document.getElementById(id);
   if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
-// ── Toggle full calendar panel ────────────────────
+// ── Toggle full calendar panel (both always visible now) ─
 function calToggleFullView() {
-  const fullPanel = document.getElementById('calFullPanel');
-  const whatsOn   = document.getElementById('calContent');
-  if (!fullPanel) return;
-  const isOpen = fullPanel.style.display !== 'none';
-  if (isOpen) {
-    fullPanel.style.display = 'none';
-    if (whatsOn) whatsOn.style.display = '';
-  } else {
-    if (whatsOn) whatsOn.style.display = 'none';
-    fullPanel.style.display = '';
-    renderCalHeader();
-    _calSelDate = null;
-    const dayContent = document.getElementById('calDayContent');
-    if (dayContent) dayContent.innerHTML = '';
-  }
+  const el = document.getElementById('calFullPanel');
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 // ── Render: Day View ───────────────────────────────
