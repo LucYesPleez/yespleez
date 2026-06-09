@@ -1652,8 +1652,18 @@ body.player-open .screen.active { padding-bottom: 80px; }
       </div>
     </div>
     <div class="role-card bands-card" onclick="enterBandsDashboard()">
-      <div class="role-card-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m11.9 12.1 4.514-4.514"/><path d="M20.1 2.3a1 1 0 0 0-1.4 0l-1.114 1.114A2 2 0 0 0 17 4.828V7l-2.3 2.3a6.5 6.5 0 1 0 3 3L20 10h2.172a2 2 0 0 0 1.414-.586L24.7 8.3a1 1 0 0 0 0-1.4z"/><circle cx="8.5" cy="15.5" r="2.5"/></svg></div>
+      <div class="role-card-icon" style="display:flex;flex-direction:column;gap:4px;">
+        <!-- 1: double notes -->
+        <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+        <!-- 2: mic on stand -->
+        <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/></svg>
+        <!-- 3: drum -->
+        <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="13" rx="9" ry="5"/><path d="M3 13v4c0 2.8 4 5 9 5s9-2.2 9-5v-4"/><path d="m8 3 4 3 4-3"/><path d="M7 6c0 0 1 1 5 1s5-1 5-1"/></svg>
+        <!-- 4: simple guitar -->
+        <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15.5 2.1-5 5a6 6 0 1 0 6.4 6.4l5-5a2 2 0 0 0-2.8-2.8l-1.2 1.2-1.8-1.8 1.2-1.2a2 2 0 0 0-2.8-2.8z"/><circle cx="9" cy="15" r="2"/></svg>
+      </div>
       <div class="role-card-body">
+        <div style="font-size:9px;color:var(--muted);margin-bottom:2px;">1=NOTES 2=MIC 3=DRUM 4=GUITAR</div>
         <div class="role-card-title" style="color:#FF8C42;">BANDS / MUSOS</div>
         <div class="role-card-desc">List your band, find gigs, connect with venues and promoters</div>
       </div>
