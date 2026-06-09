@@ -160,18 +160,24 @@ function mapDbToHostProfile(row) {
 
 // ── Shared profile card builder (used by discover) ────────────
 function buildProfileCardEl(row) {
-  const isHost    = row.type === 'host';
+  const type      = row.type || 'artist';
   const name      = row.dj_name || row.name || 'Unknown';
   const location  = [row.location, row.state].filter(Boolean).join(', ');
   const sound     = row.sound || '';
   const genres    = row.genre_string ? row.genre_string.split(' · ').slice(0, 4).join(' · ') : '';
   const bio       = row.bio ? row.bio.substring(0, 80) + (row.bio.length > 80 ? '…' : '') : '';
-  const accentCol = isHost ? 'var(--neon)'  : 'var(--neon2)';
-  const accentRgb = isHost ? '255,45,120'   : '0,229,255';
-  const emoji     = isHost ? '🎛️' : '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3z"/><path d="M3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg>';
-  const badge     = isHost
-    ? `<span style="background:rgba(255,45,120,.15);color:var(--neon);border:1px solid rgba(255,45,120,.3);border-radius:20px;font-size:10px;padding:2px 8px;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;">HOST</span>`
-    : `<span style="background:rgba(0,229,255,.12);color:var(--neon2);border:1px solid rgba(0,229,255,.25);border-radius:20px;font-size:10px;padding:2px 8px;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;">ARTIST</span>`;
+  const typeStyles = {
+    host:    { col: 'var(--neon)',   rgb: '255,45,120',  label: 'HOST',    emoji: '🎛️' },
+    artist:  { col: 'var(--neon2)',  rgb: '0,229,255',   label: 'ARTIST',  emoji: '🎧' },
+    band:    { col: '#FF8C42',       rgb: '255,140,66',  label: 'BAND',    emoji: '🎸' },
+    standup: { col: '#FF88AA',       rgb: '255,136,170', label: 'STANDUP', emoji: '🎤' },
+    venue:   { col: '#00E5A0',       rgb: '0,229,160',   label: 'VENUE',   emoji: '📍' },
+  };
+  const ts        = typeStyles[type] || typeStyles.artist;
+  const accentCol = ts.col;
+  const accentRgb = ts.rgb;
+  const emoji     = ts.emoji;
+  const badge     = `<span style="background:rgba(${accentRgb},.15);color:${accentCol};border:1px solid rgba(${accentRgb},.3);border-radius:20px;font-size:10px;padding:2px 8px;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;">${ts.label}</span>`;
   const avatarHtml = row.avatar
     ? `<img src="${row.avatar}" style="width:56px;height:56px;border-radius:10px;object-fit:cover;border:2px solid ${accentCol};flex-shrink:0;" onerror="this.style.display='none'">`
     : `<div style="width:56px;height:56px;border-radius:10px;background:var(--card2);border:2px solid ${accentCol};display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0;">${emoji}</div>`;
@@ -205,7 +211,7 @@ async function searchProfiles(query, filterType, filterState) {
     if (filterType && filterType !== 'all') {
       path += `&type=eq.${filterType}`;
     } else {
-      path += `&type=in.(artist,host)`;
+      path += `&type=in.(artist,host,band,standup,venue)`;
     }
     if (filterState && filterState !== 'all') {
       const s = encodeURIComponent(`%${filterState}%`);
@@ -238,8 +244,17 @@ function openPublicProfile(row) {
   const location = [row.location, row.state].filter(Boolean).join(', ');
   const genres = row.genre_string ? row.genre_string.split(' · ') : [];
   const topGenres = genres.slice(0, 8);
-  const accentColor = isHost ? 'var(--neon)' : 'var(--neon2)';
-  const accentRgb = isHost ? '255,45,120' : '0,229,255';
+  const typeAccents = {
+    host:    { color: 'var(--neon)',  rgb: '255,45,120',  label: 'HOST / PROMOTER' },
+    artist:  { color: 'var(--neon2)', rgb: '0,229,255',   label: 'ARTIST / DJ' },
+    band:    { color: '#FF8C42',      rgb: '255,140,66',  label: row.band_type || 'BAND / MUSO' },
+    standup: { color: '#FF88AA',      rgb: '255,136,170', label: row.act_type  || 'STAND-UP / COMEDY' },
+    venue:   { color: '#00E5A0',      rgb: '0,229,160',   label: row.venue_type || 'VENUE' },
+  };
+  const ta = typeAccents[row.type] || typeAccents.artist;
+  const accentColor = ta.color;
+  const accentRgb   = ta.rgb;
+  const typeLabel   = ta.label;
 
   const heroBg  = document.getElementById('profileHeroBg');
   const heroImg = document.getElementById('profileHeroImg');
@@ -281,7 +296,7 @@ function openPublicProfile(row) {
     <div style="text-align:center;margin-bottom:20px;">
       <div style="font-family:'Bebas Neue',sans-serif;font-size:clamp(42px,12vw,64px);letter-spacing:3px;line-height:.88;text-shadow:0 2px 24px rgba(0,0,0,.9);">${name}</div>
       <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-top:10px;flex-wrap:wrap;">
-        <span style="font-size:11px;background:rgba(${accentRgb},.15);color:${accentColor};border:1px solid rgba(${accentRgb},.35);border-radius:20px;padding:4px 14px;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;">${isHost ? 'HOST / PROMOTER' : 'ARTIST / DJ'}</span>
+        <span style="font-size:11px;background:rgba(${accentRgb},.15);color:${accentColor};border:1px solid rgba(${accentRgb},.35);border-radius:20px;padding:4px 14px;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;">${typeLabel}</span>
         ${location ? `<span style="font-size:13px;color:rgba(232,232,240,.75);"><svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:2px;"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg>${location}</span>` : ''}
       </div>
     </div>

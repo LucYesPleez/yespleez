@@ -122,7 +122,7 @@ async function runSearch() {
   resultsEl.insertAdjacentHTML('beforeend', '<div class="search-card" id="searchLoading" style="text-align:center;padding:40px;color:var(--muted);font-size:13px;">Loading…</div>');
 
   // Normalise type filter — dropdown may say 'dj' but DB stores 'artist'
-  const typeMap = { dj: 'artist', DJ: 'artist', artist: 'artist', host: 'host', promoter: 'host' };
+  const typeMap = { dj: 'artist', DJ: 'artist', artist: 'artist', host: 'host', promoter: 'host', band: 'band', muso: 'band', standup: 'standup', comedy: 'standup', venue: 'venue' };
   const normType = typeMap[typeFilter] || typeFilter;
 
   const searchingProfiles = normType !== 'event';
