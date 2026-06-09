@@ -3796,126 +3796,36 @@ async function confirmDeleteGig(gigId) {
 // ── Public Profile Preview ─────────────────────────────
 
 function showPublicProfile(role) {
-  let p = {}, accent = 'var(--neon2)', label = '';
-
-  if (role === 'artist') {
-    p = artistProfile || {};
-    accent = '#00E5FF';
-    label = 'ARTIST / DJ';
-  } else if (role === 'band') {
-    p = (typeof bandProfile !== 'undefined' ? bandProfile : {}) || {};
-    accent = '#FF8C42';
-    label = (p.band_type || 'BAND') + ' / MUSO';
-  } else if (role === 'standup') {
-    p = (typeof standupProfile !== 'undefined' ? standupProfile : {}) || {};
-    accent = '#FF88AA';
-    label = p.act_type || 'STAND-UP / COMEDY';
-  } else if (role === 'venue') {
-    p = (typeof venueProfile !== 'undefined' ? venueProfile : {}) || {};
-    accent = '#00E5A0';
-    label = p.venue_type || 'VENUE';
-  }
+  let p = {};
+  if (role === 'artist')  p = artistProfile || {};
+  else if (role === 'band')    p = (typeof bandProfile    !== 'undefined' ? bandProfile    : {});
+  else if (role === 'standup') p = (typeof standupProfile !== 'undefined' ? standupProfile : {});
+  else if (role === 'venue')   p = (typeof venueProfile   !== 'undefined' ? venueProfile   : {});
 
   const name = p.name || p.djName || p.dj_name || '';
   if (!name) { showToast('Set up your profile first', 'error'); return; }
 
-  // Banner accent
-  const banner = document.getElementById('pubPrevBanner');
-  banner.style.borderColor = accent;
-  banner.style.color = accent;
+  // Map camelCase artistProfile fields to the snake_case row shape openPublicProfile expects
+  const row = Object.assign({
+    dj_name:      p.djName   || p.name || p.dj_name,
+    name:         p.name     || p.djName,
+    type:         role === 'venue' ? 'host' : 'artist',
+    location:     p.location || p.suburb,
+    state:        p.state,
+    tagline:      p.tagline,
+    sound:        p.sound,
+    bio:          p.bio,
+    genre_string: p.genre_string || p.genreString,
+    mix_link:     p.mix_link || p.mixLink,
+    soundcloud:   p.soundcloud,
+    instagram:    p.instagram,
+    youtube:      p.youtube,
+    facebook:     p.facebook,
+    tiktok:       p.tiktok,
+    website:      p.website,
+    avatar:       p.avatar,
+    user_id:      currentUser?.id,
+  }, p);
 
-  // Avatar
-  const avatarEl = document.getElementById('pubAvatar');
-  if (p.avatar) {
-    avatarEl.innerHTML = `<img src="${p.avatar}" style="width:80px;height:80px;border-radius:14px;object-fit:cover;border:2px solid ${accent};">`;
-  } else {
-    avatarEl.innerHTML = `<div style="width:80px;height:80px;border-radius:14px;background:rgba(255,255,255,.06);border:2px dashed ${accent}44;display:flex;align-items:center;justify-content:center;"><svg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 24 24' fill='none' stroke='${accent}' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='8' r='5'/><path d='M20 21a8 8 0 1 0-16 0'/></svg></div>`;
-  }
-
-  // Name / tagline / location
-  document.getElementById('pubName').textContent = name;
-  document.getElementById('pubTagline').textContent = p.tagline || p.sound || '';
-  const loc = [p.suburb || p.location, p.state].filter(Boolean).join(', ');
-  document.getElementById('pubLocation').textContent = loc;
-
-  // Badge
-  const badge = document.getElementById('pubBadge');
-  badge.textContent = label;
-  badge.style.background = accent + '22';
-  badge.style.color = accent;
-  badge.style.borderColor = accent + '55';
-
-  // Sound descriptor (italic sub-line)
-  const soundEl = document.getElementById('pubSound');
-  const soundText = (p.sound && p.sound !== p.tagline) ? p.sound : '';
-  soundEl.textContent = soundText;
-  soundEl.style.display = soundText ? '' : 'none';
-
-  // Genre / vibe tags
-  const rawTags = [p.genre_string, p.genreString, p.vibe_tags].filter(Boolean).join(', ');
-  const tags = rawTags.split(/[,·]/).map(t => t.trim()).filter(Boolean);
-  document.getElementById('pubTags').innerHTML = tags.map(t =>
-    `<span style="background:${accent}18;color:${accent};border:1px solid ${accent}44;border-radius:20px;font-size:11px;letter-spacing:1px;padding:4px 12px;font-family:'Bebas Neue',sans-serif;">${t}</span>`
-  ).join('');
-
-  // Experience
-  const expEl = document.getElementById('pubExp');
-  if (p.experience) {
-    expEl.style.display = '';
-    expEl.innerHTML = `<span style="font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:1.5px;color:${accent};border:1px solid ${accent}44;border-radius:20px;padding:4px 14px;">${p.experience}</span>`;
-  } else { expEl.style.display = 'none'; }
-
-  // Extra details (role-specific)
-  const extraEl = document.getElementById('pubExtra');
-  const chips = [];
-  if (role === 'band') {
-    if (p.member_count) chips.push(`👥 ${p.member_count} members`);
-    if (p.established_year) chips.push(`📅 Est. ${p.established_year}`);
-  }
-  if (role === 'standup') {
-    if (p.set_length) chips.push(`⏱ ${p.set_length} min set`);
-  }
-  if (role === 'venue') {
-    if (p.stage_dims) chips.push(`🎭 Stage: ${p.stage_dims}`);
-    if (p.tech_features) chips.push(`🎛 ${p.tech_features}`);
-    if (p.live_nights) chips.push(`📆 ${p.live_nights}`);
-  }
-  extraEl.innerHTML = chips.length
-    ? `<div style="display:flex;flex-wrap:wrap;gap:8px;">${chips.map(c => `<span style="background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:8px;font-size:12px;color:var(--muted);padding:5px 12px;">${c}</span>`).join('')}</div>`
-    : '';
-  extraEl.style.display = chips.length ? '' : 'none';
-
-  // Bio
-  const bio = p.bio || '';
-  const bioWrap = document.getElementById('pubBioWrap');
-  document.getElementById('pubBio').textContent = bio;
-  bioWrap.style.display = bio ? '' : 'none';
-
-  // Socials
-  const links = {
-    '🎧 Mix / Demo':  p.mix_link  || p.mixLink,
-    '📸 Instagram':   p.instagram,
-    '▶ YouTube':      p.youtube,
-    '☁ SoundCloud':   p.soundcloud || p.soundCloud,
-    '🎵 Spotify':     p.spotify,
-    'f Facebook':     p.facebook,
-    '♪ TikTok':       p.tiktok,
-    '🌐 Website':     p.website,
-  };
-  let socialHtml = '';
-  for (const [lbl, val] of Object.entries(links)) {
-    if (val) {
-      const href = val.startsWith('http') ? val : `https://${val}`;
-      socialHtml += `<a href="${href}" target="_blank" rel="noopener" style="display:inline-block;background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:8px;padding:7px 13px;font-size:11px;color:var(--muted);text-decoration:none;letter-spacing:.5px;">${lbl}</a>`;
-    }
-  }
-  const socialsWrap = document.getElementById('pubSocialsWrap');
-  document.getElementById('pubSocials').innerHTML = socialHtml;
-  socialsWrap.style.display = socialHtml ? '' : 'none';
-
-  document.getElementById('publicProfileOverlay').style.display = 'flex';
-}
-
-function closePublicProfile() {
-  document.getElementById('publicProfileOverlay').style.display = 'none';
+  openPublicProfile(row);
 }
