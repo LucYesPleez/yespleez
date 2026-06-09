@@ -108,7 +108,11 @@ function _calGetDemoEvents() {
   return _calDemoRaw.map(ev => {
     const d = new Date(now);
     d.setDate(d.getDate() + (ev.config._daysFromNow || 0));
-    const dateStr = d.toLocaleDateString('en-AU', { day:'numeric', month:'long' });
+    // Use ISO noon format — parses reliably on all browsers/platforms
+    const y  = d.getFullYear();
+    const m  = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    const dateStr = `${y}-${m}-${dd}T12:00:00`;
     return { ...ev, config: { ...ev.config, date: dateStr }, _isDemo: true };
   });
 }
