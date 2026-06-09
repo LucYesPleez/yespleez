@@ -185,8 +185,34 @@ async function loadCalEvents() {
 function calParseDate(ev) {
   const s = ev?.config?.date;
   if (!s) return null;
-  const d = new Date(s);
-  return isNaN(d.getTime()) ? null : d;
+  // Try ISO / standard parse first
+  let d = new Date(s);
+  if (!isNaN(d.getTime())) return d;
+
+  // Handle "June 20 / 21" style (multi-day) — take first date
+  const multiDay = s.match(/([A-Za-z]+)\s+(\d+)\s*[\/\-&]\s*\d+/);
+  if (multiDay) {
+    const now = new Date();
+    d = new Date(`${multiDay[1]} ${multiDay[2]} ${now.getFullYear()}`);
+    if (!isNaN(d.getTime())) {
+      // Roll to next year if date has already passed by more than a week
+      if (d < new Date(now - 7 * 86400000)) d.setFullYear(now.getFullYear() + 1);
+      return d;
+    }
+  }
+
+  // Handle "19 October" or "October 19" style (no year)
+  const noYear = s.match(/(\d{1,2})\s+([A-Za-z]+)|([A-Za-z]+)\s+(\d{1,2})/);
+  if (noYear) {
+    const now = new Date();
+    d = new Date(`${s} ${now.getFullYear()}`);
+    if (!isNaN(d.getTime())) {
+      if (d < new Date(now - 7 * 86400000)) d.setFullYear(now.getFullYear() + 1);
+      return d;
+    }
+  }
+
+  return null;
 }
 
 function calDateStr(ev) {
