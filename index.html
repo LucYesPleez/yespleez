@@ -1653,19 +1653,24 @@ body.player-open .screen.active { padding-bottom: 80px; }
       </div>
     </div>
     <div class="role-card bands-card" onclick="enterBandsDashboard()">
-      <div class="role-card-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-  <circle cx="12" cy="12" r="9.5"/>
+      <div class="role-card-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+  <!-- Outer rim: 4 arcs broken by lugs at 12/3/6/9 -->
+  <path d="M 14.5 2.5 A 9.5 9.5 0 0 1 21.5 9.5"/>
+  <path d="M 21.5 14.5 A 9.5 9.5 0 0 1 14.5 21.5"/>
+  <path d="M 9.5 21.5 A 9.5 9.5 0 0 1 2.5 14.5"/>
+  <path d="M 2.5 9.5 A 9.5 9.5 0 0 1 9.5 2.5"/>
+  <!-- Lug tabs at 12/3/6/9 -->
+  <rect x="10.5" y="1" width="3" height="2" rx="0.5" fill="currentColor" stroke="none"/>
+  <rect x="21" y="10.5" width="2" height="3" rx="0.5" fill="currentColor" stroke="none"/>
+  <rect x="10.5" y="21" width="3" height="2" rx="0.5" fill="currentColor" stroke="none"/>
+  <rect x="1" y="10.5" width="2" height="3" rx="0.5" fill="currentColor" stroke="none"/>
+  <!-- Inner drum head -->
   <circle cx="12" cy="12" r="7"/>
-  <circle cx="12" cy="2.5" r="0.8" fill="currentColor" stroke="none"/>
-  <circle cx="18.9" cy="5.1" r="0.8" fill="currentColor" stroke="none"/>
-  <circle cx="21.5" cy="12" r="0.8" fill="currentColor" stroke="none"/>
-  <circle cx="18.9" cy="18.9" r="0.8" fill="currentColor" stroke="none"/>
-  <circle cx="12" cy="21.5" r="0.8" fill="currentColor" stroke="none"/>
-  <circle cx="5.1" cy="18.9" r="0.8" fill="currentColor" stroke="none"/>
-  <circle cx="2.5" cy="12" r="0.8" fill="currentColor" stroke="none"/>
-  <circle cx="5.1" cy="5.1" r="0.8" fill="currentColor" stroke="none"/>
-  <line x1="2" y1="3" x2="18.5" y2="15" stroke-width="2"/>
-  <circle cx="19.5" cy="15.7" r="1.2" fill="currentColor" stroke="none"/>
+  <!-- Crossed drumsticks -->
+  <line x1="3" y1="2" x2="17" y2="16" stroke-width="2"/>
+  <circle cx="2.5" cy="1.5" r="1.3" fill="currentColor" stroke="none"/>
+  <line x1="21" y1="2" x2="7" y2="16" stroke-width="2"/>
+  <circle cx="21.5" cy="1.5" r="1.3" fill="currentColor" stroke="none"/>
 </svg></div>
       <div class="role-card-body">
         <div class="role-card-title" style="color:#FF8C42;">BAND / MUSO</div>
@@ -2209,7 +2214,7 @@ body.player-open .screen.active { padding-bottom: 80px; }
     style="background:rgba(255,140,66,.06);border:1px solid rgba(255,140,66,.25);border-radius:14px;padding:16px 18px;margin-bottom:20px;cursor:pointer;display:flex;align-items:center;gap:16px;transition:border-color .2s;"
     onmouseenter="this.style.borderColor='rgba(255,140,66,.5)'" onmouseleave="this.style.borderColor='rgba(255,140,66,.25)'">
     <div id="bandsDashAvatar" style="width:52px;height:52px;border-radius:10px;background:rgba(255,140,66,.12);border:1.5px solid rgba(255,140,66,.3);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#FF8C42" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9.5"/><circle cx="12" cy="12" r="7"/><circle cx="12" cy="2.5" r="0.8" fill="#FF8C42" stroke="none"/><circle cx="18.9" cy="5.1" r="0.8" fill="#FF8C42" stroke="none"/><circle cx="21.5" cy="12" r="0.8" fill="#FF8C42" stroke="none"/><circle cx="18.9" cy="18.9" r="0.8" fill="#FF8C42" stroke="none"/><circle cx="12" cy="21.5" r="0.8" fill="#FF8C42" stroke="none"/><circle cx="5.1" cy="18.9" r="0.8" fill="#FF8C42" stroke="none"/><circle cx="2.5" cy="12" r="0.8" fill="#FF8C42" stroke="none"/><circle cx="5.1" cy="5.1" r="0.8" fill="#FF8C42" stroke="none"/><line x1="2" y1="3" x2="18.5" y2="15" stroke-width="2"/><circle cx="19.5" cy="15.7" r="1.2" fill="#FF8C42" stroke="none"/></svg>
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#FF8C42" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M 14.5 2.5 A 9.5 9.5 0 0 1 21.5 9.5"/><path d="M 21.5 14.5 A 9.5 9.5 0 0 1 14.5 21.5"/><path d="M 9.5 21.5 A 9.5 9.5 0 0 1 2.5 14.5"/><path d="M 2.5 9.5 A 9.5 9.5 0 0 1 9.5 2.5"/><rect x="10.5" y="1" width="3" height="2" rx="0.5" fill="#FF8C42" stroke="none"/><rect x="21" y="10.5" width="2" height="3" rx="0.5" fill="#FF8C42" stroke="none"/><rect x="10.5" y="21" width="3" height="2" rx="0.5" fill="#FF8C42" stroke="none"/><rect x="1" y="10.5" width="2" height="3" rx="0.5" fill="#FF8C42" stroke="none"/><circle cx="12" cy="12" r="7"/><line x1="3" y1="2" x2="17" y2="16" stroke-width="2"/><circle cx="2.5" cy="1.5" r="1.3" fill="#FF8C42" stroke="none"/><line x1="21" y1="2" x2="7" y2="16" stroke-width="2"/><circle cx="21.5" cy="1.5" r="1.3" fill="#FF8C42" stroke="none"/></svg>
     </div>
     <div style="flex:1;min-width:0;">
       <div style="font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:1px;color:var(--text);" id="bandsDashName">Set up your band profile</div>
