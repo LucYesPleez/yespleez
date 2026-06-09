@@ -205,39 +205,6 @@ async function enterArtistDashboard() {
   if (typeof loadMyAvailability === 'function') loadMyAvailability();
   if (typeof loadDbNotifs === 'function') loadDbNotifs();
   if (typeof startNotifPolling === 'function') startNotifPolling();
-  _loadArtistStats();
-}
-
-async function _loadArtistStats() {
-  if (!currentUser?.id) return;
-  const today = new Date().toISOString().split('T')[0];
-  // Availability count
-  try {
-    const avRows = await sbRest(
-      `artist_availability?user_id=eq.${currentUser.id}&available_date=gte.${today}&select=available_date`,
-      { method: 'GET' }, currentSession?.access_token || null
-    );
-    const avEl = document.getElementById('artistStatAvail');
-    if (avEl) avEl.textContent = (avRows || []).length;
-  } catch(e) {}
-  // Applications count
-  try {
-    const appRows = await sbRest(
-      `applications?artist_id=eq.${currentUser.id}&select=id`,
-      { method: 'GET' }, currentSession?.access_token || null
-    );
-    const appEl = document.getElementById('artistStatApps');
-    if (appEl) appEl.textContent = (appRows || []).length;
-  } catch(e) {}
-  // Gigs count (accepted applications)
-  try {
-    const gigRows = await sbRest(
-      `applications?artist_id=eq.${currentUser.id}&status=eq.accepted&select=id`,
-      { method: 'GET' }, currentSession?.access_token || null
-    );
-    const gigEl = document.getElementById('artistStatGigs');
-    if (gigEl) gigEl.textContent = (gigRows || []).length;
-  } catch(e) {}
 }
 
 // ── Profile completeness nudge ─────────────────────
