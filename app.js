@@ -65,6 +65,7 @@ document.getElementById('applyOverlay').addEventListener('click', e => { if (e.t
 document.getElementById('becomeMemberOverlay').addEventListener('click', e => { if (e.target.id==='becomeMemberOverlay') closeMemberModal(); });
 // document.getElementById('addGigOverlay').addEventListener('click', e => { if (e.target.id==='addGigOverlay') closeAddGigModal(); });
 document.getElementById('withdrawConfirmOverlay').addEventListener('click', e => { if (e.target.id==='withdrawConfirmOverlay') closeWithdrawConfirm(); });
+document.getElementById('slotOfferOverlay').addEventListener('click', e => { if (e.target.id==='slotOfferOverlay') closeSlotOffer(); });
 document.getElementById('approvalCodesOverlay').addEventListener('click', e => { if (e.target.id==='approvalCodesOverlay') closeApprovalCodes(); });
 document.getElementById('insertSlotOverlay').addEventListener('click', e => { if (e.target.id==='insertSlotOverlay') closeInsertSlot(); });
 document.getElementById('slotConflictOverlay').addEventListener('click', e => { if (e.target.id==='slotConflictOverlay') closeSlotConflict(); });

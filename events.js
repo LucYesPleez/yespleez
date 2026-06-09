@@ -1245,6 +1245,18 @@ function renderAll() {
             actionBlock.appendChild(clearBtn);
           }
           if (isHost) {
+            const editBtn = document.createElement('button');
+            editBtn.style.cssText = 'padding:4px 10px;background:transparent;border:1px solid rgba(0,229,255,.35);border-radius:6px;color:var(--neon2);font-family:\'Bebas Neue\',sans-serif;font-size:11px;letter-spacing:1px;cursor:pointer;white-space:nowrap;';
+            editBtn.textContent = 'EDIT';
+            editBtn.onclick = (e) => { e.stopPropagation(); openModal(s.id, hint, 1); setTimeout(() => { document.getElementById('inputName').value = entry.name || ''; document.getElementById('inputNotes').value = entry.notes || ''; document.getElementById('confirmBtn').textContent = 'SAVE CHANGES ✓'; restoreGenreVibeState(entry.genre || ''); }, 40); };
+            actionBlock.appendChild(editBtn);
+
+            const offerBtn = document.createElement('button');
+            offerBtn.style.cssText = 'padding:4px 10px;background:transparent;border:1px solid rgba(255,45,120,.35);border-radius:6px;color:var(--neon);font-family:\'Bebas Neue\',sans-serif;font-size:11px;letter-spacing:1px;cursor:pointer;white-space:nowrap;';
+            offerBtn.textContent = 'OFFER';
+            offerBtn.onclick = (e) => { e.stopPropagation(); openSlotOffer(s.id, hint, entry.name); };
+            actionBlock.appendChild(offerBtn);
+
             const want2 = document.createElement('button');
             want2.className = 'btn-also-want'; want2.textContent = 'OPT 2'; want2.onclick = () => openModal(s.id, hint, 2);
             const want3 = document.createElement('button');
@@ -1253,6 +1265,11 @@ function renderAll() {
           }
         } else {
           if (isHost) {
+            const offerBtn = document.createElement('button');
+            offerBtn.style.cssText = 'padding:4px 10px;background:transparent;border:1px solid rgba(255,45,120,.35);border-radius:6px;color:var(--neon);font-family:\'Bebas Neue\',sans-serif;font-size:11px;letter-spacing:1px;cursor:pointer;white-space:nowrap;';
+            offerBtn.textContent = 'OFFER';
+            offerBtn.onclick = (e) => { e.stopPropagation(); openSlotOffer(s.id, hint, ''); };
+            actionBlock.appendChild(offerBtn);
             if (!setTimesLocked) {
               const claimBtn = document.createElement('button');
               claimBtn.className = 'btn-claim'; claimBtn.textContent = 'CLAIM';
@@ -3482,6 +3499,51 @@ function handleHostAvatarUpload(e) { const file = e.target.files[0]; if (!file) 
 let _withdrawPending = null;
 
 function openWithdrawConfirm(eventId, slotId, slotLabel) { _withdrawPending = { eventId, slotId, slotLabel }; document.getElementById('withdrawConfirmOverlay').classList.add('open'); }
+
+// ── Slot offer by email ────────────────────────────
+let _slotOfferPending = null;
+
+function openSlotOffer(slotId, slotLabel, existingName) {
+  _slotOfferPending = { slotId, slotLabel };
+  document.getElementById('slotOfferSlotLabel').textContent = slotLabel || 'Unnamed slot';
+  document.getElementById('slotOfferName').value  = existingName || '';
+  document.getElementById('slotOfferEmail').value = '';
+  document.getElementById('slotOfferOverlay').classList.add('open');
+  setTimeout(() => {
+    const nameEl = document.getElementById('slotOfferName');
+    (existingName ? document.getElementById('slotOfferEmail') : nameEl).focus();
+  }, 80);
+}
+
+function closeSlotOffer() {
+  document.getElementById('slotOfferOverlay').classList.remove('open');
+  _slotOfferPending = null;
+}
+
+function sendSlotOffer() {
+  const email = document.getElementById('slotOfferEmail').value.trim();
+  const name  = document.getElementById('slotOfferName').value.trim();
+  if (!email) { document.getElementById('slotOfferEmail').focus(); return; }
+
+  const eventName = eventData?.name || 'the event';
+  const eventDate = eventData?.config?.date || '';
+  const venue     = eventData?.config?.venue || '';
+  const slot      = _slotOfferPending?.slotLabel || '';
+  const eventLink = location.origin + location.pathname + '?event=' + (currentEventId || '');
+
+  const subject = encodeURIComponent(`You've been offered a slot at ${eventName} — YesPleez`);
+  const body    = encodeURIComponent(
+    `Hi ${name || 'there'},\n\n` +
+    `You've been offered a slot at ${eventName}${eventDate ? ' on ' + eventDate : ''}${venue ? ' at ' + venue : ''}.\n\n` +
+    `Slot: ${slot}\n\n` +
+    `View the event and confirm your spot here:\n${eventLink}\n\n` +
+    `— Sent via YesPleez`
+  );
+
+  window.location.href = `mailto:${email}?subject=${subject}&body=${body}`;
+  closeSlotOffer();
+  showToast(`Email drafted for ${name || email}`, 'success');
+}
 function closeWithdrawConfirm() { document.getElementById('withdrawConfirmOverlay').classList.remove('open'); _withdrawPending = null; }
 
 async function confirmWithdraw() {

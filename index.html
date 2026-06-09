@@ -3571,6 +3571,34 @@ body.player-open .screen.active { padding-bottom: 80px; }
   </div>
 </div>
 
+<!-- SLOT OFFER MODAL -->
+<div class="overlay" id="slotOfferOverlay">
+  <div class="edit-event-modal" style="max-width:420px;">
+    <h2 style="color:var(--neon2);margin-bottom:4px;font-size:20px;letter-spacing:2px;">OFFER THIS SLOT</h2>
+    <div id="slotOfferSlotLabel" style="font-size:12px;color:var(--muted);margin-bottom:20px;"></div>
+
+    <div style="margin-bottom:14px;">
+      <label style="font-size:11px;letter-spacing:1.5px;color:var(--muted);font-family:'Bebas Neue',sans-serif;">ARTIST NAME</label>
+      <input id="slotOfferName" type="text" placeholder="e.g. DJ Nova"
+        style="width:100%;margin-top:6px;background:var(--card2);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;padding:10px 14px;outline:none;box-sizing:border-box;"
+        onfocus="this.style.borderColor='var(--neon2)'" onblur="this.style.borderColor=''">
+    </div>
+
+    <div style="margin-bottom:20px;">
+      <label style="font-size:11px;letter-spacing:1.5px;color:var(--muted);font-family:'Bebas Neue',sans-serif;">ARTIST EMAIL</label>
+      <input id="slotOfferEmail" type="email" placeholder="artist@email.com"
+        style="width:100%;margin-top:6px;background:var(--card2);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;padding:10px 14px;outline:none;box-sizing:border-box;"
+        onfocus="this.style.borderColor='var(--neon2)'" onblur="this.style.borderColor=''">
+      <div style="font-size:11px;color:var(--muted);margin-top:6px;">This opens your email app with a pre-written invitation.</div>
+    </div>
+
+    <div class="edit-modal-btns">
+      <button class="btn-primary" onclick="sendSlotOffer()" style="background:var(--neon2);color:#0a0a0f;">SEND OFFER EMAIL →</button>
+      <button class="btn-ghost" onclick="closeSlotOffer()" style="margin-top:4px;">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <!-- LEAVE SLOT CONFIRM (from event set times view) -->
 <div class="overlay" id="leaveSlotConfirmOverlay">
   <div class="edit-event-modal" style="text-align:center;">
