@@ -26,7 +26,7 @@ function updateNotifDot() {
   const localUnread  = notifications.filter(n => !n.read && (!n.mode || n.mode === 'both' || n.mode === mode)).length;
   const dbUnread     = _dbNotifs.filter(n => !n.read).length;
   const active       = (localUnread + dbUnread) > 0;
-  ['notifDotHost','notifDotArtist','notifDotVenue','notifDotBands'].forEach(id => {
+  ['notifDotHost','notifDotArtist','notifDotVenue','notifDotBands','notifDotStandup'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.classList.toggle('active', active);
   });

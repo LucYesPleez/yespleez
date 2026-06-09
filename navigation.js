@@ -14,6 +14,8 @@ const _screenTitles = {
   artistDashScreen:    'ARTIST DASHBOARD',
   venueDashScreen:     'VENUE DASHBOARD',
   bandsDashScreen:     'BANDS & MUSOS',
+  standupDashScreen:   'STAND UP / POETRY',
+  standupProfileScreen:'ACT PROFILE',
   bandProfileScreen:   'BAND PROFILE',
   calendarScreen:      'CALENDAR',
   searchScreen:        'DISCOVER',
