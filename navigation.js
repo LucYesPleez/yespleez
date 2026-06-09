@@ -58,10 +58,7 @@ function show(id, opts = {}) {
 }
 
 function _updateGlobalNav(id, isLocked) {
-  const btn = document.getElementById('floatingBack');
-  if (!btn) return;
-  const show = !isLocked && !_noNavScreens.has(id) && _navHistory.length > 0;
-  btn.classList.toggle('visible', show);
+  // Reserved for future nav chrome — btn-back buttons now handle navigation inline
 }
 
 function navBack() {

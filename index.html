@@ -1,4 +1,4 @@
-
+﻿
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -71,25 +71,6 @@ body::after {
 body.auth-mode { overflow: hidden; height: 100dvh; }
 
 /* ── Global nav bar ── */
-/* ── Floating back button ── */
-#floatingBack {
-  position: fixed; top: 16px; left: 16px; z-index: 8000;
-  display: none;
-  align-items: center; gap: 6px;
-  background: rgba(10,10,15,.75);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255,255,255,.1);
-  border-radius: 20px;
-  padding: 7px 14px 7px 10px;
-  cursor: pointer;
-  font-family: 'Bebas Neue', sans-serif;
-  font-size: 13px; letter-spacing: 1.5px;
-  color: var(--muted);
-  transition: color .15s, border-color .15s;
-}
-#floatingBack.visible { display: flex; }
-#floatingBack:hover { color: var(--text); border-color: rgba(255,255,255,.25); }
 
 /* ══════════════════════════
    SHARED COMPONENTS
@@ -512,11 +493,20 @@ body.auth-mode { overflow: hidden; height: 100dvh; }
 .btn-launch:disabled { opacity: .5; cursor: not-allowed; }
 
 .btn-back {
-  background: transparent; border: none; color: var(--muted); font-size: 13px;
-  cursor: pointer; padding: 16px 0 16px; display: flex; align-items: center; gap: 6px;
-  font-family: 'DM Sans', sans-serif; transition: color .15s; letter-spacing: .3px;
+  display: inline-flex; align-items: center; gap: 6px;
+  background: rgba(10,10,15,.75);
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: 20px;
+  padding: 7px 14px 7px 10px;
+  cursor: pointer;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 13px; letter-spacing: 1.5px;
+  color: var(--muted);
+  margin-bottom: 20px;
+  transition: color .15s, border-color .15s;
 }
-.btn-back:hover { color: var(--text); }
+.btn-back:hover { color: var(--text); border-color: rgba(255,255,255,.25); }
 
 
 
@@ -1791,7 +1781,7 @@ body.player-open .screen.active { padding-bottom: 80px; }
 ══════════════════════════════════════════════ -->
 <div id="searchScreen" class="screen">
   <div style="max-width:680px;margin:0 auto;padding:32px 20px 0;">
-    <button class="btn-back" onclick="if(!currentUser){showRoleSelector();}else if(_discoverOrigin==='artist'||currentMode==='artist'){currentMode='artist';enterArtistDashboard();}else{enterDashboard();}">← Back</button>
+    <button class="btn-back" onclick="navBack()"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="m12 5-7 7 7 7"/></svg> BACK</button>
     <div style="margin:10px 0 20px;">
       <div class="yp-tag">YESPLEEZ</div>
       <div class="gradient-title" style="margin-top:8px;">DISCOVER</div>
@@ -1930,7 +1920,7 @@ body.player-open .screen.active { padding-bottom: 80px; }
   </div>
   <!-- Back button + search -->
   <div style="position:relative;z-index:20;padding:16px 16px 0;display:flex;align-items:center;justify-content:space-between;max-width:680px;margin:0 auto;">
-    <button class="btn-back" onclick="show('searchScreen')" style="background:rgba(10,10,15,.4);backdrop-filter:blur(8px);border-radius:20px;padding:6px 14px;border:1px solid rgba(255,255,255,.15);">← Back</button>
+    <button class="btn-back" onclick="navBack()"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="m12 5-7 7 7 7"/></svg> BACK</button>
     <button class="search-pill" onclick="showSearchScreen()" style="background:rgba(10,10,15,.4);backdrop-filter:blur(8px);">Search <span class="search-pill-icon"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19.07 4.93A10 10 0 0 0 6.99 3.34"/><path d="M4 6h.01"/><path d="M2.29 9.62A10 10 0 1 0 21.31 8.35"/><path d="M16.24 7.76A6 6 0 1 0 8.23 16.67"/><path d="M12 18h.01"/><path d="M17.99 11.66A6 6 0 0 1 15.77 16.67"/><circle cx="12" cy="12" r="2"/><path d="m13.41 10.59 5.66-5.66"/></svg></span></button>
   </div>
 
@@ -2090,7 +2080,7 @@ body.player-open .screen.active { padding-bottom: 80px; }
 
 <!-- ══════════ BAND PROFILE FORM ══════════ -->
 <div id="bandProfileScreen" class="screen" style="max-width:680px;margin:0 auto;padding:32px 20px 80px;">
-  <button class="btn-back" onclick="show('bandsDashScreen')">← Back</button>
+  <button class="btn-back" onclick="navBack()"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="m12 5-7 7 7 7"/></svg> BACK</button>
   <div style="margin-bottom:24px;">
     <div class="yp-tag">BAND PROFILE</div>
     <div class="dash-title" style="font-size:clamp(32px,9vw,52px);line-height:.9;margin-top:8px;background:linear-gradient(135deg,#FF8C42,#FFB830);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">YOUR<br>BAND</div>
@@ -2242,7 +2232,7 @@ body.player-open .screen.active { padding-bottom: 80px; }
 
 <!-- ══════════ VENUE PROFILE FORM ══════════ -->
 <div id="venueProfileScreen" class="screen" style="max-width:680px;margin:0 auto;padding:32px 20px 80px;">
-  <button class="btn-back" onclick="show('venueDashScreen')">← Back</button>
+  <button class="btn-back" onclick="navBack()"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="m12 5-7 7 7 7"/></svg> BACK</button>
   <div style="margin-bottom:24px;">
     <div class="yp-tag">VENUE PROFILE</div>
     <div class="dash-title" style="font-size:clamp(32px,9vw,52px);line-height:.9;margin-top:8px;background:linear-gradient(135deg,#00E5A0,#00B4D8);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">YOUR<br>VENUE</div>
@@ -2312,7 +2302,7 @@ body.player-open .screen.active { padding-bottom: 80px; }
 </div>
 
 <div id="hostProfileScreen" class="screen">
-  <button class="btn-back" onclick="enterMode('host')">← Back</button>
+  <button class="btn-back" onclick="navBack()"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="m12 5-7 7 7 7"/></svg> BACK</button>
   <div class="profile-header">
     <div class="yp-tag">HOST PROFILE</div>
     <div class="profile-h1" style="background:linear-gradient(135deg,#fff 30%,var(--neon));-webkit-background-clip:text;background-clip:text;">YOUR<br>HOST<br>PROFILE</div>
@@ -2517,7 +2507,7 @@ body.player-open .screen.active { padding-bottom: 80px; }
 
 <!-- ══════════ TEMPLATE BUILDER SCREEN ══════════ -->
 <div id="templateScreen" class="screen">
-  <button class="btn-back" onclick="goBack()">← Back</button>
+  <button class="btn-back" onclick="navBack()"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="m12 5-7 7 7 7"/></svg> BACK</button>
 
   <div class="template-header">
     <div class="yp-tag">YESPLEEZ</div>
@@ -2713,7 +2703,7 @@ body.player-open .screen.active { padding-bottom: 80px; }
   <!-- ARTIST VIEW event header + slots first -->
   <div style="max-width:680px;margin:0 auto;padding:24px 16px 0;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin:0 0 16px 0;">
-      <button class="btn-back" onclick="goToDash()" style="padding:6px 14px;font-size:13px;">← Back</button>
+      <button class="btn-back" onclick="navBack()"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="m12 5-7 7 7 7"/></svg> BACK</button>
       <div style="display:flex;gap:8px;">
         <button class="btn-ghost" id="editBtn" style="display:none;font-size:12px;padding:5px 14px;" onclick="goToTemplate()">✎ Edit Event</button>
         <button class="btn-ghost" id="manageBtn" style="display:none;font-size:12px;padding:5px 14px;" onclick="showManage()">📋 All Claims</button>
@@ -2793,7 +2783,7 @@ body.player-open .screen.active { padding-bottom: 80px; }
 
 <!-- ══════════ ARTIST EVENT VIEW SCREEN ══════════ -->
 <div id="artistEventScreen" class="screen">
-  <button class="btn-back" id="artistEventBack" onclick="enterArtistDashboard()">← Back</button>
+  <button class="btn-back" onclick="navBack()"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="m12 5-7 7 7 7"/></svg> BACK</button>
   <div id="artistEventHeader" style="margin-bottom:20px;"></div>
   <div id="artistEventDays"></div>
 </div>
@@ -3013,7 +3003,7 @@ body.player-open .screen.active { padding-bottom: 80px; }
 
 <!-- ══════════ ARTIST PROFILE SCREEN ══════════ -->
 <div id="profileScreen" class="screen">
-  <button class="btn-back" onclick="currentMode==='artist' ? enterArtistDashboard() : enterDashboard()">← Back</button>
+  <button class="btn-back" onclick="navBack()"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="m12 5-7 7 7 7"/></svg> BACK</button>
 
   <div class="profile-header">
     <div class="yp-tag">ARTIST PROFILE</div>
@@ -3356,7 +3346,7 @@ body.player-open .screen.active { padding-bottom: 80px; }
 <div id="manageScreen" class="screen">
   <div style="max-width:720px;margin:0 auto;padding:16px 16px 80px;">
     <div style="display:flex;align-items:center;justify-content:space-between;">
-      <button class="btn-back" onclick="enterDashboard()" style="padding:16px 0;">← Back</button>
+      <button class="btn-back" onclick="navBack()"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="m12 5-7 7 7 7"/></svg> BACK</button>
       <div style="display:flex;gap:8px;">
         <button id="undoBtn" onclick="undoManage()" title="Undo" style="background:none;border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:5px 12px;font-size:12px;cursor:pointer;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;opacity:.4;" disabled>↩</button>
         <button id="redoBtn" onclick="redoManage()" title="Redo" style="background:none;border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:5px 12px;font-size:12px;cursor:pointer;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;opacity:.4;" disabled>↪</button>
@@ -3683,11 +3673,6 @@ body.player-open .screen.active { padding-bottom: 80px; }
   </div>
 </div>
 
-<!-- FLOATING BACK BUTTON -->
-<button id="floatingBack" onclick="navBack()">
-  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="m12 5-7 7 7 7"/></svg>
-  BACK
-</button>
 
 <!-- TOAST -->
 <div class="toast" id="toast"></div>
@@ -3787,3 +3772,4 @@ body.player-open .screen.active { padding-bottom: 80px; }
 </script>
 </body>
 </html>
+
