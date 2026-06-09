@@ -238,7 +238,19 @@ async function searchProfiles(query, filterType, filterState) {
 let _viewingProfile = null;
 
 function openPublicProfile(row) {
-  _viewingProfile = row;
+  _viewingProfile = {
+    user_id:      row.user_id,      type:         row.type,
+    dj_name:      row.dj_name,      name:         row.name,
+    location:     row.location,     state:        row.state,
+    sound:        row.sound,        tagline:      row.tagline,
+    bio:          row.bio,          genre_string: row.genre_string,
+    band_type:    row.band_type,    act_type:     row.act_type,
+    venue_type:   row.venue_type,   experience:   row.experience,
+    mix_link:     row.mix_link,     soundcloud:   row.soundcloud,
+    instagram:    row.instagram,    youtube:      row.youtube,
+    facebook:     row.facebook,     tiktok:       row.tiktok,
+    website:      row.website,      avatar:       row.avatar,
+  };
   const isHost = row.type === 'host';
   const name = row.dj_name || row.name || 'Unknown';
   const location = [row.location, row.state].filter(Boolean).join(', ');
