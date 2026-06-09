@@ -58,26 +58,10 @@ function show(id, opts = {}) {
 }
 
 function _updateGlobalNav(id, isLocked) {
-  const nav = document.getElementById('globalNav');
-  const titleEl = document.getElementById('gnavTitle');
-  const backBtn = document.getElementById('gnavBack');
-  if (!nav) return;
-
-  if (isLocked || _noNavScreens.has(id)) {
-    nav.classList.remove('visible');
-    document.body.classList.remove('has-global-nav');
-    return;
-  }
-
-  nav.classList.add('visible');
-  document.body.classList.add('has-global-nav');
-
-  if (titleEl) titleEl.textContent = _screenTitles[id] || '';
-
-  // Show back btn only if there's history to go back to
-  if (backBtn) {
-    backBtn.style.visibility = _navHistory.length > 0 ? 'visible' : 'hidden';
-  }
+  const btn = document.getElementById('floatingBack');
+  if (!btn) return;
+  const show = !isLocked && !_noNavScreens.has(id) && _navHistory.length > 0;
+  btn.classList.toggle('visible', show);
 }
 
 function navBack() {
