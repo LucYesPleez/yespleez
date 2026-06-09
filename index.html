@@ -2130,62 +2130,197 @@ body.player-open .screen.active { padding-bottom: 80px; }
     <div class="dash-title" style="font-size:clamp(32px,9vw,52px);line-height:.9;margin-top:8px;background:linear-gradient(135deg,#FF88AA,#FF5588,#CC2266);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">YOUR<br>ACT</div>
   </div>
 
-  <div style="display:flex;flex-direction:column;gap:14px;">
-    <div class="field">
-      <label>Act / Stage Name</label>
-      <input type="text" id="standupNameInput" placeholder="e.g. Dave Chappelle">
+  <!-- Photo upload -->
+  <div style="display:flex;flex-direction:column;align-items:center;margin-bottom:24px;">
+    <div id="standupAvatarPreview" onclick="document.getElementById('standupAvatarInput').click()"
+      style="width:100px;height:100px;border-radius:16px;background:var(--card);border:2px dashed rgba(255,136,170,.4);display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;overflow:hidden;transition:border-color .2s;">
+      <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="rgba(255,136,170,.6)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
+      <div style="font-size:10px;color:rgba(255,136,170,.6);margin-top:6px;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;">PHOTO</div>
     </div>
-    <div class="field">
-      <label>Act Type</label>
-      <select id="standupTypeInput" style="background:var(--card);border:1px solid var(--border);border-radius:10px;color:var(--text);padding:12px 14px;font-size:14px;outline:none;appearance:none;width:100%;">
-        <option value="">Select type</option>
-        <option>Stand Up Comedy</option>
-        <option>Spoken Word / Poetry</option>
-        <option>Slam Poetry</option>
-        <option>Improv</option>
-        <option>Storytelling</option>
-        <option>MC / Host</option>
-        <option>Cabaret</option>
-        <option>Mixed / Other</option>
-      </select>
+    <input type="file" id="standupAvatarInput" accept="image/*" style="display:none;" onchange="previewStandupAvatar(this)">
+    <div style="font-size:11px;color:var(--muted);margin-top:8px;">Tap to upload a photo</div>
+  </div>
+
+  <div style="display:flex;flex-direction:column;">
+
+    <!-- Stage Name -->
+    <div class="profile-section">
+      <div class="profile-section-title">ACT / STAGE NAME</div>
+      <input type="text" id="standupNameInput" placeholder="e.g. Hannah Gadsby" style="width:100%;background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:15px;padding:12px 14px;outline:none;box-sizing:border-box;">
     </div>
-    <div class="field">
-      <label>Typical Set Length (mins)</label>
-      <input type="number" id="standupSetLengthInput" placeholder="e.g. 20" min="1" max="180">
+
+    <!-- YOUR STYLE -->
+    <div class="profile-section">
+      <div class="profile-section-title">YOUR STYLE <span style="font-size:10px;color:var(--muted);letter-spacing:0;font-family:'DM Sans',sans-serif;text-transform:none;">shows on your listing · 35 chars</span></div>
+      <input type="text" id="standupStyleInput" placeholder="e.g. Dark observational comedy with edge" maxlength="35" autocomplete="off" oninput="updateStandupStyleCount()" style="width:100%;background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:15px;padding:12px 14px;outline:none;box-sizing:border-box;">
+      <div style="text-align:right;font-size:11px;color:var(--muted);margin-top:4px;" id="standupStyleCharCount">0 / 35</div>
     </div>
-    <div class="field">
-      <label>Home City / Suburb</label>
-      <input type="text" id="standupLocationInput" placeholder="e.g. Melbourne, VIC">
+
+    <!-- TAGLINE -->
+    <div class="profile-section">
+      <div class="profile-section-title">TAGLINE <span style="font-size:10px;color:var(--muted);letter-spacing:0;font-family:'DM Sans',sans-serif;text-transform:none;">120 chars</span></div>
+      <textarea class="profile-bio" id="standupTaglineInput" placeholder="Melbourne's sharpest wit. Sells out rooms, wrecks hecklers, leaves no one safe." maxlength="120" rows="2" style="min-height:56px;" oninput="updateStandupTaglineCount()"></textarea>
+      <div style="text-align:right;font-size:11px;color:var(--muted);margin-top:4px;" id="standupTaglineCharCount">0 / 120</div>
     </div>
-    <div class="field">
-      <label>State</label>
-      <select id="standupStateInput" style="background:var(--card);border:1px solid var(--border);border-radius:10px;color:var(--text);padding:12px 14px;font-size:14px;outline:none;appearance:none;width:100%;">
-        <option value="">Select state</option>
-        <option>NSW</option><option>VIC</option><option>QLD</option>
-        <option>WA</option><option>SA</option><option>TAS</option>
-        <option>ACT</option><option>NT</option><option>NZ</option>
-      </select>
+
+    <!-- LOCATION -->
+    <div class="profile-section">
+      <div class="profile-section-title">LOCATION</div>
+      <div style="display:flex;gap:8px;">
+        <input type="text" id="standupLocationInput" placeholder="City / Suburb" style="flex:2;background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;padding:12px 14px;outline:none;box-sizing:border-box;">
+        <select id="standupStateInput" style="flex:1;background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:12px 10px;font-size:14px;outline:none;appearance:none;min-width:0;">
+          <option value="">State</option>
+          <option>NSW</option><option>VIC</option><option>QLD</option>
+          <option>WA</option><option>SA</option><option>TAS</option>
+          <option>ACT</option><option>NT</option><option>NZ</option>
+        </select>
+        <input type="text" id="standupPostcodeInput" placeholder="Postcode" maxlength="4" style="flex:1;min-width:0;background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;padding:12px 10px;outline:none;box-sizing:border-box;">
+      </div>
     </div>
-    <div class="field">
-      <label>About Your Act</label>
-      <textarea id="standupBioInput" rows="4" placeholder="Your style, influences, what makes your set unique..." style="width:100%;box-sizing:border-box;background:var(--card);border:1px solid var(--border);border-radius:10px;color:var(--text);padding:12px 14px;font-size:14px;font-family:'DM Sans',sans-serif;resize:vertical;outline:none;"></textarea>
+
+    <!-- ACT TYPE + SET LENGTH -->
+    <div class="profile-section">
+      <div style="display:flex;gap:12px;">
+        <div style="flex:2;">
+          <div class="profile-section-title" style="margin-bottom:8px;">ACT TYPE</div>
+          <select id="standupTypeInput" style="width:100%;background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:12px 14px;font-size:14px;outline:none;appearance:none;">
+            <option value="">Select type</option>
+            <option>Stand Up Comedy</option><option>Spoken Word / Poetry</option>
+            <option>Slam Poetry</option><option>Improv</option>
+            <option>Storytelling</option><option>MC / Host</option>
+            <option>Cabaret</option><option>Mixed / Other</option>
+          </select>
+        </div>
+        <div style="flex:1;">
+          <div class="profile-section-title" style="margin-bottom:8px;">SET LENGTH</div>
+          <select id="standupSetLengthInput" style="width:100%;background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:12px 14px;font-size:14px;outline:none;appearance:none;">
+            <option value="">Mins</option>
+            <option value="5">5</option><option value="10">10</option><option value="15">15</option>
+            <option value="20">20</option><option value="30">30</option><option value="45">45</option>
+            <option value="60">60</option><option value="90">90+</option>
+          </select>
+        </div>
+      </div>
     </div>
-    <div class="field">
-      <label>Video / Clip Link</label>
-      <input type="url" id="standupVideoInput" placeholder="https://youtube.com/yourset">
+
+    <!-- STYLE / VIBE TAGS -->
+    <div class="profile-section">
+      <div class="profile-section-title">STYLE / VIBE</div>
+      <div id="standupVibePicker" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px;"></div>
     </div>
-    <div class="field">
-      <label>Booking Contact Email</label>
-      <input type="email" id="standupContactInput" placeholder="bookings@yourname.com">
+
+    <!-- FULL BIO -->
+    <div class="profile-section">
+      <div class="profile-section-title">FULL BIO</div>
+      <textarea class="profile-bio" id="standupBioInput" placeholder="Your background, influences, what makes your set unique, credits and highlights." maxlength="500" style="min-height:110px;" oninput="updateStandupBioCount()"></textarea>
+      <div style="text-align:right;font-size:11px;color:var(--muted);margin-top:4px;" id="standupBioCharCount">0 / 500</div>
     </div>
-    <div class="field">
-      <label>Website</label>
-      <input type="url" id="standupWebsiteInput" placeholder="https://yourname.com">
+
+    <!-- EXPERIENCE LEVEL -->
+    <div class="profile-section">
+      <div class="profile-section-title">EXPERIENCE LEVEL</div>
+      <div class="exp-pills" id="standupExpPills">
+        <button type="button" class="exp-pill" onclick="selectStandupExp(this)">EMERGING</button>
+        <button type="button" class="exp-pill" onclick="selectStandupExp(this)">DEVELOPING</button>
+        <button type="button" class="exp-pill" onclick="selectStandupExp(this)">ESTABLISHED</button>
+        <button type="button" class="exp-pill" onclick="selectStandupExp(this)">TOURING</button>
+      </div>
     </div>
-    <div class="field">
-      <label>Instagram</label>
-      <input type="text" id="standupInstagramInput" placeholder="@yourname">
+
+    <!-- SET FEE -->
+    <div class="profile-section">
+      <div class="profile-section-title">SET FEE</div>
+      <div class="fee-toggle-row">
+        <button type="button" class="fee-toggle-btn" id="standupFeeTicketsBtn" onclick="selectStandupFeeType('minimum')">PLAY FOR MINIMUM</button>
+        <button type="button" class="fee-toggle-btn" id="standupFeePaidBtn" onclick="selectStandupFeeType('paid')">💰 I CHARGE A FEE</button>
+      </div>
+      <div id="standupFeeAmountBlock" style="display:none;margin-top:10px;">
+        <div class="field" style="margin-bottom:8px;">
+          <label>FEE (AUD)</label>
+          <input type="number" id="standupFeeInput" placeholder="e.g. 200" min="0" autocomplete="off">
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px;margin-top:10px;">
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:13px;color:var(--muted);user-select:none;">
+          <input type="checkbox" id="standupFeeNegotiable" style="accent-color:#FF88AA;width:16px;height:16px;cursor:pointer;">
+          Negotiable
+        </label>
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:13px;color:var(--muted);user-select:none;">
+          <input type="checkbox" id="standupFeeTravel" style="accent-color:#FF88AA;width:16px;height:16px;cursor:pointer;">
+          Fee + travel included
+        </label>
+      </div>
     </div>
+
+    <!-- ATTACHMENTS -->
+    <div class="profile-section">
+      <div class="profile-section-title">ATTACHMENTS <span style="font-size:10px;color:var(--muted);letter-spacing:0;font-family:'DM Sans',sans-serif;text-transform:none;">optional</span></div>
+      <div class="attach-row" onclick="triggerAttach('standupPromoPackInput')">
+        <div><div class="attach-label">Promo Pack / Press Kit</div><div class="attach-status" id="standupPromoPackStatus">TAP TO UPLOAD</div></div>
+        <div style="font-size:20px;color:var(--muted);">↑</div>
+        <input type="file" id="standupPromoPackInput" accept=".pdf,.jpg,.png" style="display:none" onchange="handleAttach(this,'standupPromoPackStatus')">
+      </div>
+      <div class="attach-row" onclick="triggerAttach('standupInsuranceInput')">
+        <div><div class="attach-label">Public Liability Insurance</div><div class="attach-status" id="standupInsuranceStatus">TAP TO UPLOAD</div></div>
+        <div style="font-size:20px;color:var(--muted);">↑</div>
+        <input type="file" id="standupInsuranceInput" accept=".pdf,.jpg,.png" style="display:none" onchange="handleAttach(this,'standupInsuranceStatus')">
+      </div>
+    </div>
+
+    <!-- ABN / GST -->
+    <div class="profile-section">
+      <div class="profile-section-title">ABN / GST</div>
+      <div class="fee-toggle-row">
+        <button type="button" class="fee-toggle-btn" id="standupAbnYesBtn" onclick="selectStandupABN(true)">YES I HAVE AN ABN</button>
+        <button type="button" class="fee-toggle-btn" id="standupAbnNoBtn" onclick="selectStandupABN(false)">NO ABN</button>
+      </div>
+      <div id="standupAbnBlock" style="display:none;margin-top:10px;">
+        <div class="field" style="margin-bottom:10px;">
+          <label>ABN</label>
+          <input type="text" id="standupABN" placeholder="e.g. 12 345 678 901" autocomplete="off">
+        </div>
+        <div class="fee-toggle-row" style="margin-bottom:0;">
+          <button type="button" class="fee-toggle-btn" id="standupGstYesBtn" onclick="selectStandupGST(true)">GST REGISTERED</button>
+          <button type="button" class="fee-toggle-btn" id="standupGstNoBtn" onclick="selectStandupGST(false)">NOT GST REGISTERED</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- SOCIALS + LINKS -->
+    <div class="profile-section">
+      <div class="profile-section-title">SOCIALS + LINKS</div>
+      <div class="link-row">
+        <div class="link-icon">✉</div>
+        <input type="email" class="link-input" id="standupContactInput" placeholder="Booking contact email">
+      </div>
+      <div class="link-row">
+        <div class="link-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" style="color:var(--muted)"><polygon points="6,3 20,12 6,21"/></svg></div>
+        <input type="url" class="link-input" id="standupVideoInput" placeholder="Demo clip / YouTube link">
+      </div>
+      <div class="link-row">
+        <div class="link-icon">📸</div>
+        <input type="url" class="link-input" id="standupInstagramInput" placeholder="Instagram">
+      </div>
+      <div class="link-row">
+        <div class="link-icon">👥</div>
+        <input type="url" class="link-input" id="standupFacebookInput" placeholder="Facebook">
+      </div>
+      <div class="link-row">
+        <div class="link-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" style="color:var(--muted)"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1-2.89-2.89 2.89 2.89 0 0 1 2.89-2.89c.28 0 .54.04.79.1V9.01a6.33 6.33 0 0 0-.79-.05 6.34 6.34 0 0 0-6.34 6.34 6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.33-6.34V8.69a8.18 8.18 0 0 0 4.78 1.52V6.76a4.85 4.85 0 0 1-1.01-.07z"/></svg></div>
+        <input type="url" class="link-input" id="standupTiktok" placeholder="TikTok">
+      </div>
+      <div class="link-row">
+        <div class="link-icon">🌐</div>
+        <input type="url" class="link-input" id="standupWebsiteInput" placeholder="Website">
+      </div>
+    </div>
+
+    <!-- UPCOMING GIGS -->
+    <div class="profile-section">
+      <div class="profile-section-title">UPCOMING GIGS</div>
+      <div style="font-size:13px;color:var(--muted);">Gigs will appear here once you're booked. <span onclick="navBack()" style="color:#FF88AA;cursor:pointer;text-decoration:underline;">View dashboard →</span></div>
+    </div>
+
   </div>
 
   <button onclick="saveStandupProfile()" style="width:100%;background:#FF88AA;border:none;color:#0a0a0f;font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:2px;padding:16px;border-radius:12px;cursor:pointer;margin-top:20px;font-weight:700;">SAVE ACT PROFILE →</button>

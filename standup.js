@@ -7,6 +7,72 @@ let standupProfile = {};
 let _standupAvailDates = new Set();
 let _standupAvailMonth = new Date();
 
+const _STANDUP_VIBES = ['Dark','Observational','Political','Storytelling','Absurdist','Clean','Adult','Improv','Roast','Self-Deprecating','Surreal','Deadpan','Physical','Character','Topical','Experimental','Feminist','LGBTQ+','Cultural','Feel Good'];
+let _standupVibeSelected = new Set();
+
+function _renderStandupVibePicker() {
+  const el = document.getElementById('standupVibePicker');
+  if (!el) return;
+  el.innerHTML = _STANDUP_VIBES.map(t => {
+    const on = _standupVibeSelected.has(t);
+    return `<button type="button" onclick="toggleStandupVibe(this,'${t.replace(/'/g,"\\'")}')"
+      style="padding:6px 14px;border-radius:20px;font-size:12px;font-family:'DM Sans',sans-serif;cursor:pointer;transition:all .15s;
+      background:${on ? 'rgba(255,136,170,.2)' : 'rgba(255,255,255,.05)'};
+      border:1px solid ${on ? '#FF88AA' : 'rgba(255,255,255,.12)'};
+      color:${on ? '#FF88AA' : 'var(--muted)'};">${t}</button>`;
+  }).join('');
+}
+
+function toggleStandupVibe(btn, tag) {
+  if (_standupVibeSelected.has(tag)) _standupVibeSelected.delete(tag);
+  else _standupVibeSelected.add(tag);
+  _renderStandupVibePicker();
+}
+
+function previewStandupAvatar(input) {
+  const file = input.files && input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const preview = document.getElementById('standupAvatarPreview');
+    if (preview) preview.innerHTML = `<img src="${e.target.result}" style="width:100%;height:100%;object-fit:cover;">`;
+  };
+  reader.readAsDataURL(file);
+}
+
+function updateStandupStyleCount()   { const el = document.getElementById('standupStyleCharCount');   if (el) el.textContent = (document.getElementById('standupStyleInput')?.value.length||0)   + ' / 35'; }
+function updateStandupTaglineCount() { const el = document.getElementById('standupTaglineCharCount'); if (el) el.textContent = (document.getElementById('standupTaglineInput')?.value.length||0) + ' / 120'; }
+function updateStandupBioCount()     { const el = document.getElementById('standupBioCharCount');     if (el) el.textContent = (document.getElementById('standupBioInput')?.value.length||0)     + ' / 500'; }
+
+function selectStandupExp(btn) {
+  document.querySelectorAll('#standupExpPills .exp-pill').forEach(p => p.classList.remove('selected'));
+  btn.classList.add('selected');
+}
+
+function selectStandupFeeType(type) {
+  const tBtn  = document.getElementById('standupFeeTicketsBtn');
+  const pBtn  = document.getElementById('standupFeePaidBtn');
+  const block = document.getElementById('standupFeeAmountBlock');
+  if (tBtn)  tBtn.className  = 'fee-toggle-btn' + (type === 'minimum' ? ' selected-tickets' : '');
+  if (pBtn)  pBtn.className  = 'fee-toggle-btn' + (type === 'paid'    ? ' selected-fee'     : '');
+  if (block) block.style.display = type === 'paid' ? 'block' : 'none';
+}
+
+function selectStandupABN(hasABN) {
+  const yBtn  = document.getElementById('standupAbnYesBtn');
+  const nBtn  = document.getElementById('standupAbnNoBtn');
+  const block = document.getElementById('standupAbnBlock');
+  if (yBtn)  yBtn.className  = 'fee-toggle-btn' + (hasABN  ? ' selected-tickets' : '');
+  if (nBtn)  nBtn.className  = 'fee-toggle-btn' + (!hasABN ? ' selected-fee'     : '');
+  if (block) block.style.display = hasABN ? 'block' : 'none';
+}
+function selectStandupGST(registered) {
+  const yBtn = document.getElementById('standupGstYesBtn');
+  const nBtn = document.getElementById('standupGstNoBtn');
+  if (yBtn) yBtn.className = 'fee-toggle-btn' + (registered  ? ' selected-tickets' : '');
+  if (nBtn) nBtn.className = 'fee-toggle-btn' + (!registered ? ' selected-fee'     : '');
+}
+
 // ── Enter dashboard ────────────────────────────────
 
 async function enterStandupDashboard() {
@@ -121,49 +187,129 @@ function showStandupProfile() {
   const p = standupProfile || {};
   const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
   setVal('standupNameInput',      p.name || p.dj_name || '');
-  setVal('standupTypeInput',      p.act_type || '');
-  setVal('standupSetLengthInput', p.set_length || '');
+  setVal('standupStyleInput',     p.sound || '');
+  setVal('standupTaglineInput',   p.tagline || '');
   setVal('standupLocationInput',  p.suburb || p.location || '');
   setVal('standupStateInput',     p.state || '');
+  setVal('standupPostcodeInput',  p.postcode || '');
+  setVal('standupTypeInput',      p.act_type || '');
+  setVal('standupSetLengthInput', p.set_length || '');
   setVal('standupBioInput',       p.bio || '');
+  setVal('standupFeeInput',       p.fee || '');
+  setVal('standupABN',            p.abn || '');
   setVal('standupVideoInput',     p.mix_link || p.video_link || '');
+  setVal('standupInstagramInput', p.instagram || '');
+  setVal('standupFacebookInput',  p.facebook || '');
+  setVal('standupTiktok',         p.tiktok || '');
   setVal('standupContactInput',   p.contact_email || '');
   setVal('standupWebsiteInput',   p.website || '');
-  setVal('standupInstagramInput', p.instagram || '');
+  // Restore char counts
+  updateStandupStyleCount(); updateStandupTaglineCount(); updateStandupBioCount();
+  // Restore vibe tags
+  _standupVibeSelected = new Set((p.vibe_tags || '').split(',').map(s => s.trim()).filter(Boolean));
+  _renderStandupVibePicker();
+  // Restore experience pill
+  document.querySelectorAll('#standupExpPills .exp-pill').forEach(btn => {
+    btn.classList.toggle('selected', btn.textContent === (p.experience || ''));
+  });
+  // Restore fee type + checkboxes
+  if (p.fee_type) selectStandupFeeType(p.fee_type);
+  const negEl = document.getElementById('standupFeeNegotiable'); if (negEl) negEl.checked = !!p.fee_negotiable;
+  const trvEl = document.getElementById('standupFeeTravel');     if (trvEl) trvEl.checked = !!p.fee_travel;
+  // Restore ABN/GST
+  if (p.has_abn !== undefined) { selectStandupABN(p.has_abn); if (p.gst_registered !== undefined) selectStandupGST(p.gst_registered); }
+  // Restore avatar
+  const preview = document.getElementById('standupAvatarPreview');
+  if (preview) {
+    if (p.avatar) {
+      preview.innerHTML = `<img src="${p.avatar}" style="width:100%;height:100%;object-fit:cover;">`;
+    } else {
+      preview.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="rgba(255,136,170,.6)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg><div style="font-size:10px;color:rgba(255,136,170,.6);margin-top:6px;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;">PHOTO</div>`;
+    }
+  }
+  const fileInput = document.getElementById('standupAvatarInput');
+  if (fileInput) fileInput.value = '';
   show('standupProfileScreen');
 }
 
 async function saveStandupProfile() {
   const getVal = id => { const el = document.getElementById(id); return el ? el.value.trim() : ''; };
   const name      = getVal('standupNameInput');
-  const type      = getVal('standupTypeInput');
-  const setLength = getVal('standupSetLengthInput');
+  const sound     = getVal('standupStyleInput');
+  const tagline   = getVal('standupTaglineInput');
   const suburb    = getVal('standupLocationInput');
   const state     = getVal('standupStateInput');
+  const postcode  = getVal('standupPostcodeInput');
+  const type      = getVal('standupTypeInput');
+  const setLength = getVal('standupSetLengthInput');
+  const vibes     = [..._standupVibeSelected].join(', ');
   const bio       = getVal('standupBioInput');
+  const fee       = getVal('standupFeeInput');
+  const feeNeg    = document.getElementById('standupFeeNegotiable')?.checked || false;
+  const feeTrv    = document.getElementById('standupFeeTravel')?.checked || false;
+  const feeTypeBtn = document.querySelector('#standupFeePaidBtn.selected-fee') ? 'paid' : (document.querySelector('#standupFeeTicketsBtn.selected-tickets') ? 'minimum' : '');
+  const expBtn    = document.querySelector('#standupExpPills .exp-pill.selected');
+  const experience = expBtn ? expBtn.textContent : '';
+  const hasAbn    = document.getElementById('standupAbnYesBtn')?.classList.contains('selected-tickets') || false;
+  const abn       = getVal('standupABN');
+  const gstReg    = document.getElementById('standupGstYesBtn')?.classList.contains('selected-tickets') || false;
   const video     = getVal('standupVideoInput');
+  const instagram = getVal('standupInstagramInput');
+  const facebook  = getVal('standupFacebookInput');
+  const tiktok    = getVal('standupTiktok');
   const contact   = getVal('standupContactInput');
   const website   = getVal('standupWebsiteInput');
-  const instagram = getVal('standupInstagramInput');
 
   if (!name) { showToast('Please enter your act or stage name', 'error'); return; }
+
+  // Avatar upload
+  let avatarUrl = standupProfile?.avatar || null;
+  const fileInput = document.getElementById('standupAvatarInput');
+  const file = fileInput?.files?.[0];
+  if (file && !DEMO && currentSession?.access_token) {
+    try {
+      const ext  = file.name.split('.').pop();
+      const path = `standup_avatars/${currentUser.id}_${Date.now()}.${ext}`;
+      const uploadRes = await fetch(`${SUPABASE_URL}/storage/v1/object/avatars/${path}`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${currentSession.access_token}`, 'Content-Type': file.type, 'x-upsert': 'true' },
+        body: file
+      });
+      if (uploadRes.ok) avatarUrl = `${SUPABASE_URL}/storage/v1/object/public/avatars/${path}`;
+    } catch(e) { console.warn('avatar upload:', e); }
+  }
 
   const payload = {
     user_id:       currentUser.id,
     type:          'standup',
     name:          name,
     dj_name:       name,
-    act_type:      type,
-    set_length:    setLength ? parseInt(setLength) : null,
+    sound:         sound,
+    tagline:       tagline,
     suburb:        suburb,
     location:      suburb,
     state:         state,
+    postcode:      postcode,
+    act_type:      type,
+    set_length:    setLength ? parseInt(setLength) : null,
+    vibe_tags:     vibes,
     bio:           bio,
+    experience:    experience,
+    fee:           fee ? parseInt(fee) : null,
+    fee_type:      feeTypeBtn,
+    fee_negotiable: feeNeg,
+    fee_travel:    feeTrv,
+    has_abn:       hasAbn,
+    abn:           abn,
+    gst_registered: gstReg,
     mix_link:      video,
     video_link:    video,
+    instagram:     instagram,
+    facebook:      facebook,
+    tiktok:        tiktok,
     contact_email: contact,
     website:       website,
-    instagram:     instagram,
+    avatar:        avatarUrl,
     updated_at:    new Date().toISOString()
   };
 
