@@ -24,9 +24,6 @@
   }
 
   if (hasSession) {
-    const lastMode = localStorage.getItem('yp_last_mode');
-    if (lastMode === 'host')   { currentMode = 'host';   enterDashboard();       return; }
-    if (lastMode === 'artist') { currentMode = 'artist'; enterArtistDashboard(); return; }
     showRoleSelector();
     return;
   }
