@@ -12,12 +12,173 @@ let _calLoaded    = false;
 // Entry is in navigation.js showCalendar()
 
 // ── Filter state ───────────────────────────────────
-let _calGenreFilter  = '';
-let _calStateFilter  = '';
-let _calPostcodeLat  = null;
-let _calPostcodeLng  = null;
-let _calPostcodeKm   = 50;
+let _calGenreFilter   = '';
+let _calStateFilter   = '';
+let _calPostcodeLat   = null;
+let _calPostcodeLng   = null;
+let _calPostcodeKm    = 50;
 let _calPostcodeTimer = null;
+
+// ── Category / sub-genre filter state ─────────────
+let _calCategoryFilter = '';
+let _calSubGenreFilter = '';
+
+const _calSubGenreMap = {
+  dj:        ['House','Techno','Drum & Bass','Trance','Dubstep','Disco','Minimal','Progressive'],
+  band:      ['Rock','Indie','Folk','Punk','Metal','Blues','Acoustic','Country'],
+  comedy:    ['Stand Up','Improvised','Storytelling','Observational','Open Mic'],
+  spokenword:['Poetry','Slam','Narrative','Spoken Word','Experimental'],
+  festival:  ['Electronic','Folk','Arts','Community','Camping','Multi-Genre'],
+  market:    ['Artisan','Vintage','Night Market','Food','Makers'],
+  workshop:  ['Music','Art','Dance','Writing','Mindfulness'],
+};
+
+// Category → genre keywords for matching real DB events
+const _calCatKeywords = {
+  dj:        ['dj','house','techno','drum','dnb','trance','dubstep','disco','minimal','electronic','garage','jungle','breaks','psytrance'],
+  band:      ['band','rock','indie','folk','punk','metal','blues','acoustic','live music','country','singer','muso'],
+  comedy:    ['comedy','stand-up','standup','improv','laugh','comic'],
+  spokenword:['spoken word','poetry','slam','storytelling','narrative'],
+  festival:  ['festival','fest'],
+  market:    ['market','artisan','craft','bazaar'],
+  workshop:  ['workshop','class','lesson','masterclass'],
+};
+
+// ── Demo event seed data ────────────────────────────
+// Dates are computed relative to "now" at render time so sections stay correct
+const _calDemoRaw = [
+  { id:'demo_feat', name:'Bellingen Winter Solstice Festival',
+    config:{ venue:'Bellingen Showground, NSW', genres:'Folk, World Music, Electronic, Acoustic',
+             postcode:'2454', state:'NSW', _cat:'festival', _sub:'Folk', _featured:true,
+             _daysFromNow:3, _distance:'385 km from Sydney',
+             _bg:'linear-gradient(160deg,#1a0533 0%,#3d1a6e 35%,#1a3a0a 65%,#0a2a0a 100%)',
+             _accent:'#9D4EDD', _textAccent:'#c084fc' } },
+  { id:'demo_t1', name:'Open Mic Night',
+    config:{ venue:'The Chippo Hotel, Sydney', genres:'Acoustic, Singer-Songwriter, Folk',
+             _cat:'band', _sub:'Acoustic', _daysFromNow:0,
+             _bg:'linear-gradient(135deg,#081a10,#122a1a)', _accent:'#00E5A0' } },
+  { id:'demo_t2', name:'Friday Night Laughs',
+    config:{ venue:'Comedy Republic, Melbourne', genres:'Stand-Up, Observational, Dark Comedy',
+             _cat:'comedy', _sub:'Stand Up', _daysFromNow:0,
+             _bg:'linear-gradient(135deg,#1a1005,#2a1a08)', _accent:'#FF8C42' } },
+  { id:'demo_t3', name:'House Sessions',
+    config:{ venue:'Midnight Club, Melbourne', genres:'House, Deep House, Disco',
+             _cat:'dj', _sub:'House', _daysFromNow:0,
+             _bg:'linear-gradient(135deg,#050a1a,#0a0520)', _accent:'#00E5FF' } },
+  { id:'demo_w1', name:'Winter Solstice Festival',
+    config:{ venue:'Centennial Park, Sydney', genres:'Electronic, Folk, World Music',
+             _cat:'festival', _sub:'Multi-Genre', _daysFromNow:3,
+             _bg:'linear-gradient(135deg,#1b0d3a,#0d200d)', _accent:'#9D4EDD' } },
+  { id:'demo_w2', name:'Local Band Showcase',
+    config:{ venue:'The Lansdowne, Sydney', genres:'Indie, Rock, Alternative',
+             _cat:'band', _sub:'Indie', _daysFromNow:4,
+             _bg:'linear-gradient(135deg,#0a1a0a,#142a14)', _accent:'#00E5A0' } },
+  { id:'demo_w3', name:'Comedy Club Takeover',
+    config:{ venue:'The Factory Theatre, Sydney', genres:'Stand-Up, Improv, Observational',
+             _cat:'comedy', _sub:'Improvised', _daysFromNow:4,
+             _bg:'linear-gradient(135deg,#1a0a08,#2a1008)', _accent:'#FF8C42' } },
+  { id:'demo_c1', name:'Dune Rats',
+    config:{ venue:'Manning Bar, Sydney', genres:'Punk, Alternative, Rock',
+             _cat:'band', _sub:'Punk', _daysFromNow:8,
+             _bg:'linear-gradient(135deg,#1a0808,#100a0a)', _accent:'#FF2D78' } },
+  { id:'demo_c2', name:'Folk Collective',
+    config:{ venue:'Newtown Social Club, Sydney', genres:'Folk, Acoustic, Indie',
+             _cat:'band', _sub:'Folk', _daysFromNow:10,
+             _bg:'linear-gradient(135deg,#081505,#0a1a10)', _accent:'#00E5A0' } },
+  { id:'demo_c3', name:'Spoken Word Night',
+    config:{ venue:'Red Rattler Theatre, Sydney', genres:'Spoken Word, Poetry, Storytelling',
+             _cat:'spokenword', _sub:'Poetry', _daysFromNow:12,
+             _bg:'linear-gradient(135deg,#05050f,#100510)', _accent:'#FFD700' } },
+  { id:'demo_c4', name:'Midnight Techno',
+    config:{ venue:'Club 77, Sydney', genres:'Techno, Industrial, Dark Minimal',
+             _cat:'dj', _sub:'Techno', _daysFromNow:14,
+             _bg:'linear-gradient(135deg,#050505,#0a050f)', _accent:'#00E5FF' } },
+  { id:'demo_c5', name:'Carriageworks Night Market',
+    config:{ venue:'Carriageworks, Sydney', genres:'Food, Craft, Artisan Goods',
+             _cat:'market', _sub:'Night Market', _daysFromNow:7,
+             _bg:'linear-gradient(135deg,#1a0f08,#0f1a08)', _accent:'#FFB830' } },
+  { id:'demo_c6', name:'DnB Sundown',
+    config:{ venue:'Venue 505, Sydney', genres:'Drum & Bass, Liquid, Neurofunk',
+             _cat:'dj', _sub:'Drum & Bass', _daysFromNow:16,
+             _bg:'linear-gradient(135deg,#05100a,#050a12)', _accent:'#00E5FF' } },
+];
+
+function _calGetDemoEvents() {
+  const now = new Date();
+  return _calDemoRaw.map(ev => {
+    const d = new Date(now);
+    d.setDate(d.getDate() + (ev.config._daysFromNow || 0));
+    const dateStr = d.toLocaleDateString('en-AU', { day:'numeric', month:'long' });
+    return { ...ev, config: { ...ev.config, date: dateStr }, _isDemo: true };
+  });
+}
+
+function _calAllEvents() {
+  const demo = _calGetDemoEvents();
+  const realNames = new Set(_calEvents.map(e => (e.name || '').toLowerCase().trim()));
+  const filteredDemo = demo.filter(d => !realNames.has((d.name || '').toLowerCase().trim()));
+  return [..._calEvents, ...filteredDemo];
+}
+
+function _calCatMatchesEvent(ev) {
+  if (!_calCategoryFilter) return true;
+  const cat = ev.config?._cat || '';
+  // Demo events have explicit _cat
+  if (ev._isDemo) {
+    if (cat !== _calCategoryFilter) return false;
+    if (_calSubGenreFilter) {
+      const sub  = (ev.config?._sub || '').toLowerCase();
+      const gen  = (ev.config?.genres || '').toLowerCase();
+      const q    = _calSubGenreFilter.toLowerCase();
+      return sub === q || gen.includes(q);
+    }
+    return true;
+  }
+  // Real events: match via genre keywords
+  const genres = (ev.config?.genres || ev.genres || '').toLowerCase();
+  const keys   = _calCatKeywords[_calCategoryFilter] || [];
+  const matches = keys.some(k => genres.includes(k));
+  if (!matches) return false;
+  if (_calSubGenreFilter) return genres.includes(_calSubGenreFilter.toLowerCase());
+  return true;
+}
+
+function calSetCategory(cat) {
+  _calCategoryFilter = cat;
+  _calSubGenreFilter = '';
+  document.querySelectorAll('.cal-cat-btn').forEach(btn => {
+    const active = btn.dataset.cat === cat;
+    btn.style.background    = active ? 'rgba(255,255,255,.15)' : '';
+    btn.style.color         = active ? 'var(--text)' : '';
+    btn.style.borderColor   = active ? 'rgba(255,255,255,.4)'  : '';
+  });
+  const subRow = document.getElementById('calSubgenreRow');
+  if (subRow) {
+    const subs = cat ? (_calSubGenreMap[cat] || []) : [];
+    if (subs.length) {
+      subRow.style.display = 'flex';
+      subRow.innerHTML = subs.map(s =>
+        `<button onclick="calSetSubGenre('${s.replace(/'/g,'\\\'')}')" data-sub="${s}" class="cal-sub-btn"
+          style="flex-shrink:0;background:rgba(255,255,255,.04);border:1px solid var(--border);color:var(--muted);border-radius:20px;padding:5px 12px;font-family:'DM Sans',sans-serif;font-size:11px;cursor:pointer;white-space:nowrap;">${s}</button>`
+      ).join('');
+    } else {
+      subRow.style.display = 'none';
+      subRow.innerHTML = '';
+    }
+  }
+  renderCalContent();
+}
+
+function calSetSubGenre(sub) {
+  _calSubGenreFilter = _calSubGenreFilter === sub ? '' : sub;
+  document.querySelectorAll('.cal-sub-btn').forEach(btn => {
+    const active = btn.dataset.sub === _calSubGenreFilter;
+    btn.style.background  = active ? 'rgba(255,255,255,.13)' : 'rgba(255,255,255,.04)';
+    btn.style.color       = active ? 'var(--text)'           : 'var(--muted)';
+    btn.style.borderColor = active ? 'rgba(255,255,255,.3)'  : '';
+  });
+  renderCalContent();
+}
 
 // Haversine distance in km
 function _haversineKm(lat1, lng1, lat2, lng2) {
@@ -29,6 +190,7 @@ function _haversineKm(lat1, lng1, lat2, lng2) {
 }
 
 function _calFilterEvent(ev) {
+  if (ev._isDemo) return true; // demo events always pass legacy filters
   const cfg = ev.config || {};
 
   if (_calGenreFilter) {
@@ -433,6 +595,43 @@ function _calTimeBuckets() {
   return buckets;
 }
 
+// ── Featured hero card ────────────────────────────
+function calFeaturedCard(ev) {
+  const d       = calParseDate(ev);
+  const name    = esc(ev.name || 'EVENT');
+  const venue   = esc(ev.config?.venue || '');
+  const genres  = (ev.config?.genres || '').split(',').map(g => g.trim()).filter(Boolean);
+  const poster  = ev.config?.poster || ev.poster_url || '';
+  const dist    = esc(ev.config?._distance || '');
+  const accent  = ev.config?._accent || '#9D4EDD';
+  const bg      = poster
+    ? `url('${poster}') center/cover no-repeat`
+    : (ev.config?._bg || `linear-gradient(135deg,#1a0533,#3d1a6e,#0a2a0a)`);
+  const dateStr = d ? d.toLocaleDateString('en-AU', { weekday:'long', day:'numeric', month:'long' }).toUpperCase() : (ev.config?.date || '').toUpperCase();
+
+  return `<div onclick="calOpenEvent('${ev.id}')" style="position:relative;margin:16px 16px 0;border-radius:20px;overflow:hidden;cursor:pointer;height:280px;background:${bg};box-shadow:0 8px 40px rgba(0,0,0,.6);">
+    <div style="position:absolute;inset:0;background:linear-gradient(to bottom,rgba(0,0,0,.05) 0%,rgba(0,0,0,.15) 30%,rgba(0,0,0,.75) 75%,rgba(0,0,0,.9) 100%);"></div>
+    <!-- Featured badge -->
+    <div style="position:absolute;top:16px;left:16px;background:${accent};color:#fff;border-radius:6px;padding:4px 10px;font-size:9px;font-weight:700;letter-spacing:1.2px;font-family:'DM Sans',sans-serif;">FEATURED</div>
+    <!-- Content -->
+    <div style="position:absolute;bottom:0;left:0;right:0;padding:20px 20px 22px;">
+      ${dateStr ? `<div style="font-size:10px;color:rgba(255,255,255,.65);letter-spacing:1.5px;margin-bottom:6px;font-family:'DM Sans',sans-serif;font-weight:600;">${dateStr}</div>` : ''}
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:clamp(26px,6vw,36px);letter-spacing:1px;line-height:1;margin-bottom:8px;text-shadow:0 2px 12px rgba(0,0,0,.6);">${name}</div>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
+        ${venue ? `<span style="font-size:12px;color:rgba(255,255,255,.75);display:flex;align-items:center;gap:4px;"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg>${venue}</span>` : ''}
+        ${dist ? `<span style="font-size:11px;color:rgba(255,255,255,.5);">${dist}</span>` : ''}
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;">
+        ${genres.slice(0,4).map(g => `<span style="background:rgba(255,255,255,.12);backdrop-filter:blur(4px);border:1px solid rgba(255,255,255,.18);border-radius:20px;padding:3px 9px;font-size:10px;color:rgba(255,255,255,.85);">${esc(g)}</span>`).join('')}
+      </div>
+    </div>
+    <!-- Arrow -->
+    <div style="position:absolute;bottom:20px;right:18px;width:36px;height:36px;background:${accent};border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 12px rgba(0,0,0,.4);">
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><path d="M9 18l6-6-6-6"/></svg>
+    </div>
+  </div>`;
+}
+
 // ── What's On: category badge ──────────────────────
 function calEventCategory(ev) {
   const text = ((ev.name || '') + ' ' + (ev.config?.genres || '')).toLowerCase();
@@ -529,79 +728,89 @@ function renderCalContent() {
   const el = document.getElementById('calContent');
   if (!el) return;
 
-  // If full calendar panel is open, render day view there instead
-  if (_calSelDate) {
-    const dayEl = document.getElementById('calDayContent');
-    if (dayEl) renderDayView(_calSelDate, dayEl);
-    return;
-  }
-
   const now      = new Date();
   const todayStr = now.toISOString().split('T')[0];
   const dow      = now.getDay();
 
-  // This weekend = coming Fri through Sun
-  const daysToFri = (5 - dow + 7) % 7 || 7;
+  // Weekend = coming Fri–Sun (or this Fri–Sun if today is Fri/Sat/Sun)
+  const daysToFri  = dow === 5 ? 0 : dow === 6 ? 6 : dow === 0 ? 5 : (5 - dow);
   const fri = new Date(now); fri.setDate(now.getDate() + daysToFri); fri.setHours(0,0,0,0);
   const sun = new Date(fri); sun.setDate(fri.getDate() + 2); sun.setHours(23,59,59,999);
 
-  const tonight = _calEvents.filter(ev => {
+  // Update month tab label
+  const monthEl    = document.getElementById('calTabMonthLabel');
+  const monthSubEl = document.getElementById('calTabMonthSub');
+  if (monthEl)    monthEl.textContent    = now.toLocaleString('en-AU', { month:'long' }).toUpperCase();
+  if (monthSubEl) monthSubEl.textContent = now.toLocaleString('en-AU', { month:'long', year:'numeric' });
+
+  const all = _calAllEvents();
+
+  const passes = ev => _calFilterEvent(ev) && _calCatMatchesEvent(ev);
+
+  const featured = all.filter(ev => ev.config?._featured && passes(ev)).slice(0, 1);
+
+  const tonight  = all.filter(ev => {
     const d = calParseDate(ev);
-    return d && d.toISOString().split('T')[0] === todayStr && _calFilterEvent(ev);
+    return d && d.toISOString().split('T')[0] === todayStr && passes(ev) && !ev.config?._featured;
   });
 
-  const weekend = _calEvents.filter(ev => {
+  const weekend  = all.filter(ev => {
     const d = calParseDate(ev);
-    return d && d >= fri && d <= sun && _calFilterEvent(ev);
+    return d && d >= fri && d <= sun && passes(ev) && !ev.config?._featured
+        && d.toISOString().split('T')[0] !== todayStr;
   });
 
   const twoWeeks = new Date(now); twoWeeks.setDate(now.getDate() + 14);
-  const comingUp = _calEvents.filter(ev => {
+  const comingUp = all.filter(ev => {
     const d = calParseDate(ev);
-    if (!d || !_calFilterEvent(ev)) return false;
+    if (!d || !passes(ev) || ev.config?._featured) return false;
     if (d.toISOString().split('T')[0] === todayStr) return false;
     if (d >= fri && d <= sun) return false;
     return d > now && d <= twoWeeks;
-  });
-
-  // Beyond 2 weeks
-  const further = calEventsUpcoming(365).filter(ev => {
-    const d = calParseDate(ev);
-    return d && d > twoWeeks && _calFilterEvent(ev);
-  });
-
-  // Update tab subtitles with live dates
-  const monthName = now.toLocaleString('en-AU', { month: 'long', year: 'numeric' });
-  const monthEl = document.getElementById('calTabMonthLabel');
-  const monthSubEl = document.getElementById('calTabMonthSub');
-  if (monthEl) monthEl.textContent = now.toLocaleString('en-AU', { month: 'long' }).toUpperCase();
-  if (monthSubEl) monthSubEl.textContent = monthName;
+  }).sort((a,b) => calParseDate(a) - calParseDate(b));
 
   const todayBadge   = now.toLocaleDateString('en-AU', { weekday:'short', day:'numeric', month:'long' }).toUpperCase();
   const weekendBadge = `${fri.toLocaleDateString('en-AU',{weekday:'short',day:'numeric',month:'short'})} – ${sun.toLocaleDateString('en-AU',{weekday:'short',day:'numeric',month:'short'})}`.toUpperCase();
 
   let html = '';
 
+  // ── FEATURED ──
+  if (featured.length) {
+    html += `<div id="calSecFeatured">`;
+    html += `<div style="display:flex;align-items:center;gap:8px;padding:16px 16px 0;">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:2px;color:var(--muted);">FEATURED EVENT</div>
+    </div>`;
+    html += featured.map(ev => calFeaturedCard(ev)).join('');
+    html += `</div>`;
+  }
+
+  // ── TONIGHT ──
   html += calWhatsOnSection('calSecTonight', 'TONIGHT', todayBadge, '#FF2D78', tonight, 'sm');
+
+  // ── THIS WEEKEND ──
   html += calWhatsOnSection('calSecWeekend', 'THIS WEEKEND', weekendBadge, '#9D4EDD', weekend, 'lg');
-  html += calWhatsOnSection('calSecWeek', 'COMING UP', 'NEXT 2 WEEKS', 'var(--gold)', comingUp, 'list');
-  html += calWhatsOnSection('calSecMonth', 'FURTHER OUT', '', 'var(--neon2)', further.slice(0, 8), 'list');
 
-  // Browse Full Calendar CTA
-  html += `<div style="margin:8px 16px 24px;background:var(--card);border:1px solid var(--border);border-radius:16px;padding:20px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;" onclick="calToggleFullView()">
-    <div>
-      <div style="font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:2px;margin-bottom:2px;">BROWSE FULL CALENDAR</div>
-      <div style="font-size:12px;color:var(--muted);">View by day, filter and plan ahead</div>
-    </div>
-    <button style="background:var(--card2);border:1px solid var(--border);color:var(--text);border-radius:20px;padding:10px 18px;font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:1px;cursor:pointer;white-space:nowrap;">Open Calendar →</button>
-  </div>`;
+  // ── COMING UP ──
+  html += calWhatsOnSection('calSecWeek', 'COMING UP', 'NEXT TWO WEEKS', 'var(--gold)', comingUp, 'list');
 
-  // Empty state
-  if (!tonight.length && !weekend.length && !comingUp.length && !further.length) {
-    html = `<div style="text-align:center;padding:60px 16px;">
-      <div style="font-family:'Bebas Neue',sans-serif;font-size:32px;letter-spacing:3px;color:var(--muted);margin-bottom:10px;">NO EVENTS YET</div>
-      <div style="font-size:14px;color:var(--muted);line-height:1.6;">Events will appear here once<br>promoters publish them.</div>
-      <button onclick="calToggleFullView()" style="margin-top:20px;background:none;border:1px solid var(--border);color:var(--text);border-radius:20px;padding:10px 24px;font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:1px;cursor:pointer;">BROWSE CALENDAR</button>
+  // ── SIGN UP NUDGE (between sections, not at bottom) ──
+  if (!currentUser?.id || currentUser.id === 'guest') {
+    html += `<div style="margin:8px 16px 4px;padding:18px 20px;border:1px solid rgba(157,78,221,.3);border-radius:16px;background:rgba(157,78,221,.06);display:flex;align-items:center;justify-content:space-between;gap:12px;">
+      <div>
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:17px;letter-spacing:1.5px;margin-bottom:3px;">SAVE EVENTS · GET NOTIFIED</div>
+        <div style="font-size:11px;color:var(--muted);line-height:1.4;">Create a free account to follow events, apply to gigs and get alerts.</div>
+      </div>
+      <button onclick="showSignup()" style="flex-shrink:0;background:#9D4EDD;border:none;color:#fff;border-radius:20px;padding:9px 16px;font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:1px;cursor:pointer;white-space:nowrap;">SIGN UP FREE</button>
+    </div>`;
+  }
+
+  // If category filter active and nothing matched
+  const total = featured.length + tonight.length + weekend.length + comingUp.length;
+  if (total === 0) {
+    html = `<div style="text-align:center;padding:60px 16px 40px;">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:28px;letter-spacing:3px;color:var(--muted);margin-bottom:10px;">NOTHING MATCHING</div>
+      <div style="font-size:13px;color:var(--muted);line-height:1.6;margin-bottom:20px;">No events match your current filter.<br>Try a different category.</div>
+      <button onclick="calSetCategory('')" style="background:none;border:1px solid var(--border);color:var(--text);border-radius:20px;padding:10px 24px;font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:1px;cursor:pointer;">SHOW ALL EVENTS</button>
     </div>`;
   }
 
@@ -812,6 +1021,10 @@ function calNextMonth() {
 }
 
 function calOpenEvent(evId) {
+  if (evId && evId.startsWith('demo_')) {
+    showToast('Sign up free to see full event details and save events you love', 'success');
+    return;
+  }
   const ev = _calEvents.find(e => e.id === evId);
   if (!ev) return;
   isReadOnly = true;
