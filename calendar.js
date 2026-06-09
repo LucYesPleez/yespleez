@@ -629,9 +629,15 @@ function calFeaturedCard(ev) {
         ${genres.slice(0,4).map(g => `<span style="background:rgba(255,255,255,.12);backdrop-filter:blur(4px);border:1px solid rgba(255,255,255,.18);border-radius:20px;padding:3px 9px;font-size:10px;color:rgba(255,255,255,.85);">${esc(g)}</span>`).join('')}
       </div>
     </div>
-    <!-- Arrow -->
-    <div style="position:absolute;bottom:20px;right:18px;width:36px;height:36px;background:${accent};border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 12px rgba(0,0,0,.4);">
-      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><path d="M9 18l6-6-6-6"/></svg>
+    <!-- Buttons -->
+    <div style="position:absolute;bottom:18px;right:16px;display:flex;gap:8px;align-items:center;">
+      ${!ev._isDemo ? `<button onclick="event.stopPropagation();shareItem('event','${ev.id}',${JSON.stringify(ev.name||'').replace(/'/g,'\\\'')
+})" style="width:34px;height:34px;background:rgba(0,0,0,.45);backdrop-filter:blur(6px);border:1px solid rgba(255,255,255,.2);border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;" title="Share">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+      </button>` : ''}
+      <div style="width:36px;height:36px;background:${accent};border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 12px rgba(0,0,0,.4);">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><path d="M9 18l6-6-6-6"/></svg>
+      </div>
     </div>
   </div>`;
 }
@@ -697,9 +703,11 @@ function calListCard(ev) {
         <span style="background:${cat.color};color:${cat.dark?'#0a0a0f':'#fff'};border-radius:4px;padding:1px 6px;font-size:9px;font-weight:700;">${cat.label}</span>
       </div>
     </div>
-    <div style="text-align:right;flex-shrink:0;min-width:72px;">
+    <div style="text-align:right;flex-shrink:0;min-width:72px;display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
       <div style="font-size:11px;color:var(--text);font-weight:600;white-space:nowrap;">${dayStr}</div>
-      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="1.5" style="margin-top:8px;display:block;margin-left:auto;"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+      ${!ev._isDemo ? `<button onclick="event.stopPropagation();shareItem('event','${ev.id}',${JSON.stringify(ev.name||'')})" style="background:none;border:1px solid var(--border);border-radius:20px;padding:4px 10px;font-size:10px;color:var(--muted);cursor:pointer;display:flex;align-items:center;gap:4px;white-space:nowrap;">
+        <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>Share
+      </button>` : ''}
     </div>
   </div>`;
 }

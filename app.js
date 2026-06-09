@@ -13,14 +13,38 @@
   document.body.append(trialBanner);
   trialBanner.style.display = 'none';
 
-  const params  = new URLSearchParams(location.search);
-  const eventId = params.get('event');
+  const params    = new URLSearchParams(location.search);
+  const eventId   = params.get('event');
+  const profileId = params.get('profile');
+  const ptype     = params.get('ptype');
+  const view      = params.get('view');
   const hasSession = await tryRestoreSession();
 
   if (eventId) {
-    // Show public landing page — no login required
+    // Public event page — no login required
     const ok = await showPublicEventPage(eventId);
     if (ok) return;
+  }
+
+  if (profileId && ptype) {
+    // Public profile deep link — load from DB then open
+    try {
+      const rows = await sbRest(`profiles?user_id=eq.${profileId}&type=eq.${encodeURIComponent(ptype)}&limit=1`, { method:'GET' }, null);
+      if (rows && rows.length) { openPublicProfile(rows[0]); return; }
+    } catch(e) { console.warn('profile deeplink:', e); }
+  }
+
+  if (view === 'calendar') {
+    // Public What's On page — no login required
+    show('calendarScreen');
+    _calViewMonth = new Date(); _calSelDate = null;
+    renderCalHeader();
+    document.getElementById('calContent').innerHTML = '<div style="text-align:center;padding:60px 0;color:var(--muted);font-family:\'Bebas Neue\',sans-serif;letter-spacing:2px;font-size:16px;">LOADING...</div>';
+    await loadCalEvents();
+    renderCalHeader();
+    calRestorePostcode();
+    renderCalContent();
+    return;
   }
 
   if (hasSession) {

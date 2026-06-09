@@ -298,6 +298,28 @@ function copyPubLink() {
   navigator.clipboard.writeText(url).then(() => showToast('Link copied!', 'success'));
 }
 
+// ── Universal share ────────────────────────────────
+
+function shareItem(type, id, name) {
+  const base = location.origin + location.pathname;
+  const url  = type === 'calendar'
+    ? `${base}?view=calendar`
+    : type === 'event'
+      ? `${base}?event=${id}`
+      : `${base}?profile=${id}&ptype=${encodeURIComponent(type)}`;
+
+  const titles = { event:'Check out this event on YesPleez', artist:'Check out this artist on YesPleez', band:'Check out this band on YesPleez', standup:'Check out this act on YesPleez', host:'Check out this promoter on YesPleez', venue:'Check out this venue on YesPleez', calendar:'See what\'s on near you — YesPleez' };
+  const text = name ? `${name} — YesPleez` : (titles[type] || 'Check this out on YesPleez');
+
+  if (navigator.share) {
+    navigator.share({ title: 'YesPleez', text, url }).catch(() => {});
+  } else {
+    navigator.clipboard.writeText(url)
+      .then(() => showToast('Link copied!', 'success'))
+      .catch(() => { prompt('Copy this link:', url); });
+  }
+}
+
 // ── Search screen ──────────────────────────────────
 
 let _searchDebounce = null;

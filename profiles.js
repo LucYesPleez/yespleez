@@ -251,6 +251,13 @@ function openPublicProfile(row) {
     facebook:     row.facebook,     tiktok:       row.tiktok,
     website:      row.website,      avatar:       row.avatar,
   };
+  // Wire up share button
+  const shareBtn = document.getElementById('profileShareBtn');
+  if (shareBtn && row.user_id && row.type) {
+    shareBtn.style.display = 'flex';
+    shareBtn.onclick = () => shareItem(row.type, row.user_id, row.dj_name || row.name || '');
+  }
+
   const isHost = row.type === 'host';
   const name = row.dj_name || row.name || 'Unknown';
   const location = [row.location, row.state].filter(Boolean).join(', ');
