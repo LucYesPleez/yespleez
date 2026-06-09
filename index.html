@@ -2607,64 +2607,169 @@ body.player-open .screen.active { padding-bottom: 80px; }
     <div class="dash-title" style="font-size:clamp(32px,9vw,52px);line-height:.9;margin-top:8px;background:linear-gradient(135deg,#00E5A0,#00B4D8);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">YOUR<br>VENUE</div>
   </div>
 
-  <div style="display:flex;flex-direction:column;gap:14px;">
-    <div class="field">
-      <label>Venue Name</label>
-      <input type="text" id="venueNameInput" placeholder="e.g. The Metro Theatre">
+  <!-- Photo upload -->
+  <div style="display:flex;flex-direction:column;align-items:center;margin-bottom:24px;">
+    <div id="venueAvatarPreview" onclick="document.getElementById('venueAvatarInput').click()"
+      style="width:100px;height:100px;border-radius:16px;background:var(--card);border:2px dashed rgba(0,229,160,.4);display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;overflow:hidden;transition:border-color .2s;">
+      <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="rgba(0,229,160,.6)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
+      <div style="font-size:10px;color:rgba(0,229,160,.6);margin-top:6px;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;">PHOTO</div>
     </div>
-    <div class="field">
-      <label>Address / Suburb</label>
-      <input type="text" id="venueAddressInput" placeholder="e.g. 624 George St, Sydney">
+    <input type="file" id="venueAvatarInput" accept="image/*" style="display:none;" onchange="previewVenueAvatar(this)">
+    <div style="font-size:11px;color:var(--muted);margin-top:8px;">Tap to upload a venue photo</div>
+  </div>
+
+  <div style="display:flex;flex-direction:column;">
+
+    <!-- Venue Name -->
+    <div class="profile-section">
+      <div class="profile-section-title">VENUE NAME</div>
+      <input type="text" id="venueNameInput" placeholder="e.g. The Metro Theatre" style="width:100%;background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:15px;padding:12px 14px;outline:none;box-sizing:border-box;">
     </div>
-    <div class="field">
-      <label>State</label>
-      <select id="venueStateInput" style="background:var(--card);border:1px solid var(--border);border-radius:10px;color:var(--text);padding:12px 14px;font-size:14px;outline:none;appearance:none;width:100%;">
-        <option value="">Select state</option>
-        <option>NSW</option><option>VIC</option><option>QLD</option>
-        <option>WA</option><option>SA</option><option>TAS</option>
-        <option>ACT</option><option>NT</option><option>NZ</option>
-      </select>
+
+    <!-- YOUR VIBE -->
+    <div class="profile-section">
+      <div class="profile-section-title">YOUR VIBE <span style="font-size:10px;color:var(--muted);letter-spacing:0;font-family:'DM Sans',sans-serif;text-transform:none;">shows on your listing · 35 chars</span></div>
+      <input type="text" id="venueVibeInput" placeholder="e.g. Underground warehouse techno venue" maxlength="35" autocomplete="off" oninput="updateVenueVibeCount()" style="width:100%;background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:15px;padding:12px 14px;outline:none;box-sizing:border-box;">
+      <div style="text-align:right;font-size:11px;color:var(--muted);margin-top:4px;" id="venueVibeCharCount">0 / 35</div>
     </div>
-    <div class="field">
-      <label>Capacity</label>
-      <input type="number" id="venueCapacityInput" placeholder="e.g. 500">
+
+    <!-- TAGLINE -->
+    <div class="profile-section">
+      <div class="profile-section-title">TAGLINE <span style="font-size:10px;color:var(--muted);letter-spacing:0;font-family:'DM Sans',sans-serif;text-transform:none;">120 chars</span></div>
+      <textarea class="profile-bio" id="venueTaglineInput" placeholder="Sydney's most iconic live music room. Three floors, two stages, one vibe." maxlength="120" rows="2" style="min-height:56px;" oninput="updateVenueTaglineCount()"></textarea>
+      <div style="text-align:right;font-size:11px;color:var(--muted);margin-top:4px;" id="venueTaglineCharCount">0 / 120</div>
     </div>
-    <div class="field">
-      <label>Venue Type</label>
-      <select id="venueTypeInput" style="background:var(--card);border:1px solid var(--border);border-radius:10px;color:var(--text);padding:12px 14px;font-size:14px;outline:none;appearance:none;width:100%;">
-        <option value="">Select type</option>
-        <option>Club / Nightclub</option>
-        <option>Bar / Pub</option>
-        <option>Festival Ground</option>
-        <option>Warehouse</option>
-        <option>Rooftop</option>
-        <option>Theatre / Arts Centre</option>
-        <option>Hotel</option>
-        <option>Outdoor / Park</option>
-        <option>Private Hire</option>
-        <option>Other</option>
-      </select>
+
+    <!-- LOCATION -->
+    <div class="profile-section">
+      <div class="profile-section-title">LOCATION</div>
+      <div style="margin-bottom:8px;">
+        <input type="text" id="venueAddressInput" placeholder="Street address / Suburb" style="width:100%;background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;padding:12px 14px;outline:none;box-sizing:border-box;">
+      </div>
+      <div style="display:flex;gap:8px;">
+        <select id="venueStateInput" style="flex:1;background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:12px 10px;font-size:14px;outline:none;appearance:none;">
+          <option value="">State</option>
+          <option>NSW</option><option>VIC</option><option>QLD</option>
+          <option>WA</option><option>SA</option><option>TAS</option>
+          <option>ACT</option><option>NT</option><option>NZ</option>
+        </select>
+        <input type="text" id="venuePostcodeInput" placeholder="Postcode" maxlength="4" style="flex:1;background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;padding:12px 10px;outline:none;box-sizing:border-box;">
+      </div>
     </div>
-    <div class="field">
-      <label>Music Genres Suited For</label>
-      <input type="text" id="venueGenresInput" placeholder="e.g. Techno · House · DnB">
+
+    <!-- VENUE TYPE + ESTABLISHED -->
+    <div class="profile-section">
+      <div style="display:flex;gap:12px;">
+        <div style="flex:2;">
+          <div class="profile-section-title" style="margin-bottom:8px;">VENUE TYPE</div>
+          <select id="venueTypeInput" style="width:100%;background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:12px 14px;font-size:14px;outline:none;appearance:none;">
+            <option value="">Select type</option>
+            <option>Club / Nightclub</option><option>Bar / Pub</option>
+            <option>Festival Ground</option><option>Warehouse</option>
+            <option>Rooftop</option><option>Theatre / Arts Centre</option>
+            <option>Hotel</option><option>Outdoor / Park</option>
+            <option>Private Hire</option><option>Other</option>
+          </select>
+        </div>
+        <div style="flex:1;">
+          <div class="profile-section-title" style="margin-bottom:8px;">EST.</div>
+          <select id="venueEstablishedInput" style="width:100%;background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:12px 14px;font-size:14px;outline:none;appearance:none;">
+            <option value="">Year</option>
+          </select>
+        </div>
+      </div>
     </div>
-    <div class="field">
-      <label>About the Venue</label>
-      <textarea id="venueBioInput" rows="4" placeholder="Sound system, vibe, what makes your venue special..." style="width:100%;box-sizing:border-box;background:var(--card);border:1px solid var(--border);border-radius:10px;color:var(--text);padding:12px 14px;font-size:14px;font-family:'DM Sans',sans-serif;resize:vertical;outline:none;"></textarea>
+
+    <!-- GENRES WE BOOK -->
+    <div class="profile-section">
+      <div class="profile-section-title">GENRES WE BOOK</div>
+      <div id="venueGenrePicker" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px;"></div>
     </div>
-    <div class="field">
-      <label>Contact / Booking Email</label>
-      <input type="email" id="venueContactInput" placeholder="bookings@yourvenue.com">
+
+    <!-- FULL BIO -->
+    <div class="profile-section">
+      <div class="profile-section-title">ABOUT THE VENUE</div>
+      <textarea class="profile-bio" id="venueBioInput" placeholder="Tell artists and promoters what makes your venue special — history, sound system, stage setup, crowd, and the kind of nights you run." maxlength="500" style="min-height:110px;" oninput="updateVenueBioCount()"></textarea>
+      <div style="text-align:right;font-size:11px;color:var(--muted);margin-top:4px;" id="venueBioCharCount">0 / 500</div>
     </div>
-    <div class="field">
-      <label>Website</label>
-      <input type="url" id="venueWebsiteInput" placeholder="https://yourvenue.com">
+
+    <!-- STAGE & TECH -->
+    <div class="profile-section">
+      <div class="profile-section-title">STAGE & TECH</div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px;" id="venueTechPills">
+        <button type="button" class="tech-pill" onclick="toggleVenueTech(this)">PA SYSTEM</button>
+        <button type="button" class="tech-pill" onclick="toggleVenueTech(this)">LIGHTING RIG</button>
+        <button type="button" class="tech-pill" onclick="toggleVenueTech(this)">BACKLINE</button>
+        <button type="button" class="tech-pill" onclick="toggleVenueTech(this)">STAGE MONITORS</button>
+        <button type="button" class="tech-pill" onclick="toggleVenueTech(this)">GREEN ROOM</button>
+        <button type="button" class="tech-pill" onclick="toggleVenueTech(this)">LOAD IN ACCESS</button>
+        <button type="button" class="tech-pill" onclick="toggleVenueTech(this)">IN-HOUSE ENGINEER</button>
+        <button type="button" class="tech-pill" onclick="toggleVenueTech(this)">PROJECTOR / SCREEN</button>
+      </div>
+      <div class="field" style="margin-top:12px;margin-bottom:0;">
+        <label>Stage dimensions (optional)</label>
+        <input type="text" id="venueStageDims" placeholder="e.g. 8m x 5m" autocomplete="off">
+      </div>
     </div>
-    <div class="field">
-      <label>Instagram</label>
-      <input type="text" id="venueInstagramInput" placeholder="@yourvenue">
+
+    <!-- TYPICAL NIGHTS -->
+    <div class="profile-section">
+      <div class="profile-section-title">TYPICAL LIVE MUSIC NIGHTS</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px;">
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;color:var(--muted);background:var(--card);border:1px solid var(--border);border-radius:8px;padding:8px 12px;" id="venueDay_MON"><input type="checkbox" id="venueDayMon" style="accent-color:#00E5A0;"> MON</label>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;color:var(--muted);background:var(--card);border:1px solid var(--border);border-radius:8px;padding:8px 12px;" id="venueDay_TUE"><input type="checkbox" id="venueDayTue" style="accent-color:#00E5A0;"> TUE</label>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;color:var(--muted);background:var(--card);border:1px solid var(--border);border-radius:8px;padding:8px 12px;" id="venueDay_WED"><input type="checkbox" id="venueDayWed" style="accent-color:#00E5A0;"> WED</label>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;color:var(--muted);background:var(--card);border:1px solid var(--border);border-radius:8px;padding:8px 12px;" id="venueDay_THU"><input type="checkbox" id="venueDayThu" style="accent-color:#00E5A0;"> THU</label>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;color:var(--muted);background:var(--card);border:1px solid var(--border);border-radius:8px;padding:8px 12px;" id="venueDay_FRI"><input type="checkbox" id="venueDayFri" style="accent-color:#00E5A0;"> FRI</label>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;color:var(--muted);background:var(--card);border:1px solid var(--border);border-radius:8px;padding:8px 12px;" id="venueDay_SAT"><input type="checkbox" id="venueDaySat" style="accent-color:#00E5A0;"> SAT</label>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;color:var(--muted);background:var(--card);border:1px solid var(--border);border-radius:8px;padding:8px 12px;" id="venueDay_SUN"><input type="checkbox" id="venueDaySun" style="accent-color:#00E5A0;"> SUN</label>
+      </div>
     </div>
+
+    <!-- ABN / GST -->
+    <div class="profile-section">
+      <div class="profile-section-title">ABN / GST</div>
+      <div class="fee-toggle-row">
+        <button type="button" class="fee-toggle-btn" id="venueAbnYesBtn" onclick="selectVenueABN(true)">YES I HAVE AN ABN</button>
+        <button type="button" class="fee-toggle-btn" id="venueAbnNoBtn" onclick="selectVenueABN(false)">NO ABN</button>
+      </div>
+      <div id="venueAbnBlock" style="display:none;margin-top:10px;">
+        <div class="field" style="margin-bottom:10px;">
+          <label>ABN</label>
+          <input type="text" id="venueABN" placeholder="e.g. 12 345 678 901" autocomplete="off">
+        </div>
+        <div class="fee-toggle-row" style="margin-bottom:0;">
+          <button type="button" class="fee-toggle-btn" id="venueGstYesBtn" onclick="selectVenueGST(true)">GST REGISTERED</button>
+          <button type="button" class="fee-toggle-btn" id="venueGstNoBtn" onclick="selectVenueGST(false)">NOT GST REGISTERED</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- SOCIALS + LINKS -->
+    <div class="profile-section">
+      <div class="profile-section-title">SOCIALS + LINKS</div>
+      <div class="link-row">
+        <div class="link-icon">✉</div>
+        <input type="email" class="link-input" id="venueContactInput" placeholder="Booking / enquiry email">
+      </div>
+      <div class="link-row">
+        <div class="link-icon">🌐</div>
+        <input type="url" class="link-input" id="venueWebsiteInput" placeholder="Website">
+      </div>
+      <div class="link-row">
+        <div class="link-icon">📸</div>
+        <input type="url" class="link-input" id="venueInstagramInput" placeholder="Instagram">
+      </div>
+      <div class="link-row">
+        <div class="link-icon">👥</div>
+        <input type="url" class="link-input" id="venueFacebookInput" placeholder="Facebook">
+      </div>
+      <div class="link-row">
+        <div class="link-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" style="color:var(--muted)"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1-2.89-2.89 2.89 2.89 0 0 1 2.89-2.89c.28 0 .54.04.79.1V9.01a6.33 6.33 0 0 0-.79-.05 6.34 6.34 0 0 0-6.34 6.34 6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.33-6.34V8.69a8.18 8.18 0 0 0 4.78 1.52V6.76a4.85 4.85 0 0 1-1.01-.07z"/></svg></div>
+        <input type="url" class="link-input" id="venueTiktok" placeholder="TikTok">
+      </div>
+    </div>
+
   </div>
 
   <button onclick="saveVenueProfile()" style="width:100%;background:#00E5A0;border:none;color:#0a0a0f;font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:2px;padding:16px;border-radius:12px;cursor:pointer;margin-top:20px;font-weight:700;">SAVE VENUE PROFILE →</button>

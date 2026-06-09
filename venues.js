@@ -8,6 +8,71 @@ let venueProfile = {};
 let _venueAvailDates = new Set();
 let _venueAvailMonth = new Date();
 
+const _VENUE_GENRES = ['Rock','Pop','Hip Hop','Electronic','Jazz','Blues','Folk','Country','R&B / Soul','Funk','Reggae','Metal','Punk','Latin','World','Classical','Experimental'];
+let _venueGenreSelected = new Set();
+
+function _renderVenueGenrePicker() {
+  const el = document.getElementById('venueGenrePicker');
+  if (!el) return;
+  el.innerHTML = _VENUE_GENRES.map(t => {
+    const on = _venueGenreSelected.has(t);
+    return `<button type="button" onclick="toggleVenueGenre(this,'${t.replace(/'/g,"\\'")}')"
+      style="padding:6px 14px;border-radius:20px;font-size:12px;font-family:'DM Sans',sans-serif;cursor:pointer;transition:all .15s;
+      background:${on ? 'rgba(0,229,160,.15)' : 'rgba(255,255,255,.05)'};
+      border:1px solid ${on ? '#00E5A0' : 'rgba(255,255,255,.12)'};
+      color:${on ? '#00E5A0' : 'var(--muted)'};">${t}</button>`;
+  }).join('');
+}
+
+function toggleVenueGenre(btn, tag) {
+  if (_venueGenreSelected.has(tag)) _venueGenreSelected.delete(tag);
+  else _venueGenreSelected.add(tag);
+  _renderVenueGenrePicker();
+}
+
+function _populateVenueYearDropdown() {
+  const sel = document.getElementById('venueEstablishedInput');
+  if (!sel || sel.options.length > 2) return;
+  const currentYear = new Date().getFullYear();
+  for (let y = currentYear; y >= 1900; y--) {
+    const opt = document.createElement('option');
+    opt.value = y; opt.textContent = y;
+    sel.appendChild(opt);
+  }
+}
+
+function previewVenueAvatar(input) {
+  const file = input.files && input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const preview = document.getElementById('venueAvatarPreview');
+    if (preview) preview.innerHTML = `<img src="${e.target.result}" style="width:100%;height:100%;object-fit:cover;">`;
+  };
+  reader.readAsDataURL(file);
+}
+
+function updateVenueVibeCount()    { const el = document.getElementById('venueVibeCharCount');    if (el) el.textContent = (document.getElementById('venueVibeInput')?.value.length||0)    + ' / 35'; }
+function updateVenueTaglineCount() { const el = document.getElementById('venueTaglineCharCount'); if (el) el.textContent = (document.getElementById('venueTaglineInput')?.value.length||0) + ' / 120'; }
+function updateVenueBioCount()     { const el = document.getElementById('venueBioCharCount');     if (el) el.textContent = (document.getElementById('venueBioInput')?.value.length||0)     + ' / 500'; }
+
+function toggleVenueTech(btn) { btn.classList.toggle('selected'); }
+
+function selectVenueABN(hasABN) {
+  const yBtn = document.getElementById('venueAbnYesBtn');
+  const nBtn = document.getElementById('venueAbnNoBtn');
+  const block = document.getElementById('venueAbnBlock');
+  if (yBtn)  yBtn.className  = 'fee-toggle-btn' + (hasABN  ? ' selected-tickets' : '');
+  if (nBtn)  nBtn.className  = 'fee-toggle-btn' + (!hasABN ? ' selected-fee'     : '');
+  if (block) block.style.display = hasABN ? 'block' : 'none';
+}
+function selectVenueGST(registered) {
+  const yBtn = document.getElementById('venueGstYesBtn');
+  const nBtn = document.getElementById('venueGstNoBtn');
+  if (yBtn) yBtn.className = 'fee-toggle-btn' + (registered  ? ' selected-tickets' : '');
+  if (nBtn) nBtn.className = 'fee-toggle-btn' + (!registered ? ' selected-fee'     : '');
+}
+
 // ── Enter venue dashboard ──────────────────────────
 
 async function enterVenueDashboard() {
@@ -190,52 +255,129 @@ async function _loadVenueUpcomingEvents() {
 // ── Venue profile screen ───────────────────────────
 
 function showVenueProfile() {
+  _populateVenueYearDropdown();
   const p = venueProfile || {};
   const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
-  setVal('venueNameInput',      p.name || p.dj_name || '');
-  setVal('venueAddressInput',   p.suburb || p.location || '');
-  setVal('venueStateInput',     p.state || '');
-  setVal('venueCapacityInput',  p.capacity || '');
-  setVal('venueTypeInput',      p.venue_type || '');
-  setVal('venueGenresInput',    p.genre_string || '');
-  setVal('venueBioInput',       p.bio || '');
-  setVal('venueContactInput',   p.contact_email || '');
-  setVal('venueWebsiteInput',   p.website || '');
-  setVal('venueInstagramInput', p.instagram || '');
+  setVal('venueNameInput',        p.name || p.dj_name || '');
+  setVal('venueVibeInput',        p.sound || '');
+  setVal('venueTaglineInput',     p.tagline || '');
+  setVal('venueAddressInput',     p.suburb || p.location || '');
+  setVal('venueStateInput',       p.state || '');
+  setVal('venuePostcodeInput',    p.postcode || '');
+  setVal('venueTypeInput',        p.venue_type || '');
+  setVal('venueEstablishedInput', p.established_year || '');
+  setVal('venueBioInput',         p.bio || '');
+  setVal('venueStageDims',        p.stage_dims || '');
+  setVal('venueABN',              p.abn || '');
+  setVal('venueContactInput',     p.contact_email || '');
+  setVal('venueWebsiteInput',     p.website || '');
+  setVal('venueInstagramInput',   p.instagram || '');
+  setVal('venueFacebookInput',    p.facebook || '');
+  setVal('venueTiktok',           p.tiktok || '');
+  // Restore char counts
+  updateVenueVibeCount(); updateVenueTaglineCount(); updateVenueBioCount();
+  // Restore genre picker
+  _venueGenreSelected = new Set((p.genre_string || '').split(',').map(s => s.trim()).filter(Boolean));
+  _renderVenueGenrePicker();
+  // Restore tech pills
+  const tech = (p.tech_features || '').split(',').map(s => s.trim());
+  document.querySelectorAll('#venueTechPills .tech-pill').forEach(btn => {
+    btn.classList.toggle('selected', tech.includes(btn.textContent));
+  });
+  // Restore days
+  const days = (p.live_nights || '').split(',').map(s => s.trim());
+  ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].forEach(d => {
+    const cb = document.getElementById('venueDay' + d); if (cb) cb.checked = days.includes(d.toUpperCase());
+  });
+  // Restore ABN/GST
+  if (p.has_abn !== undefined) { selectVenueABN(p.has_abn); if (p.gst_registered !== undefined) selectVenueGST(p.gst_registered); }
+  // Restore avatar
+  const preview = document.getElementById('venueAvatarPreview');
+  if (preview) {
+    if (p.avatar) {
+      preview.innerHTML = `<img src="${p.avatar}" style="width:100%;height:100%;object-fit:cover;">`;
+    } else {
+      preview.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="rgba(0,229,160,.6)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg><div style="font-size:10px;color:rgba(0,229,160,.6);margin-top:6px;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;">PHOTO</div>`;
+    }
+  }
+  const fileInput = document.getElementById('venueAvatarInput');
+  if (fileInput) fileInput.value = '';
   show('venueProfileScreen');
 }
 
 async function saveVenueProfile() {
   const getVal = id => { const el = document.getElementById(id); return el ? el.value.trim() : ''; };
-  const name     = getVal('venueNameInput');
-  const suburb   = getVal('venueAddressInput');
-  const state    = getVal('venueStateInput');
-  const capacity = getVal('venueCapacityInput');
-  const type     = getVal('venueTypeInput');
-  const genres   = getVal('venueGenresInput');
-  const bio      = getVal('venueBioInput');
-  const contact  = getVal('venueContactInput');
-  const website  = getVal('venueWebsiteInput');
-  const instagram = getVal('venueInstagramInput');
+  const name        = getVal('venueNameInput');
+  const sound       = getVal('venueVibeInput');
+  const tagline     = getVal('venueTaglineInput');
+  const suburb      = getVal('venueAddressInput');
+  const state       = getVal('venueStateInput');
+  const postcode    = getVal('venuePostcodeInput');
+  const type        = getVal('venueTypeInput');
+  const established = getVal('venueEstablishedInput');
+  const genres      = [..._venueGenreSelected].join(', ');
+  const bio         = getVal('venueBioInput');
+  const stageDims   = getVal('venueStageDims');
+  const tech        = [...document.querySelectorAll('#venueTechPills .tech-pill.selected')].map(b => b.textContent).join(', ');
+  const liveNights  = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun']
+    .filter(d => document.getElementById('venueDay' + d)?.checked)
+    .map(d => d.toUpperCase()).join(', ');
+  const hasAbn      = document.getElementById('venueAbnYesBtn')?.classList.contains('selected-tickets') || false;
+  const abn         = getVal('venueABN');
+  const gstReg      = document.getElementById('venueGstYesBtn')?.classList.contains('selected-tickets') || false;
+  const contact     = getVal('venueContactInput');
+  const website     = getVal('venueWebsiteInput');
+  const instagram   = getVal('venueInstagramInput');
+  const facebook    = getVal('venueFacebookInput');
+  const tiktok      = getVal('venueTiktok');
 
   if (!name) { showToast('Please enter a venue name', 'error'); return; }
 
+  // Avatar upload
+  let avatarUrl = venueProfile?.avatar || null;
+  const fileInput = document.getElementById('venueAvatarInput');
+  const file = fileInput?.files?.[0];
+  if (file && !DEMO && currentSession?.access_token) {
+    try {
+      const ext  = file.name.split('.').pop();
+      const path = `venue_avatars/${currentUser.id}_${Date.now()}.${ext}`;
+      const uploadRes = await fetch(`${SUPABASE_URL}/storage/v1/object/avatars/${path}`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${currentSession.access_token}`, 'Content-Type': file.type, 'x-upsert': 'true' },
+        body: file
+      });
+      if (uploadRes.ok) avatarUrl = `${SUPABASE_URL}/storage/v1/object/public/avatars/${path}`;
+    } catch(e) { console.warn('avatar upload:', e); }
+  }
+
   const payload = {
-    user_id:       currentUser.id,
-    type:          'venue',
-    name:          name,
-    dj_name:       name,
-    suburb:        suburb,
-    location:      suburb,
-    state:         state,
-    capacity:      capacity ? parseInt(capacity) : null,
-    venue_type:    type,
-    genre_string:  genres,
-    bio:           bio,
-    contact_email: contact,
-    website:       website,
-    instagram:     instagram,
-    updated_at:    new Date().toISOString()
+    user_id:          currentUser.id,
+    type:             'venue',
+    name:             name,
+    dj_name:          name,
+    sound:            sound,
+    tagline:          tagline,
+    suburb:           suburb,
+    location:         suburb,
+    state:            state,
+    postcode:         postcode,
+    venue_type:       type,
+    established_year: established ? parseInt(established) : null,
+    genre_string:     genres,
+    bio:              bio,
+    stage_dims:       stageDims,
+    tech_features:    tech,
+    live_nights:      liveNights,
+    has_abn:          hasAbn,
+    abn:              abn,
+    gst_registered:   gstReg,
+    contact_email:    contact,
+    website:          website,
+    instagram:        instagram,
+    facebook:         facebook,
+    tiktok:           tiktok,
+    avatar:           avatarUrl,
+    updated_at:       new Date().toISOString()
   };
 
   try {
