@@ -13,6 +13,8 @@ const _screenTitles = {
   dashboardScreen:     'HOST DASHBOARD',
   artistDashScreen:    'ARTIST DASHBOARD',
   venueDashScreen:     'VENUE DASHBOARD',
+  bandsDashScreen:     'BANDS & MUSOS',
+  bandProfileScreen:   'BAND PROFILE',
   calendarScreen:      'CALENDAR',
   searchScreen:        'DISCOVER',
   profileScreen:       'MY PROFILE',
