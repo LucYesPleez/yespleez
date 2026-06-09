@@ -198,6 +198,43 @@ async function _loadBandsUpcomingGigs() {
 
 // ── Band profile form ──────────────────────────────
 
+// ── Char counters ──────────────────────────────────
+function updateBandSoundCount()   { const el = document.getElementById('bandSoundCharCount');   if (el) el.textContent = (document.getElementById('bandSoundInput')?.value.length||0) + ' / 35'; }
+function updateBandTaglineCount() { const el = document.getElementById('bandTaglineCharCount'); if (el) el.textContent = (document.getElementById('bandTaglineInput')?.value.length||0) + ' / 120'; }
+function updateBandBioCount()     { const el = document.getElementById('bandBioCharCount');     if (el) el.textContent = (document.getElementById('bandBioInput')?.value.length||0) + ' / 500'; }
+
+// ── Experience level ───────────────────────────────
+function selectBandExp(btn) {
+  document.querySelectorAll('#bandExpPills .exp-pill').forEach(p => p.classList.remove('selected'));
+  btn.classList.add('selected');
+}
+
+// ── Fee type ───────────────────────────────────────
+function selectBandFeeType(type) {
+  const tBtn  = document.getElementById('bandFeeTicketsBtn');
+  const pBtn  = document.getElementById('bandFeePaidBtn');
+  const block = document.getElementById('bandFeeAmountBlock');
+  if (tBtn) tBtn.className = 'fee-toggle-btn' + (type === 'exposure' ? ' selected-tickets' : '');
+  if (pBtn) pBtn.className = 'fee-toggle-btn' + (type === 'paid'     ? ' selected-fee'     : '');
+  if (block) block.style.display = type === 'paid' ? 'block' : 'none';
+}
+
+// ── ABN / GST ──────────────────────────────────────
+function selectBandABN(hasABN) {
+  const yBtn  = document.getElementById('bandAbnYesBtn');
+  const nBtn  = document.getElementById('bandAbnNoBtn');
+  const block = document.getElementById('bandAbnBlock');
+  if (yBtn)  yBtn.className  = 'fee-toggle-btn' + (hasABN  ? ' selected-tickets' : '');
+  if (nBtn)  nBtn.className  = 'fee-toggle-btn' + (!hasABN ? ' selected-fee'     : '');
+  if (block) block.style.display = hasABN ? 'block' : 'none';
+}
+function selectBandGST(registered) {
+  const yBtn = document.getElementById('bandGstYesBtn');
+  const nBtn = document.getElementById('bandGstNoBtn');
+  if (yBtn) yBtn.className = 'fee-toggle-btn' + (registered  ? ' selected-tickets' : '');
+  if (nBtn) nBtn.className = 'fee-toggle-btn' + (!registered ? ' selected-fee'     : '');
+}
+
 function _populateBandYearDropdown() {
   const sel = document.getElementById('bandEstablishedInput');
   if (!sel || sel.options.length > 2) return; // already populated
@@ -228,6 +265,8 @@ function showBandProfile() {
   const p = bandProfile || {};
   const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
   setVal('bandNameInput',        p.name || p.dj_name || '');
+  setVal('bandSoundInput',       p.sound || '');
+  setVal('bandTaglineInput',     p.tagline || '');
   setVal('bandLocationInput',    p.suburb || p.location || '');
   setVal('bandStateInput',       p.state || '');
   setVal('bandPostcodeInput',    p.postcode || '');
@@ -243,10 +282,32 @@ function showBandProfile() {
   (p.vibe_tags || '').split(',').map(s => s.trim()).filter(Boolean).forEach(t => _bandVibeSelected.add(t));
   _renderBandTagPickers();
   setVal('bandBioInput',         p.bio || '');
+  setVal('bandFeeInput',         p.fee || '');
+  setVal('bandEmergencyName',    p.emergency_name || '');
+  setVal('bandEmergencyPhone',   p.emergency_phone || '');
+  setVal('bandEmergencyRel',     p.emergency_rel || '');
+  setVal('bandABN',              p.abn || '');
   setVal('bandEpkInput',         p.mix_link || p.epk_link || '');
+  setVal('bandSpotify',          p.spotify || '');
+  setVal('bandSoundcloud',       p.soundcloud || '');
+  setVal('bandYoutube',          p.youtube || '');
+  setVal('bandInstagramInput',   p.instagram || '');
+  setVal('bandFacebookInput',    p.facebook || '');
+  setVal('bandTiktok',           p.tiktok || '');
   setVal('bandContactInput',     p.contact_email || '');
   setVal('bandWebsiteInput',     p.website || '');
-  setVal('bandInstagramInput',   p.instagram || '');
+  // Restore char counts
+  updateBandSoundCount(); updateBandTaglineCount(); updateBandBioCount();
+  // Restore experience pill
+  document.querySelectorAll('#bandExpPills .exp-pill').forEach(btn => {
+    btn.classList.toggle('selected', btn.textContent === (p.experience || ''));
+  });
+  // Restore fee type + checkboxes
+  if (p.fee_type) selectBandFeeType(p.fee_type);
+  const negEl = document.getElementById('bandFeeNegotiable'); if (negEl) negEl.checked = !!p.fee_negotiable;
+  const trvEl = document.getElementById('bandFeeTravel');     if (trvEl) trvEl.checked = !!p.fee_travel;
+  // Restore ABN/GST
+  if (p.has_abn !== undefined) { selectBandABN(p.has_abn); if (p.gst_registered !== undefined) selectBandGST(p.gst_registered); }
   // Restore avatar preview
   const preview = document.getElementById('bandAvatarPreview');
   if (preview) {
@@ -265,6 +326,8 @@ function showBandProfile() {
 async function saveBandProfile() {
   const getVal = id => { const el = document.getElementById(id); return el ? el.value.trim() : ''; };
   const name        = getVal('bandNameInput');
+  const sound       = getVal('bandSoundInput');
+  const tagline     = getVal('bandTaglineInput');
   const suburb      = getVal('bandLocationInput');
   const state       = getVal('bandStateInput');
   const postcode    = getVal('bandPostcodeInput');
@@ -274,10 +337,27 @@ async function saveBandProfile() {
   const genres      = [..._bandGenreSelected].join(', ');
   const vibes       = [..._bandVibeSelected].join(', ');
   const bio         = getVal('bandBioInput');
+  const fee         = getVal('bandFeeInput');
+  const feeNeg      = document.getElementById('bandFeeNegotiable')?.checked || false;
+  const feeTrv      = document.getElementById('bandFeeTravel')?.checked || false;
+  const feeTypeBtn  = document.querySelector('#bandFeePaidBtn.selected-fee') ? 'paid' : (document.querySelector('#bandFeeTicketsBtn.selected-tickets') ? 'exposure' : '');
+  const expBtn      = document.querySelector('#bandExpPills .exp-pill.selected');
+  const experience  = expBtn ? expBtn.textContent : '';
+  const emergName   = getVal('bandEmergencyName');
+  const emergPhone  = getVal('bandEmergencyPhone');
+  const emergRel    = getVal('bandEmergencyRel');
+  const hasAbn      = document.getElementById('bandAbnYesBtn')?.classList.contains('selected-tickets') || false;
+  const abn         = getVal('bandABN');
+  const gstReg      = document.getElementById('bandGstYesBtn')?.classList.contains('selected-tickets') || false;
   const epk         = getVal('bandEpkInput');
+  const spotify     = getVal('bandSpotify');
+  const soundcloud  = getVal('bandSoundcloud');
+  const youtube     = getVal('bandYoutube');
+  const instagram   = getVal('bandInstagramInput');
+  const facebook    = getVal('bandFacebookInput');
+  const tiktok      = getVal('bandTiktok');
   const contact     = getVal('bandContactInput');
   const website     = getVal('bandWebsiteInput');
-  const instagram   = getVal('bandInstagramInput');
 
   if (!name) { showToast('Please enter a band or act name', 'error'); return; }
 
@@ -309,6 +389,8 @@ async function saveBandProfile() {
     type:             'band',
     name:             name,
     dj_name:          name,
+    sound:            sound,
+    tagline:          tagline,
     suburb:           suburb,
     location:         suburb,
     state:            state,
@@ -319,11 +401,27 @@ async function saveBandProfile() {
     genre_string:     [genres, vibes].filter(Boolean).join(', '),
     vibe_tags:        vibes,
     bio:              bio,
+    experience:       experience,
+    fee:              fee ? parseInt(fee) : null,
+    fee_type:         feeTypeBtn,
+    fee_negotiable:   feeNeg,
+    fee_travel:       feeTrv,
+    emergency_name:   emergName,
+    emergency_phone:  emergPhone,
+    emergency_rel:    emergRel,
+    has_abn:          hasAbn,
+    abn:              abn,
+    gst_registered:   gstReg,
     mix_link:         epk,
     epk_link:         epk,
+    spotify:          spotify,
+    soundcloud:       soundcloud,
+    youtube:          youtube,
+    instagram:        instagram,
+    facebook:         facebook,
+    tiktok:           tiktok,
     contact_email:    contact,
     website:          website,
-    instagram:        instagram,
     avatar:           avatarUrl,
     updated_at:       new Date().toISOString()
   };

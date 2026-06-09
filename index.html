@@ -2287,99 +2287,236 @@ body.player-open .screen.active { padding-bottom: 80px; }
     <div style="font-size:11px;color:var(--muted);margin-top:8px;">Tap to upload a band photo</div>
   </div>
 
-  <div style="display:flex;flex-direction:column;gap:14px;">
-    <div class="field">
-      <label>Band / Act Name</label>
-      <input type="text" id="bandNameInput" placeholder="e.g. The Rolling Stones">
+  <div style="display:flex;flex-direction:column;">
+
+    <!-- Band Name -->
+    <div class="profile-section">
+      <div class="profile-section-title">BAND / ACT NAME</div>
+      <input type="text" id="bandNameInput" placeholder="e.g. The Rolling Stones" style="width:100%;background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:15px;padding:12px 14px;outline:none;box-sizing:border-box;">
     </div>
 
-    <!-- City / State / Postcode on one line -->
-    <div class="field">
-      <label>Location</label>
+    <!-- YOUR SOUND -->
+    <div class="profile-section">
+      <div class="profile-section-title">YOUR SOUND <span style="font-size:10px;color:var(--muted);letter-spacing:0;font-family:'DM Sans',sans-serif;text-transform:none;">shows on your slot card · 35 chars</span></div>
+      <input type="text" id="bandSoundInput" placeholder="e.g. High energy indie rock with big riffs" maxlength="35" autocomplete="off" oninput="updateBandSoundCount()" style="width:100%;background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:15px;padding:12px 14px;outline:none;box-sizing:border-box;">
+      <div style="text-align:right;font-size:11px;color:var(--muted);margin-top:4px;" id="bandSoundCharCount">0 / 35</div>
+    </div>
+
+    <!-- TAGLINE -->
+    <div class="profile-section">
+      <div class="profile-section-title">TAGLINE <span style="font-size:10px;color:var(--muted);letter-spacing:0;font-family:'DM Sans',sans-serif;text-transform:none;">shows on your profile tile · 120 chars</span></div>
+      <textarea class="profile-bio" id="bandTaglineInput" placeholder="High energy rock from Melbourne. Built for festival stages and sticky-floored pubs alike." maxlength="120" rows="2" style="min-height:56px;" oninput="updateBandTaglineCount()"></textarea>
+      <div style="text-align:right;font-size:11px;color:var(--muted);margin-top:4px;" id="bandTaglineCharCount">0 / 120</div>
+    </div>
+
+    <!-- LOCATION -->
+    <div class="profile-section">
+      <div class="profile-section-title">LOCATION</div>
       <div style="display:flex;gap:8px;">
-        <input type="text" id="bandLocationInput" placeholder="City / Suburb" style="flex:2;">
-        <select id="bandStateInput" style="flex:1;background:var(--card);border:1px solid var(--border);border-radius:10px;color:var(--text);padding:12px 10px;font-size:14px;outline:none;appearance:none;min-width:0;">
+        <input type="text" id="bandLocationInput" placeholder="City / Suburb" style="flex:2;background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;padding:12px 14px;outline:none;box-sizing:border-box;">
+        <select id="bandStateInput" style="flex:1;background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:12px 10px;font-size:14px;outline:none;appearance:none;min-width:0;">
           <option value="">State</option>
           <option>NSW</option><option>VIC</option><option>QLD</option>
           <option>WA</option><option>SA</option><option>TAS</option>
           <option>ACT</option><option>NT</option><option>NZ</option>
         </select>
-        <input type="text" id="bandPostcodeInput" placeholder="Postcode" maxlength="4" style="flex:1;min-width:0;">
+        <input type="text" id="bandPostcodeInput" placeholder="Postcode" maxlength="4" style="flex:1;min-width:0;background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;padding:12px 10px;outline:none;box-sizing:border-box;">
       </div>
     </div>
 
-    <!-- Members + Established on one line -->
-    <div class="field">
-      <div style="display:flex;gap:8px;">
+    <!-- MEMBERS + ESTABLISHED -->
+    <div class="profile-section">
+      <div style="display:flex;gap:12px;">
         <div style="flex:1;">
-          <label>Members</label>
-          <select id="bandMembersInput" style="width:100%;background:var(--card);border:1px solid var(--border);border-radius:10px;color:var(--text);padding:12px 14px;font-size:14px;outline:none;appearance:none;">
+          <div class="profile-section-title" style="margin-bottom:8px;">MEMBERS</div>
+          <select id="bandMembersInput" style="width:100%;background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:12px 14px;font-size:14px;outline:none;appearance:none;">
             <option value="">Size</option>
-            <option value="1">Solo</option>
-            <option value="2">Duo</option>
-            <option value="3">Trio</option>
-            <option value="4">4</option>
-            <option value="5">5</option>
-            <option value="6">6</option>
-            <option value="7">7</option>
-            <option value="8">8</option>
-            <option value="9">9</option>
+            <option value="1">Solo</option><option value="2">Duo</option><option value="3">Trio</option>
+            <option value="4">4</option><option value="5">5</option><option value="6">6</option>
+            <option value="7">7</option><option value="8">8</option><option value="9">9</option>
             <option value="10">10+</option>
           </select>
         </div>
         <div style="flex:1;">
-          <label>Established</label>
-          <select id="bandEstablishedInput" style="width:100%;background:var(--card);border:1px solid var(--border);border-radius:10px;color:var(--text);padding:12px 14px;font-size:14px;outline:none;appearance:none;">
+          <div class="profile-section-title" style="margin-bottom:8px;">ESTABLISHED</div>
+          <select id="bandEstablishedInput" style="width:100%;background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:12px 14px;font-size:14px;outline:none;appearance:none;">
             <option value="">Year</option>
           </select>
         </div>
       </div>
     </div>
 
-    <div class="field">
-      <label>Act Type</label>
-      <select id="bandTypeInput" style="background:var(--card);border:1px solid var(--border);border-radius:10px;color:var(--text);padding:12px 14px;font-size:14px;outline:none;appearance:none;width:100%;">
+    <!-- ACT TYPE -->
+    <div class="profile-section">
+      <div class="profile-section-title">ACT TYPE</div>
+      <select id="bandTypeInput" style="width:100%;background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:12px 14px;font-size:14px;outline:none;appearance:none;">
         <option value="">Select type</option>
-        <option>Full Band</option>
-        <option>Duo</option>
-        <option>Solo Artist</option>
-        <option>Trio</option>
-        <option>Acoustic Act</option>
-        <option>Cover Band</option>
-        <option>Original Act</option>
-        <option>Function Band</option>
-        <option>Jazz / Blues</option>
-        <option>Other</option>
+        <option>Full Band</option><option>Duo</option><option>Solo Artist</option><option>Trio</option>
+        <option>Acoustic Act</option><option>Cover Band</option><option>Original Act</option>
+        <option>Function Band</option><option>Jazz / Blues</option><option>Other</option>
       </select>
     </div>
-    <div class="field">
-      <label>Genre</label>
+
+    <!-- GENRE -->
+    <div class="profile-section">
+      <div class="profile-section-title">GENRE</div>
       <div id="bandGenrePicker" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px;"></div>
     </div>
-    <div class="field">
-      <label>Sub-genre / Vibe</label>
+
+    <!-- SUB-GENRE / VIBE -->
+    <div class="profile-section">
+      <div class="profile-section-title">SUB-GENRE / VIBE</div>
       <div id="bandVibePicker" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px;"></div>
     </div>
-    <div class="field">
-      <label>About the Act</label>
-      <textarea id="bandBioInput" rows="4" placeholder="What you play, your vibe, what makes your act unique..." style="width:100%;box-sizing:border-box;background:var(--card);border:1px solid var(--border);border-radius:10px;color:var(--text);padding:12px 14px;font-size:14px;font-family:'DM Sans',sans-serif;resize:vertical;outline:none;"></textarea>
+
+    <!-- FULL BIO -->
+    <div class="profile-section">
+      <div class="profile-section-title">FULL BIO</div>
+      <textarea class="profile-bio" id="bandBioInput" placeholder="Tell promoters and venues what you're about. Background, sound, experience, what makes your act unique." maxlength="500" style="min-height:110px;" oninput="updateBandBioCount()"></textarea>
+      <div style="text-align:right;font-size:11px;color:var(--muted);margin-top:4px;" id="bandBioCharCount">0 / 500</div>
     </div>
-    <div class="field">
-      <label>EPK / Demo Link</label>
-      <input type="url" id="bandEpkInput" placeholder="https://soundcloud.com/yourband">
+
+    <!-- EXPERIENCE LEVEL -->
+    <div class="profile-section">
+      <div class="profile-section-title">EXPERIENCE LEVEL</div>
+      <div class="exp-pills" id="bandExpPills">
+        <button type="button" class="exp-pill" onclick="selectBandExp(this)">EMERGING</button>
+        <button type="button" class="exp-pill" onclick="selectBandExp(this)">DEVELOPING</button>
+        <button type="button" class="exp-pill" onclick="selectBandExp(this)">ESTABLISHED</button>
+        <button type="button" class="exp-pill" onclick="selectBandExp(this)">TOURING</button>
+      </div>
     </div>
-    <div class="field">
-      <label>Booking Contact Email</label>
-      <input type="email" id="bandContactInput" placeholder="bookings@yourband.com">
+
+    <!-- SET FEE -->
+    <div class="profile-section">
+      <div class="profile-section-title">SET FEE</div>
+      <div class="fee-toggle-row">
+        <button type="button" class="fee-toggle-btn" id="bandFeeTicketsBtn" onclick="selectBandFeeType('exposure')">PLAY FOR EXPOSURE</button>
+        <button type="button" class="fee-toggle-btn" id="bandFeePaidBtn" onclick="selectBandFeeType('paid')">💰 I CHARGE A FEE</button>
+      </div>
+      <div id="bandFeeAmountBlock" style="display:none;margin-top:10px;">
+        <div class="field" style="margin-bottom:8px;">
+          <label>FEE (AUD)</label>
+          <input type="number" id="bandFeeInput" placeholder="e.g. 800" min="0" autocomplete="off">
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px;margin-top:10px;">
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:13px;color:var(--muted);user-select:none;">
+          <input type="checkbox" id="bandFeeNegotiable" style="accent-color:#FF8C42;width:16px;height:16px;cursor:pointer;">
+          Negotiable
+        </label>
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:13px;color:var(--muted);user-select:none;">
+          <input type="checkbox" id="bandFeeTravel" style="accent-color:#FF8C42;width:16px;height:16px;cursor:pointer;">
+          Fee + travel included
+        </label>
+      </div>
     </div>
-    <div class="field">
-      <label>Website</label>
-      <input type="url" id="bandWebsiteInput" placeholder="https://yourband.com">
+
+    <!-- EMERGENCY CONTACT -->
+    <div class="profile-section">
+      <div class="profile-section-title">EMERGENCY CONTACT</div>
+      <div class="row2">
+        <div class="field" style="margin-bottom:10px;">
+          <label>NAME</label>
+          <input type="text" id="bandEmergencyName" placeholder="Contact name" autocomplete="off">
+        </div>
+        <div class="field" style="margin-bottom:10px;">
+          <label>PHONE</label>
+          <input type="tel" id="bandEmergencyPhone" placeholder="Mobile number" autocomplete="off">
+        </div>
+      </div>
+      <div class="field" style="margin-bottom:0;">
+        <label>RELATIONSHIP</label>
+        <input type="text" id="bandEmergencyRel" placeholder="e.g. Manager, Partner" autocomplete="off">
+      </div>
     </div>
-    <div class="field">
-      <label>Instagram</label>
-      <input type="text" id="bandInstagramInput" placeholder="@yourband">
+
+    <!-- ATTACHMENTS -->
+    <div class="profile-section">
+      <div class="profile-section-title">ATTACHMENTS <span style="font-size:10px;color:var(--muted);letter-spacing:0;font-family:'DM Sans',sans-serif;text-transform:none;">optional</span></div>
+      <div class="attach-row" onclick="triggerAttach('bandStagePlotInput')">
+        <div><div class="attach-label">Stage Plot</div><div class="attach-status" id="bandStagePlotStatus">TAP TO UPLOAD</div></div>
+        <div style="font-size:20px;color:var(--muted);">↑</div>
+        <input type="file" id="bandStagePlotInput" accept=".pdf,.jpg,.png" style="display:none" onchange="handleAttach(this,'bandStagePlotStatus')">
+      </div>
+      <div class="attach-row" onclick="triggerAttach('bandTechRiderInput')">
+        <div><div class="attach-label">Tech Rider</div><div class="attach-status" id="bandTechRiderStatus">TAP TO UPLOAD</div></div>
+        <div style="font-size:20px;color:var(--muted);">↑</div>
+        <input type="file" id="bandTechRiderInput" accept=".pdf,.jpg,.png" style="display:none" onchange="handleAttach(this,'bandTechRiderStatus')">
+      </div>
+      <div class="attach-row" onclick="triggerAttach('bandInsuranceInput')">
+        <div><div class="attach-label">Public Liability Insurance</div><div class="attach-status" id="bandInsuranceStatus">TAP TO UPLOAD</div></div>
+        <div style="font-size:20px;color:var(--muted);">↑</div>
+        <input type="file" id="bandInsuranceInput" accept=".pdf,.jpg,.png" style="display:none" onchange="handleAttach(this,'bandInsuranceStatus')">
+      </div>
     </div>
+
+    <!-- ABN / GST -->
+    <div class="profile-section">
+      <div class="profile-section-title">ABN / GST</div>
+      <div class="fee-toggle-row">
+        <button type="button" class="fee-toggle-btn" id="bandAbnYesBtn" onclick="selectBandABN(true)">YES I HAVE AN ABN</button>
+        <button type="button" class="fee-toggle-btn" id="bandAbnNoBtn" onclick="selectBandABN(false)">NO ABN</button>
+      </div>
+      <div id="bandAbnBlock" style="display:none;margin-top:10px;">
+        <div class="field" style="margin-bottom:10px;">
+          <label>ABN</label>
+          <input type="text" id="bandABN" placeholder="e.g. 12 345 678 901" autocomplete="off">
+        </div>
+        <div class="fee-toggle-row" style="margin-bottom:0;">
+          <button type="button" class="fee-toggle-btn" id="bandGstYesBtn" onclick="selectBandGST(true)">GST REGISTERED</button>
+          <button type="button" class="fee-toggle-btn" id="bandGstNoBtn" onclick="selectBandGST(false)">NOT GST REGISTERED</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- SOCIALS + LINKS -->
+    <div class="profile-section">
+      <div class="profile-section-title">SOCIALS + LINKS</div>
+      <div class="link-row">
+        <div class="link-icon">✉</div>
+        <input type="email" class="link-input" id="bandContactInput" placeholder="Booking contact email">
+      </div>
+      <div class="link-row">
+        <div class="link-icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3z"/><path d="M3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg></div>
+        <input type="url" class="link-input" id="bandEpkInput" placeholder="Demo / EPK link">
+      </div>
+      <div class="link-row">
+        <div class="link-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" style="color:var(--muted)"><path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/></svg></div>
+        <input type="url" class="link-input" id="bandSpotify" placeholder="Spotify">
+      </div>
+      <div class="link-row">
+        <div class="link-icon">☁️</div>
+        <input type="url" class="link-input" id="bandSoundcloud" placeholder="SoundCloud">
+      </div>
+      <div class="link-row">
+        <div class="link-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" style="color:var(--muted)"><polygon points="6,3 20,12 6,21"/></svg></div>
+        <input type="url" class="link-input" id="bandYoutube" placeholder="YouTube">
+      </div>
+      <div class="link-row">
+        <div class="link-icon">📸</div>
+        <input type="url" class="link-input" id="bandInstagramInput" placeholder="Instagram">
+      </div>
+      <div class="link-row">
+        <div class="link-icon">👥</div>
+        <input type="url" class="link-input" id="bandFacebookInput" placeholder="Facebook">
+      </div>
+      <div class="link-row">
+        <div class="link-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" style="color:var(--muted)"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1-2.89-2.89 2.89 2.89 0 0 1 2.89-2.89c.28 0 .54.04.79.1V9.01a6.33 6.33 0 0 0-.79-.05 6.34 6.34 0 0 0-6.34 6.34 6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.33-6.34V8.69a8.18 8.18 0 0 0 4.78 1.52V6.76a4.85 4.85 0 0 1-1.01-.07z"/></svg></div>
+        <input type="url" class="link-input" id="bandTiktok" placeholder="TikTok">
+      </div>
+      <div class="link-row">
+        <div class="link-icon">🌐</div>
+        <input type="url" class="link-input" id="bandWebsiteInput" placeholder="Website">
+      </div>
+    </div>
+
+    <!-- UPCOMING GIGS -->
+    <div class="profile-section">
+      <div class="profile-section-title">UPCOMING GIGS</div>
+      <div style="font-size:13px;color:var(--muted);">Gigs will appear here once you're booked. <span onclick="navBack()" style="color:#FF8C42;cursor:pointer;text-decoration:underline;">View dashboard →</span></div>
+    </div>
+
   </div>
 
   <button onclick="saveBandProfile()" style="width:100%;background:#FF8C42;border:none;color:#0a0a0f;font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:2px;padding:16px;border-radius:12px;cursor:pointer;margin-top:20px;font-weight:700;">SAVE BAND PROFILE →</button>
