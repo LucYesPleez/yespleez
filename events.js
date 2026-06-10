@@ -128,9 +128,6 @@ function buildEventCardEl(ev, mode) {
           <div class="event-card-name">${esc(ev.name || 'Untitled Event')}</div>
           <div class="event-card-meta">${esc([cfg.date, cfg.venue].filter(Boolean).join(' · '))}${slotCount ? ' · ' + slotCount + ' slots' : ''}</div>
           ${analyticsHtml}
-          ${mode === 'host' && isLive ? `<div style="margin-top:8px;">
-            <button class="btn-ghost" style="font-size:11px;padding:5px 12px;border-color:var(--gold);color:var(--gold);" id="ac-${ev.id}">ALL CLAIMS</button>
-          </div>` : ''}
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;justify-content:center;gap:8px;flex-shrink:0;padding:14px 10px 14px 12px;">
           ${rightBtns}
@@ -141,7 +138,6 @@ function buildEventCardEl(ev, mode) {
     card.onclick = (e) => {
       if (!e.target.closest('button')) { if (isLive) openAllClaims(ev); else openEvent(ev); }
     };
-    if (isLive) card.querySelector('#ac-' + ev.id).onclick = (e) => { e.stopPropagation(); openAllClaims(ev); };
     card.querySelector('#edit-' + ev.id).onclick = (e) => { e.stopPropagation(); openEvent(ev); };
   } else {
     card.onclick = (e) => { if (!e.target.closest('button')) openPublicEvent(ev); };
