@@ -2072,7 +2072,7 @@ async function renderPipeline() {
       `${SUPABASE_URL}/rest/v1/applications?event_id=eq.${currentEventId}&order=created_at.desc&select=*`,
       { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${currentSession?.access_token}` } }
     );
-    if (appsRes.ok) apps = await appsRes.json();
+    if (appsRes.ok) apps = (await appsRes.json()).filter(a => a.status !== 'declined');
   } catch(e) { apps = []; }
 
   // Fetch artist profiles for all applications so we have names
@@ -2221,8 +2221,16 @@ async function declineApplication(appId) {
       { method: 'PATCH', body: JSON.stringify({ status: 'declined' }), prefer: 'return=minimal' },
       currentSession?.access_token
     );
-    showToast('Application declined', 'success');
     renderPipeline();
+    showToast('Application declined', 'success', 4000, 'Undo', async () => {
+      try {
+        await sbRest(`applications?id=eq.${appId}`,
+          { method: 'PATCH', body: JSON.stringify({ status: 'pending' }), prefer: 'return=minimal' },
+          currentSession?.access_token
+        );
+        renderPipeline();
+      } catch(e) { showToast('Could not undo — try again', 'error'); }
+    });
   } catch(e) { showToast('Could not decline — try again', 'error'); }
 }
 

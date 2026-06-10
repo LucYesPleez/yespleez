@@ -72,11 +72,17 @@ function navBack() {
 
 // ── Toast notifications ────────────────────────────
 
-function showToast(msg, type = 'success', duration = 3200) {
+function showToast(msg, type = 'success', duration = 3200, undoLabel, undoCb) {
   const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.className = `toast ${type} show`;
   clearTimeout(t._timer);
+  if (undoLabel && undoCb) {
+    t.innerHTML = `<span>${msg}</span><button onclick="this.closest('#toast')._undoCb && this.closest('#toast')._undoCb()" style="margin-left:12px;background:none;border:1px solid rgba(255,255,255,.4);border-radius:6px;color:#fff;font-family:'Bebas Neue',sans-serif;font-size:12px;letter-spacing:1px;padding:2px 10px;cursor:pointer;">${undoLabel}</button>`;
+    t._undoCb = () => { undoCb(); t.classList.remove('show'); };
+  } else {
+    t.textContent = msg;
+    t._undoCb = null;
+  }
+  t.className = `toast ${type} show`;
   t._timer = setTimeout(() => t.classList.remove('show'), duration);
 }
 
