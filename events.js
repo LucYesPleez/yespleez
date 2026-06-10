@@ -4087,7 +4087,7 @@ function closeSlotOffer() {
   if (post)    post.style.display = 'none';
   if (heading) heading.textContent = 'GENERATE CODE';
   const btn = document.getElementById('slotOfferSendBtn');
-  if (btn) { btn.disabled = false; btn.textContent = 'GENERATE OFFER LINK →'; }
+  if (btn) { btn.disabled = false; btn.textContent = 'NEXT →'; }
 }
 
 function copySlotOfferLink(el) {
@@ -4248,7 +4248,7 @@ async function sendSlotOffer() {
     }, 500);
   }
 
-  if (btn) { btn.disabled = false; btn.textContent = 'GENERATE OFFER LINK →'; }
+  if (btn) { btn.disabled = false; btn.textContent = 'NEXT →'; }
 }
 function closeWithdrawConfirm() { document.getElementById('withdrawConfirmOverlay').classList.remove('open'); _withdrawPending = null; }
 
