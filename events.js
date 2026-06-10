@@ -1680,12 +1680,18 @@ async function loadClaims() {
     const uids = [...new Set(rows.map(r => r.user_id).filter(Boolean))];
     if (uids.length) {
       try {
-        const profRes = await sbFetch(`profiles?user_id=in.(${uids.join(',')})&type=eq.artist&select=user_id,mix_link,soundcloud,mixcloud`);
+        const profRes = await sbFetch(`profiles?user_id=in.(${uids.join(',')})&type=eq.artist&select=user_id,dj_name,mix_link,soundcloud,mixcloud`);
         if (profRes.ok) {
           const profiles = await profRes.json();
-          const mixMap = {};
-          profiles.forEach(p => { mixMap[p.user_id] = p.mix_link || p.soundcloud || p.mixcloud || ''; });
-          Object.values(claims).forEach(c => { if (c.user_id && mixMap[c.user_id]) c.mixLink = mixMap[c.user_id]; });
+          const profMap = {};
+          profiles.forEach(p => { profMap[p.user_id] = p; });
+          // Only attach mix link if the profile's dj_name matches the slot name (guards against stale user_ids)
+          Object.values(claims).forEach(c => {
+            const p = c.user_id && profMap[c.user_id];
+            if (p && p.dj_name && p.dj_name.trim().toLowerCase() === c.name.trim().toLowerCase()) {
+              c.mixLink = p.mix_link || p.soundcloud || p.mixcloud || '';
+            }
+          });
         }
       } catch(e) { /* non-fatal */ }
     }
