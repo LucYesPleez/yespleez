@@ -1689,6 +1689,18 @@ async function loadClaims() {
       } catch(e) { /* non-fatal */ }
     }
 
+    // Load pending slot offers so we can show OFFERED state on empty slots
+    if (isHost && currentSession?.access_token) {
+      try {
+        const offRows = await sbRest(
+          `slot_offers?event_id=eq.${currentEventId}&status=eq.pending&select=slot_id,offered_to_name,offered_to_email`,
+          { method: 'GET' }, currentSession.access_token
+        );
+        slotOffersBySlot = {};
+        (offRows || []).forEach(o => { if (o.slot_id) slotOffersBySlot[o.slot_id] = o; });
+      } catch(e) { slotOffersBySlot = {}; }
+    }
+
     setSync(true);
     if (isHost) renderManage(); else renderAll();
   } catch { setSync(false); }
@@ -1920,11 +1932,24 @@ function renderManage() {
     if (!claim) {
       infoCol.innerHTML = '<div class="empty-tag">Open slot</div>'+(s.label?'<div class="slot-badge '+(isLounge?'cyan':'')+'">' +s.label+'</div>':'');
       const emptyHint = s.time+' '+s.ampm+' · '+s.dur+(s.label?' · '+s.label:'');
-      const emptyOfferBtn = document.createElement('button');
-      emptyOfferBtn.style.cssText = 'padding:5px 12px;background:transparent;border:1px solid rgba(255,45,120,.35);border-radius:6px;color:var(--neon);font-family:\'Bebas Neue\',sans-serif;font-size:11px;letter-spacing:1px;cursor:pointer;white-space:nowrap;';
-      emptyOfferBtn.textContent = 'OFFER';
-      emptyOfferBtn.onclick = e => { e.stopPropagation(); openSlotOffer(s.id, emptyHint, ''); };
-      actCol.appendChild(emptyOfferBtn);
+      const pendingOffer = slotOffersBySlot[s.id];
+      if (pendingOffer) {
+        // Already offered — show badge instead of OFFER button
+        const offeredBadge = document.createElement('div');
+        offeredBadge.style.cssText = 'font-size:10px;font-family:\'Bebas Neue\',sans-serif;letter-spacing:1px;color:var(--neon);opacity:.7;text-align:right;white-space:nowrap;';
+        offeredBadge.textContent = 'OFFERED';
+        const offeredTo = document.createElement('div');
+        offeredTo.style.cssText = 'font-size:10px;color:var(--muted);text-align:right;white-space:nowrap;max-width:90px;overflow:hidden;text-overflow:ellipsis;';
+        offeredTo.textContent = pendingOffer.offered_to_name || pendingOffer.offered_to_email || '';
+        actCol.appendChild(offeredBadge);
+        actCol.appendChild(offeredTo);
+      } else {
+        const emptyOfferBtn = document.createElement('button');
+        emptyOfferBtn.style.cssText = 'padding:5px 12px;background:transparent;border:1px solid rgba(255,45,120,.35);border-radius:6px;color:var(--neon);font-family:\'Bebas Neue\',sans-serif;font-size:11px;letter-spacing:1px;cursor:pointer;white-space:nowrap;';
+        emptyOfferBtn.textContent = 'OFFER';
+        emptyOfferBtn.onclick = e => { e.stopPropagation(); openSlotOffer(s.id, emptyHint, ''); };
+        actCol.appendChild(emptyOfferBtn);
+      }
       const assignBtn = document.createElement('button');
       assignBtn.className = 'btn-ghost'; assignBtn.style.cssText = 'font-size:11px;padding:5px 14px;border-color:var(--neon2);color:var(--neon2);white-space:nowrap;';
       assignBtn.textContent = '+ ASSIGN';
@@ -1944,24 +1969,12 @@ function renderManage() {
         playBtn.onclick = e => { e.stopPropagation(); openMiniPlayer(claim.name, claim.mixLink, '🎧'); };
         actCol.appendChild(playBtn);
       }
-      // Inline EDIT button
-      const mEditBtn = document.createElement('button');
-      mEditBtn.style.cssText = 'padding:4px 10px;background:transparent;border:1px solid rgba(0,229,255,.35);border-radius:6px;color:var(--neon2);font-family:\'Bebas Neue\',sans-serif;font-size:11px;letter-spacing:1px;cursor:pointer;white-space:nowrap;';
-      mEditBtn.textContent = 'EDIT';
       const hint = s.time+' '+s.ampm+' · '+s.dur+(s.label?' · '+s.label:'');
-      mEditBtn.onclick = e => { e.stopPropagation(); openModal(s.id, hint, 1); setTimeout(() => { document.getElementById('inputName').value = claim.name||''; document.getElementById('inputNotes').value = claim.notes||''; document.getElementById('confirmBtn').textContent = 'SAVE CHANGES ✓'; restoreGenreVibeState(claim.genre||''); const ds=document.getElementById('descriptorSection'); if(ds)ds.style.display=''; const di=document.getElementById('inputDescriptor'); if(di)di.value=claim.sound||claim.cardPills||''; }, 40); };
-      actCol.appendChild(mEditBtn);
-      // Inline OFFER button
-      const mOfferBtn = document.createElement('button');
-      mOfferBtn.style.cssText = 'padding:4px 10px;background:transparent;border:1px solid rgba(255,45,120,.35);border-radius:6px;color:var(--neon);font-family:\'Bebas Neue\',sans-serif;font-size:11px;letter-spacing:1px;cursor:pointer;white-space:nowrap;';
-      mOfferBtn.textContent = 'OFFER';
-      mOfferBtn.onclick = e => { e.stopPropagation(); openSlotOffer(s.id, hint, claim.name); };
-      actCol.appendChild(mOfferBtn);
       actCol.appendChild(chevron);
       const detail = document.createElement('div');
       detail.style.cssText = 'display:none;background:var(--card2);border:1px solid var(--border);border-top:none;border-radius:0 0 10px 10px;padding:14px 16px;';
       if (claim.genre) { const g = document.createElement('div'); g.style.cssText = 'font-size:12px;color:var(--muted);line-height:1.6;word-break:break-word;margin-bottom:10px;'; g.textContent = claim.genre; detail.appendChild(g); }
-      if (claim.notes) { const n = document.createElement('div'); n.style.cssText = 'background:rgba(90,154,122,.08);border:1px solid rgba(90,154,122,.2);border-radius:6px;padding:8px 12px;font-size:13px;color:#7abf9a;line-height:1.5;margin-bottom:10px;word-break:break-word;'; n.innerHTML = '<span style="font-size:10px;letter-spacing:1.5px;color:var(--muted);font-family:Bebas Neue,sans-serif;display:block;margin-bottom:4px;">NOTES</span>'+claim.notes; detail.appendChild(n); }
+      if (claim.notes) { const n = document.createElement('div'); n.style.cssText = 'background:rgba(0,229,255,.06);border:1px solid rgba(0,229,255,.18);border-radius:6px;padding:8px 12px;font-size:13px;color:var(--neon2);line-height:1.5;margin-bottom:10px;word-break:break-word;'; n.innerHTML = '<span style="font-size:10px;letter-spacing:1.5px;color:var(--muted);font-family:Bebas Neue,sans-serif;display:block;margin-bottom:4px;">NOTES</span>'+claim.notes; detail.appendChild(n); }
       if (claim.backups?.length) {
         const bkWrap = document.createElement('div'); bkWrap.style.cssText = 'margin-bottom:10px;';
         bkWrap.innerHTML = '<div style="font-size:10px;letter-spacing:1.5px;color:var(--neon2);font-family:Bebas Neue,sans-serif;margin-bottom:6px;">BACKUP PREFERENCES</div>';
@@ -1975,7 +1988,11 @@ function renderManage() {
       removeBtn.style.cssText = 'font-size:11px;flex:1;padding:8px;border-radius:8px;font-family:\'Bebas Neue\',sans-serif;letter-spacing:1px;cursor:pointer;background:rgba(255,45,120,.08);border:1px solid rgba(255,45,120,.35);color:var(--neon);';
       removeBtn.textContent = '✕ REMOVE ARTIST';
       removeBtn.onclick = e=>{e.stopPropagation(); if(setTimesLocked){showLockedPopup();return;} confirmAction('Remove this artist from the slot?', () => { clearSlot(s.id); renderManage(); });};
-      detAct.appendChild(lockBtn); detAct.appendChild(removeBtn);
+      const editBtn = document.createElement('button');
+      editBtn.style.cssText = 'font-size:11px;flex:1;padding:8px;border-radius:8px;font-family:\'Bebas Neue\',sans-serif;letter-spacing:1px;cursor:pointer;background:rgba(0,229,255,.07);border:1px solid rgba(0,229,255,.3);color:var(--neon2);';
+      editBtn.textContent = '✎ EDIT';
+      editBtn.onclick = e => { e.stopPropagation(); openModal(s.id, hint, 1); setTimeout(() => { document.getElementById('inputName').value = claim.name||''; document.getElementById('inputNotes').value = claim.notes||''; document.getElementById('confirmBtn').textContent = 'SAVE CHANGES ✓'; restoreGenreVibeState(claim.genre||''); const ds=document.getElementById('descriptorSection'); if(ds)ds.style.display=''; const di=document.getElementById('inputDescriptor'); if(di)di.value=claim.sound||claim.cardPills||''; }, 40); };
+      detAct.appendChild(editBtn); detAct.appendChild(lockBtn); detAct.appendChild(removeBtn);
       const notesWrap = document.createElement('div'); notesWrap.style.cssText = 'margin-top:12px;padding-top:10px;border-top:1px solid var(--border);';
       notesWrap.innerHTML = '<div class="host-notes-label"><svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:4px;"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>HOST NOTES (private)</div>';
       const notesTA = document.createElement('textarea'); notesTA.className = 'host-notes-input'; notesTA.rows = 2;

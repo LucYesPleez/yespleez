@@ -25,6 +25,7 @@ let currentEventId = null;   // UUID of currently viewed event
 let eventData      = null;   // the event config being viewed/edited
 let allEvents      = [];     // host's events list
 let claims         = {};     // slot claims for current event
+let slotOffersBySlot = {};   // slotId -> offer row, for slots with pending offers
 let activeKey      = null;   // slot key being claimed
 let isHost            = false;  // is current viewer the host of current event?
 let isReadOnly        = false;  // true when viewing an event from Discover (no edits allowed)
