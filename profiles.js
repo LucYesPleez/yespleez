@@ -261,8 +261,9 @@ function openPublicProfile(row) {
   const isHost = row.type === 'host';
   const name = row.dj_name || row.name || 'Unknown';
   const location = [row.location, row.state].filter(Boolean).join(', ');
-  const genres = row.genre_string ? row.genre_string.split(' · ') : [];
-  const topGenres = genres.slice(0, 8);
+  const genres = row.genre_string ? row.genre_string.split(' · ').filter(Boolean) : [];
+  const mainGenre = genres.slice(0, 1);
+  const subGenres = genres.slice(1, 8);
   const typeAccents = {
     host:    { color: 'var(--neon)',  rgb: '255,45,120',  label: 'HOST / PROMOTER' },
     artist:  { color: 'var(--neon2)', rgb: '0,229,255',   label: 'ARTIST / DJ' },
@@ -320,21 +321,24 @@ function openPublicProfile(row) {
       </div>
     </div>
     ${mixHtml}
-    ${row.sound ? `
-    <div style="background:rgba(19,19,31,.88);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:14px 16px;margin-bottom:12px;text-align:center;">
-      <div style="font-size:15px;color:var(--text);font-style:italic;line-height:1.5;">"${row.sound}"</div>
-    </div>` : ''}
+    ${row.sound ? (() => { const ds = (typeof dedupeSound === 'function') ? dedupeSound(row.sound, row.genre_string || '') : row.sound; return ds ? `<div style="background:rgba(19,19,31,.88);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:14px 16px;margin-bottom:12px;text-align:center;"><div style="font-size:15px;color:var(--text);font-style:italic;line-height:1.5;">"${ds}"</div></div>` : ''; })() : ''}
     ${row.bio ? `
     <div style="background:rgba(19,19,31,.88);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:16px;margin-bottom:12px;">
       <div style="font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:2px;color:${accentColor};margin-bottom:8px;">ABOUT</div>
       <div style="font-size:14px;color:var(--muted);line-height:1.7;">${row.bio}</div>
     </div>` : ''}
-    ${topGenres.length ? `
+    ${mainGenre.length || subGenres.length ? `
     <div style="background:rgba(19,19,31,.88);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:16px;margin-bottom:12px;">
-      <div style="font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:2px;color:${accentColor};margin-bottom:10px;">GENRES & VIBES</div>
+      ${mainGenre.length ? `
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:2px;color:${accentColor};margin-bottom:8px;">GENRE</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:${subGenres.length ? '14px' : '0'};">
+        ${mainGenre.map(g => `<span style="background:var(--card2);border:1px solid var(--border);border-radius:20px;font-size:12px;padding:4px 12px;color:var(--text);">${g}</span>`).join('')}
+      </div>` : ''}
+      ${subGenres.length ? `
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:2px;color:${accentColor};margin-bottom:8px;">SUB GENRE</div>
       <div style="display:flex;flex-wrap:wrap;gap:6px;">
-        ${topGenres.map(g => `<span style="background:var(--card2);border:1px solid var(--border);border-radius:20px;font-size:12px;padding:4px 12px;color:var(--text);">${g}</span>`).join('')}
-      </div>
+        ${subGenres.map(g => `<span style="background:rgba(0,229,255,.06);border:1px solid rgba(0,229,255,.2);border-radius:20px;font-size:12px;padding:4px 12px;color:var(--neon2);">${g}</span>`).join('')}
+      </div>` : ''}
     </div>` : ''}
     ${row.instagram || row.website ? `
     <div style="background:rgba(19,19,31,.88);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:16px;margin-bottom:12px;">

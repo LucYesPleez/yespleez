@@ -1738,6 +1738,16 @@ function setSync(live) {
   document.getElementById('syncLabel').textContent = live ? 'Live' : 'Offline — retrying...';
 }
 
+// ── Helper: remove genre/subgenre tokens from sound field to avoid duplicates ──
+function dedupeSound(sound, genreString) {
+  if (!sound || !genreString) return sound || '';
+  const genreTokens = new Set(genreString.split(' · ').map(s => s.trim().toLowerCase()).filter(Boolean));
+  // Split sound on separators or spaces, remove tokens that match genre/subgenre labels
+  const parts = sound.split(/\s*[·,]\s*/);
+  const filtered = parts.filter(p => !genreTokens.has(p.trim().toLowerCase()));
+  return filtered.join(' · ').trim();
+}
+
 // ── Genre / vibe pickers ───────────────────────────
 
 const SUBGENRES = {
@@ -2003,7 +2013,8 @@ async function renderShortlist() {
   const cards = rows.map(r => {
     const p = profileMap[r.artist_id] || {};
     const name = p.dj_name || p.name || 'Unknown Artist';
-    const genre = p.genre_string || p.sound || '';
+    const genre = p.genre_string || '';
+    const soundRaw = dedupeSound(p.sound || '', p.genre_string || '');
     const avatar = p.avatar
       ? `<img src="${p.avatar}" style="width:42px;height:42px;border-radius:50%;object-fit:cover;flex-shrink:0;border:1px solid var(--border);">`
       : `<div style="width:42px;height:42px;border-radius:50%;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">🎧</div>`;
@@ -2018,6 +2029,7 @@ async function renderShortlist() {
         <div style="flex:1;min-width:0;">
           <div style="font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:1px;color:var(--text);">${esc(name)}</div>
           ${genre ? `<div style="font-size:11px;color:var(--muted);margin-top:2px;">${esc(genre)}</div>` : ''}
+          ${soundRaw ? `<div style="font-size:11px;color:var(--neon2);margin-top:2px;">${esc(soundRaw)}</div>` : ''}
         </div>
         ${playBtn}
       </div>
@@ -2113,7 +2125,7 @@ async function renderPipeline() {
   const appCards = apps.map(a => {
     const prof = profileMap[a.artist_id] || {};
     const name     = prof.dj_name || prof.name || a.artist_id?.slice(0,8) || 'Unknown Artist';
-    const sound    = prof.sound || '';
+    const sound    = dedupeSound(prof.sound || '', prof.genre_string || '');
     const tagline  = prof.tagline || '';
     const mixLink  = prof.mix_link || prof.soundcloud || prof.mixcloud || '';
     const avatar   = prof.avatar
@@ -2559,10 +2571,12 @@ function openAppDrawer(app, profile) {
 
   const name     = profile ? (profile.dj_name || profile.name || 'Artist') : (app.artist_name || 'Artist');
   const location = profile ? [profile.location, profile.state].filter(Boolean).join(', ') : '';
-  const genres   = profile?.genre_string ? profile.genre_string.split(' · ') : [];
+  const allGenres  = profile?.genre_string ? profile.genre_string.split(' · ').filter(Boolean) : [];
+  const mainGenre  = allGenres.slice(0, 1);
+  const subGenres  = allGenres.slice(1);
   const mixLink  = profile?.mix_link || profile?.soundcloud || profile?.mixcloud || '';
   const bio      = profile?.bio || '';
-  const sound    = profile?.sound || '';
+  const sound    = dedupeSound(profile?.sound || '', profile?.genre_string || '');
   const avatar   = profile?.avatar || '';
   const statusColor = app.status === 'accepted' ? 'var(--neon2)' : app.status === 'declined' ? 'var(--neon)' : 'var(--gold)';
 
@@ -2597,9 +2611,19 @@ function openAppDrawer(app, profile) {
     ${bio ? `<div style="font-size:13px;color:var(--muted);line-height:1.7;margin-bottom:14px;">${esc(bio)}</div>` : ''}
 
     <!-- Genres -->
-    ${genres.length ? `
-    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px;">
-      ${genres.map(g => `<span style="background:var(--card);border:1px solid var(--border);border-radius:16px;font-size:12px;padding:4px 12px;color:var(--text);">${esc(g)}</span>`).join('')}
+    ${mainGenre.length ? `
+    <div style="margin-bottom:12px;">
+      <div style="font-size:10px;letter-spacing:2px;color:var(--muted);font-family:'Bebas Neue',sans-serif;margin-bottom:6px;">GENRE</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;">
+        ${mainGenre.map(g => `<span style="background:var(--card);border:1px solid var(--border);border-radius:16px;font-size:12px;padding:4px 12px;color:var(--text);">${esc(g)}</span>`).join('')}
+      </div>
+    </div>` : ''}
+    ${subGenres.length ? `
+    <div style="margin-bottom:14px;">
+      <div style="font-size:10px;letter-spacing:2px;color:var(--muted);font-family:'Bebas Neue',sans-serif;margin-bottom:6px;">SUB GENRE</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;">
+        ${subGenres.map(g => `<span style="background:rgba(0,229,255,.06);border:1px solid rgba(0,229,255,.2);border-radius:16px;font-size:12px;padding:4px 12px;color:var(--neon2);">${esc(g)}</span>`).join('')}
+      </div>
     </div>` : ''}
 
     <!-- Application note -->
