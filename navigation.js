@@ -17,7 +17,7 @@ const _screenTitles = {
   standupDashScreen:   'STAND UP / POETRY',
   standupProfileScreen:'ACT PROFILE',
   bandProfileScreen:   'BAND PROFILE',
-  calendarScreen:      'CALENDAR',
+  calendarScreen:      "WHATS HAPPENIN'",
   searchScreen:        'DISCOVER',
   profileScreen:       'MY PROFILE',
   artistProfileScreen: 'MY PROFILE',
