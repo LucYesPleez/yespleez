@@ -80,6 +80,7 @@ document.addEventListener('keydown', e => {
     closeWithdrawConfirm(); closeConfirmRemove(); closeLineupRadio();
   }
   if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA' && document.getElementById('overlay').classList.contains('open')) {
+    e.preventDefault(); // stop focused Cancel/other buttons from also firing
     confirmClaim();
   }
   if (e.key === 'Enter' && document.getElementById('authScreen').classList.contains('active')) {

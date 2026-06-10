@@ -1620,12 +1620,14 @@ async function confirmClaim() {
     const slotLabel = (() => { let l='slot'; (eventData?.days||[]).forEach(d=>d.slots.forEach(s=>{if(s.id===activeKey)l=s.time+' '+s.ampm;})); return l; })();
     pushNotif('🎧', `${name} claimed the ${slotLabel} slot`, 'host');
     closeModal();
-    if (isHost) { renderManage(); } else { renderAll(); }
+    renderAll();
+    if (isHost) renderManage();
     setTimeout(loadClaims, 600);
   } else {
-    document.getElementById('confirmBtn').disabled = false;
-    document.getElementById('confirmBtn').textContent = 'LOCK IT IN ✓';
-    showToast('Something went wrong — check your connection.', 'error');
+    const btn = document.getElementById('confirmBtn');
+    btn.disabled = false;
+    btn.textContent = claims[activeKey] ? 'SAVE CHANGES ✓' : (isHost ? 'ASSIGN →' : 'LOCK IT IN ✓');
+    showToast('Something went wrong — try again.', 'error');
   }
 }
 
