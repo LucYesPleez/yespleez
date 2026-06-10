@@ -184,33 +184,59 @@ async function runSearch() {
 let _applyEventId   = null;
 let _applyEventName = '';
 
-function openApplyModalForEvent(eventId, eventName) {
-  if (!currentUser?.id || currentUser.id === 'guest') {
-    showToast('Sign in to apply for events', 'error'); return;
-  }
-  _applyEventId = eventId;
-  _applyEventName = eventName;
-  document.getElementById('applyEventName').textContent = eventName;
+// ── Apply modal state ──────────────────────────────
+let _applyGuestData = null; // stores guest form data after submit, for profile save
 
-  // Build profile preview
-  const p = artistProfile || {};
-  const name     = p.djName || p.name || 'Your DJ name';
-  const genres   = (p.genreString || '').split(' · ').filter(Boolean).slice(0, 5);
-  const pillsHtml = genres.map(g => `<span class="dj-pill">${g}</span>`).join('');
-  const avatarHtml = p.avatar
-    ? `<img src="${p.avatar}" style="width:52px;height:52px;border-radius:6px;object-fit:cover;border:2px solid var(--neon2);flex-shrink:0;">`
-    : `<div style="width:52px;height:52px;border-radius:6px;background:var(--card);border:2px solid var(--neon2);display:flex;align-items:center;justify-content:center;flex-shrink:0;"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3z"/><path d="M3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg></div>`;
-  document.getElementById('applyProfilePreview').innerHTML = `
-    <div style="display:flex;gap:12px;align-items:flex-start;">
-      ${avatarHtml}
-      <div style="flex:1;min-width:0;">
-        <div style="font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:1px;">${name}</div>
-        ${p.location ? `<div style="font-size:11px;color:var(--muted);margin-bottom:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:2px;"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg>${p.location}</div>` : ''}
-        ${pillsHtml ? `<div class="dj-pills" style="margin-top:4px;">${pillsHtml}</div>` : ''}
-        ${p.sound ? `<div style="font-size:12px;color:var(--neon2);font-style:italic;margin-top:6px;">${p.sound}</div>` : ''}
-        ${p.mixLink ? `<div style="font-size:11px;color:var(--neon2);margin-top:4px;display:flex;align-items:center;gap:4px;"><svg viewBox="0 0 24 24" width="11" height="11" fill="var(--neon2)"><polygon points="6,3 20,12 6,21"/></svg>Mix link included</div>` : ''}
-      </div>
-    </div>`;
+function _applyShowPanel(name) {
+  ['applyFormPanel','applySavePanel','applyBrowsePanel'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = id === name ? '' : 'none';
+  });
+}
+
+function openApplyModalForEvent(eventId, eventName) {
+  _applyEventId   = eventId;
+  _applyEventName = eventName;
+  _applyGuestData = null;
+
+  document.getElementById('applyEventName').textContent = eventName || '';
+  document.getElementById('applyModalHeading').textContent = 'APPLY TO PLAY';
+  document.getElementById('applyNote').value = '';
+  _applyShowPanel('applyFormPanel');
+
+  const isLoggedIn = currentUser?.id && currentUser.id !== 'guest';
+
+  if (isLoggedIn && (artistProfile?.djName || artistProfile?.name)) {
+    // ── One-click: show saved profile preview ──
+    const p = artistProfile || {};
+    const name     = p.djName || p.name || '';
+    const genres   = (p.genreString || '').split(' · ').filter(Boolean).slice(0, 5);
+    const pillsHtml = genres.map(g => `<span class="dj-pill">${g}</span>`).join('');
+    const avatarHtml = p.avatar
+      ? `<img src="${p.avatar}" style="width:48px;height:48px;border-radius:6px;object-fit:cover;border:2px solid var(--neon2);flex-shrink:0;">`
+      : `<div style="width:48px;height:48px;border-radius:6px;background:var(--card);border:2px solid var(--neon2);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:22px;">🎧</div>`;
+    document.getElementById('applyProfilePreview').innerHTML = `
+      <div style="display:flex;gap:12px;align-items:flex-start;">
+        ${avatarHtml}
+        <div style="flex:1;min-width:0;">
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:1px;">${esc(name)}</div>
+          ${p.location ? `<div style="font-size:11px;color:var(--muted);margin-top:2px;">${esc(p.location)}</div>` : ''}
+          ${pillsHtml ? `<div class="dj-pills" style="margin-top:6px;">${pillsHtml}</div>` : ''}
+          ${p.sound ? `<div style="font-size:12px;color:var(--neon2);font-style:italic;margin-top:6px;">${esc(p.sound)}</div>` : ''}
+          ${p.mixLink ? `<div style="font-size:11px;color:var(--neon2);margin-top:4px;display:flex;align-items:center;gap:4px;"><svg viewBox="0 0 24 24" width="11" height="11" fill="var(--neon2)"><polygon points="6,3 20,12 6,21"/></svg>Mix included</div>` : ''}
+        </div>
+      </div>`;
+    document.getElementById('applyProfilePreview').style.display = '';
+    document.getElementById('applyGuestForm').style.display = 'none';
+  } else {
+    // ── Guest: show fill-in form ──
+    document.getElementById('applyProfilePreview').style.display = 'none';
+    document.getElementById('applyGuestForm').style.display = '';
+    // Clear guest fields
+    ['applyGuestName','applyGuestEmail','applyGuestGenre','applyGuestSound','applyGuestMixLink'].forEach(id => {
+      const el = document.getElementById(id); if (el) el.value = '';
+    });
+  }
 
   document.getElementById('applyOverlay').classList.add('open');
 }
@@ -218,47 +244,127 @@ function openApplyModalForEvent(eventId, eventName) {
 function closeApplyModal() {
   document.getElementById('applyOverlay').classList.remove('open');
   _applyEventId = null;
+  _applyGuestData = null;
 }
 
 async function submitApplication() {
   if (!_applyEventId) return;
-  const btn = document.getElementById('applySubmitBtn');
+  const btn  = document.getElementById('applySubmitBtn');
+  const note = document.getElementById('applyNote')?.value.trim() || '';
+  const isLoggedIn = currentUser?.id && currentUser.id !== 'guest';
+
+  // Guest validation
+  if (!isLoggedIn) {
+    const name  = document.getElementById('applyGuestName')?.value.trim() || '';
+    const email = document.getElementById('applyGuestEmail')?.value.trim() || '';
+    if (!name)  { showToast('Please enter your DJ name', 'error'); document.getElementById('applyGuestName')?.focus(); return; }
+    if (!email) { showToast('Please enter your email', 'error'); document.getElementById('applyGuestEmail')?.focus(); return; }
+  }
+
   btn.disabled = true; btn.textContent = 'SUBMITTING...';
-  const noteEl = document.getElementById('applyNote');
-  const note = noteEl ? noteEl.value.trim() : '';
+
   try {
-    const headers = {
-      'apikey': SUPABASE_KEY,
-      'Authorization': `Bearer ${currentSession.access_token}`,
-      'Content-Type': 'application/json',
-      'Prefer': 'return=minimal'
-    };
+    let body;
+    if (isLoggedIn) {
+      body = { event_id: _applyEventId, artist_id: currentUser.id, note, status: 'pending' };
+    } else {
+      const gName     = document.getElementById('applyGuestName')?.value.trim() || '';
+      const gEmail    = document.getElementById('applyGuestEmail')?.value.trim() || '';
+      const gGenre    = document.getElementById('applyGuestGenre')?.value.trim() || '';
+      const gSound    = document.getElementById('applyGuestSound')?.value.trim() || '';
+      const gMixLink  = document.getElementById('applyGuestMixLink')?.value.trim() || '';
+      _applyGuestData = { name: gName, email: gEmail, genre: gGenre, sound: gSound, mixLink: gMixLink };
+      body = { event_id: _applyEventId, artist_id: null, note, status: 'pending',
+               guest_name: gName, guest_email: gEmail, guest_genre: gGenre || null,
+               guest_sound: gSound || null, guest_mix_link: gMixLink || null };
+    }
+
     const res = await fetch(`${SUPABASE_URL}/rest/v1/applications`, {
       method: 'POST',
-      headers,
-      body: JSON.stringify({
-        event_id:  _applyEventId,
-        artist_id: currentUser.id,
-        note:      note,
-        status:    'pending'
-      })
+      headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${currentSession?.access_token || SUPABASE_KEY}`, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+      body: JSON.stringify(body)
     });
+
     if (res.ok || res.status === 201) {
-      closeApplyModal();
-      showToast('Application sent! The promoter will be in touch ✓', 'success');
       _hasApplied = true;
       if (typeof updateApplyBarState === 'function') updateApplyBarState();
       if (typeof renderAll === 'function') renderAll();
+
+      if (isLoggedIn) {
+        closeApplyModal();
+        showToast('Application sent! ✓', 'success');
+      } else {
+        // Guest — show save profile prompt
+        _applyShowPanel('applySavePanel');
+        document.getElementById('applyModalHeading').textContent = 'ONE MORE THING';
+        const saveEventEl = document.getElementById('applySaveEventName');
+        if (saveEventEl) saveEventEl.textContent = `You've applied to ${_applyEventName || 'the event'} ✓`;
+        document.getElementById('applySavePassword').value = '';
+        const errEl = document.getElementById('applySaveErr'); if (errEl) errEl.style.display = 'none';
+      }
     } else {
       const err = await res.json().catch(() => ({}));
-      if (err.code === '23505') {
-        showToast('You\'ve already applied to this event', 'error');
-      } else {
-        showToast(`Error: ${err.message || res.status}`, 'error');
-      }
+      if (err.code === '23505') showToast('You\'ve already applied to this event', 'error');
+      else showToast(`Error: ${err.message || res.status}`, 'error');
     }
   } catch(e) {
     showToast(`Failed: ${e.message}`, 'error');
   }
   btn.disabled = false; btn.textContent = 'SEND APPLICATION →';
+}
+
+async function saveGuestProfile() {
+  if (!_applyGuestData) return;
+  const password = document.getElementById('applySavePassword')?.value.trim() || '';
+  const errEl    = document.getElementById('applySaveErr');
+  if (password.length < 6) {
+    if (errEl) { errEl.textContent = 'Password must be at least 6 characters.'; errEl.style.display = ''; }
+    return;
+  }
+  const btn = document.getElementById('applySaveBtn');
+  btn.disabled = true; btn.textContent = 'SAVING...';
+
+  const { name, email, genre, sound, mixLink } = _applyGuestData;
+  try {
+    // Create Supabase auth account
+    const authRes = await sbAuthPost('signup', { email, password });
+    if (authRes.error || !authRes.access_token) {
+      const msg = authRes.error_description || authRes.msg || 'Signup failed — try again.';
+      if (errEl) { errEl.textContent = msg; errEl.style.display = ''; }
+      btn.disabled = false; btn.textContent = 'SAVE MY PROFILE →';
+      return;
+    }
+    currentSession = authRes;
+    currentUser    = authRes.user;
+    localStorage.setItem('yp_session', JSON.stringify(authRes));
+
+    // Create profile row from guest data
+    await sbRest('profiles', {
+      method: 'POST',
+      body: JSON.stringify({ user_id: authRes.user.id, email, dj_name: name, genre_string: genre || null, sound: sound || null, mix_link: mixLink || null, type: 'artist' }),
+      prefer: 'resolution=merge-duplicates,return=minimal'
+    }, authRes.access_token).catch(() => {});
+
+    // Link the application to the new account
+    await fetch(`${SUPABASE_URL}/rest/v1/applications?event_id=eq.${_applyEventId}&guest_email=eq.${encodeURIComponent(email)}&artist_id=is.null`, {
+      method: 'PATCH',
+      headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${authRes.access_token}`, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+      body: JSON.stringify({ artist_id: authRes.user.id })
+    }).catch(() => {});
+
+    // Load the new profile into app state
+    artistProfile = { djName: name, genreString: genre || '', sound: sound || '', mixLink: mixLink || '' };
+    currentMode = 'artist';
+
+    closeApplyModal();
+    showToast(`Welcome to YesPleez, ${name}! 🎧`, 'success', 5000);
+  } catch(e) {
+    if (errEl) { errEl.textContent = 'Something went wrong — try again.'; errEl.style.display = ''; }
+  }
+  btn.disabled = false; btn.textContent = 'SAVE MY PROFILE →';
+}
+
+function skipSaveProfile() {
+  _applyShowPanel('applyBrowsePanel');
+  document.getElementById('applyModalHeading').textContent = "YOU'RE IN";
 }

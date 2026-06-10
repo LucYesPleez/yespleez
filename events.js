@@ -1013,7 +1013,7 @@ function showSignup() {
   // Apply bar — shown for non-hosts on non-read-only events
   const applyBar = document.getElementById('applyBar');
   if (applyBar) {
-    const showApplyBar = !isHost && currentUser?.id && currentUser.id !== 'guest' && (eventData.applications_open === true);
+    const showApplyBar = !isHost && currentUser?.id && (eventData.applications_open === true);
     applyBar.style.display = showApplyBar ? '' : 'none';
     if (showApplyBar) {
       // Restore saved code from localStorage
@@ -1308,7 +1308,7 @@ function renderAll() {
         actionBlock.appendChild(leaveBtn);
       }
       // Apply button shows for non-hosts with no code when apps are open — outside isReadOnly gate
-      if (!entry && !isHost && !_eventCode && hostControls.applicationsOpen && currentUser?.id && currentUser.id !== 'guest') {
+      if (!entry && !isHost && !_eventCode && hostControls.applicationsOpen && currentUser?.id) {
         const applyBtn = document.createElement('button');
         applyBtn.style.cssText = 'padding:6px 14px;background:transparent;border:1px solid var(--neon2);border-radius:6px;color:var(--neon2);font-family:\'Bebas Neue\',sans-serif;font-size:13px;letter-spacing:1px;cursor:pointer;white-space:nowrap;';
         applyBtn.textContent = _hasApplied ? 'APPLIED ✓' : 'APPLY';
@@ -2124,10 +2124,11 @@ async function renderPipeline() {
   // ── APPLICATIONS section ──
   const appCards = apps.map(a => {
     const prof = profileMap[a.artist_id] || {};
-    const name     = prof.dj_name || prof.name || a.artist_id?.slice(0,8) || 'Unknown Artist';
-    const sound    = dedupeSound(prof.sound || '', prof.genre_string || '');
-    const tagline  = prof.tagline || '';
-    const mixLink  = prof.mix_link || prof.soundcloud || prof.mixcloud || '';
+    const isGuest = !a.artist_id;
+    const name     = prof.dj_name || prof.name || a.guest_name || 'Unknown Artist';
+    const sound    = dedupeSound(prof.sound || a.guest_sound || '', prof.genre_string || a.guest_genre || '');
+    const tagline  = prof.tagline || (isGuest && a.guest_email ? a.guest_email : '');
+    const mixLink  = prof.mix_link || prof.soundcloud || prof.mixcloud || a.guest_mix_link || '';
     const avatar   = prof.avatar
       ? `<img src="${prof.avatar}" style="width:44px;height:44px;border-radius:50%;object-fit:cover;flex-shrink:0;border:1px solid var(--border);">`
       : `<div style="width:44px;height:44px;border-radius:50%;background:var(--card);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">🎧</div>`;

@@ -2091,16 +2091,113 @@ body.player-open .screen.active { padding-bottom: 80px; }
 
 <!-- APPLY MODAL -->
 <div class="overlay" id="applyOverlay">
-  <div class="edit-event-modal">
-    <h2 style="color:var(--neon2);margin-bottom:2px;">APPLY TO PLAY</h2>
-    <div id="applyEventName" style="font-size:13px;color:var(--muted);margin-bottom:16px;"></div>
-    <div style="font-size:10px;letter-spacing:2px;color:var(--muted);margin-bottom:8px;">YOUR APPLICATION</div>
-    <div id="applyProfilePreview" style="background:var(--card2);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:16px;"></div>
-    <div style="font-size:11px;color:var(--muted);margin-bottom:16px;line-height:1.6;text-align:center;">The promoter will receive your full profile. They'll send you a code if you're accepted.</div>
-    <div class="edit-modal-btns">
-      <button class="btn-primary" id="applySubmitBtn" onclick="submitApplication()" style="background:var(--neon2);color:#0a0a0f;font-weight:700;font-size:16px;padding:14px 20px;">SEND APPLICATION →</button>
-      <button class="btn-ghost" onclick="closeApplyModal()" style="margin-top:8px;">Cancel</button>
+  <div class="edit-event-modal" style="max-width:440px;">
+
+    <!-- header -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+      <h2 id="applyModalHeading" style="color:var(--neon2);font-size:20px;letter-spacing:2px;margin:0;">APPLY TO PLAY</h2>
+      <button onclick="closeApplyModal()" style="background:none;border:none;color:var(--muted);font-size:22px;cursor:pointer;line-height:1;padding:0;">×</button>
     </div>
+    <div id="applyEventName" style="font-size:13px;color:var(--muted);margin-bottom:18px;"></div>
+
+    <!-- ── PANEL A: form ── -->
+    <div id="applyFormPanel">
+
+      <!-- Logged-in one-click preview -->
+      <div id="applyProfilePreview" style="display:none;background:var(--card2);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:14px;"></div>
+
+      <!-- Guest fill-in form -->
+      <div id="applyGuestForm" style="display:none;">
+        <div style="margin-bottom:12px;">
+          <label style="font-size:11px;letter-spacing:1.5px;color:var(--muted);font-family:'Bebas Neue',sans-serif;">DJ NAME <span style="color:var(--neon);">*</span></label>
+          <input id="applyGuestName" type="text" placeholder="Your DJ / artist name"
+            style="width:100%;margin-top:6px;background:var(--card2);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;padding:10px 14px;outline:none;box-sizing:border-box;"
+            onfocus="this.style.borderColor='var(--neon2)'" onblur="this.style.borderColor=''">
+        </div>
+        <div style="margin-bottom:12px;">
+          <label style="font-size:11px;letter-spacing:1.5px;color:var(--muted);font-family:'Bebas Neue',sans-serif;">EMAIL <span style="color:var(--neon);">*</span></label>
+          <input id="applyGuestEmail" type="email" placeholder="your@email.com"
+            style="width:100%;margin-top:6px;background:var(--card2);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;padding:10px 14px;outline:none;box-sizing:border-box;"
+            onfocus="this.style.borderColor='var(--neon2)'" onblur="this.style.borderColor=''">
+        </div>
+        <div style="margin-bottom:12px;">
+          <label style="font-size:11px;letter-spacing:1.5px;color:var(--muted);font-family:'Bebas Neue',sans-serif;">GENRE <span style="font-size:10px;opacity:.5;letter-spacing:0;font-family:'DM Sans',sans-serif;">(optional)</span></label>
+          <input id="applyGuestGenre" type="text" placeholder="e.g. Techno · Minimal"
+            style="width:100%;margin-top:6px;background:var(--card2);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;padding:10px 14px;outline:none;box-sizing:border-box;"
+            onfocus="this.style.borderColor='var(--neon2)'" onblur="this.style.borderColor=''">
+        </div>
+        <div style="margin-bottom:12px;">
+          <label style="font-size:11px;letter-spacing:1.5px;color:var(--muted);font-family:'Bebas Neue',sans-serif;">SOUND / VIBE <span style="font-size:10px;opacity:.5;letter-spacing:0;font-family:'DM Sans',sans-serif;">(optional)</span></label>
+          <input id="applyGuestSound" type="text" placeholder="e.g. Peak time industrial"
+            style="width:100%;margin-top:6px;background:var(--card2);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;padding:10px 14px;outline:none;box-sizing:border-box;"
+            onfocus="this.style.borderColor='var(--neon2)'" onblur="this.style.borderColor=''">
+        </div>
+        <div style="margin-bottom:12px;">
+          <label style="font-size:11px;letter-spacing:1.5px;color:var(--muted);font-family:'Bebas Neue',sans-serif;">MIX LINK <span style="font-size:10px;opacity:.5;letter-spacing:0;font-family:'DM Sans',sans-serif;">(SoundCloud, Mixcloud etc)</span></label>
+          <input id="applyGuestMixLink" type="url" placeholder="https://soundcloud.com/..."
+            style="width:100%;margin-top:6px;background:var(--card2);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;padding:10px 14px;outline:none;box-sizing:border-box;"
+            onfocus="this.style.borderColor='var(--neon2)'" onblur="this.style.borderColor=''">
+        </div>
+      </div>
+
+      <!-- Note — everyone sees this -->
+      <div style="margin-bottom:16px;">
+        <label style="font-size:11px;letter-spacing:1.5px;color:var(--muted);font-family:'Bebas Neue',sans-serif;">NOTE TO PROMOTER <span style="font-size:10px;opacity:.5;letter-spacing:0;font-family:'DM Sans',sans-serif;">(optional)</span></label>
+        <textarea id="applyNote" placeholder="Anything you'd like them to know..."
+          style="width:100%;margin-top:6px;background:var(--card2);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;padding:10px 14px;outline:none;box-sizing:border-box;resize:none;min-height:72px;line-height:1.5;"
+          onfocus="this.style.borderColor='var(--neon2)'" onblur="this.style.borderColor=''"></textarea>
+      </div>
+
+      <button class="btn-primary" id="applySubmitBtn" onclick="submitApplication()"
+        style="width:100%;background:#FF2D78;border:none;border-radius:10px;font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:2px;color:#fff;cursor:pointer;padding:14px;margin-bottom:8px;">
+        SEND APPLICATION →
+      </button>
+      <button class="btn-ghost" onclick="closeApplyModal()" style="width:100%;">Cancel</button>
+    </div>
+
+    <!-- ── PANEL B: save profile prompt (guest post-submit) ── -->
+    <div id="applySavePanel" style="display:none;text-align:center;">
+      <div style="font-size:13px;color:var(--neon2);font-family:'Bebas Neue',sans-serif;letter-spacing:2px;margin-bottom:4px;">APPLICATION SUBMITTED ✓</div>
+      <div id="applySaveEventName" style="font-size:12px;color:var(--muted);margin-bottom:20px;"></div>
+
+      <div style="background:var(--card2);border:1px solid var(--border);border-radius:14px;padding:18px 16px;margin-bottom:20px;text-align:left;">
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:1.5px;color:var(--text);margin-bottom:10px;">APPLY TO FUTURE EVENTS IN ONE TAP?</div>
+        <div style="font-size:12px;color:var(--muted);line-height:1.7;margin-bottom:14px;">Save your profile — it's free. Next time everything's filled in and promoters can find and invite you directly.</div>
+        <div style="display:flex;flex-direction:column;gap:6px;font-size:12px;color:var(--neon2);margin-bottom:16px;">
+          <div>⚡ One-tap applications</div>
+          <div>🔍 Promoters can find and invite you</div>
+          <div>🔔 Get notified about slots that match your sound</div>
+        </div>
+        <label style="font-size:11px;letter-spacing:1.5px;color:var(--muted);font-family:'Bebas Neue',sans-serif;">SET A PASSWORD</label>
+        <input id="applySavePassword" type="password" placeholder="Choose a password (min 6 chars)"
+          style="width:100%;margin-top:6px;background:var(--card);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;padding:10px 14px;outline:none;box-sizing:border-box;"
+          onfocus="this.style.borderColor='var(--neon2)'" onblur="this.style.borderColor=''">
+        <div id="applySaveErr" style="font-size:12px;color:var(--neon);margin-top:6px;display:none;"></div>
+      </div>
+
+      <button onclick="saveGuestProfile()"
+        style="width:100%;padding:14px;background:#FF2D78;border:none;border-radius:10px;font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:2px;color:#fff;cursor:pointer;margin-bottom:10px;"
+        id="applySaveBtn">
+        SAVE MY PROFILE →
+      </button>
+      <button onclick="skipSaveProfile()"
+        style="width:100%;padding:12px;background:none;border:none;font-family:'DM Sans',sans-serif;font-size:13px;color:var(--muted);cursor:pointer;">
+        Maybe Later
+      </button>
+    </div>
+
+    <!-- ── PANEL C: maybe later / browse ── -->
+    <div id="applyBrowsePanel" style="display:none;text-align:center;padding:10px 0;">
+      <div style="font-size:36px;margin-bottom:14px;">🎧</div>
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:2px;color:var(--text);margin-bottom:10px;">CHECK OUT WHAT'S ON</div>
+      <div style="font-size:13px;color:var(--muted);line-height:1.7;margin-bottom:24px;">Your profile will be here waiting whenever you're ready to save it.</div>
+      <button onclick="closeApplyModal(); showSearchScreen();"
+        style="width:100%;padding:14px;background:rgba(0,229,255,.1);border:1.5px solid rgba(0,229,255,.3);border-radius:10px;font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:2px;color:var(--neon2);cursor:pointer;margin-bottom:10px;">
+        BROWSE EVENTS →
+      </button>
+      <button class="btn-ghost" onclick="closeApplyModal()" style="width:100%;">Done</button>
+    </div>
+
   </div>
 </div>
 
