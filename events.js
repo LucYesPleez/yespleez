@@ -55,7 +55,7 @@ async function loadEventAnalytics(events) {
       _eventAnalytics[ev.id] = {
         appCount:     evApps.length,
         pendingCount: evApps.filter(a => a.status === 'pending').length,
-        claimedSlots: evClaims.length,
+        claimedSlots: new Set(evClaims.map(c => c.slot_id)).size,
         totalSlots
       };
     });
