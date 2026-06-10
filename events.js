@@ -4074,20 +4074,27 @@ function onSlotOfferPickUser(userId) {
   document.getElementById('slotOfferName').value = displayName;
 }
 
-function closeSlotOffer() {
-  document.getElementById('slotOfferOverlay').classList.remove('open');
-  _slotOfferPending = null;
-  // Reset to pre-send state for next open
+function _resetSlotOfferToForm() {
   const fields  = document.getElementById('slotOfferFields');
   const pre     = document.getElementById('slotOfferFooterPre');
   const post    = document.getElementById('slotOfferFooterPost');
   const heading = document.getElementById('slotOfferHeading');
+  const backBtn = document.getElementById('slotOfferBackBtn');
   if (fields)  { fields.style.opacity = ''; fields.style.pointerEvents = ''; }
   if (pre)     pre.style.display = '';
   if (post)    post.style.display = 'none';
   if (heading) heading.textContent = 'GENERATE CODE';
+  if (backBtn) backBtn.style.display = 'none';
   const btn = document.getElementById('slotOfferSendBtn');
   if (btn) { btn.disabled = false; btn.textContent = 'NEXT →'; }
+}
+
+function slotOfferGoBack() { _resetSlotOfferToForm(); }
+
+function closeSlotOffer() {
+  document.getElementById('slotOfferOverlay').classList.remove('open');
+  _slotOfferPending = null;
+  _resetSlotOfferToForm();
 }
 
 function copySlotOfferLink(el) {
@@ -4206,9 +4213,11 @@ async function sendSlotOffer() {
   const shareEl = document.getElementById('slotOfferShareText');
 
   // Lock the form fields (still visible so host can see who offer is for)
-  if (fields) { fields.style.opacity = '0.45'; fields.style.pointerEvents = 'none'; }
-  if (pre)    pre.style.display = 'none';
-  if (post)   post.style.display = '';
+  const backBtn = document.getElementById('slotOfferBackBtn');
+  if (fields)  { fields.style.opacity = '0.45'; fields.style.pointerEvents = 'none'; }
+  if (pre)     pre.style.display = 'none';
+  if (post)    post.style.display = '';
+  if (backBtn) backBtn.style.display = '';
   if (heading) heading.textContent = name ? `SHARE WITH ${name.toUpperCase()}` : 'SHARE LINK';
 
   // Claim code badge

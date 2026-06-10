@@ -3609,7 +3609,10 @@ body.player-open .screen.active { padding-bottom: 80px; }
     <!-- heading row -->
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;">
       <h2 id="slotOfferHeading" style="color:var(--neon2);font-size:20px;letter-spacing:2px;margin:0;">GENERATE CODE</h2>
-      <button onclick="closeSlotOffer()" style="background:none;border:none;color:var(--muted);font-size:22px;cursor:pointer;line-height:1;padding:0;">×</button>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <button id="slotOfferBackBtn" onclick="slotOfferGoBack()" title="Back" style="display:none;background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;line-height:1;padding:0;">&#8592;</button>
+        <button onclick="closeSlotOffer()" style="background:none;border:none;color:var(--muted);font-size:22px;cursor:pointer;line-height:1;padding:0;">×</button>
+      </div>
     </div>
 
     <!-- FORM FIELDS — locked (opacity) after send -->
