@@ -1705,8 +1705,7 @@ async function loadClaims() {
     setSync(true);
     if (isHost) {
       renderManage();
-      if (_manageTab === 'pipeline') renderPipeline();
-      if (_manageTab === 'shortlist') renderShortlist();
+      // Pipeline and shortlist fetch their own data — don't re-render them on claims poll (causes flash)
       if (typeof loadPendingAppsBadge === 'function') loadPendingAppsBadge();
       loadShortlistBadge();
     } else renderAll();
@@ -2063,7 +2062,7 @@ async function renderShortlist() {
 async function renderPipeline() {
   const el = document.getElementById('pipelineView');
   if (!el) return;
-  el.innerHTML = '<div style="text-align:center;padding:40px 0;color:var(--muted);font-family:\'Bebas Neue\',sans-serif;letter-spacing:2px;">LOADING...</div>';
+  if (!el.children.length) el.innerHTML = '<div style="text-align:center;padding:40px 0;color:var(--muted);font-family:\'Bebas Neue\',sans-serif;letter-spacing:2px;">LOADING...</div>';
 
   let offers = [], apps = [];
   try {
