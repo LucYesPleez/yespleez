@@ -3946,7 +3946,7 @@ function openSlotOffer(slotId, slotLabel, existingName) {
   const preview = document.getElementById('slotOfferUserPreview');
   if (preview) { preview.style.display = 'none'; preview.innerHTML = ''; }
   const btn = document.getElementById('slotOfferSendBtn');
-  if (btn) btn.textContent = 'SEND OFFER →';
+  if (btn) btn.textContent = 'NEXT →';
   // Reset to slot offer mode
   const slotRadio = document.querySelector('input[name="offerType"][value="slot"]');
   if (slotRadio) { slotRadio.checked = true; onOfferTypeChange(); }
@@ -3993,7 +3993,7 @@ function _showSlotOfferMatch(u) {
     </div>`;
     preview.style.display = '';
   }
-  if (btn) btn.textContent = 'SEND OFFER IN-APP →';
+  if (btn) btn.textContent = 'NEXT →';
   return displayName;
 }
 
@@ -4002,7 +4002,7 @@ function _clearSlotOfferMatch() {
   const preview = document.getElementById('slotOfferUserPreview');
   if (preview) { preview.style.display = 'none'; preview.innerHTML = ''; }
   const btn = document.getElementById('slotOfferSendBtn');
-  if (btn) btn.textContent = 'SEND OFFER →';
+  if (btn) btn.textContent = 'NEXT →';
 }
 
 async function onSlotOfferEmailInput() {
