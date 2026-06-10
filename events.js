@@ -2157,7 +2157,7 @@ function renderManage() {
       editBtn.textContent = '✎ EDIT';
       editBtn.onclick = e => { e.stopPropagation(); openModal(s.id, hint, 1); setTimeout(() => { document.getElementById('inputName').value = claim.name||''; document.getElementById('inputNotes').value = claim.notes||''; document.getElementById('confirmBtn').textContent = 'SAVE CHANGES ✓'; restoreGenreVibeState(claim.genre||''); const ds=document.getElementById('descriptorSection'); if(ds)ds.style.display=''; const di=document.getElementById('inputDescriptor'); if(di)di.value=claim.sound||claim.cardPills||''; }, 40); };
       const offerBtn = document.createElement('button');
-      offerBtn.style.cssText = 'font-size:11px;flex:1;padding:8px;border-radius:8px;font-family:\'Bebas Neue\',sans-serif;letter-spacing:1px;cursor:pointer;background:rgba(255,45,120,.07);border:1px solid rgba(255,45,120,.3);color:var(--neon);';
+      offerBtn.style.cssText = 'font-size:11px;flex:1;padding:8px;border-radius:8px;font-family:\'Bebas Neue\',sans-serif;letter-spacing:1px;cursor:pointer;background:#FF2D78;border:none;color:#fff;';
       offerBtn.textContent = '✉ OFFER';
       offerBtn.onclick = e => { e.stopPropagation(); openSlotOffer(s.id, hint, claim.name); };
       detAct.appendChild(editBtn); detAct.appendChild(offerBtn); detAct.appendChild(lockBtn); detAct.appendChild(removeBtn);
