@@ -3402,11 +3402,29 @@ body.player-open .screen.active { padding-bottom: 80px; }
 
   <!-- ARTIST VIEW event header + slots first -->
   <div style="max-width:680px;margin:0 auto;padding:24px 16px 0;">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin:0 0 16px 0;">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin:0 0 16px 0;">
       <button class="btn-back" onclick="navBack()"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="m12 5-7 7 7 7"/></svg> BACK</button>
-      <div style="display:flex;gap:8px;">
-        <button class="btn-ghost" id="editBtn" style="display:none;font-size:12px;padding:5px 14px;" onclick="goToTemplate()">✎ Edit Event</button>
-        <button class="btn-ghost" id="manageBtn" style="display:none;font-size:12px;padding:5px 14px;" onclick="showManage()">📋 All Claims</button>
+      <!-- Top-right: MODE + bell + eye — host only -->
+      <div id="signupHostTopRight" style="display:none;flex-direction:column;align-items:flex-end;gap:8px;">
+        <div class="mode-toggle" onclick="showRoleSelector()" style="border-color:rgba(255,45,120,.3);color:#FF2D78;">
+          <div class="mode-toggle-dot" style="background:#FF2D78;box-shadow:0 0 6px #FF2D78;"></div>
+          HOST
+        </div>
+        <div style="display:flex;gap:8px;">
+          <!-- Eye: public view -->
+          <button class="notif-bell" title="Public view" onclick="showPublicEventPage(currentEventId)" style="color:var(--muted);">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+          <!-- Share -->
+          <button class="notif-bell" title="Share event" id="signupShareBtn" onclick="shareItem('event', currentEventId, eventData.name||'')" style="color:var(--muted);">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+          </button>
+        </div>
+      </div>
+      <!-- Hidden legacy buttons kept for JS compat -->
+      <div style="display:none;">
+        <button id="editBtn" onclick="goToTemplate()"></button>
+        <button id="manageBtn" onclick="showManage()"></button>
       </div>
     </div>
     <header>
@@ -3462,6 +3480,17 @@ body.player-open .screen.active { padding-bottom: 80px; }
   <!-- HOST PANEL generator only -->
   <div id="hostPanel" style="display:none; background:linear-gradient(180deg,rgba(255,184,48,.04) 0%,transparent 100%); border-top:1px solid var(--border); padding:20px 16px 40px; margin-top:16px;">
     <div style="max-width:680px;margin:0 auto;">
+
+      <!-- EDIT / UNDO / REDO row — right-aligned above generator -->
+      <div style="display:flex;justify-content:flex-end;align-items:center;gap:8px;margin-bottom:14px;">
+        <button id="stUndoBtn" onclick="undoManage()" title="Undo" disabled
+          style="background:none;border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:6px 14px;font-size:13px;cursor:pointer;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;opacity:.4;">↩ UNDO</button>
+        <button id="stRedoBtn" onclick="redoManage()" title="Redo" disabled
+          style="background:none;border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:6px 14px;font-size:13px;cursor:pointer;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;opacity:.4;">↪ REDO</button>
+        <button onclick="goToTemplate()"
+          style="padding:6px 16px;background:transparent;border:1px solid rgba(255,45,120,.5);border-radius:8px;color:var(--neon);font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:1px;cursor:pointer;">✎ EDIT EVENT</button>
+      </div>
+
       <div class="ai-panel">
         <div class="ai-panel-top">
           <div>

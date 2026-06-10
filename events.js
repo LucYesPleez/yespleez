@@ -1001,9 +1001,11 @@ function showSignup() {
   document.getElementById('eventTitle').textContent  = eventData.name  || '';
   document.getElementById('eventMeta').textContent   = [eventData.date, eventData.venue].filter(Boolean).join(' · ');
   document.getElementById('eventGenres').textContent = eventData.genres || '';
-  document.getElementById('manageBtn').style.display    = isHost ? 'inline-block' : 'none';
+  document.getElementById('manageBtn').style.display    = 'none'; // now in host panel row
   const canEdit = isHost && !isReadOnly && currentUser?.id && currentUser.id === currentEventHostId;
-  document.getElementById('editBtn').style.display      = canEdit ? 'inline-block' : 'none';
+  document.getElementById('editBtn').style.display      = 'none'; // now in host panel row
+  const hostTopRight = document.getElementById('signupHostTopRight');
+  if (hostTopRight) hostTopRight.style.display = isHost ? 'flex' : 'none';
   const posterSrc = eventData.poster || '';
   const posterWrap = document.getElementById('signupPosterWrap');
   const posterImg  = document.getElementById('signupPoster');
@@ -2860,10 +2862,16 @@ function undoSlots() { undoManage(); }
 function redoSlots() { redoManage(); }
 
 function updateUndoRedoBtns() {
-  const undoBtn = document.getElementById('undoBtn');
-  const redoBtn = document.getElementById('redoBtn');
-  if (undoBtn) { undoBtn.disabled = _manageHistoryIndex <= 0; undoBtn.style.opacity = _manageHistoryIndex <= 0 ? '.4' : '1'; }
-  if (redoBtn) { redoBtn.disabled = _manageHistoryIndex >= _manageHistory.length - 1; redoBtn.style.opacity = _manageHistoryIndex >= _manageHistory.length - 1 ? '.4' : '1'; }
+  const canUndo = _manageHistoryIndex > 0;
+  const canRedo = _manageHistoryIndex < _manageHistory.length - 1;
+  ['undoBtn', 'stUndoBtn'].forEach(id => {
+    const btn = document.getElementById(id);
+    if (btn) { btn.disabled = !canUndo; btn.style.opacity = canUndo ? '1' : '.4'; }
+  });
+  ['redoBtn', 'stRedoBtn'].forEach(id => {
+    const btn = document.getElementById(id);
+    if (btn) { btn.disabled = !canRedo; btn.style.opacity = canRedo ? '1' : '.4'; }
+  });
 }
 
 // ── Insert slot modal ──────────────────────────────
