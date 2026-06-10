@@ -240,7 +240,7 @@ function openEventSetTimes(ev) {
   isReadOnly = false;
   hostControls = ev.host_controls || { artistRemove: true, rankedBackups: true, genrePicker: true };
   lockedSlots = ev.host_controls?.lockedSlots || {};
-  document.getElementById('shareLinkBtn').style.display = '';
+  const slb = document.getElementById('shareLinkBtn'); if (slb) slb.style.display = 'none';
   loadClaims().then(() => showSignup());
 }
 
@@ -273,7 +273,7 @@ function openEvent(ev) {
   isHost = true;
   isReadOnly = false;
   hostControls = ev.host_controls || { artistRemove: true, rankedBackups: true, genrePicker: true };
-  document.getElementById('shareLinkBtn').style.display = ev.status === 'live' ? '' : 'none';
+  const _slb = document.getElementById('shareLinkBtn'); if (_slb) _slb.style.display = 'none';
   if (ev.status === 'live') {
     showSignup();
   } else {
@@ -720,7 +720,6 @@ async function launchEvent() {
     eventData.id = currentEventId;
     btn.disabled = false; btn.textContent = 'GO LIVE →';
     showToast('🎉 Event live!', 'success');
-    document.getElementById('shareLinkBtn').style.display = '';
     if (typeof notifyMatchingArtists === 'function') {
       notifyMatchingArtists({ id: currentEventId, name: cfg.name, config: cfg });
     }
@@ -3226,7 +3225,6 @@ function demoOverrides() {
     hostControls = cfg.host_controls; eventData = { ...cfg, id: currentEventId };
     btn.disabled = false; btn.textContent = 'GO LIVE →';
     showToast('Event live! (demo)', 'success');
-    document.getElementById('shareLinkBtn').style.display = '';
     showSignup();
   };
   window.showPubLink = function() {
