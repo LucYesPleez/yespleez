@@ -4132,16 +4132,14 @@ body.player-open .screen.active { padding-bottom: 80px; }
       <div style="font-size:12px;color:var(--muted);margin-top:2px;" id="manageSlotCount"></div>
     </div>
 
-    <!-- EDIT left, UNDO/REDO right — sits above Generate Lineup -->
-    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px;">
+    <!-- EDIT + UNDO/REDO all right-aligned above Generate Lineup -->
+    <div style="display:flex;justify-content:flex-end;align-items:center;gap:6px;margin-bottom:8px;">
+      <button id="undoBtn" onclick="undoManage()" title="Undo" disabled
+        style="background:none;border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:7px 13px;font-size:15px;cursor:pointer;opacity:.4;line-height:1;">↩</button>
+      <button id="redoBtn" onclick="redoManage()" title="Redo" disabled
+        style="background:none;border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:7px 13px;font-size:15px;cursor:pointer;opacity:.4;line-height:1;">↪</button>
       <button onclick="goToTemplate()"
-        style="padding:7px 18px;background:transparent;border:1px solid rgba(255,45,120,.5);border-radius:8px;color:var(--neon);font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:1px;cursor:pointer;">✎ EDIT EVENT</button>
-      <div style="display:flex;gap:6px;">
-        <button id="undoBtn" onclick="undoManage()" title="Undo" disabled
-          style="background:none;border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:7px 13px;font-size:15px;cursor:pointer;opacity:.4;line-height:1;">↩</button>
-        <button id="redoBtn" onclick="redoManage()" title="Redo" disabled
-          style="background:none;border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:7px 13px;font-size:15px;cursor:pointer;opacity:.4;line-height:1;">↪</button>
-      </div>
+        style="padding:7px 18px;background:transparent;border:1px solid rgba(255,45,120,.5);border-radius:8px;color:var(--neon);font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:1px;cursor:pointer;">✎ EDIT</button>
     </div>
 
     <!-- Generate Lineup full width -->
