@@ -2045,7 +2045,7 @@ async function renderShortlist() {
         ${playBtn}
       </div>
       <div style="display:flex;gap:8px;">
-        <button onclick="openSlotOffer(null,'',${JSON.stringify(name)})" style="flex:1;padding:8px;background:#FF2D78;border:none;border-radius:8px;font-family:'Bebas Neue',sans-serif;font-size:12px;letter-spacing:1px;color:#fff;cursor:pointer;">✉ OFFER SLOT</button>
+        <button onclick="openSlotOffer(null,'','${esc(name)}')" style="flex:1;padding:8px;background:#FF2D78;border:none;border-radius:8px;font-family:'Bebas Neue',sans-serif;font-size:12px;letter-spacing:1px;color:#fff;cursor:pointer;">OFFER SLOT</button>
         <button onclick="removeFromShortlist('${r.id}','${esc(name)}')" style="padding:8px 12px;background:transparent;border:1px solid var(--border);border-radius:8px;font-family:'Bebas Neue',sans-serif;font-size:12px;letter-spacing:1px;color:var(--muted);cursor:pointer;">✕</button>
       </div>
     </div>`;
