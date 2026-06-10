@@ -219,10 +219,10 @@ function renderProfileNudge() {
   const p = artistProfile || {};
   const missing = [];
 
-  if (!p.avatar)    missing.push({ label: 'Add a photo',    icon: '📸', action: "showProfile()" });
-  if (!p.mixLink)   missing.push({ label: 'Link a mix',     icon: '▶',  action: "showProfile()" });
-  if (!p.bio)       missing.push({ label: 'Write a bio',    icon: '✏️', action: "showProfile()" });
-  if (!p.genreString) missing.push({ label: 'Set your genres', icon: '🎵', action: "showProfile()" });
+  if (!p.avatar)    missing.push({ label: 'Add a photo',    action: "showProfile()" });
+  if (!p.mixLink)   missing.push({ label: 'Link a mix',     action: "showProfile()" });
+  if (!p.bio)       missing.push({ label: 'Write a bio',    action: "showProfile()" });
+  if (!p.genreString) missing.push({ label: 'Set your genres', action: "showProfile()" });
 
   // Dismiss key — reset each time a new field is filled
   const dismissKey = `yp_nudge_dismissed_${(missing.map(m=>m.label).join(','))}`;
@@ -252,8 +252,8 @@ function renderProfileNudge() {
       <div style="display:flex;flex-wrap:wrap;gap:8px;">
         ${missing.map(m => `
           <button onclick="${m.action}"
-            style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);color:var(--text);border-radius:20px;font-size:12px;padding:6px 14px;cursor:pointer;display:flex;align-items:center;gap:6px;">
-            <span>${m.icon}</span><span>${m.label}</span>
+            style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);color:var(--text);border-radius:20px;font-size:12px;padding:6px 14px;cursor:pointer;">
+            ${m.label}
           </button>`).join('')}
       </div>
     </div>`;
