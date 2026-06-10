@@ -3898,7 +3898,13 @@ async function sendSlotOffer() {
   const email     = document.getElementById('slotOfferEmail').value.trim();
   const name      = document.getElementById('slotOfferName').value.trim();
   const offerType = document.querySelector('input[name="offerType"]:checked')?.value || 'slot';
-  if (!email) { document.getElementById('slotOfferEmail').focus(); return; }
+  // Need at least one field; if no matched user and no email, can't send — ask for email
+  if (!name && !email) { document.getElementById('slotOfferName').focus(); return; }
+  if (!_slotOfferMatchedUser && !email) {
+    showToast('Add their email so we can send the invite', 'error');
+    document.getElementById('slotOfferEmail').focus();
+    return;
+  }
 
   const btn = document.getElementById('slotOfferSendBtn');
   if (btn) { btn.disabled = true; btn.textContent = 'SENDING...'; }
