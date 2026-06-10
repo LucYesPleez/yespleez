@@ -4124,22 +4124,26 @@ body.player-open .screen.active { padding-bottom: 80px; }
       </div>
     </div>
 
-    <!-- Event title block -->
-    <div style="margin-bottom:16px;">
-      <div class="yp-tag">HOST VIEW</div>
-      <div class="dash-title" id="manageTitle">EVENT</div>
-      <div style="font-size:12px;color:var(--muted);margin-top:2px;" id="manageSubtitle"></div>
-      <div style="font-size:12px;color:var(--muted);margin-top:2px;" id="manageSlotCount"></div>
-    </div>
-
-    <!-- EDIT + UNDO/REDO all right-aligned above Generate Lineup -->
-    <div style="display:flex;justify-content:flex-end;align-items:center;gap:6px;margin-bottom:8px;">
-      <button onclick="goToTemplate()"
-        style="padding:7px 18px;background:transparent;border:1px solid rgba(255,45,120,.5);border-radius:8px;color:var(--neon);font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:1px;cursor:pointer;">✎ EDIT</button>
-      <button id="undoBtn" onclick="undoManage()" title="Undo" disabled
-        style="background:none;border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:7px 13px;font-size:15px;cursor:pointer;opacity:.4;line-height:1;">↩</button>
-      <button id="redoBtn" onclick="redoManage()" title="Redo" disabled
-        style="background:none;border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:7px 13px;font-size:15px;cursor:pointer;opacity:.4;line-height:1;">↪</button>
+    <!-- Title row: event info left, EDIT/UNDO/REDO right — no gap, sits on Generate Lineup -->
+    <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:8px;">
+      <div style="min-width:0;">
+        <div class="yp-tag">HOST VIEW</div>
+        <div class="dash-title" id="manageTitle">EVENT</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:2px;" id="manageSubtitle"></div>
+        <div style="font-size:12px;color:var(--muted);margin-top:2px;" id="manageSlotCount"></div>
+      </div>
+      <div style="display:flex;gap:5px;align-items:center;flex-shrink:0;padding-bottom:4px;">
+        <button onclick="goToTemplate()"
+          style="padding:5px 12px;background:transparent;border:1px solid rgba(255,45,120,.5);border-radius:8px;color:var(--neon);font-family:'Bebas Neue',sans-serif;font-size:12px;letter-spacing:1px;cursor:pointer;white-space:nowrap;">✎ EDIT</button>
+        <button id="undoBtn" onclick="undoManage()" title="Undo" disabled
+          style="background:none;border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:5px 10px;cursor:pointer;opacity:.4;display:flex;align-items:center;justify-content:center;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M3 13C5.5 7.5 11 5 16 5a9 9 0 0 1 0 18c-4 0-7.5-2-9.5-5"/></svg>
+        </button>
+        <button id="redoBtn" onclick="redoManage()" title="Redo" disabled
+          style="background:none;border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:5px 10px;cursor:pointer;opacity:.4;display:flex;align-items:center;justify-content:center;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 7v6h-6"/><path d="M21 13C18.5 7.5 13 5 8 5a9 9 0 0 0 0 18c4 0 7.5-2 9.5-5"/></svg>
+        </button>
+      </div>
     </div>
 
     <!-- Generate Lineup full width -->
