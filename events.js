@@ -1234,8 +1234,8 @@ function renderAll() {
       }
       const actionBlock = document.createElement('div');
       actionBlock.style.cssText = 'display:flex;flex-direction:column;gap:5px;align-items:flex-end;flex-shrink:0;';
-      // Play button — visible to everyone if the artist has a mix link
-      if (entry && entry.mixLink) {
+      // Play button — visible to non-hosts only
+      if (entry && entry.mixLink && !isHost) {
         const playBtn = document.createElement('button');
         playBtn.style.cssText = 'background:none;border:1px solid rgba(0,229,255,.3);border-radius:6px;color:var(--neon2);cursor:pointer;padding:4px 8px;line-height:1;display:flex;align-items:center;justify-content:center;';
         playBtn.innerHTML = '<svg viewBox="0 0 24 24" width="13" height="13" fill="var(--neon2)"><polygon points="6,3 20,12 6,21"/></svg>'; playBtn.title = 'Play mix';
@@ -2325,12 +2325,6 @@ function renderManage() {
       const chevron = document.createElement('div');
       chevron.style.cssText = 'color:var(--muted);font-size:20px;line-height:1;transition:transform .2s;text-align:center;padding:2px 4px;'; chevron.textContent = '›';
       const playBtn = document.createElement('button');
-      if (claim.mixLink) {
-        playBtn.style.cssText = 'background:none;border:1px solid rgba(0,229,255,.3);border-radius:6px;color:var(--neon2);cursor:pointer;padding:4px 8px;line-height:1;display:flex;align-items:center;justify-content:center;';
-        playBtn.innerHTML = '<svg viewBox="0 0 24 24" width="13" height="13" fill="var(--neon2)"><polygon points="6,3 20,12 6,21"/></svg>'; playBtn.title = 'Play mix';
-        playBtn.onclick = e => { e.stopPropagation(); openMiniPlayer(claim.name, claim.mixLink, '🎧'); };
-        actCol.appendChild(playBtn);
-      }
       const hint = s.time+' '+s.ampm+' · '+s.dur+(s.label?' · '+s.label:'');
       actCol.appendChild(chevron);
       const detail = document.createElement('div');
