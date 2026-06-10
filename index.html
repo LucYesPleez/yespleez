@@ -4253,6 +4253,13 @@ body.player-open .screen.active { padding-bottom: 80px; }
     <input type="text" id="inputName" placeholder="e.g. DJ Flames" maxlength="40">
     <div class="err" id="nameErr">Please enter your name</div>
 
+    <!-- HOST ONLY: quick descriptor shown as cyan pill on the slot card -->
+    <div id="descriptorSection" style="display:none;">
+      <hr class="notes-divider">
+      <label style="color:var(--neon2);">Vibe / Descriptor <span style="font-size:10px;opacity:.5;color:var(--muted);">shown as cyan pill on lineup</span></label>
+      <input type="text" id="inputDescriptor" placeholder="e.g. DNB / Bass / Storytelling" maxlength="60">
+    </div>
+
     <div id="genreSection">
       <hr class="notes-divider">
       <label>Genre <span style="font-size:10px;opacity:.5">(pick one or choose Multi Genre)</span></label>

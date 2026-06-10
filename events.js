@@ -1222,6 +1222,12 @@ function renderAll() {
               document.getElementById('inputNotes').value = entry.notes || '';
               document.getElementById('confirmBtn').textContent = 'SAVE CHANGES ✓';
               restoreGenreVibeState(entry.genre || '');
+              if (isHost) {
+                const ds = document.getElementById('descriptorSection');
+                if (ds) ds.style.display = '';
+                const di = document.getElementById('inputDescriptor');
+                if (di) di.value = entry.sound || entry.cardPills || '';
+              }
             }, 40);
           };
         }
@@ -1251,7 +1257,7 @@ function renderAll() {
             const editBtn = document.createElement('button');
             editBtn.style.cssText = 'padding:4px 10px;background:transparent;border:1px solid rgba(0,229,255,.35);border-radius:6px;color:var(--neon2);font-family:\'Bebas Neue\',sans-serif;font-size:11px;letter-spacing:1px;cursor:pointer;white-space:nowrap;';
             editBtn.textContent = 'EDIT';
-            editBtn.onclick = (e) => { e.stopPropagation(); openModal(s.id, hint, 1); setTimeout(() => { document.getElementById('inputName').value = entry.name || ''; document.getElementById('inputNotes').value = entry.notes || ''; document.getElementById('confirmBtn').textContent = 'SAVE CHANGES ✓'; restoreGenreVibeState(entry.genre || ''); }, 40); };
+            editBtn.onclick = (e) => { e.stopPropagation(); openModal(s.id, hint, 1); setTimeout(() => { document.getElementById('inputName').value = entry.name || ''; document.getElementById('inputNotes').value = entry.notes || ''; document.getElementById('confirmBtn').textContent = 'SAVE CHANGES ✓'; restoreGenreVibeState(entry.genre || ''); const ds = document.getElementById('descriptorSection'); if (ds) ds.style.display = ''; const di = document.getElementById('inputDescriptor'); if (di) di.value = entry.sound || entry.cardPills || ''; }, 40); };
             actionBlock.appendChild(editBtn);
 
             const offerBtn = document.createElement('button');
@@ -1559,7 +1565,12 @@ function clearArtistSelection() {
   document.getElementById('hostArtistResults').style.display = 'none';
 }
 
-function closeModal() { document.getElementById('overlay').classList.remove('open'); activeKey = null; }
+function closeModal() {
+  document.getElementById('overlay').classList.remove('open');
+  activeKey = null;
+  const ds = document.getElementById('descriptorSection');
+  if (ds) { ds.style.display = 'none'; document.getElementById('inputDescriptor').value = ''; }
+}
 
 async function confirmClaim() {
   const codeInput = document.getElementById('inputApprovalCode');
@@ -1590,7 +1601,10 @@ async function confirmClaim() {
   document.getElementById('confirmBtn').disabled = true;
   document.getElementById('confirmBtn').textContent = 'SAVING...';
   const cardPills = isHost ? (claims[activeKey]?.cardPills || '') : (artistProfile?.cardPills || '');
-  const sound     = isHost ? (claims[activeKey]?.sound     || '') : (artistProfile?.sound     || '');
+  const descriptorInput = document.getElementById('inputDescriptor');
+  const sound = isHost && descriptorInput && descriptorInput.closest('#descriptorSection')?.style.display !== 'none'
+    ? (descriptorInput.value.trim() || claims[activeKey]?.sound || '')
+    : (isHost ? (claims[activeKey]?.sound || '') : (artistProfile?.sound || ''));
   const ok = await upsertClaim(activeKey, name, genre, notes, backups, cardPills, sound);
   if (ok) {
     const codeInput = document.getElementById('inputApprovalCode');
