@@ -3481,14 +3481,16 @@ body.player-open .screen.active { padding-bottom: 80px; }
   <div id="hostPanel" style="display:none; background:linear-gradient(180deg,rgba(255,184,48,.04) 0%,transparent 100%); border-top:1px solid var(--border); padding:20px 16px 40px; margin-top:16px;">
     <div style="max-width:680px;margin:0 auto;">
 
-      <!-- EDIT / UNDO / REDO row — right-aligned above generator -->
-      <div style="display:flex;justify-content:flex-end;align-items:center;gap:8px;margin-bottom:14px;">
-        <button id="stUndoBtn" onclick="undoManage()" title="Undo" disabled
-          style="background:none;border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:6px 14px;font-size:13px;cursor:pointer;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;opacity:.4;">↩ UNDO</button>
-        <button id="stRedoBtn" onclick="redoManage()" title="Redo" disabled
-          style="background:none;border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:6px 14px;font-size:13px;cursor:pointer;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;opacity:.4;">↪ REDO</button>
+      <!-- EDIT on left, UNDO/REDO on right — sits directly above Generate Lineup -->
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px;">
         <button onclick="goToTemplate()"
-          style="padding:6px 16px;background:transparent;border:1px solid rgba(255,45,120,.5);border-radius:8px;color:var(--neon);font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:1px;cursor:pointer;">✎ EDIT EVENT</button>
+          style="padding:7px 18px;background:transparent;border:1px solid rgba(255,45,120,.5);border-radius:8px;color:var(--neon);font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:1px;cursor:pointer;">✎ EDIT EVENT</button>
+        <div style="display:flex;gap:6px;">
+          <button id="stUndoBtn" onclick="undoManage()" title="Undo" disabled
+            style="background:none;border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:7px 13px;font-size:15px;cursor:pointer;opacity:.4;line-height:1;">↩</button>
+          <button id="stRedoBtn" onclick="redoManage()" title="Redo" disabled
+            style="background:none;border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:7px 13px;font-size:15px;cursor:pointer;opacity:.4;line-height:1;">↪</button>
+        </div>
       </div>
 
       <div class="ai-panel">
