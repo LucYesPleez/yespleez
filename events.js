@@ -1702,7 +1702,10 @@ async function loadClaims() {
     }
 
     setSync(true);
-    if (isHost) renderManage(); else renderAll();
+    if (isHost) {
+      renderManage();
+      if (_manageTab === 'pipeline') renderPipeline();
+    } else renderAll();
   } catch { setSync(false); }
 }
 
@@ -1870,11 +1873,171 @@ function getBackupSelections() {
 // ── Manage screen ──────────────────────────────────
 
 function showManage() {
+  _manageTab = 'lineup';
+  switchManageTab('lineup');
   renderManage();
   show('manageScreen');
   if (pollTimer) clearInterval(pollTimer);
   loadClaims();
   pollTimer = setInterval(loadClaims, 5000);
+}
+
+// ── Manage screen tab toggle ───────────────────────
+
+let _manageTab = 'lineup';
+
+function switchManageTab(tab) {
+  _manageTab = tab;
+  const lineupEl   = document.getElementById('manageList');
+  const pipelineEl = document.getElementById('pipelineView');
+  const tabL = document.getElementById('tabLineup');
+  const tabP = document.getElementById('tabPipeline');
+  if (tab === 'lineup') {
+    if (lineupEl)   lineupEl.style.display   = '';
+    if (pipelineEl) pipelineEl.style.display = 'none';
+    if (tabL) { tabL.style.border = '2px solid var(--neon)'; tabL.style.background = 'rgba(255,45,120,.1)'; tabL.style.color = 'var(--neon)'; }
+    if (tabP) { tabP.style.border = '1px solid var(--border)'; tabP.style.background = 'transparent'; tabP.style.color = 'var(--muted)'; }
+  } else {
+    if (lineupEl)   lineupEl.style.display   = 'none';
+    if (pipelineEl) pipelineEl.style.display = '';
+    if (tabP) { tabP.style.border = '2px solid var(--neon2)'; tabP.style.background = 'rgba(0,229,255,.08)'; tabP.style.color = 'var(--neon2)'; }
+    if (tabL) { tabL.style.border = '1px solid var(--border)'; tabL.style.background = 'transparent'; tabL.style.color = 'var(--muted)'; }
+    renderPipeline();
+  }
+}
+
+async function renderPipeline() {
+  const el = document.getElementById('pipelineView');
+  if (!el) return;
+  el.innerHTML = '<div style="text-align:center;padding:40px 0;color:var(--muted);font-family:\'Bebas Neue\',sans-serif;letter-spacing:2px;">LOADING...</div>';
+
+  let offers = [], apps = [];
+  try {
+    offers = await sbRest(
+      `slot_offers?event_id=eq.${currentEventId}&order=created_at.desc&select=*`,
+      { method: 'GET' }, currentSession?.access_token
+    ) || [];
+  } catch(e) { offers = []; }
+
+  try {
+    const appsRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/applications?event_id=eq.${currentEventId}&order=created_at.desc&select=*`,
+      { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${currentSession?.access_token}` } }
+    );
+    if (appsRes.ok) apps = await appsRes.json();
+  } catch(e) { apps = []; }
+
+  // Update pipeline badge with pending count
+  const pendingCount = offers.filter(o => o.status === 'pending').length + apps.filter(a => a.status === 'pending').length;
+  const badge = document.getElementById('pipelineBadge');
+  if (badge) { badge.textContent = pendingCount; badge.style.display = pendingCount ? '' : 'none'; }
+
+  const confirmed = Object.entries(claims).map(([slotId, c]) => ({ slotId, ...c }));
+
+  // ── Helper: status pill ──
+  const pill = (status) => {
+    const map = {
+      pending:  ['rgba(255,200,0,.15)',  'rgba(255,200,0,.4)',  '#ffc800', 'PENDING'],
+      accepted: ['rgba(0,229,255,.1)',   'rgba(0,229,255,.3)',  'var(--neon2)', 'ACCEPTED'],
+      declined: ['rgba(255,255,255,.05)','rgba(255,255,255,.1)','var(--muted)', 'DECLINED'],
+    };
+    const [bg, border, color, label] = map[status] || map.pending;
+    return `<span style="font-size:10px;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;padding:2px 8px;border-radius:20px;background:${bg};border:1px solid ${border};color:${color};">${label}</span>`;
+  };
+
+  const sectionHtml = (title, accentColor, items) => `
+    <div style="margin-bottom:24px;">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:2px;color:${accentColor};margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid rgba(255,255,255,.07);">
+        ${title} <span style="opacity:.5;font-size:11px;">(${items.length})</span>
+      </div>
+      ${items.length ? items.join('') : `<div style="font-size:12px;color:var(--muted);padding:10px 0;">None yet</div>`}
+    </div>`;
+
+  // ── OFFERS section ──
+  const offerCards = offers.map(o => {
+    const name = o.offered_to_name || o.offered_to_email || 'Unknown';
+    const slotInfo = o.slot_label ? `<div style="font-size:11px;color:var(--neon2);margin-top:3px;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;">🕐 ${esc(o.slot_label)}</div>` : `<div style="font-size:11px;color:var(--muted);margin-top:3px;">Event-level invite</div>`;
+    const ago = timeAgo(o.created_at);
+    return `<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;background:var(--card2);border:1px solid var(--border);border-radius:10px;margin-bottom:8px;gap:10px;">
+      <div style="min-width:0;flex:1;">
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:1px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(name)}</div>
+        ${slotInfo}
+        <div style="font-size:10px;color:var(--muted);margin-top:3px;">${ago}</div>
+      </div>
+      <div style="flex-shrink:0;">${pill(o.status)}</div>
+    </div>`;
+  });
+
+  // ── APPLICATIONS section ──
+  const appCards = apps.map(a => {
+    const name = a.dj_name || a.artist_name || 'Unknown Artist';
+    const genre = a.genre ? `<div style="font-size:11px;color:var(--muted);margin-top:2px;">${esc(a.genre)}</div>` : '';
+    const ago = timeAgo(a.created_at);
+    const actions = a.status === 'pending' ? `
+      <div style="display:flex;gap:6px;margin-top:10px;">
+        <button onclick="acceptApplication('${a.id}','${a.user_id||''}','${esc(name)}')" style="flex:1;padding:8px;background:var(--neon2);border:none;border-radius:8px;font-family:'Bebas Neue',sans-serif;font-size:12px;letter-spacing:1px;color:#0a0a0f;cursor:pointer;">ACCEPT</button>
+        <button onclick="declineApplication('${a.id}')" style="flex:1;padding:8px;background:transparent;border:1px solid var(--border);border-radius:8px;font-family:'Bebas Neue',sans-serif;font-size:12px;letter-spacing:1px;color:var(--muted);cursor:pointer;">DECLINE</button>
+      </div>` : '';
+    return `<div style="padding:12px 14px;background:var(--card2);border:1px solid var(--border);border-radius:10px;margin-bottom:8px;">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;">
+        <div style="min-width:0;flex:1;">
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:1px;color:var(--text);">${esc(name)}</div>
+          ${genre}
+          <div style="font-size:10px;color:var(--muted);margin-top:3px;">${ago}</div>
+        </div>
+        <div style="flex-shrink:0;">${pill(a.status)}</div>
+      </div>
+      ${actions}
+    </div>`;
+  });
+
+  // ── CONFIRMED section (from claims) ──
+  const confirmedCards = confirmed.map(c => {
+    let slotLabel = c.slotId;
+    (eventData?.days||[]).forEach(d => d.slots.forEach(s => { if (s.id === c.slotId) slotLabel = s.time+' '+s.ampm+(s.label?' · '+s.label:''); }));
+    return `<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;background:var(--card2);border:1px solid var(--border);border-radius:10px;margin-bottom:8px;gap:10px;">
+      <div style="min-width:0;flex:1;">
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:1px;color:var(--text);">${esc(c.name)}</div>
+        <div style="font-size:11px;color:var(--neon2);margin-top:3px;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;">🕐 ${esc(slotLabel)}</div>
+      </div>
+      <span style="font-size:10px;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;padding:2px 8px;border-radius:20px;background:rgba(0,229,255,.1);border:1px solid rgba(0,229,255,.3);color:var(--neon2);">IN LINEUP ✓</span>
+    </div>`;
+  });
+
+  el.innerHTML =
+    sectionHtml('OFFERS SENT', 'var(--neon)', offerCards) +
+    sectionHtml('APPLICATIONS', 'var(--muted)', appCards) +
+    sectionHtml('CONFIRMED', 'var(--neon2)', confirmedCards);
+}
+
+// ── Accept / decline application from pipeline ─────
+
+async function acceptApplication(appId, userId, artistName) {
+  try {
+    await sbRest(`applications?id=eq.${appId}`,
+      { method: 'PATCH', body: JSON.stringify({ status: 'accepted' }), prefer: 'return=minimal' },
+      currentSession?.access_token
+    );
+    if (userId) {
+      await writeDbNotif(userId, 'offer_accepted',
+        `✅ Your application to ${eventData?.name || 'the event'} has been accepted!`,
+        { event_id: currentEventId, event_name: eventData?.name || '' }
+      );
+    }
+    showToast(`${artistName} accepted ✓`, 'success');
+    renderPipeline();
+  } catch(e) { showToast('Could not accept — try again', 'error'); }
+}
+
+async function declineApplication(appId) {
+  try {
+    await sbRest(`applications?id=eq.${appId}`,
+      { method: 'PATCH', body: JSON.stringify({ status: 'declined' }), prefer: 'return=minimal' },
+      currentSession?.access_token
+    );
+    showToast('Application declined', 'success');
+    renderPipeline();
+  } catch(e) { showToast('Could not decline — try again', 'error'); }
 }
 
 function renderManage() {
@@ -3787,8 +3950,8 @@ async function sendSlotOffer() {
       from_name:  hostName
     });
 
-    closeSlotOffer();
-    showToast(`✅ Offer sent to ${name || email} in-app`, 'success');
+    showToast(`✅ Offer sent to ${name || email}`, 'success', 5000);
+    setTimeout(closeSlotOffer, 300);
   } else {
     // Unregistered — open mailto as fallback
     const subjectText = isSlotOffer

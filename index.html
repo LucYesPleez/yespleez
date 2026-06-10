@@ -4193,7 +4193,21 @@ body.player-open .screen.active { padding-bottom: 80px; }
       </button>
     </div>
 
+    <!-- LINEUP / PIPELINE tab toggle -->
+    <div style="display:flex;gap:6px;margin-bottom:14px;">
+      <button id="tabLineup" onclick="switchManageTab('lineup')"
+        style="flex:1;padding:10px;border-radius:10px;font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:1.5px;cursor:pointer;border:2px solid var(--neon);background:rgba(255,45,120,.1);color:var(--neon);">
+        LINEUP
+      </button>
+      <button id="tabPipeline" onclick="switchManageTab('pipeline')"
+        style="flex:1;padding:10px;border-radius:10px;font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:1.5px;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--muted);position:relative;">
+        PIPELINE
+        <span id="pipelineBadge" style="display:none;position:absolute;top:6px;right:8px;background:var(--neon);color:#fff;border-radius:10px;font-size:9px;padding:1px 5px;"></span>
+      </button>
+    </div>
+
     <div id="manageList"></div>
+    <div id="pipelineView" style="display:none;"></div>
 
   </div>
 </div>
