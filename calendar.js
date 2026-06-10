@@ -329,11 +329,8 @@ function calRestorePostcode() {
 async function loadCalEvents() {
   if (DEMO) { _calEvents = []; _calLoaded = true; return; }
   try {
-    const { data, error } = await supabase
-      .from('events')
-      .select('*')
-      .order('created_at', { ascending: false });
-    if (error) throw error;
+    const token = currentSession?.access_token || SUPABASE_KEY;
+    const data = await sbRest('events?select=*&order=created_at.desc', {}, token);
     const now = Date.now() - 86400000 * 1; // include yesterday
     _calEvents = (data || []).filter(ev => {
       const d = calParseDate(ev);
