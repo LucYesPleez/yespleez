@@ -1680,10 +1680,16 @@ async function loadClaims() {
 }
 
 async function upsertClaim(slotId, name, genre, notes, backups, cardPills = '', sound = '') {
-  const res = await sbFetch('claims', {
-    method: 'POST',
-    body: JSON.stringify({ event_id: currentEventId, slot_id: slotId, name, genre, notes, backups, card_pills: cardPills, sound, updated_at: new Date().toISOString(), user_id: currentUser?.id || null })
-  });
+  const token = currentSession?.access_token || null;
+  const body = JSON.stringify({ event_id: currentEventId, slot_id: slotId, name, genre, notes, backups, card_pills: cardPills, sound, updated_at: new Date().toISOString(), user_id: currentUser?.id || null });
+  if (token) {
+    // Authenticated host — use token so RLS allows updating any claim in their event
+    try {
+      const res = await sbRest('claims', { method: 'POST', body }, token);
+      return Array.isArray(res) || res === null || (typeof res === 'object');
+    } catch { return false; }
+  }
+  const res = await sbFetch('claims', { method: 'POST', body });
   return res.ok;
 }
 
