@@ -1065,21 +1065,24 @@ async function loadMyAvailability() {
 }
 
 async function toggleAvailabilityDate(dateStr) {
-  if (!currentUser?.id) return;
+  if (!currentUser?.id || currentUser.id === 'guest') return;
   const had = _myAvailDates.has(dateStr);
   if (had) {
     _myAvailDates.delete(dateStr);
     try {
-      await supabase.from('artist_availability')
-        .delete()
-        .eq('user_id', currentUser.id)
-        .eq('available_date', dateStr);
+      await sbRest(
+        `artist_availability?user_id=eq.${currentUser.id}&available_date=eq.${dateStr}`,
+        { method: 'DELETE' }, currentSession?.access_token
+      );
     } catch(e) { console.warn('avail delete:', e); _myAvailDates.add(dateStr); }
   } else {
     _myAvailDates.add(dateStr);
     try {
-      await supabase.from('artist_availability')
-        .upsert({ user_id: currentUser.id, available_date: dateStr }, { onConflict: 'user_id,available_date' });
+      await sbRest('artist_availability', {
+        method: 'POST',
+        body: JSON.stringify({ user_id: currentUser.id, available_date: dateStr }),
+        prefer: 'resolution=merge-duplicates,return=minimal'
+      }, currentSession?.access_token);
     } catch(e) { console.warn('avail upsert:', e); _myAvailDates.delete(dateStr); }
   }
   renderAvailGrid();
@@ -1091,13 +1094,12 @@ async function toggleAvailabilityDate(dateStr) {
 async function loadArtistAvailability(userId) {
   if (!userId) return [];
   try {
-    const { data, error } = await supabase
-      .from('artist_availability')
-      .select('available_date')
-      .eq('user_id', userId)
-      .gte('available_date', new Date().toISOString().split('T')[0]);
-    if (error) throw error;
-    return (data || []).map(r => r.available_date).sort();
+    const today = new Date().toISOString().split('T')[0];
+    const rows = await sbRest(
+      `artist_availability?user_id=eq.${userId}&available_date=gte.${today}&select=available_date`,
+      { method: 'GET' }, currentSession?.access_token || null
+    );
+    return (rows || []).map(r => r.available_date).sort();
   } catch(e) {
     console.warn('loadArtistAvailability:', e);
     return [];

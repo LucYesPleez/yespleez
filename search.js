@@ -140,11 +140,11 @@ async function runSearch() {
   // Filter profiles by availability date
   if (availDate && profileRows.length) {
     try {
-      const { data } = await supabase
-        .from('artist_availability')
-        .select('user_id')
-        .eq('available_date', availDate);
-      const availableIds = new Set((data || []).map(r => r.user_id));
+      const availRows = await sbRest(
+        `artist_availability?available_date=eq.${availDate}&select=user_id`,
+        { method: 'GET' }, currentSession?.access_token || null
+      );
+      const availableIds = new Set((availRows || []).map(r => r.user_id));
       profileRows = profileRows.filter(p => availableIds.has(p.user_id));
     } catch(e) { console.warn('avail filter:', e); }
   }

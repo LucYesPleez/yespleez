@@ -983,7 +983,7 @@ function showSignupDirect() {
     loadPublicEvent(eventId).then(ok => { if (ok) showSignup(); });
   } else {
     currentUser = { id: 'guest', email: 'guest' };
-    currentSession = { access_token: 'guest' };
+    currentSession = { access_token: SUPABASE_KEY }; // anon key — lets read-only DB calls work without 401
     currentMode = 'artist';
     enterArtistDashboard();
   }
