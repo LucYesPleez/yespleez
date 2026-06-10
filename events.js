@@ -1928,8 +1928,24 @@ async function renderPipeline() {
     if (appsRes.ok) apps = await appsRes.json();
   } catch(e) { apps = []; }
 
+  // Fetch artist profiles for all applications so we have names
+  const artistIds = [...new Set(apps.map(a => a.artist_id).filter(Boolean))];
+  const profileMap = {};
+  if (artistIds.length) {
+    try {
+      const profRes = await fetch(
+        `${SUPABASE_URL}/rest/v1/profiles?user_id=in.(${artistIds.join(',')})&type=eq.artist&select=user_id,dj_name,name,genre_string,avatar`,
+        { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${currentSession?.access_token}` } }
+      );
+      if (profRes.ok) {
+        const profs = await profRes.json();
+        profs.forEach(p => { profileMap[p.user_id] = p; });
+      }
+    } catch(e) {}
+  }
+
   // Update pipeline badge with pending count
-  const pendingCount = offers.filter(o => o.status === 'pending').length + apps.filter(a => a.status === 'pending').length;
+  const pendingCount = offers.filter(o => o.status === 'pending').length + apps.filter(a => a.status === 'pending' || a.status === 'invited').length;
   const badge = document.getElementById('pipelineBadge');
   if (badge) { badge.textContent = pendingCount; badge.style.display = pendingCount ? '' : 'none'; }
 
@@ -1971,19 +1987,22 @@ async function renderPipeline() {
 
   // ── APPLICATIONS section ──
   const appCards = apps.map(a => {
-    const name = a.dj_name || a.artist_name || 'Unknown Artist';
-    const genre = a.genre ? `<div style="font-size:11px;color:var(--muted);margin-top:2px;">${esc(a.genre)}</div>` : '';
+    const prof = profileMap[a.artist_id] || {};
+    const name = prof.dj_name || prof.name || a.dj_name || a.artist_name || a.artist_id?.slice(0,8) || 'Unknown Artist';
+    const genre = (prof.genre_string || a.genre || '');
+    const genreHtml = genre ? `<div style="font-size:11px;color:var(--muted);margin-top:2px;">${esc(genre)}</div>` : '';
     const ago = timeAgo(a.created_at);
-    const actions = a.status === 'pending' ? `
+    const isPending = a.status === 'pending' || a.status === 'invited';
+    const actions = isPending ? `
       <div style="display:flex;gap:6px;margin-top:10px;">
-        <button onclick="acceptApplication('${a.id}','${a.user_id||''}','${esc(name)}')" style="flex:1;padding:8px;background:var(--neon2);border:none;border-radius:8px;font-family:'Bebas Neue',sans-serif;font-size:12px;letter-spacing:1px;color:#0a0a0f;cursor:pointer;">ACCEPT</button>
+        <button onclick="acceptApplication('${a.id}','${a.artist_id||''}','${esc(name)}')" style="flex:1;padding:8px;background:var(--neon2);border:none;border-radius:8px;font-family:'Bebas Neue',sans-serif;font-size:12px;letter-spacing:1px;color:#0a0a0f;cursor:pointer;">ACCEPT</button>
         <button onclick="declineApplication('${a.id}')" style="flex:1;padding:8px;background:transparent;border:1px solid var(--border);border-radius:8px;font-family:'Bebas Neue',sans-serif;font-size:12px;letter-spacing:1px;color:var(--muted);cursor:pointer;">DECLINE</button>
       </div>` : '';
     return `<div style="padding:12px 14px;background:var(--card2);border:1px solid var(--border);border-radius:10px;margin-bottom:8px;">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;">
         <div style="min-width:0;flex:1;">
           <div style="font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:1px;color:var(--text);">${esc(name)}</div>
-          ${genre}
+          ${genreHtml}
           <div style="font-size:10px;color:var(--muted);margin-top:3px;">${ago}</div>
         </div>
         <div style="flex-shrink:0;">${pill(a.status)}</div>
