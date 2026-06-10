@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════
 //  notifications.js — YesPleez Notifications Module
-//  Depends on: state.js, navigation.js (showToast)
+//  Depends on: state.js, auth.js (sbRest, sbFetch), navigation.js (showToast)
 // ═══════════════════════════════════════════════════
 
 let notifications    = [];   // local in-session notifs (app events)
@@ -19,6 +19,28 @@ function pushNotif(icon, text, mode) {
   try { localStorage.setItem('yp_notifs', JSON.stringify(notifications.slice(0, 50))); } catch(e) {}
 }
 
+// ── Write a DB notification to another user ────────
+
+async function writeDbNotif(userId, type, message, extras = {}) {
+  if (!userId || !currentSession?.access_token) return;
+  try {
+    await sbRest('notifications', {
+      method: 'POST',
+      body: JSON.stringify({
+        user_id:    userId,
+        type,
+        message,
+        read:       false,
+        status:     'pending',
+        ...extras
+      }),
+      prefer: 'return=minimal'
+    }, currentSession.access_token);
+  } catch(e) {
+    console.warn('writeDbNotif failed:', e);
+  }
+}
+
 // ── Dot indicator ──────────────────────────────────
 
 function updateNotifDot() {
@@ -35,27 +57,28 @@ function updateNotifDot() {
 // ── Load from Supabase ─────────────────────────────
 
 async function loadDbNotifs() {
-  if (DEMO || !currentUser?.id || currentUser.id === 'guest') return;
+  if (DEMO || !currentUser?.id || currentUser.id === 'guest' || !currentSession?.access_token) return;
   try {
-    const { data, error } = await supabase
-      .from('notifications')
-      .select('*')
-      .eq('user_id', currentUser.id)
-      .order('created_at', { ascending: false })
-      .limit(50);
-    if (error) throw error;
-    _dbNotifs = data || [];
+    const rows = await sbRest(
+      `notifications?user_id=eq.${currentUser.id}&order=created_at.desc&limit=50`,
+      { method: 'GET' }, currentSession.access_token
+    );
+    _dbNotifs = Array.isArray(rows) ? rows : [];
     updateNotifDot();
     renderNotifList();
   } catch(e) {
-    // notifications table may not exist yet — silent
     _dbNotifs = [];
   }
 }
 
 async function markDbNotifRead(notifId) {
+  if (!currentSession?.access_token) return;
   try {
-    await supabase.from('notifications').update({ read: true }).eq('id', notifId);
+    await sbRest(
+      `notifications?id=eq.${notifId}`,
+      { method: 'PATCH', body: JSON.stringify({ read: true }), prefer: 'return=minimal' },
+      currentSession.access_token
+    );
     const n = _dbNotifs.find(n => n.id === notifId);
     if (n) n.read = true;
     updateNotifDot();
@@ -84,13 +107,17 @@ function closeNotifPanel() {
 function markAllRead() {
   notifications.forEach(n => n.read = true);
   notifUnread = 0;
-  // Mark all DB notifs read
   const unreadIds = _dbNotifs.filter(n => !n.read).map(n => n.id);
   _dbNotifs.forEach(n => n.read = true);
   updateNotifDot();
   renderNotifList();
-  if (unreadIds.length) {
-    supabase.from('notifications').update({ read: true }).in('id', unreadIds).then(() => {}).catch(() => {});
+  if (unreadIds.length && currentSession?.access_token) {
+    unreadIds.forEach(id => {
+      sbRest(`notifications?id=eq.${id}`,
+        { method: 'PATCH', body: JSON.stringify({ read: true }), prefer: 'return=minimal' },
+        currentSession.access_token
+      ).catch(() => {});
+    });
   }
 }
 
@@ -109,15 +136,15 @@ function renderNotifList() {
   if (!el) return;
   const mode = currentMode || 'both';
 
-  // Local notifs filtered by mode
   const localFiltered = notifications.filter(n => !n.mode || n.mode === 'both' || n.mode === mode);
 
   let html = '';
 
-  // ── DB notifs first (invites, etc.) ──
   if (_dbNotifs.length) {
     _dbNotifs.forEach(n => {
-      if (n.type === 'event_invite') {
+      if (n.type === 'slot_offer') {
+        html += renderSlotOfferNotif(n);
+      } else if (n.type === 'event_invite') {
         html += renderInviteNotif(n);
       } else {
         html += `
@@ -131,7 +158,6 @@ function renderNotifList() {
     });
   }
 
-  // ── Local in-session notifs ──
   localFiltered.forEach(n => {
     html += `
       <div class="notif-item${n.read ? '' : ' unread'}">
@@ -146,6 +172,141 @@ function renderNotifList() {
 
   el.innerHTML = html;
 }
+
+// ── Slot offer notification (specific slot) ────────
+
+function renderSlotOfferNotif(n) {
+  const isActioned = n.status === 'accepted' || n.status === 'declined';
+  const statusBadge = n.status === 'accepted'
+    ? `<span style="font-size:11px;color:var(--neon2);letter-spacing:1px;font-family:'Bebas Neue',sans-serif;">ACCEPTED ✓</span>`
+    : n.status === 'declined'
+    ? `<span style="font-size:11px;color:var(--muted);letter-spacing:1px;font-family:'Bebas Neue',sans-serif;">DECLINED</span>`
+    : '';
+
+  return `
+    <div class="notif-item${n.read ? '' : ' unread'}" id="notifRow_${n.id}" style="display:block;padding:14px 16px;">
+      <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:${isActioned ? '0' : '12px'};">
+        <div style="width:36px;height:36px;border-radius:8px;background:rgba(0,229,255,.12);border:1px solid rgba(0,229,255,.3);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:18px;">🎧</div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:1px;color:var(--neon2);margin-bottom:3px;">SLOT OFFER</div>
+          <div style="font-size:13px;color:var(--text);line-height:1.4;">${esc(n.message || '')}</div>
+          ${n.slot_label ? `<div style="font-size:11px;color:var(--neon2);margin-top:4px;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;">🕐 ${esc(n.slot_label)}</div>` : ''}
+          <div style="font-size:11px;color:var(--muted);margin-top:4px;">${timeAgo(n.created_at)}</div>
+        </div>
+        ${statusBadge ? `<div style="flex-shrink:0;">${statusBadge}</div>` : ''}
+      </div>
+      ${!isActioned ? `
+        <div style="display:flex;gap:8px;">
+          <button onclick="respondToSlotOffer('${n.id}','${n.event_id||''}','${n.slot_id||''}','accepted')"
+            style="flex:1;background:var(--neon2);color:#0a0a0f;border:none;border-radius:8px;font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:1.5px;padding:10px;cursor:pointer;">
+            ACCEPT SLOT
+          </button>
+          <button onclick="respondToSlotOffer('${n.id}','${n.event_id||''}','${n.slot_id||''}','declined')"
+            style="flex:1;background:var(--card);color:var(--muted);border:1px solid var(--border);border-radius:8px;font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:1.5px;padding:10px;cursor:pointer;">
+            DECLINE
+          </button>
+        </div>` : ''}
+    </div>`;
+}
+
+// ── Respond to slot offer ──────────────────────────
+
+async function respondToSlotOffer(notifId, eventId, slotId, response) {
+  const row = document.querySelector(`#notifRow_${notifId}`);
+  if (row) row.querySelectorAll('button').forEach(b => b.disabled = true);
+
+  try {
+    // Update notification status
+    await sbRest(
+      `notifications?id=eq.${notifId}`,
+      { method: 'PATCH', body: JSON.stringify({ read: true, status: response }), prefer: 'return=minimal' },
+      currentSession.access_token
+    );
+
+    const n = _dbNotifs.find(n => n.id === notifId);
+    if (n) { n.read = true; n.status = response; }
+
+    if (response === 'accepted' && slotId && eventId) {
+      // Load the event data if not already loaded, then claim the slot
+      const artistName = artistProfile?.djName || artistProfile?.name || currentUser?.email || 'Artist';
+      const genre = artistProfile?.genreString || '';
+      const cardPills = artistProfile?.cardPills || '';
+      const sound = artistProfile?.sound || '';
+
+      // Need the event to be loaded — upsert the claim directly
+      const claimBody = JSON.stringify({
+        event_id:   eventId,
+        slot_id:    slotId,
+        name:       artistName,
+        genre,
+        notes:      '',
+        backups:    [],
+        card_pills: cardPills,
+        sound,
+        user_id:    currentUser.id,
+        updated_at: new Date().toISOString()
+      });
+      await sbRest('claims', {
+        method: 'POST',
+        body: claimBody,
+        prefer: 'resolution=merge-duplicates,return=minimal'
+      }, currentSession.access_token);
+
+      // Update slot_offers status
+      await sbRest(
+        `slot_offers?slot_id=eq.${slotId}&event_id=eq.${eventId}&offered_to_uid=eq.${currentUser.id}`,
+        { method: 'PATCH', body: JSON.stringify({ status: 'accepted' }), prefer: 'return=minimal' },
+        currentSession.access_token
+      ).catch(() => {});
+
+      // Notify the host
+      if (n?.from_uid) {
+        await writeDbNotif(n.from_uid, 'offer_accepted', `✅ ${artistName} accepted your slot offer for ${n.slot_label || 'a slot'} at ${n.event_name || 'your event'}.`, {
+          event_id: eventId,
+          slot_id: slotId,
+          slot_label: n.slot_label || '',
+          event_name: n.event_name || ''
+        });
+      }
+
+      showToast(`🎉 Slot accepted! You're in the lineup.`, 'success', 5000);
+      pushNotif('🎧', `You accepted the ${n?.slot_label || 'slot'} offer — you're in the lineup!`, 'artist');
+
+      // Refresh artist gigs
+      setTimeout(() => { if (typeof renderArtistDashGigsWithManual === 'function') renderArtistDashGigsWithManual(); }, 800);
+
+    } else if (response === 'declined') {
+      // Update slot_offers status
+      if (slotId && eventId) {
+        await sbRest(
+          `slot_offers?slot_id=eq.${slotId}&event_id=eq.${eventId}`,
+          { method: 'PATCH', body: JSON.stringify({ status: 'declined' }), prefer: 'return=minimal' },
+          currentSession.access_token
+        ).catch(() => {});
+      }
+      // Notify the host
+      const artistName = artistProfile?.djName || artistProfile?.name || 'An artist';
+      if (n?.from_uid) {
+        await writeDbNotif(n.from_uid, 'offer_declined', `❌ ${artistName} declined your slot offer for ${n?.slot_label || 'a slot'}.`, {
+          event_id: eventId,
+          slot_id: slotId
+        });
+      }
+      showToast('Offer declined.', 'success');
+    }
+
+  } catch(e) {
+    console.warn('respondToSlotOffer:', e);
+    showToast(response === 'accepted' ? 'Slot accepted!' : 'Declined.', 'success');
+    const n = _dbNotifs.find(n => n.id === notifId);
+    if (n) { n.read = true; n.status = response; }
+  }
+
+  updateNotifDot();
+  renderNotifList();
+}
+
+// ── Event invite notification (no specific slot) ───
 
 function renderInviteNotif(n) {
   const isActioned = n.status === 'accepted' || n.status === 'declined';
@@ -182,56 +343,70 @@ function renderInviteNotif(n) {
     </div>`;
 }
 
-// ── Respond to invite ──────────────────────────────
+// ── Respond to event invite ────────────────────────
 
 async function respondToInvite(notifId, eventId, response) {
-  const btn = document.querySelector(`#notifRow_${notifId} button`);
-  if (btn) btn.disabled = true;
+  const row = document.querySelector(`#notifRow_${notifId}`);
+  if (row) row.querySelectorAll('button').forEach(b => b.disabled = true);
 
   try {
-    await supabase.from('notifications')
-      .update({ read: true, status: response })
-      .eq('id', notifId);
+    await sbRest(
+      `notifications?id=eq.${notifId}`,
+      { method: 'PATCH', body: JSON.stringify({ read: true, status: response }), prefer: 'return=minimal' },
+      currentSession.access_token
+    );
 
     const n = _dbNotifs.find(n => n.id === notifId);
     if (n) { n.read = true; n.status = response; }
 
+    const artistName = artistProfile?.djName || artistProfile?.name || currentUser?.email || 'Artist';
+
     if (response === 'accepted' && eventId) {
-      // Add artist as an applicant/accepted entry on the event
-      await supabase.from('applications').upsert({
-        event_id:   eventId,
-        user_id:    currentUser.id,
-        status:     'accepted',
-        dj_name:    artistProfile?.djName || artistProfile?.name || '',
-        genre:      artistProfile?.genreString || '',
-        mix_link:   artistProfile?.mixLink || '',
-        avatar_url: artistProfile?.avatar || '',
-        via_invite: true,
-      }, { onConflict: 'event_id,user_id' });
+      // Create application record
+      await sbRest('applications', {
+        method: 'POST',
+        body: JSON.stringify({
+          event_id:   eventId,
+          user_id:    currentUser.id,
+          status:     'pending',
+          artist_name: artistName,
+          dj_name:    artistProfile?.djName || '',
+          genre:      artistProfile?.genreString || '',
+          mix_link:   artistProfile?.mixLink || '',
+          avatar_url: artistProfile?.avatar || '',
+          via_invite: true
+        }),
+        prefer: 'resolution=merge-duplicates,return=minimal'
+      }, currentSession.access_token);
 
-      showToast('Invite accepted! You\'re on the lineup.', 'success');
+      // Notify host
+      if (n?.from_uid) {
+        await writeDbNotif(n.from_uid, 'offer_accepted', `✅ ${artistName} accepted your event invite for ${n.event_name || 'your event'} — they're now in your applications.`, {
+          event_id: eventId,
+          event_name: n.event_name || ''
+        });
+      }
 
-      // Push a local notif for artist dashboard
-      pushNotif('', `You accepted an event invite${eventId ? ' — check your gigs.' : '.'}`, 'artist');
+      showToast(`Invite accepted! You're in the applications list.`, 'success');
+      pushNotif('🎤', `You accepted an invite to ${n?.event_name || 'an event'} — check your gigs.`, 'artist');
+      setTimeout(() => { if (typeof renderArtistDashGigsWithManual === 'function') renderArtistDashGigsWithManual(); }, 800);
+
     } else {
+      if (n?.from_uid) {
+        await writeDbNotif(n.from_uid, 'offer_declined', `❌ ${artistName} declined your event invite for ${n?.event_name || 'your event'}.`, { event_id: eventId });
+      }
       showToast('Invite declined.', 'success');
     }
 
-    updateNotifDot();
-    renderNotifList();
-
-    // Refresh artist gigs if on artist dash
-    if (currentMode === 'artist' && response === 'accepted') {
-      setTimeout(() => renderArtistDashGigsWithManual?.(), 800);
-    }
   } catch(e) {
     console.warn('respondToInvite:', e);
     showToast(response === 'accepted' ? 'Accepted!' : 'Declined.', 'success');
     const n = _dbNotifs.find(n => n.id === notifId);
     if (n) { n.read = true; n.status = response; }
-    updateNotifDot();
-    renderNotifList();
   }
+
+  updateNotifDot();
+  renderNotifList();
 }
 
 // ── Merge pending artist notifs (localStorage) ─────
@@ -252,16 +427,20 @@ function mergePendingArtistNotifs() {
   } catch(e) {}
 }
 
-// ── Poll for new DB notifs every 60s when panel closed ──
+// ── Poll for new DB notifs every 30s ───────────────
+
 function startNotifPolling() {
   if (_notifPolling) return;
   _notifPolling = setInterval(async () => {
-    if (!currentUser?.id || currentUser.id === 'guest') return;
+    if (!currentUser?.id || currentUser.id === 'guest' || !currentSession?.access_token) return;
     const prev = _dbNotifs.filter(n => !n.read).length;
     await loadDbNotifs();
     const now  = _dbNotifs.filter(n => !n.read).length;
-    if (now > prev) updateNotifDot();
-  }, 60000);
+    if (now > prev) {
+      updateNotifDot();
+      showToast('🔔 You have new notifications', 'success');
+    }
+  }, 30000);
 }
 
 // ── Load saved notifications on boot ──────────────

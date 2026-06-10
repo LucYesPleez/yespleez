@@ -3581,11 +3581,32 @@ function openSlotOffer(slotId, slotLabel, existingName) {
   if (preview) { preview.style.display = 'none'; preview.innerHTML = ''; }
   const btn = document.getElementById('slotOfferSendBtn');
   if (btn) btn.textContent = 'SEND OFFER →';
+  // Reset to slot offer mode
+  const slotRadio = document.querySelector('input[name="offerType"][value="slot"]');
+  if (slotRadio) { slotRadio.checked = true; onOfferTypeChange(); }
   document.getElementById('slotOfferOverlay').classList.add('open');
   setTimeout(() => {
     const nameEl = document.getElementById('slotOfferName');
     (existingName ? document.getElementById('slotOfferEmail') : nameEl).focus();
   }, 80);
+}
+
+function onOfferTypeChange() {
+  const type = document.querySelector('input[name="offerType"]:checked')?.value || 'slot';
+  const slotRow = document.getElementById('slotOfferSlotRow');
+  const slotBtn = document.getElementById('offerTypeSlotBtn');
+  const eventBtn = document.getElementById('offerTypeEventBtn');
+  if (slotRow) slotRow.style.display = type === 'slot' ? '' : 'none';
+  if (slotBtn) {
+    slotBtn.style.border = type === 'slot' ? '2px solid var(--neon2)' : '1px solid var(--border)';
+    slotBtn.style.background = type === 'slot' ? 'rgba(0,229,255,.1)' : 'transparent';
+    slotBtn.style.color = type === 'slot' ? 'var(--neon2)' : 'var(--muted)';
+  }
+  if (eventBtn) {
+    eventBtn.style.border = type === 'event' ? '2px solid var(--neon)' : '1px solid var(--border)';
+    eventBtn.style.background = type === 'event' ? 'rgba(255,45,120,.1)' : 'transparent';
+    eventBtn.style.color = type === 'event' ? 'var(--neon)' : 'var(--muted)';
+  }
 }
 
 let _slotOfferMatchedUser = null;
@@ -3635,8 +3656,9 @@ function closeSlotOffer() {
 }
 
 async function sendSlotOffer() {
-  const email = document.getElementById('slotOfferEmail').value.trim();
-  const name  = document.getElementById('slotOfferName').value.trim();
+  const email     = document.getElementById('slotOfferEmail').value.trim();
+  const name      = document.getElementById('slotOfferName').value.trim();
+  const offerType = document.querySelector('input[name="offerType"]:checked')?.value || 'slot';
   if (!email) { document.getElementById('slotOfferEmail').focus(); return; }
 
   const btn = document.getElementById('slotOfferSendBtn');
@@ -3646,9 +3668,10 @@ async function sendSlotOffer() {
   const eventDate = eventData?.config?.date || '';
   const venue     = eventData?.config?.venue || '';
   const slot      = _slotOfferPending?.slotLabel || '';
-  const slotId    = _slotOfferPending?.slotId || null;
+  const slotId    = offerType === 'slot' ? (_slotOfferPending?.slotId || null) : null;
   const eventLink = location.origin + location.pathname + '?event=' + (currentEventId || '');
   const hostName  = hostProfile?.name || currentUser?.email || 'The host';
+  const isSlotOffer = offerType === 'slot' && slotId;
 
   // Write slot_offers row to DB
   try {
@@ -3657,8 +3680,9 @@ async function sendSlotOffer() {
       body: JSON.stringify({
         slot_id:          slotId,
         event_id:         currentEventId,
-        slot_label:       slot,
+        slot_label:       isSlotOffer ? slot : null,
         event_name:       eventName,
+        offer_type:       offerType,
         offered_to_email: email,
         offered_to_name:  name || null,
         offered_to_uid:   _slotOfferMatchedUser?.user_id || null,
@@ -3673,18 +3697,35 @@ async function sendSlotOffer() {
   }
 
   if (_slotOfferMatchedUser) {
-    // Registered user — in-app notification only
+    // Registered user — write notification directly to their bell
+    const notifType = isSlotOffer ? 'slot_offer' : 'event_invite';
+    const message = isSlotOffer
+      ? `${hostName} has offered you the ${slot} slot at ${eventName}${eventDate ? ' on ' + eventDate : ''}${venue ? ' at ' + venue : ''}.`
+      : `${hostName} has invited you to perform at ${eventName}${eventDate ? ' on ' + eventDate : ''}${venue ? ' at ' + venue : ''}. Accept to join the applications list.`;
+
+    await writeDbNotif(_slotOfferMatchedUser.user_id, notifType, message, {
+      event_id:   currentEventId,
+      event_name: eventName,
+      slot_id:    slotId,
+      slot_label: isSlotOffer ? slot : null,
+      from_uid:   currentUser?.id,
+      from_name:  hostName
+    });
+
     closeSlotOffer();
     showToast(`✅ Offer sent to ${name || email} in-app`, 'success');
   } else {
     // Unregistered — open mailto as fallback
-    const subject = encodeURIComponent(`You've been offered a slot at ${eventName} — YesPleez`);
-    const body    = encodeURIComponent(
+    const subjectText = isSlotOffer
+      ? `You've been offered a slot at ${eventName} — YesPleez`
+      : `You've been invited to perform at ${eventName} — YesPleez`;
+    const subject = encodeURIComponent(subjectText);
+    const body = encodeURIComponent(
       `Hi ${name || 'there'},\n\n` +
-      `You've been offered a slot at ${eventName}${eventDate ? ' on ' + eventDate : ''}${venue ? ' at ' + venue : ''}.\n\n` +
-      `Slot: ${slot}\n\n` +
-      `Sign up to YesPleez and the slot will be waiting for you:\n${eventLink}\n\n` +
-      `— ${hostName} via YesPleez`
+      (isSlotOffer
+        ? `You've been offered the ${slot} slot at ${eventName}${eventDate ? ' on ' + eventDate : ''}${venue ? ' at ' + venue : ''}.\n\nSign up to YesPleez and the slot will be waiting for you:`
+        : `You've been invited to perform at ${eventName}${eventDate ? ' on ' + eventDate : ''}${venue ? ' at ' + venue : ''}.\n\nSign up to YesPleez to accept the invite:`) +
+      `\n${eventLink}\n\n— ${hostName} via YesPleez`
     );
     window.location.href = `mailto:${email}?subject=${subject}&body=${body}`;
     closeSlotOffer();
