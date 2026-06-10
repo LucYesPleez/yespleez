@@ -3481,15 +3481,14 @@ body.player-open .screen.active { padding-bottom: 80px; }
   <div id="hostPanel" style="display:none; background:linear-gradient(180deg,rgba(255,184,48,.04) 0%,transparent 100%); border-top:1px solid var(--border); padding:20px 16px 40px; margin-top:16px;">
     <div style="max-width:680px;margin:0 auto;">
 
-      <!-- EDIT + GENERATE LINEUP + UNDO/REDO — all in one row -->
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
-        <button onclick="goToTemplate()"
-          style="padding:10px 14px;background:transparent;border:1px solid rgba(255,45,120,.5);border-radius:10px;color:var(--neon);font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:1px;cursor:pointer;white-space:nowrap;">✎ EDIT</button>
-        <button class="btn-ai-generate" id="aiGenerateBtn" onclick="generateLineup()" style="flex:1;margin:0;"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:5px;"><path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/></svg>GENERATE LINEUP</button>
+      <!-- EDIT / UNDO / REDO row — right-aligned above generator -->
+      <div style="display:flex;justify-content:flex-end;align-items:center;gap:8px;margin-bottom:14px;">
         <button id="stUndoBtn" onclick="undoManage()" title="Undo" disabled
-          style="background:none;border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:8px 11px;font-size:15px;cursor:pointer;opacity:.4;line-height:1;">↩</button>
+          style="background:none;border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:6px 14px;font-size:13px;cursor:pointer;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;opacity:.4;">↩ UNDO</button>
         <button id="stRedoBtn" onclick="redoManage()" title="Redo" disabled
-          style="background:none;border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:8px 11px;font-size:15px;cursor:pointer;opacity:.4;line-height:1;">↪</button>
+          style="background:none;border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:6px 14px;font-size:13px;cursor:pointer;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;opacity:.4;">↪ REDO</button>
+        <button onclick="goToTemplate()"
+          style="padding:6px 16px;background:transparent;border:1px solid rgba(255,45,120,.5);border-radius:8px;color:var(--neon);font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:1px;cursor:pointer;">✎ EDIT EVENT</button>
       </div>
 
       <div class="ai-panel">
@@ -3498,7 +3497,7 @@ body.player-open .screen.active { padding-bottom: 80px; }
             <div class="ai-panel-label">✦ YESPLEEZ GENERATOR</div>
             <div class="ai-panel-desc">Reads everyone's preferences, genres &amp; vibes builds multiple conflict-free lineup options that flow musically.</div>
           </div>
-          <button class="btn-ai-generate" style="display:none;" id="aiGenerateBtnDupe" onclick="generateLineup()">GENERATE</button>
+          <button class="btn-ai-generate" id="aiGenerateBtn" onclick="generateLineup()">GENERATE</button>
         </div>
         <div class="ai-loading" id="aiLoading" style="display:none">
           <div class="ai-spinner"></div>
