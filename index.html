@@ -3605,55 +3605,83 @@ body.player-open .screen.active { padding-bottom: 80px; }
 <!-- SLOT OFFER MODAL -->
 <div class="overlay" id="slotOfferOverlay">
   <div class="edit-event-modal" style="max-width:420px;">
-    <h2 style="color:var(--neon2);margin-bottom:16px;font-size:20px;letter-spacing:2px;">SEND OFFER</h2>
 
-    <!-- Offer type toggle -->
-    <div style="display:flex;gap:8px;margin-bottom:20px;">
-      <label style="flex:1;cursor:pointer;">
-        <input type="radio" name="offerType" value="slot" checked style="display:none;" onchange="onOfferTypeChange()">
-        <div class="offer-type-btn" id="offerTypeSlotBtn" style="text-align:center;padding:10px 8px;border-radius:10px;border:2px solid var(--neon2);background:rgba(0,229,255,.1);font-family:'Bebas Neue',sans-serif;letter-spacing:1.5px;font-size:13px;color:var(--neon2);">
-          🎯 SPECIFIC SLOT<br><span style="font-size:10px;opacity:.7;font-family:'DM Sans',sans-serif;letter-spacing:0;">auto-placed in lineup on accept</span>
-        </div>
-      </label>
-      <label style="flex:1;cursor:pointer;">
-        <input type="radio" name="offerType" value="event" style="display:none;" onchange="onOfferTypeChange()">
-        <div class="offer-type-btn" id="offerTypeEventBtn" style="text-align:center;padding:10px 8px;border-radius:10px;border:1px solid var(--border);background:transparent;font-family:'Bebas Neue',sans-serif;letter-spacing:1.5px;font-size:13px;color:var(--muted);">
-          📋 THIS EVENT<br><span style="font-size:10px;opacity:.7;font-family:'DM Sans',sans-serif;letter-spacing:0;">goes to your applications list</span>
-        </div>
-      </label>
+    <!-- FORM PANEL -->
+    <div id="slotOfferFormPanel">
+      <h2 style="color:var(--neon2);margin-bottom:16px;font-size:20px;letter-spacing:2px;">SEND OFFER</h2>
+
+      <!-- Offer type toggle -->
+      <div style="display:flex;gap:8px;margin-bottom:20px;">
+        <label style="flex:1;cursor:pointer;">
+          <input type="radio" name="offerType" value="slot" checked style="display:none;" onchange="onOfferTypeChange()">
+          <div class="offer-type-btn" id="offerTypeSlotBtn" style="text-align:center;padding:10px 8px;border-radius:10px;border:2px solid var(--neon2);background:rgba(0,229,255,.1);font-family:'Bebas Neue',sans-serif;letter-spacing:1.5px;font-size:13px;color:var(--neon2);">
+            🎯 SPECIFIC SLOT<br><span style="font-size:10px;opacity:.7;font-family:'DM Sans',sans-serif;letter-spacing:0;">auto-placed in lineup on accept</span>
+          </div>
+        </label>
+        <label style="flex:1;cursor:pointer;">
+          <input type="radio" name="offerType" value="event" style="display:none;" onchange="onOfferTypeChange()">
+          <div class="offer-type-btn" id="offerTypeEventBtn" style="text-align:center;padding:10px 8px;border-radius:10px;border:1px solid var(--border);background:transparent;font-family:'Bebas Neue',sans-serif;letter-spacing:1.5px;font-size:13px;color:var(--muted);">
+            📋 THIS EVENT<br><span style="font-size:10px;opacity:.7;font-family:'DM Sans',sans-serif;letter-spacing:0;">goes to your applications list</span>
+          </div>
+        </label>
+      </div>
+
+      <!-- Slot label (hidden for event-only offers) -->
+      <div id="slotOfferSlotRow" style="margin-bottom:16px;padding:10px 14px;background:rgba(0,229,255,.06);border:1px solid rgba(0,229,255,.2);border-radius:10px;">
+        <div style="font-size:10px;color:var(--muted);font-family:'Bebas Neue',sans-serif;letter-spacing:1.5px;margin-bottom:2px;">SLOT</div>
+        <div id="slotOfferSlotLabel" style="font-size:14px;color:var(--neon2);font-family:'Bebas Neue',sans-serif;letter-spacing:1px;"></div>
+      </div>
+
+      <div style="margin-bottom:14px;">
+        <label style="font-size:11px;letter-spacing:1.5px;color:var(--muted);font-family:'Bebas Neue',sans-serif;">ARTIST NAME</label>
+        <input id="slotOfferName" type="text" placeholder="e.g. DJ Nova"
+          style="width:100%;margin-top:6px;background:var(--card2);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;padding:10px 14px;outline:none;box-sizing:border-box;"
+          onfocus="this.style.borderColor='var(--neon2)'" onblur="this.style.borderColor=''"
+          oninput="onSlotOfferNameInput()">
+      </div>
+
+      <div style="margin-bottom:12px;">
+        <label style="font-size:11px;letter-spacing:1.5px;color:var(--muted);font-family:'Bebas Neue',sans-serif;">ARTIST EMAIL</label>
+        <input id="slotOfferEmail" type="email" placeholder="artist@email.com"
+          style="width:100%;margin-top:6px;background:var(--card2);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;padding:10px 14px;outline:none;box-sizing:border-box;"
+          onfocus="this.style.borderColor='var(--neon2)'" onblur="this.style.borderColor=''"
+          oninput="onSlotOfferEmailInput()">
+      </div>
+
+      <!-- User match preview — shown when email matches a registered YesPleez account -->
+      <div id="slotOfferUserPreview" style="display:none;margin-bottom:14px;"></div>
+
+      <div style="font-size:11px;color:var(--muted);margin-bottom:20px;">Name or email — just one is enough. Email only needed if they're not on YesPleez yet.</div>
+
+      <div class="edit-modal-btns">
+        <button id="slotOfferSendBtn" class="btn-primary" onclick="sendSlotOffer()" style="background:var(--neon2);color:#0a0a0f;">SEND OFFER →</button>
+        <button class="btn-ghost" onclick="closeSlotOffer()" style="margin-top:4px;">Cancel</button>
+      </div>
     </div>
 
-    <!-- Slot label (hidden for event-only offers) -->
-    <div id="slotOfferSlotRow" style="margin-bottom:16px;padding:10px 14px;background:rgba(0,229,255,.06);border:1px solid rgba(0,229,255,.2);border-radius:10px;">
-      <div style="font-size:10px;color:var(--muted);font-family:'Bebas Neue',sans-serif;letter-spacing:1.5px;margin-bottom:2px;">SLOT</div>
-      <div id="slotOfferSlotLabel" style="font-size:14px;color:var(--neon2);font-family:'Bebas Neue',sans-serif;letter-spacing:1px;"></div>
+    <!-- SENT CONFIRMATION PANEL -->
+    <div id="slotOfferSentPanel" style="display:none;text-align:center;">
+      <div style="font-size:36px;margin-bottom:10px;">✅</div>
+      <h2 style="color:var(--neon2);margin-bottom:6px;font-size:20px;letter-spacing:2px;">OFFER SENT!</h2>
+      <p id="slotOfferSentSummary" style="font-size:13px;color:var(--muted);margin-bottom:20px;line-height:1.5;"></p>
+
+      <div style="margin-bottom:16px;">
+        <div style="font-size:10px;letter-spacing:2px;color:var(--muted);font-family:'Bebas Neue',sans-serif;margin-bottom:8px;text-align:left;">SHARE LINK VIA MESSAGE</div>
+        <textarea id="slotOfferShareText" readonly
+          style="width:100%;background:var(--card2);border:1.5px solid rgba(0,229,255,.3);border-radius:10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;padding:12px 14px;outline:none;box-sizing:border-box;resize:none;line-height:1.6;min-height:90px;cursor:pointer;"
+          onclick="copySlotOfferLink(this)"
+        ></textarea>
+        <div style="font-size:11px;color:var(--muted);margin-top:6px;text-align:left;">Tap the box to copy, then paste into WhatsApp, Instagram, SMS — anywhere.</div>
+      </div>
+
+      <button onclick="copySlotOfferLink(document.getElementById('slotOfferShareText'))"
+        style="width:100%;padding:14px;background:#FF2D78;border:none;border-radius:10px;font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:2px;color:#fff;cursor:pointer;margin-bottom:10px;"
+        id="slotOfferCopyBtn">
+        📋 COPY MESSAGE
+      </button>
+      <button class="btn-ghost" onclick="closeSlotOffer()" style="width:100%;">Done</button>
     </div>
 
-    <div style="margin-bottom:14px;">
-      <label style="font-size:11px;letter-spacing:1.5px;color:var(--muted);font-family:'Bebas Neue',sans-serif;">ARTIST NAME</label>
-      <input id="slotOfferName" type="text" placeholder="e.g. DJ Nova"
-        style="width:100%;margin-top:6px;background:var(--card2);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;padding:10px 14px;outline:none;box-sizing:border-box;"
-        onfocus="this.style.borderColor='var(--neon2)'" onblur="this.style.borderColor=''"
-        oninput="onSlotOfferNameInput()">
-    </div>
-
-    <div style="margin-bottom:12px;">
-      <label style="font-size:11px;letter-spacing:1.5px;color:var(--muted);font-family:'Bebas Neue',sans-serif;">ARTIST EMAIL</label>
-      <input id="slotOfferEmail" type="email" placeholder="artist@email.com"
-        style="width:100%;margin-top:6px;background:var(--card2);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;padding:10px 14px;outline:none;box-sizing:border-box;"
-        onfocus="this.style.borderColor='var(--neon2)'" onblur="this.style.borderColor=''"
-        oninput="onSlotOfferEmailInput()">
-    </div>
-
-    <!-- User match preview — shown when email matches a registered YesPleez account -->
-    <div id="slotOfferUserPreview" style="display:none;margin-bottom:14px;"></div>
-
-    <div style="font-size:11px;color:var(--muted);margin-bottom:20px;">Name or email — just one is enough. Email only needed if they're not on YesPleez yet.</div>
-
-    <div class="edit-modal-btns">
-      <button id="slotOfferSendBtn" class="btn-primary" onclick="sendSlotOffer()" style="background:var(--neon2);color:#0a0a0f;">SEND OFFER →</button>
-      <button class="btn-ghost" onclick="closeSlotOffer()" style="margin-top:4px;">Cancel</button>
-    </div>
   </div>
 </div>
 

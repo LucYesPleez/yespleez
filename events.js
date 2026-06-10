@@ -4077,6 +4077,28 @@ function onSlotOfferPickUser(userId) {
 function closeSlotOffer() {
   document.getElementById('slotOfferOverlay').classList.remove('open');
   _slotOfferPending = null;
+  // Reset panels for next open
+  const form = document.getElementById('slotOfferFormPanel');
+  const sent = document.getElementById('slotOfferSentPanel');
+  if (form) form.style.display = '';
+  if (sent) sent.style.display = 'none';
+}
+
+function copySlotOfferLink(el) {
+  if (!el) return;
+  const text = el.value;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(() => {
+      const btn = document.getElementById('slotOfferCopyBtn');
+      if (btn) { btn.textContent = '✅ COPIED!'; setTimeout(() => { btn.textContent = '📋 COPY MESSAGE'; }, 2000); }
+    }).catch(() => {
+      el.select(); document.execCommand('copy');
+    });
+  } else {
+    el.select(); document.execCommand('copy');
+    const btn = document.getElementById('slotOfferCopyBtn');
+    if (btn) { btn.textContent = '✅ COPIED!'; setTimeout(() => { btn.textContent = '📋 COPY MESSAGE'; }, 2000); }
+  }
 }
 
 async function sendSlotOffer() {
@@ -4141,26 +4163,35 @@ async function sendSlotOffer() {
       from_uid:   currentUser?.id,
       from_name:  hostName
     });
+  }
 
-    showToast(`✅ Offer sent to ${name || email}`, 'success', 5000);
-    setTimeout(closeSlotOffer, 300);
-  } else {
-    // Unregistered — open mailto as fallback
+  // Build shareable message for any messaging app
+  const recipientName = name || 'there';
+  const appUrl = 'https://yespleez.pages.dev';
+  const shareMsg = isSlotOffer
+    ? `Hey ${recipientName}! You've been offered the ${slot} slot at ${eventName}${eventDate ? ' on ' + eventDate : ''}${venue ? ' @ ' + venue : ''}.\n\nAccept it on YesPleez 👇\n${appUrl}`
+    : `Hey ${recipientName}! You've been invited to perform at ${eventName}${eventDate ? ' on ' + eventDate : ''}${venue ? ' @ ' + venue : ''}.\n\nCheck it out on YesPleez 👇\n${appUrl}`;
+
+  // Show sent confirmation panel
+  const formPanel = document.getElementById('slotOfferFormPanel');
+  const sentPanel = document.getElementById('slotOfferSentPanel');
+  const summary   = document.getElementById('slotOfferSentSummary');
+  const shareEl   = document.getElementById('slotOfferShareText');
+  if (formPanel) formPanel.style.display = 'none';
+  if (sentPanel) sentPanel.style.display = '';
+  if (summary)   summary.textContent = `Offer sent to ${name || email || 'artist'}. Copy the message below and send it via WhatsApp, Instagram DM, SMS — wherever they'll see it first.`;
+  if (shareEl)   shareEl.value = shareMsg;
+
+  if (!_slotOfferMatchedUser && email) {
+    // Also open mailto as backup for unregistered users
     const subjectText = isSlotOffer
       ? `You've been offered a slot at ${eventName} — YesPleez`
       : `You've been invited to perform at ${eventName} — YesPleez`;
-    const subject = encodeURIComponent(subjectText);
-    const body = encodeURIComponent(
-      `Hi ${name || 'there'},\n\n` +
-      (isSlotOffer
-        ? `You've been offered the ${slot} slot at ${eventName}${eventDate ? ' on ' + eventDate : ''}${venue ? ' at ' + venue : ''}.\n\nSign up to YesPleez and the slot will be waiting for you:`
-        : `You've been invited to perform at ${eventName}${eventDate ? ' on ' + eventDate : ''}${venue ? ' at ' + venue : ''}.\n\nSign up to YesPleez to accept the invite:`) +
-      `\n${eventLink}\n\n— ${hostName} via YesPleez`
-    );
-    window.location.href = `mailto:${email}?subject=${subject}&body=${body}`;
-    closeSlotOffer();
-    showToast(`📧 Email drafted for ${name || email}`, 'success');
+    setTimeout(() => {
+      window.location.href = `mailto:${email}?subject=${encodeURIComponent(subjectText)}&body=${encodeURIComponent(shareMsg + `\n\n— ${hostName} via YesPleez`)}`;
+    }, 400);
   }
+
   if (btn) { btn.disabled = false; btn.textContent = 'SEND OFFER →'; }
 }
 function closeWithdrawConfirm() { document.getElementById('withdrawConfirmOverlay').classList.remove('open'); _withdrawPending = null; }
