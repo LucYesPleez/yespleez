@@ -335,7 +335,9 @@ function openPublicProfile(row) {
       </div>
       <div style="font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:2px;color:${accentColor};margin-bottom:8px;">SUB GENRE</div>
       <div style="display:flex;flex-wrap:wrap;gap:6px;">
-        ${subGenres.map(g => `<span style="background:rgba(0,229,255,.06);border:1px solid rgba(0,229,255,.2);border-radius:20px;font-size:12px;padding:4px 12px;color:var(--neon2);">${g}</span>`).join('')}
+        ${subGenres.length
+          ? subGenres.map(g => `<span style="background:rgba(0,229,255,.06);border:1px solid rgba(0,229,255,.2);border-radius:20px;font-size:12px;padding:4px 12px;color:var(--neon2);">${g}</span>`).join('')
+          : `<span style="font-size:12px;color:var(--muted);font-style:italic;">Not set yet</span>`}
       </div>
     </div>` : ''}
     ${row.instagram || row.website ? `
