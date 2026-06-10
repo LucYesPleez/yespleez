@@ -327,18 +327,16 @@ function openPublicProfile(row) {
       <div style="font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:2px;color:${accentColor};margin-bottom:8px;">ABOUT</div>
       <div style="font-size:14px;color:var(--muted);line-height:1.7;">${row.bio}</div>
     </div>` : ''}
-    ${mainGenre.length || subGenres.length ? `
+    ${mainGenre.length ? `
     <div style="background:rgba(19,19,31,.88);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:16px;margin-bottom:12px;">
-      ${mainGenre.length ? `
       <div style="font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:2px;color:${accentColor};margin-bottom:8px;">GENRE</div>
-      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:${subGenres.length ? '14px' : '0'};">
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;">
         ${mainGenre.map(g => `<span style="background:var(--card2);border:1px solid var(--border);border-radius:20px;font-size:12px;padding:4px 12px;color:var(--text);">${g}</span>`).join('')}
-      </div>` : ''}
-      ${subGenres.length ? `
+      </div>
       <div style="font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:2px;color:${accentColor};margin-bottom:8px;">SUB GENRE</div>
       <div style="display:flex;flex-wrap:wrap;gap:6px;">
         ${subGenres.map(g => `<span style="background:rgba(0,229,255,.06);border:1px solid rgba(0,229,255,.2);border-radius:20px;font-size:12px;padding:4px 12px;color:var(--neon2);">${g}</span>`).join('')}
-      </div>` : ''}
+      </div>
     </div>` : ''}
     ${row.instagram || row.website ? `
     <div style="background:rgba(19,19,31,.88);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:16px;margin-bottom:12px;">
