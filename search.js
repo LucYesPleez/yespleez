@@ -301,23 +301,23 @@ async function submitApplication() {
       body: JSON.stringify(body)
     });
 
+    console.log('[apply] POST status:', res.status);
     if (res.ok || res.status === 201) {
       _hasApplied = true;
       if (typeof updateApplyBarState === 'function') updateApplyBarState();
       if (typeof renderAll === 'function') renderAll();
 
       if (isLoggedIn) {
-        // Email to artist confirming receipt
         const p = artistProfile || {};
         const artistName = p.djName || p.name || currentUser?.email || 'Artist';
         const artistEmail = p.email || currentUser?.email || '';
+        console.log('[apply] sending logged-in emails for', artistName);
         sendEmail('application_received', { artistName, eventName: _applyEventName });
-        // Email to host about new application
         sendEmail('new_application', { artistName, artistEmail, eventName: _applyEventName, note });
         closeApplyModal();
         showToast('Application sent! ✓', 'success');
       } else {
-        // Guest — send confirmation emails
+        console.log('[apply] sending guest emails for', _applyGuestData?.name);
         sendEmail('application_received', { artistName: _applyGuestData.name, eventName: _applyEventName });
         sendEmail('new_application', { artistName: _applyGuestData.name, artistEmail: _applyGuestData.email, eventName: _applyEventName, note });
         // Show save profile prompt
@@ -329,9 +329,13 @@ async function submitApplication() {
         const errEl = document.getElementById('applySaveErr'); if (errEl) errEl.style.display = 'none';
       }
     } else {
-      const err = await res.json().catch(() => ({}));
-      if (err.code === '23505') showToast('You\'ve already applied to this event', 'error');
-      else showToast(`Error: ${err.message || res.status}`, 'error');
+      const errText = await res.text().catch(() => '');
+      console.error('[apply] POST failed:', res.status, errText);
+      try {
+        const err = JSON.parse(errText);
+        if (err.code === '23505') showToast('You\'ve already applied to this event', 'error');
+        else showToast(`Error: ${err.message || res.status}`, 'error');
+      } catch { showToast(`Error ${res.status}`, 'error'); }
     }
   } catch(e) {
     showToast(`Failed: ${e.message}`, 'error');
