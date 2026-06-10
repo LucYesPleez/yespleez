@@ -2414,7 +2414,7 @@ function shiftArtist(fromSlotId, toSlotId) {
 function restoreGenreVibeState(genreStr) {
   if (!genreStr) return;
   const parts = genreStr.split(' · ').map(p => p.trim()).filter(Boolean);
-  const ALL_VIBES = ['Fun','Funky','Groove','Wobbly','Thinky','Bouncy','Uplifting','Clubby','Bangers','Staunch','Crankin','Chunks','Sinister','Techy','Melodic','Hypnotic','Deep','Dark','Dank','Organic','Lush','Shanti','Warm Up','Wonky','Sleazy','Cocktail','Classy','Minimal','Experimental','USA','UK','Vocals','Versatile','Sledgy'];
+  const ALL_VIBES = ['Fun','Funky','Groove','Wobbly','Thinky','Bouncy','Uplifting','Clubby','Bangers','Staunch','Crankin','Chunks','Sinister','Techy','Melodic','Hypnotic','Deep','Dark','Dank','Organic','Lush','Shanti','Warm Up','Wonky','Sleazy/Slutty','Cocktail','Classy','Minimal','Experimental','USA','UK','Vocals','Glitchy','Versatile','Sledgy'];
   const genreSelect = document.getElementById('inputGenreMain');
   const options = Array.from(genreSelect.options).map(o => o.value);
   let mainGenre = '';
@@ -3853,7 +3853,7 @@ function loadProfileData() {
   if (artistProfile.hasABN !== undefined) { selectABN(artistProfile.hasABN); if (artistProfile.hasABN) { const abnEl = document.getElementById('profileABN'); if (abnEl) abnEl.value = artistProfile.abn || ''; if (artistProfile.gstRegistered !== undefined) selectGST(artistProfile.gstRegistered); } }
   if (artistProfile.genreString) {
     const parts = artistProfile.genreString.split(' · ').map(s => s.trim());
-    const ALL_VIBES = ['Fun','Funky','Groove','Wobbly','Thinky','Bouncy','Uplifting','Clubby','Bangers','Staunch','Crankin','Chunks','Sinister','Techy','Melodic','Hypnotic','Deep','Dark','Dank','Organic','Lush','Shanti','Warm Up','Wonky','Sleazy','Cocktail','Classy','Minimal','Experimental','USA','UK','Vocals','Versatile','Sledgy'];
+    const ALL_VIBES = ['Fun','Funky','Groove','Wobbly','Thinky','Bouncy','Uplifting','Clubby','Bangers','Staunch','Crankin','Chunks','Sinister','Techy','Melodic','Hypnotic','Deep','Dark','Dank','Organic','Lush','Shanti','Warm Up','Wonky','Sleazy/Slutty','Cocktail','Classy','Minimal','Experimental','USA','UK','Vocals','Glitchy','Versatile','Sledgy'];
     document.querySelectorAll('#profileGenreChips .vibe-btn').forEach(btn => { if (parts.includes(btn.textContent.trim())) btn.classList.add('selected'); });
     renderProfileSubgenres();
     setTimeout(() => { document.querySelectorAll('#profileSubgenreChips .vibe-btn').forEach(btn => { if (parts.includes(btn.textContent.trim())) btn.classList.add('selected'); }); }, 50);
@@ -3944,7 +3944,7 @@ function loadHostProfileData() {
   updateHostBioCount();
   if (hostProfile.genreString) {
     const parts = hostProfile.genreString.split(' · ').map(s => s.trim());
-    const ALL_VIBES = ['Fun','Funky','Groove','Wobbly','Thinky','Bouncy','Uplifting','Clubby','Bangers','Staunch','Crankin','Chunks','Sinister','Techy','Melodic','Hypnotic','Deep','Dark','Dank','Organic','Lush','Shanti','Warm Up','Wonky','Experimental','Underground','Versatile','Sledgy'];
+    const ALL_VIBES = ['Fun','Funky','Groove','Wobbly','Thinky','Bouncy','Uplifting','Clubby','Bangers','Staunch','Crankin','Chunks','Sinister','Techy','Melodic','Hypnotic','Deep','Dark','Dank','Organic','Lush','Shanti','Warm Up','Wonky','Experimental','Underground','Glitchy','Versatile','Sledgy'];
     initHostProfileGenres();
     document.querySelectorAll('#hostProfileGenreChips .vibe-btn').forEach(btn => { if (parts.includes(btn.textContent.trim())) btn.classList.add('selected'); });
     renderHostProfileSubgenres();
