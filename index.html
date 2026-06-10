@@ -3162,7 +3162,7 @@ body.player-open .screen.active { padding-bottom: 80px; }
   <!-- Dashboard tabs -->
   <div style="display:flex;gap:0;margin-bottom:16px;border-bottom:1px solid var(--border);">
     <button id="dashTabEvents" onclick="switchDashTab('events')" style="flex:1;background:none;border:none;border-bottom:2px solid var(--neon2);color:var(--text);font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:2px;padding:10px;cursor:pointer;">EVENTS</button>
-    <button id="dashTabApplications" onclick="switchDashTab('applications')" style="flex:1;background:none;border:none;border-bottom:2px solid transparent;color:var(--muted);font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:2px;padding:10px;cursor:pointer;">APPLICATIONS <span id="appsBadge" style="display:none;background:var(--neon);color:#fff;border-radius:10px;font-size:10px;padding:1px 6px;margin-left:4px;"></span></button>
+    <button id="dashTabApplications" onclick="switchDashTab('applications')" style="flex:1;background:none;border:none;border-bottom:2px solid transparent;color:var(--muted);font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:2px;padding:10px;cursor:pointer;">APPLICATIONS <span id="appsBadge" style="display:none;background:var(--neon);color:#fff;border-radius:10px;font-size:10px;padding:1px 6px;margin-left:4px;"></span><span id="appsAcceptedBadge" style="display:none;background:#ffc800;color:#0a0a0f;border-radius:10px;font-size:10px;padding:1px 6px;margin-left:4px;"></span></button>
     <button id="dashTabArtists" onclick="switchDashTab('artists')" style="flex:1;background:none;border:none;border-bottom:2px solid transparent;color:var(--muted);font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:2px;padding:10px;cursor:pointer;">ARTISTS</button>
   </div>
 
@@ -4189,7 +4189,7 @@ body.player-open .screen.active { padding-bottom: 80px; }
     <div style="margin-bottom:20px;">
       <button class="btn-ghost" id="appsBtn" onclick="openApprovalCodes()"
         style="width:100%;padding:11px;border-radius:10px;font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:2px;border-color:var(--neon2);color:var(--neon2);">
-        📬 VIEW APPLICATIONS <span id="manageAppsBadge" style="display:none;background:var(--neon);color:#fff;border-radius:10px;font-size:10px;padding:1px 6px;margin-left:4px;"></span>
+        📬 VIEW APPLICATIONS <span id="manageAppsBadge" style="display:none;background:var(--neon);color:#fff;border-radius:10px;font-size:10px;padding:1px 6px;margin-left:4px;"></span><span id="manageAcceptedBadge" style="display:none;background:#ffc800;color:#0a0a0f;border-radius:10px;font-size:10px;padding:1px 6px;margin-left:4px;"></span>
       </button>
     </div>
 

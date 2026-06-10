@@ -1705,6 +1705,7 @@ async function loadClaims() {
     if (isHost) {
       renderManage();
       if (_manageTab === 'pipeline') renderPipeline();
+      if (typeof loadPendingAppsBadge === 'function') loadPendingAppsBadge();
     } else renderAll();
   } catch { setSync(false); }
 }

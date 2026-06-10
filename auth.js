@@ -265,15 +265,40 @@ async function loadPendingAppsBadge() {
   if (!allEvents.length) return;
   try {
     const ids = allEvents.map(e => e.id).join(',');
-    const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/applications?event_id=in.(${ids})&status=eq.pending&select=id`,
-      { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${currentSession.access_token}` } }
-    );
-    if (res.ok) {
-      const rows = await res.json();
-      const badge = document.getElementById('appsBadge');
-      if (rows.length > 0) { badge.textContent = rows.length; badge.style.display = 'inline'; }
-      else badge.style.display = 'none';
+    const headers = { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${currentSession.access_token}` };
+
+    const [pendingRes, acceptedRes] = await Promise.all([
+      fetch(`${SUPABASE_URL}/rest/v1/applications?event_id=in.(${ids})&status=eq.pending&select=id`, { headers }),
+      fetch(`${SUPABASE_URL}/rest/v1/applications?event_id=in.(${ids})&status=eq.accepted&select=id`, { headers })
+    ]);
+
+    if (pendingRes.ok) {
+      const rows = await pendingRes.json();
+      ['appsBadge','manageAppsBadge'].forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        if (rows.length > 0) { el.textContent = rows.length; el.style.display = 'inline'; }
+        else el.style.display = 'none';
+      });
+    }
+
+    if (acceptedRes.ok) {
+      const rows = await acceptedRes.json();
+      const prevCount = parseInt(sessionStorage.getItem('yp_accepted_apps') || '0');
+      const newCount = rows.length;
+
+      ['appsAcceptedBadge','manageAcceptedBadge'].forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        if (newCount > 0) { el.textContent = newCount; el.style.display = 'inline'; }
+        else el.style.display = 'none';
+      });
+
+      // Trigger bell if count increased since last check
+      if (newCount > prevCount) {
+        pushNotif('✅', `${newCount - prevCount} artist${newCount - prevCount > 1 ? 's' : ''} accepted your invite`, 'host');
+      }
+      sessionStorage.setItem('yp_accepted_apps', newCount);
     }
   } catch(e) {}
 }
