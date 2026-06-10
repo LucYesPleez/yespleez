@@ -1679,7 +1679,7 @@ async function loadClaims() {
     const uids = [...new Set(rows.map(r => r.user_id).filter(Boolean))];
     if (uids.length) {
       try {
-        const profRes = await sbFetch(`profiles?user_id=in.(${uids.join(',')})&select=user_id,mix_link,soundcloud,mixcloud`);
+        const profRes = await sbFetch(`profiles?user_id=in.(${uids.join(',')})&type=eq.artist&select=user_id,mix_link,soundcloud,mixcloud`);
         if (profRes.ok) {
           const profiles = await profRes.json();
           const mixMap = {};
