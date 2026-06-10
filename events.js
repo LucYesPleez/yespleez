@@ -1673,7 +1673,22 @@ async function loadClaims() {
     if (!res.ok) throw new Error();
     const rows = await res.json();
     claims = {};
-    rows.forEach(r => { claims[r.slot_id] = { name: r.name, genre: r.genre || '', notes: r.notes || '', backups: r.backups || [], cardPills: r.card_pills || '', sound: r.sound || '', mixLink: r.mix_link || '', user_id: r.user_id || null }; });
+    rows.forEach(r => { claims[r.slot_id] = { name: r.name, genre: r.genre || '', notes: r.notes || '', backups: r.backups || [], cardPills: r.card_pills || '', sound: r.sound || '', mixLink: '', user_id: r.user_id || null }; });
+
+    // Pull mix_link from artist profiles so play buttons always show
+    const uids = [...new Set(rows.map(r => r.user_id).filter(Boolean))];
+    if (uids.length) {
+      try {
+        const profRes = await sbFetch(`profiles?user_id=in.(${uids.join(',')})&select=user_id,mix_link,soundcloud,mixcloud`);
+        if (profRes.ok) {
+          const profiles = await profRes.json();
+          const mixMap = {};
+          profiles.forEach(p => { mixMap[p.user_id] = p.mix_link || p.soundcloud || p.mixcloud || ''; });
+          Object.values(claims).forEach(c => { if (c.user_id && mixMap[c.user_id]) c.mixLink = mixMap[c.user_id]; });
+        }
+      } catch(e) { /* non-fatal */ }
+    }
+
     setSync(true);
     if (isHost) renderManage(); else renderAll();
   } catch { setSync(false); }
