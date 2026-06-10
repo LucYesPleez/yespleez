@@ -1705,7 +1705,9 @@ async function loadClaims() {
     if (isHost) {
       renderManage();
       if (_manageTab === 'pipeline') renderPipeline();
+      if (_manageTab === 'shortlist') renderShortlist();
       if (typeof loadPendingAppsBadge === 'function') loadPendingAppsBadge();
+      loadShortlistBadge();
     } else renderAll();
   } catch { setSync(false); }
 }
@@ -1889,22 +1891,144 @@ let _manageTab = 'lineup';
 
 function switchManageTab(tab) {
   _manageTab = tab;
-  const lineupEl   = document.getElementById('manageList');
-  const pipelineEl = document.getElementById('pipelineView');
-  const tabL = document.getElementById('tabLineup');
-  const tabP = document.getElementById('tabPipeline');
+  const lineupEl    = document.getElementById('manageList');
+  const shortlistEl = document.getElementById('shortlistView');
+  const pipelineEl  = document.getElementById('pipelineView');
+  const tabL  = document.getElementById('tabLineup');
+  const tabS  = document.getElementById('tabShortlist');
+  const tabP  = document.getElementById('tabPipeline');
+
+  // Hide all views
+  if (lineupEl)    lineupEl.style.display    = 'none';
+  if (shortlistEl) shortlistEl.style.display = 'none';
+  if (pipelineEl)  pipelineEl.style.display  = 'none';
+
+  // Reset all tabs to inactive
+  const inactive = 'border:1px solid var(--border);background:transparent;';
+  if (tabL) { tabL.style.cssText += inactive; tabL.style.color = 'var(--muted)'; }
+  if (tabS) { tabS.style.cssText += inactive; tabS.style.color = 'var(--muted)'; }
+  if (tabP) { tabP.style.cssText += inactive; tabP.style.color = 'var(--muted)'; }
+
   if (tab === 'lineup') {
-    if (lineupEl)   lineupEl.style.display   = '';
-    if (pipelineEl) pipelineEl.style.display = 'none';
+    if (lineupEl) lineupEl.style.display = '';
     if (tabL) { tabL.style.border = '2px solid var(--neon)'; tabL.style.background = 'rgba(255,45,120,.1)'; tabL.style.color = 'var(--neon)'; }
-    if (tabP) { tabP.style.border = '1px solid var(--border)'; tabP.style.background = 'transparent'; tabP.style.color = 'var(--muted)'; }
+  } else if (tab === 'shortlist') {
+    if (shortlistEl) shortlistEl.style.display = '';
+    if (tabS) { tabS.style.border = '2px solid #ffc800'; tabS.style.background = 'rgba(255,200,0,.08)'; tabS.style.color = '#ffc800'; }
+    renderShortlist();
   } else {
-    if (lineupEl)   lineupEl.style.display   = 'none';
     if (pipelineEl) pipelineEl.style.display = '';
     if (tabP) { tabP.style.border = '2px solid var(--neon2)'; tabP.style.background = 'rgba(0,229,255,.08)'; tabP.style.color = 'var(--neon2)'; }
-    if (tabL) { tabL.style.border = '1px solid var(--border)'; tabL.style.background = 'transparent'; tabL.style.color = 'var(--muted)'; }
     renderPipeline();
   }
+}
+
+// ── Short list ─────────────────────────────────────
+
+async function addToShortlist(artistId, artistName) {
+  if (!artistId || !currentEventId) return;
+  try {
+    await sbRest('shortlist', {
+      method: 'POST',
+      body: JSON.stringify({ event_id: currentEventId, artist_id: artistId, added_by: currentUser?.id }),
+      prefer: 'resolution=merge-duplicates,return=minimal'
+    }, currentSession?.access_token);
+    showToast(`${artistName} added to short list ★`, 'success');
+    // Update badge
+    loadShortlistBadge();
+    if (_manageTab === 'shortlist') renderShortlist();
+  } catch(e) { showToast('Could not add to short list', 'error'); }
+}
+
+async function removeFromShortlist(shortlistId, artistName) {
+  try {
+    await sbRest(`shortlist?id=eq.${shortlistId}`,
+      { method: 'DELETE', prefer: 'return=minimal' },
+      currentSession?.access_token
+    );
+    showToast(`${artistName} removed from short list`, 'success');
+    loadShortlistBadge();
+    renderShortlist();
+  } catch(e) { showToast('Could not remove', 'error'); }
+}
+
+async function loadShortlistBadge() {
+  if (!currentEventId || !currentSession?.access_token) return;
+  try {
+    const rows = await sbRest(
+      `shortlist?event_id=eq.${currentEventId}&select=id`,
+      { method: 'GET' }, currentSession.access_token
+    );
+    const count = (rows || []).length;
+    const badge = document.getElementById('shortlistBadge');
+    if (badge) { badge.textContent = count; badge.style.display = count ? '' : 'none'; }
+  } catch(e) {}
+}
+
+async function renderShortlist() {
+  const el = document.getElementById('shortlistView');
+  if (!el) return;
+  el.innerHTML = '<div style="text-align:center;padding:40px 0;color:var(--muted);font-family:\'Bebas Neue\',sans-serif;letter-spacing:2px;">LOADING...</div>';
+
+  let rows = [];
+  try {
+    rows = await sbRest(
+      `shortlist?event_id=eq.${currentEventId}&order=created_at.desc&select=*`,
+      { method: 'GET' }, currentSession?.access_token
+    ) || [];
+  } catch(e) {}
+
+  if (!rows.length) {
+    el.innerHTML = `<div style="text-align:center;padding:40px 0;">
+      <div style="font-size:28px;margin-bottom:12px;">★</div>
+      <div style="font-family:'Bebas Neue',sans-serif;letter-spacing:2px;color:var(--muted);font-size:14px;">SHORT LIST IS EMPTY</div>
+      <div style="font-size:12px;color:var(--muted);margin-top:8px;opacity:.6;">Add artists from the PIPELINE or their profiles</div>
+    </div>`;
+    return;
+  }
+
+  // Fetch profiles for all artist_ids
+  const artistIds = rows.map(r => r.artist_id).filter(Boolean);
+  const profileMap = {};
+  if (artistIds.length) {
+    try {
+      const profRes = await fetch(
+        `${SUPABASE_URL}/rest/v1/profiles?user_id=in.(${artistIds.join(',')})&type=eq.artist&select=user_id,dj_name,name,genre_string,avatar,sound,mix_link,soundcloud`,
+        { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${currentSession?.access_token}` } }
+      );
+      if (profRes.ok) (await profRes.json()).forEach(p => { profileMap[p.user_id] = p; });
+    } catch(e) {}
+  }
+
+  const cards = rows.map(r => {
+    const p = profileMap[r.artist_id] || {};
+    const name = p.dj_name || p.name || 'Unknown Artist';
+    const genre = p.genre_string || p.sound || '';
+    const avatar = p.avatar
+      ? `<img src="${p.avatar}" style="width:42px;height:42px;border-radius:50%;object-fit:cover;flex-shrink:0;border:1px solid var(--border);">`
+      : `<div style="width:42px;height:42px;border-radius:50%;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">🎧</div>`;
+    const mixLink = p.mix_link || p.soundcloud || '';
+    const playBtn = mixLink
+      ? `<button onclick="openMiniPlayer('${esc(name)}','${mixLink}','🎧')" style="padding:5px 10px;background:none;border:1px solid rgba(0,229,255,.3);border-radius:6px;color:var(--neon2);cursor:pointer;font-size:11px;display:flex;align-items:center;gap:4px;"><svg viewBox="0 0 24 24" width="11" height="11" fill="var(--neon2)"><polygon points="6,3 20,12 6,21"/></svg></button>`
+      : '';
+
+    return `<div style="padding:14px;background:var(--card2);border:1px solid var(--border);border-radius:12px;margin-bottom:10px;">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+        ${avatar}
+        <div style="flex:1;min-width:0;">
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:1px;color:var(--text);">${esc(name)}</div>
+          ${genre ? `<div style="font-size:11px;color:var(--muted);margin-top:2px;">${esc(genre)}</div>` : ''}
+        </div>
+        ${playBtn}
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button onclick="openSlotOffer(null,'',${JSON.stringify(name)})" style="flex:1;padding:8px;background:#FF2D78;border:none;border-radius:8px;font-family:'Bebas Neue',sans-serif;font-size:12px;letter-spacing:1px;color:#fff;cursor:pointer;">✉ OFFER SLOT</button>
+        <button onclick="removeFromShortlist('${r.id}','${esc(name)}')" style="padding:8px 12px;background:transparent;border:1px solid var(--border);border-radius:8px;font-family:'Bebas Neue',sans-serif;font-size:12px;letter-spacing:1px;color:var(--muted);cursor:pointer;">✕</button>
+      </div>
+    </div>`;
+  });
+
+  el.innerHTML = cards.join('');
 }
 
 async function renderPipeline() {
@@ -1993,11 +2117,12 @@ async function renderPipeline() {
     const genreHtml = genre ? `<div style="font-size:11px;color:var(--muted);margin-top:2px;">${esc(genre)}</div>` : '';
     const ago = timeAgo(a.created_at);
     const isPending = a.status === 'pending' || a.status === 'invited';
-    const actions = isPending ? `
+    const actions = `
       <div style="display:flex;gap:6px;margin-top:10px;">
-        <button onclick="acceptApplication('${a.id}','${a.artist_id||''}','${esc(name)}')" style="flex:1;padding:8px;background:var(--neon2);border:none;border-radius:8px;font-family:'Bebas Neue',sans-serif;font-size:12px;letter-spacing:1px;color:#0a0a0f;cursor:pointer;">ACCEPT</button>
-        <button onclick="declineApplication('${a.id}')" style="flex:1;padding:8px;background:transparent;border:1px solid var(--border);border-radius:8px;font-family:'Bebas Neue',sans-serif;font-size:12px;letter-spacing:1px;color:var(--muted);cursor:pointer;">DECLINE</button>
-      </div>` : '';
+        ${isPending ? `<button onclick="acceptApplication('${a.id}','${a.artist_id||''}','${esc(name)}')" style="flex:1;padding:8px;background:var(--neon2);border:none;border-radius:8px;font-family:'Bebas Neue',sans-serif;font-size:12px;letter-spacing:1px;color:#0a0a0f;cursor:pointer;">ACCEPT</button>` : ''}
+        ${isPending ? `<button onclick="declineApplication('${a.id}')" style="flex:1;padding:8px;background:transparent;border:1px solid var(--border);border-radius:8px;font-family:'Bebas Neue',sans-serif;font-size:12px;letter-spacing:1px;color:var(--muted);cursor:pointer;">DECLINE</button>` : ''}
+        <button onclick="addToShortlist('${a.artist_id||''}','${esc(name)}')" style="flex:1;padding:8px;background:rgba(255,200,0,.1);border:1px solid rgba(255,200,0,.3);border-radius:8px;font-family:'Bebas Neue',sans-serif;font-size:12px;letter-spacing:1px;color:#ffc800;cursor:pointer;">★ LIST</button>
+      </div>`;
     return `<div style="padding:12px 14px;background:var(--card2);border:1px solid var(--border);border-radius:10px;margin-bottom:8px;">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;">
         <div style="min-width:0;flex:1;">
