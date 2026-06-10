@@ -2175,8 +2175,8 @@ async function renderPipeline() {
   });
 
   el.innerHTML =
-    sectionHtml('OFFERS SENT', 'var(--neon)', offerCards) +
-    sectionHtml('APPLICATIONS', 'var(--muted)', appCards) +
+    sectionHtml('OFFERS SENT', 'var(--neon2)', offerCards) +
+    sectionHtml('APPLICATIONS', 'var(--neon2)', appCards) +
     sectionHtml('CONFIRMED', 'var(--neon2)', confirmedCards);
 }
 
