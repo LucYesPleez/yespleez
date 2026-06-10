@@ -4077,11 +4077,17 @@ function onSlotOfferPickUser(userId) {
 function closeSlotOffer() {
   document.getElementById('slotOfferOverlay').classList.remove('open');
   _slotOfferPending = null;
-  // Reset panels for next open
-  const form = document.getElementById('slotOfferFormPanel');
-  const sent = document.getElementById('slotOfferSentPanel');
-  if (form) form.style.display = '';
-  if (sent) sent.style.display = 'none';
+  // Reset to pre-send state for next open
+  const fields  = document.getElementById('slotOfferFields');
+  const pre     = document.getElementById('slotOfferFooterPre');
+  const post    = document.getElementById('slotOfferFooterPost');
+  const heading = document.getElementById('slotOfferHeading');
+  if (fields)  { fields.style.opacity = ''; fields.style.pointerEvents = ''; }
+  if (pre)     pre.style.display = '';
+  if (post)    post.style.display = 'none';
+  if (heading) heading.textContent = 'SEND OFFER';
+  const btn = document.getElementById('slotOfferSendBtn');
+  if (btn) { btn.disabled = false; btn.textContent = 'GENERATE OFFER LINK →'; }
 }
 
 function copySlotOfferLink(el) {
@@ -4182,45 +4188,67 @@ async function sendSlotOffer() {
     });
   }
 
-  // Build shareable message for any messaging app
+  // Build shareable message
   const recipientName = name || 'there';
   const appUrl = 'https://yespleez.pages.dev';
   const codeBlock = claimCode
-    ? `\n\nYour slot code: ${claimCode}\nEnter it when you open the link — it's locked to your slot and single-use, so only you can claim it.`
+    ? `\n\nSlot code: ${claimCode}\nEnter this when you open the link — it's locked to your slot.`
     : '';
   const shareMsg = isSlotOffer
-    ? `Hey ${recipientName}! You've been offered the ${slot} slot at ${eventName}${eventDate ? ' on ' + eventDate : ''}${venue ? ' @ ' + venue : ''}.${codeBlock}\n\nOpen YesPleez 👇\n${appUrl}`
-    : `Hey ${recipientName}! You've been invited to perform at ${eventName}${eventDate ? ' on ' + eventDate : ''}${venue ? ' @ ' + venue : ''}.\n\nCheck it out on YesPleez 👇\n${appUrl}`;
+    ? `Hey ${recipientName}! You've been offered the ${slot} slot at ${eventName}${eventDate ? ' on ' + eventDate : ''}${venue ? ' @ ' + venue : ''}.${codeBlock}\n\n👇\n${appUrl}`
+    : `Hey ${recipientName}! You've been invited to perform at ${eventName}${eventDate ? ' on ' + eventDate : ''}${venue ? ' @ ' + venue : ''}.\n\n👇\n${appUrl}`;
 
-  // Show sent confirmation panel
-  const formPanel = document.getElementById('slotOfferFormPanel');
-  const sentPanel = document.getElementById('slotOfferSentPanel');
-  const summary   = document.getElementById('slotOfferSentSummary');
-  const shareEl   = document.getElementById('slotOfferShareText');
-  if (formPanel) formPanel.style.display = 'none';
-  if (sentPanel) sentPanel.style.display = '';
-  if (summary) {
-    if (!email && !_slotOfferMatchedUser) {
-      summary.innerHTML = `Offer recorded for <strong>${name || 'artist'}</strong>. No email entered — add it to send a bell notification, or just copy the link below and send it directly via WhatsApp, Instagram DM, SMS, or whatever they'll actually open.`;
-    } else if (claimCode) {
-      summary.innerHTML = `Offer sent to <strong>${name || email || 'artist'}</strong>. A single-use code <strong style="color:var(--neon2);font-size:15px;letter-spacing:2px;">${claimCode}</strong> has been generated — it's locked to the ${slot} slot so only they can claim it. Copy the message below and send it their way.`;
+  // ── Reveal share section inline (lock fields, hide send button, show share) ──
+  const fields  = document.getElementById('slotOfferFields');
+  const pre     = document.getElementById('slotOfferFooterPre');
+  const post    = document.getElementById('slotOfferFooterPost');
+  const heading = document.getElementById('slotOfferHeading');
+  const shareEl = document.getElementById('slotOfferShareText');
+
+  // Lock the form fields (still visible so host can see who offer is for)
+  if (fields) { fields.style.opacity = '0.45'; fields.style.pointerEvents = 'none'; }
+  if (pre)    pre.style.display = 'none';
+  if (post)   post.style.display = '';
+  if (heading) heading.textContent = name ? `SHARE WITH ${name.toUpperCase()}` : 'SHARE LINK';
+
+  // Claim code badge
+  const codeBadge = document.getElementById('slotOfferCodeBadge');
+  const codeVal   = document.getElementById('slotOfferCodeValue');
+  if (claimCode && codeBadge && codeVal) {
+    codeVal.textContent = claimCode;
+    codeBadge.style.display = '';
+  } else if (codeBadge) {
+    codeBadge.style.display = 'none';
+  }
+
+  // Notification status line
+  const notifStatus = document.getElementById('slotOfferNotifStatus');
+  if (notifStatus) {
+    if (_slotOfferMatchedUser) {
+      notifStatus.innerHTML = `<div style="font-size:12px;color:var(--neon2);padding:8px 12px;background:rgba(0,229,255,.06);border:1px solid rgba(0,229,255,.2);border-radius:8px;margin-bottom:4px;">✓ Notified on YesPleez — also send them the message below</div>`;
+      notifStatus.style.display = '';
     } else {
-      summary.textContent = `Offer sent to ${name || email || 'artist'}. Copy the message below and send it via WhatsApp, Instagram DM, SMS — wherever they'll see it first.`;
+      notifStatus.style.display = 'none';
     }
   }
-  if (shareEl)   shareEl.value = shareMsg;
+
+  // Auto-size textarea to content
+  if (shareEl) {
+    shareEl.value = shareMsg;
+    shareEl.style.height = 'auto';
+    shareEl.style.height = Math.min(shareEl.scrollHeight, 200) + 'px';
+  }
 
   if (!_slotOfferMatchedUser && email) {
-    // Also open mailto as backup for unregistered users
     const subjectText = isSlotOffer
       ? `You've been offered a slot at ${eventName} — YesPleez`
       : `You've been invited to perform at ${eventName} — YesPleez`;
     setTimeout(() => {
-      window.location.href = `mailto:${email}?subject=${encodeURIComponent(subjectText)}&body=${encodeURIComponent(shareMsg + `\n\n— ${hostName} via YesPleez`)}`;
-    }, 400);
+      window.location.href = `mailto:${email}?subject=${encodeURIComponent(subjectText)}&body=${encodeURIComponent(shareMsg)}`;
+    }, 500);
   }
 
-  if (btn) { btn.disabled = false; btn.textContent = 'SEND OFFER →'; }
+  if (btn) { btn.disabled = false; btn.textContent = 'GENERATE OFFER LINK →'; }
 }
 function closeWithdrawConfirm() { document.getElementById('withdrawConfirmOverlay').classList.remove('open'); _withdrawPending = null; }
 
