@@ -2157,16 +2157,23 @@ body.player-open .screen.active { padding-bottom: 80px; }
 
     <!-- ── PANEL B: save profile prompt (guest post-submit) ── -->
     <div id="applySavePanel" style="display:none;text-align:center;">
-      <div style="font-size:13px;color:var(--neon2);font-family:'Bebas Neue',sans-serif;letter-spacing:2px;margin-bottom:4px;">APPLICATION SUBMITTED ✓</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+        <button onclick="_applyShowPanel('form')" style="background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;line-height:1;padding:0;" title="Back">&#8592;</button>
+        <div style="font-size:13px;color:var(--neon2);font-family:'Bebas Neue',sans-serif;letter-spacing:2px;">APPLICATION SUBMITTED</div>
+        <div style="width:18px;"></div>
+      </div>
       <div id="applySaveEventName" style="font-size:12px;color:var(--muted);margin-bottom:20px;"></div>
 
       <div style="background:var(--card2);border:1px solid var(--border);border-radius:14px;padding:18px 16px;margin-bottom:20px;text-align:left;">
-        <div style="font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:1.5px;color:var(--text);margin-bottom:10px;">APPLY TO FUTURE EVENTS IN ONE TAP?</div>
-        <div style="font-size:12px;color:var(--muted);line-height:1.7;margin-bottom:14px;">Save your profile — it's free. Next time everything's filled in and promoters can find and invite you directly.</div>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--neon2)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3z"/><path d="M3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg>
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:1.5px;color:var(--text);">APPLY TO FUTURE EVENTS WITH ONE CLICK?</div>
+        </div>
+        <div style="font-size:12px;color:var(--muted);line-height:1.7;margin-bottom:14px;">Save your profile, its free.</div>
         <div style="display:flex;flex-direction:column;gap:6px;font-size:12px;color:var(--neon2);margin-bottom:16px;">
-          <div>⚡ One-tap applications</div>
-          <div>🔍 Promoters can find and invite you</div>
-          <div>🔔 Get notified about slots that match your sound</div>
+          <div>One click application process!!</div>
+          <div>Promoters, venues and other artists can find and invite you</div>
+          <div>Get notified about events and open apps that suit your style</div>
         </div>
         <label style="font-size:11px;letter-spacing:1.5px;color:var(--muted);font-family:'Bebas Neue',sans-serif;">SET A PASSWORD</label>
         <input id="applySavePassword" type="password" placeholder="Choose a password (min 6 chars)"
@@ -2188,7 +2195,13 @@ body.player-open .screen.active { padding-bottom: 80px; }
 
     <!-- ── PANEL C: maybe later / browse ── -->
     <div id="applyBrowsePanel" style="display:none;text-align:center;padding:10px 0;">
-      <div style="font-size:36px;margin-bottom:14px;">🎧</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+        <button onclick="_applyShowPanel('save')" style="background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;line-height:1;padding:0;" title="Back">&#8592;</button>
+        <div style="width:18px;"></div>
+      </div>
+      <div style="display:flex;justify-content:center;margin-bottom:14px;color:var(--neon2);">
+        <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3z"/><path d="M3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg>
+      </div>
       <div style="font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:2px;color:var(--text);margin-bottom:10px;">CHECK OUT WHAT'S ON</div>
       <div style="font-size:13px;color:var(--muted);line-height:1.7;margin-bottom:24px;">Your profile will be here waiting whenever you're ready to save it.</div>
       <button onclick="closeApplyModal(); showSearchScreen();"
