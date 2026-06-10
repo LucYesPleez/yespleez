@@ -3561,6 +3561,11 @@ function openSlotOffer(slotId, slotLabel, existingName) {
   document.getElementById('slotOfferSlotLabel').textContent = slotLabel || 'Unnamed slot';
   document.getElementById('slotOfferName').value  = existingName || '';
   document.getElementById('slotOfferEmail').value = '';
+  _slotOfferMatchedUser = null;
+  const preview = document.getElementById('slotOfferUserPreview');
+  if (preview) { preview.style.display = 'none'; preview.innerHTML = ''; }
+  const btn = document.getElementById('slotOfferSendBtn');
+  if (btn) btn.textContent = 'SEND OFFER →';
   document.getElementById('slotOfferOverlay').classList.add('open');
   setTimeout(() => {
     const nameEl = document.getElementById('slotOfferName');
@@ -3568,34 +3573,109 @@ function openSlotOffer(slotId, slotLabel, existingName) {
   }, 80);
 }
 
+let _slotOfferMatchedUser = null;
+let _slotOfferLookupTimer = null;
+
+async function onSlotOfferEmailInput() {
+  const email = document.getElementById('slotOfferEmail').value.trim();
+  const preview = document.getElementById('slotOfferUserPreview');
+  const btn = document.getElementById('slotOfferSendBtn');
+  _slotOfferMatchedUser = null;
+  clearTimeout(_slotOfferLookupTimer);
+  if (preview) { preview.style.display = 'none'; preview.innerHTML = ''; }
+  if (btn) btn.textContent = 'SEND OFFER →';
+  if (!email || !email.includes('@')) return;
+  _slotOfferLookupTimer = setTimeout(async () => {
+    try {
+      const rows = await sbRest(
+        `profiles?email=eq.${encodeURIComponent(email)}&select=user_id,name,dj_name,type,avatar&limit=1`,
+        { method: 'GET' }, currentSession?.access_token
+      );
+      if (rows && rows.length) {
+        const u = rows[0];
+        _slotOfferMatchedUser = u;
+        const displayName = u.dj_name || u.name || 'Unknown';
+        if (preview) {
+          preview.innerHTML = `<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:rgba(0,229,255,.07);border:1px solid rgba(0,229,255,.25);border-radius:10px;">
+            ${u.avatar ? `<img src="${u.avatar}" style="width:36px;height:36px;border-radius:50%;object-fit:cover;">` : `<div style="width:36px;height:36px;border-radius:50%;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:16px;">🎧</div>`}
+            <div>
+              <div style="font-family:'Bebas Neue',sans-serif;letter-spacing:1px;font-size:15px;color:var(--neon2);">${displayName}</div>
+              <div style="font-size:11px;color:var(--muted);">YesPleez ${u.type || 'user'} · offer sent in-app</div>
+            </div>
+          </div>`;
+          preview.style.display = '';
+        }
+        // Auto-fill name field if empty
+        const nameEl = document.getElementById('slotOfferName');
+        if (nameEl && !nameEl.value.trim()) nameEl.value = displayName;
+        if (btn) btn.textContent = 'SEND OFFER IN-APP →';
+      }
+    } catch(e) { /* ignore */ }
+  }, 500);
+}
+
 function closeSlotOffer() {
   document.getElementById('slotOfferOverlay').classList.remove('open');
   _slotOfferPending = null;
 }
 
-function sendSlotOffer() {
+async function sendSlotOffer() {
   const email = document.getElementById('slotOfferEmail').value.trim();
   const name  = document.getElementById('slotOfferName').value.trim();
   if (!email) { document.getElementById('slotOfferEmail').focus(); return; }
+
+  const btn = document.getElementById('slotOfferSendBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'SENDING...'; }
 
   const eventName = eventData?.name || 'the event';
   const eventDate = eventData?.config?.date || '';
   const venue     = eventData?.config?.venue || '';
   const slot      = _slotOfferPending?.slotLabel || '';
+  const slotId    = _slotOfferPending?.slotId || null;
   const eventLink = location.origin + location.pathname + '?event=' + (currentEventId || '');
+  const hostName  = hostProfile?.name || currentUser?.email || 'The host';
 
-  const subject = encodeURIComponent(`You've been offered a slot at ${eventName} — YesPleez`);
-  const body    = encodeURIComponent(
-    `Hi ${name || 'there'},\n\n` +
-    `You've been offered a slot at ${eventName}${eventDate ? ' on ' + eventDate : ''}${venue ? ' at ' + venue : ''}.\n\n` +
-    `Slot: ${slot}\n\n` +
-    `View the event and confirm your spot here:\n${eventLink}\n\n` +
-    `— Sent via YesPleez`
-  );
+  // Write slot_offers row to DB
+  try {
+    await sbRest('slot_offers', {
+      method: 'POST',
+      body: JSON.stringify({
+        slot_id:          slotId,
+        event_id:         currentEventId,
+        slot_label:       slot,
+        event_name:       eventName,
+        offered_to_email: email,
+        offered_to_name:  name || null,
+        offered_to_uid:   _slotOfferMatchedUser?.user_id || null,
+        offered_by_uid:   currentUser?.id || null,
+        offered_by_name:  hostName,
+        status:           'pending'
+      }),
+      prefer: 'resolution=merge-duplicates,return=minimal'
+    }, currentSession?.access_token);
+  } catch(e) {
+    console.warn('slot_offers write failed:', e);
+  }
 
-  window.location.href = `mailto:${email}?subject=${subject}&body=${body}`;
-  closeSlotOffer();
-  showToast(`Email drafted for ${name || email}`, 'success');
+  if (_slotOfferMatchedUser) {
+    // Registered user — in-app notification only
+    closeSlotOffer();
+    showToast(`✅ Offer sent to ${name || email} in-app`, 'success');
+  } else {
+    // Unregistered — open mailto as fallback
+    const subject = encodeURIComponent(`You've been offered a slot at ${eventName} — YesPleez`);
+    const body    = encodeURIComponent(
+      `Hi ${name || 'there'},\n\n` +
+      `You've been offered a slot at ${eventName}${eventDate ? ' on ' + eventDate : ''}${venue ? ' at ' + venue : ''}.\n\n` +
+      `Slot: ${slot}\n\n` +
+      `Sign up to YesPleez and the slot will be waiting for you:\n${eventLink}\n\n` +
+      `— ${hostName} via YesPleez`
+    );
+    window.location.href = `mailto:${email}?subject=${subject}&body=${body}`;
+    closeSlotOffer();
+    showToast(`📧 Email drafted for ${name || email}`, 'success');
+  }
+  if (btn) { btn.disabled = false; btn.textContent = 'SEND OFFER →'; }
 }
 function closeWithdrawConfirm() { document.getElementById('withdrawConfirmOverlay').classList.remove('open'); _withdrawPending = null; }
 

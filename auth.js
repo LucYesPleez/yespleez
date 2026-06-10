@@ -130,6 +130,7 @@ async function doLogin() {
   currentSession = data;
   currentUser = data.user;
   localStorage.setItem('yp_session', JSON.stringify(data));
+  await checkPendingOffers(email, data.access_token);
   if (typeof checkPostAuthAction === 'function') { checkPostAuthAction(); return; }
   showRoleSelector();
 }
@@ -155,6 +156,13 @@ async function doSignup() {
     clearCachedProfiles();
     currentSession = data; currentUser = data.user;
     localStorage.setItem('yp_session', JSON.stringify(data));
+    // Save email to profile row so slot offers can match by email
+    sbRest('profiles', {
+      method: 'POST',
+      body: JSON.stringify({ user_id: data.user.id, email: email }),
+      prefer: 'resolution=merge-duplicates,return=minimal'
+    }, data.access_token).catch(() => {});
+    await checkPendingOffers(email, data.access_token);
     showRoleSelector();
   } else {
     showToast('✉️ Check your email to confirm your account, then sign in.', 'success');
@@ -214,6 +222,35 @@ async function tryRestoreSession() {
   } catch {}
   localStorage.removeItem('yp_session');
   return false;
+}
+
+// ── Pending slot offers check (runs on login/signup) ──
+
+async function checkPendingOffers(email, token) {
+  if (!email || !token) return;
+  try {
+    const offers = await sbRest(
+      `slot_offers?offered_to_email=eq.${encodeURIComponent(email)}&status=eq.pending&select=id,slot_id,event_id,slot_label,event_name,offered_by_name`,
+      { method: 'GET' }, token
+    );
+    if (!offers || !offers.length) return;
+    // Store for use after role selection
+    window._pendingSlotOffers = offers;
+  } catch(e) {
+    // Table may not exist yet — silently ignore
+  }
+}
+
+// Called from showRoleSelector / dashboard entry to surface pending offers
+function flashPendingOffers() {
+  const offers = window._pendingSlotOffers;
+  if (!offers || !offers.length) return;
+  window._pendingSlotOffers = null;
+  offers.forEach(o => {
+    const label = o.slot_label || 'a slot';
+    const event = o.event_name || 'an event';
+    showToast(`🎤 You've been offered ${label} at ${event} — check your slots!`, 'success', 6000);
+  });
 }
 
 // ── Password reset ─────────────────────────────────

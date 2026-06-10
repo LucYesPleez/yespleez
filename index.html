@@ -3615,16 +3615,21 @@ body.player-open .screen.active { padding-bottom: 80px; }
         onfocus="this.style.borderColor='var(--neon2)'" onblur="this.style.borderColor=''">
     </div>
 
-    <div style="margin-bottom:20px;">
+    <div style="margin-bottom:12px;">
       <label style="font-size:11px;letter-spacing:1.5px;color:var(--muted);font-family:'Bebas Neue',sans-serif;">ARTIST EMAIL</label>
       <input id="slotOfferEmail" type="email" placeholder="artist@email.com"
         style="width:100%;margin-top:6px;background:var(--card2);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;padding:10px 14px;outline:none;box-sizing:border-box;"
-        onfocus="this.style.borderColor='var(--neon2)'" onblur="this.style.borderColor=''">
-      <div style="font-size:11px;color:var(--muted);margin-top:6px;">This opens your email app with a pre-written invitation.</div>
+        onfocus="this.style.borderColor='var(--neon2)'" onblur="this.style.borderColor=''"
+        oninput="onSlotOfferEmailInput()">
     </div>
 
+    <!-- User match preview — shown when email matches a registered YesPleez account -->
+    <div id="slotOfferUserPreview" style="display:none;margin-bottom:14px;"></div>
+
+    <div style="font-size:11px;color:var(--muted);margin-bottom:20px;">If they're on YesPleez the offer lands in-app. Otherwise your email app opens with a pre-written invite.</div>
+
     <div class="edit-modal-btns">
-      <button class="btn-primary" onclick="sendSlotOffer()" style="background:var(--neon2);color:#0a0a0f;">SEND OFFER EMAIL →</button>
+      <button id="slotOfferSendBtn" class="btn-primary" onclick="sendSlotOffer()" style="background:var(--neon2);color:#0a0a0f;">SEND OFFER →</button>
       <button class="btn-ghost" onclick="closeSlotOffer()" style="margin-top:4px;">Cancel</button>
     </div>
   </div>

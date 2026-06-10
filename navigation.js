@@ -72,12 +72,12 @@ function navBack() {
 
 // ── Toast notifications ────────────────────────────
 
-function showToast(msg, type = 'success') {
+function showToast(msg, type = 'success', duration = 3200) {
   const t = document.getElementById('toast');
   t.textContent = msg;
   t.className = `toast ${type} show`;
   clearTimeout(t._timer);
-  t._timer = setTimeout(() => t.classList.remove('show'), 3200);
+  t._timer = setTimeout(() => t.classList.remove('show'), duration);
 }
 
 // ── Role selector ──────────────────────────────────
@@ -94,6 +94,7 @@ async function showRoleSelector() {
   }
   updateRoleCards();
   show('roleScreen');
+  setTimeout(() => { if (typeof flashPendingOffers === 'function') flashPendingOffers(); }, 800);
 }
 
 function updateRoleCards() {
