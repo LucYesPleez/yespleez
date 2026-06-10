@@ -1738,6 +1738,17 @@ function setSync(live) {
   document.getElementById('syncLabel').textContent = live ? 'Live' : 'Offline — retrying...';
 }
 
+// ── Helper: send transactional email via Supabase Edge Function ──
+async function sendEmail(type, data) {
+  try {
+    await fetch(`${SUPABASE_URL}/functions/v1/send-email`, {
+      method: 'POST',
+      headers: { 'apikey': SUPABASE_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type, data })
+    });
+  } catch(e) { console.warn('sendEmail failed:', e.message); }
+}
+
 // ── Helper: remove genre/subgenre tokens from sound field to avoid duplicates ──
 function dedupeSound(sound, genreString) {
   if (!sound || !genreString) return sound || '';
@@ -2183,18 +2194,22 @@ async function renderPipeline() {
 
 // ── Accept / decline application from pipeline ─────
 
-async function acceptApplication(appId, userId, artistName) {
+async function acceptApplication(appId, userId, artistName, artistEmail) {
   try {
     await sbRest(`applications?id=eq.${appId}`,
       { method: 'PATCH', body: JSON.stringify({ status: 'accepted' }), prefer: 'return=minimal' },
       currentSession?.access_token
     );
+    const evName   = eventData?.name || 'the event';
+    const hostName = hostProfile?.name || 'The promoter';
     if (userId) {
       await writeDbNotif(userId, 'offer_accepted',
-        `✅ Your application to ${eventData?.name || 'the event'} has been accepted!`,
-        { event_id: currentEventId, event_name: eventData?.name || '' }
+        `✅ Your application to ${evName} has been accepted!`,
+        { event_id: currentEventId, event_name: evName }
       );
     }
+    // Send acceptance email
+    sendEmail('application_accepted', { artistName, eventName: evName, hostName });
     showToast(`${artistName} accepted ✓`, 'success');
     renderPipeline();
   } catch(e) { showToast('Could not accept — try again', 'error'); }
