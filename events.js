@@ -2156,7 +2156,11 @@ function renderManage() {
       editBtn.style.cssText = 'font-size:11px;flex:1;padding:8px;border-radius:8px;font-family:\'Bebas Neue\',sans-serif;letter-spacing:1px;cursor:pointer;background:rgba(0,229,255,.07);border:1px solid rgba(0,229,255,.3);color:var(--neon2);';
       editBtn.textContent = '✎ EDIT';
       editBtn.onclick = e => { e.stopPropagation(); openModal(s.id, hint, 1); setTimeout(() => { document.getElementById('inputName').value = claim.name||''; document.getElementById('inputNotes').value = claim.notes||''; document.getElementById('confirmBtn').textContent = 'SAVE CHANGES ✓'; restoreGenreVibeState(claim.genre||''); const ds=document.getElementById('descriptorSection'); if(ds)ds.style.display=''; const di=document.getElementById('inputDescriptor'); if(di)di.value=claim.sound||claim.cardPills||''; }, 40); };
-      detAct.appendChild(editBtn); detAct.appendChild(lockBtn); detAct.appendChild(removeBtn);
+      const offerBtn = document.createElement('button');
+      offerBtn.style.cssText = 'font-size:11px;flex:1;padding:8px;border-radius:8px;font-family:\'Bebas Neue\',sans-serif;letter-spacing:1px;cursor:pointer;background:rgba(255,45,120,.07);border:1px solid rgba(255,45,120,.3);color:var(--neon);';
+      offerBtn.textContent = '✉ OFFER';
+      offerBtn.onclick = e => { e.stopPropagation(); openSlotOffer(s.id, hint, claim.name); };
+      detAct.appendChild(editBtn); detAct.appendChild(offerBtn); detAct.appendChild(lockBtn); detAct.appendChild(removeBtn);
       const notesWrap = document.createElement('div'); notesWrap.style.cssText = 'margin-top:12px;padding-top:10px;border-top:1px solid var(--border);';
       notesWrap.innerHTML = '<div class="host-notes-label"><svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:4px;"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>HOST NOTES (private)</div>';
       const notesTA = document.createElement('textarea'); notesTA.className = 'host-notes-input'; notesTA.rows = 2;
