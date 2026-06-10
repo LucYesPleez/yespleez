@@ -187,7 +187,7 @@ let _applyEventName = '';
 // ── Email helper (calls Supabase Edge Function) ────
 async function sendEmail(type, data) {
   try {
-    const res = await fetch(`${SUPABASE_URL}/functions/v1/send-email`, {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/rapid-responder`, {
       method: 'POST',
       headers: {
         'apikey': SUPABASE_KEY,
