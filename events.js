@@ -1234,8 +1234,8 @@ function renderAll() {
       }
       const actionBlock = document.createElement('div');
       actionBlock.style.cssText = 'display:flex;flex-direction:column;gap:5px;align-items:flex-end;flex-shrink:0;';
-      // Play button — visible to non-hosts only
-      if (entry && entry.mixLink && !isHost) {
+      // Play button — only shown when the artist has a mix link
+      if (entry && entry.mixLink) {
         const playBtn = document.createElement('button');
         playBtn.style.cssText = 'background:none;border:1px solid rgba(0,229,255,.3);border-radius:6px;color:var(--neon2);cursor:pointer;padding:4px 8px;line-height:1;display:flex;align-items:center;justify-content:center;';
         playBtn.innerHTML = '<svg viewBox="0 0 24 24" width="13" height="13" fill="var(--neon2)"><polygon points="6,3 20,12 6,21"/></svg>'; playBtn.title = 'Play mix';
@@ -1391,7 +1391,7 @@ async function autoClaimSlot(slotId) {
   }
   const cardPills = artistProfile?.cardPills || '';
   const sound     = artistProfile?.sound     || '';
-  const ok = await upsertClaim(slotId, name, genre, '', [], cardPills, sound);
+  const ok = await upsertClaim(slotId, name, genre, '', [], cardPills, sound, currentUser.id);
   if (ok) {
     claims[slotId] = { name, genre, notes: '', backups: [], cardPills, sound, mixLink: artistProfile?.mixLink || '', user_id: currentUser.id };
     const slotLabel = (() => { let l='slot'; (eventData?.days||[]).forEach(d=>d.slots.forEach(s=>{if(s.id===slotId)l=s.time+' '+s.ampm;})); return l; })();
@@ -1466,7 +1466,7 @@ function renderAcceptedPool(query) {
       e.preventDefault();
       resultsEl.style.display = 'none';
       document.getElementById('hostArtistSearch').value = '';
-      const ok = await upsertClaim(activeKey, a.dj_name, a.genre_string || '', '', [], a.card_pills || '', a.sound || '');
+      const ok = await upsertClaim(activeKey, a.dj_name, a.genre_string || '', '', [], a.card_pills || '', a.sound || '', a.user_id || null);
       if (ok) {
         saveManageState();
         claims[activeKey] = { name: a.dj_name, genre: a.genre_string || '', notes: '', backups: [], cardPills: a.card_pills || '', sound: a.sound || '', mixLink: a.mix_link || '', user_id: a.user_id };
@@ -1602,7 +1602,8 @@ async function confirmClaim() {
   const sound = isHost && descriptorInput && descriptorInput.closest('#descriptorSection')?.style.display !== 'none'
     ? (descriptorInput.value.trim() || claims[activeKey]?.sound || '')
     : (isHost ? (claims[activeKey]?.sound || '') : (artistProfile?.sound || ''));
-  const ok = await upsertClaim(activeKey, name, genre, notes, backups, cardPills, sound);
+  const claimUserId = isHost ? (claims[activeKey]?.user_id || null) : (currentUser?.id || null);
+  const ok = await upsertClaim(activeKey, name, genre, notes, backups, cardPills, sound, claimUserId);
   if (ok) {
     const codeInput = document.getElementById('inputApprovalCode');
     if (codeInput && approvalCodes[currentEventId]) {
@@ -1712,9 +1713,9 @@ async function loadClaims() {
   } catch { setSync(false); }
 }
 
-async function upsertClaim(slotId, name, genre, notes, backups, cardPills = '', sound = '') {
+async function upsertClaim(slotId, name, genre, notes, backups, cardPills = '', sound = '', userId = null) {
   const token = currentSession?.access_token || null;
-  const body = JSON.stringify({ event_id: currentEventId, slot_id: slotId, name, genre, notes, backups, card_pills: cardPills, sound, updated_at: new Date().toISOString(), user_id: currentUser?.id || null });
+  const body = JSON.stringify({ event_id: currentEventId, slot_id: slotId, name, genre, notes, backups, card_pills: cardPills, sound, updated_at: new Date().toISOString(), user_id: userId });
   if (token) {
     // Authenticated host — use token so RLS allows updating any claim in their event
     try {
@@ -2324,7 +2325,13 @@ function renderManage() {
       if (s.label) infoCol.innerHTML += '<div class="slot-badge '+(isLounge?'cyan':'')+'">' +s.label+'</div>';
       const chevron = document.createElement('div');
       chevron.style.cssText = 'color:var(--muted);font-size:20px;line-height:1;transition:transform .2s;text-align:center;padding:2px 4px;'; chevron.textContent = '›';
-      const playBtn = document.createElement('button');
+      if (claim.mixLink) {
+        const playBtn = document.createElement('button');
+        playBtn.style.cssText = 'background:none;border:1px solid rgba(0,229,255,.3);border-radius:6px;color:var(--neon2);cursor:pointer;padding:4px 8px;line-height:1;display:flex;align-items:center;justify-content:center;';
+        playBtn.innerHTML = '<svg viewBox="0 0 24 24" width="13" height="13" fill="var(--neon2)"><polygon points="6,3 20,12 6,21"/></svg>'; playBtn.title = 'Play mix';
+        playBtn.onclick = e => { e.stopPropagation(); openMiniPlayer(claim.name, claim.mixLink, '🎧'); };
+        actCol.appendChild(playBtn);
+      }
       const hint = s.time+' '+s.ampm+' · '+s.dur+(s.label?' · '+s.label:'');
       actCol.appendChild(chevron);
       const detail = document.createElement('div');
