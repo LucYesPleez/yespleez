@@ -4143,11 +4143,33 @@ async function sendSlotOffer() {
     console.warn('slot_offers write failed:', e);
   }
 
+  // Generate a claim code for specific slot offers — saves to approval_codes, locks to this slot only
+  let claimCode = null;
+  if (isSlotOffer) {
+    claimCode = generateCodeStr();
+    try {
+      await sbRest('approval_codes', {
+        method: 'POST',
+        prefer: 'return=minimal',
+        body: JSON.stringify({
+          event_id:        currentEventId,
+          code:            claimCode,
+          slot_ids:        [slotId],
+          artist_id:       _slotOfferMatchedUser?.user_id || null,
+          application_id:  null
+        })
+      }, currentSession?.access_token);
+    } catch(e) {
+      console.warn('claim code write failed:', e);
+      claimCode = null;
+    }
+  }
+
   if (_slotOfferMatchedUser) {
     // Registered user — write notification directly to their bell
     const notifType = isSlotOffer ? 'slot_offer' : 'event_invite';
     const message = isSlotOffer
-      ? `${hostName} has offered you the ${slot} slot at ${eventName}${eventDate ? ' on ' + eventDate : ''}${venue ? ' at ' + venue : ''}.`
+      ? `${hostName} has offered you the ${slot} slot at ${eventName}${eventDate ? ' on ' + eventDate : ''}${venue ? ' at ' + venue : ''}${claimCode ? ` Your claim code: ${claimCode}` : ''}.`
       : `${hostName} has invited you to perform at ${eventName}${eventDate ? ' on ' + eventDate : ''}${venue ? ' at ' + venue : ''}. Accept to join the applications list.`;
 
     await writeDbNotif(_slotOfferMatchedUser.user_id, notifType, message, {
@@ -4163,8 +4185,11 @@ async function sendSlotOffer() {
   // Build shareable message for any messaging app
   const recipientName = name || 'there';
   const appUrl = 'https://yespleez.pages.dev';
+  const codeBlock = claimCode
+    ? `\n\nYour slot code: ${claimCode}\nEnter it when you open the link — it's locked to your slot and single-use, so only you can claim it.`
+    : '';
   const shareMsg = isSlotOffer
-    ? `Hey ${recipientName}! You've been offered the ${slot} slot at ${eventName}${eventDate ? ' on ' + eventDate : ''}${venue ? ' @ ' + venue : ''}.\n\nAccept it on YesPleez 👇\n${appUrl}`
+    ? `Hey ${recipientName}! You've been offered the ${slot} slot at ${eventName}${eventDate ? ' on ' + eventDate : ''}${venue ? ' @ ' + venue : ''}.${codeBlock}\n\nOpen YesPleez 👇\n${appUrl}`
     : `Hey ${recipientName}! You've been invited to perform at ${eventName}${eventDate ? ' on ' + eventDate : ''}${venue ? ' @ ' + venue : ''}.\n\nCheck it out on YesPleez 👇\n${appUrl}`;
 
   // Show sent confirmation panel
@@ -4177,6 +4202,8 @@ async function sendSlotOffer() {
   if (summary) {
     if (!email && !_slotOfferMatchedUser) {
       summary.innerHTML = `Offer recorded for <strong>${name || 'artist'}</strong>. No email entered — add it to send a bell notification, or just copy the link below and send it directly via WhatsApp, Instagram DM, SMS, or whatever they'll actually open.`;
+    } else if (claimCode) {
+      summary.innerHTML = `Offer sent to <strong>${name || email || 'artist'}</strong>. A single-use code <strong style="color:var(--neon2);font-size:15px;letter-spacing:2px;">${claimCode}</strong> has been generated — it's locked to the ${slot} slot so only they can claim it. Copy the message below and send it their way.`;
     } else {
       summary.textContent = `Offer sent to ${name || email || 'artist'}. Copy the message below and send it via WhatsApp, Instagram DM, SMS — wherever they'll see it first.`;
     }
