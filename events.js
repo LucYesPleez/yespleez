@@ -241,7 +241,7 @@ function openEventSetTimes(ev) {
   hostControls = ev.host_controls || { artistRemove: true, rankedBackups: true, genrePicker: true };
   lockedSlots = ev.host_controls?.lockedSlots || {};
   const slb = document.getElementById('shareLinkBtn'); if (slb) slb.style.display = 'none';
-  loadClaims().then(() => showSignup());
+  loadClaims().then(() => showManage());
 }
 
 function openAllClaims(ev) {
@@ -275,7 +275,7 @@ function openEvent(ev) {
   hostControls = ev.host_controls || { artistRemove: true, rankedBackups: true, genrePicker: true };
   const _slb = document.getElementById('shareLinkBtn'); if (_slb) _slb.style.display = 'none';
   if (ev.status === 'live') {
-    showSignup();
+    showManage();
   } else {
     buildTemplate(eventData);
     show('templateScreen');
@@ -723,7 +723,7 @@ async function launchEvent() {
     if (typeof notifyMatchingArtists === 'function') {
       notifyMatchingArtists({ id: currentEventId, name: cfg.name, config: cfg });
     }
-    showSignup();
+    showManage();
   } catch(e) {
     btn.disabled = false; btn.textContent = 'GO LIVE →';
     statusEl.textContent = `Error: ${e.message}`;
@@ -1678,7 +1678,8 @@ async function loadClaims() {
     const rows = await res.json();
     claims = {};
     rows.forEach(r => { claims[r.slot_id] = { name: r.name, genre: r.genre || '', notes: r.notes || '', backups: r.backups || [], cardPills: r.card_pills || '', sound: r.sound || '', mixLink: r.mix_link || '', user_id: r.user_id || null }; });
-    setSync(true); renderAll();
+    setSync(true);
+    if (isHost) renderManage(); else renderAll();
   } catch { setSync(false); }
 }
 
@@ -1845,7 +1846,13 @@ function getBackupSelections() {
 
 // ── Manage screen ──────────────────────────────────
 
-function showManage() { renderManage(); show('manageScreen'); }
+function showManage() {
+  renderManage();
+  show('manageScreen');
+  if (pollTimer) clearInterval(pollTimer);
+  loadClaims();
+  pollTimer = setInterval(loadClaims, 5000);
+}
 
 function renderManage() {
   const subtitleEl = document.getElementById('manageSubtitle');
@@ -1901,10 +1908,16 @@ function renderManage() {
     const actCol = document.createElement('div'); actCol.style.cssText = 'display:flex;flex-direction:column;gap:5px;align-items:flex-end;flex-shrink:0;';
     if (!claim) {
       infoCol.innerHTML = '<div class="empty-tag">Open slot</div>'+(s.label?'<div class="slot-badge '+(isLounge?'cyan':'')+'">' +s.label+'</div>':'');
+      const emptyHint = s.time+' '+s.ampm+' · '+s.dur+(s.label?' · '+s.label:'');
+      const emptyOfferBtn = document.createElement('button');
+      emptyOfferBtn.style.cssText = 'padding:5px 12px;background:transparent;border:1px solid rgba(255,45,120,.35);border-radius:6px;color:var(--neon);font-family:\'Bebas Neue\',sans-serif;font-size:11px;letter-spacing:1px;cursor:pointer;white-space:nowrap;';
+      emptyOfferBtn.textContent = 'OFFER';
+      emptyOfferBtn.onclick = e => { e.stopPropagation(); openSlotOffer(s.id, emptyHint, ''); };
+      actCol.appendChild(emptyOfferBtn);
       const assignBtn = document.createElement('button');
       assignBtn.className = 'btn-ghost'; assignBtn.style.cssText = 'font-size:11px;padding:5px 14px;border-color:var(--neon2);color:var(--neon2);white-space:nowrap;';
       assignBtn.textContent = '+ ASSIGN';
-      assignBtn.onclick = e => { e.stopPropagation(); const hint = s.time+' '+s.ampm+' · '+s.dur+(s.label?' · '+s.label:''); openModal(s.id, hint, 1); };
+      assignBtn.onclick = e => { e.stopPropagation(); openModal(s.id, emptyHint, 1); };
       actCol.appendChild(assignBtn);
     } else {
       infoCol.innerHTML = buildSlotInfoHtml(claim, s, isLounge);
@@ -1920,6 +1933,19 @@ function renderManage() {
         playBtn.onclick = e => { e.stopPropagation(); openMiniPlayer(claim.name, claim.mixLink, '🎧'); };
         actCol.appendChild(playBtn);
       }
+      // Inline EDIT button
+      const mEditBtn = document.createElement('button');
+      mEditBtn.style.cssText = 'padding:4px 10px;background:transparent;border:1px solid rgba(0,229,255,.35);border-radius:6px;color:var(--neon2);font-family:\'Bebas Neue\',sans-serif;font-size:11px;letter-spacing:1px;cursor:pointer;white-space:nowrap;';
+      mEditBtn.textContent = 'EDIT';
+      const hint = s.time+' '+s.ampm+' · '+s.dur+(s.label?' · '+s.label:'');
+      mEditBtn.onclick = e => { e.stopPropagation(); openModal(s.id, hint, 1); setTimeout(() => { document.getElementById('inputName').value = claim.name||''; document.getElementById('inputNotes').value = claim.notes||''; document.getElementById('confirmBtn').textContent = 'SAVE CHANGES ✓'; restoreGenreVibeState(claim.genre||''); const ds=document.getElementById('descriptorSection'); if(ds)ds.style.display=''; const di=document.getElementById('inputDescriptor'); if(di)di.value=claim.sound||claim.cardPills||''; }, 40); };
+      actCol.appendChild(mEditBtn);
+      // Inline OFFER button
+      const mOfferBtn = document.createElement('button');
+      mOfferBtn.style.cssText = 'padding:4px 10px;background:transparent;border:1px solid rgba(255,45,120,.35);border-radius:6px;color:var(--neon);font-family:\'Bebas Neue\',sans-serif;font-size:11px;letter-spacing:1px;cursor:pointer;white-space:nowrap;';
+      mOfferBtn.textContent = 'OFFER';
+      mOfferBtn.onclick = e => { e.stopPropagation(); openSlotOffer(s.id, hint, claim.name); };
+      actCol.appendChild(mOfferBtn);
       actCol.appendChild(chevron);
       const detail = document.createElement('div');
       detail.style.cssText = 'display:none;background:var(--card2);border:1px solid var(--border);border-top:none;border-radius:0 0 10px 10px;padding:14px 16px;';
