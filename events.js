@@ -4085,7 +4085,7 @@ function closeSlotOffer() {
   if (fields)  { fields.style.opacity = ''; fields.style.pointerEvents = ''; }
   if (pre)     pre.style.display = '';
   if (post)    post.style.display = 'none';
-  if (heading) heading.textContent = 'SEND OFFER';
+  if (heading) heading.textContent = 'GENERATE CODE';
   const btn = document.getElementById('slotOfferSendBtn');
   if (btn) { btn.disabled = false; btn.textContent = 'GENERATE OFFER LINK →'; }
 }
