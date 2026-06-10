@@ -1741,11 +1741,16 @@ function setSync(live) {
 // ── Helper: send transactional email via Supabase Edge Function ──
 async function sendEmail(type, data) {
   try {
-    await fetch(`${SUPABASE_URL}/functions/v1/send-email`, {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/send-email`, {
       method: 'POST',
-      headers: { 'apikey': SUPABASE_KEY, 'Content-Type': 'application/json' },
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`,
+        'Content-Type': 'application/json'
+      },
       body: JSON.stringify({ type, data })
     });
+    if (!res.ok) console.warn('sendEmail response:', res.status, await res.text());
   } catch(e) { console.warn('sendEmail failed:', e.message); }
 }
 
