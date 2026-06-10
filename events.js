@@ -2058,7 +2058,7 @@ async function renderPipeline() {
   if (artistIds.length) {
     try {
       const profRes = await fetch(
-        `${SUPABASE_URL}/rest/v1/profiles?user_id=in.(${artistIds.join(',')})&type=eq.artist&select=user_id,dj_name,name,genre_string,avatar`,
+        `${SUPABASE_URL}/rest/v1/profiles?user_id=in.(${artistIds.join(',')})&type=eq.artist&select=user_id,dj_name,name,genre_string,avatar,sound,tagline,mix_link,soundcloud,mixcloud,type`,
         { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${currentSession?.access_token}` } }
       );
       if (profRes.ok) {
@@ -2112,27 +2112,40 @@ async function renderPipeline() {
   // ── APPLICATIONS section ──
   const appCards = apps.map(a => {
     const prof = profileMap[a.artist_id] || {};
-    const name = prof.dj_name || prof.name || a.dj_name || a.artist_name || a.artist_id?.slice(0,8) || 'Unknown Artist';
-    const genre = (prof.genre_string || a.genre || '');
-    const genreHtml = genre ? `<div style="font-size:11px;color:var(--muted);margin-top:2px;">${esc(genre)}</div>` : '';
-    const ago = timeAgo(a.created_at);
+    const name     = prof.dj_name || prof.name || a.artist_id?.slice(0,8) || 'Unknown Artist';
+    const sound    = prof.sound || '';
+    const tagline  = prof.tagline || '';
+    const mixLink  = prof.mix_link || prof.soundcloud || prof.mixcloud || '';
+    const avatar   = prof.avatar
+      ? `<img src="${prof.avatar}" style="width:44px;height:44px;border-radius:50%;object-fit:cover;flex-shrink:0;border:1px solid var(--border);">`
+      : `<div style="width:44px;height:44px;border-radius:50%;background:var(--card);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">🎧</div>`;
+    const ago      = timeAgo(a.created_at);
     const isPending = a.status === 'pending' || a.status === 'invited';
-    const actions = `
-      <div style="display:flex;gap:6px;margin-top:10px;">
-        ${isPending ? `<button onclick="acceptApplication('${a.id}','${a.artist_id||''}','${esc(name)}')" style="flex:1;padding:8px;background:var(--neon2);border:none;border-radius:8px;font-family:'Bebas Neue',sans-serif;font-size:12px;letter-spacing:1px;color:#0a0a0f;cursor:pointer;">ACCEPT</button>` : ''}
-        ${isPending ? `<button onclick="declineApplication('${a.id}')" style="flex:1;padding:8px;background:transparent;border:1px solid var(--border);border-radius:8px;font-family:'Bebas Neue',sans-serif;font-size:12px;letter-spacing:1px;color:var(--muted);cursor:pointer;">DECLINE</button>` : ''}
-        <button onclick="addToShortlist('${a.artist_id||''}','${esc(name)}')" style="flex:1;padding:8px;background:rgba(255,200,0,.1);border:1px solid rgba(255,200,0,.3);border-radius:8px;font-family:'Bebas Neue',sans-serif;font-size:12px;letter-spacing:1px;color:#ffc800;cursor:pointer;">★ LIST</button>
+
+    const playBtn = mixLink
+      ? `<button onclick="event.stopPropagation();openMiniPlayer('${esc(name)}','${mixLink}','🎧')" style="padding:5px 9px;background:none;border:1px solid rgba(0,229,255,.3);border-radius:6px;color:var(--neon2);cursor:pointer;display:flex;align-items:center;flex-shrink:0;"><svg viewBox="0 0 24 24" width="11" height="11" fill="var(--neon2)"><polygon points="6,3 20,12 6,21"/></svg></button>`
+      : '';
+
+    const rightActions = `
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;">
+        ${playBtn}
+        <button onclick="event.stopPropagation();addToShortlist('${a.artist_id||''}','${esc(name)}')" style="padding:4px 10px;background:rgba(255,200,0,.1);border:1px solid rgba(255,200,0,.3);border-radius:6px;font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:1px;color:#ffc800;cursor:pointer;white-space:nowrap;">★ LIST</button>
+        ${isPending ? `
+        <div style="display:flex;gap:5px;">
+          <button onclick="event.stopPropagation();acceptApplication('${a.id}','${a.artist_id||''}','${esc(name)}')" style="padding:5px 10px;background:var(--neon2);border:none;border-radius:6px;font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:1px;color:#0a0a0f;cursor:pointer;">ACCEPT</button>
+          <button onclick="event.stopPropagation();declineApplication('${a.id}')" style="padding:5px 10px;background:transparent;border:1px solid var(--border);border-radius:6px;font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:1px;color:var(--muted);cursor:pointer;">DECLINE</button>
+        </div>` : pill(a.status)}
       </div>`;
-    return `<div style="padding:12px 14px;background:var(--card2);border:1px solid var(--border);border-radius:10px;margin-bottom:8px;">
-      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;">
-        <div style="min-width:0;flex:1;">
-          <div style="font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:1px;color:var(--text);">${esc(name)}</div>
-          ${genreHtml}
-          <div style="font-size:10px;color:var(--muted);margin-top:3px;">${ago}</div>
-        </div>
-        <div style="flex-shrink:0;">${pill(a.status)}</div>
+
+    return `<div onclick="openPublicProfile(${JSON.stringify(prof)})" style="padding:14px;background:var(--card2);border:1px solid var(--border);border-radius:12px;margin-bottom:10px;cursor:pointer;display:flex;gap:12px;align-items:flex-start;">
+      ${avatar}
+      <div style="flex:1;min-width:0;">
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:1px;color:var(--text);margin-bottom:2px;">${esc(name)}</div>
+        ${sound    ? `<div style="font-size:12px;color:var(--neon2);margin-bottom:2px;">${esc(sound)}</div>` : ''}
+        ${tagline  ? `<div style="font-size:11px;color:var(--muted);font-style:italic;margin-bottom:2px;">"${esc(tagline)}"</div>` : ''}
+        <div style="font-size:10px;color:var(--muted);margin-top:4px;">${ago}</div>
       </div>
-      ${actions}
+      ${rightActions}
     </div>`;
   });
 
