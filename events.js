@@ -3612,14 +3612,37 @@ function onOfferTypeChange() {
 let _slotOfferMatchedUser = null;
 let _slotOfferLookupTimer = null;
 
-async function onSlotOfferEmailInput() {
-  const email = document.getElementById('slotOfferEmail').value.trim();
+function _showSlotOfferMatch(u) {
   const preview = document.getElementById('slotOfferUserPreview');
   const btn = document.getElementById('slotOfferSendBtn');
+  _slotOfferMatchedUser = u;
+  const displayName = u.dj_name || u.name || 'Unknown';
+  if (preview) {
+    preview.innerHTML = `<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:rgba(0,229,255,.07);border:1px solid rgba(0,229,255,.25);border-radius:10px;">
+      ${u.avatar ? `<img src="${u.avatar}" style="width:36px;height:36px;border-radius:50%;object-fit:cover;">` : `<div style="width:36px;height:36px;border-radius:50%;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:16px;">🎧</div>`}
+      <div>
+        <div style="font-family:'Bebas Neue',sans-serif;letter-spacing:1px;font-size:15px;color:var(--neon2);">${displayName}</div>
+        <div style="font-size:11px;color:var(--muted);">YesPleez ${u.type || 'user'} · offer sent in-app</div>
+      </div>
+    </div>`;
+    preview.style.display = '';
+  }
+  if (btn) btn.textContent = 'SEND OFFER IN-APP →';
+  return displayName;
+}
+
+function _clearSlotOfferMatch() {
   _slotOfferMatchedUser = null;
-  clearTimeout(_slotOfferLookupTimer);
+  const preview = document.getElementById('slotOfferUserPreview');
   if (preview) { preview.style.display = 'none'; preview.innerHTML = ''; }
+  const btn = document.getElementById('slotOfferSendBtn');
   if (btn) btn.textContent = 'SEND OFFER →';
+}
+
+async function onSlotOfferEmailInput() {
+  const email = document.getElementById('slotOfferEmail').value.trim();
+  clearTimeout(_slotOfferLookupTimer);
+  _clearSlotOfferMatch();
   if (!email || !email.includes('@')) return;
   _slotOfferLookupTimer = setTimeout(async () => {
     try {
@@ -3628,26 +3651,61 @@ async function onSlotOfferEmailInput() {
         { method: 'GET' }, currentSession?.access_token
       );
       if (rows && rows.length) {
-        const u = rows[0];
-        _slotOfferMatchedUser = u;
-        const displayName = u.dj_name || u.name || 'Unknown';
-        if (preview) {
-          preview.innerHTML = `<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:rgba(0,229,255,.07);border:1px solid rgba(0,229,255,.25);border-radius:10px;">
-            ${u.avatar ? `<img src="${u.avatar}" style="width:36px;height:36px;border-radius:50%;object-fit:cover;">` : `<div style="width:36px;height:36px;border-radius:50%;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:16px;">🎧</div>`}
-            <div>
-              <div style="font-family:'Bebas Neue',sans-serif;letter-spacing:1px;font-size:15px;color:var(--neon2);">${displayName}</div>
-              <div style="font-size:11px;color:var(--muted);">YesPleez ${u.type || 'user'} · offer sent in-app</div>
-            </div>
-          </div>`;
-          preview.style.display = '';
-        }
-        // Auto-fill name field if empty
+        const displayName = _showSlotOfferMatch(rows[0]);
         const nameEl = document.getElementById('slotOfferName');
         if (nameEl && !nameEl.value.trim()) nameEl.value = displayName;
-        if (btn) btn.textContent = 'SEND OFFER IN-APP →';
       }
     } catch(e) { /* ignore */ }
-  }, 500);
+  }, 400);
+}
+
+async function onSlotOfferNameInput() {
+  const name = document.getElementById('slotOfferName').value.trim();
+  // Don't override a match already found via email
+  if (_slotOfferMatchedUser) return;
+  clearTimeout(_slotOfferLookupTimer);
+  _clearSlotOfferMatch();
+  if (!name || name.length < 2) return;
+  _slotOfferLookupTimer = setTimeout(async () => {
+    try {
+      const rows = await sbRest(
+        `profiles?or=(dj_name.ilike.*${encodeURIComponent(name)}*,name.ilike.*${encodeURIComponent(name)}*)&select=user_id,name,dj_name,type,avatar&limit=4`,
+        { method: 'GET' }, currentSession?.access_token
+      );
+      if (rows && rows.length === 1) {
+        // Single match — show it and auto-fill email if empty
+        const displayName = _showSlotOfferMatch(rows[0]);
+        const emailEl = document.getElementById('slotOfferEmail');
+        // Don't auto-fill email (we don't expose other users' emails)
+      } else if (rows && rows.length > 1) {
+        // Multiple matches — show a picker
+        const preview = document.getElementById('slotOfferUserPreview');
+        if (preview) {
+          preview.innerHTML = `<div style="font-size:11px;color:var(--muted);margin-bottom:6px;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;">SELECT ARTIST</div>` +
+            rows.map(u => {
+              const dn = u.dj_name || u.name || 'Unknown';
+              return `<div onclick="onSlotOfferPickUser('${u.user_id}')" style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;cursor:pointer;background:rgba(0,229,255,.04);border:1px solid rgba(0,229,255,.12);margin-bottom:6px;">
+                ${u.avatar ? `<img src="${u.avatar}" style="width:28px;height:28px;border-radius:50%;object-fit:cover;">` : `<div style="width:28px;height:28px;border-radius:50%;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:12px;">🎧</div>`}
+                <div style="font-family:'Bebas Neue',sans-serif;letter-spacing:1px;font-size:14px;color:var(--neon2);">${esc(dn)}</div>
+                <div style="font-size:10px;color:var(--muted);margin-left:auto;">${u.type || ''}</div>
+              </div>`;
+            }).join('');
+          preview.style.display = '';
+          // Store rows for picker
+          preview._rows = rows;
+        }
+      }
+    } catch(e) { /* ignore */ }
+  }, 400);
+}
+
+function onSlotOfferPickUser(userId) {
+  const preview = document.getElementById('slotOfferUserPreview');
+  const rows = preview?._rows || [];
+  const u = rows.find(r => r.user_id === userId);
+  if (!u) return;
+  const displayName = _showSlotOfferMatch(u);
+  document.getElementById('slotOfferName').value = displayName;
 }
 
 function closeSlotOffer() {
