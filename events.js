@@ -4105,13 +4105,8 @@ async function sendSlotOffer() {
   const email     = document.getElementById('slotOfferEmail').value.trim();
   const name      = document.getElementById('slotOfferName').value.trim();
   const offerType = document.querySelector('input[name="offerType"]:checked')?.value || 'slot';
-  // Need at least one field; if no matched user and no email, can't send — ask for email
+  // Need at least a name or email to proceed
   if (!name && !email) { document.getElementById('slotOfferName').focus(); return; }
-  if (!_slotOfferMatchedUser && !email) {
-    showToast('Add their email so we can send the invite', 'error');
-    document.getElementById('slotOfferEmail').focus();
-    return;
-  }
 
   const btn = document.getElementById('slotOfferSendBtn');
   if (btn) { btn.disabled = true; btn.textContent = 'SENDING...'; }
@@ -4179,7 +4174,13 @@ async function sendSlotOffer() {
   const shareEl   = document.getElementById('slotOfferShareText');
   if (formPanel) formPanel.style.display = 'none';
   if (sentPanel) sentPanel.style.display = '';
-  if (summary)   summary.textContent = `Offer sent to ${name || email || 'artist'}. Copy the message below and send it via WhatsApp, Instagram DM, SMS — wherever they'll see it first.`;
+  if (summary) {
+    if (!email && !_slotOfferMatchedUser) {
+      summary.innerHTML = `Offer recorded for <strong>${name || 'artist'}</strong>. No email entered — add it to send a bell notification, or just copy the link below and send it directly via WhatsApp, Instagram DM, SMS, or whatever they'll actually open.`;
+    } else {
+      summary.textContent = `Offer sent to ${name || email || 'artist'}. Copy the message below and send it via WhatsApp, Instagram DM, SMS — wherever they'll see it first.`;
+    }
+  }
   if (shareEl)   shareEl.value = shareMsg;
 
   if (!_slotOfferMatchedUser && email) {
