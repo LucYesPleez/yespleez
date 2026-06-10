@@ -184,6 +184,17 @@ async function runSearch() {
 let _applyEventId   = null;
 let _applyEventName = '';
 
+// ── Email helper (calls Supabase Edge Function) ────
+async function sendEmail(type, data) {
+  try {
+    await fetch(`${SUPABASE_URL}/functions/v1/send-email`, {
+      method: 'POST',
+      headers: { 'apikey': SUPABASE_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type, data })
+    });
+  } catch(e) { console.warn('sendEmail failed:', e.message); }
+}
+
 // ── Apply modal state ──────────────────────────────
 let _applyGuestData = null; // stores guest form data after submit, for profile save
 
@@ -214,7 +225,7 @@ function openApplyModalForEvent(eventId, eventName) {
     const pillsHtml = genres.map(g => `<span class="dj-pill">${g}</span>`).join('');
     const avatarHtml = p.avatar
       ? `<img src="${p.avatar}" style="width:48px;height:48px;border-radius:6px;object-fit:cover;border:2px solid var(--neon2);flex-shrink:0;">`
-      : `<div style="width:48px;height:48px;border-radius:6px;background:var(--card);border:2px solid var(--neon2);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:22px;">🎧</div>`;
+      : `<div style="width:48px;height:48px;border-radius:6px;background:var(--card);border:2px solid var(--neon2);display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--neon2);"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3z"/><path d="M3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg></div>`;
     document.getElementById('applyProfilePreview').innerHTML = `
       <div style="display:flex;gap:12px;align-items:flex-start;">
         ${avatarHtml}
@@ -291,10 +302,20 @@ async function submitApplication() {
       if (typeof renderAll === 'function') renderAll();
 
       if (isLoggedIn) {
+        // Email to artist confirming receipt
+        const p = artistProfile || {};
+        const artistName = p.djName || p.name || currentUser?.email || 'Artist';
+        const artistEmail = p.email || currentUser?.email || '';
+        sendEmail('application_received', { artistName, eventName: _applyEventName });
+        // Email to host about new application
+        sendEmail('new_application', { artistName, artistEmail, eventName: _applyEventName, note });
         closeApplyModal();
         showToast('Application sent! ✓', 'success');
       } else {
-        // Guest — show save profile prompt
+        // Guest — send confirmation emails
+        sendEmail('application_received', { artistName: _applyGuestData.name, eventName: _applyEventName });
+        sendEmail('new_application', { artistName: _applyGuestData.name, artistEmail: _applyGuestData.email, eventName: _applyEventName, note });
+        // Show save profile prompt
         _applyShowPanel('applySavePanel');
         document.getElementById('applyModalHeading').textContent = 'ONE MORE THING';
         const saveEventEl = document.getElementById('applySaveEventName');

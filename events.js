@@ -2028,7 +2028,7 @@ async function renderShortlist() {
     const soundRaw = dedupeSound(p.sound || '', p.genre_string || '');
     const avatar = p.avatar
       ? `<img src="${p.avatar}" style="width:42px;height:42px;border-radius:50%;object-fit:cover;flex-shrink:0;border:1px solid var(--border);">`
-      : `<div style="width:42px;height:42px;border-radius:50%;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">🎧</div>`;
+      : `<div style="width:42px;height:42px;border-radius:50%;background:var(--card2);display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--neon2);"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3z"/><path d="M3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg></div>`;
     const mixLink = p.mix_link || p.soundcloud || '';
     const playBtn = mixLink
       ? `<button onclick="openMiniPlayer('${esc(name)}','${mixLink}','🎧')" style="padding:5px 10px;background:none;border:1px solid rgba(0,229,255,.3);border-radius:6px;color:var(--neon2);cursor:pointer;font-size:11px;display:flex;align-items:center;gap:4px;"><svg viewBox="0 0 24 24" width="11" height="11" fill="var(--neon2)"><polygon points="6,3 20,12 6,21"/></svg></button>`
@@ -2142,7 +2142,7 @@ async function renderPipeline() {
     const mixLink  = prof.mix_link || prof.soundcloud || prof.mixcloud || a.guest_mix_link || '';
     const avatar   = prof.avatar
       ? `<img src="${prof.avatar}" style="width:44px;height:44px;border-radius:50%;object-fit:cover;flex-shrink:0;border:1px solid var(--border);">`
-      : `<div style="width:44px;height:44px;border-radius:50%;background:var(--card);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">🎧</div>`;
+      : `<div style="width:44px;height:44px;border-radius:50%;background:var(--card);display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--neon2);"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3z"/><path d="M3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg></div>`;
     const ago      = timeAgo(a.created_at);
     const isPending = a.status === 'pending' || a.status === 'invited';
 
@@ -3002,7 +3002,7 @@ async function loadApplications() {
           const genres = (prof.genre_string || '').split(' · ').filter(Boolean).slice(0,4);
           const detailEl = card.querySelector('[data-detail]');
           if (detailEl) detailEl.innerHTML = [
-            prof.location ? `<div style="font-size:11px;color:var(--muted);">📍 ${prof.location}</div>` : '',
+            prof.location ? `<div style="font-size:11px;color:var(--muted);display:flex;align-items:center;gap:3px;"><svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg>${prof.location}</div>` : '',
             genres.length ? `<div class="dj-pills" style="margin-top:4px;">${genres.map(g=>`<span class="dj-pill">${g}</span>`).join('')}</div>` : '',
             prof.sound ? `<div style="font-size:11px;color:var(--neon2);font-style:italic;margin-top:4px;">${prof.sound}</div>` : '',
             prof.mix_link ? `<div style="font-size:11px;color:var(--muted);margin-top:2px;">▶ Mix link: <a href="${prof.mix_link}" target="_blank" style="color:var(--neon2);">listen</a></div>` : ''
@@ -4001,7 +4001,7 @@ function _showSlotOfferMatch(u) {
   const displayName = u.dj_name || u.name || 'Unknown';
   if (preview) {
     preview.innerHTML = `<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:rgba(0,229,255,.07);border:1px solid rgba(0,229,255,.25);border-radius:10px;">
-      ${u.avatar ? `<img src="${u.avatar}" style="width:36px;height:36px;border-radius:50%;object-fit:cover;">` : `<div style="width:36px;height:36px;border-radius:50%;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:16px;">🎧</div>`}
+      ${u.avatar ? `<img src="${u.avatar}" style="width:36px;height:36px;border-radius:50%;object-fit:cover;">` : `<div style="width:36px;height:36px;border-radius:50%;background:var(--card2);display:flex;align-items:center;justify-content:center;color:var(--neon2);"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3z"/><path d="M3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg></div>`}
       <div>
         <div style="font-family:'Bebas Neue',sans-serif;letter-spacing:1px;font-size:15px;color:var(--neon2);">${displayName}</div>
         <div style="font-size:11px;color:var(--muted);">YesPleez ${u.type || 'user'} · offer sent in-app</div>
@@ -4067,7 +4067,7 @@ async function onSlotOfferNameInput() {
             rows.map(u => {
               const dn = u.dj_name || u.name || 'Unknown';
               return `<div onclick="onSlotOfferPickUser('${u.user_id}')" style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;cursor:pointer;background:rgba(0,229,255,.04);border:1px solid rgba(0,229,255,.12);margin-bottom:6px;">
-                ${u.avatar ? `<img src="${u.avatar}" style="width:28px;height:28px;border-radius:50%;object-fit:cover;">` : `<div style="width:28px;height:28px;border-radius:50%;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:12px;">🎧</div>`}
+                ${u.avatar ? `<img src="${u.avatar}" style="width:28px;height:28px;border-radius:50%;object-fit:cover;">` : `<div style="width:28px;height:28px;border-radius:50%;background:var(--card2);display:flex;align-items:center;justify-content:center;color:var(--neon2);"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3z"/><path d="M3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg></div>`}
                 <div style="font-family:'Bebas Neue',sans-serif;letter-spacing:1px;font-size:14px;color:var(--neon2);">${esc(dn)}</div>
                 <div style="font-size:10px;color:var(--muted);margin-left:auto;">${u.type || ''}</div>
               </div>`;
@@ -4119,14 +4119,16 @@ function copySlotOfferLink(el) {
   if (navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard.writeText(text).then(() => {
       const btn = document.getElementById('slotOfferCopyBtn');
-      if (btn) { btn.textContent = '✅ COPIED!'; setTimeout(() => { btn.textContent = '📋 COPY MESSAGE'; }, 2000); }
+      const _copyIcon = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:6px;"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></svg>';
+      if (btn) { btn.innerHTML = '&#10003; COPIED!'; setTimeout(() => { btn.innerHTML = _copyIcon + 'COPY MESSAGE'; }, 2000); }
     }).catch(() => {
       el.select(); document.execCommand('copy');
     });
   } else {
     el.select(); document.execCommand('copy');
     const btn = document.getElementById('slotOfferCopyBtn');
-    if (btn) { btn.textContent = '✅ COPIED!'; setTimeout(() => { btn.textContent = '📋 COPY MESSAGE'; }, 2000); }
+    const _copyIcon = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:6px;"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></svg>';
+    if (btn) { btn.innerHTML = '&#10003; COPIED!'; setTimeout(() => { btn.innerHTML = _copyIcon + 'COPY MESSAGE'; }, 2000); }
   }
 }
 

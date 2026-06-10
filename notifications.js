@@ -186,7 +186,7 @@ function renderSlotOfferNotif(n) {
   return `
     <div class="notif-item${n.read ? '' : ' unread'}" id="notifRow_${n.id}" style="display:block;padding:14px 16px;">
       <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:${isActioned ? '0' : '12px'};">
-        <div style="width:36px;height:36px;border-radius:8px;background:rgba(0,229,255,.12);border:1px solid rgba(0,229,255,.3);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:18px;">🎧</div>
+        <div style="width:36px;height:36px;border-radius:8px;background:rgba(0,229,255,.12);border:1px solid rgba(0,229,255,.3);display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--neon2);"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3z"/><path d="M3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg></div>
         <div style="flex:1;min-width:0;">
           <div style="font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:1px;color:var(--neon2);margin-bottom:3px;">SLOT OFFER</div>
           <div style="font-size:13px;color:var(--text);line-height:1.4;">${esc(n.message || '')}</div>
