@@ -1917,7 +1917,10 @@ body.player-open .screen.active { padding-bottom: 80px; }
     <div style="font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:2px;color:var(--neon2);margin-bottom:10px;">MARKED AVAILABLE</div>
     <div id="availList" style="min-height:40px;"></div>
 
-    <button onclick="closeAvailabilityManager()" style="width:100%;background:var(--neon2);border:none;color:#0a0a0f;font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:2px;padding:14px;border-radius:10px;cursor:pointer;margin-top:16px;">DONE</button>
+    <div style="display:flex;gap:10px;margin-top:16px;">
+      <button onclick="clearAllAvailability()" style="flex:1;background:none;border:1px solid rgba(255,45,120,.35);color:var(--neon);font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:2px;padding:14px;border-radius:10px;cursor:pointer;">HIDE AVAILABILITY</button>
+      <button onclick="closeAvailabilityManager()" style="flex:2;background:var(--neon2);border:none;color:#0a0a0f;font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:2px;padding:14px;border-radius:10px;cursor:pointer;">DONE</button>
+    </div>
   </div>
 </div>
 

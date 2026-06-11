@@ -1137,6 +1137,24 @@ function closeAvailabilityManager() {
   document.getElementById('availabilityOverlay').classList.remove('open');
 }
 
+async function clearAllAvailability() {
+  if (!currentUser?.id || currentUser.id === 'guest') return;
+  if (!_myAvailDates.size) { showToast('No availability to clear', 'info', 1500); return; }
+  try {
+    await sbRest(
+      `artist_availability?user_id=eq.${currentUser.id}`,
+      { method: 'DELETE' }, currentSession?.access_token
+    );
+    _myAvailDates.clear();
+    renderAvailGrid();
+    renderAvailList();
+    renderAvailSummary();
+    showToast('Availability hidden from Discover', 'success', 2000);
+  } catch(e) {
+    showToast('Failed to clear availability', 'error');
+  }
+}
+
 function availPrevMonth() {
   _availViewMonth = new Date(_availViewMonth.getFullYear(), _availViewMonth.getMonth() - 1, 1);
   renderAvailMonthLabel();
