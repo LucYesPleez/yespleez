@@ -3219,18 +3219,24 @@ body.player-open .screen.active { padding-bottom: 80px; }
 
   <div class="profile-section" style="margin-top:0;">
     <div class="profile-section-title" style="color:var(--neon);">YOUR DETAILS</div>
-    <div class="field" style="margin-bottom:10px;">
-      <label>PROMOTER / COMPANY NAME</label>
-      <input type="text" id="hostProfileName" placeholder="e.g. YesPleez" autocomplete="off">
+    <div style="display:flex;gap:12px;margin-bottom:12px;">
+      <div class="field" style="margin-bottom:0;flex:1;">
+        <label>PROMOTER / COMPANY NAME</label>
+        <input type="text" id="hostProfileName" placeholder="e.g. YesPleez" autocomplete="off">
+      </div>
+      <div class="field" style="margin-bottom:0;flex:0 0 110px;">
+        <label>EST. YEAR</label>
+        <input type="number" id="hostProfileYears" placeholder="e.g. 2015" min="1900" max="2099" autocomplete="off">
+      </div>
     </div>
-    <div class="row2">
-      <div class="field" style="margin-bottom:0;position:relative;">
+    <div style="display:flex;gap:12px;">
+      <div class="field" style="margin-bottom:0;flex:2;position:relative;">
         <label>LOCATION</label>
         <input type="text" id="hostProfileLocation" placeholder="Start typing your city…" autocomplete="off" oninput="nominatimSearch(this,'hostLocationSuggestions','hostLocationHidden')">
         <input type="hidden" id="hostLocationHidden">
         <div id="hostLocationSuggestions" class="nominatim-dropdown" style="display:none;"></div>
       </div>
-      <div class="field" style="margin-bottom:0">
+      <div class="field" style="margin-bottom:0;flex:1;">
         <label>STATE</label>
         <select id="hostProfileState" style="background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:15px;padding:12px 14px;outline:none;width:100%;appearance:none;-webkit-appearance:none;">
           <option value="">Select…</option>
@@ -3246,14 +3252,8 @@ body.player-open .screen.active { padding-bottom: 80px; }
           <option>International</option>
         </select>
       </div>
-      <div class="field" style="margin-bottom:0">
-        <label>EST. YEAR</label>
-        <input type="number" id="hostProfileYears" placeholder="e.g. 2015" min="1900" max="2099" autocomplete="off" style="max-width:100px;">
-      </div>
-    </div>
-    <div style="display:flex;gap:12px;margin-top:12px;">
       <div class="field" style="margin-bottom:0;flex:1;">
-        <label>POSTCODE <span style="font-size:10px;color:var(--muted);letter-spacing:0;font-family:'DM Sans',sans-serif;text-transform:none;">used for location search in Discover</span></label>
+        <label>POSTCODE <span style="font-size:10px;color:var(--muted);letter-spacing:0;font-family:'DM Sans',sans-serif;text-transform:none;">for Discover</span></label>
         <input type="text" id="hostProfilePostcode" placeholder="e.g. 2010" maxlength="4" inputmode="numeric" autocomplete="off"
           oninput="this.value=this.value.replace(/\D/g,''); onHostPostcodeInput()">
       </div>
