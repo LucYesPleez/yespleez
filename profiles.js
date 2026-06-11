@@ -121,6 +121,7 @@ function mapDbToArtistProfile(row) {
     postcode:           row.postcode      || '',
     lat:                row.lat           || null,
     lng:                row.lng           || null,
+    years:              row.years         || '',
     tagline:            row.tagline       || '',
     bio:                row.bio           || '',
     age:                row.age           || '',
