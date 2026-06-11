@@ -750,6 +750,15 @@ async function showPublicEventPage(eventId) {
     const ev  = rows[0];
     const cfg = ev.config || {};
 
+    // Private events require login
+    const isLoggedIn = !!(currentUser?.id && currentUser.id !== 'guest');
+    if (ev.is_public === false && !isLoggedIn) {
+      localStorage.setItem('yp_post_auth_action', JSON.stringify({ action:'view', evId: eventId }));
+      showToast('Sign in to view this event.', 'error');
+      show('authScreen');
+      return true;
+    }
+
     // ── Hero background ──
     const heroBg = document.getElementById('pubEvHeroBg');
     if (heroBg && (ev.poster_url || cfg.poster)) {
