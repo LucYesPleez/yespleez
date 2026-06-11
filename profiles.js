@@ -324,6 +324,7 @@ function openPublicProfile(row) {
       <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-top:10px;flex-wrap:wrap;">
         <span style="font-size:11px;background:rgba(${accentRgb},.15);color:${accentColor};border:1px solid rgba(${accentRgb},.35);border-radius:20px;padding:4px 14px;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;">${typeLabel}</span>
         ${location ? `<span style="font-size:13px;color:rgba(232,232,240,.75);"><svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:2px;"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg>${location}</span>` : ''}
+        ${isHost && row.years ? `<span style="font-size:11px;background:rgba(${accentRgb},.1);color:${accentColor};border:1px solid rgba(${accentRgb},.3);border-radius:20px;padding:4px 12px;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;">EST. ${row.years}</span>` : ''}
       </div>
     </div>
     ${mixHtml}
