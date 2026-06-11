@@ -3953,13 +3953,22 @@ function getHostProfileGenreString() {
   return [...genres, ...subs, ...vibes].join(' · ');
 }
 
+function toggleHostCat(btn) {
+  btn.classList.toggle('selected');
+  const on = btn.classList.contains('selected');
+  btn.style.color = on ? 'var(--neon)' : 'var(--muted)';
+  btn.style.borderColor = on ? 'var(--neon)' : 'rgba(255,45,120,.25)';
+  btn.style.background = on ? 'rgba(255,45,120,.15)' : 'rgba(255,45,120,.08)';
+}
+
 async function saveHostProfile() {
   const btn = document.getElementById('saveHostProfileBtn'); btn.disabled = true; btn.textContent = 'SAVING...';
   const nameVal = document.getElementById('hostProfileName').value.trim();
   showToast(`Saving name: "${nameVal}"`, 'success');
   const _hpc = (document.getElementById('hostProfilePostcode')?.value || '').trim();
   const _hpcCoords = (typeof AU_POSTCODES !== 'undefined' && _hpc && AU_POSTCODES[_hpc]) ? AU_POSTCODES[_hpc] : null;
-  hostProfile = { ...hostProfile, name: nameVal, location: document.getElementById('hostProfileLocation').value.trim(), state: document.getElementById('hostProfileState').value, years: document.getElementById('hostProfileYears').value.trim(), postcode: _hpc, lat: _hpcCoords ? _hpcCoords[0] : (hostProfile.lat || null), lng: _hpcCoords ? _hpcCoords[1] : (hostProfile.lng || null), bio: document.getElementById('hostProfileBio').value.trim(), instagram: document.getElementById('hostProfileInstagram').value.trim(), website: document.getElementById('hostProfileWebsite').value.trim(), email: document.getElementById('hostProfileEmail').value.trim(), genreString: getHostProfileGenreString() };
+  const _hostCats = [...document.querySelectorAll('.host-cat-btn.selected')].map(b => b.dataset.cat).join(' · ');
+  hostProfile = { ...hostProfile, name: nameVal, location: document.getElementById('hostProfileLocation').value.trim(), state: document.getElementById('hostProfileState').value, years: document.getElementById('hostProfileYears').value.trim(), postcode: _hpc, lat: _hpcCoords ? _hpcCoords[0] : (hostProfile.lat || null), lng: _hpcCoords ? _hpcCoords[1] : (hostProfile.lng || null), bio: document.getElementById('hostProfileBio').value.trim(), instagram: document.getElementById('hostProfileInstagram').value.trim(), website: document.getElementById('hostProfileWebsite').value.trim(), email: document.getElementById('hostProfileEmail').value.trim(), genreString: getHostProfileGenreString(), tagline: _hostCats };
   try { localStorage.setItem('yp_host_profile', JSON.stringify(hostProfile)); } catch(e) {}
   await upsertProfileToSupabase(hostProfile, 'host');
   btn.disabled = false; btn.textContent = 'SAVE HOST PROFILE →';
@@ -3974,6 +3983,13 @@ function loadHostProfileData() {
   document.getElementById('hostProfileLocation').value  = hostProfile.location  || '';
   document.getElementById('hostProfileState').value     = hostProfile.state     || '';
   document.getElementById('hostProfileYears').value     = hostProfile.years     || '';
+  const _savedCats = (hostProfile.tagline || '').split(' · ').filter(Boolean);
+  document.querySelectorAll('.host-cat-btn').forEach(b => {
+    b.classList.toggle('selected', _savedCats.includes(b.dataset.cat));
+    b.style.color = b.classList.contains('selected') ? 'var(--neon)' : 'var(--muted)';
+    b.style.borderColor = b.classList.contains('selected') ? 'var(--neon)' : 'rgba(255,45,120,.25)';
+    b.style.background = b.classList.contains('selected') ? 'rgba(255,45,120,.15)' : 'rgba(255,45,120,.08)';
+  });
   const _hpcEl = document.getElementById('hostProfilePostcode'); if (_hpcEl) _hpcEl.value = hostProfile.postcode || '';
   document.getElementById('hostProfileBio').value       = hostProfile.bio       || '';
   document.getElementById('hostProfileInstagram').value = hostProfile.instagram || '';

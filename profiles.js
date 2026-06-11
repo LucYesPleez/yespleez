@@ -159,6 +159,7 @@ function mapDbToHostProfile(row) {
     lat:         row.lat          || null,
     lng:         row.lng          || null,
     years:       row.years        || '',
+    tagline:     row.tagline      || '',
     bio:         row.bio          || '',
     instagram:   row.instagram    || '',
     website:     row.website      || '',
@@ -331,6 +332,7 @@ function openPublicProfile(row) {
       </div>
       ${row.years ? `<span style="position:absolute;bottom:0;right:0;font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:2px;color:#fff;">EST. ${row.years}</span>` : ''}
     </div>
+    ${isHost && row.tagline ? `<div style="display:flex;justify-content:center;flex-wrap:wrap;gap:8px;margin-bottom:16px;">${row.tagline.split(' · ').filter(Boolean).map(c=>`<span style="background:rgba(255,45,120,.12);border:1px solid rgba(255,45,120,.35);color:var(--neon);border-radius:20px;padding:5px 16px;font-family:'Bebas Neue',sans-serif;font-size:12px;letter-spacing:1.5px;">${c}</span>`).join('')}</div>` : ''}
     ${mixHtml}
     ${row.sound ? (() => { const ds = (typeof dedupeSound === 'function') ? dedupeSound(row.sound, row.genre_string || '') : row.sound; return ds ? `<div style="background:rgba(19,19,31,.88);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:14px 16px;margin-bottom:12px;text-align:center;"><div style="font-size:15px;color:var(--text);font-style:italic;line-height:1.5;">"${ds}"</div></div>` : ''; })() : ''}
     ${row.bio ? `

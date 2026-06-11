@@ -3267,6 +3267,15 @@ body.player-open .screen.active { padding-bottom: 80px; }
   </div>
 
   <div class="profile-section">
+    <div class="profile-section-title" style="color:var(--neon);">WHAT DO YOU HOST?</div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;">
+      <button type="button" class="host-cat-btn" data-cat="ELECTRONIC" onclick="toggleHostCat(this)" style="background:rgba(255,45,120,.08);border:1px solid rgba(255,45,120,.25);color:var(--muted);border-radius:20px;padding:8px 18px;font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:1.5px;cursor:pointer;transition:all .2s;">ELECTRONIC</button>
+      <button type="button" class="host-cat-btn" data-cat="BANDS" onclick="toggleHostCat(this)" style="background:rgba(255,45,120,.08);border:1px solid rgba(255,45,120,.25);color:var(--muted);border-radius:20px;padding:8px 18px;font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:1.5px;cursor:pointer;transition:all .2s;">BANDS</button>
+      <button type="button" class="host-cat-btn" data-cat="SPOKEN" onclick="toggleHostCat(this)" style="background:rgba(255,45,120,.08);border:1px solid rgba(255,45,120,.25);color:var(--muted);border-radius:20px;padding:8px 18px;font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:1.5px;cursor:pointer;transition:all .2s;">SPOKEN WORD</button>
+    </div>
+  </div>
+
+  <div class="profile-section">
     <div class="profile-section-title" style="color:var(--neon);">GENRES YOU BOOK</div>
     <div id="hostProfileGenreChips" class="chip-wrap"></div>
     <div id="hostProfileSubgenreChips" class="chip-wrap" style="margin-top:8px;"></div>
@@ -4807,10 +4816,10 @@ body.player-open .screen.active { padding-bottom: 80px; }
 <script src="auth.js?v=4"></script>
 <script src="navigation.js?v=4"></script>
 <script src="notifications.js?v=4"></script>
-<script src="profiles.js?v=7"></script>
+<script src="profiles.js?v=8"></script>
 <script src="audio.js?v=4"></script>
 <script src="search.js?v=5"></script>
-<script src="events.js?v=4"></script>
+<script src="events.js?v=5"></script>
 <script src="calendar.js?v=2"></script>
 <script src="venues.js?v=1"></script>
 <script src="bands.js?v=1"></script>
