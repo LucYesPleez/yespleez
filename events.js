@@ -3756,7 +3756,7 @@ function updateDashProfileCard() {
 // ── Profile screen ─────────────────────────────────
 
 function showProfile() { show('profileScreen'); profileGoPage1(); initProfileGenres(); loadProfileData(); renderUpcomingGigs(); }
-function showHostProfile() { loadHostProfileData(); initHostProfileGenres(); show('hostProfileScreen'); }
+function showHostProfile() { loadHostProfileData(); show('hostProfileScreen'); }
 function profileGoPage1() { document.getElementById('profilePage1').style.display = 'block'; document.getElementById('profilePage2').style.display = 'none'; document.getElementById('pdot1').classList.add('active'); document.getElementById('pdot2').classList.remove('active'); }
 function profileGoPage2() { document.getElementById('profilePage1').style.display = 'none'; document.getElementById('profilePage2').style.display = 'block'; document.getElementById('pdot1').classList.remove('active'); document.getElementById('pdot2').classList.add('active'); document.getElementById('profileScreen').scrollTop = 0; window.scrollTo(0,0); }
 function handleAvatarUpload(e) { const file = e.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = ev => { const img = document.getElementById('avatarPreview'); img.src = ev.target.result; img.style.display = 'block'; document.getElementById('avatarPlaceholder').style.display = 'none'; artistProfile.avatar = ev.target.result; }; reader.readAsDataURL(file); }
