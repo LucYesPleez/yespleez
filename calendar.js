@@ -516,13 +516,15 @@ function calOpenMonthPicker() {
   document.getElementById('calPickerMonth').value = _calPickerMonth.getMonth();
   document.getElementById('calPickerYear').value  = _calPickerMonth.getFullYear();
   calPickerRenderGrid();
-  document.getElementById('calMonthPickerOverlay').style.display = '';
-  document.getElementById('calMonthPickerModal').style.display   = '';
+  document.getElementById('calMonthPickerOverlay').style.display = 'block';
+  document.getElementById('calMonthPickerModal').style.display   = 'block';
 }
 
 function calCloseMonthPicker() {
-  document.getElementById('calMonthPickerOverlay').style.display = 'none';
-  document.getElementById('calMonthPickerModal').style.display   = 'none';
+  const ov = document.getElementById('calMonthPickerOverlay');
+  const mo = document.getElementById('calMonthPickerModal');
+  if (ov) ov.style.display = 'none';
+  if (mo) mo.style.display = 'none';
 }
 
 function _calPickerPopulateYears() {
