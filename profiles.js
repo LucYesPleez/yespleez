@@ -326,7 +326,7 @@ function openPublicProfile(row) {
         <span style="font-size:11px;background:rgba(${accentRgb},.15);color:${accentColor};border:1px solid rgba(${accentRgb},.35);border-radius:20px;padding:4px 14px;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;">${typeLabel}</span>
         ${location ? `<span style="font-size:13px;color:rgba(232,232,240,.75);"><svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:2px;"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg>${location}</span>` : ''}
       </div>
-      ${isHost && row.years ? `<span style="position:absolute;top:0;right:0;font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:2px;color:#fff;">EST. ${row.years}</span>` : ''}
+      ${isHost && row.years ? `<span style="position:absolute;bottom:0;right:0;font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:2px;color:#fff;">EST. ${row.years}</span>` : ''}
     </div>
     ${mixHtml}
     ${row.sound ? (() => { const ds = (typeof dedupeSound === 'function') ? dedupeSound(row.sound, row.genre_string || '') : row.sound; return ds ? `<div style="background:rgba(19,19,31,.88);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:14px 16px;margin-bottom:12px;text-align:center;"><div style="font-size:15px;color:var(--text);font-style:italic;line-height:1.5;">"${ds}"</div></div>` : ''; })() : ''}
