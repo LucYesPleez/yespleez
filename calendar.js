@@ -661,10 +661,11 @@ function calWhatsOnCard(ev, size) {
   const dateStr = d ? d.toLocaleDateString('en-AU', { weekday:'short', day:'numeric', month:'short' }) : '';
   const w      = size === 'lg' ? '210px' : '160px';
   const imgH   = size === 'lg' ? '210px' : '165px';
-  const bg     = poster ? `url('${poster}') center/cover no-repeat` : `linear-gradient(135deg,rgba(255,45,120,.5),rgba(157,78,221,.4),rgba(0,229,255,.3))`;
+  const bgFallback = `linear-gradient(135deg,rgba(255,45,120,.5),rgba(157,78,221,.4),rgba(0,229,255,.3))`;
 
   return `<div onclick="calOpenEvent('${ev.id}')" style="flex-shrink:0;width:${w};border-radius:16px;overflow:hidden;background:var(--card2);cursor:pointer;transition:transform .15s;" onmouseenter="this.style.transform='translateY(-3px)'" onmouseleave="this.style.transform=''">
-    <div style="position:relative;height:${imgH};background:${bg};">
+    <div style="position:relative;height:${imgH};background:${bgFallback};">
+      ${poster ? `<img src="${poster}" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center;display:block;" loading="lazy">` : ''}
       <div style="position:absolute;inset:0;background:linear-gradient(to bottom,rgba(0,0,0,.1) 0%,rgba(0,0,0,0) 40%,rgba(0,0,0,.4) 100%);"></div>
       <div style="position:absolute;top:10px;left:10px;background:${cat.color};color:${cat.dark?'#0a0a0f':'#fff'};border-radius:6px;padding:3px 8px;font-size:9px;font-weight:700;letter-spacing:.8px;font-family:'DM Sans',sans-serif;">${cat.label}</div>
       <div style="position:absolute;top:8px;right:8px;width:28px;height:28px;background:rgba(0,0,0,.45);backdrop-filter:blur(4px);border-radius:50%;display:flex;align-items:center;justify-content:center;">
