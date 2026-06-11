@@ -269,8 +269,8 @@ function openPublicProfile(row) {
   const name = row.dj_name || row.name || 'Unknown';
   const location = [row.location, row.state].filter(Boolean).join(', ');
   const genres = row.genre_string ? row.genre_string.split(' · ').filter(Boolean) : [];
-  const mainGenre = genres.slice(0, 1);
-  const subGenres = genres.slice(1, 8);
+  const mainGenre = genres;
+  const subGenres = [];
   const typeAccents = {
     host:    { color: 'var(--neon)',  rgb: '255,45,120',  label: 'HOST / PROMOTER' },
     artist:  { color: 'var(--neon2)', rgb: '0,229,255',   label: 'ARTIST / DJ' },
@@ -325,7 +325,7 @@ function openPublicProfile(row) {
       <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-top:10px;flex-wrap:wrap;">
         <span style="font-size:11px;background:rgba(${accentRgb},.15);color:${accentColor};border:1px solid rgba(${accentRgb},.35);border-radius:20px;padding:4px 14px;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;">${typeLabel}</span>
         ${location ? `<span style="font-size:13px;color:rgba(232,232,240,.75);"><svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:2px;"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg>${location}</span>` : ''}
-        ${isHost && row.years ? `<span style="font-size:11px;background:rgba(${accentRgb},.1);color:${accentColor};border:1px solid rgba(${accentRgb},.3);border-radius:20px;padding:4px 12px;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;">EST. ${row.years}</span>` : ''}
+        ${isHost && row.years ? `<span style="font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:2px;color:#fff;margin-left:auto;">EST. ${row.years}</span>` : ''}
       </div>
     </div>
     ${mixHtml}
@@ -338,14 +338,8 @@ function openPublicProfile(row) {
     ${mainGenre.length ? `
     <div style="background:rgba(19,19,31,.88);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:16px;margin-bottom:12px;">
       <div style="font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:2px;color:${accentColor};margin-bottom:8px;">GENRE</div>
-      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;">
-        ${mainGenre.map(g => `<span style="background:var(--card2);border:1px solid var(--border);border-radius:20px;font-size:12px;padding:4px 12px;color:var(--text);">${g}</span>`).join('')}
-      </div>
-      <div style="font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:2px;color:${accentColor};margin-bottom:8px;">SUB GENRE</div>
       <div style="display:flex;flex-wrap:wrap;gap:6px;">
-        ${subGenres.length
-          ? subGenres.map(g => `<span style="background:rgba(0,229,255,.06);border:1px solid rgba(0,229,255,.2);border-radius:20px;font-size:12px;padding:4px 12px;color:var(--neon2);">${g}</span>`).join('')
-          : `<span style="font-size:12px;color:var(--muted);font-style:italic;">Not set yet</span>`}
+        ${mainGenre.map(g => `<span style="background:var(--card2);border:1px solid var(--border);border-radius:20px;font-size:12px;padding:4px 12px;color:var(--text);">${g}</span>`).join('')}
       </div>
     </div>` : ''}
     ${row.instagram || row.website ? `
