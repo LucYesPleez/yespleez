@@ -1032,6 +1032,23 @@ function showSignup() {
     if (posterSrc) { posterImg.src = posterSrc; posterWrap.style.display = ''; }
     else { posterWrap.style.display = 'none'; }
   }
+  // Description
+  const descWrap = document.getElementById('signupDescWrap');
+  const descEl   = document.getElementById('signupDesc');
+  if (descEl && descWrap) {
+    if (eventData.description) { descEl.textContent = eventData.description; descWrap.style.display = ''; }
+    else { descWrap.style.display = 'none'; }
+  }
+
+  // Location
+  const locWrap = document.getElementById('signupLocationWrap');
+  const locEl   = document.getElementById('signupLocation');
+  if (locEl && locWrap) {
+    const parts = [eventData.address, eventData.venue && !eventData.address ? eventData.venue : null, eventData.town, eventData.state, eventData.postcode].filter(Boolean);
+    if (parts.length) { locEl.innerHTML = parts.map(p => `<div>${esc(p)}</div>`).join(''); locWrap.style.display = ''; }
+    else { locWrap.style.display = 'none'; }
+  }
+
   document.getElementById('hostPanel').style.display    = isHost ? '' : 'none';
 
   // Apply bar — shown for non-hosts on non-read-only events
