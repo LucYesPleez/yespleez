@@ -917,13 +917,7 @@ function _renderPubEvLineup(ev, el) {
 // ── CTA handlers ──────────────────────────────────
 
 function pubEvGoBack() {
-  const hasSession = !!(currentUser?.id && currentUser.id !== 'guest');
-  if (hasSession) {
-    if (currentMode === 'artist') enterArtistDashboard();
-    else enterDashboard();
-  } else {
-    show('authScreen');
-  }
+  navBack();
 }
 
 function pubEvShare() {
