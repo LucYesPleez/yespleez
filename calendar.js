@@ -1139,7 +1139,6 @@ function closeAvailabilityManager() {
 
 async function clearAllAvailability() {
   if (!currentUser?.id || currentUser.id === 'guest') return;
-  if (!_myAvailDates.size) { showToast('No availability to clear', 'info', 1500); return; }
   try {
     await sbRest(
       `artist_availability?user_id=eq.${currentUser.id}`,
