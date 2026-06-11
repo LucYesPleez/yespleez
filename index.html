@@ -3521,6 +3521,18 @@ body.player-open .screen.active { padding-bottom: 80px; }
   <div class="fsection">
     <div class="fsection-title">Days &amp; Time Slots</div>
 
+    <div class="toggle-row" style="margin-bottom:16px;">
+      <div>
+        <div class="toggle-label">Set times needed</div>
+        <div class="toggle-desc">Turn off for community events, gigs without a running order</div>
+      </div>
+      <label class="toggle-switch">
+        <input type="checkbox" id="toggleSetTimesNeeded" checked onchange="document.getElementById('setTimesBuilder').style.display=this.checked?'':'none'">
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
+
+    <div id="setTimesBuilder">
     <!-- Quick generator panel -->
     <div class="quickgen-panel">
       <h3><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:5px;"><path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/></svg>Quick Generator</h3>
@@ -3558,6 +3570,7 @@ body.player-open .screen.active { padding-bottom: 80px; }
     <p style="font-size:12px;color:var(--muted);margin-bottom:14px;">Or build manually below. Remove slots you don't need.</p>
     <div id="daysBuilder"></div>
     <button class="btn-add-day" onclick="addDayCard()">+ ADD ANOTHER DAY</button>
+    </div><!-- end setTimesBuilder -->
   </div>
 
   <!-- Host Controls -->
@@ -4843,7 +4856,7 @@ body.player-open .screen.active { padding-bottom: 80px; }
 <script src="profiles.js?v=9"></script>
 <script src="audio.js?v=4"></script>
 <script src="search.js?v=5"></script>
-<script src="events.js?v=11"></script>
+<script src="events.js?v=12"></script>
 <script src="calendar.js?v=8"></script>
 <script src="venues.js?v=1"></script>
 <script src="bands.js?v=1"></script>

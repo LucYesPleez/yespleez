@@ -320,6 +320,9 @@ function buildTemplate(ev) {
   document.getElementById('toggleGenrePicker').checked   = hc.genrePicker   !== false;
   document.getElementById('togglePrivateSetTimes').checked = hc.privateSetTimes === true;
   document.getElementById('toggleSlipMode').checked = hc.slipMode === true;
+  const setTimesNeeded = hc.noSetTimes !== true;
+  document.getElementById('toggleSetTimesNeeded').checked = setTimesNeeded;
+  document.getElementById('setTimesBuilder').style.display = setTimesNeeded ? '' : 'none';
   document.getElementById('toggleApplicationsOpen').checked = ev?.applications_open === true;
   document.getElementById('togglePublicEvent').checked = ev?.is_public !== false; // default true
   const builder = document.getElementById('daysBuilder');
@@ -668,6 +671,7 @@ function readForm() {
       genrePicker:   document.getElementById('toggleGenrePicker').checked,
       privateSetTimes: document.getElementById('togglePrivateSetTimes').checked,
       slipMode: document.getElementById('toggleSlipMode').checked,
+      noSetTimes: !document.getElementById('toggleSetTimesNeeded').checked,
     },
     applications_open: document.getElementById('toggleApplicationsOpen').checked,
     is_public: document.getElementById('togglePublicEvent').checked,
@@ -1047,7 +1051,7 @@ function showSignup() {
   document.getElementById('hostPanel').style.display    = isHost ? '' : 'none';
 
   // Hide tally and sync bar when event has no set times
-  const hasSlots = (eventData.days || []).some(d => (d.slots || []).length > 0);
+  const hasSlots = !hostControls?.noSetTimes && (eventData.days || []).some(d => (d.slots || []).length > 0);
   const tallyEl = document.querySelector('.tally');
   const syncBar = document.querySelector('.sync-bar');
   if (tallyEl) tallyEl.style.display = hasSlots ? '' : 'none';
