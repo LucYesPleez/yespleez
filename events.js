@@ -2900,6 +2900,20 @@ function nominatimVenueSearch(inputEl) {
   }, 350);
 }
 
+// ── Postcode / distance helpers ──────────────────────
+function haversineKm(lat1, lng1, lat2, lng2) {
+  const R = 6371, toRad = d => d * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1), dLng = toRad(lng2 - lng1);
+  const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+function onPostcodeInput() {
+  const pc = document.getElementById('profilePostcode')?.value || '';
+  if (pc.length === 4 && typeof AU_POSTCODES !== 'undefined' && AU_POSTCODES[pc]) {
+    showToast('Postcode recognised ✓', 'success', 1500);
+  }
+}
+
 let _nominatimTimer = null;
 async function nominatimSearch(inputEl, dropdownId, hiddenId) {
   const q = inputEl.value.trim();
@@ -3818,7 +3832,9 @@ function closeMemberModal() { document.getElementById('becomeMemberOverlay').cla
 async function saveProfile() {
   if (currentUser?.id === 'guest') { document.getElementById('becomeMemberOverlay').classList.add('open'); return; }
   const btn = document.getElementById('saveProfileBtn'); btn.disabled = true; btn.textContent = 'SAVING...';
-  artistProfile = { ...artistProfile, djName: document.getElementById('profileDjName').value.trim(), label: document.getElementById('profileLabel').value.trim(), location: document.getElementById('profileLocation').value.trim(), state: document.getElementById('profileState').value, tagline: document.getElementById('profileTagline').value.trim(), bio: document.getElementById('profileBio').value.trim(), age: document.getElementById('profileAgeNone').checked ? 'prefer-not-to-say' : document.getElementById('profileAge').value.trim(), agePrivate: document.getElementById('profileAgePrivate').checked, ageNone: document.getElementById('profileAgeNone').checked, mixLink: document.getElementById('profileMixLink').value.trim(), experience: artistProfile.experience || '', techSetup: artistProfile.techSetup || '', feeType: artistProfile.feeType || '', fee: document.getElementById('profileFee').value.trim(), feeLocal: document.getElementById('profileFeeLocal') ? document.getElementById('profileFeeLocal').checked : false, feePlusTravelLocal: document.getElementById('profileFeePlusTravelLocal').checked, feeNegotiable: document.getElementById('profileFeeNegotiable').checked, abn: document.getElementById('profileABN') ? document.getElementById('profileABN').value.trim() : '', emergencyName: document.getElementById('profileEmergencyName').value.trim(), emergencyPhone: document.getElementById('profileEmergencyPhone').value.trim(), emergencyRel: document.getElementById('profileEmergencyRel').value.trim(), sound: document.getElementById('profileSound').value.trim(), genreString: getProfileGenreString(), cardPills: getCardPills(), soundcloud: document.getElementById('profileSoundcloud').value.trim(), mixcloud: document.getElementById('profileMixcloud').value.trim(), instagram: document.getElementById('profileInstagram').value.trim(), youtube: document.getElementById('profileYoutube').value.trim(), facebook: document.getElementById('profileFacebook').value.trim(), updatedAt: new Date().toISOString() };
+  const pcVal = (document.getElementById('profilePostcode').value || '').trim();
+  const pcCoords = (typeof AU_POSTCODES !== 'undefined' && pcVal && AU_POSTCODES[pcVal]) ? AU_POSTCODES[pcVal] : null;
+  artistProfile = { ...artistProfile, djName: document.getElementById('profileDjName').value.trim(), label: document.getElementById('profileLabel').value.trim(), location: document.getElementById('profileLocation').value.trim(), state: document.getElementById('profileState').value, postcode: pcVal, lat: pcCoords ? pcCoords[0] : (artistProfile.lat || null), lng: pcCoords ? pcCoords[1] : (artistProfile.lng || null), tagline: document.getElementById('profileTagline').value.trim(), bio: document.getElementById('profileBio').value.trim(), age: document.getElementById('profileAgeNone').checked ? 'prefer-not-to-say' : document.getElementById('profileAge').value.trim(), agePrivate: document.getElementById('profileAgePrivate').checked, ageNone: document.getElementById('profileAgeNone').checked, mixLink: document.getElementById('profileMixLink').value.trim(), experience: artistProfile.experience || '', techSetup: artistProfile.techSetup || '', feeType: artistProfile.feeType || '', fee: document.getElementById('profileFee').value.trim(), feeLocal: document.getElementById('profileFeeLocal') ? document.getElementById('profileFeeLocal').checked : false, feePlusTravelLocal: document.getElementById('profileFeePlusTravelLocal').checked, feeNegotiable: document.getElementById('profileFeeNegotiable').checked, abn: document.getElementById('profileABN') ? document.getElementById('profileABN').value.trim() : '', emergencyName: document.getElementById('profileEmergencyName').value.trim(), emergencyPhone: document.getElementById('profileEmergencyPhone').value.trim(), emergencyRel: document.getElementById('profileEmergencyRel').value.trim(), sound: document.getElementById('profileSound').value.trim(), genreString: getProfileGenreString(), cardPills: getCardPills(), soundcloud: document.getElementById('profileSoundcloud').value.trim(), mixcloud: document.getElementById('profileMixcloud').value.trim(), instagram: document.getElementById('profileInstagram').value.trim(), youtube: document.getElementById('profileYoutube').value.trim(), facebook: document.getElementById('profileFacebook').value.trim(), updatedAt: new Date().toISOString() };
   try { localStorage.setItem('yp_artist_profile', JSON.stringify(artistProfile)); } catch(e) {}
   await upsertProfileToSupabase(artistProfile, 'artist');
   btn.disabled = false; btn.textContent = 'SAVE PROFILE →';
@@ -3833,6 +3849,7 @@ function loadProfileData() {
   document.getElementById('profileLabel').value = artistProfile.label || '';
   document.getElementById('profileLocation').value = artistProfile.location || '';
   document.getElementById('profileState').value = artistProfile.state || '';
+  document.getElementById('profilePostcode').value = artistProfile.postcode || '';
   document.getElementById('profileTagline').value = artistProfile.tagline || '';
   document.getElementById('profileBio').value = artistProfile.bio || '';
   const ageNoneEl = document.getElementById('profileAgeNone'), ageEl = document.getElementById('profileAge'), agePriEl = document.getElementById('profileAgePrivate');

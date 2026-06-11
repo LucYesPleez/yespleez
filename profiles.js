@@ -25,6 +25,9 @@ async function upsertProfileToSupabase(profile, type) {
       name:              profile.name          || profile.djName || '',
       location:          profile.location      || '',
       state:             profile.state         || '',
+      postcode:          profile.postcode      || '',
+      lat:               profile.lat           || null,
+      lng:               profile.lng           || null,
       bio:               profile.bio           || '',
       tagline:           profile.tagline       || '',
       age:               profile.ageNone ? 'prefer-not-to-say' : (profile.age || ''),
@@ -115,6 +118,9 @@ function mapDbToArtistProfile(row) {
     label:              row.label         || '',
     location:           row.location      || '',
     state:              row.state         || '',
+    postcode:           row.postcode      || '',
+    lat:                row.lat           || null,
+    lng:                row.lng           || null,
     tagline:            row.tagline       || '',
     bio:                row.bio           || '',
     age:                row.age           || '',
@@ -213,7 +219,7 @@ async function searchProfiles(query, filterType, filterState) {
     } else {
       path += `&type=in.(artist,host,band,standup,venue)`;
     }
-    if (filterState && filterState !== 'all') {
+    if (filterState) {
       const s = encodeURIComponent(`%${filterState}%`);
       // Match on state column OR location column (covers both storage patterns)
       path += `&or=(state.ilike.${s},location.ilike.${s})`;
@@ -241,7 +247,7 @@ function openPublicProfile(row) {
   _viewingProfile = {
     user_id:      row.user_id,      type:         row.type,
     dj_name:      row.dj_name,      name:         row.name,
-    location:     row.location,     state:        row.state,
+    location:     row.location,     state:        row.state,     postcode: row.postcode, lat: row.lat, lng: row.lng,
     sound:        row.sound,        tagline:      row.tagline,
     bio:          row.bio,          genre_string: row.genre_string,
     band_type:    row.band_type,    act_type:     row.act_type,

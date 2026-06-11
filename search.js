@@ -110,32 +110,50 @@ function toggleAvailFilter() {
 }
 
 async function runSearch() {
-  const query       = document.getElementById('searchInput').value.trim();
-  const typeFilter  = document.getElementById('searchTypeFilter').value;
-  const stateFilter = document.getElementById('searchStateFilter').value;
-  const availDate   = document.getElementById('searchAvailDate')?.value || ''; // 'YYYY-MM-DD' or ''
-  const resultsEl   = document.getElementById('searchResults');
-  const placeholder = document.getElementById('searchPlaceholder');
+  const query        = document.getElementById('searchInput').value.trim();
+  const typeFilter   = document.getElementById('searchTypeFilter').value;
+  const stateFilter  = document.getElementById('searchStateFilter').value;
+  const genreFilter  = document.getElementById('searchGenreFilter')?.value || '';
+  const postcodeVal  = (document.getElementById('searchPostcode')?.value || '').trim();
+  const radiusKm     = parseFloat(document.getElementById('searchRadiusFilter')?.value || '') || 0;
+  const availDate    = document.getElementById('searchAvailDate')?.value || '';
+  const resultsEl    = document.getElementById('searchResults');
+  const placeholder  = document.getElementById('searchPlaceholder');
 
   placeholder.style.display = 'none';
   resultsEl.innerHTML = '';
   resultsEl.insertAdjacentHTML('beforeend', '<div class="search-card" id="searchLoading" style="text-align:center;padding:40px;color:var(--muted);font-size:13px;">Loading…</div>');
 
-  // Normalise type filter — dropdown may say 'dj' but DB stores 'artist'
+  // Normalise type filter
   const typeMap = { dj: 'artist', DJ: 'artist', artist: 'artist', host: 'host', promoter: 'host', band: 'band', muso: 'band', standup: 'standup', comedy: 'standup', venue: 'venue' };
   const normType = typeMap[typeFilter] || typeFilter;
 
   const searchingProfiles = normType !== 'event';
   const searchingEvents   = normType === 'all' || normType === 'event';
-  // If filtering by availability, only show artists
   const effectiveProfileType = availDate
     ? 'artist'
     : ((normType && normType !== 'all' && normType !== 'event') ? normType : '');
 
   let [profileRows, eventRows] = await Promise.all([
-    searchingProfiles ? searchProfiles(query, effectiveProfileType, stateFilter === 'all' ? '' : stateFilter) : [],
+    searchingProfiles ? searchProfiles(query, effectiveProfileType, stateFilter || '') : [],
     (searchingEvents && !availDate) ? searchEvents(query) : []
   ]);
+
+  // Genre filter
+  if (genreFilter && profileRows.length) {
+    profileRows = profileRows.filter(p => (p.genre_string || '').toLowerCase().includes(genreFilter.toLowerCase()));
+  }
+
+  // Postcode + radius filter
+  if (postcodeVal.length === 4 && radiusKm > 0 && typeof AU_POSTCODES !== 'undefined') {
+    const origin = AU_POSTCODES[postcodeVal];
+    if (origin) {
+      profileRows = profileRows.filter(p => {
+        if (!p.lat || !p.lng) return false;
+        return haversineKm(origin[0], origin[1], parseFloat(p.lat), parseFloat(p.lng)) <= radiusKm;
+      });
+    }
+  }
 
   // Filter profiles by availability date
   if (availDate && profileRows.length) {

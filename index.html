@@ -7,6 +7,7 @@
 <title>YesPleez v3.52</title>
 <meta name="theme-color" content="#0a0a0f">
 <link rel="icon" type="image/png" href="icon.png">
+<script src="postcodes.js"></script>
 <link rel="apple-touch-icon" href="icon.png">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1880,8 +1881,8 @@ body.player-open .screen.active { padding-bottom: 80px; }
       <span style="position:absolute;right:14px;top:50%;transform:translateY(-50%);opacity:.5;display:flex;"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19.07 4.93A10 10 0 0 0 6.99 3.34"/><path d="M4 6h.01"/><path d="M2.29 9.62A10 10 0 1 0 21.31 8.35"/><path d="M16.24 7.76A6 6 0 1 0 8.23 16.67"/><path d="M12 18h.01"/><path d="M17.99 11.66A6 6 0 0 1 15.77 16.67"/><circle cx="12" cy="12" r="2"/><path d="m13.41 10.59 5.66-5.66"/></svg></span>
     </div>
 
-    <!-- Filters -->
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;">
+    <!-- Filters row 1 -->
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
       <select id="searchTypeFilter" onchange="runSearch()" style="background:var(--card);border:1px solid var(--border);border-radius:20px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;padding:7px 14px;outline:none;appearance:none;-webkit-appearance:none;cursor:pointer;">
         <option value="all">Everything</option>
         <option value="artist">Artists / DJs</option>
@@ -1891,12 +1892,46 @@ body.player-open .screen.active { padding-bottom: 80px; }
         <option value="host">Hosts / Promoters</option>
         <option value="event">Events</option>
       </select>
+      <select id="searchGenreFilter" onchange="runSearch()" style="background:var(--card);border:1px solid var(--border);border-radius:20px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;padding:7px 14px;outline:none;appearance:none;-webkit-appearance:none;cursor:pointer;">
+        <option value="">All Genres</option>
+        <option>Techno</option>
+        <option>House</option>
+        <option>Drum &amp; Bass</option>
+        <option>Breaks</option>
+        <option>Trance</option>
+        <option>Psytrance</option>
+        <option>Progressive Psy</option>
+        <option>Dubstep / Bass</option>
+        <option>Hard Dance / Hardcore</option>
+        <option>Ambient / Downtempo</option>
+        <option>Electronica</option>
+        <option>Funk / Soul / Disco</option>
+        <option>Hip-Hop</option>
+        <option>Reggae / Dancehall</option>
+        <option>World / Global</option>
+        <option>Experimental</option>
+        <option>Multi Genre</option>
+      </select>
       <select id="searchStateFilter" onchange="runSearch()" style="background:var(--card);border:1px solid var(--border);border-radius:20px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;padding:7px 14px;outline:none;appearance:none;-webkit-appearance:none;cursor:pointer;">
-        <option value="all">All States</option>
+        <option value="">State</option>
         <option>NSW</option><option>VIC</option><option>QLD</option>
         <option>WA</option><option>SA</option><option>TAS</option>
         <option>ACT</option><option>NT</option><option>NZ</option>
         <option>International</option>
+      </select>
+    </div>
+    <!-- Filters row 2: location -->
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;align-items:center;">
+      <input type="text" id="searchPostcode" placeholder="Postcode" maxlength="4" inputmode="numeric"
+        oninput="this.value=this.value.replace(/\D/g,''); runSearch()"
+        style="background:var(--card);border:1px solid var(--border);border-radius:20px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;padding:7px 14px;outline:none;width:90px;">
+      <select id="searchRadiusFilter" onchange="runSearch()" style="background:var(--card);border:1px solid var(--border);border-radius:20px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;padding:7px 14px;outline:none;appearance:none;-webkit-appearance:none;cursor:pointer;">
+        <option value="">Radius</option>
+        <option value="5">within 5km</option>
+        <option value="10">within 10km</option>
+        <option value="25">within 25km</option>
+        <option value="50">within 50km</option>
+        <option value="100">within 100km</option>
       </select>
       <input type="date" id="searchAvailDate" onchange="runSearch()" title="Filter artists available on this date"
         style="background:var(--card);border:1px solid var(--border);border-radius:20px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;padding:7px 14px;outline:none;cursor:pointer;color-scheme:dark;display:none;">
@@ -4021,6 +4056,12 @@ body.player-open .screen.active { padding-bottom: 80px; }
             <option>NZ</option>
             <option>International</option>
           </select>
+        </div>
+        <div class="field" style="margin-bottom:0">
+          <label>POSTCODE <span style="font-size:10px;color:var(--muted);letter-spacing:0;font-family:'DM Sans',sans-serif;text-transform:none;">used for location search in Discover</span></label>
+          <input type="text" id="profilePostcode" placeholder="e.g. 2010" maxlength="4" inputmode="numeric" autocomplete="off"
+            style="width:100%;box-sizing:border-box;background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:15px;padding:12px 14px;outline:none;"
+            oninput="this.value=this.value.replace(/\D/g,''); onPostcodeInput()">
         </div>
       </div>
     </div>
