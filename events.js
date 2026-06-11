@@ -1012,7 +1012,8 @@ function showSignupDirect() {
 function showSignup() {
   show('signupScreen');
   document.getElementById('eventTitle').textContent  = eventData.name  || '';
-  document.getElementById('eventMeta').textContent   = [eventData.date, eventData.venue].filter(Boolean).join(' · ');
+  const _fmtDate = d => { if (!d) return ''; const [y,m,dy] = d.split('-').map(Number); return new Date(y,m-1,dy).toLocaleDateString('en-AU',{weekday:'short',day:'numeric',month:'long'}); };
+  document.getElementById('eventMeta').textContent   = [_fmtDate(eventData.date), eventData.venue].filter(Boolean).join(' · ');
   document.getElementById('eventGenres').textContent = eventData.genres || '';
   document.getElementById('manageBtn').style.display    = 'none'; // now in host panel row
   const canEdit = isHost && !isReadOnly && currentUser?.id && currentUser.id === currentEventHostId;
@@ -1044,6 +1045,13 @@ function showSignup() {
   }
 
   document.getElementById('hostPanel').style.display    = isHost ? '' : 'none';
+
+  // Hide tally and sync bar when event has no set times
+  const hasSlots = (eventData.days || []).some(d => (d.slots || []).length > 0);
+  const tallyEl = document.querySelector('.tally');
+  const syncBar = document.querySelector('.sync-bar');
+  if (tallyEl) tallyEl.style.display = hasSlots ? '' : 'none';
+  if (syncBar) syncBar.style.display = hasSlots ? '' : 'none';
 
   // Apply bar — shown for non-hosts on non-read-only events
   const applyBar = document.getElementById('applyBar');
