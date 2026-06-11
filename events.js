@@ -766,7 +766,12 @@ async function showPublicEventPage(eventId) {
 
     // ── Date ──
     const dateEl = document.getElementById('pubEvDate');
-    if (dateEl && cfg.date) { dateEl.textContent = cfg.date; dateEl.style.display = ''; }
+    if (dateEl && cfg.date) {
+      const [y,m,d] = cfg.date.split('-').map(Number);
+      const dateObj = new Date(y, m-1, d);
+      dateEl.textContent = dateObj.toLocaleDateString('en-AU', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+      dateEl.style.display = '';
+    }
 
     // ── Venue ──
     const venueEl = document.getElementById('pubEvVenue');
@@ -778,6 +783,25 @@ async function showPublicEventPage(eventId) {
     // ── Genres ──
     const genresEl = document.getElementById('pubEvGenres');
     if (genresEl && cfg.genres) { genresEl.textContent = cfg.genres; genresEl.style.display = ''; }
+
+    // ── Description ──
+    const descWrap = document.getElementById('pubEvDescWrap');
+    const descEl   = document.getElementById('pubEvDesc');
+    if (descEl && cfg.description) {
+      descEl.textContent = cfg.description;
+      if (descWrap) descWrap.style.display = '';
+    }
+
+    // ── Location ──
+    const locWrap = document.getElementById('pubEvLocationWrap');
+    const locEl   = document.getElementById('pubEvLocation');
+    if (locEl) {
+      const parts = [cfg.address, cfg.venue && !cfg.address ? cfg.venue : null, cfg.town, cfg.state, cfg.postcode].filter(Boolean);
+      if (parts.length) {
+        locEl.innerHTML = parts.map(p => `<div>${esc(p)}</div>`).join('');
+        if (locWrap) locWrap.style.display = '';
+      }
+    }
 
     // ── CTA buttons ──
     const ctaEl = document.getElementById('pubEvCTA');
