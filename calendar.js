@@ -740,8 +740,10 @@ function calFeaturedCard(ev) {
 
 // ── What's On: category badge ──────────────────────
 function calEventCategory(ev) {
-  const text = ((ev.name || '') + ' ' + (ev.config?.genres || '')).toLowerCase();
+  const text   = ((ev.name || '') + ' ' + (ev.config?.genres || '')).toLowerCase();
+  const genres = (ev.config?.genres || '').toLowerCase();
   if (/comedy|standup|stand.up|open.mic|improv/i.test(text)) return { label: 'COMEDY',     color: '#FF8C42', dark: true };
+  if (/dj.set|dj set|house|techno|dnb|drum|dubstep|garage|electronic|psytrance|breaks/i.test(genres)) return { label: 'DJ SET', color: '#00E5FF', dark: true };
   if (/festival|fest\b/i.test(text))                          return { label: 'FESTIVAL',   color: '#9D4EDD', dark: false };
   if (/dj.set|dj set|house|techno|dnb|drum|dubstep|garage|electronic|psytrance|breaks/i.test(text)) return { label: 'DJ SET', color: '#00E5FF', dark: true };
   if (/open.mic/i.test(text))                                  return { label: 'OPEN MIC',   color: '#FFD700', dark: true };
