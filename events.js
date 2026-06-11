@@ -3932,9 +3932,44 @@ function updateSoundCount() { const el = document.getElementById('profileSound')
 
 // ── Host profile ───────────────────────────────────
 
+const HOST_GENRES = {
+  ELECTRONIC: ['Techno','House','Drum & Bass','Breaks','Trance','Psytrance','Progressive Psy','Dubstep / Bass','Hard Dance / Hardcore','Ambient / Downtempo','Electronica','Funk / Soul / Disco','Hip-Hop','Reggae / Dancehall','World / Global','Experimental','Multi Genre','Other'],
+  BANDS: ['Rock','Pop','Indie','Alternative','Metal','Punk','Jazz','Blues','Soul / RnB','Country','Folk / Acoustic','Reggae','Hip-Hop','Funk','Latin','World Music','Classic Rock','Covers / Top 40','Original','Multi Genre','Other'],
+  SPOKEN: ['Stand-up Comedy','Storytelling','Poetry / Spoken Word','Improv','Panel Discussion','Debate','Cabaret','Variety / Mixed Bill','Quiz / Trivia','Lecture / Talk','Open Mic','Multi Genre','Other']
+};
+
+function rebuildHostGenres() {
+  const wrap = document.getElementById('hostProfileGenreChips'); if (!wrap) return;
+  const activeCats = [...document.querySelectorAll('.host-cat-btn.selected')].map(b => b.dataset.cat);
+  const prevSelected = new Set([...wrap.querySelectorAll('.vibe-btn.selected')].map(b => b.textContent.trim()));
+  wrap.innerHTML = '';
+  const seen = new Set();
+  activeCats.forEach(cat => {
+    (HOST_GENRES[cat] || []).forEach(g => {
+      if (seen.has(g)) return; seen.add(g);
+      const chip = document.createElement('button'); chip.type = 'button'; chip.className = 'vibe-btn';
+      chip.textContent = g;
+      if (prevSelected.has(g)) chip.classList.add('selected');
+      chip.onclick = () => { chip.classList.toggle('selected'); renderHostProfileSubgenres(); };
+      wrap.appendChild(chip);
+    });
+  });
+  if (!activeCats.length) {
+    ALL_GENRES.forEach(g => {
+      const chip = document.createElement('button'); chip.type = 'button'; chip.className = 'vibe-btn';
+      chip.textContent = g;
+      if (prevSelected.has(g)) chip.classList.add('selected');
+      chip.onclick = () => { chip.classList.toggle('selected'); renderHostProfileSubgenres(); };
+      wrap.appendChild(chip);
+    });
+  }
+  renderHostProfileSubgenres();
+}
+
 function initHostProfileGenres() {
-  const wrap = document.getElementById('hostProfileGenreChips'); if (!wrap || wrap.children.length > 0) return;
-  ALL_GENRES.forEach(g => { const chip = document.createElement('button'); chip.type = 'button'; chip.className = 'vibe-btn'; chip.textContent = g; chip.onclick = () => { chip.classList.toggle('selected'); renderHostProfileSubgenres(); }; wrap.appendChild(chip); });
+  const wrap = document.getElementById('hostProfileGenreChips'); if (!wrap) return;
+  wrap.innerHTML = '';
+  rebuildHostGenres();
 }
 
 function renderHostProfileSubgenres() {
@@ -3956,9 +3991,10 @@ function getHostProfileGenreString() {
 function toggleHostCat(btn) {
   btn.classList.toggle('selected');
   const on = btn.classList.contains('selected');
-  btn.style.color = on ? 'var(--neon)' : 'var(--muted)';
-  btn.style.borderColor = on ? 'var(--neon)' : 'rgba(255,45,120,.25)';
-  btn.style.background = on ? 'rgba(255,45,120,.15)' : 'rgba(255,45,120,.08)';
+  btn.style.color = on ? '#FF3399' : 'var(--muted)';
+  btn.style.borderColor = on ? '#FF3399' : 'rgba(255,51,153,.25)';
+  btn.style.background = on ? 'rgba(255,51,153,.15)' : 'rgba(255,51,153,.08)';
+  rebuildHostGenres();
 }
 
 async function saveHostProfile() {
@@ -3985,10 +4021,11 @@ function loadHostProfileData() {
   document.getElementById('hostProfileYears').value     = hostProfile.years     || '';
   const _savedCats = (hostProfile.tagline || '').split(' · ').filter(Boolean);
   document.querySelectorAll('.host-cat-btn').forEach(b => {
-    b.classList.toggle('selected', _savedCats.includes(b.dataset.cat));
-    b.style.color = b.classList.contains('selected') ? 'var(--neon)' : 'var(--muted)';
-    b.style.borderColor = b.classList.contains('selected') ? 'var(--neon)' : 'rgba(255,45,120,.25)';
-    b.style.background = b.classList.contains('selected') ? 'rgba(255,45,120,.15)' : 'rgba(255,45,120,.08)';
+    const on = _savedCats.includes(b.dataset.cat);
+    b.classList.toggle('selected', on);
+    b.style.color = on ? '#FF3399' : 'var(--muted)';
+    b.style.borderColor = on ? '#FF3399' : 'rgba(255,51,153,.25)';
+    b.style.background = on ? 'rgba(255,51,153,.15)' : 'rgba(255,51,153,.08)';
   });
   const _hpcEl = document.getElementById('hostProfilePostcode'); if (_hpcEl) _hpcEl.value = hostProfile.postcode || '';
   document.getElementById('hostProfileBio').value       = hostProfile.bio       || '';

@@ -904,7 +904,7 @@ body.auth-mode { overflow: hidden; height: 100dvh; }
   backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px);
 }
 .role-card:hover { transform: translateY(-2px); }
-.role-card.host-card:hover  { border-color: var(--neon);  box-shadow: 0 0 28px rgba(255,45,120,.18); }
+.role-card.host-card:hover  { border-color: #FF3399;  box-shadow: 0 0 28px rgba(255,51,153,.18); }
 .role-card.artist-card:hover { border-color: var(--neon2); box-shadow: 0 0 28px rgba(0,229,255,.18); }
 .role-card.discover-card:hover  { border-color: var(--gold);    box-shadow: 0 0 28px rgba(255,184,48,.18); }
 .role-card.calendar-card:hover  { border-color: #9D4EDD;         box-shadow: 0 0 28px rgba(157,78,221,.28); }
@@ -917,7 +917,7 @@ body.auth-mode { overflow: hidden; height: 100dvh; }
   font-family: 'Bebas Neue', sans-serif; font-size: 28px; letter-spacing: 1px;
   margin-bottom: 2px; line-height: 1;
 }
-.role-card.host-card .role-card-title   { color: var(--neon); }
+.role-card.host-card .role-card-title   { color: #FF3399; }
 .role-card.artist-card .role-card-title { color: var(--neon2); }
 .role-card.discover-card .role-card-title { color: var(--gold); }
 .role-card-desc { font-size: 12px; color: var(--muted); line-height: 1.4; }
@@ -3206,7 +3206,7 @@ body.player-open .screen.active { padding-bottom: 80px; }
 
   <!-- Host avatar -->
   <div class="avatar-block">
-    <div id="hostAvatarRing" class="avatar-ring" style="border-color:var(--neon);box-shadow:0 0 40px rgba(255,45,120,.18);transition:border-color .2s,box-shadow .2s;" onclick="document.getElementById('hostAvatarInput').click()" onmouseenter="this.style.borderColor='var(--neon2)';this.style.boxShadow='0 0 40px rgba(0,229,255,.22)'" onmouseleave="this.style.borderColor='var(--neon)';this.style.boxShadow='0 0 40px rgba(255,45,120,.18)'">
+    <div id="hostAvatarRing" class="avatar-ring" style="border-color:#FF3399;box-shadow:0 0 40px rgba(255,51,153,.18);transition:border-color .2s,box-shadow .2s;" onclick="document.getElementById('hostAvatarInput').click()" onmouseenter="this.style.borderColor='var(--neon2)';this.style.boxShadow='0 0 40px rgba(0,229,255,.22)'" onmouseleave="this.style.borderColor='#FF3399';this.style.boxShadow='0 0 40px rgba(255,51,153,.18)'">
       <img id="hostAvatarPreview" src="" style="display:none">
       <div class="avatar-placeholder" id="hostAvatarPlaceholder">
         <span style="color:var(--neon);">+</span>
@@ -3333,7 +3333,7 @@ body.player-open .screen.active { padding-bottom: 80px; }
   </div>
 
   <button class="btn-save-profile" id="saveHostProfileBtn" onclick="saveHostProfile()"
-    style="background:var(--neon);box-shadow:0 0 30px rgba(255,45,120,.22);">SAVE HOST PROFILE →</button>
+    style="background:#FF3399;box-shadow:0 0 30px rgba(255,51,153,.22);">SAVE HOST PROFILE →</button>
 </div>
 
 <!-- ══════════ DASHBOARD SCREEN ══════════ -->
@@ -3342,7 +3342,7 @@ body.player-open .screen.active { padding-bottom: 80px; }
   <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:24px;">
     <div>
       <div class="yp-tag">YESPLEEZ</div>
-      <div class="dash-title" style="font-size:clamp(28px,7vw,42px);line-height:.92;margin-top:8px;background:linear-gradient(135deg,#FF2D78,#FF6B9D,#FF8C42);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">HOST /<br>PROMOTER</div>
+      <div class="dash-title" style="font-size:clamp(28px,7vw,42px);line-height:.92;margin-top:8px;background:linear-gradient(135deg,#FF3399,#FF6BB5,#FF99CC);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">HOST /<br>PROMOTER</div>
       <div style="font-size:12px;color:var(--muted);margin-top:6px;" id="dashUserEmail"></div>
     </div>
     <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-end;margin-top:4px;">
@@ -3641,8 +3641,8 @@ body.player-open .screen.active { padding-bottom: 80px; }
       <button class="btn-back" onclick="navBack()"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="m12 5-7 7 7 7"/></svg> BACK</button>
       <!-- Top-right: MODE + bell + eye — host only -->
       <div id="signupHostTopRight" style="display:none;flex-direction:column;align-items:flex-end;gap:8px;">
-        <div class="mode-toggle" onclick="showRoleSelector()" style="border-color:rgba(255,45,120,.3);color:#FF2D78;">
-          <div class="mode-toggle-dot" style="background:#FF2D78;box-shadow:0 0 6px #FF2D78;"></div>
+        <div class="mode-toggle" onclick="showRoleSelector()" style="border-color:rgba(255,51,153,.3);color:#FF3399;">
+          <div class="mode-toggle-dot" style="background:#FF3399;box-shadow:0 0 6px #FF3399;"></div>
           HOST
         </div>
         <div style="display:flex;gap:8px;">
@@ -4429,8 +4429,8 @@ body.player-open .screen.active { padding-bottom: 80px; }
     <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px;">
       <button class="btn-back" onclick="navBack()"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="m12 5-7 7 7 7"/></svg> BACK</button>
       <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;">
-        <div class="mode-toggle" onclick="showRoleSelector()" style="border-color:rgba(255,45,120,.3);color:#FF2D78;">
-          <div class="mode-toggle-dot" style="background:#FF2D78;box-shadow:0 0 6px #FF2D78;"></div>
+        <div class="mode-toggle" onclick="showRoleSelector()" style="border-color:rgba(255,51,153,.3);color:#FF3399;">
+          <div class="mode-toggle-dot" style="background:#FF3399;box-shadow:0 0 6px #FF3399;"></div>
           HOST
         </div>
         <div style="display:flex;gap:8px;">
@@ -4816,10 +4816,10 @@ body.player-open .screen.active { padding-bottom: 80px; }
 <script src="auth.js?v=4"></script>
 <script src="navigation.js?v=4"></script>
 <script src="notifications.js?v=4"></script>
-<script src="profiles.js?v=8"></script>
+<script src="profiles.js?v=9"></script>
 <script src="audio.js?v=4"></script>
 <script src="search.js?v=5"></script>
-<script src="events.js?v=5"></script>
+<script src="events.js?v=6"></script>
 <script src="calendar.js?v=2"></script>
 <script src="venues.js?v=1"></script>
 <script src="bands.js?v=1"></script>

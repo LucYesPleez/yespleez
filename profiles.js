@@ -178,7 +178,7 @@ function buildProfileCardEl(row) {
   const genres    = row.genre_string ? row.genre_string.split(' · ').slice(0, 4).join(' · ') : '';
   const bio       = row.bio ? row.bio.substring(0, 80) + (row.bio.length > 80 ? '…' : '') : '';
   const typeStyles = {
-    host:    { col: 'var(--neon)',   rgb: '255,45,120',  label: 'HOST',    emoji: '🎛️' },
+    host:    { col: '#FF3399',       rgb: '255,51,153',  label: 'HOST',    emoji: '🎛️' },
     artist:  { col: 'var(--neon2)',  rgb: '0,229,255',   label: 'ARTIST',  emoji: '🎧' },
     band:    { col: '#FF8C42',       rgb: '255,140,66',  label: 'BAND',    emoji: '🎸' },
     standup: { col: '#FF88AA',       rgb: '255,136,170', label: 'STANDUP', emoji: '🎤' },
@@ -276,7 +276,7 @@ function openPublicProfile(row) {
   const mainGenre = genres;
   const subGenres = [];
   const typeAccents = {
-    host:    { color: 'var(--neon)',  rgb: '255,45,120',  label: 'HOST / PROMOTER' },
+    host:    { color: '#FF3399',      rgb: '255,51,153',  label: 'HOST / PROMOTER' },
     artist:  { color: 'var(--neon2)', rgb: '0,229,255',   label: 'ARTIST / DJ' },
     band:    { color: '#FF8C42',      rgb: '255,140,66',  label: row.band_type || 'BAND / MUSO' },
     standup: { color: '#FF88AA',      rgb: '255,136,170', label: row.act_type  || 'STAND-UP / COMEDY' },
