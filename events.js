@@ -3777,7 +3777,7 @@ function renderProfileSubgenres() {
   const selected = Array.from(document.querySelectorAll('#profileGenreChips .vibe-btn.selected')).map(b => b.textContent.trim());
   const subWrap = document.getElementById('profileSubgenreChips'); subWrap.innerHTML = '';
   const hasSubs = selected.some(g => PSUB[g]);
-  if (hasSubs) { const lbl = document.createElement('div'); lbl.style.cssText = 'font-family:"Bebas Neue",sans-serif;font-size:13px;letter-spacing:2px;color:var(--muted);width:100%;margin-bottom:2px;'; lbl.textContent = 'SUB GENRES'; subWrap.appendChild(lbl); }
+  if (hasSubs) { const lbl = document.createElement('div'); lbl.style.cssText = 'font-family:"Bebas Neue",sans-serif;font-size:13px;letter-spacing:2px;color:var(--neon2);width:100%;margin-bottom:2px;padding-bottom:6px;border-bottom:1px solid var(--border);'; lbl.textContent = 'SUB GENRES'; subWrap.appendChild(lbl); }
   selected.forEach(g => { if (!PSUB[g]) return; PSUB[g].forEach(sub => { const chip = document.createElement('button'); chip.type = 'button'; chip.className = 'vibe-btn'; chip.textContent = sub; chip.onclick = () => chip.classList.toggle('selected'); subWrap.appendChild(chip); }); });
 renderCardPillsPicker();
 }
@@ -3934,7 +3934,7 @@ function renderHostProfileSubgenres() {
   const selected = Array.from(document.querySelectorAll('#hostProfileGenreChips .vibe-btn.selected')).map(b => b.textContent.trim());
   const subWrap = document.getElementById('hostProfileSubgenreChips'); if (!subWrap) return; subWrap.innerHTML = '';
   const hasSubs = selected.some(g => SUBG[g]);
-  if (hasSubs) { const lbl = document.createElement('div'); lbl.style.cssText = 'font-family:"Bebas Neue",sans-serif;font-size:13px;letter-spacing:2px;color:var(--muted);width:100%;margin-bottom:2px;'; lbl.textContent = 'SUB GENRES'; subWrap.appendChild(lbl); }
+  if (hasSubs) { const lbl = document.createElement('div'); lbl.style.cssText = 'font-family:"Bebas Neue",sans-serif;font-size:13px;letter-spacing:2px;color:var(--neon);width:100%;margin-bottom:2px;padding-bottom:6px;border-bottom:1px solid var(--border);'; lbl.textContent = 'SUB GENRES'; subWrap.appendChild(lbl); }
   selected.forEach(g => { if (!SUBG[g]) return; SUBG[g].forEach(sub => { const chip = document.createElement('button'); chip.type = 'button'; chip.className = 'vibe-btn'; chip.textContent = sub; chip.onclick = () => chip.classList.toggle('selected'); subWrap.appendChild(chip); }); });
 }
 
