@@ -739,6 +739,8 @@ function renderCalContent() {
   const el = document.getElementById('calContent');
   if (!el) return;
 
+  if (_calSelDate) { renderDayView(_calSelDate, el); return; }
+
   const now      = new Date();
   const todayStr = now.toISOString().split('T')[0];
   const dow      = now.getDay();
@@ -845,9 +847,11 @@ function calScrollToSection(id) {
   if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
-// ── Toggle full calendar panel (both always visible now) ─
 function calToggleFullView() {
-  const el = document.getElementById('calFullPanel');
+  _calSelDate = null;
+  renderDateStrip();
+  renderCalContent();
+  const el = document.getElementById('calContent');
   if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
@@ -952,12 +956,9 @@ function calTourCard(name, gigs) {
 function calDayCard(ev) {
   const name    = esc(ev.name || 'EVENT');
   const venue   = esc(ev.config?.venue || '');
-  const poster  = ev.poster_url || '';
+  const poster  = ev.config?.poster || ev.poster_url || '';
+  const cat     = calEventCategory(ev);
   const artists = calGetArtists(ev);
-
-  const cardBg = poster
-    ? `url('${poster}') center/cover no-repeat`
-    : `linear-gradient(135deg,rgba(255,45,120,.35) 0%,rgba(0,229,255,.2) 100%)`;
 
   const lineupHtml = artists.slice(0, 8).map(a =>
     `<span style="font-size:12px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);border-radius:20px;padding:3px 12px;color:var(--text);">${esc(a)}</span>`
@@ -966,8 +967,10 @@ function calDayCard(ev) {
     ? `<span style="font-size:12px;color:var(--muted);">+${artists.length-8} more</span>` : '';
 
   return `<div style="border-radius:16px;overflow:hidden;margin-bottom:16px;cursor:pointer;border:1px solid rgba(255,255,255,.07);" onclick="calOpenEvent('${ev.id}')">
-    <div style="height:200px;background:${cardBg};position:relative;">
+    <div style="height:200px;background:linear-gradient(135deg,rgba(255,45,120,.35) 0%,rgba(0,229,255,.2) 100%);position:relative;">
+      ${poster ? `<img src="${poster}" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center;display:block;" loading="lazy">` : ''}
       <div style="position:absolute;inset:0;background:linear-gradient(to bottom,rgba(10,10,15,0) 30%,rgba(10,10,15,.95) 100%);"></div>
+      <div style="position:absolute;top:10px;left:10px;background:${cat.color};color:${cat.dark?'#0a0a0f':'#fff'};border-radius:6px;padding:3px 8px;font-size:9px;font-weight:700;letter-spacing:.8px;font-family:'DM Sans',sans-serif;">${cat.label}</div>
       <div style="position:absolute;bottom:0;left:0;right:0;padding:16px;">
         <div style="font-family:'Bebas Neue',sans-serif;font-size:clamp(28px,6vw,38px);letter-spacing:2px;color:#fff;line-height:.95;text-shadow:0 2px 12px rgba(0,0,0,.8);">${name}</div>
         ${venue ? `<div style="font-size:13px;color:rgba(255,255,255,.65);margin-top:4px;">${venue}</div>` : ''}
@@ -1003,12 +1006,16 @@ function calClearDate() {
 
 function calPrevMonth() {
   _calViewMonth = new Date(_calViewMonth.getFullYear(), _calViewMonth.getMonth() - 1, 1);
+  _calSelDate = null;
   renderCalHeader();
+  renderCalContent();
 }
 
 function calNextMonth() {
   _calViewMonth = new Date(_calViewMonth.getFullYear(), _calViewMonth.getMonth() + 1, 1);
+  _calSelDate = null;
   renderCalHeader();
+  renderCalContent();
 }
 
 function calOpenEvent(evId) {
