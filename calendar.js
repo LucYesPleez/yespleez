@@ -507,14 +507,113 @@ function calDetectClashes(targetDate, targetLat, targetLng, genre) {
   });
 }
 
+// ── Month Picker ───────────────────────────────────
+let _calPickerMonth = null; // tracks picker's current view independently
+
+function calOpenMonthPicker() {
+  _calPickerMonth = new Date(_calViewMonth);
+  _calPickerPopulateYears();
+  document.getElementById('calPickerMonth').value = _calPickerMonth.getMonth();
+  document.getElementById('calPickerYear').value  = _calPickerMonth.getFullYear();
+  calPickerRenderGrid();
+  document.getElementById('calMonthPickerOverlay').style.display = '';
+  document.getElementById('calMonthPickerModal').style.display   = '';
+}
+
+function calCloseMonthPicker() {
+  document.getElementById('calMonthPickerOverlay').style.display = 'none';
+  document.getElementById('calMonthPickerModal').style.display   = 'none';
+}
+
+function _calPickerPopulateYears() {
+  const sel = document.getElementById('calPickerYear');
+  if (!sel) return;
+  const cur = new Date().getFullYear();
+  sel.innerHTML = '';
+  for (let y = cur; y <= cur + 3; y++) {
+    const o = document.createElement('option');
+    o.value = y; o.textContent = y;
+    sel.appendChild(o);
+  }
+}
+
+function calPickerUpdateGrid() {
+  const m = parseInt(document.getElementById('calPickerMonth').value);
+  const y = parseInt(document.getElementById('calPickerYear').value);
+  _calPickerMonth = new Date(y, m, 1);
+  calPickerRenderGrid();
+}
+
+function calPickerPrev() {
+  _calPickerMonth = new Date(_calPickerMonth.getFullYear(), _calPickerMonth.getMonth() - 1, 1);
+  document.getElementById('calPickerMonth').value = _calPickerMonth.getMonth();
+  document.getElementById('calPickerYear').value  = _calPickerMonth.getFullYear();
+  calPickerRenderGrid();
+}
+
+function calPickerNext() {
+  _calPickerMonth = new Date(_calPickerMonth.getFullYear(), _calPickerMonth.getMonth() + 1, 1);
+  document.getElementById('calPickerMonth').value = _calPickerMonth.getMonth();
+  document.getElementById('calPickerYear').value  = _calPickerMonth.getFullYear();
+  calPickerRenderGrid();
+}
+
+function calPickerRenderGrid() {
+  const y     = _calPickerMonth.getFullYear();
+  const m     = _calPickerMonth.getMonth();
+  const today = new Date().toISOString().split('T')[0];
+
+  const labelEl = document.getElementById('calPickerLabel');
+  if (labelEl) labelEl.textContent = _calPickerMonth.toLocaleString('en-AU', { month:'long', year:'numeric' }).toUpperCase();
+
+  // Event days for this month
+  const eventDays = new Set();
+  _calEvents.forEach(ev => {
+    const d = calParseDate(ev);
+    if (d && d.getFullYear() === y && d.getMonth() === m) eventDays.add(d.getDate());
+  });
+
+  const firstDow = new Date(y, m, 1).getDay(); // 0=Sun
+  const total    = new Date(y, m + 1, 0).getDate();
+  let html = '';
+
+  // Empty cells before first day
+  for (let i = 0; i < firstDow; i++) html += '<div></div>';
+
+  for (let d = 1; d <= total; d++) {
+    const ds      = `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const isToday = ds === today;
+    const isSel   = ds === _calSelDate;
+    const hasEv   = eventDays.has(d);
+
+    let bg = isSel ? 'background:var(--neon2);color:#0a0a0f;'
+           : isToday ? 'background:rgba(0,229,255,.15);color:var(--neon2);border:1px solid var(--neon2);'
+           : hasEv ? 'background:var(--card2);color:var(--text);'
+           : 'background:transparent;color:var(--muted);';
+
+    html += `<div onclick="calPickerSelectDay('${ds}')" style="aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:8px;cursor:${hasEv||isToday?'pointer':'default'};${bg}transition:background .1s;">
+      <span style="font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:.5px;line-height:1;">${d}</span>
+      ${hasEv ? `<div style="width:4px;height:4px;border-radius:50%;background:${isSel?'#0a0a0f':'var(--neon)'};margin-top:1px;"></div>` : '<div style="height:5px;"></div>'}
+    </div>`;
+  }
+
+  document.getElementById('calPickerGrid').innerHTML = html;
+}
+
+function calPickerSelectDay(ds) {
+  // Navigate main calendar to this month and select the day
+  const [y, m] = ds.split('-').map(Number);
+  _calViewMonth = new Date(y, m - 1, 1);
+  _calSelDate   = ds;
+  calCloseMonthPicker();
+  renderCalHeader();
+  renderCalContent();
+}
+
 // ── Render: Header ─────────────────────────────────
 function renderCalHeader() {
-  const label = document.getElementById('calMonthLabel');
-  if (label) {
-    label.textContent = _calViewMonth.toLocaleString('default', {
-      month: 'long', year: 'numeric'
-    }).toUpperCase();
-  }
+  const labelText = document.getElementById('calMonthLabelText');
+  if (labelText) labelText.textContent = _calViewMonth.toLocaleString('en-AU', { month:'long', year:'numeric' }).toUpperCase();
   renderDateStrip();
 }
 

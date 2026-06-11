@@ -2052,7 +2052,10 @@ body.player-open .screen.active { padding-bottom: 80px; }
   <!-- Date scroll strip -->
   <div style="max-width:680px;margin:0 auto;padding:12px 16px 0;">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-      <div id="calMonthLabel" style="font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:2px;color:var(--neon2);"></div>
+      <div id="calMonthLabel" onclick="calOpenMonthPicker()" style="font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:2px;color:var(--neon2);cursor:pointer;display:flex;align-items:center;gap:6px;">
+        <span id="calMonthLabelText"></span>
+        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+      </div>
       <div style="display:flex;gap:6px;">
         <button onclick="calPrevMonth()" style="background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:8px;width:28px;height:28px;cursor:pointer;font-size:13px;line-height:1;">←</button>
         <button onclick="calNextMonth()" style="background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:8px;width:28px;height:28px;cursor:pointer;font-size:13px;line-height:1;">→</button>
@@ -2104,6 +2107,44 @@ body.player-open .screen.active { padding-bottom: 80px; }
 
   <!-- calFullPanel kept for JS compat -->
   <div id="calFullPanel" style="display:none;"></div>
+
+  <!-- Month Picker Modal -->
+  <div id="calMonthPickerOverlay" onclick="calCloseMonthPicker()" style="display:none;position:fixed;inset:0;z-index:300;background:rgba(0,0,0,.6);backdrop-filter:blur(4px);"></div>
+  <div id="calMonthPickerModal" style="display:none;position:fixed;bottom:0;left:0;right:0;z-index:301;background:var(--dark);border-radius:20px 20px 0 0;border-top:1px solid var(--border);padding:20px 16px 40px;max-width:480px;margin:0 auto;">
+    <div style="width:36px;height:4px;background:var(--border);border-radius:2px;margin:0 auto 20px;"></div>
+
+    <!-- Month + Year selectors -->
+    <div style="display:flex;gap:8px;margin-bottom:20px;">
+      <select id="calPickerMonth" onchange="calPickerUpdateGrid()" style="flex:1;background:var(--card2);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:1px;padding:10px 12px;outline:none;appearance:none;cursor:pointer;">
+        <option value="0">January</option><option value="1">February</option><option value="2">March</option>
+        <option value="3">April</option><option value="4">May</option><option value="5">June</option>
+        <option value="6">July</option><option value="7">August</option><option value="8">September</option>
+        <option value="9">October</option><option value="10">November</option><option value="11">December</option>
+      </select>
+      <select id="calPickerYear" onchange="calPickerUpdateGrid()" style="flex:0 0 100px;background:var(--card2);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:1px;padding:10px 12px;outline:none;appearance:none;cursor:pointer;"></select>
+    </div>
+
+    <!-- Prev / Next nav -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+      <button onclick="calPickerPrev()" style="background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:8px;width:36px;height:36px;cursor:pointer;font-size:16px;">←</button>
+      <div id="calPickerLabel" style="font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:2px;color:var(--neon2);"></div>
+      <button onclick="calPickerNext()" style="background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:8px;width:36px;height:36px;cursor:pointer;font-size:16px;">→</button>
+    </div>
+
+    <!-- Day of week headers -->
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:6px;">
+      <div style="text-align:center;font-size:10px;color:var(--muted);font-family:'DM Sans',sans-serif;">S</div>
+      <div style="text-align:center;font-size:10px;color:var(--muted);font-family:'DM Sans',sans-serif;">M</div>
+      <div style="text-align:center;font-size:10px;color:var(--muted);font-family:'DM Sans',sans-serif;">T</div>
+      <div style="text-align:center;font-size:10px;color:var(--muted);font-family:'DM Sans',sans-serif;">W</div>
+      <div style="text-align:center;font-size:10px;color:var(--muted);font-family:'DM Sans',sans-serif;">T</div>
+      <div style="text-align:center;font-size:10px;color:var(--muted);font-family:'DM Sans',sans-serif;">F</div>
+      <div style="text-align:center;font-size:10px;color:var(--muted);font-family:'DM Sans',sans-serif;">S</div>
+    </div>
+
+    <!-- Calendar grid -->
+    <div id="calPickerGrid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;"></div>
+  </div>
 
 </div>
 
@@ -4857,7 +4898,7 @@ body.player-open .screen.active { padding-bottom: 80px; }
 <script src="audio.js?v=4"></script>
 <script src="search.js?v=5"></script>
 <script src="events.js?v=13"></script>
-<script src="calendar.js?v=8"></script>
+<script src="calendar.js?v=9"></script>
 <script src="venues.js?v=1"></script>
 <script src="bands.js?v=1"></script>
 <script src="standup.js?v=1"></script>
