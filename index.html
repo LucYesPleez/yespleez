@@ -1572,58 +1572,16 @@ body.player-open .screen.active { padding-bottom: 80px; }
 <body class="auth-mode">
 
 <!-- ══════════ SPLASH SCREEN ══════════ -->
-<style>
-  @keyframes splashGlitch {
-    0%   { transform: translate(0,0)         skewX(0);    filter: drop-shadow(2px 0 0 cyan) drop-shadow(-2px 0 0 #ff2d78); }
-    10%  { transform: translate(-5px, 1px)   skewX(2deg); filter: drop-shadow(4px 0 0 cyan) drop-shadow(-4px 0 0 #ff2d78) brightness(1.8); }
-    20%  { transform: translate(4px, -2px)   skewX(0);    filter: drop-shadow(1px 0 0 cyan) drop-shadow(-1px 0 0 #ff2d78); }
-    30%  { transform: translate(-3px, 2px)   skewX(-3deg);filter: drop-shadow(5px 0 0 cyan) drop-shadow(-5px 0 0 #ff2d78) brightness(2.2); }
-    40%  { transform: translate(0,0)         skewX(0);    filter: drop-shadow(2px 0 0 cyan) drop-shadow(-2px 0 0 #ff2d78); }
-    50%  { transform: translate(5px, -1px)   skewX(1deg); filter: drop-shadow(3px 0 0 cyan) drop-shadow(-3px 0 0 #ff2d78) brightness(1.5); }
-    60%  { transform: translate(-2px, 0)     skewX(0);    filter: drop-shadow(2px 0 0 cyan) drop-shadow(-2px 0 0 #ff2d78); }
-    70%  { transform: translate(3px, 2px)    skewX(-2deg);filter: drop-shadow(4px 0 0 cyan) drop-shadow(-4px 0 0 #ff2d78) brightness(2); }
-    85%  { transform: translate(-1px, -1px)  skewX(0);    filter: drop-shadow(1px 0 0 cyan) drop-shadow(-1px 0 0 #ff2d78); }
-    100% { transform: translate(0,0)         skewX(0);    filter: none; }
-  }
-  #splashHand.glitch {
-    /* glitch animation only */
-  }
-  #splashHand.glitch {
-    animation: splashGlitch 0.08s steps(1) infinite;
-  }
-</style>
 <div id="splashScreen" style="position:fixed;inset:0;z-index:99999;background:#000;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity 1.4s ease;">
-  <div style="position:relative;max-width:420px;width:100%;max-height:100vh;display:inline-flex;">
-    <img id="splashBackdrop" src="splash.png" style="width:100%;height:100%;object-fit:contain;display:block;transition:opacity 0.8s ease;">
-    <img id="splashHand" src="hand-outline.png" style="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:fill;opacity:0;pointer-events:none;transition:opacity 0.5s ease;">
-  </div>
+  <img src="splash.png" style="max-width:420px;width:100%;max-height:100vh;object-fit:contain;">
 </div>
 <script>
   window.addEventListener('load', function() {
-    var s        = document.getElementById('splashScreen');
-    var backdrop = document.getElementById('splashBackdrop');
-    var hand     = document.getElementById('splashHand');
+    var s = document.getElementById('splashScreen');
     var isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) || window.innerWidth <= 600;
     var displayTime = isMobile ? 4000 : 2000;
-    var halfway     = displayTime / 2;
-
-    // Fade screen in
     requestAnimationFrame(function() { s.style.opacity = '1'; });
-
-    // Halfway: hand fades in, backdrop fades out
     setTimeout(function() {
-      hand.style.opacity     = '1';
-      backdrop.style.opacity = '0';
-    }, halfway);
-
-    // Shortly after: glitch kicks in
-    setTimeout(function() {
-      hand.classList.add('glitch');
-    }, halfway + 500);
-
-    // Fade out entire splash
-    setTimeout(function() {
-      hand.classList.remove('glitch');
       s.style.opacity = '0';
       setTimeout(function() { s.style.display = 'none'; }, 1450);
     }, displayTime);
