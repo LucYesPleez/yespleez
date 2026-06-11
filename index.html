@@ -1573,49 +1573,30 @@ body.player-open .screen.active { padding-bottom: 80px; }
 
 <!-- ══════════ SPLASH SCREEN ══════════ -->
 <style>
-  @keyframes splashShimmer {
-    0%   { transform: translateX(-120%) skewX(-18deg); opacity: 0; }
-    10%  { opacity: 1; }
-    90%  { opacity: 1; }
-    100% { transform: translateX(320%) skewX(-18deg); opacity: 0; }
+  @keyframes splashGlow {
+    0%   { filter: drop-shadow(0 0 0px rgba(255,255,255,0)); }
+    40%  { filter: drop-shadow(0 0 18px rgba(255,255,255,.55)) drop-shadow(0 0 40px rgba(255,255,255,.25)); }
+    100% { filter: drop-shadow(0 0 0px rgba(255,255,255,0)); }
   }
-  #splashShimmer {
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    overflow: hidden;
-    border-radius: inherit;
-    opacity: 0;
-  }
-  #splashShimmer.go::after {
-    content: '';
-    position: absolute;
-    top: -20%;
-    left: 0;
-    width: 40%;
-    height: 140%;
-    background: linear-gradient(105deg, transparent 20%, rgba(255,255,255,.18) 50%, transparent 80%);
-    animation: splashShimmer 1.2s ease forwards;
+  #splashImg.glow {
+    animation: splashGlow 1.6s ease forwards;
   }
 </style>
-<div id="splashScreen" style="position:fixed;inset:0;z-index:99999;background:#000;display:flex;align-items:center;justify-content:center;transition:opacity 1.4s ease;">
-  <div style="position:relative;max-width:420px;width:100%;max-height:100%;display:flex;">
-    <img src="splash.png" style="width:100%;max-height:100vh;object-fit:contain;">
-    <div id="splashShimmer"></div>
-  </div>
+<div id="splashScreen" style="position:fixed;inset:0;z-index:99999;background:#000;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity 1.4s ease;">
+  <img id="splashImg" src="splash.png" style="max-width:420px;width:100%;max-height:100vh;object-fit:contain;">
 </div>
 <script>
   window.addEventListener('load', function() {
+    var s = document.getElementById('splashScreen');
+    var img = document.getElementById('splashImg');
     var isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) || window.innerWidth <= 600;
     var displayTime = isMobile ? 4000 : 2000;
-    // Shimmer at 2s
-    setTimeout(function() {
-      var sh = document.getElementById('splashShimmer');
-      if (sh) { sh.style.opacity = '1'; sh.classList.add('go'); }
-    }, 2000);
+    // Fade in
+    requestAnimationFrame(function() { s.style.opacity = '1'; });
+    // Glow pulse at 2s
+    setTimeout(function() { img.classList.add('glow'); }, 2000);
     // Fade out
     setTimeout(function() {
-      var s = document.getElementById('splashScreen');
       s.style.opacity = '0';
       setTimeout(function() { s.style.display = 'none'; }, 1450);
     }, displayTime);
