@@ -8,7 +8,7 @@
 
 async function searchEvents(query) {
   try {
-    let path = `events?select=*&status=eq.live&is_public=neq.false`;
+    let path = `events?select=*&status=eq.live&or=(is_public.eq.true,is_public.is.null)`;
     if (query && query.trim()) {
       const q = encodeURIComponent(`%${query.trim()}%`);
       path += `&or=(name.ilike.${q},config->>venue.ilike.${q},config->>postcode.ilike.${q},config->>genres.ilike.${q})`;
