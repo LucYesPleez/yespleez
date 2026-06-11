@@ -1018,8 +1018,13 @@ function calOpenEvent(evId) {
   }
   const ev = _calEvents.find(e => e.id === evId);
   if (!ev) return;
-  isReadOnly = true;
-  openEventSetTimes(ev);
+  const isMyEvent = currentUser?.id && currentUser.id !== 'guest' && ev.host_id === currentUser.id;
+  if (isMyEvent) {
+    isReadOnly = false;
+    openEventSetTimes(ev);
+  } else {
+    showPublicEventPage(evId);
+  }
 }
 
 function calFocusArtist(name) {
