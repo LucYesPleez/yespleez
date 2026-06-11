@@ -3248,6 +3248,13 @@ body.player-open .screen.active { padding-bottom: 80px; }
         <input type="number" id="hostProfileYears" placeholder="e.g. 2015" min="1900" max="2099" autocomplete="off" style="max-width:100px;">
       </div>
     </div>
+    <div style="display:flex;gap:12px;margin-top:12px;">
+      <div class="field" style="margin-bottom:0;flex:1;">
+        <label>POSTCODE <span style="font-size:10px;color:var(--muted);letter-spacing:0;font-family:'DM Sans',sans-serif;text-transform:none;">used for location search in Discover</span></label>
+        <input type="text" id="hostProfilePostcode" placeholder="e.g. 2010" maxlength="4" inputmode="numeric" autocomplete="off"
+          oninput="this.value=this.value.replace(/\D/g,''); onHostPostcodeInput()">
+      </div>
+    </div>
   </div>
 
   <div class="profile-section">

@@ -240,6 +240,9 @@ async function saveStandupProfile() {
   const suburb    = getVal('standupLocationInput');
   const state     = getVal('standupStateInput');
   const postcode  = getVal('standupPostcodeInput');
+  const _spc = (typeof AU_POSTCODES !== 'undefined' && postcode && AU_POSTCODES[postcode]) ? AU_POSTCODES[postcode] : null;
+  const lat = _spc ? _spc[0] : (standupProfile?.lat || null);
+  const lng = _spc ? _spc[1] : (standupProfile?.lng || null);
   const type      = getVal('standupTypeInput');
   const setLength = getVal('standupSetLengthInput');
   const vibes     = [..._standupVibeSelected].join(', ');
@@ -290,6 +293,8 @@ async function saveStandupProfile() {
     location:      suburb,
     state:         state,
     postcode:      postcode,
+    lat:           lat,
+    lng:           lng,
     act_type:      type,
     set_length:    setLength ? parseInt(setLength) : null,
     vibe_tags:     vibes,

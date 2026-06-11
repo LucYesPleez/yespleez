@@ -313,6 +313,9 @@ async function saveVenueProfile() {
   const suburb      = getVal('venueAddressInput');
   const state       = getVal('venueStateInput');
   const postcode    = getVal('venuePostcodeInput');
+  const _vpc = (typeof AU_POSTCODES !== 'undefined' && postcode && AU_POSTCODES[postcode]) ? AU_POSTCODES[postcode] : null;
+  const lat = _vpc ? _vpc[0] : (venueProfile?.lat || null);
+  const lng = _vpc ? _vpc[1] : (venueProfile?.lng || null);
   const type        = getVal('venueTypeInput');
   const established = getVal('venueEstablishedInput');
   const genres      = [..._venueGenreSelected].join(', ');
@@ -361,6 +364,8 @@ async function saveVenueProfile() {
     location:         suburb,
     state:            state,
     postcode:         postcode,
+    lat:              lat,
+    lng:              lng,
     venue_type:       type,
     established_year: established ? parseInt(established) : null,
     genre_string:     genres,

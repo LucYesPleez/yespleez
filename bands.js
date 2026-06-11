@@ -331,6 +331,9 @@ async function saveBandProfile() {
   const suburb      = getVal('bandLocationInput');
   const state       = getVal('bandStateInput');
   const postcode    = getVal('bandPostcodeInput');
+  const _bpc = (typeof AU_POSTCODES !== 'undefined' && postcode && AU_POSTCODES[postcode]) ? AU_POSTCODES[postcode] : null;
+  const lat = _bpc ? _bpc[0] : (bandProfile?.lat || null);
+  const lng = _bpc ? _bpc[1] : (bandProfile?.lng || null);
   const members     = getVal('bandMembersInput');
   const established = getVal('bandEstablishedInput');
   const type        = getVal('bandTypeInput');
@@ -395,6 +398,8 @@ async function saveBandProfile() {
     location:         suburb,
     state:            state,
     postcode:         postcode,
+    lat:              lat,
+    lng:              lng,
     member_count:     members ? parseInt(members) : null,
     established_year: established ? parseInt(established) : null,
     band_type:        type,

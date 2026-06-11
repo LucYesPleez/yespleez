@@ -2914,6 +2914,13 @@ function onPostcodeInput() {
   }
 }
 
+function onHostPostcodeInput() {
+  const pc = document.getElementById('hostProfilePostcode')?.value || '';
+  if (pc.length === 4 && typeof AU_POSTCODES !== 'undefined' && AU_POSTCODES[pc]) {
+    showToast('Postcode recognised ✓', 'success', 1500);
+  }
+}
+
 let _nominatimTimer = null;
 async function nominatimSearch(inputEl, dropdownId, hiddenId) {
   const q = inputEl.value.trim();
@@ -3949,7 +3956,9 @@ async function saveHostProfile() {
   const btn = document.getElementById('saveHostProfileBtn'); btn.disabled = true; btn.textContent = 'SAVING...';
   const nameVal = document.getElementById('hostProfileName').value.trim();
   showToast(`Saving name: "${nameVal}"`, 'success');
-  hostProfile = { ...hostProfile, name: nameVal, location: document.getElementById('hostProfileLocation').value.trim(), state: document.getElementById('hostProfileState').value, years: document.getElementById('hostProfileYears').value.trim(), bio: document.getElementById('hostProfileBio').value.trim(), instagram: document.getElementById('hostProfileInstagram').value.trim(), website: document.getElementById('hostProfileWebsite').value.trim(), email: document.getElementById('hostProfileEmail').value.trim(), genreString: getHostProfileGenreString() };
+  const _hpc = (document.getElementById('hostProfilePostcode')?.value || '').trim();
+  const _hpcCoords = (typeof AU_POSTCODES !== 'undefined' && _hpc && AU_POSTCODES[_hpc]) ? AU_POSTCODES[_hpc] : null;
+  hostProfile = { ...hostProfile, name: nameVal, location: document.getElementById('hostProfileLocation').value.trim(), state: document.getElementById('hostProfileState').value, years: document.getElementById('hostProfileYears').value.trim(), postcode: _hpc, lat: _hpcCoords ? _hpcCoords[0] : (hostProfile.lat || null), lng: _hpcCoords ? _hpcCoords[1] : (hostProfile.lng || null), bio: document.getElementById('hostProfileBio').value.trim(), instagram: document.getElementById('hostProfileInstagram').value.trim(), website: document.getElementById('hostProfileWebsite').value.trim(), email: document.getElementById('hostProfileEmail').value.trim(), genreString: getHostProfileGenreString() };
   try { localStorage.setItem('yp_host_profile', JSON.stringify(hostProfile)); } catch(e) {}
   await upsertProfileToSupabase(hostProfile, 'host');
   btn.disabled = false; btn.textContent = 'SAVE HOST PROFILE →';
@@ -3964,6 +3973,7 @@ function loadHostProfileData() {
   document.getElementById('hostProfileLocation').value  = hostProfile.location  || '';
   document.getElementById('hostProfileState').value     = hostProfile.state     || '';
   document.getElementById('hostProfileYears').value     = hostProfile.years     || '';
+  const _hpcEl = document.getElementById('hostProfilePostcode'); if (_hpcEl) _hpcEl.value = hostProfile.postcode || '';
   document.getElementById('hostProfileBio').value       = hostProfile.bio       || '';
   document.getElementById('hostProfileInstagram').value = hostProfile.instagram || '';
   document.getElementById('hostProfileWebsite').value   = hostProfile.website   || '';
