@@ -1578,45 +1578,69 @@ body.player-open .screen.active { padding-bottom: 80px; }
     position: fixed; inset: 0; z-index: 99999;
     background: #000;
     display: flex; align-items: center; justify-content: center;
-    opacity: 0; transition: opacity 1.4s ease;
+    opacity: 0;
   }
-  @keyframes splashGlow {
-    0%   { opacity: 0; filter: drop-shadow(0 0 0px rgba(255,255,255,0)); }
-    30%  { opacity: 1; filter: drop-shadow(0 0 10px rgba(255,255,255,.9)) drop-shadow(0 0 24px rgba(255,255,255,.5)) drop-shadow(0 0 48px rgba(255,255,255,.2)); }
-    100% { opacity: 0; filter: drop-shadow(0 0 0px rgba(255,255,255,0)); }
+  #splashImgWrap {
+    position: relative;
+    max-width: 420px; width: 100%;
+    display: flex; align-items: center; justify-content: center;
   }
+  #splashImg, #splashEchoEl {
+    max-width: 420px; width: 100%; max-height: 100vh; object-fit: contain;
+  }
+  #splashEchoEl {
+    position: absolute; inset: 0;
+    opacity: 0; pointer-events: none;
+  }
+  @keyframes splashEcho {
+    0%   { transform: scale(1);    opacity: 0.55; filter: brightness(1.6) blur(0px); }
+    60%  { transform: scale(1.07); opacity: 0.2;  filter: brightness(1.2) blur(2px); }
+    100% { transform: scale(1.12); opacity: 0;    filter: brightness(1)   blur(4px); }
+  }
+  #splashEchoEl.go { animation: splashEcho 0.5s ease-out forwards; }
 </style>
 <div id="splashScreen">
-  <img src="splash.png" style="max-width:420px;width:100%;max-height:100vh;object-fit:contain;">
+  <div id="splashImgWrap">
+    <img id="splashImg" src="splash.png">
+    <img id="splashEchoEl" src="splash.png">
+  </div>
 </div>
 <script>
   (function() {
-    // Cold launch only — skip if already seen this session
     if (sessionStorage.getItem('yp_splash_done')) {
-      var s = document.getElementById('splashScreen');
-      s.style.display = 'none';
+      document.getElementById('splashScreen').style.display = 'none';
       return;
     }
 
-    var s = document.getElementById('splashScreen');
-    var isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) || window.innerWidth <= 600;
-    var displayTime = isMobile ? 4000 : 2000;
+    var s    = document.getElementById('splashScreen');
+    var echo = document.getElementById('splashEchoEl');
+    var mob  = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) || window.innerWidth <= 600;
+
+    // Timings (phone): fade-in 1900ms, static 600ms, echo 500ms, fade-out ~1000ms = ~4s total
+    var fadeIn   = mob ? 1900 : 950;
+    var echoAt   = mob ? 2500 : 1250;  // after fade-in + static hold
+    var fadeAt   = mob ? 3000 : 1500;  // echo starts then fade begins
+    var fadeDur  = mob ? 1000 : 500;
 
     function dismissSplash() {
       if (s._done) return; s._done = true;
       sessionStorage.setItem('yp_splash_done', '1');
-      s.style.transition = 'opacity 0.4s ease';
+      s.style.transition = 'opacity ' + (fadeDur/1000) + 's ease';
       s.style.opacity = '0';
-      setTimeout(function() { s.style.display = 'none'; s.remove(); }, 420);
+      setTimeout(function() { s.style.display = 'none'; }, fadeDur + 50);
     }
 
-    // Fade in immediately — app init runs in parallel
+    // Fade in
+    s.style.transition = 'opacity ' + (fadeIn/1000) + 's ease';
     requestAnimationFrame(function() {
       requestAnimationFrame(function() { s.style.opacity = '1'; });
     });
 
-    // Dismiss after display time
-    setTimeout(dismissSplash, displayTime);
+    // Echo effect
+    setTimeout(function() { echo.classList.add('go'); }, echoAt);
+
+    // Fade out
+    setTimeout(dismissSplash, fadeAt);
 
     // Safety cap
     setTimeout(dismissSplash, 8000);
