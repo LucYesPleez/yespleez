@@ -645,7 +645,8 @@ function calEventCategory(ev) {
   if (/comedy|standup|stand.up|open.mic|improv/i.test(text)) return { label: 'COMEDY',     color: '#FF8C42', dark: true };
   if (/festival|fest\b/i.test(text))                          return { label: 'FESTIVAL',   color: '#9D4EDD', dark: false };
   if (/dj.set|dj set|house|techno|dnb|drum|dubstep|garage|electronic|psytrance|breaks/i.test(text)) return { label: 'DJ SET', color: '#00E5FF', dark: true };
-  if (/open.mic|acoustic|folk|singer/i.test(text))            return { label: 'OPEN MIC',   color: '#FFD700', dark: true };
+  if (/open.mic/i.test(text))                                  return { label: 'OPEN MIC',   color: '#FFD700', dark: true };
+  if (/acoustic|folk|singer|bluegrass/i.test(text))           return { label: 'LIVE MUSIC', color: '#FF2D78', dark: false };
   if (/party\b/i.test(text))                                   return { label: 'PARTY',      color: '#FF2D78', dark: false };
   return { label: 'LIVE MUSIC', color: '#FF2D78', dark: false };
 }
