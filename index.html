@@ -1578,12 +1578,12 @@ body.player-open .screen.active { padding-bottom: 80px; }
     position: fixed; inset: 0; z-index: 99999;
     background: #000;
     display: flex; align-items: center; justify-content: center;
-    opacity: 0;
   }
   #splashImgWrap {
     position: relative;
     max-width: 420px; width: 100%;
     display: flex; align-items: center; justify-content: center;
+    opacity: 0;
   }
   #splashImg, #splashEchoEl {
     max-width: 420px; width: 100%; max-height: 100vh; object-fit: contain;
@@ -1613,13 +1613,14 @@ body.player-open .screen.active { padding-bottom: 80px; }
     }
 
     var s    = document.getElementById('splashScreen');
+    var wrap = document.getElementById('splashImgWrap');
     var echo = document.getElementById('splashEchoEl');
     var mob  = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) || window.innerWidth <= 600;
 
     // Timings (phone): fade-in 1900ms, static 600ms, echo 500ms, fade-out ~1000ms = ~4s total
     var fadeIn   = mob ? 1900 : 950;
-    var echoAt   = mob ? 2500 : 1250;  // after fade-in + static hold
-    var fadeAt   = mob ? 3000 : 1500;  // echo starts then fade begins
+    var echoAt   = mob ? 2500 : 1250;
+    var fadeAt   = mob ? 3000 : 1500;
     var fadeDur  = mob ? 1000 : 500;
 
     function dismissSplash() {
@@ -1630,10 +1631,10 @@ body.player-open .screen.active { padding-bottom: 80px; }
       setTimeout(function() { s.style.display = 'none'; }, fadeDur + 50);
     }
 
-    // Fade in
-    s.style.transition = 'opacity ' + (fadeIn/1000) + 's ease';
+    // Black screen shows instantly — image fades in on top
+    wrap.style.transition = 'opacity ' + (fadeIn/1000) + 's ease';
     requestAnimationFrame(function() {
-      requestAnimationFrame(function() { s.style.opacity = '1'; });
+      requestAnimationFrame(function() { wrap.style.opacity = '1'; });
     });
 
     // Echo effect
