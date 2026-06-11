@@ -1575,26 +1575,51 @@ body.player-open .screen.active { padding-bottom: 80px; }
 <style>
   @keyframes splashGlow {
     0%   { filter: drop-shadow(0 0 0px rgba(255,255,255,0)); }
-    40%  { filter: drop-shadow(0 0 18px rgba(255,255,255,.55)) drop-shadow(0 0 40px rgba(255,255,255,.25)); }
+    35%  { filter: drop-shadow(0 0 14px rgba(255,255,255,.7)) drop-shadow(0 0 32px rgba(255,255,255,.35)); }
     100% { filter: drop-shadow(0 0 0px rgba(255,255,255,0)); }
   }
-  #splashImg.glow {
-    animation: splashGlow 1.6s ease forwards;
+  @keyframes splashShake {
+    0%,100% { transform: rotate(0deg) scale(1); }
+    20%     { transform: rotate(-4deg) scale(1.03); }
+    40%     { transform: rotate(4deg) scale(1.03); }
+    60%     { transform: rotate(-2.5deg) scale(1.01); }
+    80%     { transform: rotate(2.5deg) scale(1.01); }
   }
+  #splashOverlay.shake { animation: splashShake 0.5s ease; }
+  #splashOverlay.glow  { animation: splashGlow 1.8s ease forwards; }
+  #splashOverlay.shake.glow { animation: splashShake 0.5s ease, splashGlow 1.8s ease forwards; }
 </style>
 <div id="splashScreen" style="position:fixed;inset:0;z-index:99999;background:#000;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity 1.4s ease;">
-  <img id="splashImg" src="splash.png" style="max-width:420px;width:100%;max-height:100vh;object-fit:contain;">
+  <div style="position:relative;max-width:420px;width:100%;max-height:100vh;display:flex;align-items:center;justify-content:center;">
+    <img src="splash.png" style="width:100%;max-height:100vh;object-fit:contain;display:block;">
+    <!-- White hand layered on top — mix-blend-mode:screen removes black bg -->
+    <img id="splashOverlay" src="icon.png" style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain;mix-blend-mode:screen;opacity:.85;pointer-events:none;">
+  </div>
 </div>
 <script>
   window.addEventListener('load', function() {
-    var s = document.getElementById('splashScreen');
-    var img = document.getElementById('splashImg');
+    var s   = document.getElementById('splashScreen');
+    var ov  = document.getElementById('splashOverlay');
     var isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) || window.innerWidth <= 600;
     var displayTime = isMobile ? 4000 : 2000;
+    var shakeAt = isMobile ? 2000 : 1000;
+    var glowAt  = isMobile ? 2600 : 1400;
     // Fade in
     requestAnimationFrame(function() { s.style.opacity = '1'; });
-    // Glow pulse at 2s
-    setTimeout(function() { img.classList.add('glow'); }, 2000);
+    // Shake
+    setTimeout(function() {
+      ov.classList.add('shake');
+      ov.addEventListener('animationend', function onShakeEnd(e) {
+        if (e.animationName === 'splashShake') { ov.classList.remove('shake'); ov.removeEventListener('animationend', onShakeEnd); }
+      });
+    }, shakeAt);
+    // Glow pulse
+    setTimeout(function() {
+      ov.classList.add('glow');
+      ov.addEventListener('animationend', function onGlowEnd(e) {
+        if (e.animationName === 'splashGlow') { ov.classList.remove('glow'); ov.removeEventListener('animationend', onGlowEnd); }
+      });
+    }, glowAt);
     // Fade out
     setTimeout(function() {
       s.style.opacity = '0';
