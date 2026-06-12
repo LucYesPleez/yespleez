@@ -131,6 +131,19 @@ async function doLogin() {
   currentUser = data.user;
   localStorage.setItem('yp_session', JSON.stringify(data));
   await checkPendingOffers(email, data.access_token);
+  if (window._pendingSlotOffers?.length) {
+    // Route artist straight to their dashboard so the notification bell is visible
+    currentMode = 'artist';
+    if (typeof enterArtistDashboard === 'function') {
+      enterArtistDashboard().then(() => {
+        setTimeout(() => { if (typeof flashPendingOffers === 'function') flashPendingOffers(); }, 1000);
+      });
+    } else {
+      showCalendar();
+      setTimeout(() => { if (typeof flashPendingOffers === 'function') flashPendingOffers(); }, 1000);
+    }
+    return;
+  }
   if (typeof checkPostAuthAction === 'function') { checkPostAuthAction(); return; }
   showCalendar();
 }
@@ -163,7 +176,18 @@ async function doSignup() {
       prefer: 'resolution=merge-duplicates,return=minimal'
     }, data.access_token).catch(() => {});
     await checkPendingOffers(email, data.access_token);
-    showRoleSelector();
+    if (window._pendingSlotOffers?.length) {
+      currentMode = 'artist';
+      if (typeof enterArtistDashboard === 'function') {
+        enterArtistDashboard().then(() => {
+          setTimeout(() => { if (typeof flashPendingOffers === 'function') flashPendingOffers(); }, 1000);
+        });
+      } else {
+        showRoleSelector();
+      }
+    } else {
+      showRoleSelector();
+    }
   } else {
     showToast('✉️ Check your email to confirm your account, then sign in.', 'success');
     switchAuthTab('login');
@@ -230,12 +254,39 @@ async function checkPendingOffers(email, token) {
   if (!email || !token) return;
   try {
     const offers = await sbRest(
-      `slot_offers?offered_to_email=eq.${encodeURIComponent(email)}&status=eq.pending&select=id,slot_id,event_id,slot_label,event_name,offered_by_name`,
+      `slot_offers?offered_to_email=eq.${encodeURIComponent(email)}&status=eq.pending&select=id,slot_id,event_id,slot_label,event_name,offered_by_name,offered_by_uid,offered_to_uid`,
       { method: 'GET' }, token
     );
     if (!offers || !offers.length) return;
-    // Store for use after role selection
     window._pendingSlotOffers = offers;
+
+    // For offers that weren't linked to this user_id yet (offer was sent before they had a profile),
+    // write the missing notification and link the uid so they can accept/decline from the bell.
+    const userId = currentUser?.id;
+    if (userId) {
+      for (const o of offers) {
+        if (!o.offered_to_uid) {
+          // Link uid so future logins won't duplicate
+          sbRest(`slot_offers?id=eq.${o.id}`, {
+            method: 'PATCH',
+            body: JSON.stringify({ offered_to_uid: userId }),
+            prefer: 'return=minimal'
+          }, token).catch(() => {});
+
+          // Write the notification that should have been sent at offer time
+          if (typeof writeDbNotif === 'function') {
+            const label = o.slot_label || 'a slot';
+            const event = o.event_name || 'an event';
+            const from  = o.offered_by_name || 'A host';
+            writeDbNotif(userId, 'slot_offer',
+              `${from} has offered you the ${label} slot at ${event}.`,
+              { event_id: o.event_id, slot_id: o.slot_id, slot_label: o.slot_label,
+                event_name: o.event_name, from_uid: o.offered_by_uid, from_name: from }
+            ).catch(() => {});
+          }
+        }
+      }
+    }
   } catch(e) {
     // Table may not exist yet — silently ignore
   }
