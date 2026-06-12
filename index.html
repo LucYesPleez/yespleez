@@ -92,6 +92,23 @@ body::after {
 .bn-tab svg { opacity: .45; transition: opacity .15s; color: var(--muted); }
 .bn-tab.bn-active svg { opacity: .85; }
 
+/* ── Day Panel ── */
+#dayPanel {
+  position: fixed; bottom: 0;
+  left: 50%; transform: translateX(-50%) translateY(100%);
+  width: min(100%, 680px);
+  z-index: 202;
+  background: var(--card);
+  border-radius: 20px 20px 0 0;
+  border-top: 1px solid var(--border);
+  border-left: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  max-height: 88dvh; overflow-y: auto;
+  transition: transform .3s cubic-bezier(0.32,0.72,0,1);
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+#dayPanel.dp-open { transform: translateX(-50%) translateY(0); }
+
 /* ── Industry Panel ── */
 #industryPanel {
   position: fixed; bottom: 0;
@@ -4951,6 +4968,24 @@ body.player-open .screen.active { padding-bottom: 80px; }
   </div>
 </div>
 
+<!-- ══════════ DAY PANEL ══════════ -->
+<div id="dayPanelOverlay" style="display:none;position:fixed;inset:0;z-index:201;background:rgba(0,0,0,.7);" onclick="closeDayPanel()"></div>
+<div id="dayPanel" style="display:none;">
+  <div style="display:flex;justify-content:center;padding:12px 0 4px;">
+    <div style="width:40px;height:4px;border-radius:2px;background:var(--border);"></div>
+  </div>
+  <div style="padding:6px 20px 16px;display:flex;justify-content:space-between;align-items:flex-start;">
+    <div id="dayPanelHead"></div>
+    <div onclick="closeDayPanel()" style="color:var(--muted);font-size:26px;cursor:pointer;line-height:1;padding:4px 8px;touch-action:manipulation;-webkit-tap-highlight-color:transparent;flex-shrink:0;">×</div>
+  </div>
+  <div style="padding:0 16px;">
+    <div style="font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:2px;color:var(--muted);margin-bottom:10px;">WHAT'S ON</div>
+    <div id="dayPanelEvents"></div>
+    <div id="dayPanelActions"></div>
+    <div style="height:16px;"></div>
+  </div>
+</div>
+
 <!-- ══════════ INDUSTRY PANEL ══════════ -->
 <div id="industryPanelOverlay" style="display:none;position:fixed;inset:0;z-index:201;background:rgba(0,0,0,.7);" onclick="closeIndustryPanel()"></div>
 <div id="industryPanel" style="display:none;">
@@ -5048,7 +5083,7 @@ body.player-open .screen.active { padding-bottom: 80px; }
 <script src="audio.js?v=4"></script>
 <script src="search.js?v=5"></script>
 <script src="events.js?v=13"></script>
-<script src="calendar.js?v=13"></script>
+<script src="calendar.js?v=14"></script>
 <script src="venues.js?v=1"></script>
 <script src="bands.js?v=1"></script>
 <script src="standup.js?v=1"></script>

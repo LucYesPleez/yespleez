@@ -1096,9 +1096,99 @@ function calSectionHeader(title, color) {
 
 // ── Interactions ───────────────────────────────────
 function calSelectDate(dateStr) {
-  _calSelDate = (_calSelDate === dateStr) ? null : dateStr;
+  _calSelDate = dateStr;
   renderDateStrip();
-  renderCalContent();
+  openDayPanel(dateStr);
+}
+
+// ── Day Panel ──────────────────────────────────────
+function openDayPanel(dateStr) {
+  const d = new Date(dateStr + 'T12:00:00');
+  const dayName    = d.toLocaleDateString('en-AU', { weekday:'long' }).toUpperCase();
+  const dateFmt    = d.toLocaleDateString('en-AU', { day:'numeric', month:'long', year:'numeric' }).toUpperCase();
+  const evs        = calEventsByDate(dateStr);
+  const loggedIn   = !!currentSession;
+
+  let evHtml = '';
+  if (!evs.length) {
+    evHtml = `<div style="text-align:center;padding:20px 0 8px;color:var(--muted);">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:2px;margin-bottom:4px;">QUIET NIGHT</div>
+      <div style="font-size:13px;">Nothing listed yet for this date.</div>
+    </div>`;
+  } else {
+    evHtml = evs.map(ev => {
+      const name   = ev.name || 'Event';
+      const venue  = ev.config?.venue || '';
+      const poster = ev.poster_url || '';
+      const bg     = poster
+        ? `url('${poster}') center/cover no-repeat`
+        : `linear-gradient(135deg,rgba(255,45,120,.35),rgba(157,78,221,.25),rgba(0,229,255,.2))`;
+      return `<div onclick="closeDayPanel();setTimeout(()=>calOpenEvent('${ev.id}'),200);" style="background:${bg};border-radius:12px;padding:0;margin-bottom:10px;overflow:hidden;cursor:pointer;position:relative;min-height:70px;">
+        <div style="position:absolute;inset:0;background:linear-gradient(to right,rgba(0,0,0,.65) 0%,rgba(0,0,0,.2) 100%);border-radius:12px;"></div>
+        <div style="position:relative;padding:14px 16px;">
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:1px;color:#fff;">${name}</div>
+          ${venue ? `<div style="font-size:12px;color:rgba(255,255,255,.65);margin-top:2px;">${venue}</div>` : ''}
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  const signInNote = loggedIn ? '' : `
+    <div style="margin-top:6px;padding:10px 14px;background:rgba(255,184,48,.08);border:1px solid rgba(255,184,48,.2);border-radius:10px;font-size:12px;color:var(--gold);text-align:center;line-height:1.5;">
+      <strong>Sign in</strong> so we can remember what you love doing 🎶
+    </div>`;
+
+  const actionHandler = (role) => loggedIn
+    ? `closeDayPanel();setTimeout(()=>enterIndustryRole('${role}'),200);`
+    : `closeDayPanel();setTimeout(()=>show('authScreen'),200);`;
+
+  const actionsHtml = `
+    <div style="font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:2px;color:var(--muted);margin:18px 0 10px;">WHAT DO YOU WANT TO DO?</div>
+    <div style="display:flex;flex-direction:column;gap:8px;">
+      <div class="role-card discover-card" onclick="${actionHandler('fan')}" style="cursor:pointer;">
+        <div class="role-card-icon"><svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
+        <div class="role-card-body">
+          <div class="role-card-title" style="font-size:20px;">I'M GOING OUT</div>
+        </div>
+      </div>
+      <div class="role-card artist-card" onclick="${actionHandler('artist')}" style="cursor:pointer;">
+        <div class="role-card-icon"><svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3z"/><path d="M3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg></div>
+        <div class="role-card-body">
+          <div class="role-card-title" style="font-size:20px;">I'M PLAYING</div>
+        </div>
+      </div>
+      <div class="role-card host-card" onclick="${actionHandler('host')}" style="cursor:pointer;">
+        <div class="role-card-icon"><svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="2" width="18" height="20" rx="2"/><circle cx="12" cy="13" r="5"/><circle cx="12" cy="13" r="2"/><line x1="9" y1="5.5" x2="15" y2="5.5" stroke-width="1.5"/></svg></div>
+        <div class="role-card-body">
+          <div class="role-card-title" style="font-size:20px;">I'M HOSTING</div>
+        </div>
+      </div>
+    </div>
+    ${signInNote}`;
+
+  document.getElementById('dayPanelHead').innerHTML =
+    `<div style="font-size:11px;letter-spacing:2px;color:var(--muted);font-family:'Bebas Neue',sans-serif;">${dayName}</div>
+     <div style="font-family:'Bebas Neue',sans-serif;font-size:clamp(28px,7vw,40px);line-height:.95;letter-spacing:3px;background:linear-gradient(90deg,#FF2D78 0%,#9D4EDD 50%,#00E5FF 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">${dateFmt}</div>`;
+  document.getElementById('dayPanelEvents').innerHTML = evHtml;
+  document.getElementById('dayPanelActions').innerHTML = actionsHtml;
+
+  const overlay = document.getElementById('dayPanelOverlay');
+  const panel   = document.getElementById('dayPanel');
+  if (!overlay || !panel) return;
+  overlay.style.display = 'block';
+  panel.style.display   = 'block';
+  requestAnimationFrame(() => requestAnimationFrame(() => panel.classList.add('dp-open')));
+}
+
+function closeDayPanel() {
+  const panel   = document.getElementById('dayPanel');
+  const overlay = document.getElementById('dayPanelOverlay');
+  if (!panel) return;
+  panel.classList.remove('dp-open');
+  if (overlay) overlay.style.display = 'none';
+  setTimeout(() => { if (panel) panel.style.display = 'none'; }, 300);
+  _calSelDate = null;
+  renderDateStrip();
 }
 
 function calClearDate() {
