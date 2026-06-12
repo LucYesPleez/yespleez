@@ -105,6 +105,10 @@ async function openNotifPanel() {
 function closeNotifPanel() {
   document.getElementById('notifPanel').classList.remove('open');
   document.getElementById('notifBackdrop').style.display = 'none';
+  // Reset to preview mode for next open
+  _notifShowAll = false;
+  const panel = document.getElementById('notifPanel');
+  if (panel) panel.style.maxHeight = '';
 }
 
 function markAllRead() {
@@ -134,46 +138,64 @@ function timeAgo(ts) {
   return Math.floor(secs/86400) + 'd ago';
 }
 
+let _notifShowAll = false;
+const NOTIF_PREVIEW_COUNT = 6;
+
+function showAllNotifs() {
+  _notifShowAll = true;
+  renderNotifList();
+  // Allow scroll when expanded
+  const panel = document.getElementById('notifPanel');
+  if (panel) panel.style.maxHeight = '90dvh';
+}
+
 function renderNotifList() {
   const el = document.getElementById('notifList');
   if (!el) return;
   const mode = currentMode || 'both';
-
   const localFiltered = notifications.filter(n => !n.mode || n.mode === 'both' || n.mode === mode);
 
-  let html = '';
+  // Merge DB + local into a single time-sorted list for rendering
+  const dbItems = (_dbNotifs || []).map(n => ({ ...n, _src: 'db' }));
+  const localItems = localFiltered.map(n => ({ ...n, _src: 'local' }));
 
-  if (_dbNotifs.length) {
-    _dbNotifs.forEach(n => {
-      if (n.type === 'slot_offer') {
-        html += renderSlotOfferNotif(n);
-      } else if (n.type === 'event_invite') {
-        html += renderInviteNotif(n);
-      } else {
-        html += `
-          <div class="notif-item${n.read ? '' : ' unread'}" onclick="markDbNotifRead('${n.id}')">
-            <div><span class="notif-icon">
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a7 7 0 0 0-7 7v4l-2 2v1h18v-1l-2-2V9a7 7 0 0 0-7-7zm0 20a2 2 0 0 0 2-2h-4a2 2 0 0 0 2 2z"/></svg>
-            </span><span class="notif-text">${esc(n.message || '')}</span></div>
-            <div class="notif-time">${timeAgo(n.created_at)}</div>
-          </div>`;
-      }
-    });
-  }
-
-  localFiltered.forEach(n => {
-    html += `
-      <div class="notif-item${n.read ? '' : ' unread'}">
-        <div><span class="notif-icon">${n.icon || ''}</span><span class="notif-text">${n.text}</span></div>
-        <div class="notif-time">${timeAgo(n.time)}</div>
-      </div>`;
+  // Sort: DB by created_at desc, local by time desc — interleave newest first
+  const allItems = [...dbItems, ...localItems].sort((a, b) => {
+    const ta = a._src === 'db' ? new Date(a.created_at).getTime() : a.time;
+    const tb = b._src === 'db' ? new Date(b.created_at).getTime() : b.time;
+    return tb - ta;
   });
 
-  if (!html) {
-    html = '<div class="notif-empty">No notifications yet</div>';
-  }
+  const total   = allItems.length;
+  const visible = _notifShowAll ? allItems : allItems.slice(0, NOTIF_PREVIEW_COUNT);
 
+  let html = '';
+  visible.forEach(n => {
+    if (n._src === 'db') {
+      if (n.type === 'slot_offer')   { html += renderSlotOfferNotif(n); return; }
+      if (n.type === 'event_invite') { html += renderInviteNotif(n);    return; }
+      html += `
+        <div class="notif-item${n.read ? '' : ' unread'}" onclick="markDbNotifRead('${n.id}')">
+          <div><span class="notif-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a7 7 0 0 0-7 7v4l-2 2v1h18v-1l-2-2V9a7 7 0 0 0-7-7zm0 20a2 2 0 0 0 2-2h-4a2 2 0 0 0 2 2z"/></svg>
+          </span><span class="notif-text">${esc(n.message || '')}</span></div>
+          <div class="notif-time">${timeAgo(n.created_at)}</div>
+        </div>`;
+    } else {
+      html += `
+        <div class="notif-item${n.read ? '' : ' unread'}">
+          <div><span class="notif-icon">${n.icon || ''}</span><span class="notif-text">${n.text}</span></div>
+          <div class="notif-time">${timeAgo(n.time)}</div>
+        </div>`;
+    }
+  });
+
+  if (!html) html = '<div class="notif-empty">No notifications yet</div>';
   el.innerHTML = html;
+
+  // Show/hide "see more" button
+  const seeMore = document.getElementById('notifSeeMore');
+  if (seeMore) seeMore.style.display = (!_notifShowAll && total > NOTIF_PREVIEW_COUNT) ? 'block' : 'none';
 }
 
 // ── Slot offer notification (specific slot) ────────

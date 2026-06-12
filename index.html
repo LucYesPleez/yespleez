@@ -4,7 +4,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>YesPleez v3.54</title>
+<title>YesPleez v3.55</title>
 <meta name="theme-color" content="#0a0a0f">
 <link rel="icon" type="image/png" href="icon.png">
 <script src="postcodes.js"></script>
@@ -861,20 +861,40 @@ body.auth-mode { overflow: hidden; height: 100dvh; }
 }
 .notif-dot.active { display: block; }
 .notif-panel {
-  position: fixed; top: 0; right: 0; width: min(340px, 100vw);
-  height: 100dvh; background: var(--card); border-left: 1px solid var(--border);
-  z-index: 1000; transform: translateX(100%); transition: transform .25s cubic-bezier(.4,0,.2,1);
+  position: fixed; bottom: 0; left: 50%; transform: translateX(-50%) translateY(100%);
+  width: min(100%, 480px);
+  max-height: 75dvh;
+  background: var(--card);
+  border-radius: 20px 20px 0 0;
+  border-top: 1px solid var(--border);
+  border-left: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  z-index: 1000;
+  transition: transform .3s cubic-bezier(0.32,0.72,0,1);
   display: flex; flex-direction: column; overflow: hidden;
+  padding-bottom: env(safe-area-inset-bottom, 0);
 }
-.notif-panel.open { transform: translateX(0); }
+.notif-panel.open { transform: translateX(-50%) translateY(0); }
+.notif-drag-handle { display: flex; justify-content: center; padding: 12px 0 4px; flex-shrink: 0; }
+.notif-drag-handle-bar { width: 40px; height: 4px; border-radius: 2px; background: var(--border); }
 .notif-panel-header {
-  padding: 20px 16px 14px; border-bottom: 1px solid var(--border);
+  padding: 4px 16px 14px; border-bottom: 1px solid var(--border);
   display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;
 }
 .notif-panel-title {
   font-family: 'Bebas Neue', sans-serif; font-size: 20px; letter-spacing: 2px; color: var(--text);
 }
 .notif-list { flex: 1; overflow-y: auto; padding: 8px 0; }
+.notif-see-more {
+  text-align: center; padding: 12px 16px 16px; flex-shrink: 0;
+}
+.notif-see-more button {
+  background: none; border: 1px solid var(--border); color: var(--neon2);
+  font-family: 'Bebas Neue', sans-serif; font-size: 13px; letter-spacing: 1.5px;
+  padding: 8px 20px; border-radius: 20px; cursor: pointer; touch-action: manipulation;
+  transition: border-color .15s;
+}
+.notif-see-more button:hover { border-color: var(--neon2); }
 .notif-item {
   padding: 12px 16px; border-bottom: 1px solid rgba(255,255,255,.04);
   cursor: default; transition: background .1s;
@@ -4038,6 +4058,7 @@ body.player-open .screen.active { padding-bottom: 80px; }
 
 <!-- NOTIFICATION PANEL -->
 <div id="notifPanel" class="notif-panel">
+  <div class="notif-drag-handle"><div class="notif-drag-handle-bar"></div></div>
   <div class="notif-panel-header">
     <div class="notif-panel-title">NOTIFICATIONS</div>
     <div style="display:flex;gap:10px;align-items:center;">
@@ -4047,6 +4068,9 @@ body.player-open .screen.active { padding-bottom: 80px; }
   </div>
   <div class="notif-list" id="notifList">
     <div class="notif-empty">No notifications yet</div>
+  </div>
+  <div class="notif-see-more" id="notifSeeMore" style="display:none;">
+    <button onclick="showAllNotifs()">SEE ALL NOTIFICATIONS</button>
   </div>
 </div>
 <div id="notifBackdrop" onclick="closeNotifPanel()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:999;"></div>
@@ -5230,7 +5254,7 @@ body.player-open .screen.active { padding-bottom: 80px; }
 <script src="state.js"></script>
 <script src="auth.js?v=5"></script>
 <script src="navigation.js?v=8"></script>
-<script src="notifications.js?v=5"></script>
+<script src="notifications.js?v=6"></script>
 <script src="profiles.js?v=9"></script>
 <script src="audio.js?v=4"></script>
 <script src="search.js?v=5"></script>
