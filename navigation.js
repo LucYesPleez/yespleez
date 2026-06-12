@@ -60,23 +60,26 @@ function show(id, opts = {}) {
   });
 }
 
-// Screens that show the bottom nav bar
-const _bottomNavScreens = new Set(['calendarScreen', 'searchScreen']);
+// Screens that suppress the nav (auth / onboarding only)
+const _noNavScreens2 = new Set(['authScreen', 'roleScreen']);
 
 function _updateGlobalNav(id, isLocked) {
   const nav = document.getElementById('bottomNav');
   if (!nav) return;
-  if (isLocked || !_bottomNavScreens.has(id)) {
+  if (isLocked || _noNavScreens2.has(id)) {
     nav.style.display = 'none';
     return;
   }
   nav.style.display = 'block';
-  // Update active tab indicator
-  document.getElementById('bnTabWhatson')?.classList.toggle('bn-active', id === 'calendarScreen');
-  document.getElementById('bnTabDiscover')?.classList.toggle('bn-active', id === 'searchScreen');
-  document.getElementById('bnTabMessages')?.classList.toggle('bn-active', id === 'messagesScreen');
-  document.getElementById('bnTabNotif')?.classList.remove('bn-active');   // panel, not a screen
-  document.getElementById('bnTabIndustry')?.classList.remove('bn-active'); // panel, not a screen
+  // Highlight the matching tab; panels (notif/industry) keep no tab active
+  const calScreens = new Set(['calendarScreen']);
+  const discoverScreens = new Set(['searchScreen']);
+  const msgScreens = new Set(['messagesScreen']);
+  document.getElementById('bnTabWhatson')?.classList.toggle('bn-active', calScreens.has(id));
+  document.getElementById('bnTabDiscover')?.classList.toggle('bn-active', discoverScreens.has(id));
+  document.getElementById('bnTabMessages')?.classList.toggle('bn-active', msgScreens.has(id));
+  document.getElementById('bnTabNotif')?.classList.remove('bn-active');
+  document.getElementById('bnTabIndustry')?.classList.remove('bn-active');
 }
 
 // Update notification badge count on nav bar
