@@ -4364,7 +4364,7 @@ body.player-open .screen.active { padding-bottom: 80px; }
     </div>
 
     <div class="profile-nav-row">
-      <button class="btn-profile-next" onclick="profileGoPage2()">MORE DETAILS →</button>
+      <button class="btn-profile-next" onclick="profileGoPage2()" ontouchend="event.preventDefault();profileGoPage2();" style="touch-action:manipulation;">MORE DETAILS →</button>
     </div>
   </div>
 
@@ -4549,7 +4549,7 @@ body.player-open .screen.active { padding-bottom: 80px; }
 
     <div class="profile-nav-row">
       <button class="btn-profile-back-page" onclick="profileGoPage1()">←</button>
-      <button class="btn-save-profile" id="saveProfileBtn" onclick="saveProfile()">SAVE PROFILE →</button>
+      <button class="btn-save-profile" id="saveProfileBtn" onclick="saveProfile()" ontouchend="event.preventDefault();saveProfile();" style="touch-action:manipulation;">SAVE PROFILE →</button>
     </div>
   </div>
 
