@@ -23,6 +23,7 @@ const _screenTitles = {
   artistProfileScreen: 'MY PROFILE',
   venueProfileScreen:  'VENUE PROFILE',
   hostProfileScreen:   'HOST PROFILE',
+  punterDashScreen:    'THE CROWD',
   setTimesScreen:      'SET TIMES',
   publicEventScreen:   'EVENT',
   publicProfileScreen: 'PROFILE',
@@ -114,6 +115,7 @@ function enterIndustryRole(role) {
     else if (role === 'band')    enterBandsDashboard();
     else if (role === 'venue')   enterVenueDashboard();
     else if (role === 'standup') enterStandupDashboard();
+    else if (role === 'punter')  enterPunterDashboard();
   }, 200);
 }
 
@@ -196,11 +198,44 @@ function updateRoleCards() {
 function enterMode(mode) {
   currentMode = mode;
   try { localStorage.setItem('yp_last_mode', mode); } catch(e) {}
-  if (mode === 'host') {
-    enterDashboard();
-  } else {
-    enterArtistDashboard();
+  if      (mode === 'host')   enterDashboard();
+  else if (mode === 'punter') enterPunterDashboard();
+  else                        enterArtistDashboard();
+}
+
+async function enterPunterDashboard() {
+  currentMode = 'punter';
+  try { localStorage.setItem('yp_last_mode', 'punter'); } catch(e) {}
+  const email = currentUser?.email || '';
+  const emailEl = document.getElementById('punterDashUserEmail');
+  if (emailEl) emailEl.textContent = email;
+
+  // Load punter profile if exists
+  if (!DEMO && currentUser?.id) {
+    try {
+      const rows = await sbRest(
+        `profiles?user_id=eq.${currentUser.id}&type=eq.punter&limit=1`,
+        { method: 'GET' }, currentSession?.access_token
+      );
+      if (rows && rows.length) {
+        const p = rows[0];
+        const nameEl = document.getElementById('punterDashName');
+        const locEl  = document.getElementById('punterDashLocation');
+        const ctaEl  = document.getElementById('punterDashCta');
+        if (nameEl) nameEl.textContent = p.name || p.dj_name || 'My Profile';
+        if (locEl)  locEl.textContent  = p.location ? `${p.location}${p.state ? ', '+p.state : ''}` : (p.genre_string || 'Music fan');
+        if (ctaEl)  ctaEl.textContent  = 'EDIT →';
+      }
+    } catch(e) {}
   }
+
+  show('punterDashScreen');
+  if (typeof loadDbNotifs === 'function') loadDbNotifs();
+  if (typeof startNotifPolling === 'function') startNotifPolling();
+}
+
+function showPunterProfile() {
+  showToast('Punter profile coming soon', 'success');
 }
 
 function canToggleMode() {

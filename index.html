@@ -979,6 +979,7 @@ body.auth-mode { overflow: hidden; height: 100dvh; }
 .role-card.bands-card:hover     { border-color: #FF8C42;         box-shadow: 0 0 28px rgba(255,140,66,.28); }
 .role-card.venues-card:hover    { border-color: #00E5A0;         box-shadow: 0 0 28px rgba(0,229,160,.28); }
 .role-card.standup-card:hover   { border-color: #FF88AA;         box-shadow: 0 0 28px rgba(232,121,249,.28); }
+.role-card.punter-card:hover    { border-color: #F59E0B;         box-shadow: 0 0 28px rgba(245,158,11,.28); }
 .role-card-icon { font-size: 32px; line-height: 1; flex-shrink: 0; }
 .role-card-body { flex: 1; min-width: 0; }
 .role-card-title {
@@ -1790,6 +1791,13 @@ body.player-open .screen.active { padding-bottom: 80px; }
       <div class="role-card-body">
         <div class="role-card-title">DISCOVER</div>
         <div class="role-card-desc">Browse artists, promoters and open events — no account needed</div>
+      </div>
+    </div>
+    <div class="role-card punter-card" onclick="enterMode('punter')">
+      <div class="role-card-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12.5c0-2.5 2-4.5 4.5-4.5a4.5 4.5 0 0 1 4.5 4.5v6.5h-9z"/><path d="M13 12.5c0-2.5 2-4.5 4.5-4.5s4.5 2 4.5 4.5v6.5h-9z"/><path d="M6.5 8a4.5 4.5 0 0 1 0-5"/><path d="M17.5 8a4.5 4.5 0 0 0 0-5"/><path d="M12 2v4"/></svg></div>
+      <div class="role-card-body">
+        <div class="role-card-title" style="color:#F59E0B;">PUNTER</div>
+        <div class="role-card-desc">Follow artists, save events, get notified when your faves play</div>
       </div>
     </div>
     <div class="role-card host-card" onclick="enterMode('host')">
@@ -2725,6 +2733,55 @@ body.player-open .screen.active { padding-bottom: 80px; }
   </div>
 
   <button onclick="saveStandupProfile()" style="width:100%;background:#FF88AA;border:none;color:#0a0a0f;font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:2px;padding:16px;border-radius:12px;cursor:pointer;margin-top:20px;font-weight:700;">SAVE ACT PROFILE →</button>
+</div>
+
+<!-- ══════════ PUNTER DASHBOARD SCREEN ══════════ -->
+<div id="punterDashScreen" class="screen" style="max-width:680px;margin:0 auto;padding:32px 20px 100px;">
+
+  <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:24px;">
+    <div>
+      <div class="yp-tag">YESPLEEZ</div>
+      <div class="dash-title" style="font-size:clamp(28px,7vw,42px);line-height:.92;margin-top:8px;background:linear-gradient(135deg,#F59E0B,#FBBF24,#FCD34D);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">THE<br>CROWD</div>
+      <div style="font-size:12px;color:var(--muted);margin-top:6px;" id="punterDashUserEmail"></div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-end;margin-top:4px;">
+      <div class="mode-toggle" onclick="tryToggleMode()" style="border-color:rgba(245,158,11,.3);color:#F59E0B;">
+        <div class="mode-toggle-dot" style="background:#F59E0B;box-shadow:0 0 6px #F59E0B;"></div>
+        HOME
+      </div>
+    </div>
+  </div>
+
+  <!-- Profile card -->
+  <div id="punterDashProfileCard" onclick="showPunterProfile()"
+    style="background:rgba(245,158,11,.06);border:1.5px solid rgba(245,158,11,.2);border-radius:14px;padding:16px;display:flex;gap:14px;align-items:center;margin-bottom:24px;cursor:pointer;">
+    <div id="punterDashAvatar" style="width:52px;height:52px;border-radius:10px;background:rgba(245,158,11,.12);border:1.5px solid rgba(245,158,11,.3);display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#F59E0B;">
+      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 1 0-16 0"/></svg>
+    </div>
+    <div style="flex:1;min-width:0;">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:1px;color:var(--text);" id="punterDashName">Set up your profile</div>
+      <div style="font-size:12px;color:var(--muted);margin-top:3px;" id="punterDashLocation">Tell us what you're into</div>
+    </div>
+    <div style="font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:1px;color:#F59E0B;" id="punterDashCta">SET UP →</div>
+  </div>
+
+  <!-- Following -->
+  <div style="font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:2px;color:#F59E0B;padding-bottom:8px;border-bottom:1px solid var(--border);margin-bottom:14px;">FOLLOWING</div>
+  <div id="punterDashFollowing" style="font-size:13px;color:var(--muted);padding:8px 0 20px;">
+    Follow artists and venues from their profiles — you'll get notified when they play.
+  </div>
+
+  <!-- Saved events -->
+  <div style="font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:2px;color:#F59E0B;padding-bottom:8px;border-bottom:1px solid var(--border);margin-bottom:14px;">SAVED EVENTS</div>
+  <div id="punterDashSaved" style="font-size:13px;color:var(--muted);padding:8px 0 20px;">
+    Tap the bookmark on any event to save it here.
+  </div>
+
+  <!-- Go explore -->
+  <button onclick="showCalendar()" style="width:100%;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);color:#F59E0B;border-radius:12px;padding:14px;font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:2px;cursor:pointer;">
+    SEE WHAT'S ON →
+  </button>
+
 </div>
 
 <!-- ══════════ BANDS DASHBOARD SCREEN ══════════ -->
@@ -5078,6 +5135,13 @@ body.player-open .screen.active { padding-bottom: 80px; }
       </div>
     </div>
 
+    <div class="role-card punter-card" onclick="enterIndustryRole('punter')">
+      <div class="role-card-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12.5c0-2.5 2-4.5 4.5-4.5a4.5 4.5 0 0 1 4.5 4.5v6.5h-9z"/><path d="M13 12.5c0-2.5 2-4.5 4.5-4.5s4.5 2 4.5 4.5v6.5h-9z"/><path d="M6.5 8a4.5 4.5 0 0 1 0-5"/><path d="M17.5 8a4.5 4.5 0 0 0 0-5"/><path d="M12 2v4"/></svg></div>
+      <div class="role-card-body">
+        <div class="role-card-title" style="color:#F59E0B;">PUNTER</div>
+      </div>
+    </div>
+
     <!-- Sign out -->
     <div style="margin-top:10px;padding-top:14px;border-top:1px solid var(--border);text-align:center;">
       <button onclick="closeIndustryPanel();setTimeout(doSignOut,200);" style="background:none;border:1px solid rgba(255,255,255,.1);color:var(--muted);border-radius:20px;padding:8px 24px;font-size:11px;letter-spacing:1.5px;cursor:pointer;font-family:'Bebas Neue',sans-serif;">SIGN OUT</button>
@@ -5088,7 +5152,7 @@ body.player-open .screen.active { padding-bottom: 80px; }
 
 <script src="state.js"></script>
 <script src="auth.js?v=5"></script>
-<script src="navigation.js?v=6"></script>
+<script src="navigation.js?v=7"></script>
 <script src="notifications.js?v=4"></script>
 <script src="profiles.js?v=9"></script>
 <script src="audio.js?v=4"></script>
