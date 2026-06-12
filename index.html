@@ -71,40 +71,26 @@ body::after {
 
 /* ── Bottom Nav ── */
 #bottomNav {
-  position: fixed; bottom: 0; left: 0; right: 0;
+  position: fixed; bottom: 0;
+  left: 50%; transform: translateX(-50%);
+  width: min(100%, 480px);
   z-index: 200;
   background: var(--card);
   border-top: 1px solid var(--border);
+  border-radius: 0;
   padding-bottom: env(safe-area-inset-bottom, 0);
 }
-#bottomNav .bn-inner {
-  display: flex; max-width: 480px; margin: 0 auto;
-}
+#bottomNav .bn-inner { display: flex; }
 .bn-tab {
   flex: 1; display: flex; flex-direction: column;
   align-items: center; justify-content: center;
-  padding: 10px 0 8px;
+  padding: 13px 0 11px;
   cursor: pointer; touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
   user-select: none;
-  gap: 4px;
 }
-.bn-tab svg { opacity: .5; transition: opacity .15s; }
-.bn-tab span { font-family: 'Bebas Neue', sans-serif; font-size: 10px; letter-spacing: 1.5px; color: var(--muted); transition: color .15s; }
-.bn-tab.bn-active svg { opacity: 1; }
-.bn-tab.bn-active span { color: var(--neon2); }
-.bn-tab.bn-active svg path, .bn-tab.bn-active svg circle,
-.bn-tab.bn-active svg rect, .bn-tab.bn-active svg line,
-.bn-tab.bn-active svg polyline { stroke: var(--neon2); }
-.bn-industry-pill {
-  background: linear-gradient(135deg, var(--neon), #9D4EDD);
-  border-radius: 14px; padding: 6px 16px;
-  display: flex; flex-direction: column; align-items: center;
-  margin-top: -16px; gap: 2px;
-  box-shadow: 0 4px 16px rgba(255,45,120,.3);
-}
-.bn-industry-pill svg { opacity: 1 !important; }
-.bn-industry-pill span { color: #fff !important; }
+.bn-tab svg { opacity: .45; transition: opacity .15s; color: var(--muted); }
+.bn-tab.bn-active svg { opacity: .85; }
 
 /* ── Industry Panel ── */
 #industryPanel {
@@ -4944,24 +4930,19 @@ body.player-open .screen.active { padding-bottom: 80px; }
 <div id="bottomNav" style="display:none;">
   <div class="bn-inner">
 
-    <!-- What's On tab -->
+    <!-- What's On (calendar) -->
     <div id="bnTabWhatson" class="bn-tab" onclick="showCalendar()" ontouchend="event.preventDefault();showCalendar();">
-      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-      <span>What's On</span>
+      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
     </div>
 
-    <!-- Industry tab — gradient pill -->
-    <div id="bnTabIndustry" class="bn-tab" onclick="openIndustryPanel()" ontouchend="event.preventDefault();openIndustryPanel();" style="flex:1.2;">
-      <div class="bn-industry-pill">
-        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3z"/><path d="M3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg>
-        <span style="color:#fff;font-size:10px;letter-spacing:1.5px;font-family:'Bebas Neue',sans-serif;">Industry</span>
-      </div>
-    </div>
-
-    <!-- Discover tab -->
+    <!-- Discover (radar) -->
     <div id="bnTabDiscover" class="bn-tab" onclick="showSearchScreen()" ontouchend="event.preventDefault();showSearchScreen();">
-      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-      <span>Discover</span>
+      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19.07 4.93A10 10 0 0 0 6.99 3.34"/><path d="M4 6h.01"/><path d="M2.29 9.62A10 10 0 1 0 21.31 8.35"/><path d="M16.24 7.76A6 6 0 1 0 8.23 16.67"/><path d="M12 18h.01"/><path d="M17.99 11.66A6 6 0 0 1 15.77 16.67"/><circle cx="12" cy="12" r="2"/><path d="m13.41 10.59 5.66-5.66"/></svg>
+    </div>
+
+    <!-- Industry (home icon) -->
+    <div id="bnTabIndustry" class="bn-tab" onclick="openIndustryPanel()" ontouchend="event.preventDefault();openIndustryPanel();">
+      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
     </div>
 
   </div>
@@ -4977,12 +4958,9 @@ body.player-open .screen.active { padding-bottom: 80px; }
   </div>
 
   <!-- Header -->
-  <div style="padding:8px 20px 16px;display:flex;justify-content:space-between;align-items:center;">
-    <div>
-      <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:2px;color:var(--text);">INDUSTRY</div>
-      <div style="font-size:12px;color:var(--muted);margin-top:2px;">Select your role</div>
-    </div>
-    <div onclick="closeIndustryPanel()" style="color:var(--muted);font-size:24px;cursor:pointer;line-height:1;padding:4px 8px;touch-action:manipulation;">×</div>
+  <div style="padding:4px 20px 14px;display:flex;justify-content:space-between;align-items:center;">
+    <div style="font-family:'Bebas Neue',sans-serif;font-size:clamp(44px,11vw,64px);line-height:.92;letter-spacing:4px;background:linear-gradient(90deg,#FF2D78 0%,#9D4EDD 50%,#00E5FF 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">HOME</div>
+    <div onclick="closeIndustryPanel()" style="color:var(--muted);font-size:26px;cursor:pointer;line-height:1;padding:4px 8px;touch-action:manipulation;-webkit-tap-highlight-color:transparent;">×</div>
   </div>
 
   <!-- Role cards -->
