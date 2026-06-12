@@ -48,7 +48,7 @@
   }
 
   if (hasSession) {
-    showRoleSelector();
+    showCalendar();
     return;
   }
 

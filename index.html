@@ -68,6 +68,64 @@ body::after {
 
 .screen { display: none; position: relative; z-index: 1; }
 .screen.active { display: block; min-height: 100dvh; }
+
+/* ── Bottom Nav ── */
+#bottomNav {
+  position: fixed; bottom: 0; left: 0; right: 0;
+  z-index: 200;
+  background: var(--card);
+  border-top: 1px solid var(--border);
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+#bottomNav .bn-inner {
+  display: flex; max-width: 480px; margin: 0 auto;
+}
+.bn-tab {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  padding: 10px 0 8px;
+  cursor: pointer; touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  gap: 4px;
+}
+.bn-tab svg { opacity: .5; transition: opacity .15s; }
+.bn-tab span { font-family: 'Bebas Neue', sans-serif; font-size: 10px; letter-spacing: 1.5px; color: var(--muted); transition: color .15s; }
+.bn-tab.bn-active svg { opacity: 1; }
+.bn-tab.bn-active span { color: var(--neon2); }
+.bn-tab.bn-active svg path, .bn-tab.bn-active svg circle,
+.bn-tab.bn-active svg rect, .bn-tab.bn-active svg line,
+.bn-tab.bn-active svg polyline { stroke: var(--neon2); }
+.bn-industry-pill {
+  background: linear-gradient(135deg, var(--neon), #9D4EDD);
+  border-radius: 14px; padding: 6px 16px;
+  display: flex; flex-direction: column; align-items: center;
+  margin-top: -16px; gap: 2px;
+  box-shadow: 0 4px 16px rgba(255,45,120,.3);
+}
+.bn-industry-pill svg { opacity: 1 !important; }
+.bn-industry-pill span { color: #fff !important; }
+
+/* ── Industry Panel ── */
+#industryPanel {
+  position: fixed; bottom: 0; left: 0; right: 0;
+  z-index: 202;
+  background: var(--card);
+  border-radius: 20px 20px 0 0;
+  border-top: 1px solid var(--border);
+  max-height: 90dvh; overflow-y: auto;
+  transform: translateY(100%);
+  transition: transform .3s cubic-bezier(0.32,0.72,0,1);
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+#industryPanel.ip-open { transform: translateY(0); }
+.ip-role-card {
+  background: var(--card2); border: 1.5px solid var(--border);
+  border-radius: 12px; padding: 14px 16px; margin-bottom: 10px;
+  display: flex; align-items: center; gap: 14px; cursor: pointer;
+  touch-action: manipulation; transition: border-color .15s, background .15s;
+}
+.ip-role-card:hover { background: rgba(255,255,255,.03); }
 /* Auth screen overrides to flex for centering */
 #authScreen.active { display: flex; min-height: 100dvh; }
 /* Lock body scroll on auth/role screens */
@@ -1928,7 +1986,7 @@ body.player-open .screen.active { padding-bottom: 80px; }
 <!-- ══════════════════════════════════════════════
      SEARCH SCREEN
 ══════════════════════════════════════════════ -->
-<div id="searchScreen" class="screen">
+<div id="searchScreen" class="screen" style="padding-bottom:80px;">
   <div style="max-width:680px;margin:0 auto;padding:32px 20px 0;">
     <button class="btn-back" onclick="navBack()"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="m12 5-7 7 7 7"/></svg> BACK</button>
     <div style="margin:10px 0 20px;">
@@ -2008,7 +2066,7 @@ body.player-open .screen.active { padding-bottom: 80px; }
 <!-- ══════════════════════════════════════════════
      CALENDAR SCREEN
 ══════════════════════════════════════════════ -->
-<div id="calendarScreen" class="screen" style="background:var(--bg);min-height:100dvh;overflow-y:auto;">
+<div id="calendarScreen" class="screen" style="background:var(--bg);min-height:100dvh;overflow-y:auto;padding-bottom:80px;">
 
   <!-- Top bar -->
   <div style="max-width:680px;margin:0 auto;padding:28px 20px 0;display:flex;justify-content:flex-end;">
@@ -4882,10 +4940,127 @@ body.player-open .screen.active { padding-bottom: 80px; }
 <!-- TOAST -->
 <div class="toast" id="toast"></div>
 
+<!-- ══════════ BOTTOM NAV ══════════ -->
+<div id="bottomNav" style="display:none;">
+  <div class="bn-inner">
+
+    <!-- What's On tab -->
+    <div id="bnTabWhatson" class="bn-tab" onclick="showCalendar()" ontouchend="event.preventDefault();showCalendar();">
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      <span>What's On</span>
+    </div>
+
+    <!-- Industry tab — gradient pill -->
+    <div id="bnTabIndustry" class="bn-tab" onclick="openIndustryPanel()" ontouchend="event.preventDefault();openIndustryPanel();" style="flex:1.2;">
+      <div class="bn-industry-pill">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3z"/><path d="M3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg>
+        <span style="color:#fff;font-size:10px;letter-spacing:1.5px;font-family:'Bebas Neue',sans-serif;">Industry</span>
+      </div>
+    </div>
+
+    <!-- Discover tab -->
+    <div id="bnTabDiscover" class="bn-tab" onclick="showSearchScreen()" ontouchend="event.preventDefault();showSearchScreen();">
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <span>Discover</span>
+    </div>
+
+  </div>
+</div>
+
+<!-- ══════════ INDUSTRY PANEL ══════════ -->
+<div id="industryPanelOverlay" style="display:none;position:fixed;inset:0;z-index:201;background:rgba(0,0,0,.7);" onclick="closeIndustryPanel()"></div>
+<div id="industryPanel" style="display:none;">
+
+  <!-- Drag handle -->
+  <div style="display:flex;justify-content:center;padding:12px 0 4px;">
+    <div style="width:40px;height:4px;border-radius:2px;background:var(--border);"></div>
+  </div>
+
+  <!-- Header -->
+  <div style="padding:8px 20px 16px;display:flex;justify-content:space-between;align-items:center;">
+    <div>
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:2px;color:var(--text);">INDUSTRY</div>
+      <div style="font-size:12px;color:var(--muted);margin-top:2px;">Select your role</div>
+    </div>
+    <div onclick="closeIndustryPanel()" style="color:var(--muted);font-size:24px;cursor:pointer;line-height:1;padding:4px 8px;touch-action:manipulation;">×</div>
+  </div>
+
+  <!-- Role cards -->
+  <div style="padding:0 16px 24px;display:flex;flex-direction:column;gap:0;">
+
+    <!-- Host / Promoter -->
+    <div class="ip-role-card" onclick="enterIndustryRole('host')">
+      <div style="width:40px;height:40px;border-radius:10px;background:rgba(255,45,120,.12);border:1px solid rgba(255,45,120,.25);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FF2D78" stroke-width="1.8"><rect x="3" y="2" width="18" height="20" rx="2"/><circle cx="12" cy="13" r="5"/><circle cx="12" cy="13" r="2"/><line x1="9" y1="5.5" x2="15" y2="5.5" stroke-width="1.5"/></svg>
+      </div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:1px;color:var(--neon);">HOST / PROMOTER</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:2px;">Create events, build set times, manage your lineup</div>
+        <div id="ipBadgeHost" style="display:none;font-size:11px;color:var(--neon);margin-top:3px;">✓ Profile set up</div>
+      </div>
+      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+    </div>
+
+    <!-- Artist / DJ -->
+    <div class="ip-role-card" onclick="enterIndustryRole('artist')" style="margin-top:10px;">
+      <div style="width:40px;height:40px;border-radius:10px;background:rgba(0,229,255,.1);border:1px solid rgba(0,229,255,.25);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--neon2)" stroke-width="1.8"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3z"/><path d="M3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg>
+      </div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:1px;color:var(--neon2);">ARTIST / DJ</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:2px;">Build your profile, track bookings, apply to events</div>
+        <div id="ipBadgeArtist" style="display:none;font-size:11px;color:var(--neon2);margin-top:3px;">✓ Profile set up</div>
+      </div>
+      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+    </div>
+
+    <!-- Band / Muso -->
+    <div class="ip-role-card" onclick="enterIndustryRole('band')" style="margin-top:10px;">
+      <div style="width:40px;height:40px;border-radius:10px;background:rgba(255,140,66,.1);border:1px solid rgba(255,140,66,.25);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FF8C42" stroke-width="1.8" stroke-linecap="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+      </div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:1px;color:#FF8C42;">BAND / MUSO</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:2px;">List your band, find gigs, connect with venues</div>
+      </div>
+      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+    </div>
+
+    <!-- Venues -->
+    <div class="ip-role-card" onclick="enterIndustryRole('venue')" style="margin-top:10px;">
+      <div style="width:40px;height:40px;border-radius:10px;background:rgba(0,230,118,.1);border:1px solid rgba(0,230,118,.25);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#00E676" stroke-width="1.8" stroke-linecap="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      </div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:1px;color:#00E676;">VENUES</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:2px;">List your venue, set availability, get found</div>
+      </div>
+      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+    </div>
+
+    <!-- Stand Up / Poetry -->
+    <div class="ip-role-card" onclick="enterIndustryRole('standup')" style="margin-top:10px;">
+      <div style="width:40px;height:40px;border-radius:10px;background:rgba(176,96,255,.1);border:1px solid rgba(176,96,255,.25);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#b060ff" stroke-width="1.8" stroke-linecap="round"><line x1="12" y1="1" x2="12" y2="3"/><path d="M17 5H7a2 2 0 0 0-2 2v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2z"/><line x1="12" y1="13" x2="12" y2="17"/><line x1="9" y1="17" x2="15" y2="17"/></svg>
+      </div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:1px;color:#b060ff;">STAND UP / POETRY</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:2px;">Book gigs, share sets, connect with clubs</div>
+      </div>
+      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+    </div>
+
+    <!-- Sign out (if logged in) -->
+    <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--border);text-align:center;">
+      <button onclick="closeIndustryPanel();setTimeout(doSignOut,200);" style="background:none;border:1px solid rgba(255,255,255,.1);color:var(--muted);border-radius:20px;padding:8px 24px;font-size:11px;letter-spacing:1.5px;cursor:pointer;font-family:'Bebas Neue',sans-serif;">SIGN OUT</button>
+    </div>
+
+  </div>
+</div>
 
 <script src="state.js"></script>
 <script src="auth.js?v=4"></script>
-<script src="navigation.js?v=4"></script>
+<script src="navigation.js?v=5"></script>
 <script src="notifications.js?v=4"></script>
 <script src="profiles.js?v=9"></script>
 <script src="audio.js?v=4"></script>
@@ -4895,7 +5070,7 @@ body.player-open .screen.active { padding-bottom: 80px; }
 <script src="venues.js?v=1"></script>
 <script src="bands.js?v=1"></script>
 <script src="standup.js?v=1"></script>
-<script src="app.js?v=4"></script>
+<script src="app.js?v=5"></script>
 
 
 <!-- ══════════ ARE YOU SURE OVERLAY ══════════ -->

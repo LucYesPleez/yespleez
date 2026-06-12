@@ -59,12 +59,66 @@ function show(id, opts = {}) {
   });
 }
 
+// Screens that show the bottom nav bar
+const _bottomNavScreens = new Set(['calendarScreen', 'searchScreen']);
+
 function _updateGlobalNav(id, isLocked) {
-  // Reserved for future nav chrome — btn-back buttons now handle navigation inline
+  const nav = document.getElementById('bottomNav');
+  if (!nav) return;
+  if (isLocked || !_bottomNavScreens.has(id)) {
+    nav.style.display = 'none';
+    return;
+  }
+  nav.style.display = 'block';
+  // Update active tab indicator
+  document.getElementById('bnTabWhatson')?.classList.toggle('bn-active', id === 'calendarScreen');
+  document.getElementById('bnTabDiscover')?.classList.toggle('bn-active', id === 'searchScreen');
+}
+
+// ── Industry Panel ─────────────────────────────────
+
+function openIndustryPanel() {
+  _updateIndustryPanelBadges();
+  const overlay = document.getElementById('industryPanelOverlay');
+  const panel   = document.getElementById('industryPanel');
+  if (!overlay || !panel) return;
+  overlay.style.display = 'block';
+  panel.style.display   = 'block';
+  // Animate in on next frame
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => { panel.classList.add('ip-open'); });
+  });
+}
+
+function closeIndustryPanel() {
+  const overlay = document.getElementById('industryPanelOverlay');
+  const panel   = document.getElementById('industryPanel');
+  if (!overlay || !panel) return;
+  panel.classList.remove('ip-open');
+  overlay.style.display = 'none';
+  setTimeout(() => { panel.style.display = 'none'; }, 300);
+}
+
+function _updateIndustryPanelBadges() {
+  const hostBadge   = document.getElementById('ipBadgeHost');
+  const artistBadge = document.getElementById('ipBadgeArtist');
+  if (hostBadge)   hostBadge.style.display   = (hostProfile?.name)       ? '' : 'none';
+  if (artistBadge) artistBadge.style.display = (artistProfile?.djName)   ? '' : 'none';
+}
+
+function enterIndustryRole(role) {
+  closeIndustryPanel();
+  setTimeout(() => {
+    if      (role === 'host')    enterMode('host');
+    else if (role === 'artist')  enterMode('artist');
+    else if (role === 'band')    enterBandsDashboard();
+    else if (role === 'venue')   enterVenueDashboard();
+    else if (role === 'standup') enterStandupDashboard();
+  }, 200);
 }
 
 function navBack() {
-  if (!_navHistory.length) { showRoleSelector(); return; }
+  if (!_navHistory.length) { showCalendar(); return; }
   const prev = _navHistory.pop();
   show(prev, { _isBack: true });
   _updateGlobalNav(prev, false);
