@@ -1564,7 +1564,8 @@ body.player-open .screen.active { padding-bottom: 80px; }
 .overlay {
   display: none; position: fixed; inset: 0;
   background: rgba(0,0,0,.82); backdrop-filter: blur(6px);
-  z-index: 200; align-items: center; justify-content: center; padding: 20px;
+  z-index: 200; align-items: flex-start; justify-content: center;
+  padding: 20px; overflow-y: auto;
 }
 .overlay.open { display: flex; }
 .modal {
