@@ -94,17 +94,20 @@ body::after {
 
 /* ── Industry Panel ── */
 #industryPanel {
-  position: fixed; bottom: 0; left: 0; right: 0;
+  position: fixed; bottom: 0;
+  left: 50%; transform: translateX(-50%) translateY(100%);
+  width: min(100%, 480px);
   z-index: 202;
   background: var(--card);
   border-radius: 20px 20px 0 0;
   border-top: 1px solid var(--border);
+  border-left: 1px solid var(--border);
+  border-right: 1px solid var(--border);
   max-height: 90dvh; overflow-y: auto;
-  transform: translateY(100%);
   transition: transform .3s cubic-bezier(0.32,0.72,0,1);
   padding-bottom: env(safe-area-inset-bottom, 0);
 }
-#industryPanel.ip-open { transform: translateY(0); }
+#industryPanel.ip-open { transform: translateX(-50%) translateY(0); }
 .ip-role-card {
   background: var(--card2); border: 1.5px solid var(--border);
   border-radius: 12px; padding: 14px 16px; margin-bottom: 10px;
@@ -4965,6 +4968,14 @@ body.player-open .screen.active { padding-bottom: 80px; }
 
   <!-- Role cards -->
   <div style="padding:0 16px 24px;" class="role-cards">
+
+    <!-- WHATS HAPPENIN' / Home card -->
+    <div class="role-card calendar-card" onclick="closeIndustryPanel();setTimeout(showCalendar,200);" ontouchend="event.preventDefault();closeIndustryPanel();setTimeout(showCalendar,200);">
+      <div class="role-card-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="M8 14h.01"/><path d="M12 14h.01"/><path d="M16 14h.01"/><path d="M8 18h.01"/><path d="M12 18h.01"/><path d="M16 18h.01"/></svg></div>
+      <div class="role-card-body">
+        <div class="role-card-title" style="color:#9D4EDD;">WHATS HAPPENIN'</div>
+      </div>
+    </div>
 
     <div class="role-card host-card" onclick="enterIndustryRole('host')">
       <div class="role-card-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="2" width="18" height="20" rx="2"/><circle cx="12" cy="13" r="5"/><circle cx="12" cy="13" r="2"/><line x1="9" y1="5.5" x2="15" y2="5.5" stroke-width="1.5" stroke-linecap="round"/></svg></div>
