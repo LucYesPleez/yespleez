@@ -4,7 +4,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>YesPleez v3.56</title>
+<title>YesPleez v3.58</title>
 <meta name="theme-color" content="#0a0a0f">
 <link rel="icon" type="image/png" href="icon.png">
 <script src="postcodes.js"></script>
@@ -2767,51 +2767,74 @@ body.player-open .screen.active { padding-bottom: 80px; }
 </div>
 
 <!-- ══════════ MY SCENE DASHBOARD SCREEN ══════════ -->
-<div id="punterDashScreen" class="screen" style="max-width:680px;margin:0 auto;padding:32px 20px 100px;">
+<div id="punterDashScreen" class="screen" style="background:var(--bg);min-height:100dvh;overflow-y:auto;padding-bottom:90px;">
 
-  <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:24px;">
+  <!-- Header -->
+  <div style="max-width:680px;margin:0 auto;padding:20px 16px 0;display:flex;align-items:flex-start;justify-content:space-between;">
     <div>
       <div class="yp-tag">YESPLEEZ</div>
-      <div class="dash-title" style="font-size:clamp(28px,7vw,42px);line-height:.92;margin-top:8px;background:linear-gradient(135deg,#D9FF4F,#BFEF00,#D9FF4F);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">MY<br>SCENE</div>
-      <div style="font-size:12px;color:var(--muted);margin-top:6px;" id="punterDashUserEmail"></div>
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:clamp(48px,12vw,72px);line-height:.88;letter-spacing:3px;background:linear-gradient(135deg,#D9FF4F,#BFEF00,#D9FF4F);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;filter:drop-shadow(0 0 8px rgba(217,255,79,0.2));">MY SCENE</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:6px;letter-spacing:.5px;">Your gigs · Your artists · Your world</div>
     </div>
-    <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-end;margin-top:4px;">
+    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;margin-top:4px;">
       <div class="mode-toggle" onclick="tryToggleMode()" style="border-color:rgba(217,255,79,.3);color:#D9FF4F;">
         <div class="mode-toggle-dot" style="background:#D9FF4F;box-shadow:0 0 6px #D9FF4F;"></div>
         HOME
       </div>
+      <!-- Compact profile pill -->
+      <div onclick="showPunterProfile()" ontouchend="event.preventDefault();showPunterProfile();"
+        style="display:flex;align-items:center;gap:8px;background:rgba(217,255,79,.08);border:1px solid rgba(217,255,79,.22);border-radius:20px;padding:6px 12px 6px 8px;cursor:pointer;touch-action:manipulation;">
+        <div style="width:26px;height:26px;border-radius:8px;background:rgba(217,255,79,.15);display:flex;align-items:center;justify-content:center;color:#D9FF4F;flex-shrink:0;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 1 0-16 0"/></svg>
+        </div>
+        <div id="punterDashName" style="font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:1px;color:#D9FF4F;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">MY PROFILE</div>
+      </div>
+      <div id="punterDashUserEmail" style="font-size:10px;color:var(--muted);text-align:right;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></div>
     </div>
   </div>
 
-  <!-- Profile card -->
-  <div id="punterDashProfileCard" onclick="showPunterProfile()"
-    style="background:rgba(217,255,79,.06);border:1.5px solid rgba(217,255,79,.2);border-radius:14px;padding:16px;display:flex;gap:14px;align-items:center;margin-bottom:24px;cursor:pointer;">
-    <div id="punterDashAvatar" style="width:52px;height:52px;border-radius:10px;background:rgba(217,255,79,.12);border:1.5px solid rgba(217,255,79,.3);display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#D9FF4F;">
-      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 1 0-16 0"/></svg>
+  <!-- Time tabs (4 across, yellow accent) -->
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:7px;padding:16px 16px 0;max-width:680px;margin:0 auto;">
+    <button onclick="punterScrollToSection('punterSecScene')" ontouchend="event.preventDefault();punterScrollToSection('punterSecScene');" style="background:rgba(217,255,79,.07);border:1px solid rgba(217,255,79,.25);border-radius:10px;padding:9px 4px 8px;cursor:pointer;text-align:center;touch-action:manipulation;">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:12px;letter-spacing:1px;color:#D9FF4F;line-height:1.1;">YOUR SCENE</div>
+      <div style="font-size:9px;color:var(--muted);margin-top:3px;line-height:1.2;">Followed artists</div>
+    </button>
+    <button onclick="punterScrollToSection('punterSecTonight')" ontouchend="event.preventDefault();punterScrollToSection('punterSecTonight');" style="background:rgba(217,255,79,.07);border:1px solid rgba(217,255,79,.25);border-radius:10px;padding:9px 4px 8px;cursor:pointer;text-align:center;touch-action:manipulation;">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:12px;letter-spacing:1px;color:#D9FF4F;line-height:1.1;">TONIGHT</div>
+      <div style="font-size:9px;color:var(--muted);margin-top:3px;line-height:1.2;">What's on now</div>
+    </button>
+    <button onclick="punterScrollToSection('punterSecWeekend')" ontouchend="event.preventDefault();punterScrollToSection('punterSecWeekend');" style="background:rgba(217,255,79,.07);border:1px solid rgba(217,255,79,.25);border-radius:10px;padding:9px 4px 8px;cursor:pointer;text-align:center;touch-action:manipulation;">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:12px;letter-spacing:1px;color:#D9FF4F;line-height:1.1;">WEEKEND</div>
+      <div style="font-size:9px;color:var(--muted);margin-top:3px;line-height:1.2;" id="punterTabWeekendSub">Fri – Sun</div>
+    </button>
+    <button onclick="punterScrollToSection('punterSecUpcoming')" ontouchend="event.preventDefault();punterScrollToSection('punterSecUpcoming');" style="background:rgba(217,255,79,.07);border:1px solid rgba(217,255,79,.25);border-radius:10px;padding:9px 4px 8px;cursor:pointer;text-align:center;touch-action:manipulation;">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:12px;letter-spacing:1px;color:#D9FF4F;line-height:1.1;">COMING UP</div>
+      <div style="font-size:9px;color:var(--muted);margin-top:3px;line-height:1.2;">Next 2 weeks</div>
+    </button>
+  </div>
+
+  <!-- Date scroll strip -->
+  <div style="max-width:680px;margin:0 auto;padding:14px 16px 0;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+      <div id="punterDateMonthLabel" style="font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:2px;color:#D9FF4F;"></div>
+      <div style="display:flex;gap:6px;">
+        <button onclick="punterPrevMonth()" ontouchend="event.preventDefault();punterPrevMonth();" style="background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:8px;width:28px;height:28px;cursor:pointer;font-size:13px;line-height:1;touch-action:manipulation;">←</button>
+        <button onclick="punterNextMonth()" ontouchend="event.preventDefault();punterNextMonth();" style="background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:8px;width:28px;height:28px;cursor:pointer;font-size:13px;line-height:1;touch-action:manipulation;">→</button>
+      </div>
     </div>
-    <div style="flex:1;min-width:0;">
-      <div style="font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:1px;color:var(--text);" id="punterDashName">Set up your profile</div>
-      <div style="font-size:12px;color:var(--muted);margin-top:3px;" id="punterDashLocation">Tell us what you're into</div>
-    </div>
-    <div style="font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:1px;color:#D9FF4F;" id="punterDashCta">SET UP →</div>
+    <div id="punterDateStrip" style="display:flex;gap:6px;overflow-x:auto;padding-bottom:10px;scrollbar-width:none;-webkit-overflow-scrolling:touch;"></div>
   </div>
 
-  <!-- Following -->
-  <div style="font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:2px;color:#D9FF4F;padding-bottom:8px;border-bottom:1px solid var(--border);margin-bottom:14px;">FOLLOWING</div>
-  <div id="punterDashFollowing" style="font-size:13px;color:var(--muted);padding:8px 0 20px;">
-    Follow artists and venues from their profiles — you'll get notified when they play.
-  </div>
+  <!-- Feed content (sections) -->
+  <div id="punterFeedContent" style="padding:0 0 16px;max-width:680px;margin:0 auto;"></div>
 
-  <!-- Saved events -->
-  <div style="font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:2px;color:#D9FF4F;padding-bottom:8px;border-bottom:1px solid var(--border);margin-bottom:14px;">SAVED EVENTS</div>
-  <div id="punterDashSaved" style="font-size:13px;color:var(--muted);padding:8px 0 20px;">
-    Tap the bookmark on any event to save it here.
-  </div>
+  <!-- Day view (shown when a date tile is tapped) -->
+  <div id="punterDayContent" style="max-width:680px;margin:0 auto;padding:0 16px 80px;display:none;"></div>
 
-  <!-- Go explore -->
-  <button onclick="showCalendar()" style="width:100%;background:rgba(217,255,79,.1);border:1px solid rgba(217,255,79,.3);color:#D9FF4F;border-radius:12px;padding:14px;font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:2px;cursor:pointer;">
-    SEE WHAT'S ON →
-  </button>
+  <!-- Hidden: kept for JS compat (follows.js renders into punterDashFollowing) -->
+  <div id="punterDashFollowing" style="display:none;"></div>
+  <div id="punterDashLocation" style="display:none;"></div>
+  <div id="punterDashCta" style="display:none;"></div>
 
 </div>
 
@@ -5253,9 +5276,10 @@ body.player-open .screen.active { padding-bottom: 80px; }
 
 <script src="state.js"></script>
 <script src="auth.js?v=5"></script>
-<script src="navigation.js?v=9"></script>
+<script src="navigation.js?v=10"></script>
+<script src="follows.js?v=2"></script>
 <script src="notifications.js?v=6"></script>
-<script src="profiles.js?v=9"></script>
+<script src="profiles.js?v=10"></script>
 <script src="audio.js?v=4"></script>
 <script src="search.js?v=5"></script>
 <script src="events.js?v=13"></script>

@@ -253,6 +253,26 @@ async function enterPunterDashboard() {
   }
 
   show('punterDashScreen');
+
+  // Reset day view state so feed shows on entry
+  if (typeof _punterSelDate !== 'undefined') {
+    window._punterSelDate = null;
+    const feed    = document.getElementById('punterFeedContent');
+    const dayView = document.getElementById('punterDayContent');
+    if (feed)    feed.style.display    = '';
+    if (dayView) { dayView.style.display = 'none'; dayView.innerHTML = ''; }
+  }
+
+  // Load events then follows (follows render calls renderPunterFeed once loaded)
+  if (typeof loadCalEvents === 'function') {
+    loadCalEvents().then(() => {
+      if (typeof loadFollows === 'function') loadFollows();
+      else if (typeof renderPunterFeed === 'function') renderPunterFeed();
+    });
+  } else if (typeof loadFollows === 'function') {
+    loadFollows();
+  }
+
   if (typeof loadDbNotifs === 'function') loadDbNotifs();
   if (typeof startNotifPolling === 'function') startNotifPolling();
 }

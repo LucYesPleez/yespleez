@@ -312,6 +312,9 @@ function openPublicProfile(row) {
     </div>`) : '';
 
   const isOwnProfile = currentUser?.id === row.user_id;
+  const followBtn = !isOwnProfile && row.user_id && typeof buildFollowBtn === 'function'
+    ? buildFollowBtn(row.user_id, row.type, name)
+    : '';
   const inviteBtn = !isHost && currentMode === 'host' && !isOwnProfile ? `
     <button onclick="openInviteToEvent('${(row.user_id||'').replace(/'/g,String.fromCharCode(39))}','${(row.dj_name||row.name||'').replace(/'/g,String.fromCharCode(39))}')"
       style="background:var(--neon);color:#fff;font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:2px;padding:16px;border:none;border-radius:12px;cursor:pointer;width:100%;font-weight:700;margin-bottom:12px;">
@@ -362,6 +365,7 @@ function openPublicProfile(row) {
       </a>` : ''}
     </div>` : ''}
     ${!isHost ? `<div id="publicProfileAvailability" style="background:rgba(19,19,31,.88);backdrop-filter:blur(10px);border:1px solid rgba(0,229,255,.18);border-radius:12px;padding:16px;margin-bottom:12px;display:none;"></div>` : ''}
+    ${followBtn}
     ${inviteBtn}
     <div id="publicProfileGigs"></div>
   `;
