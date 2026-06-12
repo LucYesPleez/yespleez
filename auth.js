@@ -132,7 +132,7 @@ async function doLogin() {
   localStorage.setItem('yp_session', JSON.stringify(data));
   await checkPendingOffers(email, data.access_token);
   if (typeof checkPostAuthAction === 'function') { checkPostAuthAction(); return; }
-  showRoleSelector();
+  showCalendar();
 }
 
 // ── Signup ─────────────────────────────────────────

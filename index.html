@@ -1717,7 +1717,7 @@ body.player-open .screen.active { padding-bottom: 80px; }
       <input type="password" id="loginPassword" placeholder="••••••••" autocomplete="current-password">
     </div>
     <div class="err-msg" id="loginErr"></div>
-    <button class="btn-primary" id="loginBtn" onclick="doLogin()" style="margin-top:8px;">SIGN IN</button>
+    <button class="btn-primary" id="loginBtn" onclick="doLogin()" ontouchend="event.preventDefault();doLogin();" style="margin-top:8px;touch-action:manipulation;">SIGN IN</button>
     <p style="text-align:center;margin-top:8px;">
       <span class="auth-link" onclick="showForgotPassword()">Forgot password?</span>
     </p>
