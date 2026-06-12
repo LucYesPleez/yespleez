@@ -153,8 +153,30 @@ async function showRoleSelector() {
     if (artistRow && (artistRow.dj_name || artistRow.name)) artistProfile = mapDbToArtistProfile(artistRow);
   }
   updateRoleCards();
+  _updateRoleScreenHeading();
   show('roleScreen');
   setTimeout(() => { if (typeof flashPendingOffers === 'function') flashPendingOffers(); }, 800);
+}
+
+function _updateRoleScreenHeading() {
+  const count  = parseInt(localStorage.getItem('yp_role_views') || '0');
+  const title  = document.getElementById('roleTitle');
+  const sub    = document.getElementById('roleSub');
+  const pips   = document.getElementById('roleOnboardingPips');
+
+  // First 3 views = onboarding mode (count has already been incremented in doLogin before this runs)
+  const onboarding = count > 0 && count <= 3;
+
+  if (title) title.innerHTML = onboarding ? 'HOW ARE YOU<br>USING YESPLEEZ?' : 'THE SCENE<br>IN YOUR HANDS';
+  if (sub)   sub.textContent  = onboarding ? 'Pick your role — you can switch anytime' : 'Switch between modes anytime';
+
+  if (pips) {
+    pips.style.display = onboarding ? 'flex' : 'none';
+    [1, 2, 3].forEach(n => {
+      const pip = document.getElementById(`rolePip${n}`);
+      if (pip) pip.style.background = n <= count ? 'var(--neon2)' : 'var(--border)';
+    });
+  }
 }
 
 function updateRoleCards() {

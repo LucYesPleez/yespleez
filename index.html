@@ -1766,8 +1766,13 @@ body.player-open .screen.active { padding-bottom: 80px; }
 <!-- ══════════ ROLE SELECTOR SCREEN ══════════ -->
 <div id="roleScreen" class="screen">
   <div class="yp-tag">YESPLEEZ</div>
-  <div class="role-title">THE SCENE<br>IN YOUR HANDS</div>
-  <p class="role-sub">Switch between modes anytime</p>
+  <div id="roleTitle" class="role-title">THE SCENE<br>IN YOUR HANDS</div>
+  <p id="roleSub" class="role-sub">Switch between modes anytime</p>
+  <div id="roleOnboardingPips" style="display:none;justify-content:center;gap:6px;margin:-4px 0 12px;">
+    <span id="rolePip1" style="width:8px;height:8px;border-radius:50%;background:var(--border);display:inline-block;transition:background .2s;"></span>
+    <span id="rolePip2" style="width:8px;height:8px;border-radius:50%;background:var(--border);display:inline-block;transition:background .2s;"></span>
+    <span id="rolePip3" style="width:8px;height:8px;border-radius:50%;background:var(--border);display:inline-block;transition:background .2s;"></span>
+  </div>
   <div class="role-cards">
     <div class="role-card calendar-card" onclick="showCalendar()">
       <div class="role-card-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="M8 14h.01"/><path d="M12 14h.01"/><path d="M16 14h.01"/><path d="M8 18h.01"/><path d="M12 18h.01"/><path d="M16 18h.01"/></svg></div>
@@ -5078,7 +5083,7 @@ body.player-open .screen.active { padding-bottom: 80px; }
 
 <script src="state.js"></script>
 <script src="auth.js?v=5"></script>
-<script src="navigation.js?v=5"></script>
+<script src="navigation.js?v=6"></script>
 <script src="notifications.js?v=4"></script>
 <script src="profiles.js?v=9"></script>
 <script src="audio.js?v=4"></script>
