@@ -23,7 +23,7 @@ const _screenTitles = {
   artistProfileScreen: 'MY PROFILE',
   venueProfileScreen:  'VENUE PROFILE',
   hostProfileScreen:   'HOST PROFILE',
-  punterDashScreen:    'THE CROWD',
+  punterDashScreen:    'MY SCENE',
   setTimesScreen:      'SET TIMES',
   publicEventScreen:   'EVENT',
   publicProfileScreen: 'PROFILE',
@@ -234,8 +234,95 @@ async function enterPunterDashboard() {
   if (typeof startNotifPolling === 'function') startNotifPolling();
 }
 
+const _mySceneGenres = ['Techno','House','Drum & Bass','Breaks','Psytrance','Hip Hop','R&B','Reggae','Jazz','Soul','Folk','Pop','Rock','Metal','Indie','Electronic','Ambient','Comedy','Spoken Word','Open Mic'];
+
 function showPunterProfile() {
-  showToast('Punter profile coming soon', 'success');
+  // Populate genre chips
+  const wrap = document.getElementById('mySceneGenreChips');
+  if (wrap && !wrap.children.length) {
+    _mySceneGenres.forEach(g => {
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.textContent = g;
+      chip.style.cssText = 'background:rgba(217,255,79,.08);border:1px solid rgba(217,255,79,.25);color:var(--muted);border-radius:20px;font-size:13px;padding:6px 14px;cursor:pointer;touch-action:manipulation;transition:all .15s;';
+      chip.onclick = () => {
+        const on = chip.dataset.on === '1';
+        chip.dataset.on = on ? '0' : '1';
+        chip.style.background    = on ? 'rgba(217,255,79,.08)' : 'rgba(217,255,79,.18)';
+        chip.style.borderColor   = on ? 'rgba(217,255,79,.25)' : '#D9FF4F';
+        chip.style.color         = on ? 'var(--muted)' : '#D9FF4F';
+      };
+      wrap.appendChild(chip);
+    });
+  }
+
+  // Pre-fill if profile exists
+  try {
+    const saved = JSON.parse(localStorage.getItem('yp_myscene_profile') || '{}');
+    if (saved.name)     document.getElementById('mySceneName').value = saved.name;
+    if (saved.postcode) document.getElementById('myScenePostcode').value = saved.postcode;
+    if (saved.genres && wrap) {
+      [...wrap.children].forEach(chip => {
+        if (saved.genres.includes(chip.textContent)) chip.click();
+      });
+    }
+  } catch(e) {}
+
+  const overlay = document.getElementById('mySceneOverlay');
+  const sheet   = document.getElementById('mySceneSheet');
+  overlay.style.display = 'block';
+  sheet.style.display   = 'block';
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    sheet.style.transform = 'translateX(-50%) translateY(0)';
+  }));
+}
+
+function closeMySceneProfile() {
+  const sheet = document.getElementById('mySceneSheet');
+  const overlay = document.getElementById('mySceneOverlay');
+  if (sheet)   sheet.style.transform = 'translateX(-50%) translateY(100%)';
+  if (overlay) overlay.style.display = 'none';
+  setTimeout(() => { if (sheet) sheet.style.display = 'none'; }, 300);
+}
+
+async function saveMySceneProfile() {
+  const name     = document.getElementById('mySceneName')?.value.trim() || '';
+  const postcode = document.getElementById('myScenePostcode')?.value.trim() || '';
+  const wrap     = document.getElementById('mySceneGenreChips');
+  const genres   = wrap ? [...wrap.children].filter(c => c.dataset.on === '1').map(c => c.textContent) : [];
+
+  if (!name) { showToast('Add a display name', 'error'); return; }
+
+  const profile = { name, postcode, genres, genreString: genres.join(' · ') };
+  try { localStorage.setItem('yp_myscene_profile', JSON.stringify(profile)); } catch(e) {}
+
+  // Save to Supabase profiles table
+  if (!DEMO && currentUser?.id && currentSession?.access_token) {
+    sbRest('profiles', {
+      method: 'POST',
+      body: JSON.stringify({
+        user_id:      currentUser.id,
+        type:         'punter',
+        name:         name,
+        dj_name:      name,
+        postcode:     postcode,
+        genre_string: profile.genreString,
+        updated_at:   new Date().toISOString()
+      }),
+      prefer: 'resolution=merge-duplicates,return=minimal'
+    }, currentSession.access_token).catch(() => {});
+  }
+
+  // Update dashboard card
+  const nameEl = document.getElementById('punterDashName');
+  const locEl  = document.getElementById('punterDashLocation');
+  const ctaEl  = document.getElementById('punterDashCta');
+  if (nameEl) nameEl.textContent = name;
+  if (locEl)  locEl.textContent  = genres.length ? genres.slice(0,3).join(' · ') : (postcode || 'My Scene');
+  if (ctaEl)  ctaEl.textContent  = 'EDIT →';
+
+  showToast('My Scene saved ✓', 'success');
+  closeMySceneProfile();
 }
 
 function canToggleMode() {
