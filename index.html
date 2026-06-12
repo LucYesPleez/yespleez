@@ -580,17 +580,21 @@ body.auth-mode { overflow: hidden; height: 100dvh; }
 /* ══════════════════════════
    ARTIST PROFILE SCREEN
 ══════════════════════════ */
-#profileScreen { max-width: 620px; margin: 0 auto; padding: 40px 20px 100px; }
+#profileScreen { background: var(--bg); min-height: 100dvh; overflow-y: auto; padding-bottom: 100px; }
+#profileScreen > .btn-back { margin: 28px 20px 0; display: inline-flex; }
+.profile-inner { max-width: 680px; margin: 0 auto; padding: 0 20px; }
 
-.profile-header { text-align: center; margin-bottom: 28px; }
+.profile-header { text-align: center; padding: 12px 0 24px; }
 .profile-h1 {
   font-family: 'Bebas Neue', sans-serif;
-  font-size: clamp(36px, 9vw, 54px); line-height: .92;
-  background: linear-gradient(135deg, #fff 30%, var(--neon2));
+  font-size: clamp(52px, 13vw, 76px); line-height: .92;
+  letter-spacing: 4px;
+  background: linear-gradient(90deg, #FF2D78 0%, #9D4EDD 50%, #00E5FF 100%);
   -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-  background-clip: text; margin-bottom: 8px;
+  background-clip: text; margin-bottom: 10px;
+  filter: drop-shadow(0 0 8px rgba(255,255,255,0.2));
 }
-.profile-sub { font-size: 13px; color: var(--muted); line-height: 1.6; }
+.profile-sub { font-size: 12px; color: var(--muted); line-height: 1.6; letter-spacing: .5px; }
 
 /* PAGE INDICATOR */
 .profile-pages {
@@ -4211,17 +4215,17 @@ body.player-open .screen.active { padding-bottom: 80px; }
 <div id="profileScreen" class="screen">
   <button class="btn-back" onclick="navBack()"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="m12 5-7 7 7 7"/></svg> BACK</button>
 
-  <div class="profile-header">
-    <div class="yp-tag">ARTIST PROFILE</div>
-    <div class="profile-h1">YOUR<br>PROFILE</div>
-    <div class="profile-sub">Fill this in once. It travels with you<br>across every event on YesPleez.</div>
-  </div>
+  <div class="profile-inner">
+    <div class="profile-header">
+      <div class="profile-h1">MY PROFILE</div>
+      <div class="profile-sub">Fill this in once · travels with you across every event</div>
+    </div>
 
-  <!-- Page dots -->
-  <div class="profile-pages">
-    <div class="profile-page-dot active" id="pdot1"></div>
-    <div class="profile-page-dot" id="pdot2"></div>
-  </div>
+    <!-- Page dots -->
+    <div class="profile-pages">
+      <div class="profile-page-dot active" id="pdot1"></div>
+      <div class="profile-page-dot" id="pdot2"></div>
+    </div>
 
   <!-- ── PAGE 1 ── -->
   <div id="profilePage1">
@@ -4559,6 +4563,7 @@ body.player-open .screen.active { padding-bottom: 80px; }
     </div>
   </div>
 
+  </div><!-- /profile-inner -->
 </div>
 
 
