@@ -74,6 +74,26 @@ function _updateGlobalNav(id, isLocked) {
   // Update active tab indicator
   document.getElementById('bnTabWhatson')?.classList.toggle('bn-active', id === 'calendarScreen');
   document.getElementById('bnTabDiscover')?.classList.toggle('bn-active', id === 'searchScreen');
+  document.getElementById('bnTabMessages')?.classList.toggle('bn-active', id === 'messagesScreen');
+  document.getElementById('bnTabNotif')?.classList.remove('bn-active');   // panel, not a screen
+  document.getElementById('bnTabIndustry')?.classList.remove('bn-active'); // panel, not a screen
+}
+
+// Update notification badge count on nav bar
+function updateNavNotifBadge(count) {
+  const badge = document.getElementById('bnNotifBadge');
+  if (!badge) return;
+  if (count > 0) {
+    badge.textContent = count > 99 ? '99+' : count;
+    badge.style.display = 'flex';
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
+// Messages panel placeholder
+function openMessagesPanel() {
+  showToast('Messages coming soon', 'success');
 }
 
 // ── Industry Panel ─────────────────────────────────
