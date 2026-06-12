@@ -319,49 +319,102 @@ function openPublicProfile(row) {
     </button>` : '';
 
   const heroSpacer = row.avatar
-    ? `<div style="height:62dvh;"></div>`
-    : `<div style="height:60px;"></div>`;
+    ? `<div style="height:58dvh;"></div>`
+    : `<div style="height:48px;"></div>`;
+
+  // Stats row values
+  const estYear   = parseInt(row.years || row.est_year || 0);
+  const yearsActive = estYear > 1900 ? (new Date().getFullYear() - estYear) : null;
+  const genreCount  = genres.length;
+  const expLabel    = row.experience ? row.experience.split(' ')[0] : null; // ESTABLISHED → ESTABLISHED
+
+  // Socials row
+  const socialLinks = [
+    row.instagram ? { href: `https://instagram.com/${row.instagram.replace('@','')}`, icon: `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="20" x="2" y="2" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" x2="17.51" y1="6.5" y2="6.5"/></svg>` } : null,
+    row.soundcloud ? { href: row.soundcloud.startsWith('http')?row.soundcloud:'https://soundcloud.com/'+row.soundcloud.replace('@',''), icon: `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M1.175 12.225c-.015 0-.03.003-.044.006a.54.54 0 0 0-.422.59l.444 3.078-.444 3.078c-.003.022-.006.044-.006.066 0 .29.234.524.524.524a.524.524 0 0 0 .524-.524l.5-3.144-.5-3.078a.524.524 0 0 0-.576-.596zm2.055-.748a.54.54 0 0 0-.524.524l-.5 3.3.5 3.3c0 .29.234.524.524.524s.524-.234.524-.524l.566-3.3-.566-3.3a.524.524 0 0 0-.524-.524zm2.1-.18a.57.57 0 0 0-.57.57l-.473 3.48.473 3.48c0 .315.255.57.57.57s.57-.255.57-.57l.535-3.48-.535-3.48a.57.57 0 0 0-.57-.57zm2.1.18c-.34 0-.617.277-.617.617l-.444 3.3.444 3.3c0 .34.277.617.617.617s.617-.277.617-.617l.5-3.3-.5-3.3a.617.617 0 0 0-.617-.617zm2.1-.6c-.37 0-.67.3-.67.67l-.414 3.9.414 3.9c0 .37.3.67.67.67s.67-.3.67-.67l.47-3.9-.47-3.9a.67.67 0 0 0-.67-.67zm10.37 2.52c-.18-2.1-1.89-3.72-3.99-3.72-.69 0-1.35.18-1.92.48-.22.12-.27.24-.27.36v7.62c0 .13.1.24.24.25h5.94c.7 0 1.29-.54 1.35-1.23.03-.33.03-.66.03-.99-.03-1.47-.36-2.52-.36-2.77z"/></svg>` } : null,
+    row.facebook  ? { href: row.facebook.startsWith('http')?row.facebook:'https://facebook.com/'+row.facebook.replace('@',''), icon: `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>` } : null,
+    row.website   ? { href: row.website.startsWith('http')?row.website:'https://'+row.website, icon: `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>` } : null,
+  ].filter(Boolean);
+
+  // Featured mix card
+  const mixCardHtml = !isHost && mixLink ? `
+    <div onclick="openMiniPlayer('${safeName}','${mixLink}','🎧')"
+      style="background:rgba(19,19,31,.9);border:1px solid rgba(${accentRgb},.3);border-radius:14px;padding:16px;margin-bottom:12px;cursor:pointer;display:flex;align-items:center;gap:14px;">
+      <div style="width:52px;height:52px;border-radius:10px;background:rgba(${accentRgb},.15);border:1px solid rgba(${accentRgb},.3);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="${accentColor}"><polygon points="6,3 20,12 6,21"/></svg>
+      </div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:10px;letter-spacing:2px;color:${accentColor};margin-bottom:3px;">FEATURED MIX</div>
+        <div style="font-size:14px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${name}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px;">${mixLink.includes('soundcloud')?'SoundCloud':mixLink.includes('mixcloud')?'Mixcloud':'Listen'}</div>
+      </div>
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="${accentColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;opacity:.7;"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+    </div>` : '';
 
   document.getElementById('publicProfileContent').innerHTML = `
     ${heroSpacer}
-    <div style="text-align:center;margin-bottom:20px;position:relative;">
-      <div style="font-family:'Bebas Neue',sans-serif;font-size:clamp(42px,12vw,64px);letter-spacing:3px;line-height:.88;text-shadow:0 2px 24px rgba(0,0,0,.9);">${name}</div>
-      <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-top:10px;flex-wrap:wrap;">
-        <span style="font-size:11px;background:rgba(${accentRgb},.15);color:${accentColor};border:1px solid rgba(${accentRgb},.35);border-radius:20px;padding:4px 14px;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;">${typeLabel}</span>
-        ${location ? `<span style="font-size:13px;color:rgba(232,232,240,.75);"><svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:2px;"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg>${location}</span>` : ''}
+
+    <!-- Name + type + location -->
+    <div style="margin-bottom:16px;">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:clamp(40px,11vw,62px);letter-spacing:3px;line-height:.9;text-shadow:0 2px 20px rgba(0,0,0,.9);margin-bottom:10px;">${name}</div>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <span style="font-size:11px;background:rgba(${accentRgb},.15);color:${accentColor};border:1px solid rgba(${accentRgb},.35);border-radius:20px;padding:4px 12px;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;">${typeLabel}</span>
+        ${location ? `<span style="font-size:12px;color:rgba(232,232,240,.65);display:flex;align-items:center;gap:3px;"><svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg>${location}</span>` : ''}
       </div>
-      ${row.years ? `<span style="position:absolute;bottom:0;right:0;font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:2px;color:#fff;">EST. ${row.years}</span>` : ''}
     </div>
-    ${isHost && row.tagline ? `<div style="display:flex;justify-content:center;flex-wrap:wrap;gap:8px;margin-bottom:16px;">${row.tagline.split(' · ').filter(Boolean).map(c=>`<span style="background:rgba(255,45,120,.12);border:1px solid rgba(255,45,120,.35);color:var(--neon);border-radius:20px;padding:5px 16px;font-family:'Bebas Neue',sans-serif;font-size:12px;letter-spacing:1.5px;">${c}</span>`).join('')}</div>` : ''}
-    ${mixHtml}
-    ${row.sound ? (() => { const ds = (typeof dedupeSound === 'function') ? dedupeSound(row.sound, row.genre_string || '') : row.sound; return ds ? `<div style="background:rgba(19,19,31,.88);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:14px 16px;margin-bottom:12px;text-align:center;"><div style="font-size:15px;color:var(--text);font-style:italic;line-height:1.5;">"${ds}"</div></div>` : ''; })() : ''}
-    ${row.bio ? `
-    <div style="background:rgba(19,19,31,.88);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:16px;margin-bottom:12px;">
-      <div style="font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:2px;color:${accentColor};margin-bottom:8px;">ABOUT</div>
-      <div style="font-size:14px;color:var(--muted);line-height:1.7;">${row.bio}</div>
+
+    <!-- Stats row -->
+    ${(yearsActive || genreCount || expLabel) ? `
+    <div style="display:grid;grid-template-columns:repeat(${[yearsActive,genreCount,expLabel].filter(Boolean).length + (row.sound?1:0)},1fr);gap:8px;margin-bottom:14px;">
+      ${yearsActive ? `<div style="background:rgba(19,19,31,.85);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:12px 8px;text-align:center;">
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:1px;color:var(--text);line-height:1;">${yearsActive}</div>
+        <div style="font-size:9px;color:var(--muted);letter-spacing:1px;margin-top:3px;font-family:'Bebas Neue',sans-serif;">YRS ACTIVE</div>
+      </div>` : ''}
+      ${genreCount > 1 ? `<div style="background:rgba(19,19,31,.85);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:12px 8px;text-align:center;">
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:1px;color:var(--text);line-height:1;">${genreCount}</div>
+        <div style="font-size:9px;color:var(--muted);letter-spacing:1px;margin-top:3px;font-family:'Bebas Neue',sans-serif;">GENRES</div>
+      </div>` : ''}
+      ${expLabel ? `<div style="background:rgba(19,19,31,.85);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:12px 8px;text-align:center;">
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:.5px;color:${accentColor};line-height:1.2;margin-top:4px;">${expLabel}</div>
+        <div style="font-size:9px;color:var(--muted);letter-spacing:1px;margin-top:4px;font-family:'Bebas Neue',sans-serif;">LEVEL</div>
+      </div>` : ''}
+      ${row.sound ? `<div style="background:rgba(19,19,31,.85);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:10px 8px;text-align:center;display:flex;align-items:center;justify-content:center;">
+        <div style="font-size:10px;color:var(--muted);line-height:1.4;font-style:italic;">"${row.sound.substring(0,28)}${row.sound.length>28?'…':''}"</div>
+      </div>` : ''}
     </div>` : ''}
+
+    <!-- Genre pills -->
     ${mainGenre.length ? `
-    <div style="background:rgba(19,19,31,.88);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:16px;margin-bottom:12px;">
-      <div style="font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:2px;color:${accentColor};margin-bottom:8px;">GENRE</div>
+    <div style="margin-bottom:14px;">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:10px;letter-spacing:2px;color:var(--muted);margin-bottom:8px;">GENRES</div>
       <div style="display:flex;flex-wrap:wrap;gap:6px;">
-        ${mainGenre.map(g => `<span style="background:rgba(0,229,255,.08);border:1px solid rgba(0,229,255,.25);border-radius:20px;font-size:12px;padding:4px 12px;color:var(--neon2);">${g}</span>`).join('')}
+        ${mainGenre.map(g => `<span style="background:rgba(${accentRgb},.08);border:1px solid rgba(${accentRgb},.3);border-radius:20px;font-size:12px;padding:4px 12px;color:${accentColor};font-family:'Bebas Neue',sans-serif;letter-spacing:.5px;">${g}</span>`).join('')}
       </div>
     </div>` : ''}
-    ${row.instagram || row.website ? `
-    <div style="background:rgba(19,19,31,.88);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:16px;margin-bottom:12px;">
-      <div style="font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:2px;color:${accentColor};margin-bottom:10px;">LINKS</div>
-      ${row.instagram ? `<a href="https://instagram.com/${row.instagram.replace('@','')}" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:8px;text-decoration:none;margin-bottom:8px;padding:10px 12px;background:rgba(255,255,255,.04);border-radius:10px;border:1px solid rgba(255,255,255,.08);">
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:#E1306C;flex-shrink:0;"><rect width="20" height="20" x="2" y="2" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" x2="17.51" y1="6.5" y2="6.5"/></svg>
-        <span style="font-size:13px;color:var(--text);">@${row.instagram.replace('@','')}</span>
-        <span style="font-size:11px;color:var(--muted);margin-left:auto;">↗</span>
-      </a>` : ''}
-      ${row.website ? `<a href="${row.website.startsWith('http')?row.website:'https://'+row.website}" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:8px;text-decoration:none;padding:10px 12px;background:rgba(255,255,255,.04);border-radius:10px;border:1px solid rgba(255,255,255,.08);">
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--neon2);flex-shrink:0;"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>
-        <span style="font-size:13px;color:var(--neon2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${row.website.replace(/^https?:\/\//,'')}</span>
-        <span style="font-size:11px;color:var(--muted);margin-left:auto;">↗</span>
-      </a>` : ''}
+
+    <!-- Featured mix -->
+    ${mixCardHtml}
+
+    <!-- Host tagline pills -->
+    ${isHost && row.tagline ? `<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;">${row.tagline.split(' · ').filter(Boolean).map(c=>`<span style="background:rgba(255,45,120,.1);border:1px solid rgba(255,45,120,.3);color:var(--neon);border-radius:20px;padding:5px 14px;font-family:'Bebas Neue',sans-serif;font-size:12px;letter-spacing:1px;">${c}</span>`).join('')}</div>` : ''}
+
+    <!-- Bio -->
+    ${row.bio ? `
+    <div style="margin-bottom:14px;">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:10px;letter-spacing:2px;color:var(--muted);margin-bottom:8px;">ABOUT</div>
+      <div style="font-size:14px;color:rgba(232,232,240,.75);line-height:1.7;">${row.bio}</div>
     </div>` : ''}
-    ${!isHost ? `<div id="publicProfileAvailability" style="background:rgba(19,19,31,.88);backdrop-filter:blur(10px);border:1px solid rgba(0,229,255,.18);border-radius:12px;padding:16px;margin-bottom:12px;display:none;"></div>` : ''}
+
+    <!-- Social icon buttons -->
+    ${socialLinks.length ? `
+    <div style="display:flex;gap:10px;margin-bottom:16px;">
+      ${socialLinks.map(s => `<a href="${s.href}" target="_blank" rel="noopener"
+        style="width:42px;height:42px;border-radius:10px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);display:flex;align-items:center;justify-content:center;color:var(--muted);text-decoration:none;flex-shrink:0;">
+        ${s.icon}
+      </a>`).join('')}
+    </div>` : ''}
+
+    ${!isHost ? `<div id="publicProfileAvailability" style="background:rgba(19,19,31,.88);border:1px solid rgba(0,229,255,.18);border-radius:12px;padding:16px;margin-bottom:12px;display:none;"></div>` : ''}
     ${inviteBtn}
     <div id="publicProfileGigs"></div>
   `;
