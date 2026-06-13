@@ -1002,9 +1002,32 @@ function renderDayView(dateStr, el) {
     </div>`;
 
   if (!evs.length) {
-    html += `<div style="text-align:center;padding:60px 0;color:var(--muted);">
-      <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:2px;margin-bottom:8px;">QUIET NIGHT</div>
-      <div style="font-size:13px;line-height:1.6;">No events on this date.<br>Try a nearby day.</div>
+    html += `<div style="text-align:center;padding:32px 0 16px;color:var(--muted);">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:2px;margin-bottom:6px;color:var(--text);">QUIET NIGHT</div>
+      <div style="font-size:13px;line-height:1.6;">Nothing on this date — but check out what's nearby.</div>
+    </div>`;
+
+    // Nearby events within ±14 days
+    const sel = new Date(dateStr + 'T12:00:00');
+    const nearby = _calEvents.filter(ev => {
+      const d = calParseDate(ev);
+      if (!d) return false;
+      const diff = Math.abs(d - sel) / 86400000;
+      return diff > 0 && diff <= 14;
+    }).sort((a, b) => {
+      const da = calParseDate(a), db = calParseDate(b);
+      return Math.abs(da - sel) - Math.abs(db - sel);
+    }).slice(0, 6);
+
+    if (nearby.length) {
+      html += `<div style="font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:2px;color:var(--neon2);margin:20px 0 10px;">NEARBY NIGHTS</div>`;
+      html += nearby.map(ev => calDayCard(ev)).join('');
+    }
+
+    // Artist suggestions
+    html += `<div style="font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:2px;color:var(--neon2);margin:24px 0 10px;">DISCOVER ARTISTS</div>
+    <div style="text-align:center;padding:12px 0;">
+      <button onclick="showSearchScreen()" ontouchend="event.preventDefault();showSearchScreen();" style="background:linear-gradient(135deg,rgba(255,45,120,.2),rgba(0,229,255,.15));border:1px solid rgba(0,229,255,.3);color:var(--neon2);border-radius:24px;padding:12px 32px;font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:2px;cursor:pointer;touch-action:manipulation;">BROWSE ARTISTS & EVENTS</button>
     </div>`;
   } else {
     html += evs.map(ev => calDayCard(ev)).join('');
