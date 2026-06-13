@@ -126,8 +126,10 @@ function closeIndustryPanel() {
 function _updateIndustryPanelBadges() {
   const hostBadge   = document.getElementById('ipBadgeHost');
   const artistBadge = document.getElementById('ipBadgeArtist');
-  if (hostBadge)   hostBadge.style.display   = (hostProfile?.name)       ? '' : 'none';
-  if (artistBadge) artistBadge.style.display = (artistProfile?.djName)   ? '' : 'none';
+  const punterBadge = document.getElementById('ipBadgePunter');
+  if (hostBadge)   hostBadge.style.display   = (hostProfile?.name)             ? '' : 'none';
+  if (artistBadge) artistBadge.style.display = (artistProfile?.djName)         ? '' : 'none';
+  if (punterBadge) punterBadge.style.display = (window._punterProfile?.name)   ? '' : 'none';
 }
 
 function enterIndustryRole(role) {
