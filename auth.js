@@ -164,14 +164,7 @@ async function doLogin() {
     return;
   }
   if (typeof checkPostAuthAction === 'function') { checkPostAuthAction(); return; }
-  // Show role selector on first 3 logins, then go straight to the scene
-  const _seenRoles = parseInt(localStorage.getItem('yp_role_views') || '0');
-  if (_seenRoles < 3) {
-    localStorage.setItem('yp_role_views', _seenRoles + 1);
-    showRoleSelector();
-  } else {
-    showCalendar();
-  }
+  showCalendar();
 }
 
 // ── Signup ─────────────────────────────────────────
@@ -218,7 +211,7 @@ async function doSignup() {
         showRoleSelector();
       }
     } else {
-      showRoleSelector();
+      showCalendar();
     }
   } else {
     showToast('✉️ Check your email to confirm your account, then sign in.', 'success');
