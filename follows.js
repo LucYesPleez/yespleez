@@ -397,7 +397,8 @@ function renderPunterFeed() {
   // Update weekend sub-label
   const now = new Date();
   const dow = now.getDay();
-  const daysToFri = dow === 5 ? 0 : dow === 6 ? 6 : dow === 0 ? 5 : (5 - dow);
+  // If already in the weekend (Fri/Sat/Sun), anchor to this Friday; otherwise forward to next Friday
+  const daysToFri = dow === 5 ? 0 : dow === 6 ? -1 : dow === 0 ? -2 : (5 - dow);
   const fri = new Date(now); fri.setDate(now.getDate() + daysToFri); fri.setHours(0,0,0,0);
   const sun = new Date(fri); sun.setDate(fri.getDate() + 2); sun.setHours(23,59,59,999);
   const wkSub = document.getElementById('punterTabWeekendSub');
