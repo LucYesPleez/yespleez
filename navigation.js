@@ -207,15 +207,15 @@ function _updateRoleScreenHeading() {
 function updateRoleCards() {
   const hostCard   = document.querySelector('.role-card.host-card');
   const artistCard = document.querySelector('.role-card.artist-card');
-  if (!hostCard || !artistCard) return;
+  const punterCard = document.querySelector('.role-card.punter-card');
 
-  const hostDot   = hostProfile.name    ? ' <span style="color:var(--neon);font-size:11px;margin-left:4px;white-space:nowrap;">✓ Profile set up</span>' : '';
-  const artistDot = artistProfile.djName ? ' <span style="color:var(--neon2);font-size:11px;margin-left:4px;white-space:nowrap;">✓ Profile set up</span>' : '';
+  const hostDot   = hostProfile.name     ? ' <span style="color:var(--neon);font-size:11px;margin-left:4px;white-space:nowrap;">✓ Profile set up</span>' : '';
+  const artistDot = artistProfile.djName  ? ' <span style="color:var(--neon2);font-size:11px;margin-left:4px;white-space:nowrap;">✓ Profile set up</span>' : '';
+  const punterDot = (window._punterProfile?.name) ? ' <span style="color:#D9FF4F;font-size:11px;margin-left:4px;white-space:nowrap;">✓ Profile set up</span>' : '';
 
-  const hostDesc   = hostCard.querySelector('.role-card-desc');
-  const artistDesc = artistCard.querySelector('.role-card-desc');
-  if (hostDesc)   hostDesc.innerHTML   = 'Create events, build set times, manage your lineup, go live' + hostDot;
-  if (artistDesc) artistDesc.innerHTML = 'Build your profile, track your bookings, apply to events' + artistDot;
+  if (hostCard)   { const d = hostCard.querySelector('.role-card-desc');   if (d) d.innerHTML = 'Create events, build set times, manage your lineup, go live' + hostDot; }
+  if (artistCard) { const d = artistCard.querySelector('.role-card-desc'); if (d) d.innerHTML = 'Build your profile, track your bookings, apply to events' + artistDot; }
+  if (punterCard) { const d = punterCard.querySelector('.role-card-desc'); if (d) d.innerHTML = 'Follow artists, save events, get notified when your faves play' + punterDot; }
 }
 
 function enterMode(mode) {
@@ -243,6 +243,7 @@ async function enterPunterDashboard() {
       if (rows && rows.length) {
         const p = rows[0];
         window._punterProfile = p;
+        updateRoleCards();
         const nameEl = document.getElementById('punterDashName');
         const locEl  = document.getElementById('punterDashLocation');
         const ctaEl  = document.getElementById('punterDashCta');
@@ -365,6 +366,8 @@ async function saveMySceneProfile() {
   if (locEl)  locEl.textContent  = genres.length ? genres.slice(0,3).join(' · ') : (postcode || 'My Scene');
   if (ctaEl)  ctaEl.textContent  = 'EDIT →';
 
+  window._punterProfile = { name, postcode, genre_string: profile.genreString };
+  updateRoleCards();
   showToast('My Scene saved ✓', 'success');
   closeMySceneProfile();
 }
