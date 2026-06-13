@@ -408,7 +408,7 @@ function renderPunterFeed() {
   const twoWeeks  = new Date(now); twoWeeks.setDate(now.getDate() + 14);
 
   if (typeof calParseDate !== 'function') {
-    el.innerHTML = '<div style="text-align:center;padding:60px 16px;color:var(--muted);font-family:\'Bebas Neue\',sans-serif;font-size:20px;letter-spacing:2px;">LOADING YOUR PICKS...</div>';
+    el.innerHTML = skeletonHTML('calendar');
     return;
   }
 

@@ -39,7 +39,7 @@
     show('calendarScreen');
     _calViewMonth = new Date(); _calSelDate = null;
     renderCalHeader();
-    document.getElementById('calContent').innerHTML = '<div style="text-align:center;padding:60px 0;color:var(--muted);font-family:\'Bebas Neue\',sans-serif;letter-spacing:2px;font-size:16px;">LOADING...</div>';
+    document.getElementById('calContent').innerHTML = skeletonHTML('calendar');
     await loadCalEvents();
     renderCalHeader();
     calRestorePostcode();

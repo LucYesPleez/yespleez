@@ -588,6 +588,37 @@ function shareItem(type, id, name) {
   }
 }
 
+// ── Skeleton loading helper ────────────────────────
+
+function skeletonHTML(type) {
+  const p = 'animation:ypPulse 1.4s ease-in-out infinite;background:var(--card2);border-radius:';
+  const b = (h, w, r, d) => `<div style="height:${h}px;width:${w||'100%'};${r?`border-radius:${r}px;`:'border-radius:8px;'}background:var(--card2);animation:ypPulse 1.4s ease-in-out infinite${d?` ${d}s`:''};flex-shrink:0;"></div>`;
+  const row = (d) => `<div style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.04);">
+    ${b(40,40+'px',10)}
+    <div style="flex:1;display:flex;flex-direction:column;gap:7px;">${b(13,'65%',6,d)}${b(10,'40%',6,(d||0)+.1)}</div>
+  </div>`;
+  const card = (h, d) => `<div style="height:${h}px;border-radius:14px;${p}8px;${d?`animation-delay:${d}s;`:''}margin-bottom:10px;"></div>`;
+
+  if (type === 'calendar') return `<div style="padding:0 0 20px;">
+    <div style="display:flex;gap:8px;padding:0 16px 16px;overflow:hidden;">${[0,.08,.16,.24,.32].map(d=>`<div style="flex:0 0 54px;height:68px;border-radius:12px;${p}12px;animation-delay:${d}s;"></div>`).join('')}</div>
+    ${card(180,0)}
+    <div style="display:flex;gap:10px;margin-bottom:10px;">${[0,.1,.2].map(d=>`<div style="flex:1;height:130px;border-radius:12px;${p}12px;animation-delay:${d}s;"></div>`).join('')}</div>
+    ${[0,.08,.16,.24].map(d=>row(d)).join('')}
+  </div>`;
+
+  if (type === 'search') return `<div>${[0,.07,.14,.21,.28].map(d=>
+    `<div style="display:flex;align-items:center;gap:14px;padding:14px 0;border-bottom:1px solid rgba(255,255,255,.05);">
+      ${b(50,50+'px',50,d)}
+      <div style="flex:1;display:flex;flex-direction:column;gap:8px;">${b(15,'55%',6,d)}${b(11,'35%',6,d+.05)}${b(9,'70%',20,d+.1)}</div>
+    </div>`).join('')}</div>`;
+
+  if (type === 'list') return `<div>${[0,.07,.14,.21].map(d=>row(d)).join('')}</div>`;
+
+  if (type === 'cards') return `<div style="padding:0 16px;">${[0,.1,.2].map(d=>card(72,d)).join('')}</div>`;
+
+  return `<div style="padding:16px;">${card(80,0)}${card(80,.1)}${card(80,.2)}</div>`;
+}
+
 // ── Search screen ──────────────────────────────────
 
 let _searchDebounce = null;
@@ -599,7 +630,7 @@ async function showCalendar() {
   show('calendarScreen');
   if (currentMode) updateToggleVisibility(currentMode);
   renderCalHeader();
-  document.getElementById('calContent').innerHTML = '<div style="text-align:center;padding:60px 0;color:var(--muted);font-family:\'Bebas Neue\',sans-serif;letter-spacing:2px;font-size:16px;">LOADING...</div>';
+  document.getElementById('calContent').innerHTML = skeletonHTML('calendar');
   await loadCalEvents();
   renderCalHeader();
   calRestorePostcode();

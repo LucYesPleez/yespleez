@@ -121,8 +121,7 @@ async function runSearch() {
   const placeholder  = document.getElementById('searchPlaceholder');
 
   placeholder.style.display = 'none';
-  resultsEl.innerHTML = '';
-  resultsEl.insertAdjacentHTML('beforeend', '<div class="search-card" id="searchLoading" style="text-align:center;padding:40px;color:var(--muted);font-size:13px;">Loading…</div>');
+  resultsEl.innerHTML = skeletonHTML('search');
 
   // Normalise type filter
   const typeMap = { dj: 'artist', DJ: 'artist', artist: 'artist', host: 'host', promoter: 'host', band: 'band', muso: 'band', standup: 'standup', comedy: 'standup', venue: 'venue' };
