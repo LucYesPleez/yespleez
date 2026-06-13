@@ -1033,6 +1033,8 @@ function showSignup() {
   document.getElementById('editBtn').style.display      = 'none'; // now in host panel row
   const hostTopRight = document.getElementById('signupHostTopRight');
   if (hostTopRight) hostTopRight.style.display = isHost ? 'flex' : 'none';
+  const pubShareBtn = document.getElementById('signupShareBtnPublic');
+  if (pubShareBtn) pubShareBtn.style.display = isHost ? 'none' : '';
   const posterSrc = eventData.poster || '';
   const posterWrap = document.getElementById('signupPosterWrap');
   const posterImg  = document.getElementById('signupPoster');
