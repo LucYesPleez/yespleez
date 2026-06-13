@@ -750,6 +750,37 @@ async function showPublicEventPage(eventId) {
     const ev  = rows[0];
     const cfg = ev.config || {};
 
+    // Merge claims into slot objects so the lineup renders correctly
+    try {
+      const cr = await fetch(`${SUPABASE_URL}/rest/v1/claims?event_id=eq.${eventId}&select=slot_id,name,genre,card_pills,sound,mix_link,user_id`, {
+        headers: { 'apikey': SUPABASE_KEY, 'Content-Type': 'application/json' }
+      });
+      if (cr.ok) {
+        const claimRows = await cr.json();
+        const claimsMap = {};
+        claimRows.forEach(c => { claimsMap[c.slot_id] = c; });
+
+        // Fetch avatars for any linked user accounts
+        const uids = [...new Set(claimRows.filter(c => c.user_id).map(c => c.user_id))];
+        const avatarMap = {};
+        if (uids.length) {
+          try {
+            const pr = await fetch(`${SUPABASE_URL}/rest/v1/profiles?user_id=in.(${uids.join(',')})&select=user_id,avatar`, {
+              headers: { 'apikey': SUPABASE_KEY, 'Content-Type': 'application/json' }
+            });
+            if (pr.ok) { (await pr.json()).forEach(p => { if (p.avatar) avatarMap[p.user_id] = p.avatar; }); }
+          } catch(e) {}
+        }
+
+        (cfg.days || []).forEach(day => {
+          (day.slots || []).forEach(slot => {
+            const c = claimsMap[slot.id];
+            if (c) slot.claim = { name: c.name, genre: c.genre || '', cardPills: c.card_pills || '', sound: c.sound || '', mixLink: c.mix_link || '', avatar: c.user_id ? (avatarMap[c.user_id] || null) : null };
+          });
+        });
+      }
+    } catch(e) { /* non-fatal — lineup falls back to TBA */ }
+
     // Private events require login
     const isLoggedIn = !!(currentUser?.id && currentUser.id !== 'guest');
     if (ev.is_public === false && !isLoggedIn) {
