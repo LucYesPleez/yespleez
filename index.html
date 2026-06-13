@@ -4,7 +4,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>YesPleez v3.59</title>
+<title>YesPleez v3.60</title>
 <meta name="theme-color" content="#0a0a0f">
 <link rel="icon" type="image/png" href="icon.png">
 <script src="postcodes.js"></script>
@@ -2881,6 +2881,81 @@ body.player-open .screen.active { padding-bottom: 80px; }
   </div>
 </div>
 
+<!-- ── MY SCENE — personal calendar add-event sheet ── -->
+<div id="peOverlay" style="display:none;position:fixed;inset:0;z-index:300;background:rgba(0,0,0,.75);" onclick="closePeSheet()"></div>
+<div id="peSheet" style="display:none;position:fixed;bottom:0;left:50%;transform:translateX(-50%) translateY(100%);width:min(100%,480px);z-index:301;background:var(--card);border-radius:20px 20px 0 0;border-top:1px solid var(--border);max-height:90dvh;overflow-y:auto;transition:transform .3s cubic-bezier(0.32,0.72,0,1);padding-bottom:env(safe-area-inset-bottom,0);">
+  <div style="display:flex;justify-content:center;padding:12px 0 4px;">
+    <div style="width:40px;height:4px;border-radius:2px;background:var(--border);"></div>
+  </div>
+  <div style="padding:16px 20px 36px;">
+
+    <!-- Header -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:2px;color:#D9FF4F;">ADD TO YOUR SCENE</div>
+      <button onclick="closePeSheet()" style="background:none;border:none;color:var(--muted);font-size:22px;cursor:pointer;line-height:1;padding:0;">×</button>
+    </div>
+    <div id="peSheetDateLabel" style="font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:1.5px;color:var(--muted);margin-bottom:20px;"></div>
+
+    <!-- Title -->
+    <div style="margin-bottom:14px;">
+      <label style="font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:2px;color:var(--muted);display:block;margin-bottom:6px;">WHAT'S HAPPENING?</label>
+      <input type="text" id="peSheetTitle" placeholder="e.g. Night out, Birthday, Gig with mates" maxlength="60" autocomplete="off"
+        style="width:100%;background:var(--dark);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:15px;padding:12px 14px;outline:none;box-sizing:border-box;"
+        onfocus="this.style.borderColor='#D9FF4F'" onblur="this.style.borderColor=''">
+    </div>
+
+    <!-- Time -->
+    <div style="margin-bottom:14px;">
+      <label style="font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:2px;color:var(--muted);display:block;margin-bottom:6px;">TIME <span style="font-size:10px;font-family:'DM Sans',sans-serif;text-transform:none;letter-spacing:0;">(optional)</span></label>
+      <input type="time" id="peSheetTime"
+        style="width:100%;background:var(--dark);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:15px;padding:12px 14px;outline:none;box-sizing:border-box;-webkit-appearance:none;appearance:none;"
+        onfocus="this.style.borderColor='#D9FF4F'" onblur="this.style.borderColor=''">
+    </div>
+
+    <!-- Notes -->
+    <div style="margin-bottom:18px;">
+      <label style="font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:2px;color:var(--muted);display:block;margin-bottom:6px;">NOTES <span style="font-size:10px;font-family:'DM Sans',sans-serif;text-transform:none;letter-spacing:0;">(optional)</span></label>
+      <textarea id="peSheetNotes" placeholder="Any details, venue, who's coming..." maxlength="280" rows="2"
+        style="width:100%;background:var(--dark);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;padding:12px 14px;outline:none;box-sizing:border-box;resize:none;line-height:1.5;"
+        onfocus="this.style.borderColor='#D9FF4F'" onblur="this.style.borderColor=''"></textarea>
+    </div>
+
+    <!-- Private toggle -->
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:10px;margin-bottom:14px;">
+      <div>
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:1px;color:var(--text);">PRIVATE</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px;">Only you can see this</div>
+      </div>
+      <label style="position:relative;display:inline-block;width:44px;height:24px;cursor:pointer;flex-shrink:0;" onclick="event.stopPropagation()">
+        <input type="checkbox" id="peSheetPrivate" checked onchange="peTogglePrivate()"
+          style="opacity:0;width:0;height:0;position:absolute;">
+        <span id="pePrivateSlider" style="position:absolute;inset:0;background:#D9FF4F;border-radius:12px;transition:background .2s;pointer-events:none;"></span>
+        <span id="pePrivateKnob" style="position:absolute;top:3px;left:3px;width:18px;height:18px;background:#0a0a0f;border-radius:50%;transition:transform .2s;pointer-events:none;"></span>
+      </label>
+    </div>
+
+    <!-- Invite section (shown when not private) -->
+    <div id="peInviteSection" style="display:none;margin-bottom:18px;">
+      <label style="font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:2px;color:var(--muted);display:block;margin-bottom:8px;">INVITE YESPLEEZ USERS</label>
+      <div id="peInviteList"></div>
+      <div style="position:relative;">
+        <input type="text" id="peSheetSearchInput" placeholder="Search by name…" autocomplete="off"
+          style="width:100%;background:var(--dark);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;padding:11px 14px;outline:none;box-sizing:border-box;"
+          oninput="peSearchUsers()"
+          onfocus="this.style.borderColor='#D9FF4F'" onblur="setTimeout(()=>{const r=document.getElementById('peSheetSearchResults');if(r)r.style.display='none'},200)">
+        <div id="peSheetSearchResults" style="display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--card);border:1px solid var(--border);border-radius:10px;z-index:10;max-height:200px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,.5);"></div>
+      </div>
+    </div>
+
+    <!-- Save -->
+    <button onclick="savePeEvent()" ontouchend="event.preventDefault();savePeEvent();"
+      style="width:100%;background:#D9FF4F;color:#0a0a0f;border:none;border-radius:12px;padding:15px;font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:2px;cursor:pointer;touch-action:manipulation;font-weight:700;">
+      SAVE TO YOUR SCENE →
+    </button>
+
+  </div>
+</div>
+
 <!-- ══════════ BANDS DASHBOARD SCREEN ══════════ -->
 <div id="bandsDashScreen" class="screen" style="max-width:680px;margin:0 auto;padding:32px 20px 80px;">
 
@@ -5280,7 +5355,8 @@ body.player-open .screen.active { padding-bottom: 80px; }
 <script src="state.js"></script>
 <script src="auth.js?v=5"></script>
 <script src="navigation.js?v=10"></script>
-<script src="follows.js?v=3"></script>
+<script src="follows.js?v=4"></script>
+<script src="personal_cal.js?v=1"></script>
 <script src="notifications.js?v=6"></script>
 <script src="profiles.js?v=10"></script>
 <script src="audio.js?v=4"></script>

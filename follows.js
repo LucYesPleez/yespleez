@@ -502,7 +502,7 @@ function renderPunterFeed() {
 }
 
 // ── Day view (punter version) ─────────────────────
-function _renderPunterDayView(dateStr) {
+async function _renderPunterDayView(dateStr) {
   const el = document.getElementById('punterDayContent');
   if (!el || typeof calParseDate !== 'function') return;
 
@@ -511,31 +511,51 @@ function _renderPunterDayView(dateStr) {
     return d && d.toISOString().split('T')[0] === dateStr;
   });
 
-  const d = new Date(dateStr + 'T12:00:00');
+  const d        = new Date(dateStr + 'T12:00:00');
   const dayLabel = d.toLocaleDateString('en-AU', { weekday:'long', day:'numeric', month:'long' }).toUpperCase();
+  const safeDate = dateStr.replace(/'/g, "\\'");
 
-  let html = `<div style="display:flex;align-items:center;gap:12px;margin:16px 0 20px;">
-    <button onclick="punterClearDate()" ontouchend="event.preventDefault();punterClearDate();" style="background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:20px;padding:7px 16px;font-size:12px;letter-spacing:1px;font-family:'Bebas Neue',sans-serif;cursor:pointer;touch-action:manipulation;">← BACK</button>
-    <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:2px;color:#D9FF4F;line-height:1;">${dayLabel}</div>
+  // ── Back bar + ADD button ──
+  let html = `<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin:16px 0 20px;">
+    <button onclick="punterClearDate()" ontouchend="event.preventDefault();punterClearDate();" style="background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:20px;padding:7px 16px;font-size:12px;letter-spacing:1px;font-family:'Bebas Neue',sans-serif;cursor:pointer;touch-action:manipulation;flex-shrink:0;">← BACK</button>
+    <div style="font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:1.5px;color:#D9FF4F;line-height:1;flex:1;text-align:center;">${dayLabel}</div>
+    <button onclick="openAddEventSheet('${safeDate}')" ontouchend="event.preventDefault();openAddEventSheet('${safeDate}');" style="background:#D9FF4F;color:#0a0a0f;border:none;border-radius:20px;padding:7px 14px;font-size:12px;letter-spacing:1px;font-family:'Bebas Neue',sans-serif;cursor:pointer;touch-action:manipulation;flex-shrink:0;font-weight:700;">+ ADD</button>
   </div>`;
 
+  // ── Personal events (async load) ──
+  html += `<div id="peDayEventsWrap"><div style="font-size:11px;color:var(--muted);padding:4px 0 8px;"></div></div>`;
+
+  // ── Platform events ──
   if (!evs.length) {
-    html += `<div style="text-align:center;padding:60px 0;color:var(--muted);">
-      <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:2px;margin-bottom:8px;">QUIET NIGHT</div>
-      <div style="font-size:13px;line-height:1.6;">No events on this date.<br>Try a nearby day.</div>
+    html += `<div style="text-align:center;padding:40px 0 20px;color:var(--muted);">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:2px;margin-bottom:8px;">QUIET NIGHT</div>
+      <div style="font-size:13px;line-height:1.6;">No YesPleez events on this date.</div>
     </div>`;
   } else {
-    // Scene events first (if any), then the rest
     const sceneEvs = evs.filter(ev => _isPunterSceneEvent(ev));
     const otherEvs = evs.filter(ev => !_isPunterSceneEvent(ev));
 
     if (sceneEvs.length) {
-      html += `<div style="font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:2px;color:#D9FF4F;padding:0 0 8px;margin-bottom:4px;border-bottom:1px solid rgba(217,255,79,.2);">YOUR SCENE</div>`;
+      html += `<div style="font-family:'Bebas Neue',sans-serif;font-size:12px;letter-spacing:2px;color:#D9FF4F;padding:0 0 8px;margin-bottom:4px;border-bottom:1px solid rgba(217,255,79,.2);">YOUR SCENE</div>`;
       html += sceneEvs.map(ev => typeof calDayCard === 'function' ? calDayCard(ev) : calListCard(ev)).join('');
-      if (otherEvs.length) html += `<div style="font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:2px;color:var(--muted);padding:16px 0 8px;margin-bottom:4px;border-bottom:1px solid var(--border);">ALL EVENTS</div>`;
+      if (otherEvs.length) html += `<div style="font-family:'Bebas Neue',sans-serif;font-size:12px;letter-spacing:2px;color:var(--muted);padding:16px 0 8px;margin-bottom:4px;border-bottom:1px solid var(--border);">ALL EVENTS</div>`;
     }
     html += otherEvs.map(ev => typeof calDayCard === 'function' ? calDayCard(ev) : calListCard(ev)).join('');
   }
 
   el.innerHTML = html;
+
+  // Load personal events and fill the placeholder
+  const peEvs  = await (typeof loadPersonalEventsForDate === 'function'
+    ? loadPersonalEventsForDate(dateStr) : Promise.resolve([]));
+  const peWrap = document.getElementById('peDayEventsWrap');
+  if (peWrap) {
+    if (peEvs.length) {
+      peWrap.innerHTML =
+        `<div style="font-family:'Bebas Neue',sans-serif;font-size:12px;letter-spacing:2px;color:#D9FF4F;padding:0 0 10px;margin-bottom:2px;border-bottom:1px solid rgba(217,255,79,.2);margin-bottom:10px;">ON YOUR CALENDAR</div>` +
+        (typeof renderPersonalEventCards === 'function' ? renderPersonalEventCards(peEvs, dateStr) : '');
+    } else {
+      peWrap.innerHTML = '';
+    }
+  }
 }
