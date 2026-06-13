@@ -481,6 +481,29 @@ function renderPunterFeed() {
     </div>`;
   }
 
+  // ── SUGGESTED FOR YOU ──
+  const interestGenres = (window._punterProfile?.genre_string || '').toLowerCase().split(/[,·]/).map(s => s.trim()).filter(Boolean);
+  if (interestGenres.length) {
+    const alreadyShown = new Set(sceneSoon.map(e => e.id));
+    const suggestions = all.filter(ev => {
+      if (alreadyShown.has(ev.id)) return false;
+      const d = calParseDate(ev);
+      if (!d || d < now) return false;
+      const evText = ((ev.name || '') + ' ' + (ev.config?.genres || '')).toLowerCase();
+      return interestGenres.some(g => g.length > 2 && evText.includes(g));
+    }).sort((a,b) => calParseDate(a) - calParseDate(b)).slice(0, 8);
+
+    if (suggestions.length) {
+      html += `<div style="padding:20px 16px 4px;display:flex;align-items:center;gap:8px;">
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:2px;">SUGGESTED FOR YOU</div>
+        <div style="background:rgba(0,229,255,.12);border:1px solid rgba(0,229,255,.3);border-radius:20px;padding:3px 10px;font-size:10px;letter-spacing:1px;color:var(--neon2);font-family:'DM Sans',sans-serif;font-weight:600;">BASED ON YOUR INTERESTS</div>
+      </div>
+      <div style="display:flex;gap:12px;overflow-x:auto;padding:4px 16px 12px;scrollbar-width:none;-webkit-overflow-scrolling:touch;">
+        ${suggestions.map(ev => typeof calWhatsOnCard === 'function' ? calWhatsOnCard(ev, 'sm') : '').join('')}
+      </div>`;
+    }
+  }
+
   // ── Standard sections ──
   html += _punterSection('punterSecTonight',  'TONIGHT',      todayBadge,    '#FF2D78', tonight,  'sm');
   html += _punterSection('punterSecWeekend',  'THIS WEEKEND', weekendBadge,  '#9D4EDD', weekend,  'lg');

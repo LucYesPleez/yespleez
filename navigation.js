@@ -242,6 +242,7 @@ async function enterPunterDashboard() {
       );
       if (rows && rows.length) {
         const p = rows[0];
+        window._punterProfile = p;
         const nameEl = document.getElementById('punterDashName');
         const locEl  = document.getElementById('punterDashLocation');
         const ctaEl  = document.getElementById('punterDashCta');
