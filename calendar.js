@@ -796,8 +796,8 @@ function calWhatsOnCard(ev, size) {
       <div style="position:absolute;inset:0;background:linear-gradient(to bottom,rgba(0,0,0,.1) 0%,rgba(0,0,0,0) 40%,rgba(0,0,0,.4) 100%);"></div>
       <div style="position:absolute;top:10px;left:10px;display:flex;gap:4px;flex-wrap:wrap;">${cat.map(c=>`<span style="background:${c.color};color:${c.dark?'#0a0a0f':'#fff'};border-radius:6px;padding:3px 8px;font-size:9px;font-weight:700;letter-spacing:.8px;font-family:'DM Sans',sans-serif;">${c.label}</span>`).join('')}</div>
       <button class="heart-btn${typeof isFollowing==='function'&&isFollowing(ev.id)?' active':''}"
-        onclick="event.stopPropagation();heartToggle(this,'${ev.id}',${JSON.stringify(ev.name||'')})"
-        ontouchend="event.preventDefault();event.stopPropagation();heartToggle(this,'${ev.id}',${JSON.stringify(ev.name||'')})">
+        onclick="event.stopPropagation();event.stopImmediatePropagation();heartToggle(this,'${ev.id}',${JSON.stringify(ev.name||'')})"
+        ontouchend="event.stopImmediatePropagation();event.preventDefault();heartToggle(this,'${ev.id}',${JSON.stringify(ev.name||'')})">
         <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24"
           fill="${typeof isFollowing==='function'&&isFollowing(ev.id)?'#FF2D78':'none'}"
           stroke="${typeof isFollowing==='function'&&isFollowing(ev.id)?'#FF2D78':'white'}"
