@@ -158,12 +158,14 @@ async function doLogin() {
 // ── Signup ─────────────────────────────────────────
 
 async function doSignup() {
+  const name    = (document.getElementById('signupName')?.value || '').trim();
   const email   = document.getElementById('signupEmail').value.trim();
   const pass    = document.getElementById('signupPassword').value;
   const confirm = document.getElementById('signupPasswordConfirm').value;
   const errEl = document.getElementById('signupErr');
   errEl.classList.remove('show');
-  if (!email || !pass) { errEl.textContent='Please fill in all fields.'; errEl.classList.add('show'); return; }
+  if (!name)            { errEl.textContent='Please enter your name.'; errEl.classList.add('show'); return; }
+  if (!email || !pass)  { errEl.textContent='Please fill in all fields.'; errEl.classList.add('show'); return; }
   if (pass.length < 6)  { errEl.textContent='Password must be at least 6 characters.'; errEl.classList.add('show'); return; }
   if (pass !== confirm) { errEl.textContent='Passwords do not match.'; errEl.classList.add('show'); return; }
   const btn = document.getElementById('signupBtn');
@@ -181,7 +183,7 @@ async function doSignup() {
     // Save email to profile row so slot offers can match by email
     sbRest('profiles', {
       method: 'POST',
-      body: JSON.stringify({ user_id: data.user.id, email: email }),
+      body: JSON.stringify({ user_id: data.user.id, email: email, name: name }),
       prefer: 'resolution=merge-duplicates,return=minimal'
     }, data.access_token).catch(() => {});
     await checkPendingOffers(email, data.access_token);
