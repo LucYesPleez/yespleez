@@ -1365,6 +1365,11 @@ header { text-align: center; margin-bottom: 32px; }
 @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:.4; } }
 @keyframes loadingPulse { 0%,100% { opacity:1; } 50% { opacity:.25; } }
 .loading-text { animation: loadingPulse 1.2s ease-in-out infinite !important; }
+@keyframes heartPop { 0% { transform:scale(1); } 30% { transform:scale(1.5); } 60% { transform:scale(.9); } 100% { transform:scale(1); } }
+.heart-btn { position:absolute;top:8px;right:8px;width:28px;height:28px;background:rgba(0,0,0,.45);backdrop-filter:blur(4px);border-radius:50%;display:flex;align-items:center;justify-content:center;border:none;cursor:pointer;padding:0;touch-action:manipulation;transition:box-shadow .2s,background .2s; }
+.heart-btn:hover { background:rgba(255,45,120,.25);box-shadow:0 0 10px rgba(255,45,120,.6); }
+.heart-btn.active { background:rgba(255,45,120,.3);box-shadow:0 0 12px rgba(255,45,120,.8); }
+.heart-btn.popping svg { animation:heartPop .4s ease forwards; }
 @keyframes ypPulse { 0%,100% { opacity:.5; } 50% { opacity:.15; } }
 
 .day-section { margin-bottom: 32px; }
@@ -5372,14 +5377,14 @@ body.player-open .screen.active { padding-bottom: 80px; }
 <script src="state.js"></script>
 <script src="auth.js?v=5"></script>
 <script src="navigation.js?v=17"></script>
-<script src="follows.js?v=14"></script>
+<script src="follows.js?v=15"></script>
 <script src="personal_cal.js?v=1"></script>
 <script src="notifications.js?v=6"></script>
 <script src="profiles.js?v=10"></script>
 <script src="audio.js?v=4"></script>
 <script src="search.js?v=8"></script>
 <script src="events.js?v=20"></script>
-<script src="calendar.js?v=20"></script>
+<script src="calendar.js?v=21"></script>
 <script src="venues.js?v=1"></script>
 <script src="bands.js?v=1"></script>
 <script src="standup.js?v=1"></script>

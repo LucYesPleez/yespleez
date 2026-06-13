@@ -79,6 +79,21 @@ function toggleFollowEvent(eventId, eventName) {
   else followEntity('event', eventId, eventName);
 }
 
+function heartToggle(btn, eventId, eventName) {
+  const svg = btn.querySelector('svg');
+  const nowFollowing = !btn.classList.contains('active');
+  if (nowFollowing) {
+    btn.classList.add('active', 'popping');
+    if (svg) { svg.setAttribute('fill','#FF2D78'); svg.setAttribute('stroke','#FF2D78'); }
+    btn.addEventListener('animationend', () => btn.classList.remove('popping'), { once: true });
+    followEntity('event', eventId, eventName);
+  } else {
+    btn.classList.remove('active');
+    if (svg) { svg.setAttribute('fill','none'); svg.setAttribute('stroke','white'); }
+    unfollowEntity(eventId, eventName);
+  }
+}
+
 // Delegated follow handler — called by data-follow buttons anywhere in the feed
 function handleFollowBtn(btn) {
   const id   = btn.dataset.followId;
