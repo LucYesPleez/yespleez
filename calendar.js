@@ -1183,7 +1183,7 @@ function _calProfileCard(p) {
   const userId  = p.user_id || '';
   return `<div class="cal-small-card" onclick="showProfilePage && showProfilePage('${userId}')" style="background:${bg};flex-shrink:0;position:relative;border:none;">
     <div class="cal-small-card-overlay"></div>
-    <div style="position:absolute;top:10px;left:10px;">
+    <div style="position:absolute;top:10px;right:10px;">
       <span style="background:${style.bg};color:${style.dark?'#0a0a0f':'#fff'};border-radius:6px;padding:3px 8px;font-size:9px;font-weight:700;letter-spacing:.8px;font-family:'DM Sans',sans-serif;">${label}</span>
     </div>
     <div class="cal-small-card-content">
