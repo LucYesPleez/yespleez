@@ -1164,11 +1164,11 @@ function calSlimDayCard(ev) {
 }
 
 const _rolePillStyle = {
-  artist:  { color:'#00E5FF', bg:'rgba(0,229,255,.15)',   border:'rgba(0,229,255,.35)'   },
-  host:    { color:'#FF3399', bg:'rgba(255,51,153,.15)',  border:'rgba(255,51,153,.35)'  },
-  band:    { color:'#FF8C42', bg:'rgba(255,140,66,.15)',  border:'rgba(255,140,66,.35)'  },
-  venue:   { color:'#00E5A0', bg:'rgba(0,229,160,.15)',   border:'rgba(0,229,160,.35)'   },
-  standup: { color:'#FF88AA', bg:'rgba(255,136,170,.15)', border:'rgba(255,136,170,.35)' },
+  artist:  { bg:'#00E5FF', dark:true  },
+  host:    { bg:'#FF3399', dark:false },
+  band:    { bg:'#FF8C42', dark:true  },
+  venue:   { bg:'#00E5A0', dark:true  },
+  standup: { bg:'#FF88AA', dark:true  },
 };
 
 function _calProfileCard(p) {
@@ -1184,7 +1184,7 @@ function _calProfileCard(p) {
   return `<div class="cal-small-card" onclick="showProfilePage && showProfilePage('${userId}')" style="background:${bg};flex-shrink:0;position:relative;border:none;">
     <div class="cal-small-card-overlay"></div>
     <div style="position:absolute;top:10px;left:10px;">
-      <span style="background:${style.bg};border:1px solid ${style.border};color:${style.color};border-radius:6px;padding:2px 7px;font-size:9px;font-weight:700;letter-spacing:.8px;font-family:'DM Sans',sans-serif;">${label}</span>
+      <span style="background:${style.bg};color:${style.dark?'#0a0a0f':'#fff'};border-radius:6px;padding:3px 8px;font-size:9px;font-weight:700;letter-spacing:.8px;font-family:'DM Sans',sans-serif;">${label}</span>
     </div>
     <div class="cal-small-card-content">
       <div style="font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:1px;color:#fff;line-height:1.1;">${name}</div>
