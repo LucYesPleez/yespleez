@@ -255,13 +255,33 @@ async function enterPunterDashboard() {
   show('punterDashScreen');
 
   // Reset day view state so feed shows on entry
-  if (typeof _punterSelDate !== 'undefined') {
-    window._punterSelDate = null;
-    const feed    = document.getElementById('punterFeedContent');
-    const dayView = document.getElementById('punterDayContent');
-    if (feed)    feed.style.display    = '';
-    if (dayView) { dayView.style.display = 'none'; dayView.innerHTML = ''; }
-  }
+  _punterSelDate = null;
+  const _feed    = document.getElementById('punterFeedContent');
+  const _dayView = document.getElementById('punterDayContent');
+  if (_feed)    _feed.style.display    = '';
+  if (_dayView) { _dayView.style.display = 'none'; _dayView.innerHTML = ''; }
+
+  // Show loading skeleton immediately so the screen never looks blank
+  if (_feed) _feed.innerHTML = `
+    <div style="padding:24px 16px 0;">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;opacity:.5;">
+        <div style="width:36px;height:36px;border-radius:8px;background:var(--card2);animation:ypPulse 1.4s ease-in-out infinite;"></div>
+        <div style="flex:1;">
+          <div style="height:14px;border-radius:6px;background:var(--card2);margin-bottom:6px;width:60%;animation:ypPulse 1.4s ease-in-out infinite;"></div>
+          <div style="height:10px;border-radius:6px;background:var(--card2);width:40%;animation:ypPulse 1.4s ease-in-out infinite 0.2s;"></div>
+        </div>
+      </div>
+      <div style="height:180px;border-radius:16px;background:var(--card2);margin-bottom:16px;animation:ypPulse 1.4s ease-in-out infinite;"></div>
+      <div style="display:flex;gap:10px;margin-bottom:16px;">
+        <div style="flex:1;height:140px;border-radius:14px;background:var(--card2);animation:ypPulse 1.4s ease-in-out infinite 0.1s;"></div>
+        <div style="flex:1;height:140px;border-radius:14px;background:var(--card2);animation:ypPulse 1.4s ease-in-out infinite 0.2s;"></div>
+        <div style="flex:1;height:140px;border-radius:14px;background:var(--card2);animation:ypPulse 1.4s ease-in-out infinite 0.3s;"></div>
+      </div>
+      <div style="height:12px;border-radius:6px;background:var(--card2);width:50%;margin-bottom:10px;animation:ypPulse 1.4s ease-in-out infinite;"></div>
+      <div style="height:60px;border-radius:10px;background:var(--card2);margin-bottom:8px;animation:ypPulse 1.4s ease-in-out infinite 0.1s;"></div>
+      <div style="height:60px;border-radius:10px;background:var(--card2);margin-bottom:8px;animation:ypPulse 1.4s ease-in-out infinite 0.2s;"></div>
+      <div style="height:60px;border-radius:10px;background:var(--card2);animation:ypPulse 1.4s ease-in-out infinite 0.3s;"></div>
+    </div>`;
 
   // Load events then follows (follows render calls renderPunterFeed once loaded)
   if (typeof loadCalEvents === 'function') {
