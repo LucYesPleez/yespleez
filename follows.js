@@ -483,6 +483,7 @@ function renderPunterFeed() {
 
   // ── SUGGESTED FOR YOU ──
   const interestGenres = (window._punterProfile?.genre_string || '').toLowerCase().split(/[,·]/).map(s => s.trim()).filter(Boolean);
+  const userPostcode   = parseInt(window._punterProfile?.postcode || '0', 10);
   if (interestGenres.length) {
     const alreadyShown = new Set(sceneSoon.map(e => e.id));
     const suggestions = all.filter(ev => {
@@ -490,7 +491,12 @@ function renderPunterFeed() {
       const d = calParseDate(ev);
       if (!d || d < now) return false;
       const evText = ((ev.name || '') + ' ' + (ev.config?.genres || '')).toLowerCase();
-      return interestGenres.some(g => g.length > 2 && evText.includes(g));
+      const genreMatch = interestGenres.some(g => g.length > 2 && evText.includes(g));
+      if (!genreMatch) return false;
+      // If both user and event have a postcode, require same region (within 100)
+      const evPostcode = parseInt(ev.config?.postcode || '0', 10);
+      if (userPostcode && evPostcode) return Math.abs(evPostcode - userPostcode) <= 100;
+      return true;
     }).sort((a,b) => calParseDate(a) - calParseDate(b)).slice(0, 8);
 
     if (suggestions.length) {
