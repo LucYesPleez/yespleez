@@ -1002,9 +1002,54 @@ function renderDayView(dateStr, el) {
     </div>`;
 
   if (!evs.length) {
-    html += `<div style="text-align:center;padding:60px 0;color:var(--muted);">
-      <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:2px;margin-bottom:8px;">QUIET NIGHT</div>
-      <div style="font-size:13px;line-height:1.6;">No events on this date.<br>Try a nearby day.</div>
+    // Nothing announced — fill with nearby events + suggestions
+    const selD = new Date(dateStr + 'T12:00:00');
+    const nearby = _calEvents.filter(ev => {
+      const evD = calParseDate(ev);
+      if (!evD) return false;
+      const diff = Math.abs(evD - selD) / 86400000;
+      return diff > 0 && diff <= 21;
+    }).sort((a, b) => Math.abs(calParseDate(a) - selD) - Math.abs(calParseDate(b) - selD)).slice(0, 6);
+
+    html += `<div style="padding:14px 16px;background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:14px;margin-bottom:24px;text-align:center;">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:19px;letter-spacing:2px;color:var(--text);margin-bottom:4px;">NOTHING ANNOUNCED YET</div>
+      <div style="font-size:13px;color:var(--muted);line-height:1.5;">No events listed for this date — but there's plenty happening nearby.</div>
+    </div>`;
+
+    if (nearby.length) {
+      html += `<div style="display:flex;align-items:center;gap:10px;margin:0 0 14px;">
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:17px;letter-spacing:2px;color:var(--neon2);">NEARBY NIGHTS</div>
+        <div style="flex:1;height:1px;background:linear-gradient(to right,rgba(0,229,255,.4),transparent);"></div>
+      </div>`;
+      html += nearby.map(ev => calDayCard(ev)).join('');
+    }
+
+    html += `<div style="display:flex;align-items:center;gap:10px;margin:24px 0 14px;">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:17px;letter-spacing:2px;color:var(--neon);">DISCOVER MORE</div>
+      <div style="flex:1;height:1px;background:linear-gradient(to right,rgba(255,45,120,.4),transparent);"></div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <div onclick="showSearchScreen()" ontouchend="event.preventDefault();showSearchScreen();" style="display:flex;align-items:center;gap:14px;padding:14px 18px;background:rgba(255,45,120,.07);border:1px solid rgba(255,45,120,.25);border-radius:14px;cursor:pointer;touch-action:manipulation;">
+        <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#FF2D78" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16.051 12.616a1 1 0 0 1 1.909.024l.737 1.452a1 1 0 0 0 .737.535l1.634.256a1 1 0 0 1 .588 1.806l-1.172 1.168a1 1 0 0 0-.282.866l.259 1.613a1 1 0 0 1-1.541 1.134l-1.465-.75a1 1 0 0 0-.912 0l-1.465.75a1 1 0 0 1-1.539-1.133l.258-1.613a1 1 0 0 0-.282-.866l-1.156-1.153a1 1 0 0 1 .572-1.822l1.633-.256a1 1 0 0 0 .737-.535z"/><path d="M8 15H7a4 4 0 0 0-4 4v2"/><circle cx="10" cy="7" r="4"/></svg>
+        <div>
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:17px;letter-spacing:1px;color:#FF2D78;">ARTISTS</div>
+          <div style="font-size:12px;color:var(--muted);">Find artists playing near you</div>
+        </div>
+      </div>
+      <div onclick="showSearchScreen()" ontouchend="event.preventDefault();showSearchScreen();" style="display:flex;align-items:center;gap:14px;padding:14px 18px;background:rgba(0,229,255,.07);border:1px solid rgba(0,229,255,.25);border-radius:14px;cursor:pointer;touch-action:manipulation;">
+        <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--neon2)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        <div>
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:17px;letter-spacing:1px;color:var(--neon2);">VENUES</div>
+          <div style="font-size:12px;color:var(--muted);">Browse venues in your area</div>
+        </div>
+      </div>
+      <div onclick="showSearchScreen()" ontouchend="event.preventDefault();showSearchScreen();" style="display:flex;align-items:center;gap:14px;padding:14px 18px;background:rgba(217,255,79,.07);border:1px solid rgba(217,255,79,.25);border-radius:14px;cursor:pointer;touch-action:manipulation;">
+        <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#D9FF4F" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <div>
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:17px;letter-spacing:1px;color:#D9FF4F;">EVENTS</div>
+          <div style="font-size:12px;color:var(--muted);">Explore all upcoming events</div>
+        </div>
+      </div>
     </div>`;
   } else {
     html += evs.map(ev => calDayCard(ev)).join('');
