@@ -419,13 +419,12 @@ function _punterFollowingStrip() {
   }).join('');
 
   const countEl = document.getElementById('punterTabFollowingCount');
-  if (countEl) countEl.textContent = count + ' CREW';
+  if (countEl) countEl.textContent = count;
 
   return `<div id="punterFollowingStrip" style="padding:20px 16px 0;">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
       <div style="display:flex;align-items:center;gap:10px;">
         <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:2px;">FOLLOWING</div>
-        <div style="background:rgba(217,255,79,.15);border:1px solid rgba(217,255,79,.4);border-radius:20px;padding:3px 10px;font-size:10px;letter-spacing:1px;color:#D9FF4F;font-family:'DM Sans',sans-serif;font-weight:600;">${count} CREW</div>
       </div>
     </div>
     <div style="display:flex;gap:10px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none;-webkit-overflow-scrolling:touch;">${chips}</div>
