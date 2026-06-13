@@ -79,6 +79,31 @@ function toggleFollowEvent(eventId, eventName) {
   else followEntity('event', eventId, eventName);
 }
 
+// Delegated follow handler — called by data-follow buttons anywhere in the feed
+function handleFollowBtn(btn) {
+  const id   = btn.dataset.followId;
+  const name = btn.dataset.followName || '';
+  const type = btn.dataset.followType || 'profile';
+  if (!id) return;
+  if (isFollowing(id)) unfollowEntity(id, name);
+  else followEntity(type, id, name);
+}
+
+function _followBtnHtml(id, name, type, color) {
+  if (!id) return '';
+  const followed = isFollowing(id);
+  const safeName = (name || '').replace(/"/g, '&quot;');
+  return `<button
+    onclick="event.stopPropagation();handleFollowBtn(this)"
+    ontouchend="event.preventDefault();event.stopPropagation();handleFollowBtn(this)"
+    data-follow-id="${id}"
+    data-follow-name="${safeName}"
+    data-follow-type="${type || 'profile'}"
+    style="margin-top:6px;width:100%;padding:4px 0;background:${followed?'rgba(255,255,255,.07)':(color||'#FF2D78')+'22'};border:1px solid ${followed?'var(--border)':(color||'#FF2D78')+'66'};border-radius:8px;font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:1px;color:${followed?'var(--muted)':(color||'#FF2D78')};cursor:pointer;touch-action:manipulation;">
+    ${followed ? 'FOLLOWING' : '+ FOLLOW'}
+  </button>`;
+}
+
 function toggleFollowProfile(entityId, entityType, entityName) {
   if (isFollowing(entityId)) {
     unfollowEntity(entityId, entityName);
@@ -575,14 +600,13 @@ async function _loadNearbyProfiles(userPostcode) {
           const avatar  = p.avatar
             ? `<img src="${p.avatar}" style="width:56px;height:56px;border-radius:50%;object-fit:cover;border:2px solid ${color}33;">`
             : `<div style="width:56px;height:56px;border-radius:50%;background:var(--card);border:2px solid ${color}33;display:flex;align-items:center;justify-content:center;color:${color};font-family:'Bebas Neue',sans-serif;font-size:18px;">${name.charAt(0)}</div>`;
-          const followed = typeof isFollowing === 'function' && isFollowing(p.user_id);
           return `<div onclick="openPublicProfile(${JSON.stringify(p)})" style="flex-shrink:0;width:130px;background:var(--card2);border:1px solid var(--border);border-radius:14px;padding:14px 10px 12px;text-align:center;cursor:pointer;">
             <div style="display:flex;justify-content:center;margin-bottom:8px;">${avatar}</div>
             <div style="font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:4px;">${name}</div>
             <div style="display:inline-block;background:${color}22;color:${color};border-radius:4px;padding:1px 6px;font-size:9px;font-weight:700;letter-spacing:.8px;margin-bottom:6px;">${label}</div>
             ${loc ? `<div style="font-size:10px;color:var(--muted);margin-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${loc}</div>` : ''}
             ${genres.length ? `<div style="font-size:9px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${genres.join(' · ')}</div>` : ''}
-            <button onclick="event.stopPropagation();${followed ? `unfollowEntity('${p.user_id}')` : `followEntity('profile','${p.user_id}','${name.replace(/'/g,"\\'")}')`}" style="margin-top:8px;width:100%;padding:5px 0;background:${followed ? 'rgba(255,255,255,.07)' : color+'22'};border:1px solid ${followed ? 'var(--border)' : color+'66'};border-radius:8px;font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:1px;color:${followed ? 'var(--muted)' : color};cursor:pointer;touch-action:manipulation;" ontouchend="event.preventDefault();event.stopPropagation();${followed ? `unfollowEntity('${p.user_id}')` : `followEntity('profile','${p.user_id}','${name.replace(/'/g,"\\'")}')`}">${followed ? 'FOLLOWING' : '+ FOLLOW'}</button>
+            ${_followBtnHtml(p.user_id, name, 'profile', color)}
           </div>`;
         }).join('')}
       </div>`;
@@ -691,13 +715,11 @@ async function _loadDayPeople(evs) {
         ? `<img src="${prof.avatar}" style="width:52px;height:52px;border-radius:50%;object-fit:cover;border:2px solid rgba(255,45,120,.4);">`
         : `<div style="width:52px;height:52px;border-radius:50%;background:var(--card);border:2px solid rgba(255,45,120,.3);display:flex;align-items:center;justify-content:center;font-family:'Bebas Neue',sans-serif;font-size:20px;color:#FF2D78;">${name.charAt(0)}</div>`;
       const genre = esc((prof.genre_string || c.genre || '').split('·')[0].trim());
-      const followed = c.user_id && typeof isFollowing === 'function' && isFollowing(c.user_id);
-      const followBtn = c.user_id ? `<button onclick="event.stopPropagation();${followed ? `unfollowEntity('${c.user_id}')` : `followEntity('${c.user_id}','${name.replace(/'/g,"\\'")}','profile')`}" ontouchend="event.preventDefault();event.stopPropagation();${followed ? `unfollowEntity('${c.user_id}')` : `followEntity('${c.user_id}','${name.replace(/'/g,"\\'")}','profile')`}" style="margin-top:6px;width:100%;padding:4px 0;background:${followed?'rgba(255,255,255,.07)':'rgba(255,45,120,.15)'};border:1px solid ${followed?'var(--border)':'rgba(255,45,120,.4)'};border-radius:8px;font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:1px;color:${followed?'var(--muted)':'#FF2D78'};cursor:pointer;touch-action:manipulation;">${followed?'FOLLOWING':'+ FOLLOW'}</button>` : '';
       return `<div onclick="${c.user_id ? `openPublicProfile(${JSON.stringify(prof)})` : ''}" style="flex-shrink:0;width:120px;background:var(--card2);border:1px solid var(--border);border-radius:14px;padding:14px 10px 12px;text-align:center;${c.user_id?'cursor:pointer;':''}">
         <div style="display:flex;justify-content:center;margin-bottom:8px;">${avatar}</div>
         <div style="font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${name}</div>
         ${genre ? `<div style="font-size:9px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${genre}</div>` : ''}
-        ${followBtn}
+        ${_followBtnHtml(c.user_id, name, 'profile', '#FF2D78')}
       </div>`;
     }).filter(Boolean);
 
@@ -712,12 +734,11 @@ async function _loadDayPeople(evs) {
       const avatar = prof.avatar
         ? `<img src="${prof.avatar}" style="width:52px;height:52px;border-radius:50%;object-fit:cover;border:2px solid ${color}44;">`
         : `<div style="width:52px;height:52px;border-radius:50%;background:var(--card);border:2px solid ${color}33;display:flex;align-items:center;justify-content:center;font-family:'Bebas Neue',sans-serif;font-size:20px;color:${color};">${name.charAt(0)}</div>`;
-      const followed = typeof isFollowing === 'function' && isFollowing(hid);
       return `<div onclick="openPublicProfile(${JSON.stringify(prof)})" style="flex-shrink:0;width:120px;background:var(--card2);border:1px solid var(--border);border-radius:14px;padding:14px 10px 12px;text-align:center;cursor:pointer;">
         <div style="display:flex;justify-content:center;margin-bottom:8px;">${avatar}</div>
         <div style="font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${name}</div>
         <div style="display:inline-block;background:${color}22;color:${color};border-radius:4px;padding:1px 6px;font-size:9px;font-weight:700;letter-spacing:.8px;margin-top:3px;">${type}</div>
-        <button onclick="event.stopPropagation();${followed?`unfollowEntity('${hid}')` : `followEntity('profile','${hid}','${name.replace(/'/g,"\\'")}')`}" ontouchend="event.preventDefault();event.stopPropagation();${followed?`unfollowEntity('${hid}')` : `followEntity('profile','${hid}','${name.replace(/'/g,"\\'")}')`}" style="margin-top:6px;width:100%;padding:4px 0;background:${followed?'rgba(255,255,255,.07)':color+'22'};border:1px solid ${followed?'var(--border)':color+'44'};border-radius:8px;font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:1px;color:${followed?'var(--muted)':color};cursor:pointer;touch-action:manipulation;">${followed?'FOLLOWING':'+ FOLLOW'}</button>
+        ${_followBtnHtml(hid, name, 'profile', color)}
       </div>`;
     }).filter(Boolean);
 
