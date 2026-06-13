@@ -1184,6 +1184,8 @@ function _calProfileCard(p) {
     <div class="cal-small-card-content" style="position:relative;">
       <div style="margin-bottom:4px;"><span style="background:${style.bg};border:1px solid ${style.border};color:${style.color};border-radius:6px;padding:2px 7px;font-size:9px;font-weight:700;letter-spacing:.8px;font-family:'DM Sans',sans-serif;">${label}</span></div>
       <div style="font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:1px;color:#fff;line-height:1.1;">${name}</div>
+      ${p.location ? `<div style="font-size:10px;color:rgba(255,255,255,.55);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(p.location)}</div>` : ''}
+      ${p.tagline  ? `<div style="font-size:10px;color:rgba(255,255,255,.4);margin-top:2px;font-style:italic;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">"${esc(p.tagline)}"</div>` : ''}
     </div>
   </div>`;
 }
@@ -1193,7 +1195,7 @@ async function _loadCalDiscoverProfiles() {
   if (!el) return;
   try {
     const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/profiles?type=in.(artist,host,band,venue,standup)&select=user_id,dj_name,name,type,avatar&limit=12&order=created_at.desc`,
+      `${SUPABASE_URL}/rest/v1/profiles?type=in.(artist,host,band,venue,standup)&select=user_id,dj_name,name,type,avatar,location,tagline&limit=12&order=created_at.desc`,
       { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } }
     );
     const profiles = await res.json();
