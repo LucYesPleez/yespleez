@@ -124,12 +124,19 @@ function closeIndustryPanel() {
 }
 
 function _updateIndustryPanelBadges() {
+  const hidden = _getHiddenRoles();
   const hostBadge   = document.getElementById('ipBadgeHost');
   const artistBadge = document.getElementById('ipBadgeArtist');
   const punterBadge = document.getElementById('ipBadgePunter');
-  if (hostBadge)   hostBadge.style.display   = (hostProfile?.name)             ? '' : 'none';
-  if (artistBadge) artistBadge.style.display = (artistProfile?.djName)         ? '' : 'none';
-  if (punterBadge) punterBadge.style.display = (window._punterProfile?.name)   ? '' : 'none';
+  if (hostBadge)   hostBadge.style.display   = (hostProfile?.name)           ? '' : 'none';
+  if (artistBadge) artistBadge.style.display = (artistProfile?.djName)       ? '' : 'none';
+  if (punterBadge) punterBadge.style.display = (window._punterProfile?.name) ? '' : 'none';
+  // Hide industry panel cards for hidden roles
+  const ipMap = { host:'ipBadgeHost', artist:'ipBadgeArtist', band:'bandsDashScreen', venue:'venueDashScreen', standup:'standupDashScreen' };
+  ['host','artist','band','venue','standup'].forEach(role => {
+    const card = document.querySelector(`#industryPanel .role-card.${role === 'band' ? 'bands' : role === 'standup' ? 'standup' : role}-card`);
+    if (card) card.style.display = hidden.includes(role) ? 'none' : '';
+  });
 }
 
 function enterIndustryRole(role) {
@@ -167,6 +174,41 @@ function showToast(msg, type = 'success', duration = 3200, undoLabel, undoCb) {
   t._timer = setTimeout(() => t.classList.remove('show'), duration);
 }
 
+// ── Role hide / show ───────────────────────────────
+
+function _getHiddenRoles() {
+  try { return JSON.parse(localStorage.getItem('yp_hidden_roles') || '[]'); } catch { return []; }
+}
+
+function _toggleRoleHidden(role) {
+  let hidden = _getHiddenRoles();
+  if (hidden.includes(role)) {
+    hidden = hidden.filter(r => r !== role);
+  } else {
+    hidden.push(role);
+  }
+  localStorage.setItem('yp_hidden_roles', JSON.stringify(hidden));
+  _applyRoleHiddenStates();
+  _updateIndustryPanelBadges();
+}
+
+function _applyRoleHiddenStates() {
+  const hidden = _getHiddenRoles();
+  ['host','artist','band','venue','standup'].forEach(role => {
+    const card = document.getElementById('roleCard-' + role);
+    const btn  = document.getElementById('roleHideBtn-' + role);
+    if (!card) return;
+    const isHidden = hidden.includes(role);
+    card.classList.toggle('role-hidden', isHidden);
+    if (btn) btn.textContent = isHidden ? 'SHOW' : 'HIDE';
+  });
+}
+
+function _roleCardClick(event, role, action) {
+  if (_getHiddenRoles().includes(role)) return;
+  action();
+}
+
 // ── Role selector ──────────────────────────────────
 
 async function showRoleSelector() {
@@ -181,6 +223,7 @@ async function showRoleSelector() {
   }
   updateRoleCards();
   _updateRoleScreenHeading();
+  _applyRoleHiddenStates();
   show('roleScreen');
   setTimeout(() => { if (typeof flashPendingOffers === 'function') flashPendingOffers(); }, 800);
 }
