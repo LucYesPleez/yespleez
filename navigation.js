@@ -61,7 +61,7 @@ function show(id, opts = {}) {
 }
 
 // Screens that suppress the nav (auth / onboarding only)
-const _noNavScreens2 = new Set(['authScreen', 'roleScreen']);
+const _noNavScreens2 = new Set(['authScreen']);
 
 function _updateGlobalNav(id, isLocked) {
   const nav = document.getElementById('bottomNav');
