@@ -599,16 +599,16 @@ async function _renderPunterDayView(dateStr) {
   const safeDate = dateStr.replace(/'/g, "\\'");
 
   // ── Back bar + ADD button ──
-  let html = `<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin:16px 0 20px;">
+  let html = `<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 16px;margin:16px 0 20px;">
     <button onclick="punterClearDate()" ontouchend="event.preventDefault();punterClearDate();" style="background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:20px;padding:7px 16px;font-size:12px;letter-spacing:1px;font-family:'Bebas Neue',sans-serif;cursor:pointer;touch-action:manipulation;flex-shrink:0;">← BACK</button>
     <div style="font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:1.5px;color:#D9FF4F;line-height:1;flex:1;text-align:center;">${dayLabel}</div>
     <button onclick="openAddEventSheet('${safeDate}')" ontouchend="event.preventDefault();openAddEventSheet('${safeDate}');" style="background:#D9FF4F;color:#0a0a0f;border:none;border-radius:20px;padding:7px 14px;font-size:12px;letter-spacing:1px;font-family:'Bebas Neue',sans-serif;cursor:pointer;touch-action:manipulation;flex-shrink:0;font-weight:700;">+ ADD</button>
   </div>`;
 
   // ── Personal events (async load) ──
-  html += `<div id="peDayEventsWrap"><div style="font-size:11px;color:var(--muted);padding:4px 0 8px;"></div></div>`;
+  html += `<div id="peDayEventsWrap"></div>`;
 
-  // ── Platform events ──
+  // ── Platform events as horizontal scroll ──
   if (!evs.length) {
     html += `<div style="text-align:center;padding:40px 0 20px;color:var(--muted);">
       <div style="font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:2px;margin-bottom:8px;">QUIET NIGHT</div>
@@ -617,28 +617,116 @@ async function _renderPunterDayView(dateStr) {
   } else {
     const sceneEvs = evs.filter(ev => _isPunterSceneEvent(ev));
     const otherEvs = evs.filter(ev => !_isPunterSceneEvent(ev));
+    const allEvs   = [...sceneEvs, ...otherEvs];
 
     if (sceneEvs.length) {
-      html += `<div style="font-family:'Bebas Neue',sans-serif;font-size:12px;letter-spacing:2px;color:#D9FF4F;padding:0 0 8px;margin-bottom:4px;border-bottom:1px solid rgba(217,255,79,.2);">YOUR PICKS</div>`;
-      html += sceneEvs.map(ev => typeof calDayCard === 'function' ? calDayCard(ev) : calListCard(ev)).join('');
-      if (otherEvs.length) html += `<div style="font-family:'Bebas Neue',sans-serif;font-size:12px;letter-spacing:2px;color:var(--muted);padding:16px 0 8px;margin-bottom:4px;border-bottom:1px solid var(--border);">ALL EVENTS</div>`;
+      html += `<div style="font-family:'Bebas Neue',sans-serif;font-size:12px;letter-spacing:2px;color:#D9FF4F;padding:0 16px 8px;">YOUR PICKS</div>`;
     }
-    html += otherEvs.map(ev => typeof calDayCard === 'function' ? calDayCard(ev) : calListCard(ev)).join('');
+    // All events in a horizontal scroll using the same card style as calendar
+    html += `<div style="display:flex;gap:12px;overflow-x:auto;padding:4px 16px 12px;scrollbar-width:none;-webkit-overflow-scrolling:touch;">
+      ${allEvs.map(ev => typeof calWhatsOnCard === 'function' ? calWhatsOnCard(ev, 'lg') : '').join('')}
+    </div>`;
   }
+
+  // ── Placeholder for artists / hosts / venues on this day ──
+  html += `<div id="peDayPeopleWrap"></div>`;
 
   el.innerHTML = html;
 
-  // Load personal events and fill the placeholder
+  // Load personal events
   const peEvs  = await (typeof loadPersonalEventsForDate === 'function'
     ? loadPersonalEventsForDate(dateStr) : Promise.resolve([]));
   const peWrap = document.getElementById('peDayEventsWrap');
-  if (peWrap) {
-    if (peEvs.length) {
-      peWrap.innerHTML =
-        `<div style="font-family:'Bebas Neue',sans-serif;font-size:12px;letter-spacing:2px;color:#D9FF4F;padding:0 0 10px;margin-bottom:2px;border-bottom:1px solid rgba(217,255,79,.2);margin-bottom:10px;">ON YOUR CALENDAR</div>` +
-        (typeof renderPersonalEventCards === 'function' ? renderPersonalEventCards(peEvs, dateStr) : '');
-    } else {
-      peWrap.innerHTML = '';
-    }
+  if (peWrap && peEvs.length) {
+    peWrap.innerHTML =
+      `<div style="font-family:'Bebas Neue',sans-serif;font-size:12px;letter-spacing:2px;color:#D9FF4F;padding:0 16px 10px;border-bottom:1px solid rgba(217,255,79,.2);margin-bottom:10px;">ON YOUR CALENDAR</div>` +
+      (typeof renderPersonalEventCards === 'function' ? renderPersonalEventCards(peEvs, dateStr) : '');
   }
+
+  // Load artists / hosts / venues for the events on this day
+  if (evs.length) _loadDayPeople(evs);
+}
+
+async function _loadDayPeople(evs) {
+  const wrap = document.getElementById('peDayPeopleWrap');
+  if (!wrap) return;
+
+  const realEvs = evs.filter(e => !e._isDemo);
+  if (!realEvs.length) return;
+
+  try {
+    // Fetch claims (artists playing) for these events
+    const evIds = realEvs.map(e => e.id).join(',');
+    const claimsRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/claims?event_id=in.(${evIds})&select=user_id,name,genre,event_id`,
+      { headers: { 'apikey': SUPABASE_KEY } }
+    );
+    const claims = claimsRes.ok ? await claimsRes.json() : [];
+
+    // Fetch host profiles for these events
+    const hostIds = [...new Set(realEvs.map(e => e.host_id).filter(Boolean))];
+    const artistUserIds = [...new Set(claims.map(c => c.user_id).filter(Boolean))];
+    const allIds = [...new Set([...artistUserIds, ...hostIds])];
+
+    let profileMap = {};
+    if (allIds.length) {
+      const profRes = await fetch(
+        `${SUPABASE_URL}/rest/v1/profiles?user_id=in.(${allIds.join(',')})&select=user_id,dj_name,name,type,genre_string,avatar,location`,
+        { headers: { 'apikey': SUPABASE_KEY } }
+      );
+      if (profRes.ok) (await profRes.json()).forEach(p => { profileMap[p.user_id] = p; });
+    }
+
+    // Build artist cards from claims (include unlinked claims by name)
+    const artistCards = claims.map(c => {
+      const prof = profileMap[c.user_id] || {};
+      const name = esc(prof.dj_name || prof.name || c.name || '');
+      if (!name) return '';
+      const avatar = prof.avatar
+        ? `<img src="${prof.avatar}" style="width:52px;height:52px;border-radius:50%;object-fit:cover;border:2px solid rgba(255,45,120,.4);">`
+        : `<div style="width:52px;height:52px;border-radius:50%;background:var(--card);border:2px solid rgba(255,45,120,.3);display:flex;align-items:center;justify-content:center;font-family:'Bebas Neue',sans-serif;font-size:20px;color:#FF2D78;">${name.charAt(0)}</div>`;
+      const genre = esc((prof.genre_string || c.genre || '').split('·')[0].trim());
+      const followed = c.user_id && typeof isFollowing === 'function' && isFollowing(c.user_id);
+      const followBtn = c.user_id ? `<button onclick="event.stopPropagation();${followed ? `unfollowEntity('${c.user_id}')` : `followEntity('${c.user_id}','${name.replace(/'/g,"\\'")}','profile')`}" ontouchend="event.preventDefault();event.stopPropagation();${followed ? `unfollowEntity('${c.user_id}')` : `followEntity('${c.user_id}','${name.replace(/'/g,"\\'")}','profile')`}" style="margin-top:6px;width:100%;padding:4px 0;background:${followed?'rgba(255,255,255,.07)':'rgba(255,45,120,.15)'};border:1px solid ${followed?'var(--border)':'rgba(255,45,120,.4)'};border-radius:8px;font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:1px;color:${followed?'var(--muted)':'#FF2D78'};cursor:pointer;touch-action:manipulation;">${followed?'FOLLOWING':'+ FOLLOW'}</button>` : '';
+      return `<div onclick="${c.user_id ? `openPublicProfile(${JSON.stringify(prof)})` : ''}" style="flex-shrink:0;width:120px;background:var(--card2);border:1px solid var(--border);border-radius:14px;padding:14px 10px 12px;text-align:center;${c.user_id?'cursor:pointer;':''}">
+        <div style="display:flex;justify-content:center;margin-bottom:8px;">${avatar}</div>
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${name}</div>
+        ${genre ? `<div style="font-size:9px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${genre}</div>` : ''}
+        ${followBtn}
+      </div>`;
+    }).filter(Boolean);
+
+    // Build host/venue cards
+    const hostCards = hostIds.map(hid => {
+      const prof = profileMap[hid];
+      if (!prof) return '';
+      const name = esc(prof.dj_name || prof.name || '');
+      if (!name) return '';
+      const type = prof.type === 'venue' ? 'VENUE' : 'PROMOTER';
+      const color = prof.type === 'venue' ? '#00E5FF' : '#9D4EDD';
+      const avatar = prof.avatar
+        ? `<img src="${prof.avatar}" style="width:52px;height:52px;border-radius:50%;object-fit:cover;border:2px solid ${color}44;">`
+        : `<div style="width:52px;height:52px;border-radius:50%;background:var(--card);border:2px solid ${color}33;display:flex;align-items:center;justify-content:center;font-family:'Bebas Neue',sans-serif;font-size:20px;color:${color};">${name.charAt(0)}</div>`;
+      const followed = typeof isFollowing === 'function' && isFollowing(hid);
+      return `<div onclick="openPublicProfile(${JSON.stringify(prof)})" style="flex-shrink:0;width:120px;background:var(--card2);border:1px solid var(--border);border-radius:14px;padding:14px 10px 12px;text-align:center;cursor:pointer;">
+        <div style="display:flex;justify-content:center;margin-bottom:8px;">${avatar}</div>
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${name}</div>
+        <div style="display:inline-block;background:${color}22;color:${color};border-radius:4px;padding:1px 6px;font-size:9px;font-weight:700;letter-spacing:.8px;margin-top:3px;">${type}</div>
+        <button onclick="event.stopPropagation();${followed?`unfollowEntity('${hid}')` : `followEntity('${hid}','${name.replace(/'/g,"\\'")}','profile')`}" ontouchend="event.preventDefault();event.stopPropagation();${followed?`unfollowEntity('${hid}')` : `followEntity('${hid}','${name.replace(/'/g,"\\'")}','profile')`}" style="margin-top:6px;width:100%;padding:4px 0;background:${followed?'rgba(255,255,255,.07)':color+'22'};border:1px solid ${followed?'var(--border)':color+'44'};border-radius:8px;font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:1px;color:${followed?'var(--muted)':color};cursor:pointer;touch-action:manipulation;">${followed?'FOLLOWING':'+ FOLLOW'}</button>
+      </div>`;
+    }).filter(Boolean);
+
+    if (!artistCards.length && !hostCards.length) return;
+
+    let html = '';
+    if (artistCards.length) {
+      html += `<div style="padding:16px 16px 6px;font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:2px;color:#FF2D78;">ARTISTS PLAYING</div>
+        <div style="display:flex;gap:10px;overflow-x:auto;padding:4px 16px 12px;scrollbar-width:none;-webkit-overflow-scrolling:touch;">${artistCards.join('')}</div>`;
+    }
+    if (hostCards.length) {
+      html += `<div style="padding:4px 16px 6px;font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:2px;color:#9D4EDD;">HOSTED BY</div>
+        <div style="display:flex;gap:10px;overflow-x:auto;padding:4px 16px 16px;scrollbar-width:none;-webkit-overflow-scrolling:touch;">${hostCards.join('')}</div>`;
+    }
+    wrap.innerHTML = html;
+  } catch(e) {}
 }
