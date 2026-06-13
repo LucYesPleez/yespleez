@@ -74,6 +74,11 @@ async function unfollowEntity(entityId, entityName) {
   }
 }
 
+function toggleFollowEvent(eventId, eventName) {
+  if (isFollowing(eventId)) unfollowEntity(eventId, eventName);
+  else followEntity('event', eventId, eventName);
+}
+
 function toggleFollowProfile(entityId, entityType, entityName) {
   if (isFollowing(entityId)) {
     unfollowEntity(entityId, entityName);
@@ -477,7 +482,7 @@ function renderPunterFeed() {
     html += `<div id="punterSecScene" style="margin:20px 16px 0;padding:20px 20px 18px;background:rgba(217,255,79,.05);border:1px dashed rgba(217,255,79,.2);border-radius:16px;">
       <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:2px;color:#D9FF4F;margin-bottom:6px;">YOUR PICKS</div>
       <div style="font-size:13px;color:var(--muted);line-height:1.6;margin-bottom:14px;">Follow artists, bands and venues to see their upcoming gigs here first.</div>
-      <button onclick="showCalendar()" ontouchend="event.preventDefault();showCalendar();" style="background:rgba(217,255,79,.12);border:1px solid rgba(217,255,79,.3);color:#D9FF4F;border-radius:10px;padding:10px 18px;font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:1.5px;cursor:pointer;touch-action:manipulation;">DISCOVER ARTISTS →</button>
+      <button onclick="showSearchScreen()" ontouchend="event.preventDefault();showSearchScreen();" style="background:rgba(217,255,79,.12);border:1px solid rgba(217,255,79,.3);color:#D9FF4F;border-radius:10px;padding:10px 18px;font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:1.5px;cursor:pointer;touch-action:manipulation;">DISCOVER ARTISTS →</button>
     </div>`;
   }
 
@@ -577,7 +582,7 @@ async function _loadNearbyProfiles(userPostcode) {
             <div style="display:inline-block;background:${color}22;color:${color};border-radius:4px;padding:1px 6px;font-size:9px;font-weight:700;letter-spacing:.8px;margin-bottom:6px;">${label}</div>
             ${loc ? `<div style="font-size:10px;color:var(--muted);margin-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${loc}</div>` : ''}
             ${genres.length ? `<div style="font-size:9px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${genres.join(' · ')}</div>` : ''}
-            <button onclick="event.stopPropagation();${followed ? `unfollowEntity('${p.user_id}')` : `followEntity('${p.user_id}','${name.replace(/'/g,"\\'")}','profile')`}" style="margin-top:8px;width:100%;padding:5px 0;background:${followed ? 'rgba(255,255,255,.07)' : color+'22'};border:1px solid ${followed ? 'var(--border)' : color+'66'};border-radius:8px;font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:1px;color:${followed ? 'var(--muted)' : color};cursor:pointer;touch-action:manipulation;" ontouchend="event.preventDefault();event.stopPropagation();${followed ? `unfollowEntity('${p.user_id}')` : `followEntity('${p.user_id}','${name.replace(/'/g,"\\'")}','profile')`}">${followed ? 'FOLLOWING' : '+ FOLLOW'}</button>
+            <button onclick="event.stopPropagation();${followed ? `unfollowEntity('${p.user_id}')` : `followEntity('profile','${p.user_id}','${name.replace(/'/g,"\\'")}')`}" style="margin-top:8px;width:100%;padding:5px 0;background:${followed ? 'rgba(255,255,255,.07)' : color+'22'};border:1px solid ${followed ? 'var(--border)' : color+'66'};border-radius:8px;font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:1px;color:${followed ? 'var(--muted)' : color};cursor:pointer;touch-action:manipulation;" ontouchend="event.preventDefault();event.stopPropagation();${followed ? `unfollowEntity('${p.user_id}')` : `followEntity('profile','${p.user_id}','${name.replace(/'/g,"\\'")}')`}">${followed ? 'FOLLOWING' : '+ FOLLOW'}</button>
           </div>`;
         }).join('')}
       </div>`;
@@ -712,7 +717,7 @@ async function _loadDayPeople(evs) {
         <div style="display:flex;justify-content:center;margin-bottom:8px;">${avatar}</div>
         <div style="font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${name}</div>
         <div style="display:inline-block;background:${color}22;color:${color};border-radius:4px;padding:1px 6px;font-size:9px;font-weight:700;letter-spacing:.8px;margin-top:3px;">${type}</div>
-        <button onclick="event.stopPropagation();${followed?`unfollowEntity('${hid}')` : `followEntity('${hid}','${name.replace(/'/g,"\\'")}','profile')`}" ontouchend="event.preventDefault();event.stopPropagation();${followed?`unfollowEntity('${hid}')` : `followEntity('${hid}','${name.replace(/'/g,"\\'")}','profile')`}" style="margin-top:6px;width:100%;padding:4px 0;background:${followed?'rgba(255,255,255,.07)':color+'22'};border:1px solid ${followed?'var(--border)':color+'44'};border-radius:8px;font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:1px;color:${followed?'var(--muted)':color};cursor:pointer;touch-action:manipulation;">${followed?'FOLLOWING':'+ FOLLOW'}</button>
+        <button onclick="event.stopPropagation();${followed?`unfollowEntity('${hid}')` : `followEntity('profile','${hid}','${name.replace(/'/g,"\\'")}')`}" ontouchend="event.preventDefault();event.stopPropagation();${followed?`unfollowEntity('${hid}')` : `followEntity('profile','${hid}','${name.replace(/'/g,"\\'")}')`}" style="margin-top:6px;width:100%;padding:4px 0;background:${followed?'rgba(255,255,255,.07)':color+'22'};border:1px solid ${followed?'var(--border)':color+'44'};border-radius:8px;font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:1px;color:${followed?'var(--muted)':color};cursor:pointer;touch-action:manipulation;">${followed?'FOLLOWING':'+ FOLLOW'}</button>
       </div>`;
     }).filter(Boolean);
 

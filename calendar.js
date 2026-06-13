@@ -795,9 +795,9 @@ function calWhatsOnCard(ev, size) {
       ${poster ? `<img src="${poster}" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center;display:block;image-rendering:-webkit-optimize-contrast;filter:contrast(1.08) saturate(1.05);" loading="lazy">` : ''}
       <div style="position:absolute;inset:0;background:linear-gradient(to bottom,rgba(0,0,0,.1) 0%,rgba(0,0,0,0) 40%,rgba(0,0,0,.4) 100%);"></div>
       <div style="position:absolute;top:10px;left:10px;display:flex;gap:4px;flex-wrap:wrap;">${cat.map(c=>`<span style="background:${c.color};color:${c.dark?'#0a0a0f':'#fff'};border-radius:6px;padding:3px 8px;font-size:9px;font-weight:700;letter-spacing:.8px;font-family:'DM Sans',sans-serif;">${c.label}</span>`).join('')}</div>
-      <div style="position:absolute;top:8px;right:8px;width:28px;height:28px;background:rgba(0,0,0,.45);backdrop-filter:blur(4px);border-radius:50%;display:flex;align-items:center;justify-content:center;">
-        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
-      </div>
+      <button onclick="event.stopPropagation();toggleFollowEvent('${ev.id}',${JSON.stringify(ev.name||'')})" ontouchend="event.preventDefault();event.stopPropagation();toggleFollowEvent('${ev.id}',${JSON.stringify(ev.name||'')})" style="position:absolute;top:8px;right:8px;width:28px;height:28px;background:rgba(0,0,0,.45);backdrop-filter:blur(4px);border-radius:50%;display:flex;align-items:center;justify-content:center;border:none;cursor:pointer;padding:0;touch-action:manipulation;">
+        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="${typeof isFollowing==='function'&&isFollowing(ev.id)?'#FF2D78':'none'}" stroke="${typeof isFollowing==='function'&&isFollowing(ev.id)?'#FF2D78':'white'}" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+      </button>
     </div>
     <div style="padding:10px 10px 12px;">
       <div style="font-family:'Bebas Neue',sans-serif;font-size:17px;letter-spacing:.5px;line-height:1.1;margin-bottom:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${name}</div>
