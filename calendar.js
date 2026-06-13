@@ -1126,7 +1126,7 @@ function calSectionHeader(title, color) {
 function calSelectDate(dateStr) {
   _calSelDate = dateStr;
   renderDateStrip();
-  openDayPanel(dateStr);
+  renderCalContent();
 }
 
 // ── Day Panel ──────────────────────────────────────
