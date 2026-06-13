@@ -158,12 +158,14 @@ async function doLogin() {
 // ── Signup ─────────────────────────────────────────
 
 async function doSignup() {
-  const email = document.getElementById('signupEmail').value.trim();
-  const pass  = document.getElementById('signupPassword').value;
+  const email   = document.getElementById('signupEmail').value.trim();
+  const pass    = document.getElementById('signupPassword').value;
+  const confirm = document.getElementById('signupPasswordConfirm').value;
   const errEl = document.getElementById('signupErr');
   errEl.classList.remove('show');
-  if (!email || !pass) { errEl.textContent='Please fill in both fields.'; errEl.classList.add('show'); return; }
+  if (!email || !pass) { errEl.textContent='Please fill in all fields.'; errEl.classList.add('show'); return; }
   if (pass.length < 6)  { errEl.textContent='Password must be at least 6 characters.'; errEl.classList.add('show'); return; }
+  if (pass !== confirm) { errEl.textContent='Passwords do not match.'; errEl.classList.add('show'); return; }
   const btn = document.getElementById('signupBtn');
   btn.disabled = true; btn.textContent = 'CREATING...';
   const data = await sbAuthPost('signup', { email, password: pass });
@@ -226,6 +228,17 @@ async function tryRestoreSession() {
   try {
     const s = JSON.parse(saved);
     if (!s.access_token) return false;
+
+    const now = Math.floor(Date.now() / 1000);
+    const expiresAt = s.expires_at || 0;
+
+    // Token still fresh — use it directly, no network call needed
+    if (expiresAt > now + 60) {
+      currentSession = s; currentUser = s.user;
+      return true;
+    }
+
+    // Token expired or expiring soon — attempt refresh
     if (s.refresh_token) {
       try {
         const res = await sbAuthPost('token?grant_type=refresh_token', { refresh_token: s.refresh_token });
@@ -235,8 +248,17 @@ async function tryRestoreSession() {
           localStorage.setItem('yp_session', JSON.stringify(res));
           return true;
         }
-      } catch {}
+        // Hard auth error (invalid/expired refresh token) — must re-login
+        if (res.error || res.error_description) {
+          localStorage.removeItem('yp_session');
+          return false;
+        }
+      } catch {
+        // Network failure — fall through and try the raw token
+      }
     }
+
+    // Last resort: validate the raw access_token (works if it hasn't expired yet)
     try {
       const res = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
         headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${s.access_token}` }
@@ -244,15 +266,18 @@ async function tryRestoreSession() {
       if (res.ok) {
         const user = await res.json();
         if (user.id) {
-          clearCachedProfiles();
           currentSession = s; currentUser = user;
           return true;
         }
       }
     } catch {}
-  } catch {}
-  localStorage.removeItem('yp_session');
-  return false;
+
+    // Network issue — keep the session in localStorage for next app open; don't force re-login
+    return false;
+  } catch {
+    localStorage.removeItem('yp_session');
+    return false;
+  }
 }
 
 // ── Pending slot offers check (runs on login/signup) ──

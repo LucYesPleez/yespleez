@@ -1787,8 +1787,12 @@ body.player-open .screen.active { padding-bottom: 80px; }
       <label>Password</label>
       <input type="password" id="signupPassword" placeholder="Min 6 characters" autocomplete="new-password">
     </div>
+    <div class="field">
+      <label>Confirm Password</label>
+      <input type="password" id="signupPasswordConfirm" placeholder="Re-enter password" autocomplete="new-password">
+    </div>
     <div class="err-msg" id="signupErr"></div>
-    <button class="btn-primary" id="signupBtn" onclick="doSignup()" style="margin-top:8px;">CREATE ACCOUNT</button>
+    <button class="btn-primary" id="signupBtn" onclick="doSignup()" ontouchend="event.preventDefault();doSignup();" style="margin-top:8px;touch-action:manipulation;">CREATE ACCOUNT</button>
     <p style="text-align:center;margin-top:10px;font-size:11px;color:var(--muted);">
       Free beta create your account and get started.
     </p>
