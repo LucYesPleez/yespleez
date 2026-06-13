@@ -760,22 +760,29 @@ async function showPublicEventPage(eventId) {
         const claimsMap = {};
         claimRows.forEach(c => { claimsMap[c.slot_id] = c; });
 
-        // Fetch avatars for any linked user accounts
+        // Fetch live profile data for any linked user accounts
         const uids = [...new Set(claimRows.filter(c => c.user_id).map(c => c.user_id))];
-        const avatarMap = {};
+        const profileLiveMap = {};
         if (uids.length) {
           try {
-            const pr = await fetch(`${SUPABASE_URL}/rest/v1/profiles?user_id=in.(${uids.join(',')})&select=user_id,avatar`, {
+            const pr = await fetch(`${SUPABASE_URL}/rest/v1/profiles?user_id=in.(${uids.join(',')})&select=user_id,avatar,dj_name,name`, {
               headers: { 'apikey': SUPABASE_KEY, 'Content-Type': 'application/json' }
             });
-            if (pr.ok) { (await pr.json()).forEach(p => { if (p.avatar) avatarMap[p.user_id] = p.avatar; }); }
+            if (pr.ok) { (await pr.json()).forEach(p => { profileLiveMap[p.user_id] = p; }); }
           } catch(e) {}
         }
 
         (cfg.days || []).forEach(day => {
           (day.slots || []).forEach(slot => {
             const c = claimsMap[slot.id];
-            if (c) slot.claim = { name: c.name, genre: c.genre || '', cardPills: c.card_pills || '', sound: c.sound || '', mixLink: c.mix_link || '', avatar: c.user_id ? (avatarMap[c.user_id] || null) : null };
+            if (c) {
+              const liveProf = c.user_id ? profileLiveMap[c.user_id] : null;
+              slot.claim = {
+                name: (liveProf?.dj_name || liveProf?.name || c.name),
+                genre: c.genre || '', cardPills: c.card_pills || '', sound: c.sound || '',
+                mixLink: c.mix_link || '', avatar: liveProf?.avatar || null
+              };
+            }
           });
         });
       }
@@ -1769,15 +1776,16 @@ async function loadClaims() {
     const uids = [...new Set(rows.map(r => r.user_id).filter(Boolean))];
     if (uids.length) {
       try {
-        const profRes = await sbFetch(`profiles?user_id=in.(${uids.join(',')})&type=eq.artist&select=user_id,dj_name,mix_link,soundcloud,mixcloud`);
+        const profRes = await sbFetch(`profiles?user_id=in.(${uids.join(',')})&select=user_id,dj_name,name,mix_link,soundcloud,mixcloud`);
         if (profRes.ok) {
           const profiles = await profRes.json();
           const profMap = {};
           profiles.forEach(p => { profMap[p.user_id] = p; });
-          // Only attach mix link if the profile's dj_name matches the slot name (guards against stale user_ids)
+          // Update name and mix link from live profile
           Object.values(claims).forEach(c => {
             const p = c.user_id && profMap[c.user_id];
-            if (p && p.dj_name && p.dj_name.trim().toLowerCase() === c.name.trim().toLowerCase()) {
+            if (p) {
+              if (p.dj_name || p.name) c.name = p.dj_name || p.name;
               c.mixLink = p.mix_link || p.soundcloud || p.mixcloud || '';
             }
           });
