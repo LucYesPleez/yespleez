@@ -1181,11 +1181,10 @@ function _calProfileCard(p) {
   const userId  = p.user_id || '';
   return `<div class="cal-small-card" onclick="showProfilePage && showProfilePage('${userId}')" style="background:${bg};flex-shrink:0;position:relative;border:none;">
     <div class="cal-small-card-overlay"></div>
-    <div class="cal-small-card-content" style="position:relative;">
-      <div style="margin-bottom:4px;"><span style="background:${style.bg};border:1px solid ${style.border};color:${style.color};border-radius:6px;padding:2px 7px;font-size:9px;font-weight:700;letter-spacing:.8px;font-family:'DM Sans',sans-serif;">${label}</span></div>
+    <div class="cal-small-card-content">
+      <div style="margin-bottom:5px;"><span style="background:${style.bg};border:1px solid ${style.border};color:${style.color};border-radius:6px;padding:2px 7px;font-size:9px;font-weight:700;letter-spacing:.8px;font-family:'DM Sans',sans-serif;">${label}</span></div>
       <div style="font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:1px;color:#fff;line-height:1.1;">${name}</div>
       ${p.location ? `<div style="font-size:10px;color:rgba(255,255,255,.55);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(p.location)}</div>` : ''}
-      ${p.tagline  ? `<div style="font-size:10px;color:rgba(255,255,255,.4);margin-top:2px;font-style:italic;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">"${esc(p.tagline)}"</div>` : ''}
     </div>
   </div>`;
 }
