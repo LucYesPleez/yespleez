@@ -132,9 +132,9 @@ function _updateIndustryPanelBadges() {
   if (artistBadge) artistBadge.style.display = (artistProfile?.djName)       ? '' : 'none';
   if (punterBadge) punterBadge.style.display = (window._punterProfile?.name) ? '' : 'none';
   // Hide industry panel cards for hidden roles
-  const ipMap = { host:'ipBadgeHost', artist:'ipBadgeArtist', band:'bandsDashScreen', venue:'venueDashScreen', standup:'standupDashScreen' };
+  const ipClassMap = { host:'host-card', artist:'artist-card', band:'bands-card', venue:'venues-card', standup:'standup-card' };
   ['host','artist','band','venue','standup'].forEach(role => {
-    const card = document.querySelector(`#industryPanel .role-card.${role === 'band' ? 'bands' : role === 'standup' ? 'standup' : role}-card`);
+    const card = document.querySelector(`#industryPanel .role-card.${ipClassMap[role]}`);
     if (card) card.style.display = hidden.includes(role) ? 'none' : '';
   });
 }
