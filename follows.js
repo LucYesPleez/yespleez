@@ -484,30 +484,37 @@ function renderPunterFeed() {
   // ── SUGGESTED FOR YOU ──
   const interestGenres = (window._punterProfile?.genre_string || '').toLowerCase().split(/[,·]/).map(s => s.trim()).filter(Boolean);
   const userPostcode   = parseInt(window._punterProfile?.postcode || '0', 10);
-  if (interestGenres.length) {
+  if (userPostcode || interestGenres.length) {
     const alreadyShown = new Set(sceneSoon.map(e => e.id));
-    const suggestions = all.filter(ev => {
+    const suggestedEvs = all.filter(ev => {
       if (alreadyShown.has(ev.id)) return false;
       const d = calParseDate(ev);
       if (!d || d < now) return false;
-      const evText = ((ev.name || '') + ' ' + (ev.config?.genres || '')).toLowerCase();
-      const genreMatch = interestGenres.some(g => g.length > 2 && evText.includes(g));
-      if (!genreMatch) return false;
-      // If both user and event have a postcode, require same region (within 100)
       const evPostcode = parseInt(ev.config?.postcode || '0', 10);
-      if (userPostcode && evPostcode) return Math.abs(evPostcode - userPostcode) <= 100;
-      return true;
+      const nearbyPc = userPostcode && evPostcode ? Math.abs(evPostcode - userPostcode) <= 100 : true;
+      if (!nearbyPc) return false;
+      if (!interestGenres.length) return true;
+      const evText = ((ev.name || '') + ' ' + (ev.config?.genres || '')).toLowerCase();
+      return interestGenres.some(g => g.length > 2 && evText.includes(g));
     }).sort((a,b) => calParseDate(a) - calParseDate(b)).slice(0, 8);
 
-    if (suggestions.length) {
-      html += `<div style="padding:20px 16px 4px;display:flex;align-items:center;gap:8px;">
-        <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:2px;">SUGGESTED FOR YOU</div>
-        <div style="background:rgba(0,229,255,.12);border:1px solid rgba(0,229,255,.3);border-radius:20px;padding:3px 10px;font-size:10px;letter-spacing:1px;color:var(--neon2);font-family:'DM Sans',sans-serif;font-weight:600;">BASED ON YOUR INTERESTS</div>
+    html += `<div id="punterSuggestSection" style="display:none;">
+      <div style="padding:20px 16px 4px;display:flex;align-items:center;gap:8px;">
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:2px;">IN YOUR AREA</div>
+        <div style="background:rgba(0,229,255,.12);border:1px solid rgba(0,229,255,.3);border-radius:20px;padding:3px 10px;font-size:10px;letter-spacing:1px;color:var(--neon2);font-family:'DM Sans',sans-serif;font-weight:600;">NEAR YOU</div>
       </div>
-      <div style="display:flex;gap:12px;overflow-x:auto;padding:4px 16px 12px;scrollbar-width:none;-webkit-overflow-scrolling:touch;">
-        ${suggestions.map(ev => typeof calWhatsOnCard === 'function' ? calWhatsOnCard(ev, 'sm') : '').join('')}
-      </div>`;
+      ${suggestedEvs.length ? `<div style="display:flex;gap:12px;overflow-x:auto;padding:4px 16px 8px;scrollbar-width:none;-webkit-overflow-scrolling:touch;">
+        ${suggestedEvs.map(ev => typeof calWhatsOnCard === 'function' ? calWhatsOnCard(ev, 'sm') : '').join('')}
+      </div>` : ''}
+      <div id="punterNearbyProfiles" style="padding:0 16px 12px;"></div>
+    </div>`;
+
+    // Show section immediately if there are events, then async-fill profiles
+    if (suggestedEvs.length) {
+      const sec = document.getElementById('punterSuggestSection');
+      if (sec) sec.style.display = '';
     }
+    if (userPostcode) setTimeout(() => _loadNearbyProfiles(userPostcode), 0);
   }
 
   // ── Standard sections ──
@@ -529,6 +536,53 @@ function renderPunterFeed() {
   }
 
   el.innerHTML = html;
+}
+
+async function _loadNearbyProfiles(userPostcode) {
+  const section     = document.getElementById('punterSuggestSection');
+  const profilesEl  = document.getElementById('punterNearbyProfiles');
+  if (!section || !profilesEl || !userPostcode) return;
+
+  const pcMin = userPostcode - 100, pcMax = userPostcode + 100;
+  try {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/profiles?postcode=gte.${pcMin}&postcode=lte.${pcMax}&type=in.(artist,host,band,venue,standup)&select=user_id,dj_name,name,type,genre_string,avatar,postcode,location&limit=16`,
+      { headers: { 'apikey': SUPABASE_KEY } }
+    );
+    if (!res.ok) return;
+    const profiles = await res.json();
+    const myId = (typeof currentUser !== 'undefined' && currentUser?.id) || null;
+    const filtered = profiles.filter(p => p.user_id !== myId && (p.dj_name || p.name));
+    if (!filtered.length && !section.querySelector('.calWhatsOnCard')) { section.style.display = 'none'; return; }
+    section.style.display = '';
+
+    const typeLabel = { artist:'ARTIST', host:'PROMOTER', band:'BAND', venue:'VENUE', standup:'COMEDY' };
+    const typeColor = { artist:'#FF2D78', host:'#9D4EDD', band:'#FF2D78', venue:'#00E5FF', standup:'#FF8C42' };
+
+    profilesEl.innerHTML = `<div style="font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:2px;color:var(--muted);margin-bottom:10px;">ARTISTS · PROMOTERS · VENUES</div>
+      <div style="display:flex;gap:10px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;padding-bottom:4px;">
+        ${filtered.map(p => {
+          const name    = esc(p.dj_name || p.name || '');
+          const type    = p.type || 'artist';
+          const label   = typeLabel[type] || 'ARTIST';
+          const color   = typeColor[type] || '#FF2D78';
+          const genres  = (p.genre_string || '').split('·').map(g => g.trim()).filter(Boolean).slice(0,2);
+          const loc     = esc(p.location || '');
+          const avatar  = p.avatar
+            ? `<img src="${p.avatar}" style="width:56px;height:56px;border-radius:50%;object-fit:cover;border:2px solid ${color}33;">`
+            : `<div style="width:56px;height:56px;border-radius:50%;background:var(--card);border:2px solid ${color}33;display:flex;align-items:center;justify-content:center;color:${color};font-family:'Bebas Neue',sans-serif;font-size:18px;">${name.charAt(0)}</div>`;
+          const followed = typeof isFollowing === 'function' && isFollowing(p.user_id);
+          return `<div onclick="openPublicProfile(${JSON.stringify(p)})" style="flex-shrink:0;width:130px;background:var(--card2);border:1px solid var(--border);border-radius:14px;padding:14px 10px 12px;text-align:center;cursor:pointer;">
+            <div style="display:flex;justify-content:center;margin-bottom:8px;">${avatar}</div>
+            <div style="font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:4px;">${name}</div>
+            <div style="display:inline-block;background:${color}22;color:${color};border-radius:4px;padding:1px 6px;font-size:9px;font-weight:700;letter-spacing:.8px;margin-bottom:6px;">${label}</div>
+            ${loc ? `<div style="font-size:10px;color:var(--muted);margin-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${loc}</div>` : ''}
+            ${genres.length ? `<div style="font-size:9px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${genres.join(' · ')}</div>` : ''}
+            <button onclick="event.stopPropagation();${followed ? `unfollowEntity('${p.user_id}')` : `followEntity('${p.user_id}','${name.replace(/'/g,"\\'")}','profile')`}" style="margin-top:8px;width:100%;padding:5px 0;background:${followed ? 'rgba(255,255,255,.07)' : color+'22'};border:1px solid ${followed ? 'var(--border)' : color+'66'};border-radius:8px;font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:1px;color:${followed ? 'var(--muted)' : color};cursor:pointer;touch-action:manipulation;" ontouchend="event.preventDefault();event.stopPropagation();${followed ? `unfollowEntity('${p.user_id}')` : `followEntity('${p.user_id}','${name.replace(/'/g,"\\'")}','profile')`}">${followed ? 'FOLLOWING' : '+ FOLLOW'}</button>
+          </div>`;
+        }).join('')}
+      </div>`;
+  } catch(e) {}
 }
 
 // ── Day view (punter version) ─────────────────────
