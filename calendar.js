@@ -1020,8 +1020,10 @@ function renderDayView(dateStr, el) {
       html += `<div style="display:flex;align-items:center;gap:10px;margin:0 0 14px;">
         <div style="font-family:'Bebas Neue',sans-serif;font-size:17px;letter-spacing:2px;color:var(--neon2);">NEARBY NIGHTS</div>
         <div style="flex:1;height:1px;background:linear-gradient(to right,rgba(0,229,255,.4),transparent);"></div>
+      </div>
+      <div style="display:flex;gap:10px;overflow-x:auto;padding-bottom:8px;-webkit-overflow-scrolling:touch;scrollbar-width:none;">
+        ${nearby.map(ev => calSmallCard(ev)).join('')}
       </div>`;
-      html += nearby.map(ev => calDayCard(ev)).join('');
     }
 
     html += `<div style="display:flex;align-items:center;gap:10px;margin:24px 0 14px;">
