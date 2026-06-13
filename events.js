@@ -2089,7 +2089,7 @@ async function loadShortlistBadge() {
 async function renderShortlist() {
   const el = document.getElementById('shortlistView');
   if (!el) return;
-  el.innerHTML = skeletonHTML('list');
+  el.innerHTML = '<div style="text-align:center;padding:40px 0;color:var(--muted);font-family:\'Bebas Neue\',sans-serif;letter-spacing:2px;">LOADING...</div>';
 
   let rows = [];
   try {
@@ -2157,7 +2157,7 @@ async function renderShortlist() {
 async function renderPipeline() {
   const el = document.getElementById('pipelineView');
   if (!el) return;
-  if (!el.children.length) el.innerHTML = skeletonHTML('list');
+  if (!el.children.length) el.innerHTML = '<div style="text-align:center;padding:40px 0;color:var(--muted);font-family:\'Bebas Neue\',sans-serif;letter-spacing:2px;">LOADING...</div>';
 
   let offers = [], apps = [];
   try {
