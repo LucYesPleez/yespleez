@@ -1201,7 +1201,7 @@ async function _loadCalDiscoverProfiles() {
     );
     const profiles = await res.json();
     if (!Array.isArray(profiles) || !profiles.length) { el.innerHTML = ''; return; }
-    el.innerHTML = profiles.filter(p => p.dj_name || p.name).map(_calProfileCard).join('');
+    el.innerHTML = profiles.filter(p => (p.dj_name || p.name) && p.avatar).map(_calProfileCard).join('');
   } catch(e) { el.innerHTML = ''; }
 }
 
