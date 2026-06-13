@@ -166,7 +166,7 @@ async function runSearch() {
     } catch(e) { console.warn('avail filter:', e); }
   }
 
-  document.getElementById('searchLoading')?.remove();
+  resultsEl.innerHTML = '';
 
   if (!profileRows.length && !eventRows.length) {
     const msg = availDate
