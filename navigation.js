@@ -124,24 +124,12 @@ function closeIndustryPanel() {
 }
 
 function _updateIndustryPanelBadges() {
-  const hasHost    = !!(hostProfile?.name);
-  const hasArtist  = !!(artistProfile?.djName || artistProfile?.name);
-  const hasBand    = !!(typeof bandProfile !== 'undefined' && (bandProfile?.name || bandProfile?.dj_name));
-  const hasVenue   = !!(typeof venueProfile !== 'undefined' && (venueProfile?.name || venueProfile?.dj_name));
-  const hasStandup = !!(typeof standupProfile !== 'undefined' && (standupProfile?.name || standupProfile?.dj_name));
-  const hasPunter  = !!(window._punterProfile?.name);
-
-  const show = (id, visible) => { const el = document.getElementById(id); if (el) el.style.display = visible ? '' : 'none'; };
-
-  show('ipCardHost',    hasHost);
-  show('ipCardArtist',  hasArtist);
-  show('ipCardBand',    hasBand);
-  show('ipCardVenue',   hasVenue);
-  show('ipCardStandup', hasStandup);
-  show('ipCardPunter',  hasPunter);
-
-  const anyProfile = hasHost || hasArtist || hasBand || hasVenue || hasStandup || hasPunter;
-  show('ipNoProfiles', !anyProfile);
+  const hostBadge   = document.getElementById('ipBadgeHost');
+  const artistBadge = document.getElementById('ipBadgeArtist');
+  const punterBadge = document.getElementById('ipBadgePunter');
+  if (hostBadge)   hostBadge.style.display   = (hostProfile?.name)             ? '' : 'none';
+  if (artistBadge) artistBadge.style.display = (artistProfile?.djName)         ? '' : 'none';
+  if (punterBadge) punterBadge.style.display = (window._punterProfile?.name)   ? '' : 'none';
 }
 
 function enterIndustryRole(role) {
