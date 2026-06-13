@@ -1363,6 +1363,8 @@ header { text-align: center; margin-bottom: 32px; }
 .sync-dot.live { background: var(--green); box-shadow: 0 0 8px var(--green); animation: pulse 2s infinite; }
 .sync-dot.error { background: var(--neon); }
 @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:.4; } }
+@keyframes loadingPulse { 0%,100% { opacity:1; } 50% { opacity:.25; } }
+.loading-text { animation: loadingPulse 1.2s ease-in-out infinite !important; }
 @keyframes ypPulse { 0%,100% { opacity:.5; } 50% { opacity:.15; } }
 
 .day-section { margin-bottom: 32px; }
@@ -5369,15 +5371,15 @@ body.player-open .screen.active { padding-bottom: 80px; }
 
 <script src="state.js"></script>
 <script src="auth.js?v=5"></script>
-<script src="navigation.js?v=14"></script>
+<script src="navigation.js?v=16"></script>
 <script src="follows.js?v=8"></script>
 <script src="personal_cal.js?v=1"></script>
 <script src="notifications.js?v=6"></script>
 <script src="profiles.js?v=10"></script>
 <script src="audio.js?v=4"></script>
-<script src="search.js?v=7"></script>
-<script src="events.js?v=16"></script>
-<script src="calendar.js?v=16"></script>
+<script src="search.js?v=8"></script>
+<script src="events.js?v=20"></script>
+<script src="calendar.js?v=19"></script>
 <script src="venues.js?v=1"></script>
 <script src="bands.js?v=1"></script>
 <script src="standup.js?v=1"></script>

@@ -299,7 +299,9 @@ async function submitApplication() {
   try {
     let body;
     if (isLoggedIn) {
-      body = { event_id: _applyEventId, artist_id: currentUser.id, note, status: 'pending' };
+      const p = artistProfile || {};
+      const applicantName = p.djName || p.name || '';
+      body = { event_id: _applyEventId, artist_id: currentUser.id, note, status: 'pending', applicant_name: applicantName };
     } else {
       const gName     = document.getElementById('applyGuestName')?.value.trim() || '';
       const gEmail    = document.getElementById('applyGuestEmail')?.value.trim() || '';
@@ -308,7 +310,7 @@ async function submitApplication() {
       const gMixLink  = document.getElementById('applyGuestMixLink')?.value.trim() || '';
       _applyGuestData = { name: gName, email: gEmail, genre: gGenre, sound: gSound, mixLink: gMixLink };
       body = { event_id: _applyEventId, artist_id: null, note, status: 'pending',
-               guest_name: gName, guest_email: gEmail, guest_genre: gGenre || null,
+               applicant_name: gName, guest_name: gName, guest_email: gEmail, guest_genre: gGenre || null,
                guest_sound: gSound || null, guest_mix_link: gMixLink || null };
     }
 

@@ -261,7 +261,7 @@ async function enterPunterDashboard() {
   if (_feed)    _feed.style.display    = '';
   if (_dayView) { _dayView.style.display = 'none'; _dayView.innerHTML = ''; }
 
-  if (_feed) _feed.innerHTML = '<div style="text-align:center;padding:60px 0;color:var(--muted);font-family:\'Bebas Neue\',sans-serif;letter-spacing:2px;font-size:16px;">LOADING...</div>';
+  if (_feed) _feed.innerHTML = '<div style="text-align:center;padding:60px 0;color:var(--muted);font-family:\'Bebas Neue\',sans-serif;letter-spacing:2px;font-size:16px;" class="loading-text">LOADING...</div>';
 
   // Load events then follows (follows render calls renderPunterFeed once loaded)
   if (typeof loadCalEvents === 'function') {
@@ -571,7 +571,7 @@ function shareItem(type, id, name) {
 // ── Skeleton loading helper ────────────────────────
 
 function skeletonHTML(type) {
-  return '<div style="text-align:center;padding:60px 0;color:var(--muted);font-family:\'Bebas Neue\',sans-serif;letter-spacing:2px;font-size:16px;">LOADING...</div>';
+  return '<div style="text-align:center;padding:60px 0;color:var(--muted);font-family:\'Bebas Neue\',sans-serif;letter-spacing:2px;font-size:16px;" class="loading-text">LOADING...</div>';
 }
 
 // ── Search screen ──────────────────────────────────

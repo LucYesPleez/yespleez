@@ -2089,7 +2089,7 @@ async function loadShortlistBadge() {
 async function renderShortlist() {
   const el = document.getElementById('shortlistView');
   if (!el) return;
-  el.innerHTML = '<div style="text-align:center;padding:40px 0;color:var(--muted);font-family:\'Bebas Neue\',sans-serif;letter-spacing:2px;">LOADING...</div>';
+  el.innerHTML = '<div style="text-align:center;padding:40px 0;color:var(--muted);font-family:\'Bebas Neue\',sans-serif;letter-spacing:2px;" class="loading-text">LOADING...</div>';
 
   let rows = [];
   try {
@@ -2114,7 +2114,7 @@ async function renderShortlist() {
   if (artistIds.length) {
     try {
       const profRes = await fetch(
-        `${SUPABASE_URL}/rest/v1/profiles?user_id=in.(${artistIds.join(',')})&type=eq.artist&select=user_id,dj_name,name,genre_string,avatar,sound,mix_link,soundcloud`,
+        `${SUPABASE_URL}/rest/v1/profiles?user_id=in.(${artistIds.join(',')})&select=user_id,dj_name,name,genre_string,avatar,sound,mix_link,soundcloud`,
         { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${currentSession?.access_token}` } }
       );
       if (profRes.ok) (await profRes.json()).forEach(p => { profileMap[p.user_id] = p; });
@@ -2157,7 +2157,7 @@ async function renderShortlist() {
 async function renderPipeline() {
   const el = document.getElementById('pipelineView');
   if (!el) return;
-  if (!el.children.length) el.innerHTML = '<div style="text-align:center;padding:40px 0;color:var(--muted);font-family:\'Bebas Neue\',sans-serif;letter-spacing:2px;">LOADING...</div>';
+  if (!el.children.length) el.innerHTML = '<div style="text-align:center;padding:40px 0;color:var(--muted);font-family:\'Bebas Neue\',sans-serif;letter-spacing:2px;" class="loading-text">LOADING...</div>';
 
   let offers = [], apps = [];
   try {
@@ -2181,7 +2181,7 @@ async function renderPipeline() {
   if (artistIds.length) {
     try {
       const profRes = await fetch(
-        `${SUPABASE_URL}/rest/v1/profiles?user_id=in.(${artistIds.join(',')})&type=eq.artist&select=user_id,dj_name,name,genre_string,avatar,sound,tagline,mix_link,soundcloud,mixcloud,type`,
+        `${SUPABASE_URL}/rest/v1/profiles?user_id=in.(${artistIds.join(',')})&select=user_id,dj_name,name,genre_string,avatar,sound,tagline,mix_link,soundcloud,mixcloud,type`,
         { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${currentSession?.access_token}` } }
       );
       if (profRes.ok) {
@@ -2493,17 +2493,31 @@ function shiftArtist(fromSlotId, toSlotId) {
   const fromIdx=orderedIds.indexOf(fromSlotId), toIdx=orderedIds.indexOf(toSlotId);
   if (fromIdx===-1||toIdx===-1) return;
   const fromClaim=claims[fromSlotId], toClaim=claims[toSlotId];
-  if (!toClaim) { claims[toSlotId]=fromClaim;delete claims[fromSlotId]; showToast(fromClaim.name+' moved.','success'); }
-  else {
+  let affectedSlotIds=[];
+  if (!toClaim) {
+    claims[toSlotId]=fromClaim; delete claims[fromSlotId];
+    affectedSlotIds=[fromSlotId,toSlotId];
+    showToast(fromClaim.name+' moved.','success');
+  } else {
     const dir=toIdx>fromIdx?1:-1;
     const range=[]; for(let i=fromIdx;i!==toIdx;i+=dir) range.push(orderedIds[i]); range.push(orderedIds[toIdx]);
     const blocked=range.slice(1).find(id=>lockedSlots[id]&&claims[id]);
     if(blocked){showToast((claims[blocked]?.name||blocked)+' is pinned — unpin to shift past.','error');return;}
     const name=fromClaim.name;
     for(let i=0;i<range.length-1;i++){ const a=range[i],b=range[i+1]; if(claims[b]) claims[a]=claims[b]; else delete claims[a]; }
-    claims[orderedIds[toIdx]]=fromClaim; showToast(name+' moved — others shifted.','success');
+    claims[orderedIds[toIdx]]=fromClaim;
+    affectedSlotIds=range;
+    showToast(name+' moved — others shifted.','success');
   }
-  renderManage();renderAll();
+  renderManage(); renderAll();
+  // Persist to DB — without this the 5s poll restores old server state
+  (async () => {
+    for (const sid of affectedSlotIds) {
+      const c = claims[sid];
+      if (c) await upsertClaim(sid, c.name, c.genre||'', c.notes||'', c.backups||[], c.cardPills||'', c.sound||'', c.user_id||null);
+      else await deleteClaim(sid);
+    }
+  })();
 }
 
 function restoreGenreVibeState(genreStr) {

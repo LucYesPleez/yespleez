@@ -26,7 +26,7 @@ let _calSubGenreFilter = '';
 const _calSubGenreMap = {
   dj:        ['House','Techno','Drum & Bass','Trance','Dubstep','Disco','Minimal','Progressive'],
   band:      ['Rock','Indie','Folk','Punk','Metal','Blues','Acoustic','Country'],
-  comedy:    ['Stand Up','Improvised','Storytelling','Observational','Open Mic'],
+  comedy:    ['Stand Up','Improvised','Storytelling','Observational'],
   spokenword:['Poetry','Slam','Narrative','Spoken Word','Experimental'],
   festival:  ['Electronic','Folk','Arts','Community','Camping','Multi-Genre'],
   market:    ['Artisan','Vintage','Night Market','Food','Makers'],
@@ -761,14 +761,20 @@ function calFeaturedCard(ev) {
 function calEventCategory(ev) {
   const text   = ((ev.name || '') + ' ' + (ev.config?.genres || '')).toLowerCase();
   const genres = (ev.config?.genres || '').toLowerCase();
-  if (/comedy|standup|stand.up|open.mic|improv/i.test(text)) return { label: 'COMEDY',     color: '#FF8C42', dark: true };
-  if (/dj.set|dj set|house|techno|dnb|drum|dubstep|garage|electronic|psytrance|breaks/i.test(genres)) return { label: 'DJ SET', color: '#00E5FF', dark: true };
-  if (/festival|fest\b/i.test(text))                          return { label: 'FESTIVAL',   color: '#9D4EDD', dark: false };
-  if (/dj.set|dj set|house|techno|dnb|drum|dubstep|garage|electronic|psytrance|breaks/i.test(text)) return { label: 'DJ SET', color: '#00E5FF', dark: true };
-  if (/open.mic/i.test(text))                                  return { label: 'OPEN MIC',   color: '#FFD700', dark: true };
-  if (/acoustic|folk|singer|bluegrass/i.test(text))           return { label: 'LIVE MUSIC', color: '#FF2D78', dark: false };
-  if (/party\b/i.test(text))                                   return { label: 'PARTY',      color: '#FF2D78', dark: false };
-  return { label: 'LIVE MUSIC', color: '#FF2D78', dark: false };
+  const openMicBadge = { label: 'OPEN MIC', color: '#FFD700', dark: true };
+  const isOpenMic = /open.mic/i.test(text);
+  if (/comedy|standup|stand.up|improv/i.test(text))           return [{ label: 'COMEDY',     color: '#FF8C42', dark: true }];
+  if (/dj.set|dj set|house|techno|dnb|drum|dubstep|garage|electronic|psytrance|breaks/i.test(genres)) return [{ label: 'DJ SET', color: '#00E5FF', dark: true }];
+  if (/festival|fest\b/i.test(text))                          return [{ label: 'FESTIVAL',   color: '#9D4EDD', dark: false }];
+  if (/dj.set|dj set|house|techno|dnb|drum|dubstep|garage|electronic|psytrance|breaks/i.test(text)) return [{ label: 'DJ SET', color: '#00E5FF', dark: true }];
+  if (isOpenMic)                                               return [{ label: 'LIVE MUSIC', color: '#FF2D78', dark: false }, openMicBadge];
+  if (/acoustic|folk|singer|bluegrass/i.test(text))           return [{ label: 'LIVE MUSIC', color: '#FF2D78', dark: false }];
+  if (/party\b/i.test(text))                                   return [{ label: 'PARTY',      color: '#FF2D78', dark: false }];
+  return [{ label: 'LIVE MUSIC', color: '#FF2D78', dark: false }];
+}
+
+function _catBadges(cats) {
+  return cats.map(c => `<span style="background:${c.color};color:${c.dark?'#0a0a0f':'#fff'};border-radius:4px;padding:1px 6px;font-size:9px;font-weight:700;letter-spacing:.5px;">${c.label}</span>`).join('');
 }
 
 // ── What's On: horizontal scroll card ──────────────
@@ -788,7 +794,7 @@ function calWhatsOnCard(ev, size) {
     <div style="position:relative;height:${imgH};background:${bgFallback};">
       ${poster ? `<img src="${poster}" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center;display:block;image-rendering:-webkit-optimize-contrast;filter:contrast(1.08) saturate(1.05);" loading="lazy">` : ''}
       <div style="position:absolute;inset:0;background:linear-gradient(to bottom,rgba(0,0,0,.1) 0%,rgba(0,0,0,0) 40%,rgba(0,0,0,.4) 100%);"></div>
-      <div style="position:absolute;top:10px;left:10px;background:${cat.color};color:${cat.dark?'#0a0a0f':'#fff'};border-radius:6px;padding:3px 8px;font-size:9px;font-weight:700;letter-spacing:.8px;font-family:'DM Sans',sans-serif;">${cat.label}</div>
+      <div style="position:absolute;top:10px;left:10px;display:flex;gap:4px;flex-wrap:wrap;">${cat.map(c=>`<span style="background:${c.color};color:${c.dark?'#0a0a0f':'#fff'};border-radius:6px;padding:3px 8px;font-size:9px;font-weight:700;letter-spacing:.8px;font-family:'DM Sans',sans-serif;">${c.label}</span>`).join('')}</div>
       <div style="position:absolute;top:8px;right:8px;width:28px;height:28px;background:rgba(0,0,0,.45);backdrop-filter:blur(4px);border-radius:50%;display:flex;align-items:center;justify-content:center;">
         <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
       </div>
@@ -819,7 +825,7 @@ function calListCard(ev) {
       <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:.5px;line-height:1;margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${name}</div>
       <div style="font-size:11px;color:var(--muted);display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
         ${venue ? `<span style="display:flex;align-items:center;gap:3px;"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg>${venue}</span>` : ''}
-        <span style="background:${cat.color};color:${cat.dark?'#0a0a0f':'#fff'};border-radius:4px;padding:1px 6px;font-size:9px;font-weight:700;">${cat.label}</span>
+        ${_catBadges(cat)}
       </div>
     </div>
     <div style="text-align:right;flex-shrink:0;min-width:72px;display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
@@ -1090,7 +1096,7 @@ function calDayCard(ev) {
     <div style="height:200px;background:linear-gradient(135deg,rgba(255,45,120,.35) 0%,rgba(0,229,255,.2) 100%);position:relative;">
       ${poster ? `<img src="${poster}" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center;display:block;" loading="lazy">` : ''}
       <div style="position:absolute;inset:0;background:linear-gradient(to bottom,rgba(10,10,15,0) 30%,rgba(10,10,15,.95) 100%);"></div>
-      <div style="position:absolute;top:10px;left:10px;background:${cat.color};color:${cat.dark?'#0a0a0f':'#fff'};border-radius:6px;padding:3px 8px;font-size:9px;font-weight:700;letter-spacing:.8px;font-family:'DM Sans',sans-serif;">${cat.label}</div>
+      <div style="position:absolute;top:10px;left:10px;display:flex;gap:4px;flex-wrap:wrap;">${cat.map(c=>`<span style="background:${c.color};color:${c.dark?'#0a0a0f':'#fff'};border-radius:6px;padding:3px 8px;font-size:9px;font-weight:700;letter-spacing:.8px;font-family:'DM Sans',sans-serif;">${c.label}</span>`).join('')}</div>
       <div style="position:absolute;bottom:0;left:0;right:0;padding:16px;">
         <div style="font-family:'Bebas Neue',sans-serif;font-size:clamp(28px,6vw,38px);letter-spacing:2px;color:#fff;line-height:.95;text-shadow:0 2px 12px rgba(0,0,0,.8);">${name}</div>
         ${venue ? `<div style="font-size:13px;color:rgba(255,255,255,.65);margin-top:4px;">${venue}</div>` : ''}
