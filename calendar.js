@@ -508,10 +508,12 @@ function calDetectClashes(targetDate, targetLat, targetLng, genre) {
 }
 
 // ── Month Picker ───────────────────────────────────
-let _calPickerMonth = null; // tracks picker's current view independently
+let _calPickerMonth   = null; // tracks picker's current view independently
+let _calPickerContext = 'cal'; // 'cal' | 'punter'
 
 function calOpenMonthPicker() {
-  _calPickerMonth = new Date(_calViewMonth);
+  _calPickerContext = 'cal';
+  _calPickerMonth   = new Date(_calViewMonth);
   _calPickerPopulateYears();
   document.getElementById('calPickerMonth').value = _calPickerMonth.getMonth();
   document.getElementById('calPickerYear').value  = _calPickerMonth.getFullYear();
@@ -584,18 +586,27 @@ function calPickerRenderGrid() {
 
   for (let d = 1; d <= total; d++) {
     const ds      = `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-    const isToday = ds === today;
-    const isSel   = ds === _calSelDate;
-    const hasEv   = eventDays.has(d);
+    const isToday    = ds === today;
+    const activeSel  = _calPickerContext === 'punter' ? (typeof _punterSelDate !== 'undefined' ? _punterSelDate : null) : _calSelDate;
+    const selColor   = _calPickerContext === 'punter' ? '#D9FF4F' : 'var(--neon2)';
+    const selTextCol = '#0a0a0f';
+    const isSel      = ds === activeSel;
+    const hasEv      = eventDays.has(d);
 
-    let bg = isSel ? 'background:var(--neon2);color:#0a0a0f;'
-           : isToday ? 'background:rgba(0,229,255,.15);color:var(--neon2);border:1px solid var(--neon2);'
-           : hasEv ? 'background:var(--card2);color:var(--text);'
-           : 'background:transparent;color:var(--muted);';
+    let bg = isSel
+           ? `background:${selColor};color:${selTextCol};`
+           : isToday
+             ? (_calPickerContext === 'punter'
+                ? 'background:rgba(217,255,79,.15);color:#D9FF4F;border:1px solid #D9FF4F;'
+                : 'background:rgba(0,229,255,.15);color:var(--neon2);border:1px solid var(--neon2);')
+             : hasEv ? 'background:var(--card2);color:var(--text);'
+             : 'background:transparent;color:var(--muted);';
+
+    const dotColor = _calPickerContext === 'punter' ? (isSel ? '#0a0a0f' : '#D9FF4F') : (isSel ? '#0a0a0f' : 'var(--neon)');
 
     html += `<div onclick="calPickerSelectDay('${ds}')" style="aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:8px;cursor:${hasEv||isToday?'pointer':'default'};${bg}transition:background .1s;">
       <span style="font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:.5px;line-height:1;">${d}</span>
-      ${hasEv ? `<div style="width:4px;height:4px;border-radius:50%;background:${isSel?'#0a0a0f':'var(--neon)'};margin-top:1px;"></div>` : '<div style="height:5px;"></div>'}
+      ${hasEv ? `<div style="width:4px;height:4px;border-radius:50%;background:${dotColor};margin-top:1px;"></div>` : '<div style="height:5px;"></div>'}
     </div>`;
   }
 
@@ -603,13 +614,18 @@ function calPickerRenderGrid() {
 }
 
 function calPickerSelectDay(ds) {
-  // Navigate main calendar to this month and select the day
   const [y, m] = ds.split('-').map(Number);
-  _calViewMonth = new Date(y, m - 1, 1);
-  _calSelDate   = ds;
   calCloseMonthPicker();
-  renderCalHeader();
-  renderCalContent();
+  if (_calPickerContext === 'punter') {
+    _punterViewMonth = new Date(y, m - 1, 1);
+    renderPunterDateStrip();
+    punterSelectDate(ds);
+  } else {
+    _calViewMonth = new Date(y, m - 1, 1);
+    _calSelDate   = ds;
+    renderCalHeader();
+    renderCalContent();
+  }
 }
 
 // ── Render: Header ─────────────────────────────────

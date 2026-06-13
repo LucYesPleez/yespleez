@@ -181,6 +181,22 @@ function punterScrollToSection(id) {
   if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
+function punterOpenMonthPicker() {
+  // Set context so calPickerSelectDay routes back to the punter feed
+  _calPickerContext = 'punter';
+  _calPickerMonth   = new Date(_punterViewMonth);
+  if (typeof _calPickerPopulateYears === 'function') _calPickerPopulateYears();
+  const mSel = document.getElementById('calPickerMonth');
+  const ySel = document.getElementById('calPickerYear');
+  if (mSel) mSel.value = _punterViewMonth.getMonth();
+  if (ySel) ySel.value = _punterViewMonth.getFullYear();
+  if (typeof calPickerRenderGrid === 'function') calPickerRenderGrid();
+  const ov = document.getElementById('calMonthPickerOverlay');
+  const mo = document.getElementById('calMonthPickerModal');
+  if (ov) ov.style.display = 'block';
+  if (mo) mo.style.display = 'block';
+}
+
 function punterPrevMonth() {
   _punterViewMonth = new Date(_punterViewMonth.getFullYear(), _punterViewMonth.getMonth() - 1, 1);
   renderPunterDateStrip();
@@ -214,7 +230,7 @@ function punterClearDate() {
 
 function renderPunterDateStrip() {
   const strip    = document.getElementById('punterDateStrip');
-  const labelEl  = document.getElementById('punterDateMonthLabel');
+  const labelEl  = document.getElementById('punterDateMonthLabelText');
   if (!strip) return;
 
   const y     = _punterViewMonth.getFullYear();

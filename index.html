@@ -4,7 +4,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>YesPleez v3.58</title>
+<title>YesPleez v3.59</title>
 <meta name="theme-color" content="#0a0a0f">
 <link rel="icon" type="image/png" href="icon.png">
 <script src="postcodes.js"></script>
@@ -2816,7 +2816,10 @@ body.player-open .screen.active { padding-bottom: 80px; }
   <!-- Date scroll strip -->
   <div style="max-width:680px;margin:0 auto;padding:14px 16px 0;">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-      <div id="punterDateMonthLabel" style="font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:2px;color:#D9FF4F;"></div>
+      <button onclick="punterOpenMonthPicker()" ontouchend="event.preventDefault();punterOpenMonthPicker();" id="punterDateMonthLabel" style="font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:2px;color:#D9FF4F;cursor:pointer;display:flex;align-items:center;gap:6px;padding:8px 10px 8px 2px;margin:-8px -10px -8px -2px;touch-action:manipulation;-webkit-tap-highlight-color:rgba(217,255,79,.2);user-select:none;background:none;border:none;outline:none;">
+        <span id="punterDateMonthLabelText"></span>
+        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="pointer-events:none;"><path d="M6 9l6 6 6-6"/></svg>
+      </button>
       <div style="display:flex;gap:6px;">
         <button onclick="punterPrevMonth()" ontouchend="event.preventDefault();punterPrevMonth();" style="background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:8px;width:28px;height:28px;cursor:pointer;font-size:13px;line-height:1;touch-action:manipulation;">←</button>
         <button onclick="punterNextMonth()" ontouchend="event.preventDefault();punterNextMonth();" style="background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:8px;width:28px;height:28px;cursor:pointer;font-size:13px;line-height:1;touch-action:manipulation;">→</button>
@@ -5277,13 +5280,13 @@ body.player-open .screen.active { padding-bottom: 80px; }
 <script src="state.js"></script>
 <script src="auth.js?v=5"></script>
 <script src="navigation.js?v=10"></script>
-<script src="follows.js?v=2"></script>
+<script src="follows.js?v=3"></script>
 <script src="notifications.js?v=6"></script>
 <script src="profiles.js?v=10"></script>
 <script src="audio.js?v=4"></script>
 <script src="search.js?v=5"></script>
 <script src="events.js?v=13"></script>
-<script src="calendar.js?v=14"></script>
+<script src="calendar.js?v=15"></script>
 <script src="venues.js?v=1"></script>
 <script src="bands.js?v=1"></script>
 <script src="standup.js?v=1"></script>
