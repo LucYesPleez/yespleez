@@ -67,7 +67,7 @@ body::after {
 }
 
 .screen { display: none; position: relative; z-index: 1; }
-.screen.active { display: block; min-height: 100dvh; padding-bottom: calc(70px + env(safe-area-inset-bottom, 0px)); }
+.screen.active { display: block; min-height: 100dvh; padding-bottom: calc(72px + env(safe-area-inset-bottom, 16px)); }
 
 /* ── Bottom Nav ── */
 #bottomNav {
@@ -591,7 +591,7 @@ body.auth-mode { overflow: hidden; height: 100dvh; }
 /* ══════════════════════════
    ARTIST PROFILE SCREEN
 ══════════════════════════ */
-#profileScreen { background: var(--bg); min-height: 100dvh; overflow-y: auto; padding-bottom: 100px; }
+#profileScreen { background: var(--bg); min-height: 100dvh; overflow-y: auto; padding-bottom: calc(72px + env(safe-area-inset-bottom, 16px)); }
 #profileScreen > .btn-back { margin: 28px 20px 0; display: inline-flex; }
 .profile-inner { max-width: 680px; margin: 0 auto; padding: 0 20px; }
 
@@ -2136,7 +2136,7 @@ body.player-open .screen.active { padding-bottom: 80px; }
 <!-- ══════════════════════════════════════════════
      CALENDAR SCREEN
 ══════════════════════════════════════════════ -->
-<div id="calendarScreen" class="screen" style="background:var(--bg);min-height:100dvh;overflow-y:auto;padding-bottom:80px;">
+<div id="calendarScreen" class="screen" style="background:var(--bg);min-height:100dvh;overflow-y:auto;padding-bottom:calc(72px + env(safe-area-inset-bottom, 16px));">
 
   <!-- Top bar -->
   <div style="max-width:680px;margin:0 auto;padding:28px 20px 0;display:flex;justify-content:flex-end;">
@@ -2782,7 +2782,7 @@ body.player-open .screen.active { padding-bottom: 80px; }
 </div>
 
 <!-- ══════════ PUNTERS DASHBOARD SCREEN ══════════ -->
-<div id="punterDashScreen" class="screen" style="background:var(--bg);min-height:100dvh;overflow-y:auto;padding-bottom:90px;">
+<div id="punterDashScreen" class="screen" style="background:var(--bg);min-height:100dvh;overflow-y:auto;padding-bottom:calc(72px + env(safe-area-inset-bottom, 16px));">
 
   <!-- Header -->
   <div style="max-width:680px;margin:0 auto;padding:20px 16px 0;display:flex;align-items:flex-start;justify-content:space-between;">
