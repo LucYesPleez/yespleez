@@ -5233,6 +5233,13 @@ body.player-open .screen.active { padding-bottom: 80px; }
 <div id="bottomNav" style="display:none;">
   <div class="bn-inner">
 
+    <!-- My Scene (Punter) -->
+    <div id="bnTabScene" class="bn-tab" onclick="enterPunterDashboard()" ontouchend="event.preventDefault();enterPunterDashboard();">
+      <div class="bn-icon-wrap">
+        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      </div>
+    </div>
+
     <!-- Calendar -->
     <div id="bnTabWhatson" class="bn-tab" onclick="showCalendar()" ontouchend="event.preventDefault();showCalendar();">
       <div class="bn-icon-wrap">
@@ -5368,14 +5375,6 @@ body.player-open .screen.active { padding-bottom: 80px; }
 </svg></div>
       <div class="role-card-body">
         <div class="role-card-title" style="background:linear-gradient(135deg,#FF88AA,#FF5588);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">COMEDY / POETRY</div>
-      </div>
-    </div>
-
-    <div class="role-card punter-card" onclick="enterIndustryRole('punter')">
-      <div class="role-card-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16.051 12.616a1 1 0 0 1 1.909.024l.737 1.452a1 1 0 0 0 .737.535l1.634.256a1 1 0 0 1 .588 1.806l-1.172 1.168a1 1 0 0 0-.282.866l.259 1.613a1 1 0 0 1-1.541 1.134l-1.465-.75a1 1 0 0 0-.912 0l-1.465.75a1 1 0 0 1-1.539-1.133l.258-1.613a1 1 0 0 0-.282-.866l-1.156-1.153a1 1 0 0 1 .572-1.822l1.633-.256a1 1 0 0 0 .737-.535z"/><path d="M8 15H7a4 4 0 0 0-4 4v2"/><circle cx="10" cy="7" r="4"/></svg></div>
-      <div class="role-card-body">
-        <div class="role-card-title" style="color:#D9FF4F;">PUNTER</div>
-        <div id="ipBadgePunter" style="display:none;font-size:11px;color:#D9FF4F;margin-top:3px;">✓ Profile set up</div>
       </div>
     </div>
 
