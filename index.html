@@ -67,7 +67,7 @@ body::after {
 }
 
 .screen { display: none; position: relative; z-index: 1; }
-.screen.active { display: block; min-height: 100dvh; }
+.screen.active { display: block; min-height: 100dvh; padding-bottom: calc(70px + env(safe-area-inset-bottom, 0px)); }
 
 /* ── Bottom Nav ── */
 #bottomNav {
