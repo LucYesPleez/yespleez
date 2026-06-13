@@ -1020,44 +1020,23 @@ function renderDayView(dateStr, el) {
       html += `<div style="display:flex;align-items:center;gap:10px;margin:0 0 14px;">
         <div style="font-family:'Bebas Neue',sans-serif;font-size:17px;letter-spacing:2px;color:var(--neon2);">NEARBY NIGHTS</div>
         <div style="flex:1;height:1px;background:linear-gradient(to right,rgba(0,229,255,.4),transparent);"></div>
-      </div>
-      <div style="display:flex;gap:10px;overflow-x:auto;padding-bottom:8px;-webkit-overflow-scrolling:touch;scrollbar-width:none;">
-        ${nearby.map(ev => calSmallCard(ev)).join('')}
       </div>`;
+      html += nearby.map(ev => calSlimDayCard(ev)).join('');
     }
 
     html += `<div style="display:flex;align-items:center;gap:10px;margin:24px 0 14px;">
-      <div style="font-family:'Bebas Neue',sans-serif;font-size:17px;letter-spacing:2px;color:var(--neon);">DISCOVER MORE</div>
-      <div style="flex:1;height:1px;background:linear-gradient(to right,rgba(255,45,120,.4),transparent);"></div>
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:17px;letter-spacing:2px;color:var(--neon2);">DISCOVER</div>
+      <div style="flex:1;height:1px;background:linear-gradient(to right,rgba(0,229,255,.4),transparent);"></div>
     </div>
-    <div style="display:flex;flex-direction:column;gap:10px;">
-      <div onclick="showSearchScreen()" ontouchend="event.preventDefault();showSearchScreen();" style="display:flex;align-items:center;gap:14px;padding:14px 18px;background:rgba(255,45,120,.07);border:1px solid rgba(255,45,120,.25);border-radius:14px;cursor:pointer;touch-action:manipulation;">
-        <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#FF2D78" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16.051 12.616a1 1 0 0 1 1.909.024l.737 1.452a1 1 0 0 0 .737.535l1.634.256a1 1 0 0 1 .588 1.806l-1.172 1.168a1 1 0 0 0-.282.866l.259 1.613a1 1 0 0 1-1.541 1.134l-1.465-.75a1 1 0 0 0-.912 0l-1.465.75a1 1 0 0 1-1.539-1.133l.258-1.613a1 1 0 0 0-.282-.866l-1.156-1.153a1 1 0 0 1 .572-1.822l1.633-.256a1 1 0 0 0 .737-.535z"/><path d="M8 15H7a4 4 0 0 0-4 4v2"/><circle cx="10" cy="7" r="4"/></svg>
-        <div>
-          <div style="font-family:'Bebas Neue',sans-serif;font-size:17px;letter-spacing:1px;color:#FF2D78;">ARTISTS</div>
-          <div style="font-size:12px;color:var(--muted);">Find artists playing near you</div>
-        </div>
-      </div>
-      <div onclick="showSearchScreen()" ontouchend="event.preventDefault();showSearchScreen();" style="display:flex;align-items:center;gap:14px;padding:14px 18px;background:rgba(0,229,255,.07);border:1px solid rgba(0,229,255,.25);border-radius:14px;cursor:pointer;touch-action:manipulation;">
-        <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--neon2)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-        <div>
-          <div style="font-family:'Bebas Neue',sans-serif;font-size:17px;letter-spacing:1px;color:var(--neon2);">VENUES</div>
-          <div style="font-size:12px;color:var(--muted);">Browse venues in your area</div>
-        </div>
-      </div>
-      <div onclick="showSearchScreen()" ontouchend="event.preventDefault();showSearchScreen();" style="display:flex;align-items:center;gap:14px;padding:14px 18px;background:rgba(217,255,79,.07);border:1px solid rgba(217,255,79,.25);border-radius:14px;cursor:pointer;touch-action:manipulation;">
-        <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#D9FF4F" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-        <div>
-          <div style="font-family:'Bebas Neue',sans-serif;font-size:17px;letter-spacing:1px;color:#D9FF4F;">EVENTS</div>
-          <div style="font-size:12px;color:var(--muted);">Explore all upcoming events</div>
-        </div>
-      </div>
+    <div id="calDiscoverProfiles" style="display:flex;gap:10px;overflow-x:auto;padding-bottom:8px;-webkit-overflow-scrolling:touch;scrollbar-width:none;">
+      <div style="font-size:13px;color:var(--muted);padding:8px 0;" class="loading-text">LOADING...</div>
     </div>`;
   } else {
     html += evs.map(ev => calDayCard(ev)).join('');
   }
 
   el.innerHTML = html;
+  if (!evs.length) _loadCalDiscoverProfiles();
 }
 
 // ── Card builders ──────────────────────────────────
@@ -1160,6 +1139,67 @@ function calDayCard(ev) {
       <div style="display:flex;flex-wrap:wrap;gap:6px;">${lineupHtml}${extra}</div>
     </div>` : ''}
   </div>`;
+}
+
+function calSlimDayCard(ev) {
+  const name   = esc(ev.name || 'EVENT');
+  const venue  = esc(ev.config?.venue || '');
+  const poster = ev.config?.poster || ev.poster_url || '';
+  const cat    = calEventCategory(ev);
+  const evDate = calParseDate(ev);
+  const dateStr = evDate ? evDate.toLocaleDateString('en-AU', { weekday:'short', day:'numeric', month:'short' }).toUpperCase() : '';
+  const bg = poster
+    ? `url('${poster}') center/cover no-repeat`
+    : `linear-gradient(135deg,rgba(255,45,120,.35) 0%,rgba(0,229,255,.2) 100%)`;
+  return `<div onclick="calOpenEvent('${ev.id}')" style="border-radius:12px;overflow:hidden;margin-bottom:10px;cursor:pointer;border:1px solid rgba(255,255,255,.07);position:relative;height:90px;background:${bg};">
+    <div style="position:absolute;inset:0;background:linear-gradient(to right,rgba(10,10,15,.75) 0%,rgba(10,10,15,.25) 100%);"></div>
+    <div style="position:absolute;top:8px;left:10px;display:flex;gap:4px;">${cat.map(c=>`<span style="background:${c.color};color:${c.dark?'#0a0a0f':'#fff'};border-radius:6px;padding:2px 7px;font-size:9px;font-weight:700;letter-spacing:.8px;font-family:'DM Sans',sans-serif;">${c.label}</span>`).join('')}</div>
+    <div style="position:absolute;bottom:0;left:0;right:0;padding:10px 12px;">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:1.5px;color:#fff;line-height:1;text-shadow:0 1px 8px rgba(0,0,0,.8);">${name}</div>
+      ${venue || dateStr ? `<div style="font-size:11px;color:rgba(255,255,255,.6);margin-top:2px;">${dateStr}${dateStr && venue ? ' · ' : ''}${venue}</div>` : ''}
+    </div>
+  </div>`;
+}
+
+const _rolePillStyle = {
+  artist:  { color:'#FF2D78', bg:'rgba(255,45,120,.15)',  border:'rgba(255,45,120,.35)'  },
+  host:    { color:'#FF3399', bg:'rgba(255,51,153,.15)',  border:'rgba(255,51,153,.35)'  },
+  band:    { color:'#FF8C42', bg:'rgba(255,140,66,.15)',  border:'rgba(255,140,66,.35)'  },
+  venue:   { color:'#00E5A0', bg:'rgba(0,229,160,.15)',   border:'rgba(0,229,160,.35)'   },
+  standup: { color:'#FF88AA', bg:'rgba(255,136,170,.15)', border:'rgba(255,136,170,.35)' },
+};
+
+function _calProfileCard(p) {
+  const name    = esc(p.dj_name || p.name || 'ARTIST');
+  const type    = (p.type || 'artist').toLowerCase();
+  const label   = type === 'standup' ? 'COMEDY' : type.toUpperCase();
+  const style   = _rolePillStyle[type] || _rolePillStyle.artist;
+  const avatar  = p.avatar || '';
+  const bg      = avatar
+    ? `url('${avatar}') center/cover no-repeat`
+    : `linear-gradient(135deg,rgba(255,45,120,.4) 0%,rgba(157,78,221,.3) 100%)`;
+  const userId  = p.user_id || '';
+  return `<div class="cal-small-card" onclick="showProfilePage && showProfilePage('${userId}')" style="background:${bg};flex-shrink:0;position:relative;">
+    <div class="cal-small-card-overlay"></div>
+    <div class="cal-small-card-content" style="position:relative;">
+      <div style="margin-bottom:4px;"><span style="background:${style.bg};border:1px solid ${style.border};color:${style.color};border-radius:6px;padding:2px 7px;font-size:9px;font-weight:700;letter-spacing:.8px;font-family:'DM Sans',sans-serif;">${label}</span></div>
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:1px;color:#fff;line-height:1.1;">${name}</div>
+    </div>
+  </div>`;
+}
+
+async function _loadCalDiscoverProfiles() {
+  const el = document.getElementById('calDiscoverProfiles');
+  if (!el) return;
+  try {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/profiles?type=in.(artist,host,band,venue,standup)&select=user_id,dj_name,name,type,avatar&limit=12&order=created_at.desc`,
+      { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } }
+    );
+    const profiles = await res.json();
+    if (!Array.isArray(profiles) || !profiles.length) { el.innerHTML = ''; return; }
+    el.innerHTML = profiles.filter(p => p.dj_name || p.name).map(_calProfileCard).join('');
+  } catch(e) { el.innerHTML = ''; }
 }
 
 function calSectionHeader(title, color) {
