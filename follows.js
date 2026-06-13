@@ -491,7 +491,7 @@ function renderPunterFeed() {
       const d = calParseDate(ev);
       if (!d || d < now) return false;
       const evPostcode = parseInt(ev.config?.postcode || '0', 10);
-      const nearbyPc = userPostcode && evPostcode ? Math.abs(evPostcode - userPostcode) <= 100 : true;
+      const nearbyPc = userPostcode && evPostcode ? evPostcode === userPostcode : true;
       if (!nearbyPc) return false;
       if (!interestGenres.length) return true;
       const evText = ((ev.name || '') + ' ' + (ev.config?.genres || '')).toLowerCase();
@@ -543,10 +543,9 @@ async function _loadNearbyProfiles(userPostcode) {
   const profilesEl  = document.getElementById('punterNearbyProfiles');
   if (!section || !profilesEl || !userPostcode) return;
 
-  const pcMin = userPostcode - 100, pcMax = userPostcode + 100;
   try {
     const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/profiles?postcode=gte.${pcMin}&postcode=lte.${pcMax}&type=in.(artist,host,band,venue,standup)&select=user_id,dj_name,name,type,genre_string,avatar,postcode,location&limit=16`,
+      `${SUPABASE_URL}/rest/v1/profiles?postcode=eq.${userPostcode}&type=in.(artist,host,band,venue,standup)&select=user_id,dj_name,name,type,genre_string,avatar,postcode,location&limit=16`,
       { headers: { 'apikey': SUPABASE_KEY } }
     );
     if (!res.ok) return;
