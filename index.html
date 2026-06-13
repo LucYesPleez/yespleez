@@ -4,7 +4,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>YesPleez v3.60</title>
+<title>YesPleez v3.61</title>
 <meta name="theme-color" content="#0a0a0f">
 <link rel="icon" type="image/png" href="icon.png">
 <script src="postcodes.js"></script>
@@ -1827,7 +1827,7 @@ body.player-open .screen.active { padding-bottom: 80px; }
     <div class="role-card punter-card" onclick="enterMode('punter')">
       <div class="role-card-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12.5c0-2.5 2-4.5 4.5-4.5a4.5 4.5 0 0 1 4.5 4.5v6.5h-9z"/><path d="M13 12.5c0-2.5 2-4.5 4.5-4.5s4.5 2 4.5 4.5v6.5h-9z"/><path d="M6.5 8a4.5 4.5 0 0 1 0-5"/><path d="M17.5 8a4.5 4.5 0 0 0 0-5"/><path d="M12 2v4"/></svg></div>
       <div class="role-card-body">
-        <div class="role-card-title" style="color:#D9FF4F;">MY SCENE</div>
+        <div class="role-card-title" style="color:#D9FF4F;">PUNTERS</div>
         <div class="role-card-desc">Follow artists, save events, get notified when your faves play</div>
       </div>
     </div>
@@ -2766,14 +2766,14 @@ body.player-open .screen.active { padding-bottom: 80px; }
   <button onclick="saveStandupProfile()" style="width:100%;background:#FF88AA;border:none;color:#0a0a0f;font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:2px;padding:16px;border-radius:12px;cursor:pointer;margin-top:20px;font-weight:700;">SAVE ACT PROFILE →</button>
 </div>
 
-<!-- ══════════ MY SCENE DASHBOARD SCREEN ══════════ -->
+<!-- ══════════ PUNTERS DASHBOARD SCREEN ══════════ -->
 <div id="punterDashScreen" class="screen" style="background:var(--bg);min-height:100dvh;overflow-y:auto;padding-bottom:90px;">
 
   <!-- Header -->
   <div style="max-width:680px;margin:0 auto;padding:20px 16px 0;display:flex;align-items:flex-start;justify-content:space-between;">
     <div>
       <div class="yp-tag">YESPLEEZ</div>
-      <div style="font-family:'Bebas Neue',sans-serif;font-size:clamp(48px,12vw,72px);line-height:.88;letter-spacing:3px;background:linear-gradient(135deg,#D9FF4F,#BFEF00,#D9FF4F);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;filter:drop-shadow(0 0 8px rgba(217,255,79,0.2));">MY SCENE</div>
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:clamp(48px,12vw,72px);line-height:.88;letter-spacing:3px;background:linear-gradient(135deg,#D9FF4F,#BFEF00,#D9FF4F);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;filter:drop-shadow(0 0 8px rgba(217,255,79,0.2));">PUNTERS</div>
       <div style="font-size:11px;color:var(--muted);margin-top:6px;letter-spacing:.5px;">Your gigs · Your artists · Your world</div>
     </div>
     <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;margin-top:4px;">
@@ -2796,7 +2796,7 @@ body.player-open .screen.active { padding-bottom: 80px; }
   <!-- Time tabs (4 across, yellow accent) -->
   <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:7px;padding:16px 16px 0;max-width:680px;margin:0 auto;">
     <button onclick="punterScrollToSection('punterSecScene')" ontouchend="event.preventDefault();punterScrollToSection('punterSecScene');" style="background:rgba(217,255,79,.07);border:1px solid rgba(217,255,79,.25);border-radius:10px;padding:9px 4px 8px;cursor:pointer;text-align:center;touch-action:manipulation;">
-      <div style="font-family:'Bebas Neue',sans-serif;font-size:12px;letter-spacing:1px;color:#D9FF4F;line-height:1.1;">YOUR SCENE</div>
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:12px;letter-spacing:1px;color:#D9FF4F;line-height:1.1;">YOUR PICKS</div>
       <div style="font-size:9px;color:var(--muted);margin-top:3px;line-height:1.2;">Followed artists</div>
     </button>
     <button onclick="punterScrollToSection('punterSecTonight')" ontouchend="event.preventDefault();punterScrollToSection('punterSecTonight');" style="background:rgba(217,255,79,.07);border:1px solid rgba(217,255,79,.25);border-radius:10px;padding:9px 4px 8px;cursor:pointer;text-align:center;touch-action:manipulation;">
@@ -2841,7 +2841,7 @@ body.player-open .screen.active { padding-bottom: 80px; }
 
 </div>
 
-<!-- MY SCENE — profile setup sheet -->
+<!-- PUNTERS — profile setup sheet -->
 <div id="mySceneOverlay" style="display:none;position:fixed;inset:0;z-index:300;background:rgba(0,0,0,.75);" onclick="closeMySceneProfile()"></div>
 <div id="mySceneSheet" style="display:none;position:fixed;bottom:0;left:50%;transform:translateX(-50%) translateY(100%);width:min(100%,480px);z-index:301;background:var(--card);border-radius:20px 20px 0 0;border-top:1px solid var(--border);max-height:88dvh;overflow-y:auto;transition:transform .3s cubic-bezier(0.32,0.72,0,1);padding-bottom:env(safe-area-inset-bottom,0);">
   <div style="display:flex;justify-content:center;padding:12px 0 4px;">
@@ -2849,7 +2849,7 @@ body.player-open .screen.active { padding-bottom: 80px; }
   </div>
   <div style="padding:16px 20px 32px;">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
-      <div style="font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:2px;color:#D9FF4F;">MY SCENE PROFILE</div>
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:2px;color:#D9FF4F;">PUNTERS PROFILE</div>
       <button onclick="closeMySceneProfile()" style="background:none;border:none;color:var(--muted);font-size:22px;cursor:pointer;line-height:1;padding:0;">×</button>
     </div>
 
@@ -2876,12 +2876,12 @@ body.player-open .screen.active { padding-bottom: 80px; }
 
     <!-- Save -->
     <button onclick="saveMySceneProfile()" style="width:100%;background:#D9FF4F;color:#0a0a0f;border:none;border-radius:12px;padding:15px;font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:2px;cursor:pointer;touch-action:manipulation;" ontouchend="event.preventDefault();saveMySceneProfile();">
-      SAVE MY SCENE →
+      SAVE PUNTERS →
     </button>
   </div>
 </div>
 
-<!-- ── MY SCENE — personal calendar add-event sheet ── -->
+<!-- ── PUNTERS — personal calendar add-event sheet ── -->
 <div id="peOverlay" style="display:none;position:fixed;inset:0;z-index:300;background:rgba(0,0,0,.75);" onclick="closePeSheet()"></div>
 <div id="peSheet" style="display:none;position:fixed;bottom:0;left:50%;transform:translateX(-50%) translateY(100%);width:min(100%,480px);z-index:301;background:var(--card);border-radius:20px 20px 0 0;border-top:1px solid var(--border);max-height:90dvh;overflow-y:auto;transition:transform .3s cubic-bezier(0.32,0.72,0,1);padding-bottom:env(safe-area-inset-bottom,0);">
   <div style="display:flex;justify-content:center;padding:12px 0 4px;">
@@ -5340,7 +5340,7 @@ body.player-open .screen.active { padding-bottom: 80px; }
     <div class="role-card punter-card" onclick="enterIndustryRole('punter')">
       <div class="role-card-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12.5c0-2.5 2-4.5 4.5-4.5a4.5 4.5 0 0 1 4.5 4.5v6.5h-9z"/><path d="M13 12.5c0-2.5 2-4.5 4.5-4.5s4.5 2 4.5 4.5v6.5h-9z"/><path d="M6.5 8a4.5 4.5 0 0 1 0-5"/><path d="M17.5 8a4.5 4.5 0 0 0 0-5"/><path d="M12 2v4"/></svg></div>
       <div class="role-card-body">
-        <div class="role-card-title" style="color:#D9FF4F;">MY SCENE</div>
+        <div class="role-card-title" style="color:#D9FF4F;">PUNTERS</div>
       </div>
     </div>
 
@@ -5355,7 +5355,7 @@ body.player-open .screen.active { padding-bottom: 80px; }
 <script src="state.js"></script>
 <script src="auth.js?v=5"></script>
 <script src="navigation.js?v=10"></script>
-<script src="follows.js?v=4"></script>
+<script src="follows.js?v=5"></script>
 <script src="personal_cal.js?v=1"></script>
 <script src="notifications.js?v=6"></script>
 <script src="profiles.js?v=10"></script>

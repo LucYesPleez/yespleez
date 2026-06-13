@@ -23,7 +23,7 @@ const _screenTitles = {
   artistProfileScreen: 'MY PROFILE',
   venueProfileScreen:  'VENUE PROFILE',
   hostProfileScreen:   'HOST PROFILE',
-  punterDashScreen:    'MY SCENE',
+  punterDashScreen:    'PUNTERS',
   setTimesScreen:      'SET TIMES',
   publicEventScreen:   'EVENT',
   publicProfileScreen: 'PROFILE',

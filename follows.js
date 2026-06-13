@@ -248,7 +248,7 @@ function renderPunterDateStrip() {
     if (d && d.getFullYear() === y && d.getMonth() === m) eventDays.add(d.getDate());
   });
 
-  // Which days have YOUR SCENE events
+  // Which days have YOUR PICKS events
   const sceneDays = new Set();
   (_calEvents || []).forEach(ev => {
     if (typeof calParseDate !== 'function') return;
@@ -279,7 +279,7 @@ function renderPunterDateStrip() {
       textCol = 'color:var(--text);';
     }
 
-    // Dot: neon yellow for YOUR SCENE days, neon green for regular event days
+    // Dot: neon yellow for YOUR PICKS days, neon green for regular event days
     const dotColor = isSel ? '#0a0a0f' : isScene ? '#D9FF4F' : 'var(--neon)';
     const dot = (hasEvs || isScene)
       ? `<div style="width:5px;height:5px;border-radius:50%;background:${dotColor};margin:2px auto 0;flex-shrink:0;"></div>`
@@ -407,13 +407,13 @@ function renderPunterFeed() {
   const twoWeeks  = new Date(now); twoWeeks.setDate(now.getDate() + 14);
 
   if (typeof calParseDate !== 'function') {
-    el.innerHTML = '<div style="text-align:center;padding:60px 16px;color:var(--muted);font-family:\'Bebas Neue\',sans-serif;font-size:20px;letter-spacing:2px;">LOADING YOUR SCENE...</div>';
+    el.innerHTML = '<div style="text-align:center;padding:60px 16px;color:var(--muted);font-family:\'Bebas Neue\',sans-serif;font-size:20px;letter-spacing:2px;">LOADING YOUR PICKS...</div>';
     return;
   }
 
   const all = _calEvents || [];
 
-  // ── YOUR SCENE events ──
+  // ── YOUR PICKS events ──
   const sceneAll  = all.filter(ev => _isPunterSceneEvent(ev));
   const sceneSoon = sceneAll.filter(ev => {
     const d = calParseDate(ev);
@@ -448,13 +448,13 @@ function renderPunterFeed() {
 
   let html = '';
 
-  // ── YOUR SCENE section ──
+  // ── YOUR PICKS section ──
   if (_followsCache.length && sceneSoon.length) {
     // Featured hero card for first scene event
     if (featuredEv && typeof calFeaturedCard === 'function') {
       html += `<div id="punterSecScene">`;
       html += `<div style="display:flex;align-items:center;gap:8px;padding:20px 16px 0;">
-        <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:2px;">YOUR SCENE</div>
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:2px;">YOUR PICKS</div>
         <div style="background:rgba(217,255,79,.15);border:1px solid rgba(217,255,79,.4);border-radius:20px;padding:3px 10px;font-size:10px;letter-spacing:1px;color:#D9FF4F;font-family:'DM Sans',sans-serif;font-weight:600;">ARTISTS YOU FOLLOW</div>
       </div>`;
       html += calFeaturedCard(featuredEv);
@@ -468,13 +468,13 @@ function renderPunterFeed() {
   } else if (_followsCache.length && !sceneSoon.length) {
     // User has follows but no matching events
     html += `<div id="punterSecScene" style="margin:20px 16px 0;padding:20px;background:rgba(217,255,79,.05);border:1px dashed rgba(217,255,79,.2);border-radius:16px;text-align:center;">
-      <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:2px;color:#D9FF4F;margin-bottom:6px;">YOUR SCENE</div>
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:2px;color:#D9FF4F;margin-bottom:6px;">YOUR PICKS</div>
       <div style="font-size:13px;color:var(--muted);line-height:1.6;">No upcoming gigs from your followed artists yet.<br>Check back soon or explore below.</div>
     </div>`;
   } else {
     // No follows yet — prompt
     html += `<div id="punterSecScene" style="margin:20px 16px 0;padding:20px 20px 18px;background:rgba(217,255,79,.05);border:1px dashed rgba(217,255,79,.2);border-radius:16px;">
-      <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:2px;color:#D9FF4F;margin-bottom:6px;">YOUR SCENE</div>
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:2px;color:#D9FF4F;margin-bottom:6px;">YOUR PICKS</div>
       <div style="font-size:13px;color:var(--muted);line-height:1.6;margin-bottom:14px;">Follow artists, bands and venues to see their upcoming gigs here first.</div>
       <button onclick="showCalendar()" ontouchend="event.preventDefault();showCalendar();" style="background:rgba(217,255,79,.12);border:1px solid rgba(217,255,79,.3);color:#D9FF4F;border-radius:10px;padding:10px 18px;font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:1.5px;cursor:pointer;touch-action:manipulation;">DISCOVER ARTISTS →</button>
     </div>`;
@@ -536,7 +536,7 @@ async function _renderPunterDayView(dateStr) {
     const otherEvs = evs.filter(ev => !_isPunterSceneEvent(ev));
 
     if (sceneEvs.length) {
-      html += `<div style="font-family:'Bebas Neue',sans-serif;font-size:12px;letter-spacing:2px;color:#D9FF4F;padding:0 0 8px;margin-bottom:4px;border-bottom:1px solid rgba(217,255,79,.2);">YOUR SCENE</div>`;
+      html += `<div style="font-family:'Bebas Neue',sans-serif;font-size:12px;letter-spacing:2px;color:#D9FF4F;padding:0 0 8px;margin-bottom:4px;border-bottom:1px solid rgba(217,255,79,.2);">YOUR PICKS</div>`;
       html += sceneEvs.map(ev => typeof calDayCard === 'function' ? calDayCard(ev) : calListCard(ev)).join('');
       if (otherEvs.length) html += `<div style="font-family:'Bebas Neue',sans-serif;font-size:12px;letter-spacing:2px;color:var(--muted);padding:16px 0 8px;margin-bottom:4px;border-bottom:1px solid var(--border);">ALL EVENTS</div>`;
     }
