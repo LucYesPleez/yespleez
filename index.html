@@ -1022,12 +1022,8 @@ body.auth-mode { overflow: hidden; height: 100dvh; }
 .role-card.artist-card .role-card-title { color: var(--neon2); }
 .role-card.discover-card .role-card-title { color: var(--gold); }
 .role-card-desc { font-size: 12px; color: var(--muted); line-height: 1.4; }
-.role-hide-btn { margin-left:auto; flex-shrink:0; align-self:center; background:none; border:1px solid rgba(255,255,255,.12); color:var(--muted); border-radius:14px; padding:4px 12px; font-size:10px; letter-spacing:1.5px; cursor:pointer; font-family:'Bebas Neue',sans-serif; touch-action:manipulation; -webkit-tap-highlight-color:transparent; transition:border-color .15s,color .15s; }
-.role-hide-btn:hover { border-color:rgba(255,255,255,.3); color:var(--text); }
 .role-card { display:flex; align-items:center; }
-.role-card.role-hidden { opacity:0.3; pointer-events:none; }
-.role-card.role-hidden .role-hide-btn { pointer-events:all; opacity:1; color:#D9FF4F; border-color:rgba(217,255,79,.4); }
-.role-card.role-hidden .role-hide-btn::after { content:' ON'; }
+.role-new-badge { margin-left:auto; flex-shrink:0; align-self:center; width:26px; height:26px; border-radius:50%; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.18); color:var(--muted); font-size:18px; line-height:24px; text-align:center; font-family:'Bebas Neue',sans-serif; }
 
 
 /* ══════════════════════════
@@ -1841,21 +1837,21 @@ body.player-open .screen.active { padding-bottom: 80px; }
     <span id="rolePip3" style="width:8px;height:8px;border-radius:50%;background:var(--border);display:inline-block;transition:background .2s;"></span>
   </div>
   <div class="role-cards">
-    <div id="roleCard-host" class="role-card host-card" onclick="_roleCardClick(event,'host',enterMode.bind(null,'host'))">
+    <div id="roleCard-host" class="role-card host-card" onclick="enterMode('host')">
       <div class="role-card-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="2" width="18" height="20" rx="2"/><circle cx="12" cy="13" r="5"/><circle cx="12" cy="13" r="2"/><line x1="9" y1="5.5" x2="15" y2="5.5" stroke-width="1.5" stroke-linecap="round"/></svg></div>
       <div class="role-card-body">
         <div class="role-card-title">HOST / PROMOTER</div>
         <div class="role-card-desc">Create events, build set times, manage your lineup, go live</div>
       </div>
-      <button class="role-hide-btn" onclick="event.stopPropagation();_toggleRoleHidden('host')" ontouchend="event.stopPropagation();event.preventDefault();_toggleRoleHidden('host');" id="roleHideBtn-host">HIDE</button>
+      <span id="roleNewBadge-host" class="role-new-badge" style="display:none;">+</span>
     </div>
-    <div id="roleCard-artist" class="role-card artist-card" onclick="_roleCardClick(event,'artist',enterMode.bind(null,'artist'))">
+    <div id="roleCard-artist" class="role-card artist-card" onclick="enterMode('artist')">
       <div class="role-card-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3z"/><path d="M3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg></div>
       <div class="role-card-body">
         <div class="role-card-title">ARTIST / DJ</div>
         <div class="role-card-desc">Build your profile, track your bookings, apply to events</div>
       </div>
-      <button class="role-hide-btn" onclick="event.stopPropagation();_toggleRoleHidden('artist')" ontouchend="event.stopPropagation();event.preventDefault();_toggleRoleHidden('artist');" id="roleHideBtn-artist">HIDE</button>
+      <span id="roleNewBadge-artist" class="role-new-badge" style="display:none;">+</span>
     </div>
     <div id="roleCard-band" class="role-card bands-card" onclick="_roleCardClick(event,'band',enterBandsDashboard)">
       <div class="role-card-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -1881,17 +1877,17 @@ body.player-open .screen.active { padding-bottom: 80px; }
         <div class="role-card-title" style="color:#FF8C42;">BAND / MUSO</div>
         <div class="role-card-desc">List your band, find gigs, connect with venues and promoters</div>
       </div>
-      <button class="role-hide-btn" onclick="event.stopPropagation();_toggleRoleHidden('band')" ontouchend="event.stopPropagation();event.preventDefault();_toggleRoleHidden('band');" id="roleHideBtn-band">HIDE</button>
+      <span id="roleNewBadge-band" class="role-new-badge" style="display:none;">+</span>
     </div>
-    <div id="roleCard-venue" class="role-card venues-card" onclick="_roleCardClick(event,'venue',enterVenueDashboard)">
+    <div id="roleCard-venue" class="role-card venues-card" onclick="enterVenueDashboard()">
       <div class="role-card-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></div>
       <div class="role-card-body">
         <div class="role-card-title" style="color:#00E5A0;">VENUES</div>
         <div class="role-card-desc" id="venueRoleDesc">List your venue, set availability, get found by promoters and artists</div>
       </div>
-      <button class="role-hide-btn" onclick="event.stopPropagation();_toggleRoleHidden('venue')" ontouchend="event.stopPropagation();event.preventDefault();_toggleRoleHidden('venue');" id="roleHideBtn-venue">HIDE</button>
+      <span id="roleNewBadge-venue" class="role-new-badge" style="display:none;">+</span>
     </div>
-    <div id="roleCard-standup" class="role-card standup-card" onclick="_roleCardClick(event,'standup',enterStandupDashboard)">
+    <div id="roleCard-standup" class="role-card standup-card" onclick="enterStandupDashboard()">
       <div class="role-card-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
   <ellipse cx="12" cy="8" rx="5" ry="6.5"/>
   <line x1="8.2" y1="4" x2="15.8" y2="4"/>
@@ -1907,7 +1903,7 @@ body.player-open .screen.active { padding-bottom: 80px; }
         <div class="role-card-title" style="background:linear-gradient(135deg,#FF88AA,#FF5588);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">COMEDY / POETRY</div>
         <div class="role-card-desc">Book gigs, share your sets, connect with comedy clubs and spoken word nights</div>
       </div>
-      <button class="role-hide-btn" onclick="event.stopPropagation();_toggleRoleHidden('standup')" ontouchend="event.stopPropagation();event.preventDefault();_toggleRoleHidden('standup');" id="roleHideBtn-standup">HIDE</button>
+      <span id="roleNewBadge-standup" class="role-new-badge" style="display:none;">+</span>
     </div>
   </div>
   <div style="text-align:center;padding:24px 0 8px;">
@@ -5362,7 +5358,7 @@ body.player-open .screen.active { padding-bottom: 80px; }
 
 <script src="state.js"></script>
 <script src="auth.js?v=8"></script>
-<script src="navigation.js?v=21"></script>
+<script src="navigation.js?v=22"></script>
 <script src="follows.js?v=18"></script>
 <script src="personal_cal.js?v=1"></script>
 <script src="notifications.js?v=6"></script>
@@ -5457,6 +5453,7 @@ body.player-open .screen.active { padding-bottom: 80px; }
 </script>
 </body>
 </html>
+
 
 
 
