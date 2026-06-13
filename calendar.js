@@ -1179,7 +1179,7 @@ function _calProfileCard(p) {
     ? `url('${avatar}') center/cover no-repeat`
     : `linear-gradient(135deg,rgba(255,45,120,.4) 0%,rgba(157,78,221,.3) 100%)`;
   const userId  = p.user_id || '';
-  return `<div class="cal-small-card" onclick="showProfilePage && showProfilePage('${userId}')" style="background:${bg};flex-shrink:0;position:relative;width:105px;border:none;">
+  return `<div class="cal-small-card" onclick="showProfilePage && showProfilePage('${userId}')" style="background:${bg};flex-shrink:0;position:relative;border:none;">
     <div class="cal-small-card-overlay"></div>
     <div class="cal-small-card-content" style="position:relative;">
       <div style="margin-bottom:4px;"><span style="background:${style.bg};border:1px solid ${style.border};color:${style.color};border-radius:6px;padding:2px 7px;font-size:9px;font-weight:700;letter-spacing:.8px;font-family:'DM Sans',sans-serif;">${label}</span></div>
