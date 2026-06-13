@@ -694,9 +694,10 @@ function _calTimeBuckets() {
   const now     = new Date();
   const todayStr = now.toISOString().split('T')[0];
   const dow     = now.getDay(); // 0=Sun
-  // This weekend = coming Fri/Sat/Sun (within 7 days)
-  const daysToFri  = (5 - dow + 7) % 7 || 7;
-  const weekendEnd = new Date(now); weekendEnd.setDate(now.getDate() + (daysToFri + 2));
+  // This weekend = current Fri–Sun; if already in weekend anchor back to Friday
+  const daysToFri  = dow === 5 ? 0 : dow === 6 ? -1 : dow === 0 ? -2 : (5 - dow);
+  const weekendFri = new Date(now); weekendFri.setDate(now.getDate() + daysToFri); weekendFri.setHours(0,0,0,0);
+  const weekendEnd = new Date(weekendFri); weekendEnd.setDate(weekendFri.getDate() + 2); weekendEnd.setHours(23,59,59,999);
   const weekEnd    = new Date(now); weekEnd.setDate(now.getDate() + 7);
   const monthEnd   = new Date(now.getFullYear(), now.getMonth() + 1, 0); // last day of this month
   const nextMonth  = new Date(now.getFullYear(), now.getMonth() + 1, 1);
@@ -704,7 +705,7 @@ function _calTimeBuckets() {
 
   const buckets = [
     { key: 'today',      label: 'TODAY',           color: 'var(--neon2)', test: d => d.toISOString().split('T')[0] === todayStr },
-    { key: 'weekend',    label: 'THIS WEEKEND',     color: 'var(--neon)',  test: d => d > now && d <= weekendEnd },
+    { key: 'weekend',    label: 'THIS WEEKEND',     color: 'var(--neon)',  test: d => { const ds = d.toISOString().split('T')[0]; return ds !== todayStr && d >= weekendFri && d <= weekendEnd; } },
     { key: 'week',       label: 'THIS WEEK',        color: 'var(--gold)',  test: d => d > weekendEnd && d <= weekEnd },
     { key: 'month',      label: 'THIS MONTH',       color: '#9D4EDD',      test: d => d > weekEnd && d <= monthEnd },
     { key: 'nextmonth',  label: nextMonth.toLocaleString('en-AU',{month:'long'}).toUpperCase(), color: 'var(--neon2)', test: d => d >= nextMonth && d <= nextMonthEnd },
@@ -864,8 +865,8 @@ function renderCalContent() {
   const todayStr = now.toISOString().split('T')[0];
   const dow      = now.getDay();
 
-  // Weekend = coming Fri–Sun (or this Fri–Sun if today is Fri/Sat/Sun)
-  const daysToFri  = dow === 5 ? 0 : dow === 6 ? 6 : dow === 0 ? 5 : (5 - dow);
+  // Weekend = current Fri–Sun; if already in weekend anchor back to Friday
+  const daysToFri  = dow === 5 ? 0 : dow === 6 ? -1 : dow === 0 ? -2 : (5 - dow);
   const fri = new Date(now); fri.setDate(now.getDate() + daysToFri); fri.setHours(0,0,0,0);
   const sun = new Date(fri); sun.setDate(fri.getDate() + 2); sun.setHours(23,59,59,999);
 
