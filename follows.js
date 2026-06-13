@@ -418,6 +418,9 @@ function _punterFollowingStrip() {
     </div>`;
   }).join('');
 
+  const countEl = document.getElementById('punterTabFollowingCount');
+  if (countEl) countEl.textContent = count + ' following';
+
   return `<div id="punterFollowingStrip" style="padding:20px 16px 0;">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
       <div style="display:flex;align-items:center;gap:10px;">
@@ -573,14 +576,33 @@ function renderPunterFeed() {
   // ── Nothing at all ──
   const total = tonight.length + weekend.length + comingUp.length;
   if (total === 0 && !sceneSoon.length) {
-    html += `<div style="text-align:center;padding:40px 16px 20px;">
-      <div style="font-family:'Bebas Neue',sans-serif;font-size:26px;letter-spacing:3px;color:var(--muted);margin-bottom:10px;">QUIET OUT THERE</div>
-      <div style="font-size:13px;color:var(--muted);line-height:1.6;margin-bottom:20px;">No upcoming events right now.<br>Check back soon.</div>
-      <button onclick="showCalendar()" ontouchend="event.preventDefault();showCalendar();" style="background:none;border:1px solid var(--border);color:var(--text);border-radius:20px;padding:10px 24px;font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:1px;cursor:pointer;">EXPLORE ALL EVENTS</button>
+    const nearbyEvs = all.filter(ev => {
+      const d = calParseDate(ev);
+      return d && d > now;
+    }).sort((a, b) => calParseDate(a) - calParseDate(b)).slice(0, 6);
+
+    html += `<div style="text-align:center;padding:28px 16px 14px;">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:3px;color:var(--muted);margin-bottom:4px;">NOTHING ANNOUNCED YET</div>
+      <div style="font-size:12px;color:var(--muted);opacity:.7;">No events in the next two weeks</div>
+    </div>`;
+
+    if (nearbyEvs.length) {
+      html += `<div style="padding:0 16px 16px;">
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:2px;margin-bottom:10px;">NEARBY NIGHTS</div>
+        <div style="display:flex;flex-direction:column;gap:8px;max-height:350px;overflow-y:auto;scrollbar-width:none;">
+          ${nearbyEvs.map(ev => typeof calSlimDayCard === 'function' ? calSlimDayCard(ev) : '').join('')}
+        </div>
+      </div>`;
+    }
+
+    html += `<div style="padding:4px 16px 0;">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:2px;color:#00E5FF;margin-bottom:10px;">DISCOVER</div>
+      <div id="sceneDiscoverProfiles" style="display:flex;gap:12px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;padding-bottom:8px;min-height:160px;"></div>
     </div>`;
   }
 
   el.innerHTML = html;
+  if (total === 0 && !sceneSoon.length) _loadSceneDiscoverProfiles('sceneDiscoverProfiles');
 }
 
 async function _loadNearbyProfiles(userPostcode) {
@@ -628,6 +650,24 @@ async function _loadNearbyProfiles(userPostcode) {
   } catch(e) {}
 }
 
+// ── Discover profile cards for empty states ───────
+async function _loadSceneDiscoverProfiles(containerId) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  try {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/profiles?avatar=not.is.null&type=in.(artist,host,band,venue,standup)&select=user_id,dj_name,name,type,avatar,location,sound&limit=12&order=created_at.desc`,
+      { headers: { 'apikey': SUPABASE_KEY } }
+    );
+    if (!res.ok) return;
+    const profiles = await res.json();
+    const myId = currentUser?.id || null;
+    const filtered = profiles.filter(p => p.user_id !== myId);
+    if (!filtered.length) return;
+    el.innerHTML = filtered.map(p => typeof _calProfileCard === 'function' ? _calProfileCard(p) : '').join('');
+  } catch(e) {}
+}
+
 // ── Day view (punter version) ─────────────────────
 async function _renderPunterDayView(dateStr) {
   const el = document.getElementById('punterDayContent');
@@ -654,9 +694,30 @@ async function _renderPunterDayView(dateStr) {
 
   // ── Platform events as horizontal scroll ──
   if (!evs.length) {
-    html += `<div style="text-align:center;padding:40px 0 20px;color:var(--muted);">
-      <div style="font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:2px;margin-bottom:8px;">QUIET NIGHT</div>
-      <div style="font-size:13px;line-height:1.6;">No YesPleez events on this date.</div>
+    const selD = new Date(dateStr + 'T12:00:00');
+    const nearby = (_calEvents || []).filter(ev => {
+      const evD = calParseDate(ev);
+      if (!evD) return false;
+      const diff = Math.abs(evD - selD) / 86400000;
+      return diff > 0 && diff <= 21;
+    }).sort((a, b) => Math.abs(calParseDate(a) - selD) - Math.abs(calParseDate(b) - selD)).slice(0, 6);
+
+    html += `<div style="text-align:center;padding:24px 16px 14px;">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:2px;color:var(--muted);">NOTHING ANNOUNCED YET</div>
+    </div>`;
+
+    if (nearby.length) {
+      html += `<div style="padding:0 16px 14px;">
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:2px;margin-bottom:10px;">NEARBY NIGHTS</div>
+        <div style="display:flex;flex-direction:column;gap:8px;max-height:350px;overflow-y:auto;scrollbar-width:none;">
+          ${nearby.map(ev => typeof calSlimDayCard === 'function' ? calSlimDayCard(ev) : '').join('')}
+        </div>
+      </div>`;
+    }
+
+    html += `<div style="padding:0 16px 0;">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:2px;color:#00E5FF;margin-bottom:10px;">DISCOVER</div>
+      <div id="sceneDayDiscoverProfiles" style="display:flex;gap:12px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;padding-bottom:8px;min-height:160px;"></div>
     </div>`;
   } else {
     const sceneEvs = evs.filter(ev => _isPunterSceneEvent(ev));
@@ -676,6 +737,7 @@ async function _renderPunterDayView(dateStr) {
   html += `<div id="peDayPeopleWrap"></div>`;
 
   el.innerHTML = html;
+  if (!evs.length) _loadSceneDiscoverProfiles('sceneDayDiscoverProfiles');
 
   // Load personal events
   const peEvs  = await (typeof loadPersonalEventsForDate === 'function'

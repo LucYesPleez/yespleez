@@ -108,6 +108,25 @@ function switchAuthTab(tab) {
   document.querySelectorAll('.auth-tab').forEach((t, i) => t.classList.toggle('active', (i===0) === (tab==='login')));
   document.getElementById('loginForm').style.display  = tab === 'login'  ? '' : 'none';
   document.getElementById('signupForm').style.display = tab === 'signup' ? '' : 'none';
+  // Reset confirm field when switching tabs
+  const cf = document.getElementById('signupConfirmField');
+  if (cf) cf.style.display = 'none';
+}
+
+function _signupShowConfirm() {
+  const cf = document.getElementById('signupConfirmField');
+  if (cf) { cf.style.display = ''; document.getElementById('signupPasswordConfirm')?.focus(); }
+}
+
+function _signupToggleEye() {
+  const inp = document.getElementById('signupPassword');
+  const icon = document.getElementById('signupEyeIcon');
+  if (!inp) return;
+  const show = inp.type === 'password';
+  inp.type = show ? 'text' : 'password';
+  icon.innerHTML = show
+    ? '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/>'
+    : '<path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/>';
 }
 
 // ── Login ──────────────────────────────────────────
@@ -164,9 +183,11 @@ async function doSignup() {
   const confirm = document.getElementById('signupPasswordConfirm').value;
   const errEl = document.getElementById('signupErr');
   errEl.classList.remove('show');
-  if (!name)            { errEl.textContent='Please enter your name.'; errEl.classList.add('show'); return; }
   if (!email || !pass)  { errEl.textContent='Please fill in all fields.'; errEl.classList.add('show'); return; }
   if (pass.length < 6)  { errEl.textContent='Password must be at least 6 characters.'; errEl.classList.add('show'); return; }
+  // If confirm field not yet shown, reveal it and wait for them to fill it
+  const confirmField = document.getElementById('signupConfirmField');
+  if (confirmField && confirmField.style.display === 'none') { _signupShowConfirm(); return; }
   if (pass !== confirm) { errEl.textContent='Passwords do not match.'; errEl.classList.add('show'); return; }
   const btn = document.getElementById('signupBtn');
   btn.disabled = true; btn.textContent = 'CREATING...';
@@ -183,7 +204,7 @@ async function doSignup() {
     // Save email to profile row so slot offers can match by email
     sbRest('profiles', {
       method: 'POST',
-      body: JSON.stringify({ user_id: data.user.id, email: email, name: name }),
+      body: JSON.stringify({ user_id: data.user.id, email: email, ...(name && { name }) }),
       prefer: 'resolution=merge-duplicates,return=minimal'
     }, data.access_token).catch(() => {});
     await checkPendingOffers(email, data.access_token);
