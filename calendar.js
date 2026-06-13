@@ -1002,32 +1002,9 @@ function renderDayView(dateStr, el) {
     </div>`;
 
   if (!evs.length) {
-    html += `<div style="text-align:center;padding:32px 0 16px;color:var(--muted);">
-      <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:2px;margin-bottom:6px;color:var(--text);">QUIET NIGHT</div>
-      <div style="font-size:13px;line-height:1.6;">Nothing on this date — but check out what's nearby.</div>
-    </div>`;
-
-    // Nearby events within ±14 days
-    const sel = new Date(dateStr + 'T12:00:00');
-    const nearby = _calEvents.filter(ev => {
-      const d = calParseDate(ev);
-      if (!d) return false;
-      const diff = Math.abs(d - sel) / 86400000;
-      return diff > 0 && diff <= 14;
-    }).sort((a, b) => {
-      const da = calParseDate(a), db = calParseDate(b);
-      return Math.abs(da - sel) - Math.abs(db - sel);
-    }).slice(0, 6);
-
-    if (nearby.length) {
-      html += `<div style="font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:2px;color:var(--neon2);margin:20px 0 10px;">NEARBY NIGHTS</div>`;
-      html += nearby.map(ev => calDayCard(ev)).join('');
-    }
-
-    // Artist suggestions
-    html += `<div style="font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:2px;color:var(--neon2);margin:24px 0 10px;">DISCOVER ARTISTS</div>
-    <div style="text-align:center;padding:12px 0;">
-      <button onclick="showSearchScreen()" ontouchend="event.preventDefault();showSearchScreen();" style="background:linear-gradient(135deg,rgba(255,45,120,.2),rgba(0,229,255,.15));border:1px solid rgba(0,229,255,.3);color:var(--neon2);border-radius:24px;padding:12px 32px;font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:2px;cursor:pointer;touch-action:manipulation;">BROWSE ARTISTS & EVENTS</button>
+    html += `<div style="text-align:center;padding:60px 0;color:var(--muted);">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:2px;margin-bottom:8px;">QUIET NIGHT</div>
+      <div style="font-size:13px;line-height:1.6;">No events on this date.<br>Try a nearby day.</div>
     </div>`;
   } else {
     html += evs.map(ev => calDayCard(ev)).join('');
@@ -1162,9 +1139,46 @@ function openDayPanel(dateStr) {
 
   let evHtml = '';
   if (!evs.length) {
-    evHtml = `<div style="text-align:center;padding:20px 0 8px;color:var(--muted);">
-      <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:2px;margin-bottom:4px;">QUIET NIGHT</div>
-      <div style="font-size:13px;">Nothing listed yet for this date.</div>
+    const selD = new Date(dateStr + 'T12:00:00');
+    const nearby = _calEvents.filter(ev => {
+      const evD = calParseDate(ev);
+      if (!evD) return false;
+      const diff = Math.abs(evD - selD) / 86400000;
+      return diff > 0 && diff <= 14;
+    }).sort((a, b) => {
+      const da = calParseDate(a), db = calParseDate(b);
+      return Math.abs(da - selD) - Math.abs(db - selD);
+    }).slice(0, 4);
+
+    evHtml = `<div style="text-align:center;padding:16px 0 10px;color:var(--muted);">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:2px;margin-bottom:4px;color:var(--text);">QUIET NIGHT</div>
+      <div style="font-size:13px;">Nothing on this date — here's what's nearby.</div>
+    </div>`;
+
+    if (nearby.length) {
+      evHtml += `<div style="font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:2px;color:var(--neon2);margin:12px 0 8px;">NEARBY NIGHTS</div>`;
+      evHtml += nearby.map(ev => {
+        const evName  = ev.name || 'Event';
+        const evVenue = ev.config?.venue || '';
+        const evPoster = ev.poster_url || '';
+        const evBg = evPoster
+          ? `url('${evPoster}') center/cover no-repeat`
+          : `linear-gradient(135deg,rgba(255,45,120,.35),rgba(157,78,221,.25),rgba(0,229,255,.2))`;
+        const evDate = calParseDate(ev);
+        const evDateStr = evDate ? evDate.toLocaleDateString('en-AU', { weekday:'short', day:'numeric', month:'short' }).toUpperCase() : '';
+        return `<div onclick="closeDayPanel();setTimeout(()=>calOpenEvent('${ev.id}'),200);" style="background:${evBg};border-radius:12px;padding:0;margin-bottom:10px;overflow:hidden;cursor:pointer;position:relative;min-height:70px;">
+          <div style="position:absolute;inset:0;background:linear-gradient(to right,rgba(0,0,0,.65) 0%,rgba(0,0,0,.2) 100%);border-radius:12px;"></div>
+          <div style="position:relative;padding:14px 16px;">
+            ${evDateStr ? `<div style="font-size:10px;letter-spacing:1px;color:var(--neon2);margin-bottom:3px;">${evDateStr}</div>` : ''}
+            <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:1px;color:#fff;">${evName}</div>
+            ${evVenue ? `<div style="font-size:12px;color:rgba(255,255,255,.65);margin-top:2px;">${evVenue}</div>` : ''}
+          </div>
+        </div>`;
+      }).join('');
+    }
+
+    evHtml += `<div style="text-align:center;margin-top:14px;">
+      <button onclick="closeDayPanel();setTimeout(showSearchScreen,200);" ontouchend="event.preventDefault();closeDayPanel();setTimeout(showSearchScreen,200);" style="background:rgba(0,229,255,.08);border:1px solid rgba(0,229,255,.3);color:var(--neon2);border-radius:24px;padding:10px 28px;font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:2px;cursor:pointer;touch-action:manipulation;">DISCOVER ARTISTS</button>
     </div>`;
   } else {
     evHtml = evs.map(ev => {
