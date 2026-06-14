@@ -4679,7 +4679,7 @@ async function loadConfirmedYPGigs() {
     // Fetch slot claims AND accepted invite applications in parallel
     const [claimsRes, appsRes] = await Promise.all([
       sbRest(`claims?user_id=eq.${currentUser.id}&select=slot_id,event_id`, { method: 'GET' }, currentSession.access_token),
-      sbRest(`applications?user_id=eq.${currentUser.id}&status=eq.accepted&select=event_id,slot_id`, { method: 'GET' }, currentSession.access_token)
+      sbRest(`applications?user_id=eq.${currentUser.id}&status=eq.accepted&select=event_id`, { method: 'GET' }, currentSession.access_token)
     ]);
 
     const claimRows = claimsRes || [];

@@ -305,10 +305,18 @@ function openPublicProfile(row) {
   const mixLink = row.mix_link || row.soundcloud || row.mixcloud || '';
   const safeName = name.replace(/'/g, "\\'");
 
+  // Seeded waveform — deterministic per artist name so same profile always shows the same shape
+  const _wSeed = name.split('').reduce((a,c) => (a * 31 + c.charCodeAt(0)) | 0, 0x9e3779b9);
+  let _wS = _wSeed; const _wRng = () => { _wS = (_wS ^ (_wS << 13)) | 0; _wS = (_wS ^ (_wS >>> 17)) | 0; _wS = (_wS ^ (_wS << 5)) | 0; return (_wS >>> 0) / 0xffffffff; };
+  const _wN = 32, _wW = 300, _wH = 40, _bW = (_wW / _wN) * 0.55;
+  const _wBars = Array.from({length: _wN}, (_,i) => { const h = 4 + _wRng() * (_wH - 8); const x = (i / _wN) * _wW + (_wW / _wN) * 0.225; const y = (_wH - h) / 2; return `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${_bW.toFixed(1)}" height="${h.toFixed(1)}" rx="1.5"/>`; }).join('');
+  const _waveSvg = `<svg viewBox="0 0 ${_wW} ${_wH}" width="100%" height="100%" preserveAspectRatio="none" style="position:absolute;top:0;left:0;width:100%;height:100%;opacity:.28;" fill="rgba(${accentRgb},1)">${_wBars}</svg>`;
+
   const mixHtml = !isHost ? (mixLink ? `
     <button onclick="openMiniPlayer('${safeName}','${mixLink}','🎧')"
-      style="background:rgba(${accentRgb},.12);border:1.5px solid ${accentColor};border-radius:12px;color:${accentColor};font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:2px;padding:14px 24px;cursor:pointer;width:100%;margin-bottom:12px;">
-      <svg viewBox="0 0 24 24" width="14" height="14" fill="var(--neon2)" style="vertical-align:middle;margin-right:6px;"><polygon points="6,3 20,12 6,21"/></svg>PLAY DEMO MIX
+      style="position:relative;overflow:hidden;background:rgba(${accentRgb},.12);border:1.5px solid ${accentColor};border-radius:12px;color:${accentColor};font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:2px;padding:14px 24px;cursor:pointer;width:100%;margin-bottom:12px;">
+      ${_waveSvg}
+      <span style="position:relative;z-index:1;"><svg viewBox="0 0 24 24" width="14" height="14" fill="var(--neon2)" style="vertical-align:middle;margin-right:6px;"><polygon points="6,3 20,12 6,21"/></svg>PLAY DEMO MIX</span>
     </button>` : `
     <div style="background:rgba(255,255,255,.04);border:1px dashed rgba(255,255,255,.15);border-radius:12px;padding:14px 24px;text-align:center;margin-bottom:12px;">
       <div style="font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:2px;color:var(--muted);"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:5px;opacity:.5;"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3z"/><path d="M3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg>DEMO MIX COMING SOON</div>
@@ -523,22 +531,31 @@ async function loadPublicProfileGigs(userId, accentColor, accentRgb, grad2 = '#B
       `claims?user_id=eq.${userId}&select=slot_id,event_id`,
       { method: 'GET' }, currentSession?.access_token || null
     );
+    console.log('[gigs] claims:', claimRows);
     if (!claimRows?.length) return;
     const eventIds = [...new Set(claimRows.map(c => c.event_id).filter(Boolean))];
     if (!eventIds.length) return;
+    const today = new Date().toISOString().slice(0,10);
     const events = await sbRest(
-      `events?id=in.(${eventIds.join(',')})&select=id,name,config,poster_url,date`,
+      `events?id=in.(${eventIds.join(',')})&select=id,name,config&order=id.asc`,
       { method: 'GET' }, currentSession?.access_token || null
     );
+    console.log('[gigs] events:', events);
     if (!events?.length) return;
 
-    if (!events?.length) return;
+    // Filter to upcoming only (config.date >= today)
+    const todayStr = new Date().toISOString().slice(0,10);
+    const upcoming = events.filter(ev => {
+      const d = ev.config?.date || '';
+      return !d || d >= todayStr;
+    }).sort((a,b) => (a.config?.date||'').localeCompare(b.config?.date||''));
+    if (!upcoming.length) return;
 
     container.innerHTML = `
       <div style="position:relative;background:rgba(19,19,31,.88);backdrop-filter:blur(10px);border-radius:12px;overflow:hidden;margin-bottom:12px;">
         <div style="position:absolute;inset:0;border-radius:12px;padding:1px;background:linear-gradient(135deg,${accentColor},${grad2});-webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none;"></div>
         <div style="font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:2px;color:${accentColor};padding:14px 16px 0;">UPCOMING GIGS</div>
-        ${events.map(ev => typeof calListCard === 'function' ? calListCard(ev) : '').join('')}
+        ${upcoming.map(ev => typeof calListCard === 'function' ? calListCard(ev) : '').join('')}
       </div>
     `;
   } catch(e) { console.warn('loadPublicProfileGigs:', e.message); }

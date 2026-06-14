@@ -1370,11 +1370,10 @@ let _availViewMonth = new Date();
 async function loadMyAvailability() {
   if (DEMO || !currentUser?.id) { _myAvailDates = new Set(); return; }
   try {
-    const { data, error } = await supabase
-      .from('artist_availability')
-      .select('available_date')
-      .eq('user_id', currentUser.id);
-    if (error) throw error;
+    const data = await sbRest(
+      `artist_availability?user_id=eq.${currentUser.id}&select=available_date`,
+      { method: 'GET' }, currentSession?.access_token || null
+    );
     _myAvailDates = new Set((data || []).map(r => r.available_date));
   } catch(e) {
     console.warn('loadMyAvailability:', e);
