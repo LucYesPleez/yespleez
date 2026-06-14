@@ -1153,12 +1153,12 @@ function calSlimDayCard(ev) {
   const bg = poster
     ? `url('${poster}') center/cover no-repeat`
     : `linear-gradient(135deg,rgba(255,45,120,.35) 0%,rgba(0,229,255,.2) 100%)`;
-  return `<div onclick="calOpenEvent('${ev.id}')" style="border-radius:12px;overflow:hidden;margin-bottom:10px;cursor:pointer;border:1px solid rgba(255,255,255,.07);position:relative;height:90px;background:${bg};">
-    <div style="position:absolute;inset:0;background:linear-gradient(to right,rgba(10,10,15,.75) 0%,rgba(10,10,15,.25) 100%);"></div>
-    <div style="position:absolute;top:8px;left:10px;display:flex;gap:4px;">${cat.map(c=>`<span style="background:${c.color};color:${c.dark?'#0a0a0f':'#fff'};border-radius:6px;padding:2px 7px;font-size:9px;font-weight:700;letter-spacing:.8px;font-family:'DM Sans',sans-serif;">${c.label}</span>`).join('')}</div>
-    <div style="position:absolute;bottom:0;left:0;right:0;padding:10px 12px;">
-      <div style="font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:1.5px;color:#fff;line-height:1;text-shadow:0 1px 8px rgba(0,0,0,.8);">${name}</div>
-      ${venue || dateStr ? `<div style="font-size:11px;color:rgba(255,255,255,.6);margin-top:2px;">${dateStr}${dateStr && venue ? ' · ' : ''}${venue}</div>` : ''}
+  return `<div onclick="calOpenEvent('${ev.id}')" style="border-radius:14px;overflow:hidden;margin-bottom:12px;cursor:pointer;border:1px solid rgba(255,255,255,.07);position:relative;height:160px;background:${bg};touch-action:manipulation;">
+    <div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(10,10,15,.85) 0%,rgba(10,10,15,.15) 60%);"></div>
+    <div style="position:absolute;top:10px;left:12px;display:flex;gap:4px;">${cat.map(c=>`<span style="background:${c.color};color:${c.dark?'#0a0a0f':'#fff'};border-radius:6px;padding:2px 8px;font-size:9px;font-weight:700;letter-spacing:.8px;font-family:'DM Sans',sans-serif;">${c.label}</span>`).join('')}</div>
+    <div style="position:absolute;bottom:0;left:0;right:0;padding:12px 14px 14px;">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:1.5px;color:#fff;line-height:1;text-shadow:0 1px 8px rgba(0,0,0,.8);">${name}</div>
+      ${venue || dateStr ? `<div style="font-size:12px;color:rgba(255,255,255,.6);margin-top:4px;">${dateStr}${dateStr && venue ? ' · ' : ''}${venue}</div>` : ''}
     </div>
   </div>`;
 }
