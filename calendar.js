@@ -588,8 +588,8 @@ function calPickerRenderGrid() {
     const ds      = `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
     const isToday    = ds === today;
     const activeSel  = _calPickerContext === 'punter' ? (typeof _punterSelDate !== 'undefined' ? _punterSelDate : null) : _calSelDate;
-    const selColor   = _calPickerContext === 'punter' ? '#D9FF4F' : 'var(--neon2)';
-    const selTextCol = '#0a0a0f';
+    const selColor   = _calPickerContext === 'punter' ? 'linear-gradient(135deg,#00E5FF,#BF5FFF)' : 'var(--neon2)';
+    const selTextCol = '#fff';
     const isSel      = ds === activeSel;
     const hasEv      = eventDays.has(d);
 
@@ -597,12 +597,12 @@ function calPickerRenderGrid() {
            ? `background:${selColor};color:${selTextCol};`
            : isToday
              ? (_calPickerContext === 'punter'
-                ? 'background:rgba(217,255,79,.15);color:#D9FF4F;border:1px solid #D9FF4F;'
+                ? 'background:rgba(191,95,255,.15);color:#BF5FFF;border:1px solid #BF5FFF;'
                 : 'background:rgba(0,229,255,.15);color:var(--neon2);border:1px solid var(--neon2);')
              : hasEv ? 'background:var(--card2);color:var(--text);'
              : 'background:transparent;color:var(--muted);';
 
-    const dotColor = _calPickerContext === 'punter' ? (isSel ? '#0a0a0f' : '#D9FF4F') : (isSel ? '#0a0a0f' : 'var(--neon)');
+    const dotColor = _calPickerContext === 'punter' ? (isSel ? '#fff' : '#BF5FFF') : (isSel ? '#0a0a0f' : 'var(--neon)');
 
     html += `<div onclick="calPickerSelectDay('${ds}')" style="aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:8px;cursor:${hasEv||isToday?'pointer':'default'};${bg}transition:background .1s;">
       <span style="font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:.5px;line-height:1;">${d}</span>
