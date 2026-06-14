@@ -556,12 +556,18 @@ async function loadPublicProfileGigs(userId, accentColor, accentRgb, grad2 = '#B
     console.log('[gigs] events:', events);
     if (!events?.length) return;
 
-    // Filter to upcoming only (config.date >= today)
-    const todayStr = new Date().toISOString().slice(0,10);
+    // Filter to upcoming only — use calParseDate to handle "June 20 / 21" style dates
+    const now = Date.now();
+    const weekAgo = now - 7 * 86400000;
     const upcoming = events.filter(ev => {
-      const d = ev.config?.date || '';
-      return !d || d >= todayStr;
-    }).sort((a,b) => (a.config?.date||'').localeCompare(b.config?.date||''));
+      if (!ev.config?.date) return true;
+      const d = typeof calParseDate === 'function' ? calParseDate(ev) : new Date(ev.config.date);
+      return !d || d.getTime() >= weekAgo;
+    }).sort((a,b) => {
+      const da = typeof calParseDate === 'function' ? calParseDate(a) : null;
+      const db = typeof calParseDate === 'function' ? calParseDate(b) : null;
+      return (da || 0) - (db || 0);
+    });
     if (!upcoming.length) return;
 
     container.innerHTML = `
