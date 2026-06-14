@@ -337,7 +337,8 @@ function openPublicProfile(row) {
     </div>
     ${isHost && row.tagline ? `<div style="display:flex;justify-content:center;flex-wrap:wrap;gap:8px;margin-bottom:16px;">${row.tagline.split(' · ').filter(Boolean).map(c=>`<span style="background:rgba(255,45,120,.12);border:1px solid rgba(255,45,120,.35);color:var(--neon);border-radius:20px;padding:5px 16px;font-family:'Bebas Neue',sans-serif;font-size:12px;letter-spacing:1.5px;">${c}</span>`).join('')}</div>` : ''}
     ${mixHtml}
-    ${row.sound ? (() => { const ds = (typeof dedupeSound === 'function') ? dedupeSound(row.sound, row.genre_string || '') : row.sound; return ds ? `<div style="background:rgba(19,19,31,.88);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:14px 16px;margin-bottom:12px;text-align:center;"><div style="font-size:15px;color:var(--text);font-style:italic;line-height:1.5;">"${ds}"</div></div>` : ''; })() : ''}
+    ${row.sound ? (() => { const ds = (typeof dedupeSound === 'function') ? dedupeSound(row.sound, row.genre_string || '') : row.sound; return ds ? `<div style="background:rgba(19,19,31,.88);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:14px 16px;margin-bottom:${row.tagline ? '8px' : '12px'};text-align:center;"><div style="font-size:15px;color:var(--text);font-style:italic;line-height:1.5;">"${ds}"</div></div>` : ''; })() : ''}
+    ${row.tagline ? `<div style="text-align:center;font-size:12px;color:var(--muted);letter-spacing:.5px;margin-bottom:12px;padding:0 8px;">${row.tagline}</div>` : ''}
     ${row.bio ? `
     <div style="background:rgba(19,19,31,.88);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:16px;margin-bottom:12px;">
       <div style="font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:2px;color:${accentColor};margin-bottom:8px;">ABOUT</div>
