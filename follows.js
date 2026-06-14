@@ -334,7 +334,7 @@ function renderPunterDateStrip() {
 
     let bg, textCol;
     if (isSel) {
-      bg = 'background:linear-gradient(135deg,#BF5FFF,#00E5FF);';
+      bg = 'background:linear-gradient(135deg,#00E5FF,#BF5FFF);';
       textCol = 'color:#fff;';
     } else if (isToday) {
       bg = 'background:rgba(191,95,255,.12);border:1.5px solid #BF5FFF;';

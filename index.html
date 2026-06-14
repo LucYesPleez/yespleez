@@ -2782,7 +2782,7 @@ body.player-open .screen.active { padding-bottom: 80px; }
   <div style="max-width:680px;margin:0 auto;padding:20px 16px 0;display:flex;align-items:flex-start;justify-content:space-between;">
     <div>
       <div class="yp-tag">YESPLEEZ</div>
-      <div style="font-family:'Bebas Neue',sans-serif;font-size:clamp(48px,12vw,72px);line-height:.88;letter-spacing:3px;background:linear-gradient(135deg,#BF5FFF,#00E5FF);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">MY SCENE</div>
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:clamp(48px,12vw,72px);line-height:.88;letter-spacing:3px;background:linear-gradient(135deg,#00E5FF,#BF5FFF);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">MY SCENE</div>
       <div style="font-size:11px;color:var(--muted);margin-top:6px;letter-spacing:.5px;">Your gigs · Your artists · Your world</div>
     </div>
     <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;margin-top:4px;">
@@ -2813,7 +2813,7 @@ body.player-open .screen.active { padding-bottom: 80px; }
       <div style="display:flex;gap:6px;align-items:center;">
         <button onclick="punterPrevMonth()" ontouchend="event.preventDefault();punterPrevMonth();" style="background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:8px;width:28px;height:28px;cursor:pointer;font-size:13px;line-height:1;touch-action:manipulation;">←</button>
         <button onclick="punterNextMonth()" ontouchend="event.preventDefault();punterNextMonth();" style="background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:8px;width:28px;height:28px;cursor:pointer;font-size:13px;line-height:1;touch-action:manipulation;">→</button>
-        <button onclick="openAddEventSheet(_punterSelDate||new Date().toISOString().split('T')[0])" ontouchend="event.preventDefault();openAddEventSheet(_punterSelDate||new Date().toISOString().split('T')[0]);" style="background:linear-gradient(135deg,#BF5FFF,#00E5FF);border:none;border-radius:8px;width:28px;height:28px;cursor:pointer;display:flex;align-items:center;justify-content:center;touch-action:manipulation;box-shadow:0 0 8px rgba(191,95,255,.4);">
+        <button onclick="openAddEventSheet(_punterSelDate||new Date().toISOString().split('T')[0])" ontouchend="event.preventDefault();openAddEventSheet(_punterSelDate||new Date().toISOString().split('T')[0]);" style="background:linear-gradient(135deg,#00E5FF,#BF5FFF);border:none;border-radius:8px;width:28px;height:28px;cursor:pointer;display:flex;align-items:center;justify-content:center;touch-action:manipulation;box-shadow:0 0 8px rgba(191,95,255,.4);">
           <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         </button>
       </div>
@@ -2868,7 +2868,7 @@ body.player-open .screen.active { padding-bottom: 80px; }
     </div>
 
     <!-- Save -->
-    <button onclick="saveMySceneProfile()" style="width:100%;background:linear-gradient(135deg,#BF5FFF,#00E5FF);color:#fff;border:none;border-radius:12px;padding:15px;font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:2px;cursor:pointer;touch-action:manipulation;" ontouchend="event.preventDefault();saveMySceneProfile();">
+    <button onclick="saveMySceneProfile()" style="width:100%;background:linear-gradient(135deg,#00E5FF,#BF5FFF);color:#fff;border:none;border-radius:12px;padding:15px;font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:2px;cursor:pointer;touch-action:manipulation;" ontouchend="event.preventDefault();saveMySceneProfile();">
       SAVE MY SCENE →
     </button>
   </div>
@@ -2942,7 +2942,7 @@ body.player-open .screen.active { padding-bottom: 80px; }
 
     <!-- Save -->
     <button onclick="savePeEvent()" ontouchend="event.preventDefault();savePeEvent();"
-      style="width:100%;background:linear-gradient(135deg,#BF5FFF,#00E5FF);color:#fff;border:none;border-radius:12px;padding:15px;font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:2px;cursor:pointer;touch-action:manipulation;font-weight:700;">
+      style="width:100%;background:linear-gradient(135deg,#00E5FF,#BF5FFF);color:#fff;border:none;border-radius:12px;padding:15px;font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:2px;cursor:pointer;touch-action:manipulation;font-weight:700;">
       SAVE TO YOUR SCENE →
     </button>
 
@@ -5338,8 +5338,8 @@ body.player-open .screen.active { padding-bottom: 80px; }
 
 <script src="state.js"></script>
 <script src="auth.js?v=8"></script>
-<script src="navigation.js?v=27"></script>
-<script src="follows.js?v=28"></script>
+<script src="navigation.js?v=28"></script>
+<script src="follows.js?v=29"></script>
 <script src="personal_cal.js?v=2"></script>
 <script src="notifications.js?v=6"></script>
 <script src="profiles.js?v=10"></script>
