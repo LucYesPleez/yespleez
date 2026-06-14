@@ -323,7 +323,7 @@ function openPublicProfile(row) {
   let _wS = _wSeed; const _wRng = () => { _wS = (_wS ^ (_wS << 13)) | 0; _wS = (_wS ^ (_wS >>> 17)) | 0; _wS = (_wS ^ (_wS << 5)) | 0; return (_wS >>> 0) / 0xffffffff; };
   const _wN = 32, _wW = 300, _wH = 40, _bW = (_wW / _wN) * 0.55;
   const _wBars = Array.from({length: _wN}, (_,i) => { const h = 4 + _wRng() * (_wH - 8); const x = (i / _wN) * _wW + (_wW / _wN) * 0.225; const y = (_wH - h) / 2; return `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${_bW.toFixed(1)}" height="${h.toFixed(1)}" rx="1.5"/>`; }).join('');
-  const _waveSvg = `<svg viewBox="0 0 ${_wW} ${_wH}" preserveAspectRatio="none" style="position:absolute;top:0;left:50%;transform:translateX(-50%);width:55%;height:100%;opacity:.22;mask-image:linear-gradient(to right,transparent 0%,black 20%,black 80%,transparent 100%);-webkit-mask-image:linear-gradient(to right,transparent 0%,black 20%,black 80%,transparent 100%);" fill="rgba(${accentRgb},1)">${_wBars}</svg>`;
+  const _waveSvg = `<svg viewBox="0 0 ${_wW} ${_wH}" preserveAspectRatio="none" style="position:absolute;top:0;left:50%;transform:translateX(-50%);width:38%;height:100%;opacity:.32;mask-image:linear-gradient(to right,black 0%,transparent 35%,transparent 65%,black 100%);-webkit-mask-image:linear-gradient(to right,black 0%,transparent 35%,transparent 65%,black 100%);" fill="rgba(${accentRgb},1)">${_wBars}</svg>`;
 
   const mixHtml = !isHost ? (mixLink ? `
     <button onclick="openMiniPlayer('${safeName}','${mixLink}','🎧')"
