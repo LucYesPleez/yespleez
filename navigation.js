@@ -124,12 +124,19 @@ function closeIndustryPanel() {
 }
 
 function _updateIndustryPanelBadges() {
-  const hostBadge   = document.getElementById('ipBadgeHost');
-  const artistBadge = document.getElementById('ipBadgeArtist');
-  const punterBadge = document.getElementById('ipBadgePunter');
-  if (hostBadge)   hostBadge.style.display   = (hostProfile?.name)           ? '' : 'none';
-  if (artistBadge) artistBadge.style.display = (artistProfile?.djName)       ? '' : 'none';
-  if (punterBadge) punterBadge.style.display = (window._punterProfile?.name) ? '' : 'none';
+  const profiles = {
+    Host:    !!(hostProfile?.name),
+    Artist:  !!(artistProfile?.djName),
+    Band:    !!(bandProfile?.name),
+    Venue:   !!(venueProfile?.name),
+    Standup: !!(standupProfile?.name)
+  };
+  Object.entries(profiles).forEach(([role, hasProfile]) => {
+    const card  = document.getElementById('ipCard' + role);
+    const badge = document.getElementById('ipBadge' + role);
+    if (card)  card.style.display  = hasProfile ? '' : 'none';
+    if (badge) badge.style.display = hasProfile ? '' : 'none';
+  });
 }
 
 function enterIndustryRole(role) {
