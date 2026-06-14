@@ -568,13 +568,29 @@ async function loadPublicProfileGigs(userId, accentColor, accentRgb, grad2 = '#B
       const db = typeof calParseDate === 'function' ? calParseDate(b) : null;
       return (da || 0) - (db || 0);
     });
+    console.log('[gigs] upcoming:', upcoming.length, upcoming.map(e=>e.config?.date));
     if (!upcoming.length) return;
 
     container.innerHTML = `
       <div style="position:relative;background:rgba(19,19,31,.88);backdrop-filter:blur(10px);border-radius:12px;overflow:hidden;margin-bottom:12px;">
         <div style="position:absolute;inset:0;border-radius:12px;padding:1px;background:linear-gradient(135deg,${accentColor},${grad2});-webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none;"></div>
         <div style="font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:2px;color:${accentColor};padding:14px 16px 0;">UPCOMING GIGS</div>
-        ${upcoming.map(ev => typeof calListCard === 'function' ? calListCard(ev) : '').join('')}
+        ${upcoming.map(ev => {
+          if (typeof calListCard === 'function') return calListCard(ev);
+          // Fallback card if calListCard not in scope
+          const cfg = ev.config || {};
+          const poster = cfg.poster || '';
+          const bg = poster ? `url('${poster}') center/cover no-repeat` : `linear-gradient(135deg,rgba(255,45,120,.5),rgba(0,229,255,.3))`;
+          const venue = cfg.venue || '';
+          const dateStr = cfg.date || '';
+          return `<div onclick="calOpenEvent && calOpenEvent('${ev.id}')" style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--border);cursor:pointer;">
+            <div style="width:60px;height:60px;border-radius:10px;background:${bg};flex-shrink:0;"></div>
+            <div style="flex:1;min-width:0;">
+              <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:.5px;line-height:1;margin-bottom:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${ev.name||'EVENT'}</div>
+              <div style="font-size:11px;color:var(--muted);">${[venue,dateStr].filter(Boolean).join(' · ')}</div>
+            </div>
+          </div>`;
+        }).join('')}
       </div>
     `;
   } catch(e) { console.warn('loadPublicProfileGigs:', e.message); }
