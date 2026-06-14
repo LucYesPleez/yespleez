@@ -969,7 +969,7 @@ async function _renderPunterDayView(dateStr) {
   let html = `<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 16px;margin:16px 0 20px;">
     <button onclick="punterClearDate()" ontouchend="event.preventDefault();punterClearDate();" style="background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:20px;padding:7px 16px;font-size:12px;letter-spacing:1px;font-family:'Bebas Neue',sans-serif;cursor:pointer;touch-action:manipulation;flex-shrink:0;">← BACK</button>
     <div style="font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:1.5px;color:#BF5FFF;line-height:1;flex:1;text-align:center;">${dayLabel}</div>
-    <button onclick="openAddEventSheet('${safeDate}')" ontouchend="event.preventDefault();openAddEventSheet('${safeDate}');" style="background:#BF5FFF;color:#0a0a0f;border:none;border-radius:20px;padding:7px 14px;font-size:12px;letter-spacing:1px;font-family:'Bebas Neue',sans-serif;cursor:pointer;touch-action:manipulation;flex-shrink:0;font-weight:700;">+ ADD</button>
+    <button onclick="openAddEventSheet('${safeDate}')" ontouchend="event.preventDefault();openAddEventSheet('${safeDate}');" style="background:linear-gradient(135deg,#00E5FF,#BF5FFF);color:#fff;border:none;border-radius:20px;padding:7px 14px;font-size:12px;letter-spacing:1px;font-family:'Bebas Neue',sans-serif;cursor:pointer;touch-action:manipulation;flex-shrink:0;font-weight:700;">+ ADD</button>
   </div>`;
 
   // ── Personal events (async load) ──
@@ -991,7 +991,10 @@ async function _renderPunterDayView(dateStr) {
 
     if (nearby.length) {
       html += `<div style="padding:0 16px 14px;">
-        <div style="font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:2px;margin-bottom:10px;">NEARBY NIGHTS</div>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:2px;background:linear-gradient(135deg,#00E5FF,#BF5FFF);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">NEARBY NIGHTS</div>
+          <div style="flex:1;height:1px;background:linear-gradient(to right,rgba(0,229,255,.5),rgba(191,95,255,.3),transparent);"></div>
+        </div>
         <div style="display:flex;flex-direction:column;gap:8px;height:calc((100dvh - 300px) / 2);overflow-y:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;flex-shrink:0;">
           ${nearby.map(ev => typeof calSlimDayCard === 'function' ? calSlimDayCard(ev) : '').join('')}
         </div>
@@ -999,7 +1002,10 @@ async function _renderPunterDayView(dateStr) {
     }
 
     html += `<div style="padding:0 16px 0;">
-      <div style="font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:2px;color:#00E5FF;margin-bottom:10px;">DISCOVER</div>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:2px;background:linear-gradient(135deg,#00E5FF,#BF5FFF);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">DISCOVER</div>
+        <div style="flex:1;height:1px;background:linear-gradient(to right,rgba(0,229,255,.5),rgba(191,95,255,.3),transparent);"></div>
+      </div>
       <div id="sceneDayDiscoverProfiles" style="display:flex;gap:12px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;padding-bottom:8px;min-height:160px;"></div>
     </div>`;
   } else {
