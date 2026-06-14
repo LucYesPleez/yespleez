@@ -729,7 +729,7 @@ function calFeaturedCard(ev) {
   const dateStr = d ? d.toLocaleDateString('en-AU', { weekday:'long', day:'numeric', month:'long' }).toUpperCase() : (ev.config?.date || '').toUpperCase();
 
   return `<div onclick="calOpenEvent('${ev.id}')" style="position:relative;margin:16px 16px 0;border-radius:20px;overflow:hidden;cursor:pointer;height:280px;background:${bg};box-shadow:0 8px 40px rgba(0,0,0,.6);">
-    <div style="position:absolute;inset:0;background:linear-gradient(to bottom,rgba(0,0,0,.05) 0%,rgba(0,0,0,.15) 30%,rgba(0,0,0,.75) 75%,rgba(0,0,0,.9) 100%);"></div>
+    <div style="position:absolute;inset:0;background:linear-gradient(to bottom,rgba(0,0,0,.08) 0%,rgba(0,0,0,0) 35%,rgba(0,0,0,.6) 75%,rgba(0,0,0,.88) 100%);"></div>
     <!-- Featured badge -->
     <div style="position:absolute;top:16px;left:16px;background:${accent};color:#fff;border-radius:6px;padding:4px 10px;font-size:9px;font-weight:700;letter-spacing:1.2px;font-family:'DM Sans',sans-serif;">FEATURED</div>
     <!-- Content -->
@@ -793,7 +793,7 @@ function calWhatsOnCard(ev, size) {
   return `<div onclick="calOpenEvent('${ev.id}')" style="flex-shrink:0;width:${w};border-radius:16px;overflow:hidden;background:var(--card2);cursor:pointer;transition:transform .15s;" onmouseenter="this.style.transform='translateY(-3px)'" onmouseleave="this.style.transform=''">
     <div style="position:relative;height:${imgH};background:${bgFallback};">
       ${poster ? `<img src="${poster}" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center;display:block;image-rendering:-webkit-optimize-contrast;filter:contrast(1.08) saturate(1.05);" loading="lazy">` : ''}
-      <div style="position:absolute;inset:0;background:linear-gradient(to bottom,rgba(0,0,0,.1) 0%,rgba(0,0,0,0) 40%,rgba(0,0,0,.4) 100%);"></div>
+      <div style="position:absolute;inset:0;background:linear-gradient(to bottom,rgba(0,0,0,.08) 0%,rgba(0,0,0,0) 35%,rgba(0,0,0,.6) 75%,rgba(0,0,0,.88) 100%);"></div>
       <div style="position:absolute;top:10px;left:10px;display:flex;gap:4px;flex-wrap:wrap;">${cat.map(c=>`<span style="background:${c.color};color:${c.dark?'#0a0a0f':'#fff'};border-radius:6px;padding:3px 8px;font-size:9px;font-weight:700;letter-spacing:.8px;font-family:'DM Sans',sans-serif;">${c.label}</span>`).join('')}</div>
       <button class="heart-btn${typeof isFollowing==='function'&&isFollowing(ev.id)?' active':''}"
         onclick="event.stopPropagation();event.stopImmediatePropagation();heartToggle(this,'${ev.id}',${JSON.stringify(ev.name||'')})"
@@ -1154,7 +1154,7 @@ function calSlimDayCard(ev) {
     ? `url('${poster}') center/cover no-repeat`
     : `linear-gradient(135deg,rgba(255,45,120,.35) 0%,rgba(0,229,255,.2) 100%)`;
   return `<div onclick="calOpenEvent('${ev.id}')" style="border-radius:14px;overflow:hidden;cursor:pointer;border:1px solid rgba(255,255,255,.07);position:relative;height:calc((100dvh - 300px) / 3.5);min-height:80px;background:${bg};touch-action:manipulation;flex-shrink:0;">
-    <div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(10,10,15,.88) 0%,rgba(10,10,15,.1) 60%);"></div>
+    <div style="position:absolute;inset:0;background:linear-gradient(to bottom,rgba(0,0,0,.08) 0%,rgba(0,0,0,0) 35%,rgba(0,0,0,.6) 75%,rgba(0,0,0,.88) 100%);"></div>
     <div style="position:absolute;top:10px;left:12px;display:flex;gap:4px;">${cat.map(c=>`<span style="background:${c.color};color:${c.dark?'#0a0a0f':'#fff'};border-radius:6px;padding:2px 8px;font-size:9px;font-weight:700;letter-spacing:.8px;font-family:'DM Sans',sans-serif;">${c.label}</span>`).join('')}</div>
     <div style="position:absolute;bottom:0;left:0;right:0;padding:12px 14px 16px;">
       <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:1.5px;color:#fff;line-height:1;text-shadow:0 1px 8px rgba(0,0,0,.8);">${name}</div>
