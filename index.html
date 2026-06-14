@@ -1010,7 +1010,7 @@ body.auth-mode { overflow: hidden; height: 100dvh; }
 .role-card.bands-card:hover     { border-color: #FF8C42;         box-shadow: 0 0 28px rgba(255,140,66,.28); }
 .role-card.venues-card:hover    { border-color: #00E5A0;         box-shadow: 0 0 28px rgba(0,229,160,.28); }
 .role-card.standup-card:hover   { border-color: #FF88AA;         box-shadow: 0 0 28px rgba(232,121,249,.28); }
-.role-card.punter-card:hover    { border-color: #D9FF4F;         box-shadow: 0 0 28px rgba(217,255,79,.22); }
+.role-card.punter-card:hover    { border-color: #BF5FFF;         box-shadow: 0 0 28px rgba(191,95,255,.22); }
 .role-card.home-card:hover      { border-color: #9D4EDD;          box-shadow: 0 0 28px rgba(157,78,221,.28); }
 .role-card-icon { font-size: 32px; line-height: 1; flex-shrink: 0; }
 .role-card-body { flex: 1; min-width: 0; }
@@ -2782,21 +2782,21 @@ body.player-open .screen.active { padding-bottom: 80px; }
   <div style="max-width:680px;margin:0 auto;padding:20px 16px 0;display:flex;align-items:flex-start;justify-content:space-between;">
     <div>
       <div class="yp-tag">YESPLEEZ</div>
-      <div style="font-family:'Bebas Neue',sans-serif;font-size:clamp(48px,12vw,72px);line-height:.88;letter-spacing:3px;color:#D9FF4F;text-shadow:0 0 32px rgba(217,255,79,0.25);">MY SCENE</div>
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:clamp(48px,12vw,72px);line-height:.88;letter-spacing:3px;background:linear-gradient(135deg,#BF5FFF,#00E5FF);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">MY SCENE</div>
       <div style="font-size:11px;color:var(--muted);margin-top:6px;letter-spacing:.5px;">Your gigs · Your artists · Your world</div>
     </div>
     <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;margin-top:4px;">
-      <div class="mode-toggle" onclick="tryToggleMode()" style="border-color:rgba(217,255,79,.3);color:#D9FF4F;">
-        <div class="mode-toggle-dot" style="background:#D9FF4F;box-shadow:0 0 6px #D9FF4F;"></div>
+      <div class="mode-toggle" onclick="tryToggleMode()" style="border-color:rgba(191,95,255,.3);color:#BF5FFF;">
+        <div class="mode-toggle-dot" style="background:#BF5FFF;box-shadow:0 0 6px #BF5FFF;"></div>
         HOME
       </div>
       <!-- Compact profile pill -->
       <div onclick="showPunterProfile()" ontouchend="event.preventDefault();showPunterProfile();"
-        style="display:flex;align-items:center;gap:8px;background:rgba(217,255,79,.08);border:1px solid rgba(217,255,79,.22);border-radius:20px;padding:6px 12px 6px 8px;cursor:pointer;touch-action:manipulation;">
-        <div style="width:26px;height:26px;border-radius:8px;background:rgba(217,255,79,.15);display:flex;align-items:center;justify-content:center;color:#D9FF4F;flex-shrink:0;">
+        style="display:flex;align-items:center;gap:8px;background:rgba(191,95,255,.08);border:1px solid rgba(191,95,255,.22);border-radius:20px;padding:6px 12px 6px 8px;cursor:pointer;touch-action:manipulation;">
+        <div style="width:26px;height:26px;border-radius:8px;background:rgba(191,95,255,.15);display:flex;align-items:center;justify-content:center;color:#BF5FFF;flex-shrink:0;">
           <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 1 0-16 0"/></svg>
         </div>
-        <div id="punterDashName" style="font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:1px;color:#D9FF4F;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">MY PROFILE</div>
+        <div id="punterDashName" style="font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:1px;color:#BF5FFF;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">MY PROFILE</div>
       </div>
       <div id="punterDashUserEmail" style="font-size:10px;color:var(--muted);text-align:right;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></div>
     </div>
@@ -2806,15 +2806,15 @@ body.player-open .screen.active { padding-bottom: 80px; }
   <!-- Date scroll strip -->
   <div style="max-width:680px;margin:0 auto;padding:14px 16px 0;">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-      <button onclick="punterOpenMonthPicker()" ontouchend="event.preventDefault();punterOpenMonthPicker();" id="punterDateMonthLabel" style="font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:2px;color:#D9FF4F;cursor:pointer;display:flex;align-items:center;gap:6px;padding:8px 10px 8px 2px;margin:-8px -10px -8px -2px;touch-action:manipulation;-webkit-tap-highlight-color:rgba(217,255,79,.2);user-select:none;background:none;border:none;outline:none;">
+      <button onclick="punterOpenMonthPicker()" ontouchend="event.preventDefault();punterOpenMonthPicker();" id="punterDateMonthLabel" style="font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:2px;color:#BF5FFF;cursor:pointer;display:flex;align-items:center;gap:6px;padding:8px 10px 8px 2px;margin:-8px -10px -8px -2px;touch-action:manipulation;-webkit-tap-highlight-color:rgba(191,95,255,.2);user-select:none;background:none;border:none;outline:none;">
         <span id="punterDateMonthLabelText"></span>
         <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="pointer-events:none;"><path d="M6 9l6 6 6-6"/></svg>
       </button>
       <div style="display:flex;gap:6px;align-items:center;">
         <button onclick="punterPrevMonth()" ontouchend="event.preventDefault();punterPrevMonth();" style="background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:8px;width:28px;height:28px;cursor:pointer;font-size:13px;line-height:1;touch-action:manipulation;">←</button>
         <button onclick="punterNextMonth()" ontouchend="event.preventDefault();punterNextMonth();" style="background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:8px;width:28px;height:28px;cursor:pointer;font-size:13px;line-height:1;touch-action:manipulation;">→</button>
-        <button onclick="openAddEventSheet(_punterSelDate||new Date().toISOString().split('T')[0])" ontouchend="event.preventDefault();openAddEventSheet(_punterSelDate||new Date().toISOString().split('T')[0]);" style="background:#D9FF4F;border:none;border-radius:8px;width:28px;height:28px;cursor:pointer;display:flex;align-items:center;justify-content:center;touch-action:manipulation;box-shadow:0 0 8px rgba(217,255,79,.35);">
-          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0a0a0f" stroke-width="3" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        <button onclick="openAddEventSheet(_punterSelDate||new Date().toISOString().split('T')[0])" ontouchend="event.preventDefault();openAddEventSheet(_punterSelDate||new Date().toISOString().split('T')[0]);" style="background:linear-gradient(135deg,#BF5FFF,#00E5FF);border:none;border-radius:8px;width:28px;height:28px;cursor:pointer;display:flex;align-items:center;justify-content:center;touch-action:manipulation;box-shadow:0 0 8px rgba(191,95,255,.4);">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         </button>
       </div>
     </div>
@@ -2842,7 +2842,7 @@ body.player-open .screen.active { padding-bottom: 80px; }
   </div>
   <div style="padding:16px 20px 32px;">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
-      <div style="font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:2px;color:#D9FF4F;">MY SCENE PROFILE</div>
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:2px;color:#BF5FFF;">MY SCENE PROFILE</div>
       <button onclick="closeMySceneProfile()" style="background:none;border:none;color:var(--muted);font-size:22px;cursor:pointer;line-height:1;padding:0;">×</button>
     </div>
 
@@ -2868,7 +2868,7 @@ body.player-open .screen.active { padding-bottom: 80px; }
     </div>
 
     <!-- Save -->
-    <button onclick="saveMySceneProfile()" style="width:100%;background:#D9FF4F;color:#0a0a0f;border:none;border-radius:12px;padding:15px;font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:2px;cursor:pointer;touch-action:manipulation;" ontouchend="event.preventDefault();saveMySceneProfile();">
+    <button onclick="saveMySceneProfile()" style="width:100%;background:linear-gradient(135deg,#BF5FFF,#00E5FF);color:#fff;border:none;border-radius:12px;padding:15px;font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:2px;cursor:pointer;touch-action:manipulation;" ontouchend="event.preventDefault();saveMySceneProfile();">
       SAVE MY SCENE →
     </button>
   </div>
@@ -2884,7 +2884,7 @@ body.player-open .screen.active { padding-bottom: 80px; }
 
     <!-- Header -->
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
-      <div style="font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:2px;color:#D9FF4F;">ADD TO YOUR SCENE</div>
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:2px;color:#BF5FFF;">ADD TO YOUR SCENE</div>
       <button onclick="closePeSheet()" style="background:none;border:none;color:var(--muted);font-size:22px;cursor:pointer;line-height:1;padding:0;">×</button>
     </div>
     <div id="peSheetDateLabel" style="font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:1.5px;color:var(--muted);margin-bottom:20px;"></div>
@@ -2894,7 +2894,7 @@ body.player-open .screen.active { padding-bottom: 80px; }
       <label style="font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:2px;color:var(--muted);display:block;margin-bottom:6px;">WHAT'S HAPPENING?</label>
       <input type="text" id="peSheetTitle" placeholder="e.g. Night out, Birthday, Gig with mates" maxlength="60" autocomplete="off"
         style="width:100%;background:var(--dark);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:15px;padding:12px 14px;outline:none;box-sizing:border-box;"
-        onfocus="this.style.borderColor='#D9FF4F'" onblur="this.style.borderColor=''">
+        onfocus="this.style.borderColor='#BF5FFF'" onblur="this.style.borderColor=''">
     </div>
 
     <!-- Time -->
@@ -2902,7 +2902,7 @@ body.player-open .screen.active { padding-bottom: 80px; }
       <label style="font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:2px;color:var(--muted);display:block;margin-bottom:6px;">TIME <span style="font-size:10px;font-family:'DM Sans',sans-serif;text-transform:none;letter-spacing:0;">(optional)</span></label>
       <input type="time" id="peSheetTime"
         style="width:100%;background:var(--dark);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:15px;padding:12px 14px;outline:none;box-sizing:border-box;-webkit-appearance:none;appearance:none;"
-        onfocus="this.style.borderColor='#D9FF4F'" onblur="this.style.borderColor=''">
+        onfocus="this.style.borderColor='#BF5FFF'" onblur="this.style.borderColor=''">
     </div>
 
     <!-- Notes -->
@@ -2910,7 +2910,7 @@ body.player-open .screen.active { padding-bottom: 80px; }
       <label style="font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:2px;color:var(--muted);display:block;margin-bottom:6px;">NOTES <span style="font-size:10px;font-family:'DM Sans',sans-serif;text-transform:none;letter-spacing:0;">(optional)</span></label>
       <textarea id="peSheetNotes" placeholder="Any details, venue, who's coming..." maxlength="280" rows="2"
         style="width:100%;background:var(--dark);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;padding:12px 14px;outline:none;box-sizing:border-box;resize:none;line-height:1.5;"
-        onfocus="this.style.borderColor='#D9FF4F'" onblur="this.style.borderColor=''"></textarea>
+        onfocus="this.style.borderColor='#BF5FFF'" onblur="this.style.borderColor=''"></textarea>
     </div>
 
     <!-- Private toggle -->
@@ -2922,7 +2922,7 @@ body.player-open .screen.active { padding-bottom: 80px; }
       <label style="position:relative;display:inline-block;width:44px;height:24px;cursor:pointer;flex-shrink:0;" onclick="event.stopPropagation()">
         <input type="checkbox" id="peSheetPrivate" checked onchange="peTogglePrivate()"
           style="opacity:0;width:0;height:0;position:absolute;">
-        <span id="pePrivateSlider" style="position:absolute;inset:0;background:#D9FF4F;border-radius:12px;transition:background .2s;pointer-events:none;"></span>
+        <span id="pePrivateSlider" style="position:absolute;inset:0;background:#BF5FFF;border-radius:12px;transition:background .2s;pointer-events:none;"></span>
         <span id="pePrivateKnob" style="position:absolute;top:3px;left:3px;width:18px;height:18px;background:#0a0a0f;border-radius:50%;transition:transform .2s;pointer-events:none;"></span>
       </label>
     </div>
@@ -2935,14 +2935,14 @@ body.player-open .screen.active { padding-bottom: 80px; }
         <input type="text" id="peSheetSearchInput" placeholder="Search by name…" autocomplete="off"
           style="width:100%;background:var(--dark);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;padding:11px 14px;outline:none;box-sizing:border-box;"
           oninput="peSearchUsers()"
-          onfocus="this.style.borderColor='#D9FF4F'" onblur="setTimeout(()=>{const r=document.getElementById('peSheetSearchResults');if(r)r.style.display='none'},200)">
+          onfocus="this.style.borderColor='#BF5FFF'" onblur="setTimeout(()=>{const r=document.getElementById('peSheetSearchResults');if(r)r.style.display='none'},200)">
         <div id="peSheetSearchResults" style="display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--card);border:1px solid var(--border);border-radius:10px;z-index:10;max-height:200px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,.5);"></div>
       </div>
     </div>
 
     <!-- Save -->
     <button onclick="savePeEvent()" ontouchend="event.preventDefault();savePeEvent();"
-      style="width:100%;background:#D9FF4F;color:#0a0a0f;border:none;border-radius:12px;padding:15px;font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:2px;cursor:pointer;touch-action:manipulation;font-weight:700;">
+      style="width:100%;background:linear-gradient(135deg,#BF5FFF,#00E5FF);color:#fff;border:none;border-radius:12px;padding:15px;font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:2px;cursor:pointer;touch-action:manipulation;font-weight:700;">
       SAVE TO YOUR SCENE →
     </button>
 
@@ -5338,15 +5338,15 @@ body.player-open .screen.active { padding-bottom: 80px; }
 
 <script src="state.js"></script>
 <script src="auth.js?v=8"></script>
-<script src="navigation.js?v=26"></script>
-<script src="follows.js?v=27"></script>
-<script src="personal_cal.js?v=1"></script>
+<script src="navigation.js?v=27"></script>
+<script src="follows.js?v=28"></script>
+<script src="personal_cal.js?v=2"></script>
 <script src="notifications.js?v=6"></script>
 <script src="profiles.js?v=10"></script>
 <script src="audio.js?v=4"></script>
 <script src="search.js?v=8"></script>
 <script src="events.js?v=21"></script>
-<script src="calendar.js?v=52"></script>
+<script src="calendar.js?v=53"></script>
 <script src="venues.js?v=1"></script>
 <script src="bands.js?v=1"></script>
 <script src="standup.js?v=1"></script>

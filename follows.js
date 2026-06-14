@@ -159,9 +159,9 @@ function _applyFollowBtnState(btn, following, entityId, entityType, entityName) 
   const safeType = (entityType || '').replace(/'/g, "\\'");
   if (following) {
     btn.textContent = 'FOLLOWING ✓';
-    btn.style.background   = 'rgba(217,255,79,.15)';
-    btn.style.borderColor  = '#D9FF4F';
-    btn.style.color        = '#D9FF4F';
+    btn.style.background   = 'rgba(191,95,255,.15)';
+    btn.style.borderColor  = '#BF5FFF';
+    btn.style.color        = '#BF5FFF';
   } else {
     btn.textContent = '+ FOLLOW';
     btn.style.background   = 'rgba(255,255,255,.06)';
@@ -178,9 +178,9 @@ function buildFollowBtn(entityId, entityType, entityName) {
   const safeName = (entityName || '').replace(/'/g, "\\'");
   const safeType = (entityType || '').replace(/'/g, "\\'");
   const label = following ? 'FOLLOWING ✓' : '+ FOLLOW';
-  const bg    = following ? 'rgba(217,255,79,.15)' : 'rgba(255,255,255,.06)';
-  const bc    = following ? '#D9FF4F' : 'rgba(255,255,255,.18)';
-  const col   = following ? '#D9FF4F' : 'var(--text)';
+  const bg    = following ? 'rgba(191,95,255,.15)' : 'rgba(255,255,255,.06)';
+  const bc    = following ? '#BF5FFF' : 'rgba(255,255,255,.18)';
+  const col   = following ? '#BF5FFF' : 'var(--text)';
   return `<button id="followBtn_${entityId}"
     onclick="toggleFollowProfile('${safeId}','${safeType}','${safeName}')"
     style="width:100%;background:${bg};border:1px solid ${bc};color:${col};border-radius:12px;font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:2px;padding:14px;cursor:pointer;touch-action:manipulation;margin-bottom:12px;transition:background .15s,border-color .15s,color .15s;"
@@ -334,18 +334,18 @@ function renderPunterDateStrip() {
 
     let bg, textCol;
     if (isSel) {
-      bg = 'background:#D9FF4F;';
-      textCol = 'color:#0a0a0f;';
+      bg = 'background:linear-gradient(135deg,#BF5FFF,#00E5FF);';
+      textCol = 'color:#fff;';
     } else if (isToday) {
-      bg = 'background:rgba(217,255,79,.12);border:1.5px solid #D9FF4F;';
-      textCol = 'color:#D9FF4F;';
+      bg = 'background:rgba(191,95,255,.12);border:1.5px solid #BF5FFF;';
+      textCol = 'color:#BF5FFF;';
     } else {
       bg = 'background:var(--card2);';
       textCol = 'color:var(--text);';
     }
 
     // Dot: neon yellow for YOUR PICKS days, neon green for regular event days
-    const dotColor = isSel ? '#0a0a0f' : isScene ? '#D9FF4F' : 'var(--neon)';
+    const dotColor = isSel ? '#fff' : isScene ? '#BF5FFF' : 'var(--neon)';
     const dot = (hasEvs || isScene)
       ? `<div style="width:5px;height:5px;border-radius:50%;background:${dotColor};margin:2px auto 0;flex-shrink:0;"></div>`
       : `<div style="height:7px;"></div>`;
@@ -420,7 +420,7 @@ function _punterFollowingStrip() {
     venue:   { color: '#00E5A0',      label: 'VENUE'    },
     standup: { color: '#FF88AA',      label: 'COMEDY'   },
     host:    { color: '#FF3399',      label: 'PROMOTER' },
-    event:   { color: '#D9FF4F',      label: 'EVENT'    },
+    event:   { color: '#BF5FFF',      label: 'EVENT'    },
   };
 
   const lastVisited = window._mySceneLastVisited || new Date(0).toISOString();
@@ -532,7 +532,7 @@ function _renderFollowingEditList(query) {
     venue:   { color: '#00E5A0',      label: 'VENUE'    },
     standup: { color: '#FF88AA',      label: 'COMEDY'   },
     host:    { color: '#FF3399',      label: 'PROMOTER' },
-    event:   { color: '#D9FF4F',      label: 'EVENT'    },
+    event:   { color: '#BF5FFF',      label: 'EVENT'    },
   };
 
   // Read active type filters from checkboxes
@@ -636,7 +636,7 @@ function _upcomingForYouSection(all, now) {
       );
       if (hasSlot && d && d >= now && !seen.has(ev.id)) {
         seen.add(ev.id);
-        upcoming.push({ ev, badge: 'PLAYING', badgeColor: '#D9FF4F' });
+        upcoming.push({ ev, badge: 'PLAYING', badgeColor: '#BF5FFF' });
       }
     });
   }
@@ -646,7 +646,7 @@ function _upcomingForYouSection(all, now) {
     const demoCards = [
       { name:'Friends of Owl', venue:'Bellingen Brewery', badge:'ATTENDING', badgeColor:'#FF2D78', textCol:'white', dayName:'SUN', dayNum:14, mon:'JUN', timeStr:'8:00 PM', img:'' },
       { name:'Subsonic Sessions', venue:'The Loft',          badge:'MY EVENT',  badgeColor:'#9D4EDD', textCol:'white', dayName:'FRI', dayNum:20, mon:'JUN', timeStr:'10:00 PM', img:'' },
-      { name:'Lucious',           venue:'The Basement',       badge:'PLAYING',   badgeColor:'#D9FF4F', textCol:'#0a0a0f', dayName:'SAT', dayNum:28, mon:'JUN', timeStr:'11:30 PM', img:'' },
+      { name:'Lucious',           venue:'The Basement',       badge:'PLAYING',   badgeColor:'#BF5FFF', textCol:'#0a0a0f', dayName:'SAT', dayNum:28, mon:'JUN', timeStr:'11:30 PM', img:'' },
     ].map(d => `<div style="flex-shrink:0;width:195px;border-radius:16px;overflow:hidden;background:var(--card2);border:1px solid rgba(255,255,255,.08);position:relative;opacity:.55;">
       <div style="height:120px;background:linear-gradient(135deg,rgba(255,45,120,.2),rgba(157,78,221,.2));position:relative;">
         <div style="position:absolute;top:8px;left:8px;">
@@ -968,8 +968,8 @@ async function _renderPunterDayView(dateStr) {
   // ── Back bar + ADD button ──
   let html = `<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 16px;margin:16px 0 20px;">
     <button onclick="punterClearDate()" ontouchend="event.preventDefault();punterClearDate();" style="background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:20px;padding:7px 16px;font-size:12px;letter-spacing:1px;font-family:'Bebas Neue',sans-serif;cursor:pointer;touch-action:manipulation;flex-shrink:0;">← BACK</button>
-    <div style="font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:1.5px;color:#D9FF4F;line-height:1;flex:1;text-align:center;">${dayLabel}</div>
-    <button onclick="openAddEventSheet('${safeDate}')" ontouchend="event.preventDefault();openAddEventSheet('${safeDate}');" style="background:#D9FF4F;color:#0a0a0f;border:none;border-radius:20px;padding:7px 14px;font-size:12px;letter-spacing:1px;font-family:'Bebas Neue',sans-serif;cursor:pointer;touch-action:manipulation;flex-shrink:0;font-weight:700;">+ ADD</button>
+    <div style="font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:1.5px;color:#BF5FFF;line-height:1;flex:1;text-align:center;">${dayLabel}</div>
+    <button onclick="openAddEventSheet('${safeDate}')" ontouchend="event.preventDefault();openAddEventSheet('${safeDate}');" style="background:#BF5FFF;color:#0a0a0f;border:none;border-radius:20px;padding:7px 14px;font-size:12px;letter-spacing:1px;font-family:'Bebas Neue',sans-serif;cursor:pointer;touch-action:manipulation;flex-shrink:0;font-weight:700;">+ ADD</button>
   </div>`;
 
   // ── Personal events (async load) ──
@@ -1008,7 +1008,7 @@ async function _renderPunterDayView(dateStr) {
     const allEvs   = [...sceneEvs, ...otherEvs];
 
     if (sceneEvs.length) {
-      html += `<div style="font-family:'Bebas Neue',sans-serif;font-size:12px;letter-spacing:2px;color:#D9FF4F;padding:0 16px 8px;">YOUR PICKS</div>`;
+      html += `<div style="font-family:'Bebas Neue',sans-serif;font-size:12px;letter-spacing:2px;color:#BF5FFF;padding:0 16px 8px;">YOUR PICKS</div>`;
     }
     // All events in a horizontal scroll using the same card style as calendar
     html += `<div style="display:flex;gap:12px;overflow-x:auto;padding:4px 16px 12px;scrollbar-width:none;-webkit-overflow-scrolling:touch;">
@@ -1028,7 +1028,7 @@ async function _renderPunterDayView(dateStr) {
   const peWrap = document.getElementById('peDayEventsWrap');
   if (peWrap && peEvs.length) {
     peWrap.innerHTML =
-      `<div style="font-family:'Bebas Neue',sans-serif;font-size:12px;letter-spacing:2px;color:#D9FF4F;padding:0 16px 10px;border-bottom:1px solid rgba(217,255,79,.2);margin-bottom:10px;">ON YOUR CALENDAR</div>` +
+      `<div style="font-family:'Bebas Neue',sans-serif;font-size:12px;letter-spacing:2px;color:#BF5FFF;padding:0 16px 10px;border-bottom:1px solid rgba(191,95,255,.2);margin-bottom:10px;">ON YOUR CALENDAR</div>` +
       (typeof renderPersonalEventCards === 'function' ? renderPersonalEventCards(peEvs, dateStr) : '');
   }
 

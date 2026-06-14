@@ -1,4 +1,4 @@
-// ═══════════════════════════════════════════════════
+﻿// ═══════════════════════════════════════════════════
 //  personal_cal.js — MY SCENE personal calendar
 //  Depends on: state.js, navigation.js, follows.js
 // ═══════════════════════════════════════════════════
@@ -92,7 +92,7 @@ function peTogglePrivate() {
 function _syncPrivateToggle(isPrivate) {
   const slider = document.getElementById('pePrivateSlider');
   const knob   = document.getElementById('pePrivateKnob');
-  if (slider) slider.style.background = isPrivate ? '#D9FF4F' : 'rgba(255,255,255,.15)';
+  if (slider) slider.style.background = isPrivate ? '#BF5FFF' : 'rgba(255,255,255,.15)';
   if (knob)   knob.style.transform    = isPrivate ? 'translateX(0px)' : 'translateX(20px)';
 }
 
@@ -178,9 +178,9 @@ function _renderPeInviteList() {
     _peInvited.map(inv => {
       const safeId   = (inv.user_id || '').replace(/'/g, "\\'");
       const safeName = (inv.name    || '').replace(/'/g, "\\'");
-      return `<div style="display:inline-flex;align-items:center;gap:6px;background:rgba(217,255,79,.12);border:1px solid rgba(217,255,79,.3);border-radius:20px;padding:5px 10px 5px 12px;">
-        <span style="font-family:'Bebas Neue',sans-serif;font-size:13px;color:#D9FF4F;">${inv.name}</span>
-        <button onclick="peRemoveInvite('${safeId}')" style="background:none;border:none;color:rgba(217,255,79,.6);font-size:16px;cursor:pointer;line-height:1;padding:0;">×</button>
+      return `<div style="display:inline-flex;align-items:center;gap:6px;background:rgba(191,95,255,.12);border:1px solid rgba(191,95,255,.3);border-radius:20px;padding:5px 10px 5px 12px;">
+        <span style="font-family:'Bebas Neue',sans-serif;font-size:13px;color:#BF5FFF;">${inv.name}</span>
+        <button onclick="peRemoveInvite('${safeId}')" style="background:none;border:none;color:rgba(191,95,255,.6);font-size:16px;cursor:pointer;line-height:1;padding:0;">×</button>
       </div>`;
     }).join('') + `</div>`;
 }
@@ -295,14 +295,14 @@ function renderPersonalEventCards(events, dateStr) {
       : '';
     const privacy = ev.is_private
       ? `<span style="font-size:9px;color:var(--muted);background:rgba(255,255,255,.06);border-radius:4px;padding:2px 7px;letter-spacing:.8px;font-family:'Bebas Neue',sans-serif;">PRIVATE</span>`
-      : `<span style="font-size:9px;color:#D9FF4F;background:rgba(217,255,79,.1);border:1px solid rgba(217,255,79,.25);border-radius:4px;padding:2px 7px;letter-spacing:.8px;font-family:'Bebas Neue',sans-serif;">SHARED</span>`;
+      : `<span style="font-size:9px;color:#BF5FFF;background:rgba(191,95,255,.1);border:1px solid rgba(191,95,255,.25);border-radius:4px;padding:2px 7px;letter-spacing:.8px;font-family:'Bebas Neue',sans-serif;">SHARED</span>`;
     const safeId      = (ev.id || '').replace(/'/g, "\\'");
     const safeDateStr = (dateStr || '').replace(/'/g, "\\'");
-    return `<div style="background:rgba(217,255,79,.06);border:1.5px solid rgba(217,255,79,.22);border-radius:12px;padding:14px 16px;margin-bottom:10px;display:flex;align-items:flex-start;gap:10px;">
+    return `<div style="background:rgba(191,95,255,.06);border:1.5px solid rgba(191,95,255,.22);border-radius:12px;padding:14px 16px;margin-bottom:10px;display:flex;align-items:flex-start;gap:10px;">
       <div style="flex:1;min-width:0;">
         <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:.5px;color:var(--text);margin-bottom:5px;">${ev.title}</div>
         <div style="display:flex;align-items:center;flex-wrap:wrap;gap:6px;">
-          ${timeStr ? `<span style="font-size:12px;color:#D9FF4F;">⏰ ${timeStr}</span>` : ''}
+          ${timeStr ? `<span style="font-size:12px;color:#BF5FFF;">⏰ ${timeStr}</span>` : ''}
           ${privacy}
         </div>
         ${ev.notes ? `<div style="font-size:12px;color:var(--muted);line-height:1.5;margin-top:7px;">${ev.notes}</div>` : ''}

@@ -1,4 +1,4 @@
-// ═══════════════════════════════════════════════════
+﻿// ═══════════════════════════════════════════════════
 //  navigation.js — YesPleez Navigation Module
 //  Depends on: state.js, auth.js, profiles.js, events.js
 // ═══════════════════════════════════════════════════
@@ -259,7 +259,7 @@ function updateRoleCards() {
 
   const hostDot   = hostProfile.name     ? ' <span style="color:var(--neon);font-size:11px;margin-left:4px;white-space:nowrap;">✓ Profile set up</span>' : '';
   const artistDot = artistProfile.djName  ? ' <span style="color:var(--neon2);font-size:11px;margin-left:4px;white-space:nowrap;">✓ Profile set up</span>' : '';
-  const punterDot = (window._punterProfile?.name) ? ' <span style="color:#D9FF4F;font-size:11px;margin-left:4px;white-space:nowrap;">✓ Profile set up</span>' : '';
+  const punterDot = (window._punterProfile?.name) ? ' <span style="color:#BF5FFF;font-size:11px;margin-left:4px;white-space:nowrap;">✓ Profile set up</span>' : '';
 
   if (hostCard)   { const d = hostCard.querySelector('.role-card-desc');   if (d) d.innerHTML = 'Create events, build set times, manage your lineup, go live' + hostDot; }
   if (artistCard) { const d = artistCard.querySelector('.role-card-desc'); if (d) d.innerHTML = 'Build your profile, track your bookings, apply to events' + artistDot; }
@@ -340,13 +340,13 @@ function showPunterProfile() {
       const chip = document.createElement('button');
       chip.type = 'button';
       chip.textContent = g;
-      chip.style.cssText = 'background:rgba(217,255,79,.08);border:1px solid rgba(217,255,79,.25);color:var(--muted);border-radius:20px;font-size:13px;padding:6px 14px;cursor:pointer;touch-action:manipulation;transition:all .15s;';
+      chip.style.cssText = 'background:rgba(191,95,255,.08);border:1px solid rgba(191,95,255,.25);color:var(--muted);border-radius:20px;font-size:13px;padding:6px 14px;cursor:pointer;touch-action:manipulation;transition:all .15s;';
       chip.onclick = () => {
         const on = chip.dataset.on === '1';
         chip.dataset.on = on ? '0' : '1';
-        chip.style.background    = on ? 'rgba(217,255,79,.08)' : 'rgba(217,255,79,.18)';
-        chip.style.borderColor   = on ? 'rgba(217,255,79,.25)' : '#D9FF4F';
-        chip.style.color         = on ? 'var(--muted)' : '#D9FF4F';
+        chip.style.background    = on ? 'rgba(191,95,255,.08)' : 'rgba(191,95,255,.18)';
+        chip.style.borderColor   = on ? 'rgba(191,95,255,.25)' : '#BF5FFF';
+        chip.style.color         = on ? 'var(--muted)' : '#BF5FFF';
       };
       wrap.appendChild(chip);
     });
