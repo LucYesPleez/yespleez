@@ -595,17 +595,6 @@ function renderPunterFeed() {
   html += _savedEventsSection(all, now);
   html += _followingUpdatesSection();
 
-  if (!html.trim()) {
-    html = `<div style="margin:24px 16px 0;padding:24px;background:rgba(217,255,79,.04);border:1px dashed rgba(217,255,79,.2);border-radius:16px;text-align:center;">
-      <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:2px;color:#D9FF4F;margin-bottom:8px;">YOUR SCENE AWAITS</div>
-      <div style="font-size:13px;color:var(--muted);line-height:1.6;margin-bottom:16px;">Follow artists, save events and your feed will come alive here.</div>
-      <button onclick="showSearchScreen()" ontouchend="event.preventDefault();showSearchScreen();"
-        style="background:rgba(217,255,79,.12);border:1px solid rgba(217,255,79,.3);color:#D9FF4F;border-radius:10px;padding:10px 20px;font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:1.5px;cursor:pointer;touch-action:manipulation;">
-        DISCOVER ARTISTS →
-      </button>
-    </div>`;
-  }
-
   el.innerHTML = html;
 }
 
@@ -652,7 +641,44 @@ function _upcomingForYouSection(all, now) {
     });
   }
 
-  if (!upcoming.length) return '';
+  if (!upcoming.length) {
+    // Demo cards so layout is always visible
+    const demoCards = [
+      { name:'Friends of Owl', venue:'Bellingen Brewery', badge:'ATTENDING', badgeColor:'#FF2D78', textCol:'white', dayName:'SUN', dayNum:14, mon:'JUN', timeStr:'8:00 PM', img:'' },
+      { name:'Subsonic Sessions', venue:'The Loft',          badge:'MY EVENT',  badgeColor:'#9D4EDD', textCol:'white', dayName:'FRI', dayNum:20, mon:'JUN', timeStr:'10:00 PM', img:'' },
+      { name:'Lucious',           venue:'The Basement',       badge:'PLAYING',   badgeColor:'#D9FF4F', textCol:'#0a0a0f', dayName:'SAT', dayNum:28, mon:'JUN', timeStr:'11:30 PM', img:'' },
+    ].map(d => `<div style="flex-shrink:0;width:195px;border-radius:16px;overflow:hidden;background:var(--card2);border:1px solid rgba(255,255,255,.08);position:relative;opacity:.55;">
+      <div style="height:120px;background:linear-gradient(135deg,rgba(255,45,120,.2),rgba(157,78,221,.2));position:relative;">
+        <div style="position:absolute;top:8px;left:8px;">
+          <span style="background:${d.badgeColor};color:${d.textCol};font-family:'Bebas Neue',sans-serif;font-size:10px;letter-spacing:1px;padding:3px 8px;border-radius:6px;">${d.badge}</span>
+        </div>
+        <div style="position:absolute;top:8px;right:8px;background:rgba(0,0,0,.65);border-radius:8px;padding:4px 8px;text-align:center;min-width:36px;">
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:9px;color:rgba(255,255,255,.7);">${d.dayName}</div>
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:16px;color:white;line-height:1;">${d.dayNum}</div>
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:9px;color:rgba(255,255,255,.7);">${d.mon}</div>
+        </div>
+      </div>
+      <div style="padding:10px 12px 12px;">
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:.5px;margin-bottom:5px;">${d.name}</div>
+        <div style="font-size:11px;color:var(--muted);display:flex;align-items:center;gap:4px;margin-bottom:3px;">
+          <svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2'><path d='M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z'/><circle cx='12' cy='10' r='3'/></svg>${d.venue}
+        </div>
+        <div style="font-size:11px;color:var(--muted);display:flex;align-items:center;gap:4px;">
+          <svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2'><circle cx='12' cy='12' r='10'/><polyline points='12 6 12 12 16 14'/></svg>${d.timeStr}
+        </div>
+      </div>
+    </div>`).join('');
+    return `<div id="punterSecUpcoming" style="padding:20px 0 4px;">
+      <div style="display:flex;align-items:baseline;justify-content:space-between;padding:0 16px;margin-bottom:4px;">
+        <div>
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:2px;">UPCOMING FOR YOU</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px;">Events you're attending or involved in</div>
+        </div>
+        <div onclick="showCalendar()" ontouchend="event.preventDefault();showCalendar();" style="font-size:12px;color:#FF2D78;cursor:pointer;white-space:nowrap;touch-action:manipulation;">See all</div>
+      </div>
+      <div style="display:flex;gap:12px;overflow-x:auto;padding:12px 16px 8px;scrollbar-width:none;-webkit-overflow-scrolling:touch;">${demoCards}</div>
+    </div>`;
+  }
   upcoming.sort((a, b) => calParseDate(a.ev) - calParseDate(b.ev));
 
   const cards = upcoming.slice(0, 6).map(({ ev, badge, badgeColor }) => {
@@ -710,7 +736,29 @@ function _upcomingForYouSection(all, now) {
 // ── SAVED EVENTS ──────────────────────────────────
 function _savedEventsSection(all, now) {
   const savedIds = new Set(_followsCache.filter(f => f.entity_type === 'event').map(f => f.entity_id));
-  if (!savedIds.size) return '';
+  if (!savedIds.size) {
+    // Demo saved event card
+    const demoCard = `<div style="display:flex;align-items:center;gap:12px;padding:12px;background:var(--card2);border:1px solid rgba(255,255,255,.08);border-radius:14px;margin-bottom:8px;opacity:.55;">
+      <div style="width:64px;height:64px;border-radius:10px;background:linear-gradient(135deg,rgba(0,229,160,.2),rgba(0,229,255,.2));flex-shrink:0;"></div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:.5px;margin-bottom:4px;">Jazz in the Garden</div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:3px;">Sun, 22 Jun · 2:00 PM</div>
+        <div style="font-size:11px;color:var(--muted);display:flex;align-items:center;gap:4px;">
+          <svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2'><path d='M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z'/><circle cx='12' cy='10' r='3'/></svg>Never Never Garden
+        </div>
+      </div>
+    </div>`;
+    return `<div id="punterSecSaved" style="padding:20px 16px 4px;">
+      <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:4px;">
+        <div>
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:2px;">SAVED EVENTS</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px;">Events you've saved</div>
+        </div>
+        <div onclick="showCalendar()" ontouchend="event.preventDefault();showCalendar();" style="font-size:12px;color:#FF2D78;cursor:pointer;white-space:nowrap;touch-action:manipulation;">See all</div>
+      </div>
+      <div style="margin-top:10px;">${demoCard}</div>
+    </div>`;
+  }
   const fourWeeks = new Date(now); fourWeeks.setDate(now.getDate() + 28);
   const savedEvs = all.filter(ev => {
     const d = calParseDate(ev);
@@ -762,7 +810,39 @@ function _followingUpdatesSection() {
     f._profileUpdatedAt && f._profileUpdatedAt > lastVisited
   );
 
-  if (!withUpdates.length) return '';
+  if (!withUpdates.length) {
+    // Demo rows so layout is always visible
+    const demoRows = [
+      { name:'Lucious',             label:'ARTIST',   color:'var(--neon2)', update:'Added a new show',      ago:'2h ago' },
+      { name:'Bellingen Brewery',   label:'VENUE',    color:'#00E5A0',      update:'Updated their event',   ago:'6h ago' },
+      { name:'Deliverance Festival',label:'FESTIVAL', color:'#9D4EDD',      update:'Released set times',    ago:'12h ago' },
+    ].map(d => `<div style="display:flex;align-items:center;gap:12px;padding:12px 14px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:14px;margin-bottom:8px;opacity:.55;">
+      <div style="position:relative;flex-shrink:0;">
+        <div style="width:44px;height:44px;border-radius:50%;background:rgba(255,255,255,.08);display:flex;align-items:center;justify-content:center;font-family:'Bebas Neue',sans-serif;font-size:18px;color:${d.color};">${d.name[0]}</div>
+        <div style="position:absolute;bottom:0;left:0;width:11px;height:11px;border-radius:50%;background:#00E5A0;border:2px solid var(--bg);"></div>
+      </div>
+      <div style="flex:1;min-width:0;">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;">
+          <span style="font-family:'Bebas Neue',sans-serif;font-size:15px;color:var(--text);">${d.name}</span>
+          <span style="background:rgba(255,255,255,.08);border-radius:6px;font-size:9px;letter-spacing:1px;color:${d.color};font-family:'Bebas Neue',sans-serif;padding:2px 6px;">${d.label}</span>
+        </div>
+        <div style="font-size:12px;color:var(--muted);">${d.update}</div>
+        <div style="font-size:10px;color:rgba(255,255,255,.3);margin-top:2px;">${d.ago}</div>
+      </div>
+      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="color:var(--muted);flex-shrink:0;"><path d="M9 18l6-6-6-6"/></svg>
+    </div>`).join('');
+    return `<div id="punterFollowingStrip" style="padding:20px 16px 24px;">
+      <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:4px;">
+        <div>
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:2px;">FOLLOWING UPDATES</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px;">Recent updates from artists, venues &amp; events you follow</div>
+        </div>
+        <button onclick="openFollowingEditSheet()" ontouchend="event.preventDefault();openFollowingEditSheet();"
+          style="background:none;border:none;color:#FF2D78;font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:1px;cursor:pointer;touch-action:manipulation;padding:0;">EDIT</button>
+      </div>
+      <div style="margin-top:12px;">${demoRows}</div>
+    </div>`;
+  }
 
   const rows = withUpdates.map(f => {
     const tc       = typeMap[f.entity_type] || typeMap.artist;
