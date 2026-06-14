@@ -163,6 +163,7 @@ function mapDbToHostProfile(row) {
     sound:       row.sound        || '',
     bio:         row.bio          || '',
     instagram:   row.instagram    || '',
+    facebook:    row.facebook     || '',
     website:     row.website      || '',
     email:       row.email        || '',
     genreString: row.genre_string || '',
@@ -356,21 +357,24 @@ function openPublicProfile(row) {
         ${mainGenre.map(g => `<span style="background:rgba(0,229,255,.08);border:1px solid rgba(0,229,255,.25);border-radius:20px;font-size:12px;padding:4px 12px;color:var(--neon2);">${g}</span>`).join('')}
       </div>
     </div>` : ''}
-    ${row.instagram || row.website ? `
-    <div style="position:relative;background:rgba(19,19,31,.88);backdrop-filter:blur(10px);border-radius:12px;padding:16px;margin-bottom:12px;overflow:hidden;">
-      <div style="position:absolute;inset:0;border-radius:12px;padding:1px;background:linear-gradient(135deg,${accentColor},rgba(191,95,255,.4));-webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none;"></div>
-      <div style="font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:2px;color:${accentColor};margin-bottom:10px;">LINKS</div>
-      ${row.instagram ? `<a href="https://instagram.com/${row.instagram.replace('@','')}" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:8px;text-decoration:none;margin-bottom:8px;padding:10px 12px;background:rgba(255,255,255,.04);border-radius:10px;border:1px solid rgba(255,255,255,.06);">
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:#E1306C;flex-shrink:0;"><rect width="20" height="20" x="2" y="2" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" x2="17.51" y1="6.5" y2="6.5"/></svg>
-        <span style="font-size:13px;color:var(--text);">@${row.instagram.replace('@','')}</span>
-        <span style="font-size:11px;color:var(--muted);margin-left:auto;">↗</span>
-      </a>` : ''}
-      ${row.website ? `<a href="${row.website.startsWith('http')?row.website:'https://'+row.website}" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:8px;text-decoration:none;padding:10px 12px;background:rgba(255,255,255,.04);border-radius:10px;border:1px solid rgba(255,255,255,.06);">
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--neon2);flex-shrink:0;"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>
-        <span style="font-size:13px;color:var(--neon2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${row.website.replace(/^https?:\/\//,'')}</span>
-        <span style="font-size:11px;color:var(--muted);margin-left:auto;">↗</span>
-      </a>` : ''}
-    </div>` : ''}
+    ${(() => {
+      const _socials = [
+        row.instagram ? { href: `https://instagram.com/${row.instagram.replace('@','')}`, color: '#E1306C', svg: `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect width="20" height="20" x="2" y="2" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" x2="17.51" y1="6.5" y2="6.5"/></svg>` } : null,
+        row.facebook ? { href: row.facebook.startsWith('http')?row.facebook:'https://'+row.facebook, color: '#1877F2', svg: `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>` } : null,
+        row.youtube ? { href: row.youtube.startsWith('http')?row.youtube:'https://'+row.youtube, color: '#FF0000', svg: `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2.5 17a24.12 24.12 0 0 1 0-10 2 2 0 0 1 1.4-1.4 49.56 49.56 0 0 1 16.2 0A2 2 0 0 1 21.5 7a24.12 24.12 0 0 1 0 10 2 2 0 0 1-1.4 1.4 49.55 49.55 0 0 1-16.2 0A2 2 0 0 1 2.5 17"/><path d="m10 15 5-3-5-3z"/></svg>` } : null,
+        row.soundcloud ? { href: row.soundcloud.startsWith('http')?row.soundcloud:'https://'+row.soundcloud, color: '#FF5500', svg: `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 13.5A3.5 3.5 0 0 0 5.5 17h11a3 3 0 0 0 .5-5.965V11a5 5 0 0 0-9.3-2.5"/><path d="M5 11.5v1M7 10v3M9 9.5v4"/></svg>` } : null,
+        row.mixcloud ? { href: row.mixcloud.startsWith('http')?row.mixcloud:'https://'+row.mixcloud, color: '#52aad8', svg: `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3z"/><path d="M3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg>` } : null,
+        row.website ? { href: row.website.startsWith('http')?row.website:'https://'+row.website, color: 'var(--neon2)', svg: `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>` } : null,
+      ].filter(Boolean);
+      if (!_socials.length) return '';
+      return `<div style="position:relative;background:rgba(19,19,31,.88);backdrop-filter:blur(10px);border-radius:12px;padding:16px;margin-bottom:12px;overflow:hidden;">
+        <div style="position:absolute;inset:0;border-radius:12px;padding:1px;background:linear-gradient(135deg,${accentColor},rgba(191,95,255,.4));-webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none;"></div>
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:2px;color:${accentColor};margin-bottom:12px;">CONTACT</div>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;">
+          ${_socials.map(s=>`<a href="${s.href}" target="_blank" rel="noopener" style="display:flex;align-items:center;justify-content:center;width:44px;height:44px;background:rgba(255,255,255,.05);border-radius:12px;border:1px solid rgba(255,255,255,.08);color:${s.color};text-decoration:none;transition:background .2s;">${s.svg}</a>`).join('')}
+        </div>
+      </div>`;
+    })()}
     ${!isHost ? `<div id="publicProfileAvailability" style="position:relative;background:rgba(19,19,31,.88);backdrop-filter:blur(10px);border-radius:12px;padding:16px;margin-bottom:12px;overflow:hidden;display:none;"><div style="position:absolute;inset:0;border-radius:12px;padding:1px;background:linear-gradient(135deg,${accentColor},rgba(191,95,255,.4));-webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none;"></div></div>` : ''}
     ${followBtn}
     ${inviteBtn}

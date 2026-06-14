@@ -4117,7 +4117,7 @@ async function saveHostProfile() {
   const _hostGenreParts = getHostProfileGenreString().split(' · ').filter(Boolean);
   const _hostCatParts = _hostCats.split(' · ').filter(Boolean);
   const _mergedGenre = [...new Set([..._hostCatParts, ..._hostGenreParts])].join(' · ');
-  hostProfile = { ...hostProfile, name: nameVal, location: document.getElementById('hostProfileLocation').value.trim(), state: document.getElementById('hostProfileState').value, years: document.getElementById('hostProfileYears').value.trim(), postcode: _hpc, lat: _hpcCoords ? _hpcCoords[0] : (hostProfile.lat || null), lng: _hpcCoords ? _hpcCoords[1] : (hostProfile.lng || null), bio: document.getElementById('hostProfileBio').value.trim(), instagram: document.getElementById('hostProfileInstagram').value.trim(), website: document.getElementById('hostProfileWebsite').value.trim(), email: document.getElementById('hostProfileEmail').value.trim(), genreString: _mergedGenre, tagline: (document.getElementById('hostProfileTagline')?.value || '').trim(), sound: (document.getElementById('hostProfileSound')?.value || '').trim() };
+  hostProfile = { ...hostProfile, name: nameVal, location: document.getElementById('hostProfileLocation').value.trim(), state: document.getElementById('hostProfileState').value, years: document.getElementById('hostProfileYears').value.trim(), postcode: _hpc, lat: _hpcCoords ? _hpcCoords[0] : (hostProfile.lat || null), lng: _hpcCoords ? _hpcCoords[1] : (hostProfile.lng || null), bio: document.getElementById('hostProfileBio').value.trim(), instagram: document.getElementById('hostProfileInstagram').value.trim(), facebook: (document.getElementById('hostProfileFacebook')?.value || '').trim(), website: document.getElementById('hostProfileWebsite').value.trim(), email: document.getElementById('hostProfileEmail').value.trim(), genreString: _mergedGenre, tagline: (document.getElementById('hostProfileTagline')?.value || '').trim(), sound: (document.getElementById('hostProfileSound')?.value || '').trim() };
   try { localStorage.setItem('yp_host_profile', JSON.stringify(hostProfile)); } catch(e) {}
   await upsertProfileToSupabase(hostProfile, 'host');
   btn.disabled = false; btn.textContent = 'SAVE HOST PROFILE →';
@@ -4143,6 +4143,7 @@ function loadHostProfileData() {
   const _hpcEl = document.getElementById('hostProfilePostcode'); if (_hpcEl) _hpcEl.value = hostProfile.postcode || '';
   document.getElementById('hostProfileBio').value       = hostProfile.bio       || '';
   document.getElementById('hostProfileInstagram').value = hostProfile.instagram || '';
+  const _hfbEl = document.getElementById('hostProfileFacebook'); if (_hfbEl) _hfbEl.value = hostProfile.facebook || '';
   document.getElementById('hostProfileWebsite').value   = hostProfile.website   || '';
   document.getElementById('hostProfileEmail').value     = hostProfile.email     || '';
   const _htEl = document.getElementById('hostProfileTagline'); if (_htEl) _htEl.value = hostProfile.tagline || '';
