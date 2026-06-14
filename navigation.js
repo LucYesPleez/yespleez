@@ -74,10 +74,12 @@ function _updateGlobalNav(id, isLocked) {
   // Show/hide the My Scene FAB
   const fab = document.getElementById('mySceneFab');
   if (fab) fab.style.display = id === 'punterDashScreen' ? '' : 'none';
-  // Highlight the matching tab; panels (notif/industry) keep no tab active
-  const calScreens = new Set(['calendarScreen']);
+  // Highlight the matching tab; panels (notif/industry) handled separately
+  const calScreens      = new Set(['calendarScreen']);
   const discoverScreens = new Set(['searchScreen']);
-  const msgScreens = new Set(['messagesScreen']);
+  const msgScreens      = new Set(['messagesScreen']);
+  const myScreens       = new Set(['punterDashScreen','dashboardScreen','artistDashScreen']);
+  document.getElementById('bnTabScene')?.classList.toggle('bn-active', myScreens.has(id));
   document.getElementById('bnTabWhatson')?.classList.toggle('bn-active', calScreens.has(id));
   document.getElementById('bnTabDiscover')?.classList.toggle('bn-active', discoverScreens.has(id));
   document.getElementById('bnTabMessages')?.classList.toggle('bn-active', msgScreens.has(id));
@@ -110,6 +112,7 @@ async function openIndustryPanel() {
   if (!overlay || !panel) return;
   overlay.style.display = 'block';
   panel.style.display   = 'block';
+  document.getElementById('bnTabIndustry')?.classList.add('bn-active');
   requestAnimationFrame(() => {
     requestAnimationFrame(() => { panel.classList.add('ip-open'); });
   });
@@ -142,6 +145,7 @@ function closeIndustryPanel() {
   if (!overlay || !panel) return;
   panel.classList.remove('ip-open');
   overlay.style.display = 'none';
+  document.getElementById('bnTabIndustry')?.classList.remove('bn-active');
   setTimeout(() => { panel.style.display = 'none'; }, 300);
 }
 
