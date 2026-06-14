@@ -85,6 +85,17 @@ body::after {
 #globalPageHeader > * { pointer-events: auto; }
 #globalBackBtn { opacity: .3; cursor: default; }
 #globalBackBtn.can-go-back { opacity: 1; cursor: pointer; }
+#globalInfoBtn { background:none;border:none;padding:6px;cursor:pointer;display:flex;align-items:center;color:var(--muted);opacity:.7; }
+#globalInfoBtn:active { opacity:1; }
+#infoOverlay { display:none;position:fixed;inset:0;z-index:400;background:rgba(0,0,0,.6);backdrop-filter:blur(4px);align-items:flex-end;justify-content:center; }
+#infoOverlay.open { display:flex; }
+#infoSheet { background:var(--card);border-radius:20px 20px 0 0;width:min(100%,680px);padding:0 0 40px;max-height:80dvh;overflow-y:auto;animation:slideUp .25s ease; }
+#infoSheet h4 { font-family:'Bebas Neue','Impact',sans-serif;font-size:18px;letter-spacing:3px;color:var(--neon2);margin-bottom:14px; }
+#infoSheet p { font-size:14px;line-height:1.65;color:#bbb;margin-bottom:10px; }
+#infoSheet ul { padding-left:18px;margin-bottom:10px; }
+#infoSheet li { font-size:13px;line-height:1.7;color:#bbb; }
+#infoSheet li strong { color:#fff; }
+@keyframes slideUp { from { transform:translateY(60px);opacity:0; } to { transform:translateY(0);opacity:1; } }
 #bottomNav {
   position: fixed; bottom: 0;
   left: 50%; transform: translateX(-50%);
@@ -5445,16 +5456,150 @@ body.player-open .screen.active { padding-bottom: 80px; }
   </div>
 </div>
 
+<!-- ══════════ INFO OVERLAY ══════════ -->
+<div id="infoOverlay" onclick="if(event.target===this)closeInfoPanel()">
+  <div id="infoSheet">
+    <div style="display:flex;justify-content:center;padding:12px 0 4px;">
+      <div style="width:36px;height:4px;border-radius:2px;background:rgba(255,255,255,.15);"></div>
+    </div>
+    <div style="padding:20px 24px 8px;" id="infoSheetContent"></div>
+    <div style="padding:4px 24px 0;">
+      <button onclick="closeInfoPanel()" style="width:100%;padding:14px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:12px;color:#aaa;font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:2px;cursor:pointer;">CLOSE</button>
+    </div>
+  </div>
+</div>
+
 <!-- ══════════ GLOBAL PAGE HEADER ══════════ -->
 <div id="globalPageHeader">
   <button id="globalBackBtn" onclick="navBack()" style="margin-bottom:0;background:none;border:none;padding:6px;cursor:default;display:flex;align-items:center;color:var(--muted);"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg></button>
   <div class="yp-tag" style="margin-bottom:0;">YESPLEEZ</div>
-  <div style="margin-left:auto;">
+  <div style="margin-left:auto;display:flex;align-items:center;gap:4px;">
+    <button id="globalInfoBtn" onclick="openInfoPanel()" title="How this works"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="8.01"/><polyline points="11 12 12 12 12 16"/></svg></button>
     <button id="globalShareCal" class="notif-bell" style="display:none;" title="Share" onclick="shareItem('calendar','','What\'s On — YesPleez')"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg></button>
     <button id="globalShareDiscover" class="notif-bell" style="display:none;" title="Share" onclick="shareItem('calendar','','Discover Artists &amp; Events — YesPleez')" ontouchend="event.preventDefault();shareItem('calendar','','Discover Artists &amp; Events — YesPleez');"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg></button>
   </div>
 </div>
 
+<script>
+const _infoContent = {
+  calendarScreen: {
+    title: "WHATS HAPPENIN'",
+    body: `<p>Browse all upcoming events in your city.</p>
+<ul>
+  <li><strong>Tap any event card</strong> to see the full lineup, set times, and details.</li>
+  <li><strong>Scroll left/right</strong> on the calendar strip to jump to a date.</li>
+  <li><strong>Share</strong> an event with the share icon in the top right.</li>
+</ul>`
+  },
+  searchScreen: {
+    title: 'DISCOVER',
+    body: `<p>Find artists and events on the scene.</p>
+<ul>
+  <li><strong>Search</strong> by name, genre, or vibe using the search bar.</li>
+  <li><strong>Tap any artist card</strong> to see their full profile, demo mix, and upcoming gigs.</li>
+  <li><strong>Tap any event</strong> to see the lineup and apply for an open slot.</li>
+  <li><strong>Follow</strong> artists or events to see them in your MY SCENE feed.</li>
+</ul>`
+  },
+  punterDashScreen: {
+    title: 'MY SCENE',
+    body: `<p>Your personalised feed of events and artists you follow.</p>
+<ul>
+  <li><strong>Tap EDIT FOLLOWING</strong> to choose which artists, venues, and hosts show up here.</li>
+  <li><strong>Tap any event card</strong> to see what's on and grab tickets or apply.</li>
+  <li>Switch to <strong>Artist</strong> or <strong>Host</strong> mode using the role switcher if you have multiple profiles.</li>
+</ul>`
+  },
+  dashboardScreen: {
+    title: 'HOST DASHBOARD',
+    body: `<p>Manage all your events from one place.</p>
+<ul>
+  <li><strong>Tap an event</strong> to open the manage screen — accept or decline artist applications, send slot offers, and view set times.</li>
+  <li><strong>CREATE EVENT</strong> to set up a new night with slots, times, and a public signup link.</li>
+  <li><strong>PIPELINE</strong> shows pending applications, offers sent, and confirmed artists for each event.</li>
+  <li>Share your event's public link so artists can apply directly.</li>
+</ul>`
+  },
+  artistDashScreen: {
+    title: 'ARTIST DASHBOARD',
+    body: `<p>Your hub for gigs and your public profile.</p>
+<ul>
+  <li><strong>Complete your profile</strong> — genre, vibes, bio, and a demo mix link — to attract more bookings.</li>
+  <li><strong>Upcoming gigs</strong> appear automatically when a host confirms you for an event.</li>
+  <li><strong>APPLY</strong> to open events directly from the WHATS HAPPENIN' calendar or DISCOVER page.</li>
+  <li>Tap <strong>EDIT PROFILE</strong> to update your info at any time.</li>
+</ul>`
+  },
+  manageEventScreen: {
+    title: 'MANAGE EVENT',
+    body: `<p>Control the lineup for this event.</p>
+<ul>
+  <li><strong>APPLICATIONS</strong> — tap Accept or Decline on each artist who has applied.</li>
+  <li><strong>OFFERS SENT</strong> — artists you've directly invited; they'll receive a notification.</li>
+  <li><strong>CONFIRMED</strong> — locked-in artists. Tap a name to view their profile.</li>
+  <li>Use <strong>SET TIMES</strong> to assign start times to each confirmed slot.</li>
+  <li>Share the <strong>public signup link</strong> so more artists can discover and apply.</li>
+</ul>`
+  },
+  setTimesScreen: {
+    title: 'SET TIMES',
+    body: `<p>Assign time slots to your confirmed artists.</p>
+<ul>
+  <li><strong>Tap a slot</strong> to set the start time for that artist's performance.</li>
+  <li>Times are visible to confirmed artists on their dashboard.</li>
+  <li>Drag or reorder slots to adjust the running order.</li>
+</ul>`
+  },
+  publicProfileScreen: {
+    title: 'ARTIST PROFILE',
+    body: `<p>This is an artist's public profile.</p>
+<ul>
+  <li>Tap <strong>PLAY DEMO MIX</strong> to hear their sound.</li>
+  <li>Tap <strong>FOLLOW</strong> to add them to your MY SCENE feed so you never miss a gig.</li>
+  <li><strong>Upcoming gigs</strong> are listed below — tap any event to see details.</li>
+  <li>Genres and vibes give you a quick read on their style.</li>
+</ul>`
+  },
+  publicEventScreen: {
+    title: 'EVENT PAGE',
+    body: `<p>Everything about this event in one place.</p>
+<ul>
+  <li><strong>Lineup</strong> shows confirmed artists — tap any name to view their profile.</li>
+  <li><strong>Open slots</strong> are available to apply for — tap <strong>APPLY</strong> if you're an artist.</li>
+  <li><strong>Set times</strong> show when each artist is on (once the host publishes them).</li>
+  <li>Tap the share icon to send this event to friends or other artists.</li>
+</ul>`
+  },
+};
+
+const _infoFallback = {
+  title: 'HOW IT WORKS',
+  body: `<p>YesPleez connects artists, hosts, and fans on the local scene.</p>
+<ul>
+  <li><strong>WHATS HAPPENIN'</strong> — browse all upcoming events.</li>
+  <li><strong>DISCOVER</strong> — find artists and events by genre or vibe.</li>
+  <li><strong>MY SCENE</strong> — your personalised feed of who and what you follow.</li>
+  <li>Sign up as an <strong>Artist</strong> to apply for gigs, or as a <strong>Host</strong> to run events and build your lineup.</li>
+</ul>`
+};
+
+function openInfoPanel() {
+  const screenId = document.querySelector('.screen.active')?.id || '';
+  const info = _infoContent[screenId] || _infoFallback;
+  document.getElementById('infoSheetContent').innerHTML =
+    `<h4>${info.title}</h4>${info.body}`;
+  const ov = document.getElementById('infoOverlay');
+  ov.classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeInfoPanel() {
+  document.getElementById('infoOverlay').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeInfoPanel(); });
+</script>
 </body>
 </html>
 
