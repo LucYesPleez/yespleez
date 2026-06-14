@@ -63,14 +63,31 @@ function show(id, opts = {}) {
 // Screens that suppress the nav (auth / onboarding only)
 const _noNavScreens2 = new Set(['authScreen']);
 
+function _updateGlobalBackBtn() {
+  const btn = document.getElementById('globalBackBtn');
+  if (!btn) return;
+  btn.classList.toggle('can-go-back', _navHistory.length > 0);
+}
+
 function _updateGlobalNav(id, isLocked) {
-  const nav = document.getElementById('bottomNav');
+  const nav    = document.getElementById('bottomNav');
+  const header = document.getElementById('globalPageHeader');
   if (!nav) return;
+  const _noHeaderScreens = new Set(['authScreen', 'roleScreen']);
   if (isLocked || _noNavScreens2.has(id)) {
     nav.style.display = 'none';
+    if (header) header.style.display = 'none';
     return;
   }
   nav.style.display = 'block';
+  if (header) {
+    if (_noHeaderScreens.has(id)) {
+      header.style.display = 'none';
+    } else {
+      header.style.display = 'flex';
+      _updateGlobalBackBtn();
+    }
+  }
   // Show/hide the My Scene FAB
   const fab = document.getElementById('mySceneFab');
   if (fab) fab.style.display = id === 'punterDashScreen' ? '' : 'none';
@@ -182,6 +199,7 @@ function navBack() {
   const prev = _navHistory.pop();
   show(prev, { _isBack: true });
   _updateGlobalNav(prev, false);
+  _updateGlobalBackBtn();
 }
 
 // ── Toast notifications ────────────────────────────
