@@ -357,20 +357,21 @@ function openPublicProfile(row) {
       </div>
     </div>` : ''}
     ${row.instagram || row.website ? `
-    <div style="background:rgba(19,19,31,.88);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:16px;margin-bottom:12px;">
+    <div style="position:relative;background:rgba(19,19,31,.88);backdrop-filter:blur(10px);border-radius:12px;padding:16px;margin-bottom:12px;overflow:hidden;">
+      <div style="position:absolute;inset:0;border-radius:12px;padding:1px;background:linear-gradient(135deg,${accentColor},rgba(191,95,255,.4));-webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none;"></div>
       <div style="font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:2px;color:${accentColor};margin-bottom:10px;">LINKS</div>
-      ${row.instagram ? `<a href="https://instagram.com/${row.instagram.replace('@','')}" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:8px;text-decoration:none;margin-bottom:8px;padding:10px 12px;background:rgba(255,255,255,.04);border-radius:10px;border:1px solid rgba(255,255,255,.08);">
+      ${row.instagram ? `<a href="https://instagram.com/${row.instagram.replace('@','')}" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:8px;text-decoration:none;margin-bottom:8px;padding:10px 12px;background:rgba(255,255,255,.04);border-radius:10px;border:1px solid rgba(255,255,255,.06);">
         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:#E1306C;flex-shrink:0;"><rect width="20" height="20" x="2" y="2" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" x2="17.51" y1="6.5" y2="6.5"/></svg>
         <span style="font-size:13px;color:var(--text);">@${row.instagram.replace('@','')}</span>
         <span style="font-size:11px;color:var(--muted);margin-left:auto;">↗</span>
       </a>` : ''}
-      ${row.website ? `<a href="${row.website.startsWith('http')?row.website:'https://'+row.website}" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:8px;text-decoration:none;padding:10px 12px;background:rgba(255,255,255,.04);border-radius:10px;border:1px solid rgba(255,255,255,.08);">
+      ${row.website ? `<a href="${row.website.startsWith('http')?row.website:'https://'+row.website}" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:8px;text-decoration:none;padding:10px 12px;background:rgba(255,255,255,.04);border-radius:10px;border:1px solid rgba(255,255,255,.06);">
         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--neon2);flex-shrink:0;"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>
         <span style="font-size:13px;color:var(--neon2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${row.website.replace(/^https?:\/\//,'')}</span>
         <span style="font-size:11px;color:var(--muted);margin-left:auto;">↗</span>
       </a>` : ''}
     </div>` : ''}
-    ${!isHost ? `<div id="publicProfileAvailability" style="background:rgba(19,19,31,.88);backdrop-filter:blur(10px);border:1px solid rgba(0,229,255,.18);border-radius:12px;padding:16px;margin-bottom:12px;display:none;"></div>` : ''}
+    ${!isHost ? `<div id="publicProfileAvailability" style="position:relative;background:rgba(19,19,31,.88);backdrop-filter:blur(10px);border-radius:12px;padding:16px;margin-bottom:12px;overflow:hidden;display:none;"><div style="position:absolute;inset:0;border-radius:12px;padding:1px;background:linear-gradient(135deg,${accentColor},rgba(191,95,255,.4));-webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none;"></div></div>` : ''}
     ${followBtn}
     ${inviteBtn}
     <div id="publicProfileGigs"></div>
@@ -541,7 +542,8 @@ async function loadPublicProfileGigs(userId, accentColor, accentRgb) {
     });
 
     container.innerHTML = `
-      <div style="background:rgba(19,19,31,.88);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:16px;margin-bottom:12px;">
+      <div style="position:relative;background:rgba(19,19,31,.88);backdrop-filter:blur(10px);border-radius:12px;padding:16px;margin-bottom:12px;overflow:hidden;">
+        <div style="position:absolute;inset:0;border-radius:12px;padding:1px;background:linear-gradient(135deg,${accentColor},rgba(191,95,255,.4));-webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none;"></div>
         <div style="font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:2px;color:${accentColor};margin-bottom:10px;">UPCOMING GIGS</div>
         ${gigs.map(g => `
           <div style="border:1.5px solid rgba(0,229,255,.4);background:rgba(0,229,255,.04);border-radius:10px;padding:10px 12px;margin-bottom:8px;">
