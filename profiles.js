@@ -343,12 +343,14 @@ function openPublicProfile(row) {
     </div>` : ''; })() : ''}
     ${row.tagline ? `<div style="text-align:center;font-size:16px;letter-spacing:1px;margin-bottom:14px;padding:0 8px;background:linear-gradient(135deg,${accentColor},#BF5FFF);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;font-family:'Bebas Neue',sans-serif;">${row.tagline}</div>` : ''}
     ${row.bio ? `
-    <div style="background:rgba(19,19,31,.88);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:16px;margin-bottom:12px;">
+    <div style="position:relative;background:rgba(19,19,31,.88);backdrop-filter:blur(10px);border-radius:12px;padding:16px;margin-bottom:12px;overflow:hidden;">
+      <div style="position:absolute;inset:0;border-radius:12px;padding:1px;background:linear-gradient(135deg,${accentColor},rgba(191,95,255,.4));-webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none;"></div>
       <div style="font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:2px;color:${accentColor};margin-bottom:8px;">ABOUT</div>
       <div style="font-size:14px;color:var(--muted);line-height:1.7;">${row.bio}</div>
     </div>` : ''}
     ${mainGenre.length ? `
-    <div style="background:rgba(19,19,31,.88);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:16px;margin-bottom:12px;">
+    <div style="position:relative;background:rgba(19,19,31,.88);backdrop-filter:blur(10px);border-radius:12px;padding:16px;margin-bottom:12px;overflow:hidden;">
+      <div style="position:absolute;inset:0;border-radius:12px;padding:1px;background:linear-gradient(135deg,${accentColor},rgba(191,95,255,.4));-webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none;"></div>
       <div style="font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:2px;color:${accentColor};margin-bottom:8px;">GENRE</div>
       <div style="display:flex;flex-wrap:wrap;gap:6px;">
         ${mainGenre.map(g => `<span style="background:rgba(0,229,255,.08);border:1px solid rgba(0,229,255,.25);border-radius:20px;font-size:12px;padding:4px 12px;color:var(--neon2);">${g}</span>`).join('')}
