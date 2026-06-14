@@ -88,6 +88,9 @@ function _updateGlobalNav(id, isLocked) {
       _updateGlobalBackBtn();
     }
   }
+  const el = (id) => document.getElementById(id);
+  if (el('globalShareCal'))      el('globalShareCal').style.display      = id === 'calendarScreen' ? '' : 'none';
+  if (el('globalShareDiscover')) el('globalShareDiscover').style.display = id === 'searchScreen'   ? '' : 'none';
   // Show/hide the My Scene FAB
   const fab = document.getElementById('mySceneFab');
   if (fab) fab.style.display = id === 'punterDashScreen' ? '' : 'none';
