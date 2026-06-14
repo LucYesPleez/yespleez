@@ -278,16 +278,17 @@ function openPublicProfile(row) {
   const mainGenre = genres;
   const subGenres = [];
   const typeAccents = {
-    host:    { color: '#FF3399',      rgb: '255,51,153',  label: 'HOST / PROMOTER' },
-    artist:  { color: 'var(--neon2)', rgb: '0,229,255',   label: 'ARTIST / DJ' },
-    band:    { color: '#FF8C42',      rgb: '255,140,66',  label: row.band_type || 'BAND / MUSO' },
-    standup: { color: '#FF88AA',      rgb: '255,136,170', label: row.act_type  || 'STAND-UP / COMEDY' },
-    venue:   { color: '#00E5A0',      rgb: '0,229,160',   label: row.venue_type || 'VENUE' },
+    host:    { color: '#FF3399',      rgb: '255,51,153',  label: 'HOST / PROMOTER',        grad2: '#FF99CC' },
+    artist:  { color: 'var(--neon2)', rgb: '0,229,255',   label: 'ARTIST / DJ',            grad2: '#BF5FFF' },
+    band:    { color: '#FF8C42',      rgb: '255,140,66',  label: row.band_type || 'BAND / MUSO',          grad2: '#FF5500' },
+    standup: { color: '#FF88AA',      rgb: '255,136,170', label: row.act_type  || 'STAND-UP / COMEDY',    grad2: '#BF5FFF' },
+    venue:   { color: '#00E5A0',      rgb: '0,229,160',   label: row.venue_type || 'VENUE', grad2: '#00E5FF' },
   };
   const ta = typeAccents[row.type] || typeAccents.artist;
   const accentColor = ta.color;
   const accentRgb   = ta.rgb;
   const typeLabel   = ta.label;
+  const grad2       = ta.grad2;
 
   const heroBg  = document.getElementById('profileHeroBg');
   const heroImg = document.getElementById('profileHeroImg');
@@ -337,15 +338,15 @@ function openPublicProfile(row) {
       </div>
       ${row.years ? `<span style="position:absolute;bottom:0;right:0;font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:2px;color:#fff;">EST. ${row.years}</span>` : ''}
     </div>
-    ${(() => { const _OLD_CATS = new Set(['ELECTRONIC','BANDS','SPOKEN','SPOKEN WORD','RAVE','FESTIVAL']); const _tl = (row.tagline||'').trim(); const _isOldCats = _tl.split(' · ').every(t => _OLD_CATS.has(t.trim().toUpperCase())); return _tl && !_isOldCats ? `<div style="text-align:center;font-size:18px;letter-spacing:1px;margin-bottom:14px;padding:0 8px;background:linear-gradient(135deg,${accentColor},#BF5FFF);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;font-family:'Bebas Neue',sans-serif;">${_tl}</div>` : ''; })()}
+    ${(() => { const _OLD_CATS = new Set(['ELECTRONIC','BANDS','SPOKEN','SPOKEN WORD','RAVE','FESTIVAL']); const _tl = (row.tagline||'').trim(); const _isOldCats = _tl.split(' · ').every(t => _OLD_CATS.has(t.trim().toUpperCase())); return _tl && !_isOldCats ? `<div style="text-align:center;font-size:18px;letter-spacing:1px;margin-bottom:14px;padding:0 8px;background:linear-gradient(135deg,${accentColor},${grad2});-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;font-family:'Bebas Neue',sans-serif;">${_tl}</div>` : ''; })()}
     ${mixHtml}
     ${row.sound ? (() => { const ds = (typeof dedupeSound === 'function') ? dedupeSound(row.sound, row.genre_string || '') : row.sound; return ds ? `<div style="position:relative;background:rgba(19,19,31,.92);backdrop-filter:blur(12px);border-radius:14px;padding:18px 22px;margin-bottom:12px;text-align:center;overflow:hidden;">
-      <div style="position:absolute;inset:0;border-radius:14px;padding:1px;background:linear-gradient(135deg,${accentColor},rgba(191,95,255,.4));-webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none;"></div>
+      <div style="position:absolute;inset:0;border-radius:14px;padding:1px;background:linear-gradient(135deg,${accentColor},${grad2});-webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none;"></div>
       <div style="font-size:15px;color:#e8e8f0;font-style:italic;line-height:1.6;position:relative;z-index:1;">${ds}</div>
     </div>` : ''; })() : ''}
     ${mainGenre.length ? `
     <div style="position:relative;background:rgba(19,19,31,.88);backdrop-filter:blur(10px);border-radius:12px;padding:16px;margin-bottom:12px;overflow:hidden;">
-      <div style="position:absolute;inset:0;border-radius:12px;padding:1px;background:linear-gradient(135deg,${accentColor},rgba(191,95,255,.4));-webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none;"></div>
+      <div style="position:absolute;inset:0;border-radius:12px;padding:1px;background:linear-gradient(135deg,${accentColor},${grad2});-webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none;"></div>
       <div style="font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:2px;color:${accentColor};margin-bottom:8px;">GENRE</div>
       <div style="display:flex;flex-wrap:wrap;gap:6px;">
         ${mainGenre.map(g => `<span style="background:rgba(0,229,255,.08);border:1px solid rgba(0,229,255,.25);border-radius:20px;font-size:12px;padding:4px 12px;color:var(--neon2);">${g}</span>`).join('')}
@@ -353,11 +354,11 @@ function openPublicProfile(row) {
     </div>` : ''}
     ${row.bio ? `
     <div style="position:relative;background:rgba(19,19,31,.88);backdrop-filter:blur(10px);border-radius:12px;padding:16px;margin-bottom:12px;overflow:hidden;">
-      <div style="position:absolute;inset:0;border-radius:12px;padding:1px;background:linear-gradient(135deg,${accentColor},rgba(191,95,255,.4));-webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none;"></div>
+      <div style="position:absolute;inset:0;border-radius:12px;padding:1px;background:linear-gradient(135deg,${accentColor},${grad2});-webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none;"></div>
       <div style="font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:2px;color:${accentColor};margin-bottom:8px;">ABOUT</div>
       <div style="font-size:14px;color:var(--muted);line-height:1.7;">${row.bio}</div>
     </div>` : ''}
-    ${!isHost ? `<div id="publicProfileAvailability" style="position:relative;background:rgba(19,19,31,.88);backdrop-filter:blur(10px);border-radius:12px;padding:16px;margin-bottom:12px;overflow:hidden;display:none;"><div style="position:absolute;inset:0;border-radius:12px;padding:1px;background:linear-gradient(135deg,${accentColor},rgba(191,95,255,.4));-webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none;"></div></div>` : ''}
+    ${!isHost ? `<div id="publicProfileAvailability" style="position:relative;background:rgba(19,19,31,.88);backdrop-filter:blur(10px);border-radius:12px;padding:16px;margin-bottom:12px;overflow:hidden;display:none;"><div style="position:absolute;inset:0;border-radius:12px;padding:1px;background:linear-gradient(135deg,${accentColor},${grad2});-webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none;"></div></div>` : ''}
     ${followBtn}
     ${inviteBtn}
     <div id="publicProfileGigs"></div>
@@ -380,7 +381,7 @@ function openPublicProfile(row) {
 
   // Load confirmed YesPleez gigs for this artist (non-self-listed only)
   if (!isHost && row.user_id) {
-    loadPublicProfileGigs(row.user_id, accentColor, accentRgb);
+    loadPublicProfileGigs(row.user_id, accentColor, accentRgb, grad2);
     // Load availability for promoter view
     if (typeof renderProfileAvailability === 'function') {
       const availEl = document.getElementById('publicProfileAvailability');
@@ -515,7 +516,7 @@ function closeInviteToEvent() {
   _inviteUserName = '';
 }
 
-async function loadPublicProfileGigs(userId, accentColor, accentRgb) {
+async function loadPublicProfileGigs(userId, accentColor, accentRgb, grad2 = '#BF5FFF') {
   const container = document.getElementById('publicProfileGigs'); if (!container) return;
   try {
     const claimRows = await sbRest(
@@ -543,7 +544,7 @@ async function loadPublicProfileGigs(userId, accentColor, accentRgb) {
 
     container.innerHTML = `
       <div style="position:relative;background:rgba(19,19,31,.88);backdrop-filter:blur(10px);border-radius:12px;padding:16px;margin-bottom:12px;overflow:hidden;">
-        <div style="position:absolute;inset:0;border-radius:12px;padding:1px;background:linear-gradient(135deg,${accentColor},rgba(191,95,255,.4));-webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none;"></div>
+        <div style="position:absolute;inset:0;border-radius:12px;padding:1px;background:linear-gradient(135deg,${accentColor},${grad2});-webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none;"></div>
         <div style="font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:2px;color:${accentColor};margin-bottom:10px;">UPCOMING GIGS</div>
         ${gigs.map(g => `
           <div style="border:1.5px solid rgba(0,229,255,.4);background:rgba(0,229,255,.04);border-radius:10px;padding:10px 12px;margin-bottom:8px;">
