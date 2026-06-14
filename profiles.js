@@ -370,7 +370,7 @@ function openPublicProfile(row) {
       <div style="position:absolute;inset:0;border-radius:12px;padding:1px;background:linear-gradient(135deg,${accentColor},${grad2});-webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none;"></div>
       <div style="font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:2px;color:${accentColor};margin-bottom:8px;">GENRE</div>
       <div style="display:flex;flex-wrap:wrap;gap:6px;">
-        ${mainGenre.map(g => `<span style="background:rgba(0,229,255,.08);border:1px solid rgba(0,229,255,.25);border-radius:20px;font-size:12px;padding:4px 12px;color:var(--neon2);">${g}</span>`).join('')}
+        ${mainGenre.slice(0,5).map(g => `<span style="background:rgba(0,229,255,.08);border:1px solid rgba(0,229,255,.25);border-radius:20px;font-size:12px;padding:4px 12px;color:var(--neon2);">${g}</span>`).join('')}
       </div>
     </div>` : ''}
     ${row.bio ? `
