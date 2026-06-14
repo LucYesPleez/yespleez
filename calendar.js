@@ -1154,7 +1154,7 @@ function calSlimDayCard(ev) {
     ? `url('${poster}') center/cover no-repeat`
     : `linear-gradient(135deg,rgba(255,45,120,.35) 0%,rgba(0,229,255,.2) 100%)`;
   return `<div onclick="calOpenEvent('${ev.id}')" style="border-radius:14px;overflow:hidden;cursor:pointer;border:1px solid rgba(255,255,255,.07);position:relative;height:calc((100dvh - 300px) / 7);min-height:70px;background:${bg};touch-action:manipulation;flex-shrink:0;">
-    <div style="position:absolute;inset:0;background:linear-gradient(to bottom,rgba(0,0,0,.08) 0%,rgba(0,0,0,0) 35%,rgba(0,0,0,.6) 75%,rgba(0,0,0,.88) 100%);"></div>
+    <div style="position:absolute;inset:0;background:linear-gradient(to bottom,rgba(10,10,15,.4) 0%,rgba(10,10,15,.25) 40%,rgba(10,10,15,.7) 100%);"></div>
     <div style="position:absolute;top:10px;left:12px;display:flex;gap:4px;">${cat.map(c=>`<span style="background:${c.color};color:${c.dark?'#0a0a0f':'#fff'};border-radius:6px;padding:2px 8px;font-size:9px;font-weight:700;letter-spacing:.8px;font-family:'DM Sans',sans-serif;">${c.label}</span>`).join('')}</div>
     <div style="position:absolute;bottom:0;left:0;right:0;padding:12px 14px 16px;">
       <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:1.5px;color:#fff;line-height:1;text-shadow:0 1px 8px rgba(0,0,0,.8);">${name}</div>
