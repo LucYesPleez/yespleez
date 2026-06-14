@@ -357,6 +357,14 @@ function renderPunterDateStrip() {
     </div>`;
   }
 
+  // Add date tile at the end
+  html += `<div onclick="openAddEventSheet(_punterSelDate||new Date().toISOString().split('T')[0])"
+    ontouchend="event.preventDefault();openAddEventSheet(_punterSelDate||new Date().toISOString().split('T')[0])"
+    style="flex-shrink:0;width:40px;text-align:center;cursor:pointer;border-radius:10px;padding:6px 4px 4px;background:rgba(217,255,79,.07);border:1.5px dashed rgba(217,255,79,.35);color:#D9FF4F;touch-action:manipulation;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;">
+    <div style="font-size:18px;line-height:1;font-weight:300;">+</div>
+    <div style="font-size:8px;font-family:'Bebas Neue',sans-serif;letter-spacing:.5px;opacity:.7;">ADD</div>
+  </div>`;
+
   strip.innerHTML = html;
 
   // Scroll selected date or today into view
