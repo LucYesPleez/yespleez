@@ -1023,7 +1023,12 @@ body.auth-mode { overflow: hidden; height: 100dvh; }
 .role-card.discover-card .role-card-title { color: var(--gold); }
 .role-card-desc { font-size: 12px; color: var(--muted); line-height: 1.4; }
 .role-card { display:flex; align-items:center; }
-.role-new-badge { margin-left:auto; flex-shrink:0; align-self:center; width:26px; height:26px; border-radius:50%; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.18); color:var(--muted); font-size:18px; line-height:24px; text-align:center; font-family:'Bebas Neue',sans-serif; }
+.role-new-badge { margin-left:auto; flex-shrink:0; align-self:center; width:26px; height:26px; border-radius:50%; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.18); color:var(--muted); font-size:18px; line-height:24px; text-align:center; font-family:'Bebas Neue',sans-serif; cursor:pointer; transition:border-color .2s, box-shadow .2s, color .2s; }
+.role-card.host-card:hover    .role-new-badge { border-color:#FF3399;  box-shadow:0 0 10px rgba(255,51,153,.6);   color:#FF3399; }
+.role-card.artist-card:hover  .role-new-badge { border-color:var(--neon2); box-shadow:0 0 10px rgba(0,229,255,.6); color:var(--neon2); }
+.role-card.bands-card:hover   .role-new-badge { border-color:#FF8C42;  box-shadow:0 0 10px rgba(255,140,66,.6);   color:#FF8C42; }
+.role-card.venues-card:hover  .role-new-badge { border-color:#00E5A0;  box-shadow:0 0 10px rgba(0,229,160,.6);    color:#00E5A0; }
+.role-card.standup-card:hover .role-new-badge { border-color:#FF88AA;  box-shadow:0 0 10px rgba(232,121,249,.6);  color:#FF88AA; }
 
 
 /* ══════════════════════════
