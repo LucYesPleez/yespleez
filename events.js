@@ -1710,7 +1710,7 @@ async function confirmClaim() {
       }
     }
     const mixLink = isHost ? (claims[activeKey]?.mixLink || '') : (artistProfile?.mixLink || '');
-    claims[activeKey] = { name, genre, notes, backups, mixLink, cardPills, sound, user_id: currentUser?.id || null };
+    claims[activeKey] = { name, genre, notes, backups, mixLink, cardPills, sound, user_id: claimUserId };
     const slotLabel = (() => { let l='slot'; (eventData?.days||[]).forEach(d=>d.slots.forEach(s=>{if(s.id===activeKey)l=s.time+' '+s.ampm;})); return l; })();
     pushNotif('🎧', `${name} claimed the ${slotLabel} slot`, 'host');
     closeModal();
@@ -1781,11 +1781,10 @@ async function loadClaims() {
           const profiles = await profRes.json();
           const profMap = {};
           profiles.forEach(p => { profMap[p.user_id] = p; });
-          // Update name and mix link from live profile
+          // Pull mix link from live profile (do not overwrite host-entered name)
           Object.values(claims).forEach(c => {
             const p = c.user_id && profMap[c.user_id];
             if (p) {
-              if (p.dj_name || p.name) c.name = p.dj_name || p.name;
               c.mixLink = p.mix_link || p.soundcloud || p.mixcloud || '';
             }
           });
