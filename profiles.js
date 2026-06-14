@@ -339,16 +339,10 @@ function openPublicProfile(row) {
     </div>
     ${(() => { const _OLD_CATS = new Set(['ELECTRONIC','BANDS','SPOKEN','SPOKEN WORD','RAVE','FESTIVAL']); const _tl = (row.tagline||'').trim(); const _isOldCats = _tl.split(' · ').every(t => _OLD_CATS.has(t.trim().toUpperCase())); return _tl && !_isOldCats ? `<div style="text-align:center;font-size:18px;letter-spacing:1px;margin-bottom:14px;padding:0 8px;background:linear-gradient(135deg,${accentColor},#BF5FFF);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;font-family:'Bebas Neue',sans-serif;">${_tl}</div>` : ''; })()}
     ${mixHtml}
-    ${row.sound ? (() => { const ds = (typeof dedupeSound === 'function') ? dedupeSound(row.sound, row.genre_string || '') : row.sound; return ds ? `<div style="position:relative;background:rgba(19,19,31,.92);backdrop-filter:blur(12px);border-radius:14px;padding:18px 22px;margin-bottom:${row.tagline ? '10px' : '14px'};text-align:center;overflow:hidden;">
+    ${row.sound ? (() => { const ds = (typeof dedupeSound === 'function') ? dedupeSound(row.sound, row.genre_string || '') : row.sound; return ds ? `<div style="position:relative;background:rgba(19,19,31,.92);backdrop-filter:blur(12px);border-radius:14px;padding:18px 22px;margin-bottom:12px;text-align:center;overflow:hidden;">
       <div style="position:absolute;inset:0;border-radius:14px;padding:1px;background:linear-gradient(135deg,${accentColor},rgba(191,95,255,.4));-webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none;"></div>
       <div style="font-size:15px;color:#e8e8f0;font-style:italic;line-height:1.6;position:relative;z-index:1;">${ds}</div>
     </div>` : ''; })() : ''}
-    ${row.bio ? `
-    <div style="position:relative;background:rgba(19,19,31,.88);backdrop-filter:blur(10px);border-radius:12px;padding:16px;margin-bottom:12px;overflow:hidden;">
-      <div style="position:absolute;inset:0;border-radius:12px;padding:1px;background:linear-gradient(135deg,${accentColor},rgba(191,95,255,.4));-webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none;"></div>
-      <div style="font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:2px;color:${accentColor};margin-bottom:8px;">ABOUT</div>
-      <div style="font-size:14px;color:var(--muted);line-height:1.7;">${row.bio}</div>
-    </div>` : ''}
     ${mainGenre.length ? `
     <div style="position:relative;background:rgba(19,19,31,.88);backdrop-filter:blur(10px);border-radius:12px;padding:16px;margin-bottom:12px;overflow:hidden;">
       <div style="position:absolute;inset:0;border-radius:12px;padding:1px;background:linear-gradient(135deg,${accentColor},rgba(191,95,255,.4));-webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none;"></div>
@@ -357,6 +351,16 @@ function openPublicProfile(row) {
         ${mainGenre.map(g => `<span style="background:rgba(0,229,255,.08);border:1px solid rgba(0,229,255,.25);border-radius:20px;font-size:12px;padding:4px 12px;color:var(--neon2);">${g}</span>`).join('')}
       </div>
     </div>` : ''}
+    ${row.bio ? `
+    <div style="position:relative;background:rgba(19,19,31,.88);backdrop-filter:blur(10px);border-radius:12px;padding:16px;margin-bottom:12px;overflow:hidden;">
+      <div style="position:absolute;inset:0;border-radius:12px;padding:1px;background:linear-gradient(135deg,${accentColor},rgba(191,95,255,.4));-webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none;"></div>
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:2px;color:${accentColor};margin-bottom:8px;">ABOUT</div>
+      <div style="font-size:14px;color:var(--muted);line-height:1.7;">${row.bio}</div>
+    </div>` : ''}
+    ${!isHost ? `<div id="publicProfileAvailability" style="position:relative;background:rgba(19,19,31,.88);backdrop-filter:blur(10px);border-radius:12px;padding:16px;margin-bottom:12px;overflow:hidden;display:none;"><div style="position:absolute;inset:0;border-radius:12px;padding:1px;background:linear-gradient(135deg,${accentColor},rgba(191,95,255,.4));-webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none;"></div></div>` : ''}
+    ${followBtn}
+    ${inviteBtn}
+    <div id="publicProfileGigs"></div>
     ${(() => {
       const _socials = [
         row.instagram ? { href: `https://instagram.com/${row.instagram.replace('@','')}`, color: '#E1306C', svg: `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect width="20" height="20" x="2" y="2" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" x2="17.51" y1="6.5" y2="6.5"/></svg>` } : null,
@@ -367,18 +371,10 @@ function openPublicProfile(row) {
         row.website ? { href: row.website.startsWith('http')?row.website:'https://'+row.website, color: 'var(--neon2)', svg: `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>` } : null,
       ].filter(Boolean);
       if (!_socials.length) return '';
-      return `<div style="position:relative;background:rgba(19,19,31,.88);backdrop-filter:blur(10px);border-radius:12px;padding:16px;margin-bottom:12px;overflow:hidden;">
-        <div style="position:absolute;inset:0;border-radius:12px;padding:1px;background:linear-gradient(135deg,${accentColor},rgba(191,95,255,.4));-webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none;"></div>
-        <div style="font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:2px;color:${accentColor};margin-bottom:12px;">CONTACT</div>
-        <div style="display:flex;gap:12px;flex-wrap:wrap;">
-          ${_socials.map(s=>`<a href="${s.href}" target="_blank" rel="noopener" style="display:flex;align-items:center;justify-content:center;width:44px;height:44px;background:rgba(255,255,255,.05);border-radius:12px;border:1px solid rgba(255,255,255,.08);color:${s.color};text-decoration:none;transition:background .2s;">${s.svg}</a>`).join('')}
-        </div>
+      return `<div style="display:flex;justify-content:center;gap:16px;flex-wrap:wrap;padding:20px 0 8px;">
+        ${_socials.map(s=>`<a href="${s.href}" target="_blank" rel="noopener" style="display:flex;align-items:center;justify-content:center;width:44px;height:44px;color:${s.color};text-decoration:none;opacity:.85;" onmouseenter="this.style.opacity='1'" onmouseleave="this.style.opacity='.85'">${s.svg}</a>`).join('')}
       </div>`;
     })()}
-    ${!isHost ? `<div id="publicProfileAvailability" style="position:relative;background:rgba(19,19,31,.88);backdrop-filter:blur(10px);border-radius:12px;padding:16px;margin-bottom:12px;overflow:hidden;display:none;"><div style="position:absolute;inset:0;border-radius:12px;padding:1px;background:linear-gradient(135deg,${accentColor},rgba(191,95,255,.4));-webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none;"></div></div>` : ''}
-    ${followBtn}
-    ${inviteBtn}
-    <div id="publicProfileGigs"></div>
   `;
   show('publicProfileScreen');
 
