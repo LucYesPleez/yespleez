@@ -71,6 +71,9 @@ function _updateGlobalNav(id, isLocked) {
     return;
   }
   nav.style.display = 'block';
+  // Show/hide the My Scene FAB
+  const fab = document.getElementById('mySceneFab');
+  if (fab) fab.style.display = id === 'punterDashScreen' ? '' : 'none';
   // Highlight the matching tab; panels (notif/industry) keep no tab active
   const calScreens = new Set(['calendarScreen']);
   const discoverScreens = new Set(['searchScreen']);

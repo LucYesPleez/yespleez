@@ -1,4 +1,4 @@
-// ═══════════════════════════════════════════════════
+﻿// ═══════════════════════════════════════════════════
 //  follows.js — YesPleez Follow System
 //  Depends on: state.js, navigation.js
 // ═══════════════════════════════════════════════════
@@ -535,10 +535,17 @@ function _renderFollowingEditList(query) {
     event:   { color: '#D9FF4F',      label: 'EVENT'    },
   };
 
+  // Read active type filters from checkboxes
+  const activeTypes = new Set();
+  document.querySelectorAll('#followFilterChips input[data-filter-type]').forEach(cb => {
+    if (cb.checked) activeTypes.add(cb.dataset.filterType);
+  });
+
   const q = (query || '').toLowerCase().trim();
-  const filtered = _followsCache.filter(f =>
-    !q || (f.entity_name || '').toLowerCase().includes(q)
-  );
+  const filtered = _followsCache.filter(f => {
+    if (activeTypes.size && !activeTypes.has(f.entity_type)) return false;
+    return !q || (f.entity_name || '').toLowerCase().includes(q);
+  });
 
   if (!filtered.length) {
     el.innerHTML = '<div style="text-align:center;padding:40px 0;color:var(--muted);font-size:14px;">No matches</div>';
@@ -569,197 +576,237 @@ function renderPunterFeed() {
   const el = document.getElementById('punterFeedContent');
   if (!el) return;
 
-  // Init month to current if not set
   if (!_punterViewMonth) _punterViewMonth = new Date();
-
   renderPunterDateStrip();
 
-  // Update weekend sub-label
+  // Show FAB
+  const fab = document.getElementById('mySceneFab');
+  if (fab) fab.style.display = '';
+
   const now = new Date();
-  const dow = now.getDay();
-  // If already in the weekend (Fri/Sat/Sun), anchor to this Friday; otherwise forward to next Friday
-  const daysToFri = dow === 5 ? 0 : dow === 6 ? -1 : dow === 0 ? -2 : (5 - dow);
-  const fri = new Date(now); fri.setDate(now.getDate() + daysToFri); fri.setHours(0,0,0,0);
-  const sun = new Date(fri); sun.setDate(fri.getDate() + 2); sun.setHours(23,59,59,999);
-  const wkSub = document.getElementById('punterTabWeekendSub');
-  if (wkSub) wkSub.textContent = `${fri.toLocaleDateString('en-AU',{weekday:'short',day:'numeric',month:'short'})} – ${sun.toLocaleDateString('en-AU',{day:'numeric',month:'short'})}`;
-
-  const todayStr  = now.toISOString().split('T')[0];
-  const twoWeeks  = new Date(now); twoWeeks.setDate(now.getDate() + 14);
-
+  const all = _calEvents || [];
   if (typeof calParseDate !== 'function') {
-    el.innerHTML = '<div style="text-align:center;padding:60px 16px;color:var(--muted);font-family:\'Bebas Neue\',sans-serif;font-size:20px;letter-spacing:2px;">LOADING YOUR PICKS...</div>';
+    el.innerHTML = '<div style="text-align:center;padding:60px 16px;color:var(--muted);font-family:\'Bebas Neue\',sans-serif;font-size:20px;letter-spacing:2px;">LOADING...</div>';
     return;
   }
 
-  const all = _calEvents || [];
-
-  // ── YOUR PICKS events ──
-  const sceneAll  = all.filter(ev => _isPunterSceneEvent(ev));
-  const sceneSoon = sceneAll.filter(ev => {
-    const d = calParseDate(ev);
-    return d && d >= now;
-  }).sort((a,b) => calParseDate(a) - calParseDate(b));
-
-  // Featured = first upcoming scene event (or first upcoming event overall if no follows)
-  const featuredEv = sceneSoon[0] || all.filter(ev => {
-    const d = calParseDate(ev);
-    return d && d >= now && ev.config?._featured;
-  })[0];
-
-  // ── Standard buckets ──
-  const tonight  = all.filter(ev => {
-    const d = calParseDate(ev);
-    return d && d.toISOString().split('T')[0] === todayStr;
-  });
-  const weekend  = all.filter(ev => {
-    const d = calParseDate(ev);
-    return d && d >= fri && d <= sun && d.toISOString().split('T')[0] !== todayStr;
-  });
-  const comingUp = all.filter(ev => {
-    const d = calParseDate(ev);
-    if (!d) return false;
-    if (d.toISOString().split('T')[0] === todayStr) return false;
-    if (d >= fri && d <= sun) return false;
-    return d > now && d <= twoWeeks;
-  }).sort((a,b) => calParseDate(a) - calParseDate(b));
-
-  const todayBadge   = now.toLocaleDateString('en-AU', { weekday:'short', day:'numeric', month:'long' }).toUpperCase();
-  const weekendBadge = `${fri.toLocaleDateString('en-AU',{weekday:'short',day:'numeric',month:'short'})} – ${sun.toLocaleDateString('en-AU',{weekday:'short',day:'numeric',month:'short'})}`.toUpperCase();
-
   let html = '';
+  html += _upcomingForYouSection(all, now);
+  html += _savedEventsSection(all, now);
+  html += _followingUpdatesSection();
 
-  // ── SAVED EVENTS (entity_type === 'event' in follows) ──
-  const savedIds = new Set(_followsCache.filter(f => f.entity_type === 'event').map(f => f.entity_id));
-  if (savedIds.size) {
-    const fourWeeks = new Date(now); fourWeeks.setDate(now.getDate() + 28);
-    const savedEvs = all.filter(ev => {
-      const d = calParseDate(ev);
-      return savedIds.has(ev.id) && d && d >= now && d <= fourWeeks;
-    }).sort((a,b) => calParseDate(a) - calParseDate(b));
-
-    html += `<div id="punterSecSaved" style="padding:20px 16px 4px;">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-        <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:2px;">SAVED EVENTS</div>
-        <div onclick="showCalendar()" ontouchend="event.preventDefault();showCalendar();"
-          style="font-size:12px;color:var(--neon);cursor:pointer;display:flex;align-items:center;gap:3px;touch-action:manipulation;">See all
-          <svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2.5'><path d='M9 18l6-6-6-6'/></svg>
-        </div>
-      </div>
-      ${savedEvs.length
-        ? savedEvs.slice(0, 4).map(ev => typeof calListCard === 'function' ? calListCard(ev) : '').join('')
-        : '<div style="font-size:13px;color:var(--muted);padding:4px 0 12px;">No upcoming saved events in the next 4 weeks.</div>'
-      }
-    </div>`;
-  }
-
-  // ── YOUR PICKS section ──
-  if (_followsCache.length && sceneSoon.length) {
-    // Featured hero card for first scene event
-    if (featuredEv && typeof calFeaturedCard === 'function') {
-      html += `<div id="punterSecScene">`;
-      html += `<div style="display:flex;align-items:center;gap:8px;padding:20px 16px 0;">
-        <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:2px;">YOUR PICKS</div>
-        <div style="background:rgba(217,255,79,.15);border:1px solid rgba(217,255,79,.4);border-radius:20px;padding:3px 10px;font-size:10px;letter-spacing:1px;color:#D9FF4F;font-family:'DM Sans',sans-serif;font-weight:600;">ARTISTS YOU FOLLOW</div>
-      </div>`;
-      html += calFeaturedCard(featuredEv);
-      if (sceneSoon.length > 1) {
-        html += `<div style="display:flex;gap:12px;overflow-x:auto;padding:12px 16px 4px;scrollbar-width:none;-webkit-overflow-scrolling:touch;">
-          ${sceneSoon.slice(1, 6).map(ev => typeof calWhatsOnCard === 'function' ? calWhatsOnCard(ev, 'sm') : '').join('')}
-        </div>`;
-      }
-      html += `</div>`;
-    }
-  } else if (_followsCache.length && !sceneSoon.length) {
-    // User has follows but no matching events
-    html += `<div id="punterSecScene" style="margin:20px 16px 0;padding:20px;background:rgba(217,255,79,.05);border:1px dashed rgba(217,255,79,.2);border-radius:16px;text-align:center;">
-      <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:2px;color:#D9FF4F;margin-bottom:6px;">YOUR PICKS</div>
-      <div style="font-size:13px;color:var(--muted);line-height:1.6;">No upcoming gigs from your followed artists yet.<br>Check back soon or explore below.</div>
-    </div>`;
-  } else {
-    // No follows yet — prompt
-    html += `<div id="punterSecScene" style="margin:20px 16px 0;padding:20px 20px 18px;background:rgba(217,255,79,.05);border:1px dashed rgba(217,255,79,.2);border-radius:16px;">
-      <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:2px;color:#D9FF4F;margin-bottom:6px;">YOUR PICKS</div>
-      <div style="font-size:13px;color:var(--muted);line-height:1.6;margin-bottom:14px;">Follow artists, bands and venues to see their upcoming gigs here first.</div>
-      <button onclick="showSearchScreen()" ontouchend="event.preventDefault();showSearchScreen();" style="background:rgba(217,255,79,.12);border:1px solid rgba(217,255,79,.3);color:#D9FF4F;border-radius:10px;padding:10px 18px;font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:1.5px;cursor:pointer;touch-action:manipulation;">DISCOVER ARTISTS →</button>
-    </div>`;
-  }
-
-  // ── SUGGESTED FOR YOU ──
-  const interestGenres = (window._punterProfile?.genre_string || '').toLowerCase().split(/[,·]/).map(s => s.trim()).filter(Boolean);
-  const userPostcode   = parseInt(window._punterProfile?.postcode || '0', 10);
-  if (userPostcode || interestGenres.length) {
-    const alreadyShown = new Set(sceneSoon.map(e => e.id));
-    const suggestedEvs = all.filter(ev => {
-      if (alreadyShown.has(ev.id)) return false;
-      const d = calParseDate(ev);
-      if (!d || d < now) return false;
-      const evPostcode = parseInt(ev.config?.postcode || '0', 10);
-      const nearbyPc = userPostcode && evPostcode ? evPostcode === userPostcode : true;
-      if (!nearbyPc) return false;
-      if (!interestGenres.length) return true;
-      const evText = ((ev.name || '') + ' ' + (ev.config?.genres || '')).toLowerCase();
-      return interestGenres.some(g => g.length > 2 && evText.includes(g));
-    }).sort((a,b) => calParseDate(a) - calParseDate(b)).slice(0, 8);
-
-    html += `<div id="punterSuggestSection" style="display:none;">
-      <div style="padding:20px 16px 4px;display:flex;align-items:center;gap:8px;">
-        <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:2px;">IN YOUR AREA</div>
-        <div style="background:rgba(0,229,255,.12);border:1px solid rgba(0,229,255,.3);border-radius:20px;padding:3px 10px;font-size:10px;letter-spacing:1px;color:var(--neon2);font-family:'DM Sans',sans-serif;font-weight:600;">NEAR YOU</div>
-      </div>
-      ${suggestedEvs.length ? `<div style="display:flex;gap:12px;overflow-x:auto;padding:4px 16px 8px;scrollbar-width:none;-webkit-overflow-scrolling:touch;">
-        ${suggestedEvs.map(ev => typeof calWhatsOnCard === 'function' ? calWhatsOnCard(ev, 'sm') : '').join('')}
-      </div>` : ''}
-      <div id="punterNearbyProfiles" style="padding:0 16px 12px;"></div>
-    </div>`;
-
-    // Show section immediately if there are events, then async-fill profiles
-    if (suggestedEvs.length) {
-      const sec = document.getElementById('punterSuggestSection');
-      if (sec) sec.style.display = '';
-    }
-    if (userPostcode) setTimeout(() => _loadNearbyProfiles(userPostcode), 0);
-  }
-
-  // ── Standard sections ──
-  html += _punterSection('punterSecTonight',  'TONIGHT',      todayBadge,    '#FF2D78', tonight,  'sm');
-  html += _punterSection('punterSecWeekend',  'THIS WEEKEND', weekendBadge,  '#9D4EDD', weekend,  'lg');
-  html += _punterSection('punterSecUpcoming', 'COMING UP',    'NEXT 2 WEEKS','#D9FF4F', comingUp, 'list');
-
-  // ── Following strip ──
-  html += _punterFollowingStrip();
-
-  // ── Nothing at all ──
-  const total = tonight.length + weekend.length + comingUp.length;
-  if (total === 0 && !sceneSoon.length) {
-    const nearbyEvs = all.filter(ev => {
-      const d = calParseDate(ev);
-      return d && d > now;
-    }).sort((a, b) => calParseDate(a) - calParseDate(b)).slice(0, 6);
-
-    html += `<div style="text-align:center;padding:28px 16px 14px;">
-      <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:3px;color:var(--muted);margin-bottom:4px;">NOTHING ANNOUNCED YET</div>
-      <div style="font-size:12px;color:var(--muted);opacity:.7;">No events in the next two weeks</div>
-    </div>`;
-
-    if (nearbyEvs.length) {
-      html += `<div style="padding:0 16px 16px;">
-        <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:2px;margin-bottom:10px;">NEARBY NIGHTS</div>
-        <div style="display:flex;flex-direction:column;gap:8px;max-height:350px;overflow-y:auto;scrollbar-width:none;">
-          ${nearbyEvs.map(ev => typeof calSlimDayCard === 'function' ? calSlimDayCard(ev) : '').join('')}
-        </div>
-      </div>`;
-    }
-
-    html += `<div style="padding:4px 16px 0;">
-      <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:2px;color:#00E5FF;margin-bottom:10px;">DISCOVER</div>
-      <div id="sceneDiscoverProfiles" style="display:flex;gap:12px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;padding-bottom:8px;min-height:160px;"></div>
+  if (!html.trim()) {
+    html = `<div style="margin:24px 16px 0;padding:24px;background:rgba(217,255,79,.04);border:1px dashed rgba(217,255,79,.2);border-radius:16px;text-align:center;">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:2px;color:#D9FF4F;margin-bottom:8px;">YOUR SCENE AWAITS</div>
+      <div style="font-size:13px;color:var(--muted);line-height:1.6;margin-bottom:16px;">Follow artists, save events and your feed will come alive here.</div>
+      <button onclick="showSearchScreen()" ontouchend="event.preventDefault();showSearchScreen();"
+        style="background:rgba(217,255,79,.12);border:1px solid rgba(217,255,79,.3);color:#D9FF4F;border-radius:10px;padding:10px 20px;font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:1.5px;cursor:pointer;touch-action:manipulation;">
+        DISCOVER ARTISTS →
+      </button>
     </div>`;
   }
 
   el.innerHTML = html;
-  if (total === 0 && !sceneSoon.length) _loadSceneDiscoverProfiles('sceneDiscoverProfiles');
 }
+
+// ── UPCOMING FOR YOU ──────────────────────────────
+function _upcomingForYouSection(all, now) {
+  const upcoming = [];
+  const seen = new Set();
+
+  // ATTENDING: saved events
+  const savedIds = new Set(_followsCache.filter(f => f.entity_type === 'event').map(f => f.entity_id));
+  all.forEach(ev => {
+    const d = calParseDate(ev);
+    if (savedIds.has(ev.id) && d && d >= now && !seen.has(ev.id)) {
+      seen.add(ev.id);
+      upcoming.push({ ev, badge: 'ATTENDING', badgeColor: '#FF2D78' });
+    }
+  });
+
+  // MY EVENT: events the current user created as host
+  if (typeof currentUser !== 'undefined' && currentUser?.id) {
+    all.forEach(ev => {
+      const hostId = ev.userId || ev.config?.userId || ev.user_id;
+      const d = calParseDate(ev);
+      if (hostId === currentUser.id && d && d >= now && !seen.has(ev.id)) {
+        seen.add(ev.id);
+        upcoming.push({ ev, badge: 'MY EVENT', badgeColor: '#9D4EDD' });
+      }
+    });
+  }
+
+  // PLAYING: events where user's artist name appears in a slot
+  if (typeof currentUser !== 'undefined' && currentUser?.id && typeof artistProfile !== 'undefined' && artistProfile?.djName) {
+    const djLower = (artistProfile.djName || '').toLowerCase();
+    all.forEach(ev => {
+      const slots = ev.slots || ev.config?.slots || [];
+      const d = calParseDate(ev);
+      const hasSlot = Array.isArray(slots) && slots.some(s =>
+        s.user_id === currentUser.id || (s.name || '').toLowerCase() === djLower
+      );
+      if (hasSlot && d && d >= now && !seen.has(ev.id)) {
+        seen.add(ev.id);
+        upcoming.push({ ev, badge: 'PLAYING', badgeColor: '#D9FF4F' });
+      }
+    });
+  }
+
+  if (!upcoming.length) return '';
+  upcoming.sort((a, b) => calParseDate(a.ev) - calParseDate(b.ev));
+
+  const cards = upcoming.slice(0, 6).map(({ ev, badge, badgeColor }) => {
+    const d       = calParseDate(ev);
+    const dayName = d ? d.toLocaleDateString('en-AU', { weekday:'short' }).toUpperCase() : '';
+    const dayNum  = d ? d.getDate() : '';
+    const mon     = d ? d.toLocaleDateString('en-AU', { month:'short' }).toUpperCase() : '';
+    const timeStr = d ? d.toLocaleTimeString('en-AU', { hour:'numeric', minute:'2-digit', hour12:true }) : '';
+    const img     = ev.config?.image || ev.image || '';
+    const name    = ev.name || ev.config?.name || 'Event';
+    const venue   = (ev.config?.venue || ev.venue || '').split(',')[0];
+    const textCol = badge === 'PLAYING' ? '#0a0a0f' : 'white';
+    const evJson  = JSON.stringify(ev).replace(/"/g, '&quot;');
+
+    return `<div onclick="if(typeof openPublicEvent==='function')openPublicEvent(${evJson})"
+      ontouchend="event.preventDefault();if(typeof openPublicEvent==='function')openPublicEvent(${evJson})"
+      style="flex-shrink:0;width:195px;border-radius:16px;overflow:hidden;background:var(--card2);border:1px solid rgba(255,255,255,.08);cursor:pointer;position:relative;touch-action:manipulation;">
+      <div style="height:120px;background:${img ? `url('${img.replace(/'/g,"\\'")}') center/cover no-repeat` : 'linear-gradient(135deg,rgba(255,45,120,.25),rgba(157,78,221,.25))'};position:relative;">
+        <div style="position:absolute;top:8px;left:8px;">
+          <span style="background:${badgeColor};color:${textCol};font-family:'Bebas Neue',sans-serif;font-size:10px;letter-spacing:1px;padding:3px 8px;border-radius:6px;">${badge}</span>
+        </div>
+        <div style="position:absolute;top:8px;right:8px;background:rgba(0,0,0,.65);backdrop-filter:blur(4px);border-radius:8px;padding:4px 8px;text-align:center;min-width:36px;">
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:9px;color:rgba(255,255,255,.7);letter-spacing:.5px;">${dayName}</div>
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:16px;color:white;line-height:1;">${dayNum}</div>
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:9px;color:rgba(255,255,255,.7);letter-spacing:.5px;">${mon}</div>
+        </div>
+      </div>
+      <div style="padding:10px 12px 12px;">
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:.5px;margin-bottom:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${name}</div>
+        ${venue ? `<div style="font-size:11px;color:var(--muted);display:flex;align-items:center;gap:4px;margin-bottom:3px;">
+          <svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2'><path d='M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z'/><circle cx='12' cy='10' r='3'/></svg>
+          <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${venue}</span>
+        </div>` : ''}
+        ${timeStr ? `<div style="font-size:11px;color:var(--muted);display:flex;align-items:center;gap:4px;">
+          <svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2'><circle cx='12' cy='12' r='10'/><polyline points='12 6 12 12 16 14'/></svg>
+          ${timeStr}
+        </div>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+
+  return `<div id="punterSecUpcoming" style="padding:20px 0 4px;">
+    <div style="display:flex;align-items:baseline;justify-content:space-between;padding:0 16px;margin-bottom:4px;">
+      <div>
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:2px;">UPCOMING FOR YOU</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px;">Events you're attending or involved in</div>
+      </div>
+      <div onclick="showCalendar()" ontouchend="event.preventDefault();showCalendar();"
+        style="font-size:12px;color:#FF2D78;cursor:pointer;white-space:nowrap;touch-action:manipulation;">See all</div>
+    </div>
+    <div style="display:flex;gap:12px;overflow-x:auto;padding:12px 16px 8px;scrollbar-width:none;-webkit-overflow-scrolling:touch;">${cards}</div>
+  </div>`;
+}
+
+// ── SAVED EVENTS ──────────────────────────────────
+function _savedEventsSection(all, now) {
+  const savedIds = new Set(_followsCache.filter(f => f.entity_type === 'event').map(f => f.entity_id));
+  if (!savedIds.size) return '';
+  const fourWeeks = new Date(now); fourWeeks.setDate(now.getDate() + 28);
+  const savedEvs = all.filter(ev => {
+    const d = calParseDate(ev);
+    return savedIds.has(ev.id) && d && d >= now && d <= fourWeeks;
+  }).sort((a, b) => calParseDate(a) - calParseDate(b));
+
+  return `<div id="punterSecSaved" style="padding:20px 16px 4px;">
+    <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:4px;">
+      <div>
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:2px;">SAVED EVENTS</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px;">Events you've saved</div>
+      </div>
+      <div onclick="showCalendar()" ontouchend="event.preventDefault();showCalendar();"
+        style="font-size:12px;color:#FF2D78;cursor:pointer;white-space:nowrap;touch-action:manipulation;">See all</div>
+    </div>
+    <div style="margin-top:10px;">
+      ${savedEvs.length
+        ? savedEvs.slice(0, 4).map(ev => typeof calListCard === 'function' ? calListCard(ev) : '').join('')
+        : '<div style="font-size:13px;color:var(--muted);padding:4px 0 12px;">No upcoming saved events in the next 4 weeks.</div>'
+      }
+    </div>
+  </div>`;
+}
+
+// ── FOLLOWING UPDATES ─────────────────────────────
+function _followingUpdatesSection() {
+  const profileFollows = _followsCache.filter(f => f.entity_type !== 'event');
+  if (!profileFollows.length) return '';
+
+  const typeMap = {
+    artist:  { color: 'var(--neon2)', label: 'ARTIST',   update: 'Updated their profile'  },
+    band:    { color: '#FF8C42',      label: 'BAND',     update: 'Updated their profile'  },
+    venue:   { color: '#00E5A0',      label: 'VENUE',    update: 'Updated event listings' },
+    standup: { color: '#FF88AA',      label: 'COMEDY',   update: 'Updated their profile'  },
+    host:    { color: '#FF3399',      label: 'PROMOTER', update: 'Updated their events'   },
+  };
+
+  function _timeAgo(iso) {
+    if (!iso) return '';
+    const diff = Date.now() - new Date(iso).getTime();
+    const h = Math.floor(diff / 3600000);
+    if (h < 1) return 'just now';
+    if (h < 24) return `${h}h ago`;
+    return `${Math.floor(h / 24)}d ago`;
+  }
+
+  const lastVisited = window._mySceneLastVisited || new Date(0).toISOString();
+  const withUpdates = profileFollows.filter(f =>
+    f._profileUpdatedAt && f._profileUpdatedAt > lastVisited
+  );
+
+  if (!withUpdates.length) return '';
+
+  const rows = withUpdates.map(f => {
+    const tc       = typeMap[f.entity_type] || typeMap.artist;
+    const initial  = (f.entity_name || '?')[0].toUpperCase();
+    const ago      = _timeAgo(f._profileUpdatedAt);
+    const safeId   = (f.entity_id   || '').replace(/'/g, "\\'");
+    const safeName = (f.entity_name || '').replace(/'/g, "\\'");
+    const safeType = (f.entity_type || '').replace(/'/g, "\\'");
+
+    return `<div onclick="openFollowedProfile('${safeId}','${safeType}','${safeName}',this)"
+      ontouchend="event.preventDefault();openFollowedProfile('${safeId}','${safeType}','${safeName}',this)"
+      style="display:flex;align-items:center;gap:12px;padding:12px 14px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:14px;margin-bottom:8px;cursor:pointer;touch-action:manipulation;">
+      <div style="position:relative;flex-shrink:0;">
+        <div style="width:44px;height:44px;border-radius:50%;background:rgba(255,255,255,.08);display:flex;align-items:center;justify-content:center;font-family:'Bebas Neue',sans-serif;font-size:18px;color:${tc.color};">${initial}</div>
+        <div style="position:absolute;bottom:0;left:0;width:11px;height:11px;border-radius:50%;background:#00E5A0;border:2px solid var(--bg);"></div>
+      </div>
+      <div style="flex:1;min-width:0;">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;flex-wrap:wrap;">
+          <span style="font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:.5px;color:var(--text);">${f.entity_name || 'Unknown'}</span>
+          <span style="background:rgba(255,255,255,.08);border-radius:6px;font-size:9px;letter-spacing:1px;color:${tc.color};font-family:'Bebas Neue',sans-serif;padding:2px 6px;">${tc.label}</span>
+        </div>
+        <div style="font-size:12px;color:var(--muted);">${tc.update}</div>
+        <div style="font-size:10px;color:rgba(255,255,255,.3);margin-top:2px;">${ago}</div>
+      </div>
+      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="color:var(--muted);flex-shrink:0;"><path d="M9 18l6-6-6-6"/></svg>
+    </div>`;
+  }).join('');
+
+  return `<div id="punterFollowingStrip" style="padding:20px 16px 24px;">
+    <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:4px;">
+      <div>
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:2px;">FOLLOWING UPDATES</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px;">Recent updates from artists, venues &amp; events you follow</div>
+      </div>
+      <button onclick="openFollowingEditSheet()" ontouchend="event.preventDefault();openFollowingEditSheet();"
+        style="background:none;border:none;color:#FF2D78;font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:1px;cursor:pointer;touch-action:manipulation;flex-shrink:0;padding:0;">
+        EDIT
+      </button>
+    </div>
+    <div style="margin-top:12px;">${rows}</div>
+  </div>`;
+}
+
+
 
 async function _loadNearbyProfiles(userPostcode) {
   const section     = document.getElementById('punterSuggestSection');
