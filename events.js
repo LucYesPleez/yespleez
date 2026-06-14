@@ -1263,9 +1263,13 @@ function buildSlotInfoHtml(entry, s, isLounge) {
   const descriptorHtml = descriptor
     ? `<span style="display:inline-block;margin-top:5px;font-size:10px;font-family:'DM Sans',sans-serif;background:rgba(0,229,255,0.08);border:1px solid rgba(0,229,255,0.25);color:var(--neon2);border-radius:20px;padding:2px 10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;">${descriptor}</span>`
     : '';
+  // Make name clickable to open public profile when viewing as public
+  const nameHtml = (isReadOnly && entry.user_id)
+    ? `<span class="dj-name" onclick="event.stopPropagation();openProfileByUserId('${entry.user_id}')" style="cursor:pointer;text-decoration:underline;text-underline-offset:3px;text-decoration-color:rgba(0,229,255,.3);"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:5px;"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3z"/><path d="M3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg>${entry.name}</span>`
+    : `<span class="dj-name"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:5px;"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3z"/><path d="M3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg>${entry.name}</span>`;
   return `
     <div style="min-width:0;width:100%;">
-      <div class="dj-name-row"><span class="dj-name"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:5px;"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3z"/><path d="M3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg>${entry.name}</span></div>
+      <div class="dj-name-row">${nameHtml}</div>
       ${descriptorHtml}
     </div>`;
 }

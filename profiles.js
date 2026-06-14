@@ -4,6 +4,19 @@
 //  Depends on: state.js, auth.js (sbRest), navigation.js (show, showToast)
 // ═══════════════════════════════════════════════════
 
+// ── Open any profile by user_id (used from event set times) ───
+async function openProfileByUserId(userId) {
+  if (!userId) return;
+  try {
+    const rows = await sbRest(
+      `profiles?user_id=eq.${userId}&limit=1`,
+      { method: 'GET' }, currentSession?.access_token || null
+    );
+    if (rows && rows.length) { openPublicProfile(rows[0]); }
+    else { showToast('No profile found', 'error'); }
+  } catch(e) { showToast('Could not load profile', 'error'); }
+}
+
 // ── Supabase profile CRUD ──────────────────────────
 
 async function upsertProfileToSupabase(profile, type) {
