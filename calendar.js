@@ -8,6 +8,7 @@ let _calEvents    = [];
 let _calViewMonth = new Date();
 let _calSelDate   = null;    // 'YYYY-MM-DD'
 let _calLoaded    = false;
+let _calCacheTime = 0;       // ms timestamp of last successful load
 
 // Entry is in navigation.js showCalendar()
 
@@ -328,15 +329,18 @@ function calRestorePostcode() {
 // ── Data loading ───────────────────────────────────
 async function loadCalEvents() {
   if (DEMO) { _calEvents = []; _calLoaded = true; return; }
+  // 60-second in-memory cache — skip network if data is fresh
+  if (_calLoaded && _calCacheTime && (Date.now() - _calCacheTime) < 60000) return;
   try {
     const token = currentSession?.access_token || SUPABASE_KEY;
-    const data = await sbRest('events?select=*&order=created_at.desc', {}, token);
+    const data = await sbRest('events?select=id,name,config,status,host_id,created_at&order=created_at.desc', {}, token);
     const now = Date.now() - 86400000 * 1; // include yesterday
     _calEvents = (data || []).filter(ev => {
       const d = calParseDate(ev);
       return d && d.getTime() >= now;
     }).sort((a, b) => calParseDate(a) - calParseDate(b));
     _calLoaded = true;
+    _calCacheTime = Date.now();
   } catch(e) {
     console.warn('loadCalEvents:', e);
     _calEvents = [];

@@ -316,15 +316,13 @@ async function enterPunterDashboard() {
 
   if (_feed) _feed.innerHTML = '<div style="text-align:center;padding:60px 0;color:var(--muted);font-family:\'Bebas Neue\',sans-serif;letter-spacing:2px;font-size:16px;" class="loading-text">LOADING...</div>';
 
-  // Load events then follows (follows render calls renderPunterFeed once loaded)
-  if (typeof loadCalEvents === 'function') {
-    loadCalEvents().then(() => {
-      if (typeof loadFollows === 'function') loadFollows();
-      else if (typeof renderPunterFeed === 'function') renderPunterFeed();
-    });
-  } else if (typeof loadFollows === 'function') {
-    loadFollows();
-  }
+  // Load events and follows in parallel — follows calls renderPunterFeed when done,
+  // then Promise.all calls it again once both are complete (idempotent, safe).
+  const _calP = typeof loadCalEvents === 'function' ? loadCalEvents() : Promise.resolve();
+  const _folP = typeof loadFollows   === 'function' ? loadFollows()   : Promise.resolve();
+  Promise.all([_calP, _folP]).then(() => {
+    if (typeof renderPunterFeed === 'function') renderPunterFeed();
+  });
 
   if (typeof loadDbNotifs === 'function') loadDbNotifs();
   if (typeof startNotifPolling === 'function') startNotifPolling();
@@ -456,21 +454,26 @@ async function enterDashboard() {
   const email = currentUser?.email || '';
   document.getElementById('dashUserEmail').textContent = email ? `${email}` : '';
   document.getElementById('shareLinkBtn').style.display = 'none';
-  if (!DEMO && currentUser?.id) {
-    const row = await loadProfileFromSupabase('host');
-    if (row && (row.name || row.dj_name)) {
-      hostProfile = mapDbToHostProfile(row);
-      try { localStorage.setItem('yp_host_profile', JSON.stringify(hostProfile)); } catch(e) {}
-    }
-  }
+
+  // Show screen immediately, then load profile in background
   show('dashboardScreen');
   updateDashProfileCard();
   updateToggleVisibility('host');
   updateNotifDot();
-  await loadUserEvents();
+  loadUserEvents();
   if (!DEMO) loadPendingAppsBadge();
   if (typeof loadDbNotifs === 'function') loadDbNotifs();
   if (typeof startNotifPolling === 'function') startNotifPolling();
+
+  if (!DEMO && currentUser?.id) {
+    loadProfileFromSupabase('host').then(row => {
+      if (row && (row.name || row.dj_name)) {
+        hostProfile = mapDbToHostProfile(row);
+        try { localStorage.setItem('yp_host_profile', JSON.stringify(hostProfile)); } catch(e) {}
+        updateDashProfileCard();
+      }
+    }).catch(()=>{});
+  }
 }
 
 function switchDashTab(tab) {
@@ -491,13 +494,8 @@ async function enterArtistDashboard() {
   artistProfile = {};
   const email = currentUser?.email || '';
   document.getElementById('artistDashUserEmail').textContent = email;
-  if (!DEMO && currentUser?.id && currentUser.id !== 'guest') {
-    const row = await loadProfileFromSupabase('artist');
-    if (row && (row.dj_name || row.name)) {
-      artistProfile = mapDbToArtistProfile(row);
-      try { localStorage.setItem('yp_artist_profile', JSON.stringify(artistProfile)); } catch(e) {}
-    }
-  }
+
+  // Show screen immediately with whatever profile is cached, then refresh in background
   updateArtistDashCard();
   renderArtistDashGigsWithManual();
   renderProfileNudge();
@@ -510,6 +508,17 @@ async function enterArtistDashboard() {
   if (typeof loadMyAvailability === 'function') loadMyAvailability();
   if (typeof loadDbNotifs === 'function') loadDbNotifs();
   if (typeof startNotifPolling === 'function') startNotifPolling();
+
+  if (!DEMO && currentUser?.id && currentUser.id !== 'guest') {
+    loadProfileFromSupabase('artist').then(row => {
+      if (row && (row.dj_name || row.name)) {
+        artistProfile = mapDbToArtistProfile(row);
+        try { localStorage.setItem('yp_artist_profile', JSON.stringify(artistProfile)); } catch(e) {}
+        updateArtistDashCard();
+        renderProfileNudge();
+      }
+    }).catch(()=>{});
+  }
 }
 
 // ── Profile completeness nudge ─────────────────────

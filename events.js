@@ -20,7 +20,7 @@ async function loadUserEvents() {
   listEl.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted);font-size:13px;">Loading...</div>';
   try {
     const rows = await sbRest(
-      `events?host_id=eq.${currentUser.id}&order=created_at.desc`,
+      `events?host_id=eq.${currentUser.id}&select=id,name,config,status,created_at,host_id&order=created_at.desc`,
       {}, currentSession.access_token
     );
     allEvents = rows;
