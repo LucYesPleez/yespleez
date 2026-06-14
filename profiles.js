@@ -160,6 +160,7 @@ function mapDbToHostProfile(row) {
     lng:         row.lng          || null,
     years:       row.years        || '',
     tagline:     row.tagline      || '',
+    sound:       row.sound        || '',
     bio:         row.bio          || '',
     instagram:   row.instagram    || '',
     website:     row.website      || '',
@@ -335,13 +336,12 @@ function openPublicProfile(row) {
       </div>
       ${row.years ? `<span style="position:absolute;bottom:0;right:0;font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:2px;color:#fff;">EST. ${row.years}</span>` : ''}
     </div>
-    ${isHost && row.tagline ? `<div style="display:flex;justify-content:center;flex-wrap:wrap;gap:8px;margin-bottom:16px;">${row.tagline.split(' · ').filter(Boolean).map(c=>`<span style="background:rgba(255,45,120,.12);border:1px solid rgba(255,45,120,.35);color:var(--neon);border-radius:20px;padding:5px 16px;font-family:'Bebas Neue',sans-serif;font-size:12px;letter-spacing:1.5px;">${c}</span>`).join('')}</div>` : ''}
+    ${row.tagline ? `<div style="text-align:center;font-size:18px;letter-spacing:1px;margin-bottom:14px;padding:0 8px;background:linear-gradient(135deg,${accentColor},#BF5FFF);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;font-family:'Bebas Neue',sans-serif;">${row.tagline}</div>` : ''}
     ${mixHtml}
     ${row.sound ? (() => { const ds = (typeof dedupeSound === 'function') ? dedupeSound(row.sound, row.genre_string || '') : row.sound; return ds ? `<div style="position:relative;background:rgba(19,19,31,.92);backdrop-filter:blur(12px);border-radius:14px;padding:18px 22px;margin-bottom:${row.tagline ? '10px' : '14px'};text-align:center;overflow:hidden;">
       <div style="position:absolute;inset:0;border-radius:14px;padding:1px;background:linear-gradient(135deg,${accentColor},rgba(191,95,255,.4));-webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none;"></div>
       <div style="font-size:15px;color:#e8e8f0;font-style:italic;line-height:1.6;position:relative;z-index:1;">${ds}</div>
     </div>` : ''; })() : ''}
-    ${row.tagline ? `<div style="text-align:center;font-size:16px;letter-spacing:1px;margin-bottom:14px;padding:0 8px;background:linear-gradient(135deg,${accentColor},#BF5FFF);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;font-family:'Bebas Neue',sans-serif;">${row.tagline}</div>` : ''}
     ${row.bio ? `
     <div style="position:relative;background:rgba(19,19,31,.88);backdrop-filter:blur(10px);border-radius:12px;padding:16px;margin-bottom:12px;overflow:hidden;">
       <div style="position:absolute;inset:0;border-radius:12px;padding:1px;background:linear-gradient(135deg,${accentColor},rgba(191,95,255,.4));-webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none;"></div>

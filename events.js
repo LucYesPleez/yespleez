@@ -4114,7 +4114,10 @@ async function saveHostProfile() {
   const _hpc = (document.getElementById('hostProfilePostcode')?.value || '').trim();
   const _hpcCoords = (typeof AU_POSTCODES !== 'undefined' && _hpc && AU_POSTCODES[_hpc]) ? AU_POSTCODES[_hpc] : null;
   const _hostCats = [...document.querySelectorAll('.host-cat-btn.selected')].map(b => b.dataset.cat).join(' · ');
-  hostProfile = { ...hostProfile, name: nameVal, location: document.getElementById('hostProfileLocation').value.trim(), state: document.getElementById('hostProfileState').value, years: document.getElementById('hostProfileYears').value.trim(), postcode: _hpc, lat: _hpcCoords ? _hpcCoords[0] : (hostProfile.lat || null), lng: _hpcCoords ? _hpcCoords[1] : (hostProfile.lng || null), bio: document.getElementById('hostProfileBio').value.trim(), instagram: document.getElementById('hostProfileInstagram').value.trim(), website: document.getElementById('hostProfileWebsite').value.trim(), email: document.getElementById('hostProfileEmail').value.trim(), genreString: getHostProfileGenreString(), tagline: _hostCats };
+  const _hostGenreParts = getHostProfileGenreString().split(' · ').filter(Boolean);
+  const _hostCatParts = _hostCats.split(' · ').filter(Boolean);
+  const _mergedGenre = [...new Set([..._hostCatParts, ..._hostGenreParts])].join(' · ');
+  hostProfile = { ...hostProfile, name: nameVal, location: document.getElementById('hostProfileLocation').value.trim(), state: document.getElementById('hostProfileState').value, years: document.getElementById('hostProfileYears').value.trim(), postcode: _hpc, lat: _hpcCoords ? _hpcCoords[0] : (hostProfile.lat || null), lng: _hpcCoords ? _hpcCoords[1] : (hostProfile.lng || null), bio: document.getElementById('hostProfileBio').value.trim(), instagram: document.getElementById('hostProfileInstagram').value.trim(), website: document.getElementById('hostProfileWebsite').value.trim(), email: document.getElementById('hostProfileEmail').value.trim(), genreString: _mergedGenre, tagline: (document.getElementById('hostProfileTagline')?.value || '').trim(), sound: (document.getElementById('hostProfileSound')?.value || '').trim() };
   try { localStorage.setItem('yp_host_profile', JSON.stringify(hostProfile)); } catch(e) {}
   await upsertProfileToSupabase(hostProfile, 'host');
   btn.disabled = false; btn.textContent = 'SAVE HOST PROFILE →';
@@ -4142,6 +4145,8 @@ function loadHostProfileData() {
   document.getElementById('hostProfileInstagram').value = hostProfile.instagram || '';
   document.getElementById('hostProfileWebsite').value   = hostProfile.website   || '';
   document.getElementById('hostProfileEmail').value     = hostProfile.email     || '';
+  const _htEl = document.getElementById('hostProfileTagline'); if (_htEl) _htEl.value = hostProfile.tagline || '';
+  const _hsEl = document.getElementById('hostProfileSound');   if (_hsEl) _hsEl.value = hostProfile.sound   || '';
   updateHostBioCount();
   if (hostProfile.genreString) {
     const parts = hostProfile.genreString.split(' · ').map(s => s.trim());
