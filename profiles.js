@@ -291,7 +291,7 @@ function openPublicProfile(row) {
   const mainGenre = genres;
   const subGenres = [];
   const typeAccents = {
-    host:    { color: '#9D4EDD',      rgb: '157,78,221',  label: 'HOST / PROMOTER',        grad2: '#BF5FFF' },
+    host:    { color: '#FF3399',      rgb: '255,51,153',  label: 'HOST / PROMOTER',        grad2: '#BF5FFF' },
     artist:  { color: 'var(--neon2)', rgb: '0,229,255',   label: 'ARTIST / DJ',            grad2: '#BF5FFF' },
     band:    { color: '#FF8C42',      rgb: '255,140,66',  label: row.band_type || 'BAND / MUSO',          grad2: '#FF5500' },
     standup: { color: '#FF88AA',      rgb: '255,136,170', label: row.act_type  || 'STAND-UP / COMEDY',    grad2: '#BF5FFF' },
