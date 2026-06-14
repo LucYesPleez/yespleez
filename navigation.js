@@ -101,17 +101,36 @@ function openMessagesPanel() {
 
 // ── Industry Panel ─────────────────────────────────
 
-function openIndustryPanel() {
-  _updateIndustryPanelBadges();
+async function openIndustryPanel() {
   const overlay = document.getElementById('industryPanelOverlay');
   const panel   = document.getElementById('industryPanel');
   if (!overlay || !panel) return;
   overlay.style.display = 'block';
   panel.style.display   = 'block';
-  // Animate in on next frame
   requestAnimationFrame(() => {
     requestAnimationFrame(() => { panel.classList.add('ip-open'); });
   });
+
+  // Load any profiles not yet in memory
+  if (!DEMO && currentUser?.id && currentSession?.access_token) {
+    try {
+      const rows = await sbRest(
+        `profiles?user_id=eq.${currentUser.id}&select=type,name,dj_name`,
+        { method: 'GET' }, currentSession.access_token
+      );
+      if (Array.isArray(rows)) {
+        rows.forEach(r => {
+          if (r.type === 'host'    && (r.name || r.dj_name) && !hostProfile?.name)    hostProfile    = { name: r.name || r.dj_name };
+          if (r.type === 'artist'  && (r.dj_name || r.name) && !artistProfile?.djName) artistProfile  = { djName: r.dj_name || r.name };
+          if (r.type === 'band'    && (r.name || r.dj_name) && !bandProfile?.name)    bandProfile    = { name: r.name || r.dj_name };
+          if (r.type === 'venue'   && (r.name || r.dj_name) && !venueProfile?.name)   venueProfile   = { name: r.name || r.dj_name };
+          if (r.type === 'standup' && (r.name || r.dj_name) && !standupProfile?.name) standupProfile = { name: r.name || r.dj_name };
+        });
+      }
+    } catch(e) {}
+  }
+
+  _updateIndustryPanelBadges();
 }
 
 function closeIndustryPanel() {
