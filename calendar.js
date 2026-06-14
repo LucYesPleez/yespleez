@@ -1021,7 +1021,7 @@ function renderDayView(dateStr, el) {
         <div style="font-family:'Bebas Neue',sans-serif;font-size:17px;letter-spacing:2px;color:var(--neon2);">NEARBY NIGHTS</div>
         <div style="flex:1;height:1px;background:linear-gradient(to right,rgba(0,229,255,.4),transparent);"></div>
       </div>
-      <div style="max-height:350px;overflow-y:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;">
+      <div style="max-height:350px;overflow-y:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;display:flex;flex-direction:column;gap:8px;">
         ${nearby.map(ev => calSlimDayCard(ev)).join('')}
       </div>`;
     }
@@ -1153,7 +1153,7 @@ function calSlimDayCard(ev) {
   const bg = poster
     ? `url('${poster}') center/cover no-repeat`
     : `linear-gradient(135deg,rgba(255,45,120,.35) 0%,rgba(0,229,255,.2) 100%)`;
-  return `<div onclick="calOpenEvent('${ev.id}')" style="border-radius:14px;overflow:hidden;cursor:pointer;border:1px solid rgba(255,255,255,.07);position:relative;height:calc((100dvh - 300px) / 7);min-height:70px;background:${bg};touch-action:manipulation;flex-shrink:0;">
+  return `<div onclick="calOpenEvent('${ev.id}')" style="border-radius:14px;overflow:hidden;cursor:pointer;border:1px solid rgba(0,180,200,.35);position:relative;height:calc((100dvh - 300px) / 7);min-height:70px;background:${bg};touch-action:manipulation;flex-shrink:0;">
     <div style="position:absolute;inset:0;background:rgba(10,10,15,.62);"></div>
     <div style="position:absolute;top:10px;left:12px;display:flex;gap:4px;">${cat.map(c=>`<span style="background:${c.color};color:${c.dark?'#0a0a0f':'#fff'};border-radius:6px;padding:2px 8px;font-size:9px;font-weight:700;letter-spacing:.8px;font-family:'DM Sans',sans-serif;">${c.label}</span>`).join('')}</div>
     <div style="position:absolute;bottom:0;left:0;right:0;padding:12px 14px 16px;">
