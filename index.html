@@ -5451,6 +5451,44 @@ body.player-open .screen.active { padding-bottom: 80px; }
 
 
 </script>
+
+<!-- ══ FOLLOWING EDIT SHEET ══ -->
+<div id="followingEditOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9000;backdrop-filter:blur(4px);" onclick="closeFollowingEditSheet()"></div>
+<div id="followingEditSheet" style="display:none;position:fixed;bottom:0;left:50%;transform:translateX(-50%) translateY(100%);width:100%;max-width:480px;background:var(--card2,#16161f);border-radius:22px 22px 0 0;z-index:9001;flex-direction:column;max-height:80vh;transition:transform .3s cubic-bezier(.32,1,.45,1);">
+  <!-- handle -->
+  <div style="display:flex;justify-content:center;padding:12px 0 4px;">
+    <div style="width:36px;height:4px;border-radius:2px;background:rgba(255,255,255,.2);"></div>
+  </div>
+  <!-- header -->
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 20px 12px;">
+    <div style="font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:2px;">EDIT FOLLOWING</div>
+    <button onclick="closeFollowingEditSheet()" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:20px;line-height:1;padding:4px;">✕</button>
+  </div>
+  <!-- search -->
+  <div style="padding:0 16px 12px;">
+    <div style="display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:8px 12px;">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--muted);flex-shrink:0;"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      <input id="followingEditSearch" placeholder="Search people, venues, events..." oninput="_filterFollowingEditList(this.value)"
+        style="background:none;border:none;outline:none;color:var(--text);font-size:13px;width:100%;font-family:'DM Sans',sans-serif;">
+    </div>
+  </div>
+  <!-- filter chips -->
+  <div id="followFilterChips" style="padding:0 16px 12px;display:flex;flex-wrap:wrap;gap:8px;">
+    <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);cursor:pointer;"><input type="checkbox" data-filter-type="artist"  onchange="_renderFollowingEditList(document.getElementById('followingEditSearch').value)" style="accent-color:var(--neon2);" checked> Artists</label>
+    <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);cursor:pointer;"><input type="checkbox" data-filter-type="venue"   onchange="_renderFollowingEditList(document.getElementById('followingEditSearch').value)" style="accent-color:#00E5A0;" checked> Venues</label>
+    <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);cursor:pointer;"><input type="checkbox" data-filter-type="host"    onchange="_renderFollowingEditList(document.getElementById('followingEditSearch').value)" style="accent-color:#FF3399;" checked> Hosts</label>
+    <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);cursor:pointer;"><input type="checkbox" data-filter-type="event"   onchange="_renderFollowingEditList(document.getElementById('followingEditSearch').value)" style="accent-color:#BF5FFF;" checked> Events</label>
+    <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);cursor:pointer;"><input type="checkbox" data-filter-type="band"    onchange="_renderFollowingEditList(document.getElementById('followingEditSearch').value)" style="accent-color:#FF8C42;"> Bands</label>
+    <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);cursor:pointer;"><input type="checkbox" data-filter-type="standup" onchange="_renderFollowingEditList(document.getElementById('followingEditSearch').value)" style="accent-color:#FF88AA;"> Comedy</label>
+  </div>
+  <!-- list -->
+  <div id="followingEditList" style="overflow-y:auto;flex:1;padding:0 16px 8px;"></div>
+  <!-- done -->
+  <div style="padding:12px 16px 32px;">
+    <button onclick="closeFollowingEditSheet()" style="width:100%;padding:14px;background:linear-gradient(135deg,var(--neon2),#BF5FFF);border:none;border-radius:12px;color:#0a0a0f;font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:2px;cursor:pointer;">DONE</button>
+  </div>
+</div>
+
 </body>
 </html>
 
