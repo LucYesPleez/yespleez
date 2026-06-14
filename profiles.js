@@ -527,35 +527,18 @@ async function loadPublicProfileGigs(userId, accentColor, accentRgb, grad2 = '#B
     const eventIds = [...new Set(claimRows.map(c => c.event_id).filter(Boolean))];
     if (!eventIds.length) return;
     const events = await sbRest(
-      `events?id=in.(${eventIds.join(',')})&select=id,name,config`,
+      `events?id=in.(${eventIds.join(',')})&select=id,name,config,poster_url,date`,
       { method: 'GET' }, currentSession?.access_token || null
     );
     if (!events?.length) return;
 
-    const gigs = events.map(ev => {
-      const cfg = ev.config || {};
-      const mySlotId = claimRows.find(c => c.event_id === ev.id)?.slot_id;
-      let slotTime = null, slotDur = null;
-      (cfg.days || []).forEach(d => d.slots?.forEach(s => {
-        if (s.id === mySlotId) { slotTime = s.time + ' ' + s.ampm; slotDur = s.dur; }
-      }));
-      return { eventName: ev.name || cfg.name || 'Untitled Event', venue: cfg.venue || '', date: cfg.date || '', slotTime, slotDur };
-    });
+    if (!events?.length) return;
 
     container.innerHTML = `
-      <div style="position:relative;background:rgba(19,19,31,.88);backdrop-filter:blur(10px);border-radius:12px;padding:16px;margin-bottom:12px;overflow:hidden;">
+      <div style="position:relative;background:rgba(19,19,31,.88);backdrop-filter:blur(10px);border-radius:12px;overflow:hidden;margin-bottom:12px;">
         <div style="position:absolute;inset:0;border-radius:12px;padding:1px;background:linear-gradient(135deg,${accentColor},${grad2});-webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none;"></div>
-        <div style="font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:2px;color:${accentColor};margin-bottom:10px;">UPCOMING GIGS</div>
-        ${gigs.map(g => `
-          <div style="border:1.5px solid rgba(0,229,255,.4);background:rgba(0,229,255,.04);border-radius:10px;padding:10px 12px;margin-bottom:8px;">
-            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px;">
-              <div style="font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:1px;">${g.eventName}</div>
-              <span style="font-family:'Bebas Neue',sans-serif;font-size:9px;letter-spacing:1.5px;color:var(--neon2);background:rgba(0,229,255,.12);border:1px solid rgba(0,229,255,.3);border-radius:10px;padding:2px 8px;white-space:nowrap;margin-left:8px;">CONFIRMED ✓</span>
-            </div>
-            <div style="font-size:12px;color:var(--muted);">${g.venue}${g.venue && g.date ? ' · ' : ''}${g.date}</div>
-            ${g.slotTime ? `<span style="display:inline-block;margin-top:6px;font-size:11px;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;color:var(--neon2);border:1px solid var(--neon2);border-radius:20px;padding:2px 10px;">${g.slotTime}${g.slotDur ? ' · ' + g.slotDur : ''}</span>` : ''}
-          </div>
-        `).join('')}
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:2px;color:${accentColor};padding:14px 16px 0;">UPCOMING GIGS</div>
+        ${events.map(ev => typeof calListCard === 'function' ? calListCard(ev) : '').join('')}
       </div>
     `;
   } catch(e) { console.warn('loadPublicProfileGigs:', e.message); }
