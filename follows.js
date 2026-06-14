@@ -360,9 +360,11 @@ function renderPunterDateStrip() {
   // Add date tile at the end
   html += `<div onclick="openAddEventSheet(_punterSelDate||new Date().toISOString().split('T')[0])"
     ontouchend="event.preventDefault();openAddEventSheet(_punterSelDate||new Date().toISOString().split('T')[0])"
-    style="flex-shrink:0;width:40px;text-align:center;cursor:pointer;border-radius:10px;padding:6px 4px 4px;background:rgba(217,255,79,.07);border:1.5px dashed rgba(217,255,79,.35);color:#D9FF4F;touch-action:manipulation;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;">
-    <div style="font-size:18px;line-height:1;font-weight:300;">+</div>
-    <div style="font-size:8px;font-family:'Bebas Neue',sans-serif;letter-spacing:.5px;opacity:.7;">ADD</div>
+    style="flex-shrink:0;width:48px;text-align:center;cursor:pointer;border-radius:10px;padding:6px 4px 4px;touch-action:manipulation;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;">
+    <div style="width:32px;height:32px;border-radius:50%;background:#D9FF4F;display:flex;align-items:center;justify-content:center;box-shadow:0 0 10px rgba(217,255,79,.4);">
+      <svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='#0a0a0f' stroke-width='3' stroke-linecap='round'><line x1='12' y1='5' x2='12' y2='19'/><line x1='5' y1='12' x2='19' y2='12'/></svg>
+    </div>
+    <div style="font-size:8px;font-family:'Bebas Neue',sans-serif;letter-spacing:.5px;color:#D9FF4F;">ADD</div>
   </div>`;
 
   strip.innerHTML = html;
