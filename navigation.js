@@ -274,6 +274,9 @@ function enterMode(mode) {
 async function enterPunterDashboard() {
   currentMode = 'punter';
   try { localStorage.setItem('yp_last_mode', 'punter'); } catch(e) {}
+  // Track last visit time for Following notification dots
+  window._mySceneLastVisited = localStorage.getItem('yp_myscene_last_visited') || new Date(0).toISOString();
+  try { localStorage.setItem('yp_myscene_last_visited', new Date().toISOString()); } catch(e) {}
   const email = currentUser?.email || '';
   const emailEl = document.getElementById('punterDashUserEmail');
   if (emailEl) emailEl.textContent = email;

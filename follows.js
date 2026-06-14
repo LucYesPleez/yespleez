@@ -22,6 +22,26 @@ async function loadFollows() {
   } catch(e) {
     _followsCache = [];
   }
+
+  // Fetch updated_at for non-event follows so we can show notification dots
+  const profileFollows = _followsCache.filter(f => f.entity_type !== 'event' && f.entity_id);
+  if (profileFollows.length) {
+    try {
+      const ids = profileFollows.map(f => f.entity_id).join(',');
+      const profiles = await sbRest(
+        `profiles?user_id=in.(${ids})&select=user_id,updated_at`,
+        { method: 'GET' }, currentSession?.access_token
+      );
+      if (Array.isArray(profiles)) {
+        const map = {};
+        profiles.forEach(p => { map[p.user_id] = p.updated_at; });
+        _followsCache.forEach(f => {
+          if (f.entity_type !== 'event') f._profileUpdatedAt = map[f.entity_id] || null;
+        });
+      }
+    } catch(e) {}
+  }
+
   _followsLoaded = true;
   renderPunterFeed();
 }
@@ -389,46 +409,159 @@ function _punterSection(sectionId, label, badgeText, badgeColor, evs, style) {
   return header + content;
 }
 
-// ── Following strip (horizontal chips for each followed entity) ──
+// ── Following strip — vertical list with notification dots ──
 function _punterFollowingStrip() {
-  if (!_followsCache.length) return '';
+  const profileFollows = _followsCache.filter(f => f.entity_type !== 'event');
+  if (!profileFollows.length) return '';
 
   const typeMap = {
-    artist:  { color: 'var(--neon2)', rgb: '0,229,255',   label: 'ARTIST'   },
-    band:    { color: '#FF8C42',      rgb: '255,140,66',   label: 'BAND'     },
-    venue:   { color: '#00E5A0',      rgb: '0,229,160',    label: 'VENUE'    },
-    standup: { color: '#FF88AA',      rgb: '255,136,170',  label: 'COMEDY'   },
-    host:    { color: '#FF3399',      rgb: '255,51,153',   label: 'PROMOTER' },
+    artist:  { color: 'var(--neon2)', label: 'ARTIST'   },
+    band:    { color: '#FF8C42',      label: 'BAND'     },
+    venue:   { color: '#00E5A0',      label: 'VENUE'    },
+    standup: { color: '#FF88AA',      label: 'COMEDY'   },
+    host:    { color: '#FF3399',      label: 'PROMOTER' },
+    event:   { color: '#D9FF4F',      label: 'EVENT'    },
   };
 
-  const count = _followsCache.length;
-  const chips = _followsCache.map(f => {
-    const tc     = typeMap[f.entity_type] || typeMap.artist;
-    const safeId = (f.entity_id || '').replace(/'/g, "\\'");
-    return `<div style="flex-shrink:0;background:rgba(255,255,255,.04);border:1px solid rgba(${tc.rgb},.3);border-radius:12px;padding:10px 14px;min-width:110px;max-width:140px;cursor:pointer;touch-action:manipulation;">
-      <div style="font-size:9px;color:${tc.color};letter-spacing:1.5px;font-family:'Bebas Neue',sans-serif;margin-bottom:4px;">${tc.label}</div>
-      <div style="font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:.5px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${f.entity_name || 'Unknown'}</div>
-      <div style="margin-top:6px;">
-        <button onclick="unfollowEntity('${safeId}','${(f.entity_name||'').replace(/'/g,"\\'")}')"
-          ontouchend="event.preventDefault();unfollowEntity('${safeId}','${(f.entity_name||'').replace(/'/g,"\\'")}');"
-          style="background:none;border:1px solid rgba(255,255,255,.12);color:var(--muted);border-radius:6px;font-family:'Bebas Neue',sans-serif;font-size:10px;letter-spacing:.8px;padding:3px 8px;cursor:pointer;touch-action:manipulation;">
-          UNFOLLOW
+  const lastVisited = window._mySceneLastVisited || new Date(0).toISOString();
+
+  // Only show profiles with updates since last visit
+  const withNotif = profileFollows.filter(f =>
+    f._profileUpdatedAt && f._profileUpdatedAt > lastVisited
+  );
+  const showList = withNotif.length ? withNotif : [];
+
+  if (!showList.length) {
+    return `<div id="punterFollowingStrip" style="padding:20px 16px 8px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:2px;">FOLLOWING</div>
+        <button onclick="openFollowingEditSheet()" ontouchend="event.preventDefault();openFollowingEditSheet();"
+          style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);color:var(--text);border-radius:8px;font-family:'Bebas Neue',sans-serif;font-size:12px;letter-spacing:1px;padding:5px 14px;cursor:pointer;touch-action:manipulation;">
+          EDIT (${profileFollows.length})
         </button>
       </div>
+      <div style="font-size:13px;color:var(--muted);padding:4px 0 8px;">No new updates from who you follow.</div>
+    </div>`;
+  }
+
+  const rows = showList.map(f => {
+    const tc     = typeMap[f.entity_type] || typeMap.artist;
+    const safeF  = JSON.stringify(f).replace(/"/g, '&quot;');
+    return `<div onclick="openFollowedProfile('${(f.entity_id||'').replace(/'/g,"\\'")}','${f.entity_type||''}','${(f.entity_name||'').replace(/'/g,"\\'")}',this)"
+      ontouchend="event.preventDefault();openFollowedProfile('${(f.entity_id||'').replace(/'/g,"\\'")}','${f.entity_type||''}','${(f.entity_name||'').replace(/'/g,"\\'")}',this)"
+      style="display:flex;align-items:center;gap:12px;padding:11px 14px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.09);border-radius:12px;margin-bottom:8px;cursor:pointer;touch-action:manipulation;position:relative;">
+      <div style="width:38px;height:38px;border-radius:50%;background:rgba(${tc.color === 'var(--neon2)' ? '0,229,255' : tc.color.replace('#','').match(/../g)?.map(h=>parseInt(h,16)).join(',') || '200,200,200'},.15);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-family:'Bebas Neue',sans-serif;font-size:14px;color:${tc.color};">
+        ${(f.entity_name||'?')[0].toUpperCase()}
+      </div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:.5px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${f.entity_name||'Unknown'}</div>
+        <div style="font-size:10px;color:${tc.color};letter-spacing:1.5px;font-family:'Bebas Neue',sans-serif;margin-top:1px;">${tc.label}</div>
+      </div>
+      <div style="width:8px;height:8px;border-radius:50%;background:#FF2D78;box-shadow:0 0 6px rgba(255,45,120,.6);flex-shrink:0;" title="New update"></div>
+      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="color:var(--muted);flex-shrink:0;"><path d="M9 18l6-6-6-6"/></svg>
     </div>`;
   }).join('');
 
-  const countEl = document.getElementById('punterTabFollowingCount');
-  if (countEl) countEl.textContent = count;
-
-  return `<div id="punterFollowingStrip" style="padding:20px 16px 0;">
+  return `<div id="punterFollowingStrip" style="padding:20px 16px 8px;">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-      <div style="display:flex;align-items:center;gap:10px;">
-        <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:2px;">FOLLOWING</div>
-      </div>
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:2px;">FOLLOWING</div>
+      <button onclick="openFollowingEditSheet()" ontouchend="event.preventDefault();openFollowingEditSheet();"
+        style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);color:var(--text);border-radius:8px;font-family:'Bebas Neue',sans-serif;font-size:12px;letter-spacing:1px;padding:5px 14px;cursor:pointer;touch-action:manipulation;">
+        EDIT (${profileFollows.length})
+      </button>
     </div>
-    <div style="display:flex;gap:10px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none;-webkit-overflow-scrolling:touch;">${chips}</div>
+    ${rows}
   </div>`;
+}
+
+// ── Open a followed profile (fetch then display) ──
+async function openFollowedProfile(entityId, entityType, entityName, tappedEl) {
+  if (tappedEl) tappedEl.style.opacity = '.6';
+  try {
+    const rows = await sbRest(
+      `profiles?user_id=eq.${entityId}&limit=1`,
+      { method: 'GET' }, currentSession?.access_token
+    );
+    if (rows && rows.length) {
+      if (typeof openPublicProfile === 'function') openPublicProfile(rows[0]);
+    } else {
+      showToast(`${entityName || 'Profile'} not found`, 'error');
+    }
+  } catch(e) {
+    showToast('Could not load profile', 'error');
+  } finally {
+    if (tappedEl) tappedEl.style.opacity = '';
+  }
+}
+
+// ── Following edit sheet ──
+function openFollowingEditSheet() {
+  const overlay = document.getElementById('followingEditOverlay');
+  const sheet   = document.getElementById('followingEditSheet');
+  if (!overlay || !sheet) return;
+  overlay.style.display = 'block';
+  sheet.style.display   = 'flex';
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    sheet.style.transform = 'translateX(-50%) translateY(0)';
+  }));
+  const search = document.getElementById('followingEditSearch');
+  if (search) search.value = '';
+  _renderFollowingEditList('');
+}
+
+function closeFollowingEditSheet() {
+  const overlay = document.getElementById('followingEditOverlay');
+  const sheet   = document.getElementById('followingEditSheet');
+  if (!sheet) return;
+  sheet.style.transform = 'translateX(-50%) translateY(100%)';
+  if (overlay) overlay.style.display = 'none';
+  setTimeout(() => { if (sheet) sheet.style.display = 'none'; }, 300);
+}
+
+function _filterFollowingEditList(query) {
+  _renderFollowingEditList(query);
+}
+
+function _renderFollowingEditList(query) {
+  const el = document.getElementById('followingEditList');
+  if (!el) return;
+
+  const typeMap = {
+    artist:  { color: 'var(--neon2)', label: 'ARTIST'   },
+    band:    { color: '#FF8C42',      label: 'BAND'     },
+    venue:   { color: '#00E5A0',      label: 'VENUE'    },
+    standup: { color: '#FF88AA',      label: 'COMEDY'   },
+    host:    { color: '#FF3399',      label: 'PROMOTER' },
+    event:   { color: '#D9FF4F',      label: 'EVENT'    },
+  };
+
+  const q = (query || '').toLowerCase().trim();
+  const filtered = _followsCache.filter(f =>
+    !q || (f.entity_name || '').toLowerCase().includes(q)
+  );
+
+  if (!filtered.length) {
+    el.innerHTML = '<div style="text-align:center;padding:40px 0;color:var(--muted);font-size:14px;">No matches</div>';
+    return;
+  }
+
+  el.innerHTML = filtered.map(f => {
+    const tc     = typeMap[f.entity_type] || typeMap.artist;
+    const safeId   = (f.entity_id   || '').replace(/'/g, "\\'");
+    const safeName = (f.entity_name || '').replace(/'/g, "\\'");
+    const isEvent  = f.entity_type === 'event';
+    return `<div style="display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid rgba(255,255,255,.06);">
+      <div style="flex:1;min-width:0;${isEvent ? '' : 'cursor:pointer;'}" ${isEvent ? '' : `onclick="closeFollowingEditSheet();setTimeout(()=>openFollowedProfile('${safeId}','${f.entity_type||''}','${safeName}'),300)"`}>
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:.5px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${f.entity_name||'Unknown'}</div>
+        <div style="font-size:10px;color:${tc.color};letter-spacing:1.5px;font-family:'Bebas Neue',sans-serif;">${tc.label}</div>
+      </div>
+      <button onclick="unfollowEntity('${safeId}','${safeName}');_renderFollowingEditList(document.getElementById('followingEditSearch')?.value||'')"
+        ontouchend="event.preventDefault();unfollowEntity('${safeId}','${safeName}');_renderFollowingEditList(document.getElementById('followingEditSearch')?.value||'')"
+        style="background:none;border:1px solid rgba(255,255,255,.15);color:var(--muted);border-radius:8px;font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:1px;padding:5px 12px;cursor:pointer;touch-action:manipulation;flex-shrink:0;">
+        UNFOLLOW
+      </button>
+    </div>`;
+  }).join('');
 }
 
 // ── Main feed render ──────────────────────────────
@@ -495,6 +628,30 @@ function renderPunterFeed() {
   const weekendBadge = `${fri.toLocaleDateString('en-AU',{weekday:'short',day:'numeric',month:'short'})} – ${sun.toLocaleDateString('en-AU',{weekday:'short',day:'numeric',month:'short'})}`.toUpperCase();
 
   let html = '';
+
+  // ── SAVED EVENTS (entity_type === 'event' in follows) ──
+  const savedIds = new Set(_followsCache.filter(f => f.entity_type === 'event').map(f => f.entity_id));
+  if (savedIds.size) {
+    const fourWeeks = new Date(now); fourWeeks.setDate(now.getDate() + 28);
+    const savedEvs = all.filter(ev => {
+      const d = calParseDate(ev);
+      return savedIds.has(ev.id) && d && d >= now && d <= fourWeeks;
+    }).sort((a,b) => calParseDate(a) - calParseDate(b));
+
+    html += `<div id="punterSecSaved" style="padding:20px 16px 4px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:2px;">SAVED EVENTS</div>
+        <div onclick="showCalendar()" ontouchend="event.preventDefault();showCalendar();"
+          style="font-size:12px;color:var(--neon);cursor:pointer;display:flex;align-items:center;gap:3px;touch-action:manipulation;">See all
+          <svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2.5'><path d='M9 18l6-6-6-6'/></svg>
+        </div>
+      </div>
+      ${savedEvs.length
+        ? savedEvs.slice(0, 4).map(ev => typeof calListCard === 'function' ? calListCard(ev) : '').join('')
+        : '<div style="font-size:13px;color:var(--muted);padding:4px 0 12px;">No upcoming saved events in the next 4 weeks.</div>'
+      }
+    </div>`;
+  }
 
   // ── YOUR PICKS section ──
   if (_followsCache.length && sceneSoon.length) {

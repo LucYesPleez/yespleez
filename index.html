@@ -2782,7 +2782,7 @@ body.player-open .screen.active { padding-bottom: 80px; }
   <div style="max-width:680px;margin:0 auto;padding:20px 16px 0;display:flex;align-items:flex-start;justify-content:space-between;">
     <div>
       <div class="yp-tag">YESPLEEZ</div>
-      <div style="font-family:'Bebas Neue',sans-serif;font-size:clamp(48px,12vw,72px);line-height:.88;letter-spacing:3px;background:linear-gradient(135deg,#D9FF4F,#BFEF00,#D9FF4F);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;filter:drop-shadow(0 0 8px rgba(217,255,79,0.2));">MY SCENE</div>
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:clamp(48px,12vw,72px);line-height:.88;letter-spacing:3px;background:linear-gradient(135deg,#FF2D78 0%,#9D4EDD 45%,#00E5FF 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;filter:drop-shadow(0 0 12px rgba(157,78,221,0.35));">MY SCENE</div>
       <div style="font-size:11px;color:var(--muted);margin-top:6px;letter-spacing:.5px;">Your gigs · Your artists · Your world</div>
     </div>
     <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;margin-top:4px;">
@@ -2802,29 +2802,6 @@ body.player-open .screen.active { padding-bottom: 80px; }
     </div>
   </div>
 
-  <!-- Time tabs (4 across, yellow accent) -->
-  <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:7px;padding:16px 16px 0;max-width:680px;margin:0 auto;">
-    <button onclick="punterScrollToSection('punterSecScene')" ontouchend="event.preventDefault();punterScrollToSection('punterSecScene');" style="background:rgba(217,255,79,.07);border:1px solid rgba(217,255,79,.25);border-radius:10px;padding:9px 4px 8px;cursor:pointer;text-align:center;touch-action:manipulation;">
-      <div style="font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:1px;color:#D9FF4F;line-height:1.1;">YOUR PICKS</div>
-      <div style="font-size:9px;color:var(--muted);margin-top:3px;line-height:1.2;">Followed artists</div>
-    </button>
-    <button onclick="punterScrollToSection('punterSecTonight')" ontouchend="event.preventDefault();punterScrollToSection('punterSecTonight');" style="background:rgba(217,255,79,.07);border:1px solid rgba(217,255,79,.25);border-radius:10px;padding:9px 4px 8px;cursor:pointer;text-align:center;touch-action:manipulation;">
-      <div style="font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:1px;color:#D9FF4F;line-height:1.1;">TONIGHT</div>
-      <div style="font-size:9px;color:var(--muted);margin-top:3px;line-height:1.2;">What's on now</div>
-    </button>
-    <button onclick="punterScrollToSection('punterSecWeekend')" ontouchend="event.preventDefault();punterScrollToSection('punterSecWeekend');" style="background:rgba(217,255,79,.07);border:1px solid rgba(217,255,79,.25);border-radius:10px;padding:9px 4px 8px;cursor:pointer;text-align:center;touch-action:manipulation;">
-      <div style="font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:1px;color:#D9FF4F;line-height:1.1;">WEEKEND</div>
-      <div style="font-size:9px;color:var(--muted);margin-top:3px;line-height:1.2;" id="punterTabWeekendSub">Fri – Sun</div>
-    </button>
-    <button onclick="punterScrollToSection('punterSecUpcoming')" ontouchend="event.preventDefault();punterScrollToSection('punterSecUpcoming');" style="background:rgba(217,255,79,.07);border:1px solid rgba(217,255,79,.25);border-radius:10px;padding:9px 4px 8px;cursor:pointer;text-align:center;touch-action:manipulation;">
-      <div style="font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:1px;color:#D9FF4F;line-height:1.1;">COMING UP</div>
-      <div style="font-size:9px;color:var(--muted);margin-top:3px;line-height:1.2;">Next 2 weeks</div>
-    </button>
-    <button onclick="punterScrollToSection('punterFollowingStrip')" ontouchend="event.preventDefault();punterScrollToSection('punterFollowingStrip');" style="background:rgba(217,255,79,.07);border:1px solid rgba(217,255,79,.25);border-radius:10px;padding:9px 4px 8px;cursor:pointer;text-align:center;touch-action:manipulation;">
-      <div style="font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:1px;color:#D9FF4F;line-height:1.1;">FOLLOWING</div>
-      <div style="font-size:9px;color:var(--muted);margin-top:3px;line-height:1.2;" id="punterTabFollowingCount">—</div>
-    </button>
-  </div>
 
   <!-- Date scroll strip -->
   <div style="max-width:680px;margin:0 auto;padding:14px 16px 0;">
@@ -5358,8 +5335,8 @@ body.player-open .screen.active { padding-bottom: 80px; }
 
 <script src="state.js"></script>
 <script src="auth.js?v=8"></script>
-<script src="navigation.js?v=24"></script>
-<script src="follows.js?v=18"></script>
+<script src="navigation.js?v=25"></script>
+<script src="follows.js?v=19"></script>
 <script src="personal_cal.js?v=1"></script>
 <script src="notifications.js?v=6"></script>
 <script src="profiles.js?v=10"></script>
@@ -5453,6 +5430,10 @@ body.player-open .screen.active { padding-bottom: 80px; }
 </script>
 </body>
 </html>
+
+
+
+
 
 
 
