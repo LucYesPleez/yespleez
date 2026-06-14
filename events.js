@@ -1063,7 +1063,17 @@ function showSignupDirect() {
 function showSignup() {
   show('signupScreen');
   document.getElementById('eventTitle').textContent  = eventData.name  || '';
-  const _fmtDate = d => { if (!d) return ''; const [y,m,dy] = d.split('-').map(Number); return new Date(y,m-1,dy).toLocaleDateString('en-AU',{weekday:'short',day:'numeric',month:'long'}); };
+  const _fmtDate = d => {
+    if (!d) return '';
+    // ISO format YYYY-MM-DD
+    if (/^\d{4}-\d{2}-\d{2}$/.test(d)) {
+      const [y,m,dy] = d.split('-').map(Number);
+      const dt = new Date(y,m-1,dy);
+      return isNaN(dt) ? d : dt.toLocaleDateString('en-AU',{weekday:'short',day:'numeric',month:'long'});
+    }
+    // Already human-readable (e.g. "June 20 / 21") — return as-is
+    return d;
+  };
   document.getElementById('eventMeta').textContent   = [_fmtDate(eventData.date), eventData.venue].filter(Boolean).join(' · ');
   document.getElementById('eventGenres').textContent = eventData.genres || '';
   document.getElementById('manageBtn').style.display    = 'none'; // now in host panel row
