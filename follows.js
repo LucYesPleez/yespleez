@@ -992,7 +992,7 @@ async function _renderPunterDayView(dateStr) {
     if (nearby.length) {
       html += `<div style="padding:0 16px 14px;">
         <div style="font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:2px;margin-bottom:10px;">NEARBY NIGHTS</div>
-        <div style="display:flex;flex-direction:column;gap:10px;">
+        <div style="display:flex;flex-direction:column;gap:10px;height:calc((100dvh - 300px) / 3.5 * 3.5);overflow-y:auto;-webkit-overflow-scrolling:touch;flex-shrink:0;">
           ${nearby.map(ev => typeof calSlimDayCard === 'function' ? calSlimDayCard(ev) : '').join('')}
         </div>
       </div>`;

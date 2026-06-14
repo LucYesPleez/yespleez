@@ -1153,7 +1153,7 @@ function calSlimDayCard(ev) {
   const bg = poster
     ? `url('${poster}') center/cover no-repeat`
     : `linear-gradient(135deg,rgba(255,45,120,.35) 0%,rgba(0,229,255,.2) 100%)`;
-  return `<div onclick="calOpenEvent('${ev.id}')" style="border-radius:14px;overflow:hidden;cursor:pointer;border:1px solid rgba(255,255,255,.07);position:relative;height:calc((100dvh - 240px) / 7);min-height:110px;background:${bg};touch-action:manipulation;flex-shrink:0;">
+  return `<div onclick="calOpenEvent('${ev.id}')" style="border-radius:14px;overflow:hidden;cursor:pointer;border:1px solid rgba(255,255,255,.07);position:relative;height:calc((100dvh - 300px) / 3.5);min-height:80px;background:${bg};touch-action:manipulation;flex-shrink:0;">
     <div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(10,10,15,.88) 0%,rgba(10,10,15,.1) 60%);"></div>
     <div style="position:absolute;top:10px;left:12px;display:flex;gap:4px;">${cat.map(c=>`<span style="background:${c.color};color:${c.dark?'#0a0a0f':'#fff'};border-radius:6px;padding:2px 8px;font-size:9px;font-weight:700;letter-spacing:.8px;font-family:'DM Sans',sans-serif;">${c.label}</span>`).join('')}</div>
     <div style="position:absolute;bottom:0;left:0;right:0;padding:12px 14px 16px;">
