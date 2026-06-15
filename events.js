@@ -2330,7 +2330,7 @@ async function acceptApplication(appId, userId, artistName, artistEmail) {
       );
     }
     // Send acceptance email
-    sendEmail('application_accepted', { artistName, eventName: evName, hostName });
+    sendEmail('application_accepted', { artistName, artistEmail, eventName: evName, hostName });
     showToast(`${artistName} accepted ✓`, 'success');
     renderPipeline();
   } catch(e) { showToast('Could not accept — try again', 'error'); }

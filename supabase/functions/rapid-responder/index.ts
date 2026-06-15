@@ -2,7 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 
 const RESEND_KEY = Deno.env.get('RESEND_API_KEY')
 const FROM       = 'onboarding@resend.dev'
-const TO         = 'yespleez.aus@gmail.com'   // sandbox — replace with real recipient once domain is set up
+const OWNER_EMAIL = 'yespleez.aus@gmail.com'
 
 const cors = {
   'Access-Control-Allow-Origin':  '*',
@@ -18,14 +18,18 @@ serve(async (req) => {
 
     let subject = ''
     let html    = ''
+    let to      = OWNER_EMAIL
 
     if (type === 'application_received') {
+      if (!data.artistEmail) return new Response(JSON.stringify({ error: 'artistEmail required' }), { status: 400, headers: { ...cors, 'Content-Type': 'application/json' } })
+      to      = data.artistEmail
       subject = `Application received — ${data.eventName}`
       html    = `<p>Hey <strong>${data.artistName}</strong>,</p>
                  <p>Your application to <strong>${data.eventName}</strong> has been received. The promoter will be in touch.</p>
                  <p>— YesPleez</p>`
 
     } else if (type === 'new_application') {
+      to      = OWNER_EMAIL
       subject = `New application — ${data.eventName}`
       html    = `<p>New application for <strong>${data.eventName}</strong>.</p>
                  <p><strong>Artist:</strong> ${data.artistName}<br>
@@ -34,6 +38,8 @@ serve(async (req) => {
                  <p>— YesPleez</p>`
 
     } else if (type === 'application_accepted') {
+      if (!data.artistEmail) return new Response(JSON.stringify({ error: 'artistEmail required' }), { status: 400, headers: { ...cors, 'Content-Type': 'application/json' } })
+      to      = data.artistEmail
       subject = `You're in — ${data.eventName} ✓`
       html    = `<p>Hey <strong>${data.artistName}</strong>,</p>
                  <p><strong>${data.hostName || 'The promoter'}</strong> has accepted your application to play at <strong>${data.eventName}</strong>.</p>
@@ -48,7 +54,7 @@ serve(async (req) => {
     const r = await fetch('https://api.resend.com/emails', {
       method:  'POST',
       headers: { 'Authorization': `Bearer ${RESEND_KEY}`, 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ from: FROM, to: TO, subject, html }),
+      body:    JSON.stringify({ from: FROM, to, subject, html }),
     })
 
     const result = await r.json()

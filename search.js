@@ -331,13 +331,13 @@ async function submitApplication() {
         const artistName = p.djName || p.name || currentUser?.email || 'Artist';
         const artistEmail = p.email || currentUser?.email || '';
         console.log('[apply] sending logged-in emails for', artistName);
-        sendEmail('application_received', { artistName, eventName: _applyEventName });
+        sendEmail('application_received', { artistName, artistEmail, eventName: _applyEventName });
         sendEmail('new_application', { artistName, artistEmail, eventName: _applyEventName, note });
         closeApplyModal();
         showToast('Application sent! ✓', 'success');
       } else {
         console.log('[apply] sending guest emails for', _applyGuestData?.name);
-        sendEmail('application_received', { artistName: _applyGuestData.name, eventName: _applyEventName });
+        sendEmail('application_received', { artistName: _applyGuestData.name, artistEmail: _applyGuestData.email, eventName: _applyEventName });
         sendEmail('new_application', { artistName: _applyGuestData.name, artistEmail: _applyGuestData.email, eventName: _applyEventName, note });
         // Show save profile prompt
         _applyShowPanel('applySavePanel');
