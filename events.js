@@ -1499,7 +1499,7 @@ async function autoClaimSlot(slotId) {
     setTimeout(() => showProfile(), 1200);
     return;
   }
-  const cardPills = (artistProfile?.genreString || '').split(' · ').slice(0, 5).join(' · ');
+  const cardPills = artistProfile?.cardPills || '';
   const sound     = artistProfile?.sound     || '';
   const ok = await upsertClaim(slotId, name, genre, '', [], cardPills, sound, currentUser.id);
   if (ok) {
@@ -3940,31 +3940,17 @@ function renderCardPillsPicker() {
         showToast('Max 5 card tags', 'error');
         return;
       }
-      const count = picker.querySelectorAll('.vibe-btn.selected').length;
-      document.getElementById('cardPillsCount').textContent = count + ' / 5 selected';
-      _updateCardPillsPreview(picker);
+      document.getElementById('cardPillsCount').textContent = picker.querySelectorAll('.vibe-btn.selected').length + ' / 5 selected';
     };
     picker.appendChild(btn);
   });
   document.getElementById('cardPillsCount').textContent = existing.filter(t => all.includes(t)).length + ' / 5 selected';
-  _updateCardPillsPreview(picker);
-}
-
-function _updateCardPillsPreview(picker) {
-  const preview = document.getElementById('cardPillsPreview');
-  if (!preview) return;
-  const selected = Array.from(picker.querySelectorAll('.vibe-btn.selected')).map(b => b.textContent.trim());
-  if (!selected.length) {
-    preview.innerHTML = '<span style="font-size:12px;color:var(--muted);font-style:italic;">No tags selected yet</span>';
-    return;
-  }
-  preview.innerHTML = selected.map(t =>
-    `<span style="background:rgba(0,229,255,.12);border:1px solid rgba(0,229,255,.4);color:var(--neon2);border-radius:20px;padding:4px 12px;font-size:12px;font-family:\'DM Sans\',sans-serif;">${t}</span>`
-  ).join('');
 }
 
 function getCardPills() {
-  return (artistProfile?.genreString || '').split(' · ').slice(0, 5).join(' · ');
+  const picker = document.getElementById('cardPillsPicker');
+  if (!picker) return '';
+  return Array.from(picker.querySelectorAll('.vibe-btn.selected')).map(b => b.textContent.trim()).join(' · ');
 }
 
 function getProfileGenreString() {
@@ -4040,8 +4026,6 @@ function loadProfileData() {
     const count = document.querySelectorAll('#cardPillsPicker .vibe-btn.selected').length;
     const countEl = document.getElementById('cardPillsCount');
     if (countEl) countEl.textContent = count + ' / 5 selected';
-    const picker = document.getElementById('cardPillsPicker');
-    if (picker) _updateCardPillsPreview(picker);
   }, 100);
 }, 300);
 }
