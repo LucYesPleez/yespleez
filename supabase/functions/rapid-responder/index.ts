@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 
 const RESEND_KEY = Deno.env.get('RESEND_API_KEY')
-const FROM       = 'onboarding@resend.dev'
+const FROM       = 'noreply@yespleez.com'
 const OWNER_EMAIL = 'yespleez.aus@gmail.com'
 
 const cors = {
@@ -79,7 +79,8 @@ serve(async (req) => {
       const linkData = await linkRes.json()
       if (!linkRes.ok || !linkData.action_link) {
         console.error('generate_link error:', JSON.stringify(linkData))
-        return new Response(JSON.stringify({ error: linkData.message || 'Could not generate reset link' }), { status: 400, headers: { ...cors, 'Content-Type': 'application/json' } })
+        // Return success to avoid revealing whether an email is registered
+        return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { ...cors, 'Content-Type': 'application/json' } })
       }
       to      = data.email
       subject = 'Reset your YesPleez password'
