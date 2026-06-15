@@ -1499,7 +1499,7 @@ async function autoClaimSlot(slotId) {
     setTimeout(() => showProfile(), 1200);
     return;
   }
-  const cardPills = artistProfile?.cardPills || '';
+  const cardPills = (artistProfile?.genreString || '').split(' · ').slice(0, 5).join(' · ');
   const sound     = artistProfile?.sound     || '';
   const ok = await upsertClaim(slotId, name, genre, '', [], cardPills, sound, currentUser.id);
   if (ok) {
@@ -3964,9 +3964,7 @@ function _updateCardPillsPreview(picker) {
 }
 
 function getCardPills() {
-  const picker = document.getElementById('cardPillsPicker');
-  if (!picker) return '';
-  return Array.from(picker.querySelectorAll('.vibe-btn.selected')).map(b => b.textContent.trim()).join(' · ');
+  return (artistProfile?.genreString || '').split(' · ').slice(0, 5).join(' · ');
 }
 
 function getProfileGenreString() {
