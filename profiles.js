@@ -366,12 +366,14 @@ function openPublicProfile(row) {
       <div style="font-size:15px;color:#e8e8f0;font-style:italic;line-height:1.6;position:relative;z-index:1;">${ds}</div>
     </div>` : ''; })() : ''}
     ${mainGenre.length ? `
-    <div style="position:relative;background:rgba(19,19,31,.88);backdrop-filter:blur(10px);border-radius:12px;padding:16px;margin-bottom:12px;overflow:hidden;">
+    <div style="position:relative;background:rgba(19,19,31,.88);backdrop-filter:blur(10px);border-radius:12px;padding:16px;margin-bottom:12px;overflow:hidden;cursor:${mainGenre.length>5?'pointer':'default'};" onclick="(function(el){const h=el.querySelector('.genre-hidden');if(h){h.style.display=h.style.display==='none'?'flex':'none';const btn=el.querySelector('.genre-more');if(btn)btn.style.display=h.style.display==='none'?'':'none';};})(this)">
       <div style="position:absolute;inset:0;border-radius:12px;padding:1px;background:linear-gradient(135deg,${accentColor},${grad2});-webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none;"></div>
       <div style="font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:2px;color:${accentColor};margin-bottom:8px;">GENRE</div>
       <div style="display:flex;flex-wrap:wrap;gap:6px;">
         ${mainGenre.slice(0,5).map(g => `<span style="background:rgba(0,229,255,.08);border:1px solid rgba(0,229,255,.25);border-radius:20px;font-size:12px;padding:4px 12px;color:var(--neon2);">${g}</span>`).join('')}
+        ${mainGenre.length > 5 ? `<span class="genre-more" style="background:rgba(0,229,255,.05);border:1px solid rgba(0,229,255,.15);border-radius:20px;font-size:12px;padding:4px 12px;color:var(--muted);cursor:pointer;">+${mainGenre.length-5} more</span>` : ''}
       </div>
+      ${mainGenre.length > 5 ? `<div class="genre-hidden" style="display:none;flex-wrap:wrap;gap:6px;margin-top:6px;">${mainGenre.slice(5).map(g => `<span style="background:rgba(0,229,255,.08);border:1px solid rgba(0,229,255,.25);border-radius:20px;font-size:12px;padding:4px 12px;color:var(--neon2);">${g}</span>`).join('')}</div>` : ''}
     </div>` : ''}
     ${row.bio ? `
     <div style="position:relative;background:rgba(19,19,31,.88);backdrop-filter:blur(10px);border-radius:12px;padding:16px;margin-bottom:12px;overflow:hidden;">
