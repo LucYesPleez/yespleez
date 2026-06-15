@@ -928,27 +928,26 @@ function _renderPubEvLineup(ev, el) {
   const days = cfg.days || [];
   if (!days.length) { el.innerHTML = ''; return; }
 
-  // Flatten all slots with a claim
-  const slots = [];
+  // Flatten all slots (claimed or not)
+  const allSlots = [];
   days.forEach(day => {
     (day.slots || []).forEach(slot => {
-      if (slot.claim?.name) slots.push({ ...slot, dayName: day.name || '' });
+      allSlots.push({ ...slot, dayName: day.name || '' });
     });
   });
 
-  // Show set-times only if not private
   const privateSetTimes = ev.host_controls?.privateSetTimes === true;
+  const claimedCount = allSlots.filter(s => s.claim?.name).length;
 
   let html = `<div style="font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:2px;color:var(--neon2);margin-bottom:14px;">`;
-  html += slots.length ? `LINEUP · ${slots.length} ARTIST${slots.length!==1?'S':''}` : 'LINEUP';
+  html += claimedCount ? `LINEUP · ${claimedCount} ARTIST${claimedCount!==1?'S':''}` : 'SET TIMES';
   html += `</div>`;
 
-  if (!slots.length) {
-    html += `<div style="text-align:center;padding:20px 0;color:var(--muted);font-size:13px;">Lineup TBA</div>`;
+  if (!allSlots.length) {
+    html += `<div style="text-align:center;padding:20px 0;color:var(--muted);font-size:13px;">Set times TBA</div>`;
   } else {
-    // Group by day
     const byDay = {};
-    slots.forEach(s => {
+    allSlots.forEach(s => {
       const k = s.dayName || 'Night';
       if (!byDay[k]) byDay[k] = [];
       byDay[k].push(s);
@@ -958,17 +957,20 @@ function _renderPubEvLineup(ev, el) {
         html += `<div style="font-size:11px;letter-spacing:2px;color:var(--muted);margin:14px 0 8px;font-family:'Bebas Neue',sans-serif;">${esc(dayName)}</div>`;
       }
       daySlots.forEach(slot => {
-        const name    = esc(slot.claim.name || '');
+        const hasClaim = !!slot.claim?.name;
+        const name    = hasClaim ? esc(slot.claim.name) : `<span style="color:var(--muted);font-style:italic;">TBA</span>`;
         const time    = (!privateSetTimes && slot.time) ? `${slot.time} ${slot.ampm || ''}`.trim() : '';
         const dur     = (!privateSetTimes && slot.dur)  ? slot.dur : '';
-        const avatar  = slot.claim.avatar || '';
+        const label   = slot.label ? `<span style="font-size:10px;color:var(--muted);letter-spacing:1px;font-family:'Bebas Neue',sans-serif;">${esc(slot.label)}</span>` : '';
+        const avatar  = slot.claim?.avatar || '';
         html += `
           <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.06);">
-            ${avatar
+            ${hasClaim && avatar
               ? `<img src="${avatar}" style="width:38px;height:38px;border-radius:8px;object-fit:cover;flex-shrink:0;">`
-              : `<div style="width:38px;height:38px;border-radius:8px;background:rgba(0,229,255,.1);border:1px solid rgba(0,229,255,.2);display:flex;align-items:center;justify-content:center;flex-shrink:0;"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3z"/><path d="M3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg></div>`}
+              : `<div style="width:38px;height:38px;border-radius:8px;background:rgba(${hasClaim?'0,229,255':'255,255,255'},.07);border:1px solid rgba(${hasClaim?'0,229,255':'255,255,255'},.12);display:flex;align-items:center;justify-content:center;flex-shrink:0;"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity:${hasClaim?1:.3}"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3z"/><path d="M3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg></div>`}
             <div style="flex:1;min-width:0;">
               <div style="font-family:'Bebas Neue',sans-serif;font-size:17px;letter-spacing:1px;line-height:1.1;">${name}</div>
+              ${label}
               ${(time || dur) ? `<div style="font-size:11px;color:var(--muted);margin-top:2px;">${[time,dur].filter(Boolean).join(' · ')}</div>` : ''}
             </div>
           </div>`;
