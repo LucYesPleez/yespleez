@@ -381,7 +381,7 @@ async function doPasswordReset() {
   try {
     const res = await fetch(`${SUPABASE_URL}/functions/v1/rapid-responder`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_KEY },
+      headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` },
       body: JSON.stringify({ type: 'password_reset', data: { email } }),
     });
     const result = await res.json();
