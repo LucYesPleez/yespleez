@@ -304,6 +304,7 @@ function buildTemplate(ev) {
   document.getElementById('inLng').value       = ev?.lng      || '';
   document.getElementById('inGenres').value     = ev?.genres     || '';
   document.getElementById('inTicketUrl').value  = ev?.ticket_url || '';
+  document.getElementById('inEventBio').value   = ev?.bio        || '';
   const poster = ev?.poster || '';
   document.getElementById('inPoster').value = poster;
   if (poster) {
@@ -663,6 +664,7 @@ function readForm() {
     lng:      document.getElementById('inLng').value ? parseFloat(document.getElementById('inLng').value) : null,
     genres:     document.getElementById('inGenres').value.trim(),
     ticket_url: document.getElementById('inTicketUrl')?.value.trim() || '',
+    bio:        document.getElementById('inEventBio')?.value.trim() || '',
     poster: document.getElementById('inPoster').value || '',
     days,
     host_controls: {

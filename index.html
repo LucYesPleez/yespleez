@@ -1854,6 +1854,19 @@ body.player-open .screen.active { padding-bottom: 80px; }
     </p>
   </div>
 
+  <div id="forgotPasswordForm" style="display:none">
+    <p style="font-size:13px;color:var(--muted);margin-bottom:16px;line-height:1.5;">Enter your email and we'll send you a link to reset your password.</p>
+    <div class="field">
+      <label>Email</label>
+      <input type="email" id="resetEmail" placeholder="you@example.com" autocomplete="email">
+    </div>
+    <div class="err-msg" id="resetErr"></div>
+    <button class="btn-primary" id="resetBtn" onclick="doPasswordReset()" ontouchend="event.preventDefault();doPasswordReset();" style="margin-top:8px;touch-action:manipulation;">SEND RESET LINK</button>
+    <p style="text-align:center;margin-top:8px;">
+      <span class="auth-link" onclick="showForgotPassword(false)">← Back to sign in</span>
+    </p>
+  </div>
+
   <div class="artist-entry">
     <p>No account? Jump straight in.</p>
     <button class="btn-artist-entry" onclick="showSignupDirect()">ENTER AS GUEST →</button>
@@ -3811,6 +3824,10 @@ body.player-open .screen.active { padding-bottom: 80px; }
     <div class="field">
       <label>Ticket Link <span style="opacity:.4;font-size:10px;text-transform:none;letter-spacing:0">(optional — Humanitix, Eventbrite, etc.)</span></label>
       <input type="url" id="inTicketUrl" placeholder="https://humanitix.com/your-event">
+    </div>
+    <div class="field">
+      <label>About this event <span style="opacity:.4;font-size:10px;text-transform:none;letter-spacing:0">(optional)</span></label>
+      <textarea id="inEventBio" placeholder="Tell people what to expect — vibe, artists, anything worth knowing..." rows="4" style="background:var(--card2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:DM Sans,sans-serif;font-size:14px;padding:12px;outline:none;width:100%;resize:vertical;line-height:1.5;"></textarea>
     </div>
     <div class="field">
       <label>EVENT POSTER <span style="opacity:.4;font-size:10px;text-transform:none;letter-spacing:0">(optional — screenshot or photo)</span></label>
