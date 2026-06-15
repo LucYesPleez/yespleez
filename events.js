@@ -837,13 +837,25 @@ async function showPublicEventPage(eventId) {
     const genresEl = document.getElementById('pubEvGenres');
     if (genresEl && cfg.genres) { genresEl.textContent = cfg.genres; genresEl.style.display = ''; }
 
-    // ── Description ──
+    // ── Bio / Description ──
     const descWrap = document.getElementById('pubEvDescWrap');
     const descEl   = document.getElementById('pubEvDesc');
-    if (descEl && cfg.description) {
-      descEl.textContent = cfg.description;
+    const bioText  = cfg.bio || cfg.description || '';
+    if (descEl && bioText) {
+      descEl.textContent = bioText;
       if (descWrap) descWrap.style.display = '';
     }
+
+    // ── Info tab empty state ──
+    const infoEmpty = document.getElementById('pubEvInfoEmpty');
+    const locWrapCheck = document.getElementById('pubEvLocationWrap');
+    if (infoEmpty) {
+      const hasInfo = bioText || (locWrapCheck && locWrapCheck.style.display !== 'none');
+      infoEmpty.style.display = hasInfo ? 'none' : '';
+    }
+
+    // ── Reset tabs to INFO ──
+    pubEvSwitchTab('info');
 
     // ── Location ──
     const locWrap = document.getElementById('pubEvLocationWrap');
@@ -971,6 +983,18 @@ function _renderPubEvLineup(ev, el) {
 
 function pubEvGoBack() {
   navBack();
+}
+
+function pubEvSwitchTab(tab) {
+  const infoContent  = document.getElementById('pubEvTabInfoContent');
+  const timesContent = document.getElementById('pubEvTabTimesContent');
+  const tabInfo      = document.getElementById('pubEvTabInfo');
+  const tabTimes     = document.getElementById('pubEvTabTimes');
+  const onInfo = tab === 'info';
+  if (infoContent)  infoContent.style.display  = onInfo ? '' : 'none';
+  if (timesContent) timesContent.style.display = onInfo ? 'none' : '';
+  if (tabInfo)  { tabInfo.style.color  = onInfo ? 'var(--neon2)' : 'var(--muted)';  tabInfo.style.borderBottom  = onInfo ? '2px solid var(--neon2)' : '2px solid transparent'; }
+  if (tabTimes) { tabTimes.style.color = onInfo ? 'var(--muted)' : 'var(--neon2)'; tabTimes.style.borderBottom = onInfo ? '2px solid transparent' : '2px solid var(--neon2)'; }
 }
 
 function pubEvShare() {

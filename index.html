@@ -2347,22 +2347,33 @@ body.player-open .screen.active { padding-bottom: 80px; }
     </div>
 
     <!-- CTA buttons -->
-    <div id="pubEvCTA" style="margin-bottom:28px;"></div>
+    <div id="pubEvCTA" style="margin-bottom:20px;"></div>
 
-    <!-- Description -->
-    <div id="pubEvDescWrap" style="display:none;background:rgba(19,19,31,.88);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:18px 16px;margin-bottom:20px;">
-      <div style="font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:2px;color:var(--neon2);margin-bottom:10px;">ABOUT</div>
-      <div id="pubEvDesc" style="font-size:14px;line-height:1.6;color:rgba(232,232,240,.85);white-space:pre-wrap;"></div>
+    <!-- Tabs -->
+    <div id="pubEvTabs" style="display:flex;gap:0;margin-bottom:20px;border-bottom:1px solid rgba(255,255,255,.1);">
+      <button id="pubEvTabInfo" onclick="pubEvSwitchTab('info')" style="flex:1;background:none;border:none;border-bottom:2px solid var(--neon2);color:var(--neon2);font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:2px;padding:10px 0;cursor:pointer;">INFO</button>
+      <button id="pubEvTabTimes" onclick="pubEvSwitchTab('times')" style="flex:1;background:none;border:none;border-bottom:2px solid transparent;color:var(--muted);font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:2px;padding:10px 0;cursor:pointer;">SET TIMES</button>
     </div>
 
-    <!-- Location info -->
-    <div id="pubEvLocationWrap" style="display:none;background:rgba(19,19,31,.88);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:18px 16px;margin-bottom:20px;">
-      <div style="font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:2px;color:var(--neon2);margin-bottom:10px;">LOCATION</div>
-      <div id="pubEvLocation" style="font-size:14px;color:rgba(232,232,240,.85);line-height:1.7;"></div>
+    <!-- INFO tab content -->
+    <div id="pubEvTabInfoContent">
+      <!-- Bio/About -->
+      <div id="pubEvDescWrap" style="display:none;background:rgba(19,19,31,.88);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:18px 16px;margin-bottom:20px;">
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:2px;color:var(--neon2);margin-bottom:10px;">ABOUT</div>
+        <div id="pubEvDesc" style="font-size:14px;line-height:1.6;color:rgba(232,232,240,.85);white-space:pre-wrap;"></div>
+      </div>
+      <!-- Location info -->
+      <div id="pubEvLocationWrap" style="display:none;background:rgba(19,19,31,.88);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:18px 16px;margin-bottom:20px;">
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:2px;color:var(--neon2);margin-bottom:10px;">LOCATION</div>
+        <div id="pubEvLocation" style="font-size:14px;color:rgba(232,232,240,.85);line-height:1.7;"></div>
+      </div>
+      <div id="pubEvInfoEmpty" style="display:none;text-align:center;padding:32px 0;color:var(--muted);font-size:13px;">No info added yet.</div>
     </div>
 
-    <!-- Lineup -->
-    <div id="pubEvLineup" style="margin-bottom:28px;"></div>
+    <!-- SET TIMES tab content -->
+    <div id="pubEvTabTimesContent" style="display:none;">
+      <div id="pubEvLineup" style="margin-bottom:28px;"></div>
+    </div>
 
     <!-- Powered by YesPleez footer -->
     <div style="text-align:center;padding:20px 0 8px;">
