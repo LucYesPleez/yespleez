@@ -221,6 +221,12 @@ async function doSignup() {
       showRoleSelector();
     }
   } else {
+    // Send confirmation email via Resend (Supabase built-in email is unreliable)
+    fetch(`${SUPABASE_URL}/functions/v1/rapid-responder`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` },
+      body: JSON.stringify({ type: 'signup_confirmation', data: { email, password: pass, name } }),
+    }).catch(() => {});
     showToast('✉️ Check your email to confirm your account, then sign in.', 'success');
     switchAuthTab('login');
   }
