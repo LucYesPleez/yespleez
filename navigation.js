@@ -89,8 +89,10 @@ function _updateGlobalNav(id, isLocked) {
     }
   }
   const el = (id) => document.getElementById(id);
-  if (el('globalShareCal'))      el('globalShareCal').style.display      = id === 'calendarScreen' ? '' : 'none';
-  if (el('globalShareDiscover')) el('globalShareDiscover').style.display = id === 'searchScreen'   ? '' : 'none';
+  if (el('globalShareCal'))      el('globalShareCal').style.display      = id === 'calendarScreen'  ? '' : 'none';
+  if (el('globalShareDiscover')) el('globalShareDiscover').style.display = id === 'searchScreen'    ? '' : 'none';
+  if (el('globalViewManage'))    el('globalViewManage').style.display    = id === 'manageScreen'    ? '' : 'none';
+  if (el('globalShareManage'))   el('globalShareManage').style.display   = id === 'manageScreen'    ? '' : 'none';
   // Show/hide the My Scene FAB
   const fab = document.getElementById('mySceneFab');
   if (fab) fab.style.display = id === 'punterDashScreen' ? '' : 'none';
