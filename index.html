@@ -4820,33 +4820,28 @@ body.player-open .screen.active { padding-bottom: 80px; }
 <div id="manageScreen" class="screen">
   <div style="max-width:720px;margin:0 auto;padding:64px 16px 80px;">
 
-    <!-- Top bar: BACK left, MODE/bell/share right -->
-    <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px;">
-      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;">
-        <div class="mode-toggle" onclick="showRoleSelector()" style="border-color:rgba(255,51,153,.3);color:#FF3399;">
-          <div class="mode-toggle-dot" style="background:#FF3399;box-shadow:0 0 6px #FF3399;"></div>
-          HOST
-        </div>
-        <div style="display:flex;gap:8px;">
-          <button class="notif-bell" title="Public view" onclick="showPublicEventPage(currentEventId)" style="color:var(--muted);">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
-          </button>
-          <button class="notif-bell" title="Share event" onclick="shareItem('event', currentEventId, eventData.name||'')" style="color:var(--muted);">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
-          </button>
-        </div>
+    <!-- Top bar: HOST pill left -->
+    <div style="display:flex;align-items:center;margin-bottom:16px;">
+      <div class="mode-toggle" onclick="showRoleSelector()" style="border-color:rgba(255,51,153,.3);color:#FF3399;">
+        <div class="mode-toggle-dot" style="background:#FF3399;box-shadow:0 0 6px #FF3399;"></div>
+        HOST
       </div>
     </div>
 
-    <!-- Title row: event info left, EDIT/UNDO/REDO right — no gap, sits on Generate Lineup -->
+    <!-- Title row: event info left, eye/share/EDIT/UNDO/REDO right -->
     <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:8px;">
       <div style="min-width:0;">
-        <div class="yp-tag">HOST VIEW</div>
         <div class="dash-title" id="manageTitle">EVENT</div>
         <div style="font-size:12px;color:var(--muted);margin-top:2px;" id="manageSubtitle"></div>
         <div style="font-size:12px;color:var(--muted);margin-top:2px;" id="manageSlotCount"></div>
       </div>
       <div style="display:flex;gap:5px;align-items:center;flex-shrink:0;padding-bottom:4px;">
+        <button class="notif-bell" title="Public view" onclick="showPublicEventPage(currentEventId)" style="color:var(--muted);">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
+        <button class="notif-bell" title="Share event" onclick="shareItem('event', currentEventId, eventData.name||'')" style="color:var(--muted);">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+        </button>
         <button onclick="goToTemplate()"
           style="padding:5px 12px;background:transparent;border:1px solid rgba(255,45,120,.5);border-radius:8px;color:var(--neon);font-family:'Bebas Neue',sans-serif;font-size:12px;letter-spacing:1px;cursor:pointer;white-space:nowrap;">✎ EDIT</button>
         <button id="undoBtn" onclick="undoManage()" title="Undo" disabled
