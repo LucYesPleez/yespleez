@@ -305,6 +305,8 @@ function buildTemplate(ev) {
   document.getElementById('inGenres').value     = ev?.genres     || '';
   document.getElementById('inTicketUrl').value  = ev?.ticket_url || '';
   document.getElementById('inEventBio').value   = ev?.bio        || '';
+  const stpEl = document.getElementById('toggleShowPublicSetTimes');
+  if (stpEl) stpEl.checked = ev?.showPublicSetTimes === true;
   const poster = ev?.poster || '';
   document.getElementById('inPoster').value = poster;
   if (poster) {
@@ -665,6 +667,7 @@ function readForm() {
     genres:     document.getElementById('inGenres').value.trim(),
     ticket_url: document.getElementById('inTicketUrl')?.value.trim() || '',
     bio:        document.getElementById('inEventBio')?.value.trim() || '',
+    showPublicSetTimes: document.getElementById('toggleShowPublicSetTimes')?.checked === true,
     poster: document.getElementById('inPoster').value || '',
     days,
     host_controls: {
@@ -853,6 +856,10 @@ async function showPublicEventPage(eventId) {
       const hasInfo = bioText || (locWrapCheck && locWrapCheck.style.display !== 'none');
       infoEmpty.style.display = hasInfo ? 'none' : '';
     }
+
+    // ── Set times tab visibility ──
+    const tabTimesBtn = document.getElementById('pubEvTabTimes');
+    if (tabTimesBtn) tabTimesBtn.style.display = cfg.showPublicSetTimes ? '' : 'none';
 
     // ── Reset tabs to INFO ──
     pubEvSwitchTab('info');
