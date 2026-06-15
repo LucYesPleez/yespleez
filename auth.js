@@ -361,8 +361,42 @@ function flashPendingOffers() {
 
 // ── Password reset ─────────────────────────────────
 
-function showForgotPassword() {
-  showToast('Password reset: use Supabase Auth or add your reset flow.', 'error');
+function showForgotPassword(show = true) {
+  document.getElementById('loginForm').style.display = show ? 'none' : '';
+  document.getElementById('forgotPasswordForm').style.display = show ? '' : 'none';
+  if (show) {
+    const loginEmail = document.getElementById('loginEmail').value.trim();
+    if (loginEmail) document.getElementById('resetEmail').value = loginEmail;
+    document.getElementById('resetErr').classList.remove('show');
+  }
+}
+
+async function doPasswordReset() {
+  const email = document.getElementById('resetEmail').value.trim();
+  const errEl = document.getElementById('resetErr');
+  const btn   = document.getElementById('resetBtn');
+  errEl.classList.remove('show');
+  if (!email) { errEl.textContent = 'Please enter your email.'; errEl.classList.add('show'); return; }
+  btn.disabled = true; btn.textContent = 'SENDING...';
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/rapid-responder`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_KEY },
+      body: JSON.stringify({ type: 'password_reset', data: { email } }),
+    });
+    const result = await res.json();
+    if (!res.ok || result.error) {
+      errEl.textContent = result.error || 'Something went wrong. Try again.';
+      errEl.classList.add('show');
+    } else {
+      showForgotPassword(false);
+      showToast('Reset link sent — check your email.', 'success');
+    }
+  } catch (e) {
+    errEl.textContent = 'Network error. Please try again.';
+    errEl.classList.add('show');
+  }
+  btn.disabled = false; btn.textContent = 'SEND RESET LINK';
 }
 
 // ── Pending applications badge ─────────────────────

@@ -45,6 +45,28 @@ serve(async (req) => {
                  <p><strong>${data.hostName || 'The promoter'}</strong> has accepted your application to play at <strong>${data.eventName}</strong>.</p>
                  <p>— YesPleez</p>`
 
+    } else if (type === 'password_reset') {
+      if (!data.email) return new Response(JSON.stringify({ error: 'email required' }), { status: 400, headers: { ...cors, 'Content-Type': 'application/json' } })
+      const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
+      const SERVICE_KEY  = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+      const linkRes = await fetch(`${SUPABASE_URL}/auth/v1/admin/generate_link`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${SERVICE_KEY}`, 'apikey': SERVICE_KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'recovery', email: data.email }),
+      })
+      const linkData = await linkRes.json()
+      if (!linkRes.ok || !linkData.action_link) {
+        console.error('generate_link error:', JSON.stringify(linkData))
+        return new Response(JSON.stringify({ error: linkData.message || 'Could not generate reset link' }), { status: 400, headers: { ...cors, 'Content-Type': 'application/json' } })
+      }
+      to      = data.email
+      subject = 'Reset your YesPleez password'
+      html    = `<p>Hey,</p>
+                 <p>Click the link below to reset your YesPleez password. This link expires in 1 hour.</p>
+                 <p><a href="${linkData.action_link}" style="background:#a855f7;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:bold;display:inline-block;">RESET PASSWORD</a></p>
+                 <p style="color:#888;font-size:12px;">If you didn't request this, you can safely ignore this email.</p>
+                 <p>— YesPleez</p>`
+
     } else {
       return new Response(JSON.stringify({ error: 'Unknown type: ' + type }), {
         status: 400, headers: { ...cors, 'Content-Type': 'application/json' }
