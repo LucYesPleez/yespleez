@@ -323,6 +323,9 @@ function _buildEnqCard(enq, p, showMoveBack) {
   const genrePills = allTags.slice(0,4).map(g =>
     `<span style="background:rgba(${accentRgb},.1);border:1px solid rgba(${accentRgb},.3);border-radius:20px;font-size:10px;padding:2px 8px;color:${accent};">${g}</span>`
   ).join('');
+  const allGenrePills = allTags.map(g =>
+    `<span style="background:rgba(${accentRgb},.1);border:1px solid rgba(${accentRgb},.3);border-radius:20px;font-size:10px;padding:2px 8px;color:${accent};">${g}</span>`
+  ).join('');
 
   const prettyDate    = new Date(enq.date_requested + 'T00:00:00').toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
   const prettyCreated = new Date(enq.created_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' });
@@ -353,12 +356,24 @@ function _buildEnqCard(enq, p, showMoveBack) {
   // Pipeline cards get 3 action buttons; prev-applied cards get a "Move to Pending" rescue button
   const actionBtns = showMoveBack
     ? `<div style="margin-top:12px;">
-        <button onclick="_vpEnquiryRespond('${enq.id}','pending',this,'declined')" style="width:100%;background:rgba(255,179,71,.1);border:1px solid rgba(255,179,71,.3);color:#FFB347;font-family:'Bebas Neue',sans-serif;font-size:12px;letter-spacing:1px;padding:10px;border-radius:10px;cursor:pointer;">↩ MOVE BACK TO PIPELINE</button>
+        <button onclick="_vpEnquiryRespond('${enq.id}','pending',this,'declined')"
+          onmouseover="this.style.background='rgba(255,179,71,.25)';this.style.borderColor='#FFB347';"
+          onmouseout="this.style.background='rgba(255,179,71,.1)';this.style.borderColor='rgba(255,179,71,.3)';"
+          style="width:100%;background:rgba(255,179,71,.1);border:1px solid rgba(255,179,71,.3);color:#FFB347;font-family:'Bebas Neue',sans-serif;font-size:12px;letter-spacing:1px;padding:10px;border-radius:10px;cursor:pointer;transition:all .15s;">↩ MOVE BACK TO PIPELINE</button>
       </div>`
     : `<div style="display:flex;gap:6px;margin-top:12px;">
-        <button onclick="_vpEnquiryRespond('${enq.id}','accepted',this,'${_enqTab}')"  style="flex:1;background:${enq.status==='accepted'?'rgba(0,229,160,.15)':'rgba(255,255,255,.04)'};border:${enq.status==='accepted'?'1.5px solid #00E5A0':'1px solid rgba(255,255,255,.12)'};color:${enq.status==='accepted'?'#00E5A0':'var(--muted)'};font-family:'Bebas Neue',sans-serif;font-size:12px;letter-spacing:1px;padding:10px 4px;border-radius:10px;cursor:pointer;">ACCEPT ✓</button>
-        <button onclick="_vpEnquiryRespond('${enq.id}','tentative',this,'${_enqTab}')" style="flex:1;background:${enq.status==='tentative'?'rgba(0,191,255,.15)':'rgba(255,255,255,.04)'};border:${enq.status==='tentative'?'1.5px solid #00BFFF':'1px solid rgba(255,255,255,.12)'};color:${enq.status==='tentative'?'#00BFFF':'var(--muted)'};font-family:'Bebas Neue',sans-serif;font-size:12px;letter-spacing:1px;padding:10px 4px;border-radius:10px;cursor:pointer;">TENTATIVE</button>
-        <button onclick="_vpEnquiryRespond('${enq.id}','declined',this,'${_enqTab}')" style="flex:1;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);color:var(--muted);font-family:'Bebas Neue',sans-serif;font-size:12px;letter-spacing:1px;padding:10px 4px;border-radius:10px;cursor:pointer;">DECLINE ✗</button>
+        <button onclick="_vpEnquiryRespond('${enq.id}','accepted',this,'${_enqTab}')"
+          onmouseover="this.style.background='rgba(0,229,160,.25)';this.style.borderColor='#00E5A0';this.style.color='#00E5A0';"
+          onmouseout="this.style.background='${enq.status==='accepted'?'rgba(0,229,160,.15)':'rgba(255,255,255,.04)'}';this.style.borderColor='${enq.status==='accepted'?'#00E5A0':'rgba(255,255,255,.12)'}';this.style.color='${enq.status==='accepted'?'#00E5A0':'var(--muted)}';"
+          style="flex:1;background:${enq.status==='accepted'?'rgba(0,229,160,.15)':'rgba(255,255,255,.04)'};border:${enq.status==='accepted'?'1.5px solid #00E5A0':'1px solid rgba(255,255,255,.12)'};color:${enq.status==='accepted'?'#00E5A0':'var(--muted)'};font-family:'Bebas Neue',sans-serif;font-size:12px;letter-spacing:1px;padding:10px 4px;border-radius:10px;cursor:pointer;transition:all .15s;">ACCEPT ✓</button>
+        <button onclick="_vpEnquiryRespond('${enq.id}','tentative',this,'${_enqTab}')"
+          onmouseover="this.style.background='rgba(255,220,50,.2)';this.style.borderColor='#FFDC32';this.style.color='#FFDC32';"
+          onmouseout="this.style.background='${enq.status==='tentative'?'rgba(0,191,255,.15)':'rgba(255,255,255,.04)'}';this.style.borderColor='${enq.status==='tentative'?'#00BFFF':'rgba(255,255,255,.12)'}';this.style.color='${enq.status==='tentative'?'#00BFFF':'var(--muted)}';"
+          style="flex:1;background:${enq.status==='tentative'?'rgba(0,191,255,.15)':'rgba(255,255,255,.04)'};border:${enq.status==='tentative'?'1.5px solid #00BFFF':'1px solid rgba(255,255,255,.12)'};color:${enq.status==='tentative'?'#00BFFF':'var(--muted)'};font-family:'Bebas Neue',sans-serif;font-size:12px;letter-spacing:1px;padding:10px 4px;border-radius:10px;cursor:pointer;transition:all .15s;">TENTATIVE</button>
+        <button onclick="_vpEnquiryRespond('${enq.id}','declined',this,'${_enqTab}')"
+          onmouseover="this.style.background='rgba(255,120,40,.2)';this.style.borderColor='#FF7828';this.style.color='#FF7828';"
+          onmouseout="this.style.background='rgba(255,255,255,.04)';this.style.borderColor='rgba(255,255,255,.12)';this.style.color='var(--muted)';"
+          style="flex:1;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);color:var(--muted);font-family:'Bebas Neue',sans-serif;font-size:12px;letter-spacing:1px;padding:10px 4px;border-radius:10px;cursor:pointer;transition:all .15s;">DECLINE ✗</button>
       </div>`;
 
   return `
@@ -376,8 +391,9 @@ function _buildEnqCard(enq, p, showMoveBack) {
       </div>
       ${genrePills ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:10px;">${genrePills}</div>` : ''}
       ${enq.note ? `<div style="font-size:12px;color:var(--muted);font-style:italic;margin-top:8px;line-height:1.5;">"${enq.note}"</div>` : ''}
-      <button id="enq-expand-${enq.id}" onclick="_toggleEnqProfile('${enq.id}')" style="width:100%;margin-top:12px;background:transparent;border:1px solid rgba(255,255,255,.1);color:rgba(255,255,255,.4);font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:1.5px;padding:8px;border-radius:8px;cursor:pointer;">VIEW FULL PROFILE ▼</button>
+      <button id="enq-expand-${enq.id}" onclick="_toggleEnqProfile('${enq.id}')" onmouseover="this.style.background='rgba(255,105,180,.12)';this.style.borderColor='rgba(255,105,180,.5)';this.style.color='#FF69B4';" onmouseout="this.style.background='transparent';this.style.borderColor='rgba(255,255,255,.1)';this.style.color='rgba(255,255,255,.4)';" style="width:100%;margin-top:12px;background:transparent;border:1px solid rgba(255,255,255,.1);color:rgba(255,255,255,.4);font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:1.5px;padding:8px;border-radius:8px;cursor:pointer;transition:all .15s;">VIEW FULL PROFILE ▼</button>
       <div id="enq-profile-${enq.id}" style="display:none;margin-top:12px;">
+        ${allGenrePills ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px;">${allGenrePills}</div>` : ''}
         <div style="background:rgba(255,255,255,.03);border-radius:10px;padding:0 12px;margin-bottom:8px;">
           ${pRow('SOUND', p.sound)}
           ${pRow('ABOUT', p.bio)}
