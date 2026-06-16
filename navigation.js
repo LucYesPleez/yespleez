@@ -90,6 +90,7 @@ function _updateGlobalNav(id, isLocked) {
   }
   const el = (id) => document.getElementById(id);
   if (el('globalInfoBtn'))       el('globalInfoBtn').style.display       = id === 'publicProfileScreen' ? 'none' : '';
+  if (el('globalNotifBtn'))      el('globalNotifBtn').style.display      = id === 'calendarScreen'  ? '' : 'none';
   if (el('globalShareCal'))      el('globalShareCal').style.display      = id === 'calendarScreen'  ? '' : 'none';
   if (el('globalShareDiscover')) el('globalShareDiscover').style.display = id === 'searchScreen'    ? '' : 'none';
   if (el('globalShareManage'))   el('globalShareManage').style.display   = id === 'manageScreen'    ? '' : 'none';

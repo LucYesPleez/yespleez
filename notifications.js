@@ -49,7 +49,7 @@ function updateNotifDot() {
   const dbUnread     = _dbNotifs.filter(n => !n.read).length;
   const totalUnread  = localUnread + dbUnread;
   const active       = totalUnread > 0;
-  ['notifDotHost','notifDotArtist','notifDotVenue','notifDotBands','notifDotStandup'].forEach(id => {
+  ['notifDotHost','notifDotArtist','notifDotVenue','notifDotBands','notifDotStandup','notifDotManage','notifDotGlobal'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.classList.toggle('active', active);
   });
