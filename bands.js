@@ -50,21 +50,24 @@ async function enterBandsDashboard() {
   const el = document.getElementById('bandsDashUserEmail');
   if (el) el.textContent = email;
 
-  bandProfile = {};
-
-  if (!DEMO && currentUser?.id) {
-    try {
-      const rows = await sbRest(
-        `profiles?user_id=eq.${currentUser.id}&type=eq.band&limit=1`,
-        { method: 'GET' },
-        currentSession?.access_token || null
-      );
-      if (rows && rows.length) bandProfile = rows[0];
-    } catch(e) { console.warn('band profile load:', e); }
-  }
+  try { const c = localStorage.getItem('yp_band_profile'); bandProfile = c ? JSON.parse(c) : {}; } catch(e) { bandProfile = {}; }
 
   show('bandsDashScreen');
   _renderBandsDashCard();
+
+  if (!DEMO && currentUser?.id) {
+    sbRest(
+      `profiles?user_id=eq.${currentUser.id}&type=eq.band&limit=1`,
+      { method: 'GET' },
+      currentSession?.access_token || null
+    ).then(rows => {
+      if (rows && rows.length) {
+        bandProfile = rows[0];
+        try { localStorage.setItem('yp_band_profile', JSON.stringify(bandProfile)); } catch(e) {}
+        _renderBandsDashCard();
+      }
+    }).catch(e => console.warn('band profile load:', e));
+  }
   _loadBandsStats();
   _loadBandsUpcomingGigs();
   if (typeof loadDbNotifs === 'function') loadDbNotifs();

@@ -80,25 +80,24 @@ async function enterVenueDashboard() {
   const el = document.getElementById('venueDashUserEmail');
   if (el) el.textContent = email;
 
-  venueProfile = {};
-
-  if (!DEMO && currentUser?.id) {
-    try {
-      const rows = await sbRest(
-        `profiles?user_id=eq.${currentUser.id}&type=eq.venue&limit=1`,
-        { method: 'GET' },
-        currentSession?.access_token || null
-      );
-      if (rows && rows.length) {
-        venueProfile = rows[0];
-      }
-    } catch(e) {
-      console.warn('venue profile load:', e);
-    }
-  }
+  try { const c = localStorage.getItem('yp_venue_profile'); venueProfile = c ? JSON.parse(c) : {}; } catch(e) { venueProfile = {}; }
 
   show('venueDashScreen');
   _renderVenueDashCard();
+
+  if (!DEMO && currentUser?.id) {
+    sbRest(
+      `profiles?user_id=eq.${currentUser.id}&type=eq.venue&limit=1`,
+      { method: 'GET' },
+      currentSession?.access_token || null
+    ).then(rows => {
+      if (rows && rows.length) {
+        venueProfile = rows[0];
+        try { localStorage.setItem('yp_venue_profile', JSON.stringify(venueProfile)); } catch(e) {}
+        _renderVenueDashCard();
+      }
+    }).catch(e => console.warn('venue profile load:', e));
+  }
   _loadVenueStats();
   _loadVenueAvailSummary();
   _loadVenueUpcomingEvents();

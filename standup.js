@@ -80,21 +80,24 @@ async function enterStandupDashboard() {
   const el = document.getElementById('standupDashUserEmail');
   if (el) el.textContent = email;
 
-  standupProfile = {};
-
-  if (!DEMO && currentUser?.id) {
-    try {
-      const rows = await sbRest(
-        `profiles?user_id=eq.${currentUser.id}&type=eq.standup&limit=1`,
-        { method: 'GET' },
-        currentSession?.access_token || null
-      );
-      if (rows && rows.length) standupProfile = rows[0];
-    } catch(e) { console.warn('standup profile load:', e); }
-  }
+  try { const c = localStorage.getItem('yp_standup_profile'); standupProfile = c ? JSON.parse(c) : {}; } catch(e) { standupProfile = {}; }
 
   show('standupDashScreen');
   _renderStandupDashCard();
+
+  if (!DEMO && currentUser?.id) {
+    sbRest(
+      `profiles?user_id=eq.${currentUser.id}&type=eq.standup&limit=1`,
+      { method: 'GET' },
+      currentSession?.access_token || null
+    ).then(rows => {
+      if (rows && rows.length) {
+        standupProfile = rows[0];
+        try { localStorage.setItem('yp_standup_profile', JSON.stringify(standupProfile)); } catch(e) {}
+        _renderStandupDashCard();
+      }
+    }).catch(e => console.warn('standup profile load:', e));
+  }
   _loadStandupStats();
   if (typeof loadDbNotifs === 'function') loadDbNotifs();
   if (typeof startNotifPolling === 'function') startNotifPolling();
