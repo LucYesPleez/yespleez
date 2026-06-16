@@ -104,6 +104,7 @@ async function enterVenueDashboard() {
   _loadVenueStats();
   _loadVenueAvailSummary();
   _loadVenueUpcomingEvents();
+  _loadVenueEnquiries();
   if (typeof loadDbNotifs === 'function') loadDbNotifs();
   if (typeof startNotifPolling === 'function') startNotifPolling();
   updateNotifDot();
@@ -182,7 +183,14 @@ async function _loadVenueStats() {
     if (avEl) avEl.textContent = '0';
   }
 
-  if (inqEl) inqEl.textContent = '—';
+  // Count pending enquiries
+  try {
+    const enqRows = await sbRest(
+      `venue_enquiries?venue_user_id=eq.${currentUser.id}&select=id`,
+      { method: 'GET' }, currentSession?.access_token
+    );
+    if (inqEl) inqEl.textContent = (enqRows || []).length || '0';
+  } catch(e) { if (inqEl) inqEl.textContent = '0'; }
 }
 
 // ── Availability summary ───────────────────────────
@@ -251,6 +259,123 @@ async function _loadVenueUpcomingEvents() {
     }).join('');
   } catch(e) {
     el.innerHTML = '<span style="color:var(--muted);font-size:13px;">Could not load events.</span>';
+  }
+}
+
+// ── Venue enquiries ────────────────────────────────
+
+async function _loadVenueEnquiries() {
+  const el = document.getElementById('venueEnquiriesList');
+  if (!el || !currentUser?.id) return;
+
+  el.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:8px 0;">Loading…</div>';
+
+  try {
+    const rows = await sbRest(
+      `venue_enquiries?venue_user_id=eq.${currentUser.id}&order=created_at.desc&limit=50`,
+      { method: 'GET' }, currentSession?.access_token
+    );
+    if (!rows || !rows.length) {
+      el.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:8px 0;">No enquiries yet — artists will appear here when they tap an available date on your profile.</div>';
+      return;
+    }
+
+    // Fetch applicant profiles in one query
+    const ids = [...new Set(rows.map(r => r.applicant_user_id))];
+    const profiles = await sbRest(
+      `profiles?user_id=in.(${ids.join(',')})&select=*`,
+      { method: 'GET' }, currentSession?.access_token
+    ).catch(() => []);
+
+    const profileMap = {};
+    (profiles || []).forEach(p => { profileMap[`${p.user_id}__${p.type}`] = p; });
+
+    el.innerHTML = rows.map(enq => {
+      const p = profileMap[`${enq.applicant_user_id}__${enq.applicant_type}`]
+             || profileMap[Object.keys(profileMap).find(k => k.startsWith(enq.applicant_user_id + '__')) || '']
+             || {};
+      const name    = p.dj_name || p.name || 'Unknown';
+      const genre   = p.genre_string || p.band_type || p.act_type || '';
+      const sound   = p.sound || '';
+      const bio     = p.bio || '';
+      const loc     = [p.location, p.state].filter(Boolean).join(', ');
+      const avatar  = p.avatar || '';
+      const insta   = p.instagram ? `https://instagram.com/${p.instagram.replace('@','')}` : '';
+      const web     = p.website   ? (p.website.startsWith('http') ? p.website : 'https://' + p.website) : '';
+      const mix     = p.mix_link || p.soundcloud || '';
+
+      const typeAccents = { artist:'#00E5FF', band:'#FF8C42', standup:'#FF88AA', host:'#FF3399' };
+      const accent = typeAccents[enq.applicant_type] || '#00E5FF';
+
+      const prettyDate = new Date(enq.date_requested + 'T00:00:00').toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+      const prettyCreated = new Date(enq.created_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' });
+
+      const statusColor = { pending: '#FFB347', accepted: '#00E5A0', declined: 'var(--muted)' }[enq.status] || '#FFB347';
+      const statusLabel = enq.status.toUpperCase();
+
+      const avatarHtml = avatar
+        ? `<img src="${avatar}" style="width:56px;height:56px;border-radius:10px;object-fit:cover;border:2px solid ${accent};flex-shrink:0;" onerror="this.style.display='none'">`
+        : `<div style="width:56px;height:56px;border-radius:10px;background:rgba(255,255,255,.06);border:2px solid rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:24px;">🎵</div>`;
+
+      const genrePills = genre ? genre.split(' · ').slice(0,4).map(g =>
+        `<span style="background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.15);border-radius:20px;font-size:10px;padding:2px 8px;color:var(--muted);">${g}</span>`
+      ).join('') : '';
+
+      const links = [
+        mix    ? `<a href="${mix.startsWith('http')?mix:'https://'+mix}" target="_blank" rel="noopener" style="font-size:11px;color:${accent};text-decoration:none;">▶ Mix</a>` : '',
+        insta  ? `<a href="${insta}" target="_blank" rel="noopener" style="font-size:11px;color:#E1306C;text-decoration:none;">Instagram</a>` : '',
+        web    ? `<a href="${web}" target="_blank" rel="noopener" style="font-size:11px;color:var(--neon2);text-decoration:none;">Website</a>` : '',
+      ].filter(Boolean).join('<span style="color:var(--muted);margin:0 4px;">·</span>');
+
+      const actionBtns = enq.status === 'pending' ? `
+        <div style="display:flex;gap:8px;margin-top:12px;">
+          <button onclick="_vpEnquiryRespond('${enq.id}','accepted',this)" style="flex:1;background:rgba(0,229,160,.15);border:1.5px solid #00E5A0;color:#00E5A0;font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:1px;padding:10px;border-radius:10px;cursor:pointer;">ACCEPT ✓</button>
+          <button onclick="_vpEnquiryRespond('${enq.id}','declined',this)" style="flex:1;background:rgba(255,255,255,.04);border:1px solid var(--border);color:var(--muted);font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:1px;padding:10px;border-radius:10px;cursor:pointer;">DECLINE ✗</button>
+        </div>` : `<div style="margin-top:10px;font-family:'Bebas Neue',sans-serif;font-size:12px;letter-spacing:1px;color:${statusColor};">${statusLabel}</div>`;
+
+      return `
+        <div style="background:var(--card);border:1px solid rgba(${accent === '#00E5FF' ? '0,229,255' : accent === '#FF8C42' ? '255,140,66' : accent === '#FF88AA' ? '255,136,170' : '255,51,153'},.2);border-radius:14px;padding:16px;margin-bottom:12px;">
+          <div style="display:flex;gap:14px;align-items:flex-start;">
+            ${avatarHtml}
+            <div style="flex:1;min-width:0;">
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:2px;">
+                <div style="font-family:'Bebas Neue',sans-serif;font-size:19px;letter-spacing:1px;">${name}</div>
+                <span style="font-size:9px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);border-radius:10px;padding:2px 7px;letter-spacing:1px;color:${accent};font-family:'Bebas Neue',sans-serif;">${(enq.applicant_type||'').toUpperCase()}</span>
+              </div>
+              ${loc ? `<div style="font-size:11px;color:var(--muted);">📍 ${loc}</div>` : ''}
+              ${genrePills ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;">${genrePills}</div>` : ''}
+              ${sound ? `<div style="font-size:12px;color:var(--muted);font-style:italic;margin-top:5px;">"${sound.slice(0,80)}${sound.length>80?'…':''}"</div>` : ''}
+              ${bio   ? `<div style="font-size:12px;color:var(--muted);margin-top:5px;line-height:1.5;">${bio.slice(0,120)}${bio.length>120?'…':''}</div>` : ''}
+              ${links ? `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;align-items:center;">${links}</div>` : ''}
+            </div>
+          </div>
+          <div style="margin-top:12px;padding-top:12px;border-top:1px solid rgba(255,255,255,.07);">
+            <div style="font-family:'Bebas Neue',sans-serif;font-size:10px;letter-spacing:2px;color:#00E5A0;margin-bottom:4px;">REQUESTED DATE</div>
+            <div style="font-size:14px;font-weight:600;">${prettyDate}</div>
+            ${enq.note ? `<div style="font-size:13px;color:var(--muted);margin-top:8px;font-style:italic;">"${enq.note}"</div>` : ''}
+            <div style="font-size:10px;color:rgba(255,255,255,.3);margin-top:6px;">Received ${prettyCreated}</div>
+          </div>
+          ${actionBtns}
+        </div>`;
+    }).join('');
+  } catch(e) {
+    el.innerHTML = '<div style="color:var(--muted);font-size:13px;">Could not load enquiries.</div>';
+  }
+}
+
+async function _vpEnquiryRespond(enquiryId, status, btn) {
+  if (btn) { btn.disabled = true; btn.textContent = '…'; }
+  try {
+    await sbRest(`venue_enquiries?id=eq.${enquiryId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status })
+    }, currentSession?.access_token);
+    showToast(status === 'accepted' ? 'Enquiry accepted!' : 'Enquiry declined', status === 'accepted' ? 'success' : 'info');
+    _loadVenueEnquiries();
+    _loadVenueStats();
+  } catch(e) {
+    if (btn) { btn.disabled = false; btn.textContent = status === 'accepted' ? 'ACCEPT ✓' : 'DECLINE ✗'; }
+    showToast('Failed to update — try again', 'error');
   }
 }
 
@@ -546,6 +671,7 @@ let _vpCalMonth = new Date();
 async function loadVenuePublicSections(userId, venueName, accentColor, accentRgb, grad2, venueContact) {
   _vpVenueName    = venueName || '';
   _vpVenueContact = venueContact || null;
+  _vpVenueUserId  = userId || null;
   const today = new Date().toISOString().split('T')[0];
   _vpCalMonth = new Date();
   _vpCalMonth.setDate(1);
@@ -692,18 +818,42 @@ let _vpCurrentAvailSet  = new Set();
 let _vpAccentColor      = '#00E5A0';
 let _vpAccentRgb        = '0,229,160';
 let _vpVenueName        = '';
-let _vpVenueContact     = null; // { email, website, instagram }
+let _vpVenueContact     = null;
+let _vpVenueUserId      = null;
 
 function _vpOpenEnquiry(dateStr) {
+  if (!currentUser?.id) { showToast('Sign in to send an enquiry', 'error'); return; }
+
   const pretty = new Date(dateStr + 'T00:00:00').toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   const accent = _vpAccentColor;
   const rgb    = _vpAccentRgb;
 
-  // Determine user's artist name for pre-fill
-  const p    = (typeof artistProfile !== 'undefined' && artistProfile) ? artistProfile : null;
-  const myName = p ? (p.djName || p.name || '') : '';
+  // Pick the right profile based on current mode
+  const mode = typeof currentMode !== 'undefined' ? currentMode : 'artist';
+  let myName = '', myGenre = '', myAvatar = '', mySound = '', myLocation = '';
+  if (mode === 'band' && typeof bandProfile !== 'undefined' && bandProfile?.name) {
+    myName = bandProfile.name; myGenre = bandProfile.genre_string || bandProfile.band_type || ''; myAvatar = bandProfile.avatar || ''; mySound = bandProfile.sound || ''; myLocation = bandProfile.location || '';
+  } else if (mode === 'standup' && typeof standupProfile !== 'undefined' && standupProfile?.name) {
+    myName = standupProfile.name; myGenre = standupProfile.genre_string || standupProfile.act_type || ''; myAvatar = standupProfile.avatar || ''; mySound = standupProfile.sound || ''; myLocation = standupProfile.location || '';
+  } else if (typeof artistProfile !== 'undefined' && artistProfile) {
+    myName = artistProfile.djName || artistProfile.name || ''; myGenre = artistProfile.genreString || ''; myAvatar = artistProfile.avatar || ''; mySound = artistProfile.sound || ''; myLocation = artistProfile.location || '';
+  }
 
-  // Remove any existing sheet
+  const avatarHtml = myAvatar
+    ? `<img src="${myAvatar}" style="width:48px;height:48px;border-radius:8px;object-fit:cover;border:2px solid ${accent};flex-shrink:0;">`
+    : `<div style="width:48px;height:48px;border-radius:8px;background:rgba(${rgb},.12);border:2px solid rgba(${rgb},.4);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:20px;">🎵</div>`;
+
+  const profilePreview = myName ? `
+    <div style="display:flex;gap:12px;align-items:center;background:rgba(255,255,255,.05);border:1px solid rgba(${rgb},.25);border-radius:12px;padding:12px;margin-bottom:16px;">
+      ${avatarHtml}
+      <div style="flex:1;min-width:0;">
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:17px;letter-spacing:1px;">${myName}</div>
+        ${myLocation ? `<div style="font-size:11px;color:var(--muted);">${myLocation}</div>` : ''}
+        ${myGenre ? `<div style="font-size:11px;color:${accent};margin-top:2px;">${myGenre.split(' · ').slice(0,3).join(' · ')}</div>` : ''}
+        ${mySound ? `<div style="font-size:11px;color:var(--muted);font-style:italic;margin-top:2px;">${mySound.slice(0,60)}${mySound.length>60?'…':''}</div>` : ''}
+      </div>
+    </div>` : '';
+
   const old = document.getElementById('_vpEnquirySheet');
   if (old) old.remove();
 
@@ -712,23 +862,19 @@ function _vpOpenEnquiry(dateStr) {
   sheet.style.cssText = 'position:fixed;inset:0;z-index:9999;display:flex;flex-direction:column;justify-content:flex-end;';
   sheet.innerHTML = `
     <div onclick="_vpCloseEnquiry()" style="position:absolute;inset:0;background:rgba(0,0,0,.6);backdrop-filter:blur(4px);"></div>
-    <div style="position:relative;background:#13131f;border-radius:20px 20px 0 0;padding:24px 20px 36px;max-width:520px;width:100%;margin:0 auto;">
+    <div style="position:relative;background:#13131f;border-radius:20px 20px 0 0;padding:24px 20px 36px;max-width:520px;width:100%;margin:0 auto;max-height:85dvh;overflow-y:auto;">
       <div style="width:36px;height:4px;background:rgba(255,255,255,.2);border-radius:2px;margin:0 auto 20px;"></div>
       <div style="font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:2px;color:${accent};margin-bottom:4px;">ENQUIRE ABOUT THIS DATE</div>
-      <div style="font-size:18px;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;margin-bottom:20px;">${pretty}</div>
-      <textarea id="_vpEnquiryNote" placeholder="Tell the venue about yourself — act name, genre, what you do…" style="width:100%;min-height:100px;background:rgba(255,255,255,.06);border:1px solid rgba(${rgb},.35);border-radius:12px;color:#e8e8f0;font-size:14px;padding:12px;resize:none;font-family:inherit;box-sizing:border-box;">${myName ? `Hi, I'm ${myName} and I'd love to play at your venue on ${pretty}. ` : ''}</textarea>
-      <button onclick="_vpSendEnquiry('${dateStr}','${pretty.replace(/'/g, '\\\'')}')"
+      <div style="font-size:20px;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;margin-bottom:16px;">${pretty}</div>
+      ${profilePreview}
+      <textarea id="_vpEnquiryNote" placeholder="Add a message — anything extra the venue should know…" style="width:100%;min-height:90px;background:rgba(255,255,255,.06);border:1px solid rgba(${rgb},.35);border-radius:12px;color:#e8e8f0;font-size:14px;padding:12px;resize:none;font-family:inherit;box-sizing:border-box;"></textarea>
+      <button id="_vpEnquirySubmitBtn" onclick="_vpSendEnquiry('${dateStr}')"
         style="margin-top:12px;width:100%;background:linear-gradient(135deg,${accent},#00B4D8);color:#0a0a14;font-family:'Bebas Neue',sans-serif;font-size:17px;letter-spacing:2px;padding:16px;border:none;border-radius:12px;cursor:pointer;font-weight:700;">
         SEND ENQUIRY →
       </button>
       <button onclick="_vpCloseEnquiry()" style="margin-top:8px;width:100%;background:none;border:none;color:var(--muted);font-size:13px;cursor:pointer;padding:8px;">Cancel</button>
     </div>`;
   document.body.appendChild(sheet);
-  requestAnimationFrame(() => {
-    sheet.querySelector('textarea').focus();
-    const cursor = sheet.querySelector('textarea').value.length;
-    sheet.querySelector('textarea').setSelectionRange(cursor, cursor);
-  });
 }
 
 function _vpCloseEnquiry() {
@@ -736,24 +882,38 @@ function _vpCloseEnquiry() {
   if (sheet) sheet.remove();
 }
 
-function _vpSendEnquiry(dateStr, prettyDate) {
+async function _vpSendEnquiry(dateStr) {
+  if (!currentUser?.id || !_vpVenueUserId) { showToast('Unable to send — please try again', 'error'); return; }
   const note = (document.getElementById('_vpEnquiryNote')?.value || '').trim();
-  if (!note) { showToast('Please write a message first', 'error'); return; }
+  const btn  = document.getElementById('_vpEnquirySubmitBtn');
 
-  const c = _vpVenueContact;
-  if (c && c.email) {
-    const subject = encodeURIComponent(`Gig Enquiry – ${prettyDate} – ${_vpVenueName}`);
-    const body    = encodeURIComponent(note);
-    window.open(`mailto:${c.email}?subject=${subject}&body=${body}`, '_blank');
+  const mode = typeof currentMode !== 'undefined' ? currentMode : 'artist';
+  const applicantType = ['band','standup','artist','host','punter'].includes(mode) ? mode : 'artist';
+
+  if (btn) { btn.disabled = true; btn.textContent = 'SENDING…'; }
+
+  try {
+    await sbRest('venue_enquiries', {
+      method: 'POST',
+      body: JSON.stringify({
+        venue_user_id:     _vpVenueUserId,
+        applicant_user_id: currentUser.id,
+        applicant_type:    applicantType,
+        date_requested:    dateStr,
+        note:              note || null,
+        status:            'pending'
+      }),
+      prefer: 'resolution=merge-duplicates,return=minimal'
+    }, currentSession?.access_token);
     _vpCloseEnquiry();
-    showToast('Opening your email app…', 'success');
-  } else if (c && c.website) {
-    window.open(c.website.startsWith('http') ? c.website : 'https://' + c.website, '_blank');
-    _vpCloseEnquiry();
-  } else if (c && c.instagram) {
-    window.open(`https://instagram.com/${c.instagram.replace('@','')}`, '_blank');
-    _vpCloseEnquiry();
-  } else {
-    showToast('This venue hasn\'t added contact details yet', 'error');
+    showToast('Enquiry sent! The venue will be in touch.', 'success');
+  } catch(e) {
+    if (btn) { btn.disabled = false; btn.textContent = 'SEND ENQUIRY →'; }
+    if (e.message?.includes('duplicate') || e.message?.includes('unique')) {
+      showToast('You\'ve already enquired about this date', 'error');
+      _vpCloseEnquiry();
+    } else {
+      showToast('Failed to send — please try again', 'error');
+    }
   }
 }
