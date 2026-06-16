@@ -538,3 +538,153 @@ async function toggleVenueAvailDate(dateStr) {
     showToast('Could not update availability', 'error');
   }
 }
+
+// ── Venue Public Profile Sections ──────────────────
+
+let _vpCalMonth = new Date();
+
+async function loadVenuePublicSections(userId, venueName, accentColor, accentRgb, grad2) {
+  const today = new Date().toISOString().split('T')[0];
+  _vpCalMonth = new Date();
+  _vpCalMonth.setDate(1);
+
+  // Load availability dates and events in parallel
+  const [availRows, eventRows] = await Promise.all([
+    sbRest(
+      `venue_availability?user_id=eq.${userId}&available_date=gte.${today}&order=available_date.asc&limit=90`,
+      { method: 'GET' }, currentSession?.access_token || null
+    ).catch(() => []),
+    sbRest(
+      `events?status=eq.live&select=id,name,config,poster_url&limit=20`,
+      { method: 'GET' }, currentSession?.access_token || null
+    ).catch(() => [])
+  ]);
+
+  const availSet = new Set((availRows || []).map(r => r.available_date));
+  _vpCurrentAvailSet = availSet;
+  _vpAccentColor     = accentColor;
+  _vpAccentRgb       = accentRgb;
+
+  // Filter events that mention this venue name (case-insensitive)
+  const venueLower = venueName.toLowerCase();
+  const venueEvents = (eventRows || [])
+    .filter(ev => (ev.config?.venue || '').toLowerCase().includes(venueLower))
+    .sort((a, b) => (a.config?.date || '') < (b.config?.date || '') ? -1 : 1)
+    .slice(0, 8);
+
+  _renderVenuePublicEvents(venueEvents, accentColor, accentRgb, grad2);
+  _renderVenuePublicCalendar(availSet, accentColor, accentRgb);
+}
+
+function _renderVenuePublicEvents(events, accentColor, accentRgb, grad2) {
+  const el = document.getElementById('venuePublicEvents');
+  if (!el) return;
+
+  if (!events.length) {
+    el.innerHTML = '';
+    return;
+  }
+
+  const cards = events.map(ev => {
+    const cfg   = ev.config || {};
+    const date  = cfg.date  ? new Date(cfg.date + 'T00:00:00').toLocaleDateString('en-AU', { weekday:'short', day:'numeric', month:'short' }) : '';
+    const slots = Array.isArray(cfg.slots) ? cfg.slots.filter(s => s.name).length : 0;
+    const poster = ev.poster_url || cfg.poster || '';
+    return `<div onclick="showPublicEventPage('${ev.id}')"
+      style="display:flex;gap:12px;align-items:center;background:rgba(19,19,31,.88);backdrop-filter:blur(10px);border:1px solid rgba(${accentRgb},.2);border-radius:12px;padding:12px;margin-bottom:10px;cursor:pointer;transition:border-color .2s;"
+      onmouseenter="this.style.borderColor='rgba(${accentRgb},.6)'" onmouseleave="this.style.borderColor='rgba(${accentRgb},.2)'">
+      ${poster
+        ? `<img src="${poster}" style="width:52px;height:52px;border-radius:8px;object-fit:cover;flex-shrink:0;">`
+        : `<div style="width:52px;height:52px;border-radius:8px;flex-shrink:0;background:linear-gradient(135deg,rgba(${accentRgb},.25),rgba(${accentRgb},.08));display:flex;align-items:center;justify-content:center;">
+             <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="${accentColor}" stroke-width="1.5"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+           </div>`}
+      <div style="flex:1;min-width:0;">
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(ev.name || 'Untitled Event')}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px;">${[date, slots ? `${slots} artists` : ''].filter(Boolean).join(' · ')}</div>
+      </div>
+      <div style="color:${accentColor};font-size:18px;flex-shrink:0;">›</div>
+    </div>`;
+  }).join('');
+
+  el.innerHTML = `
+    <div style="position:relative;background:rgba(19,19,31,.88);backdrop-filter:blur(10px);border-radius:14px;padding:16px;overflow:hidden;">
+      <div style="position:absolute;inset:0;border-radius:14px;padding:1px;background:linear-gradient(135deg,${accentColor},${grad2});-webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none;"></div>
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:2px;color:${accentColor};margin-bottom:12px;">UPCOMING EVENTS HERE</div>
+      ${cards}
+    </div>`;
+}
+
+function _renderVenuePublicCalendar(availSet, accentColor, accentRgb) {
+  const el = document.getElementById('venuePublicCalendar');
+  if (!el) return;
+
+  const today     = new Date().toISOString().split('T')[0];
+  const year      = _vpCalMonth.getFullYear();
+  const month     = _vpCalMonth.getMonth();
+  const monthName = _vpCalMonth.toLocaleDateString('en-AU', { month: 'long', year: 'numeric' }).toUpperCase();
+
+  const firstDay  = new Date(year, month, 1).getDay(); // 0=Sun
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const startOffset = (firstDay + 6) % 7; // Mon-first
+
+  const dayLabels = ['M','T','W','T','F','S','S'].map(d =>
+    `<div style="text-align:center;font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:1px;color:var(--muted);padding-bottom:4px;">${d}</div>`
+  ).join('');
+
+  const cells = [];
+  for (let i = 0; i < startOffset; i++) cells.push(`<div></div>`);
+  for (let d = 1; d <= daysInMonth; d++) {
+    const mm    = String(month + 1).padStart(2, '0');
+    const dd    = String(d).padStart(2, '0');
+    const dateStr = `${year}-${mm}-${dd}`;
+    const isAvail = availSet.has(dateStr);
+    const isPast  = dateStr < today;
+    const isToday = dateStr === today;
+
+    const bg      = isAvail ? `rgba(${accentRgb},.18)` : 'transparent';
+    const color   = isPast ? 'rgba(255,255,255,.2)' : (isAvail ? accentColor : 'var(--muted)');
+    const border  = isToday ? `1px solid rgba(255,255,255,.4)` : (isAvail ? `1px solid rgba(${accentRgb},.4)` : '1px solid transparent');
+    const dot     = isAvail && !isPast ? `<div style="width:4px;height:4px;border-radius:50%;background:${accentColor};margin:1px auto 0;"></div>` : '';
+
+    cells.push(`<div style="text-align:center;padding:4px 0;">
+      <div style="display:inline-flex;flex-direction:column;align-items:center;justify-content:center;width:28px;height:28px;border-radius:6px;background:${bg};border:${border};font-size:12px;color:${color};font-weight:${isAvail?'600':'400'};">${d}${dot}</div>
+    </div>`);
+  }
+
+  const canPrev = new Date(year, month, 1) > new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+
+  el.innerHTML = `
+    <div style="position:relative;background:rgba(19,19,31,.88);backdrop-filter:blur(10px);border-radius:14px;padding:16px;overflow:hidden;">
+      <div style="position:absolute;inset:0;border-radius:14px;padding:1px;background:linear-gradient(135deg,${accentColor},rgba(${accentRgb},.4));-webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none;"></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:2px;color:${accentColor};">AVAILABILITY</div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <button onclick="_vpPrevMonth()" ${canPrev?'':'disabled'} style="background:none;border:1px solid rgba(${accentRgb},.3);border-radius:6px;color:${canPrev?accentColor:'rgba(255,255,255,.2)'};width:26px;height:26px;cursor:${canPrev?'pointer':'default'};font-size:14px;line-height:1;padding:0;">‹</button>
+          <span style="font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:1px;color:var(--text);min-width:110px;text-align:center;">${monthName}</span>
+          <button onclick="_vpNextMonth()" style="background:none;border:1px solid rgba(${accentRgb},.3);border-radius:6px;color:${accentColor};width:26px;height:26px;cursor:pointer;font-size:14px;line-height:1;padding:0;">›</button>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;">
+        ${dayLabels}
+        ${cells.join('')}
+      </div>
+      ${availSet.size > 0 ? `<div style="display:flex;align-items:center;gap:6px;margin-top:12px;font-size:11px;color:var(--muted);">
+        <div style="width:10px;height:10px;border-radius:3px;background:rgba(${accentRgb},.18);border:1px solid rgba(${accentRgb},.4);flex-shrink:0;"></div>
+        Available for bookings
+      </div>` : `<div style="text-align:center;padding:8px 0;font-size:12px;color:var(--muted);">No availability set for this month</div>`}
+    </div>`;
+}
+
+function _vpPrevMonth() {
+  _vpCalMonth.setMonth(_vpCalMonth.getMonth() - 1);
+  _renderVenuePublicCalendar(_vpCurrentAvailSet, _vpAccentColor, _vpAccentRgb);
+}
+
+function _vpNextMonth() {
+  _vpCalMonth.setMonth(_vpCalMonth.getMonth() + 1);
+  _renderVenuePublicCalendar(_vpCurrentAvailSet, _vpAccentColor, _vpAccentRgb);
+}
+
+let _vpCurrentAvailSet  = new Set();
+let _vpAccentColor      = '#00E5A0';
+let _vpAccentRgb        = '0,229,160';

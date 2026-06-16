@@ -276,6 +276,7 @@ function openPublicProfile(row) {
     instagram:    row.instagram,    youtube:      row.youtube,
     facebook:     row.facebook,     tiktok:       row.tiktok,
     website:      row.website,      avatar:       row.avatar,
+    contact_email: row.contact_email,
   };
   // Wire up share button
   const shareBtn = document.getElementById('profileShareBtn');
@@ -284,7 +285,8 @@ function openPublicProfile(row) {
     shareBtn.onclick = () => shareItem(row.type, row.user_id, row.dj_name || row.name || '');
   }
 
-  const isHost = row.type === 'host';
+  const isHost  = row.type === 'host';
+  const isVenue = row.type === 'venue';
   const name = row.dj_name || row.name || 'Unknown';
   const location = [row.location, row.state].filter(Boolean).join(', ');
   const genres = row.genre_string ? row.genre_string.split(' · ').filter(Boolean) : [];
@@ -308,7 +310,7 @@ function openPublicProfile(row) {
   if (row.avatar) {
     heroBg.style.backgroundImage = `url(${row.avatar})`;
     heroBg.style.filter = 'blur(28px)';
-    if (heroImg) { heroImg.style.backgroundImage = `url(${row.avatar})`; heroImg.style.display = ''; }
+    if (heroImg) { heroImg.style.backgroundImage = `url(${row.avatar})`; heroImg.style.display = 'block'; }
   } else {
     heroBg.style.backgroundImage = 'linear-gradient(135deg, rgba(255,45,120,.9) 0%, rgba(180,0,200,.7) 40%, rgba(0,229,255,.8) 100%)';
     heroBg.style.filter = 'blur(0px)';
@@ -325,7 +327,7 @@ function openPublicProfile(row) {
   const _wBars = Array.from({length: _wN}, (_,i) => { const h = 4 + _wRng() * (_wH - 8); const x = (i / _wN) * _wW + (_wW / _wN) * 0.225; const y = (_wH - h) / 2; return `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${_bW.toFixed(1)}" height="${h.toFixed(1)}" rx="1.5"/>`; }).join('');
   const _waveSvg = `<svg viewBox="0 0 ${_wW} ${_wH}" preserveAspectRatio="none" style="position:absolute;top:0;left:50%;transform:translateX(-50%);width:38%;height:100%;opacity:.32;mask-image:linear-gradient(to right,black 0%,transparent 35%,transparent 65%,black 100%);-webkit-mask-image:linear-gradient(to right,black 0%,transparent 35%,transparent 65%,black 100%);" fill="rgba(${accentRgb},1)">${_wBars}</svg>`;
 
-  const mixHtml = !isHost ? (mixLink ? `
+  const mixHtml = !isHost && !isVenue ? (mixLink ? `
     <button onclick="openMiniPlayer('${safeName}','${mixLink}','🎧')"
       style="position:relative;overflow:hidden;background:rgba(${accentRgb},.12);border:1.5px solid ${accentColor};border-radius:12px;color:${accentColor};font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:2px;padding:14px 24px;cursor:pointer;width:100%;margin-bottom:12px;">
       ${_waveSvg}
@@ -339,11 +341,20 @@ function openPublicProfile(row) {
   const followBtn = !isOwnProfile && row.user_id && typeof buildFollowBtn === 'function'
     ? buildFollowBtn(row.user_id, row.type, name)
     : '';
-  const inviteBtn = !isHost && currentMode === 'host' && !isOwnProfile ? `
+  const inviteBtn = !isHost && !isVenue && currentMode === 'host' && !isOwnProfile ? `
     <button onclick="openInviteToEvent('${(row.user_id||'').replace(/'/g,String.fromCharCode(39))}','${(row.dj_name||row.name||'').replace(/'/g,String.fromCharCode(39))}')"
       style="background:var(--neon);color:#fff;font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:2px;padding:16px;border:none;border-radius:12px;cursor:pointer;width:100%;font-weight:700;margin-bottom:12px;">
       INVITE TO EVENT →
     </button>` : '';
+  const venueEnquireBtn = isVenue && !isOwnProfile && (row.contact_email || row.website || row.instagram) ? (() => {
+    const contactTarget = row.contact_email
+      ? `mailto:${row.contact_email}?subject=Venue%20Enquiry%20-%20${encodeURIComponent(name)}`
+      : (row.website ? (row.website.startsWith('http') ? row.website : 'https://'+row.website) : `https://instagram.com/${(row.instagram||'').replace('@','')}`);
+    return `<a href="${contactTarget}" target="_blank" rel="noopener"
+      style="display:block;background:linear-gradient(135deg,#00E5A0,#00B4D8);color:#0a0a14;font-family:'Bebas Neue',sans-serif;font-size:17px;letter-spacing:2px;padding:16px;border:none;border-radius:12px;cursor:pointer;width:100%;font-weight:700;margin-bottom:12px;text-align:center;text-decoration:none;box-sizing:border-box;">
+      📩 ENQUIRE / BOOK THIS VENUE
+    </a>`;
+  })() : '';
 
   const heroSpacer = row.avatar
     ? `<div style="height:62dvh;"></div>`
@@ -382,8 +393,16 @@ function openPublicProfile(row) {
       <div style="font-size:14px;color:var(--muted);line-height:1.7;">${row.bio}</div>
     </div>` : ''}
     ${!isHost ? `<div id="publicProfileAvailability" style="position:relative;background:rgba(19,19,31,.88);backdrop-filter:blur(10px);border-radius:12px;padding:16px;margin-bottom:12px;overflow:hidden;display:none;"><div style="position:absolute;inset:0;border-radius:12px;padding:1px;background:linear-gradient(135deg,${accentColor},${grad2});-webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none;"></div></div>` : ''}
+    ${venueEnquireBtn}
     ${followBtn}
     ${inviteBtn}
+    ${isVenue ? `
+    <div id="venuePublicEvents" style="margin-bottom:12px;">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:2px;color:#00E5A0;margin-bottom:10px;">UPCOMING EVENTS HERE</div>
+      <div style="color:var(--muted);font-size:13px;text-align:center;padding:20px 0;">Loading events…</div>
+    </div>
+    <div id="venuePublicCalendar" style="margin-bottom:12px;"></div>
+    ` : ''}
     <div id="publicProfileGigs"></div>
     ${(() => {
       const _socials = [
@@ -402,10 +421,12 @@ function openPublicProfile(row) {
   `;
   show('publicProfileScreen');
 
-  // Load confirmed YesPleez gigs for this artist (non-self-listed only)
-  if (!isHost && row.user_id) {
+  if (isVenue && row.user_id) {
+    if (typeof loadVenuePublicSections === 'function') {
+      loadVenuePublicSections(row.user_id, name, accentColor, accentRgb, grad2);
+    }
+  } else if (!isHost && row.user_id) {
     loadPublicProfileGigs(row.user_id, accentColor, accentRgb, grad2);
-    // Load availability for promoter view
     if (typeof renderProfileAvailability === 'function') {
       const availEl = document.getElementById('publicProfileAvailability');
       renderProfileAvailability(row.user_id, availEl);
