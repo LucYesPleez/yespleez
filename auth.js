@@ -72,10 +72,17 @@ async function sbRest(path, options = {}, token = null) {
     if (refreshed) {
       res = await makeReq(token === null ? null : currentSession.access_token);
     } else {
-      // Can't refresh — send user back to login
+      // Can't refresh — clear session
       currentUser = null; currentSession = null;
       localStorage.removeItem('yp_session');
-      show('authScreen');
+      // Don't redirect mid-form — let user finish, they'll be prompted on next save
+      const activeScreen = document.querySelector('.screen.active')?.id || '';
+      const formScreens = ['bandProfileScreen','venueProfileScreen','standupProfileScreen','profileScreen','hostProfileScreen','punterProfileScreen'];
+      if (formScreens.includes(activeScreen)) {
+        if (typeof showToast === 'function') showToast('Session expired — save your work and sign back in', 'error', 6000);
+      } else {
+        show('authScreen');
+      }
       throw new Error('Session expired — please sign in again.');
     }
   }
