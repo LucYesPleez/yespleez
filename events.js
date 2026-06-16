@@ -2421,7 +2421,7 @@ function renderManage() {
   }
   const mixCount  = Object.values(claims).filter(c => c.mixLink).length;
   const lineupBtn = document.getElementById('lineupRadioBtn');
-  if (lineupBtn) lineupBtn.style.display = mixCount >= 1 ? '' : 'none';
+  if (lineupBtn) { lineupBtn.style.display = ''; lineupBtn.style.opacity = mixCount >= 1 ? '' : '0.35'; lineupBtn.disabled = mixCount < 1; lineupBtn.style.cursor = mixCount >= 1 ? '' : 'default'; }
   const allSlots = [];
   (eventData.days||[]).forEach(day => day.slots.forEach(s => allSlots.push({slot:s,dayName:day.name||''})));
   let lastDay = null;
