@@ -423,7 +423,7 @@ function openPublicProfile(row) {
 
   if (isVenue && row.user_id) {
     if (typeof loadVenuePublicSections === 'function') {
-      loadVenuePublicSections(row.user_id, name, accentColor, accentRgb, grad2);
+      loadVenuePublicSections(row.user_id, name, accentColor, accentRgb, grad2, { email: row.contact_email, website: row.website, instagram: row.instagram });
     }
   } else if (!isHost && row.user_id) {
     loadPublicProfileGigs(row.user_id, accentColor, accentRgb, grad2);

@@ -543,7 +543,9 @@ async function toggleVenueAvailDate(dateStr) {
 
 let _vpCalMonth = new Date();
 
-async function loadVenuePublicSections(userId, venueName, accentColor, accentRgb, grad2) {
+async function loadVenuePublicSections(userId, venueName, accentColor, accentRgb, grad2, venueContact) {
+  _vpVenueName    = venueName || '';
+  _vpVenueContact = venueContact || null;
   const today = new Date().toISOString().split('T')[0];
   _vpCalMonth = new Date();
   _vpCalMonth.setDate(1);
@@ -646,8 +648,9 @@ function _renderVenuePublicCalendar(availSet, accentColor, accentRgb) {
     const border  = isToday ? `1px solid rgba(255,255,255,.4)` : (isAvail ? `1px solid rgba(${accentRgb},.4)` : '1px solid transparent');
     const dot     = isAvail && !isPast ? `<div style="width:4px;height:4px;border-radius:50%;background:${accentColor};margin:1px auto 0;"></div>` : '';
 
+    const clickable = isAvail && !isPast;
     cells.push(`<div style="text-align:center;padding:4px 0;">
-      <div style="display:inline-flex;flex-direction:column;align-items:center;justify-content:center;width:28px;height:28px;border-radius:6px;background:${bg};border:${border};font-size:12px;color:${color};font-weight:${isAvail?'600':'400'};">${d}${dot}</div>
+      <div ${clickable ? `onclick="_vpOpenEnquiry('${dateStr}')" ` : ''}style="display:inline-flex;flex-direction:column;align-items:center;justify-content:center;width:28px;height:28px;border-radius:6px;background:${bg};border:${border};font-size:12px;color:${color};font-weight:${isAvail?'600':'400'};${clickable?'cursor:pointer;':''}transition:transform .1s,box-shadow .1s;"${clickable ? ` onmouseenter="this.style.transform='scale(1.15)';this.style.boxShadow='0 2px 8px rgba(${accentRgb},.45)'" onmouseleave="this.style.transform='';this.style.boxShadow=''"` : ''}>${d}${dot}</div>
     </div>`);
   }
 
@@ -670,7 +673,7 @@ function _renderVenuePublicCalendar(availSet, accentColor, accentRgb) {
       </div>
       ${availSet.size > 0 ? `<div style="display:flex;align-items:center;gap:6px;margin-top:12px;font-size:11px;color:var(--muted);">
         <div style="width:10px;height:10px;border-radius:3px;background:rgba(${accentRgb},.18);border:1px solid rgba(${accentRgb},.4);flex-shrink:0;"></div>
-        Available for bookings
+        Tap a date to enquire
       </div>` : `<div style="text-align:center;padding:8px 0;font-size:12px;color:var(--muted);">No availability set for this month</div>`}
     </div>`;
 }
@@ -688,3 +691,69 @@ function _vpNextMonth() {
 let _vpCurrentAvailSet  = new Set();
 let _vpAccentColor      = '#00E5A0';
 let _vpAccentRgb        = '0,229,160';
+let _vpVenueName        = '';
+let _vpVenueContact     = null; // { email, website, instagram }
+
+function _vpOpenEnquiry(dateStr) {
+  const pretty = new Date(dateStr + 'T00:00:00').toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  const accent = _vpAccentColor;
+  const rgb    = _vpAccentRgb;
+
+  // Determine user's artist name for pre-fill
+  const p    = (typeof artistProfile !== 'undefined' && artistProfile) ? artistProfile : null;
+  const myName = p ? (p.djName || p.name || '') : '';
+
+  // Remove any existing sheet
+  const old = document.getElementById('_vpEnquirySheet');
+  if (old) old.remove();
+
+  const sheet = document.createElement('div');
+  sheet.id = '_vpEnquirySheet';
+  sheet.style.cssText = 'position:fixed;inset:0;z-index:9999;display:flex;flex-direction:column;justify-content:flex-end;';
+  sheet.innerHTML = `
+    <div onclick="_vpCloseEnquiry()" style="position:absolute;inset:0;background:rgba(0,0,0,.6);backdrop-filter:blur(4px);"></div>
+    <div style="position:relative;background:#13131f;border-radius:20px 20px 0 0;padding:24px 20px 36px;max-width:520px;width:100%;margin:0 auto;">
+      <div style="width:36px;height:4px;background:rgba(255,255,255,.2);border-radius:2px;margin:0 auto 20px;"></div>
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:2px;color:${accent};margin-bottom:4px;">ENQUIRE ABOUT THIS DATE</div>
+      <div style="font-size:18px;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;margin-bottom:20px;">${pretty}</div>
+      <textarea id="_vpEnquiryNote" placeholder="Tell the venue about yourself — act name, genre, what you do…" style="width:100%;min-height:100px;background:rgba(255,255,255,.06);border:1px solid rgba(${rgb},.35);border-radius:12px;color:#e8e8f0;font-size:14px;padding:12px;resize:none;font-family:inherit;box-sizing:border-box;">${myName ? `Hi, I'm ${myName} and I'd love to play at your venue on ${pretty}. ` : ''}</textarea>
+      <button onclick="_vpSendEnquiry('${dateStr}','${pretty.replace(/'/g, '\\\'')}')"
+        style="margin-top:12px;width:100%;background:linear-gradient(135deg,${accent},#00B4D8);color:#0a0a14;font-family:'Bebas Neue',sans-serif;font-size:17px;letter-spacing:2px;padding:16px;border:none;border-radius:12px;cursor:pointer;font-weight:700;">
+        SEND ENQUIRY →
+      </button>
+      <button onclick="_vpCloseEnquiry()" style="margin-top:8px;width:100%;background:none;border:none;color:var(--muted);font-size:13px;cursor:pointer;padding:8px;">Cancel</button>
+    </div>`;
+  document.body.appendChild(sheet);
+  requestAnimationFrame(() => {
+    sheet.querySelector('textarea').focus();
+    const cursor = sheet.querySelector('textarea').value.length;
+    sheet.querySelector('textarea').setSelectionRange(cursor, cursor);
+  });
+}
+
+function _vpCloseEnquiry() {
+  const sheet = document.getElementById('_vpEnquirySheet');
+  if (sheet) sheet.remove();
+}
+
+function _vpSendEnquiry(dateStr, prettyDate) {
+  const note = (document.getElementById('_vpEnquiryNote')?.value || '').trim();
+  if (!note) { showToast('Please write a message first', 'error'); return; }
+
+  const c = _vpVenueContact;
+  if (c && c.email) {
+    const subject = encodeURIComponent(`Gig Enquiry – ${prettyDate} – ${_vpVenueName}`);
+    const body    = encodeURIComponent(note);
+    window.open(`mailto:${c.email}?subject=${subject}&body=${body}`, '_blank');
+    _vpCloseEnquiry();
+    showToast('Opening your email app…', 'success');
+  } else if (c && c.website) {
+    window.open(c.website.startsWith('http') ? c.website : 'https://' + c.website, '_blank');
+    _vpCloseEnquiry();
+  } else if (c && c.instagram) {
+    window.open(`https://instagram.com/${c.instagram.replace('@','')}`, '_blank');
+    _vpCloseEnquiry();
+  } else {
+    showToast('This venue hasn\'t added contact details yet', 'error');
+  }
+}
