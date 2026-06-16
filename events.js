@@ -1530,8 +1530,13 @@ async function autoClaimSlot(slotId) {
   const name = artistProfile?.djName;
   const genre = artistProfile?.genreString;
   if (!name || !genre) {
-    showToast('Complete your profile first — takes 2 mins!', 'error');
-    setTimeout(() => showProfile(), 1200);
+    // Profile not fully set up — open the claim form so they can fill in details manually
+    const hint = (() => { let h=''; (eventData?.days||[]).forEach(d=>d.slots.forEach(s=>{ if(s.id===slotId) h=s.time+' '+s.ampm; })); return h; })();
+    openModal(slotId, hint, 1);
+    const nameEl = document.getElementById('inputName');
+    if (nameEl && !nameEl.value && (artistProfile?.djName || artistProfile?.name)) {
+      nameEl.value = artistProfile.djName || artistProfile.name;
+    }
     return;
   }
   const cardPills = artistProfile?.cardPills || '';
