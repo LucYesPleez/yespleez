@@ -89,6 +89,7 @@ function _updateGlobalNav(id, isLocked) {
     }
   }
   const el = (id) => document.getElementById(id);
+  if (el('globalInfoBtn'))       el('globalInfoBtn').style.display       = id === 'publicProfileScreen' ? 'none' : '';
   if (el('globalShareCal'))      el('globalShareCal').style.display      = id === 'calendarScreen'  ? '' : 'none';
   if (el('globalShareDiscover')) el('globalShareDiscover').style.display = id === 'searchScreen'    ? '' : 'none';
   if (el('globalViewManage'))    el('globalViewManage').style.display    = id === 'manageScreen'    ? '' : 'none';
