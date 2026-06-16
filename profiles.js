@@ -859,7 +859,8 @@ async function loadAcceptedUnassignedArtists() {
     });
 
     // Fetch profiles for these artist_ids
-    const artistIds = [...new Set(apps.map(a => a.artist_id))];
+    const artistIds = [...new Set(apps.map(a => a.artist_id).filter(Boolean))];
+    if (!artistIds.length) { list.innerHTML = '<div style="font-size:13px;color:var(--muted);padding:8px 0;">No accepted artists yet.</div>'; return; }
     const profiles = await sbRest(
       `profiles?user_id=in.(${artistIds.join(',')})&type=eq.artist&select=*`,
       { method: 'GET' }, currentSession.access_token
