@@ -701,7 +701,6 @@ async function loadVenuePublicSections(userId, venueName, accentColor, accentRgb
     .slice(0, 8);
 
   _renderVenuePublicEvents(venueEvents, accentColor, accentRgb, grad2);
-  _renderVenuePublicCalendar(availSet, accentColor, accentRgb);
 }
 
 function _renderVenuePublicEvents(events, accentColor, accentRgb, grad2) {
@@ -743,7 +742,7 @@ function _renderVenuePublicEvents(events, accentColor, accentRgb, grad2) {
 }
 
 function _renderVenuePublicCalendar(availSet, accentColor, accentRgb) {
-  const el = document.getElementById('venuePublicCalendar');
+  const el = document.getElementById('_vpAvailCalendarInner') || document.getElementById('venuePublicCalendar');
   if (!el) return;
 
   const today     = new Date().toISOString().split('T')[0];
@@ -820,6 +819,29 @@ let _vpAccentRgb        = '0,229,160';
 let _vpVenueName        = '';
 let _vpVenueContact     = null;
 let _vpVenueUserId      = null;
+
+function openVenueAvailabilityModal() {
+  const old = document.getElementById('_vpAvailModal');
+  if (old) old.remove();
+
+  const modal = document.createElement('div');
+  modal.id = '_vpAvailModal';
+  modal.style.cssText = 'position:fixed;inset:0;z-index:9998;display:flex;flex-direction:column;justify-content:flex-end;';
+  modal.innerHTML = `
+    <div onclick="closeVenueAvailabilityModal()" style="position:absolute;inset:0;background:rgba(0,0,0,.6);backdrop-filter:blur(4px);"></div>
+    <div style="position:relative;background:#13131f;border-radius:20px 20px 0 0;padding:24px 20px 36px;max-width:520px;width:100%;margin:0 auto;max-height:85dvh;overflow-y:auto;">
+      <div style="width:36px;height:4px;background:rgba(255,255,255,.2);border-radius:2px;margin:0 auto 20px;"></div>
+      <div id="_vpAvailCalendarInner"></div>
+      <button onclick="closeVenueAvailabilityModal()" style="margin-top:8px;width:100%;background:none;border:none;color:var(--muted);font-size:13px;cursor:pointer;padding:8px;">Close</button>
+    </div>`;
+  document.body.appendChild(modal);
+  _renderVenuePublicCalendar(_vpCurrentAvailSet, _vpAccentColor, _vpAccentRgb);
+}
+
+function closeVenueAvailabilityModal() {
+  const modal = document.getElementById('_vpAvailModal');
+  if (modal) modal.remove();
+}
 
 function _vpOpenEnquiry(dateStr) {
   if (!currentUser?.id) { showToast('Sign in to send an enquiry', 'error'); return; }

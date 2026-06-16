@@ -401,7 +401,7 @@ function openPublicProfile(row) {
       <div style="font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:2px;color:#00E5A0;margin-bottom:10px;">UPCOMING EVENTS HERE</div>
       <div style="color:var(--muted);font-size:13px;text-align:center;padding:20px 0;">Loading events…</div>
     </div>
-    <div id="venuePublicCalendar" style="margin-bottom:12px;"></div>
+    <button onclick="openVenueAvailabilityModal()" style="width:100%;background:rgba(0,229,160,.08);border:1.5px solid rgba(0,229,160,.35);color:#00E5A0;font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:2px;padding:14px;border-radius:12px;cursor:pointer;margin-bottom:12px;">📅 CHECK AVAILABILITY</button>
     ` : ''}
     <div id="publicProfileGigs"></div>
     ${(() => {
