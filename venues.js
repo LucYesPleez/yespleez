@@ -387,20 +387,9 @@ async function saveVenueProfile() {
   };
 
   try {
-    const existing = venueProfile?.id;
-    let result;
-    if (existing) {
-      result = await sbRest(
-        `profiles?id=eq.${existing}`,
-        { method: 'PATCH', body: JSON.stringify(payload) },
-        currentSession?.access_token
-      );
-    } else {
-      result = await sbRest(
-        `profiles`,
-        { method: 'POST', body: JSON.stringify(payload) },
-        currentSession?.access_token
-      );
+    const patched = await sbRest(`profiles?user_id=eq.${currentUser.id}&type=eq.venue`, { method: 'PATCH', body: JSON.stringify(payload) }, currentSession?.access_token);
+    if (!Array.isArray(patched) || patched.length === 0) {
+      await sbRest(`profiles`, { method: 'POST', body: JSON.stringify(payload) }, currentSession?.access_token);
     }
     venueProfile = { ...venueProfile, ...payload };
     try { localStorage.setItem('yp_venue_profile', JSON.stringify(venueProfile)); } catch(e) {}

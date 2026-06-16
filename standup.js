@@ -324,10 +324,8 @@ async function saveStandupProfile() {
   };
 
   try {
-    const existing = standupProfile?.id;
-    if (existing) {
-      await sbRest(`profiles?id=eq.${existing}`, { method: 'PATCH', body: JSON.stringify(payload) }, currentSession?.access_token);
-    } else {
+    const patched = await sbRest(`profiles?user_id=eq.${currentUser.id}&type=eq.standup`, { method: 'PATCH', body: JSON.stringify(payload) }, currentSession?.access_token);
+    if (!Array.isArray(patched) || patched.length === 0) {
       await sbRest(`profiles`, { method: 'POST', body: JSON.stringify(payload) }, currentSession?.access_token);
     }
     standupProfile = { ...standupProfile, ...payload };

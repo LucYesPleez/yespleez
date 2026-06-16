@@ -437,10 +437,8 @@ async function saveBandProfile() {
   };
 
   try {
-    const existing = bandProfile?.id;
-    if (existing) {
-      await sbRest(`profiles?id=eq.${existing}`, { method: 'PATCH', body: JSON.stringify(payload) }, currentSession?.access_token);
-    } else {
+    const patched = await sbRest(`profiles?user_id=eq.${currentUser.id}&type=eq.band`, { method: 'PATCH', body: JSON.stringify(payload) }, currentSession?.access_token);
+    if (!Array.isArray(patched) || patched.length === 0) {
       await sbRest(`profiles`, { method: 'POST', body: JSON.stringify(payload) }, currentSession?.access_token);
     }
     bandProfile = { ...bandProfile, ...payload };
