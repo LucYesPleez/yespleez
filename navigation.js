@@ -699,6 +699,9 @@ async function showCalendar() {
 function showSearchScreen() {
   _discoverOrigin = currentMode || null;
   show('searchScreen');
+  // Always reset to Everything so discover doesn't open stuck on a previous filter
+  const tf = document.getElementById('searchTypeFilter');
+  if (tf && tf.value === 'event') tf.value = 'all';
   document.getElementById('searchInput').focus();
   runSearch();
 }
