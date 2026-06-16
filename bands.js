@@ -258,9 +258,8 @@ function previewBandAvatar(input) {
   const reader = new FileReader();
   reader.onload = e => {
     const preview = document.getElementById('bandAvatarPreview');
-    if (preview) {
-      preview.innerHTML = `<img src="${e.target.result}" style="width:100%;height:100%;object-fit:cover;">`;
-    }
+    if (preview) preview.innerHTML = `<img src="${e.target.result}" style="width:100%;height:100%;object-fit:cover;">`;
+    bandProfile._pendingAvatar = e.target.result;
   };
   reader.readAsDataURL(file);
 }
@@ -369,28 +368,8 @@ async function saveBandProfile() {
 
   if (!name) { showToast('Please enter a band or act name', 'error'); return; }
 
-  // Avatar upload
-  let avatarUrl = bandProfile?.avatar || null;
-  const fileInput = document.getElementById('bandAvatarInput');
-  const file = fileInput?.files?.[0];
-  if (file && !DEMO && currentSession?.access_token) {
-    try {
-      const ext  = file.name.split('.').pop();
-      const path = `${currentUser.id}_band_${Date.now()}.${ext}`;
-      const uploadRes = await fetch(`${SUPABASE_URL}/storage/v1/object/avatars/${path}`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${currentSession.access_token}`,
-          'Content-Type': file.type,
-          'x-upsert': 'true'
-        },
-        body: file
-      });
-      if (uploadRes.ok) {
-        avatarUrl = `${SUPABASE_URL}/storage/v1/object/public/avatars/${path}`;
-      }
-    } catch(e) { console.warn('avatar upload:', e); }
-  }
+  // Avatar — use DataURL stored during preview (same approach as artist/host)
+  const avatarUrl = bandProfile._pendingAvatar || bandProfile?.avatar || null;
 
   const payload = {
     user_id:          currentUser.id,

@@ -48,6 +48,7 @@ function previewVenueAvatar(input) {
   reader.onload = e => {
     const preview = document.getElementById('venueAvatarPreview');
     if (preview) preview.innerHTML = `<img src="${e.target.result}" style="width:100%;height:100%;object-fit:cover;">`;
+    venueProfile._pendingAvatar = e.target.result;
   };
   reader.readAsDataURL(file);
 }
@@ -337,22 +338,8 @@ async function saveVenueProfile() {
 
   if (!name) { showToast('Please enter a venue name', 'error'); return; }
 
-  // Avatar upload
-  let avatarUrl = venueProfile?.avatar || null;
-  const fileInput = document.getElementById('venueAvatarInput');
-  const file = fileInput?.files?.[0];
-  if (file && !DEMO && currentSession?.access_token) {
-    try {
-      const ext  = file.name.split('.').pop();
-      const path = `${currentUser.id}_venue_${Date.now()}.${ext}`;
-      const uploadRes = await fetch(`${SUPABASE_URL}/storage/v1/object/avatars/${path}`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${currentSession.access_token}`, 'Content-Type': file.type, 'x-upsert': 'true' },
-        body: file
-      });
-      if (uploadRes.ok) avatarUrl = `${SUPABASE_URL}/storage/v1/object/public/avatars/${path}`;
-    } catch(e) { console.warn('avatar upload:', e); }
-  }
+  // Avatar — use DataURL stored during preview (same approach as artist/host)
+  const avatarUrl = venueProfile._pendingAvatar || venueProfile?.avatar || null;
 
   const payload = {
     user_id:          currentUser.id,

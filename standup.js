@@ -36,6 +36,7 @@ function previewStandupAvatar(input) {
   reader.onload = e => {
     const preview = document.getElementById('standupAvatarPreview');
     if (preview) preview.innerHTML = `<img src="${e.target.result}" style="width:100%;height:100%;object-fit:cover;">`;
+    standupProfile._pendingAvatar = e.target.result;
   };
   reader.readAsDataURL(file);
 }
@@ -270,22 +271,8 @@ async function saveStandupProfile() {
 
   if (!name) { showToast('Please enter your act or stage name', 'error'); return; }
 
-  // Avatar upload
-  let avatarUrl = standupProfile?.avatar || null;
-  const fileInput = document.getElementById('standupAvatarInput');
-  const file = fileInput?.files?.[0];
-  if (file && !DEMO && currentSession?.access_token) {
-    try {
-      const ext  = file.name.split('.').pop();
-      const path = `${currentUser.id}_standup_${Date.now()}.${ext}`;
-      const uploadRes = await fetch(`${SUPABASE_URL}/storage/v1/object/avatars/${path}`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${currentSession.access_token}`, 'Content-Type': file.type, 'x-upsert': 'true' },
-        body: file
-      });
-      if (uploadRes.ok) avatarUrl = `${SUPABASE_URL}/storage/v1/object/public/avatars/${path}`;
-    } catch(e) { console.warn('avatar upload:', e); }
-  }
+  // Avatar — use DataURL stored during preview (same approach as artist/host)
+  const avatarUrl = standupProfile._pendingAvatar || standupProfile?.avatar || null;
 
   const payload = {
     user_id:       currentUser.id,
