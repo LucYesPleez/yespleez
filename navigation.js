@@ -292,6 +292,17 @@ function updateRoleCards() {
   if (hostCard)   { const d = hostCard.querySelector('.role-card-desc');   if (d) d.innerHTML = 'Create events, build set times, manage your lineup, go live' + hostDot; }
   if (artistCard) { const d = artistCard.querySelector('.role-card-desc'); if (d) d.innerHTML = 'Build your profile, track your bookings, apply to events' + artistDot; }
   if (punterCard) { const d = punterCard.querySelector('.role-card-desc'); if (d) d.innerHTML = 'Follow artists, save events, get notified when your faves play' + punterDot; }
+
+  const venueTick   = (venueProfile?.name || venueProfile?.dj_name) ? ' <span style="color:#00E5A0;font-size:11px;white-space:nowrap;">✓ Profile set up</span>' : '';
+  const bandTick    = (typeof bandProfile !== 'undefined' && bandProfile?.name) ? ' <span style="color:#FF8C42;font-size:11px;white-space:nowrap;">✓ Profile set up</span>' : '';
+  const standupTick = (typeof standupProfile !== 'undefined' && standupProfile?.name) ? ' <span style="color:#FF88AA;font-size:11px;white-space:nowrap;">✓ Profile set up</span>' : '';
+
+  const vEl = document.getElementById('venueRoleDesc');
+  const bEl = document.getElementById('bandRoleDesc');
+  const sEl = document.getElementById('standupRoleDesc');
+  if (vEl) vEl.innerHTML = 'List your venue, set availability, get found by promoters and artists' + venueTick;
+  if (bEl) bEl.innerHTML = 'List your band, find gigs, connect with venues and promoters' + bandTick;
+  if (sEl) sEl.innerHTML = 'Book gigs, share your sets, connect with comedy clubs and spoken word nights' + standupTick;
 }
 
 function enterMode(mode) {

@@ -65,6 +65,8 @@ async function enterBandsDashboard() {
         bandProfile = rows[0];
         try { localStorage.setItem('yp_band_profile', JSON.stringify(bandProfile)); } catch(e) {}
         _renderBandsDashCard();
+        if (typeof updateRoleCards === 'function') updateRoleCards();
+        if (typeof _updateIndustryPanelBadges === 'function') _updateIndustryPanelBadges();
       }
     }).catch(e => console.warn('band profile load:', e));
   }
@@ -442,6 +444,9 @@ async function saveBandProfile() {
       await sbRest(`profiles`, { method: 'POST', body: JSON.stringify(payload) }, currentSession?.access_token);
     }
     bandProfile = { ...bandProfile, ...payload };
+    try { localStorage.setItem('yp_band_profile', JSON.stringify(bandProfile)); } catch(e) {}
+    if (typeof updateRoleCards === 'function') updateRoleCards();
+    if (typeof _updateIndustryPanelBadges === 'function') _updateIndustryPanelBadges();
     showToast('Band profile saved ✓', 'success');
     show('bandsDashScreen');
     _renderBandsDashCard();

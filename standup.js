@@ -95,6 +95,8 @@ async function enterStandupDashboard() {
         standupProfile = rows[0];
         try { localStorage.setItem('yp_standup_profile', JSON.stringify(standupProfile)); } catch(e) {}
         _renderStandupDashCard();
+        if (typeof updateRoleCards === 'function') updateRoleCards();
+        if (typeof _updateIndustryPanelBadges === 'function') _updateIndustryPanelBadges();
       }
     }).catch(e => console.warn('standup profile load:', e));
   }
@@ -329,6 +331,9 @@ async function saveStandupProfile() {
       await sbRest(`profiles`, { method: 'POST', body: JSON.stringify(payload) }, currentSession?.access_token);
     }
     standupProfile = { ...standupProfile, ...payload };
+    try { localStorage.setItem('yp_standup_profile', JSON.stringify(standupProfile)); } catch(e) {}
+    if (typeof updateRoleCards === 'function') updateRoleCards();
+    if (typeof _updateIndustryPanelBadges === 'function') _updateIndustryPanelBadges();
     showToast('Act profile saved ✓', 'success');
     show('standupDashScreen');
     _renderStandupDashCard();

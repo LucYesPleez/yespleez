@@ -95,6 +95,8 @@ async function enterVenueDashboard() {
         venueProfile = rows[0];
         try { localStorage.setItem('yp_venue_profile', JSON.stringify(venueProfile)); } catch(e) {}
         _renderVenueDashCard();
+        if (typeof updateRoleCards === 'function') updateRoleCards();
+        if (typeof _updateIndustryPanelBadges === 'function') _updateIndustryPanelBadges();
       }
     }).catch(e => console.warn('venue profile load:', e));
   }
@@ -401,6 +403,9 @@ async function saveVenueProfile() {
       );
     }
     venueProfile = { ...venueProfile, ...payload };
+    try { localStorage.setItem('yp_venue_profile', JSON.stringify(venueProfile)); } catch(e) {}
+    if (typeof updateRoleCards === 'function') updateRoleCards();
+    if (typeof _updateIndustryPanelBadges === 'function') _updateIndustryPanelBadges();
     showToast('Venue profile saved ✓', 'success');
     show('venueDashScreen');
     _renderVenueDashCard();

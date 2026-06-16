@@ -1922,7 +1922,7 @@ body.player-open .screen.active { padding-bottom: 80px; }
 </svg></div>
       <div class="role-card-body">
         <div class="role-card-title" style="color:#FF8C42;">BAND / MUSO</div>
-        <div class="role-card-desc">List your band, find gigs, connect with venues and promoters</div>
+        <div class="role-card-desc" id="bandRoleDesc">List your band, find gigs, connect with venues and promoters</div>
       </div>
       <span id="roleNewBadge-band" class="role-new-badge" style="display:none;">+</span>
     </div>
@@ -1948,7 +1948,7 @@ body.player-open .screen.active { padding-bottom: 80px; }
 </svg></div>
       <div class="role-card-body">
         <div class="role-card-title" style="background:linear-gradient(135deg,#FF88AA,#FF5588);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">COMEDY / POETRY</div>
-        <div class="role-card-desc">Book gigs, share your sets, connect with comedy clubs and spoken word nights</div>
+        <div class="role-card-desc" id="standupRoleDesc">Book gigs, share your sets, connect with comedy clubs and spoken word nights</div>
       </div>
       <span id="roleNewBadge-standup" class="role-new-badge" style="display:none;">+</span>
     </div>
@@ -5308,6 +5308,7 @@ body.player-open .screen.active { padding-bottom: 80px; }
 </svg></div>
       <div class="role-card-body">
         <div class="role-card-title" style="color:#FF8C42;">BAND / MUSO</div>
+        <div id="ipBadgeBand" style="display:none;font-size:11px;color:#FF8C42;margin-top:3px;">✓ Profile set up</div>
       </div>
     </div>
 
@@ -5315,6 +5316,7 @@ body.player-open .screen.active { padding-bottom: 80px; }
       <div class="role-card-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></div>
       <div class="role-card-body">
         <div class="role-card-title" style="color:#00E5A0;">VENUES</div>
+        <div id="ipBadgeVenue" style="display:none;font-size:11px;color:#00E5A0;margin-top:3px;">✓ Profile set up</div>
       </div>
     </div>
 
@@ -5322,7 +5324,6 @@ body.player-open .screen.active { padding-bottom: 80px; }
       <div class="role-card-icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
   <ellipse cx="12" cy="8" rx="5" ry="6.5"/>
   <line x1="8.2" y1="4" x2="15.8" y2="4"/>
-  <line x1="7.2" y1="6.5" x2="16.8" y2="6.5"/>
   <line x1="7.1" y1="9" x2="16.9" y2="9"/>
   <line x1="8.2" y1="11.5" x2="15.8" y2="11.5"/>
   <path d="M7 8 L4.5 8 L4.5 16 L12 16"/>
@@ -5332,6 +5333,7 @@ body.player-open .screen.active { padding-bottom: 80px; }
 </svg></div>
       <div class="role-card-body">
         <div class="role-card-title" style="background:linear-gradient(135deg,#FF88AA,#FF5588);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">COMEDY / POETRY</div>
+        <div id="ipBadgeStandup" style="display:none;font-size:11px;color:#FF88AA;margin-top:3px;">✓ Profile set up</div>
       </div>
     </div>
 
