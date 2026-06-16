@@ -374,7 +374,7 @@ async function saveBandProfile() {
   if (file && !DEMO && currentSession?.access_token) {
     try {
       const ext  = file.name.split('.').pop();
-      const path = `band_avatars/${currentUser.id}_${Date.now()}.${ext}`;
+      const path = `${currentUser.id}_band_${Date.now()}.${ext}`;
       const uploadRes = await fetch(`${SUPABASE_URL}/storage/v1/object/avatars/${path}`, {
         method: 'POST',
         headers: {

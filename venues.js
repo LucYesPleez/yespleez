@@ -342,7 +342,7 @@ async function saveVenueProfile() {
   if (file && !DEMO && currentSession?.access_token) {
     try {
       const ext  = file.name.split('.').pop();
-      const path = `venue_avatars/${currentUser.id}_${Date.now()}.${ext}`;
+      const path = `${currentUser.id}_venue_${Date.now()}.${ext}`;
       const uploadRes = await fetch(`${SUPABASE_URL}/storage/v1/object/avatars/${path}`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${currentSession.access_token}`, 'Content-Type': file.type, 'x-upsert': 'true' },
