@@ -478,7 +478,7 @@ function updateToggleVisibility(mode) {
 
 async function enterDashboard() {
   isHost = false;
-  hostProfile = {};
+  try { const c = localStorage.getItem('yp_host_profile'); hostProfile = c ? JSON.parse(c) : {}; } catch(e) { hostProfile = {}; }
   const email = currentUser?.email || '';
   document.getElementById('dashUserEmail').textContent = email ? `${email}` : '';
   document.getElementById('shareLinkBtn').style.display = 'none';
@@ -519,7 +519,8 @@ function switchDashTab(tab) {
 // ── Artist dashboard ───────────────────────────────
 
 async function enterArtistDashboard() {
-  artistProfile = {};
+  // Restore cached profile so the screen renders correctly on first paint
+  try { const c = localStorage.getItem('yp_artist_profile'); artistProfile = c ? JSON.parse(c) : {}; } catch(e) { artistProfile = {}; }
   const email = currentUser?.email || '';
   document.getElementById('artistDashUserEmail').textContent = email;
 
