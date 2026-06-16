@@ -264,6 +264,219 @@ async function _loadVenueUpcomingEvents() {
 
 // ── Venue enquiries ────────────────────────────────
 
+let _enqTab   = 'pending';
+let _enqSearch = '';
+let _enqPrevOpen = false;
+
+function _switchEnqTab(tab) {
+  _enqTab = tab;
+  _renderEnquiriesFromCache();
+}
+
+function _togglePrevApplied() {
+  _enqPrevOpen = !_enqPrevOpen;
+  _renderEnquiriesFromCache();
+}
+
+function _onEnqSearch(val) {
+  _enqSearch = val.toLowerCase().trim();
+  _renderEnquiriesFromCache();
+}
+
+function _toggleEnqProfile(id) {
+  const el  = document.getElementById(`enq-profile-${id}`);
+  const btn = document.getElementById(`enq-expand-${id}`);
+  if (!el || !btn) return;
+  const open = el.style.display !== 'none';
+  el.style.display = open ? 'none' : 'block';
+  btn.textContent = open ? 'VIEW FULL PROFILE ▼' : 'HIDE PROFILE ▲';
+}
+
+// Cache loaded data so tab/search switches don't re-fetch
+let _enqAllRows   = null;
+let _enqProfileMap = {};
+
+function _enqMatchesSearch(enq, p) {
+  if (!_enqSearch) return true;
+  const haystack = [
+    p.dj_name, p.name, p.genre_string, p.vibe_tags, p.card_pills,
+    p.band_type, p.act_type, p.sound, p.bio, p.location, p.state,
+    enq.applicant_type
+  ].filter(Boolean).join(' ').toLowerCase();
+  return _enqSearch.split(/\s+/).every(w => haystack.includes(w));
+}
+
+function _buildEnqCard(enq, p, showMoveBack) {
+  const typeAccents = { artist:'#00E5FF', band:'#FF8C42', standup:'#FF88AA', host:'#FF3399' };
+  const accent    = typeAccents[enq.applicant_type] || '#00E5FF';
+  const accentRgb = { artist:'0,229,255', band:'255,140,66', standup:'255,136,170', host:'255,51,153' }[enq.applicant_type] || '0,229,255';
+
+  const name   = p.dj_name || p.name || 'Unknown';
+  const loc    = [p.location, p.state].filter(Boolean).join(', ');
+  const avatar = p.avatar || '';
+
+  const allTags = [...new Set([
+    ...(p.genre_string||'').split(/[,·]/).map(s=>s.trim()),
+    ...(p.vibe_tags||'').split(',').map(s=>s.trim()),
+    ...(p.card_pills||'').split(',').map(s=>s.trim())
+  ].filter(Boolean))];
+  const genrePills = allTags.slice(0,4).map(g =>
+    `<span style="background:rgba(${accentRgb},.1);border:1px solid rgba(${accentRgb},.3);border-radius:20px;font-size:10px;padding:2px 8px;color:${accent};">${g}</span>`
+  ).join('');
+
+  const prettyDate    = new Date(enq.date_requested + 'T00:00:00').toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+  const prettyCreated = new Date(enq.created_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' });
+
+  const avatarHtml = avatar
+    ? `<img src="${avatar}" style="width:56px;height:56px;border-radius:10px;object-fit:cover;border:2px solid ${accent};flex-shrink:0;" onerror="this.style.display='none'">`
+    : `<div style="width:56px;height:56px;border-radius:10px;background:rgba(${accentRgb},.1);border:2px solid rgba(${accentRgb},.3);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:24px;">🎵</div>`;
+
+  const feeAmt  = p.fee ? `$${p.fee}` : '';
+  const feeType = p.fee_type === 'paid' ? 'Paid' : p.fee_type === 'exposure' ? 'Exposure/door deal' : '';
+  const feeStr  = [feeAmt, feeType].filter(Boolean).join(' — ') + (p.fee_negotiable ? ' (negotiable)' : '') + (p.fee_travel ? ' · Travel covered' : '');
+  const setLen    = p.set_length  ? `${p.set_length} min set`  : '';
+  const memberCnt = p.member_count ? `${p.member_count} members` : '';
+  const bandType  = p.band_type || p.act_type || '';
+  const years     = p.years ? `Est. ${p.years}` : '';
+  const abn = p.has_abn ? (p.abn ? `ABN: ${p.abn}${p.gst_registered ? ' · GST registered' : ''}` : 'Has ABN') : '';
+  const mix    = p.mix_link || p.soundcloud || p.mixcloud || '';
+  const insta  = p.instagram ? `https://instagram.com/${p.instagram.replace('@','')}` : '';
+  const web    = p.website   ? (p.website.startsWith('http') ? p.website : 'https://'+p.website) : '';
+  const epk    = p.epk_link  ? (p.epk_link.startsWith('http') ? p.epk_link : 'https://'+p.epk_link) : '';
+  const fb     = p.facebook  ? (p.facebook.startsWith('http') ? p.facebook : 'https://'+p.facebook) : '';
+  const yt     = p.youtube   ? (p.youtube.startsWith('http') ? p.youtube : 'https://'+p.youtube) : '';
+  const tiktok = p.tiktok    ? `https://tiktok.com/@${p.tiktok.replace('@','')}` : '';
+
+  const pRow  = (label, value) => value ? `<div style="display:flex;gap:8px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.05);"><div style="font-family:'Bebas Neue',sans-serif;font-size:10px;letter-spacing:1.5px;color:var(--muted);min-width:90px;padding-top:2px;">${label}</div><div style="font-size:13px;color:var(--text);flex:1;">${value}</div></div>` : '';
+  const pLink = (label, href, display) => href ? `<div style="display:flex;gap:8px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.05);"><div style="font-family:'Bebas Neue',sans-serif;font-size:10px;letter-spacing:1.5px;color:var(--muted);min-width:90px;padding-top:2px;">${label}</div><a href="${href}" target="_blank" rel="noopener" style="font-size:13px;color:${accent};flex:1;word-break:break-all;">${display || href}</a></div>` : '';
+
+  // Pipeline cards get 3 action buttons; prev-applied cards get a "Move to Pending" rescue button
+  const actionBtns = showMoveBack
+    ? `<div style="margin-top:12px;">
+        <button onclick="_vpEnquiryRespond('${enq.id}','pending',this,'declined')" style="width:100%;background:rgba(255,179,71,.1);border:1px solid rgba(255,179,71,.3);color:#FFB347;font-family:'Bebas Neue',sans-serif;font-size:12px;letter-spacing:1px;padding:10px;border-radius:10px;cursor:pointer;">↩ MOVE BACK TO PIPELINE</button>
+      </div>`
+    : `<div style="display:flex;gap:6px;margin-top:12px;">
+        <button onclick="_vpEnquiryRespond('${enq.id}','accepted',this,'${_enqTab}')"  style="flex:1;background:${enq.status==='accepted'?'rgba(0,229,160,.15)':'rgba(255,255,255,.04)'};border:${enq.status==='accepted'?'1.5px solid #00E5A0':'1px solid rgba(255,255,255,.12)'};color:${enq.status==='accepted'?'#00E5A0':'var(--muted)'};font-family:'Bebas Neue',sans-serif;font-size:12px;letter-spacing:1px;padding:10px 4px;border-radius:10px;cursor:pointer;">ACCEPT ✓</button>
+        <button onclick="_vpEnquiryRespond('${enq.id}','tentative',this,'${_enqTab}')" style="flex:1;background:${enq.status==='tentative'?'rgba(0,191,255,.15)':'rgba(255,255,255,.04)'};border:${enq.status==='tentative'?'1.5px solid #00BFFF':'1px solid rgba(255,255,255,.12)'};color:${enq.status==='tentative'?'#00BFFF':'var(--muted)'};font-family:'Bebas Neue',sans-serif;font-size:12px;letter-spacing:1px;padding:10px 4px;border-radius:10px;cursor:pointer;">TENTATIVE</button>
+        <button onclick="_vpEnquiryRespond('${enq.id}','declined',this,'${_enqTab}')" style="flex:1;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);color:var(--muted);font-family:'Bebas Neue',sans-serif;font-size:12px;letter-spacing:1px;padding:10px 4px;border-radius:10px;cursor:pointer;">DECLINE ✗</button>
+      </div>`;
+
+  return `
+    <div style="background:var(--card);border:1px solid rgba(${accentRgb},.22);border-radius:14px;padding:16px;margin-bottom:12px;">
+      <div style="display:flex;gap:12px;align-items:center;">
+        ${avatarHtml}
+        <div style="flex:1;min-width:0;">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            <div style="font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:1px;">${name}</div>
+            <span style="font-size:9px;background:rgba(${accentRgb},.15);border:1px solid rgba(${accentRgb},.3);border-radius:10px;padding:2px 7px;letter-spacing:1px;color:${accent};font-family:'Bebas Neue',sans-serif;">${(enq.applicant_type||'').toUpperCase()}</span>
+          </div>
+          ${loc ? `<div style="font-size:11px;color:var(--muted);">📍 ${loc}</div>` : ''}
+          <div style="font-size:10px;color:rgba(255,255,255,.35);margin-top:2px;">📅 ${prettyDate} · Applied ${prettyCreated}</div>
+        </div>
+      </div>
+      ${genrePills ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:10px;">${genrePills}</div>` : ''}
+      ${enq.note ? `<div style="font-size:12px;color:var(--muted);font-style:italic;margin-top:8px;line-height:1.5;">"${enq.note}"</div>` : ''}
+      <button id="enq-expand-${enq.id}" onclick="_toggleEnqProfile('${enq.id}')" style="width:100%;margin-top:12px;background:transparent;border:1px solid rgba(255,255,255,.1);color:rgba(255,255,255,.4);font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:1.5px;padding:8px;border-radius:8px;cursor:pointer;">VIEW FULL PROFILE ▼</button>
+      <div id="enq-profile-${enq.id}" style="display:none;margin-top:12px;">
+        <div style="background:rgba(255,255,255,.03);border-radius:10px;padding:0 12px;margin-bottom:8px;">
+          ${pRow('SOUND', p.sound)}
+          ${pRow('ABOUT', p.bio)}
+          ${pRow('ACT TYPE', bandType)}
+          ${pRow('MEMBERS', memberCnt)}
+          ${pRow('SET LENGTH', setLen)}
+          ${pRow('EST.', years)}
+          ${pRow('FEE', feeStr)}
+          ${pRow('ABN / GST', abn)}
+          ${pRow('EMAIL', p.email)}
+          ${pLink('MIX / DEMO', mix.startsWith('http') ? mix : mix ? 'https://'+mix : '', '▶ Play demo')}
+          ${pLink('EPK', epk, 'View EPK')}
+          ${pLink('INSTAGRAM', insta, '@' + (p.instagram||'').replace('@',''))}
+          ${pLink('FACEBOOK', fb, 'Facebook')}
+          ${pLink('YOUTUBE', yt, 'YouTube')}
+          ${pLink('TIKTOK', tiktok, '@' + (p.tiktok||'').replace('@',''))}
+          ${pLink('WEBSITE', web, p.website)}
+        </div>
+      </div>
+      ${actionBtns}
+    </div>`;
+}
+
+function _renderEnquiriesFromCache() {
+  const el = document.getElementById('venueEnquiriesList');
+  if (!el || !_enqAllRows) return;
+
+  const allRows = _enqAllRows;
+  const counts  = { pending:0, tentative:0, accepted:0 };
+  allRows.forEach(r => { if (counts[r.status] !== undefined) counts[r.status]++; });
+
+  const pipelineRows = allRows.filter(r => r.status === _enqTab && _enqMatchesSearch(r, _enqProfileMap[`${r.applicant_user_id}__${r.applicant_type}`] || _enqProfileMap[Object.keys(_enqProfileMap).find(k=>k.startsWith(r.applicant_user_id+'__'))||''] || {}));
+  const declinedRows = allRows.filter(r => r.status === 'declined' && _enqMatchesSearch(r, _enqProfileMap[`${r.applicant_user_id}__${r.applicant_type}`] || _enqProfileMap[Object.keys(_enqProfileMap).find(k=>k.startsWith(r.applicant_user_id+'__'))||''] || {}));
+
+  // Tabs — only pipeline statuses
+  const tabs = [
+    { key:'pending',   label:'PENDING',   color:'#FFB347',  rgb:'255,179,71'  },
+    { key:'tentative', label:'TENTATIVE', color:'#00BFFF',  rgb:'0,191,255'   },
+    { key:'accepted',  label:'ACCEPTED',  color:'#00E5A0',  rgb:'0,229,160'   },
+  ];
+  const tabsHtml = `<div style="display:flex;gap:6px;margin-bottom:14px;overflow-x:auto;padding-bottom:2px;">` +
+    tabs.map(t => {
+      const active = _enqTab === t.key;
+      const cnt = counts[t.key] || 0;
+      return `<button onclick="_switchEnqTab('${t.key}')" style="flex-shrink:0;padding:8px 14px;border-radius:20px;border:1.5px solid ${active ? t.color : 'rgba(255,255,255,.12)'};background:${active ? `rgba(${t.rgb},.12)` : 'transparent'};color:${active ? t.color : 'var(--muted)'};font-family:'Bebas Neue',sans-serif;font-size:12px;letter-spacing:1.5px;cursor:pointer;">${t.label}${cnt ? ` (${cnt})` : ''}</button>`;
+    }).join('') + `</div>`;
+
+  // Search bar
+  const searchHtml = `
+    <div style="position:relative;margin-bottom:14px;">
+      <span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:14px;">🔍</span>
+      <input
+        type="text"
+        placeholder="Search by genre, vibe, act type…"
+        value="${_enqSearch.replace(/"/g,'&quot;')}"
+        oninput="_onEnqSearch(this.value)"
+        style="width:100%;box-sizing:border-box;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:10px 12px 10px 36px;color:var(--text);font-size:13px;outline:none;"
+      >
+    </div>`;
+
+  // Pipeline cards
+  const pipelineHtml = pipelineRows.length
+    ? pipelineRows.map(enq => {
+        const p = _enqProfileMap[`${enq.applicant_user_id}__${enq.applicant_type}`]
+               || _enqProfileMap[Object.keys(_enqProfileMap).find(k=>k.startsWith(enq.applicant_user_id+'__'))||'']
+               || {};
+        return _buildEnqCard(enq, p, false);
+      }).join('')
+    : `<div style="color:var(--muted);font-size:13px;padding:8px 0;">${_enqSearch ? 'No matches.' : `No ${_enqTab} enquiries.`}</div>`;
+
+  // Prev. Applied section
+  const declinedTotal = allRows.filter(r => r.status === 'declined').length;
+  const prevAppliedHtml = declinedTotal ? `
+    <div style="margin-top:20px;">
+      <button onclick="_togglePrevApplied()" style="width:100%;display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:12px 16px;cursor:pointer;color:var(--muted);">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:2px;">PREV. APPLIED</span>
+          <span style="font-size:11px;background:rgba(255,255,255,.08);border-radius:10px;padding:2px 7px;">${declinedTotal}</span>
+        </div>
+        <span style="font-size:12px;">${_enqPrevOpen ? '▲' : '▼'}</span>
+      </button>
+      ${_enqPrevOpen ? `
+      <div style="margin-top:10px;">
+        <p style="font-size:11px;color:rgba(255,255,255,.3);margin:0 0 12px;">Artists you previously passed on — sorted by most recent application. Search above applies here too.</p>
+        ${declinedRows.length
+          ? declinedRows.map(enq => {
+              const p = _enqProfileMap[`${enq.applicant_user_id}__${enq.applicant_type}`]
+                     || _enqProfileMap[Object.keys(_enqProfileMap).find(k=>k.startsWith(enq.applicant_user_id+'__'))||'']
+                     || {};
+              return _buildEnqCard(enq, p, true);
+            }).join('')
+          : `<div style="color:var(--muted);font-size:13px;">No matches in prev. applied.</div>`
+        }
+      </div>` : ''}
+    </div>` : '';
+
+  el.innerHTML = tabsHtml + searchHtml + pipelineHtml + prevAppliedHtml;
+}
+
 async function _loadVenueEnquiries() {
   const el = document.getElementById('venueEnquiriesList');
   if (!el || !currentUser?.id) return;
@@ -271,110 +484,53 @@ async function _loadVenueEnquiries() {
   el.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:8px 0;">Loading…</div>';
 
   try {
-    const rows = await sbRest(
-      `venue_enquiries?venue_user_id=eq.${currentUser.id}&order=created_at.desc&limit=50`,
+    const allRows = await sbRest(
+      `venue_enquiries?venue_user_id=eq.${currentUser.id}&order=created_at.desc&limit=500`,
       { method: 'GET' }, currentSession?.access_token
     );
-    if (!rows || !rows.length) {
+    if (!allRows || !allRows.length) {
       el.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:8px 0;">No enquiries yet — artists will appear here when they tap an available date on your profile.</div>';
       return;
     }
 
-    // Fetch applicant profiles in one query
-    const ids = [...new Set(rows.map(r => r.applicant_user_id))];
+    _enqAllRows = allRows;
+
+    // Fetch all profiles in one query
+    const ids = [...new Set(allRows.map(r => r.applicant_user_id))];
     const profiles = await sbRest(
       `profiles?user_id=in.(${ids.join(',')})&select=*`,
       { method: 'GET' }, currentSession?.access_token
     ).catch(() => []);
+    _enqProfileMap = {};
+    (profiles || []).forEach(p => { _enqProfileMap[`${p.user_id}__${p.type}`] = p; });
 
-    const profileMap = {};
-    (profiles || []).forEach(p => { profileMap[`${p.user_id}__${p.type}`] = p; });
-
-    el.innerHTML = rows.map(enq => {
-      const p = profileMap[`${enq.applicant_user_id}__${enq.applicant_type}`]
-             || profileMap[Object.keys(profileMap).find(k => k.startsWith(enq.applicant_user_id + '__')) || '']
-             || {};
-      const name    = p.dj_name || p.name || 'Unknown';
-      const genre   = p.genre_string || p.band_type || p.act_type || '';
-      const sound   = p.sound || '';
-      const bio     = p.bio || '';
-      const loc     = [p.location, p.state].filter(Boolean).join(', ');
-      const avatar  = p.avatar || '';
-      const insta   = p.instagram ? `https://instagram.com/${p.instagram.replace('@','')}` : '';
-      const web     = p.website   ? (p.website.startsWith('http') ? p.website : 'https://' + p.website) : '';
-      const mix     = p.mix_link || p.soundcloud || '';
-
-      const typeAccents = { artist:'#00E5FF', band:'#FF8C42', standup:'#FF88AA', host:'#FF3399' };
-      const accent = typeAccents[enq.applicant_type] || '#00E5FF';
-
-      const prettyDate = new Date(enq.date_requested + 'T00:00:00').toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-      const prettyCreated = new Date(enq.created_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' });
-
-      const statusColor = { pending: '#FFB347', accepted: '#00E5A0', declined: 'var(--muted)' }[enq.status] || '#FFB347';
-      const statusLabel = enq.status.toUpperCase();
-
-      const avatarHtml = avatar
-        ? `<img src="${avatar}" style="width:56px;height:56px;border-radius:10px;object-fit:cover;border:2px solid ${accent};flex-shrink:0;" onerror="this.style.display='none'">`
-        : `<div style="width:56px;height:56px;border-radius:10px;background:rgba(255,255,255,.06);border:2px solid rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:24px;">🎵</div>`;
-
-      const genrePills = genre ? genre.split(' · ').slice(0,4).map(g =>
-        `<span style="background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.15);border-radius:20px;font-size:10px;padding:2px 8px;color:var(--muted);">${g}</span>`
-      ).join('') : '';
-
-      const links = [
-        mix    ? `<a href="${mix.startsWith('http')?mix:'https://'+mix}" target="_blank" rel="noopener" style="font-size:11px;color:${accent};text-decoration:none;">▶ Mix</a>` : '',
-        insta  ? `<a href="${insta}" target="_blank" rel="noopener" style="font-size:11px;color:#E1306C;text-decoration:none;">Instagram</a>` : '',
-        web    ? `<a href="${web}" target="_blank" rel="noopener" style="font-size:11px;color:var(--neon2);text-decoration:none;">Website</a>` : '',
-      ].filter(Boolean).join('<span style="color:var(--muted);margin:0 4px;">·</span>');
-
-      const actionBtns = enq.status === 'pending' ? `
-        <div style="display:flex;gap:8px;margin-top:12px;">
-          <button onclick="_vpEnquiryRespond('${enq.id}','accepted',this)" style="flex:1;background:rgba(0,229,160,.15);border:1.5px solid #00E5A0;color:#00E5A0;font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:1px;padding:10px;border-radius:10px;cursor:pointer;">ACCEPT ✓</button>
-          <button onclick="_vpEnquiryRespond('${enq.id}','declined',this)" style="flex:1;background:rgba(255,255,255,.04);border:1px solid var(--border);color:var(--muted);font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:1px;padding:10px;border-radius:10px;cursor:pointer;">DECLINE ✗</button>
-        </div>` : `<div style="margin-top:10px;font-family:'Bebas Neue',sans-serif;font-size:12px;letter-spacing:1px;color:${statusColor};">${statusLabel}</div>`;
-
-      return `
-        <div style="background:var(--card);border:1px solid rgba(${accent === '#00E5FF' ? '0,229,255' : accent === '#FF8C42' ? '255,140,66' : accent === '#FF88AA' ? '255,136,170' : '255,51,153'},.2);border-radius:14px;padding:16px;margin-bottom:12px;">
-          <div style="display:flex;gap:14px;align-items:flex-start;">
-            ${avatarHtml}
-            <div style="flex:1;min-width:0;">
-              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:2px;">
-                <div style="font-family:'Bebas Neue',sans-serif;font-size:19px;letter-spacing:1px;">${name}</div>
-                <span style="font-size:9px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);border-radius:10px;padding:2px 7px;letter-spacing:1px;color:${accent};font-family:'Bebas Neue',sans-serif;">${(enq.applicant_type||'').toUpperCase()}</span>
-              </div>
-              ${loc ? `<div style="font-size:11px;color:var(--muted);">📍 ${loc}</div>` : ''}
-              ${genrePills ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;">${genrePills}</div>` : ''}
-              ${sound ? `<div style="font-size:12px;color:var(--muted);font-style:italic;margin-top:5px;">"${sound.slice(0,80)}${sound.length>80?'…':''}"</div>` : ''}
-              ${bio   ? `<div style="font-size:12px;color:var(--muted);margin-top:5px;line-height:1.5;">${bio.slice(0,120)}${bio.length>120?'…':''}</div>` : ''}
-              ${links ? `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;align-items:center;">${links}</div>` : ''}
-            </div>
-          </div>
-          <div style="margin-top:12px;padding-top:12px;border-top:1px solid rgba(255,255,255,.07);">
-            <div style="font-family:'Bebas Neue',sans-serif;font-size:10px;letter-spacing:2px;color:#00E5A0;margin-bottom:4px;">REQUESTED DATE</div>
-            <div style="font-size:14px;font-weight:600;">${prettyDate}</div>
-            ${enq.note ? `<div style="font-size:13px;color:var(--muted);margin-top:8px;font-style:italic;">"${enq.note}"</div>` : ''}
-            <div style="font-size:10px;color:rgba(255,255,255,.3);margin-top:6px;">Received ${prettyCreated}</div>
-          </div>
-          ${actionBtns}
-        </div>`;
-    }).join('');
+    _renderEnquiriesFromCache();
   } catch(e) {
     el.innerHTML = '<div style="color:var(--muted);font-size:13px;">Could not load enquiries.</div>';
   }
 }
 
-async function _vpEnquiryRespond(enquiryId, status, btn) {
+async function _vpEnquiryRespond(enquiryId, status, btn, currentTab) {
   if (btn) { btn.disabled = true; btn.textContent = '…'; }
   try {
     await sbRest(`venue_enquiries?id=eq.${enquiryId}`, {
       method: 'PATCH',
       body: JSON.stringify({ status })
     }, currentSession?.access_token);
-    showToast(status === 'accepted' ? 'Enquiry accepted!' : 'Enquiry declined', status === 'accepted' ? 'success' : 'info');
-    _loadVenueEnquiries();
+    const msgs = { accepted:['Enquiry accepted!','success'], tentative:['Marked as tentative','info'], declined:['Moved to Prev. Applied','info'], pending:['Moved back to pipeline','info'] };
+    const [msg, type] = msgs[status] || ['Updated','info'];
+    showToast(msg, type);
+    // Update cache in-place so we don't need a full re-fetch
+    if (_enqAllRows) {
+      const row = _enqAllRows.find(r => String(r.id) === String(enquiryId));
+      if (row) row.status = status;
+    }
+    // Switch tab to follow the card (except declined which goes to prev. applied section)
+    if (currentTab && status !== currentTab && status !== 'declined') _enqTab = status;
+    _renderEnquiriesFromCache();
     _loadVenueStats();
   } catch(e) {
-    if (btn) { btn.disabled = false; btn.textContent = status === 'accepted' ? 'ACCEPT ✓' : 'DECLINE ✗'; }
+    if (btn) { btn.disabled = false; btn.textContent = status === 'accepted' ? 'ACCEPT ✓' : status === 'tentative' ? 'TENTATIVE' : status === 'pending' ? '↩ MOVE BACK TO PIPELINE' : 'DECLINE ✗'; }
     showToast('Failed to update — try again', 'error');
   }
 }
@@ -683,7 +839,7 @@ async function loadVenuePublicSections(userId, venueName, accentColor, accentRgb
       { method: 'GET' }, currentSession?.access_token || null
     ).catch(() => []),
     sbRest(
-      `events?status=eq.live&select=id,name,config,poster_url&limit=20`,
+      `events?status=eq.live&select=id,name,config&limit=20`,
       { method: 'GET' }, currentSession?.access_token || null
     ).catch(() => [])
   ]);
