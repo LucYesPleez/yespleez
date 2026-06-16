@@ -208,10 +208,10 @@ async function doSignup() {
     clearCachedProfiles();
     currentSession = data; currentUser = data.user;
     localStorage.setItem('yp_session', JSON.stringify(data));
-    // Save email to profile row so slot offers can match by email
+    // Create MY SCENE (punter) profile — artist/band/venue profiles require explicit setup
     sbRest('profiles', {
       method: 'POST',
-      body: JSON.stringify({ user_id: data.user.id, email: email, ...(name && { name }) }),
+      body: JSON.stringify({ user_id: data.user.id, email: email, type: 'punter', ...(name && { name }) }),
       prefer: 'resolution=merge-duplicates,return=minimal'
     }, data.access_token).catch(() => {});
     await checkPendingOffers(email, data.access_token);
