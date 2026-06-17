@@ -353,6 +353,18 @@ function _buildEnqCard(enq, p, showMoveBack) {
   const pRow  = (label, value) => value ? `<div style="display:flex;gap:8px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.05);"><div style="font-family:'Bebas Neue',sans-serif;font-size:10px;letter-spacing:1.5px;color:var(--muted);min-width:90px;padding-top:2px;">${label}</div><div style="font-size:13px;color:var(--text);flex:1;">${value}</div></div>` : '';
   const pLink = (label, href, display) => href ? `<div style="display:flex;gap:8px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.05);"><div style="font-family:'Bebas Neue',sans-serif;font-size:10px;letter-spacing:1.5px;color:var(--muted);min-width:90px;padding-top:2px;">${label}</div><a href="${href}" target="_blank" rel="noopener" style="font-size:13px;color:${accent};flex:1;word-break:break-all;">${display || href}</a></div>` : '';
 
+  // Pre-compute button states to avoid nested quotes inside template literals
+  const isAccepted  = enq.status === 'accepted';
+  const isTentative = enq.status === 'tentative';
+  const aBg      = isAccepted  ? 'rgba(0,229,160,.15)'        : 'rgba(255,255,255,.04)';
+  const aBd      = isAccepted  ? '1.5px solid #00E5A0'        : '1px solid rgba(255,255,255,.12)';
+  const aCol     = isAccepted  ? '#00E5A0'                    : 'var(--muted)';
+  const aBdColor = isAccepted  ? '#00E5A0'                    : 'rgba(255,255,255,.12)';
+  const tBg      = isTentative ? 'rgba(0,191,255,.15)'        : 'rgba(255,255,255,.04)';
+  const tBd      = isTentative ? '1.5px solid #00BFFF'        : '1px solid rgba(255,255,255,.12)';
+  const tCol     = isTentative ? '#00BFFF'                    : 'var(--muted)';
+  const tBdColor = isTentative ? '#00BFFF'                    : 'rgba(255,255,255,.12)';
+
   // Pipeline cards get 3 action buttons; prev-applied cards get a "Move to Pending" rescue button
   const actionBtns = showMoveBack
     ? `<div style="margin-top:12px;">
@@ -364,12 +376,12 @@ function _buildEnqCard(enq, p, showMoveBack) {
     : `<div style="display:flex;gap:6px;margin-top:12px;">
         <button onclick="_vpEnquiryRespond('${enq.id}','accepted',this,'${_enqTab}')"
           onmouseover="this.style.background='rgba(0,229,160,.25)';this.style.borderColor='#00E5A0';this.style.color='#00E5A0';"
-          onmouseout="this.style.background='${enq.status==='accepted'?'rgba(0,229,160,.15)':'rgba(255,255,255,.04)'}';this.style.borderColor='${enq.status==='accepted'?'#00E5A0':'rgba(255,255,255,.12)'}';this.style.color='${enq.status==='accepted'?'#00E5A0':'var(--muted)}';"
-          style="flex:1;background:${enq.status==='accepted'?'rgba(0,229,160,.15)':'rgba(255,255,255,.04)'};border:${enq.status==='accepted'?'1.5px solid #00E5A0':'1px solid rgba(255,255,255,.12)'};color:${enq.status==='accepted'?'#00E5A0':'var(--muted)'};font-family:'Bebas Neue',sans-serif;font-size:12px;letter-spacing:1px;padding:10px 4px;border-radius:10px;cursor:pointer;transition:all .15s;">ACCEPT ✓</button>
+          onmouseout="this.style.background='${aBg}';this.style.borderColor='${aBdColor}';this.style.color='${aCol}';"
+          style="flex:1;background:${aBg};border:${aBd};color:${aCol};font-family:'Bebas Neue',sans-serif;font-size:12px;letter-spacing:1px;padding:10px 4px;border-radius:10px;cursor:pointer;transition:all .15s;">ACCEPT ✓</button>
         <button onclick="_vpEnquiryRespond('${enq.id}','tentative',this,'${_enqTab}')"
           onmouseover="this.style.background='rgba(255,220,50,.2)';this.style.borderColor='#FFDC32';this.style.color='#FFDC32';"
-          onmouseout="this.style.background='${enq.status==='tentative'?'rgba(0,191,255,.15)':'rgba(255,255,255,.04)'}';this.style.borderColor='${enq.status==='tentative'?'#00BFFF':'rgba(255,255,255,.12)'}';this.style.color='${enq.status==='tentative'?'#00BFFF':'var(--muted)}';"
-          style="flex:1;background:${enq.status==='tentative'?'rgba(0,191,255,.15)':'rgba(255,255,255,.04)'};border:${enq.status==='tentative'?'1.5px solid #00BFFF':'1px solid rgba(255,255,255,.12)'};color:${enq.status==='tentative'?'#00BFFF':'var(--muted)'};font-family:'Bebas Neue',sans-serif;font-size:12px;letter-spacing:1px;padding:10px 4px;border-radius:10px;cursor:pointer;transition:all .15s;">TENTATIVE</button>
+          onmouseout="this.style.background='${tBg}';this.style.borderColor='${tBdColor}';this.style.color='${tCol}';"
+          style="flex:1;background:${tBg};border:${tBd};color:${tCol};font-family:'Bebas Neue',sans-serif;font-size:12px;letter-spacing:1px;padding:10px 4px;border-radius:10px;cursor:pointer;transition:all .15s;">TENTATIVE</button>
         <button onclick="_vpEnquiryRespond('${enq.id}','declined',this,'${_enqTab}')"
           onmouseover="this.style.background='rgba(255,120,40,.2)';this.style.borderColor='#FF7828';this.style.color='#FF7828';"
           onmouseout="this.style.background='rgba(255,255,255,.04)';this.style.borderColor='rgba(255,255,255,.12)';this.style.color='var(--muted)';"

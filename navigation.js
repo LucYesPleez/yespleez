@@ -152,7 +152,7 @@ async function openIndustryPanel() {
           if (r.type === 'host'    && r.name && !hostProfile?.name)    hostProfile    = { name: r.name };
           if (r.type === 'artist'  && r.name && !artistProfile?.djName) artistProfile  = { djName: r.name };
           if (r.type === 'band'    && r.name && !bandProfile?.name)    bandProfile    = { name: r.name };
-          if (r.type === 'venue'   && r.name && !venueProfile?.name)   venueProfile   = { name: r.name };
+          if (r.type === 'venue'   && r.name && !(typeof venueProfile !== 'undefined' && venueProfile?.name))   venueProfile   = { name: r.name };
           if (r.type === 'standup' && r.name && !standupProfile?.name) standupProfile = { name: r.name };
         });
       }
@@ -177,7 +177,7 @@ function _updateIndustryPanelBadges() {
     Host:    !!(hostProfile?.name),
     Artist:  !!(artistProfile?.djName),
     Band:    !!(bandProfile?.name),
-    Venue:   !!(venueProfile?.name),
+    Venue:   !!(typeof venueProfile !== 'undefined' && venueProfile?.name),
     Standup: !!(standupProfile?.name)
   };
   Object.entries(profiles).forEach(([role, hasProfile]) => {
@@ -231,7 +231,7 @@ function _applyRoleNewBadges() {
     host:    !!(hostProfile?.name),
     artist:  !!(artistProfile?.djName),
     band:    !!(bandProfile?.name),
-    venue:   !!(venueProfile?.name),
+    venue:   !!(typeof venueProfile !== 'undefined' && venueProfile?.name),
     standup: !!(standupProfile?.name)
   };
   ['host','artist','band','venue','standup'].forEach(role => {
@@ -293,7 +293,7 @@ function updateRoleCards() {
   if (artistCard) { const d = artistCard.querySelector('.role-card-desc'); if (d) d.innerHTML = 'Build your profile, track your bookings, apply to events' + artistDot; }
   if (punterCard) { const d = punterCard.querySelector('.role-card-desc'); if (d) d.innerHTML = 'Follow artists, save events, get notified when your faves play' + punterDot; }
 
-  const venueTick   = (venueProfile?.name) ? ' <span style="color:#00E5A0;font-size:11px;white-space:nowrap;">✓ Profile set up</span>' : '';
+  const venueTick   = (typeof venueProfile !== 'undefined' && venueProfile?.name) ? ' <span style="color:#00E5A0;font-size:11px;white-space:nowrap;">✓ Profile set up</span>' : '';
   const bandTick    = (typeof bandProfile !== 'undefined' && bandProfile?.name) ? ' <span style="color:#FF8C42;font-size:11px;white-space:nowrap;">✓ Profile set up</span>' : '';
   const standupTick = (typeof standupProfile !== 'undefined' && standupProfile?.name) ? ' <span style="color:#FF88AA;font-size:11px;white-space:nowrap;">✓ Profile set up</span>' : '';
 
