@@ -116,8 +116,8 @@ function _renderStandupDashCard() {
   const ctaEl      = document.getElementById('standupDashCta');
   const p = standupProfile || {};
 
-  if (p.name || p.dj_name) {
-    if (nameEl) nameEl.textContent = p.name || p.dj_name;
+  if (p.name) {
+    if (nameEl) nameEl.textContent = p.name;
     const loc = [p.suburb || p.location, p.state].filter(Boolean).join(', ');
     if (locationEl) locationEl.textContent = loc || 'No location set';
     const parts = [p.act_type, p.set_length ? `${p.set_length} min set` : ''].filter(Boolean);
@@ -192,7 +192,7 @@ function _renderStandupAvailSummary(rows) {
 function showStandupProfile() {
   const p = standupProfile || {};
   const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
-  setVal('standupNameInput',      p.name || p.dj_name || '');
+  setVal('standupNameInput',      p.name || '');
   setVal('standupStyleInput',     p.sound || '');
   setVal('standupTaglineInput',   p.tagline || '');
   setVal('standupLocationInput',  p.suburb || p.location || '');
@@ -278,7 +278,6 @@ async function saveStandupProfile() {
     user_id:       currentUser.id,
     type:          'standup',
     name:          name,
-    dj_name:       name,
     sound:         sound,
     tagline:       tagline,
     suburb:        suburb,

@@ -87,8 +87,8 @@ function _renderBandsDashCard() {
   const avatarEl   = document.getElementById('bandsDashAvatar');
   const p = bandProfile || {};
 
-  if (p.name || p.dj_name) {
-    if (nameEl) nameEl.textContent = p.name || p.dj_name;
+  if (p.name) {
+    if (nameEl) nameEl.textContent = p.name;
     const loc   = [p.suburb || p.location, p.state].filter(Boolean).join(', ');
     if (locationEl) locationEl.textContent = loc || 'No location set';
     const parts = [p.band_type, p.genre_string ? p.genre_string.split(' · ').slice(0,3).join(' · ') : ''].filter(Boolean);
@@ -168,7 +168,7 @@ function _renderBandsAvailSummary(rows) {
 async function _loadBandsUpcomingGigs() {
   const el = document.getElementById('bandsUpcomingGigs');
   if (!el) return;
-  const bandName = bandProfile?.name || bandProfile?.dj_name;
+  const bandName = bandProfile?.name;
   if (!bandName) {
     el.innerHTML = '<span style="color:var(--muted);font-size:13px;">Set up your band profile to track gigs.</span>';
     return;
@@ -268,7 +268,7 @@ function showBandProfile() {
   _populateBandYearDropdown();
   const p = bandProfile || {};
   const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
-  setVal('bandNameInput',        p.name || p.dj_name || '');
+  setVal('bandNameInput',        p.name || '');
   setVal('bandSoundInput',       p.sound || '');
   setVal('bandTaglineInput',     p.tagline || '');
   setVal('bandLocationInput',    p.suburb || p.location || '');
@@ -375,7 +375,6 @@ async function saveBandProfile() {
     user_id:          currentUser.id,
     type:             'band',
     name:             name,
-    dj_name:          name,
     sound:            sound,
     tagline:          tagline,
     suburb:           suburb,

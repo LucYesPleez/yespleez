@@ -33,7 +33,6 @@ async function upsertProfileToSupabase(profile, type) {
     const payload = {
       user_id:           currentUser.id,
       type:              type,
-      dj_name:           profile.djName        || profile.name || '',
       sound:             profile.sound         || '',
       name:              profile.name          || profile.djName || '',
       location:          profile.location      || '',
@@ -126,7 +125,7 @@ async function loadProfileFromSupabase(type) {
 
 function mapDbToArtistProfile(row) {
   return {
-    djName:             row.dj_name       || '',
+    djName:             row.name          || '',
     sound:              row.sound         || '',
     label:              row.label         || '',
     location:           row.location      || '',
@@ -165,7 +164,7 @@ function mapDbToArtistProfile(row) {
 
 function mapDbToHostProfile(row) {
   return {
-    name:        row.name || row.dj_name  || '',
+    name:        row.name || '',
     location:    row.location     || '',
     state:       row.state        || '',
     postcode:    row.postcode     || '',
@@ -187,7 +186,7 @@ function mapDbToHostProfile(row) {
 // ── Shared profile card builder (used by discover) ────────────
 function buildProfileCardEl(row) {
   const type      = row.type || 'artist';
-  const name      = row.dj_name || row.name || 'Unknown';
+  const name      = row.name || 'Unknown';
   const location  = [row.location, row.state].filter(Boolean).join(', ');
   const sound     = row.sound || '';
   const genres    = row.genre_string ? row.genre_string.split(' · ').slice(0, 4).join(' · ') : '';
@@ -246,7 +245,7 @@ async function searchProfiles(query, filterType, filterState) {
     }
     if (query && query.trim()) {
       const q = encodeURIComponent(`%${query.trim()}%`);
-      path += `&or=(dj_name.ilike.${q},name.ilike.${q},genre_string.ilike.${q},location.ilike.${q},bio.ilike.${q},tagline.ilike.${q},state.ilike.${q})`;
+      path += `&or=(name.ilike.${q},genre_string.ilike.${q},location.ilike.${q},bio.ilike.${q},tagline.ilike.${q},state.ilike.${q})`;
     }
     path += `&order=updated_at.desc&limit=50`;
     const rows = await sbRest(path, { method: 'GET' }, currentSession?.access_token || null);
@@ -264,7 +263,6 @@ let _viewingProfile = null;
 function openPublicProfile(row) {
   _viewingProfile = {
     user_id:      row.user_id,      type:         row.type,
-    dj_name:      row.dj_name,      name:         row.name,
     location:     row.location,     state:        row.state,     postcode: row.postcode, lat: row.lat, lng: row.lng,
     sound:        row.sound,        tagline:      row.tagline,
     bio:          row.bio,          genre_string: row.genre_string,
@@ -280,12 +278,12 @@ function openPublicProfile(row) {
   const shareBtn = document.getElementById('profileShareBtn');
   if (shareBtn && row.user_id && row.type) {
     shareBtn.style.display = 'flex';
-    shareBtn.onclick = () => shareItem(row.type, row.user_id, row.dj_name || row.name || '');
+    shareBtn.onclick = () => shareItem(row.type, row.user_id, row.name || '');
   }
 
   const isHost  = row.type === 'host';
   const isVenue = row.type === 'venue';
-  const name = row.dj_name || row.name || 'Unknown';
+  const name = row.name || 'Unknown';
   const location = [row.location, row.state].filter(Boolean).join(', ');
   const genres = row.genre_string ? row.genre_string.split(' · ').filter(Boolean) : [];
   const mainGenre = genres;
@@ -340,7 +338,7 @@ function openPublicProfile(row) {
     ? buildFollowBtn(row.user_id, row.type, name)
     : '';
   const inviteBtn = !isHost && !isVenue && currentMode === 'host' && !isOwnProfile ? `
-    <button onclick="openInviteToEvent('${(row.user_id||'').replace(/'/g,String.fromCharCode(39))}','${(row.dj_name||row.name||'').replace(/'/g,String.fromCharCode(39))}')"
+    <button onclick="openInviteToEvent('${(row.user_id||'').replace(/'/g,String.fromCharCode(39))}','${(row.name||'').replace(/'/g,String.fromCharCode(39))}')"
       style="background:var(--neon);color:#fff;font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:2px;padding:16px;border:none;border-radius:12px;cursor:pointer;width:100%;font-weight:700;margin-bottom:12px;">
       INVITE TO EVENT →
     </button>` : '';
@@ -792,11 +790,11 @@ async function loadUnclaimedProfiles() {
         ? sbRest(`profiles?type=eq.artist&email=in.(${emails.map(e => encodeURIComponent(e)).join(',')})&select=email`, { method: 'GET' }, currentSession.access_token).catch(() => [])
         : Promise.resolve([]),
       names.length
-        ? sbRest(`profiles?type=eq.artist&or=(${names.map(n => `dj_name.eq.${encodeURIComponent(n)}`).join(',')})&select=dj_name`, { method: 'GET' }, currentSession.access_token).catch(() => [])
+        ? sbRest(`profiles?type=eq.artist&or=(${names.map(n => `name.eq.${encodeURIComponent(n)}`).join(',')})&select=name`, { method: 'GET' }, currentSession.access_token).catch(() => [])
         : Promise.resolve([])
     ]);
     const claimedEmails = new Set((claimedByEmail || []).map(p => p.email?.toLowerCase()).filter(Boolean));
-    const claimedNames  = new Set((claimedByName  || []).map(p => p.dj_name?.toLowerCase()).filter(Boolean));
+    const claimedNames  = new Set((claimedByName  || []).map(p => p.name?.toLowerCase()).filter(Boolean));
 
     const isClaimed = r =>
       (r.claim_email && claimedEmails.has(r.claim_email.toLowerCase())) ||
@@ -871,7 +869,7 @@ async function loadAcceptedUnassignedArtists() {
     // Filter to unassigned only
     const unassigned = apps.filter(app => {
       const p = profileMap[app.artist_id];
-      const name = (p?.dj_name || p?.name || '').toLowerCase().trim();
+      const name = (p?.name || '').toLowerCase().trim();
       return name && !assignedNames.has(name);
     });
 
@@ -884,7 +882,7 @@ async function loadAcceptedUnassignedArtists() {
     list.innerHTML = '';
     unassigned.forEach(app => {
       const p = profileMap[app.artist_id] || {};
-      const name = p.dj_name || p.name || 'Unknown';
+      const name = p.name || 'Unknown';
       const sound = p.sound || p.genre_string?.split(' · ').slice(0,2).join(' · ') || '';
       const evName = eventMap[app.event_id] || '';
       const avatarHtml = p.avatar
@@ -981,7 +979,6 @@ async function claimUnclaimedProfile(id) {
     const payload = {
       user_id:      currentUser.id,
       type:         'artist',
-      dj_name:      p.name,
       name:         p.name,
       sound:        p.sound || '',
       bio:          p.bio || '',

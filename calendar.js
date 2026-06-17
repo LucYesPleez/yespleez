@@ -1176,7 +1176,7 @@ const _rolePillStyle = {
 };
 
 function _calProfileCard(p) {
-  const name    = esc(p.dj_name || p.name || 'ARTIST');
+  const name    = esc(p.name || 'ARTIST');
   const type    = (p.type || 'artist').toLowerCase();
   const label   = type === 'standup' ? 'COMEDY' : type.toUpperCase();
   const style   = _rolePillStyle[type] || _rolePillStyle.artist;
@@ -1203,12 +1203,12 @@ async function _loadCalDiscoverProfiles() {
   if (!el) return;
   try {
     const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/profiles?type=in.(artist,host,band,venue,standup)&select=user_id,dj_name,name,type,avatar,location,sound&limit=12&order=created_at.desc`,
+      `${SUPABASE_URL}/rest/v1/profiles?type=in.(artist,host,band,venue,standup)&select=user_id,name,type,avatar,location,sound&limit=12&order=created_at.desc`,
       { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } }
     );
     const profiles = await res.json();
     if (!Array.isArray(profiles) || !profiles.length) { el.innerHTML = ''; return; }
-    el.innerHTML = profiles.filter(p => (p.dj_name || p.name) && p.avatar).map(_calProfileCard).join('');
+    el.innerHTML = profiles.filter(p => p.name && p.avatar).map(_calProfileCard).join('');
   } catch(e) { el.innerHTML = ''; }
 }
 

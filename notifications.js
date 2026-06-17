@@ -395,7 +395,6 @@ async function respondToInvite(notifId, eventId, response) {
           user_id:    currentUser.id,
           status:     'pending',
           artist_name: artistName,
-          dj_name:    artistProfile?.djName || '',
           genre:      artistProfile?.genreString || '',
           mix_link:   artistProfile?.mixLink || '',
           avatar_url: artistProfile?.avatar || '',

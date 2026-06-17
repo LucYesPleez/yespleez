@@ -30,7 +30,7 @@ async function searchArtistsForAssign(q) {
   try {
     const enc = encodeURIComponent(`%${q}%`);
     const rows = await sbRest(
-      `profiles?type=eq.artist&or=(dj_name.ilike.${enc},name.ilike.${enc})&limit=10`,
+      `profiles?type=eq.artist&name=ilike.${enc}&limit=10`,
       { method: 'GET' },
       currentSession?.access_token || null
     );
@@ -41,7 +41,7 @@ async function searchArtistsForAssign(q) {
         onmouseenter="this.style.background='rgba(0,229,255,.08)'" onmouseleave="this.style.background=''">
         ${r.avatar ? `<img src="${r.avatar}" style="width:32px;height:32px;border-radius:4px;object-fit:cover;">` : `<div style="width:32px;height:32px;border-radius:4px;background:var(--card);display:flex;align-items:center;justify-content:center;"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3z"/><path d="M3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg></div>`}
         <div>
-          <div style="font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:1px;">${r.dj_name || r.name}</div>
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:1px;">${r.name}</div>
           ${r.genre_string ? `<div style="font-size:11px;color:var(--muted);">${r.genre_string.split(' · ').slice(0,3).join(' · ')}</div>` : ''}
         </div>
       </div>
@@ -58,11 +58,11 @@ function selectArtistForAssign(row) {
   const nameEl  = document.getElementById('hostArtistSelectedName');
   const genreEl = document.getElementById('hostArtistSelectedGenre');
   const selEl   = document.getElementById('hostArtistSelected');
-  if (nameEl)  nameEl.textContent  = row.dj_name || row.name;
+  if (nameEl)  nameEl.textContent  = row.name;
   if (genreEl) genreEl.textContent = row.genre_string ? row.genre_string.split(' · ').slice(0,3).join(' · ') : '';
   if (selEl)   selEl.style.display = 'flex';
   // Pre-fill the manual name + genre fields
-  document.getElementById('inputName').value = row.dj_name || row.name || '';
+  document.getElementById('inputName').value = row.name || '';
   const genreMain = document.getElementById('inputGenreMain');
   if (genreMain && row.genre_string) {
     const firstGenre = row.genre_string.split(' · ')[0];
@@ -390,7 +390,7 @@ async function saveGuestProfile() {
     // Create profile row from guest data
     await sbRest('profiles', {
       method: 'POST',
-      body: JSON.stringify({ user_id: authRes.user.id, email, dj_name: name, genre_string: genre || null, sound: sound || null, mix_link: mixLink || null, type: 'artist' }),
+      body: JSON.stringify({ user_id: authRes.user.id, email, name: name, genre_string: genre || null, sound: sound || null, mix_link: mixLink || null, type: 'artist' }),
       prefer: 'resolution=merge-duplicates,return=minimal'
     }, authRes.access_token).catch(() => {});
 

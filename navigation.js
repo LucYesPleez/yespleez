@@ -144,16 +144,16 @@ async function openIndustryPanel() {
   if (!DEMO && currentUser?.id && currentSession?.access_token) {
     try {
       const rows = await sbRest(
-        `profiles?user_id=eq.${currentUser.id}&select=type,name,dj_name`,
+        `profiles?user_id=eq.${currentUser.id}&select=type,name`,
         { method: 'GET' }, currentSession.access_token
       );
       if (Array.isArray(rows)) {
         rows.forEach(r => {
-          if (r.type === 'host'    && (r.name || r.dj_name) && !hostProfile?.name)    hostProfile    = { name: r.name || r.dj_name };
-          if (r.type === 'artist'  && (r.dj_name || r.name) && !artistProfile?.djName) artistProfile  = { djName: r.dj_name || r.name };
-          if (r.type === 'band'    && (r.name || r.dj_name) && !bandProfile?.name)    bandProfile    = { name: r.name || r.dj_name };
-          if (r.type === 'venue'   && (r.name || r.dj_name) && !venueProfile?.name)   venueProfile   = { name: r.name || r.dj_name };
-          if (r.type === 'standup' && (r.name || r.dj_name) && !standupProfile?.name) standupProfile = { name: r.name || r.dj_name };
+          if (r.type === 'host'    && r.name && !hostProfile?.name)    hostProfile    = { name: r.name };
+          if (r.type === 'artist'  && r.name && !artistProfile?.djName) artistProfile  = { djName: r.name };
+          if (r.type === 'band'    && r.name && !bandProfile?.name)    bandProfile    = { name: r.name };
+          if (r.type === 'venue'   && r.name && !venueProfile?.name)   venueProfile   = { name: r.name };
+          if (r.type === 'standup' && r.name && !standupProfile?.name) standupProfile = { name: r.name };
         });
       }
     } catch(e) {}
@@ -249,8 +249,8 @@ async function showRoleSelector() {
       loadProfileFromSupabase('host'),
       loadProfileFromSupabase('artist')
     ]);
-    if (hostRow && (hostRow.name || hostRow.dj_name)) hostProfile = mapDbToHostProfile(hostRow);
-    if (artistRow && (artistRow.dj_name || artistRow.name)) artistProfile = mapDbToArtistProfile(artistRow);
+    if (hostRow && (hostRow.name)) hostProfile = mapDbToHostProfile(hostRow);
+    if (artistRow && (artistRow.name)) artistProfile = mapDbToArtistProfile(artistRow);
   }
   updateRoleCards();
   _updateRoleScreenHeading();
@@ -293,7 +293,7 @@ function updateRoleCards() {
   if (artistCard) { const d = artistCard.querySelector('.role-card-desc'); if (d) d.innerHTML = 'Build your profile, track your bookings, apply to events' + artistDot; }
   if (punterCard) { const d = punterCard.querySelector('.role-card-desc'); if (d) d.innerHTML = 'Follow artists, save events, get notified when your faves play' + punterDot; }
 
-  const venueTick   = (venueProfile?.name || venueProfile?.dj_name) ? ' <span style="color:#00E5A0;font-size:11px;white-space:nowrap;">✓ Profile set up</span>' : '';
+  const venueTick   = (venueProfile?.name) ? ' <span style="color:#00E5A0;font-size:11px;white-space:nowrap;">✓ Profile set up</span>' : '';
   const bandTick    = (typeof bandProfile !== 'undefined' && bandProfile?.name) ? ' <span style="color:#FF8C42;font-size:11px;white-space:nowrap;">✓ Profile set up</span>' : '';
   const standupTick = (typeof standupProfile !== 'undefined' && standupProfile?.name) ? ' <span style="color:#FF88AA;font-size:11px;white-space:nowrap;">✓ Profile set up</span>' : '';
 
@@ -337,7 +337,7 @@ async function enterPunterDashboard() {
         const nameEl = document.getElementById('punterDashName');
         const locEl  = document.getElementById('punterDashLocation');
         const ctaEl  = document.getElementById('punterDashCta');
-        if (nameEl) nameEl.textContent = p.name || p.dj_name || 'My Profile';
+        if (nameEl) nameEl.textContent = p.name || 'My Profile';
         if (locEl)  locEl.textContent  = p.location ? `${p.location}${p.state ? ', '+p.state : ''}` : (p.genre_string || 'Music fan');
         if (ctaEl)  ctaEl.textContent  = 'EDIT →';
       }
@@ -437,7 +437,6 @@ async function saveMySceneProfile() {
         user_id:      currentUser.id,
         type:         'punter',
         name:         name,
-        dj_name:      name,
         postcode:     postcode,
         genre_string: profile.genreString,
         updated_at:   new Date().toISOString()
@@ -506,7 +505,7 @@ async function enterDashboard() {
 
   if (!DEMO && currentUser?.id) {
     loadProfileFromSupabase('host').then(row => {
-      if (row && (row.name || row.dj_name)) {
+      if (row && (row.name)) {
         hostProfile = mapDbToHostProfile(row);
         try { localStorage.setItem('yp_host_profile', JSON.stringify(hostProfile)); } catch(e) {}
         updateDashProfileCard();
@@ -551,7 +550,7 @@ async function enterArtistDashboard() {
 
   if (!DEMO && currentUser?.id && currentUser.id !== 'guest') {
     loadProfileFromSupabase('artist').then(row => {
-      if (row && (row.dj_name || row.name)) {
+      if (row && (row.name)) {
         artistProfile = mapDbToArtistProfile(row);
         try { localStorage.setItem('yp_artist_profile', JSON.stringify(artistProfile)); } catch(e) {}
         updateArtistDashCard();

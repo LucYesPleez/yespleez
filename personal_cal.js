@@ -114,7 +114,7 @@ function peSearchUsers() {
     try {
       const enc  = encodeURIComponent(q);
       const rows = await sbRest(
-        `profiles?or=(name.ilike.*${enc}*,dj_name.ilike.*${enc}*)&limit=8&select=user_id,name,dj_name,type`,
+        `profiles?name=ilike.*${enc}*&limit=8&select=user_id,name,type`,
         { method: 'GET' }, currentSession?.access_token
       );
       const filtered = (rows || []).filter(r =>
@@ -134,7 +134,7 @@ function peSearchUsers() {
         standup:'COMEDY', host:'HOST', punter:'MEMBER'
       };
       resultsEl.innerHTML = filtered.map(r => {
-        const name  = r.dj_name || r.name || 'Unknown';
+        const name  = r.name || 'Unknown';
         const tl    = typeLabels[r.type] || 'MEMBER';
         const safeId   = (r.user_id || '').replace(/'/g, "\\'");
         const safeName = name.replace(/'/g, "\\'");

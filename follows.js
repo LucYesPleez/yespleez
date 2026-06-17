@@ -895,13 +895,13 @@ async function _loadNearbyProfiles(userPostcode) {
 
   try {
     const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/profiles?postcode=eq.${userPostcode}&type=in.(artist,host,band,venue,standup)&select=user_id,dj_name,name,type,genre_string,avatar,postcode,location&limit=16`,
+      `${SUPABASE_URL}/rest/v1/profiles?postcode=eq.${userPostcode}&type=in.(artist,host,band,venue,standup)&select=user_id,name,type,genre_string,avatar,postcode,location&limit=16`,
       { headers: { 'apikey': SUPABASE_KEY } }
     );
     if (!res.ok) return;
     const profiles = await res.json();
     const myId = (typeof currentUser !== 'undefined' && currentUser?.id) || null;
-    const filtered = profiles.filter(p => p.user_id !== myId && (p.dj_name || p.name));
+    const filtered = profiles.filter(p => p.user_id !== myId && p.name);
     if (!filtered.length && !section.querySelector('.calWhatsOnCard')) { section.style.display = 'none'; return; }
     section.style.display = '';
 
@@ -911,7 +911,7 @@ async function _loadNearbyProfiles(userPostcode) {
     profilesEl.innerHTML = `<div style="font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:2px;color:var(--muted);margin-bottom:10px;">ARTISTS · PROMOTERS · VENUES</div>
       <div style="display:flex;gap:10px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;padding-bottom:4px;">
         ${filtered.map(p => {
-          const name    = esc(p.dj_name || p.name || '');
+          const name    = esc(p.name || '');
           const type    = p.type || 'artist';
           const label   = typeLabel[type] || 'ARTIST';
           const color   = typeColor[type] || '#FF2D78';
@@ -939,7 +939,7 @@ async function _loadSceneDiscoverProfiles(containerId) {
   if (!el) return;
   try {
     const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/profiles?avatar=not.is.null&type=in.(artist,host,band,venue,standup)&select=user_id,dj_name,name,type,avatar,location,sound&limit=12&order=created_at.desc`,
+      `${SUPABASE_URL}/rest/v1/profiles?avatar=not.is.null&type=in.(artist,host,band,venue,standup)&select=user_id,name,type,avatar,location,sound&limit=12&order=created_at.desc`,
       { headers: { 'apikey': SUPABASE_KEY } }
     );
     if (!res.ok) return;
@@ -1066,7 +1066,7 @@ async function _loadDayPeople(evs) {
     let profileMap = {};
     if (allIds.length) {
       const profRes = await fetch(
-        `${SUPABASE_URL}/rest/v1/profiles?user_id=in.(${allIds.join(',')})&select=user_id,dj_name,name,type,genre_string,avatar,location`,
+        `${SUPABASE_URL}/rest/v1/profiles?user_id=in.(${allIds.join(',')})&select=user_id,name,type,genre_string,avatar,location`,
         { headers: { 'apikey': SUPABASE_KEY } }
       );
       if (profRes.ok) (await profRes.json()).forEach(p => { profileMap[p.user_id] = p; });
@@ -1075,7 +1075,7 @@ async function _loadDayPeople(evs) {
     // Build artist cards from claims (include unlinked claims by name)
     const artistCards = claims.map(c => {
       const prof = profileMap[c.user_id] || {};
-      const name = esc(prof.dj_name || prof.name || c.name || '');
+      const name = esc(prof.name || c.name || '');
       if (!name) return '';
       const avatar = prof.avatar
         ? `<img src="${prof.avatar}" style="width:52px;height:52px;border-radius:50%;object-fit:cover;border:2px solid rgba(255,45,120,.4);">`
@@ -1093,7 +1093,7 @@ async function _loadDayPeople(evs) {
     const hostCards = hostIds.map(hid => {
       const prof = profileMap[hid];
       if (!prof) return '';
-      const name = esc(prof.dj_name || prof.name || '');
+      const name = esc(prof.name || '');
       if (!name) return '';
       const type = prof.type === 'venue' ? 'VENUE' : 'PROMOTER';
       const color = prof.type === 'venue' ? '#00E5FF' : '#9D4EDD';

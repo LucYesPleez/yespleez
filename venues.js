@@ -121,9 +121,9 @@ function _renderVenueDashCard() {
 
   const p = venueProfile || {};
 
-  if (p.name || p.dj_name) {
+  if (p.name) {
     // Profile exists
-    if (nameEl) nameEl.textContent = p.name || p.dj_name || 'Your Venue';
+    if (nameEl) nameEl.textContent = p.name || 'Your Venue';
     const suburb = p.suburb || p.location || '';
     const state  = p.state || '';
     const loc    = [suburb, state].filter(Boolean).join(', ');
@@ -154,9 +154,9 @@ async function _loadVenueStats() {
   if (!currentUser?.id) return;
 
   // Count upcoming events linked to this venue (via config->venue matching)
-  if (venueProfile?.name || venueProfile?.dj_name) {
+  if (venueProfile?.name) {
     try {
-      const venueName = venueProfile.name || venueProfile.dj_name || '';
+      const venueName = venueProfile.name || '';
       const enc = encodeURIComponent(`%${venueName}%`);
       const evRows = await sbRest(
         `events?select=id&config->>venue=ilike.${enc}&status=eq.live&limit=100`,
@@ -228,7 +228,7 @@ function _renderVenueAvailSummary(rows) {
 async function _loadVenueUpcomingEvents() {
   const el = document.getElementById('venueUpcomingEvents');
   if (!el) return;
-  const venueName = venueProfile?.name || venueProfile?.dj_name;
+  const venueName = venueProfile?.name;
   if (!venueName) {
     el.innerHTML = '<span style="color:var(--muted);font-size:13px;">Set up your venue profile to see linked events.</span>';
     return;
@@ -299,7 +299,7 @@ let _enqProfileMap = {};
 function _enqMatchesSearch(enq, p) {
   if (!_enqSearch) return true;
   const haystack = [
-    p.dj_name, p.name, p.genre_string, p.vibe_tags, p.card_pills,
+    p.name, p.genre_string, p.vibe_tags, p.card_pills,
     p.band_type, p.act_type, p.sound, p.bio, p.location, p.state,
     enq.applicant_type
   ].filter(Boolean).join(' ').toLowerCase();
@@ -311,7 +311,7 @@ function _buildEnqCard(enq, p, showMoveBack) {
   const accent    = typeAccents[enq.applicant_type] || '#00E5FF';
   const accentRgb = { artist:'0,229,255', band:'255,140,66', standup:'255,136,170', host:'255,51,153' }[enq.applicant_type] || '0,229,255';
 
-  const name   = p.dj_name || p.name || 'Unknown';
+  const name   = p.name || 'Unknown';
   const loc    = [p.location, p.state].filter(Boolean).join(', ');
   const avatar = p.avatar || '';
 
@@ -557,7 +557,7 @@ function showVenueProfile() {
   _populateVenueYearDropdown();
   const p = venueProfile || {};
   const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
-  setVal('venueNameInput',        p.name || p.dj_name || '');
+  setVal('venueNameInput',        p.name || '');
   setVal('venueVibeInput',        p.sound || '');
   setVal('venueTaglineInput',     p.tagline || '');
   setVal('venueAddressInput',     p.suburb || p.location || '');
@@ -642,7 +642,6 @@ async function saveVenueProfile() {
     user_id:          currentUser.id,
     type:             'venue',
     name:             name,
-    dj_name:          name,
     sound:            sound,
     tagline:          tagline,
     suburb:           suburb,
