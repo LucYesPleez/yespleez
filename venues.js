@@ -1026,23 +1026,92 @@ function closeVenueAvailabilityModal() {
   if (modal) modal.remove();
 }
 
+let _vpEnquiryDate = null;
+
 function _vpOpenEnquiry(dateStr) {
   if (!currentUser?.id) { showToast('Sign in to send an enquiry', 'error'); return; }
+  _vpEnquiryDate = dateStr;
 
+  // Build list of set-up profiles the user can send from
+  const available = [];
+  if (typeof artistProfile !== 'undefined' && (artistProfile?.djName || artistProfile?.name)) {
+    available.push({ type: 'artist', label: 'DJ / Artist', name: artistProfile.djName || artistProfile.name, genre: artistProfile.genreString || '', avatar: artistProfile.avatar || '', sound: artistProfile.sound || '', location: artistProfile.location || '' });
+  }
+  if (typeof hostProfile !== 'undefined' && hostProfile?.name) {
+    available.push({ type: 'host', label: 'Promoter', name: hostProfile.name, genre: hostProfile.genre_string || '', avatar: hostProfile.avatar || '', sound: '', location: hostProfile.location || '' });
+  }
+  if (typeof bandProfile !== 'undefined' && bandProfile?.name) {
+    available.push({ type: 'band', label: 'Band', name: bandProfile.name, genre: bandProfile.genre_string || bandProfile.band_type || '', avatar: bandProfile.avatar || '', sound: bandProfile.sound || '', location: bandProfile.location || '' });
+  }
+  if (typeof standupProfile !== 'undefined' && standupProfile?.name) {
+    available.push({ type: 'standup', label: 'Stand-up / Spoken Word', name: standupProfile.name, genre: standupProfile.genre_string || standupProfile.act_type || '', avatar: standupProfile.avatar || '', sound: standupProfile.sound || '', location: standupProfile.location || '' });
+  }
+
+  if (available.length === 0) { showToast('Set up a profile first before enquiring', 'error'); return; }
+  if (available.length === 1) { _vpShowEnquirySheet(dateStr, available[0]); return; }
+
+  // Multiple profiles — show picker
+  _vpShowProfilePicker(dateStr, available);
+}
+
+function _vpShowProfilePicker(dateStr, profiles) {
+  const old = document.getElementById('_vpProfilePicker');
+  if (old) old.remove();
+  const accent = _vpAccentColor;
+  const rgb    = _vpAccentRgb;
+  const pretty = new Date(dateStr + 'T00:00:00').toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+
+  const cards = profiles.map((p, i) => {
+    const av = p.avatar
+      ? `<img src="${p.avatar}" style="width:44px;height:44px;border-radius:8px;object-fit:cover;border:1.5px solid rgba(${rgb},.5);flex-shrink:0;">`
+      : `<div style="width:44px;height:44px;border-radius:8px;background:rgba(${rgb},.12);border:1.5px solid rgba(${rgb},.3);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:18px;">🎵</div>`;
+    return `<button onclick="_vpPickerSelect(${i})"
+      style="width:100%;display:flex;gap:12px;align-items:center;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:12px;cursor:pointer;text-align:left;transition:all .15s;margin-bottom:8px;"
+      onmouseover="this.style.background='rgba(${rgb},.1)';this.style.borderColor='${accent}';"
+      onmouseout="this.style.background='rgba(255,255,255,.04)';this.style.borderColor='rgba(255,255,255,.1)';">
+      ${av}
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:10px;font-family:'Bebas Neue',sans-serif;letter-spacing:1.5px;color:${accent};margin-bottom:2px;">${p.label}</div>
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:.5px;color:#e8e8f0;">${p.name}</div>
+        ${p.genre ? `<div style="font-size:11px;color:var(--muted);margin-top:1px;">${p.genre.split(' · ').slice(0,3).join(' · ')}</div>` : ''}
+      </div>
+      <div style="color:${accent};font-size:18px;">›</div>
+    </button>`;
+  }).join('');
+
+  const sheet = document.createElement('div');
+  sheet.id = '_vpProfilePicker';
+  sheet.style.cssText = 'position:fixed;inset:0;z-index:9999;display:flex;flex-direction:column;justify-content:flex-end;';
+  sheet.innerHTML = `
+    <div onclick="_vpCloseEnquiry()" style="position:absolute;inset:0;background:rgba(0,0,0,.6);backdrop-filter:blur(4px);"></div>
+    <div style="position:relative;background:#13131f;border-radius:20px 20px 0 0;padding:24px 20px 36px;max-width:520px;width:100%;margin:0 auto;max-height:85dvh;overflow-y:auto;">
+      <div style="width:36px;height:4px;background:rgba(255,255,255,.2);border-radius:2px;margin:0 auto 20px;"></div>
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:2px;color:${accent};margin-bottom:4px;">ENQUIRING ABOUT</div>
+      <div style="font-size:18px;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;margin-bottom:4px;">${pretty}</div>
+      <div style="font-size:13px;color:var(--muted);margin-bottom:20px;">Who are you enquiring as?</div>
+      <div id="_vpPickerCards">${cards}</div>
+      <button onclick="_vpCloseEnquiry()" style="margin-top:4px;width:100%;background:none;border:none;color:var(--muted);font-size:13px;cursor:pointer;padding:8px;">Cancel</button>
+    </div>`;
+  document.body.appendChild(sheet);
+  window._vpPickerProfiles = profiles;
+  window._vpPickerDate     = dateStr;
+}
+
+function _vpPickerSelect(index) {
+  const p   = window._vpPickerProfiles[index];
+  const d   = window._vpPickerDate;
+  const old = document.getElementById('_vpProfilePicker');
+  if (old) old.remove();
+  _vpShowEnquirySheet(d, p);
+}
+
+function _vpShowEnquirySheet(dateStr, profile) {
   const pretty = new Date(dateStr + 'T00:00:00').toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   const accent = _vpAccentColor;
   const rgb    = _vpAccentRgb;
 
-  // Pick the right profile based on current mode
-  const mode = typeof currentMode !== 'undefined' ? currentMode : 'artist';
-  let myName = '', myGenre = '', myAvatar = '', mySound = '', myLocation = '';
-  if (mode === 'band' && typeof bandProfile !== 'undefined' && bandProfile?.name) {
-    myName = bandProfile.name; myGenre = bandProfile.genre_string || bandProfile.band_type || ''; myAvatar = bandProfile.avatar || ''; mySound = bandProfile.sound || ''; myLocation = bandProfile.location || '';
-  } else if (mode === 'standup' && typeof standupProfile !== 'undefined' && standupProfile?.name) {
-    myName = standupProfile.name; myGenre = standupProfile.genre_string || standupProfile.act_type || ''; myAvatar = standupProfile.avatar || ''; mySound = standupProfile.sound || ''; myLocation = standupProfile.location || '';
-  } else if (typeof artistProfile !== 'undefined' && artistProfile) {
-    myName = artistProfile.djName || artistProfile.name || ''; myGenre = artistProfile.genreString || ''; myAvatar = artistProfile.avatar || ''; mySound = artistProfile.sound || ''; myLocation = artistProfile.location || '';
-  }
+  const myName = profile.name; const myGenre = profile.genre; const myAvatar = profile.avatar; const mySound = profile.sound; const myLocation = profile.location;
+  window._vpEnquiryProfile = profile;
 
   const avatarHtml = myAvatar
     ? `<img src="${myAvatar}" style="width:48px;height:48px;border-radius:8px;object-fit:cover;border:2px solid ${accent};flex-shrink:0;">`
@@ -1083,8 +1152,8 @@ function _vpOpenEnquiry(dateStr) {
 }
 
 function _vpCloseEnquiry() {
-  const sheet = document.getElementById('_vpEnquirySheet');
-  if (sheet) sheet.remove();
+  const s = document.getElementById('_vpEnquirySheet');   if (s) s.remove();
+  const p = document.getElementById('_vpProfilePicker');  if (p) p.remove();
 }
 
 async function _vpSendEnquiry(dateStr) {
@@ -1092,8 +1161,7 @@ async function _vpSendEnquiry(dateStr) {
   const note = (document.getElementById('_vpEnquiryNote')?.value || '').trim();
   const btn  = document.getElementById('_vpEnquirySubmitBtn');
 
-  const mode = typeof currentMode !== 'undefined' ? currentMode : 'artist';
-  const applicantType = ['band','standup','artist','host','punter'].includes(mode) ? mode : 'artist';
+  const applicantType = window._vpEnquiryProfile?.type || (typeof currentMode !== 'undefined' ? currentMode : 'artist');
 
   if (btn) { btn.disabled = true; btn.textContent = 'SENDING…'; }
 
