@@ -1028,26 +1028,41 @@ function closeVenueAvailabilityModal() {
 
 let _vpEnquiryDate = null;
 
-function _vpOpenEnquiry(dateStr) {
+async function _vpOpenEnquiry(dateStr) {
   if (!currentUser?.id) { showToast('Sign in to send an enquiry', 'error'); return; }
   _vpEnquiryDate = dateStr;
 
-  // Build list of set-up profiles the user can send from
-  const available = [];
-  if (typeof artistProfile !== 'undefined' && (artistProfile?.djName || artistProfile?.name)) {
-    available.push({ type: 'artist', label: 'DJ / Artist', name: artistProfile.djName || artistProfile.name, genre: artistProfile.genreString || '', avatar: artistProfile.avatar || '', sound: artistProfile.sound || '', location: artistProfile.location || '' });
-  }
-  if (typeof hostProfile !== 'undefined' && hostProfile?.name) {
-    available.push({ type: 'host', label: 'Promoter', name: hostProfile.name, genre: hostProfile.genre_string || '', avatar: hostProfile.avatar || '', sound: '', location: hostProfile.location || '' });
-  }
-  if (typeof bandProfile !== 'undefined' && bandProfile?.name) {
-    available.push({ type: 'band', label: 'Band', name: bandProfile.name, genre: bandProfile.genre_string || bandProfile.band_type || '', avatar: bandProfile.avatar || '', sound: bandProfile.sound || '', location: bandProfile.location || '' });
-  }
-  if (typeof standupProfile !== 'undefined' && standupProfile?.name) {
-    available.push({ type: 'standup', label: 'Stand-up / Spoken Word', name: standupProfile.name, genre: standupProfile.genre_string || standupProfile.act_type || '', avatar: standupProfile.avatar || '', sound: standupProfile.sound || '', location: standupProfile.location || '' });
-  }
+  // Determine which profile types exist (from in-memory globals)
+  const types = [];
+  if (typeof artistProfile !== 'undefined' && (artistProfile?.djName || artistProfile?.name)) types.push('artist');
+  if (typeof hostProfile   !== 'undefined' && hostProfile?.name)   types.push('host');
+  if (typeof bandProfile   !== 'undefined' && bandProfile?.name)   types.push('band');
+  if (typeof standupProfile !== 'undefined' && standupProfile?.name) types.push('standup');
 
-  if (available.length === 0) { showToast('Set up a profile first before enquiring', 'error'); return; }
+  if (types.length === 0) { showToast('Set up a profile first before enquiring', 'error'); return; }
+
+  // Fetch fresh rows in parallel so avatars are always current
+  const rows = await Promise.all(types.map(t =>
+    (typeof loadProfileFromSupabase === 'function' ? loadProfileFromSupabase(t) : Promise.resolve(null)).catch(() => null)
+  ));
+
+  const available = types.map((t, i) => {
+    const r = rows[i];
+    if (t === 'artist') {
+      const av = r?.avatar || artistProfile?.avatar || '';
+      return { type: 'artist', label: 'DJ / Artist', name: artistProfile.djName || artistProfile.name, genre: artistProfile.genreString || '', avatar: av, sound: artistProfile.sound || '', location: artistProfile.location || '' };
+    }
+    if (t === 'host') {
+      return { type: 'host', label: 'Promoter', name: hostProfile.name, genre: hostProfile.genre_string || '', avatar: r?.avatar || hostProfile.avatar || '', sound: '', location: hostProfile.location || '' };
+    }
+    if (t === 'band') {
+      return { type: 'band', label: 'Band', name: bandProfile.name, genre: bandProfile.genre_string || bandProfile.band_type || '', avatar: r?.avatar || bandProfile.avatar || '', sound: bandProfile.sound || '', location: bandProfile.location || '' };
+    }
+    if (t === 'standup') {
+      return { type: 'standup', label: 'Stand-up / Spoken Word', name: standupProfile.name, genre: standupProfile.genre_string || standupProfile.act_type || '', avatar: r?.avatar || standupProfile.avatar || '', sound: standupProfile.sound || '', location: standupProfile.location || '' };
+    }
+  }).filter(Boolean);
+
   if (available.length === 1) { _vpShowEnquirySheet(dateStr, available[0]); return; }
 
   // Multiple profiles — show picker
