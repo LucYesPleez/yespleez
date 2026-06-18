@@ -176,17 +176,33 @@ async function runSearch() {
     return;
   }
 
-  const allItems = [
-    ...eventRows.map(ev => ({ _type: 'event', _ts: ev.created_at || ev.updated_at || '', ...ev })),
-    ...profileRows.map(row => ({ _type: 'profile', _ts: row.updated_at || row.created_at || '', ...row }))
-  ].sort((a, b) => (b._ts > a._ts ? 1 : -1));
+  const isDefaultView = !query && normType === 'all' && !stateFilter && !genreFilter && !availDate;
 
   if (availDate) {
     const dateLabel = new Date(availDate + 'T12:00:00').toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long' });
-    resultsEl.insertAdjacentHTML('afterbegin', `<div style="font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:2px;color:var(--neon2);padding:0 0 12px;">AVAILABLE ON ${dateLabel.toUpperCase()} · ${profileRows.length} ARTIST${profileRows.length!==1?'S':''}</div>`);
-  } else if (!query && normType === 'all' && stateFilter === 'all') {
-    resultsEl.insertAdjacentHTML('afterbegin', '<div style="font-family:\'Bebas Neue\',sans-serif;font-size:11px;letter-spacing:2px;color:var(--muted);padding:0 0 12px;">RECENTLY ADDED</div>');
+    resultsEl.insertAdjacentHTML('beforeend', `<div style="font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:2px;color:var(--neon2);padding:0 0 12px;">AVAILABLE ON ${dateLabel.toUpperCase()} · ${profileRows.length} ARTIST${profileRows.length!==1?'S':''}</div>`);
+    profileRows.forEach(row => resultsEl.appendChild(buildProfileCardEl(row)));
+    return;
   }
+
+  if (isDefaultView) {
+    // Profiles section first so they're always visible
+    if (profileRows.length) {
+      resultsEl.insertAdjacentHTML('beforeend', `<div style="font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:2px;color:var(--muted);padding:0 0 12px;">RECENTLY JOINED</div>`);
+      profileRows.forEach(row => resultsEl.appendChild(buildProfileCardEl(row)));
+    }
+    if (eventRows.length) {
+      resultsEl.insertAdjacentHTML('beforeend', `<div style="font-family:'Bebas Neue',sans-serif;font-size:11px;letter-spacing:2px;color:var(--muted);padding:${profileRows.length ? '20px' : '0'} 0 12px;">UPCOMING EVENTS</div>`);
+      eventRows.forEach(ev => resultsEl.appendChild(buildEventCardEl(ev, 'discover')));
+    }
+    return;
+  }
+
+  // Search / filtered view — interleave by recency
+  const allItems = [
+    ...eventRows.map(ev => ({ _type: 'event', _ts: ev.created_at || '', ...ev })),
+    ...profileRows.map(row => ({ _type: 'profile', _ts: row.created_at || '', ...row }))
+  ].sort((a, b) => (b._ts > a._ts ? 1 : -1));
 
   allItems.forEach(item => {
     const card = item._type === 'event'
