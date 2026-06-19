@@ -247,7 +247,7 @@ async function searchProfiles(query, filterType, filterState) {
       const q = encodeURIComponent(`%${query.trim()}%`);
       path += `&or=(name.ilike.${q},genre_string.ilike.${q},location.ilike.${q},bio.ilike.${q},tagline.ilike.${q},state.ilike.${q})`;
     }
-    path += `&name=not.is.null&order=created_at.desc&limit=50`;
+    path += `&order=updated_at.desc.nullslast&limit=50`;
     const rows = await sbRest(path, { method: 'GET' }, currentSession?.access_token || null);
     return rows || [];
   } catch(e) {

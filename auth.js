@@ -139,12 +139,13 @@ function _signupToggleEye() {
 // ── Login ──────────────────────────────────────────
 
 async function doLogin() {
+  const btn = document.getElementById('loginBtn');
+  if (btn?.disabled) return; // prevent double-fire from onclick + ontouchend
   const email = document.getElementById('loginEmail').value.trim();
   const pass  = document.getElementById('loginPassword').value;
   const errEl = document.getElementById('loginErr');
   errEl.classList.remove('show');
   if (!email || !pass) { errEl.textContent='Please fill in both fields.'; errEl.classList.add('show'); return; }
-  const btn = document.getElementById('loginBtn');
   btn.disabled = true; btn.textContent = 'SIGNING IN...';
   const data = await sbAuthPost('token?grant_type=password', { email, password: pass });
   btn.disabled = false; btn.textContent = 'SIGN IN';
@@ -155,7 +156,7 @@ async function doLogin() {
   clearCachedProfiles();
   currentSession = data;
   currentUser = data.user;
-  localStorage.setItem('yp_session', JSON.stringify(data));
+  try { localStorage.setItem('yp_session', JSON.stringify(data)); } catch(e) {}
   await checkPendingOffers(email, data.access_token);
   if (window._pendingSlotOffers?.length) {
     // Route artist straight to their dashboard so the notification bell is visible
@@ -184,6 +185,8 @@ async function doLogin() {
 // ── Signup ─────────────────────────────────────────
 
 async function doSignup() {
+  const btn = document.getElementById('signupBtn');
+  if (btn?.disabled) return; // prevent double-fire from onclick + ontouchend
   const name    = (document.getElementById('signupName')?.value || '').trim();
   const email   = document.getElementById('signupEmail').value.trim();
   const pass    = document.getElementById('signupPassword').value;
@@ -196,7 +199,6 @@ async function doSignup() {
   const confirmField = document.getElementById('signupConfirmField');
   if (confirmField && confirmField.style.display === 'none') { _signupShowConfirm(); return; }
   if (pass !== confirm) { errEl.textContent='Passwords do not match.'; errEl.classList.add('show'); return; }
-  const btn = document.getElementById('signupBtn');
   btn.disabled = true; btn.textContent = 'CREATING...';
   const data = await sbAuthPost('signup', { email, password: pass });
   btn.disabled = false; btn.textContent = 'CREATE ACCOUNT';
@@ -207,7 +209,7 @@ async function doSignup() {
   if (data.access_token) {
     clearCachedProfiles();
     currentSession = data; currentUser = data.user;
-    localStorage.setItem('yp_session', JSON.stringify(data));
+    try { localStorage.setItem('yp_session', JSON.stringify(data)); } catch(e) {}
     // Create MY SCENE (punter) profile — artist/band/venue profiles require explicit setup
     sbRest('profiles', {
       method: 'POST',
