@@ -20,7 +20,7 @@ function sbHeaders(token) {
 
 async function sbAuthPost(path, body) {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 10000);
+  const timeout = setTimeout(() => controller.abort(), 30000);
   try {
     const res = await fetch(`${SUPABASE_URL}/auth/v1/${path}`, {
       method: 'POST',
@@ -32,7 +32,7 @@ async function sbAuthPost(path, body) {
     return res.json();
   } catch(e) {
     clearTimeout(timeout);
-    if (e.name === 'AbortError') return { error: true, error_description: 'Request timed out — check your connection.' };
+    if (e.name === 'AbortError') return { error: true, error_description: 'Sign in timed out — check your connection and try again.' };
     return { error: true, error_description: 'Network error — check your connection.' };
   }
 }
