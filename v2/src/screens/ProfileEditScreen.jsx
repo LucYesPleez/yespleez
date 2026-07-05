@@ -1,0 +1,176 @@
+import { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { supabase } from '../lib/supabase';
+import { useSession } from '../App';
+import s from './ProfileEditScreen.module.css';
+
+const TYPE_CONFIG = {
+  artist:  { label: 'DJ / PRODUCER',       color: 'var(--neon2)',  showMix: true,  showSound: true  },
+  host:    { label: 'HOST / PROMOTER',     color: 'var(--neon)',   showMix: false, showSound: false },
+  band:    { label: 'BAND / MUSO',         color: '#FF8C42',       showMix: true,  showSound: true  },
+  standup: { label: 'STAND-UP / COMEDY',   color: '#FF88AA',       showMix: false, showSound: true  },
+  venue:   { label: 'VENUE',               color: '#00E5A0',       showMix: false, showSound: false },
+};
+
+const STATE_OPTIONS = ['NSW','VIC','QLD','WA','SA','TAS','ACT','NT','NZ','International'];
+
+export default function ProfileEditScreen() {
+  const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const { session } = useSession();
+  const userId = session?.user?.id;
+
+  const [profiles, setProfiles]   = useState([]);
+  const [activeType, setActiveType] = useState(params.get('type') || null);
+  const [form, setForm]           = useState({});
+  const [saving,  setSaving]  = useState(false);
+  const [saved,   setSaved]   = useState(false);
+  const [saveErr, setSaveErr] = useState('');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!userId) return;
+    supabase.from('profiles').select('*').eq('user_id', userId).neq('type', 'punter')
+      .then(({ data }) => {
+        const profs = data || [];
+        setProfiles(profs);
+        const type = params.get('type') || profs[0]?.type || 'artist';
+        setActiveType(type);
+        const existing = profs.find(p => p.type === type) || {};
+        setForm(existing);
+        setLoading(false);
+      });
+  }, [userId]);
+
+  function switchType(type) {
+    setActiveType(type);
+    const existing = profiles.find(p => p.type === type) || {};
+    setForm(existing);
+    setSaved(false);
+    setSaveErr('');
+  }
+
+  function set(key, val) {
+    setForm(f => ({ ...f, [key]: val }));
+  }
+
+  async function save() {
+    if (!userId || saving) return;
+    setSaving(true);
+    setSaveErr('');
+    // Strip DB-managed fields that shouldn't be in the upsert payload
+    const { id, created_at, updated_at, ...rest } = form;
+    const payload = { ...rest, user_id: userId, type: activeType };
+    // If updating existing row, include the id so Supabase matches by PK
+    if (id) payload.id = id;
+    const { error } = await supabase.from('profiles')
+      .upsert(payload, { onConflict: 'user_id,type' });
+    if (error) {
+      setSaveErr('Save failed — ' + (error.message || 'unknown error'));
+    } else {
+      setProfiles(prev => {
+        const without = prev.filter(p => p.type !== activeType);
+        return [...without, { ...payload, id }];
+      });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    }
+    setSaving(false);
+  }
+
+  if (loading) return <div className={s.screen}><p className={s.loading}>LOADING…</p></div>;
+
+  const tc = TYPE_CONFIG[activeType] || TYPE_CONFIG.artist;
+
+  return (
+    <div className={s.screen}>
+      <div className={s.topRow}>
+        <h1 className={s.title}>EDIT PROFILE</h1>
+        <button className={s.saveBtn} onClick={save} disabled={saving} style={{ color: tc.color, borderColor: tc.color }}>
+          {saving ? '…' : saved ? '✓ SAVED' : 'SAVE'}
+        </button>
+      </div>
+
+      {/* Role tabs */}
+      {profiles.length > 1 && (
+        <div className={s.typeTabs}>
+          {profiles.map(p => (
+            <button key={p.type}
+              className={activeType === p.type ? s.typeTabActive : s.typeTab}
+              style={activeType === p.type ? { borderColor: TYPE_CONFIG[p.type]?.color, color: TYPE_CONFIG[p.type]?.color } : {}}
+              onClick={() => switchType(p.type)}
+            >
+              {TYPE_CONFIG[p.type]?.label || p.type.toUpperCase()}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className={s.form}>
+        {/* Avatar */}
+        <div className={s.avatarSection}>
+          <div className={s.avatarPreview} style={{ borderColor: tc.color }}>
+            {form.avatar
+              ? <img src={form.avatar} alt="avatar" className={s.avatarImg} />
+              : <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke={tc.color} strokeWidth="1.5"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 1 0-16 0"/></svg>
+            }
+          </div>
+          <div className={s.avatarInputWrap}>
+            <label className={s.fieldLabel}>AVATAR URL</label>
+            <input className={s.input} value={form.avatar || ''} onChange={e => set('avatar', e.target.value)} placeholder="https://…" />
+          </div>
+        </div>
+
+        <Field label="NAME *" value={form.name || ''} onChange={v => set('name', v)} placeholder="Your name or stage name" />
+        <Field label="TAGLINE" value={form.tagline || ''} onChange={v => set('tagline', v)} placeholder="One-liner that describes you" />
+        {tc.showSound && <Field label="SOUND / VIBE" value={form.sound || ''} onChange={v => set('sound', v)} placeholder="e.g. Deep rolling bass, hypnotic rhythms" />}
+        <Field label="GENRES" value={form.genre_string || ''} onChange={v => set('genre_string', v)} placeholder="e.g. Techno · House · Drum & Bass" />
+        <Field label="BIO" value={form.bio || ''} onChange={v => set('bio', v)} placeholder="Tell your story…" multiline />
+
+        <div className={s.row}>
+          <div style={{ flex: 1 }}>
+            <Field label="LOCATION / CITY" value={form.location || ''} onChange={v => set('location', v)} placeholder="e.g. Byron Bay" />
+          </div>
+          <div style={{ width: 110 }}>
+            <label className={s.fieldLabel}>STATE</label>
+            <select className={s.select} value={form.state || ''} onChange={e => set('state', e.target.value)}>
+              <option value="">—</option>
+              {STATE_OPTIONS.map(st => <option key={st} value={st}>{st}</option>)}
+            </select>
+          </div>
+        </div>
+
+        {(activeType === 'artist' || activeType === 'band') && (
+          <Field label="YEARS ACTIVE" value={form.years || ''} onChange={v => set('years', v)} placeholder="e.g. 2018" />
+        )}
+
+        {tc.showMix && <Field label="MIX / DEMO LINK" value={form.mix_link || ''} onChange={v => set('mix_link', v)} placeholder="SoundCloud, Mixcloud, YouTube link…" />}
+
+        <div className={s.sectionDivider}>SOCIALS</div>
+        <Field label="INSTAGRAM" value={form.instagram || ''} onChange={v => set('instagram', v)} placeholder="@handle" />
+        <Field label="FACEBOOK" value={form.facebook || ''} onChange={v => set('facebook', v)} placeholder="https://facebook.com/…" />
+        <Field label="SOUNDCLOUD" value={form.soundcloud || ''} onChange={v => set('soundcloud', v)} placeholder="https://soundcloud.com/…" />
+        <Field label="MIXCLOUD" value={form.mixcloud || ''} onChange={v => set('mixcloud', v)} placeholder="https://mixcloud.com/…" />
+        <Field label="YOUTUBE" value={form.youtube || ''} onChange={v => set('youtube', v)} placeholder="https://youtube.com/…" />
+        <Field label="WEBSITE" value={form.website || ''} onChange={v => set('website', v)} placeholder="https://…" />
+
+        {saveErr && <p style={{ color: 'var(--red, #FF2D78)', fontSize: 12, textAlign: 'center', marginBottom: 8 }}>{saveErr}</p>}
+        <button className={s.saveBtnBottom} onClick={save} disabled={saving} style={{ background: tc.color }}>
+          {saving ? 'SAVING…' : saved ? '✓ SAVED!' : 'SAVE PROFILE'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function Field({ label, value, onChange, placeholder, multiline }) {
+  return (
+    <div className={s.field}>
+      <label className={s.fieldLabel}>{label}</label>
+      {multiline
+        ? <textarea className={s.textarea} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} rows={4} />
+        : <input className={s.input} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} />
+      }
+    </div>
+  );
+}

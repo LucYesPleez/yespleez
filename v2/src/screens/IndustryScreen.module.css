@@ -1,0 +1,54 @@
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.gate,
+.noprofile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 24px;
+  text-align: center;
+  min-height: 60vh;
+  gap: 12px;
+}
+
+.heading {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 32px;
+  letter-spacing: 3px;
+  color: var(--neon2);
+  font-weight: 400;
+}
+
+.gateTitle {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 24px;
+  letter-spacing: 2px;
+  color: var(--text);
+}
+
+.gateDesc,
+.sub {
+  font-size: 14px;
+  color: var(--muted);
+  line-height: 1.5;
+  max-width: 280px;
+}
+
+.btnPink {
+  background: var(--neon);
+  color: #fff;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 16px;
+  letter-spacing: 2px;
+  padding: 12px 28px;
+  border-radius: 8px;
+  margin-top: 8px;
+}

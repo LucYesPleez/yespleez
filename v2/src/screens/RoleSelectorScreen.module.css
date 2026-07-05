@@ -1,0 +1,116 @@
+.screen {
+  min-height: 100dvh;
+  padding: 16px 24px 40px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: 480px;
+  margin: 0 auto;
+  box-sizing: border-box;
+  text-align: center;
+}
+
+.spacer { height: 32px; }
+
+.logoTag {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 11px;
+  letter-spacing: 4px;
+  color: var(--neon);
+  border: 1px solid var(--neon);
+  padding: 5px 16px;
+  border-radius: 2px;
+  margin-bottom: 16px;
+}
+
+.title {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: clamp(28px, 8vw, 42px);
+  line-height: .9;
+  background: linear-gradient(135deg, #fff 30%, var(--neon2));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  font-weight: 400;
+  margin-bottom: 4px;
+}
+
+.sub {
+  font-size: 11px;
+  color: var(--muted);
+  margin-bottom: 12px;
+  line-height: 1.4;
+}
+
+.cards {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-align: left;
+}
+
+.card {
+  background: rgba(19,19,31,.35);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 14px 20px;
+  cursor: pointer;
+  transition: all .2s;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+
+.card:hover { transform: translateY(-2px); }
+
+.cardIcon {
+  font-size: 32px;
+  line-height: 1;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  color: var(--text);
+}
+
+.cardBody { flex: 1; min-width: 0; }
+
+.cardTitle {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 28px;
+  letter-spacing: 1px;
+  margin-bottom: 2px;
+  line-height: 1;
+}
+
+.cardDesc {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.profileTick {
+  font-size: 11px;
+  color: var(--green);
+  margin-top: 5px;
+  letter-spacing: .3px;
+}
+
+.signOut {
+  margin-top: 28px;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 13px;
+  letter-spacing: 2px;
+  padding: 8px 24px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: border-color .2s, color .2s;
+}
+.signOut:hover { border-color: var(--neon); color: var(--neon); }

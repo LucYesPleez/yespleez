@@ -1,0 +1,911 @@
+.screen {
+  min-height: 100dvh;
+  overflow-y: auto;
+  padding-bottom: calc(72px + env(safe-area-inset-bottom, 16px));
+}
+
+/* Giant gradient title */
+.hero {
+  padding: 0 16px 2px;
+  text-align: center;
+  max-width: 680px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.heroTitle {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: clamp(51px, 12.9vw, 79px);
+  line-height: 0.92;
+  letter-spacing: 4px;
+  background: linear-gradient(90deg, #FF2D78 0%, #9D4EDD 50%, #00E5FF 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  white-space: nowrap;
+  filter: drop-shadow(0 0 8px rgba(255,255,255,0.125));
+  font-weight: 400;
+}
+
+.heroSub {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 8px;
+  letter-spacing: 0.5px;
+}
+
+/* 4-col grid date tabs */
+.dateTabs {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 7px;
+  padding: 14px 16px 0;
+  max-width: 680px;
+  margin: 0 auto;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.dateTab, .dateTabActive {
+  background: rgba(0,229,255,.07);
+  border: 1px solid rgba(0,229,255,.25);
+  border-radius: 10px;
+  padding: 9px 4px 8px;
+  cursor: pointer;
+  text-align: center;
+  touch-action: manipulation;
+}
+
+.dateTabActive {
+  background: rgba(0,229,255,.18);
+  border-color: var(--neon2);
+}
+
+.dateTabLabel {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 13px;
+  letter-spacing: 1px;
+  color: var(--neon2);
+  line-height: 1.1;
+}
+
+.dateTabSub {
+  font-size: 9px;
+  color: var(--muted);
+  margin-top: 3px;
+  line-height: 1.2;
+}
+
+/* Calendar date strip */
+.calWrap {
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 12px 16px 0;
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.calHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.monthBtn {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 15px;
+  letter-spacing: 2px;
+  color: var(--neon2);
+  background: none;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px 8px 2px;
+  margin: -8px -10px -8px -2px;
+  touch-action: manipulation;
+  user-select: none;
+}
+
+.monthNav {
+  display: flex;
+  gap: 6px;
+}
+
+.monthNav button {
+  background: var(--card);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 8px;
+  width: 28px;
+  height: 28px;
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dateStrip {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 10px;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.dateStrip::-webkit-scrollbar { display: none; }
+
+.stripDay, .stripDayActive, .stripDayToday {
+  flex-shrink: 0;
+  width: 38px;
+  height: 52px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: transparent;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  touch-action: manipulation;
+}
+
+.stripDayToday {
+  border-color: var(--neon2);
+}
+
+.stripDayActive {
+  background: rgba(0,229,255,.12);
+  border-color: var(--neon2);
+}
+
+.stripDayName {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 9px;
+  letter-spacing: 0.5px;
+  color: var(--muted);
+  line-height: 1;
+}
+
+.stripDayActive .stripDayName { color: var(--neon2); }
+
+.stripDayNum {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 15px;
+  color: var(--text);
+  line-height: 1;
+}
+
+.stripDayActive .stripDayNum { color: var(--neon2); }
+.stripDayToday .stripDayNum  { color: var(--neon2); }
+
+.stripDot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #FF2D78;
+  flex-shrink: 0;
+}
+
+.stripDayActive .stripDot { background: #FF2D78; }
+
+/* Month picker modal */
+.pickerOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 600;
+  background: rgba(0,0,0,.6);
+}
+
+.pickerModal {
+  position: fixed;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(100%, 480px);
+  z-index: 601;
+  background: var(--dark);
+  border-radius: 20px 20px 0 0;
+  border-top: 1px solid var(--border);
+  padding: 20px 16px calc(80px + env(safe-area-inset-bottom, 16px));
+  box-sizing: border-box;
+}
+
+.pickerHandle {
+  width: 36px;
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  margin: 0 auto 20px;
+}
+
+.pickerSelects {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.pickerSelect {
+  flex: 1;
+  background: var(--card2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text);
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 15px;
+  letter-spacing: 1px;
+  padding: 10px 12px;
+  outline: none;
+  appearance: none;
+  cursor: pointer;
+}
+
+.pickerSelectYear {
+  composes: pickerSelect;
+  flex: 0 0 100px;
+}
+
+.pickerNav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.pickerNav button {
+  background: var(--card);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 8px;
+  width: 36px;
+  height: 36px;
+  cursor: pointer;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pickerNavLabel {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 18px;
+  letter-spacing: 2px;
+  color: var(--neon2);
+}
+
+.pickerDayHeaders {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.pickerDayHeaders div {
+  text-align: center;
+  font-size: 10px;
+  color: var(--muted);
+}
+
+.pickerGrid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+
+.pickerDay, .pickerDayEvent, .pickerDayToday {
+  aspect-ratio: 1;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 14px;
+  letter-spacing: .5px;
+  cursor: default;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+
+.pickerDayEvent {
+  background: var(--card2);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.pickerDayEvent:hover { background: var(--card); }
+
+.pickerDayToday {
+  background: rgba(0,229,255,.15);
+  color: var(--neon2);
+  border: 1px solid var(--neon2);
+  cursor: pointer;
+}
+
+/* Filter section */
+.filterWrap {
+  padding: 4px 16px 0;
+  max-width: 680px;
+  margin: 0 auto;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.chipLabel {
+  font-size: 10px;
+  color: var(--muted);
+  letter-spacing: 1.5px;
+  font-family: 'Bebas Neue', sans-serif;
+  white-space: nowrap;
+  margin-bottom: 7px;
+}
+
+.chips {
+  display: flex;
+  gap: 7px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  align-items: center;
+  padding-bottom: 2px;
+}
+
+.chips::-webkit-scrollbar { display: none; }
+
+.postcodeWrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.postcodeInput {
+  background: var(--card2);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  color: var(--text);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 11px;
+  padding: 6px 12px;
+  outline: none;
+  width: 110px;
+  cursor: pointer;
+  transition: border-color .2s;
+  box-sizing: border-box;
+}
+
+.postcodeInput:focus { border-color: var(--neon2); }
+
+.radiusSelect {
+  background: var(--card2);
+  border: 1px solid var(--neon2);
+  border-radius: 20px;
+  color: var(--neon2);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 11px;
+  padding: 6px 10px;
+  outline: none;
+  appearance: none;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.chip, .chipActive {
+  flex-shrink: 0;
+  background: rgba(255,255,255,.04);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  border-radius: 20px;
+  padding: 6px 14px;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 12px;
+  letter-spacing: 0.8px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.chipActive {
+  background: rgba(255,255,255,.13);
+  border-color: rgba(255,255,255,.35);
+  color: var(--text);
+}
+
+/* Event list */
+.list {
+  padding: 14px 16px 20px;
+  max-width: 680px;
+  margin: 0 auto;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.dateLabel {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 13px;
+  letter-spacing: 2px;
+  color: var(--neon2);
+  margin: 14px 0 10px 4px;
+  text-transform: uppercase;
+}
+
+.empty {
+  color: var(--muted);
+  font-size: 14px;
+  text-align: center;
+  margin-top: 40px;
+}
+
+/* Section headers for TONIGHT / NEARBY NIGHTS */
+.sectionHead {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 4px 0 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.sectionHeadLabel {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 14px;
+  letter-spacing: 2px;
+  color: var(--neon);
+}
+
+.sectionHeadDate {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 13px;
+  letter-spacing: 1px;
+  color: var(--muted);
+}
+
+/* Nothing announced placeholder */
+.emptyDay {
+  padding: 28px 16px;
+  text-align: center;
+  background: var(--card2);
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  margin-bottom: 8px;
+}
+
+.emptyDayTitle {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 18px;
+  letter-spacing: 2px;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+
+.emptyDaySub {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+/* Back button inside section head */
+.backBtn {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 12px;
+  letter-spacing: 1.5px;
+  color: var(--neon2);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+/* ── New 3-section layout ── */
+
+.sections {
+  padding: 14px 16px 20px;
+  max-width: 680px;
+  margin: 0 auto;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.sectionBlock {
+  margin-bottom: 28px;
+}
+
+.sectionTitle {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 22px;
+  letter-spacing: 2px;
+  color: var(--text);
+  display: inline;
+}
+
+.sectionRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.gradientLine {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(to right, #00E5FF, #BF5FFF, transparent);
+}
+
+.sectionPill {
+  display: inline-flex;
+  align-items: center;
+  background: rgba(0,229,255,.08);
+  border: 1px solid rgba(0,229,255,.25);
+  border-radius: 20px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .8px;
+  padding: 3px 10px;
+  font-family: 'DM Sans', sans-serif;
+  vertical-align: middle;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-image: linear-gradient(135deg, #00E5FF, #BF5FFF);
+}
+
+.sectionSub {
+  display: inline-block;
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  font-family: 'Bebas Neue', sans-serif;
+  vertical-align: middle;
+  background: linear-gradient(135deg, #00E5FF, #BF5FFF);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  opacity: 0.7;
+}
+
+.viewAll {
+  background: linear-gradient(135deg, #00E5FF, #BF5FFF);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  border: none;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 14px;
+  letter-spacing: 1px;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  opacity: 0.6;
+  transition: opacity .15s;
+}
+.viewAll:hover { opacity: 1; }
+
+/* ── Featured card ── */
+
+.featuredCard {
+  position: relative;
+  border-radius: 20px;
+  overflow: hidden;
+  min-height: 280px;
+  background: linear-gradient(135deg, #1a0533 0%, #2d1b69 45%, #0d3b2e 100%);
+  background-size: cover;
+  background-position: center;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  transition: transform .2s, box-shadow .2s;
+}
+.featuredCard:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 32px rgba(0,0,0,.45);
+}
+
+.featuredOverlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to bottom, rgba(10,10,15,.1) 0%, rgba(10,10,15,.85) 100%);
+}
+
+.featuredBadge {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  background: #BF5FFF;
+  color: #fff;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .8px;
+  padding: 3px 10px;
+  border-radius: 6px;
+}
+
+.featuredContent {
+  position: relative;
+  z-index: 1;
+  padding: 16px 60px 16px 16px;
+}
+
+.featuredDate {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 11px;
+  letter-spacing: 2px;
+  color: rgba(232,232,240,.6);
+  margin-bottom: 4px;
+}
+
+.featuredName {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: clamp(22px, 5vw, 30px);
+  letter-spacing: 1px;
+  line-height: 1;
+  color: #fff;
+  margin-bottom: 8px;
+}
+
+.featuredVenue {
+  font-size: 12px;
+  color: rgba(232,232,240,.7);
+  margin-bottom: 8px;
+}
+
+.featuredTags {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.featuredTag {
+  background: rgba(255,255,255,.12);
+  border: 1px solid rgba(255,255,255,.2);
+  border-radius: 20px;
+  font-size: 11px;
+  padding: 3px 10px;
+  color: rgba(232,232,240,.85);
+}
+
+.featuredArrow {
+  position: absolute;
+  bottom: 14px;
+  right: 14px;
+  z-index: 2;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: #BF5FFF;
+  color: #fff;
+  border: none;
+  font-size: 22px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+/* ── Weekend horizontal scroll cards ── */
+
+.weekendScroll {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 4px;
+}
+.weekendScroll::-webkit-scrollbar { display: none; }
+
+.weekendCard {
+  position: relative;
+  flex-shrink: 0;
+  width: 210px;
+  height: 260px;
+  border-radius: 14px;
+  overflow: hidden;
+  background: linear-gradient(135deg, #1a0533 0%, #2d1b69 100%);
+  background-size: cover;
+  background-position: center;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  transition: transform .2s, box-shadow .2s;
+}
+.weekendCard:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 28px rgba(0,0,0,.45);
+}
+
+.weekendOverlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to bottom, rgba(10,10,15,.05) 30%, rgba(10,10,15,.85) 100%);
+}
+
+.weekendBadges {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  z-index: 1;
+}
+
+.weekendBadge {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .8px;
+  padding: 3px 8px;
+  border-radius: 6px;
+}
+
+.weekendHeart {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: rgba(0,0,0,.45);
+  border: none;
+  color: #fff;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(4px);
+}
+
+.comingHeart {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.weekendContent {
+  position: relative;
+  z-index: 1;
+  padding: 10px;
+}
+
+.weekendName {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 16px;
+  letter-spacing: .5px;
+  line-height: 1.1;
+  color: #fff;
+  margin-bottom: 3px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.weekendVenue {
+  font-size: 11px;
+  color: rgba(232,232,240,.6);
+  margin-bottom: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.weekendDate {
+  font-size: 10px;
+  color: rgba(232,232,240,.5);
+  margin-bottom: 4px;
+}
+
+.weekendTags {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.weekendTag {
+  background: rgba(255,255,255,.07);
+  border-radius: 6px;
+  font-size: 9px;
+  padding: 2px 7px;
+  color: var(--muted);
+  letter-spacing: .3px;
+}
+
+/* ── Coming Up list rows ── */
+
+.comingRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: transform .2s;
+}
+.comingRow:hover {
+  transform: translateY(-2px);
+}
+
+.comingThumb {
+  width: 64px;
+  height: 64px;
+  border-radius: 10px;
+  flex-shrink: 0;
+  background: linear-gradient(135deg, #1a0533, #0d3b2e);
+  background-size: cover;
+  background-position: center;
+}
+
+.comingInfo {
+  flex: 1;
+  min-width: 0;
+}
+
+.comingName {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 18px;
+  letter-spacing: .5px;
+  line-height: 1.1;
+  color: var(--text);
+  margin-bottom: 3px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.comingVenue {
+  font-size: 11px;
+  color: var(--muted);
+  margin-bottom: 5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.comingTags {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+.comingBadge {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .8px;
+  padding: 2px 7px;
+  border-radius: 6px;
+}
+
+.comingTag {
+  background: rgba(255,255,255,.08);
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 4px;
+  font-size: 10px;
+  padding: 2px 7px;
+  color: var(--muted);
+}
+
+.comingDate {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: var(--muted);
+  text-align: right;
+  flex-shrink: 0;
+  white-space: nowrap;
+}

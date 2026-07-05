@@ -1,0 +1,394 @@
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { supabase } from '../lib/supabase';
+import { useSession } from '../App';
+import ImageUploadButton from '../components/ImageUploadButton';
+import s from './ArtistProfileScreen.module.css';
+import PostcodePrompt from '../components/PostcodePrompt';
+
+const STATE_OPTIONS = ['NSW','VIC','QLD','WA','SA','TAS','ACT','NT','NZ','International'];
+
+const VENUE_TYPES = [
+  'Club / Nightclub','Bar / Pub','Festival Ground','Warehouse',
+  'Rooftop','Theatre / Arts Centre','Hotel','Outdoor / Park',
+  'Private Hire','Other',
+];
+
+const ENTERTAINMENT = [
+  'DJs','Live Bands','Solo Artists','Acoustic Acts','Stand Up Comedy',
+  'Comedians','Poetry / Spoken Word','Jazz Acts','Open Mic',
+];
+
+const TECH_OPTIONS = [
+  'PA SYSTEM','LIGHTING RIG','BACKLINE','STAGE MONITORS',
+  'GREEN ROOM','LOAD IN ACCESS','IN-HOUSE ENGINEER','PROJECTOR / SCREEN',
+];
+
+const DAYS = ['MON','TUE','WED','THU','FRI','SAT','SUN'];
+
+const ACCENT = '#00E5A0';
+const ACCENT2 = '#00B4D8';
+const CYAN = '#00E5FF';
+const CYAN_RGB = '0,229,255';
+
+export default function VenueProfileScreen() {
+  const { session } = useSession();
+  const userId = session?.user?.id;
+  const navigate = useNavigate();
+
+  const [loading,  setLoading]  = useState(true);
+  const [saving,   setSaving]   = useState(false);
+  const [showPostcodePrompt, setShowPostcodePrompt] = useState(false);
+  const [saved,    setSaved]    = useState(false);
+  const [saveErr,  setSaveErr]  = useState('');
+
+  // Form state
+  const [avatarUrl,   setAvatarUrl]   = useState('');
+  const [name,        setName]        = useState('');
+  const [sound,       setSound]       = useState('');
+  const [tagline,     setTagline]     = useState('');
+  const [address,     setAddress]     = useState('');
+  const [suburb,      setSuburb]      = useState('');
+  const [state,       setState_]      = useState('');
+  const [postcode,    setPostcode]    = useState('');
+  const [venueType,   setVenueType]   = useState('');
+  const [established, setEstablished] = useState('');
+  const [bio,         setBio]         = useState('');
+  const [stageDims,   setStageDims]   = useState('');
+  const [entertain,   setEntertain]   = useState(new Set());
+  const [tech,        setTech]        = useState(new Set());
+  const [days,        setDays]        = useState(new Set());
+  const [naFields,    setNaFields]    = useState(new Set());
+  const [hasAbn,      setHasAbn]      = useState(null);
+  const [abn,         setAbn]         = useState('');
+  const [gst,         setGst]         = useState(null);
+  const [email,       setEmail]       = useState('');
+  const [website,     setWebsite]     = useState('');
+  const [instagram,   setInstagram]   = useState('');
+  const [facebook,    setFacebook]    = useState('');
+  const [tiktok,      setTiktok]      = useState('');
+  const [capacity,    setCapacity]    = useState('');
+
+  const years = Array.from({ length: new Date().getFullYear() - 1899 }, (_, i) => new Date().getFullYear() - i);
+
+  useEffect(() => {
+    if (!userId) return;
+    supabase.from('profiles').select('*').eq('user_id', userId).eq('type', 'venue').maybeSingle()
+      .then(({ data: p }) => {
+        if (p) {
+          setAvatarUrl(p.avatar || '');
+          setName(p.name || '');
+          setSound(p.sound || '');
+          setTagline(p.tagline || '');
+          setAddress(p.location || '');
+          setSuburb(p.suburb || '');
+          setState_(p.state || '');
+          setPostcode(p.postcode || '');
+          setVenueType(p.venue_type || '');
+          setEstablished(p.established_year ? String(p.established_year) : '');
+          setBio(p.bio || '');
+          setStageDims(p.stage_dims || '');
+          setCapacity(p.capacity ? String(p.capacity) : '');
+          setEntertain(new Set((p.genre_string || '').split(',').map(x => x.trim()).filter(Boolean)));
+          setTech(new Set((p.tech_features || '').split(',').map(x => x.trim()).filter(Boolean)));
+          setDays(new Set((p.live_nights || '').split(',').map(x => x.trim()).filter(Boolean)));
+          setHasAbn(p.has_abn ?? null);
+          setAbn(p.abn || '');
+          setGst(p.gst_registered ?? null);
+          const naSet = new Set();
+          const loadNa = (val, setFn, key) => { if (val === 'N/A') { naSet.add(key); setFn(''); } else { setFn(val || ''); } };
+          loadNa(p.contact_email || p.email, setEmail, 'email');
+          loadNa(p.website, setWebsite, 'website');
+          loadNa(p.instagram, setInstagram, 'instagram');
+          loadNa(p.facebook, setFacebook, 'facebook');
+          loadNa(p.tiktok, setTiktok, 'tiktok');
+          setNaFields(naSet);
+        }
+        setLoading(false);
+      });
+  }, [userId]);
+
+  function toggleNa(field) {
+    setNaFields(prev => {
+      const next = new Set(prev);
+      if (next.has(field)) { next.delete(field); } else { next.add(field); }
+      return next;
+    });
+  }
+
+  function toggleSet(set, setFn, val) {
+    const next = new Set(set);
+    next.has(val) ? next.delete(val) : next.add(val);
+    setFn(next);
+  }
+
+  async function save(skipPostcodeCheck = false) {
+    if (!name.trim()) { setSaveErr('Please enter a venue name'); return; }
+    if (!skipPostcodeCheck && !postcode) { setShowPostcodePrompt(true); return; }
+    setSaving(true); setSaveErr('');
+    try {
+      const finalAvatar = avatarUrl;
+      const payload = {
+        user_id:          userId,
+        type:             'venue',
+        name:             name.trim(),
+        sound:            sound.trim(),
+        tagline:          tagline.trim(),
+        location:         address.trim(),
+        suburb:           suburb.trim(),
+        state:            state,
+        postcode:         postcode,
+        venue_type:       venueType,
+        established_year: established ? parseInt(established) : null,
+        genre_string:     [...entertain].join(', '),
+        bio:              bio.trim(),
+        stage_dims:       stageDims.trim(),
+        tech_features:    [...tech].join(', '),
+        live_nights:      [...days].join(', '),
+        capacity:         capacity ? parseInt(capacity) : null,
+        has_abn:          hasAbn,
+        abn:              abn.trim(),
+        gst_registered:   gst,
+        contact_email:    naFields.has('email')     ? 'N/A' : email.trim(),
+        website:          naFields.has('website')   ? 'N/A' : website.trim(),
+        instagram:        naFields.has('instagram') ? 'N/A' : instagram.trim(),
+        facebook:         naFields.has('facebook')  ? 'N/A' : facebook.trim(),
+        tiktok:           naFields.has('tiktok')    ? 'N/A' : tiktok.trim(),
+        avatar:           finalAvatar || null,
+        updated_at:       new Date().toISOString(),
+      };
+      const { data: existing } = await supabase.from('profiles').select('user_id').eq('user_id', userId).eq('type', 'venue').maybeSingle();
+      if (existing) {
+        await supabase.from('profiles').update(payload).eq('user_id', userId).eq('type', 'venue');
+      } else {
+        await supabase.from('profiles').insert(payload);
+      }
+      setSaved(true);
+      setTimeout(() => { setSaved(false); navigate('/industry/venue'); }, 1200);
+    } catch (e) {
+      setSaveErr('Save failed: ' + e.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (loading) return <div className={s.screen}><p className={s.loading}>LOADING…</p></div>;
+
+  return (
+    <div className={s.screen}>
+      {showPostcodePrompt && <PostcodePrompt onSave={() => setShowPostcodePrompt(false)} onDismiss={() => { setShowPostcodePrompt(false); save(true); }} />}
+      {/* Header */}
+      <div className={s.header}>
+        <div className={s.headerText}>
+          <div className={s.h1} style={{ background: `linear-gradient(135deg,${ACCENT},${ACCENT2})`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>YOUR<br/>VENUE</div>
+        </div>
+      </div>
+
+      {/* Avatar */}
+      <div className={s.avatarBlock}>
+        <ImageUploadButton type="avatar" userId={userId} bucket="avatars" pathPrefix="venue_avatars" onUpload={url => setAvatarUrl(url)}>
+          {({ trigger, statusBadge }) => (
+            <div style={{ position: 'relative' }} onClick={trigger}>
+              <div className={`${s.avatarRing} ${s.avatarRingVenue}`}>
+                {avatarUrl
+                  ? <img src={avatarUrl} className={s.avatarImg} alt="venue" />
+                  : <div className={s.avatarPH}>
+                      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="rgba(0,229,160,.6)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
+                      <span style={{ color: 'rgba(0,229,160,.6)', fontFamily: "'Bebas Neue'", fontSize: 12, letterSpacing: 1, marginTop: 6 }}>PHOTO</span>
+                    </div>
+                }
+              </div>
+              {statusBadge}
+            </div>
+          )}
+        </ImageUploadButton>
+        <div className={s.avatarHint}>Tap to upload a venue photo</div>
+      </div>
+
+      {/* Venue Name */}
+      <div className={s.section}>
+        <div className={s.sectionTitle} style={{ color: ACCENT, borderImage: 'linear-gradient(90deg, #00E5A0, #00B4D8) 1' }}>VENUE NAME</div>
+        <div className={s.field}>
+          <input className={s.input} value={name} onChange={e => setName(e.target.value)} placeholder="e.g. The Metro Theatre" />
+        </div>
+      </div>
+
+      {/* Vibe + Tagline */}
+      <div className={s.section}>
+        <div className={s.sectionTitle} style={{ color: ACCENT, borderImage: 'linear-gradient(90deg, #00E5A0, #00B4D8) 1' }}>LISTING INFO</div>
+        <div className={s.field}>
+          <label className={s.fieldLabel}>YOUR VIBE <span className={s.fieldHint}>shows on your listing · 35 chars</span></label>
+          <input className={s.input} value={sound} onChange={e => setSound(e.target.value.slice(0,35))} placeholder="e.g. Underground warehouse techno venue" maxLength={35} />
+          <div className={s.charCount}>{sound.length} / 35</div>
+        </div>
+        <div className={s.field}>
+          <label className={s.fieldLabel}>TAGLINE <span className={s.fieldHint}>120 chars</span></label>
+          <textarea className={s.textarea} rows={2} value={tagline} onChange={e => setTagline(e.target.value.slice(0,120))} placeholder="Sydney's most iconic live music room. Three floors, two stages, one vibe." maxLength={120} style={{ minHeight: 56 }} />
+          <div className={s.charCount}>{tagline.length} / 120</div>
+        </div>
+      </div>
+
+      {/* Location */}
+      <div className={s.section}>
+        <div className={s.sectionTitle} style={{ color: ACCENT, borderImage: 'linear-gradient(90deg, #00E5A0, #00B4D8) 1' }}>LOCATION</div>
+        <div className={s.row}>
+          <div className={s.field} style={{ flex: 2 }}>
+            <div className={s.fieldLabel}>ADDRESS</div>
+            <input className={s.input} value={address} onChange={e => setAddress(e.target.value)} placeholder="e.g. 123 Main St" />
+          </div>
+          <div className={s.field} style={{ flex: 1 }}>
+            <div className={s.fieldLabel}>SUBURB / TOWN</div>
+            <input className={s.input} value={suburb} onChange={e => setSuburb(e.target.value)} placeholder="e.g. Bellingen" />
+          </div>
+        </div>
+        <div className={s.row}>
+          <div className={s.field} style={{ flex: 1 }}>
+            <div className={s.fieldLabel}>STATE</div>
+            <select className={s.select} value={state} onChange={e => setState_(e.target.value)}>
+              <option value="">—</option>
+              {STATE_OPTIONS.map(o => <option key={o}>{o}</option>)}
+            </select>
+          </div>
+          <div className={s.field} style={{ flex: 1 }}>
+            <div className={s.fieldLabel}>POSTCODE <span style={{ color:'#FF2D78', fontSize:9, fontWeight:700, letterSpacing:.5 }}>IMPORTANT</span></div>
+            <input className={s.input} value={postcode} onChange={e => setPostcode(e.target.value.replace(/\D/g,'').slice(0,4))} placeholder="e.g. 2454" inputMode="numeric" />
+          </div>
+        </div>
+      </div>
+
+      {/* Venue Type + Est + Capacity */}
+      <div className={s.section}>
+        <div className={s.sectionTitle} style={{ color: ACCENT, borderImage: 'linear-gradient(90deg, #00E5A0, #00B4D8) 1' }}>VENUE DETAILS</div>
+        <div className={s.row}>
+          <div className={s.field} style={{ flex: 2 }}>
+            <label className={s.fieldLabel}>VENUE TYPE</label>
+            <select className={s.select} value={venueType} onChange={e => setVenueType(e.target.value)}>
+              <option value="">Select type</option>
+              {VENUE_TYPES.map(t => <option key={t}>{t}</option>)}
+            </select>
+          </div>
+          <div className={s.field} style={{ flex: 1 }}>
+            <label className={s.fieldLabel}>EST.</label>
+            <select className={s.select} value={established} onChange={e => setEstablished(e.target.value)}>
+              <option value="">Year</option>
+              {years.map(y => <option key={y}>{y}</option>)}
+            </select>
+          </div>
+        </div>
+        <div className={s.field}>
+          <label className={s.fieldLabel}>CAPACITY</label>
+          <input className={s.input} value={capacity} onChange={e => setCapacity(e.target.value.replace(/\D/g,''))} placeholder="e.g. 500" inputMode="numeric" />
+        </div>
+      </div>
+
+      {/* Entertainment we book */}
+      <div className={s.section}>
+        <div className={s.sectionTitle} style={{ color: ACCENT, borderImage: 'linear-gradient(90deg, #00E5A0, #00B4D8) 1' }}>ENTERTAINMENT WE BOOK</div>
+        <div className={s.chips}>
+          {ENTERTAINMENT.map(e => (
+            <button key={e} type="button" className={entertain.has(e) ? s.chipOn : s.chip}
+              style={entertain.has(e) ? { background: `rgba(${CYAN_RGB},.15)`, borderColor: CYAN, color: CYAN } : { background: `rgba(${CYAN_RGB},.06)`, borderColor: `rgba(${CYAN_RGB},.2)` }}
+              onClick={() => toggleSet(entertain, setEntertain, e)}>{e}</button>
+          ))}
+        </div>
+      </div>
+
+      {/* About */}
+      <div className={s.section}>
+        <div className={s.sectionTitle} style={{ color: ACCENT, borderImage: 'linear-gradient(90deg, #00E5A0, #00B4D8) 1' }}>ABOUT THE VENUE</div>
+        <div className={s.field}>
+          <textarea className={s.textarea} rows={5} value={bio} onChange={e => setBio(e.target.value.slice(0,500))} placeholder="Tell artists and promoters what makes your venue special — history, sound system, stage setup, crowd, and the kind of nights you run." maxLength={500} style={{ minHeight: 110 }} />
+          <div className={s.charCount}>{bio.length} / 500</div>
+        </div>
+      </div>
+
+      {/* Stage & Tech */}
+      <div className={s.section}>
+        <div className={s.sectionTitle} style={{ color: ACCENT, borderImage: 'linear-gradient(90deg, #00E5A0, #00B4D8) 1' }}>STAGE & TECH</div>
+        <div className={s.chips} style={{ marginBottom: 12 }}>
+          {TECH_OPTIONS.map(t => (
+            <button key={t} type="button" className={tech.has(t) ? s.chipOn : s.chip}
+              style={tech.has(t) ? { background: `rgba(${CYAN_RGB},.15)`, borderColor: CYAN, color: CYAN, borderRadius: 6, fontFamily: "'Bebas Neue'", letterSpacing: 1.5 } : { background: `rgba(${CYAN_RGB},.06)`, borderColor: `rgba(${CYAN_RGB},.2)`, borderRadius: 6, fontFamily: "'Bebas Neue'", letterSpacing: 1.5 }}
+              onClick={() => toggleSet(tech, setTech, t)}>{t}</button>
+          ))}
+        </div>
+        <div className={s.field}>
+          <label className={s.fieldLabel}>STAGE DIMENSIONS <span className={s.fieldHint}>(optional)</span></label>
+          <input className={s.input} value={stageDims} onChange={e => setStageDims(e.target.value)} placeholder="e.g. 8m x 5m" />
+        </div>
+      </div>
+
+      {/* Live nights */}
+      <div className={s.section}>
+        <div className={s.sectionTitle} style={{ color: ACCENT, borderImage: 'linear-gradient(90deg, #00E5A0, #00B4D8) 1' }}>TYPICAL LIVE MUSIC NIGHTS</div>
+        <div className={s.pills}>
+          {DAYS.map(d => (
+            <button key={d} type="button"
+              className={days.has(d) ? s.catBtnOn : s.catBtn}
+              style={days.has(d) ? { background: `rgba(${CYAN_RGB},.15)`, borderColor: CYAN, color: CYAN, borderRadius: 6 } : { background: `rgba(${CYAN_RGB},.06)`, borderColor: `rgba(${CYAN_RGB},.2)`, borderRadius: 6 }}
+              onClick={() => toggleSet(days, setDays, d)}>{d}</button>
+          ))}
+        </div>
+      </div>
+
+      {/* ABN / GST */}
+      <div className={s.section}>
+        <div className={s.sectionTitle} style={{ color: ACCENT, borderImage: 'linear-gradient(90deg, #00E5A0, #00B4D8) 1' }}>ABN / GST</div>
+        <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
+          {[{ label: 'YES I HAVE AN ABN', val: true, active: '#00E5A0', activeBg: 'rgba(0,229,160,.15)' }, { label: 'NO ABN', val: false, active: '#FFB830', activeBg: 'rgba(255,184,48,.08)' }].map(({ label, val, active, activeBg }) => (
+            <button key={label} type="button" onClick={() => setHasAbn(val)}
+              style={{ flex: 1, fontFamily: "'Bebas Neue'", fontSize: 13, letterSpacing: 1.5, padding: '10px 14px', borderRadius: 8, cursor: 'pointer', border: `1px solid ${hasAbn === val ? active : 'var(--border)'}`, background: hasAbn === val ? activeBg : 'var(--card2)', color: hasAbn === val ? active : 'var(--muted)' }}>{label}</button>
+          ))}
+        </div>
+        {hasAbn && (
+          <>
+            <div className={s.field}>
+              <label className={s.fieldLabel}>ABN</label>
+              <input className={s.input} value={abn} onChange={e => setAbn(e.target.value)} placeholder="e.g. 12 345 678 901" />
+            </div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              {[{ label: 'GST REGISTERED', val: true, active: '#00E5A0', activeBg: 'rgba(0,229,160,.15)' }, { label: 'NOT GST REGISTERED', val: false, active: '#FFB830', activeBg: 'rgba(255,184,48,.08)' }].map(({ label, val, active, activeBg }) => (
+                <button key={label} type="button" onClick={() => setGst(val)}
+                  style={{ flex: 1, fontFamily: "'Bebas Neue'", fontSize: 12, letterSpacing: 1.2, padding: '10px 8px', borderRadius: 8, cursor: 'pointer', border: `1px solid ${gst === val ? active : 'var(--border)'}`, background: gst === val ? activeBg : 'var(--card2)', color: gst === val ? active : 'var(--muted)' }}>{label}</button>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Socials */}
+      <div className={s.section}>
+        <div className={s.sectionTitle} style={{ color: ACCENT, borderImage: 'linear-gradient(90deg, #00E5A0, #00B4D8) 1' }}>SOCIALS + LINKS</div>
+        {[
+          { key: 'email',     svg: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#e8e8f0" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m2 7 10 7 10-7"/></svg>, val: email, set: setEmail, placeholder: 'Booking / enquiry email', type: 'email' },
+          { key: 'website',   svg: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#e8e8f0" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>, val: website, set: setWebsite, placeholder: 'Website URL', type: 'url' },
+          { key: 'instagram', svg: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><defs><linearGradient id="ig" x1="0%" y1="100%" x2="100%" y2="0%"><stop offset="0%" stopColor="#f09433"/><stop offset="25%" stopColor="#e6683c"/><stop offset="50%" stopColor="#dc2743"/><stop offset="75%" stopColor="#cc2366"/><stop offset="100%" stopColor="#bc1888"/></linearGradient></defs><rect x="2" y="2" width="20" height="20" rx="5" stroke="url(#ig)"/><circle cx="12" cy="12" r="5" stroke="url(#ig)"/><circle cx="17.5" cy="6.5" r="1" fill="#dc2743"/></svg>, val: instagram, set: setInstagram, placeholder: '@yourhandle', type: 'text' },
+          { key: 'tiktok',    svg: <svg width="20" height="20" viewBox="0 0 24 24" fill="#e8e8f0"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1-2.89-2.89 2.89 2.89 0 0 1 2.89-2.89c.28 0 .54.04.79.1V9.01a6.33 6.33 0 0 0-.79-.05 6.34 6.34 0 0 0-6.34 6.34 6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.33-6.34V8.69a8.17 8.17 0 0 0 4.78 1.52V6.74a4.85 4.85 0 0 1-1.01-.05z"/></svg>, val: tiktok, set: setTiktok, placeholder: '@tiktokhandle', type: 'text' },
+          { key: 'facebook',  svg: <svg width="20" height="20" viewBox="0 0 24 24" fill="#1877F2"><path d="M24 12.073C24 5.405 18.627 0 12 0S0 5.405 0 12.073C0 18.1 4.388 23.094 10.125 24v-8.437H7.078v-3.49h3.047V9.41c0-3.025 1.792-4.697 4.533-4.697 1.312 0 2.686.236 2.686.236v2.97h-1.513c-1.491 0-1.956.93-1.956 1.886v2.267h3.328l-.532 3.49h-2.796V24C19.612 23.094 24 18.1 24 12.073z"/></svg>, val: facebook, set: setFacebook, placeholder: 'Facebook URL', type: 'url' },
+        ].map(({ key, svg, val, set, placeholder, type }) => {
+          const na = naFields.has(key);
+          return (
+            <div key={key} className={s.socialRow}>
+              <div className={s.socialIcon} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 32, flexShrink: 0 }}>{svg}</div>
+              <input className={s.input} type={type} value={val} onChange={e => set(e.target.value)} placeholder={placeholder} disabled={na} style={{ opacity: na ? 0.4 : 1 }} />
+              <button type="button" onClick={() => toggleNa(key)} style={{ flexShrink: 0, alignSelf: 'stretch', padding: '0 10px', background: na ? 'rgba(255,255,255,.06)' : 'var(--card2)', border: `1px solid ${na ? 'var(--muted)' : 'var(--border)'}`, borderRadius: 8, color: na ? 'var(--muted)' : 'rgba(255,255,255,.4)', fontFamily: "'Bebas Neue', sans-serif", fontSize: 11, letterSpacing: 1, cursor: 'pointer', whiteSpace: 'nowrap' }}>N/A</button>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Save */}
+      <div className={s.section}>
+        {saveErr && <p style={{ color: '#FF5555', fontSize: 13, marginBottom: 10 }}>{saveErr}</p>}
+        <button
+          className={s.saveBtn}
+          style={{ width: '100%', background: `linear-gradient(135deg,${ACCENT},${ACCENT2})`, color: '#fff' }}
+          onClick={() => save()}
+          disabled={saving}
+        >
+          {saved ? 'SAVED ✓' : saving ? 'SAVING…' : 'SAVE VENUE PROFILE →'}
+        </button>
+      </div>
+    </div>
+  );
+}

@@ -1,0 +1,695 @@
+.screen {
+  width: min(100%, 680px);
+  margin-left: auto;
+  margin-right: auto;
+  padding: 64px 16px 80px;
+  box-sizing: border-box;
+}
+
+.headerRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+
+.heading {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: clamp(28px, 7vw, 42px);
+  line-height: .92;
+  margin-top: 8px;
+  background: linear-gradient(135deg, #FF3399, #BF5FFF);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  font-weight: 400;
+  letter-spacing: 2px;
+}
+
+/* Profile card */
+.profileCard {
+  background: rgba(255,45,120,.06);
+  border: 1px solid rgba(255,45,120,.25);
+  border-radius: 14px;
+  padding: 16px 18px;
+  margin-bottom: 20px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  transition: border-color .2s;
+}
+.profileCard:hover { border-color: rgba(255,45,120,.5); }
+
+.avatarBox {
+  width: 52px;
+  height: 52px;
+  border-radius: 10px;
+  background: rgba(255,45,120,.12);
+  border: 1.5px solid rgba(255,45,120,.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.avatarImg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 9px;
+}
+
+.profileInfo { flex: 1; min-width: 0; }
+
+.profileName {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 20px;
+  letter-spacing: 1px;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profileSub {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.profileGenres {
+  font-size: 11px;
+  color: var(--neon);
+  margin-top: 3px;
+}
+
+.profileCta {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 13px;
+  letter-spacing: 1px;
+  color: var(--neon);
+  flex-shrink: 0;
+}
+
+/* Stats */
+.stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.statBox {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 12px;
+  text-align: center;
+}
+
+.statValue {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 26px;
+  letter-spacing: 1px;
+  color: var(--neon);
+}
+
+.statLabel {
+  font-size: 10px;
+  color: var(--muted);
+  letter-spacing: 1px;
+  font-family: 'Bebas Neue', sans-serif;
+}
+
+/* Tabs */
+.tabBar {
+  display: flex;
+  gap: 0;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.tabBtn {
+  flex: 1;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 14px;
+  letter-spacing: 2px;
+  padding: 10px;
+  cursor: pointer;
+  transition: color .15s, border-bottom-color .15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.tabBadge {
+  background: var(--neon);
+  color: #fff;
+  border-radius: 10px;
+  font-size: 10px;
+  padding: 1px 6px;
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 700;
+}
+
+/* Event cards */
+.eventCard {
+  position: relative;
+  overflow: hidden;
+  border-radius: 10px;
+  margin-bottom: 12px;
+  background: var(--card);
+  border: 1px solid #00e676;
+  cursor: pointer;
+  min-height: 90px;
+  transition: border-color .2s;
+}
+.eventCard:hover { border-color: #00e676; }
+.eventCardLive { border-color: #00e676; }
+.eventCardLive:hover { border-color: #00e676; }
+
+.posterBg {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-repeat: no-repeat;
+}
+
+.posterOverlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, rgba(10,10,20,.92) 0%, rgba(10,10,20,.55) 50%, rgba(10,10,20,.80) 100%);
+}
+
+.eventInner {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  min-height: 90px;
+}
+
+.eventInfo {
+  flex: 1;
+  min-width: 0;
+  padding: 14px 12px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.eventName {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 18px;
+  letter-spacing: 1px;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.eventMeta {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 3px;
+}
+
+.eventActions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 6px;
+  flex-shrink: 0;
+  padding: 14px 10px 14px 12px;
+}
+
+.statusBadge {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 10px;
+  letter-spacing: 1px;
+  border-radius: 4px;
+  padding: 2px 7px;
+  border: 1px solid;
+}
+
+.statusLive  { color: var(--neon2); border-color: rgba(0,229,255,.4); }
+.statusDraft { color: var(--muted); border-color: var(--border); }
+
+.appsOpen {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: var(--green);
+  border: 1px solid var(--green);
+  border-radius: 2px;
+  padding: 2px 7px;
+  white-space: nowrap;
+}
+
+.appsClosed {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  padding: 2px 7px;
+  white-space: nowrap;
+}
+
+.publicBadge {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: var(--neon2);
+  border: 1px solid rgba(0,229,255,.3);
+  border-radius: 2px;
+  padding: 2px 7px;
+  white-space: nowrap;
+}
+
+.privateBadge {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  padding: 2px 7px;
+  white-space: nowrap;
+}
+
+.editBtn {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 10px;
+  letter-spacing: 1px;
+  padding: 4px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color .15s;
+}
+.editBtn:hover { border-color: rgba(255,255,255,.35); }
+
+/* Create button */
+.createBtn {
+  width: 100%;
+  background: linear-gradient(135deg, #99204d, #6b2e99);
+  border: none;
+  color: #fff;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 18px;
+  letter-spacing: 2px;
+  padding: 14px;
+  border-radius: 10px;
+  margin-top: 8px;
+  cursor: pointer;
+  transition: opacity .15s;
+}
+.createBtn:hover { opacity: .85; }
+
+.empty {
+  font-size: 13px;
+  color: var(--muted);
+  text-align: center;
+  padding: 40px 0;
+}
+
+/* Sub-tabs (PENDING / ACCEPTED / REJECTED) */
+.subTabBar {
+  display: flex;
+  gap: 0;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.subTab {
+  flex: 1;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 13px;
+  letter-spacing: 1.5px;
+  color: var(--muted);
+  padding: 8px 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  transition: color .15s, border-bottom-color .15s;
+}
+
+.subTabCount {
+  background: var(--card2);
+  color: var(--muted);
+  border-radius: 10px;
+  font-size: 10px;
+  padding: 1px 6px;
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+/* Application card */
+.appCard {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 10px;
+}
+
+.appCardTop {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.appAvatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  object-fit: cover;
+  flex-shrink: 0;
+  border: 1.5px solid var(--border);
+}
+
+.appAvatarPH {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  background: var(--card2);
+  border: 1.5px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 20px;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+.appInfo { flex: 1; min-width: 0; }
+
+.appName {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 16px;
+  letter-spacing: 1px;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.appSound {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.appMixLink {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: var(--neon2);
+  text-decoration: none;
+  display: block;
+  margin-top: 3px;
+}
+
+.appStatus {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 11px;
+  letter-spacing: 1px;
+  border: 1px solid;
+  border-radius: 8px;
+  padding: 3px 8px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.appStatus[data-status="pending"]  { color: var(--gold);  border-color: var(--gold); }
+.appStatus[data-status="accepted"] { color: var(--green); border-color: var(--green); }
+.appStatus[data-status="rejected"] { color: var(--muted); border-color: var(--border); }
+
+.appNote {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 8px;
+  font-style: italic;
+  line-height: 1.4;
+}
+
+.appActions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.appBtnAccept {
+  flex: 1;
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 12px;
+  letter-spacing: 1.5px;
+  padding: 7px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: border-color .15s, color .15s;
+}
+.appBtnAccept:hover { border-color: var(--green); color: var(--green); }
+
+.appBtnReject {
+  flex: 1;
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 12px;
+  letter-spacing: 1.5px;
+  padding: 7px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: border-color .15s, color .15s;
+}
+.appBtnReject:hover { border-color: var(--neon); color: var(--neon); }
+
+/* Artist card (ARTISTS tab) */
+.artistCard {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 10px;
+}
+
+.needsSlot {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: var(--gold);
+  border: 1px solid var(--gold);
+  border-radius: 6px;
+  padding: 3px 8px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.evtList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 315px;
+  overflow-y: scroll;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  mask-image: linear-gradient(to bottom, black 75%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, black 75%, transparent 100%);
+}
+.evtList::-webkit-scrollbar { display: none; }
+
+/* Horizontal event scroll */
+.evtScroll {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+  margin-bottom: 4px;
+  scrollbar-width: none;
+}
+.evtScroll::-webkit-scrollbar { display: none; }
+
+.evtScrollCard {
+  position: relative;
+  flex-shrink: 0;
+  cursor: pointer;
+  border-radius: 14px;
+  overflow: hidden;
+  transition: transform .15s;
+}
+.evtScrollCard:hover { transform: translateY(-2px); }
+
+/* Event card wrapper — handles hover so overlay pills don't cause flicker */
+.evtCardWrap {
+  position: relative;
+  border-radius: 12px;
+  transition: transform .15s, box-shadow .15s;
+  cursor: pointer;
+}
+.evtCardWrap:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 0 14px rgba(0,230,118,.35);
+}
+
+/* Needs Attention */
+.attention {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(255,184,48,.07);
+  border: 1px solid rgba(255,184,48,.3);
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin-bottom: 16px;
+}
+
+.attentionDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ffb830;
+  flex-shrink: 0;
+}
+
+.attentionText {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 12px;
+  letter-spacing: 1px;
+  color: #ffb830;
+}
+
+/* Lineups */
+.lineupGroup {
+  margin-bottom: 4px;
+}
+
+.lineupGroupHeader {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.lineupEventName {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 18px;
+  letter-spacing: 1px;
+  color: var(--text);
+}
+
+.lineupEventDate {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+/* Following section */
+.followingSection {
+  margin-top: 36px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border);
+}
+
+.followingHead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.followingLabel {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 16px;
+  letter-spacing: 2px;
+  color: var(--muted);
+}
+
+.followingCount {
+  background: var(--card2);
+  color: var(--muted);
+  border-radius: 10px;
+  font-size: 11px;
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 700;
+  padding: 1px 8px;
+}
+
+.evtListHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.evtListCount {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 12px;
+  letter-spacing: 1px;
+  color: var(--muted);
+}
+
+.viewAll {
+  background: none;
+  border: none;
+  font-family: 'Comic Sans MS', 'Comic Sans', cursive;
+  font-size: 12px;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 0;
+}
+.viewAll:hover { color: var(--text); }
+
+.completionWrap { margin-bottom: 16px; }
+
+.completionBar {
+  height: 4px;
+  background: rgba(255,255,255,.08);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-bottom: 6px;
+}
+
+.completionFill {
+  height: 100%;
+  background: #FF3399;
+  border-radius: 2px;
+  transition: width .4s;
+}
+
+.completionLabel {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  color: var(--muted);
+}
+

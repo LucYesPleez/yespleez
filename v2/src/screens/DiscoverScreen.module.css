@@ -1,0 +1,193 @@
+.screen {
+  min-height: 100dvh;
+  overflow-y: auto;
+  padding-bottom: calc(72px + env(safe-area-inset-bottom, 16px));
+}
+
+.inner {
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 64px 20px 0;
+}
+
+.title {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: clamp(52px, 13vw, 80px);
+  line-height: .92;
+  font-weight: 400;
+  display: inline-block;
+  background: linear-gradient(90deg, #BF5FFF 0%, #ffb830 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-bottom: 20px;
+}
+
+.subtitle {
+  font-size: 13px;
+  color: var(--muted);
+  margin: -12px 0 20px;
+  letter-spacing: .5px;
+}
+
+.searchWrap {
+  position: relative;
+  margin-bottom: 12px;
+}
+
+.searchInput {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--card);
+  border: 1.5px solid var(--neon2);
+  border-radius: 12px;
+  color: var(--text);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 15px;
+  padding: 13px 44px 13px 16px;
+  outline: none;
+}
+
+.searchInput::placeholder { color: #404060; font-size: 12px; }
+
+.searchIcon {
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  opacity: .5;
+  display: flex;
+  color: var(--text);
+  pointer-events: none;
+}
+
+.filters {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+  align-items: center;
+}
+
+.filterPill {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  color: var(--text);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12px;
+  padding: 6px 12px;
+  outline: none;
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+  height: 32px;
+  box-sizing: border-box;
+}
+
+.sectionLabel {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 11px;
+  letter-spacing: 2px;
+  color: var(--muted);
+  padding: 0 0 12px;
+}
+
+.results { padding-bottom: 40px; }
+
+.hint {
+  text-align: center;
+  padding: 40px 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.8;
+}
+
+.card {
+  background: var(--card);
+  border: 1.5px solid rgba(0,229,255,.25);
+  border-radius: 14px;
+  padding: 16px 18px;
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  cursor: pointer;
+  transition: border-color .2s;
+  width: 100%;
+  text-align: left;
+  box-sizing: border-box;
+}
+
+.card:hover { border-color: rgba(0,229,255,.55); }
+
+.cardAvatar {
+  width: 56px;
+  height: 56px;
+  border-radius: 10px;
+  object-fit: cover;
+  border: 2px solid;
+  flex-shrink: 0;
+}
+
+.cardAvatarPH {
+  width: 56px;
+  height: 56px;
+  border-radius: 10px;
+  background: var(--card2);
+  border: 2px solid;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 22px;
+  flex-shrink: 0;
+}
+
+.cardInfo { flex: 1; min-width: 0; }
+
+.cardNameRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 3px;
+}
+
+.cardName {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 20px;
+  letter-spacing: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text);
+}
+
+.cardBadge {
+  border: 1px solid;
+  border-radius: 20px;
+  font-size: 10px;
+  padding: 2px 8px;
+  font-family: 'Bebas Neue', sans-serif;
+  letter-spacing: 1px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.cardLoc {
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 3px;
+}
+
+.cardSound {
+  font-size: 12px;
+  margin-bottom: 3px;
+}
+
+.cardBio {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.5;
+}

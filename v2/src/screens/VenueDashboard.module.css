@@ -1,0 +1,355 @@
+.screen {
+  width: min(100%, 680px);
+  margin-left: auto;
+  margin-right: auto;
+  padding: 64px 16px 80px;
+  box-sizing: border-box;
+}
+
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.headerRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+
+.heading {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: clamp(28px, 7vw, 42px);
+  line-height: .92;
+  margin-top: 8px;
+  background: linear-gradient(135deg, #00E5A0, #00B4D8);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  font-weight: 400;
+  letter-spacing: 2px;
+}
+
+/* Profile card — green accent */
+.profileCard {
+  background: rgba(0,229,160,.06);
+  border: 1px solid rgba(0,229,160,.25);
+  border-radius: 14px;
+  padding: 16px 18px;
+  margin-bottom: 20px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  transition: border-color .2s;
+}
+.profileCard:hover { border-color: rgba(0,229,160,.5); }
+
+.avatarBox {
+  width: 52px;
+  height: 52px;
+  border-radius: 10px;
+  background: rgba(0,229,160,.12);
+  border: 1.5px solid rgba(0,229,160,.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.avatarImg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 9px;
+}
+
+.profileInfo { flex: 1; min-width: 0; }
+
+.profileName {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 20px;
+  letter-spacing: 1px;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profileSub {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.profileGenres {
+  font-size: 11px;
+  color: #00E5A0;
+  margin-top: 3px;
+}
+
+.profileCta {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 13px;
+  letter-spacing: 1px;
+  color: #00E5A0;
+  flex-shrink: 0;
+}
+
+.setupCard {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+.setupTitle {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 18px;
+  letter-spacing: 2px;
+  color: var(--text);
+  margin-bottom: 8px;
+}
+
+.setupDesc {
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 16px;
+  line-height: 1.5;
+}
+
+.btnPink {
+  background: var(--neon);
+  color: #fff;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 16px;
+  letter-spacing: 2px;
+  padding: 10px 28px;
+  border-radius: 8px;
+}
+
+.profileCard {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.avatar {
+  width: 56px;
+  height: 56px;
+  border-radius: 10px;
+  object-fit: cover;
+  border: 2px solid var(--neon2);
+  flex-shrink: 0;
+}
+
+.avatarPlaceholder {
+  width: 56px;
+  height: 56px;
+  border-radius: 10px;
+  background: var(--card2);
+  border: 2px solid var(--neon2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 24px;
+  color: var(--neon2);
+  flex-shrink: 0;
+}
+
+.profileInfo { flex: 1; min-width: 0; }
+
+.profileName {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 18px;
+  letter-spacing: 1px;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profileLocation, .profileType {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.profileType { color: var(--neon2); }
+
+.editBtn {
+  background: none;
+  color: var(--neon2);
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 12px;
+  letter-spacing: 1px;
+  border: 1px solid var(--neon2);
+  border-radius: 6px;
+  padding: 4px 10px;
+  flex-shrink: 0;
+}
+
+.stats {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chip {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 12px;
+  letter-spacing: 1px;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  background: var(--card2);
+  opacity: 1;
+  border-radius: 8px;
+  padding: 5px 12px;
+}
+
+.eventRow {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 16px;
+  margin-bottom: 8px;
+}
+
+.eventName {
+  font-size: 14px;
+  color: var(--text);
+  font-weight: 500;
+}
+
+.eventDate {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+/* Enquiry tabs */
+.enqTabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.enqTab,
+.enqTabActive {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 12px;
+  letter-spacing: 1.5px;
+  padding: 5px 14px;
+  border-radius: 16px;
+  background: var(--card2);
+  border: 1px solid var(--border);
+  color: var(--muted);
+}
+
+.enqTabActive {
+  background: var(--neon2);
+  border-color: var(--neon2);
+  color: var(--dark);
+}
+
+/* Search */
+.searchWrap {
+  position: relative;
+  margin-bottom: 12px;
+}
+
+.searchIcon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 14px;
+}
+
+.searchInput {
+  width: 100%;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px 10px 36px;
+  color: var(--text);
+  font-size: 13px;
+  outline: none;
+}
+
+.searchInput:focus {
+  border-color: var(--neon2);
+}
+
+/* Enquiry card */
+.enqCard {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 16px;
+  margin-bottom: 8px;
+}
+
+.enqLeft { flex: 1; min-width: 0; }
+
+.enqType {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 13px;
+  letter-spacing: 1px;
+  color: var(--neon2);
+  margin-bottom: 2px;
+}
+
+.enqDate {
+  font-size: 13px;
+  color: var(--text);
+}
+
+.enqNotes {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.enqStatus {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 11px;
+  letter-spacing: 1px;
+  border: 1px solid;
+  border-radius: 8px;
+  padding: 3px 8px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.empty {
+  font-size: 13px;
+  color: var(--muted);
+}

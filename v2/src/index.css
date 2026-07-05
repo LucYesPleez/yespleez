@@ -1,0 +1,92 @@
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&display=swap');
+
+:root {
+  --neon:   #ff2d78;
+  --neon2:  #00e5ff;
+  --gold:   #ffb830;
+  --fire:   #ff6a00;
+  --dark:   #0a0a0f;
+  --card:   #13131f;
+  --card2:  #0f0f1a;
+  --border: #2a2a3d;
+  --text:   #e8e8f0;
+  --muted:  #7070a0;
+  --green:  #00e676;
+  --purple: #b060ff;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html {
+  height: 100%;
+}
+
+body, #root {
+  min-height: 100%;
+}
+
+html {
+  scrollbar-gutter: stable;
+}
+
+body {
+  background: var(--dark);
+  color: var(--text);
+  font-family: 'DM Sans', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+  scrollbar-gutter: stable;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+/* Hand watermark — fixed, visible on all screens */
+body::after {
+  content: '';
+  position: fixed;
+  top: 50vh;
+  left: 50vw;
+  transform: translate(-50%, -50%);
+  width: min(85vw, 520px);
+  height: min(85vw, 520px);
+  background-image: url('/hand-logo.png');
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  opacity: 0.18;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Pink/cyan ambient gradient — matches v1 body::before */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 70% 40% at 50% 0%, rgba(255,45,120,.14) 0%, transparent 65%),
+    radial-gradient(ellipse 40% 30% at 85% 90%, rgba(0,229,255,.08) 0%, transparent 55%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+#root {
+  position: relative;
+  z-index: 1;
+  min-height: 100%;
+}
+
+button {
+  cursor: pointer;
+  border: none;
+  font-family: inherit;
+}
+
+input, textarea, select {
+  font-family: inherit;
+}

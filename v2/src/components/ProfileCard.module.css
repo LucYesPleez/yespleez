@@ -1,0 +1,82 @@
+.card {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  background: var(--card);
+  border-radius: 14px;
+  padding: 14px 16px;
+  cursor: pointer;
+  transition: transform .15s, border-color .2s;
+  box-sizing: border-box;
+  width: 100%;
+}
+.card:hover { transform: translateY(-1px); }
+
+.avatar {
+  width: 56px;
+  height: 56px;
+  border-radius: 10px;
+  object-fit: cover;
+  border: 2px solid;
+  flex-shrink: 0;
+}
+
+.avatarPH {
+  width: 56px;
+  height: 56px;
+  border-radius: 10px;
+  border: 2px solid;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  background: rgba(var(--accent-rgb), .08);
+  flex-shrink: 0;
+}
+
+.info { flex: 1; min-width: 0; }
+
+.nameRow {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+  margin-bottom: 3px;
+}
+
+.name {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 19px;
+  letter-spacing: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text);
+}
+
+.typeBadge, .statusBadge {
+  border: 1px solid;
+  border-radius: 20px;
+  font-size: 9px;
+  font-family: 'Bebas Neue', sans-serif;
+  letter-spacing: 1px;
+  padding: 2px 8px;
+  flex-shrink: 0;
+}
+
+.loc {
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 3px;
+}
+
+.sound {
+  font-size: 12px;
+  margin-bottom: 3px;
+}
+
+.bio {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.5;
+}

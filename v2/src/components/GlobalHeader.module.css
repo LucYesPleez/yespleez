@@ -1,0 +1,139 @@
+.header {
+  position: fixed;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(100%, 680px);
+  padding: 16px 8px 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  z-index: 199;
+  pointer-events: none;
+  box-sizing: border-box;
+}
+
+.header > * { pointer-events: auto; }
+
+.backBtn {
+  background: none;
+  border: none;
+  padding: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  color: var(--muted);
+  opacity: 1;
+}
+
+.ypTag {
+  display: inline-block;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 11px;
+  letter-spacing: 4px;
+  color: var(--neon);
+  border: 1px solid var(--neon);
+  padding: 5px 16px;
+  border-radius: 2px;
+}
+
+.actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.iconBtn {
+  position: relative;
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 4px 8px;
+  transition: color .15s;
+  opacity: 1;
+  display: flex;
+  align-items: center;
+}
+
+.iconBtn:hover { color: var(--text); opacity: 1; }
+
+/* Info panel — floating dropdown from ⓘ button */
+.infoOverlay {
+  display: none;
+}
+.infoOverlayOpen {
+  display: block;
+  position: fixed;
+  top: 54px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(100%, 680px);
+  z-index: 400;
+  pointer-events: none;
+}
+.infoSheet {
+  position: absolute;
+  right: 8px;
+  top: 0;
+  width: 280px;
+  background: #1a1a2e;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 16px;
+  max-height: calc(100dvh - 130px);
+  overflow-y: auto;
+  scrollbar-width: none;
+  box-shadow: 0 8px 32px rgba(0,0,0,.6);
+  animation: infoFadeIn .18s ease;
+  pointer-events: auto;
+}
+.infoSheet::-webkit-scrollbar { display: none; }
+@keyframes infoFadeIn {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.infoHandle { display: none; }
+.infoClose {
+  display: block;
+  width: 100%;
+  margin-top: 14px;
+  padding: 8px;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--muted);
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 13px;
+  letter-spacing: 2px;
+  cursor: pointer;
+  transition: border-color .15s, color .15s;
+}
+.infoClose:hover { border-color: var(--neon2); color: var(--neon2); }
+.infoBody {
+  padding: 0;
+}
+.infoBody h4 {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 16px;
+  letter-spacing: 3px;
+  color: var(--neon2);
+  margin-bottom: 12px;
+}
+.infoBody p {
+  font-size: 13px;
+  line-height: 1.6;
+  color: #bbb;
+  margin-bottom: 8px;
+}
+.infoBody ul {
+  padding-left: 16px;
+  margin-bottom: 8px;
+}
+.infoBody li {
+  font-size: 12px;
+  line-height: 1.65;
+  color: #bbb;
+}
+.infoBody li strong { color: #fff; }

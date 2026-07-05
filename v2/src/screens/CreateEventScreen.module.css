@@ -1,0 +1,669 @@
+.screen {
+  min-height: 100%;
+  background: var(--dark);
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Top bar ── */
+.topBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  flex-shrink: 0;
+}
+
+.backBtn {
+  background: none;
+  border: none;
+  color: var(--text);
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  width: 34px;
+}
+
+.topLogo {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 15px;
+  letter-spacing: 4px;
+  color: var(--neon);
+  border: 1px solid var(--neon);
+  padding: 3px 12px;
+  border-radius: 2px;
+}
+
+/* ── Page content ── */
+.content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 16px 40px;
+  max-width: 680px;
+  margin: 0 auto;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.pageTitle {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: clamp(36px, 10vw, 52px);
+  letter-spacing: 2px;
+  font-weight: 400;
+  margin-bottom: 6px;
+  line-height: 1.1;
+  text-align: center;
+  background: linear-gradient(90deg, #00E5FF 20%, #BF5FFF 80%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.pageSubtitle {
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 24px;
+  line-height: 1.5;
+}
+
+/* ── Section header ── */
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 28px 0 14px;
+  padding-right: 16px;
+}
+
+.sectionHeaderText {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 14px;
+  letter-spacing: 3px;
+  white-space: nowrap;
+  background: linear-gradient(135deg, #00E5FF, #BF5FFF);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.hostInfoSheet {
+  background: #13131f;
+  border: 1px solid rgba(0,229,255,0.2);
+  border-radius: 16px;
+  padding: 20px 20px 28px;
+  width: 100%;
+  max-width: 680px;
+  max-height: calc(100vh - 140px);
+  overflow-y: auto;
+  scrollbar-width: none;
+  margin-bottom: 70px;
+}
+.hostInfoSheet::-webkit-scrollbar { display: none; }
+
+.sectionInfoBtn {
+  background: none;
+  border: none;
+  color: rgba(0,229,255,0.5);
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  transition: color .15s;
+}
+.sectionInfoBtn:hover { color: var(--neon2); }
+
+.sectionHeaderLine {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, #00E5FF, #BF5FFF, transparent);
+}
+
+/* ── Fields ── */
+.field {
+  margin-bottom: 14px;
+}
+
+.fieldLabel {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 11px;
+  letter-spacing: 2px;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+
+.fieldSub {
+  font-size: 11px;
+  color: rgba(255,255,255,0.3);
+  margin-bottom: 8px;
+  line-height: 1.4;
+}
+
+.input, .textarea {
+  width: 100%;
+  background: var(--card2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  padding: 11px 14px;
+  font-size: 14px;
+  font-family: 'DM Sans', sans-serif;
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.15s;
+}
+
+.input:focus, .textarea:focus { border-color: var(--neon2); }
+.textarea { resize: none; line-height: 1.5; }
+
+.dateRow {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+/* ── Calendar picker ── */
+.datePickerBtn {
+  background: var(--card2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 11px 14px;
+  font-size: 14px;
+  font-family: 'DM Sans', sans-serif;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-sizing: border-box;
+  width: 100%;
+  transition: border-color 0.15s;
+}
+.datePickerBtn:hover { border-color: rgba(255,255,255,0.2); }
+
+.calDrop {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 200;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 8px 32px rgba(0,0,0,.6);
+}
+
+.calNav {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 18px;
+  cursor: pointer;
+  padding: 0 6px;
+}
+
+/* ── Controls card (toggles wrapper) ── */
+.controlsCard {
+  background: linear-gradient(var(--card), var(--card)) padding-box,
+              linear-gradient(135deg, #00E5FF, #BF5FFF) border-box;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  overflow: hidden;
+  margin-bottom: 14px;
+}
+
+/* ── Toggles ── */
+.toggleRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  background: none;
+  border: none;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  padding: 14px 16px;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+}
+
+.toggleRow:last-child { border-bottom: none; }
+
+.toggleLabel {
+  font-size: 14px;
+  color: var(--text);
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 500;
+  margin-bottom: 2px;
+}
+
+.toggleSub { font-size: 11px; color: var(--muted); line-height: 1.4; }
+
+.toggleOnTrack, .toggleOffTrack {
+  width: 44px;
+  height: 24px;
+  border-radius: 12px;
+  background: rgba(255,255,255,0.15);
+  position: relative;
+  flex-shrink: 0;
+  transition: background 0.2s;
+}
+.toggleOnTrack { background: var(--neon2); }
+
+.toggleOnThumb, .toggleOffThumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  transition: left 0.2s;
+}
+.toggleOnThumb { left: 23px; }
+
+/* ── Quick Generator ── */
+.quickGen {
+  background: linear-gradient(var(--card), var(--card)) padding-box,
+              linear-gradient(135deg, var(--border), var(--border)) border-box;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 14px;
+  transition: background 0.2s;
+}
+
+.quickGen:hover {
+  background: linear-gradient(var(--card), var(--card)) padding-box,
+              linear-gradient(135deg, #00E5FF, #BF5FFF) border-box;
+}
+
+.quickGenTitle {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 14px;
+  letter-spacing: 2px;
+  color: var(--neon2);
+  margin-bottom: 4px;
+}
+
+.quickGenSub {
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 14px;
+}
+
+.quickGenGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.quickGenField {}
+
+.quickGenLabel {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  color: var(--muted);
+  margin-bottom: 5px;
+}
+
+.quickGenInput {
+  width: 100%;
+  background: var(--card2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 9px 10px;
+  font-size: 13px;
+  font-family: 'DM Sans', sans-serif;
+  outline: none;
+  box-sizing: border-box;
+  color-scheme: dark;
+}
+
+.quickGenBtn {
+  width: 100%;
+  background: rgba(255,184,48,0.45);
+  color: #0a0a0f;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 16px;
+  letter-spacing: 2px;
+  padding: 12px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  transition: opacity .15s;
+}
+.quickGenBtn:hover { opacity: 0.88; }
+
+.orManual {
+  font-size: 12px;
+  color: var(--muted);
+  text-align: center;
+  margin: 10px 0 14px;
+}
+
+/* ── Day Card ── */
+.dayCard {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px;
+  margin-bottom: 10px;
+}
+
+.dayCardHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.dayBadge {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 12px;
+  letter-spacing: 1.5px;
+  color: #0a0a0f;
+  background: var(--neon2);
+  border-radius: 4px;
+  padding: 3px 8px;
+  flex-shrink: 0;
+}
+
+.dayNameInput {
+  flex: 1;
+  background: var(--card2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 8px 12px;
+  font-size: 14px;
+  font-family: 'DM Sans', sans-serif;
+  outline: none;
+  min-width: 0;
+}
+.dayNameInput:focus { border-color: var(--neon2); }
+
+.removeDayBtn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+.removeDayBtn:hover { color: var(--neon); }
+
+/* ── Slot edit row ── */
+.slotEditRow {
+  background: var(--card2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 4px;
+}
+
+.slotTimeFields {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.slotTimeGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.slotFieldLabel {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 9px;
+  letter-spacing: 1.5px;
+  color: var(--muted);
+}
+
+.slotTimeInput {
+  width: 52px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 8px 10px;
+  font-size: 15px;
+  font-family: 'DM Sans', sans-serif;
+  text-align: center;
+  outline: none;
+}
+.slotTimeInput:focus { border-color: var(--neon2); }
+
+.slotAmPm {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 8px 6px;
+  font-size: 13px;
+  font-family: 'DM Sans', sans-serif;
+  outline: none;
+  width: 62px;
+}
+
+.slotRemoveBtn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  margin-left: auto;
+  align-self: center;
+  margin-bottom: 0;
+}
+.slotRemoveBtn:hover { color: var(--neon); }
+
+/* ── Duration pills ── */
+.durPills {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.durPill, .durPillActive {
+  flex: 1;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 12px;
+  letter-spacing: 1px;
+  padding: 6px 4px;
+  border-radius: 6px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  cursor: pointer;
+  text-align: center;
+  transition: border-color .15s, color .15s, background .15s;
+}
+
+.durPillActive {
+  background: rgba(0,229,255,0.12);
+  border-color: var(--neon2);
+  color: var(--neon2);
+}
+
+.otherDurInput {
+  width: 100%;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 8px 10px;
+  font-size: 13px;
+  font-family: 'DM Sans', sans-serif;
+  outline: none;
+  box-sizing: border-box;
+  margin-bottom: 8px;
+}
+.otherDurInput:focus { border-color: var(--neon2); }
+
+.slotLabelInput {
+  width: 100%;
+  background: transparent;
+  border: none;
+  border-top: 1px solid rgba(255,255,255,0.06);
+  color: var(--muted);
+  padding: 8px 0 2px;
+  font-size: 12px;
+  font-family: 'DM Sans', sans-serif;
+  outline: none;
+  box-sizing: border-box;
+}
+.slotLabelInput:focus { color: var(--text); }
+.slotLabelInput::placeholder { color: rgba(255,255,255,0.25); }
+
+/* ── Insert slot button ── */
+.insertSlotBtn {
+  width: 100%;
+  background: none;
+  border: 1px dashed rgba(255,255,255,0.1);
+  border-radius: 6px;
+  color: rgba(255,255,255,0.25);
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  padding: 6px;
+  cursor: pointer;
+  margin-bottom: 4px;
+  transition: border-color .15s, color .15s;
+}
+.insertSlotBtn:hover { border-color: var(--neon2); color: var(--neon2); }
+
+/* ── Add slot in day ── */
+.addSlotInDayBtn {
+  width: 100%;
+  background: none;
+  border: 1px dashed rgba(0,229,255,0.3);
+  border-radius: 6px;
+  color: var(--neon2);
+  font-size: 13px;
+  font-family: 'DM Sans', sans-serif;
+  padding: 10px;
+  cursor: pointer;
+  margin-top: 8px;
+  transition: background .15s;
+}
+.addSlotInDayBtn:hover { background: rgba(0,229,255,0.06); }
+
+/* ── Add another day ── */
+.addAnotherDayBtn {
+  width: 100%;
+  background: none;
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  color: var(--muted);
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 14px;
+  letter-spacing: 2px;
+  padding: 14px;
+  cursor: pointer;
+  margin-bottom: 8px;
+  transition: border-color .15s, color .15s;
+}
+.addAnotherDayBtn:hover { border-color: var(--neon2); color: var(--neon2); }
+
+/* ── Poster tabs ── */
+.posterTabs {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.posterTab, .posterTabActive, .posterTabRemove {
+  flex: 1;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 13px;
+  letter-spacing: 1.5px;
+  padding: 9px 0;
+  border-radius: 8px;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: var(--card2);
+  color: var(--muted);
+  transition: border-color .15s, color .15s;
+}
+
+.posterTab:hover { border-color: rgba(255,255,255,0.2); color: var(--text); }
+
+.posterTabActive {
+  background: rgba(0,229,255,0.1);
+  border-color: var(--neon2);
+  color: var(--neon2);
+}
+
+.posterTabRemove {
+  background: rgba(120,20,40,0.25);
+  border-color: rgba(160,40,60,0.4);
+  color: rgba(200,80,80,0.85);
+}
+.posterTabRemove:hover { background: rgba(140,30,50,0.35); border-color: rgba(180,50,70,0.55); }
+
+/* ── Error ── */
+.error {
+  font-size: 13px;
+  color: var(--neon);
+  text-align: center;
+  margin: 8px 0;
+}
+
+/* ── Bottom buttons ── */
+.goLiveBtn {
+  width: 100%;
+  background: var(--neon);
+  color: #fff;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 20px;
+  letter-spacing: 3px;
+  padding: 16px;
+  border-radius: 10px;
+  border: none;
+  cursor: pointer;
+  margin-top: 24px;
+  margin-bottom: 10px;
+  transition: opacity .15s;
+}
+.goLiveBtn:disabled { opacity: 0.5; cursor: default; }
+
+.saveDraftBtn {
+  width: 100%;
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 15px;
+  letter-spacing: 2px;
+  padding: 12px;
+  border-radius: 10px;
+  cursor: pointer;
+  margin-bottom: 16px;
+  transition: border-color .15s, color .15s;
+}
+.saveDraftBtn:hover { border-color: var(--muted); color: var(--text); }
+
+.deleteBtn {
+  display: block;
+  margin: 8px auto 0;
+  background: rgba(120,20,40,0.25);
+  border: 1px solid rgba(160,40,60,0.4);
+  color: rgba(200,80,80,0.85);
+  font-size: 13px;
+  font-family: 'DM Sans', sans-serif;
+  padding: 8px 20px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background .15s, border-color .15s;
+}
+.deleteBtn:hover { background: rgba(140,30,50,0.35); border-color: rgba(180,50,70,0.55); }

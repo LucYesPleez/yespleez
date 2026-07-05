@@ -1,0 +1,162 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 600;
+  background: rgba(0,0,0,.7);
+}
+
+/* Panel — slides up from bottom, matches v1 industryPanel */
+.panel {
+  position: fixed;
+  bottom: 0;
+  left: 50%;
+  transform: translate(-50%, 100%);
+  width: min(67vw, 460px);
+  z-index: 601;
+  background: var(--card);
+  border-top: 1px solid var(--border);
+  border-radius: 20px 20px 0 0;
+  padding-bottom: env(safe-area-inset-bottom, 0);
+  transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+  max-height: 85vh;
+  overflow-y: auto;
+}
+
+.panelOpen {
+  composes: panel;
+  transform: translate(-50%, 0);
+}
+
+/* Drag handle */
+.handle {
+  width: 40px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--border);
+  margin: 12px auto 4px;
+}
+
+/* Role cards */
+.cards {
+  padding: 12px 16px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.roleGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.card {
+  background: var(--card2);
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 16px;
+  cursor: pointer;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  transition: border-color .2s;
+}
+
+.card:hover {
+  border-color: var(--accent);
+  box-shadow: 0 0 24px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+.cardIcon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+.cardBody { flex: 1; min-width: 0; }
+
+.cardTitle {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 22px;
+  letter-spacing: 1px;
+  margin-bottom: 2px;
+  line-height: 1;
+}
+
+.cardDesc {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.cardSetup {
+  font-size: 11px;
+  color: var(--green);
+  margin-top: 2px;
+}
+
+.noProfiles {
+  font-size: 12px;
+  color: var(--muted);
+  text-align: center;
+  padding: 8px 0 4px;
+}
+
+.signOutBtn {
+  margin-top: 8px;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--muted);
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 14px;
+  letter-spacing: 2px;
+  padding: 10px;
+  width: 100%;
+  cursor: pointer;
+  transition: color .2s, border-color .2s;
+}
+
+.signOutBtn:hover { color: var(--text); border-color: var(--text); }
+
+/* Add profile card */
+.cardAdd {
+  background: rgba(0,229,255,.05);
+  border: 1px solid rgba(0,229,255,.3);
+  border-radius: 14px;
+  padding: 14px 20px;
+  cursor: pointer;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  transition: border-color .2s;
+}
+
+.cardAdd:hover { border-color: var(--neon2); }
+
+/* Guest state */
+.guestMsg {
+  text-align: center;
+  padding: 24px 0;
+}
+
+.guestText {
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 16px;
+}
+
+.guestBtn {
+  background: var(--neon2);
+  color: #0a0a0f;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 16px;
+  letter-spacing: 2px;
+  padding: 12px 32px;
+  border-radius: 8px;
+  border: none;
+  font-weight: 700;
+}

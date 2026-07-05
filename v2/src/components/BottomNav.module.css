@@ -1,0 +1,61 @@
+.nav {
+  position: fixed;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(100%, 680px);
+  z-index: 9999;
+  background: var(--card);
+  border-top: 1px solid var(--border);
+  padding-bottom: env(safe-area-inset-bottom, 0);
+  display: flex;
+}
+
+.tab, .tabActive {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 14px 0 12px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  touch-action: manipulation;
+  user-select: none;
+}
+
+.iconWrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.tab svg {
+  opacity: 0.5;
+  color: var(--muted);
+  transition: opacity .15s, color .15s;
+  flex-shrink: 0;
+}
+
+.tabActive svg {
+  opacity: 1;
+  color: var(--neon2);
+}
+
+.label {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.8px;
+  margin-top: 5px;
+  line-height: 1;
+  color: var(--muted);
+  opacity: 0.6;
+  transition: opacity .15s, color .15s;
+}
+
+.tabActive .label {
+  color: var(--neon2);
+  opacity: 1;
+}

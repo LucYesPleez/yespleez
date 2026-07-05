@@ -1,0 +1,278 @@
+.screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100dvh;
+  height: 100dvh;
+  padding: 40px 24px 24px;
+  text-align: center;
+  width: min(100%, 420px);
+  max-width: 420px;
+  margin: 0 auto;
+  overflow: hidden;
+  position: relative;
+  align-self: center;
+}
+
+/* Watermark portal — renders on body, position fixed so nothing clips it */
+/* Size matches v1 exactly: min(85vw, 520px) */
+.watermark {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(85vw, 520px);
+  height: min(85vw, 520px);
+  background-image: url('/hand-logo.png');
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  opacity: 0.18;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Every direct child stretches full width except logo/title/sub */
+.screen > * { width: 100%; }
+
+.logoTag {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 11px;
+  letter-spacing: 4px;
+  color: var(--neon);
+  border: 1px solid var(--neon);
+  display: inline-block;
+  padding: 5px 16px;
+  border-radius: 2px;
+  margin-bottom: 12px;
+  width: auto;
+}
+
+.title {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: clamp(36px, 11vw, 52px);
+  line-height: 0.9;
+  background: linear-gradient(135deg, #fff 30%, var(--neon2));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-bottom: 6px;
+  font-weight: 400;
+  width: auto;
+}
+
+.sub {
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 18px;
+  width: auto;
+}
+
+/* Tabs — pill container with border */
+.tabs {
+  display: flex;
+  width: 100%;
+  background: var(--card2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+
+.tab, .tabActive {
+  flex: 1;
+  padding: 10px;
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all .15s;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.tabActive {
+  background: var(--card);
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* Form */
+.form {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.field {
+  margin-bottom: 13px;
+  text-align: left;
+}
+
+.field label {
+  display: block;
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  color: var(--muted);
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+.field input {
+  width: 100%;
+  background: var(--card2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 15px;
+  padding: 12px 14px;
+  outline: none;
+  transition: border-color .15s;
+  min-height: 48px;
+  box-sizing: border-box;
+}
+
+.field input:focus { border-color: var(--neon2); }
+.field input::placeholder { color: var(--muted); }
+
+/* Kill browser autofill white background */
+.field input:-webkit-autofill,
+.field input:-webkit-autofill:hover,
+.field input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 30px #0f0f1a inset !important;
+  -webkit-text-fill-color: #e8e8f0 !important;
+  caret-color: #e8e8f0;
+}
+
+/* Password wrap with eye toggle */
+.pwWrap {
+  position: relative;
+}
+
+.pwWrap input {
+  width: 100%;
+  padding-right: 44px;
+  background: var(--card2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 15px;
+  padding: 12px 44px 12px 14px;
+  outline: none;
+  transition: border-color .15s;
+  min-height: 48px;
+  box-sizing: border-box;
+}
+
+.pwWrap input:focus { border-color: var(--neon2); }
+.pwWrap input::placeholder { color: var(--muted); }
+
+.pwWrap input:-webkit-autofill,
+.pwWrap input:-webkit-autofill:hover,
+.pwWrap input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 30px #0f0f1a inset !important;
+  -webkit-text-fill-color: #e8e8f0 !important;
+  caret-color: #e8e8f0;
+}
+
+.eyeBtn {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--muted);
+  padding: 4px;
+  line-height: 0;
+  touch-action: manipulation;
+}
+
+/* Error */
+.error {
+  font-size: 12px;
+  color: var(--neon);
+  margin-bottom: 8px;
+  text-align: left;
+}
+
+/* Auth link (forgot password, back) */
+.authLink {
+  color: var(--neon2);
+  font-size: 13px;
+  cursor: pointer;
+  text-decoration: none;
+}
+.authLink:hover { text-decoration: underline; }
+
+/* Forgot password description */
+.forgotDesc {
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 16px;
+  line-height: 1.5;
+  text-align: left;
+}
+
+.resetMsg {
+  font-size: 14px;
+  color: var(--green);
+  text-align: center;
+  padding: 16px 0;
+}
+
+/* Primary action button */
+.btnPrimary {
+  width: 100%;
+  background: var(--neon);
+  border: none;
+  color: #fff;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 18px;
+  letter-spacing: 2px;
+  padding: 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: opacity .15s;
+}
+
+.btnPrimary:disabled { opacity: 0.5; cursor: not-allowed; }
+.btnPrimary:hover { opacity: 0.85; }
+
+/* Guest entry section — matches v1 .artist-entry */
+.artistEntry {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  width: 100%;
+}
+
+.artistEntry p {
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 10px;
+}
+
+/* Cyan ENTER AS GUEST button — matches v1 .btn-artist-entry */
+.btnEntry {
+  width: 100%;
+  background: var(--neon2);
+  border: none;
+  color: #0a0a0f;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 18px;
+  letter-spacing: 2px;
+  padding: 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 700;
+  transition: opacity .15s;
+}
+
+.btnEntry:hover { opacity: 0.85; }

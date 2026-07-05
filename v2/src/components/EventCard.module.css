@@ -1,0 +1,183 @@
+/* ─── Standard card — matches v1 buildEventCardEl ────────────────────────── */
+.card {
+  position: relative;
+  min-height: 90px;
+  border-radius: 12px;
+  overflow: hidden;
+  margin-bottom: 0;
+  cursor: pointer;
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: 1px solid #00e676;
+  transition: transform .15s;
+}
+.card:hover {
+  box-shadow: 0 0 14px rgba(0,230,118,.45);
+  transform: translateY(-1px);
+}
+.cardLive {
+  border-color: #00e676;
+}
+
+.cardNoHover:hover {
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+/* Background image */
+.cardImg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* Fallback gradient when no poster */
+.cardImgPH {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, #1a0533 0%, #2d1b69 45%, #0d3b2e 100%);
+}
+
+/* Left-to-right gradient — matches v1 exactly */
+.cardOverlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    rgba(10,10,20,.92) 0%,
+    rgba(10,10,20,.55) 50%,
+    rgba(10,10,20,.80) 100%
+  );
+}
+
+/* Horizontal content row — sits above overlay */
+.cardRow {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: 90px;
+  z-index: 1;
+}
+
+/* Left: name + meta */
+.cardInfo {
+  flex: 1;
+  min-width: 0;
+  padding: 14px 12px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.cardName {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 22px;
+  letter-spacing: 1px;
+  line-height: 1.05;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cardMeta {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 3px;
+}
+
+/* Right: genre badge */
+.cardRight {
+  flex-shrink: 0;
+  padding: 14px 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 6px;
+}
+
+.cardBadge {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 9px;
+  letter-spacing: 2px;
+  padding: 3px 8px;
+  border-radius: 3px;
+  border: 1px solid;
+  white-space: nowrap;
+}
+
+/* ─── Small card — compact vertical for horizontal scroll rows ─────────────── */
+.smallCard {
+  flex-shrink: 0;
+  width: 150px;
+  height: 200px;
+  border-radius: 14px;
+  overflow: hidden;
+  cursor: pointer;
+  position: relative;
+  border: 1px solid #00e676;
+  transition: transform .18s;
+  display: block;
+  padding: 0;
+  text-align: left;
+}
+.smallCard:hover { transform: translateY(-2px); }
+
+.smallImg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  position: absolute;
+  inset: 0;
+}
+
+.smallImgPH {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(255,45,120,.5), rgba(0,229,255,.3));
+}
+
+.smallOverlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to bottom, rgba(0,0,0,.08) 0%, rgba(0,0,0,0) 35%, rgba(0,0,0,.7) 80%, rgba(0,0,0,.9) 100%);
+}
+
+.smallBadge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: .5px;
+  text-transform: uppercase;
+  border-radius: 4px;
+  padding: 2px 6px;
+  border: 1px solid transparent;
+  z-index: 1;
+}
+
+.smallContent {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 10px;
+  z-index: 1;
+}
+
+.smallName {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 16px;
+  letter-spacing: 1px;
+  line-height: 0.95;
+  color: #fff;
+  text-shadow: 0 1px 8px rgba(0,0,0,.9);
+}
