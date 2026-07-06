@@ -2,16 +2,26 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useSession } from '../App';
-import ImageUploadButton from '../components/ImageUploadButton';
+import AvatarUpload from '../components/AvatarUpload';
 import s from './ArtistProfileScreen.module.css';
 import PostcodePrompt from '../components/PostcodePrompt';
 
 const STATE_OPTIONS = ['NSW','VIC','QLD','WA','SA','TAS','ACT','NT','NZ','International'];
 
 const VENUE_TYPES = [
-  'Club / Nightclub','Bar / Pub','Festival Ground','Warehouse',
-  'Rooftop','Theatre / Arts Centre','Hotel','Outdoor / Park',
-  'Private Hire','Other',
+  'Brewery','Pub','Bar','Restaurant','Hall','Festival Site',
+  'Theatre','Warehouse','Café','Winery','Distillery','Other',
+];
+
+const PERFECT_FOR = [
+  'Live Events','Birthday Parties','Corporate Events','Festivals',
+  'Wedding Receptions','Private Functions','Album Launches','Open Mic','Weekly Residency',
+];
+
+const ATMOSPHERE_TAGS = [
+  'Indoor','Outdoor','Beer Garden','Bushland','Coastal','Rustic',
+  'Underground','Intimate','Industrial','Scenic','Community',
+  'Late Night','High Energy','Family Friendly',
 ];
 
 const ENTERTAINMENT = [
@@ -25,6 +35,12 @@ const TECH_OPTIONS = [
 ];
 
 const DAYS = ['MON','TUE','WED','THU','FRI','SAT','SUN'];
+
+const GH = ({ children }) => (
+  <span style={{ display: 'inline-block', background: `linear-gradient(135deg, ${ACCENT} 40%, ${ACCENT2} 100%)`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
+    {children}
+  </span>
+);
 
 const ACCENT = '#00E5A0';
 const ACCENT2 = '#00B4D8';
@@ -44,6 +60,8 @@ export default function VenueProfileScreen() {
 
   // Form state
   const [avatarUrl,   setAvatarUrl]   = useState('');
+  const [avatarHero,  setAvatarHero]  = useState('');
+  const [avatarThumb, setAvatarThumb] = useState('');
   const [name,        setName]        = useState('');
   const [sound,       setSound]       = useState('');
   const [tagline,     setTagline]     = useState('');
@@ -51,7 +69,9 @@ export default function VenueProfileScreen() {
   const [suburb,      setSuburb]      = useState('');
   const [state,       setState_]      = useState('');
   const [postcode,    setPostcode]    = useState('');
-  const [venueType,   setVenueType]   = useState('');
+  const [venueType,   setVenueType]   = useState(new Set());
+  const [atmosphere,  setAtmosphere]  = useState(new Set());
+  const [perfectFor,  setPerfectFor]  = useState(new Set());
   const [established, setEstablished] = useState('');
   const [bio,         setBio]         = useState('');
   const [stageDims,   setStageDims]   = useState('');
@@ -77,6 +97,8 @@ export default function VenueProfileScreen() {
       .then(({ data: p }) => {
         if (p) {
           setAvatarUrl(p.avatar || '');
+          setAvatarHero(p.avatar_hero || '');
+          setAvatarThumb(p.avatar_thumb || '');
           setName(p.name || '');
           setSound(p.sound || '');
           setTagline(p.tagline || '');
@@ -84,7 +106,9 @@ export default function VenueProfileScreen() {
           setSuburb(p.suburb || '');
           setState_(p.state || '');
           setPostcode(p.postcode || '');
-          setVenueType(p.venue_type || '');
+          setVenueType(new Set((p.venue_type || '').split(',').map(x => x.trim()).filter(Boolean)));
+          setAtmosphere(new Set((p.atmosphere || '').split(',').map(x => x.trim()).filter(Boolean)));
+          setPerfectFor(new Set((p.perfect_for || '').split(',').map(x => x.trim()).filter(Boolean)));
           setEstablished(p.established_year ? String(p.established_year) : '');
           setBio(p.bio || '');
           setStageDims(p.stage_dims || '');
@@ -124,7 +148,7 @@ export default function VenueProfileScreen() {
 
   async function save(skipPostcodeCheck = false) {
     if (!name.trim()) { setSaveErr('Please enter a venue name'); return; }
-    if (!skipPostcodeCheck && !postcode) { setShowPostcodePrompt(true); return; }
+    if (!skipPostcodeCheck && !postcode && !suburb && !address) { setShowPostcodePrompt(true); return; }
     setSaving(true); setSaveErr('');
     try {
       const finalAvatar = avatarUrl;
@@ -138,7 +162,9 @@ export default function VenueProfileScreen() {
         suburb:           suburb.trim(),
         state:            state,
         postcode:         postcode,
-        venue_type:       venueType,
+        venue_type:       [...venueType].join(', '),
+        atmosphere:       [...atmosphere].join(', '),
+        perfect_for:      [...perfectFor].join(', '),
         established_year: established ? parseInt(established) : null,
         genre_string:     [...entertain].join(', '),
         bio:              bio.trim(),
@@ -154,7 +180,9 @@ export default function VenueProfileScreen() {
         instagram:        naFields.has('instagram') ? 'N/A' : instagram.trim(),
         facebook:         naFields.has('facebook')  ? 'N/A' : facebook.trim(),
         tiktok:           naFields.has('tiktok')    ? 'N/A' : tiktok.trim(),
-        avatar:           finalAvatar || null,
+        avatar:           avatarHero || finalAvatar || null,
+        avatar_hero:      avatarHero || null,
+        avatar_thumb:     avatarThumb || null,
         updated_at:       new Date().toISOString(),
       };
       const { data: existing } = await supabase.from('profiles').select('user_id').eq('user_id', userId).eq('type', 'venue').maybeSingle();
@@ -185,29 +213,17 @@ export default function VenueProfileScreen() {
       </div>
 
       {/* Avatar */}
-      <div className={s.avatarBlock}>
-        <ImageUploadButton type="avatar" userId={userId} bucket="avatars" pathPrefix="venue_avatars" onUpload={url => setAvatarUrl(url)}>
-          {({ trigger, statusBadge }) => (
-            <div style={{ position: 'relative' }} onClick={trigger}>
-              <div className={`${s.avatarRing} ${s.avatarRingVenue}`}>
-                {avatarUrl
-                  ? <img src={avatarUrl} className={s.avatarImg} alt="venue" />
-                  : <div className={s.avatarPH}>
-                      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="rgba(0,229,160,.6)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
-                      <span style={{ color: 'rgba(0,229,160,.6)', fontFamily: "'Bebas Neue'", fontSize: 12, letterSpacing: 1, marginTop: 6 }}>PHOTO</span>
-                    </div>
-                }
-              </div>
-              {statusBadge}
-            </div>
-          )}
-        </ImageUploadButton>
-        <div className={s.avatarHint}>Tap to upload a venue photo</div>
-      </div>
+      <AvatarUpload
+        userId={userId} bucket="avatars" pathPrefix="venue_avatars"
+        avatar={avatarUrl}
+        ringClass={`${s.avatarRing} ${s.avatarRingVenue}`}
+        onUpload={({ avatar_hero, avatar_thumb }) => { setAvatarHero(avatar_hero); setAvatarThumb(avatar_thumb); setAvatarUrl(avatar_hero); }}
+        onRemove={() => { setAvatarUrl(''); setAvatarHero(''); setAvatarThumb(''); }}
+      />
 
       {/* Venue Name */}
       <div className={s.section}>
-        <div className={s.sectionTitle} style={{ color: ACCENT, borderImage: 'linear-gradient(90deg, #00E5A0, #00B4D8) 1' }}>VENUE NAME</div>
+        <div className={s.sectionTitle} style={{ borderImage: 'linear-gradient(90deg, #00E5A0, #00B4D8) 1' }}><GH>VENUE NAME</GH></div>
         <div className={s.field}>
           <input className={s.input} value={name} onChange={e => setName(e.target.value)} placeholder="e.g. The Metro Theatre" />
         </div>
@@ -215,7 +231,7 @@ export default function VenueProfileScreen() {
 
       {/* Vibe + Tagline */}
       <div className={s.section}>
-        <div className={s.sectionTitle} style={{ color: ACCENT, borderImage: 'linear-gradient(90deg, #00E5A0, #00B4D8) 1' }}>LISTING INFO</div>
+        <div className={s.sectionTitle} style={{ borderImage: 'linear-gradient(90deg, #00E5A0, #00B4D8) 1' }}><GH>LISTING INFO</GH></div>
         <div className={s.field}>
           <label className={s.fieldLabel}>YOUR VIBE <span className={s.fieldHint}>shows on your listing · 35 chars</span></label>
           <input className={s.input} value={sound} onChange={e => setSound(e.target.value.slice(0,35))} placeholder="e.g. Underground warehouse techno venue" maxLength={35} />
@@ -230,7 +246,7 @@ export default function VenueProfileScreen() {
 
       {/* Location */}
       <div className={s.section}>
-        <div className={s.sectionTitle} style={{ color: ACCENT, borderImage: 'linear-gradient(90deg, #00E5A0, #00B4D8) 1' }}>LOCATION</div>
+        <div className={s.sectionTitle} style={{ borderImage: 'linear-gradient(90deg, #00E5A0, #00B4D8) 1' }}><GH>LOCATION</GH></div>
         <div className={s.row}>
           <div className={s.field} style={{ flex: 2 }}>
             <div className={s.fieldLabel}>ADDRESS</div>
@@ -250,7 +266,7 @@ export default function VenueProfileScreen() {
             </select>
           </div>
           <div className={s.field} style={{ flex: 1 }}>
-            <div className={s.fieldLabel}>POSTCODE <span style={{ color:'#FF2D78', fontSize:9, fontWeight:700, letterSpacing:.5 }}>IMPORTANT</span></div>
+            <div className={s.fieldLabel}>POSTCODE</div>
             <input className={s.input} value={postcode} onChange={e => setPostcode(e.target.value.replace(/\D/g,'').slice(0,4))} placeholder="e.g. 2454" inputMode="numeric" />
           </div>
         </div>
@@ -258,32 +274,62 @@ export default function VenueProfileScreen() {
 
       {/* Venue Type + Est + Capacity */}
       <div className={s.section}>
-        <div className={s.sectionTitle} style={{ color: ACCENT, borderImage: 'linear-gradient(90deg, #00E5A0, #00B4D8) 1' }}>VENUE DETAILS</div>
-        <div className={s.row}>
-          <div className={s.field} style={{ flex: 2 }}>
-            <label className={s.fieldLabel}>VENUE TYPE</label>
-            <select className={s.select} value={venueType} onChange={e => setVenueType(e.target.value)}>
-              <option value="">Select type</option>
-              {VENUE_TYPES.map(t => <option key={t}>{t}</option>)}
-            </select>
+        <div className={s.sectionTitle} style={{ borderImage: 'linear-gradient(90deg, #00E5A0, #00B4D8) 1' }}><GH>VENUE DETAILS</GH></div>
+        <div className={s.field}>
+          <label className={s.fieldLabel}>VENUE TYPE</label>
+          <div className={s.chips}>
+            {VENUE_TYPES.map(t => (
+              <button key={t} type="button"
+                className={venueType === t ? s.chipOn : s.chip}
+                style={venueType.has(t) ? { background: `rgba(${CYAN_RGB},.15)`, borderColor: CYAN, color: CYAN } : { background: `rgba(${CYAN_RGB},.06)`, borderColor: `rgba(${CYAN_RGB},.2)` }}
+                onClick={() => toggleSet(venueType, setVenueType, t)}>{t}</button>
+            ))}
           </div>
+        </div>
+        <div className={s.row}>
           <div className={s.field} style={{ flex: 1 }}>
-            <label className={s.fieldLabel}>EST.</label>
+            <label className={s.fieldLabel}>ESTABLISHED</label>
             <select className={s.select} value={established} onChange={e => setEstablished(e.target.value)}>
               <option value="">Year</option>
               {years.map(y => <option key={y}>{y}</option>)}
             </select>
           </div>
+          <div className={s.field} style={{ flex: 1 }}>
+            <label className={s.fieldLabel}>CAPACITY</label>
+            <input className={s.input} value={capacity} onChange={e => setCapacity(e.target.value.replace(/\D/g,''))} placeholder="e.g. 500" inputMode="numeric" />
+          </div>
         </div>
-        <div className={s.field}>
-          <label className={s.fieldLabel}>CAPACITY</label>
-          <input className={s.input} value={capacity} onChange={e => setCapacity(e.target.value.replace(/\D/g,''))} placeholder="e.g. 500" inputMode="numeric" />
+      </div>
+
+      {/* Atmosphere */}
+      <div className={s.section}>
+        <div className={s.sectionTitle} style={{ borderImage: 'linear-gradient(90deg, #00E5A0, #00B4D8) 1' }}><GH>ATMOSPHERE</GH></div>
+        <div className={s.chips}>
+          {ATMOSPHERE_TAGS.map(t => (
+            <button key={t} type="button"
+              className={atmosphere.has(t) ? s.chipOn : s.chip}
+              style={atmosphere.has(t) ? { background: `rgba(${CYAN_RGB},.15)`, borderColor: CYAN, color: CYAN } : { background: `rgba(${CYAN_RGB},.06)`, borderColor: `rgba(${CYAN_RGB},.2)` }}
+              onClick={() => toggleSet(atmosphere, setAtmosphere, t)}>{t}</button>
+          ))}
+        </div>
+      </div>
+
+      {/* Perfect For */}
+      <div className={s.section}>
+        <div className={s.sectionTitle} style={{ borderImage: 'linear-gradient(90deg, #00E5A0, #00B4D8) 1' }}><GH>PERFECT FOR</GH></div>
+        <div className={s.chips}>
+          {PERFECT_FOR.map(t => (
+            <button key={t} type="button"
+              className={perfectFor.has(t) ? s.chipOn : s.chip}
+              style={perfectFor.has(t) ? { background: `rgba(${CYAN_RGB},.15)`, borderColor: CYAN, color: CYAN } : { background: `rgba(${CYAN_RGB},.06)`, borderColor: `rgba(${CYAN_RGB},.2)` }}
+              onClick={() => toggleSet(perfectFor, setPerfectFor, t)}>{t}</button>
+          ))}
         </div>
       </div>
 
       {/* Entertainment we book */}
       <div className={s.section}>
-        <div className={s.sectionTitle} style={{ color: ACCENT, borderImage: 'linear-gradient(90deg, #00E5A0, #00B4D8) 1' }}>ENTERTAINMENT WE BOOK</div>
+        <div className={s.sectionTitle} style={{ borderImage: 'linear-gradient(90deg, #00E5A0, #00B4D8) 1' }}><GH>ENTERTAINMENT WE BOOK</GH></div>
         <div className={s.chips}>
           {ENTERTAINMENT.map(e => (
             <button key={e} type="button" className={entertain.has(e) ? s.chipOn : s.chip}
@@ -295,7 +341,7 @@ export default function VenueProfileScreen() {
 
       {/* About */}
       <div className={s.section}>
-        <div className={s.sectionTitle} style={{ color: ACCENT, borderImage: 'linear-gradient(90deg, #00E5A0, #00B4D8) 1' }}>ABOUT THE VENUE</div>
+        <div className={s.sectionTitle} style={{ borderImage: 'linear-gradient(90deg, #00E5A0, #00B4D8) 1' }}><GH>ABOUT THE VENUE</GH></div>
         <div className={s.field}>
           <textarea className={s.textarea} rows={5} value={bio} onChange={e => setBio(e.target.value.slice(0,500))} placeholder="Tell artists and promoters what makes your venue special — history, sound system, stage setup, crowd, and the kind of nights you run." maxLength={500} style={{ minHeight: 110 }} />
           <div className={s.charCount}>{bio.length} / 500</div>
@@ -304,7 +350,7 @@ export default function VenueProfileScreen() {
 
       {/* Stage & Tech */}
       <div className={s.section}>
-        <div className={s.sectionTitle} style={{ color: ACCENT, borderImage: 'linear-gradient(90deg, #00E5A0, #00B4D8) 1' }}>STAGE & TECH</div>
+        <div className={s.sectionTitle} style={{ borderImage: 'linear-gradient(90deg, #00E5A0, #00B4D8) 1' }}><GH>STAGE & TECH</GH></div>
         <div className={s.chips} style={{ marginBottom: 12 }}>
           {TECH_OPTIONS.map(t => (
             <button key={t} type="button" className={tech.has(t) ? s.chipOn : s.chip}
@@ -320,7 +366,7 @@ export default function VenueProfileScreen() {
 
       {/* Live nights */}
       <div className={s.section}>
-        <div className={s.sectionTitle} style={{ color: ACCENT, borderImage: 'linear-gradient(90deg, #00E5A0, #00B4D8) 1' }}>TYPICAL LIVE MUSIC NIGHTS</div>
+        <div className={s.sectionTitle} style={{ borderImage: 'linear-gradient(90deg, #00E5A0, #00B4D8) 1' }}><GH>TYPICAL LIVE MUSIC NIGHTS</GH></div>
         <div className={s.pills}>
           {DAYS.map(d => (
             <button key={d} type="button"
@@ -333,7 +379,7 @@ export default function VenueProfileScreen() {
 
       {/* ABN / GST */}
       <div className={s.section}>
-        <div className={s.sectionTitle} style={{ color: ACCENT, borderImage: 'linear-gradient(90deg, #00E5A0, #00B4D8) 1' }}>ABN / GST</div>
+        <div className={s.sectionTitle} style={{ borderImage: 'linear-gradient(90deg, #00E5A0, #00B4D8) 1' }}><GH>ABN / GST</GH></div>
         <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
           {[{ label: 'YES I HAVE AN ABN', val: true, active: '#00E5A0', activeBg: 'rgba(0,229,160,.15)' }, { label: 'NO ABN', val: false, active: '#FFB830', activeBg: 'rgba(255,184,48,.08)' }].map(({ label, val, active, activeBg }) => (
             <button key={label} type="button" onClick={() => setHasAbn(val)}
@@ -358,7 +404,7 @@ export default function VenueProfileScreen() {
 
       {/* Socials */}
       <div className={s.section}>
-        <div className={s.sectionTitle} style={{ color: ACCENT, borderImage: 'linear-gradient(90deg, #00E5A0, #00B4D8) 1' }}>SOCIALS + LINKS</div>
+        <div className={s.sectionTitle} style={{ borderImage: 'linear-gradient(90deg, #00E5A0, #00B4D8) 1' }}><GH>SOCIALS + LINKS</GH></div>
         {[
           { key: 'email',     svg: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#e8e8f0" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m2 7 10 7 10-7"/></svg>, val: email, set: setEmail, placeholder: 'Booking / enquiry email', type: 'email' },
           { key: 'website',   svg: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#e8e8f0" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>, val: website, set: setWebsite, placeholder: 'Website URL', type: 'url' },

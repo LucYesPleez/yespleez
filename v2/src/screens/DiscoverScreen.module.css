@@ -61,29 +61,369 @@
   pointer-events: none;
 }
 
-.filters {
+.filtersBtn {
+  position: relative;
   display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-  margin-bottom: 16px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  height: 48px;
+  background: var(--card);
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  color: var(--text);
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 20px;
+  letter-spacing: 2px;
+  cursor: pointer;
+  margin-bottom: 20px;
+  box-sizing: border-box;
+  padding-right: 24px;
+  transition: background .15s;
+}
+
+@media (hover: hover) {
+  .filtersBtn:hover {
+    background: linear-gradient(var(--card), var(--card)) padding-box,
+                linear-gradient(90deg, #BF5FFF, #ffb830) border-box;
+    border-color: transparent;
+  }
+}
+
+.filtersBtnOpen {
+  background: linear-gradient(90deg, #BF5FFF, #ffb830);
+  border-color: transparent;
+  color: #fff;
+}
+
+.filtersBtnText {
+  background: linear-gradient(90deg, #BF5FFF, #ffb830);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  font-weight: 600;
+  letter-spacing: 2px;
+}
+
+.filtersBtnCenter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.filtersBtnSide {
+  flex: 1;
+  display: flex;
   align-items: center;
 }
 
-.filterPill {
-  background: var(--card);
+.filtersBadge {
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #FF3CAC;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  font-family: 'DM Sans', sans-serif;
+}
+
+.dropdown {
+  background: linear-gradient(var(--card), var(--card)) padding-box,
+              linear-gradient(90deg, #BF5FFF, #ffb830) border-box;
+  border: 1px solid transparent;
+  border-radius: 18px;
+  padding: 16px 16px 20px;
+  margin-top: 4px;
+  margin-bottom: 20px;
+  box-sizing: border-box;
+  animation: slideDown .2s ease-out;
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.dropHandle {
+  width: 40px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--border);
+  margin: 0 auto 18px;
+}
+
+.dropHeader {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 20px;
+}
+
+.dropTitle {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--text);
+}
+
+.dropClose {
+  position: absolute;
+  right: 0;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: rgba(255,255,255,.08);
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text);
+}
+
+.sheetSection { margin-bottom: 20px; }
+
+.sheetSectionHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 13px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--text);
+  margin-bottom: 12px;
+}
+
+.sheetExpandRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+}
+
+.sheetExpandVal {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 13px;
+  color: #FF3CAC;
+  white-space: nowrap;
+}
+
+.sheetPills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.sheetPill {
+  background: transparent;
   border: 1px solid var(--border);
   border-radius: 20px;
   color: var(--text);
   font-family: 'DM Sans', sans-serif;
   font-size: 12px;
-  padding: 6px 12px;
-  outline: none;
-  appearance: none;
-  -webkit-appearance: none;
+  padding: 7px 16px;
   cursor: pointer;
-  height: 32px;
+  transition: border-color .12s, color .12s;
+}
+
+.sheetPillActive {
+  border-color: var(--neon2);
+  color: var(--neon2);
+}
+
+.sheetInput {
+  background: rgba(255,255,255,.05);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  padding: 10px 14px;
+  outline: none;
   box-sizing: border-box;
 }
+
+.sheetInput::placeholder { color: #404060; }
+
+.locationRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.nearMePill {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  color: #FF3CAC;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 12px;
+  padding: 8px 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  opacity: 0.35;
+  transition: opacity .15s, border-color .15s;
+  flex-shrink: 0;
+}
+
+.locationRow:hover .nearMePill {
+  opacity: 0.75;
+}
+
+.nearMePillActive {
+  opacity: 1 !important;
+  border-color: var(--neon2);
+  color: var(--neon2);
+}
+
+.radiusRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 14px;
+  margin-bottom: 4px;
+}
+
+.radiusLabel {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.radiusValue {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  color: #FF3CAC;
+}
+
+.slider {
+  width: 100%;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  border-radius: 4px;
+  background: linear-gradient(to right, #FF3CAC var(--pct, 19%), rgba(255,255,255,.12) var(--pct, 19%));
+  outline: none;
+  cursor: pointer;
+  margin: 4px 0 6px;
+}
+.slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #FF3CAC;
+  border: 2px solid #0a0a0f;
+  cursor: pointer;
+  box-shadow: 0 0 10px rgba(255,60,172,.45);
+}
+.slider::-moz-range-thumb {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #FF3CAC;
+  border: 2px solid #0a0a0f;
+  cursor: pointer;
+}
+
+.radiusTicks {
+  position: relative;
+  height: 16px;
+  margin-bottom: 4px;
+}
+
+.radiusTicks span {
+  position: absolute;
+  transform: translateX(-50%);
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 10px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.sheetActions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.sheetClear {
+  background: transparent;
+  border: none;
+  color: #FF3CAC;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 0;
+}
+
+.sheetDone {
+  position: relative;
+  overflow: hidden;
+  height: 48px;
+  padding: 0 28px;
+  background: linear-gradient(var(--card), var(--card)) padding-box,
+              linear-gradient(90deg, #BF5FFF, #ffb830) border-box;
+  border: 2px solid transparent;
+  border-radius: 24px;
+  color: var(--text);
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.sheetDoneLabel {
+  position: relative;
+  z-index: 1;
+}
+
+.sheetDone::before {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 0;
+  background: linear-gradient(90deg, #BF5FFF, #ffb830);
+  transition: height 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+  z-index: 0;
+}
+
+.sheetDone:hover::before {
+  height: 100%;
+}
+
+.sheetDone:hover .sheetDoneLabel {
+  color: #fff;
+}
+
 
 .sectionLabel {
   font-family: 'Bebas Neue', sans-serif;
@@ -93,7 +433,67 @@
   padding: 0 0 12px;
 }
 
+.sectionRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.sectionHead {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 18px;
+  letter-spacing: 2px;
+  background: linear-gradient(135deg, #00E5FF, #BF5FFF);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  white-space: nowrap;
+}
+
+.gradientLine {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(to right, #00E5FF, #BF5FFF, transparent);
+}
+
+.hScroll {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  padding: 8px 0 8px;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  cursor: grab;
+  user-select: none;
+}
+.hScroll::-webkit-scrollbar { display: none; }
+
 .results { padding-bottom: 40px; }
+
+.viewMore {
+  display: block;
+  width: 100%;
+  margin-top: 16px;
+  padding: 12px;
+  background: linear-gradient(var(--card, #12122a), var(--card, #12122a)) padding-box,
+              linear-gradient(135deg, #00E5FF, #BF5FFF) border-box;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: opacity .15s;
+}
+.viewMore:hover { opacity: 0.8; }
+
+.viewMoreText {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 16px;
+  letter-spacing: 2px;
+  background: linear-gradient(135deg, #00E5FF, #BF5FFF);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
 
 .hint {
   text-align: center;

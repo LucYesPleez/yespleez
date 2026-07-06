@@ -26,7 +26,7 @@
   letter-spacing: 2px;
 }
 
-/* Profile card — teal accent, always visible */
+/* Profile card — teal accent */
 .profileCard {
   background: rgba(0,229,255,.06);
   border: 1px solid rgba(0,229,255,.25);
@@ -118,7 +118,34 @@
   color: var(--muted);
 }
 
-/* Stats */
+/* Attention banner */
+.attention {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(255,184,48,.07);
+  border: 1px solid rgba(255,184,48,.3);
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin-bottom: 16px;
+}
+
+.attentionDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ffb830;
+  flex-shrink: 0;
+}
+
+.attentionText {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 12px;
+  letter-spacing: 1px;
+  color: #ffb830;
+}
+
+/* Stats — tappable nav */
 .stats {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
@@ -132,6 +159,8 @@
   border-radius: 12px;
   padding: 14px 12px;
   text-align: center;
+  cursor: pointer;
+  transition: background .15s, border-color .15s;
 }
 
 .statValue {
@@ -139,6 +168,7 @@
   font-size: 26px;
   letter-spacing: 1px;
   color: var(--neon2);
+  transition: color .15s;
 }
 
 .statLabel {
@@ -146,7 +176,64 @@
   color: var(--muted);
   letter-spacing: 1px;
   font-family: 'Bebas Neue', sans-serif;
+  transition: color .15s;
 }
+
+/* Sub-tabs */
+.subTabBar {
+  display: flex;
+  gap: 0;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.subTab {
+  flex: 1;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 12px;
+  letter-spacing: 1.5px;
+  color: var(--muted);
+  padding: 8px 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  transition: color .15s, border-bottom-color .15s;
+}
+
+.subTabCount {
+  background: var(--card2);
+  color: var(--muted);
+  border-radius: 10px;
+  font-size: 10px;
+  padding: 1px 6px;
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 700;
+  letter-spacing: 0;
+  transition: background .15s, color .15s;
+}
+
+/* Search bar */
+.searchBar {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--card2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 14px;
+  color: var(--text);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  outline: none;
+  margin-bottom: 12px;
+  transition: border-color .15s;
+}
+.searchBar:focus { border-color: rgba(0,229,255,.4); }
+.searchBar::placeholder { color: var(--muted); }
 
 /* Sections */
 .section { margin-bottom: 20px; }
@@ -180,17 +267,6 @@
   cursor: pointer;
 }
 
-.appsBadge {
-  background: var(--gold);
-  color: #0a0a0f;
-  border-radius: 10px;
-  font-size: 10px;
-  padding: 1px 7px;
-  font-family: 'DM Sans', sans-serif;
-  font-weight: 700;
-  letter-spacing: 0;
-}
-
 /* Availability chips */
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
 
@@ -202,7 +278,138 @@
   padding: 4px 12px;
 }
 
-.empty { font-size: 13px; color: var(--muted); }
+.empty {
+  font-size: 13px;
+  color: var(--muted);
+  text-align: center;
+  padding: 32px 0;
+}
+
+/* Offer card */
+.offerCard {
+  background: rgba(191,95,255,.04);
+  border: 1px solid rgba(191,95,255,.2);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 10px;
+}
+
+.offerHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.offerEventName {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 16px;
+  letter-spacing: 1px;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.offerStatus {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 10px;
+  letter-spacing: 1px;
+  border-radius: 4px;
+  padding: 2px 7px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.offerVenue {
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+.offerMeta {
+  display: flex;
+  gap: 16px;
+  padding: 8px 10px;
+  background: rgba(255,255,255,.03);
+  border-radius: 8px;
+  margin-bottom: 6px;
+}
+
+.offerMetaItem {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.offerMetaLabel {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 9px;
+  letter-spacing: 1.5px;
+  color: var(--muted);
+}
+
+.offerMetaValue {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.offerMessage {
+  font-size: 12px;
+  color: var(--muted);
+  font-style: italic;
+  line-height: 1.4;
+  margin-top: 6px;
+}
+
+.offerActions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.offerAccept {
+  flex: 1;
+  background: none;
+  border: 1px solid rgba(0,229,160,.4);
+  color: #00E5A0;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 12px;
+  letter-spacing: 1.5px;
+  padding: 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background .15s;
+}
+.offerAccept:hover { background: rgba(0,229,160,.1); }
+.offerAccept:disabled { opacity: .5; cursor: default; }
+
+.offerDecline {
+  flex: 1;
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 12px;
+  letter-spacing: 1.5px;
+  padding: 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: border-color .15s, color .15s;
+}
+.offerDecline:hover { border-color: rgba(255,45,120,.4); color: var(--neon); }
+.offerDecline:disabled { opacity: .5; cursor: default; }
+
+.offerResponded {
+  margin-top: 10px;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: var(--muted);
+}
 
 /* Browse open events CTA */
 .browseBtn {
@@ -222,4 +429,47 @@
 .browseBtn:hover {
   background: rgba(0,229,255,.14);
   border-color: rgba(0,229,255,.55);
+}
+
+/* Following section */
+.followingSection {
+  margin-top: 36px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border);
+}
+
+.followingHead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.followingLabel {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 16px;
+  letter-spacing: 2px;
+  color: var(--muted);
+}
+
+.followingCount {
+  background: var(--card2);
+  color: var(--muted);
+  border-radius: 10px;
+  font-size: 11px;
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 700;
+  padding: 1px 8px;
+}
+
+/* App badge */
+.appsBadge {
+  background: var(--gold);
+  color: #0a0a0f;
+  border-radius: 10px;
+  font-size: 10px;
+  padding: 1px 7px;
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 700;
+  letter-spacing: 0;
 }

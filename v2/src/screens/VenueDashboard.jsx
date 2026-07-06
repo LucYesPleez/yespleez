@@ -1,31 +1,61 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
-import { useSession } from '../App';
+import { writeNotification } from '../lib/writeNotification';
+import { useSession, usePlayer } from '../App';
 import { today, formatDisplayDate } from '../lib/dates';
 import EventCard from '../components/EventCard';
+import PortraitCard from '../components/PortraitCard';
+import ProfileCard from '../components/ProfileCard';
+import InviteSheet from '../components/InviteSheet';
+import { useDragScroll } from '../hooks/useDragScroll';
 import s from './VenueDashboard.module.css';
 import ds from './DiscoverScreen.module.css';
 
-const ENQ_TABS = [
-  { key: 'PENDING',  color: '#FFD700', rgb: '255,215,0' },
-  { key: 'TENTATIVE', color: '#00B4D8', rgb: '0,180,216' },
-  { key: 'ACCEPTED',  color: '#00E5A0', rgb: '0,229,160' },
+const DIR_TABS = [
+  { key: 'INCOMING', color: '#FFD700', rgb: '255,215,0',
+    subTabs: ['NEW', 'SHORTLISTED', 'ACCEPTED', 'DECLINED'] },
+  { key: 'OUTGOING', color: '#00B4D8', rgb: '0,180,216',
+    subTabs: ['AWAITING', 'INTERESTED', 'ACCEPTED', 'DECLINED'] },
+  { key: 'BOOKED',   color: '#00E5A0', rgb: '0,229,160',
+    subTabs: [] },
 ];
+
+function normaliseStatus(e) {
+  const dir = (e.direction || 'incoming').toLowerCase();
+  const st  = (e.status   || 'pending').toLowerCase();
+  if (dir === 'outgoing') {
+    if (st === 'pending')   return 'awaiting';
+    if (st === 'tentative') return 'interested';
+  } else {
+    if (st === 'pending')   return 'new';
+    if (st === 'tentative') return 'shortlisted';
+  }
+  return st;
+}
 
 export default function VenueDashboard({ userId: userIdProp }) {
   const { session } = useSession();
   const navigate = useNavigate();
   const userId = userIdProp || session?.user?.id;
   const [enquiries,      setEnquiries]      = useState([]);
-  const [enqTab,         setEnqTab]         = useState('PENDING');
+  const [dirTab,         setDirTab]         = useState('INCOMING');
+  const [statusTab,      setStatusTab]      = useState('NEW');
   const [search,         setSearch]         = useState('');
   const [localAvail,     setLocalAvail]     = useState(null);
   const [showAvailCal,   setShowAvailCal]   = useState(false);
-  const [showAllEvents,  setShowAllEvents]  = useState(false);
   const [showAllEnq,     setShowAllEnq]     = useState(false);
-  const [showAllAvail,   setShowAllAvail]   = useState(false);
+  const [evtTab,         setEvtTab]         = useState('UPCOMING');
+  const [showAllEvts,    setShowAllEvts]    = useState(false);
+  const [following,      setFollowing]      = useState([]);
+  const [inviteArtist,   setInviteArtist]   = useState(null);
+  const [loadingFollow,  setLoadingFollow]  = useState(false);
+  const [followView,       setFollowView]       = useState('portrait'); // 'portrait' | 'landscape'
+  const [followFilter,     setFollowFilter]     = useState('ALL');
+  const [regularsShowAll,  setRegularsShowAll]  = useState(false);
+  const [regularsSearch,   setRegularsSearch]   = useState('');
+  const regularsDrag = useDragScroll();
 
   const { data, isLoading: loading } = useQuery({
     queryKey: ['venueDashboard', userId],
@@ -35,7 +65,7 @@ export default function VenueDashboard({ userId: userIdProp }) {
         supabase.from('venue_availability').select('available_date').eq('user_id', userId).gte('available_date', today()).order('available_date').limit(10),
         supabase.from('venue_enquiries').select('*').eq('venue_user_id', userId).order('created_at', { ascending: false }).limit(100),
         // Upcoming events where config->venue matches profile name — approximated with host_id for now
-        supabase.from('events').select('id, name, config').eq('host_id', userId).eq('status', 'live').order('created_at', { ascending: false }).limit(200),
+        supabase.from('events').select('id, name, status, config, applications_open, is_public, created_at').eq('host_id', userId).order('created_at', { ascending: false }).limit(200),
       ]);
       return {
         profile:      profRes.data,
@@ -49,7 +79,14 @@ export default function VenueDashboard({ userId: userIdProp }) {
 
   const profile      = data?.profile      || null;
   const availability = localAvail ?? data?.availability ?? [];
-  const upcomingEvts = data?.upcomingEvts || [];
+  const events       = data?.upcomingEvts || [];
+  const todayStr     = new Date().toISOString().split('T')[0];
+  const upcomingEvents = events.filter(ev => ev.status !== 'draft' && (ev.config?.date || '') >= todayStr)
+                               .sort((a, b) => (a.config?.date || '').localeCompare(b.config?.date || ''));
+  const draftEvents    = events.filter(ev => ev.status === 'draft');
+  const pastEvents     = events.filter(ev => ev.status !== 'draft' && (ev.config?.date || '') < todayStr)
+                               .sort((a, b) => (b.config?.date || '').localeCompare(a.config?.date || ''));
+  const evtTabEvents   = evtTab === 'UPCOMING' ? upcomingEvents : evtTab === 'DRAFTS' ? draftEvents : pastEvents;
 
   // Sync fetched availability into local state once loaded
   if (data?.availability && localAvail === null) setLocalAvail(data.availability);
@@ -73,16 +110,45 @@ export default function VenueDashboard({ userId: userIdProp }) {
   const filteredEnq = useMemo(() => {
     return allEnquiries
       .filter(e => {
-        const st = (e.status || 'pending').toLowerCase();
-        return st === enqTab.toLowerCase();
+        if (dirTab === 'BOOKED') {
+          const st = (e.status || '').toLowerCase();
+          return st === 'booked' || st === 'accepted';
+        }
+        const dir = (e.direction || 'incoming').toLowerCase();
+        if (dir !== dirTab.toLowerCase()) return false;
+        return normaliseStatus(e) === statusTab.toLowerCase();
       })
       .filter(e => !search || JSON.stringify(e).toLowerCase().includes(search.toLowerCase()));
-  }, [allEnquiries, enqTab, search]);
+  }, [allEnquiries, dirTab, statusTab, search]);
 
-  const hasProfile = !!profile;
-  const eventsHosted  = upcomingEvts.length;
-  const enquiryCount  = allEnquiries.length;
-  const availCount    = availability.length;
+  function scrollToSection(id) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    window.scrollTo({ top: window.scrollY + rect.top - window.innerHeight * 0.35, behavior: 'smooth' });
+  }
+
+  // Load following list
+  useEffect(() => {
+    if (!userId) return;
+    setLoadingFollow(true);
+    (async () => {
+      const { data: rows } = await supabase.from('follows')
+        .select('entity_id').eq('user_id', userId).neq('entity_type', 'event');
+      const ids = (rows || []).map(r => r.entity_id).filter(Boolean);
+      if (!ids.length) { setLoadingFollow(false); return; }
+      const { data: profs } = await supabase.from('profiles')
+        .select('user_id, name, avatar, avatar_thumb, type, sound, genre_string, location, suburb, state, bio').in('user_id', ids);
+      const seen = {};
+      (profs || []).forEach(p => { if (!seen[p.user_id] || p.type !== 'punter') seen[p.user_id] = p; });
+      setFollowing(Object.values(seen));
+      setLoadingFollow(false);
+    })();
+  }, [userId]);
+
+  const hasProfile   = !!profile;
+  const enquiryCount = allEnquiries.length;
+  const availCount   = availability.length;
   const enquiredDates = new Set(allEnquiries.map(e => e.date_requested || e.preferred_date).filter(Boolean));
 
   const completionPct = !hasProfile ? 0 : (() => {
@@ -141,128 +207,306 @@ export default function VenueDashboard({ userId: userIdProp }) {
         <div className={s.profileCta}>{profile?.name ? 'EDIT →' : 'SET UP →'}</div>
       </div>
 
-      {/* Completion bar */}
+      {/* Completion bar — host dash style */}
       {hasProfile && (
-        <div style={{ marginBottom: 20 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-            <span style={{ fontFamily: "'Bebas Neue'", fontSize: 12, letterSpacing: 2, color: 'var(--muted)' }}>PROFILE COMPLETION</span>
-            <span style={{ fontFamily: "'Bebas Neue'", fontSize: 12, letterSpacing: 1, color: '#00E5A0' }}>{Math.round(completionPct)}%</span>
+        <div className={s.completionWrap}>
+          <div className={s.completionBar}>
+            <div className={s.completionFill} style={{ width: `${completionPct}%` }} />
           </div>
-          <div style={{ height: 6, background: 'var(--border)', borderRadius: 3, overflow: 'hidden' }}>
-            <div style={{ height: '100%', width: `${completionPct}%`, background: 'linear-gradient(90deg, #00E5A0, #00B4D8)', borderRadius: 3, transition: 'width .4s' }} />
-          </div>
+          <p className={s.completionLabel}>COMPLETE YOUR PROFILE — {Math.round(completionPct)}%</p>
         </div>
       )}
 
-      {/* Stats */}
+      {/* Attention bar */}
+      {(() => {
+        const newEnq = allEnquiries.filter(e => (e.direction || 'incoming').toLowerCase() === 'incoming' && normaliseStatus(e) === 'new').length;
+        if (newEnq === 0) return null;
+        return (
+          <div className={s.attention} onClick={() => { scrollToSection('section-enquiries'); setDirTab('INCOMING'); setStatusTab('NEW'); }}>
+            <span className={s.attentionDot} />
+            <span className={s.attentionText}>{newEnq} NEW ENQUIR{newEnq !== 1 ? 'IES' : 'Y'} — TAP TO REVIEW</span>
+          </div>
+        );
+      })()}
+
+      {/* Stats — scroll nav (position section at 35% from top) */}
       <div className={s.stats}>
-        <Stat label="EVENTS HOSTED" value={loading ? '—' : eventsHosted} />
-        <Stat label="ENQUIRIES"     value={loading ? '—' : enquiryCount} />
-        <Stat label="AVAIL. DATES"  value={loading ? '—' : availCount} />
+        <Stat label="EVENTS"       value={loading ? '—' : events.length} onClick={() => scrollToSection('section-events')} />
+        <Stat label="ENQUIRIES"    value={loading ? '—' : enquiryCount}  onClick={() => scrollToSection('section-enquiries')} />
+        <Stat label="AVAIL. DATES" value={loading ? '—' : availCount}    onClick={() => scrollToSection('section-availability')} />
+      </div>
+
+      {/* Events */}
+      <div id="section-events">
+          <div className={s.subTabBar}>
+            {[['UPCOMING', upcomingEvents.length], ['DRAFTS', draftEvents.length], ['PAST', pastEvents.length]].map(([t, count]) => (
+              <button key={t} className={s.subTab}
+                style={{ borderBottomColor: evtTab === t ? '#00E5A0' : 'transparent', color: evtTab === t ? 'var(--text)' : 'var(--muted)' }}
+                onClick={() => { setEvtTab(t); setShowAllEvts(false); }}
+              >{t}<span className={s.subTabCount}>{count}</span></button>
+            ))}
+          </div>
+          {loading
+            ? <p className={s.empty}>Loading…</p>
+            : evtTabEvents.length === 0
+              ? <p className={s.empty}>No {evtTab.toLowerCase()} events.</p>
+              : <>
+                  {evtTabEvents.length > 3 && (
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 6 }}>
+                      <button className={s.viewAllBtn} onClick={() => setShowAllEvts(v => !v)}>{showAllEvts ? 'View less <' : 'View all >'}</button>
+                    </div>
+                  )}
+                  <div className={s.evtList} style={showAllEvts ? { maxHeight: 'none', maskImage: 'none', WebkitMaskImage: 'none', overflowY: 'visible' } : {}}>
+                    {evtTabEvents.map(ev => {
+                      const isLive      = ev.status === 'live';
+                      const isCompleted = ev.status === 'completed' || (isLive && (ev.config?.date || '') < todayStr);
+                      const cfg         = ev.config || {};
+                      const appsOpen    = cfg.applications_open === true || ev.applications_open === true;
+                      const isPublic    = cfg.is_public !== false && ev.is_public !== false;
+                      const statusLabel = isCompleted ? 'FINISHED' : isLive ? 'LIVE' : 'DRAFT';
+                      const statusCol   = isCompleted ? 'var(--muted)' : isLive ? '#00e676' : 'var(--muted)';
+                      const statusBg    = isCompleted ? 'rgba(120,120,160,.1)' : isLive ? 'rgba(0,230,118,.1)' : 'rgba(120,120,160,.1)';
+                      const statusBdr   = isCompleted ? 'rgba(120,120,160,.3)' : isLive ? 'rgba(0,230,118,.35)' : 'rgba(120,120,160,.3)';
+                      return (
+                        <div key={ev.id} className={s.evtCardWrap} onClick={() => navigate(`/event/${ev.id}`)}>
+                          <EventCard event={ev} noHover />
+                          <div style={{ position: 'absolute', top: 12, right: 12, display: 'flex', gap: 4, alignItems: 'center' }}>
+                            <span style={{ fontSize: 9, fontFamily: "'Bebas Neue'", letterSpacing: 1.2, color: statusCol, background: statusBg, border: `1px solid ${statusBdr}`, borderRadius: 4, padding: '2px 7px' }}>{statusLabel}</span>
+                          </div>
+                          <div style={{ position: 'absolute', bottom: 12, right: 12, display: 'flex', gap: 6, alignItems: 'center' }}>
+                            {isLive && !isCompleted && (
+                              <span style={{ fontSize: 9, fontFamily: "'Bebas Neue'", letterSpacing: 1.2, color: appsOpen ? '#00e676' : 'var(--muted)', background: appsOpen ? 'rgba(0,230,118,.12)' : 'rgba(120,120,160,.12)', border: `1px solid ${appsOpen ? 'rgba(0,230,118,.4)' : 'rgba(120,120,160,.3)'}`, borderRadius: 4, padding: '2px 6px' }}>{appsOpen ? 'APPS OPEN' : 'APPS CLOSED'}</span>
+                            )}
+                            {!isCompleted && (
+                              <span style={{ fontSize: 9, fontFamily: "'Bebas Neue'", letterSpacing: 1.2, color: isPublic ? '#00B4D8' : 'var(--muted)', background: isPublic ? 'rgba(0,180,216,.08)' : 'rgba(120,120,160,.08)', border: `1px solid ${isPublic ? 'rgba(0,180,216,.25)' : 'rgba(120,120,160,.25)'}`, borderRadius: 4, padding: '2px 6px' }}>{isPublic ? 'PUBLIC' : 'PRIVATE'}</span>
+                            )}
+                            {!isCompleted && (
+                              <button style={{ fontSize: 10, fontFamily: "'Bebas Neue'", letterSpacing: 1.5, color: '#fff', background: 'rgba(0,229,160,.35)', border: '1px solid rgba(0,229,160,.6)', borderRadius: 5, padding: '4px 10px', cursor: 'pointer' }}
+                                onClick={e => { e.stopPropagation(); navigate(`/create-event?edit=${ev.id}`); }}>EDIT →</button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+          }
+          <button onClick={() => navigate('/create-event')} style={{ display: 'block', width: '100%', marginTop: 8, marginBottom: 12, background: 'linear-gradient(135deg, #99204d, #6b2e99)', color: '#fff', fontFamily: "'Bebas Neue'", fontSize: 18, letterSpacing: 2, padding: 14, borderRadius: 10, border: 'none', cursor: 'pointer', transition: 'opacity .15s' }} onMouseEnter={e=>e.currentTarget.style.opacity='.85'} onMouseLeave={e=>e.currentTarget.style.opacity='1'}>+ CREATE NEW EVENT</button>
       </div>
 
       {/* Availability */}
-      <Section title="VENUE AVAILABILITY" action="MANAGE" onAction={() => setShowAvailCal(true)} viewAll={availability.length > 0 ? (showAllAvail ? 'View less ‹' : 'View all ›') : null} onViewAll={() => setShowAllAvail(v => !v)}>
-        {availability.length === 0
-          ? <p className={s.empty}>No upcoming dates set.</p>
-          : <div className={s.chips} style={showAllAvail ? {} : { maxHeight: '72px', overflow: 'hidden' }}>
-              {availability.map(d => (
-                <span key={d} className={s.chip} style={enquiredDates.has(d) ? { color: '#00E5A0', borderColor: 'rgba(0,229,160,.4)', background: 'rgba(0,229,160,.12)' } : {}}>
-                  {formatDisplayDate(d)}
-                </span>
-              ))}
-            </div>
-        }
-      </Section>
-
-      {/* Availability calendar modal */}
-      {showAvailCal && (
-        <VenueAvailCalendar
-          availability={localAvail ?? []}
-          onToggle={toggleDate}
-          onClose={() => setShowAvailCal(false)}
-        />
-      )}
-
-      {/* Upcoming events */}
-      <Section title="UPCOMING EVENTS" action={showAllEvents ? 'View less ‹' : 'View all ›'} onAction={() => setShowAllEvents(v => !v)}>
-        {upcomingEvts.length === 0
-          ? <p className={s.empty}>No upcoming events.</p>
-          : showAllEvents
-            ? <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {upcomingEvts.map(ev => <EventCard key={ev.id} event={ev} />)}
+      <div id="section-availability" style={{ marginTop: 24 }}>
+        <Section title="AVAILABLE DATES" subtitle="tap dates to add / remove" onAction={() => setShowAvailCal(true)} viewAll={availability.length > 0 ? 'View all >' : null} onViewAll={() => setShowAvailCal(true)}>
+          {availability.length === 0
+            ? <p className={s.empty}>No upcoming dates set.</p>
+            : <div className={s.chips}>
+                {availability.slice(0, window.innerWidth < 640 ? 8 : 12).map(d => (
+                  <DateChip key={d} label={formatDisplayDate(d)} onClick={() => setShowAvailCal(true)} />
+                ))}
               </div>
-            : <div style={{ maxHeight: 292, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6, scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-                {upcomingEvts.map(ev => <EventCard key={ev.id} event={ev} />)}
-              </div>
-        }
-      </Section>
+          }
+        </Section>
+        {showAvailCal && (
+          <VenueAvailCalendar
+            availability={localAvail ?? []}
+            onToggle={toggleDate}
+            onClose={() => setShowAvailCal(false)}
+          />
+        )}
+      </div>
 
       {/* Enquiries */}
-      <Section title="ENQUIRIES" action={showAllEnq ? 'View less ‹' : 'View all ›'} onAction={() => setShowAllEnq(v => !v)}>
-        {/* Tabs */}
-        <div className={s.enqTabs}>
-          {ENQ_TABS.map(({ key, color, rgb }) => {
-            const active = enqTab === key;
-            const cnt = (data?.enquiries || []).filter(e => e.status?.toLowerCase() === key.toLowerCase() || (!e.status && key === 'PENDING')).length;
+      <div id="section-enquiries">
+        <Section title="ENQUIRIES" action={showAllEnq ? 'View less <' : 'View all >'} onAction={() => setShowAllEnq(v => !v)}>
+          {/* Direction tabs */}
+          <div className={s.enqDirTabs}>
+            {DIR_TABS.map(({ key, color, rgb, subTabs }) => {
+              const active = dirTab === key;
+              const cnt = allEnquiries.filter(e => {
+                if (key === 'BOOKED') { const st = (e.status||'').toLowerCase(); return st === 'booked' || st === 'accepted'; }
+                return (e.direction || 'incoming').toLowerCase() === key.toLowerCase();
+              }).length;
+              return (
+                <EnqTabBtn key={key} active={active} color={color} rgb={rgb} onClick={() => { setDirTab(key); setStatusTab(subTabs[0] || ''); }}>
+                  {key}{cnt ? ' (' + cnt + ')' : ''}
+                </EnqTabBtn>
+              );
+            })}
+          </div>
+          {/* Sub-tabs (only for INCOMING / OUTGOING) */}
+          {(() => {
+            const dir = DIR_TABS.find(d => d.key === dirTab);
+            if (!dir || dir.subTabs.length === 0) return null;
+            const accent = dir.color;
+            const accentRgb = dir.rgb;
             return (
-              <button
-                key={key}
-                onClick={() => setEnqTab(key)}
-                style={{
-                  fontFamily: "'Bebas Neue'", fontSize: 12, letterSpacing: 1.5,
-                  padding: '5px 14px', borderRadius: 20, cursor: 'pointer',
-                  background: active ? `rgba(${rgb},.12)` : 'transparent',
-                  border: `1.5px solid ${active ? color : 'rgba(255,255,255,.12)'}`,
-                  color: active ? color : 'var(--muted)',
-                }}
-              >{key}{cnt ? ` (${cnt})` : ''}</button>
+              <div className={s.enqSubTabs}>
+                {dir.subTabs.map(sub => {
+                  const activeSub = statusTab === sub;
+                  const cnt = allEnquiries.filter(e => (e.direction || 'incoming').toLowerCase() === dirTab.toLowerCase() && normaliseStatus(e) === sub.toLowerCase()).length;
+                  return (
+                    <button key={sub} onClick={() => setStatusTab(sub)}
+                      className={s.enqSubTab}
+                      style={{ borderBottomColor: activeSub ? accent : 'transparent', color: activeSub ? accent : 'var(--muted)' }}>
+                      {sub}
+                      {cnt > 0 && (<span className={s.enqSubCount} style={activeSub ? { background: `rgba(${accentRgb},.18)`, color: accent } : {}}>{cnt}</span>)}
+                    </button>
+                  );
+                })}
+              </div>
             );
-          })}
-        </div>
+          })()}
+          <div className={s.searchWrap}>
+            <span className={s.searchIcon}>🔍</span>
+            <input className={s.searchInput} type="text" placeholder="Search by genre, vibe, act type…" value={search} onChange={e => setSearch(e.target.value)} />
+          </div>
+          {filteredEnq.length === 0
+            ? (<p className={s.empty}>No {(dirTab === 'BOOKED' ? 'booked' : statusTab.toLowerCase())} enquiries{search ? ' matching your search' : ''}.</p>)
+            : (<div style={showAllEnq ? {} : { maxHeight: 500, overflowY: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                {filteredEnq.map(enq => (
+                  <EnquiryCard key={enq.id} enq={enq} onRespond={(id, status) =>
+                    setEnquiries(allEnquiries.map(e => e.id === id ? { ...e, status } : e))
+                  } />
+                ))}
+              </div>)
+          }
+        </Section>
+      </div>
 
-        {/* Search */}
-        <div className={s.searchWrap}>
-          <span className={s.searchIcon}>🔍</span>
-          <input
-            className={s.searchInput}
-            type="text"
-            placeholder="Search by genre, vibe, act type…"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-          />
-        </div>
+      {/* Following */}
+      {(() => {
+        const FILTER_TYPES = ['ALL', 'ARTIST', 'BAND', 'HOST', 'COMEDY'];
+        const FILTER_LABELS = { ALL: 'ALL', ARTIST: 'DJ', BAND: 'BAND', HOST: 'HOST', COMEDY: 'SPOKEN' };
+        const TYPE_MAP = { ARTIST: 'artist', BAND: 'band', HOST: 'host', COMEDY: 'standup', VENUE: 'venue' };
+        const filtered = following.filter(p => followFilter === 'ALL' || p.type === TYPE_MAP[followFilter]);
 
-        {/* Enquiry cards — 3 and a bit visible, scrollable */}
-        {filteredEnq.length === 0
-          ? <p className={s.empty}>No {enqTab.toLowerCase()} enquiries{search ? ' matching your search' : ''}.</p>
-          : <div style={showAllEnq ? {} : { maxHeight: 500, overflowY: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-              {filteredEnq.map(enq => (
-                <EnquiryCard key={enq.id} enq={enq} onRespond={(id, status) =>
-                  setEnquiries(allEnquiries.map(e => e.id === id ? { ...e, status } : e))
-                } />
-              ))}
+        return (
+          <div style={{ marginTop: 24 }}>
+            {/* Header row */}
+            {/* Header row */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+              <span style={{ fontFamily: "'Bebas Neue'", fontSize: 18, letterSpacing: 2, color: '#fff' }}>THE REGULARS</span>
+              {following.length > 0 && <span style={{ fontFamily: "'DM Sans'", fontWeight: 700, fontSize: 11, color: 'var(--muted)', background: 'var(--card2)', borderRadius: 8, padding: '1px 7px' }}>{following.length}</span>}
+              <div style={{ flex: 1 }} />
+              {/* Portrait / landscape toggle — hidden in expanded view */}
+              {!regularsShowAll && (
+                <div style={{ display: 'flex', background: 'var(--card2)', borderRadius: 8, overflow: 'hidden', border: '1px solid var(--border)' }}>
+                  {[['portrait', '▦'], ['landscape', '☰']].map(([v, icon]) => (
+                    <button key={v} onClick={() => setFollowView(v)} style={{ background: followView === v ? 'rgba(0,229,160,.18)' : 'none', border: 'none', color: followView === v ? '#00E5A0' : 'var(--muted)', padding: '5px 10px', cursor: 'pointer', fontSize: 13, lineHeight: 1, transition: 'background .15s, color .15s' }}>{icon}</button>
+                  ))}
+                </div>
+              )}
             </div>
-        }
-      </Section>
 
-      {/* Find Promoters */}
+            {/* Filter pills row + View all on the right */}
+            {(() => {
+              const PILL_COLORS = { ALL: { col: 'var(--muted)', rgb: '150,150,170' }, ARTIST: { col: 'var(--neon2)', rgb: '0,229,255' }, BAND: { col: '#FF8C42', rgb: '255,140,66' }, HOST: { col: '#FF3399', rgb: '255,51,153' }, COMEDY: { col: '#FF88AA', rgb: '255,136,170' } };
+              return (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12, flexWrap: 'nowrap' }}>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', flex: 1 }}>
+                    {FILTER_TYPES.map(f => {
+                      const pc = PILL_COLORS[f] || PILL_COLORS.ALL;
+                      const active = followFilter === f;
+                      return (
+                        <button key={f} onClick={() => setFollowFilter(f)} style={{ fontFamily: "'Bebas Neue'", fontSize: 11, letterSpacing: 1.2, padding: '4px 12px', borderRadius: 14, border: `1px solid`, borderColor: active ? pc.col : 'var(--border)', background: active ? `rgba(${pc.rgb},.15)` : 'var(--card2)', color: active ? pc.col : 'var(--muted)', cursor: 'pointer', transition: 'all .15s' }}>{FILTER_LABELS[f]}</button>
+                      );
+                    })}
+                  </div>
+                  {(regularsShowAll || filtered.length > 3) && (
+                    <span onClick={() => { setRegularsShowAll(v => !v); setRegularsSearch(''); }} onMouseEnter={e => e.currentTarget.style.color = '#fff'} onMouseLeave={e => e.currentTarget.style.color = regularsShowAll ? 'var(--text)' : 'var(--muted)'} style={{ fontFamily: "'Bebas Neue'", fontSize: 13, letterSpacing: 1, color: regularsShowAll ? 'var(--text)' : 'var(--muted)', cursor: 'pointer', opacity: regularsShowAll ? 1 : 0.7, flexShrink: 0, transition: 'opacity .15s, color .15s' }}>{regularsShowAll ? 'View less' : 'View all >'}</span>
+                  )}
+                </div>
+              );
+            })()}
+
+            {loadingFollow ? (
+              <p style={{ fontSize: 13, color: 'var(--muted)' }}>Loading…</p>
+            ) : following.length === 0 ? (
+              <p style={{ fontSize: 13, color: 'var(--muted)' }}>Follow artists from their profiles to build your roster here.</p>
+            ) : filtered.length === 0 ? (
+              <p style={{ fontSize: 13, color: 'var(--muted)' }}>No {followFilter.toLowerCase()}s in your following list.</p>
+            ) : regularsShowAll ? (
+              // Expanded: search + portrait grid
+              <div>
+                <input
+                  value={regularsSearch}
+                  onChange={e => setRegularsSearch(e.target.value)}
+                  placeholder="Search name, location, vibe..."
+                  style={{ width: '100%', boxSizing: 'border-box', background: 'rgba(255,255,255,.06)', border: '1px solid rgba(255,255,255,.12)', borderRadius: 10, padding: '10px 14px', color: '#fff', fontFamily: "'DM Sans',sans-serif", fontSize: 13, marginBottom: 10, outline: 'none' }}
+                />
+                {(() => {
+                  const q = regularsSearch.toLowerCase();
+                  const visible = filtered.filter(p => !q || ['name','location','sound','type'].some(k => p[k]?.toLowerCase().includes(q)));
+                  return visible.length === 0
+                    ? <p style={{ fontSize: 13, color: 'var(--muted)' }}>No results.</p>
+                    : <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(150px,1fr))', gap: 10 }}>
+                        {visible.map(p => <PortraitCard key={p.user_id} profile={p} width={150} height={200} />)}
+                      </div>;
+                })()}
+              </div>
+            ) : followView === 'portrait' ? (
+              // Compact: horizontal drag scroll
+              <div ref={regularsDrag.ref} onMouseDown={regularsDrag.onMouseDown} onMouseMove={regularsDrag.onMouseMove} onMouseUp={regularsDrag.onMouseUp} onMouseLeave={regularsDrag.onMouseLeave} style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 8, WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', cursor: 'grab', userSelect: 'none' }}>
+                {filtered.map(p => (
+                  <PortraitCard key={p.user_id} profile={p} width={150} height={200} />
+                ))}
+              </div>
+            ) : (
+              // Compact: landscape list
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {filtered.map(p => (
+                  <ProfileCard key={p.user_id} item={p} actions={
+                    <button
+                      onClick={() => setInviteArtist(p)}
+                      style={{ fontFamily: "'Bebas Neue'", fontSize: 11, letterSpacing: 1, padding: '4px 10px', borderRadius: 6, border: '1px solid rgba(0,229,160,.4)', background: 'rgba(0,229,160,.08)', color: '#00E5A0', cursor: 'pointer', whiteSpace: 'nowrap', transition: 'background .15s' }}
+                    >INVITE →</button>
+                  } />
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
       <button
         onClick={() => navigate('/discover')}
         style={{
-          display: 'block', width: '100%', marginBottom: 12,
-          background: 'linear-gradient(135deg, #00E5A0, #00B4D8)',
+          display: 'block', width: '100%', marginTop: 24,
+          background: 'linear-gradient(#0f0f1a, #0f0f1a) padding-box, linear-gradient(90deg, #BF5FFF, #ffb830) border-box',
           color: '#fff', fontFamily: "'Bebas Neue'", fontSize: 16, letterSpacing: 2,
-          padding: '14px', borderRadius: 12, border: 'none', cursor: 'pointer',
+          padding: '14px', borderRadius: 20, border: '1.5px solid transparent', cursor: 'pointer',
+          transition: 'background .2s',
         }}
-      >FIND PROMOTERS</button>
+        onMouseEnter={e => { e.currentTarget.style.background = 'linear-gradient(135deg, #00E5A0, #00B4D8)'; }}
+        onMouseLeave={e => { e.currentTarget.style.background = 'linear-gradient(#0f0f1a, #0f0f1a) padding-box, linear-gradient(90deg, #BF5FFF, #ffb830) border-box'; }}
+      >BROWSE ENTERTAINMENT →</button>
+
+      {inviteArtist && (
+        <InviteSheet
+          artist={inviteArtist}
+          events={events.filter(ev => ev.status !== 'completed')}
+          venueUserId={userId}
+          onClose={() => setInviteArtist(null)}
+        />
+      )}
     </div>
   );
 }
 
-function Stat({ label, value }) {
+function Stat({ label, value, onClick }) {
+  const [hov, setHov] = useState(false);
   return (
-    <div style={{ flex: 1, textAlign: 'center', padding: '12px 8px', background: 'rgba(0,229,160,.05)', borderRadius: 10, border: '1px solid rgba(0,229,160,.2)' }}>
+    <div
+      onClick={onClick}
+      onMouseEnter={() => setHov(true)}
+      onMouseLeave={() => setHov(false)}
+      style={{
+        flex: 1, textAlign: 'center', padding: '12px 8px', borderRadius: 10, cursor: 'pointer',
+        background: hov ? 'rgba(0,229,160,.06)' : 'rgba(255,255,255,.03)',
+        border: hov ? '1px solid rgba(0,229,160,.25)' : '1px solid var(--border)',
+        transition: 'background .2s, border-color .2s',
+      }}
+    >
       <p style={{ fontFamily: "'Bebas Neue'", fontSize: 26, color: '#00E5A0', letterSpacing: 1 }}>{value}</p>
       <p style={{ fontSize: 10, color: 'var(--muted)', letterSpacing: 1, fontFamily: "'Bebas Neue'" }}>{label}</p>
     </div>
@@ -340,17 +584,20 @@ function VenueAvailCalendar({ availability, onToggle, onClose }) {
   );
 }
 
-function Section({ title, action, onAction, viewAll, onViewAll, green, children }) {
-  const accent = green ? '#00E5A0' : 'var(--neon2)';
+
+function Section({ title, subtitle, action, onAction, viewAll, onViewAll, green, children }) {
   return (
     <div style={{ marginBottom: 20 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: `1px solid var(--border)`, paddingBottom: 8, marginBottom: 12 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <p style={{ fontFamily: "'Bebas Neue'", fontSize: 13, letterSpacing: 2.5, color: accent }}>{title}</p>
-          {action === 'MANAGE' && <button onClick={onAction} style={{ background: 'none', color: accent, fontFamily: "'Bebas Neue'", fontSize: 11, letterSpacing: 1, border: `1px solid ${accent}`, borderRadius: 6, padding: '3px 10px', cursor: 'pointer' }}>MANAGE</button>}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+          <p style={{ fontFamily: "'Bebas Neue'", fontSize: 13, letterSpacing: 2.5 }}>
+            <span style={{ color: '#fff' }}>{title}</span>
+          </p>
+          {subtitle && <span style={{ fontSize: 10, color: 'var(--muted)', letterSpacing: 0.3 }}>{subtitle}</span>}
         </div>
-        {action && action !== 'MANAGE' && <button onClick={onAction} style={{ background: 'none', border: 'none', color: 'var(--muted)', fontSize: 13, cursor: 'pointer', whiteSpace: 'nowrap' }}>{action}</button>}
-        {viewAll && <button onClick={onViewAll} style={{ background: 'none', border: 'none', color: 'var(--muted)', fontSize: 13, cursor: 'pointer', whiteSpace: 'nowrap' }}>{viewAll}</button>}
+        <div style={{ flex: 1 }} />
+        {action && <button onClick={onAction} className={s.viewAllBtn}>{action}</button>}
+        {viewAll && <button onClick={onViewAll} className={s.viewAllBtn}>{viewAll}</button>}
       </div>
       {children}
     </div>
@@ -385,12 +632,12 @@ function HoverProfileBtn({ expanded, onClick, compact }) {
         fontFamily: "'Bebas Neue'", letterSpacing: 1.5,
         background: hov ? 'rgba(255,51,153,.22)' : 'rgba(255,51,153,.1)',
         border: `1px solid ${hov ? '#FF69B4' : 'rgba(255,51,153,.35)'}`,
-        color: hov ? '#FF69B4' : '#FF3399',
+        color: '#fff',
         ...(compact
           ? { fontSize: 10, padding: '3px 8px' }
           : { fontSize: 10, padding: '4px 10px' }),
       }}
-    >{expanded ? 'HIDE ▲' : 'VIEW FULL PROFILE ▼'}</button>
+    >{expanded ? 'HIDE ▲' : 'MORE INFO ▼'}</button>
   );
 }
 
@@ -413,20 +660,74 @@ function HoverBtn({ onClick, disabled, base, hover, children }) {
   );
 }
 
+function DateChip({ label, onClick }) {
+  const [hov, setHov] = useState(false);
+  return (
+    <span
+      className={s.chip}
+      onClick={onClick}
+      onMouseEnter={() => setHov(true)}
+      onMouseLeave={() => setHov(false)}
+      style={{
+        cursor: 'pointer',
+        color: hov ? '#fff' : undefined,
+        borderColor: hov ? 'rgba(255,255,255,.3)' : undefined,
+        background: hov ? 'rgba(255,255,255,.06)' : undefined,
+      }}
+    >{label}</span>
+  );
+}
+
+function EnqTabBtn({ active, color, rgb, onClick, children }) {
+  const [hov, setHov] = useState(false);
+  return (
+    <button
+      onClick={onClick}
+      onMouseEnter={() => setHov(true)}
+      onMouseLeave={() => setHov(false)}
+      style={{
+        fontFamily: "'Bebas Neue'", fontSize: 12, letterSpacing: 1.5,
+        padding: '5px 14px', borderRadius: 20, cursor: 'pointer',
+        transition: 'background .15s, border-color .15s, color .15s',
+        background: active ? `rgba(${rgb},.12)` : hov ? `rgba(${rgb},.08)` : 'transparent',
+        border: `1.5px solid ${active ? color : hov ? `rgba(${rgb},.6)` : 'rgba(255,255,255,.12)'}`,
+        color: active || hov ? color : 'var(--muted)',
+      }}
+    >{children}</button>
+  );
+}
+
 function EnquiryCard({ enq, onRespond }) {
   const navigate = useNavigate();
   const [busy, setBusy] = useState(false);
   const [profile, setProfile] = useState(null);
   const [expanded, setExpanded] = useState(false);
   const [bioOpen, setBioOpen] = useState(false);
-  const isPending = !enq.status || enq.status === 'pending';
+  const { setPlayer } = usePlayer();
+  const expandRef = useRef(null);
 
-  const TYPE_ACCENT = { artist: '#00E5FF', band: '#FF8C42', standup: '#FF88AA', host: '#FF3399' };
-  const TYPE_RGB    = { artist: '0,229,255', band: '255,140,66', standup: '255,136,170', host: '255,51,153' };
+  useEffect(() => {
+    if (expanded && expandRef.current) {
+      setTimeout(() => {
+        expandRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+      }, 50);
+    }
+  }, [expanded]);
+  const displayStatus = normaliseStatus(enq);
+  const enqDir = (enq.direction || 'incoming').toLowerCase();
+
+  const TYPE_ACCENT  = { artist: '#00E5FF', band: '#FF8C42', standup: '#FF88AA', host: '#FF3399' };
+  const TYPE_RGB     = { artist: '0,229,255', band: '255,140,66', standup: '255,136,170', host: '255,51,153' };
+  const TYPE_LABEL   = { artist: 'DJ / PRODUCER', band: 'BAND', standup: 'SPOKEN', host: 'HOST', venue: 'VENUE' };
   const accent    = TYPE_ACCENT[enq.applicant_type] || '#00E5FF';
   const accentRgb = TYPE_RGB[enq.applicant_type]    || '0,229,255';
 
-  const statusColor = { accepted: '#00E5A0', tentative: '#00B4D8', pending: '#FFD700', declined: 'var(--muted)' }[enq.status] || '#FFD700';
+  const statusColor = {
+    new: '#FFD700', awaiting: '#FFD700',
+    shortlisted: '#00B4D8', interested: '#00B4D8',
+    accepted: '#00E5A0', booked: '#00E5A0',
+    declined: 'var(--muted)',
+  }[displayStatus] || '#FFD700';
 
   useState(() => {
     if (!enq.applicant_user_id) return;
@@ -439,6 +740,25 @@ function EnquiryCard({ enq, onRespond }) {
     setBusy(true);
     await supabase.from('venue_enquiries').update({ status }).eq('id', enq.id);
     onRespond(enq.id, status);
+
+    // Notify the artist/applicant
+    const artistId = enq.applicant_user_id;
+    const venueName = enq.venue_name || 'A venue';
+    const eventName = enq.event_name || null;
+
+    const NOTIF = {
+      shortlisted:  { type: 'shortlisted',         message: `${venueName} shortlisted you${eventName ? ` for ${eventName}` : ''}.` },
+      accepted:     { type: 'booking_confirmed',    message: `${venueName} accepted you${eventName ? ` for ${eventName}` : ''}. You're booked!` },
+      booked:       { type: 'booking_confirmed',    message: `${venueName} confirmed your booking${eventName ? ` for ${eventName}` : ''}.` },
+      declined:     { type: 'application_declined', message: `${venueName} passed on your application${eventName ? ` for ${eventName}` : ''}.` },
+      interested:   { type: 'shortlisted',          message: `${venueName} is interested in your enquiry${eventName ? ` for ${eventName}` : ''}.` },
+    };
+
+    const notif = NOTIF[status];
+    if (notif && artistId) {
+      await writeNotification(artistId, notif.type, notif.message, { event_name: eventName, venue_name: venueName, enquiry_id: enq.id });
+    }
+
     setBusy(false);
   }
 
@@ -470,13 +790,13 @@ function EnquiryCard({ enq, onRespond }) {
         <div className={ds.cardInfo}>
           <div className={ds.cardNameRow}>
             <span className={ds.cardName}>{name}</span>
-            <span className={ds.cardBadge} style={{ color: accent, background: `rgba(${accentRgb},.15)`, borderColor: `rgba(${accentRgb},.3)` }}>{(enq.applicant_type || 'artist').toUpperCase()}</span>
+            <span className={ds.cardBadge} style={{ color: accent, background: `rgba(${accentRgb},.15)`, borderColor: `rgba(${accentRgb},.3)` }}>{TYPE_LABEL[(p.role || enq.applicant_type || 'artist').toLowerCase()] || (p.role || enq.applicant_type || 'artist').toUpperCase()}</span>
           </div>
           {loc && <div className={ds.cardLoc}>{loc}</div>}
           {sound && <div className={ds.cardSound} style={{ color: accent }}>{sound}</div>}
           {/* Genre pills */}
           {allTags.length > 0 && (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 6 }}>
+            <div className={s.enqTags}>
               {allTags.slice(0, 5).map(g => (
                 <HoverPill key={g} label={g} accentRgb={accentRgb} accent={accent} />
               ))}
@@ -486,7 +806,7 @@ function EnquiryCard({ enq, onRespond }) {
         {/* Right: status pill → date box → profile button */}
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, flexShrink: 0 }}>
           <span className={s.enqStatus} style={{ color: statusColor, borderColor: statusColor }}>
-            {(enq.status || 'PENDING').toUpperCase()}
+            {displayStatus.toUpperCase()}
           </span>
           {(() => {
             const raw = enq.date_requested || enq.preferred_date;
@@ -511,7 +831,7 @@ function EnquiryCard({ enq, onRespond }) {
 
       {/* Expanded profile details */}
       {expanded && profile && (
-        <div style={{ background: 'var(--card)', border: `1px solid rgba(${accentRgb},.35)`, borderTop: 'none', borderRadius: '0 0 14px 14px', padding: '12px 18px' }}>
+        <div ref={expandRef} style={{ background: 'var(--card)', border: `1px solid rgba(${accentRgb},.35)`, borderTop: 'none', borderRadius: '0 0 14px 14px', padding: '12px 18px' }}>
           {p.bio && (
             <div style={{ display: 'flex', gap: 8, padding: '7px 0', borderBottom: '1px solid rgba(255,255,255,.05)' }}>
               <div style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1.5, color: 'var(--muted)', minWidth: 70, paddingTop: 2 }}>ABOUT</div>
@@ -537,7 +857,7 @@ function EnquiryCard({ enq, onRespond }) {
           {(p.mix_link || p.soundcloud || p.mixcloud) && (
             <div style={{ display: 'flex', gap: 8, padding: '7px 0', borderBottom: '1px solid rgba(255,255,255,.05)' }}>
               <div style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1.5, color: 'var(--muted)', minWidth: 70, paddingTop: 2 }}>MIX / DEMO</div>
-              <a href={p.mix_link || p.soundcloud || p.mixcloud} target="_blank" rel="noopener" style={{ fontSize: 13, color: accent, flex: 1, wordBreak: 'break-all' }}>▶ Play demo</a>
+              <button onClick={() => setPlayer({ url: p.mix_link || p.soundcloud || p.mixcloud, artistName: name })} style={{ background: 'none', border: 'none', padding: 0, fontSize: 13, color: accent, cursor: 'pointer', textAlign: 'left' }}>Play demo</button>
             </div>
           )}
           {p.instagram && p.instagram !== 'N/A' && (
@@ -546,25 +866,78 @@ function EnquiryCard({ enq, onRespond }) {
               {(() => { const h = p.instagram.replace(/^@/, '').replace(/^(?:https?:\/\/)?(?:www\.)?instagram\.com\/?/i, '').replace(/\/$/, ''); return <a href={`https://instagram.com/${h}`} target="_blank" rel="noopener" style={{ fontSize: 13, color: accent }}>@{h}</a>; })()}
             </div>
           )}
-          {isPending && (
-            <div style={{ display: 'flex', gap: 6, marginTop: 12 }}>
-              <HoverBtn
-                onClick={() => respond('accepted')} disabled={busy}
-                base={{ bg: 'rgba(0,229,160,.1)', border: '1px solid rgba(0,229,160,.4)', color: '#00E5A0' }}
-                hover={{ bg: 'rgba(0,229,160,.28)', border: '1px solid #00E5A0' }}
-              >ACCEPT ✓</HoverBtn>
-              <HoverBtn
-                onClick={() => respond('tentative')} disabled={busy}
-                base={{ bg: 'rgba(0,180,216,.1)', border: '1px solid rgba(0,180,216,.4)', color: '#00B4D8' }}
-                hover={{ bg: 'rgba(0,180,216,.28)', border: '1px solid #00B4D8' }}
-              >TENTATIVE</HoverBtn>
-              <HoverBtn
-                onClick={() => respond('declined')} disabled={busy}
-                base={{ bg: 'rgba(255,140,0,.06)', border: '1px solid rgba(255,140,0,.2)', color: 'var(--muted)' }}
-                hover={{ bg: 'rgba(255,140,0,.2)', border: '1px solid #FF8C00', color: '#FF8C00' }}
-              >DECLINE ✗</HoverBtn>
+          {enq.applicant_user_id && (
+            <div style={{ padding: '10px 0 4px' }}>
+              <button
+                onClick={() => navigate('/profile/' + enq.applicant_user_id + '?type=' + (enq.applicant_type || 'artist'))}
+                style={{ width: 'fit-content', background: `rgba(${accentRgb},.08)`, border: `1px solid rgba(${accentRgb},.4)`, borderRadius: 10, padding: '8px 14px', fontFamily: "'Bebas Neue'", fontSize: 13, letterSpacing: 1.5, color: accent, cursor: 'pointer', transition: 'background .15s, border-color .15s' }}
+                onMouseEnter={e => { e.currentTarget.style.background = `rgba(${accentRgb},.18)`; e.currentTarget.style.borderColor = accent; }}
+                onMouseLeave={e => { e.currentTarget.style.background = `rgba(${accentRgb},.08)`; e.currentTarget.style.borderColor = `rgba(${accentRgb},.4)`; }}
+              >VIEW FULL PROFILE →</button>
             </div>
           )}
+          {(() => {
+            const declineBtn = (
+              <HoverBtn onClick={() => respond('declined')} disabled={busy}
+                base={{ bg: 'rgba(255,80,80,.06)', border: '1px solid rgba(255,80,80,.2)', color: 'var(--muted)' }}
+                hover={{ bg: 'rgba(255,80,80,.2)', border: '1px solid #ff5050', color: '#ff5050' }}
+              >DECLINE ✗</HoverBtn>
+            );
+            if (enqDir === 'incoming') {
+              if (displayStatus === 'new') return (
+                <div style={{ display: 'flex', gap: 6, marginTop: 12 }}>
+                  <HoverBtn onClick={() => respond('shortlisted')} disabled={busy}
+                    base={{ bg: 'rgba(0,180,216,.1)', border: '1px solid rgba(0,180,216,.4)', color: '#00B4D8' }}
+                    hover={{ bg: 'rgba(0,180,216,.28)', border: '1px solid #00B4D8' }}
+                  >SHORTLIST ★</HoverBtn>
+                  <HoverBtn onClick={() => respond('accepted')} disabled={busy}
+                    base={{ bg: 'rgba(0,229,160,.1)', border: '1px solid rgba(0,229,160,.4)', color: '#00E5A0' }}
+                    hover={{ bg: 'rgba(0,229,160,.28)', border: '1px solid #00E5A0' }}
+                  >ACCEPT ✓</HoverBtn>
+                  {declineBtn}
+                </div>
+              );
+              if (displayStatus === 'shortlisted') return (
+                <div style={{ display: 'flex', gap: 6, marginTop: 12 }}>
+                  <HoverBtn onClick={() => respond('accepted')} disabled={busy}
+                    base={{ bg: 'rgba(0,229,160,.1)', border: '1px solid rgba(0,229,160,.4)', color: '#00E5A0' }}
+                    hover={{ bg: 'rgba(0,229,160,.28)', border: '1px solid #00E5A0' }}
+                  >ACCEPT ✓</HoverBtn>
+                  {declineBtn}
+                </div>
+              );
+            }
+            if (enqDir === 'outgoing') {
+              if (displayStatus === 'awaiting') return (
+                <div style={{ display: 'flex', gap: 6, marginTop: 12 }}>
+                  <HoverBtn onClick={() => respond('interested')} disabled={busy}
+                    base={{ bg: 'rgba(0,180,216,.1)', border: '1px solid rgba(0,180,216,.4)', color: '#00B4D8' }}
+                    hover={{ bg: 'rgba(0,180,216,.28)', border: '1px solid #00B4D8' }}
+                  >INTERESTED ✓</HoverBtn>
+                  {declineBtn}
+                </div>
+              );
+              if (displayStatus === 'interested') return (
+                <div style={{ display: 'flex', gap: 6, marginTop: 12 }}>
+                  <HoverBtn onClick={() => respond('accepted')} disabled={busy}
+                    base={{ bg: 'rgba(0,229,160,.1)', border: '1px solid rgba(0,229,160,.4)', color: '#00E5A0' }}
+                    hover={{ bg: 'rgba(0,229,160,.28)', border: '1px solid #00E5A0' }}
+                  >CONFIRM ✓</HoverBtn>
+                  {declineBtn}
+                </div>
+              );
+            }
+            if (displayStatus === 'accepted') return (
+              <div style={{ display: 'flex', gap: 6, marginTop: 12 }}>
+                <HoverBtn onClick={() => respond('booked')} disabled={busy}
+                  base={{ bg: 'rgba(0,229,160,.15)', border: '1px solid rgba(0,229,160,.5)', color: '#00E5A0' }}
+                  hover={{ bg: 'rgba(0,229,160,.35)', border: '1px solid #00E5A0' }}
+                >CONFIRM BOOKED ✓</HoverBtn>
+                {declineBtn}
+              </div>
+            );
+            return null;
+          })()}
         </div>
       )}
 
@@ -580,6 +953,7 @@ function EnquiryCard({ enq, onRespond }) {
           </div>
         </div>
       )}
+
     </div>
   );
 }

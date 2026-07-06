@@ -22,28 +22,43 @@ export default function ProfileCard({ item, badge, badgeColor, actions }) {
   const ts    = TYPE_STYLES[type] || TYPE_STYLES.artist;
   const loc   = [(item.suburb || item.location), item.state].filter(Boolean).join(', ');
   const sound = item.sound || item.genre_string?.split(' · ').slice(0, 3).join(' · ') || '';
-  const bio   = item.bio ? item.bio.substring(0, 80) + (item.bio.length > 80 ? '…' : '') : '';
+  const img   = item.avatar_thumb || item.avatar || null;
 
   return (
-    <div className={s.card} style={{ '--accent': ts.col, '--accent-rgb': ts.rgb, border: `1.5px solid rgba(${ts.rgb},1)` }} onClick={() => navigate(`/profile/${item.user_id}?type=${(item.type||'').toLowerCase()}`)}>
-      {item.avatar
-        ? <img className={s.avatar} src={item.avatar} alt={item.name} style={{ borderColor: ts.col }} />
-        : <div className={s.avatarPH} style={{ borderColor: ts.col, color: ts.col }}>{ts.emoji}</div>
+    <div
+      className={s.card}
+      style={{ '--accent': ts.col, '--accent-rgb': ts.rgb, border: `1.5px solid rgba(${ts.rgb},.6)` }}
+      onClick={() => navigate(`/profile/${item.user_id}?type=${(item.type||'').toLowerCase()}`)}
+    >
+      {/* Background image + overlay — same treatment as EventCard list rows */}
+      {img
+        ? <img className={s.bgImg} src={img} alt="" />
+        : <div className={s.bgPH} />
       }
-      <div className={s.info}>
-        <div className={s.nameRow}>
-          <span className={s.name}>{item.name}</span>
-          <span className={s.typeBadge} style={{ color: ts.col, background: `rgba(${ts.rgb},.15)`, borderColor: `rgba(${ts.rgb},.3)` }}>{ts.label}</span>
-          {badge && (
-            <span className={s.statusBadge} style={{ color: badgeColor || '#fff', background: badgeColor ? `${badgeColor}22` : 'rgba(255,255,255,.1)', borderColor: badgeColor || '#fff' }}>
-              {badge}
-            </span>
-          )}
+      <div className={s.bgOverlay} />
+
+      {/* Content sits above overlay */}
+      <div className={s.content}>
+        {/* Avatar thumbnail on the left */}
+        {img
+          ? <img className={s.avatar} src={img} alt={item.name} style={{ borderColor: ts.col }} />
+          : <div className={s.avatarPH} style={{ borderColor: ts.col, color: ts.col }}>{ts.emoji}</div>
+        }
+        <div className={s.info}>
+          <div className={s.nameRow}>
+            <span className={s.name}>{item.name}</span>
+            <span className={s.typeBadge} style={{ color: ts.col, background: `rgba(${ts.rgb},.15)`, borderColor: `rgba(${ts.rgb},.3)` }}>{ts.label}</span>
+            {badge && (
+              <span className={s.statusBadge} style={{ color: badgeColor || '#fff', background: badgeColor ? `${badgeColor}22` : 'rgba(255,255,255,.1)', borderColor: badgeColor || '#fff' }}>
+                {badge}
+              </span>
+            )}
+          </div>
+          {loc   && <div className={s.loc}><PinIcon />{loc}</div>}
+          {sound && <div className={s.sound} style={{ color: ts.col }}>{sound}</div>}
         </div>
-        {loc   && <div className={s.loc}><PinIcon />{loc}</div>}
-        {sound && <div className={s.sound} style={{ color: ts.col }}>{sound}</div>}
+        {actions && <div onClick={e => e.stopPropagation()} style={{ flexShrink: 0 }}>{actions}</div>}
       </div>
-      {actions && <div onClick={e => e.stopPropagation()}>{actions}</div>}
     </div>
   );
 }

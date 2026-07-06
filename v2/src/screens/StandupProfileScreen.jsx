@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useSession } from '../App';
 import s from './ArtistProfileScreen.module.css';
-import ImageUploadButton from '../components/ImageUploadButton';
+import AvatarUpload from '../components/AvatarUpload';
 import PostcodePrompt from '../components/PostcodePrompt';
 
 const STATE_OPTIONS = ['NSW','VIC','QLD','WA','SA','TAS','ACT','NT','NZ','International'];
@@ -34,6 +34,8 @@ export default function StandupProfileScreen() {
 
   // Page 1
   const [avatar,     setAvatar]     = useState('');
+  const [avatarHero, setAvatarHero] = useState('');
+  const [avatarThumb,setAvatarThumb]= useState('');
   const [name,       setName]       = useState('');
   const [actType,    setActType]    = useState('');
   const [setLength,  setSetLength]  = useState('');
@@ -81,6 +83,8 @@ export default function StandupProfileScreen() {
         if (data) {
           setProfileId(data.id);
           setAvatar(data.avatar || '');
+          setAvatarHero(data.avatar_hero || '');
+          setAvatarThumb(data.avatar_thumb || '');
           setName(data.name || '');
           setActType(data.act_type || '');
           setSetLength(data.set_length ? String(data.set_length) : '');
@@ -124,7 +128,7 @@ export default function StandupProfileScreen() {
 
   async function save(skipPostcodeCheck = false) {
     if (!userId || saving) return;
-    if (!skipPostcodeCheck && !postcode) { setShowPostcodePrompt(true); return; }
+    if (!skipPostcodeCheck && !postcode && !location) { setShowPostcodePrompt(true); return; }
     setSaving(true);
     setSaveErr('');
     const payload = {
@@ -136,7 +140,8 @@ export default function StandupProfileScreen() {
       mix_link:        videoLink,
       video_link:      videoLink,
       vibe_tags:       selVibes.join(', '),
-      avatar,
+      avatar: avatarHero || avatar,
+      avatar_hero: avatarHero || null, avatar_thumb: avatarThumb || null,
       experience:      expLevel,
       fee_type:        feeType,
       fee:             feeAmount ? parseInt(feeAmount) : null,
@@ -186,25 +191,13 @@ export default function StandupProfileScreen() {
       {page === 1 && (
         <>
           {/* Avatar */}
-          <div className={s.avatarBlock}>
-            <ImageUploadButton type="avatar" userId={userId} bucket="avatars" pathPrefix="standup_avatars" onUpload={url => setAvatar(url)}>
-              {({ trigger, statusBadge }) => (
-                <div style={{ position: 'relative' }} onClick={trigger}>
-                  <div className={`${s.avatarRing} ${s.avatarRingStandup}`}>
-                    {avatar
-                      ? <img src={avatar} alt="profile" className={s.avatarImg} />
-                      : <div className={s.avatarPH}>
-                          <span className={s.avatarPlus} style={{ color: COL }}>+</span>
-                          <span>ADD PHOTO</span>
-                          <span className={s.avatarHint}>Square image works best</span>
-                        </div>
-                    }
-                  </div>
-                  {statusBadge}
-                </div>
-              )}
-            </ImageUploadButton>
-          </div>
+          <AvatarUpload
+            userId={userId} bucket="avatars" pathPrefix="standup_avatars"
+            avatar={avatar}
+            ringClass={`${s.avatarRing} ${s.avatarRingStandup}`}
+            onUpload={({ avatar_hero, avatar_thumb }) => { setAvatarHero(avatar_hero); setAvatarThumb(avatar_thumb); setAvatar(avatar_hero); }}
+            onRemove={() => { setAvatar(''); setAvatarHero(''); setAvatarThumb(''); }}
+          />
 
           {/* WHO YOU ARE */}
           <Section title="WHO YOU ARE">
@@ -219,7 +212,7 @@ export default function StandupProfileScreen() {
                 <input className={s.input} type="number" min="1" value={setLength} onChange={e => setSetLength(e.target.value)} placeholder="e.g. 20" />
               </Field>
             </div>
-            <Field label="CITY / SUBURB">
+            <Field label="TOWN / SUBURB">
               <input className={s.input} value={location} onChange={e => setLocation(e.target.value)} placeholder="e.g. Sydney" />
             </Field>
             <div className={s.row}>
@@ -232,7 +225,7 @@ export default function StandupProfileScreen() {
                 </Field>
               </div>
               <div style={{ flex: 1 }}>
-                <Field label={<>POSTCODE <span style={{ color:'#FF2D78', fontSize:9, fontWeight:700, letterSpacing:.5 }}>IMPORTANT</span></>}>
+                <Field label="POSTCODE">
                   <input className={s.input} value={postcode} onChange={e => setPostcode(e.target.value)} placeholder="e.g. 2000" inputMode="numeric" />
                 </Field>
               </div>

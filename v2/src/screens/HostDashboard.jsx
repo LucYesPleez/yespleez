@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
+import { writeNotification } from '../lib/writeNotification';
 import { useSession } from '../App';
 import s from './HostDashboard.module.css';
 import ds from './DiscoverScreen.module.css';
@@ -143,9 +144,18 @@ export default function HostDashboard({ userId: userIdProp }) {
     loadFollowing();
   }, [userId]);
 
-  async function respondApp(appId, status) {
+  async function respondApp(appId, status, artistId, eventName) {
     await supabase.from('applications').update({ status }).eq('id', appId);
     setAllApps(prev => prev.map(a => a.id === appId ? { ...a, status } : a));
+    if (!artistId) return;
+    const evLabel = eventName ? ` for ${eventName}` : '';
+    const NOTIF = {
+      accepted:  { type: 'booking_confirmed',    message: `You've been accepted${evLabel}. You're booked!` },
+      tentative: { type: 'shortlisted',          message: `You've been shortlisted${evLabel}.` },
+      rejected:  { type: 'application_declined', message: `Your application was unsuccessful${evLabel}.` },
+    };
+    const notif = NOTIF[status];
+    if (notif) await writeNotification(artistId, notif.type, notif.message, { event_name: eventName });
   }
 
   // Event map for app cards
@@ -547,7 +557,7 @@ function AppCard({ app, prof, event, onRespond }) {
   async function respond(status) {
     if (busy) return;
     setBusy(true);
-    await onRespond(app.id, status);
+    await onRespond(app.id, status, app.artist_id, event?.name);
     setBusy(false);
   }
 

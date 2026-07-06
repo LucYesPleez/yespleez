@@ -40,6 +40,14 @@
   pointer-events: none;
 }
 
+.heroImgHidden {
+  opacity: 0;
+}
+.heroImgVisible {
+  opacity: 1;
+  transition: opacity .6s ease;
+}
+
 /* Gradient fade at top of hero — keeps header icons readable */
 .heroTopFade {
   position: fixed;

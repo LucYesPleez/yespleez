@@ -1,36 +1,75 @@
 .card {
-  display: flex;
-  align-items: flex-start;
-  gap: 14px;
-  background: var(--card);
+  position: relative;
+  overflow: hidden;
   border-radius: 14px;
-  padding: 14px 16px;
   cursor: pointer;
   transition: transform .15s, border-color .2s;
   box-sizing: border-box;
   width: 100%;
+  min-height: 72px;
 }
 .card:hover { transform: translateY(-1px); }
 
+/* Full-bleed background image */
+.bgImg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 30%;
+  display: block;
+}
+
+/* Fallback when no avatar */
+.bgPH {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, #1a0533 0%, #2d1b69 45%, #0d3b2e 100%);
+}
+
+/* Left-to-right dark overlay — matches EventCard */
+.bgOverlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    rgba(10,10,20,.92) 0%,
+    rgba(10,10,20,.55) 50%,
+    rgba(10,10,20,.75) 100%
+  );
+}
+
+/* Content sits above overlay */
+.content {
+  position: relative;
+  z-index: 1;
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
 .avatar {
-  width: 56px;
-  height: 56px;
+  width: 52px;
+  height: 52px;
   border-radius: 10px;
   object-fit: cover;
+  object-position: center center;
   border: 2px solid;
   flex-shrink: 0;
 }
 
 .avatarPH {
-  width: 56px;
-  height: 56px;
+  width: 52px;
+  height: 52px;
   border-radius: 10px;
   border: 2px solid;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 22px;
-  background: rgba(var(--accent-rgb), .08);
+  background: rgba(0,0,0,.4);
   flex-shrink: 0;
 }
 
@@ -51,7 +90,7 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  color: var(--text);
+  color: #fff;
 }
 
 .typeBadge, .statusBadge {
@@ -66,17 +105,11 @@
 
 .loc {
   font-size: 12px;
-  color: var(--muted);
+  color: rgba(255,255,255,.55);
   margin-bottom: 3px;
 }
 
 .sound {
   font-size: 12px;
   margin-bottom: 3px;
-}
-
-.bio {
-  font-size: 12px;
-  color: var(--muted);
-  line-height: 1.5;
 }

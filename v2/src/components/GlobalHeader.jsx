@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import s from './GlobalHeader.module.css';
+import NotifPanel from './NotifPanel';
 
 const INFO = {
   '/': {
@@ -34,10 +35,11 @@ const FALLBACK = {
   body: `<p>YesPleez connects artists, hosts, and fans on the local scene.</p><ul><li><strong>WHATS HAPPENIN'</strong> — browse all upcoming events.</li><li><strong>DISCOVER</strong> — find artists and events by genre or vibe.</li><li><strong>MY SCENE</strong> — your personalised feed of who and what you follow.</li><li>Sign up as an <strong>Artist</strong> to apply for gigs, or as a <strong>Host</strong> to run events and build your lineup.</li></ul>`
 };
 
-export default function GlobalHeader({ onNotif }) {
-  const navigate  = useNavigate();
-  const location  = useLocation();
-  const [infoOpen, setInfoOpen] = useState(false);
+export default function GlobalHeader({ onMarkRead, unreadCount = 0 }) {
+  const navigate    = useNavigate();
+  const location    = useLocation();
+  const [infoOpen,  setInfoOpen]  = useState(false);
+  const [panelOpen, setPanelOpen] = useState(false);
 
   const info = INFO[location.pathname] || FALLBACK;
 
@@ -56,12 +58,29 @@ export default function GlobalHeader({ onNotif }) {
 
         <div className={s.ypTag}>YESPLEEZ</div>
 
-        <div className={s.actions}>
-          <button className={s.iconBtn} onClick={onNotif} aria-label="Notifications">
+        <div className={s.actions} style={{ position: 'relative' }}>
+          <button
+            className={s.iconBtn}
+            onClick={() => { setPanelOpen(v => !v); setInfoOpen(false); }}
+            aria-label="Notifications"
+            style={{ position: 'relative', color: panelOpen ? 'var(--neon2)' : undefined }}
+          >
             <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
               <path d="M12 2a7 7 0 0 0-7 7v4l-2 2v1h18v-1l-2-2V9a7 7 0 0 0-7-7zm0 20a2 2 0 0 0 2-2h-4a2 2 0 0 0 2 2z"/>
             </svg>
+            {unreadCount > 0 && (
+              <span style={{ position: 'absolute', top: 2, right: 4, minWidth: 16, height: 16, borderRadius: 8, background: '#FF3B30', color: '#fff', fontSize: 10, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1, padding: '0 3px', boxSizing: 'border-box', fontFamily: 'DM Sans, sans-serif' }}>
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </span>
+            )}
           </button>
+
+          {panelOpen && (
+            <NotifPanel
+              onClose={() => setPanelOpen(false)}
+              onMarkAll={() => { if (onMarkRead) onMarkRead(); }}
+            />
+          )}
           <button className={s.iconBtn} onClick={() => setInfoOpen(true)} aria-label="Info">
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="10"/>

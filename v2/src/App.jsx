@@ -1,4 +1,4 @@
-import { useState, useEffect, createContext, useContext } from 'react';
+import { useState, useEffect, useRef, createContext, useContext } from 'react';
 import { HashRouter, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { supabase } from './lib/supabase';
@@ -14,6 +14,7 @@ const queryClient = new QueryClient({
 });
 import AuthScreen from './screens/AuthScreen';
 import BottomNav from './components/BottomNav';
+import MiniPlayer from './components/MiniPlayer';
 import WhatsOnScreen from './screens/WhatsOnScreen';
 import DiscoverScreen from './screens/DiscoverScreen';
 import MySceneScreen from './screens/MySceneScreen';
@@ -40,6 +41,9 @@ import VenueProfileScreen from './screens/VenueProfileScreen';
 export const SessionCtx = createContext(null);
 export function useSession() { return useContext(SessionCtx); }
 
+export const PlayerCtx = createContext(null);
+export function usePlayer() { return useContext(PlayerCtx); }
+
 function tabFromPath(pathname) {
   if (pathname.startsWith('/discover'))  return 'discover';
   if (pathname.startsWith('/my-scene'))  return 'my-scene';
@@ -53,7 +57,36 @@ function Shell({ session, isGuest, onSignOut }) {
   const location  = useLocation();
   const navigate  = useNavigate();
   const [industryOpen, setIndustryOpen] = useState(false);
+  const [player, setPlayer] = useState(null); // { url, artistName }
+  const [unreadCount, setUnreadCount] = useState(0);
+  const pollRef = useRef(null);
   const activeTab = tabFromPath(location.pathname);
+
+  useEffect(() => {
+    if (!session) return;
+    async function fetchUnread() {
+      const { count } = await supabase
+        .from('notifications')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', session.user.id)
+        .eq('read', false);
+      setUnreadCount(count || 0);
+    }
+    fetchUnread();
+    // Realtime subscription for instant badge updates
+    const channel = supabase
+      .channel('notif-badge')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${session.user.id}` }, () => {
+        setUnreadCount(c => c + 1);
+      })
+      .subscribe();
+    // Fallback poll every 60s
+    pollRef.current = setInterval(fetchUnread, 60000);
+    return () => {
+      supabase.removeChannel(channel);
+      clearInterval(pollRef.current);
+    };
+  }, [session]);
 
   function handleTabPress(tabId) {
     if (tabId === 'industry') {
@@ -66,8 +99,13 @@ function Shell({ session, isGuest, onSignOut }) {
   }
 
   return (
-    <>
-      {location.pathname !== '/role-select' && <GlobalHeader />}
+    <PlayerCtx.Provider value={{ player, setPlayer }}>
+      {location.pathname !== '/role-select' && (
+        <GlobalHeader
+          unreadCount={unreadCount}
+          onMarkRead={() => setUnreadCount(0)}
+        />
+      )}
       <ErrorBoundary>
       <Routes>
         <Route path="/"          element={<WhatsOnScreen />} />
@@ -97,6 +135,13 @@ function Shell({ session, isGuest, onSignOut }) {
         onTabPress={handleTabPress}
       />
 
+      {/* Global mini player — persists across navigation */}
+      {player && (
+        <div style={{ position: 'fixed', bottom: 67, left: '50%', transform: 'translateX(-50%)', width: 'min(100%, 680px)', zIndex: 8000 }}>
+          <MiniPlayer url={player.url} artistName={player.artistName} onClose={() => setPlayer(null)} />
+        </div>
+      )}
+
       {/* Industry bottom-sheet panel — v1 style */}
       <IndustryPanel
         open={industryOpen}
@@ -106,7 +151,7 @@ function Shell({ session, isGuest, onSignOut }) {
         isGuest={isGuest}
         onSignOut={onSignOut}
       />
-    </>
+    </PlayerCtx.Provider>
   );
 }
 

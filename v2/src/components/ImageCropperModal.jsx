@@ -96,8 +96,8 @@ export default function ImageCropperModal({ correctedCanvas, aspect, onDone, onC
     const srcW =  CROP_W  / totalScale;
     const srcH =  CROP_H  / totalScale;
 
-    // Output at 1200px on the long axis (poster) or 400px (square)
-    const outW = aspect >= 1 ? 400 : 1200;
+    // Output at 1200px on the long axis (poster) or 1600px (square avatar)
+    const outW = aspect >= 1 ? 1600 : 1200;
     const outH = Math.round(outW / aspect);
 
     const out = document.createElement('canvas');

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useSession } from '../App';
 import s from './ArtistProfileScreen.module.css';
-import ImageUploadButton from '../components/ImageUploadButton';
+import AvatarUpload from '../components/AvatarUpload';
 import PostcodePrompt from '../components/PostcodePrompt';
 
 const STATE_OPTIONS = ['NSW','VIC','QLD','WA','SA','TAS','ACT','NT','NZ','International'];
@@ -32,7 +32,6 @@ export default function BandProfileScreen() {
   const userId = session?.user?.id;
   const navigate = useNavigate();
 
-  const [avatarHover, setAvatarHover] = useState(false);
   const [page,      setPage]    = useState(1);
   const [loading,   setLoading] = useState(true);
   const [saving,    setSaving]  = useState(false);
@@ -42,7 +41,9 @@ export default function BandProfileScreen() {
   const [profileId, setProfileId] = useState(null);
 
   // Page 1
-  const [avatar,    setAvatar]    = useState('');
+  const [avatar,     setAvatar]     = useState('');
+  const [avatarHero, setAvatarHero] = useState('');
+  const [avatarThumb,setAvatarThumb]= useState('');
   const [name,      setName]      = useState('');
   const [bandType,  setBandType]  = useState('');
   const [members,   setMembers]   = useState('');
@@ -94,6 +95,8 @@ export default function BandProfileScreen() {
         if (data) {
           setProfileId(data.id);
           setAvatar(data.avatar || '');
+          setAvatarHero(data.avatar_hero || '');
+          setAvatarThumb(data.avatar_thumb || '');
           setName(data.name || '');
           setBandType(data.band_type || '');
           setMembers(data.member_count ? String(data.member_count) : '');
@@ -144,7 +147,7 @@ export default function BandProfileScreen() {
 
   async function save(skipPostcodeCheck = false) {
     if (!userId || saving) return;
-    if (!skipPostcodeCheck && !postcode) { setShowPostcodePrompt(true); return; }
+    if (!skipPostcodeCheck && !postcode && !location) { setShowPostcodePrompt(true); return; }
     setSaving(true);
     setSaveErr('');
     const genre_string = [...selGenres, ...selVibes].join(' · ');
@@ -156,7 +159,8 @@ export default function BandProfileScreen() {
       location, state: locState, postcode,
       tagline, bio,
       mix_link: epkLink, epk_link: epkLink,
-      genre_string, avatar,
+      genre_string, avatar: avatarHero || avatar,
+      avatar_hero: avatarHero || null, avatar_thumb: avatarThumb || null,
       experience:      expLevel,
       fee_type:        feeType,
       fee:             feeAmount ? parseInt(feeAmount) : null,
@@ -209,25 +213,13 @@ export default function BandProfileScreen() {
       {page === 1 && (
         <>
           {/* Avatar */}
-          <div className={s.avatarBlock}>
-            <ImageUploadButton type="avatar" userId={userId} bucket="avatars" pathPrefix="band_avatars" onUpload={url => setAvatar(url)}>
-              {({ trigger, statusBadge }) => (
-                <div style={{ position: 'relative' }} onClick={trigger} onMouseEnter={() => setAvatarHover(true)} onMouseLeave={() => setAvatarHover(false)}>
-                  <div className={s.avatarRing} style={{ borderColor: avatarHover ? '#FFB830' : '#FF8C42', boxShadow: avatarHover ? '0 0 40px rgba(255,184,48,.35)' : '0 0 40px rgba(255,140,66,.18)' }}>
-                    {avatar
-                      ? <img src={avatar} alt="band" className={s.avatarImg} />
-                      : <div className={s.avatarPH}>
-                          <span className={s.avatarPlus} style={{ color: COL }}>+</span>
-                          <span>ADD BAND PHOTO</span>
-                          <span className={s.avatarHint}>Square image works best</span>
-                        </div>
-                    }
-                  </div>
-                  {statusBadge}
-                </div>
-              )}
-            </ImageUploadButton>
-          </div>
+          <AvatarUpload
+            userId={userId} bucket="avatars" pathPrefix="band_avatars"
+            avatar={avatar}
+            ringClass={s.avatarRing}
+            onUpload={({ avatar_hero, avatar_thumb }) => { setAvatarHero(avatar_hero); setAvatarThumb(avatar_thumb); setAvatar(avatar_hero); }}
+            onRemove={() => { setAvatar(''); setAvatarHero(''); setAvatarThumb(''); }}
+          />
 
           {/* WHO YOU ARE */}
           <Section title="WHO YOU ARE">
@@ -245,7 +237,7 @@ export default function BandProfileScreen() {
                 <input className={s.input} type="number" min="1900" max="2099" value={established} onChange={e => setEstablished(e.target.value)} placeholder="e.g. 2018" />
               </Field>
             </div>
-            <Field label="CITY / SUBURB">
+            <Field label="TOWN / SUBURB">
               <input className={s.input} value={location} onChange={e => setLocation(e.target.value)} placeholder="e.g. Melbourne" />
             </Field>
             <div className={s.row}>
@@ -258,7 +250,7 @@ export default function BandProfileScreen() {
                 </Field>
               </div>
               <div style={{ flex: 1 }}>
-                <Field label={<>POSTCODE <span style={{ color:'#FF2D78', fontSize:9, fontWeight:700, letterSpacing:.5 }}>IMPORTANT</span></>}>
+                <Field label="POSTCODE">
                   <input className={s.input} value={postcode} onChange={e => setPostcode(e.target.value)} placeholder="e.g. 3000" inputMode="numeric" />
                 </Field>
               </div>

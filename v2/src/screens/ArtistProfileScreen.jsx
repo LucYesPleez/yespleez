@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 import { useSession } from '../App';
 import s from './ArtistProfileScreen.module.css';
 import PostcodePrompt from '../components/PostcodePrompt';
-import ImageUploadButton from '../components/ImageUploadButton';
+import AvatarUpload from '../components/AvatarUpload';
 
 const STATE_OPTIONS = ['NSW','VIC','QLD','WA','SA','TAS','ACT','NT','NZ','International'];
 const EXP_LEVELS   = ['EMERGING','DEVELOPING','ESTABLISHED','TOURING'];
@@ -64,6 +64,8 @@ export default function ArtistProfileScreen() {
 
   // Page 1 fields
   const [avatar,     setAvatar]     = useState('');
+  const [avatarHero, setAvatarHero] = useState('');
+  const [avatarThumb,setAvatarThumb]= useState('');
   const [name,       setName]       = useState('');
   const [label,      setLabel]      = useState('');
   const [years,      setYears]      = useState('');
@@ -120,6 +122,8 @@ export default function ArtistProfileScreen() {
         if (data) {
           setProfileId(data.id);
           setAvatar(data.avatar || '');
+          setAvatarHero(data.avatar_hero || '');
+          setAvatarThumb(data.avatar_thumb || '');
           setName(data.name || '');
           setLabel(data.label || '');
           setYears(data.years || '');
@@ -192,7 +196,7 @@ export default function ArtistProfileScreen() {
 
   async function save(skipPostcodeCheck = false) {
     if (!userId || saving) return;
-    if (!skipPostcodeCheck && !postcode) { setShowPostcodePrompt(true); return; }
+    if (!skipPostcodeCheck && !postcode && !location) { setShowPostcodePrompt(true); return; }
     setSaving(true);
     setSaveErr('');
     const genre_string = buildGenreString(selGenres, selSubs, selVibes);
@@ -207,7 +211,8 @@ export default function ArtistProfileScreen() {
       youtube:    naFields.has('youtube')    ? 'N/A' : youtube,
       facebook:   naFields.has('facebook')   ? 'N/A' : facebook,
       website:    naFields.has('website')    ? 'N/A' : website,
-      genre_string, avatar,
+      genre_string, avatar: avatarHero || avatar,
+      avatar_hero: avatarHero || null, avatar_thumb: avatarThumb || null,
       card_pills:      selTags.join(' · '),
       experience:      expLevel,
       tech_setup:      techSetup.join(' · '),
@@ -256,22 +261,13 @@ export default function ArtistProfileScreen() {
       {page === 1 && (
         <>
           {/* Avatar */}
-          <div className={s.avatarBlock}>
-            <ImageUploadButton type="avatar" userId={userId} bucket="avatars" pathPrefix="artist_avatars" onUpload={url => setAvatar(url)}>
-              {({ trigger, statusBadge }) => (
-                <div style={{ position: 'relative' }} onClick={trigger}>
-                  <div className={s.avatarRing}>
-                    {avatar
-                      ? <img src={avatar} alt="avatar" className={s.avatarImg} />
-                      : <div className={s.avatarPH}><span className={s.avatarPlus}>+</span>PHOTO</div>
-                    }
-                  </div>
-                  {statusBadge}
-                </div>
-              )}
-            </ImageUploadButton>
-            <div className={s.avatarHint}>Tap to upload photo</div>
-          </div>
+          <AvatarUpload
+            userId={userId} bucket="avatars" pathPrefix="artist_avatars"
+            avatar={avatar}
+            ringClass={s.avatarRing}
+            onUpload={({ avatar_hero, avatar_thumb }) => { setAvatarHero(avatar_hero); setAvatarThumb(avatar_thumb); setAvatar(avatar_hero); }}
+            onRemove={() => { setAvatar(''); setAvatarHero(''); setAvatarThumb(''); }}
+          />
 
           {/* WHO YOU ARE */}
           <Section title="WHO YOU ARE">
@@ -284,13 +280,18 @@ export default function ArtistProfileScreen() {
                   <input className={s.input} value={label} onChange={e => setLabel(e.target.value)} placeholder="e.g. Tresor, independent" autoComplete="off" />
                 </Field>
               </div>
-              <div style={{ flex: 1 }}>
-                <Field label="LOCATION">
-                  <input className={s.input} value={location} onChange={e => setLocation(e.target.value)} placeholder="Start typing your city…" autoComplete="off" />
+              <div style={{ width: 110 }}>
+                <Field label="EST. YEAR">
+                  <input className={s.input} type="number" value={years} onChange={e => setYears(e.target.value)} placeholder="e.g. 2018" min="1900" max="2099" />
                 </Field>
               </div>
             </div>
             <div className={s.row}>
+              <div style={{ flex: 2 }}>
+                <Field label="TOWN / SUBURB">
+                  <input className={s.input} value={location} onChange={e => setLocation(e.target.value)} placeholder="Start typing your city…" autoComplete="off" />
+                </Field>
+              </div>
               <div style={{ flex: 1 }}>
                 <Field label="STATE">
                   <select className={s.select} value={locState} onChange={e => setLocState(e.target.value)}>
@@ -300,13 +301,8 @@ export default function ArtistProfileScreen() {
                 </Field>
               </div>
               <div style={{ flex: 1 }}>
-                <Field label={<>POSTCODE <span style={{ color:'#FF2D78', fontSize:9, fontWeight:700, letterSpacing:.5 }}>IMPORTANT</span></>}>
+                <Field label="POSTCODE">
                   <input className={s.input} value={postcode} onChange={e => setPostcode(e.target.value.replace(/\D/g,''))} placeholder="e.g. 2010" maxLength={4} inputMode="numeric" />
-                </Field>
-              </div>
-              <div style={{ flex: 1 }}>
-                <Field label="EST. YEAR">
-                  <input className={s.input} type="number" value={years} onChange={e => setYears(e.target.value)} placeholder="e.g. 2018" min="1900" max="2099" />
                 </Field>
               </div>
             </div>

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useSession } from '../App';
 import s from './HostProfileScreen.module.css';
-import ImageUploadButton from '../components/ImageUploadButton';
+import AvatarUpload from '../components/AvatarUpload';
 import PostcodePrompt from '../components/PostcodePrompt';
 
 const STATE_OPTIONS = ['NSW','VIC','QLD','WA','SA','TAS','ACT','NT','NZ','International'];
@@ -70,7 +70,9 @@ export default function HostProfileScreen() {
   const [profileId, setProfileId] = useState(null);
 
   // Form fields
-  const [avatar,   setAvatar]   = useState('');
+  const [avatar,     setAvatar]     = useState('');
+  const [avatarHero, setAvatarHero] = useState('');
+  const [avatarThumb,setAvatarThumb]= useState('');
   const [name,     setName]     = useState('');
   const [years,    setYears]    = useState('');
   const [location, setLocation] = useState('');
@@ -106,6 +108,8 @@ export default function HostProfileScreen() {
         if (data) {
           setProfileId(data.id);
           setAvatar(data.avatar || '');
+          setAvatarHero(data.avatar_hero || '');
+          setAvatarThumb(data.avatar_thumb || '');
           setName(data.name || '');
           setYears(data.years || '');
           setLocation(data.location || '');
@@ -163,7 +167,7 @@ export default function HostProfileScreen() {
 
   async function save(skipPostcodeCheck = false) {
     if (!userId || saving) return;
-    if (!skipPostcodeCheck && !postcode) { setShowPostcodePrompt(true); return; }
+    if (!skipPostcodeCheck && !postcode && !location) { setShowPostcodePrompt(true); return; }
     setSaving(true);
     setSaveErr('');
     const genre_string = buildGenreString(selCats, selGenres, selSubs, selVibes);
@@ -175,7 +179,8 @@ export default function HostProfileScreen() {
       facebook:  naFields.has('facebook')  ? 'N/A' : facebook,
       website:   naFields.has('website')   ? 'N/A' : website,
       email:     naFields.has('email')     ? 'N/A' : email,
-      genre_string, avatar,
+      genre_string, avatar: avatarHero || avatar,
+      avatar_hero: avatarHero || null, avatar_thumb: avatarThumb || null,
     };
     if (profileId) payload.id = profileId;
     const { error } = await supabase.from('profiles').upsert(payload, { onConflict: 'user_id,type' });
@@ -207,22 +212,13 @@ export default function HostProfileScreen() {
       </div>
 
       {/* Avatar */}
-      <div className={s.avatarBlock}>
-        <ImageUploadButton type="avatar" userId={userId} bucket="avatars" pathPrefix="host_avatars" onUpload={url => setAvatar(url)}>
-          {({ trigger, statusBadge }) => (
-            <div style={{ position: 'relative' }} onClick={trigger}>
-              <div className={s.avatarRing}>
-                {avatar
-                  ? <img src={avatar} alt="avatar" className={s.avatarImg} />
-                  : <div className={s.avatarPH}><span className={s.avatarPlus}>+</span>PHOTO</div>
-                }
-              </div>
-              {statusBadge}
-            </div>
-          )}
-        </ImageUploadButton>
-        <div className={s.avatarHint}>Tap to upload photo</div>
-      </div>
+      <AvatarUpload
+        userId={userId} bucket="avatars" pathPrefix="host_avatars"
+        avatar={avatar}
+        ringClass={s.avatarRing}
+        onUpload={({ avatar_hero, avatar_thumb }) => { setAvatarHero(avatar_hero); setAvatarThumb(avatar_thumb); setAvatar(avatar_hero); }}
+        onRemove={() => { setAvatar(''); setAvatarHero(''); setAvatarThumb(''); }}
+      />
 
       {/* YOUR DETAILS */}
       <Section title="YOUR DETAILS">
@@ -240,7 +236,7 @@ export default function HostProfileScreen() {
         </div>
         <div className={s.row}>
           <div style={{ flex: 2 }}>
-            <Field label="LOCATION">
+            <Field label="TOWN / SUBURB">
               <input className={s.input} value={location} onChange={e => setLocation(e.target.value)} placeholder="Start typing your city…" autoComplete="off" />
             </Field>
           </div>
@@ -253,7 +249,7 @@ export default function HostProfileScreen() {
             </Field>
           </div>
           <div style={{ flex: 1 }}>
-            <Field label={<>POSTCODE <span style={{ color:'#FF2D78', fontSize:9, fontWeight:700, letterSpacing:.5 }}>IMPORTANT</span></>}>
+            <Field label="POSTCODE">
               <input className={s.input} value={postcode} onChange={e => setPostcode(e.target.value.replace(/\D/g,''))} placeholder="e.g. 2010" maxLength={4} inputMode="numeric" />
             </Field>
           </div>

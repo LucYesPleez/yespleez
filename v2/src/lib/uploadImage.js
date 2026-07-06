@@ -15,9 +15,15 @@ async function uploadCanvas(canvas, outW, outH, bucket, path, quality) {
   return data.publicUrl;
 }
 
-// Upload avatar (single size: 400×400)
-export async function uploadAvatar(canvas, bucket, path) {
-  return uploadCanvas(canvas, 400, 400, bucket, path, 0.85);
+// Upload avatar — two sizes generated from one crop:
+//   hero  3200×3200 WebP @ 0.92  → profile headers (hi-res)
+//   thumb  320×320  WebP @ 0.82  → portrait cards / discover
+export async function uploadAvatar(canvas, bucket, pathPrefix) {
+  const [hero, thumb] = await Promise.all([
+    uploadCanvas(canvas, 3200, 3200, bucket, `${pathPrefix}_hero`,  0.92),
+    uploadCanvas(canvas,  320,  320, bucket, `${pathPrefix}_thumb`, 0.82),
+  ]);
+  return { avatar_hero: hero, avatar_thumb: thumb };
 }
 
 // Upload event poster (three sizes: original full + cropped display + thumb)

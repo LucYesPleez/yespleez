@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { writeNotification } from '../lib/writeNotification';
 import s from './ApplicationsScreen.module.css';
 
 const STATUS_TABS = ['PENDING', 'ACCEPTED', 'INVITED', 'REJECTED'];
@@ -10,6 +11,7 @@ export default function ApplicationsScreen() {
   const navigate = useNavigate();
   const [apps,      setApps]      = useState([]);
   const [profiles,  setProfiles]  = useState({});
+  const [eventName, setEventName] = useState('');
   const [tab,       setTab]       = useState('PENDING');
   const [loading,   setLoading]   = useState(true);
 
@@ -18,11 +20,11 @@ export default function ApplicationsScreen() {
     let cancelled = false;
 
     async function load() {
-      const { data: appData } = await supabase
-        .from('applications')
-        .select('*')
-        .eq('event_id', eventId)
-        .order('created_at', { ascending: false });
+      const [{ data: appData }, { data: evData }] = await Promise.all([
+        supabase.from('applications').select('*').eq('event_id', eventId).order('created_at', { ascending: false }),
+        supabase.from('events').select('name').eq('id', eventId).maybeSingle(),
+      ]);
+      if (!cancelled) setEventName(evData?.name || '');
 
       if (cancelled) return;
       const rows = appData || [];
@@ -45,9 +47,17 @@ export default function ApplicationsScreen() {
     return () => { cancelled = true; };
   }, [eventId]);
 
-  async function respond(appId, status) {
+  async function respond(appId, status, artistId, artistName) {
     await supabase.from('applications').update({ status }).eq('id', appId);
     setApps(prev => prev.map(a => a.id === appId ? { ...a, status } : a));
+    if (!artistId) return;
+    const evLabel = eventName ? ` for ${eventName}` : '';
+    const NOTIF = {
+      accepted: { type: 'booking_confirmed',    message: `You've been accepted${evLabel}. You're booked!` },
+      rejected: { type: 'application_declined', message: `Your application was unsuccessful${evLabel}.` },
+    };
+    const notif = NOTIF[status];
+    if (notif) await writeNotification(artistId, notif.type, notif.message, { event_name: eventName, event_id: eventId });
   }
 
   const filtered = apps.filter(a => (a.status || 'pending').toUpperCase() === tab);
@@ -86,8 +96,8 @@ export default function ApplicationsScreen() {
               key={app.id}
               app={app}
               profile={profile}
-              onAccept={() => respond(app.id, 'accepted')}
-              onReject={() => respond(app.id, 'rejected')}
+              onAccept={() => respond(app.id, 'accepted', app.artist_id, app.artist_name)}
+              onReject={() => respond(app.id, 'rejected', app.artist_id, app.artist_name)}
             />
           );
         })}

@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 
 const PILL_STYLES = {
-  artist:  { bg: '#00E5FF', dark: true,  label: 'ARTIST' },
+  artist:  { bg: '#00E5FF', dark: true,  label: 'DJ / PRODUCER' },
   host:    { bg: '#FF3399', dark: false, label: 'HOST' },
   band:    { bg: '#FF8C42', dark: true,  label: 'BAND' },
   venue:   { bg: '#00E5A0', dark: true,  label: 'VENUE' },
@@ -31,7 +31,7 @@ export default function PortraitCard({ profile: p, onClick, width = 150, height 
       onMouseLeave={e => e.currentTarget.style.transform = ''}
     >
       {/* avatar image */}
-      {p?.avatar && <img src={p.avatar} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} loading="lazy" decoding="async" />}
+      {(p?.avatar_thumb || p?.avatar) && <img src={p.avatar_thumb || p.avatar} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} loading="lazy" decoding="async" />}
       {/* gradient overlay */}
       <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom,rgba(0,0,0,.08) 0%,rgba(0,0,0,0) 35%,rgba(0,0,0,.6) 75%,rgba(0,0,0,.88) 100%)' }} />
       {/* type pill */}

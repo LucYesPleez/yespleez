@@ -1,3 +1,134 @@
+.completionWrap { margin-bottom: 16px; }
+
+.completionBar {
+  height: 4px;
+  background: rgba(255,255,255,.08);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-bottom: 6px;
+}
+
+.completionFill {
+  height: 100%;
+  background: linear-gradient(90deg, #00E5A0, #00B4D8);
+  border-radius: 2px;
+  transition: width .4s;
+}
+
+.completionLabel {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  color: var(--muted);
+}
+
+.subTabBar {
+  display: flex;
+  gap: 0;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.subTab {
+  flex: 1;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 13px;
+  letter-spacing: 1.5px;
+  color: var(--muted);
+  padding: 8px 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  transition: color .15s, border-bottom-color .15s;
+}
+
+.subTabCount {
+  background: var(--card2);
+  color: var(--muted);
+  border-radius: 10px;
+  font-size: 10px;
+  padding: 1px 6px;
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.evtList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 315px;
+  overflow-y: scroll;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  mask-image: linear-gradient(to bottom, black 75%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, black 75%, transparent 100%);
+}
+.evtList::-webkit-scrollbar { display: none; }
+
+.evtCardWrap {
+  position: relative;
+  border-radius: 12px;
+  transition: transform .15s, box-shadow .15s;
+  cursor: pointer;
+}
+.evtCardWrap:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 0 14px rgba(0,229,160,.25);
+}
+
+.enqTags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+@media (max-width: 480px) {
+  .enqTags { display: none; }
+}
+
+.viewAllBtn {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 13px;
+  letter-spacing: 1px;
+  color: var(--muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  opacity: 0.5;
+  transition: opacity .15s, color .15s;
+}
+.viewAllBtn:hover {
+  opacity: 1;
+  color: var(--text);
+}
+
+.manageBtn {
+  background: none;
+  color: #fff;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 11px;
+  letter-spacing: 1px;
+  border: 1px solid #FF3CAC;
+  border-radius: 6px;
+  padding: 3px 10px;
+  cursor: pointer;
+  transition: background .15s, color .15s;
+}
+@media (hover: hover) {
+  .manageBtn:hover {
+    background: rgba(255,60,172,.2);
+    color: #fff;
+  }
+}
+
 .screen {
   width: min(100%, 680px);
   margin-left: auto;
@@ -222,9 +353,16 @@
   color: var(--muted);
   border: 1px solid var(--border);
   background: var(--card2);
-  opacity: 1;
   border-radius: 8px;
   padding: 5px 12px;
+  transition: color .15s, border-color .15s, background .15s;
+}
+@media (hover: hover) {
+  .chip:hover {
+    color: #00E5A0;
+    border-color: rgba(0,229,160,.4);
+    background: rgba(0,229,160,.08);
+  }
 }
 
 .eventRow {
@@ -247,7 +385,53 @@
   margin-top: 2px;
 }
 
-/* Enquiry tabs */
+/* Enquiry direction tabs */
+.enqDirTabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+/* Enquiry sub-tabs */
+.enqSubTabs {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 12px;
+  gap: 0;
+}
+
+.enqSubTab {
+  flex: 1;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  color: var(--muted);
+  padding: 7px 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  transition: color .15s, border-bottom-color .15s;
+  margin-bottom: -1px;
+}
+
+.enqSubCount {
+  background: var(--card2);
+  color: var(--muted);
+  border-radius: 8px;
+  font-size: 9px;
+  padding: 1px 5px;
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 700;
+  letter-spacing: 0;
+  transition: background .15s, color .15s;
+}
+
+/* Enquiry tabs (legacy — keep for other uses) */
 .enqTabs {
   display: flex;
   gap: 6px;
@@ -352,4 +536,30 @@
 .empty {
   font-size: 13px;
   color: var(--muted);
+}
+
+.attention {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(255,184,48,.07);
+  border: 1px solid rgba(255,184,48,.3);
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin-bottom: 16px;
+}
+
+.attentionDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ffb830;
+  flex-shrink: 0;
+}
+
+.attentionText {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 12px;
+  letter-spacing: 1px;
+  color: #ffb830;
 }

@@ -14,7 +14,7 @@ import s from './ImageUploadButton.module.css';
  *   userId     used to build the storage path
  *   bucket     Supabase bucket name (for avatars; posters bucket is fixed)
  *   pathPrefix storage path prefix, e.g. 'artist_avatars'
- *   onUpload   called with URL (avatar) or { poster, poster_thumb } (poster)
+ *   onUpload   called with { avatar_hero, avatar_thumb } (avatar) or { poster, poster_thumb, poster_full } (poster)
  *   children   render prop: ({ trigger, status }) => JSX
  *              status: 'idle' | 'loading' | 'cropping' | 'optimising' | 'uploading'
  */

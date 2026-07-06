@@ -51,6 +51,7 @@
   font-size: clamp(36px, 10vw, 52px);
   letter-spacing: 2px;
   font-weight: 400;
+  margin-top: 64px;
   margin-bottom: 6px;
   line-height: 1.1;
   text-align: center;
