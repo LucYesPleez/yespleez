@@ -1,0 +1,288 @@
+import { useState, useEffect, useRef } from 'react';
+import { supabase } from '../lib/supabase';
+
+export default function FillSlotModal({ slot, eventId, acceptedArtists = [], acceptedProfiles = {}, onFilled, onClose }) {
+  const [view,    setView]    = useState('menu');
+  const [filter,  setFilter]  = useState('');
+  const [query,   setQuery]   = useState('');
+  const [results, setResults] = useState([]);
+  const [busy,    setBusy]    = useState(false);
+  const [name,    setName]    = useState('');
+  const [email,   setEmail]   = useState('');
+  const [phone,   setPhone]   = useState('');
+  const timer = useRef(null);
+
+  const timeLabel = [slot.time, slot.ampm].filter(Boolean).join(' ');
+
+  useEffect(() => {
+    if (view !== 'search') return;
+    clearTimeout(timer.current);
+    if (!query.trim()) { setResults([]); return; }
+    timer.current = setTimeout(async () => {
+      setBusy(true);
+      const { data } = await supabase
+        .from('profiles')
+        .select('user_id, name, avatar, sound, genre_string, type')
+        .ilike('name', `%${query.trim()}%`)
+        .neq('type', 'punter')
+        .limit(20);
+      setResults(data || []);
+      setBusy(false);
+    }, 300);
+    return () => clearTimeout(timer.current);
+  }, [query, view]);
+
+  async function fillFromProfile(prof) {
+    setBusy(true);
+    const { error } = await supabase.from('claims').insert({
+      slot_id:  slot.id,
+      event_id: eventId,
+      user_id:  prof.user_id,
+      name:     prof.name,
+      sound:    prof.sound   || null,
+      genre:    prof.genre_string || null,
+      status:   'pending',
+    });
+    setBusy(false);
+    if (!error) onFilled();
+  }
+
+  async function fillManual() {
+    if (!name.trim()) return;
+    setBusy(true);
+    const { error } = await supabase.from('claims').insert({
+      slot_id:  slot.id,
+      event_id: eventId,
+      user_id:  null,
+      name:     name.trim(),
+      status:   'name_added',
+    });
+    setBusy(false);
+    if (!error) onFilled();
+  }
+
+  const filtered = acceptedArtists.filter(app => {
+    const prof = acceptedProfiles[app.artist_id];
+    return (prof?.name || app.artist_name || '').toLowerCase().includes(filter.toLowerCase());
+  });
+
+  const hasContact = email.trim() || phone.trim();
+
+  return (
+    <div
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.82)', zIndex: 2000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}
+      onClick={e => e.target === e.currentTarget && onClose()}
+    >
+      <div style={{ background: '#0f0f1a', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 480, minHeight: '50vh', maxHeight: '85vh', display: 'flex', flexDirection: 'column', boxShadow: '0 -4px 40px rgba(0,0,0,.6)', border: '1px solid rgba(255,255,255,.07)', borderBottom: 'none', marginBottom: 65 }}>
+
+        {/* Header */}
+        <div style={{ padding: '16px 20px 12px', borderBottom: '1px solid rgba(255,255,255,.06)', flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {view !== 'menu' && (
+              <button onClick={() => setView('menu')} style={{ background: 'none', border: 'none', color: 'var(--muted)', fontSize: 24, cursor: 'pointer', padding: 0, lineHeight: 1, flexShrink: 0 }}>‹</button>
+            )}
+            <div style={{ flex: 1 }}>
+              <div style={{ fontFamily: "'Bebas Neue'", fontSize: 20, letterSpacing: 2 }}>
+                FILL {timeLabel} SLOT
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 1 }}>
+                {view === 'menu'     ? 'How do you want to fill this slot?' :
+                 view === 'accepted' ? 'Select from your accepted artists' :
+                 view === 'search'   ? 'Search YesPleez artists' :
+                                      'Enter artist details'}
+              </div>
+            </div>
+            <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--muted)', fontSize: 24, cursor: 'pointer', padding: 0, lineHeight: 1, flexShrink: 0 }}>×</button>
+          </div>
+        </div>
+
+        {/* Body */}
+        <div style={{ overflowY: 'auto', flex: 1, padding: '16px 20px 32px' }}>
+
+          {/* MENU */}
+          {view === 'menu' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <MenuOption
+                label={`ACCEPTED ARTISTS${acceptedArtists.length ? ` (${acceptedArtists.length})` : ''}`}
+                sub="Artists already accepted to this event"
+                accent
+                disabled={acceptedArtists.length === 0}
+                onClick={() => setView('accepted')}
+              />
+              <MenuOption
+                label="SEARCH YESPLEEZ"
+                sub="Find any artist on the platform"
+                onClick={() => setView('search')}
+              />
+              <MenuOption
+                label="NOT ON YESPLEEZ YET"
+                sub="Enter their name, send an invite via email or SMS"
+                onClick={() => setView('manual')}
+              />
+            </div>
+          )}
+
+          {/* ACCEPTED LIST */}
+          {view === 'accepted' && (
+            <div>
+              <SearchInput value={filter} onChange={setFilter} placeholder="Filter artists…" />
+              {filtered.length === 0
+                ? <Empty>No accepted artists match.</Empty>
+                : filtered.map(app => {
+                    const prof = acceptedProfiles[app.artist_id] || {};
+                    const n    = prof.name || app.artist_name || 'Unknown';
+                    return (
+                      <ArtistRow
+                        key={app.id}
+                        avatar={prof.avatar}
+                        name={n}
+                        sub={prof.sound || prof.genre_string || ''}
+                        disabled={busy}
+                        onSelect={() => fillFromProfile({ user_id: app.artist_id, name: n, sound: prof.sound, genre_string: prof.genre_string })}
+                      />
+                    );
+                  })
+              }
+            </div>
+          )}
+
+          {/* SEARCH */}
+          {view === 'search' && (
+            <div>
+              <SearchInput value={query} onChange={setQuery} placeholder="Search by name…" autoFocus />
+              {busy && <Empty>Searching…</Empty>}
+              {!busy && results.map(prof => (
+                <ArtistRow
+                  key={prof.user_id}
+                  avatar={prof.avatar}
+                  name={prof.name}
+                  sub={prof.sound || prof.genre_string || ''}
+                  disabled={busy}
+                  onSelect={() => fillFromProfile(prof)}
+                />
+              ))}
+              {!busy && query && results.length === 0 && (
+                <div style={{ textAlign: 'center', padding: '24px 0' }}>
+                  <p style={{ color: 'var(--muted)', fontSize: 13, marginBottom: 14 }}>No one found on YesPleez.</p>
+                  <button
+                    onClick={() => { setName(query); setView('manual'); }}
+                    style={ghostBtn}
+                  >ENTER MANUALLY INSTEAD</button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* MANUAL / INVITE */}
+          {view === 'manual' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <Field label="DJ / ARTIST NAME *" value={name} onChange={setName} placeholder="e.g. DJ Flames" />
+              <Field label="EMAIL (OPTIONAL)" value={email} onChange={setEmail} placeholder="artist@email.com" type="email" />
+              <Field label="PHONE (OPTIONAL)" value={phone} onChange={setPhone} placeholder="+61 400 000 000" type="tel" />
+              {hasContact && (
+                <p style={{ fontSize: 11, color: 'var(--muted)', margin: 0, lineHeight: 1.6 }}>
+                  An invite will be sent. They can claim this slot when they join YesPleez.
+                </p>
+              )}
+              <button
+                onClick={fillManual}
+                disabled={!name.trim() || busy}
+                style={{
+                  width: '100%', padding: 13, borderRadius: 12, border: 'none', marginTop: 4,
+                  cursor: !name.trim() || busy ? 'default' : 'pointer',
+                  fontFamily: "'Bebas Neue'", fontSize: 15, letterSpacing: 2,
+                  background: !name.trim() || busy ? 'rgba(255,255,255,.08)' : 'var(--neon)',
+                  color:      !name.trim() || busy ? 'var(--muted)'          : '#fff',
+                  transition: 'background .15s',
+                }}
+              >
+                {busy ? 'SAVING…' : hasContact ? 'FILL SLOT + SEND INVITE' : 'FILL SLOT'}
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MenuOption({ label, sub, onClick, disabled, accent }) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      style={{
+        width: '100%', textAlign: 'left', padding: '14px 16px', borderRadius: 12,
+        border:      `1px solid ${accent ? 'rgba(0,229,255,.25)' : 'rgba(255,255,255,.1)'}`,
+        background:  accent ? 'rgba(0,229,255,.05)' : 'rgba(255,255,255,.03)',
+        cursor:      disabled ? 'default' : 'pointer',
+        opacity:     disabled ? 0.4 : 1,
+        display:     'flex', alignItems: 'center', justifyContent: 'space-between',
+        transition:  'border-color .15s',
+      }}
+    >
+      <div>
+        <div style={{ fontFamily: "'Bebas Neue'", fontSize: 14, letterSpacing: 1.5, color: accent ? 'var(--neon2)' : 'var(--text)' }}>{label}</div>
+        <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 3 }}>{sub}</div>
+      </div>
+      <span style={{ color: 'var(--muted)', fontSize: 20, marginLeft: 8, flexShrink: 0 }}>›</span>
+    </button>
+  );
+}
+
+function ArtistRow({ avatar, name, sub, onSelect, disabled }) {
+  return (
+    <button
+      onClick={onSelect}
+      disabled={disabled}
+      style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', background: 'none', border: 'none', borderBottom: '1px solid rgba(255,255,255,.05)', cursor: disabled ? 'default' : 'pointer', textAlign: 'left' }}
+    >
+      <div style={{ width: 42, height: 42, borderRadius: 10, background: 'var(--card2)', flexShrink: 0, overflow: 'hidden', border: '1px solid var(--border)' }}>
+        {avatar && <img src={avatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{name}</div>
+        {sub && <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{sub}</div>}
+      </div>
+      <span style={{ color: 'var(--muted)', fontSize: 20, flexShrink: 0 }}>›</span>
+    </button>
+  );
+}
+
+function SearchInput({ value, onChange, placeholder, autoFocus }) {
+  return (
+    <input
+      autoFocus={autoFocus}
+      value={value}
+      onChange={e => onChange(e.target.value)}
+      placeholder={placeholder}
+      style={{ width: '100%', background: 'rgba(255,255,255,.06)', border: '1px solid rgba(255,255,255,.12)', borderRadius: 10, padding: '10px 12px', color: '#fff', fontFamily: 'inherit', fontSize: 14, boxSizing: 'border-box', marginBottom: 12, outline: 'none' }}
+    />
+  );
+}
+
+function Field({ label, value, onChange, placeholder, type = 'text' }) {
+  return (
+    <div>
+      <div style={{ fontFamily: "'Bebas Neue'", fontSize: 11, letterSpacing: 1.5, color: 'var(--muted)', marginBottom: 5 }}>{label}</div>
+      <input
+        type={type}
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        placeholder={placeholder}
+        style={{ width: '100%', background: 'rgba(255,255,255,.06)', border: '1px solid rgba(255,255,255,.12)', borderRadius: 10, padding: '10px 12px', color: '#fff', fontFamily: 'inherit', fontSize: 14, boxSizing: 'border-box', outline: 'none' }}
+      />
+    </div>
+  );
+}
+
+function Empty({ children }) {
+  return <p style={{ textAlign: 'center', color: 'var(--muted)', fontSize: 13, padding: '24px 0' }}>{children}</p>;
+}
+
+const ghostBtn = {
+  fontFamily: "'Bebas Neue'", fontSize: 13, letterSpacing: 1.5,
+  padding: '10px 20px', borderRadius: 8,
+  border: '1px solid rgba(255,255,255,.2)', background: 'none',
+  color: 'var(--text)', cursor: 'pointer',
+};

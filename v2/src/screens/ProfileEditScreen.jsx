@@ -124,7 +124,9 @@ export default function ProfileEditScreen() {
         <Field label="NAME *" value={form.name || ''} onChange={v => set('name', v)} placeholder="Your name or stage name" />
         <Field label="TAGLINE" value={form.tagline || ''} onChange={v => set('tagline', v)} placeholder="One-liner that describes you" />
         {tc.showSound && <Field label="SOUND / VIBE" value={form.sound || ''} onChange={v => set('sound', v)} placeholder="e.g. Deep rolling bass, hypnotic rhythms" />}
+
         <Field label="GENRES" value={form.genre_string || ''} onChange={v => set('genre_string', v)} placeholder="e.g. Techno · House · Drum & Bass" />
+
         <Field label="BIO" value={form.bio || ''} onChange={v => set('bio', v)} placeholder="Tell your story…" multiline />
 
         <div className={s.row}>
@@ -163,7 +165,7 @@ export default function ProfileEditScreen() {
   );
 }
 
-function Field({ label, value, onChange, placeholder, multiline }) {
+function Field({ label, value, onChange, placeholder, multiline, hint }) {
   return (
     <div className={s.field}>
       <label className={s.fieldLabel}>{label}</label>
@@ -171,6 +173,7 @@ function Field({ label, value, onChange, placeholder, multiline }) {
         ? <textarea className={s.textarea} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} rows={4} />
         : <input className={s.input} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} />
       }
+      {hint && <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4, marginBottom: 0 }}>{hint}</p>}
     </div>
   );
 }

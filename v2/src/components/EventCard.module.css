@@ -9,16 +9,14 @@
   display: block;
   width: 100%;
   text-align: left;
-  border: 1px solid #00e676;
+  border: 1px solid rgba(0,230,118,.4);
+  outline: none;
   transition: transform .15s;
 }
 .card:hover {
-  box-shadow: 0 0 14px rgba(0,230,118,.45);
   transform: translateY(-1px);
 }
-.cardLive {
-  border-color: #00e676;
-}
+.cardLive {}
 
 .cardNoHover:hover {
   transform: none !important;
@@ -71,6 +69,13 @@
   display: flex;
   flex-direction: column;
   justify-content: center;
+}
+
+@media (max-width: 640px) {
+  .cardInfo {
+    padding-left: 56px !important;
+    padding-right: 80px;
+  }
 }
 
 .cardName {

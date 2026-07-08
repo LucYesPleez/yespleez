@@ -6,7 +6,7 @@ export function getEventBadges(genres = '', name = '') {
   const isOpenMic = /open.?mic/i.test(text);
   const primary =
     (g.includes('dj') || g.includes('electronic') || g.includes('house') || g.includes('techno') || g.includes('drum'))
-      ? { label: 'DJ SET',      bg: 'var(--neon2)', col: '#000' }
+      ? { label: 'DJs',   bg: 'var(--neon2)', col: '#000' }
     : (g.includes('comedy') || g.includes('standup') || g.includes('stand-up'))
       ? { label: 'COMEDY',      bg: '#FF8C42',      col: '#fff' }
     : g.includes('festival')

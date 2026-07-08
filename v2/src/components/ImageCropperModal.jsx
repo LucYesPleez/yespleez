@@ -7,15 +7,19 @@ import { canvasToBlob } from '../lib/imageUtils';
 export default function ImageCropperModal({ correctedCanvas, aspect, onDone, onCancel }) {
   const pointers   = useRef(new Map());
   const wrapRef    = useRef(null);
+  const isPoster   = aspect < 1;
 
-  // Crop display size — fits the screen
+  // Display size — fits the screen
   const CROP_W = Math.min(window.innerWidth - 32, 380);
   const CROP_H = Math.round(CROP_W / aspect);
 
   const natW = correctedCanvas.width;
   const natH = correctedCanvas.height;
-  // base scale: minimum to cover the crop box
-  const baseScale = Math.max(CROP_W / natW, CROP_H / natH);
+
+  // Posters: contain (fit whole image); avatars: cover (fill to crop)
+  const baseScale = isPoster
+    ? Math.min(CROP_W / natW, CROP_H / natH)
+    : Math.max(CROP_W / natW, CROP_H / natH);
 
   const [userScale, setUserScale] = useState(1);
   const [offset,    setOffset]    = useState({ x: 0, y: 0 });
@@ -41,7 +45,6 @@ export default function ImageCropperModal({ correctedCanvas, aspect, onDone, onC
     return { x: clamp(ox, -maxX, maxX), y: clamp(oy, -maxY, maxY) };
   }
 
-  // --- pointer events ---
   function onPointerDown(e) {
     e.currentTarget.setPointerCapture(e.pointerId);
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
@@ -82,28 +85,33 @@ export default function ImageCropperModal({ correctedCanvas, aspect, onDone, onC
     });
   }
 
-  // --- extract crop ---
   function handleDone() {
-    const totalScale = baseScale * userScale;
-    const imgW = natW * totalScale;
-    const imgH = natH * totalScale;
-    const imgLeft = CROP_W / 2 + offset.x - imgW / 2;
-    const imgTop  = CROP_H / 2 + offset.y - imgH / 2;
-
-    // Source rectangle in corrected canvas coordinates
-    const srcX = -imgLeft / totalScale;
-    const srcY = -imgTop  / totalScale;
-    const srcW =  CROP_W  / totalScale;
-    const srcH =  CROP_H  / totalScale;
-
-    // Output at 1200px on the long axis (poster) or 1600px (square avatar)
-    const outW = aspect >= 1 ? 1600 : 1200;
-    const outH = Math.round(outW / aspect);
-
     const out = document.createElement('canvas');
-    out.width  = outW;
-    out.height = outH;
-    out.getContext('2d').drawImage(correctedCanvas, srcX, srcY, srcW, srcH, 0, 0, outW, outH);
+    const ctx = out.getContext('2d');
+
+    if (isPoster) {
+      // Output at 1200×1500 (4:5), poster contained, transparent letterbox
+      out.width  = 1200;
+      out.height = 1500;
+      const fitScale = Math.min(1200 / natW, 1500 / natH);
+      ctx.drawImage(correctedCanvas,
+        (1200 - natW * fitScale) / 2, (1500 - natH * fitScale) / 2,
+        natW * fitScale, natH * fitScale);
+    } else {
+      // Avatar: crop as before
+      const totalScale = baseScale * userScale;
+      const imgW = natW * totalScale;
+      const imgH = natH * totalScale;
+      const imgLeft = CROP_W / 2 + offset.x - imgW / 2;
+      const imgTop  = CROP_H / 2 + offset.y - imgH / 2;
+      const srcX = -imgLeft / totalScale;
+      const srcY = -imgTop  / totalScale;
+      const srcW =  CROP_W  / totalScale;
+      const srcH =  CROP_H  / totalScale;
+      out.width  = 1600;
+      out.height = 1600;
+      ctx.drawImage(correctedCanvas, srcX, srcY, srcW, srcH, 0, 0, 1600, 1600);
+    }
 
     canvasToBlob(out, 0.85).then(({ blob }) => onDone(out, blob));
   }
@@ -114,28 +122,31 @@ export default function ImageCropperModal({ correctedCanvas, aspect, onDone, onC
   const imgLeft      = CROP_W / 2 + offset.x - imgDisplayW / 2;
   const imgTop       = CROP_H / 2 + offset.y - imgDisplayH / 2;
 
-  // Quality: how many source pixels are in the current crop area
-  const srcPixels    = (CROP_W / totalScale) * (CROP_H / totalScale);
-  const outW         = aspect >= 1 ? 400 : 1200;
-  const outH         = Math.round(outW / aspect);
-  const outPixels    = outW * outH;
-  const ratio        = srcPixels / outPixels;
-  const quality      = ratio >= 4 ? { label: 'Excellent', color: '#00E5A0', icon: '✓' }
-                     : ratio >= 1 ? { label: 'Good',      color: '#7BC8F6', icon: '✓' }
-                     :              { label: 'Fair — may look blurry', color: '#FFB830', icon: '⚠' };
-
-  const aspectLabel  = aspect >= 1 ? '1 : 1' : '4 : 5';
+  // Quality indicator
+  const srcPixels = (CROP_W / totalScale) * (CROP_H / totalScale);
+  const outPx     = isPoster ? 1200 * 1500 : 1600 * 1600;
+  const ratio     = srcPixels / outPx;
+  const quality   = ratio >= 4 ? { label: 'Excellent', color: '#00E5A0', icon: '✓' }
+                  : ratio >= 1 ? { label: 'Good',      color: '#7BC8F6', icon: '✓' }
+                  :              { label: 'Fair — may look blurry', color: '#FFB830', icon: '⚠' };
 
   return (
     <div className={s.overlay}>
-      {/* Aspect ratio badge */}
-      <div className={s.aspectBadge}>
-        <span className={s.aspectIcon}>⬚</span>
-        <span>{aspectLabel}</span>
-        <span className={s.aspectLock}>locked</span>
-      </div>
+      {/* Badge */}
+      {isPoster ? (
+        <div className={s.aspectBadge}>
+          <span className={s.aspectIcon}>⬚</span>
+          <span>Full poster · blurred backdrop</span>
+        </div>
+      ) : (
+        <div className={s.aspectBadge}>
+          <span className={s.aspectIcon}>⬚</span>
+          <span>1 : 1</span>
+          <span className={s.aspectLock}>locked</span>
+        </div>
+      )}
 
-      {/* Crop box */}
+      {/* Crop / preview box */}
       <div
         ref={wrapRef}
         className={s.cropWrap}
@@ -156,24 +167,28 @@ export default function ImageCropperModal({ correctedCanvas, aspect, onDone, onC
           />
         )}
 
-        {/* Rule-of-thirds grid */}
-        <div className={s.grid}>
-          <div className={s.gridH} style={{ top: '33.33%' }} />
-          <div className={s.gridH} style={{ top: '66.66%' }} />
-          <div className={s.gridV} style={{ left: '33.33%' }} />
-          <div className={s.gridV} style={{ left: '66.66%' }} />
-          <div className={s.cornerTL} /><div className={s.cornerTR} />
-          <div className={s.cornerBL} /><div className={s.cornerBR} />
-        </div>
+        {/* Grid (avatars only) */}
+        {!isPoster && (
+          <div className={s.grid}>
+            <div className={s.gridH} style={{ top: '33.33%' }} />
+            <div className={s.gridH} style={{ top: '66.66%' }} />
+            <div className={s.gridV} style={{ left: '33.33%' }} />
+            <div className={s.gridV} style={{ left: '66.66%' }} />
+            <div className={s.cornerTL} /><div className={s.cornerTR} />
+            <div className={s.cornerBL} /><div className={s.cornerBR} />
+          </div>
+        )}
       </div>
 
-      {/* Quality score */}
+      {/* Quality */}
       <div className={s.quality}>
         <span className={s.qualityIcon} style={{ color: quality.color }}>{quality.icon}</span>
         <span className={s.qualityLabel} style={{ color: quality.color }}>{quality.label}</span>
       </div>
 
-      <p className={s.hint}>Drag to reposition · pinch or scroll to zoom</p>
+      <p className={s.hint}>
+        {isPoster ? 'Your full poster · blurred edges fill the frame' : 'Drag to reposition · pinch or scroll to zoom'}
+      </p>
 
       <div className={s.buttons}>
         <button className={s.btnCancel} onClick={onCancel}>CANCEL</button>

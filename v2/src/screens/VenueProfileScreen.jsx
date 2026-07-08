@@ -5,12 +5,13 @@ import { useSession } from '../App';
 import AvatarUpload from '../components/AvatarUpload';
 import s from './ArtistProfileScreen.module.css';
 import PostcodePrompt from '../components/PostcodePrompt';
+import CardTagPicker from '../components/CardTagPicker';
 
 const STATE_OPTIONS = ['NSW','VIC','QLD','WA','SA','TAS','ACT','NT','NZ','International'];
 
 const VENUE_TYPES = [
   'Brewery','Pub','Bar','Restaurant','Hall','Festival Site',
-  'Theatre','Warehouse','Café','Winery','Distillery','Other',
+  'Theatre','Warehouse','Café','Winery','Distillery','Land','Other',
 ];
 
 const PERFECT_FOR = [
@@ -88,6 +89,7 @@ export default function VenueProfileScreen() {
   const [facebook,    setFacebook]    = useState('');
   const [tiktok,      setTiktok]      = useState('');
   const [capacity,    setCapacity]    = useState('');
+  const [cardPills,   setCardPills]   = useState([]);
 
   const years = Array.from({ length: new Date().getFullYear() - 1899 }, (_, i) => new Date().getFullYear() - i);
 
@@ -114,6 +116,7 @@ export default function VenueProfileScreen() {
           setStageDims(p.stage_dims || '');
           setCapacity(p.capacity ? String(p.capacity) : '');
           setEntertain(new Set((p.genre_string || '').split(',').map(x => x.trim()).filter(Boolean)));
+          setCardPills(p.card_pills ? p.card_pills.split(' · ').filter(Boolean) : []);
           setTech(new Set((p.tech_features || '').split(',').map(x => x.trim()).filter(Boolean)));
           setDays(new Set((p.live_nights || '').split(',').map(x => x.trim()).filter(Boolean)));
           setHasAbn(p.has_abn ?? null);
@@ -167,6 +170,7 @@ export default function VenueProfileScreen() {
         perfect_for:      [...perfectFor].join(', '),
         established_year: established ? parseInt(established) : null,
         genre_string:     [...entertain].join(', '),
+        card_pills:       cardPills.join(' · '),
         bio:              bio.trim(),
         stage_dims:       stageDims.trim(),
         tech_features:    [...tech].join(', '),
@@ -186,11 +190,10 @@ export default function VenueProfileScreen() {
         updated_at:       new Date().toISOString(),
       };
       const { data: existing } = await supabase.from('profiles').select('user_id').eq('user_id', userId).eq('type', 'venue').maybeSingle();
-      if (existing) {
-        await supabase.from('profiles').update(payload).eq('user_id', userId).eq('type', 'venue');
-      } else {
-        await supabase.from('profiles').insert(payload);
-      }
+      const { error } = existing
+        ? await supabase.from('profiles').update(payload).eq('user_id', userId).eq('type', 'venue')
+        : await supabase.from('profiles').insert(payload);
+      if (error) { setSaveErr('Save failed: ' + error.message); return; }
       setSaved(true);
       setTimeout(() => { setSaved(false); navigate('/industry/venue'); }, 1200);
     } catch (e) {
@@ -233,14 +236,14 @@ export default function VenueProfileScreen() {
       <div className={s.section}>
         <div className={s.sectionTitle} style={{ borderImage: 'linear-gradient(90deg, #00E5A0, #00B4D8) 1' }}><GH>LISTING INFO</GH></div>
         <div className={s.field}>
-          <label className={s.fieldLabel}>YOUR VIBE <span className={s.fieldHint}>shows on your listing · 35 chars</span></label>
-          <input className={s.input} value={sound} onChange={e => setSound(e.target.value.slice(0,35))} placeholder="e.g. Underground warehouse techno venue" maxLength={35} />
-          <div className={s.charCount}>{sound.length} / 35</div>
+          <label className={s.fieldLabel}>YOUR VIBE <span className={s.fieldHint}>shows on your listing · 50 chars</span></label>
+          <input className={s.input} value={sound} onChange={e => setSound(e.target.value.slice(0,50))} placeholder="e.g. Underground warehouse techno venue" maxLength={50} />
+          <div className={s.charCount}>{sound.length} / 50</div>
         </div>
         <div className={s.field}>
-          <label className={s.fieldLabel}>TAGLINE <span className={s.fieldHint}>120 chars</span></label>
-          <textarea className={s.textarea} rows={2} value={tagline} onChange={e => setTagline(e.target.value.slice(0,120))} placeholder="Sydney's most iconic live music room. Three floors, two stages, one vibe." maxLength={120} style={{ minHeight: 56 }} />
-          <div className={s.charCount}>{tagline.length} / 120</div>
+          <label className={s.fieldLabel}>TAGLINE <span className={s.fieldHint}>100 chars</span></label>
+          <textarea className={s.textarea} rows={2} value={tagline} onChange={e => setTagline(e.target.value.slice(0,100))} placeholder="Sydney's most iconic live music room. Three floors, two stages, one vibe." maxLength={100} style={{ minHeight: 56 }} />
+          <div className={s.charCount}>{tagline.length} / 100</div>
         </div>
       </div>
 
@@ -338,6 +341,24 @@ export default function VenueProfileScreen() {
           ))}
         </div>
       </div>
+
+      {/* Your 5 tags */}
+      {(() => {
+        const tagPool = [...new Set([...entertain, ...atmosphere, ...perfectFor])];
+        if (!tagPool.length) return null;
+        return (
+          <div className={s.section}>
+            <div className={s.sectionTitle} style={{ borderImage: 'linear-gradient(90deg, #00E5A0, #00B4D8) 1' }}><GH>YOUR 5 TAGS</GH></div>
+            <CardTagPicker
+              tagPool={tagPool}
+              selected={cardPills}
+              onChange={setCardPills}
+              accent="#00E5FF"
+              hint="Pick the tags that best describe your venue — shown on your profile card."
+            />
+          </div>
+        );
+      })()}
 
       {/* About */}
       <div className={s.section}>

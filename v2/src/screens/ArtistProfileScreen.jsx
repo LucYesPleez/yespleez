@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { useSession } from '../App';
 import s from './ArtistProfileScreen.module.css';
 import PostcodePrompt from '../components/PostcodePrompt';
+import CardTagPicker from '../components/CardTagPicker';
 import AvatarUpload from '../components/AvatarUpload';
 
 const STATE_OPTIONS = ['NSW','VIC','QLD','WA','SA','TAS','ACT','NT','NZ','International'];
@@ -351,17 +352,12 @@ export default function ArtistProfileScreen() {
           {/* YOUR 5 CARD TAGS */}
           {tagPool.length > 0 && (
             <Section title="YOUR 5 CARD TAGS">
-              <p className={s.sectionHint}>Pick up to 5 tags that show on your slot card and discovery profile. Choose the ones that best represent your sound.</p>
-              <div className={s.chips}>
-                {tagPool.map(t => (
-                  <button key={t} type="button"
-                    className={selTags.includes(t) ? s.chipOn : s.chip}
-                    onClick={() => toggleTag(t)}
-                    disabled={!selTags.includes(t) && selTags.length >= 5}
-                  >{t}</button>
-                ))}
-              </div>
-              <div className={s.charCount}>{selTags.length} / 5 selected</div>
+              <CardTagPicker
+                tagPool={tagPool}
+                selected={selTags}
+                onChange={setSelTags}
+                hint="Pick the tags that best represent your sound — shown on your slot card and discovery profile."
+              />
             </Section>
           )}
 

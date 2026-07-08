@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
+import { writeNotification } from '../lib/writeNotification';
 import { useSession } from '../App';
-import EventCard from '../components/EventCard';
 import MiniPlayer from '../components/MiniPlayer';
+import EventCard from '../components/EventCard';
+import { getEventBadges } from '../lib/eventBadges';
 import s from './ProfileScreen.module.css';
 
 const TYPE_ACCENTS = {
@@ -21,9 +23,11 @@ export default function ProfileScreen() {
   const { id }    = useParams();
   const navigate  = useNavigate();
   const { session } = useSession();
+  const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
   const typeFilter = searchParams.get('type');
   const [genreExpanded, setGenreExpanded] = useState(false);
+  const [bioExpanded,   setBioExpanded]   = useState(false);
   const [heroLoaded,    setHeroLoaded]    = useState(false);
   const [followed,    setFollowed]    = useState(false);
   const [followBusy,  setFollowBusy]  = useState(false);
@@ -35,6 +39,7 @@ export default function ProfileScreen() {
   const [showPast,      setShowPast]      = useState(false);
   const [showAllUp,     setShowAllUp]     = useState(false);
   const [showAllPast,   setShowAllPast]   = useState(false);
+  const [gigsView,      setGigsView]      = useState('portrait'); // 'portrait' | 'list'
   const [pickerDate,    setPickerDate]    = useState(null);
   const [pickerProfs,   setPickerProfs]   = useState([]);
   const [enquiryProf,   setEnquiryProf]   = useState(null);
@@ -70,6 +75,7 @@ export default function ProfileScreen() {
       return { profile, events };
     },
     enabled: !!id,
+    staleTime: 0,
   });
 
   const profile = data?.profile || null;
@@ -169,6 +175,15 @@ export default function ProfileScreen() {
     await Promise.all(ids.map(uid =>
       supabase.from('follows').insert({ user_id: uid, entity_id: id, entity_type: 'profile', entity_name: profile.name })
     ));
+    // Bust the My Scene cache so the new follow appears immediately
+    queryClient.invalidateQueries({ queryKey: ['myScene'] });
+    // Notify the profile owner that someone followed them
+    await writeNotification(
+      profile.user_id,
+      'new_follower',
+      `Someone followed your profile${profile.name ? ` — ${profile.name}` : ''}.`,
+      { follower_id: session.user.id }
+    );
     setFollowed(true);
     setFollowBusy(false);
     setFollowPickerProfs([]);
@@ -180,6 +195,7 @@ export default function ProfileScreen() {
     if (navigator.share) { try { await navigator.share({ title: profile.name, url }); } catch (_) {} }
     else { try { await navigator.clipboard.writeText(url); } catch (_) {} }
   }
+
 
   const ta      = TYPE_ACCENTS[profile.type] || TYPE_ACCENTS.artist;
   const col     = ta.col;
@@ -213,6 +229,7 @@ export default function ProfileScreen() {
     !na(profile.soundcloud) && { href: profile.soundcloud.startsWith('http') ? profile.soundcloud : 'https://'+profile.soundcloud, col: '#FF5500', icon: 'soundcloud' },
     !na(profile.mixcloud)  && { href: profile.mixcloud.startsWith('http') ? profile.mixcloud : 'https://'+profile.mixcloud, col: '#52aad8', icon: 'mixcloud' },
     !na(profile.website)   && { href: profile.website?.startsWith('http') ? profile.website : 'https://'+profile.website, col: 'var(--neon2)', icon: 'globe' },
+    !na(profile.contact_email) && { href: `mailto:${profile.contact_email}`, col: '#aaaacc', icon: 'email' },
   ].filter(Boolean);
 
   return (
@@ -259,8 +276,22 @@ export default function ProfileScreen() {
                 {loc}
               </span>
             )}
-            {(profile.years || profile.established_year) && <span className={s.est}>EST. {profile.years || profile.established_year}</span>}
+            {(profile.years || profile.established_year) && <span className={s.est}>Est. {profile.years || profile.established_year}</span>}
           </div>
+          {/* card_pills tags (up to 5), fallback to genres — not shown for venues */}
+          {profile.type !== 'venue' && (() => {
+            const pillSrc = profile.card_pills
+              ? profile.card_pills.split(/\s*·\s*|,\s*/).map(p => p.trim()).filter(Boolean).slice(0, 5)
+              : genres.slice(0, 5);
+            if (!pillSrc.length) return null;
+            return (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 8 }}>
+                {pillSrc.map(p => (
+                  <span key={p} style={{ fontFamily: "'DM Sans'", fontSize: 11, color: col, background: `rgba(${rgb},.12)`, border: `1px solid rgba(${rgb},.3)`, borderRadius: 20, padding: '2px 10px' }}>{p}</span>
+                ))}
+              </div>
+            );
+          })()}
         </div>
 
         <div className={s.cards}>
@@ -301,17 +332,16 @@ export default function ProfileScreen() {
                 </div>
           )}
 
-          {/* Sound */}
-          {profile.sound && (
+          {profile.sound && !isVenue && (
             <div className={s.glassCard} style={{ '--card-col': col, '--card-grad2': grad2 }}>
-              <div className={s.glassCardInner}>{profile.sound}</div>
+              <div className={s.glassCardInner} style={{ color: col }}>{profile.sound}</div>
             </div>
           )}
 
-          {/* Genre */}
-          {genres.length > 0 && (
+          {/* Genre — non-venue */}
+          {genres.length > 0 && !isVenue && (
             <div className={s.glassCard} style={{ '--card-col': col, '--card-grad2': grad2, cursor: genres.length > 5 ? 'pointer' : 'default' }} onClick={() => genres.length > 5 && setGenreExpanded(e => !e)}>
-              <div className={s.cardLabel} style={{ color: col }}>{isVenue ? 'ENTERTAINMENT WE BOOK' : 'GENRE'}</div>
+              <div className={s.cardLabel} style={{ color: col }}>GENRE</div>
               <div className={s.genrePills}>
                 {visibleGenres.map(g => <span key={g} className={s.genrePill}>{g}</span>)}
                 {!genreExpanded && genres.length > 5 && (
@@ -321,33 +351,98 @@ export default function ProfileScreen() {
             </div>
           )}
 
-          {/* Bio */}
-          {profile.bio && (
+          {/* Non-venue sound */}
+          {profile.sound && !isVenue && (
             <div className={s.glassCard} style={{ '--card-col': col, '--card-grad2': grad2 }}>
-              <div className={s.cardLabel} style={{ color: col }}>ABOUT</div>
-              <div className={s.bioText}>{profile.bio}</div>
+              <div className={s.glassCardInner} style={{ color: col }}>{profile.sound}</div>
             </div>
           )}
 
-          {/* Venue-specific info — collapsible dropdown */}
-          {isVenue && <VenueInfoDropdown profile={profile} col={col} rgb={rgb} grad2={grad2} />}
+          {/* Bio - non-venue only */}
+          {profile.bio && !isVenue && (
+            <div className={s.glassCard} style={{ '--card-col': col, '--card-grad2': grad2 }}>
+              <div className={s.cardLabel} style={{ color: col }}>ABOUT</div>
+              <div className={s.bioText}>
+                {profile.bio.length <= 150
+                  ? profile.bio
+                  : bioExpanded
+                    ? <>{profile.bio} <span onClick={() => setBioExpanded(false)} style={{ color: 'rgba(255,255,255,.45)', cursor: 'pointer', fontStyle: 'italic', fontSize: 12 }}>see less</span></>
+                    : <>{profile.bio.slice(0, 150).trimEnd()}… <span onClick={() => setBioExpanded(true)} style={{ color: 'rgba(255,255,255,.45)', cursor: 'pointer', fontStyle: 'italic', fontSize: 12 }}>see more</span></>
+                }
+              </div>
+            </div>
+          )}
 
-          {/* Follow row */}
-          <div style={{ display: 'flex', gap: 10 }}>
-            <button
-              className={s.followBtn}
-              style={followed
-                ? { borderColor: col, color: '#0a0a0f', background: col, flex: 1 }
-                : { borderColor: `rgba(${rgb},.35)`, color: col, flex: 1 }}
-              onClick={toggleFollow}
-              disabled={followBusy || !session}
-            >
-              {followed ? '✓ FOLLOWING' : '+ FOLLOW'}
-            </button>
+          {/* Venue: combined Vibe tags + Sound + Venue Info box */}
+          {isVenue && (
+            <div className={s.glassCard} style={{ '--card-col': col, '--card-grad2': grad2, padding: 0, overflow: 'hidden' }}>
+              {(() => {
+                const vibeTags = profile.card_pills
+                  ? profile.card_pills.split(' · ').map(t => t.trim()).filter(Boolean).slice(0, 5)
+                  : [];
+                if (!vibeTags.length) return null;
+                return (
+                  <div style={{ padding: '14px 16px' }}>
+                    <div className={s.cardLabel} style={{ color: col, marginBottom: 8 }}>VIBE</div>
+                    <div className={s.genrePills}>
+                      {vibeTags.map(t => (
+                        <span key={t} style={{
+                          display: 'inline-block',
+                          fontFamily: "'Bebas Neue', sans-serif",
+                          fontSize: 13,
+                          letterSpacing: 1.5,
+                          padding: '4px 13px',
+                          borderRadius: 20,
+                          background: 'linear-gradient(to right, rgba(0,229,255,.15), transparent)',
+                          border: '1px solid rgba(0,229,255,.25)',
+                          boxShadow: '0 0 8px rgba(0,229,255,.2)',
+                          color: '#00E5FF',
+                        }}>{t}</span>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
+              {profile.sound && (
+                <>
+                  <div style={{ height: 1, background: 'rgba(255,255,255,.06)', margin: '0 16px' }} />
+                  <div style={{ padding: '12px 16px', textAlign: 'center', fontStyle: 'italic', fontSize: 15, color: 'rgba(232,232,240,.75)', lineHeight: 1.6 }}>{profile.sound}</div>
+                </>
+              )}
+              <VenueInfoDropdown bare profile={profile} col={col} rgb={rgb} grad2={grad2} socials={socials} />
+            </div>
+          )}
+
+          {/* Action buttons */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <span style={{ flex: 1, display: 'inline-block', padding: 1, borderRadius: 12, background: followed ? col : `linear-gradient(135deg, ${col}, ${grad2})` }}>
+                <button
+                  className={s.followBtn}
+                  style={followed
+                    ? { borderColor: 'transparent', color: '#0a0a0f', background: col, width: '100%', margin: 0 }
+                    : { borderColor: 'transparent', background: 'rgba(19,19,31,.92)', width: '100%', margin: 0 }}
+                  onClick={toggleFollow}
+                  disabled={followBusy || !session}
+                >
+                  {followed ? '✓ FOLLOWING' : <span style={{ backgroundImage: `linear-gradient(135deg, ${col}, ${grad2})`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>+ FOLLOW</span>}
+                </button>
+              </span>
+              {isVenue && (
+                <span style={{ flex: 1, display: 'inline-block', padding: 1, borderRadius: 12, background: `linear-gradient(135deg, ${col}, ${grad2})` }}>
+                  <button
+                    className={s.followBtn}
+                    style={{ borderColor: 'transparent', background: 'rgba(19,19,31,.92)', width: '100%', margin: 0 }}
+                  >
+                    <span style={{ backgroundImage: `linear-gradient(135deg, ${col}, ${grad2})`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>MESSAGE VENUE</span>
+                  </button>
+                </span>
+              )}
+            </div>
             {isVenue && (
               <button
                 className={s.followBtn}
-                style={{ borderColor: `rgba(${rgb},.35)`, color: col, flex: 1 }}
+                style={{ background: `linear-gradient(135deg, ${col}, ${grad2})`, color: '#0a0a14', borderColor: 'transparent', width: '100%' }}
                 onClick={async () => {
                   setAvailOpen(true);
                   if (!availDates) {
@@ -362,23 +457,12 @@ export default function ProfileScreen() {
                   }
                 }}
               >
-                CHECK AVAILABILITY
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 8, verticalAlign: 'middle', marginTop: -2 }}><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>CHECK AVAILABILITY
               </button>
             )}
           </div>
 
-          {/* Social icons */}
-          {socials.length > 0 && (
-            <div className={s.socials}>
-              {socials.map((sc, i) => (
-                <a key={i} href={sc.href} target="_blank" rel="noopener noreferrer" className={s.socialIcon} style={{ color: sc.col }}>
-                  <SocialSvg icon={sc.icon} />
-                </a>
-              ))}
-            </div>
-          )}
-
-          {/* Events */}
+          {/* Events sheet */}
           {(() => {
             const todayStr = new Date().toISOString().split('T')[0];
             const upcoming = events.filter(ev => (ev.config?.date || '9999') >= todayStr).sort((a, b) => (a.config?.date || '').localeCompare(b.config?.date || ''));
@@ -388,21 +472,93 @@ export default function ProfileScreen() {
             const setAll   = showPast ? setShowAllPast : setShowAllUp;
             if (!upcoming.length && !past.length) return null;
             return (
-              <div className={s.eventsSection}>
-                {/* Header row */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+              <div style={{ marginTop: 10, position: 'relative', padding: '30px 0 20px', marginLeft: -16, marginRight: -16, paddingLeft: 16, paddingRight: 16, background: 'linear-gradient(to bottom, transparent 0%, rgba(10,10,20,.7) 20%, rgba(10,10,20,.7) 80%, transparent 100%)' }}>
+                {/* Tab pills + see all */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
                   <div style={{ display: 'flex', gap: 8 }}>
-                    <button onClick={() => { setShowPast(false); setShowAllUp(false); }} style={{ fontFamily: "'Bebas Neue'", fontSize: 13, letterSpacing: 1.5, padding: '4px 12px', borderRadius: 16, cursor: 'pointer', border: `1px solid ${!showPast ? col : 'var(--border)'}`, background: !showPast ? `rgba(${rgb},.15)` : 'none', color: !showPast ? col : 'var(--muted)' }}>UPCOMING GIGS</button>
-                    {past.length > 0 && <button onClick={() => { setShowPast(true); setShowAllPast(false); }} style={{ fontFamily: "'Bebas Neue'", fontSize: 13, letterSpacing: 1.5, padding: '4px 12px', borderRadius: 16, cursor: 'pointer', border: `1px solid ${showPast ? col : 'var(--border)'}`, background: showPast ? `rgba(${rgb},.15)` : 'none', color: showPast ? col : 'var(--muted)' }}>PAST GIGS</button>}
+                    <button onClick={() => { setShowPast(false); setShowAllUp(false); }} style={{ fontFamily: "'Bebas Neue'", fontSize: 13, letterSpacing: 1.5, padding: '4px 12px', borderRadius: 16, cursor: 'pointer', border: `1px solid ${!showPast ? 'rgba(255,255,255,.4)' : 'var(--border)'}`, background: !showPast ? 'rgba(255,255,255,.1)' : 'none', color: !showPast ? '#fff' : 'rgba(255,255,255,.8)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      UPCOMING GIGS
+                      <span style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 700, fontSize: 10, background: !showPast ? 'rgba(255,255,255,.2)' : 'var(--card2)', color: '#fff', borderRadius: 8, padding: '1px 6px', letterSpacing: 0 }}>{upcoming.length}</span>
+                    </button>
+                    {past.length > 0 && <button onClick={() => { setShowPast(true); setShowAllPast(false); }} style={{ fontFamily: "'Bebas Neue'", fontSize: 13, letterSpacing: 1.5, padding: '4px 12px', borderRadius: 16, cursor: 'pointer', border: `1px solid ${showPast ? 'rgba(255,255,255,.4)' : 'var(--border)'}`, background: showPast ? 'rgba(255,255,255,.1)' : 'none', color: showPast ? '#fff' : 'rgba(255,255,255,.8)' }}>PAST GIGS</button>}
                   </div>
-                  {list.length > 0 && (
-                    <button onClick={() => setAll(v => !v)} style={{ fontFamily: "'Bebas Neue'", fontSize: 11, letterSpacing: 1, color: col, background: 'none', border: `1px solid rgba(${rgb},.35)`, borderRadius: 6, padding: '3px 10px', cursor: 'pointer' }}>{showAll ? 'SEE LESS' : 'SEE ALL'}</button>
-                  )}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ display: 'flex', background: 'var(--card2)', borderRadius: 8, overflow: 'hidden', border: '1px solid var(--border)' }}>
+                      {[['portrait', '▦'], ['list', '☰']].map(([v, icon]) => (
+                        <button key={v} onClick={() => setGigsView(v)} style={{ background: gigsView === v ? 'rgba(255,255,255,.12)' : 'none', border: 'none', color: gigsView === v ? '#fff' : 'var(--muted)', padding: '5px 10px', cursor: 'pointer', fontSize: 13, lineHeight: 1, transition: 'background .15s, color .15s' }}>{icon}</button>
+                      ))}
+                    </div>
+                    {list.length > 0 && (
+                      <span
+                        onClick={() => setAll(v => !v)}
+                        style={{ fontFamily: "'Bebas Neue'", fontSize: 14, letterSpacing: 1, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0, backgroundImage: `linear-gradient(135deg, ${col}, ${grad2})`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text', opacity: 0.6, transition: 'opacity .15s' }}
+                        onMouseEnter={e => e.currentTarget.style.opacity = 1}
+                        onMouseLeave={e => e.currentTarget.style.opacity = 0.6}
+                      >{showAll ? 'View less' : 'View all >'}</span>
+                    )}
+                  </div>
                 </div>
                 {list.length === 0
-                  ? <p style={{ fontSize: 13, color: 'var(--muted)' }}>No {showPast ? 'past' : 'upcoming'} gigs.</p>
-                  : <div style={showAll ? { display: 'flex', flexDirection: 'column', gap: 6 } : { maxHeight: 980, overflowY: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none', display: 'flex', flexDirection: 'column', gap: 6 }}>
-                      {list.map(ev => <EventCard key={ev.id} event={ev} />)}
+                  ? <p style={{ fontSize: 13, color: 'var(--muted)', margin: 0 }}>No {showPast ? 'past' : 'upcoming'} gigs.</p>
+                  : gigsView === 'portrait'
+                  ? <div style={{ display: 'flex', gap: 10, overflowX: 'auto', scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch', paddingBottom: 4 }}>
+                      {list.map(ev => {
+                        const cfg = ev.config || {};
+                        const poster = cfg.poster || cfg.posterUrl || '';
+                        const genreList = (cfg.genres || '').split(',').map(g => g.trim()).filter(Boolean).slice(0, 2);
+                        const dateObj = cfg.date ? new Date(cfg.date + 'T12:00:00') : null;
+                        const dateStr = dateObj ? dateObj.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' }) : '';
+                        const dateDay = dateObj ? dateObj.toLocaleDateString('en-AU', { weekday: 'short' }).toUpperCase() : '';
+                        const dateNum = dateObj ? dateObj.getDate() : '';
+                        const dateMon = dateObj ? dateObj.toLocaleDateString('en-AU', { month: 'short' }).toUpperCase() : '';
+                        return (
+                          <div key={ev.id} onClick={() => navigate(`/event/${ev.id}`)} style={{ position: 'relative', flexShrink: 0, width: 148, borderRadius: 12, overflow: 'hidden', background: '#0e0e18', cursor: 'pointer', display: 'flex', flexDirection: 'column', transition: 'transform .2s' }}
+                            onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-3px)'}
+                            onMouseLeave={e => e.currentTarget.style.transform = ''}
+                          >
+                            {/* Image area */}
+                            <div style={{ position: 'relative', height: 155, background: poster ? `url(${poster}) center/cover` : 'linear-gradient(135deg,#1a0533,#2d1b69)', flexShrink: 0 }}>
+                              <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 80, background: 'linear-gradient(to bottom, transparent, #0e0e18)' }} />
+                              {dateObj && <div style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,.82)', backdropFilter: 'blur(4px)', borderRadius: 8, padding: '4.5px 8px', textAlign: 'center', minWidth: 35 }}>
+                                <div style={{ fontFamily: "'Bebas Neue'", fontSize: 11, color: 'rgba(255,255,255,.7)', letterSpacing: .5 }}>{dateDay}</div>
+                                <div style={{ fontFamily: "'Bebas Neue'", fontSize: 22, color: '#fff', lineHeight: 1 }}>{dateNum}</div>
+                                <div style={{ fontFamily: "'Bebas Neue'", fontSize: 11, color: 'rgba(255,255,255,.7)', letterSpacing: .5 }}>{dateMon}</div>
+                              </div>}
+                              {(() => { const BADGE_STYLES = { 'Live Music': { bg:'#ff2d78', col:'#fff' }, 'DJs': { bg:'var(--neon2)', col:'#000' }, 'Festival': { bg:'#BF5FFF', col:'#fff' }, 'Comedy': { bg:'#FF8C42', col:'#fff' }, 'Spoken Word': { bg:'#FF8C42', col:'#fff' }, 'Open Mic': { bg:'#FFD700', col:'#000' } }; const bs = BADGE_STYLES[cfg.categoryBadge] || { bg:'#fff', col:'#000' }; let badges = cfg.categoryBadge ? [{ label: cfg.categoryBadge, bg: bs.bg, col: bs.col }] : getEventBadges(cfg.genres || '', ev.name || ''); if (cfg.openMicBadge && !badges.find(b => b.label === 'Open Mic')) { badges = [...badges, { label: 'Open Mic', bg: '#FFD700', col: '#000' }]; } return badges.length > 0 && (
+                                <div style={{ position: 'absolute', top: 8, left: 8, display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                                  {badges.slice(0,1).map(p => <span key={p.label} style={{ fontFamily: "'DM Sans'", fontSize: 9, fontWeight: 700, letterSpacing: .8, padding: '3px 8px', borderRadius: 6, background: p.bg, color: p.col }}>{p.label}</span>)}
+                                </div>
+                              ); })()}
+                            </div>
+                            {/* Info area */}
+                            <div style={{ padding: '8px 10px 10px', display: 'flex', flexDirection: 'column', gap: 3 }}>
+                              {(() => {
+                                const sep = ev.name.match(/ [–\-] /);
+                                if (sep) {
+                                  const idx = ev.name.indexOf(sep[0]);
+                                  const artist = ev.name.slice(0, idx);
+                                  const show = ev.name.slice(idx + sep[0].length);
+                                  return <>
+                                    <div style={{ fontFamily: "'Bebas Neue'", fontSize: 14, letterSpacing: 1, color: '#fff', lineHeight: 1.2, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical' }}>{artist}</div>
+                                    <div style={{ fontFamily: "'Bebas Neue'", fontSize: 11, letterSpacing: 1, color: 'rgba(255,255,255,.55)', lineHeight: 1.2, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical' }}>{show}</div>
+                                  </>;
+                                }
+                                return <div style={{ fontFamily: "'Bebas Neue'", fontSize: 13, letterSpacing: 1, color: '#fff', lineHeight: 1.2, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{ev.name}</div>;
+                              })()}
+                              <div style={{ fontSize: 9, color: 'rgba(255,255,255,.45)', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', display: 'flex', alignItems: 'center', gap: 3 }}>
+                                <svg xmlns='http://www.w3.org/2000/svg' width='9' height='9' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' style={{ flexShrink: 0 }}><path d='M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z'/><circle cx='12' cy='10' r='3'/></svg>
+                                <span style={{ overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{cfg.venueName || cfg.venue || profile.name}</span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  : <div style={showAll
+                      ? { display: 'flex', flexDirection: 'column', gap: 6, paddingTop: 4 }
+                      : { display: 'flex', flexDirection: 'column', gap: 6, paddingTop: 4, maxHeight: 315, overflowY: 'scroll', scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch', maskImage: 'linear-gradient(to bottom, black 75%, transparent 100%)', WebkitMaskImage: 'linear-gradient(to bottom, black 75%, transparent 100%)' }
+                    }>
+                      {list.map(ev => <EventCard key={ev.id} event={ev} onClick={() => navigate(`/event/${ev.id}`)} />)}
                     </div>
                 }
               </div>
@@ -587,26 +743,31 @@ export default function ProfileScreen() {
   );
 }
 
-function VenueInfoDropdown({ profile, col, rgb, grad2 }) {
+function VenueInfoDropdown({ profile, col, rgb, grad2, bare = false, socials = [] }) {
   const [open, setOpen] = useState(false);
-  const entertain = profile.genre_string ? profile.genre_string.split(/\s*·\s*|,\s*/).map(g => g.trim()).filter(Boolean) : [];
-  const tech      = Array.isArray(profile.tech_features) ? profile.tech_features : (profile.tech_features ? String(profile.tech_features).split(',').map(t => t.trim()) : []);
-  const nights    = Array.isArray(profile.live_nights)   ? profile.live_nights   : (profile.live_nights   ? String(profile.live_nights).split(',').map(d => d.trim())   : []);
-  const hasInfo   = profile.venue_type || profile.capacity || entertain.length || tech.length || nights.length || profile.stage_dims;
+  const [bioExpanded, setBioExpanded] = useState(false);
+  const entertain  = profile.genre_string  ? profile.genre_string.split(/\s*·\s*|,\s*/).map(g => g.trim()).filter(Boolean) : [];
+  const tech       = Array.isArray(profile.tech_features) ? profile.tech_features : (profile.tech_features ? String(profile.tech_features).split(',').map(t => t.trim()) : []);
+  const nights     = Array.isArray(profile.live_nights)   ? profile.live_nights   : (profile.live_nights   ? String(profile.live_nights).split(',').map(d => d.trim())   : []);
+  const atmosphere = profile.atmosphere  ? profile.atmosphere.split(',').map(t => t.trim()).filter(Boolean) : [];
+  const perfectFor = profile.perfect_for ? profile.perfect_for.split(',').map(t => t.trim()).filter(Boolean) : [];
+  const hasInfo    = profile.venue_type || profile.capacity || entertain.length || atmosphere.length || perfectFor.length || tech.length || nights.length || profile.stage_dims;
   if (!hasInfo) return null;
 
-  const rowStyle  = { display: 'flex', gap: 8, padding: '10px 0', borderBottom: '1px solid rgba(255,255,255,.05)' };
+  const rowStyle   = { display: 'flex', gap: 8, padding: '10px 0', borderBottom: '1px solid rgba(255,255,255,.05)' };
   const labelStyle = { fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1.5, color: 'var(--muted)', minWidth: 90, paddingTop: 3, flexShrink: 0 };
 
-  return (
-    <div className={s.glassCard} style={{ '--card-col': col, '--card-grad2': grad2, padding: 0, marginBottom: 12, overflow: 'hidden' }}>
-      <button
-        onClick={() => setOpen(o => !o)}
-        style={{ width: '100%', background: 'none', border: 'none', fontFamily: "'Bebas Neue'", fontSize: 14, letterSpacing: 2, color: col, padding: '14px 16px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
-      >
-        <span>VENUE INFO</span>
-        <span style={{ fontSize: 12 }}>{open ? '▲' : '▼'}</span>
-      </button>
+  const inner = (
+    <>
+      <div style={{ borderTop: '1px solid rgba(255,255,255,.06)' }}>
+        <button
+          onClick={() => setOpen(o => !o)}
+          style={{ width: '100%', background: 'none', border: 'none', padding: '12px 16px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+        >
+          <span style={{ fontFamily: "'Bebas Neue'", fontSize: 14, letterSpacing: 2, color: col }}>VENUE INFO</span>
+          <span style={{ fontFamily: "'Bebas Neue'", fontSize: 12, color: col }}>{open ? '▲' : '▼'}</span>
+        </button>
+      </div>
       {open && (
         <div style={{ padding: '0 16px 14px', borderTop: '1px solid rgba(255,255,255,.06)' }}>
           {profile.venue_type && (
@@ -621,10 +782,35 @@ function VenueInfoDropdown({ profile, col, rgb, grad2 }) {
               <div style={{ fontSize: 13, color: 'var(--muted)', flex: 1 }}>{profile.capacity}</div>
             </div>
           )}
+          {atmosphere.length > 0 && (
+            <div style={{ ...rowStyle, alignItems: 'flex-start' }}>
+              <div style={labelStyle}>ATMOSPHERE</div>
+              <div style={{ fontSize: 13, color: 'var(--muted)', flex: 1, lineHeight: 1.6 }}>{atmosphere.join(', ')}</div>
+            </div>
+          )}
           {entertain.length > 0 && (
             <div style={{ ...rowStyle, alignItems: 'flex-start' }}>
               <div style={labelStyle}>WE BOOK</div>
               <div style={{ fontSize: 13, color: 'var(--muted)', flex: 1, lineHeight: 1.6 }}>{entertain.join(', ')}</div>
+            </div>
+          )}
+          {perfectFor.length > 0 && (
+            <div style={{ ...rowStyle, alignItems: 'flex-start' }}>
+              <div style={labelStyle}>PERFECT FOR</div>
+              <div style={{ fontSize: 13, color: 'var(--muted)', flex: 1, lineHeight: 1.6 }}>{perfectFor.join(', ')}</div>
+            </div>
+          )}
+          {profile.bio && (
+            <div style={{ ...rowStyle, alignItems: 'flex-start' }}>
+              <div style={labelStyle}>ABOUT</div>
+              <div style={{ fontSize: 13, color: 'var(--muted)', flex: 1, lineHeight: 1.6 }}>
+                {profile.bio.length <= 150
+                  ? profile.bio
+                  : bioExpanded
+                    ? <>{profile.bio} <span onClick={() => setBioExpanded(false)} style={{ color: 'rgba(255,255,255,.45)', cursor: 'pointer', fontStyle: 'italic', fontSize: 12 }}>see less</span></>
+                    : <>{profile.bio.slice(0, 150).trimEnd()}… <span onClick={() => setBioExpanded(true)} style={{ color: 'rgba(255,255,255,.45)', cursor: 'pointer', fontStyle: 'italic', fontSize: 12 }}>see more</span></>
+                }
+              </div>
             </div>
           )}
           {tech.length > 0 && (
@@ -637,13 +823,33 @@ function VenueInfoDropdown({ profile, col, rgb, grad2 }) {
             </div>
           )}
           {nights.length > 0 && (
-            <div style={{ ...rowStyle, alignItems: 'flex-start', borderBottom: 'none' }}>
+            <div style={{ ...rowStyle, alignItems: 'flex-start' }}>
               <div style={labelStyle}>LIVE NIGHTS</div>
               <div style={{ fontSize: 13, color: 'var(--muted)', flex: 1, lineHeight: 1.6 }}>{nights.join(', ')}</div>
             </div>
           )}
+          {socials.length > 0 && (
+            <div style={{ ...rowStyle, alignItems: 'center', borderBottom: 'none' }}>
+              <div style={labelStyle}>SOCIALS / LINKS</div>
+              <div style={{ display: 'flex', gap: 12, flex: 1 }}>
+                {socials.map((sc, i) => (
+                  <a key={i} href={sc.href} target="_blank" rel="noopener noreferrer" style={{ color: sc.col, opacity: .85, transition: 'opacity .15s', display: 'flex', alignItems: 'center' }} onMouseEnter={e => e.currentTarget.style.opacity=1} onMouseLeave={e => e.currentTarget.style.opacity='.85'}>
+                    <SocialSvg icon={sc.icon} />
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
+    </>
+  );
+
+  if (bare) return inner;
+
+  return (
+    <div className={s.glassCard} style={{ '--card-col': col, '--card-grad2': grad2, padding: 0, marginBottom: 12, overflow: 'hidden' }}>
+      {inner}
     </div>
   );
 }
@@ -668,6 +874,7 @@ function SocialSvg({ icon }) {
     case 'youtube':   return <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M2.5 17a24.12 24.12 0 0 1 0-10 2 2 0 0 1 1.4-1.4 49.56 49.56 0 0 1 16.2 0A2 2 0 0 1 21.5 7a24.12 24.12 0 0 1 0 10 2 2 0 0 1-1.4 1.4 49.55 49.55 0 0 1-16.2 0A2 2 0 0 1 2.5 17"/><path d="m10 15 5-3-5-3z"/></svg>;
     case 'soundcloud':return <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M2 13.5A3.5 3.5 0 0 0 5.5 17h11a3 3 0 0 0 .5-5.965V11a5 5 0 0 0-9.3-2.5"/><path d="M5 11.5v1M7 10v3M9 9.5v4"/></svg>;
     case 'mixcloud':  return <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3z"/><path d="M3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg>;
+    case 'email':     return <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m2 7 10 7 10-7"/></svg>;
     default:          return <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>;
   }
 }

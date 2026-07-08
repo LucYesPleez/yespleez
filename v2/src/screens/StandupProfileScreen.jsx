@@ -181,8 +181,8 @@ export default function StandupProfileScreen() {
       {/* Header */}
       <div className={s.header}>
         <div className={s.headerText}>
-          <div className={s.h1} style={{ background: GRAD, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
-            YOUR MIC PROFILE
+          <div className={s.h1} style={{ background: GRAD, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text', lineHeight: 1.1 }}>
+            SPOKEN<br />PROFILE
           </div>
           <div className={s.h1Sub}>Fill this in once · travels with you across every event</div>
         </div>

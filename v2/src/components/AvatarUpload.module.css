@@ -78,48 +78,38 @@
 .tabs {
   display: flex;
   gap: 6px;
-  flex-wrap: wrap;
-  justify-content: center;
+  width: min(80vw, 340px);
 }
 
-.tab {
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 20px;
-  color: var(--muted);
-  font-family: 'DM Sans', sans-serif;
-  font-size: 12px;
-  padding: 5px 14px;
+.tab, .tabRemove {
+  flex: 1;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 13px;
+  letter-spacing: 1.5px;
+  padding: 9px 0;
+  border-radius: 8px;
   cursor: pointer;
-  transition: border-color .12s, color .12s;
+  border: 1px solid var(--border);
+  background: var(--card2);
+  color: var(--muted);
+  transition: border-color .15s, color .15s;
 }
 
-.tab:hover {
-  border-color: var(--neon2);
-  color: var(--neon2);
-}
+.tab:hover { border-color: rgba(255,255,255,0.2); color: var(--text); }
 
 .tabActive {
+  background: rgba(0,229,255,0.1);
   border-color: var(--neon2);
   color: var(--neon2);
 }
 
 .tabRemove {
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 20px;
-  color: var(--muted);
-  font-family: 'DM Sans', sans-serif;
-  font-size: 12px;
-  padding: 5px 14px;
-  cursor: pointer;
-  transition: border-color .12s, color .12s;
+  background: rgba(120,20,40,0.25);
+  border-color: rgba(160,40,60,0.4);
+  color: rgba(200,80,80,0.85);
 }
 
-.tabRemove:hover {
-  border-color: #FF3CAC;
-  color: #FF3CAC;
-}
+.tabRemove:hover { background: rgba(140,30,50,0.35); border-color: rgba(180,50,70,0.55); }
 
 .fullViewOverlay {
   position: fixed;

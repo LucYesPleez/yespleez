@@ -62,11 +62,15 @@ export default function EventCard({ event, badge: badgeOverride, badgeColor, onC
   const venue  = cfg.venue || '';
   const genres = cfg.genres || '';
 
+  const BADGE_STYLES = { 'Live Music': { bg:'#ff2d78', col:'#fff' }, 'DJs': { bg:'var(--neon2)', col:'#000' }, 'Festival': { bg:'#BF5FFF', col:'#fff' }, 'Comedy': { bg:'#FF8C42', col:'#fff' }, 'Spoken Word': { bg:'#FF8C42', col:'#fff' }, 'Open Mic': { bg:'#FFD700', col:'#000' } };
+  const manualBadge = cfg.categoryBadge ? [{ label: cfg.categoryBadge, ...(BADGE_STYLES[cfg.categoryBadge] || { bg:'#fff', col:'#000' }) }] : null;
   const autoBadges = getEventBadges(genres, event?.name || '');
-  // Override takes precedence as a single pill
-  const pills = badgeOverride
+  let pills = badgeOverride
     ? [{ label: badgeOverride, bg: badgeColor || '#fff', col: '#fff' }]
-    : autoBadges;
+    : (manualBadge || autoBadges);
+  if (!badgeOverride && cfg.openMicBadge && !pills.find(p => p.label === 'Open Mic')) {
+    pills = [...pills, { label: 'Open Mic', bg: '#FFD700', col: '#000' }];
+  }
 
   const handleClick = onClick || (() => navigate(`/event/${event.id}`));
 
@@ -151,6 +155,11 @@ export default function EventCard({ event, badge: badgeOverride, badgeColor, onC
         : <div className={s.cardImgPH} />
       }
       <div className={s.cardOverlay} />
+      {genrePills.length > 0 && (
+        <div style={{ position:'absolute', top:8, ...(statusPills.length > 0 ? { left:12 } : { right:12 }), display:'flex', gap:4, zIndex:2 }}>
+          {genrePills.slice(0,1).map(p => <Pill key={p.label} {...p} />)}
+        </div>
+      )}
       {chip.dayNum && (
         <div style={{ position:'absolute', top:'50%', left:12, transform:'translateY(-50%)', background:'rgba(0,0,0,.65)', backdropFilter:'blur(4px)', borderRadius:10, padding:'6px 10px', textAlign:'center', minWidth:44, zIndex:2 }}>
           <div style={{ fontFamily:"'Bebas Neue'", fontSize:11, color:'rgba(255,255,255,.7)', letterSpacing:.5 }}>{chip.dayName}</div>
@@ -160,7 +169,17 @@ export default function EventCard({ event, badge: badgeOverride, badgeColor, onC
       )}
       <div className={s.cardRow}>
         <div className={s.cardInfo} style={{ paddingLeft: chip.dayNum ? 77 : 12 }}>
-          <div className={s.cardName}>{event.name}</div>
+          {(() => {
+            const sep = (event.name || '').match(/ [–\-] /);
+            if (sep) {
+              const idx = event.name.indexOf(sep[0]);
+              return <>
+                <div className={s.cardName}>{event.name.slice(0, idx)}</div>
+                <div style={{ fontFamily:"'Bebas Neue'", fontSize:12, letterSpacing:.5, color:'rgba(255,255,255,.5)', marginBottom:2, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{event.name.slice(idx + sep[0].length)}</div>
+              </>;
+            }
+            return <div className={s.cardName}>{event.name}</div>;
+          })()}
           <div style={{ display:'flex', alignItems:'center', gap:6, flexWrap:'wrap' }}>
             {venue && <span className={s.cardMeta}>{venue}</span>}
           </div>

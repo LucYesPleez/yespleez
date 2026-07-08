@@ -66,9 +66,7 @@ export default function AvatarUpload({ userId, bucket, pathPrefix, avatar, ringC
                 ? <img src={avatar} alt="" className={s.img} style={{ objectPosition: `${pos.x}% ${pos.y}%` }} />
                 : <div className={s.ph}><span className={s.plus}>+</span>PHOTO</div>
               }
-              {cropMode && (
-                <div className={s.dragHint}>DRAG TO REPOSITION</div>
-              )}
+              {cropMode && <div className={s.dragHint} />}
               {statusBadge}
             </div>
 
@@ -77,8 +75,8 @@ export default function AvatarUpload({ userId, bucket, pathPrefix, avatar, ringC
               <div className={s.tabs}>
                 <button type="button" className={s.tab} onClick={() => setFullView(true)}>Full view</button>
                 <button type="button" className={`${s.tab} ${cropMode ? s.tabActive : ''}`} onClick={() => setCropMode(m => !m)}>Adjust crop</button>
-                <button type="button" className={s.tabRemove} onClick={() => { setCropMode(false); setPos({ x: 50, y: 50 }); onRemove(); }}>Remove</button>
                 <button type="button" className={s.tab} onClick={trigger}>Replace</button>
+                <button type="button" className={s.tabRemove} onClick={() => { setCropMode(false); setPos({ x: 50, y: 50 }); onRemove(); }}>Remove</button>
               </div>
             ) : (
               <div className={s.hint}>Tap to upload photo</div>

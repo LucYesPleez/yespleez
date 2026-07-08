@@ -18,6 +18,7 @@ export const TYPE_STYLES = {
  */
 export default function ProfileCard({ item, badge, badgeColor, actions }) {
   const navigate = useNavigate();
+  if (!item) return null;
   const type  = item.type || 'artist';
   const ts    = TYPE_STYLES[type] || TYPE_STYLES.artist;
   const loc   = [(item.suburb || item.location), item.state].filter(Boolean).join(', ');

@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { useSession } from '../App';
 import s from './CreateEventScreen.module.css';
 import ImageUploadButton from '../components/ImageUploadButton';
+import { getEventBadges } from '../lib/eventBadges';
 
 const CAL_DAYS = ['Su','Mo','Tu','We','Th','Fr','Sa'];
 const CAL_MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -273,6 +274,8 @@ export default function CreateEventScreen() {
   const [endDate,     setEndDate]     = useState('');
   const [venue,       setVenue]       = useState('');
   const [genreText,   setGenreText]   = useState('');
+  const [categoryBadge, setCategoryBadge] = useState('');
+  const [openMicBadge, setOpenMicBadge] = useState(false);
   const [ticketLink,  setTicketLink]  = useState('');
   const [bio,         setBio]         = useState('');
   const [poster,      setPoster]      = useState('');
@@ -309,6 +312,8 @@ export default function CreateEventScreen() {
       setEndDate(c.endDate || '');
       setVenue(c.venue || '');
       setGenreText(c.genres || '');
+      setCategoryBadge(c.categoryBadge || '');
+      setOpenMicBadge(c.openMicBadge || false);
       setTicketLink(c.ticketLink || '');
       setBio(c.bio || '');
       setPoster(c.poster || '');
@@ -353,7 +358,7 @@ export default function CreateEventScreen() {
     setSaving(true); setError('');
 
     const cfg = {
-      name, date:startDate, endDate, venue, genres:genreText, ticketLink, bio, poster, poster_thumb:posterThumb, poster_full:posterFull,
+      name, date:startDate, endDate, venue, genres:genreText, categoryBadge: categoryBadge || null, openMicBadge: openMicBadge || null, ticketLink, bio, poster, poster_thumb:posterThumb, poster_full:posterFull,
       is_public:isPublic, applications_open:appsOpen,
       days: setTimesNeeded ? days.map(d => ({ name:d.name, slots:d.slots.map(slotToSave) })) : [],
       host_controls_config: { artistsCanRemove, showRankedBackup, showGenrePickers, privateSetTimes, showTimesPublicly, slipMode },
@@ -411,6 +416,47 @@ export default function CreateEventScreen() {
 
         <Field label="SOUND / VIBE (optional)">
           <input className={s.input} value={genreText} onChange={e => setGenreText(e.target.value)} placeholder="e.g. Deep house into techno, heavy bass, late night energy" />
+        </Field>
+
+        <Field label="CATEGORY CHIP (optional)">
+          {(() => {
+            const auto = getEventBadges(genreText, name);
+            const primary = [
+              { label: 'Live Music', bg: '#ff2d78', col: '#fff' },
+              { label: 'DJs',        bg: 'var(--neon2)', col: '#000' },
+              { label: 'Festival',   bg: '#BF5FFF', col: '#fff' },
+              { label: 'Comedy',     bg: '#FF8C42', col: '#fff' },
+              { label: 'Spoken Word',bg: '#FF8C42', col: '#fff' },
+            ];
+            const openMicOpt = { label: 'Open Mic', bg: '#FFD700', col: '#000' };
+            return (
+              <div>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
+                  {primary.map(opt => {
+                    const manualActive = categoryBadge === opt.label;
+                    const autoActive = !categoryBadge && auto[0]?.label === opt.label;
+                    const active = manualActive || autoActive;
+                    return (
+                      <button key={opt.label} type="button" onClick={() => setCategoryBadge(manualActive ? '' : opt.label)}
+                        style={{ fontFamily: "'DM Sans'", fontSize: 11, fontWeight: 700, letterSpacing: .8, padding: '5px 12px', borderRadius: 8, cursor: 'pointer', border: `1px solid ${active ? 'transparent' : 'rgba(255,255,255,.15)'}`, background: active ? opt.bg : 'rgba(255,255,255,.05)', color: active ? opt.col : 'rgba(255,255,255,.5)', transition: 'all .15s' }}>
+                        {opt.label}
+                      </button>
+                    );
+                  })}
+                  <button type="button" onClick={() => setOpenMicBadge(v => !v)}
+                    style={{ fontFamily: "'DM Sans'", fontSize: 11, fontWeight: 700, letterSpacing: .8, padding: '5px 12px', borderRadius: 8, cursor: 'pointer', border: `1px solid ${openMicBadge ? 'transparent' : 'rgba(255,255,255,.15)'}`, background: openMicBadge ? openMicOpt.bg : 'rgba(255,255,255,.05)', color: openMicBadge ? openMicOpt.col : 'rgba(255,255,255,.5)', transition: 'all .15s' }}>
+                    {openMicOpt.label}
+                  </button>
+                </div>
+                {!categoryBadge && auto.length > 0 && (
+                  <p style={{ fontSize: 11, color: 'var(--muted)', margin: 0 }}>Auto-detected from your genres: <strong style={{ color: 'var(--text)' }}>{auto[0].label}</strong> — select above to override</p>
+                )}
+                {categoryBadge === 'Live Music' && auto[0]?.label === 'DJs' && (
+                  <p style={{ fontSize: 11, color: 'var(--muted)', margin: 0 }}>We've auto-detected you as a DJ — Live Music is for bands, acoustic and live instruments.</p>
+                )}
+              </div>
+            );
+          })()}
         </Field>
 
         <Field label="TICKET LINK (optional)">
@@ -479,6 +525,7 @@ export default function CreateEventScreen() {
                   <div className={s.posterTabs}>
                     <button type="button" className={s.posterTab} onClick={() => setFullView(true)}>Full view</button>
                     <button type="button" className={cropMode ? s.posterTabActive : s.posterTab} onClick={() => setCropMode(m => !m)}>Adjust crop</button>
+                    <button type="button" className={s.posterTab} onClick={trigger}>Replace</button>
                     <button type="button" className={s.posterTabRemove} onClick={() => { setPoster(''); setPosterThumb(''); setPosterFull(''); setCropMode(false); }}>Remove</button>
                   </div>
                 )}

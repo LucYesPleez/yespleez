@@ -9,24 +9,40 @@ import ds from './DiscoverScreen.module.css';
 import GlobalEventCard from '../components/EventCard';
 import ProfileCard from '../components/ProfileCard';
 import { getEventBadges } from '../lib/eventBadges';
+import FollowingSection, { FOLLOW_FILTER_CONFIGS } from '../components/FollowingSection';
+import EnquiryPanel from '../components/EnquiryPanel';
+import DashboardHeader from '../components/DashboardHeader';
+import DashboardProfileCard from '../components/DashboardProfileCard';
+import NotificationBar from '../components/NotificationBar';
+import DashboardStats from '../components/DashboardStats';
+import AvailabilitySection from '../components/AvailabilitySection';
+import EventsSection from '../components/EventsSection';
+import { useDragScroll } from '../hooks/useDragScroll';
 
 export default function HostDashboard({ userId: userIdProp }) {
   const { session } = useSession();
   const userId = userIdProp || session?.user?.id;
   const navigate = useNavigate();
 
-  const [activeTab,      setActiveTab]      = useState('events');
-  const [evtTab,         setEvtTab]         = useState('UPCOMING');
-  const [showAllEvts,    setShowAllEvts]    = useState(false);
-  const [appTab,         setAppTab]         = useState('NEW');
-  const [appSearch,      setAppSearch]      = useState('');
+  const [showAllLineup,  setShowAllLineup]  = useState(true);
+  const [lineupFocusId,  setLineupFocusId]  = useState(null);  // null = show all
+  const [lineupExpandMap, setLineupExpandMap] = useState({});  // eventId → bool (default true)
+  const [lineupSubTabs,  setLineupSubTabs]  = useState({});   // eventId → 'SET TIMES'|'SHORT LIST'|'PIPELINE'
+  const [setTimesMap,    setSetTimesMap]    = useState({});   // eventId → bool
   const [allApps,        setAllApps]        = useState([]);
   const [appProfiles,    setAppProfiles]    = useState({});
   const [loadingApps,    setLoadingApps]    = useState(false);
   const [lineups,        setLineups]        = useState([]);
   const [loadingLineups, setLoadingLineups] = useState(false);
+  const [claimsMap,      setClaimsMap]      = useState({});   // eventId → { slotId → claim }
+  const [editingSlot,   setEditingSlot]    = useState(null); // { ev, dayIdx, slotIdx, slot }
   const [following,      setFollowing]      = useState([]);
   const [loadingFollowing, setLoadingFollowing] = useState(false);
+  const [followView,    setFollowView]    = useState('portrait');
+  const [followFilter,  setFollowFilter]  = useState('ALL');
+  const [followShowAll, setFollowShowAll] = useState(false);
+  const [followSearch,  setFollowSearch]  = useState('');
+  const followDrag = useDragScroll();
   const appsLoaded    = useRef(false);
   const lineupsLoaded = useRef(false);
 
@@ -65,9 +81,9 @@ export default function HostDashboard({ userId: userIdProp }) {
   const newAppsCount     = data?.newAppsCount     ?? null;
   const lineupSlotsCount = data?.lineupSlotsCount ?? null;
 
-  // Load applications lazily
+  // Load applications on mount
   useEffect(() => {
-    if (activeTab !== 'applications' || !userId || appsLoaded.current) return;
+    if (!userId || appsLoaded.current) return;
     appsLoaded.current = true;
     setLoadingApps(true);
     async function loadApps() {
@@ -80,7 +96,7 @@ export default function HostDashboard({ userId: userIdProp }) {
       const artistIds = [...new Set((apps || []).map(a => a.artist_id).filter(Boolean))];
       if (artistIds.length) {
         const { data: profs } = await supabase.from('profiles')
-          .select('user_id, name, avatar, type, sound, genre_string, location, bio, mix_link').in('user_id', artistIds);
+          .select('user_id, name, avatar, type, sound, genre_string, location, bio, mix_link, card_pills').in('user_id', artistIds);
         const map = {};
         (profs || []).forEach(p => { map[p.user_id] = p; });
         setAppProfiles(map);
@@ -88,11 +104,11 @@ export default function HostDashboard({ userId: userIdProp }) {
       setLoadingApps(false);
     }
     loadApps();
-  }, [activeTab, userId]);
+  }, [userId]);
 
-  // Load lineups lazily
+  // Load lineups lazily — triggered by BOOKED tab or LINEUP section scroll
   useEffect(() => {
-    if (activeTab !== 'lineups' || !userId || lineupsLoaded.current) return;
+    if (!userId || lineupsLoaded.current) return;
     lineupsLoaded.current = true;
     setLoadingLineups(true);
     async function loadLineups() {
@@ -116,11 +132,29 @@ export default function HostDashboard({ userId: userIdProp }) {
         if (!grouped[a.event_id]) grouped[a.event_id] = { event: evtMap[a.event_id], artists: [] };
         grouped[a.event_id].artists.push({ ...a, profile: profMap[a.artist_id] });
       });
-      setLineups(Object.values(grouped).filter(g => g.event));
+      const grouped2 = Object.values(grouped).filter(g => g.event);
+      setLineups(grouped2);
+
+      // Load claims for all events
+      if (ids.length) {
+        const { data: claimsData } = await supabase.from('claims')
+          .select('slot_id, name, genre, sound, user_id, card_pills, event_id').in('event_id', ids);
+        const cm = {};
+        (claimsData || []).forEach(c => {
+          if (!cm[c.event_id]) cm[c.event_id] = {};
+          cm[c.event_id][c.slot_id] = c;
+        });
+        setClaimsMap(cm);
+      }
+
+      // Init set-times map: true = show set times (default on when days exist)
+      const stMap = {};
+      grouped2.forEach(({ event: ev }) => { stMap[ev.id] = (ev.config?.days?.length ?? 0) > 0; });
+      setSetTimesMap(stMap);
       setLoadingLineups(false);
     }
     loadLineups();
-  }, [activeTab, userId]);
+  }, [userId]);
 
   // Load following on mount
   useEffect(() => {
@@ -158,47 +192,74 @@ export default function HostDashboard({ userId: userIdProp }) {
     if (notif) await writeNotification(artistId, notif.type, notif.message, { event_name: eventName });
   }
 
+  function toggleSetTimes(evId) {
+    setSetTimesMap(prev => ({ ...prev, [evId]: !prev[evId] }));
+  }
+
+  async function saveSlot(ev, dayIdx, slotIdx, updated) {
+    const newDays = ev.config.days.map((day, di) =>
+      di !== dayIdx ? day : {
+        ...day,
+        slots: day.slots.map((sl, si) => si !== slotIdx ? sl : { ...sl, ...updated }),
+      }
+    );
+    const newConfig = { ...ev.config, days: newDays };
+    await supabase.from('events').update({ config: newConfig }).eq('id', ev.id);
+    setLineups(prev => prev.map(g =>
+      g.event.id !== ev.id ? g : { ...g, event: { ...g.event, config: newConfig } }
+    ));
+    setEditingSlot(null);
+  }
+
   // Event map for app cards
   const evtMap = Object.fromEntries(events.map(e => [e.id, e]));
 
   // Pre-compute event lists
   const todayStr    = new Date().toISOString().split('T')[0];
   const draftEvents    = events.filter(ev => ev.status === 'draft');
-  const liveEvents     = events.filter(ev => ev.status === 'live' && (ev.config?.date || '') >= todayStr);
   const upcomingEvents = events.filter(ev => ev.status !== 'draft' && ev.status !== 'completed' && (ev.config?.date || '') >= todayStr)
                                .sort((a, b) => (a.config?.date || '').localeCompare(b.config?.date || ''));
   const pastEvents     = events.filter(ev => ev.status !== 'draft' && (ev.config?.date || '') < todayStr)
                                .sort((a, b) => (b.config?.date || '').localeCompare(a.config?.date || ''));
-  const evtTabEvents   = evtTab === 'UPCOMING' ? upcomingEvents
-                       : evtTab === 'LIVE'     ? liveEvents
-                       : evtTab === 'DRAFTS'   ? draftEvents
-                       : pastEvents;
-
   // Pre-compute application lists
   const newApps       = allApps.filter(a => a.status === 'pending');
   const tentativeApps = allApps.filter(a => a.status === 'tentative');
   const acceptedApps  = allApps.filter(a => a.status === 'accepted');
   const declinedApps  = allApps.filter(a => a.status === 'rejected' || a.status === 'declined');
-  const filteredApps  = appTab === 'NEW'       ? newApps
-                      : appTab === 'TENTATIVE' ? tentativeApps
-                      : appTab === 'ACCEPTED'  ? acceptedApps
-                      : appTab === 'DECLINED'  ? declinedApps
-                      : [];
-  const searchedApps = !appSearch.trim() ? filteredApps
-    : filteredApps.filter(app => {
-        const q = appSearch.toLowerCase();
-        const p = appProfiles[app.artist_id] || {};
-        return (app.artist_name || '').toLowerCase().includes(q)
-          || (p.name || '').toLowerCase().includes(q)
-          || (p.genre_string || '').toLowerCase().includes(q)
-          || (p.sound || '').toLowerCase().includes(q)
-          || (app.note || '').toLowerCase().includes(q);
-      });
+
+  // Map applications to the common enquiry shape for EnquiryPanel
+  const mappedEnquiries = allApps.map(app => ({
+    id: app.id,
+    direction: 'incoming',
+    status: app.status,
+    applicant_user_id: app.artist_id,
+    applicant_type: appProfiles[app.artist_id]?.type || 'artist',
+    name: appProfiles[app.artist_id]?.name || app.artist_name || '',
+    event_name: evtMap[app.event_id]?.name || '',
+    date_requested: evtMap[app.event_id]?.config?.date || null,
+    created_at: app.created_at,
+    note: app.note,
+    venue_name: null,
+    profile: appProfiles[app.artist_id] || null,
+  }));
+
+  async function handleEnquiryRespond(id, status) {
+    const app = allApps.find(a => a.id === id);
+    if (!app) return;
+    await respondApp(id, status, app.artist_id, evtMap[app.event_id]?.name);
+  }
 
   // Needs attention
   const attentionItems = [];
   if ((newAppsCount ?? 0) > 0)  attentionItems.push(`${newAppsCount} new application${newAppsCount !== 1 ? 's' : ''}`);
   if (draftEvents.length  > 0)  attentionItems.push(`${draftEvents.length} unpublished event${draftEvents.length !== 1 ? 's' : ''}`);
+
+  function scrollToSection(id) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    window.scrollTo({ top: window.scrollY + rect.top - window.innerHeight * 0.35, behavior: 'smooth' });
+  }
 
   const genres = profile?.genre_string || '';
   const hasProfile = !!profile;
@@ -208,254 +269,384 @@ export default function HostDashboard({ userId: userIdProp }) {
 
   return (
     <div className={s.screen}>
-      {/* Header */}
-      <div className={s.headerRow}>
-        <div className={s.heading}>HOST /<br />PROMOTER</div>
-        {userId && (
-          <button
-            title="Preview your public profile"
-            onClick={() => navigate(`/profile/${userId}`)}
-            style={{ background: 'none', border: '1px solid var(--border)', color: 'var(--muted)', borderRadius: 10, width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}
+      <DashboardHeader line1="HOST /" line2="PROMOTER" userId={userId} profileType="host" />
+
+      <DashboardProfileCard
+        profile={profile}
+        accent="#FF3399"
+        icon={<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="rgba(255,51,153,.7)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="2" width="18" height="20" rx="2"/><circle cx="12" cy="13" r="5"/><circle cx="12" cy="13" r="2"/><line x1="9" y1="5.5" x2="15" y2="5.5" strokeWidth="1.5" strokeLinecap="round"/></svg>}
+        setupRoute="/industry/host/setup"
+        subtitle={profile?.location || 'Add your details so artists can find you'}
+        genres={genres}
+        completionPct={hasProfile ? completionPct : undefined}
+      />
+
+      <NotificationBar
+        message={attentionItems.length > 0 ? attentionItems.join(' · ') : null}
+        onClick={() => scrollToSection('section-enquiries')}
+      />
+
+      <DashboardStats accent="#FF3399" stats={[
+        { label: 'EVENTS',   value: loadingEvents ? '—' : events.length,                sectionId: 'section-events' },
+        { label: 'INCOMING', value: newAppsCount === null ? '—' : newAppsCount,          sectionId: 'section-enquiries' },
+        { label: 'LINEUP',   value: lineupSlotsCount === null ? '—' : lineupSlotsCount,  sectionId: 'section-lineup' },
+      ]} />
+
+      {/* ── EVENTS ── */}
+      <EventsSection
+        tabs={{ UPCOMING: upcomingEvents, DRAFTS: draftEvents, PAST: pastEvents }}
+        loading={loadingEvents}
+        accent="#FF3399"
+      />
+
+      {/* ── AVAILABILITY ── */}
+      <AvailabilitySection userId={userId} table="artist_availability" accent="#FF3399" accentRgb="255,51,153" />
+
+      {/* ── ENQUIRIES ── */}
+      <div id="section-enquiries" style={{ marginTop: 40 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+          <span style={{ fontFamily: "'Bebas Neue'", fontSize: 18, letterSpacing: 2, color: '#fff' }}>ENQUIRIES</span>
+          {newAppsCount > 0 && <span style={{ fontFamily: "'DM Sans'", fontWeight: 700, fontSize: 11, color: 'var(--muted)', background: 'var(--card2)', borderRadius: 8, padding: '1px 7px' }}>{newAppsCount}</span>}
+        </div>
+        {loadingApps
+          ? <p className={s.empty}>Loading applications…</p>
+          : <EnquiryPanel enquiries={mappedEnquiries} onRespond={handleEnquiryRespond} />
+        }
+      </div>
+
+      {/* ── LINEUP ── */}
+      <div id="section-lineup" style={{ marginTop: 32 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: lineups.length > 1 ? 8 : 12 }}>
+          <span style={{ fontFamily: "'Bebas Neue'", fontSize: 18, letterSpacing: 2, color: '#fff' }}>LINEUP</span>
+          {lineupSlotsCount > 0 && <span style={{ fontFamily: "'DM Sans'", fontWeight: 700, fontSize: 11, color: 'var(--muted)', background: 'var(--card2)', borderRadius: 8, padding: '1px 7px' }}>{lineupSlotsCount}</span>}
+          <button onClick={() => setShowAllLineup(v => !v)} style={{ marginLeft: 'auto', background: 'none', border: '1px solid rgba(255,255,255,.15)', borderRadius: 8, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--muted)', flexShrink: 0, transition: 'border-color .15s, color .15s' }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--neon2)'; e.currentTarget.style.color = 'var(--neon2)'; }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,.15)'; e.currentTarget.style.color = 'var(--muted)'; }}
+            title={showAllLineup ? 'Minimise' : 'Maximise'}
           >
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="3"/><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7z"/>
-            </svg>
+            {showAllLineup
+              ? <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M8 3v3a2 2 0 0 1-2 2H3"/><path d="M21 8h-3a2 2 0 0 1-2-2V3"/><path d="M3 16h3a2 2 0 0 1 2 2v3"/><path d="M16 21v-3a2 2 0 0 1 2-2h3"/></svg>
+              : <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg>
+            }
           </button>
+        </div>
+
+        {/* Event selector pills — only when >1 event */}
+        {lineups.length > 1 && (
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
+            <button
+              onClick={() => setLineupFocusId(null)}
+              style={{
+                fontFamily: "'Bebas Neue'", fontSize: 11, letterSpacing: 1.5,
+                padding: '4px 12px', borderRadius: 20, cursor: 'pointer',
+                transition: 'background .15s, border-color .15s, color .15s',
+                background: lineupFocusId === null ? 'rgba(0,229,255,.12)' : 'transparent',
+                border: `1.5px solid ${lineupFocusId === null ? 'var(--neon2)' : 'rgba(255,255,255,.15)'}`,
+                color: lineupFocusId === null ? 'var(--neon2)' : 'var(--muted)',
+              }}
+            >ALL</button>
+            {lineups.map(({ event: ev }) => {
+              const evName = ev.name || ev.config?.name || 'Untitled';
+              const active = lineupFocusId === ev.id;
+              return (
+                <button key={ev.id}
+                  onClick={() => setLineupFocusId(ev.id)}
+                  style={{
+                    fontFamily: "'Bebas Neue'", fontSize: 11, letterSpacing: 1.5,
+                    padding: '4px 12px', borderRadius: 20, cursor: 'pointer',
+                    transition: 'background .15s, border-color .15s, color .15s',
+                    background: active ? 'rgba(0,229,255,.12)' : 'transparent',
+                    border: `1.5px solid ${active ? 'var(--neon2)' : 'rgba(255,255,255,.15)'}`,
+                    color: active ? 'var(--neon2)' : 'var(--muted)',
+                  }}
+                >{evName}</button>
+              );
+            })}
+          </div>
         )}
-      </div>
 
-      {/* Profile card */}
-      <div className={s.profileCard} onClick={() => navigate('/industry/host/setup')}>
-        <div className={s.avatarBox}>
-          {profile?.avatar
-            ? <img src={profile.avatar} alt={profile.name} className={s.avatarImg} />
-            : <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="rgba(255,51,153,.7)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="2" width="18" height="20" rx="2"/><circle cx="12" cy="13" r="5"/><circle cx="12" cy="13" r="2"/><line x1="9" y1="5.5" x2="15" y2="5.5" strokeWidth="1.5" strokeLinecap="round"/></svg>
-          }
-        </div>
-        <div className={s.profileInfo}>
-          <div className={s.profileName}>{profile?.name || 'Set up your host profile'}</div>
-          <div className={s.profileSub}>{profile?.location || 'Add your details so artists can find you'}</div>
-          {genres ? <div className={s.profileGenres}>{genres.split(' · ').slice(0, 4).join(' · ')}</div> : null}
-        </div>
-        <div className={s.profileCta}>{profile?.name ? 'EDIT →' : 'SET UP →'}</div>
-      </div>
+        {loadingLineups ? (
+          <p className={s.empty}>Loading lineup…</p>
+        ) : lineups.length === 0 ? (
+          <p className={s.empty}>No confirmed artists yet. Accept applications to build your lineup.</p>
+        ) : showAllLineup === false ? null : (
+          <div>
+            {(lineupFocusId ? lineups.filter(g => g.event.id === lineupFocusId) : lineups).map(({ event: ev, artists }) => {
+              const evName      = ev.name || ev.config?.name || 'Untitled Event';
+              const evDate      = ev.config?.date ? new Date(ev.config.date).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' }) : null;
+              const evExpanded  = lineupExpandMap[ev.id] !== false;
+              const toggleExpand = () => setLineupExpandMap(prev => ({ ...prev, [ev.id]: !evExpanded }));
+              const activeTab   = lineupSubTabs[ev.id] || 'SHORT LIST';
+              const setTab      = (tab) => setLineupSubTabs(prev => ({ ...prev, [ev.id]: tab }));
+              const evShortList = tentativeApps.filter(a => a.event_id === ev.id);
+              const evPipeline  = newApps.filter(a => a.event_id === ev.id);
+              const days        = ev.config?.days || [];
+              const totalSlots  = days.reduce((n, d) => n + (d.slots?.length || 0), 0);
+              const evClaims    = claimsMap[ev.id] || {};
+              const filledSlots = Object.keys(evClaims).length;
 
-      {/* Completion bar */}
-      {hasProfile && (
-        <div className={s.completionWrap}>
-          <div className={s.completionBar}>
-            <div className={s.completionFill} style={{ width: `${completionPct}%` }} />
-          </div>
-          <p className={s.completionLabel}>COMPLETE YOUR PROFILE — {Math.round(completionPct)}%</p>
-        </div>
-      )}
-
-      {/* Needs Attention */}
-      {attentionItems.length > 0 && (
-        <div className={s.attention}>
-          <span className={s.attentionDot} />
-          <span className={s.attentionText}>{attentionItems.join(' · ')}</span>
-        </div>
-      )}
-
-      {/* Stats — tappable nav */}
-      <div className={s.stats}>
-        <StatBox label="EVENTS"       value={loadingEvents ? '—' : events.length}               active={activeTab === 'events'}       onClick={() => setActiveTab('events')} />
-        <StatBox label="APPLICATIONS" value={newAppsCount === null ? '—' : newAppsCount}         active={activeTab === 'applications'} onClick={() => setActiveTab('applications')} />
-        <StatBox label="LINEUP SLOTS" value={lineupSlotsCount === null ? '—' : lineupSlotsCount} active={activeTab === 'lineups'}      onClick={() => setActiveTab('lineups')} />
-      </div>
-
-      {/* ── EVENTS TAB ── */}
-      {activeTab === 'events' && (
-        <div>
-          <div className={s.subTabBar}>
-            {[
-              ['UPCOMING', upcomingEvents.length],
-              ['DRAFTS',   draftEvents.length],
-              ['PAST',     pastEvents.length],
-            ].map(([t, count]) => (
-              <button key={t} className={s.subTab}
-                style={{ borderBottomColor: evtTab === t ? 'var(--neon2)' : 'transparent', color: evtTab === t ? 'var(--text)' : 'var(--muted)' }}
-                onClick={() => { setEvtTab(t); setShowAllEvts(false); }}
-              >
-                {t}<span className={s.subTabCount}>{count}</span>
-              </button>
-            ))}
-          </div>
-          {loadingEvents
-            ? <p className={s.empty}>Loading events…</p>
-            : evtTabEvents.length === 0
-              ? <p className={s.empty}>No {evtTab.toLowerCase()} events.</p>
-              : <><div className={s.evtListHeader}>
-                  {evtTabEvents.length > 3 && <button className={s.viewAll} style={{ marginLeft:'auto' }} onClick={() => setShowAllEvts(v => !v)}>{showAllEvts ? 'Show less ↑' : 'View all →'}</button>}
-                </div>
-                <div className={s.evtList} style={showAllEvts ? { maxHeight:'none', maskImage:'none', WebkitMaskImage:'none', overflowY:'visible' } : {}}>
-                  {evtTabEvents.map(ev => {
-                    const isLive      = ev.status === 'live';
-                    const isCompleted = ev.status === 'completed' || (isLive && (ev.config?.date || '') < todayStr);
-                    const cfg      = ev.config || {};
-                    const appsOpen = cfg.applications_open === true || ev.applications_open === true;
-                    const isPublic = cfg.is_public !== false && ev.is_public !== false;
-                    const statusLabel = isCompleted ? 'FINISHED' : isLive ? 'LIVE' : 'DRAFT';
-                    const statusCol   = isCompleted ? 'var(--muted)' : isLive ? '#00e676' : 'var(--muted)';
-                    const statusBg    = isCompleted ? 'rgba(120,120,160,.1)' : isLive ? 'rgba(0,230,118,.1)' : 'rgba(120,120,160,.1)';
-                    const statusBdr   = isCompleted ? 'rgba(120,120,160,.3)' : isLive ? 'rgba(0,230,118,.35)' : 'rgba(120,120,160,.3)';
-                    return (
-                      <div key={ev.id} className={s.evtCardWrap} onClick={() => navigate(`/event/${ev.id}`)}>
-                        <GlobalEventCard event={ev} noHover />
-                        <div style={{ position:'absolute', top:12, right:12, display:'flex', gap:4, alignItems:'center' }}>
-                          {getEventBadges(ev.config?.genres || '', ev.name || '').map(p => (
-                            <span key={p.label} style={{ fontSize:9, fontFamily:"'DM Sans',sans-serif", fontWeight:700, letterSpacing:.8, color: p.col, background: p.bg, borderRadius:6, padding:'3px 8px' }}>{p.label}</span>
-                          ))}
-                          <span style={{ fontSize:9, fontFamily:"'Bebas Neue'", letterSpacing:1.2, color: statusCol, background: statusBg, border:`1px solid ${statusBdr}`, borderRadius:4, padding:'2px 7px' }}>
-                            {statusLabel}
-                          </span>
-                        </div>
-                        <div style={{ position:'absolute', bottom:12, right:12, display:'flex', gap:6, alignItems:'center' }}>
-                          {isLive && !isCompleted && (
-                            <span style={{ fontSize:9, fontFamily:"'Bebas Neue'", letterSpacing:1.2, color: appsOpen ? '#00e676' : 'var(--muted)', background: appsOpen ? 'rgba(0,230,118,.12)' : 'rgba(120,120,160,.12)', border:`1px solid ${appsOpen ? 'rgba(0,230,118,.4)' : 'rgba(120,120,160,.3)'}`, borderRadius:4, padding:'2px 6px' }}>
-                              {appsOpen ? 'APPS OPEN' : 'APPS CLOSED'}
-                            </span>
-                          )}
-                          {!isCompleted && (
-                            <span style={{ fontSize:9, fontFamily:"'Bebas Neue'", letterSpacing:1.2, color: isPublic ? 'var(--neon2)' : 'var(--muted)', background: isPublic ? 'rgba(0,229,255,.08)' : 'rgba(120,120,160,.08)', border:`1px solid ${isPublic ? 'rgba(0,229,255,.25)' : 'rgba(120,120,160,.25)'}`, borderRadius:4, padding:'2px 6px' }}>
-                              {isPublic ? 'PUBLIC' : 'PRIVATE'}
-                            </span>
-                          )}
-                          {!isCompleted && (
-                            <button
-                              style={{ fontSize:10, fontFamily:"'Bebas Neue'", letterSpacing:1.5, color:'#fff', background:'rgba(255,51,153,.45)', border:'1px solid rgba(255,51,153,.6)', borderRadius:5, padding:'4px 10px', cursor:'pointer' }}
-                              onClick={e => { e.stopPropagation(); navigate(`/create-event?edit=${ev.id}`); }}
-                            >EDIT →</button>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div></>
-          }
-          <button className={s.createBtn} onClick={() => navigate('/create-event')}>
-            + CREATE NEW EVENT
-          </button>
-        </div>
-      )}
-
-      {/* ── APPLICATIONS TAB ── */}
-      {activeTab === 'applications' && (
-        <div>
-          {/* Pill tabs */}
-          <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
-            {[
-              { key: 'NEW',       color: '#FFD700', rgb: '255,215,0',   count: newApps.length },
-              { key: 'TENTATIVE', color: '#00B4D8', rgb: '0,180,216',   count: tentativeApps.length },
-              { key: 'ACCEPTED',  color: '#00E5A0', rgb: '0,229,160',   count: acceptedApps.length },
-              { key: 'DECLINED',  color: '#888',    rgb: '120,120,160', count: declinedApps.length },
-              { key: 'INVITED',   color: '#FF88AA', rgb: '255,136,170', count: 0 },
-            ].map(({ key, color, rgb, count }) => (
-              <PillTab key={key} label={count > 0 ? key + ' (' + count + ')' : key}
-                color={color} rgb={rgb} active={appTab === key} onClick={() => setAppTab(key)} />
-            ))}
-          </div>
-
-          {/* Search */}
-          <div style={{ position: 'relative', marginBottom: 10 }}>
-            <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', fontSize: 14, pointerEvents: 'none' }}>🔍</span>
-            <input
-              type="text"
-              placeholder="Search by name, genre, vibe…"
-              value={appSearch}
-              onChange={e => setAppSearch(e.target.value)}
-              style={{ width: '100%', background: 'rgba(255,255,255,.05)', border: '1px solid var(--border)', borderRadius: 10, color: 'var(--text)', padding: '10px 12px 10px 36px', fontSize: 13, outline: 'none', boxSizing: 'border-box' }}
-            />
-          </div>
-
-          {loadingApps ? (
-            <p className={s.empty}>Loading applications…</p>
-          ) : appTab === 'INVITED' ? (
-            <p className={s.empty}>Send invites directly from an artist's profile.</p>
-          ) : searchedApps.length === 0 ? (
-            <p className={s.empty}>No {appTab.toLowerCase()} applications{appSearch ? ' matching your search' : ''}.</p>
-          ) : (
-            <div>
-              {searchedApps.map(app => (
-                <AppCard
-                  key={app.id}
-                  app={app}
-                  prof={appProfiles[app.artist_id] || {}}
-                  event={evtMap[app.event_id]}
-                  onRespond={respondApp}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ── LINEUPS TAB ── */}
-      {activeTab === 'lineups' && (
-        <div>
-          {loadingLineups ? (
-            <p className={s.empty}>Loading lineups…</p>
-          ) : lineups.length === 0 ? (
-            <p className={s.empty}>No confirmed artists yet. Accept applications to build your lineup.</p>
-          ) : (
-            lineups.map(({ event: ev, artists }) => {
-              const evName = ev.name || ev.config?.name || 'Untitled Event';
-              const evDate = ev.config?.date ? new Date(ev.config.date).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' }) : null;
               return (
                 <div key={ev.id} className={s.lineupGroup}>
+                  {/* Header */}
                   <div className={s.lineupGroupHeader}>
                     <span className={s.lineupEventName}>{evName}</span>
                     {evDate && <span className={s.lineupEventDate}>{evDate}</span>}
+                    <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+                      <button
+                        onClick={() => navigate(`/event/${ev.id}`)}
+                        style={{ background: 'none', border: '1px solid rgba(255,255,255,.15)', borderRadius: 8, padding: '4px 10px', color: 'var(--muted)', fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1.5, cursor: 'pointer', transition: 'border-color .15s, color .15s' }}
+                        onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--neon2)'; e.currentTarget.style.color = 'var(--neon2)'; }}
+                        onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,.15)'; e.currentTarget.style.color = 'var(--muted)'; }}
+                      >VIEW / EDIT EVENT →</button>
+                      <button onClick={toggleExpand}
+                        style={{ background: 'none', border: '1px solid rgba(255,255,255,.15)', borderRadius: 8, width: 26, height: 26, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--muted)', flexShrink: 0, transition: 'border-color .15s, color .15s' }}
+                        onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,.4)'; e.currentTarget.style.color = '#fff'; }}
+                        onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,.15)'; e.currentTarget.style.color = 'var(--muted)'; }}
+                      >
+                        {evExpanded
+                          ? <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="18 15 12 9 6 15"/></svg>
+                          : <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="6 9 12 15 18 9"/></svg>
+                        }
+                      </button>
+                    </div>
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 20 }}>
-                    {artists.map(a => {
-                      const prof = a.profile || {};
-                      const item = { ...prof, user_id: a.artist_id, name: prof.name || a.artist_name || `Artist #${a.artist_id?.slice(0,6)}`, type: prof.type || 'artist' };
-                      return <ProfileCard key={a.id} item={item} badge="CONFIRMED" badgeColor="#00e676" />;
-                    })}
-                  </div>
+
+                  {evExpanded && (
+                    <div style={{ marginTop: 10 }}>
+                      <EventProgressSummary
+                        lineupCount={artists.length}
+                        totalSlots={totalSlots}
+                        filledSlots={filledSlots}
+                        hasPoster={!!(ev.config?.poster || ev.config?.poster_full)}
+                        pendingCount={evPipeline.length}
+                      />
+
+                      {/* Sub-tabs: SHORT LIST | PIPELINE */}
+                      <div className={s.subTabBar}>
+                        {[
+                          { key: 'SHORT LIST', color: '#FFD700', count: evShortList.length },
+                          { key: 'PIPELINE',   color: '#00B4D8', count: evPipeline.length  },
+                        ].map(({ key, color, count }) => {
+                          const active = activeTab === key;
+                          return (
+                            <button key={key} className={s.subTab}
+                              style={{ color: active ? color : 'var(--muted)', borderBottomColor: active ? color : 'transparent' }}
+                              onClick={() => setTab(key)}>
+                              {key}
+                              {count > 0 && <span className={s.subTabCount} style={active ? { background: `rgba(255,215,0,.12)`, color } : {}}>{count}</span>}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {activeTab === 'SHORT LIST' && (
+                        evShortList.length === 0
+                          ? <p className={s.empty} style={{ fontSize: 12 }}>No shortlisted artists for this event.</p>
+                          : <div style={{ marginBottom: 12 }}>{evShortList.map(app => <AppCard key={app.id} app={app} prof={appProfiles[app.artist_id] || {}} event={evtMap[app.event_id]} onRespond={respondApp} />)}</div>
+                      )}
+                      {activeTab === 'PIPELINE' && (
+                        evPipeline.length === 0
+                          ? <p className={s.empty} style={{ fontSize: 12 }}>No pending applications for this event.</p>
+                          : <div style={{ marginBottom: 12 }}>{evPipeline.map(app => <AppCard key={app.id} app={app} prof={appProfiles[app.artist_id] || {}} event={evtMap[app.event_id]} onRespond={respondApp} />)}</div>
+                      )}
+                    </div>
+                  )}
                 </div>
               );
-            })
-          )}
-        </div>
-      )}
-
-      {/* ── FOLLOWING — always at bottom ── */}
-      <div className={s.followingSection}>
-        <div className={s.followingHead}>
-          <span className={s.followingLabel}>FOLLOWING</span>
-          {following.length > 0 && <span className={s.followingCount}>{following.length}</span>}
-        </div>
-        {loadingFollowing ? (
-          <p className={s.empty}>Loading…</p>
-        ) : following.length === 0 ? (
-          <p className={s.empty}>Follow artists from their profiles to build your roster here.</p>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {following.map(prof => (
-              <ProfileCard key={prof.user_id} item={prof} />
-            ))}
+            })}
           </div>
         )}
+      </div>
+
+      {/* ── FOLLOWING — always at bottom ── */}
+      <FollowingSection
+        following={following}
+        loading={loadingFollowing}
+        followView={followView}
+        setFollowView={setFollowView}
+        followFilter={followFilter}
+        setFollowFilter={setFollowFilter}
+        followShowAll={followShowAll}
+        setFollowShowAll={setFollowShowAll}
+        followSearch={followSearch}
+        setFollowSearch={setFollowSearch}
+        followDrag={followDrag}
+        emptyMsg="Follow artists from their profiles to build your roster here."
+        filterTypes={FOLLOW_FILTER_CONFIGS.host}
+      />
+
+      {/* Slot edit modal */}
+      {editingSlot && (
+        <SlotEditModal
+          slot={editingSlot.slot}
+          claim={claimsMap[editingSlot.ev.id]?.[editingSlot.slot.id]}
+          onSave={updated => saveSlot(editingSlot.ev, editingSlot.dayIdx, editingSlot.slotIdx, updated)}
+          onClose={() => setEditingSlot(null)}
+        />
+      )}
+
+      {/* Browse CTA — always last */}
+      <button
+        onClick={() => navigate('/discover')}
+        style={{
+          display: 'block', width: '100%', marginTop: 24,
+          background: 'linear-gradient(#0f0f1a, #0f0f1a) padding-box, linear-gradient(90deg, #BF5FFF, #ffb830) border-box',
+          color: '#fff', fontFamily: "'Bebas Neue'", fontSize: 16, letterSpacing: 2,
+          padding: '14px', borderRadius: 20, border: '1.5px solid transparent', cursor: 'pointer',
+          transition: 'background .2s',
+        }}
+        onMouseEnter={e => { e.currentTarget.style.background = 'linear-gradient(135deg, #00E5A0, #00B4D8)'; }}
+        onMouseLeave={e => { e.currentTarget.style.background = 'linear-gradient(#0f0f1a, #0f0f1a) padding-box, linear-gradient(90deg, #BF5FFF, #ffb830) border-box'; }}
+      >BROWSE OPEN EVENTS →</button>
+    </div>
+  );
+}
+
+function SlotEditModal({ slot, claim, onSave, onClose }) {
+  const [time,  setTime]  = useState(slot.time  || '');
+  const [ampm,  setAmpm]  = useState(slot.ampm  || 'PM');
+  const [dur,   setDur]   = useState(String(slot.dur ?? slot.duration ?? ''));
+  const [label, setLabel] = useState(slot.label || '');
+  const [saving, setSaving] = useState(false);
+
+  async function handleSave() {
+    setSaving(true);
+    await onSave({ time, ampm, dur: dur ? Number(dur) : null, label });
+    setSaving(false);
+  }
+
+  const overlay = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,.7)', zIndex: 1000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' };
+  const sheet   = { background: 'var(--bg2,#0f0f1a)', border: '1px solid var(--border)', borderRadius: '20px 20px 0 0', padding: '24px 20px 36px', width: '100%', maxWidth: 480 };
+  const inp     = { width: '100%', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,.12)', borderRadius: 10, padding: '10px 12px', color: '#fff', fontFamily: 'inherit', fontSize: 14, boxSizing: 'border-box' };
+  const lbl     = { fontFamily: "'Bebas Neue'", fontSize: 11, letterSpacing: 1.5, color: 'var(--muted)', display: 'block', marginBottom: 5 };
+
+  return (
+    <div style={overlay} onClick={e => e.target === e.currentTarget && onClose()}>
+      <div style={sheet}>
+        <div style={{ display: 'flex', alignItems: 'center', marginBottom: 20 }}>
+          <span style={{ fontFamily: "'Bebas Neue'", fontSize: 18, letterSpacing: 2 }}>EDIT SLOT</span>
+          {claim && <span style={{ marginLeft: 10, fontSize: 13, color: 'var(--muted)' }}>— {claim.name}</span>}
+          <button onClick={onClose} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: 'var(--muted)', fontSize: 20, cursor: 'pointer', lineHeight: 1 }}>×</button>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 1fr', gap: 12, marginBottom: 14 }}>
+          <div>
+            <span style={lbl}>TIME</span>
+            <input style={inp} value={time} onChange={e => setTime(e.target.value)} placeholder="9:00" />
+          </div>
+          <div>
+            <span style={lbl}>AM / PM</span>
+            <select style={{ ...inp, padding: '10px 8px' }} value={ampm} onChange={e => setAmpm(e.target.value)}>
+              <option value="AM">AM</option>
+              <option value="PM">PM</option>
+            </select>
+          </div>
+          <div>
+            <span style={lbl}>DURATION (mins)</span>
+            <input style={inp} type="number" value={dur} onChange={e => setDur(e.target.value)} placeholder="90" />
+          </div>
+        </div>
+
+        <div style={{ marginBottom: 20 }}>
+          <span style={lbl}>LABEL (optional)</span>
+          <input style={inp} value={label} onChange={e => setLabel(e.target.value)} placeholder="e.g. SUNSET SET 🔒" />
+        </div>
+
+        <button
+          onClick={handleSave} disabled={saving}
+          style={{ width: '100%', padding: '13px', borderRadius: 12, border: 'none', cursor: saving ? 'default' : 'pointer', fontFamily: "'Bebas Neue'", fontSize: 15, letterSpacing: 2, background: saving ? 'rgba(255,255,255,.08)' : 'var(--neon2)', color: saving ? 'var(--muted)' : '#0a0a0f', transition: 'background .15s' }}
+        >{saving ? 'SAVING…' : 'SAVE SLOT'}</button>
       </div>
     </div>
   );
 }
 
-function StatBox({ label, value, onClick, active }) {
+function ProgressRow({ label, value, total, color }) {
+  const pct = total > 0 ? Math.min(value / total, 1) : 0;
+  const done = total > 0 && value >= total;
   return (
-    <div
-      className={s.statBox}
-      onClick={onClick}
-      style={{ cursor: onClick ? 'pointer' : 'default', borderColor: active ? 'rgba(255,51,153,.5)' : undefined, transition: 'border-color .15s' }}
-    >
-      <div className={s.statValue}>{value}</div>
-      <div className={s.statLabel}>{label}</div>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+      <span style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1.5, color: 'var(--muted)', width: 72, flexShrink: 0 }}>{label}</span>
+      <div style={{ flex: 1, height: 4, borderRadius: 4, background: 'rgba(255,255,255,0.08)', overflow: 'hidden' }}>
+        <div style={{ height: '100%', width: `${pct * 100}%`, borderRadius: 4, background: color, transition: 'width .4s' }} />
+      </div>
+      <span style={{ fontFamily: "'Bebas Neue'", fontSize: 11, color: done ? color : 'var(--muted)', minWidth: 36, textAlign: 'right' }}>
+        {done ? 'DONE' : total > 0 ? `${value}/${total}` : '—'}
+      </span>
     </div>
   );
 }
+
+function EventProgressSummary({ lineupCount, totalSlots, filledSlots, hasPoster, pendingCount }) {
+  const cols = [
+    {
+      label: 'LINEUP',
+      color: '#FF3399',
+      value: totalSlots > 0 ? `${lineupCount} / ${totalSlots}` : String(lineupCount),
+      pct: totalSlots > 0 ? Math.min(lineupCount / totalSlots, 1) : (lineupCount > 0 ? 1 : 0),
+    },
+    {
+      label: 'SET TIMES',
+      color: '#00E5FF',
+      value: totalSlots > 0 ? `${filledSlots} / ${totalSlots}` : '—',
+      pct: totalSlots > 0 ? Math.min(filledSlots / totalSlots, 1) : 0,
+    },
+    {
+      label: 'POSTER',
+      color: '#00E5A0',
+      value: hasPoster ? 'Done' : 'None',
+      pct: hasPoster ? 1 : 0,
+    },
+    {
+      label: 'APPLICATIONS',
+      color: '#FFD700',
+      value: pendingCount > 0 ? `${pendingCount} Pending` : 'Clear',
+      pct: pendingCount > 0 ? 1 : 0,
+    },
+  ];
+  return (
+    <div style={{
+      display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)',
+      background: 'rgba(255,255,255,0.04)', borderRadius: 12,
+      border: '1px solid rgba(255,255,255,0.07)', overflow: 'hidden',
+      marginBottom: 14,
+    }}>
+      {cols.map((col, i) => (
+        <div key={col.label} style={{
+          padding: '12px 10px 10px',
+          borderLeft: i > 0 ? '1px solid rgba(255,255,255,0.07)' : 'none',
+        }}>
+          <div style={{ fontFamily: "'Bebas Neue'", fontSize: 9, letterSpacing: 1.5, color: 'var(--muted)', marginBottom: 4 }}>{col.label}</div>
+          <div style={{ fontFamily: "'Bebas Neue'", fontSize: 18, letterSpacing: 1, color: col.pct >= 1 ? col.color : 'var(--text)', lineHeight: 1, marginBottom: 8 }}>{col.value}</div>
+          <div style={{ height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.08)' }}>
+            <div style={{ height: '100%', width: `${col.pct * 100}%`, borderRadius: 2, background: col.color }} />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function fmtDur(mins) {
+  if (!mins) return null;
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  if (h && m) return `${h}h ${m}m`;
+  if (h) return `${h} hr${h > 1 ? 's' : ''}`;
+  return `${m} min`;
+}
+
+const LABEL_COLORS = {
+  main: '#FF3399', headliner: '#FF3399',
+  support: '#BF5FFF', special: '#BF5FFF', guest: '#BF5FFF',
+  opening: '#00B4D8', resident: '#00E5A0',
+  sunset: '#FFD700', sunrise: '#FFD700', sunrise_set: '#FFD700',
+};
+function labelColor(label) {
+  if (!label) return '#888';
+  return LABEL_COLORS[label.toLowerCase().replace(/\s+/g, '_')] || '#888';
+}
+
 
 function TabBtn({ id, label, active, set }) {
   const isActive = active === id;
@@ -487,6 +678,25 @@ function PillTab({ label, color, rgb, active, onClick }) {
         color: lit ? color : 'var(--muted)',
       }}
     >{label}</button>
+  );
+}
+
+function LineupToggle({ value, onChange }) {
+  return (
+    <button onClick={onChange} type="button"
+      style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+      <div style={{
+        width: 36, height: 20, borderRadius: 10, position: 'relative', flexShrink: 0,
+        background: value ? 'var(--neon2)' : 'rgba(255,255,255,0.15)',
+        transition: 'background .2s',
+      }}>
+        <div style={{
+          position: 'absolute', top: 2, left: value ? 18 : 2,
+          width: 16, height: 16, borderRadius: '50%', background: '#fff',
+          transition: 'left .2s',
+        }} />
+      </div>
+    </button>
   );
 }
 
@@ -576,13 +786,6 @@ function AppCard({ app, prof, event, onRespond }) {
           </div>
           {loc  && <div className={ds.cardLoc}>{loc}</div>}
           {sound && <div className={ds.cardSound} style={{ color: accent }}>{sound}</div>}
-          {allTags.length > 0 && (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 6 }}>
-              {allTags.slice(0, 5).map(g => (
-                <span key={g} style={{ background: `rgba(${accentRgb},.1)`, border: `1px solid rgba(${accentRgb},.3)`, borderRadius: 20, fontSize: 10, padding: '2px 8px', color: accent }}>{g}</span>
-              ))}
-            </div>
-          )}
         </div>
         {/* Right column */}
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, flexShrink: 0 }}>

@@ -16,8 +16,7 @@ const BAND_GENRES = [
 ];
 const BAND_VIBES = [
   'Indie','Alt Rock','Hard Rock','Classic Rock','Grunge','Psychedelic','Prog Rock',
-  'Garage','Post-Punk','Emo','Trap','Drill','Lo-Fi','Boom Bap','House','Techno',
-  'Drum & Bass','Ambient','Deep House','Synth Pop','Acoustic','Unplugged',
+  'Garage','Post-Punk','Emo','Lo-Fi','Ambient','Synth Pop','Acoustic','Unplugged',
   'High Energy','Dance Floor','Chill','Laid Back','Late Night','All Ages',
   'Feel Good','Emotional','Dark','Party','Soulful','Groovy','Cinematic','Storytelling',
 ];
@@ -55,6 +54,7 @@ export default function BandProfileScreen() {
   const [epkLink,   setEpkLink]   = useState('');
   const [selGenres, setSelGenres] = useState([]);
   const [selVibes,  setSelVibes]  = useState([]);
+  const [selTags,   setSelTags]   = useState([]);
 
   // Page 2
   const [bio,          setBio]          = useState('');
@@ -137,6 +137,7 @@ export default function BandProfileScreen() {
           const parts = new Set(str.split(/,\s*|\s+·\s+/).map(x => x.trim()).filter(Boolean));
           setSelGenres(BAND_GENRES.filter(g => parts.has(g)));
           setSelVibes(BAND_VIBES.filter(v => parts.has(v)));
+          if (data.card_pills) setSelTags(data.card_pills.split(' · ').filter(Boolean));
         }
         setLoading(false);
       });
@@ -144,6 +145,7 @@ export default function BandProfileScreen() {
 
   function toggleGenre(g) { setSelGenres(p => p.includes(g) ? p.filter(x => x !== g) : [...p, g]); }
   function toggleVibe(v)  { setSelVibes(p  => p.includes(v) ? p.filter(x => x !== v) : [...p, v]); }
+  function toggleTag(t)   { setSelTags(p => p.includes(t) ? p.filter(x => x !== t) : p.length >= 5 ? p : [...p, t]); }
 
   async function save(skipPostcodeCheck = false) {
     if (!userId || saving) return;
@@ -151,6 +153,7 @@ export default function BandProfileScreen() {
     setSaving(true);
     setSaveErr('');
     const genre_string = [...selGenres, ...selVibes].join(' · ');
+    const card_pills   = selTags.join(' · ');
     const payload = {
       user_id: userId, type: 'band',
       name, band_type: bandType,
@@ -159,7 +162,7 @@ export default function BandProfileScreen() {
       location, state: locState, postcode,
       tagline, bio,
       mix_link: epkLink, epk_link: epkLink,
-      genre_string, avatar: avatarHero || avatar,
+      genre_string, card_pills, avatar: avatarHero || avatar,
       avatar_hero: avatarHero || null, avatar_thumb: avatarThumb || null,
       experience:      expLevel,
       fee_type:        feeType,
@@ -285,6 +288,27 @@ export default function BandProfileScreen() {
               ))}
             </div>
           </Section>
+
+          {/* YOUR 5 CARD TAGS */}
+          {(selGenres.length > 0 || selVibes.length > 0) && (() => {
+            const tagPool = [...new Set([...selGenres, ...selVibes])];
+            return (
+              <Section title="YOUR 5 CARD TAGS">
+                <p className={s.sectionHint}>Pick up to 5 tags that show on your slot card and discovery profile.</p>
+                <div className={s.chips}>
+                  {tagPool.map(t => (
+                    <button key={t} type="button"
+                      className={selTags.includes(t) ? s.chipOn : s.chip}
+                      style={selTags.includes(t) ? { background: `rgba(255,140,66,.15)`, borderColor: COL, color: COL } : {}}
+                      onClick={() => toggleTag(t)}
+                      disabled={!selTags.includes(t) && selTags.length >= 5}
+                    >{t}</button>
+                  ))}
+                </div>
+                <div className={s.charCount}>{selTags.length} / 5 selected</div>
+              </Section>
+            );
+          })()}
 
           {/* EPK / PROMO LINK */}
           <Section title="EPK / PROMO LINK">

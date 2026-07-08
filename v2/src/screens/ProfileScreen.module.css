@@ -277,7 +277,7 @@
   margin-bottom: 12px;
   transition: opacity .15s;
 }
-.followBtn:hover { opacity: .75; }
+.followBtn:hover { opacity: 1; filter: brightness(1.25); }
 
 /* Social icon row */
 .socials {
@@ -314,3 +314,4 @@
   padding-bottom: 8px;
   border-bottom: 1px solid var(--border);
 }
+
