@@ -126,7 +126,6 @@ const HOST_CONTROL_INFO = [
   { label: 'Show genre / vibe pickers', body: 'Adds sound and genre selectors to the application form. Helps you match the right artists to the right slots — especially useful for multi-genre or themed events.' },
   { label: 'Private set times', body: 'Each artist only sees their own slot time. The full running order stays hidden from the lineup until you choose to reveal it — useful for surprise lineups or managing artist egos.' },
   { label: 'Show set times publicly', body: 'When on, a set times tab appears on the public event page so anyone can see the running order. Keep it off to build anticipation or if times are still being confirmed.' },
-  { label: 'Slip mode', body: 'If a slot runs over or a gap appears in your schedule, slip mode can auto-nudge subsequent slots to keep everything aligned. Good for live events where timing shifts.' },
   { label: 'Applications open', body: 'Controls whether artists can submit an application to play your event. Turn off once you\'re booked out or want to close submissions without cancelling the event.' },
   { label: 'Public event', body: 'When on, your event is listed in Discover and searchable by anyone on the app. Turn off to keep it invite-only or while you\'re still setting up.' },
 ];
@@ -290,6 +289,7 @@ export default function CreateEventScreen() {
   // Schedule
   const [setTimesNeeded, setSetTimesNeeded] = useState(true);
   const [days, setDays] = useState([{ id:makeId(), name:'', slots:[] }]);
+  const [slotsCollapsed, setSlotsCollapsed] = useState(false);
 
   // Host controls
   const [isPublic,           setIsPublic]           = useState(true);
@@ -299,7 +299,6 @@ export default function CreateEventScreen() {
   const [showGenrePickers,   setShowGenrePickers]   = useState(true);
   const [privateSetTimes,    setPrivateSetTimes]    = useState(true);
   const [showTimesPublicly,  setShowTimesPublicly]  = useState(false);
-  const [slipMode,           setSlipMode]           = useState(false);
   const [showHostInfo,       setShowHostInfo]       = useState(false);
 
   useEffect(() => {
@@ -329,7 +328,6 @@ export default function CreateEventScreen() {
       setShowGenrePickers(hc.showGenrePickers !== false);
       setPrivateSetTimes(hc.privateSetTimes !== false);
       setShowTimesPublicly(hc.showTimesPublicly === true);
-      setSlipMode(hc.slipMode === true);
     });
   }, [editId]);
 
@@ -361,7 +359,7 @@ export default function CreateEventScreen() {
       name, date:startDate, endDate, venue, genres:genreText, categoryBadge: categoryBadge || null, openMicBadge: openMicBadge || null, ticketLink, bio, poster, poster_thumb:posterThumb, poster_full:posterFull,
       is_public:isPublic, applications_open:appsOpen,
       days: setTimesNeeded ? days.map(d => ({ name:d.name, slots:d.slots.map(slotToSave) })) : [],
-      host_controls_config: { artistsCanRemove, showRankedBackup, showGenrePickers, privateSetTimes, showTimesPublicly, slipMode },
+      host_controls_config: { artistsCanRemove, showRankedBackup, showGenrePickers, privateSetTimes, showTimesPublicly },
     };
 
     if (editId) {
@@ -550,15 +548,35 @@ export default function CreateEventScreen() {
 
         {setTimesNeeded && (
           <>
-            <QuickGenerator onGenerate={setDays} />
-            <p className={s.orManual}>Or build manually below. Remove slots you don't need.</p>
-            {days.map((day, di) => (
-              <DayCard key={day.id} day={day} dayIndex={di} totalDays={days.length}
-                onUpdateName={updateDayName} onRemoveDay={removeDay}
-                onUpdateSlot={updateSlot} onRemoveSlot={removeSlot}
-                onAddSlot={addSlot} onInsertSlot={insertSlot} />
-            ))}
-            <button className={s.addAnotherDayBtn} onClick={addDay}>+ ADD ANOTHER DAY</button>
+            <QuickGenerator onGenerate={(d) => { setDays(d); setSlotsCollapsed(false); }} />
+            <button
+              type="button"
+              onClick={() => setSlotsCollapsed(v => !v)}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                width: '100%', background: 'none', border: 'none', cursor: 'pointer',
+                padding: '6px 0 10px', marginTop: 2,
+              }}
+            >
+              <span style={{ fontSize: 12, color: 'rgba(255,255,255,.35)', fontFamily: "'Bebas Neue'", letterSpacing: 1.5 }}>
+                {slotsCollapsed
+                  ? `${days.reduce((n, d) => n + d.slots.length, 0)} SLOTS ACROSS ${days.length} DAY${days.length !== 1 ? 'S' : ''} — TAP TO EDIT`
+                  : 'Or build manually below. Remove slots you don\'t need.'}
+              </span>
+              <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.3)" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"
+                style={{ transform: slotsCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)', transition: 'transform .2s', flexShrink: 0 }}>
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </button>
+            {!slotsCollapsed && <>
+              {days.map((day, di) => (
+                <DayCard key={day.id} day={day} dayIndex={di} totalDays={days.length}
+                  onUpdateName={updateDayName} onRemoveDay={removeDay}
+                  onUpdateSlot={updateSlot} onRemoveSlot={removeSlot}
+                  onAddSlot={addSlot} onInsertSlot={insertSlot} />
+              ))}
+              <button className={s.addAnotherDayBtn} onClick={addDay}>+ ADD ANOTHER DAY</button>
+            </>}
           </>
         )}
 
@@ -570,7 +588,6 @@ export default function CreateEventScreen() {
           <Toggle label="Show genre / vibe pickers"            sub="Collect musical style info from artists"                                    value={showGenrePickers}  onChange={setShowGenrePickers} />
           <Toggle label="Private set times"                    sub="Artists only see their own slot — lineup stays secret until you're ready"   value={privateSetTimes}   onChange={setPrivateSetTimes} />
           <Toggle label="Show set times publicly"              sub="When on, the set times tab is visible on the public event page"             value={showTimesPublicly} onChange={setShowTimesPublicly} />
-          <Toggle label="Slip mode"                            sub="When on, auto-fix is available when gaps or overlaps are detected"          value={slipMode}          onChange={setSlipMode} />
           <Toggle label="Applications open"                    sub="Allow artists to apply to this event"                                       value={appsOpen}          onChange={setAppsOpen} />
           <Toggle label="Public event"                         sub="Visible in Discover to anyone browsing"                                     value={isPublic}          onChange={setIsPublic} />
         </div>

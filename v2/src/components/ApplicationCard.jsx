@@ -19,7 +19,7 @@ function AppBtn({ onClick, disabled, base, hover, children }) {
   );
 }
 
-export default function ApplicationCard({ app, prof, event, onRespond }) {
+export default function ApplicationCard({ app, prof, event, onRespond, onAssign }) {
   const [expanded, setExpanded] = useState(false);
   const [busy, setBusy]         = useState(false);
   const [bioOpen, setBioOpen]   = useState(false);
@@ -32,8 +32,8 @@ export default function ApplicationCard({ app, prof, event, onRespond }) {
   const accent    = TYPE_ACCENT[pType] || '#00E5FF';
   const accentRgb = TYPE_RGB[pType]    || '0,229,255';
 
-  const STATUS_COLOR = { accepted: '#00E5A0', rejected: '#888', declined: '#888', pending: '#FFD700', tentative: '#00B4D8' };
-  const STATUS_LABEL = { accepted: 'ACCEPTED', rejected: 'DECLINED', declined: 'DECLINED', pending: 'PENDING', tentative: 'SHORTLISTED' };
+  const STATUS_COLOR = { confirmed: '#00E5A0', offered: '#FF8C42', accepted: '#FF8C42', rejected: '#888', declined: '#888', pending: '#FFD700', tentative: '#00B4D8' };
+  const STATUS_LABEL = { confirmed: 'CONFIRMED', offered: 'OFFERED', accepted: 'OFFERED', rejected: 'DECLINED', declined: 'DECLINED', pending: 'PENDING', tentative: 'SHORTLISTED' };
   const statusColor = STATUS_COLOR[app.status] || '#FFD700';
   const statusLabel = STATUS_LABEL[app.status] || 'PENDING';
 
@@ -153,18 +153,24 @@ export default function ApplicationCard({ app, prof, event, onRespond }) {
               })()}
             </div>
           )}
-          {(isPending || isTentative) && (
+          {isPending && (
             <div style={{ display: 'flex', gap: 6, marginTop: 12 }}>
-              <AppBtn onClick={() => respond('accepted')} disabled={busy}
+              <AppBtn onClick={() => respond('tentative')} disabled={busy}
+                base={{ bg: 'rgba(0,180,216,.1)', border: '1px solid rgba(0,180,216,.4)', color: '#00B4D8' }}
+                hover={{ bg: 'rgba(0,180,216,.28)', border: '1px solid #00B4D8' }}
+              >SHORTLIST ✓</AppBtn>
+              <AppBtn onClick={() => respond('rejected')} disabled={busy}
+                base={{ bg: 'rgba(120,120,160,.06)', border: '1px solid rgba(120,120,160,.2)', color: 'var(--muted)' }}
+                hover={{ bg: 'rgba(255,140,0,.18)', border: '1px solid #FF8C00', color: '#FF8C00' }}
+              >DECLINE ✗</AppBtn>
+            </div>
+          )}
+          {isTentative && (
+            <div style={{ display: 'flex', gap: 6, marginTop: 12 }}>
+              <AppBtn onClick={() => onAssign && onAssign(app, prof)} disabled={busy}
                 base={{ bg: 'rgba(0,229,160,.1)', border: '1px solid rgba(0,229,160,.4)', color: '#00E5A0' }}
                 hover={{ bg: 'rgba(0,229,160,.28)', border: '1px solid #00E5A0' }}
-              >ACCEPT ✓</AppBtn>
-              {isPending && (
-                <AppBtn onClick={() => respond('tentative')} disabled={busy}
-                  base={{ bg: 'rgba(0,180,216,.1)', border: '1px solid rgba(0,180,216,.4)', color: '#00B4D8' }}
-                  hover={{ bg: 'rgba(0,180,216,.28)', border: '1px solid #00B4D8' }}
-                >TENTATIVE</AppBtn>
-              )}
+              >ASSIGN SLOT →</AppBtn>
               <AppBtn onClick={() => respond('rejected')} disabled={busy}
                 base={{ bg: 'rgba(120,120,160,.06)', border: '1px solid rgba(120,120,160,.2)', color: 'var(--muted)' }}
                 hover={{ bg: 'rgba(255,140,0,.18)', border: '1px solid #FF8C00', color: '#FF8C00' }}

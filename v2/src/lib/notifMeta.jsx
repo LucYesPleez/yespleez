@@ -34,6 +34,7 @@ export const TYPE_META = {
   payment_received:   { label: 'PAYMENT RECEIVED',   ...GREEN,  Icon: WalletIcon      },
   profile_claimed:    { label: 'PROFILE VERIFIED',   ...GREEN,  Icon: CheckCircle2Icon },
   slot_declined:      { label: 'SLOT DECLINED',      ...RED,    Icon: XCircleIcon     },
+  slot_removed:       { label: 'REMOVED FROM SLOT',  ...RED,    Icon: XCircleIcon     },
   invite_declined:    { label: 'INVITE DECLINED',    ...RED,    Icon: XCircleIcon     },
   booking_cancelled:  { label: 'BOOKING CANCELLED',  ...RED,    Icon: XCircleIcon     },
   application_declined:{ label: 'DECLINED',          ...RED,    Icon: XCircleIcon     },

@@ -137,8 +137,37 @@ function Shell({ session, isGuest, onSignOut }) {
 
       {/* Global mini player — persists across navigation */}
       {player && (
-        <div style={{ position: 'fixed', bottom: 67, left: '50%', transform: 'translateX(-50%)', width: 'min(100%, 680px)', zIndex: 8000 }}>
-          <MiniPlayer url={player.url} artistName={player.artistName} onClose={() => setPlayer(null)} />
+        <div
+          ref={el => {
+            if (!el) { document.body.style.paddingBottom = ''; return; }
+            const ro = new ResizeObserver(([e]) => {
+              document.body.style.paddingBottom = e.contentRect.height + 'px';
+            });
+            ro.observe(el);
+            el._ro = ro;
+          }}
+          style={{ position: 'fixed', bottom: 67, left: '50%', transform: 'translateX(-50%)', width: 'min(100%, 680px)', zIndex: 8000 }}
+        >
+          <MiniPlayer
+            url={player.url}
+            artistName={player.artistName}
+            hasNext={!!(player?.playlist?.length)}
+            onClose={() => setPlayer(null)}
+            onFinish={() => {
+              if (player?.playlist?.length) {
+                const [next, ...rest] = player.playlist;
+                setPlayer({ ...next, playlist: rest });
+              } else {
+                setPlayer(null);
+              }
+            }}
+            onNext={() => {
+              if (player?.playlist?.length) {
+                const [next, ...rest] = player.playlist;
+                setPlayer({ ...next, playlist: rest });
+              }
+            }}
+          />
         </div>
       )}
 

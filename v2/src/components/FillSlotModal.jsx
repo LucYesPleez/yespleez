@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 
-export default function FillSlotModal({ slot, eventId, acceptedArtists = [], acceptedProfiles = {}, onFilled, onClose }) {
+export default function FillSlotModal({ slot, eventId, eventName = '', hostId, acceptedArtists = [], acceptedProfiles = {}, onFilled, onClose }) {
   const [view,    setView]    = useState('menu');
   const [filter,  setFilter]  = useState('');
   const [query,   setQuery]   = useState('');
@@ -34,7 +34,8 @@ export default function FillSlotModal({ slot, eventId, acceptedArtists = [], acc
 
   async function fillFromProfile(prof) {
     setBusy(true);
-    const { error } = await supabase.from('claims').insert({
+    await supabase.from('claims').delete().eq('slot_id', slot.id).eq('event_id', eventId);
+    const { data: claim, error } = await supabase.from('claims').insert({
       slot_id:  slot.id,
       event_id: eventId,
       user_id:  prof.user_id,
@@ -42,7 +43,32 @@ export default function FillSlotModal({ slot, eventId, acceptedArtists = [], acc
       sound:    prof.sound   || null,
       genre:    prof.genre_string || null,
       status:   'pending',
-    });
+    }).select('id').single();
+    if (!error && prof.user_id) {
+      const slotTime = [slot.time, slot.ampm].filter(Boolean).join(' ');
+      await Promise.all([
+        // Advance any existing application to offered (no-op if none exists)
+        supabase.from('applications')
+          .update({ status: 'offered' })
+          .eq('event_id', eventId)
+          .eq('artist_id', prof.user_id)
+          .in('status', ['pending', 'tentative']),
+        supabase.from('notifications').insert({
+          user_id: prof.user_id,
+          type:    'slot_offer',
+          message: `You've been offered a slot${slotTime ? ` at ${slotTime}` : ''} at ${eventName || 'an event'}.`,
+          data: {
+            claim_id:    claim?.id,
+            event_id:    eventId,
+            event_name:  eventName,
+            slot_id:     slot.id,
+            slot_time:   slotTime,
+            artist_name: prof.name,
+            host_id:     hostId,
+          },
+        }),
+      ]);
+    }
     setBusy(false);
     if (!error) onFilled();
   }
@@ -50,6 +76,7 @@ export default function FillSlotModal({ slot, eventId, acceptedArtists = [], acc
   async function fillManual() {
     if (!name.trim()) return;
     setBusy(true);
+    await supabase.from('claims').delete().eq('slot_id', slot.id).eq('event_id', eventId);
     const { error } = await supabase.from('claims').insert({
       slot_id:  slot.id,
       event_id: eventId,
@@ -103,8 +130,8 @@ export default function FillSlotModal({ slot, eventId, acceptedArtists = [], acc
           {view === 'menu' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <MenuOption
-                label={`ACCEPTED ARTISTS${acceptedArtists.length ? ` (${acceptedArtists.length})` : ''}`}
-                sub="Artists already accepted to this event"
+                label={`SHORTLISTED ARTISTS${acceptedArtists.length ? ` (${acceptedArtists.length})` : ''}`}
+                sub="Artists shortlisted for this event"
                 accent
                 disabled={acceptedArtists.length === 0}
                 onClick={() => setView('accepted')}

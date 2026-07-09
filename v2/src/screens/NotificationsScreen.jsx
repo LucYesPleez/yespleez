@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { useSession } from '../App';
 import { getNotifMeta, cleanMessage } from '../lib/notifMeta';
+import { acceptSlotOffer, declineSlotOffer, acceptInvite, declineInvite } from '../lib/notifActions';
 
 export default function NotificationsScreen() {
   const { session } = useSession();
@@ -92,34 +93,31 @@ function NotifRow({ notif, userId, onUpdate }) {
   const message = cleanMessage(notif.message);
   const isUnread = !notif.read;
 
-  async function acceptSlotOffer() {
+  async function handleAcceptSlot() {
     if (!userId || busy) return;
     setBusy(true);
-    await supabase.from('claims').upsert({ event_id: data.event_id, slot_id: data.slot_id, user_id: userId, name: data.artist_name || '', genre: data.genre || '', sound: data.sound || '', card_pills: data.card_pills || [] });
-    if (data.slot_offer_id) await supabase.from('slot_offers').update({ status: 'accepted' }).eq('id', data.slot_offer_id);
-    if (data.host_id) await supabase.from('notifications').insert({ user_id: data.host_id, type: 'slot_accepted', message: `${data.artist_name || 'An artist'} accepted the slot offer for ${data.event_name || 'your event'}.`, data: { event_id: data.event_id, slot_id: data.slot_id, artist_user_id: userId } });
+    await acceptSlotOffer(data, userId);
     onUpdate(notif.id, { responded_at: new Date().toISOString() });
     setResponded(true); setBusy(false);
   }
-  async function declineSlotOffer() {
+  async function handleDeclineSlot() {
     if (!userId || busy) return;
     setBusy(true);
-    if (data.slot_offer_id) await supabase.from('slot_offers').update({ status: 'declined' }).eq('id', data.slot_offer_id);
-    if (data.host_id) await supabase.from('notifications').insert({ user_id: data.host_id, type: 'slot_declined', message: `${data.artist_name || 'An artist'} declined the slot offer for ${data.event_name || 'your event'}.`, data: { event_id: data.event_id, slot_id: data.slot_id, artist_user_id: userId } });
+    await declineSlotOffer(data, userId);
     onUpdate(notif.id, { responded_at: new Date().toISOString() });
     setResponded(true); setBusy(false);
   }
-  async function acceptInvite() {
+  async function handleAcceptInvite() {
     if (!userId || busy) return;
     setBusy(true);
-    await supabase.from('applications').insert({ event_id: data.event_id, artist_id: userId, status: 'pending', via_invite: true, artist_name: data.artist_name, genre: data.genre, mix_link: data.mix_link });
-    if (data.host_id) await supabase.from('notifications').insert({ user_id: data.host_id, type: 'invite_accepted', message: `${data.artist_name || 'An artist'} accepted your invite to ${data.event_name || 'your event'}.`, data: { event_id: data.event_id, artist_user_id: userId } });
+    await acceptInvite(data, userId);
     onUpdate(notif.id, { responded_at: new Date().toISOString() });
     setResponded(true); setBusy(false);
   }
-  async function declineInvite() {
+  async function handleDeclineInvite() {
     if (!userId || busy) return;
     setBusy(true);
+    await declineInvite(data, userId);
     onUpdate(notif.id, { responded_at: new Date().toISOString() });
     setResponded(true); setBusy(false);
   }
@@ -184,14 +182,14 @@ function NotifRow({ notif, userId, onUpdate }) {
 
         {actionable && notif.type === 'slot_offer' && (
           <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-            <button onClick={acceptSlotOffer} disabled={busy} style={actionBtn(meta.col, false)}>{busy ? '…' : '✓ ACCEPT SLOT'}</button>
-            <button onClick={declineSlotOffer} disabled={busy} style={actionBtn(null, true)}>{busy ? '…' : '✕ DECLINE'}</button>
+            <button onClick={handleAcceptSlot} disabled={busy} style={actionBtn(meta.col, false)}>{busy ? '…' : '✓ ACCEPT SLOT'}</button>
+            <button onClick={handleDeclineSlot} disabled={busy} style={actionBtn(null, true)}>{busy ? '…' : '✕ DECLINE'}</button>
           </div>
         )}
         {actionable && notif.type === 'event_invite' && (
           <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-            <button onClick={acceptInvite} disabled={busy} style={{ ...actionBtn(null, false), background: 'linear-gradient(135deg,#00E5FF,#BF5FFF)', color: '#0a0a14' }}>{busy ? '…' : '✓ ACCEPT'}</button>
-            <button onClick={declineInvite} disabled={busy} style={actionBtn(null, true)}>{busy ? '…' : '✕ DECLINE'}</button>
+            <button onClick={handleAcceptInvite} disabled={busy} style={{ ...actionBtn(null, false), background: 'linear-gradient(135deg,#00E5FF,#BF5FFF)', color: '#0a0a14' }}>{busy ? '…' : '✓ ACCEPT'}</button>
+            <button onClick={handleDeclineInvite} disabled={busy} style={actionBtn(null, true)}>{busy ? '…' : '✕ DECLINE'}</button>
           </div>
         )}
         {responded && (notif.type === 'slot_offer' || notif.type === 'event_invite') && (

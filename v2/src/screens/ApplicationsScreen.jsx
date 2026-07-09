@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 import { writeNotification } from '../lib/writeNotification';
 import s from './ApplicationsScreen.module.css';
 
-const STATUS_TABS = ['PENDING', 'ACCEPTED', 'INVITED', 'REJECTED'];
+const STATUS_TABS = ['PENDING', 'TENTATIVE', 'OFFERED', 'CONFIRMED', 'REJECTED'];
 
 export default function ApplicationsScreen() {
   const { id: eventId } = useParams();
@@ -47,20 +47,24 @@ export default function ApplicationsScreen() {
     return () => { cancelled = true; };
   }, [eventId]);
 
-  async function respond(appId, status, artistId, artistName) {
+  async function respond(appId, status, artistId) {
     await supabase.from('applications').update({ status }).eq('id', appId);
     setApps(prev => prev.map(a => a.id === appId ? { ...a, status } : a));
     if (!artistId) return;
     const evLabel = eventName ? ` for ${eventName}` : '';
     const NOTIF = {
-      accepted: { type: 'booking_confirmed',    message: `You've been accepted${evLabel}. You're booked!` },
-      rejected: { type: 'application_declined', message: `Your application was unsuccessful${evLabel}.` },
+      tentative: { type: 'shortlisted',         message: `You've been shortlisted${evLabel}.` },
+      rejected:  { type: 'application_declined', message: `Your application was unsuccessful${evLabel}.` },
     };
     const notif = NOTIF[status];
     if (notif) await writeNotification(artistId, notif.type, notif.message, { event_name: eventName, event_id: eventId });
   }
 
-  const filtered = apps.filter(a => (a.status || 'pending').toUpperCase() === tab);
+  const filtered = apps.filter(a => {
+    const st = (a.status || 'pending').toLowerCase();
+    if (tab === 'OFFERED') return st === 'offered' || st === 'accepted';
+    return st === tab.toLowerCase();
+  });
 
   return (
     <div className={s.screen}>
@@ -78,7 +82,11 @@ export default function ApplicationsScreen() {
           >
             {t}
             <span className={s.tabCount}>
-              {apps.filter(a => (a.status || 'pending').toUpperCase() === t).length}
+              {apps.filter(a => {
+              const st = (a.status || 'pending').toLowerCase();
+              if (t === 'OFFERED') return st === 'offered' || st === 'accepted';
+              return st === t.toLowerCase();
+            }).length}
             </span>
           </button>
         ))}
@@ -96,8 +104,8 @@ export default function ApplicationsScreen() {
               key={app.id}
               app={app}
               profile={profile}
-              onAccept={() => respond(app.id, 'accepted', app.artist_id, app.artist_name)}
-              onReject={() => respond(app.id, 'rejected', app.artist_id, app.artist_name)}
+              onAccept={() => respond(app.id, 'tentative', app.artist_id)}
+              onReject={() => respond(app.id, 'rejected', app.artist_id)}
             />
           );
         })}
@@ -137,7 +145,7 @@ function AppCard({ app, profile, onAccept, onReject }) {
       )}
       {isPending && (
         <div className={s.actions}>
-          <button className={s.btnAccept} onClick={onAccept}>✓ ACCEPT</button>
+          <button className={s.btnAccept} onClick={onAccept}>✓ SHORTLIST</button>
           <button className={s.btnReject} onClick={onReject}>✕ DECLINE</button>
         </div>
       )}

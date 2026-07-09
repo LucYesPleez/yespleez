@@ -3,8 +3,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { writeNotification } from '../lib/writeNotification';
-import { useSession } from '../App';
-import MiniPlayer from '../components/MiniPlayer';
+import { useSession, usePlayer } from '../App';
 import EventCard from '../components/EventCard';
 import { getEventBadges } from '../lib/eventBadges';
 import s from './ProfileScreen.module.css';
@@ -31,7 +30,7 @@ export default function ProfileScreen() {
   const [heroLoaded,    setHeroLoaded]    = useState(false);
   const [followed,    setFollowed]    = useState(false);
   const [followBusy,  setFollowBusy]  = useState(false);
-  const [playerOpen,  setPlayerOpen]  = useState(false);
+  const { player, setPlayer } = usePlayer();
   const [availOpen,     setAvailOpen]     = useState(false);
   const [availDates,    setAvailDates]    = useState(null);
   const [eventDates,    setEventDates]    = useState(new Set());
@@ -53,7 +52,9 @@ export default function ProfileScreen() {
     queryKey: ['profile', id, typeFilter],
     queryFn: async () => {
       let q = supabase.from('profiles').select('*').eq('user_id', id);
+      const preferPerformer = searchParams.get('prefer') === 'performer';
       if (typeFilter) q = q.eq('type', typeFilter);
+      else if (preferPerformer) q = q.neq('type', 'punter').not('type', 'in', '("host","venue")');
       else q = q.neq('type', 'punter');
       const pRes = await q.limit(1);
       const profile = pRes.data?.[0] || null;
@@ -309,7 +310,7 @@ export default function ProfileScreen() {
                   <button className={s.mixBtn} style={{ color: col, borderColor: col, background: `rgba(${rgb},.12)` }}
                     onClick={() => {
                       if (mixLink.includes('soundcloud.com') || mixLink.includes('mixcloud.com')) {
-                        setPlayerOpen(v => !v);
+                        if (player?.url === mixLink) { setPlayer(null); } else { setPlayer({ url: mixLink, artistName: profile.name }); }
                       } else {
                         window.open(mixLink, '_blank', 'noopener');
                       }
@@ -317,12 +318,9 @@ export default function ProfileScreen() {
                     <span dangerouslySetInnerHTML={{ __html: seededWaveSvg(profile.name || '', rgb) }} />
                     <span style={{ position: 'relative', zIndex: 1 }}>
                       <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" style={{ verticalAlign: 'middle', marginRight: 6 }}><polygon points="6,3 20,12 6,21"/></svg>
-                      {playerOpen ? 'CLOSE PLAYER' : 'PLAY DEMO MIX'}
+                      {player?.url === mixLink ? 'CLOSE PLAYER' : 'PLAY DEMO MIX'}
                     </span>
                   </button>
-                  {playerOpen && (mixLink.includes('soundcloud.com') || mixLink.includes('mixcloud.com')) && (
-                    <MiniPlayer url={mixLink} artistName={profile.name} onClose={() => setPlayerOpen(false)} />
-                  )}
                 </>
               : <div className={s.mixPlaceholder}>
                   <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ verticalAlign: 'middle', marginRight: 5, opacity: .5 }}>

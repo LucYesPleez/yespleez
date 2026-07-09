@@ -121,6 +121,24 @@ export default function ProfileEditScreen() {
           </div>
         </div>
 
+        {/* Live / Draft toggle */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: form.is_live === false ? 'rgba(255,255,255,.04)' : 'rgba(0,229,255,.06)', border: `1px solid ${form.is_live === false ? 'rgba(255,255,255,.1)' : 'rgba(0,229,255,.25)'}`, borderRadius: 12, marginBottom: 16 }}>
+          <div>
+            <div style={{ fontFamily: "'Bebas Neue'", fontSize: 13, letterSpacing: 1.5, color: form.is_live === false ? 'var(--muted)' : 'var(--neon2)' }}>
+              {form.is_live === false ? 'DRAFT — NOT VISIBLE TO PUBLIC' : 'LIVE — VISIBLE TO PUBLIC'}
+            </div>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,.35)', marginTop: 2 }}>
+              {form.is_live === false ? 'Only you can see this profile.' : 'Appears in search and Discover.'}
+            </div>
+          </div>
+          <button
+            onClick={() => set('is_live', form.is_live === false ? true : false)}
+            style={{ flexShrink: 0, width: 44, height: 26, borderRadius: 13, border: 'none', cursor: 'pointer', position: 'relative', background: form.is_live === false ? 'rgba(255,255,255,.15)' : 'var(--neon2)', transition: 'background .2s' }}
+          >
+            <div style={{ position: 'absolute', top: 3, left: form.is_live === false ? 3 : 21, width: 20, height: 20, borderRadius: '50%', background: '#fff', transition: 'left .2s' }} />
+          </button>
+        </div>
+
         <Field label="NAME *" value={form.name || ''} onChange={v => set('name', v)} placeholder="Your name or stage name" />
         <Field label="TAGLINE" value={form.tagline || ''} onChange={v => set('tagline', v)} placeholder="One-liner that describes you" />
         {tc.showSound && <Field label="SOUND / VIBE" value={form.sound || ''} onChange={v => set('sound', v)} placeholder="e.g. Deep rolling bass, hypnotic rhythms" />}

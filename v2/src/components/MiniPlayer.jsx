@@ -26,16 +26,30 @@ const WAVE_CSS = `
   @keyframes yp-bar4 { 0%,100%{height:10px} 50%{height:4px}  }
 `;
 
-export default function MiniPlayer({ url, artistName, onClose }) {
+// Load SC Widget API script once
+function loadSCApi() {
+  return new Promise((resolve) => {
+    if (window.SC) { resolve(window.SC); return; }
+    const existing = document.querySelector('script[src*="soundcloud.com/player/api"]');
+    if (existing) { existing.addEventListener('load', () => resolve(window.SC)); return; }
+    const s = document.createElement('script');
+    s.src = 'https://w.soundcloud.com/player/api.js';
+    s.onload = () => resolve(window.SC);
+    document.head.appendChild(s);
+  });
+}
+
+export default function MiniPlayer({ url, artistName, hasNext, onClose, onFinish, onNext }) {
   const [trackTitle, setTrackTitle] = useState('');
   const [thumb,      setThumb]      = useState('');
   const [progress,   setProgress]   = useState(0);
   const [minimised,  setMinimised]  = useState(false);
   const [playing,    setPlaying]    = useState(true);
-  const frameRef = useRef(null);
-  const timerRef = useRef(null);
-  const startRef = useRef(Date.now());
-  const CLIP_MS  = 90 * 1000;
+  const frameRef  = useRef(null);
+  const widgetRef = useRef(null); // SC Widget instance
+  const timerRef  = useRef(null);
+  const startRef  = useRef(Date.now());
+  const CLIP_MS   = 90 * 1000;
 
   const isSC     = isSoundCloud(url);
   const isMC     = isMixcloud(url);
@@ -56,31 +70,57 @@ export default function MiniPlayer({ url, artistName, onClose }) {
       .catch(() => {});
   }, [url]);
 
-  // Progress timer — only ticks while playing
+  // Init SC Widget API after iframe loads
+  function onIframeLoad() {
+    if (!isSC || !frameRef.current) return;
+    loadSCApi().then(SC => {
+      const widget = SC.Widget(frameRef.current);
+      widgetRef.current = widget;
+      widget.bind(SC.Widget.Events.PLAY,   () => setPlaying(p => p   ? p : true));
+      widget.bind(SC.Widget.Events.PAUSE,  () => setPlaying(p => !p  ? p : false));
+      widget.bind(SC.Widget.Events.FINISH, () => { setPlaying(p => !p ? p : false); onFinish?.(); });
+    });
+  }
+
+  // Mixcloud: postMessage listener
   useEffect(() => {
-    if (!playing) {
-      clearInterval(timerRef.current);
-      return;
+    if (!isMC) return;
+    function onMessage(e) {
+      if (!e.data) return;
+      try {
+        const data = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
+        if (data.method === 'play')  setPlaying(true);
+        if (data.method === 'pause') setPlaying(false);
+      } catch {}
     }
-    startRef.current = Date.now() - (progress / 100 * CLIP_MS);
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+  }, [isMC]);
+
+  // Progress timer — driven by SC widget position, not local state
+  const playingRef = useRef(true);
+  useEffect(() => { playingRef.current = playing; }, [playing]);
+
+  useEffect(() => {
+    startRef.current = Date.now();
     timerRef.current = setInterval(() => {
+      if (!playingRef.current) return;
       const elapsed = Date.now() - startRef.current;
       setProgress(Math.min(elapsed / CLIP_MS * 100, 100));
-      if (elapsed >= CLIP_MS) { clearInterval(timerRef.current); setPlaying(false); }
     }, 500);
     return () => clearInterval(timerRef.current);
-  }, [playing, url]);
+  }, [url]);
 
   function togglePlay() {
     const next = !playing;
     setPlaying(next);
-    // Tell the iframe to play or pause
-    const iframe = frameRef.current;
-    if (!iframe) return;
-    if (isSC) {
-      iframe.contentWindow.postMessage(JSON.stringify({ method: next ? 'play' : 'pause' }), '*');
-    } else if (isMC) {
-      iframe.contentWindow.postMessage(JSON.stringify({ method: next ? 'play' : 'pause' }), '*');
+    if (isSC && widgetRef.current) {
+      next ? widgetRef.current.play() : widgetRef.current.pause();
+    } else if (isMC && frameRef.current) {
+      frameRef.current.contentWindow.postMessage(
+        JSON.stringify({ method: next ? 'play' : 'pause' }),
+        'https://www.mixcloud.com'
+      );
     }
   }
 
@@ -131,19 +171,30 @@ export default function MiniPlayer({ url, artistName, onClose }) {
         </div>
 
         {/* Play / pause */}
-        <button
-          onClick={togglePlay}
-          style={{ background: 'none', border: 'none', color: 'var(--neon2)', cursor: 'pointer', fontSize: 14, lineHeight: 1, padding: '0 4px', flexShrink: 0 }}
-        >{playing ? '⏸' : '▶'}</button>
+        <button onClick={togglePlay} style={{ background: 'none', border: 'none', color: 'var(--neon2)', cursor: 'pointer', padding: '0 4px', flexShrink: 0, display: 'flex', alignItems: 'center' }}>
+          {playing
+            ? <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+            : <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
+          }
+        </button>
+
+        {/* Skip */}
+        <button onClick={hasNext ? onNext : undefined} title="Skip to next" style={{ background: 'none', border: 'none', color: hasNext ? 'var(--muted)' : 'rgba(255,255,255,.2)', cursor: hasNext ? 'pointer' : 'default', padding: '0 4px', flexShrink: 0, display: 'flex', alignItems: 'center' }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 15,12 5,21"/><rect x="17" y="3" width="3" height="18"/></svg>
+        </button>
 
         {/* Minimise toggle */}
-        <button
-          onClick={() => setMinimised(v => !v)}
-          title={minimised ? 'Expand' : 'Minimise'}
-          style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 14, lineHeight: 1, padding: '0 4px', flexShrink: 0 }}
-        >{minimised ? '▲' : '▼'}</button>
+        <button onClick={() => setMinimised(v => !v)} title={minimised ? 'Expand' : 'Minimise'} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', padding: '0 4px', flexShrink: 0, display: 'flex', alignItems: 'center' }}>
+          {minimised
+            ? <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="12,5 22,19 2,19"/></svg>
+            : <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="12,19 2,5 22,5"/></svg>
+          }
+        </button>
 
-        <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: '0 4px', flexShrink: 0 }}>✕</button>
+        {/* Close */}
+        <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', padding: '0 4px', flexShrink: 0, display: 'flex', alignItems: 'center' }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
       </div>
 
       {/* Full iframe — hidden when minimised, audio still plays */}
@@ -153,7 +204,8 @@ export default function MiniPlayer({ url, artistName, onClose }) {
         width="100%"
         height={isSC ? 120 : 60}
         frameBorder="0"
-        allow="autoplay"
+        allow="autoplay; encrypted-media"
+        onLoad={onIframeLoad}
         style={{ display: 'block', ...(minimised ? { position: 'absolute', opacity: 0, pointerEvents: 'none', width: 1, height: 1 } : {}) }}
         title="Mini Player"
       />

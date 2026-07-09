@@ -35,6 +35,7 @@ async function fetchDefault() {
     supabase.from('profiles')
       .select('user_id, name, type, avatar, location, state, sound, genre_string, bio, updated_at')
       .in('type', ['artist','host','band','standup','venue'])
+      .neq('is_live', false)
       .order('updated_at', { ascending: false })
       .limit(20),
     supabase.from('events')
@@ -98,6 +99,7 @@ export default function DiscoverScreen() {
       let profileQ = supabase.from('profiles')
         .select('user_id, name, type, avatar, location, state, sound, genre_string, bio, venue_type, updated_at')
         .in('type', t ? [t] : ['artist','host','band','standup','venue'])
+        .neq('is_live', false)
         .order('updated_at', { ascending: false })
         .limit(30);
       if (q)  profileQ = profileQ.or(`name.ilike.%${q}%,sound.ilike.%${q}%,genre_string.ilike.%${q}%,location.ilike.%${q}%,bio.ilike.%${q}%,venue_type.ilike.%${q}%`);
