@@ -39,6 +39,7 @@ export default function EventScreen() {
   const [viewAsPunter, setViewAsPunter] = useState(false);
   const [goLiveConfirm, setGoLiveConfirm] = useState(false);
   const [sendingOffers, setSendingOffers] = useState(false);
+  const [confirmUnlock,  setConfirmUnlock] = useState(false);
   const queryClient = useQueryClient();
   const [activeSlotId, setActiveSlotId] = useState(null);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
@@ -104,6 +105,7 @@ export default function EventScreen() {
   const claims        = data?.claims        || {};
   const lineupMembers = data?.lineupMembers || [];
   const memberPerfMap = data?.memberPerfMap || {};
+  const isLocked   = !!(data?.event?.config?.set_times_locked);
   const draftCount = Object.values(claims).filter(c => c?.status === 'draft').length;
   const allMixSlots = (localDays ?? data?.event?.config?.days ?? []).flatMap(d => (d.slots || [])
     .filter(sl => claims[sl.id]?.mix_link && claims[sl.id]?.status === 'confirmed')
@@ -226,7 +228,7 @@ export default function EventScreen() {
     queryClient.invalidateQueries({ queryKey: ['event', id] });
   }
 
-  async function sendAllOffers() {
+  async function publishSetTimes() {
     if (sendingOffers) return;
     setSendingOffers(true);
     const { data: drafts } = await supabase
@@ -252,7 +254,20 @@ export default function EventScreen() {
         ));
       }
     }
+    await supabase.from('events').update({
+      config: { ...(event.config || {}), set_times_locked: true },
+    }).eq('id', id);
     setSendingOffers(false);
+    queryClient.invalidateQueries({ queryKey: ['event', id] });
+  }
+
+  async function unlockSetTimes() {
+    await supabase.from('performances').update({ status: 'draft' })
+      .eq('event_id', id).eq('status', 'offered');
+    await supabase.from('events').update({
+      config: { ...(event.config || {}), set_times_locked: false },
+    }).eq('id', id);
+    setConfirmUnlock(false);
     queryClient.invalidateQueries({ queryKey: ['event', id] });
   }
 
@@ -573,10 +588,34 @@ export default function EventScreen() {
           </button>
         )}
 
-        {/* Send All Offers — SET_TIMES tab, host editor, when draft slots exist */}
-        {effectiveIsHost && showEditor && eventTab === 'SET_TIMES' && draftCount > 0 && (
+        {/* Unlock confirm popup */}
+        {confirmUnlock && (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.78)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+            <div style={{ background: '#181825', borderRadius: 16, padding: 24, maxWidth: 340, width: '100%', border: '1px solid rgba(255,255,255,.1)' }}>
+              <div style={{ fontFamily: "'Bebas Neue'", fontSize: 20, letterSpacing: 2, marginBottom: 10 }}>EDIT SET TIMES?</div>
+              <p style={{ fontSize: 13, color: 'rgba(255,255,255,.55)', marginBottom: 20, lineHeight: 1.6, margin: '0 0 20px' }}>
+                This will unlock set times and move pending offers back to draft. Artists won't be notified again until you republish.
+              </p>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button onClick={() => setConfirmUnlock(false)} style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: '1px solid rgba(255,255,255,.15)', background: 'none', color: 'rgba(255,255,255,.6)', fontFamily: "'Bebas Neue'", fontSize: 13, letterSpacing: 1.5, cursor: 'pointer' }}>CANCEL</button>
+                <button onClick={unlockSetTimes} style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: 'none', background: '#FF8C42', color: '#fff', fontFamily: "'Bebas Neue'", fontSize: 13, letterSpacing: 1.5, cursor: 'pointer' }}>YES, UNLOCK</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* SET TIMES locked banner */}
+        {effectiveIsHost && showEditor && eventTab === 'SET_TIMES' && isLocked && (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', marginBottom: 12, borderRadius: 10, background: 'rgba(0,229,160,.07)', border: '1px solid rgba(0,229,160,.28)' }}>
+            <span style={{ fontFamily: "'Bebas Neue'", fontSize: 12, letterSpacing: 1.5, color: '#00E5A0' }}>● SET TIMES PUBLISHED</span>
+            <button onClick={() => setConfirmUnlock(true)} style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1, padding: '4px 10px', borderRadius: 6, border: '1px solid rgba(255,255,255,.18)', background: 'none', color: 'rgba(255,255,255,.45)', cursor: 'pointer' }}>EDIT SET TIMES</button>
+          </div>
+        )}
+
+        {/* Publish Set Times — unlocked, draft slots exist */}
+        {effectiveIsHost && showEditor && eventTab === 'SET_TIMES' && !isLocked && draftCount > 0 && (
           <button
-            onClick={sendAllOffers}
+            onClick={publishSetTimes}
             disabled={sendingOffers}
             style={{
               width: '100%', marginBottom: 12, padding: '11px 14px',
@@ -589,10 +628,10 @@ export default function EventScreen() {
             }}
           >
             <span style={{ color: '#BF5FFF' }}>
-              {sendingOffers ? '● SENDING…' : `● SEND ALL OFFERS (${draftCount})`}
+              {sendingOffers ? '● PUBLISHING…' : '● PUBLISH SET TIMES'}
             </span>
             <span style={{ fontSize: 10, color: 'rgba(191,95,255,.6)', letterSpacing: 1 }}>
-              NOTIFY ARTISTS
+              NOTIFY {draftCount} ARTIST{draftCount !== 1 ? 'S' : ''}
             </span>
           </button>
         )}
@@ -614,6 +653,7 @@ export default function EventScreen() {
                   perf={memberPerfMap[member.id]}
                   onGoToSetTimes={() => setEventTab('SET_TIMES')}
                   onRemove={async () => {
+                    // Unassign: delete slot + remove from bill, send back to SHORTLIST
                     await supabase.from('performances').delete().eq('lineup_member_id', member.id);
                     await supabase.from('lineup_members').delete().eq('id', member.id);
                     if (member.artist_id) {
@@ -621,7 +661,19 @@ export default function EventScreen() {
                         .update({ status: 'tentative' })
                         .eq('event_id', id)
                         .eq('artist_id', member.artist_id)
-                        .in('status', ['offered', 'accepted']);
+                        .neq('status', 'declined');
+                    }
+                    queryClient.invalidateQueries({ queryKey: ['event', id] });
+                  }}
+                  onDiscard={async () => {
+                    // Discard: completely remove from event
+                    await supabase.from('performances').delete().eq('lineup_member_id', member.id);
+                    await supabase.from('lineup_members').delete().eq('id', member.id);
+                    if (member.artist_id) {
+                      await supabase.from('applications')
+                        .update({ status: 'declined' })
+                        .eq('event_id', id)
+                        .eq('artist_id', member.artist_id);
                     }
                     queryClient.invalidateQueries({ queryKey: ['event', id] });
                   }}
@@ -752,12 +804,13 @@ export default function EventScreen() {
                     {slots.map((slot, si) => (
                       <SlotCard key={slot.id} slot={slot} claim={claims[slot.id]}
                         isHost={effectiveIsHost}
-                        isSortable={!slot.pinned && !!claims[slot.id] && claims[slot.id].status !== 'declined'}
+                        locked={isLocked}
+                        isSortable={!isLocked && !slot.pinned && !!claims[slot.id] && claims[slot.id].status !== 'declined'}
                         isActiveSort={slot.id === activeSlotId}
-                        onFill={() => setFillSlot({ slot })}
-                        onEdit={() => setEditingSlot({ dayIdx: di, slotIdx: si, slot })}
-                        onRemove={() => removeArtist(slot.id)}
-                        onPin={() => togglePin(di, si)}
+                        onFill={!isLocked ? () => setFillSlot({ slot }) : null}
+                        onEdit={!isLocked ? () => setEditingSlot({ dayIdx: di, slotIdx: si, slot }) : null}
+                        onRemove={!isLocked ? () => removeArtist(slot.id) : null}
+                        onPin={!isLocked ? () => togglePin(di, si) : null}
                         allMixSlots={allMixSlots}
                       />
                     ))}
@@ -773,10 +826,11 @@ export default function EventScreen() {
                 slots.map((slot, si) => (
                   <SlotCard key={slot.id} slot={slot} claim={claims[slot.id]}
                     isHost={effectiveIsHost}
-                    onFill={effectiveIsHost ? () => setFillSlot({ slot }) : null}
-                    onEdit={effectiveIsHost ? () => setEditingSlot({ dayIdx: di, slotIdx: si, slot }) : null}
-                    onRemove={effectiveIsHost ? () => removeArtist(slot.id) : null}
-                    onPin={effectiveIsHost ? () => togglePin(di, si) : null}
+                    locked={isLocked}
+                    onFill={effectiveIsHost && !isLocked ? () => setFillSlot({ slot }) : null}
+                    onEdit={effectiveIsHost && !isLocked ? () => setEditingSlot({ dayIdx: di, slotIdx: si, slot }) : null}
+                    onRemove={effectiveIsHost && !isLocked ? () => removeArtist(slot.id) : null}
+                    onPin={effectiveIsHost && !isLocked ? () => togglePin(di, si) : null}
                     allMixSlots={allMixSlots}
                   />
                 ))
@@ -1104,7 +1158,7 @@ function HeadphoneIcon() {
   );
 }
 
-function SlotCard({ slot, claim, onFill, onEdit, onRemove, onPin, isHost, isSortable, isActiveSort, isDragOverlay, allMixSlots = [] }) {
+function SlotCard({ slot, claim, onFill, onEdit, onRemove, onPin, isHost, isSortable, isActiveSort, isDragOverlay, allMixSlots = [], locked = false }) {
   const [expanded,      setExpanded]      = useState(false);
   const [genreShowAll, setGenreShowAll] = useState(false);
   const pillHintRef = useRef(null);
@@ -1441,29 +1495,31 @@ function SlotCard({ slot, claim, onFill, onEdit, onRemove, onPin, isHost, isSort
                 </div>
               )}
 
-              {/* Manage actions */}
-              <div style={{ paddingTop: 0, marginBottom: 14 }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
-                  <SlotManageBtn
-                    icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>}
-                    label="EDIT SLOT" sub="Time, duration & details"
-                    accent="#4A9EFF"
-                    onClick={e => { e.stopPropagation(); onEdit?.(); }}
-                  />
-                  <SlotManageBtn
-                    icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>}
-                    label={slot.pinned ? 'LOCKED' : 'LOCK SLOT'} sub="Prevent this slot from moving"
-                    accent="#FFB830"
-                    onClick={e => { e.stopPropagation(); onPin?.(); }}
-                  />
-                  <SlotManageBtn
-                    icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>}
-                    label="REMOVE" sub="Remove this artist from slot"
-                    onClick={e => { e.stopPropagation(); setConfirm('remove'); }}
-                    danger
-                  />
+              {/* Manage actions — hidden when set times are locked */}
+              {!locked && (
+                <div style={{ paddingTop: 0, marginBottom: 14 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+                    <SlotManageBtn
+                      icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>}
+                      label="EDIT SLOT" sub="Time, duration & details"
+                      accent="#4A9EFF"
+                      onClick={e => { e.stopPropagation(); onEdit?.(); }}
+                    />
+                    <SlotManageBtn
+                      icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>}
+                      label={slot.pinned ? 'LOCKED' : 'LOCK SLOT'} sub="Prevent this slot from moving"
+                      accent="#FFB830"
+                      onClick={e => { e.stopPropagation(); onPin?.(); }}
+                    />
+                    <SlotManageBtn
+                      icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>}
+                      label="REMOVE" sub="Remove this artist from slot"
+                      onClick={e => { e.stopPropagation(); setConfirm('remove'); }}
+                      danger
+                    />
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Notes accordion */}
               <div style={{ borderTop: '1px solid rgba(255,255,255,.06)', marginTop: 4 }}>
@@ -1604,7 +1660,7 @@ function ManageItem({ icon, label, onClick, danger, muted }) {
   );
 }
 
-function LineupMemberCard({ member, perf, onGoToSetTimes, onRemove }) {
+function LineupMemberCard({ member, perf, onGoToSetTimes, onRemove, onDiscard }) {
   const [expanded, setExpanded] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -1638,6 +1694,13 @@ function LineupMemberCard({ member, perf, onGoToSetTimes, onRemove }) {
     if (busy) return;
     setBusy(true);
     await onRemove();
+    setBusy(false);
+  }
+
+  async function handleDiscard() {
+    if (busy) return;
+    setBusy(true);
+    await onDiscard();
     setBusy(false);
   }
 
@@ -1711,25 +1774,37 @@ function LineupMemberCard({ member, perf, onGoToSetTimes, onRemove }) {
               </div>
             </div>
           )}
-          <div style={{ display: 'flex', gap: 6, marginTop: 12 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 12 }}>
             <button
               onClick={onGoToSetTimes}
               style={{
-                flex: 1, fontFamily: "'Bebas Neue'", fontSize: 12, letterSpacing: 1.5,
+                width: '100%', fontFamily: "'Bebas Neue'", fontSize: 12, letterSpacing: 1.5,
                 padding: '8px 0', borderRadius: 8, cursor: 'pointer', transition: 'all .15s',
                 background: 'rgba(0,229,255,.1)', border: '1px solid rgba(0,229,255,.4)', color: '#00E5FF',
               }}
             >→ SET TIMES</button>
-            <button
-              onClick={handleRemove}
-              disabled={busy}
-              style={{
-                flex: 1, fontFamily: "'Bebas Neue'", fontSize: 12, letterSpacing: 1.5,
-                padding: '8px 0', borderRadius: 8, cursor: busy ? 'default' : 'pointer',
-                opacity: busy ? .5 : 1, transition: 'all .15s',
-                background: 'rgba(255,51,51,.06)', border: '1px solid rgba(255,51,51,.25)', color: 'rgba(255,80,80,.8)',
-              }}
-            >REMOVE FROM BILL</button>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button
+                onClick={handleRemove}
+                disabled={busy}
+                style={{
+                  flex: 1, fontFamily: "'Bebas Neue'", fontSize: 11, letterSpacing: 1.2,
+                  padding: '8px 0', borderRadius: 8, cursor: busy ? 'default' : 'pointer',
+                  opacity: busy ? .5 : 1, transition: 'all .15s',
+                  background: 'rgba(255,140,66,.06)', border: '1px solid rgba(255,140,66,.25)', color: 'rgba(255,140,66,.9)',
+                }}
+              >UNASSIGN</button>
+              <button
+                onClick={handleDiscard}
+                disabled={busy}
+                style={{
+                  flex: 1, fontFamily: "'Bebas Neue'", fontSize: 11, letterSpacing: 1.2,
+                  padding: '8px 0', borderRadius: 8, cursor: busy ? 'default' : 'pointer',
+                  opacity: busy ? .5 : 1, transition: 'all .15s',
+                  background: 'rgba(255,51,51,.06)', border: '1px solid rgba(255,51,51,.22)', color: 'rgba(255,80,80,.8)',
+                }}
+              >DISCARD</button>
+            </div>
           </div>
         </div>
       )}
