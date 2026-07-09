@@ -38,6 +38,7 @@ export default function EventScreen() {
   const [localDays,    setLocalDays]    = useState(null);
   const [viewAsPunter, setViewAsPunter] = useState(false);
   const [goLiveConfirm, setGoLiveConfirm] = useState(false);
+  const [sendingOffers, setSendingOffers] = useState(false);
   const queryClient = useQueryClient();
   const [activeSlotId, setActiveSlotId] = useState(null);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
@@ -91,13 +92,19 @@ export default function EventScreen() {
           if (p.website)    slot.website    = p.website;
         });
       }
-      return { event: ev, claims: map };
+      // Build member → performance map for the Lineup tab
+      const memberPerfMap = {};
+      (perfsData || []).forEach(p => { memberPerfMap[p.lineup_member_id] = p; });
+      return { event: ev, claims: map, lineupMembers: membersData || [], memberPerfMap };
     },
     enabled: !!id,
   });
 
-  const event  = data?.event  || null;
-  const claims = data?.claims || {};
+  const event         = data?.event         || null;
+  const claims        = data?.claims        || {};
+  const lineupMembers = data?.lineupMembers || [];
+  const memberPerfMap = data?.memberPerfMap || {};
+  const draftCount = Object.values(claims).filter(c => c?.status === 'draft').length;
   const allMixSlots = (localDays ?? data?.event?.config?.days ?? []).flatMap(d => (d.slots || [])
     .filter(sl => claims[sl.id]?.mix_link && claims[sl.id]?.status === 'confirmed')
     .map(sl => ({ url: claims[sl.id].mix_link, artistName: claims[sl.id].name }))
@@ -216,6 +223,36 @@ export default function EventScreen() {
           : a
       ));
     }
+    queryClient.invalidateQueries({ queryKey: ['event', id] });
+  }
+
+  async function sendAllOffers() {
+    if (sendingOffers) return;
+    setSendingOffers(true);
+    const { data: drafts } = await supabase
+      .from('performances')
+      .select('id, slot_id, lineup_members(artist_id, artist_name)')
+      .eq('event_id', id)
+      .eq('status', 'draft');
+    if (drafts?.length) {
+      await supabase.from('performances').update({ status: 'offered' }).eq('event_id', id).eq('status', 'draft');
+      const withArtist = (drafts || []).filter(d => d.lineup_members?.artist_id);
+      if (withArtist.length) {
+        await supabase.from('notifications').insert(
+          withArtist.map(d => ({
+            user_id: d.lineup_members.artist_id,
+            type:    'slot_offer',
+            message: `You've been offered a slot at ${event.name}.`,
+            data:    { performance_id: d.id, event_id: id, event_name: event.name, slot_id: d.slot_id },
+          }))
+        );
+        await Promise.all([...new Set(withArtist.map(d => d.lineup_members.artist_id))].map(artistId =>
+          supabase.from('applications').update({ status: 'offered' })
+            .eq('event_id', id).eq('artist_id', artistId).in('status', ['pending', 'tentative'])
+        ));
+      }
+    }
+    setSendingOffers(false);
     queryClient.invalidateQueries({ queryKey: ['event', id] });
   }
 
@@ -489,9 +526,10 @@ export default function EventScreen() {
         {effectiveIsHost && showEditor && (
           <div style={{ display: 'flex', gap: 0, marginBottom: 20, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
             {[
-              { key: 'LINEUP', label: 'LINEUP' },
+              { key: 'LINEUP',    label: `LINEUP${lineupMembers.length ? ` (${lineupMembers.length})` : ''}` },
+              { key: 'SET_TIMES', label: 'SET TIMES' },
               { key: 'SHORTLIST', label: `SHORT LIST${shortList.length ? ` (${shortList.length})` : ''}` },
-              { key: 'PIPELINE', label: `PIPELINE${pipeline.length ? ` (${pipeline.length})` : ''}` },
+              { key: 'PIPELINE',  label: `PIPELINE${pipeline.length ? ` (${pipeline.length})` : ''}` },
             ].map(tab => (
               <button key={tab.key} onClick={() => setEventTab(tab.key)}
                 style={{
@@ -507,8 +545,8 @@ export default function EventScreen() {
           </div>
         )}
 
-        {/* Set times toggle — LINEUP tab, editor mode */}
-        {effectiveIsHost && showEditor && eventTab === 'LINEUP' && (
+        {/* Set times toggle — SET_TIMES tab, editor mode */}
+        {effectiveIsHost && showEditor && eventTab === 'SET_TIMES' && (
           <button
             onClick={async () => {
               const next = !showTimesPublicly;
@@ -533,6 +571,64 @@ export default function EventScreen() {
               {showTimesPublicly ? 'TAP TO HIDE' : 'TAP TO ANNOUNCE'}
             </span>
           </button>
+        )}
+
+        {/* Send All Offers — SET_TIMES tab, host editor, when draft slots exist */}
+        {effectiveIsHost && showEditor && eventTab === 'SET_TIMES' && draftCount > 0 && (
+          <button
+            onClick={sendAllOffers}
+            disabled={sendingOffers}
+            style={{
+              width: '100%', marginBottom: 12, padding: '11px 14px',
+              borderRadius: 10, cursor: sendingOffers ? 'default' : 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              fontFamily: "'Bebas Neue'", fontSize: 12, letterSpacing: 1.5,
+              border: '1px solid rgba(191,95,255,.45)',
+              background: sendingOffers ? 'rgba(191,95,255,.08)' : 'rgba(191,95,255,.15)',
+              opacity: sendingOffers ? 0.7 : 1, transition: 'all .15s',
+            }}
+          >
+            <span style={{ color: '#BF5FFF' }}>
+              {sendingOffers ? '● SENDING…' : `● SEND ALL OFFERS (${draftCount})`}
+            </span>
+            <span style={{ fontSize: 10, color: 'rgba(191,95,255,.6)', letterSpacing: 1 }}>
+              NOTIFY ARTISTS
+            </span>
+          </button>
+        )}
+
+        {/* LINEUP tab */}
+        {effectiveIsHost && showEditor && eventTab === 'LINEUP' && (
+          <div>
+            {lineupMembers.length === 0
+              ? (
+                <div style={{ textAlign: 'center', padding: '48px 16px' }}>
+                  <div style={{ fontFamily: "'Bebas Neue'", fontSize: 18, letterSpacing: 3, color: 'rgba(255,255,255,.18)', marginBottom: 8 }}>NO ONE ON THE BILL YET</div>
+                  <div style={{ fontSize: 13, color: 'rgba(255,255,255,.13)' }}>Shortlist artists and assign them a slot to build your lineup.</div>
+                </div>
+              )
+              : lineupMembers.map(member => (
+                <LineupMemberCard
+                  key={member.id}
+                  member={member}
+                  perf={memberPerfMap[member.id]}
+                  onGoToSetTimes={() => setEventTab('SET_TIMES')}
+                  onRemove={async () => {
+                    await supabase.from('performances').delete().eq('lineup_member_id', member.id);
+                    await supabase.from('lineup_members').delete().eq('id', member.id);
+                    if (member.artist_id) {
+                      await supabase.from('applications')
+                        .update({ status: 'tentative' })
+                        .eq('event_id', id)
+                        .eq('artist_id', member.artist_id)
+                        .in('status', ['offered', 'accepted']);
+                    }
+                    queryClient.invalidateQueries({ queryKey: ['event', id] });
+                  }}
+                />
+              ))
+            }
+          </div>
         )}
 
         {/* SHORT LIST tab */}
@@ -598,8 +694,8 @@ export default function EventScreen() {
           </div>
         )}
 
-        {/* Days + slots — LINEUP tab (or non-host when times are public) */}
-        {(effectiveIsHost || showTimesPublicly) && (!effectiveIsHost || !showEditor || eventTab === 'LINEUP') && (localDays ?? days).map((day, di) => {
+        {/* Days + slots — SET_TIMES tab (or non-host when times are public) */}
+        {(effectiveIsHost || showTimesPublicly) && (!effectiveIsHost || !showEditor || eventTab === 'SET_TIMES') && (localDays ?? days).map((day, di) => {
           const slots = day.slots || [];
           const sortableIds = slots.map(sl => sl.id);
           const activeSlot = activeSlotId ? slots.find(sl => sl.id === activeSlotId) : null;
@@ -689,7 +785,7 @@ export default function EventScreen() {
           );
         })}
 
-        {(!effectiveIsHost || !showEditor || eventTab === 'LINEUP') && <>
+        {(!effectiveIsHost || !showEditor || eventTab === 'SET_TIMES') && <>
         {/* Tally — only visible when set times are public or host is viewing */}
         {(effectiveIsHost || showTimesPublicly) && totalSlots > 0 && (
           <div className={s.tally}>
@@ -1048,9 +1144,10 @@ function SlotCard({ slot, claim, onFill, onEdit, onRemove, onPin, isHost, isSort
   const { player, setPlayer } = usePlayer();
   const claimStatus   = claim?.status || (claim?.user_id ? 'pending' : 'name_added');
   const isConfirmed   = claimStatus === 'confirmed';
+  const isDraft       = claimStatus === 'draft';
   const artistName    = claim?.name || '';
   const publicName    = (!isHost && !isConfirmed && claim) ? 'PENDING' : artistName;
-  const isEmpty       = !claim;
+  const isEmpty       = !claim || (!isHost && isDraft);
   const rawDur     = parseDurMins(slot.dur ?? slot.duration);
   const durLabel   = fmtDur(rawDur > 0 ? rawDur : 60);
   const cleanLabel = slot.label ? stripEmoji(slot.label) : null;
@@ -1059,7 +1156,7 @@ function SlotCard({ slot, claim, onFill, onEdit, onRemove, onPin, isHost, isSort
   // Single descriptor pill matching v1: sound > card_pills > genre
   const descriptor = claim?.sound || claim?.card_pills || claim?.genre || '';
 
-  const borderCol = slot.pinned ? '#FFB830' : isEmpty ? 'var(--border)' : 'var(--neon)';
+  const borderCol = slot.pinned ? '#FFB830' : (isEmpty && !isDraft) ? 'var(--border)' : isDraft ? 'rgba(255,255,255,.18)' : 'var(--neon)';
 
   return (
     <div
@@ -1098,9 +1195,12 @@ function SlotCard({ slot, claim, onFill, onEdit, onRemove, onPin, isHost, isSort
         <div className={s.slotInfo}>
           <div className={s.djNameRow}>
             <HeadphoneIcon />
-            <span className={s.djName} style={{ color: isEmpty ? 'var(--muted)' : publicName === 'PENDING' ? 'var(--muted)' : 'var(--text)', fontStyle: isEmpty ? 'italic' : 'normal' }}>
+            <span className={s.djName} style={{ color: isEmpty ? 'var(--muted)' : publicName === 'PENDING' ? 'var(--muted)' : isDraft ? 'rgba(255,255,255,.6)' : 'var(--text)', fontStyle: isEmpty ? 'italic' : 'normal' }}>
               {isEmpty ? 'Open slot' : publicName}
             </span>
+            {isHost && isDraft && (
+              <span style={{ fontFamily: "'Bebas Neue'", fontSize: 9, letterSpacing: 1.5, color: 'rgba(255,255,255,.35)', border: '1px solid rgba(255,255,255,.15)', borderRadius: 3, padding: '1px 5px', flexShrink: 0 }}>DRAFT</span>
+            )}
             {player?.url && player.url === claim?.mix_link && (
               <div className={s.eqBars}>
                 {[
@@ -1501,5 +1601,138 @@ function ManageItem({ icon, label, onClick, danger, muted }) {
       <span style={{ fontSize:14, color: danger ? '#ff4d6d' : 'var(--text)', fontWeight:500, letterSpacing:'0.01em' }}>{label}</span>
       {muted && <span style={{ marginLeft:'auto', fontSize:10, color:'var(--muted)', letterSpacing:'0.08em', fontFamily:"'Bebas Neue',sans-serif" }}>SOON</span>}
     </button>
+  );
+}
+
+function LineupMemberCard({ member, perf, onGoToSetTimes, onRemove }) {
+  const [expanded, setExpanded] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  const isHeadliner = member.role === 'headliner';
+  const accent    = isHeadliner ? '#BF5FFF' : '#00E5FF';
+  const accentRgb = isHeadliner ? '191,95,255' : '0,229,255';
+
+  let statusLabel, statusColor;
+  if (!perf) {
+    statusLabel = 'ON BILL';     statusColor = 'rgba(255,255,255,.35)';
+  } else if (perf.status === 'draft') {
+    statusLabel = 'DRAFT SLOT'; statusColor = 'rgba(255,255,255,.3)';
+  } else if (perf.status === 'offered') {
+    statusLabel = 'AWAITING';   statusColor = '#FF8C42';
+  } else if (perf.status === 'accepted') {
+    statusLabel = 'CONFIRMED';  statusColor = '#00E5A0';
+  } else if (perf.status === 'declined') {
+    statusLabel = 'DECLINED';   statusColor = '#FF3399';
+  } else {
+    statusLabel = 'ON BILL';     statusColor = 'rgba(255,255,255,.35)';
+  }
+
+  let pills = [];
+  if (Array.isArray(member.card_pills)) {
+    pills = member.card_pills;
+  } else if (typeof member.card_pills === 'string' && member.card_pills) {
+    try { pills = JSON.parse(member.card_pills); } catch { pills = [member.card_pills]; }
+  }
+
+  async function handleRemove() {
+    if (busy) return;
+    setBusy(true);
+    await onRemove();
+    setBusy(false);
+  }
+
+  return (
+    <div style={{ marginBottom: 8 }}>
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 12,
+        background: 'var(--card)', border: `1px solid rgba(${accentRgb},.35)`,
+        borderRadius: expanded ? '14px 14px 0 0' : 14,
+        padding: '12px 14px', cursor: 'default',
+      }}>
+        <div style={{
+          width: 44, height: 44, borderRadius: '50%', flexShrink: 0,
+          background: `rgba(${accentRgb},.1)`, border: `1.5px solid rgba(${accentRgb},.4)`,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18,
+        }}>🎵</div>
+
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontFamily: "'Bebas Neue'", fontSize: 17, letterSpacing: '0.05em', color: '#fff', lineHeight: 1.1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {member.artist_name || '—'}
+          </div>
+          {(member.sound || member.genre) && (
+            <div style={{ fontSize: 12, color: accent, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {member.sound || member.genre}
+            </div>
+          )}
+          {member.role && (
+            <div style={{ fontSize: 10, color: 'var(--muted)', letterSpacing: 1, marginTop: 2, fontFamily: "'Bebas Neue'" }}>
+              {member.role.toUpperCase()}
+            </div>
+          )}
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, flexShrink: 0 }}>
+          <span style={{
+            fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1.5,
+            color: statusColor, border: `1px solid ${statusColor}`,
+            borderRadius: 4, padding: '2px 7px',
+          }}>{statusLabel}</span>
+          <button
+            onClick={() => setExpanded(e => !e)}
+            style={{
+              fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1,
+              background: `rgba(${accentRgb},.1)`, border: `1px solid rgba(${accentRgb},.35)`,
+              color: accent, borderRadius: 8, padding: '3px 8px', cursor: 'pointer',
+            }}
+          >{expanded ? 'HIDE ▲' : 'MANAGE ▼'}</button>
+        </div>
+      </div>
+
+      {expanded && (
+        <div style={{
+          background: 'var(--card)', border: `1px solid rgba(${accentRgb},.35)`,
+          borderTop: 'none', borderRadius: '0 0 14px 14px', padding: '12px 18px',
+        }}>
+          {pills.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 10 }}>
+              {pills.map((pill, i) => (
+                <span key={i} style={{
+                  background: `rgba(${accentRgb},.1)`, border: `1px solid rgba(${accentRgb},.3)`,
+                  borderRadius: 20, fontSize: 10, padding: '2px 8px', color: accent,
+                }}>{pill}</span>
+              ))}
+            </div>
+          )}
+          {perf && (
+            <div style={{ display: 'flex', gap: 8, padding: '7px 0', borderBottom: '1px solid rgba(255,255,255,.05)' }}>
+              <div style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1.5, color: 'var(--muted)', minWidth: 70, paddingTop: 2 }}>SLOT</div>
+              <div style={{ fontSize: 13, color: perf.status === 'draft' ? 'rgba(255,255,255,.4)' : 'var(--text)', flex: 1 }}>
+                {perf.status === 'draft' ? 'Draft — offer not sent yet' : `Assigned — ${perf.status}`}
+              </div>
+            </div>
+          )}
+          <div style={{ display: 'flex', gap: 6, marginTop: 12 }}>
+            <button
+              onClick={onGoToSetTimes}
+              style={{
+                flex: 1, fontFamily: "'Bebas Neue'", fontSize: 12, letterSpacing: 1.5,
+                padding: '8px 0', borderRadius: 8, cursor: 'pointer', transition: 'all .15s',
+                background: 'rgba(0,229,255,.1)', border: '1px solid rgba(0,229,255,.4)', color: '#00E5FF',
+              }}
+            >→ SET TIMES</button>
+            <button
+              onClick={handleRemove}
+              disabled={busy}
+              style={{
+                flex: 1, fontFamily: "'Bebas Neue'", fontSize: 12, letterSpacing: 1.5,
+                padding: '8px 0', borderRadius: 8, cursor: busy ? 'default' : 'pointer',
+                opacity: busy ? .5 : 1, transition: 'all .15s',
+                background: 'rgba(255,51,51,.06)', border: '1px solid rgba(255,51,51,.25)', color: 'rgba(255,80,80,.8)',
+              }}
+            >REMOVE FROM BILL</button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

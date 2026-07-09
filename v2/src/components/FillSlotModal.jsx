@@ -44,29 +44,9 @@ export default function FillSlotModal({ slot, eventId, eventName = '', hostId, a
       memberData = nm;
     }
     await supabase.from('performances').delete().eq('slot_id', slot.id).eq('event_id', eventId);
-    const { data: perf, error } = await supabase.from('performances').insert({
-      lineup_member_id: memberData.id, event_id: eventId, slot_id: slot.id, status: 'offered',
-    }).select('id').single();
-    if (!error && prof.user_id) {
-      const slotTime = [slot.time, slot.ampm].filter(Boolean).join(' ');
-      await Promise.all([
-        supabase.from('applications').update({ status: 'offered' }).eq('event_id', eventId).eq('artist_id', prof.user_id).in('status', ['pending', 'tentative']),
-        supabase.from('notifications').insert({
-          user_id: prof.user_id,
-          type:    'slot_offer',
-          message: `You've been offered a slot${slotTime ? ` at ${slotTime}` : ''} at ${eventName || 'an event'}.`,
-          data: {
-            performance_id: perf?.id,
-            event_id:       eventId,
-            event_name:     eventName,
-            slot_id:        slot.id,
-            slot_time:      slotTime,
-            artist_name:    prof.name,
-            host_id:        hostId,
-          },
-        }),
-      ]);
-    }
+    const { error } = await supabase.from('performances').insert({
+      lineup_member_id: memberData.id, event_id: eventId, slot_id: slot.id, status: 'draft',
+    });
     setBusy(false);
     if (!error) onFilled();
   }
