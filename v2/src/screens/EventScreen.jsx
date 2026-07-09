@@ -6,6 +6,7 @@ import { useSession, usePlayer } from '../App';
 import { formatDateRange } from '../lib/dates';
 import Skeleton from '../components/Skeleton';
 import ApplicationCard from '../components/ApplicationCard';
+import ProfileCard from '../components/ProfileCard';
 import FillSlotModal from '../components/FillSlotModal';
 import s from './EventScreen.module.css';
 import { likedEvents } from '../lib/likedEvents';
@@ -96,15 +97,25 @@ export default function EventScreen() {
       // Build member → performance map for the Lineup tab
       const memberPerfMap = {};
       (perfsData || []).forEach(p => { memberPerfMap[p.lineup_member_id] = p; });
-      return { event: ev, claims: map, lineupMembers: membersData || [], memberPerfMap };
+      // Fetch profiles for lineup members that have an artist_id
+      const memberArtistIds = (membersData || []).filter(m => m.artist_id).map(m => m.artist_id);
+      let memberProfiles = {};
+      if (memberArtistIds.length) {
+        const { data: mProfs } = await supabase.from('profiles')
+          .select('user_id, name, avatar, avatar_thumb, type, sound, genre_string, location, state')
+          .in('user_id', memberArtistIds);
+        (mProfs || []).forEach(p => { memberProfiles[p.user_id] = p; });
+      }
+      return { event: ev, claims: map, lineupMembers: membersData || [], memberPerfMap, memberProfiles };
     },
     enabled: !!id,
   });
 
   const event         = data?.event         || null;
   const claims        = data?.claims        || {};
-  const lineupMembers = data?.lineupMembers || [];
-  const memberPerfMap = data?.memberPerfMap || {};
+  const lineupMembers  = data?.lineupMembers  || [];
+  const memberPerfMap  = data?.memberPerfMap  || {};
+  const memberProfiles = data?.memberProfiles || {};
   const isLocked   = !!(data?.event?.config?.set_times_locked);
   const draftCount = Object.values(claims).filter(c => c?.status === 'draft').length;
   const allMixSlots = (localDays ?? data?.event?.config?.days ?? []).flatMap(d => (d.slots || [])
@@ -638,7 +649,7 @@ export default function EventScreen() {
 
         {/* LINEUP tab */}
         {effectiveIsHost && showEditor && eventTab === 'LINEUP' && (
-          <div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {lineupMembers.length === 0
               ? (
                 <div style={{ textAlign: 'center', padding: '48px 16px' }}>
@@ -646,59 +657,93 @@ export default function EventScreen() {
                   <div style={{ fontSize: 13, color: 'rgba(255,255,255,.13)' }}>Shortlist artists and assign them a slot to build your lineup.</div>
                 </div>
               )
-              : lineupMembers.map(member => (
-                <LineupMemberCard
-                  key={member.id}
-                  member={member}
-                  perf={memberPerfMap[member.id]}
-                  onGoToSetTimes={() => setEventTab('SET_TIMES')}
-                  onRemove={async () => {
-                    // Unassign: delete slot + remove from bill, send back to SHORTLIST
-                    await supabase.from('performances').delete().eq('lineup_member_id', member.id);
-                    await supabase.from('lineup_members').delete().eq('id', member.id);
-                    if (member.artist_id) {
-                      await supabase.from('applications')
-                        .update({ status: 'tentative' })
-                        .eq('event_id', id)
-                        .eq('artist_id', member.artist_id)
-                        .neq('status', 'declined');
+              : lineupMembers.map(member => {
+                const prof = member.artist_id ? memberProfiles[member.artist_id] : null;
+                const perf = memberPerfMap[member.id];
+                let badge, badgeColor;
+                if (!perf)                       { badge = 'ON BILL';   badgeColor = 'rgba(255,255,255,.35)'; }
+                else if (perf.status === 'draft')    { badge = 'DRAFT';     badgeColor = 'rgba(255,255,255,.35)'; }
+                else if (perf.status === 'offered')  { badge = 'AWAITING';  badgeColor = '#FF8C42'; }
+                else if (perf.status === 'accepted') { badge = 'CONFIRMED'; badgeColor = '#00E5A0'; }
+                else if (perf.status === 'declined') { badge = 'DECLINED';  badgeColor = '#FF3399'; }
+                const cardItem = {
+                  user_id:      member.artist_id || member.id,
+                  name:         prof?.name         || member.artist_name,
+                  type:         prof?.type         || 'artist',
+                  avatar:       prof?.avatar        || null,
+                  avatar_thumb: prof?.avatar_thumb  || null,
+                  sound:        prof?.sound         || member.sound || null,
+                  genre_string: prof?.genre_string  || member.genre || null,
+                  location:     prof?.location      || null,
+                  state:        prof?.state         || null,
+                };
+                return (
+                  <ProfileCard key={member.id} item={cardItem} badge={badge} badgeColor={badgeColor}
+                    actions={
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                        <button onClick={async () => {
+                          await supabase.from('performances').delete().eq('lineup_member_id', member.id);
+                          await supabase.from('lineup_members').delete().eq('id', member.id);
+                          if (member.artist_id) await supabase.from('applications').update({ status: 'tentative' }).eq('event_id', id).eq('artist_id', member.artist_id).neq('status', 'declined');
+                          queryClient.invalidateQueries({ queryKey: ['event', id] });
+                        }} style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1, padding: '4px 10px', borderRadius: 6, border: '1px solid rgba(255,140,66,.4)', background: 'rgba(255,140,66,.08)', color: '#FF8C42', cursor: 'pointer', whiteSpace: 'nowrap' }}>UNASSIGN</button>
+                        <button onClick={async () => {
+                          await supabase.from('performances').delete().eq('lineup_member_id', member.id);
+                          await supabase.from('lineup_members').delete().eq('id', member.id);
+                          if (member.artist_id) await supabase.from('applications').update({ status: 'declined' }).eq('event_id', id).eq('artist_id', member.artist_id);
+                          queryClient.invalidateQueries({ queryKey: ['event', id] });
+                        }} style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1, padding: '4px 10px', borderRadius: 6, border: '1px solid rgba(255,51,51,.3)', background: 'rgba(255,51,51,.06)', color: 'rgba(255,80,80,.8)', cursor: 'pointer', whiteSpace: 'nowrap' }}>DISCARD</button>
+                      </div>
                     }
-                    queryClient.invalidateQueries({ queryKey: ['event', id] });
-                  }}
-                  onDiscard={async () => {
-                    // Discard: completely remove from event
-                    await supabase.from('performances').delete().eq('lineup_member_id', member.id);
-                    await supabase.from('lineup_members').delete().eq('id', member.id);
-                    if (member.artist_id) {
-                      await supabase.from('applications')
-                        .update({ status: 'declined' })
-                        .eq('event_id', id)
-                        .eq('artist_id', member.artist_id);
-                    }
-                    queryClient.invalidateQueries({ queryKey: ['event', id] });
-                  }}
-                />
-              ))
+                  />
+                );
+              })
             }
           </div>
         )}
 
         {/* SHORT LIST tab */}
         {effectiveIsHost && showEditor && eventTab === 'SHORTLIST' && (
-          <div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {shortList.length === 0
               ? <p style={{ textAlign: 'center', color: 'var(--muted)', fontSize: 13, padding: '32px 0' }}>No artists shortlisted yet.</p>
-              : shortList.map(app => <ApplicationCard key={app.id} app={app} prof={appProfiles[app.artist_id]} event={event} onRespond={respondApp} onAssign={(a, p) => setAssigningApp({ app: a, prof: p })} />)
+              : shortList.map(app => {
+                const prof = appProfiles[app.artist_id] || {};
+                const cardItem = { user_id: app.artist_id, name: prof.name || app.artist_name, type: prof.type || 'artist', avatar: prof.avatar || null, avatar_thumb: prof.avatar_thumb || null, sound: prof.sound || null, genre_string: prof.genre_string || null, location: prof.location || null, state: prof.state || null };
+                return (
+                  <ProfileCard key={app.id} item={cardItem} badge="SHORTLISTED" badgeColor="var(--neon2)"
+                    actions={
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                        <button onClick={() => setAssigningApp({ app, prof })} style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1, padding: '4px 10px', borderRadius: 6, border: '1px solid rgba(0,229,255,.4)', background: 'rgba(0,229,255,.08)', color: 'var(--neon2)', cursor: 'pointer', whiteSpace: 'nowrap' }}>ASSIGN SLOT</button>
+                        <button onClick={() => { supabase.from('applications').update({ status: 'declined' }).eq('id', app.id); setAllApps(prev => prev.map(a => a.id === app.id ? { ...a, status: 'declined' } : a)); }} style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1, padding: '4px 10px', borderRadius: 6, border: '1px solid rgba(255,51,51,.3)', background: 'rgba(255,51,51,.06)', color: 'rgba(255,80,80,.8)', cursor: 'pointer', whiteSpace: 'nowrap' }}>DROP</button>
+                      </div>
+                    }
+                  />
+                );
+              })
             }
           </div>
         )}
 
         {/* PIPELINE tab */}
         {effectiveIsHost && showEditor && eventTab === 'PIPELINE' && (
-          <div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {pipeline.length === 0
               ? <p style={{ textAlign: 'center', color: 'var(--muted)', fontSize: 13, padding: '32px 0' }}>No pending applications.</p>
-              : pipeline.map(app => <ApplicationCard key={app.id} app={app} prof={appProfiles[app.artist_id]} event={event} onRespond={respondApp} />)
+              : pipeline.map(app => {
+                const prof = appProfiles[app.artist_id] || {};
+                const cardItem = { user_id: app.artist_id, name: prof.name || app.artist_name, type: prof.type || 'artist', avatar: prof.avatar || null, avatar_thumb: prof.avatar_thumb || null, sound: prof.sound || null, genre_string: prof.genre_string || null, location: prof.location || null, state: prof.state || null };
+                return (
+                  <ProfileCard key={app.id} item={cardItem}
+                    actions={
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                        <button onClick={() => { supabase.from('applications').update({ status: 'tentative' }).eq('id', app.id); setAllApps(prev => prev.map(a => a.id === app.id ? { ...a, status: 'tentative' } : a)); }} style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1, padding: '4px 10px', borderRadius: 6, border: '1px solid rgba(0,229,255,.4)', background: 'rgba(0,229,255,.08)', color: 'var(--neon2)', cursor: 'pointer', whiteSpace: 'nowrap' }}>SHORTLIST</button>
+                        <button onClick={() => { supabase.from('applications').update({ status: 'declined' }).eq('id', app.id); setAllApps(prev => prev.map(a => a.id === app.id ? { ...a, status: 'declined' } : a)); }} style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1, padding: '4px 10px', borderRadius: 6, border: '1px solid rgba(255,51,51,.3)', background: 'rgba(255,51,51,.06)', color: 'rgba(255,80,80,.8)', cursor: 'pointer', whiteSpace: 'nowrap' }}>DECLINE</button>
+                      </div>
+                    }
+                  />
+                );
+              })
             }
           </div>
         )}
@@ -1660,6 +1705,7 @@ function ManageItem({ icon, label, onClick, danger, muted }) {
   );
 }
 
+// LineupMemberCard removed — LINEUP tab now uses ProfileCard directly
 function LineupMemberCard({ member, perf, onGoToSetTimes, onRemove, onDiscard }) {
   const [expanded, setExpanded] = useState(false);
   const [busy, setBusy] = useState(false);
