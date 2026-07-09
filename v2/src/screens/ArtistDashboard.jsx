@@ -92,7 +92,7 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
       const [profRes, appsRes, gigsRes] = await Promise.all([
         supabase.from('profiles').select('*').eq('user_id', userId).eq('type', cfg.profileType).maybeSingle(),
         supabase.from('applications').select('id, status, event_id, created_at').eq('artist_id', userId).order('created_at', { ascending: false }).limit(50),
-        supabase.from('claims').select('event_id').eq('user_id', userId),
+        supabase.from('lineup_members').select('event_id').eq('artist_id', userId).neq('status', 'removed'),
       ]);
 
       const claimEventIds = [...new Set((gigsRes.data || []).map(c => c.event_id).filter(Boolean))];

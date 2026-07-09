@@ -135,14 +135,20 @@ export default function HostDashboard({ userId: userIdProp }) {
       const grouped2 = Object.values(grouped).filter(g => g.event);
       setLineups(grouped2);
 
-      // Load claims for all events
       if (ids.length) {
-        const { data: claimsData } = await supabase.from('claims')
-          .select('slot_id, name, genre, sound, user_id, card_pills, event_id').in('event_id', ids);
+        const [{ data: membersData }, { data: perfsData }] = await Promise.all([
+          supabase.from('lineup_members').select('id, event_id, artist_id, artist_name, genre, sound, card_pills').in('event_id', ids).neq('status', 'removed'),
+          supabase.from('performances').select('lineup_member_id, slot_id, event_id').in('event_id', ids).neq('status', 'declined'),
+        ]);
+        const membersById = {};
+        (membersData || []).forEach(m => { membersById[m.id] = m; });
         const cm = {};
-        (claimsData || []).forEach(c => {
-          if (!cm[c.event_id]) cm[c.event_id] = {};
-          cm[c.event_id][c.slot_id] = c;
+        (perfsData || []).forEach(p => {
+          if (!p.slot_id) return;
+          const member = membersById[p.lineup_member_id];
+          if (!member) return;
+          if (!cm[p.event_id]) cm[p.event_id] = {};
+          cm[p.event_id][p.slot_id] = { ...member, name: member.artist_name, user_id: member.artist_id };
         });
         setClaimsMap(cm);
       }

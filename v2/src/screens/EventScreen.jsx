@@ -48,12 +48,34 @@ export default function EventScreen() {
     queryFn: async () => {
       const { data: ev } = await supabase.from('events').select('*').eq('id', id).single();
       if (!ev) { navigate('/'); return null; }
-      const { data: claimsData } = await supabase
-        .from('claims').select('id, slot_id, name, genre, sound, user_id, card_pills, updated_at, created_at, status').eq('event_id', id);
+      const [{ data: membersData }, { data: perfsData }] = await Promise.all([
+        supabase.from('lineup_members').select('id, artist_id, artist_name, genre, sound, card_pills').eq('event_id', id).neq('status', 'removed'),
+        supabase.from('performances').select('id, lineup_member_id, slot_id, status').eq('event_id', id),
+      ]);
+      const membersById = {};
+      (membersData || []).forEach(m => { membersById[m.id] = m; });
       const map = {};
-      (claimsData || []).forEach(c => { map[c.slot_id] = c; });
-      // Fetch mix_link from profiles for confirmed claims with a user_id
-      const userIds = (claimsData || []).filter(c => c.user_id).map(c => c.user_id);
+      (perfsData || []).forEach(p => {
+        if (!p.slot_id) return;
+        const member = membersById[p.lineup_member_id];
+        if (!member) return;
+        const status = p.status === 'accepted' ? 'confirmed'
+          : p.status === 'declined' ? 'declined'
+          : !member.artist_id ? 'confirmed'
+          : 'offered';
+        map[p.slot_id] = {
+          id:         p.id,
+          member_id:  member.id,
+          slot_id:    p.slot_id,
+          user_id:    member.artist_id || null,
+          name:       member.artist_name || null,
+          genre:      member.genre || null,
+          sound:      member.sound || null,
+          card_pills: member.card_pills || null,
+          status,
+        };
+      });
+      const userIds = Object.values(map).filter(c => c.user_id).map(c => c.user_id);
       if (userIds.length) {
         const { data: profiles } = await supabase.from('profiles').select('user_id, mix_link, soundcloud, mixcloud, instagram, facebook, youtube, website').in('user_id', userIds);
         (profiles || []).forEach(p => {
@@ -172,7 +194,8 @@ export default function EventScreen() {
 
   async function removeArtist(slotId) {
     const claim = claims[slotId];
-    await supabase.from('claims').delete().eq('slot_id', slotId).eq('event_id', id);
+    if (!claim) return;
+    await supabase.from('performances').delete().eq('id', claim.id);
     if (claim?.user_id) {
       await Promise.all([
         supabase.from('notifications').insert({
@@ -268,14 +291,20 @@ export default function EventScreen() {
     const { app: aApp, prof: aProf } = assigningApp;
     const artistName = aProf?.name || aApp.artist_name || '—';
     const slotTime = [slot.time, slot.ampm].filter(Boolean).join(' ');
-    await supabase.from('claims').delete().eq('slot_id', slot.id).eq('event_id', id);
-    const { data: claim } = await supabase.from('claims').insert({
-      slot_id: slot.id, event_id: id,
-      user_id: aApp.artist_id,
-      name:    aProf?.name || aApp.artist_name,
-      sound:   aProf?.sound || null,
-      genre:   aProf?.genre_string || null,
-      status:  'pending',
+    // Upsert lineup_member for this artist
+    let { data: memberData } = await supabase.from('lineup_members').select('id').eq('event_id', id).eq('artist_id', aApp.artist_id).maybeSingle();
+    if (!memberData) {
+      const { data: nm } = await supabase.from('lineup_members').insert({
+        event_id: id, artist_id: aApp.artist_id,
+        artist_name: aProf?.name || aApp.artist_name,
+        sound: aProf?.sound || null, genre: aProf?.genre_string || null, status: 'on_bill',
+      }).select('id').single();
+      memberData = nm;
+    }
+    // Replace any existing performance for this slot, then create the new one
+    await supabase.from('performances').delete().eq('slot_id', slot.id).eq('event_id', id);
+    const { data: perf } = await supabase.from('performances').insert({
+      lineup_member_id: memberData.id, event_id: id, slot_id: slot.id, status: 'offered',
     }).select('id').single();
     await Promise.all([
       supabase.from('applications').update({ status: 'offered' }).eq('id', aApp.id),
@@ -283,7 +312,7 @@ export default function EventScreen() {
         user_id: aApp.artist_id,
         type:    'slot_offer',
         message: `You've been offered a slot${slotTime ? ` at ${slotTime}` : ''} at ${event.name}.`,
-        data: { claim_id: claim?.id, event_id: id, event_name: event.name, slot_id: slot.id, slot_time: slotTime, artist_name: artistName, host_id: session?.user?.id },
+        data: { performance_id: perf?.id, event_id: id, event_name: event.name, slot_id: slot.id, slot_time: slotTime, artist_name: artistName, host_id: session?.user?.id },
       }),
     ]);
     setAllApps(prev => prev.map(a => a.id === aApp.id ? { ...a, status: 'offered' } : a));
@@ -292,17 +321,9 @@ export default function EventScreen() {
   }
 
   async function persistClaimSwap(sourceSlotId, targetSlotId, sourceClaim, targetClaim) {
-    await supabase.from('claims').delete().eq('id', targetClaim.id);
-    await supabase.from('claims').update({ slot_id: targetSlotId }).eq('id', sourceClaim.id);
-    await supabase.from('claims').insert({
-      slot_id:  sourceSlotId,
-      event_id: id,
-      user_id:  targetClaim.user_id || null,
-      name:     targetClaim.name    || null,
-      sound:    targetClaim.sound   || null,
-      genre:    targetClaim.genre   || null,
-      status:   targetClaim.status  || 'pending',
-    });
+    // Swap slot_ids on the two performances — no unique constraint so both updates are safe
+    await supabase.from('performances').update({ slot_id: targetSlotId }).eq('id', sourceClaim.id);
+    await supabase.from('performances').update({ slot_id: sourceSlotId }).eq('id', targetClaim.id);
     queryClient.invalidateQueries({ queryKey: ['event', id] });
   }
 
@@ -608,7 +629,7 @@ export default function EventScreen() {
 
             // Persist to DB
             if (!isFilled(targetClaim)) {
-              supabase.from('claims')
+              supabase.from('performances')
                 .update({ slot_id: over.id })
                 .eq('id', sourceClaim.id)
                 .then(() => queryClient.invalidateQueries({ queryKey: ['event', id] }));

@@ -65,8 +65,7 @@ export default function ProfileScreen() {
         const eRes = await supabase.from('events').select('id,name,config').eq('host_id', id).in('status', ['live','completed']).order('created_at', { ascending: false }).limit(100);
         events = eRes.data || [];
       } else {
-        // Artist/band/etc appearances via claims table
-        const claimsRes = await supabase.from('claims').select('event_id').eq('user_id', id);
+        const claimsRes = await supabase.from('lineup_members').select('event_id').eq('artist_id', id).neq('status', 'removed');
         const eventIds = [...new Set((claimsRes.data || []).map(c => c.event_id).filter(Boolean))];
         if (eventIds.length) {
           const eRes = await supabase.from('events').select('id,name,config').in('id', eventIds).order('id', { ascending: true }).limit(10);

@@ -116,7 +116,7 @@ export default function MySceneScreen({ isGuest, onSignOut }) {
         supabase.from('applications').select('event_id,status').eq('artist_id', uid),
         supabase.from('events').select('id,name,config,created_at').eq('host_id', uid).order('created_at', { ascending: false }),
         supabase.from('profiles').select('name').eq('user_id', uid).eq('type', 'punter').limit(1),
-        supabase.from('claims').select('event_id').eq('user_id', uid),
+        supabase.from('lineup_members').select('event_id').eq('artist_id', uid).neq('status', 'removed'),
         supabase.from('personal_events').select('*').eq('user_id', uid),
       ]);
 
@@ -382,9 +382,9 @@ export default function MySceneScreen({ isGuest, onSignOut }) {
     const dayEvs = datedEvents.filter(ev => ev.config?.date === dateStr);
     if (!dayEvs.length) return;
     const evIds = dayEvs.map(ev => ev.id);
-    const { data: claimsData } = await supabase.from('claims').select('event_id, name, genre, sound, user_id').in('event_id', evIds);
-    if (!claimsData?.length) return;
-    const userIds = [...new Set(claimsData.map(c => c.user_id).filter(Boolean))];
+    const { data: membersData } = await supabase.from('lineup_members').select('event_id, artist_name, genre, sound, artist_id').in('event_id', evIds).neq('status', 'removed');
+    if (!membersData?.length) return;
+    const userIds = [...new Set(membersData.map(c => c.artist_id).filter(Boolean))];
     let profMap = {};
     if (userIds.length) {
       const { data: profs } = await supabase.from('profiles').select('user_id, avatar').in('user_id', userIds);
@@ -392,7 +392,10 @@ export default function MySceneScreen({ isGuest, onSignOut }) {
     }
     const evMap = {};
     dayEvs.forEach(ev => { evMap[ev.id] = ev.name; });
-    setDayArtists(claimsData.map(c => ({ ...c, avatar: profMap[c.user_id]?.avatar, eventName: evMap[c.event_id] })));
+    setDayArtists(membersData.map(c => ({
+      name: c.artist_name, genre: c.genre, sound: c.sound,
+      avatar: profMap[c.artist_id]?.avatar, eventName: evMap[c.event_id],
+    })));
   }
 
   function openAddEvent(date) {

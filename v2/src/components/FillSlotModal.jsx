@@ -34,37 +34,35 @@ export default function FillSlotModal({ slot, eventId, eventName = '', hostId, a
 
   async function fillFromProfile(prof) {
     setBusy(true);
-    await supabase.from('claims').delete().eq('slot_id', slot.id).eq('event_id', eventId);
-    const { data: claim, error } = await supabase.from('claims').insert({
-      slot_id:  slot.id,
-      event_id: eventId,
-      user_id:  prof.user_id,
-      name:     prof.name,
-      sound:    prof.sound   || null,
-      genre:    prof.genre_string || null,
-      status:   'pending',
+    // Upsert lineup_member for this artist on this event
+    let { data: memberData } = await supabase.from('lineup_members').select('id').eq('event_id', eventId).eq('artist_id', prof.user_id).maybeSingle();
+    if (!memberData) {
+      const { data: nm } = await supabase.from('lineup_members').insert({
+        event_id: eventId, artist_id: prof.user_id,
+        artist_name: prof.name, sound: prof.sound || null, genre: prof.genre_string || null, status: 'on_bill',
+      }).select('id').single();
+      memberData = nm;
+    }
+    await supabase.from('performances').delete().eq('slot_id', slot.id).eq('event_id', eventId);
+    const { data: perf, error } = await supabase.from('performances').insert({
+      lineup_member_id: memberData.id, event_id: eventId, slot_id: slot.id, status: 'offered',
     }).select('id').single();
     if (!error && prof.user_id) {
       const slotTime = [slot.time, slot.ampm].filter(Boolean).join(' ');
       await Promise.all([
-        // Advance any existing application to offered (no-op if none exists)
-        supabase.from('applications')
-          .update({ status: 'offered' })
-          .eq('event_id', eventId)
-          .eq('artist_id', prof.user_id)
-          .in('status', ['pending', 'tentative']),
+        supabase.from('applications').update({ status: 'offered' }).eq('event_id', eventId).eq('artist_id', prof.user_id).in('status', ['pending', 'tentative']),
         supabase.from('notifications').insert({
           user_id: prof.user_id,
           type:    'slot_offer',
           message: `You've been offered a slot${slotTime ? ` at ${slotTime}` : ''} at ${eventName || 'an event'}.`,
           data: {
-            claim_id:    claim?.id,
-            event_id:    eventId,
-            event_name:  eventName,
-            slot_id:     slot.id,
-            slot_time:   slotTime,
-            artist_name: prof.name,
-            host_id:     hostId,
+            performance_id: perf?.id,
+            event_id:       eventId,
+            event_name:     eventName,
+            slot_id:        slot.id,
+            slot_time:      slotTime,
+            artist_name:    prof.name,
+            host_id:        hostId,
           },
         }),
       ]);
@@ -76,13 +74,12 @@ export default function FillSlotModal({ slot, eventId, eventName = '', hostId, a
   async function fillManual() {
     if (!name.trim()) return;
     setBusy(true);
-    await supabase.from('claims').delete().eq('slot_id', slot.id).eq('event_id', eventId);
-    const { error } = await supabase.from('claims').insert({
-      slot_id:  slot.id,
-      event_id: eventId,
-      user_id:  null,
-      name:     name.trim(),
-      status:   'name_added',
+    const { data: memberData } = await supabase.from('lineup_members').insert({
+      event_id: eventId, artist_name: name.trim(), status: 'on_bill',
+    }).select('id').single();
+    await supabase.from('performances').delete().eq('slot_id', slot.id).eq('event_id', eventId);
+    const { error } = await supabase.from('performances').insert({
+      lineup_member_id: memberData.id, event_id: eventId, slot_id: slot.id, status: 'accepted',
     });
     setBusy(false);
     if (!error) onFilled();

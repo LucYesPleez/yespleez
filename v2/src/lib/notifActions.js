@@ -1,12 +1,8 @@
 import { supabase } from './supabase';
 
-/**
- * Artist accepts a slot offer.
- * Updates the claim (by stable claim_id), advances the application, notifies the host.
- */
 export async function acceptSlotOffer(data, userId) {
-  if (data.claim_id) {
-    await supabase.from('claims').update({ status: 'confirmed' }).eq('id', data.claim_id);
+  if (data.performance_id) {
+    await supabase.from('performances').update({ status: 'accepted' }).eq('id', data.performance_id);
   }
   if (data.event_id && userId) {
     await supabase
@@ -26,13 +22,9 @@ export async function acceptSlotOffer(data, userId) {
   }
 }
 
-/**
- * Artist declines a slot offer.
- * Marks the claim declined, reverts the application to tentative, notifies the host.
- */
 export async function declineSlotOffer(data, userId) {
-  if (data.claim_id) {
-    await supabase.from('claims').update({ status: 'declined' }).eq('id', data.claim_id);
+  if (data.performance_id) {
+    await supabase.from('performances').update({ status: 'declined' }).eq('id', data.performance_id);
   }
   if (data.event_id && userId) {
     await supabase
@@ -52,10 +44,6 @@ export async function declineSlotOffer(data, userId) {
   }
 }
 
-/**
- * Artist accepts an event invite.
- * Creates a tentative application (host already invited them, so they're pre-shortlisted).
- */
 export async function acceptInvite(data, userId) {
   await supabase.from('applications').insert({
     event_id:    data.event_id,
@@ -76,10 +64,6 @@ export async function acceptInvite(data, userId) {
   }
 }
 
-/**
- * Artist declines an event invite.
- * Notifies the host.
- */
 export async function declineInvite(data, userId) {
   if (data.host_id) {
     await supabase.from('notifications').insert({
