@@ -1125,10 +1125,6 @@ function ApplyButton({ eventId, userId }) {
       artist_id: userId,
       status: 'pending',
       note,
-      artist_name: artistProfile?.name,
-      genre: artistProfile?.genre_string,
-      mix_link: artistProfile?.mix_link,
-      avatar_url: artistProfile?.avatar,
     });
     setLoading(false);
     if (!error) { setStatus('pending'); setOpen(false); }

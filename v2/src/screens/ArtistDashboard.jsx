@@ -204,7 +204,6 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
     if (status === 'accepted' && offer.event_id) {
       await supabase.from('applications').insert({
         event_id: offer.event_id, artist_id: userId, status: 'pending',
-        via_invite: true, artist_name: session?.user?.user_metadata?.name || '',
       });
     }
     await supabase.from('venue_enquiries').update({ status }).eq('id', id);

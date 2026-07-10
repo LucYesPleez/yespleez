@@ -46,13 +46,9 @@ export async function declineSlotOffer(data, userId) {
 
 export async function acceptInvite(data, userId) {
   await supabase.from('applications').insert({
-    event_id:    data.event_id,
-    artist_id:   userId,
-    status:      'tentative',
-    via_invite:  true,
-    artist_name: data.artist_name,
-    genre:       data.genre,
-    mix_link:    data.mix_link,
+    event_id:  data.event_id,
+    artist_id: userId,
+    status:    'tentative',
   });
   if (data.host_id) {
     await supabase.from('notifications').insert({
