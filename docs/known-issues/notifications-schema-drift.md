@@ -41,3 +41,23 @@ returned real rows using the flat/legacy shape above — no `data` column presen
 ## Related
 
 Found in the same investigation as [applications-schema-drift.md](./applications-schema-drift.md) — worth checking whether both stem from the same migration that was applied to the database but never fully reflected back into the app code, or vice versa.
+
+---
+
+## Separate issue: interim authorization limitation on INSERT (not schema drift)
+
+**Found:** during the 2026-07 security sprint (Fix 4 investigation). **Not caused by, or related to, the schema drift above** — this is an authorization-design gap, not a missing-column problem.
+
+`notifications` INSERT is currently governed by a single policy, `authenticated users can insert notifications` (`auth.role() = 'authenticated'`). This only checks that the requester is logged in — it does not check who the target `user_id` is or what relationship justifies the write. **Any authenticated user can currently insert a notification into any other user's inbox.**
+
+This is an accepted interim limitation, not an oversight:
+
+- The security sprint's original audit suspected an *additional*, fully unconditional policy (`Anyone can insert notifs`, permitting even anonymous writes) sitting alongside this one. On re-verification against the live database, that policy did not exist — so no removal was necessary, and the sprint made no changes to `notifications` INSERT policy at all (Fix 4 was verified with no database changes required).
+- Closing the authenticated cross-user gap properly requires a relationship-scoped authorization model (host-owns-event, venue-owns-enquiry, artist-responds-to-counterparty, open-follow) — a genuine design exercise, not a policy tweak. Tracing every legitimate notification writer in the codebase during Fix 4 investigation confirmed this model has at least four distinct shapes; none reduce to a simple ownership check.
+- This is deferred to the future **Notifications architecture redesign**, not the security sprint, which was scoped to closing unconditional/unauthenticated access, not redesigning authorization.
+
+### Investigation checklist (for the Notifications redesign, not now)
+
+- [ ] Design the relationship-scoped authorization model covering all four writer shapes identified during Fix 4 (see sprint summary for details).
+- [ ] Decide whether enforcement lives in RLS (a correlated policy per writer shape) or behind a service/RPC layer that centralizes the checks — evaluate once the schema drift above is resolved and the real payload shapes are known.
+- [ ] Replace the interim `authenticated users can insert notifications` policy as part of that redesign, not before.
