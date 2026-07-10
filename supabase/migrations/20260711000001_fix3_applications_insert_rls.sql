@@ -1,0 +1,96 @@
+-- ============================================================
+-- SECURITY FIX 3 of 4 — applications INSERT forgery
+-- Applied: 2026-07-11 (via Supabase SQL editor)
+-- Part of: 2026-07 security sprint (isolated from identity migration)
+-- ============================================================
+--
+-- VULNERABILITY
+-- "Anyone can apply" had WITH CHECK (true) — unconditional. Any
+-- request could insert an application row naming ANY artist_id, for
+-- ANY event_id, with ANY status (including 'confirmed'/'offered',
+-- bypassing the normal workflow) — no ownership check of any kind.
+--
+-- WHY THIS IS A PURE DROP (unlike Fix 2)
+-- Exhaustive trace of all 3 real INSERT call sites in the codebase
+-- (notifActions.js acceptInvite, ArtistDashboard.jsx
+-- handleOfferRespond, EventScreen.jsx's apply form) confirmed every
+-- one already sets artist_id to the inserting session's own
+-- auth.uid(). No call site inserts on behalf of a different user —
+-- no interim/additive policy is required.
+--
+-- Grants checked (2026-07-11): anon and authenticated both hold
+-- INSERT on every column of this table, same pattern as Fix 2 — no
+-- column-level restriction is available without revoking existing
+-- broad grants, out of scope for this sprint.
+--
+-- DELIBERATELY NOT ADDRESSED — no status constraint added:
+-- "artists can apply" only checks auth.uid() = artist_id, not
+-- status. After this fix, an artist can still INSERT an application
+-- for THEMSELVES with status = 'confirmed' directly, self-approving
+-- without host review. Narrower than the original bug (self-only,
+-- not cross-user forgery). Deferred to the same Booking architecture
+-- review already flagged in Fix 2's migration — whether
+-- applications.status should become derived/read-only once
+-- performances is the canonical booking state.
+-- ============================================================
+
+DROP POLICY "Anyone can apply" ON public.applications;
+
+
+-- ============================================================
+-- VERIFICATION PERFORMED (2026-07-11)
+-- ============================================================
+--
+-- 1. Policy state confirmed post-change:
+--      SELECT policyname, cmd, qual, with_check FROM pg_policies
+--      WHERE schemaname='public' AND tablename='applications' AND cmd='INSERT';
+--    Result: exactly one row — "artists can apply"
+--    (auth.uid() = artist_id). "Anyone can apply" no longer present.
+--
+-- 2. Security verification — COMPLETE. RLS policy behaves correctly:
+--    a minimal payload using only real columns (event_id, artist_id,
+--    status, note) succeeded (201), correct artist_id, cleaned up.
+--    Legitimate self-scoped inserts are permitted; the RLS change
+--    itself introduces no regression.
+--
+-- 3. Functional verification — BLOCKED by an unrelated,
+--    pre-existing schema mismatch (see "Known issues" below). This
+--    is NOT attributable to the RLS change: minimal schema-valid
+--    payloads succeed under the identical post-fix policy state.
+--    The live "Apply to Event" UI flow was exercised directly
+--    (punter view → APPLY TO PLAY → SEND APPLICATION on a fresh
+--    event with zero prior applications) and produced real
+--    POST /rest/v1/applications → 400 responses, matching the
+--    schema-drift error captured separately:
+--      { "code": "PGRST204", "message": "Could not find the
+--        'artist_name' column of 'applications' in the schema cache" }
+--
+-- Deferred, documented not executed (requires forging another
+-- identity, needs separate explicit authorization):
+--   a) Attempt to INSERT an application with a forged artist_id
+--      (not your own). Expected: 0 rows / rejected.
+--
+-- Known residual (not tested): RLS still permits an authenticated
+-- artist to insert their own application with a non-standard status
+-- (e.g. 'confirmed'). Intentionally deferred to the Booking
+-- Architecture review, not addressed by this security patch.
+--
+-- ============================================================
+-- KNOWN ISSUES — discovered during verification, explicitly
+-- excluded from this fix, tracked separately (see repo issue
+-- tracking docs / GitHub Issues):
+-- ============================================================
+--   1. applications schema drift — EventScreen.jsx, notifActions.js,
+--      and ArtistDashboard.jsx all write artist_name/genre/mix_link/
+--      avatar_url on INSERT; none of these columns exist on the live
+--      table (real columns: applicant_name, guest_genre,
+--      guest_mix_link, etc.). Breaks the live "Apply to Event" flow
+--      and likely acceptInvite/handleOfferRespond for any artist
+--      with a real profile name. Not caused by, or fixed by, this
+--      migration.
+--   2. notifications schema drift — the live table has flat legacy
+--      columns (event_id, slot_id, from_uid, etc.) and no `data`
+--      JSONB column; current code (writeNotification.js,
+--      notifActions.js, EventScreen.jsx) writes a `data` column that
+--      does not exist. Confirmed to also 400 during this same live
+--      UI verification. Not caused by, or fixed by, this migration.
