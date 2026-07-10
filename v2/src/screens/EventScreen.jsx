@@ -334,7 +334,7 @@ export default function EventScreen() {
           user_id: artistId,
           type: 'shortlisted',
           message: `You've been shortlisted for ${evtName}.`,
-          event_id: id,
+          data: { event_id: id },
         });
       } catch (_) {}
     }

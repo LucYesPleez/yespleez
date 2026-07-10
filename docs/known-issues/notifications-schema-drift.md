@@ -1,8 +1,24 @@
-# Notifications schema drift — writes likely failing silently
+# Notifications schema drift — writes were failing silently
 
-**Severity:** High — likely means most/all notification writes from current v2 code fail in production.
-**Status:** Open. Found during Fix 3 security-sprint verification (2026-07-11), deliberately excluded from that fix.
-**Not a security issue.** Unrelated to the RLS policy changes in this sprint.
+**Severity:** High — most notification writes from v2 code were failing, and the accept/decline slot-offer flow was silently doing nothing server-side.
+**Status:** RESOLVED (2026-07-11). Additive migration (`data JSONB` column) + one code fix, both verified live.
+**Not a security issue.** Unrelated to the RLS policy changes in the earlier security sprint.
+
+## Resolution
+
+Added a `data JSONB` column to `notifications` — additive only, no columns dropped, renamed, or altered, no existing data touched. Every current write and read site already assumed this column existed; this one change made the entire existing codebase correct with zero further code changes needed, except one inconsistent writer (see below).
+
+**Full project-wide dependency audit performed before implementing**, covering frontend, backend, SQL triggers/functions, Edge Functions, Studio/GigImporter, admin scripts, and the retired v1 app — confirmed no active writer depended on the legacy flat columns. Notably: v1's own `notifications.js` (root of this repo, not v2) is the actual historical source of the flat-column shape (`writeDbNotif()` spreads an `extras` object as top-level insert fields) — but v1 was confirmed **not live**: `origin/main` contains only v1 code with no `v2/` folder, no CI/CD deploy path exists in this repo, and the production domain referenced in the project's own code doesn't resolve in DNS.
+
+**Fixed the one inconsistent writer:** `EventScreen.jsx`'s `shortlisted` notification set a bare `event_id` field instead of `data: { event_id }`. Turned out to be dead code (defined, never called, never passed as a prop) — fixed for consistency, not because it was an active bug. The real, live shortlist flow goes through `ApplicationsScreen.jsx` → the shared `writeNotification.js` helper, which was already correct.
+
+**The critical verification** — this wasn't just a display bug. `notif.data || {}` meant the notification *list* already degraded gracefully to an empty object, but `acceptSlotOffer(data, userId)` etc. read `data.performance_id`/`data.event_id`/`data.host_id` to know *what to update*. Before this fix, every future Accept/Decline click would have been a **silent no-op** — UI shows "RESPONDED ✓" via local state, nothing happens server-side. Verified live: created a real `slot_offer` notification with a valid `data` payload against a real performance, clicked the actual ACCEPT SLOT button — `performances.status` genuinely transitioned `offered → accepted`, with a correctly-shaped reciprocal notification generated. Repeated for decline. Performance restored to its original state after testing.
+
+Also verified: the shortlisted flow (real click, correct `data`), `acceptInvite`'s notification write (direct payload replication). The remaining `writeNotification.js` callers (`ArtistDashboard.jsx`, `HostDashboard.jsx`, `VenueDashboard.jsx`, `InviteSheet.jsx`, `ProfileScreen.jsx`) share the identical, now-proven insert shape.
+
+---
+
+## Original report
 
 ## Summary
 
@@ -29,14 +45,11 @@ returned real rows using the flat/legacy shape above — no `data` column presen
 
 ## Investigation checklist
 
-- [ ] Compare the live `notifications` table schema against the shape every current write site constructs.
-- [ ] Decide whether a migration (add a `data` JSONB column, backfill/deprecate the flat columns) or a frontend rewrite (go back to flat columns) is the right direction — likely depends on how much other code already depends on the flat shape for reads.
-- [ ] Audit every notification creation path for the correct shape once decided:
-  - `v2/src/lib/writeNotification.js`
-  - `v2/src/lib/notifActions.js` (4 write sites)
-  - `v2/src/screens/EventScreen.jsx` (4 direct insert sites)
-- [ ] Once fixed, re-verify the notification-driven UI flows this blocks: slot offers, shortlist/decline notifications, follow notifications, invite accept/decline.
-- [ ] Consider whether this also explains why no live `slot_offer`-type notifications were found for test accounts during Fix 2/3 verification — writes may have been failing silently (errors not surfaced to the user in some call sites).
+- [x] Compare the live `notifications` table schema against the shape every current write site constructs.
+- [x] Decide whether a migration or a frontend rewrite is the right direction — resolved as: the frontend's `data`-JSONB model is canonical (complete, consistent across all 11 notification types, already has defensive read-side fallbacks); the database's flat-column schema was the outdated one, missing fields (`performance_id`, `host_id`, `proposed_date`/`proposed_fee`) the accept/decline logic genuinely needs. Additive migration, not a frontend rewrite.
+- [x] Audit every notification creation path for the correct shape — all 7 sites checked, one inconsistency found and fixed (`EventScreen.jsx`'s dead `respondApp`).
+- [x] Re-verify the notification-driven UI flows: slot offer accept/decline (the critical functional test — real `performances` state transition, not just display), shortlisted (live click), invite accept (payload replication).
+- [x] Confirmed: yes — this explains why no live `slot_offer`-type notifications were ever found for test accounts. Every write attempting to include `data` was failing with `PGRST204`, silently in most call sites (errors caught and logged, not surfaced to the user).
 
 ## Related
 

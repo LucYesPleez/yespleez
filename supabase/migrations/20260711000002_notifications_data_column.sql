@@ -1,0 +1,76 @@
+-- ============================================================
+-- NOTIFICATIONS SCHEMA RECONCILIATION — additive only
+-- Applied: 2026-07-11
+-- ============================================================
+--
+-- Full project-wide dependency audit confirmed no active writer
+-- depends on the legacy flat columns (from_id, slot_id, slot_label,
+-- event_name, from_uid, from_name, status):
+--   - v2 frontend: 7 write sites, all use a `data` JSONB convention
+--     (one inconsistent — EventScreen.jsx's shortlisted notification,
+--     fixed in the same change as this migration).
+--   - Supabase Edge Functions: only `rapid-responder` exists
+--     (email sending via Resend) — never touches this table.
+--   - Studio / GigImporter: zero references anywhere in that codebase.
+--   - DB triggers/functions on notifications: none (confirmed via
+--     pg_trigger — zero rows).
+--   - v1 legacy app (root-level notifications.js — the actual source
+--     of the flat-column shape, via writeDbNotif()'s `...extras`
+--     spread as top-level insert fields): confirmed NOT live.
+--     origin/main contains only v1 (no v2/ folder at all), last
+--     commit 2026-06-19, no CI/CD deploy path in this repo (no
+--     .github/workflows, no netlify.toml/vercel.json), and the
+--     production domain referenced in the project's own code
+--     (yespleez.com) does not resolve in DNS.
+--
+-- Fix: add the one column every current write/read site already
+-- assumes exists. No column dropped, renamed, or altered. No
+-- existing data touched. Legacy columns left exactly as they are.
+-- ============================================================
+
+ALTER TABLE public.notifications
+  ADD COLUMN IF NOT EXISTS data JSONB;
+
+
+-- ============================================================
+-- VERIFICATION PERFORMED (2026-07-11)
+-- ============================================================
+--
+-- 1. Schema confirmed: 14 columns post-migration (13 original +
+--    data jsonb, nullable). Pre-flight confirmed no pre-existing
+--    `data` column under any name/case before applying.
+--
+-- 2. THE CRITICAL TEST — proves the previously-silent-no-op is
+--    fixed, not just the crash: created a real slot_offer
+--    notification with a valid data payload (performance_id,
+--    event_id, slot_id, host_id) pointing at a real performance row
+--    (pre-set to status 'offered'). Clicked the real ACCEPT SLOT
+--    button in the live Notifications screen.
+--      Result: performances.status transitioned offered → accepted
+--      (a genuine functional update, not a display-only success),
+--      and a correctly-shaped reciprocal notification was created
+--      (type: slot_accepted, data: {artist_user_id, event_id, slot_id}).
+--    Repeated for DECLINE SLOT: performances.status → declined,
+--    reciprocal type: slot_declined, same correct data shape.
+--    Performance restored to its original status after testing.
+--
+-- 3. Shortlisted notification (ApplicationsScreen.jsx → the shared
+--    writeNotification.js helper) verified live: real SHORTLIST
+--    click produced a notification with data: {event_id, event_name}
+--    correctly populated. This also transitively verifies
+--    writeNotification.js's other 5 callers (ArtistDashboard.jsx,
+--    HostDashboard.jsx, VenueDashboard.jsx, InviteSheet.jsx,
+--    ProfileScreen.jsx), which share the identical insert shape.
+--
+-- 4. acceptInvite's notification write (notifActions.js, a distinct
+--    function from the slot-offer path) verified via direct
+--    replication of its exact insert shape: succeeded, correct
+--    data: {event_id, artist_user_id}.
+--
+-- 5. EventScreen.jsx's respondApp() — the one inconsistent writer
+--    (bare event_id instead of data: {event_id}) — found to be dead
+--    code during verification: defined but never called and never
+--    passed as a prop anywhere in the file. Fixed for consistency
+--    regardless, in case it's wired up later, but it was not an
+--    active bug (the live shortlist flow goes through
+--    ApplicationsScreen.jsx, which was already correct).
