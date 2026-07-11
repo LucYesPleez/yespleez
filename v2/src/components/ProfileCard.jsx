@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import s from './ProfileCard.module.css';
+import { profileUrl } from '../lib/profileResolution';
 
 export const TYPE_STYLES = {
   host:    { col: '#FF3399',     rgb: '255,51,153',  label: 'HOST',           emoji: '🎛️' },
@@ -29,7 +30,12 @@ export default function ProfileCard({ item, badge, badgeColor, actions }) {
     <div
       className={s.card}
       style={{ '--accent': ts.col, '--accent-rgb': ts.rgb, border: `1.5px solid rgba(${ts.rgb},.6)` }}
-      onClick={() => navigate(`/profile/${item.user_id}?type=${(item.type||'').toLowerCase()}`)}
+      onClick={() => {
+        // M5: canonical profile.id URL; legacy fallback only for callers whose
+        // selects don't carry `id` yet (the redirect shim covers it).
+        if (item.id) navigate(profileUrl(item));
+        else if (item.user_id) navigate(`/profile/${item.user_id}?type=${(item.type || '').toLowerCase()}`);
+      }}
     >
       {/* Background image + overlay — same treatment as EventCard list rows */}
       {img

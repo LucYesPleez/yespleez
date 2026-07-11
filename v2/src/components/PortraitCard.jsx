@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom';
+import { profileUrl } from '../lib/profileResolution';
 
 const PILL_STYLES = {
   artist:  { bg: '#00E5FF', dark: true,  label: 'DJ / PRODUCER' },
@@ -20,7 +21,9 @@ export default function PortraitCard({ profile: p, onClick, width = 150, height 
   const type = (p?.type || 'artist').toLowerCase();
   const pill = PILL_STYLES[type] || { bg: '#00E5FF', dark: true, label: type.toUpperCase() };
   const label = type === 'standup' ? 'COMEDY' : (PILL_STYLES[type]?.label || type.toUpperCase());
-  const handleClick = onClick || (() => navigate(`/profile/${p?.user_id}?type=${type}`));
+  // M5: canonical profile.id URL; legacy user_id URL only as a fallback for
+  // callers whose selects don't carry `id` yet (the redirect shim covers it).
+  const handleClick = onClick || (() => navigate(p?.id ? profileUrl(p) : `/profile/${p?.user_id}?type=${type}`));
   const soundTags = p?.sound ? p.sound.split(/\s*[·,/]\s*/).map(t => t.trim()).filter(Boolean).slice(0, 5) : [];
 
   return (

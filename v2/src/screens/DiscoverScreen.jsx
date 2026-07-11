@@ -33,9 +33,12 @@ const RADIUS_STEPS = [0, 5, 10, 20, 50, 100, 250, 500];
 async function fetchDefault() {
   const [profileRes, evRes] = await Promise.all([
     supabase.from('profiles')
-      .select('user_id, name, type, avatar, location, state, sound, genre_string, bio, updated_at')
+      // M5: id included — cards navigate by the canonical profile.id, which is
+      // what makes unclaimed profiles (user_id NULL) navigable at all. The
+      // is_live filter hides only explicit false; NULL passes.
+      .select('id, user_id, name, type, avatar, location, state, sound, genre_string, bio, updated_at')
       .in('type', ['artist','host','band','standup','venue'])
-      .neq('is_live', false)
+      .or('is_live.is.null,is_live.neq.false')
       .order('updated_at', { ascending: false })
       .limit(20),
     supabase.from('events')
@@ -97,9 +100,10 @@ export default function DiscoverScreen() {
 
     if (t !== 'event') {
       let profileQ = supabase.from('profiles')
-        .select('user_id, name, type, avatar, location, state, sound, genre_string, bio, venue_type, updated_at')
+        // M5: id included; is_live hides only explicit false (see fetchDefault)
+        .select('id, user_id, name, type, avatar, location, state, sound, genre_string, bio, venue_type, updated_at')
         .in('type', t ? [t] : ['artist','host','band','standup','venue'])
-        .neq('is_live', false)
+        .or('is_live.is.null,is_live.neq.false')
         .order('updated_at', { ascending: false })
         .limit(30);
       if (q)  profileQ = profileQ.or(`name.ilike.%${q}%,sound.ilike.%${q}%,genre_string.ilike.%${q}%,location.ilike.%${q}%,bio.ilike.%${q}%,venue_type.ilike.%${q}%`);
@@ -299,7 +303,7 @@ export default function DiscoverScreen() {
                     <div className={s.gradientLine} />
                   </div>
                   <div className={s.hScroll} ref={profilesDrag.ref} onMouseDown={profilesDrag.onMouseDown} onMouseMove={profilesDrag.onMouseMove} onMouseUp={profilesDrag.onMouseUp} onMouseLeave={profilesDrag.onMouseLeave}>
-                    {profiles.map(p => <PortraitCard key={p.user_id} profile={p} />)}
+                    {profiles.map(p => <PortraitCard key={p.id ?? p.user_id} profile={p} />)}
                   </div>
                 </>
               )}
@@ -327,7 +331,7 @@ export default function DiscoverScreen() {
                     {items.slice(0, visibleCount).map(r =>
                       r._kind === 'event'
                         ? <EventCard key={r.id} event={r} />
-                        : <ProfileCard key={r.user_id} item={r} />
+                        : <ProfileCard key={r.id ?? r.user_id} item={r} />
                     )}
                   </div>
                   <button className={s.viewMore} style={{ opacity: visibleCount < items.length ? 1 : 0, pointerEvents: visibleCount < items.length ? 'auto' : 'none' }} onClick={() => setVisibleCount(v => v + 10)}>
