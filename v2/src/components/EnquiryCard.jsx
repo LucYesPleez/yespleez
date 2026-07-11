@@ -83,10 +83,14 @@ export default function EnquiryCard({ enq, onRespond, onPlayDemo }) {
 
 
   useEffect(() => {
-    if (enq.profile || !enq.applicant_user_id) return;
-    supabase.from('profiles').select('*').eq('user_id', enq.applicant_user_id).eq('type', enq.applicant_type || 'artist').maybeSingle()
-      .then(({ data }) => data && setProfile(data));
-  }, [enq.applicant_user_id, enq.profile]);
+    // M5.1 (D7): resolve by the enquiry row's applicant_profile_id; legacy
+    // user_id+type lookup only when no profile id is present.
+    if (enq.profile || (!enq.applicant_profile_id && !enq.applicant_user_id)) return;
+    const q = enq.applicant_profile_id
+      ? supabase.from('profiles').select('*').eq('id', enq.applicant_profile_id).maybeSingle()
+      : supabase.from('profiles').select('*').eq('user_id', enq.applicant_user_id).eq('type', enq.applicant_type || 'artist').maybeSingle();
+    q.then(({ data }) => data && setProfile(data));
+  }, [enq.applicant_profile_id, enq.applicant_user_id, enq.profile]);
 
   const displayStatus = normaliseStatus(enq);
   const enqDir        = (enq.direction || 'incoming').toLowerCase();

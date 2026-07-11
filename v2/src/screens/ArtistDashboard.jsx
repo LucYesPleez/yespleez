@@ -148,16 +148,21 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
     (async () => {
       const { data: rows } = await supabase.from('venue_enquiries')
         .select('*').eq('applicant_user_id', userId).order('created_at', { ascending: false }).limit(50);
-      const venueIds = [...new Set((rows || []).map(r => r.venue_user_id).filter(Boolean))];
-      let venueNames = {};
-      let venueProfileMap = {};
-      if (venueIds.length) {
-        const { data: vProfs } = await supabase.from('profiles')
-          .select('user_id, name, avatar, avatar_thumb, type, bio, sound, genre_string, location, card_pills')
-          .in('user_id', venueIds).eq('type', 'venue');
-        (vProfs || []).forEach(p => { venueNames[p.user_id] = p.name; venueProfileMap[p.user_id] = p; });
-      }
-      setOffers((rows || []).map(r => ({ ...r, venue_name: venueNames[r.venue_user_id] || null, venueProfile: venueProfileMap[r.venue_user_id] || null })));
+      // M5.1 (D4): venue resolves by the enquiry row's venue_profile_id; legacy
+      // user_id+type join only for rows without one.
+      const venueCols = 'id, user_id, name, avatar, avatar_thumb, type, bio, sound, genre_string, location, card_pills';
+      const pidRows = (rows || []).filter(r => r.venue_profile_id);
+      const uidRows = (rows || []).filter(r => !r.venue_profile_id && r.venue_user_id);
+      const [vPid, vUid] = await Promise.all([
+        pidRows.length ? supabase.from('profiles').select(venueCols).in('id', pidRows.map(r => r.venue_profile_id)) : Promise.resolve({ data: [] }),
+        uidRows.length ? supabase.from('profiles').select(venueCols).in('user_id', uidRows.map(r => r.venue_user_id)).eq('type', 'venue') : Promise.resolve({ data: [] }),
+      ]);
+      const venueById = {}; (vPid.data || []).forEach(p => { venueById[p.id] = p; });
+      const venueByUid = {}; (vUid.data || []).forEach(p => { venueByUid[p.user_id] = p; });
+      setOffers((rows || []).map(r => {
+        const vp = venueById[r.venue_profile_id] || venueByUid[r.venue_user_id] || null;
+        return { ...r, venue_name: vp?.name || null, venueProfile: vp };
+      }));
       setLoadingOffers(false);
     })();
   }, [userId]);

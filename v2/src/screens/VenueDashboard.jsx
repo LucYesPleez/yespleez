@@ -61,24 +61,30 @@ export default function VenueDashboard({ userId: userIdProp }) {
         supabase.from('events').select('id, name, status, config, applications_open, is_public, created_at').eq('host_id', userId).order('created_at', { ascending: false }).limit(200),
       ]);
 
-      // Batch-fetch applicant profiles so EnquiryCard skips per-card Supabase calls
+      // Batch-fetch applicant profiles so EnquiryCard skips per-card Supabase calls.
+      // M5.1 (D3): resolve by the enquiry row's applicant_profile_id (an id names
+      // exactly the typed profile the old user_id+type key-pair approximated);
+      // legacy join kept only for rows without one.
       const enqs = enqRes.data || [];
-      const applicantIds = [...new Set(enqs.map(e => e.applicant_user_id).filter(Boolean))];
-      let applicantProfileMap = {};
-      if (applicantIds.length) {
-        const { data: profs } = await supabase.from('profiles')
-          .select('user_id, name, avatar, avatar_thumb, type, bio, sound, genre_string, location, mix_link, tagline, card_pills')
-          .in('user_id', applicantIds);
-        // Key by user_id + type so multi-profile users don't bleed across card types
-        (profs || []).forEach(p => { applicantProfileMap[`${p.user_id}_${p.type}`] = p; });
-      }
+      const applicantCols = 'id, user_id, name, avatar, avatar_thumb, type, bio, sound, genre_string, location, mix_link, tagline, card_pills';
+      const pidEnqs = enqs.filter(e => e.applicant_profile_id);
+      const uidEnqs = enqs.filter(e => !e.applicant_profile_id && e.applicant_user_id);
+      const [pidProfs, uidProfs] = await Promise.all([
+        pidEnqs.length ? supabase.from('profiles').select(applicantCols).in('id', pidEnqs.map(e => e.applicant_profile_id)) : Promise.resolve({ data: [] }),
+        uidEnqs.length ? supabase.from('profiles').select(applicantCols).in('user_id', uidEnqs.map(e => e.applicant_user_id)) : Promise.resolve({ data: [] }),
+      ]);
+      const applicantById = {}; (pidProfs.data || []).forEach(p => { applicantById[p.id] = p; });
+      // Legacy fallback map: key by user_id + type so multi-profile users don't bleed
+      const applicantProfileMap = {};
+      (uidProfs.data || []).forEach(p => { applicantProfileMap[`${p.user_id}_${p.type}`] = p; });
 
       return {
         profile:      profRes.data,
         availability: (availRes.data || []).map(r => r.available_date),
         enquiries:    enqs.map(e => ({
           ...e,
-          profile: applicantProfileMap[`${e.applicant_user_id}_${e.applicant_type}`]
+          profile: applicantById[e.applicant_profile_id]
+                || applicantProfileMap[`${e.applicant_user_id}_${e.applicant_type}`]
                 || applicantProfileMap[`${e.applicant_user_id}_artist`]
                 || null,
         })),
