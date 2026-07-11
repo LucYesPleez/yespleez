@@ -18,6 +18,7 @@ import NotificationBar from '../components/NotificationBar';
 import DashboardStats from '../components/DashboardStats';
 import EventsSection from '../components/EventsSection';
 import { useDragScroll } from '../hooks/useDragScroll';
+import { resolveProfileId } from '../lib/resolveProfileId';
 import s from './VenueDashboard.module.css';
 import ds from './DiscoverScreen.module.css';
 
@@ -107,7 +108,8 @@ export default function VenueDashboard({ userId: userIdProp }) {
     if (wasAvail) {
       await supabase.from('venue_availability').delete().eq('user_id', userId).eq('available_date', dateStr);
     } else {
-      await supabase.from('venue_availability').upsert({ user_id: userId, available_date: dateStr }, { onConflict: 'user_id,available_date' });
+      const profileId = await resolveProfileId(userId, 'venue');
+      await supabase.from('venue_availability').upsert({ user_id: userId, available_date: dateStr, profile_id: profileId }, { onConflict: 'user_id,available_date' });
     }
   }
 
