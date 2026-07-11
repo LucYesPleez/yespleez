@@ -8,6 +8,7 @@ import EventCard from '../components/EventCard';
 import { getEventBadges } from '../lib/eventBadges';
 import s from './ProfileScreen.module.css';
 import ClaimDialog from '../components/ClaimDialog';
+import { resolveProfileRoute, profileUrl } from '../lib/profileResolution';
 
 const TYPE_ACCENTS = {
   host:    { col: '#FF2D78',      rgb: '255,45,120',  label: 'HOST',                grad2: '#BF5FFF' },
@@ -61,68 +62,56 @@ export default function ProfileScreen() {
   const { data, isLoading: loading } = useQuery({
     queryKey: ['profile', id, typeFilter],
     queryFn: async () => {
+      // M5: canonical resolution by profiles.id, with the permanent legacy
+      // shim (profiles.user_id) behind it — see lib/profileResolution.js.
+      // The placeholder_profiles fallback is retired: staging rows are not
+      // publicly navigable (spec S1); every live placeholder was promoted
+      // into profiles by M3.
       const preferPerformer = searchParams.get('prefer') === 'performer';
-      const applyTypeFilter = (query) => {
-        if (typeFilter) return query.eq('type', typeFilter);
-        if (preferPerformer) return query.neq('type', 'punter').not('type', 'in', '("host","venue")');
-        return query.neq('type', 'punter');
-      };
+      const { profile: ownedProfile, isLegacyHit } = await resolveProfileRoute(id, { typeFilter, preferPerformer });
 
-      // 1. Try owned profiles first, by account — unchanged behaviour
-      let pRes = await applyTypeFilter(supabase.from('profiles').select('*').eq('user_id', id)).limit(1);
-      let ownedProfile = pRes.data?.[0] || null;
+      if (!ownedProfile) return { profile: null, events: [], isLegacyHit: false };
 
-      // 1b. Only if step 1 found nothing: fall back to matching by the
-      //     profile's own id. Covers a promoted-but-unclaimed profile
-      //     (M3), which has no user_id to match on in step 1.
-      if (!ownedProfile) {
-        pRes = await applyTypeFilter(supabase.from('profiles').select('*').eq('id', id)).limit(1);
-        ownedProfile = pRes.data?.[0] || null;
-      }
-
-      if (ownedProfile) {
-        let events = [];
-        if (ownedProfile.type === 'venue') {
-          const eRes = await supabase.from('events').select('id,name,config').eq('host_id', id).in('status', ['live','completed']).order('created_at', { ascending: false }).limit(100);
+      let events = [];
+      if (ownedProfile.type === 'venue') {
+        // Attribution split (M1/M5): public attribution reads venue_profile_id,
+        // never the auth-only host_id.
+        const eRes = await supabase.from('events').select('id,name,config').eq('venue_profile_id', ownedProfile.id).in('status', ['live','completed']).order('created_at', { ascending: false }).limit(100);
+        events = eRes.data || [];
+      } else {
+        // Compatibility read until M8: legacy rows key on artist_id (account),
+        // newer/unclaimed-linked rows on artist_profile_id. The user_id leg is
+        // skipped for unclaimed profiles (no account to match).
+        const legs = [`artist_profile_id.eq.${ownedProfile.id}`];
+        if (ownedProfile.user_id) legs.push(`artist_id.eq.${ownedProfile.user_id}`);
+        const claimsRes = await supabase.from('lineup_members').select('event_id').or(legs.join(',')).neq('status', 'removed');
+        const eventIds = [...new Set((claimsRes.data || []).map(c => c.event_id).filter(Boolean))];
+        if (eventIds.length) {
+          const eRes = await supabase.from('events').select('id,name,config').in('id', eventIds).order('id', { ascending: true }).limit(10);
           events = eRes.data || [];
-        } else {
-          const claimsRes = await supabase.from('lineup_members').select('event_id').eq('artist_id', id).neq('status', 'removed');
-          const eventIds = [...new Set((claimsRes.data || []).map(c => c.event_id).filter(Boolean))];
-          if (eventIds.length) {
-            const eRes = await supabase.from('events').select('id,name,config').in('id', eventIds).order('id', { ascending: true }).limit(10);
-            events = eRes.data || [];
-          }
         }
-        return { profile: ownedProfile, events, isPlaceholder: false };
       }
-
-      // 2. Fallback: check placeholder_profiles (unclaimed / pending claim)
-      const { data: phData } = await supabase
-        .from('placeholder_profiles')
-        .select('*')
-        .eq('id', id)
-        .eq('is_duplicate', false)
-        .in('claim_status', ['unclaimed', 'pending'])
-        .maybeSingle();
-
-      if (!phData) return { profile: null, events: [], isPlaceholder: false };
-
-      const claimsRes = await supabase.from('lineup_members').select('event_id').eq('artist_id', id).neq('status', 'removed');
-      const eventIds  = [...new Set((claimsRes.data || []).map(c => c.event_id).filter(Boolean))];
-      let phEvents = [];
-      if (eventIds.length) {
-        const eRes = await supabase.from('events').select('id,name,config').in('id', eventIds).order('id', { ascending: true }).limit(10);
-        phEvents = eRes.data || [];
-      }
-      return { profile: phData, events: phEvents, isPlaceholder: true };
+      return { profile: ownedProfile, events, isLegacyHit };
     },
     enabled: !!id,
     staleTime: 0,
   });
 
-  const profile       = data?.profile      || null;
-  const events        = data?.events       || [];
-  const isPlaceholder = data?.isPlaceholder ?? false;
+  const profile     = data?.profile || null;
+  const events      = data?.events  || [];
+  // M5: unclaimed state is a property of the row, not of which table answered.
+  const isUnclaimed = !!profile && profile.user_id == null;
+  // Legacy entity key for the follows table's mixed keyspace: account id for
+  // claimed targets (byte-identical to pre-M5 rows), profile id for unclaimed.
+  const legacyEntityId = profile ? (profile.user_id ?? profile.id) : null;
+
+  // M5 legacy redirect shim (permanent): a /profile/<user_id> URL resolves,
+  // then pins to the canonical /profile/<profiles.id> URL.
+  useEffect(() => {
+    if (!data?.isLegacyHit || !data?.profile) return;
+    const prefer = searchParams.get('prefer');
+    navigate(profileUrl(data.profile) + (prefer ? `&prefer=${prefer}` : ''), { replace: true });
+  }, [data?.isLegacyHit, data?.profile?.id]);
 
   useEffect(() => {
     const heroUrl = profile?.avatar_hero;
@@ -137,12 +126,17 @@ export default function ProfileScreen() {
     img.src = heroUrl;
   }, [profile?.avatar_hero, profile?.avatar_thumb, profile?.avatar]);
 
-  // Load follow state once profile is known
+  // Load follow state once profile is known (M5: keyed on the resolved
+  // profile, covering both the legacy entity_id keyspace and the canonical
+  // target_profile_id)
   useEffect(() => {
-    if (!id || !session?.user?.id) return;
-    supabase.from('follows').select('id').eq('user_id', session.user.id).eq('entity_id', id).maybeSingle()
-      .then(({ data: fol }) => setFollowed(!!fol));
-  }, [id, session?.user?.id]);
+    if (!profile?.id || !session?.user?.id) return;
+    supabase.from('follows').select('id')
+      .eq('user_id', session.user.id)
+      .or(`target_profile_id.eq.${profile.id},entity_id.eq.${legacyEntityId}`)
+      .limit(1)
+      .then(({ data: fol }) => setFollowed(!!(fol && fol.length)));
+  }, [profile?.id, session?.user?.id]);
 
   async function openEnquiry(dateStr) {
     if (!session?.user?.id) return;
@@ -164,9 +158,10 @@ export default function ProfileScreen() {
     setEnquirySending(true);
     // Dual-write (M2 invariant): both sides are already-resolved profiles rows,
     // so the profile ids are direct assignments, not lookups. The enquiry UI only
-    // renders for isVenue && !isPlaceholder, so `profile` is a real venue row.
+    // renders for isVenue && !isUnclaimed, so `profile` is a real claimed venue
+    // row. M5: identity values derive from the loaded row, never the route param.
     const { error } = await supabase.from('venue_enquiries').insert({
-      venue_user_id:        id,
+      venue_user_id:        profile.user_id,
       applicant_user_id:    session.user.id,
       applicant_type:       enquiryProf.type,
       venue_profile_id:     profile?.id ?? null,
@@ -197,7 +192,11 @@ export default function ProfileScreen() {
     if (!session?.user?.id || followBusy) return;
     if (followed) {
       setFollowBusy(true);
-      await supabase.from('follows').delete().eq('user_id', session.user.id).eq('entity_id', id);
+      // M5: cover both keyspaces — legacy rows keyed by entity_id, canonical
+      // rows by target_profile_id.
+      await supabase.from('follows').delete()
+        .eq('user_id', session.user.id)
+        .or(`target_profile_id.eq.${profile.id},entity_id.eq.${legacyEntityId}`);
       setFollowed(false);
       setFollowBusy(false);
       return;
@@ -218,9 +217,12 @@ export default function ProfileScreen() {
   async function doFollow(userIds) {
     setFollowBusy(true);
     const ids = Array.isArray(userIds) ? userIds : [userIds];
-    const targetProfileId = isPlaceholder ? null : profile.id;
+    // M5: identity values derive from the loaded profile row, never the route
+    // param. Written columns are unchanged (entity_id + dual-written
+    // target_profile_id); for claimed targets the values are byte-identical
+    // to pre-M5 rows.
     await Promise.all(ids.map(uid =>
-      supabase.from('follows').insert({ user_id: uid, entity_id: id, entity_type: 'profile', entity_name: profile.name, target_profile_id: targetProfileId })
+      supabase.from('follows').insert({ user_id: uid, entity_id: legacyEntityId, entity_type: 'profile', entity_name: profile.name, target_profile_id: profile.id })
     ));
     // Bust the My Scene cache so the new follow appears immediately
     queryClient.invalidateQueries({ queryKey: ['myScene'] });
@@ -250,9 +252,10 @@ export default function ProfileScreen() {
   const grad2   = ta.grad2;
   const isHost  = profile.type === 'host';
   const isVenue = profile.type === 'venue';
-  const heroUrl = isPlaceholder
-    ? (profile.avatar_url || PLACEHOLDER_HERO[profile.type] || null)
-    : (profile.avatar_hero || profile.avatar_thumb || profile.avatar || null);
+  // M5: always a profiles-shaped row; unclaimed profiles fall back to the
+  // generic type imagery (never a real likeness) when they have no avatar.
+  const heroUrl = profile.avatar_hero || profile.avatar_thumb || profile.avatar
+    || (isUnclaimed ? PLACEHOLDER_HERO[profile.type] : null) || null;
   const label   = isVenue ? ta.label : (profile.band_type || profile.act_type || ta.label);
   const loc     = [profile.suburb || profile.location, profile.state].filter(Boolean).join(', ');
   const mixLink = profile.mix_link || profile.soundcloud || profile.mixcloud || '';
@@ -272,16 +275,10 @@ export default function ProfileScreen() {
   const na = v => !v || v === 'N/A';
   const igHandle = v => v.replace(/^@/, '').replace(/^(?:https?:\/\/)?(?:www\.)?instagram\.com\/?/i, '').replace(/\/$/, '');
   const fbUrl = v => { const slug = v.replace(/^(?:https?:\/\/)?(?:www\.)?facebook\.com\/?/i, '').replace(/\/$/, ''); return slug.startsWith('http') ? slug : `https://facebook.com/${slug}`; };
-  const socials = isPlaceholder
-    ? (() => {
-        const sl = profile.social_links || {};
-        return [
-          sl.instagram && { href: `https://instagram.com/${igHandle(sl.instagram)}`, col: '#E1306C', icon: 'instagram' },
-          sl.facebook  && { href: fbUrl(sl.facebook), col: '#1877F2', icon: 'facebook' },
-          sl.website   && { href: sl.website.startsWith('http') ? sl.website : 'https://'+sl.website, col: 'var(--neon2)', icon: 'globe' },
-        ].filter(Boolean);
-      })()
-    : [
+  // M5: the placeholder row-shape branch (social_links JSONB) is gone — the
+  // resolver only returns profiles rows, whose socials are flat columns
+  // (M3's promotion unpacked social_links into them).
+  const socials = [
         !na(profile.instagram) && { href: `https://instagram.com/${igHandle(profile.instagram)}`, col: '#E1306C', icon: 'instagram' },
         !na(profile.facebook)  && { href: fbUrl(profile.facebook), col: '#1877F2', icon: 'facebook' },
         !na(profile.youtube)   && { href: profile.youtube?.startsWith('http') ? profile.youtube : 'https://'+profile.youtube, col: '#FF0000', icon: 'youtube' },
@@ -308,7 +305,7 @@ export default function ProfileScreen() {
           className={s.heroImg}
           style={{
             backgroundImage: `url(${heroUrl})`,
-            ...(isPlaceholder && !profile.avatar_url
+            ...(isUnclaimed && !profile.avatar
               ? { height: '120dvh', transform: 'translateX(-50%) translateY(-20dvh)' }
               : {}),
           }}
@@ -331,7 +328,7 @@ export default function ProfileScreen() {
           <div className={s.name}>{profile.name}</div>
           <div className={s.metaRow}>
             <span className={s.badge} style={{ color: col, background: `rgba(${rgb},.15)`, borderColor: `rgba(${rgb},.35)` }}>{label}</span>
-            {isPlaceholder && (
+            {isUnclaimed && (
               <span style={{ fontSize: 10, border: '1px solid rgba(255,255,255,.2)', borderRadius: 20, padding: '3px 10px', color: 'rgba(255,255,255,.35)', fontFamily: "'Bebas Neue', sans-serif", letterSpacing: 1 }}>
                 UNCLAIMED
               </span>
@@ -487,7 +484,7 @@ export default function ProfileScreen() {
                   {followed ? '✓ FOLLOWING' : <span style={{ backgroundImage: `linear-gradient(135deg, ${col}, ${grad2})`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>+ FOLLOW</span>}
                 </button>
               </span>
-              {isVenue && !isPlaceholder && (
+              {isVenue && !isUnclaimed && (
                 <span style={{ flex: 1, display: 'inline-block', padding: 1, borderRadius: 12, background: `linear-gradient(135deg, ${col}, ${grad2})` }}>
                   <button
                     className={s.followBtn}
@@ -498,7 +495,7 @@ export default function ProfileScreen() {
                 </span>
               )}
             </div>
-            {isVenue && !isPlaceholder && (
+            {isVenue && !isUnclaimed && (
               <button
                 className={s.followBtn}
                 style={{ background: `linear-gradient(135deg, ${col}, ${grad2})`, color: '#0a0a14', borderColor: 'transparent', width: '100%' }}
@@ -506,9 +503,11 @@ export default function ProfileScreen() {
                   setAvailOpen(true);
                   if (!availDates) {
                     const today = new Date().toISOString().split('T')[0];
+                    // M5: availability keys on profile_id, event overlay on the
+                    // attribution column — never the route param.
                     const [availRes, evRes] = await Promise.all([
-                      supabase.from('venue_availability').select('available_date').eq('user_id', id).gte('available_date', today).order('available_date'),
-                      supabase.from('events').select('config').eq('host_id', id).eq('status', 'live'),
+                      supabase.from('venue_availability').select('available_date').eq('profile_id', profile.id).gte('available_date', today).order('available_date'),
+                      supabase.from('events').select('config').eq('venue_profile_id', profile.id).eq('status', 'live'),
                     ]);
                     setAvailDates(new Set((availRes.data || []).map(r => r.available_date)));
                     const evDays = new Set((evRes.data || []).map(e => e.config?.date).filter(Boolean));
@@ -521,8 +520,9 @@ export default function ProfileScreen() {
             )}
           </div>
 
-          {/* Claim this profile — unclaimed placeholder profiles only */}
-          {isPlaceholder && (
+          {/* Claim this profile — unclaimed profiles only (keyed on the row's
+              claim state since M5; claiming is spec §7's manual-review flow) */}
+          {isUnclaimed && (
             <div style={{ textAlign: 'center', marginTop: -4, marginBottom: 14 }}>
               {profile.claim_status === 'pending'
                 ? <span style={{ fontSize: 12, color: 'rgba(255,255,255,.28)', fontFamily: "'DM Sans', sans-serif", letterSpacing: 0.2 }}>Claim under review</span>
