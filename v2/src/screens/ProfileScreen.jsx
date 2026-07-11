@@ -7,16 +7,25 @@ import { useSession, usePlayer } from '../App';
 import EventCard from '../components/EventCard';
 import { getEventBadges } from '../lib/eventBadges';
 import s from './ProfileScreen.module.css';
+import ClaimDialog from '../components/ClaimDialog';
 
 const TYPE_ACCENTS = {
-  host:    { col: '#FF3399',      rgb: '255,51,153',  label: 'HOST / PROMOTER',     grad2: '#BF5FFF' },
-  artist:  { col: 'var(--neon2)', rgb: '0,229,255',   label: 'DJ / PRODUCER',       grad2: '#BF5FFF' },
-  band:    { col: '#FF8C42',      rgb: '255,140,66',  label: 'BAND / MUSO',         grad2: '#FF5500' },
-  standup: { col: '#FF88AA',      rgb: '255,136,170', label: 'STAND-UP / COMEDY',   grad2: '#BF5FFF' },
+  host:    { col: '#FF2D78',      rgb: '255,45,120',  label: 'HOST',                grad2: '#BF5FFF' },
+  artist:  { col: '#00E5FF',      rgb: '0,229,255',   label: 'DJ / PROMOTER',       grad2: '#BF5FFF' },
+  band:    { col: '#FF8C42',      rgb: '255,140,66',  label: 'BAND',                grad2: '#FF5500' },
+  standup: { col: '#FF88AA',      rgb: '255,136,170', label: 'SPOKEN WORD',         grad2: '#BF5FFF' },
   venue:   { col: '#00E5A0',      rgb: '0,229,160',   label: 'VENUE',               grad2: '#00E5FF' },
 };
 
 const OLD_CATS = new Set(['ELECTRONIC','BANDS','SPOKEN','SPOKEN WORD','RAVE','FESTIVAL']);
+
+const PLACEHOLDER_HERO = {
+  artist:  '/defaultdj.png',
+  band:    '/defaultband.png',
+  standup: '/defaultmic.png',
+  venue:   '/defaultvenueblur.png',
+  host:    '/defaultpromoter.jpg',
+};
 
 export default function ProfileScreen() {
   const { id }    = useParams();
@@ -47,39 +56,73 @@ export default function ProfileScreen() {
   const [enquiryLoading,setEnquiryLoading]= useState(false);
   const [followPickerProfs, setFollowPickerProfs] = useState([]);
   const [followSelected,    setFollowSelected]    = useState(new Set());
+  const [claimOpen,         setClaimOpen]         = useState(false);
 
   const { data, isLoading: loading } = useQuery({
     queryKey: ['profile', id, typeFilter],
     queryFn: async () => {
-      let q = supabase.from('profiles').select('*').eq('user_id', id);
       const preferPerformer = searchParams.get('prefer') === 'performer';
-      if (typeFilter) q = q.eq('type', typeFilter);
-      else if (preferPerformer) q = q.neq('type', 'punter').not('type', 'in', '("host","venue")');
-      else q = q.neq('type', 'punter');
-      const pRes = await q.limit(1);
-      const profile = pRes.data?.[0] || null;
+      const applyTypeFilter = (query) => {
+        if (typeFilter) return query.eq('type', typeFilter);
+        if (preferPerformer) return query.neq('type', 'punter').not('type', 'in', '("host","venue")');
+        return query.neq('type', 'punter');
+      };
 
-      let events = [];
-      if (profile?.type === 'venue') {
-        // Venue events linked via host_id — fetch live + completed for past gigs
-        const eRes = await supabase.from('events').select('id,name,config').eq('host_id', id).in('status', ['live','completed']).order('created_at', { ascending: false }).limit(100);
-        events = eRes.data || [];
-      } else {
-        const claimsRes = await supabase.from('lineup_members').select('event_id').eq('artist_id', id).neq('status', 'removed');
-        const eventIds = [...new Set((claimsRes.data || []).map(c => c.event_id).filter(Boolean))];
-        if (eventIds.length) {
-          const eRes = await supabase.from('events').select('id,name,config').in('id', eventIds).order('id', { ascending: true }).limit(10);
-          events = eRes.data || [];
-        }
+      // 1. Try owned profiles first, by account — unchanged behaviour
+      let pRes = await applyTypeFilter(supabase.from('profiles').select('*').eq('user_id', id)).limit(1);
+      let ownedProfile = pRes.data?.[0] || null;
+
+      // 1b. Only if step 1 found nothing: fall back to matching by the
+      //     profile's own id. Covers a promoted-but-unclaimed profile
+      //     (M3), which has no user_id to match on in step 1.
+      if (!ownedProfile) {
+        pRes = await applyTypeFilter(supabase.from('profiles').select('*').eq('id', id)).limit(1);
+        ownedProfile = pRes.data?.[0] || null;
       }
-      return { profile, events };
+
+      if (ownedProfile) {
+        let events = [];
+        if (ownedProfile.type === 'venue') {
+          const eRes = await supabase.from('events').select('id,name,config').eq('host_id', id).in('status', ['live','completed']).order('created_at', { ascending: false }).limit(100);
+          events = eRes.data || [];
+        } else {
+          const claimsRes = await supabase.from('lineup_members').select('event_id').eq('artist_id', id).neq('status', 'removed');
+          const eventIds = [...new Set((claimsRes.data || []).map(c => c.event_id).filter(Boolean))];
+          if (eventIds.length) {
+            const eRes = await supabase.from('events').select('id,name,config').in('id', eventIds).order('id', { ascending: true }).limit(10);
+            events = eRes.data || [];
+          }
+        }
+        return { profile: ownedProfile, events, isPlaceholder: false };
+      }
+
+      // 2. Fallback: check placeholder_profiles (unclaimed / pending claim)
+      const { data: phData } = await supabase
+        .from('placeholder_profiles')
+        .select('*')
+        .eq('id', id)
+        .eq('is_duplicate', false)
+        .in('claim_status', ['unclaimed', 'pending'])
+        .maybeSingle();
+
+      if (!phData) return { profile: null, events: [], isPlaceholder: false };
+
+      const claimsRes = await supabase.from('lineup_members').select('event_id').eq('artist_id', id).neq('status', 'removed');
+      const eventIds  = [...new Set((claimsRes.data || []).map(c => c.event_id).filter(Boolean))];
+      let phEvents = [];
+      if (eventIds.length) {
+        const eRes = await supabase.from('events').select('id,name,config').in('id', eventIds).order('id', { ascending: true }).limit(10);
+        phEvents = eRes.data || [];
+      }
+      return { profile: phData, events: phEvents, isPlaceholder: true };
     },
     enabled: !!id,
     staleTime: 0,
   });
 
-  const profile = data?.profile || null;
-  const events  = data?.events  || [];
+  const profile       = data?.profile      || null;
+  const events        = data?.events       || [];
+  const isPlaceholder = data?.isPlaceholder ?? false;
 
   useEffect(() => {
     const heroUrl = profile?.avatar_hero;
@@ -109,8 +152,7 @@ export default function ProfileScreen() {
       .eq('user_id', session.user.id)
       .neq('type', 'punter').neq('type', 'venue');
     if (!profs?.length) return;
-    const TYPE_LABEL = { artist: 'DJ / PRODUCER', host: 'PROMOTER', band: 'BAND', standup: 'STAND-UP' };
-    const mapped = profs.map(p => ({ ...p, label: TYPE_LABEL[p.type] || p.type.toUpperCase() }));
+    const mapped = profs.map(p => ({ ...p, label: TYPE_ACCENTS[p.type]?.label || p.type.toUpperCase() }));
     setEnquiryLoading(false);
     setPickerDate(dateStr);
     if (mapped.length === 1) { setEnquiryProf(mapped[0]); setPickerProfs([]); }
@@ -159,8 +201,7 @@ export default function ProfileScreen() {
     const { data: profs } = await supabase.from('profiles')
       .select('user_id, type, name, avatar, genre_string, sound')
       .eq('user_id', session.user.id);
-    const TYPE_LABEL = { artist: 'DJ / PRODUCER', host: 'HOST / PROMOTER', band: 'BAND', standup: 'COMEDY / POET', venue: 'VENUE' };
-    const mapped = (profs || []).map(p => ({ ...p, label: TYPE_LABEL[p.type] || p.type.toUpperCase() }));
+    const mapped = (profs || []).map(p => ({ ...p, label: TYPE_ACCENTS[p.type]?.label || p.type.toUpperCase() }));
     if (mapped.length > 1) {
       setFollowPickerProfs(mapped);
       setFollowSelected(new Set());
@@ -179,7 +220,7 @@ export default function ProfileScreen() {
     // Bust the My Scene cache so the new follow appears immediately
     queryClient.invalidateQueries({ queryKey: ['myScene'] });
     // Notify the profile owner that someone followed them
-    await writeNotification(
+    if (profile.user_id) await writeNotification(
       profile.user_id,
       'new_follower',
       `Someone followed your profile${profile.name ? ` — ${profile.name}` : ''}.`,
@@ -204,6 +245,9 @@ export default function ProfileScreen() {
   const grad2   = ta.grad2;
   const isHost  = profile.type === 'host';
   const isVenue = profile.type === 'venue';
+  const heroUrl = isPlaceholder
+    ? (profile.avatar_url || PLACEHOLDER_HERO[profile.type] || null)
+    : (profile.avatar_hero || profile.avatar_thumb || profile.avatar || null);
   const label   = isVenue ? ta.label : (profile.band_type || profile.act_type || ta.label);
   const loc     = [profile.suburb || profile.location, profile.state].filter(Boolean).join(', ');
   const mixLink = profile.mix_link || profile.soundcloud || profile.mixcloud || '';
@@ -223,32 +267,46 @@ export default function ProfileScreen() {
   const na = v => !v || v === 'N/A';
   const igHandle = v => v.replace(/^@/, '').replace(/^(?:https?:\/\/)?(?:www\.)?instagram\.com\/?/i, '').replace(/\/$/, '');
   const fbUrl = v => { const slug = v.replace(/^(?:https?:\/\/)?(?:www\.)?facebook\.com\/?/i, '').replace(/\/$/, ''); return slug.startsWith('http') ? slug : `https://facebook.com/${slug}`; };
-  const socials = [
-    !na(profile.instagram) && { href: `https://instagram.com/${igHandle(profile.instagram)}`, col: '#E1306C', icon: 'instagram' },
-    !na(profile.facebook)  && { href: fbUrl(profile.facebook), col: '#1877F2', icon: 'facebook' },
-    !na(profile.youtube)   && { href: profile.youtube?.startsWith('http') ? profile.youtube : 'https://'+profile.youtube, col: '#FF0000', icon: 'youtube' },
-    !na(profile.soundcloud) && { href: profile.soundcloud.startsWith('http') ? profile.soundcloud : 'https://'+profile.soundcloud, col: '#FF5500', icon: 'soundcloud' },
-    !na(profile.mixcloud)  && { href: profile.mixcloud.startsWith('http') ? profile.mixcloud : 'https://'+profile.mixcloud, col: '#52aad8', icon: 'mixcloud' },
-    !na(profile.website)   && { href: profile.website?.startsWith('http') ? profile.website : 'https://'+profile.website, col: 'var(--neon2)', icon: 'globe' },
-    !na(profile.contact_email) && { href: `mailto:${profile.contact_email}`, col: '#aaaacc', icon: 'email' },
-  ].filter(Boolean);
+  const socials = isPlaceholder
+    ? (() => {
+        const sl = profile.social_links || {};
+        return [
+          sl.instagram && { href: `https://instagram.com/${igHandle(sl.instagram)}`, col: '#E1306C', icon: 'instagram' },
+          sl.facebook  && { href: fbUrl(sl.facebook), col: '#1877F2', icon: 'facebook' },
+          sl.website   && { href: sl.website.startsWith('http') ? sl.website : 'https://'+sl.website, col: 'var(--neon2)', icon: 'globe' },
+        ].filter(Boolean);
+      })()
+    : [
+        !na(profile.instagram) && { href: `https://instagram.com/${igHandle(profile.instagram)}`, col: '#E1306C', icon: 'instagram' },
+        !na(profile.facebook)  && { href: fbUrl(profile.facebook), col: '#1877F2', icon: 'facebook' },
+        !na(profile.youtube)   && { href: profile.youtube?.startsWith('http') ? profile.youtube : 'https://'+profile.youtube, col: '#FF0000', icon: 'youtube' },
+        !na(profile.soundcloud) && { href: profile.soundcloud.startsWith('http') ? profile.soundcloud : 'https://'+profile.soundcloud, col: '#FF5500', icon: 'soundcloud' },
+        !na(profile.mixcloud)  && { href: profile.mixcloud.startsWith('http') ? profile.mixcloud : 'https://'+profile.mixcloud, col: '#52aad8', icon: 'mixcloud' },
+        !na(profile.website)   && { href: profile.website?.startsWith('http') ? profile.website : 'https://'+profile.website, col: 'var(--neon2)', icon: 'globe' },
+        !na(profile.contact_email) && { href: `mailto:${profile.contact_email}`, col: '#aaaacc', icon: 'email' },
+      ].filter(Boolean);
 
   return (
     <div className={s.screen}>
       {/* Fixed blurred background */}
       <div
         className={s.heroBg}
-        style={(profile.avatar_hero || profile.avatar)
-          ? { backgroundImage: `url(${profile.avatar_hero || profile.avatar})`, filter: 'blur(28px)' }
-          : { background: `linear-gradient(135deg, rgba(255,45,120,.9) 0%, rgba(180,0,200,.7) 40%, rgba(0,229,255,.8) 100%)` }
+        style={heroUrl
+          ? { backgroundImage: `url(${heroUrl})`, filter: 'blur(28px)' }
+          : { background: `linear-gradient(135deg, rgba(${rgb},.6) 0%, rgba(0,0,0,.85) 55%, rgba(${rgb},.35) 100%)` }
         }
       />
 
       {/* Hero photo */}
-      {(profile.avatar_hero || profile.avatar_thumb || profile.avatar) && (
+      {heroUrl && (
         <div
           className={s.heroImg}
-          style={{ backgroundImage: `url(${profile.avatar_hero || profile.avatar_thumb || profile.avatar})` }}
+          style={{
+            backgroundImage: `url(${heroUrl})`,
+            ...(isPlaceholder && !profile.avatar_url
+              ? { height: '120dvh', transform: 'translateX(-50%) translateY(-20dvh)' }
+              : {}),
+          }}
         />
       )}
 
@@ -268,6 +326,11 @@ export default function ProfileScreen() {
           <div className={s.name}>{profile.name}</div>
           <div className={s.metaRow}>
             <span className={s.badge} style={{ color: col, background: `rgba(${rgb},.15)`, borderColor: `rgba(${rgb},.35)` }}>{label}</span>
+            {isPlaceholder && (
+              <span style={{ fontSize: 10, border: '1px solid rgba(255,255,255,.2)', borderRadius: 20, padding: '3px 10px', color: 'rgba(255,255,255,.35)', fontFamily: "'Bebas Neue', sans-serif", letterSpacing: 1 }}>
+                UNCLAIMED
+              </span>
+            )}
             {loc && (
               <span className={s.location}>
                 <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ verticalAlign: 'middle', marginRight: 2 }}>
@@ -338,7 +401,7 @@ export default function ProfileScreen() {
 
           {/* Genre — non-venue */}
           {genres.length > 0 && !isVenue && (
-            <div className={s.glassCard} style={{ '--card-col': col, '--card-grad2': grad2, cursor: genres.length > 5 ? 'pointer' : 'default' }} onClick={() => genres.length > 5 && setGenreExpanded(e => !e)}>
+            <div className={s.glassCard} style={{ '--card-col': col, '--card-grad2': grad2, '--pill-col': col, '--pill-rgb': rgb, cursor: genres.length > 5 ? 'pointer' : 'default' }} onClick={() => genres.length > 5 && setGenreExpanded(e => !e)}>
               <div className={s.cardLabel} style={{ color: col }}>GENRE</div>
               <div className={s.genrePills}>
                 {visibleGenres.map(g => <span key={g} className={s.genrePill}>{g}</span>)}
@@ -346,13 +409,6 @@ export default function ProfileScreen() {
                   <span className={s.genreMore}>+{genres.length - 5} more</span>
                 )}
               </div>
-            </div>
-          )}
-
-          {/* Non-venue sound */}
-          {profile.sound && !isVenue && (
-            <div className={s.glassCard} style={{ '--card-col': col, '--card-grad2': grad2 }}>
-              <div className={s.glassCardInner} style={{ color: col }}>{profile.sound}</div>
             </div>
           )}
 
@@ -391,10 +447,10 @@ export default function ProfileScreen() {
                           letterSpacing: 1.5,
                           padding: '4px 13px',
                           borderRadius: 20,
-                          background: 'linear-gradient(to right, rgba(0,229,255,.15), transparent)',
-                          border: '1px solid rgba(0,229,255,.25)',
-                          boxShadow: '0 0 8px rgba(0,229,255,.2)',
-                          color: '#00E5FF',
+                          background: `linear-gradient(to right, rgba(${rgb},.15), transparent)`,
+                          border: `1px solid rgba(${rgb},.25)`,
+                          boxShadow: `0 0 8px rgba(${rgb},.2)`,
+                          color: col,
                         }}>{t}</span>
                       ))}
                     </div>
@@ -426,7 +482,7 @@ export default function ProfileScreen() {
                   {followed ? '✓ FOLLOWING' : <span style={{ backgroundImage: `linear-gradient(135deg, ${col}, ${grad2})`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>+ FOLLOW</span>}
                 </button>
               </span>
-              {isVenue && (
+              {isVenue && !isPlaceholder && (
                 <span style={{ flex: 1, display: 'inline-block', padding: 1, borderRadius: 12, background: `linear-gradient(135deg, ${col}, ${grad2})` }}>
                   <button
                     className={s.followBtn}
@@ -437,7 +493,7 @@ export default function ProfileScreen() {
                 </span>
               )}
             </div>
-            {isVenue && (
+            {isVenue && !isPlaceholder && (
               <button
                 className={s.followBtn}
                 style={{ background: `linear-gradient(135deg, ${col}, ${grad2})`, color: '#0a0a14', borderColor: 'transparent', width: '100%' }}
@@ -459,6 +515,21 @@ export default function ProfileScreen() {
               </button>
             )}
           </div>
+
+          {/* Claim this profile — unclaimed placeholder profiles only */}
+          {isPlaceholder && (
+            <div style={{ textAlign: 'center', marginTop: -4, marginBottom: 14 }}>
+              {profile.claim_status === 'pending'
+                ? <span style={{ fontSize: 12, color: 'rgba(255,255,255,.28)', fontFamily: "'DM Sans', sans-serif", letterSpacing: 0.2 }}>Claim under review</span>
+                : <button
+                    onClick={() => setClaimOpen(true)}
+                    style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,.32)', fontSize: 12, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", letterSpacing: 0.2, textDecoration: 'underline', textDecorationColor: 'rgba(255,255,255,.15)', padding: '6px 2px' }}
+                  >
+                    Is this you? Claim this profile
+                  </button>
+              }
+            </div>
+          )}
 
           {/* Events sheet */}
           {(() => {
@@ -570,7 +641,7 @@ export default function ProfileScreen() {
         <div onClick={() => setAvailOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 9000, background: 'rgba(0,0,0,.85)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
           <div onClick={e => e.stopPropagation()} style={{ background: '#0f0f1a', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 480, padding: '24px 20px 100px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
-              <span style={{ fontFamily: "'Bebas Neue'", fontSize: 22, letterSpacing: 2, color: '#00E5A0' }}>VENUE AVAILABILITY</span>
+              <span style={{ fontFamily: "'Bebas Neue'", fontSize: 22, letterSpacing: 2, color: col }}>VENUE AVAILABILITY</span>
               <button onClick={() => setAvailOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--muted)', fontSize: 24, cursor: 'pointer', lineHeight: 1 }}>×</button>
             </div>
             <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 16 }}>Dates this venue is available for hire.</p>
@@ -639,10 +710,10 @@ export default function ProfileScreen() {
         <div onClick={() => { setFollowPickerProfs([]); setFollowSelected(new Set()); }} style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,.6)', backdropFilter: 'blur(4px)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', paddingBottom: 67 }}>
           <div onClick={e => e.stopPropagation()} style={{ background: '#13131f', borderRadius: '20px 20px 0 0', padding: '24px 20px 32px', maxWidth: 520, width: '100%', margin: '0 auto', maxHeight: '85dvh', overflowY: 'auto', scrollbarWidth: 'none' }}>
             <div style={{ width: 36, height: 4, background: 'rgba(255,255,255,.2)', borderRadius: 2, margin: '0 auto 20px' }} />
-            <div style={{ fontFamily: "'Bebas Neue'", fontSize: 22, letterSpacing: 2, marginBottom: 16, background: 'linear-gradient(135deg,#00E5FF,#BF5FFF)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text', display: 'inline-block' }}>FOLLOW {profile.name.toUpperCase()}</div>
+            <div style={{ fontFamily: "'Bebas Neue'", fontSize: 22, letterSpacing: 2, marginBottom: 16, background: `linear-gradient(135deg,${col},${grad2})`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text', display: 'inline-block' }}>FOLLOW {profile.name.toUpperCase()}</div>
             <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 20 }}>Select which profiles to follow from, you can pick more than one.</div>
             {followPickerProfs.map((p, i) => {
-              const tc = { artist: { col: 'var(--neon2)', rgb: '0,229,255' }, host: { col: '#FF3399', rgb: '255,51,153' }, band: { col: '#FF8C42', rgb: '255,140,66' }, standup: { col: '#FF88AA', rgb: '255,136,170' }, venue: { col: '#00E5A0', rgb: '0,229,160' }, punter: { col: '#BF5FFF', rgb: '191,95,255' } }[p.type] || { col: '#BF5FFF', rgb: '191,95,255' };
+              const tc = { artist: { col: '#00E5FF', rgb: '0,229,255' }, host: { col: '#FF2D78', rgb: '255,45,120' }, band: { col: '#FF8C42', rgb: '255,140,66' }, standup: { col: '#FF88AA', rgb: '255,136,170' }, venue: { col: '#00E5A0', rgb: '0,229,160' }, punter: { col: '#BF5FFF', rgb: '191,95,255' } }[p.type] || { col: '#BF5FFF', rgb: '191,95,255' };
               const key = p.type;
               const checked = followSelected.has(key);
               const toggle = () => setFollowSelected(prev => { const s = new Set(prev); checked ? s.delete(key) : s.add(key); return s; });
@@ -667,7 +738,7 @@ export default function ProfileScreen() {
             <button
               onClick={() => followSelected.size > 0 && doFollow([...followSelected])}
               disabled={followSelected.size === 0}
-              style={{ width: '100%', fontFamily: "'Bebas Neue'", fontSize: 15, letterSpacing: 2, padding: '13px', borderRadius: 12, border: 'none', background: followSelected.size > 0 ? 'linear-gradient(135deg,#00E5FF,#BF5FFF)' : 'rgba(255,255,255,.08)', color: followSelected.size > 0 ? '#0a0a14' : 'rgba(255,255,255,.3)', cursor: followSelected.size > 0 ? 'pointer' : 'not-allowed', marginTop: 4, transition: 'all .15s' }}
+              style={{ width: '100%', fontFamily: "'Bebas Neue'", fontSize: 15, letterSpacing: 2, padding: '13px', borderRadius: 12, border: 'none', background: followSelected.size > 0 ? `linear-gradient(135deg,${col},${grad2})` : 'rgba(255,255,255,.08)', color: followSelected.size > 0 ? '#0a0a14' : 'rgba(255,255,255,.3)', cursor: followSelected.size > 0 ? 'pointer' : 'not-allowed', marginTop: 4, transition: 'all .15s' }}
             >FOLLOW{followSelected.size > 1 ? ` FROM ${followSelected.size} PROFILES` : ''}</button>
             <button onClick={() => { setFollowPickerProfs([]); setFollowSelected(new Set()); }} style={{ marginTop: 8, width: '100%', background: 'none', border: 'none', color: 'var(--muted)', fontSize: 13, cursor: 'pointer', padding: 8 }}>Cancel</button>
           </div>
@@ -678,11 +749,11 @@ export default function ProfileScreen() {
         <div onClick={() => { setPickerDate(null); setPickerProfs([]); }} style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,.6)', backdropFilter: 'blur(4px)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
           <div onClick={e => e.stopPropagation()} style={{ background: '#13131f', borderRadius: '20px 20px 0 0', padding: '24px 20px 36px', maxWidth: 520, width: '100%', margin: '0 auto', maxHeight: '85dvh', overflowY: 'auto' }}>
             <div style={{ width: 36, height: 4, background: 'rgba(255,255,255,.2)', borderRadius: 2, margin: '0 auto 20px' }} />
-            <div style={{ fontFamily: "'Bebas Neue'", fontSize: 11, letterSpacing: 2, color: '#00E5A0', marginBottom: 4 }}>ENQUIRING ABOUT</div>
+            <div style={{ fontFamily: "'Bebas Neue'", fontSize: 11, letterSpacing: 2, color: col, marginBottom: 4 }}>ENQUIRING ABOUT</div>
             <div style={{ fontFamily: "'Bebas Neue'", fontSize: 18, letterSpacing: 1, marginBottom: 4 }}>{new Date(pickerDate + 'T00:00:00').toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).toUpperCase()}</div>
             <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 20 }}>Who are you enquiring as?</div>
             {pickerProfs.map((p, i) => {
-              const tc = { artist: { col: 'var(--neon2)', rgb: '0,229,255' }, host: { col: '#FF3399', rgb: '255,51,153' }, band: { col: '#FF8C42', rgb: '255,140,66' }, standup: { col: '#FF88AA', rgb: '255,136,170' } }[p.type] || { col: '#00E5A0', rgb: '0,229,160' };
+              const tc = { artist: { col: '#00E5FF', rgb: '0,229,255' }, host: { col: '#FF2D78', rgb: '255,45,120' }, band: { col: '#FF8C42', rgb: '255,140,66' }, standup: { col: '#FF88AA', rgb: '255,136,170' } }[p.type] || { col: '#00E5A0', rgb: '0,229,160' };
               return (
                 <button key={i} onClick={() => { setEnquiryProf(p); setPickerProfs([]); }} style={{ width: '100%', display: 'flex', gap: 12, alignItems: 'center', background: `rgba(${tc.rgb},.06)`, border: `1px solid rgba(${tc.rgb},.25)`, borderRadius: 12, padding: 12, cursor: 'pointer', textAlign: 'left', marginBottom: 8 }}>
                   {p.avatar
@@ -708,35 +779,42 @@ export default function ProfileScreen() {
         <div onClick={() => { setEnquiryProf(null); setEnquiryNote(''); }} style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,.6)', backdropFilter: 'blur(4px)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
           <div onClick={e => e.stopPropagation()} style={{ background: '#13131f', borderRadius: '20px 20px 0 0', padding: '24px 20px 36px', maxWidth: 520, width: '100%', margin: '0 auto', maxHeight: '85dvh', overflowY: 'auto' }}>
             <div style={{ width: 36, height: 4, background: 'rgba(255,255,255,.2)', borderRadius: 2, margin: '0 auto 20px' }} />
-            <div style={{ fontFamily: "'Bebas Neue'", fontSize: 11, letterSpacing: 2, color: '#00E5A0', marginBottom: 4 }}>ENQUIRE ABOUT THIS DATE</div>
+            <div style={{ fontFamily: "'Bebas Neue'", fontSize: 11, letterSpacing: 2, color: col, marginBottom: 4 }}>ENQUIRE ABOUT THIS DATE</div>
             <div style={{ fontFamily: "'Bebas Neue'", fontSize: 20, letterSpacing: 1, marginBottom: 16 }}>{new Date(pickerDate + 'T00:00:00').toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).toUpperCase()}</div>
             {/* Profile preview */}
-            <div style={{ display: 'flex', gap: 12, alignItems: 'center', background: 'rgba(255,255,255,.05)', border: '1px solid rgba(0,229,160,.25)', borderRadius: 12, padding: 12, marginBottom: 16 }}>
+            <div style={{ display: 'flex', gap: 12, alignItems: 'center', background: 'rgba(255,255,255,.05)', border: `1px solid rgba(${rgb},.25)`, borderRadius: 12, padding: 12, marginBottom: 16 }}>
               {enquiryProf.avatar
-                ? <img src={enquiryProf.avatar} style={{ width: 48, height: 48, borderRadius: 8, objectFit: 'cover', border: '2px solid #00E5A0', flexShrink: 0 }} alt={enquiryProf.name} />
-                : <div style={{ width: 48, height: 48, borderRadius: 8, background: 'rgba(0,229,160,.12)', border: '2px solid rgba(0,229,160,.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 20 }}>🎵</div>
+                ? <img src={enquiryProf.avatar} style={{ width: 48, height: 48, borderRadius: 8, objectFit: 'cover', border: `2px solid ${col}`, flexShrink: 0 }} alt={enquiryProf.name} />
+                : <div style={{ width: 48, height: 48, borderRadius: 8, background: `rgba(${rgb},.12)`, border: `2px solid rgba(${rgb},.4)`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 20 }}>🎵</div>
               }
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontFamily: "'Bebas Neue'", fontSize: 17, letterSpacing: 1 }}>{enquiryProf.name}</div>
                 {enquiryProf.location && <div style={{ fontSize: 11, color: 'var(--muted)' }}>{enquiryProf.location}</div>}
-                {enquiryProf.genre_string && <div style={{ fontSize: 11, color: '#00E5A0', marginTop: 2 }}>{enquiryProf.genre_string.split(' · ').slice(0,3).join(' · ')}</div>}
+                {enquiryProf.genre_string && <div style={{ fontSize: 11, color: col, marginTop: 2 }}>{enquiryProf.genre_string.split(' · ').slice(0,3).join(' · ')}</div>}
               </div>
             </div>
             <textarea
               value={enquiryNote}
               onChange={e => setEnquiryNote(e.target.value)}
               placeholder="Add a message — anything extra the venue should know…"
-              style={{ width: '100%', minHeight: 90, background: 'rgba(255,255,255,.06)', border: '1px solid rgba(0,229,160,.35)', borderRadius: 12, color: '#e8e8f0', fontSize: 14, padding: 12, resize: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
+              style={{ width: '100%', minHeight: 90, background: 'rgba(255,255,255,.06)', border: `1px solid rgba(${rgb},.35)`, borderRadius: 12, color: '#e8e8f0', fontSize: 14, padding: 12, resize: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
             />
             <button
               onClick={sendEnquiry}
               disabled={enquirySending}
-              style={{ marginTop: 12, width: '100%', background: 'linear-gradient(135deg,#00E5A0,#00B4D8)', color: '#0a0a14', fontFamily: "'Bebas Neue'", fontSize: 17, letterSpacing: 2, padding: 16, border: 'none', borderRadius: 12, cursor: 'pointer', opacity: enquirySending ? .6 : 1 }}
+              style={{ marginTop: 12, width: '100%', background: `linear-gradient(135deg,${col},${grad2})`, color: '#0a0a14', fontFamily: "'Bebas Neue'", fontSize: 17, letterSpacing: 2, padding: 16, border: 'none', borderRadius: 12, cursor: 'pointer', opacity: enquirySending ? .6 : 1 }}
             >{enquirySending ? 'SENDING…' : 'SEND ENQUIRY →'}</button>
             <button onClick={() => { setEnquiryProf(null); setEnquiryNote(''); }} style={{ marginTop: 8, width: '100%', background: 'none', border: 'none', color: 'var(--muted)', fontSize: 13, cursor: 'pointer', padding: 8 }}>Cancel</button>
           </div>
         </div>
       )}
+
+      <ClaimDialog
+        open={claimOpen}
+        onClose={() => setClaimOpen(false)}
+        profile={profile}
+        session={session}
+      />
     </div>
   );
 }
