@@ -80,34 +80,52 @@ export default function EventScreen() {
           status,
         };
       });
-      const userIds = Object.values(map).filter(c => c.user_id).map(c => c.user_id);
-      if (userIds.length) {
-        const { data: profiles } = await supabase.from('profiles').select('user_id, mix_link, soundcloud, mixcloud, instagram, facebook, youtube, website').in('user_id', userIds);
-        (profiles || []).forEach(p => {
-          const slot = Object.values(map).find(c => c.user_id === p.user_id);
-          if (!slot) return;
-          const link = [p.mix_link, p.soundcloud, p.mixcloud].find(v => v && v.trim() && v !== 'N/A');
-          if (link && !slot.mix_link) slot.mix_link = link;
-          if (p.soundcloud) slot.soundcloud = p.soundcloud;
-          if (p.mixcloud)   slot.mixcloud   = p.mixcloud;
-          if (p.instagram)  slot.instagram  = p.instagram;
-          if (p.facebook)   slot.facebook   = p.facebook;
-          if (p.youtube)    slot.youtube    = p.youtube;
-          if (p.website)    slot.website    = p.website;
-        });
-      }
+      // M5.1 (D1): socials resolve by the slot's own profile id — deterministic
+      // for multi-profile owners (replaces undefined row-order behaviour);
+      // legacy user_id join kept only for rows without a profile id.
+      const claimList = Object.values(map);
+      const socialCols = 'id, user_id, mix_link, soundcloud, mixcloud, instagram, facebook, youtube, website';
+      const pidClaims = claimList.filter(c => c.profile_id);
+      const uidClaims = claimList.filter(c => !c.profile_id && c.user_id);
+      const [pidSocials, uidSocials] = await Promise.all([
+        pidClaims.length ? supabase.from('profiles').select(socialCols).in('id', pidClaims.map(c => c.profile_id)) : Promise.resolve({ data: [] }),
+        uidClaims.length ? supabase.from('profiles').select(socialCols).in('user_id', uidClaims.map(c => c.user_id)) : Promise.resolve({ data: [] }),
+      ]);
+      const socialsById = {}; (pidSocials.data || []).forEach(p => { socialsById[p.id] = p; });
+      const socialsByUid = {}; (uidSocials.data || []).forEach(p => { socialsByUid[p.user_id] = p; });
+      claimList.forEach(slot => {
+        const p = slot.profile_id ? socialsById[slot.profile_id] : socialsByUid[slot.user_id];
+        if (!p) return;
+        const link = [p.mix_link, p.soundcloud, p.mixcloud].find(v => v && v.trim() && v !== 'N/A');
+        if (link && !slot.mix_link) slot.mix_link = link;
+        if (p.soundcloud) slot.soundcloud = p.soundcloud;
+        if (p.mixcloud)   slot.mixcloud   = p.mixcloud;
+        if (p.instagram)  slot.instagram  = p.instagram;
+        if (p.facebook)   slot.facebook   = p.facebook;
+        if (p.youtube)    slot.youtube    = p.youtube;
+        if (p.website)    slot.website    = p.website;
+      });
       // Build member → performance map for the Lineup tab
       const memberPerfMap = {};
       (perfsData || []).forEach(p => { memberPerfMap[p.lineup_member_id] = p; });
-      // Fetch profiles for lineup members that have an artist_id
-      const memberArtistIds = (membersData || []).filter(m => m.artist_id).map(m => m.artist_id);
+      // M5.1 (D2): member profiles resolve by artist_profile_id (deterministic
+      // for multi-profile owners), legacy artist_id join for rows without one.
+      // The map stays keyed by artist_id — the renderer's lookup key.
+      const memberCols = 'id, user_id, name, avatar, avatar_thumb, type, sound, genre_string, location, state';
+      const pidMembers = (membersData || []).filter(m => m.artist_id && m.artist_profile_id);
+      const uidMembers = (membersData || []).filter(m => m.artist_id && !m.artist_profile_id);
       let memberProfiles = {};
-      if (memberArtistIds.length) {
-        const { data: mProfs } = await supabase.from('profiles')
-          .select('user_id, name, avatar, avatar_thumb, type, sound, genre_string, location, state')
-          .in('user_id', memberArtistIds);
-        (mProfs || []).forEach(p => { memberProfiles[p.user_id] = p; });
-      }
+      const [mPid, mUid] = await Promise.all([
+        pidMembers.length ? supabase.from('profiles').select(memberCols).in('id', pidMembers.map(m => m.artist_profile_id)) : Promise.resolve({ data: [] }),
+        uidMembers.length ? supabase.from('profiles').select(memberCols).in('user_id', uidMembers.map(m => m.artist_id)) : Promise.resolve({ data: [] }),
+      ]);
+      const mProfById = {}; (mPid.data || []).forEach(p => { mProfById[p.id] = p; });
+      const mProfByUid = {}; (mUid.data || []).forEach(p => { mProfByUid[p.user_id] = p; });
+      (membersData || []).forEach(m => {
+        if (!m.artist_id) return;
+        const p = m.artist_profile_id ? mProfById[m.artist_profile_id] : mProfByUid[m.artist_id];
+        if (p) memberProfiles[m.artist_id] = p;
+      });
       return { event: ev, claims: map, lineupMembers: membersData || [], memberPerfMap, memberProfiles };
     },
     enabled: !!id,
