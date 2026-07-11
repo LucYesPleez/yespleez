@@ -148,7 +148,7 @@ export default function ProfileScreen() {
     if (!session?.user?.id) return;
     setEnquiryLoading(true);
     const { data: profs } = await supabase.from('profiles')
-      .select('user_id, type, name, avatar, location, genre_string, sound')
+      .select('id, user_id, type, name, avatar, location, genre_string, sound')
       .eq('user_id', session.user.id)
       .neq('type', 'punter').neq('type', 'venue');
     if (!profs?.length) return;
@@ -162,13 +162,18 @@ export default function ProfileScreen() {
   async function sendEnquiry() {
     if (!enquiryProf || !pickerDate || enquirySending) return;
     setEnquirySending(true);
+    // Dual-write (M2 invariant): both sides are already-resolved profiles rows,
+    // so the profile ids are direct assignments, not lookups. The enquiry UI only
+    // renders for isVenue && !isPlaceholder, so `profile` is a real venue row.
     const { error } = await supabase.from('venue_enquiries').insert({
-      venue_user_id:     id,
-      applicant_user_id: session.user.id,
-      applicant_type:    enquiryProf.type,
-      date_requested:    pickerDate,
-      note:              enquiryNote.trim() || null,
-      status:            'pending',
+      venue_user_id:        id,
+      applicant_user_id:    session.user.id,
+      applicant_type:       enquiryProf.type,
+      venue_profile_id:     profile?.id ?? null,
+      applicant_profile_id: enquiryProf.id ?? null,
+      date_requested:       pickerDate,
+      note:                 enquiryNote.trim() || null,
+      status:               'pending',
     });
     setEnquirySending(false);
     if (!error || error.message?.includes('duplicate') || error.message?.includes('unique')) {
