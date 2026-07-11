@@ -265,7 +265,15 @@ export default function EnquiryCard({ enq, onRespond, onPlayDemo }) {
           {enq.applicant_user_id && (
             <div style={{ padding: '10px 0 4px' }}>
               <button
-                onClick={() => navigate('/profile/' + enq.applicant_user_id + '?type=' + (enq.applicant_type || 'artist'))}
+                onClick={() => {
+                  // M5: canonical id from the fetched profile row, or the
+                  // enquiry row's applicant_profile_id; legacy URL only as a
+                  // fallback (redirect shim covers it).
+                  const pid = p?.id || enq.applicant_profile_id;
+                  navigate(pid
+                    ? '/profile/' + pid + '?type=' + (enq.applicant_type || 'artist')
+                    : '/profile/' + enq.applicant_user_id + '?type=' + (enq.applicant_type || 'artist'));
+                }}
                 style={{ width: 'fit-content', background: 'rgba(255,51,153,.1)', border: '1px solid rgba(255,51,153,.35)', borderRadius: 8, padding: '4px 10px', fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1.5, color: '#fff', cursor: 'pointer', transition: 'all .15s' }}
                 onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,51,153,.22)'; e.currentTarget.style.borderColor = '#FF69B4'; }}
                 onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,51,153,.1)'; e.currentTarget.style.borderColor = 'rgba(255,51,153,.35)'; }}

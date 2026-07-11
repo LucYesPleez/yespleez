@@ -63,7 +63,6 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
     gradient:     'linear-gradient(135deg,#00E5FF,#00BFFF,#7B5EA7,#FF88AA)',
     profileType:  'artist',
     setupPath:    '/industry/artist/setup',
-    profilePath:  (id) => `/profile/${id}?type=artist`,
     browseLabel:  'BROWSE OPEN EVENTS →',
     setupPlaceholder: 'Set up your artist profile',
   };
@@ -274,6 +273,7 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
         line1={cfg.headingLine1}
         line2={cfg.headingLine2}
         userId={userId}
+        profileId={profile?.id}
         profileType={cfg.profileType}
         gradient={cfg.gradient}
       />

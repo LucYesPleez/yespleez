@@ -53,7 +53,7 @@ export default function EventScreen() {
       const { data: ev } = await supabase.from('events').select('*').eq('id', id).single();
       if (!ev) { navigate('/'); return null; }
       const [{ data: membersData }, { data: perfsData }] = await Promise.all([
-        supabase.from('lineup_members').select('id, artist_id, artist_name, genre, sound, card_pills').eq('event_id', id).neq('status', 'removed'),
+        supabase.from('lineup_members').select('id, artist_id, artist_profile_id, artist_name, genre, sound, card_pills').eq('event_id', id).neq('status', 'removed'),
         supabase.from('performances').select('id, lineup_member_id, slot_id, status').eq('event_id', id),
       ]);
       const membersById = {};
@@ -72,6 +72,7 @@ export default function EventScreen() {
           member_id:  member.id,
           slot_id:    p.slot_id,
           user_id:    member.artist_id || null,
+          profile_id: member.artist_profile_id || null,
           name:       member.artist_name || null,
           genre:      member.genre || null,
           sound:      member.sound || null,
@@ -1449,7 +1450,7 @@ function SlotCard({ slot, claim, onFill, onEdit, onRemove, onPin, isHost, isSort
 
               {/* View Full Profile — right */}
               <button
-                onClick={e => { e.stopPropagation(); navigate(`/profile/${claim.user_id}?prefer=performer`); }}
+                onClick={e => { e.stopPropagation(); navigate(claim.profile_id ? `/profile/${claim.profile_id}?prefer=performer` : `/profile/${claim.user_id}?prefer=performer`); }}
                 style={{ flexShrink: 0, fontSize: 11, fontFamily: "'Bebas Neue'", letterSpacing: 1.5, background: 'none', border: 'none', padding: '5px 12px', cursor: 'pointer', whiteSpace: 'nowrap' }}
               ><span style={{ background: 'linear-gradient(135deg,#00E5FF,#BF5FFF)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>VIEW PROFILE →</span></button>
             </div>

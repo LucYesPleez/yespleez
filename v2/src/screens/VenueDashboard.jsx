@@ -191,7 +191,7 @@ export default function VenueDashboard({ userId: userIdProp }) {
 
   return (
     <div className={s.screen}>
-      <DashboardHeader line1="VENUE" line2="DASHBOARD" userId={userId} profileType="venue" />
+      <DashboardHeader line1="VENUE" line2="DASHBOARD" userId={userId} profileId={profile?.id} profileType="venue" />
 
       <DashboardProfileCard
         profile={profile}

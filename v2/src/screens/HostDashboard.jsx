@@ -275,7 +275,7 @@ export default function HostDashboard({ userId: userIdProp }) {
 
   return (
     <div className={s.screen}>
-      <DashboardHeader line1="HOST /" line2="PROMOTER" userId={userId} profileType="host" />
+      <DashboardHeader line1="HOST /" line2="PROMOTER" userId={userId} profileId={profile?.id} profileType="host" />
 
       <DashboardProfileCard
         profile={profile}

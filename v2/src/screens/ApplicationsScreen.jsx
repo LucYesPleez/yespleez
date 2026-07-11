@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { writeNotification } from '../lib/writeNotification';
+import { profileUrl } from '../lib/profileResolution';
 import s from './ApplicationsScreen.module.css';
 
 const STATUS_TABS = ['PENDING', 'TENTATIVE', 'OFFERED', 'CONFIRMED', 'REJECTED'];
@@ -35,7 +36,7 @@ export default function ApplicationsScreen() {
       if (ids.length > 0) {
         const { data: profData } = await supabase
           .from('profiles')
-          .select('user_id, name, avatar, sound, genre_string, type')
+          .select('id, user_id, name, avatar, sound, genre_string, type')
           .in('user_id', ids);
         const map = {};
         (profData || []).forEach(p => { map[p.user_id] = p; });
@@ -123,7 +124,7 @@ function AppCard({ app, profile, onAccept, onReject }) {
 
   return (
     <div className={s.card}>
-      <div className={s.cardTop} style={{ cursor: 'pointer' }} onClick={() => profile && navigate(`/profile/${app.artist_id}`)}>
+      <div className={s.cardTop} style={{ cursor: 'pointer' }} onClick={() => profile && navigate(profile.id ? profileUrl(profile) : `/profile/${app.artist_id}`)}>
         {profile?.avatar
           ? <img className={s.avatar} src={profile.avatar} alt={name} />
           : <div className={s.avatarPH}>{name[0]?.toUpperCase()}</div>
