@@ -10,6 +10,7 @@ import ProfileCard from '../components/ProfileCard';
 import FillSlotModal from '../components/FillSlotModal';
 import s from './EventScreen.module.css';
 import { likedEvents } from '../lib/likedEvents';
+import { resolveProfileId } from '../lib/resolveProfileId';
 import {
   DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragOverlay,
 } from '@dnd-kit/core';
@@ -357,8 +358,9 @@ export default function EventScreen() {
     // Upsert lineup_member for this artist
     let { data: memberData } = await supabase.from('lineup_members').select('id').eq('event_id', id).eq('artist_id', aApp.artist_id).maybeSingle();
     if (!memberData) {
+      const artistProfileId = await resolveProfileId(aApp.artist_id, 'artist');
       const { data: nm } = await supabase.from('lineup_members').insert({
-        event_id: id, artist_id: aApp.artist_id,
+        event_id: id, artist_id: aApp.artist_id, artist_profile_id: artistProfileId,
         artist_name: aProf?.name || aApp.artist_name,
         sound: aProf?.sound || null, genre: aProf?.genre_string || null, status: 'on_bill',
       }).select('id').single();
@@ -1390,7 +1392,8 @@ function SlotCard({ slot, claim, onFill, onEdit, onRemove, onPin, isHost, isSort
                       await supabase.from('follows').delete().eq('user_id', session.user.id).eq('entity_id', claim.user_id);
                       setFollowed(false);
                     } else {
-                      await supabase.from('follows').insert({ user_id: session.user.id, entity_id: claim.user_id, entity_type: 'artist', entity_name: claim.name });
+                      const targetProfileId = await resolveProfileId(claim.user_id, 'artist');
+                      await supabase.from('follows').insert({ user_id: session.user.id, entity_id: claim.user_id, entity_type: 'artist', entity_name: claim.name, target_profile_id: targetProfileId });
                       setFollowed(true);
                     }
                     setFollowBusy(false);
