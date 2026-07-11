@@ -22,7 +22,7 @@ export default function FillSlotModal({ slot, eventId, eventName = '', hostId, a
       setBusy(true);
       const { data } = await supabase
         .from('profiles')
-        .select('user_id, name, avatar, sound, genre_string, type')
+        .select('id, user_id, name, avatar, sound, genre_string, type')
         .ilike('name', `%${query.trim()}%`)
         .neq('type', 'punter')
         .limit(20);
@@ -38,7 +38,7 @@ export default function FillSlotModal({ slot, eventId, eventName = '', hostId, a
     let { data: memberData } = await supabase.from('lineup_members').select('id').eq('event_id', eventId).eq('artist_id', prof.user_id).maybeSingle();
     if (!memberData) {
       const { data: nm } = await supabase.from('lineup_members').insert({
-        event_id: eventId, artist_id: prof.user_id,
+        event_id: eventId, artist_id: prof.user_id, artist_profile_id: prof.id,
         artist_name: prof.name, sound: prof.sound || null, genre: prof.genre_string || null, status: 'on_bill',
       }).select('id').single();
       memberData = nm;

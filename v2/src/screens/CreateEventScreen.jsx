@@ -5,6 +5,7 @@ import { useSession } from '../App';
 import s from './CreateEventScreen.module.css';
 import ImageUploadButton from '../components/ImageUploadButton';
 import { getEventBadges } from '../lib/eventBadges';
+import { resolveProfileId } from '../lib/resolveProfileId';
 
 const CAL_DAYS = ['Su','Mo','Tu','We','Th','Fr','Sa'];
 const CAL_MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -370,10 +371,12 @@ export default function CreateEventScreen() {
       return;
     }
 
+    const venueProfileId = await resolveProfileId(session.user.id, 'venue');
     const { data, error:err } = await supabase.from('events').insert({
       name, config:cfg, host_id:session.user.id,
       status: goLive ? 'live' : 'draft',
       is_public:isPublic, applications_open:appsOpen,
+      venue_profile_id: venueProfileId,
     }).select('id').single();
     setSaving(false);
     if (err) { setError(err.message); return; }

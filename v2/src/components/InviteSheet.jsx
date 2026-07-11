@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { writeNotification } from '../lib/writeNotification';
+import { resolveProfileId } from '../lib/resolveProfileId';
 
 const PERF_TYPES = ['DJ Set', 'Live Set', 'MC / Host', 'Band', 'Comedy / Spoken Word', 'Other'];
 
@@ -30,6 +31,10 @@ export default function InviteSheet({ artist, events = [], venueUserId, onClose 
   async function handleSend() {
     setSending(true);
     setError('');
+    const [venueProfileId, applicantProfileId] = await Promise.all([
+      resolveProfileId(venueUserId, 'venue'),
+      resolveProfileId(artist.user_id, artist.type || 'artist'),
+    ]);
     const payload = {
       venue_user_id:    venueUserId,
       applicant_user_id: artist.user_id,
@@ -45,6 +50,8 @@ export default function InviteSheet({ artist, events = [], venueUserId, onClose 
       notes:            notes.trim() || null,
       direction:        'outgoing',
       status:           'new',
+      venue_profile_id:     venueProfileId,
+      applicant_profile_id: applicantProfileId,
     };
     const { error: err } = await supabase.from('venue_enquiries').insert(payload);
     setSending(false);
