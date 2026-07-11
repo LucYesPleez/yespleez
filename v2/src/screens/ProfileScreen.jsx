@@ -172,8 +172,9 @@ export default function ProfileScreen() {
   async function doFollow(userIds) {
     setFollowBusy(true);
     const ids = Array.isArray(userIds) ? userIds : [userIds];
+    const targetProfileId = isPlaceholder ? null : profile.id;
     await Promise.all(ids.map(uid =>
-      supabase.from('follows').insert({ user_id: uid, entity_id: id, entity_type: 'profile', entity_name: profile.name })
+      supabase.from('follows').insert({ user_id: uid, entity_id: id, entity_type: 'profile', entity_name: profile.name, target_profile_id: targetProfileId })
     ));
     // Bust the My Scene cache so the new follow appears immediately
     queryClient.invalidateQueries({ queryKey: ['myScene'] });
