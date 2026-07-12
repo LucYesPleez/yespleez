@@ -804,8 +804,8 @@ export default function EventScreen() {
           </a>
         )}
 
-        {/* Coming soon — punter view, set times not yet announced */}
-        {!effectiveIsHost && !showTimesPublicly && (
+        {/* Coming soon — punter view, set times enabled but not yet announced */}
+        {!effectiveIsHost && !showTimesPublicly && totalSlots > 0 && (
           <div style={{ textAlign: 'center', padding: '48px 16px' }}>
             <div style={{ fontFamily: "'Bebas Neue'", fontSize: 22, letterSpacing: 3, color: 'rgba(255,255,255,.28)', marginBottom: 8 }}>SET TIMES COMING SOON</div>
             <div style={{ fontSize: 13, color: 'rgba(255,255,255,.2)' }}>Stay tuned for the lineup.</div>
