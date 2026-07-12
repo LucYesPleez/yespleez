@@ -76,9 +76,11 @@
 }
 
 .tag {
-  background: rgba(255,255,255,.12);
+  background:
+    linear-gradient(rgba(255,255,255,.12), rgba(255,255,255,.12)) padding-box,
+    linear-gradient(135deg, #00E5FF, #BF5FFF) border-box;
   backdrop-filter: blur(4px);
-  border: 1px solid rgba(255,255,255,.18);
+  border: 1px solid transparent;
   border-radius: 20px;
   font-size: 10px;
   padding: 3px 9px;
