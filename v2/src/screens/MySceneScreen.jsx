@@ -112,7 +112,7 @@ export default function MySceneScreen({ isGuest, onSignOut }) {
     staleTime: 5 * 60 * 1000,
     queryFn: async () => {
         const [fRes, aRes, myEvRes, profRes, claimsRes, peRes] = await Promise.all([
-        supabase.from('follows').select('entity_id,entity_type,entity_name,created_at').eq('user_id', uid).order('created_at', { ascending: false }),
+        supabase.from('follows').select('entity_id,entity_type,entity_name,created_at,target_profile_id').eq('user_id', uid).order('created_at', { ascending: false }),
         supabase.from('applications').select('event_id,status').eq('artist_id', uid),
         supabase.from('events').select('id,name,config,created_at').eq('host_id', uid).order('created_at', { ascending: false }),
         supabase.from('profiles').select('name').eq('user_id', uid).eq('type', 'punter').limit(1),
@@ -125,7 +125,11 @@ export default function MySceneScreen({ isGuest, onSignOut }) {
       const claimsData = claimsRes.data || [];
 
       // IDs needed for step 2
-      const profileFollowIds = [...new Set(follows.filter(f => f.entity_type !== 'event').map(f => f.entity_id))];
+      // M5.1 (D5): followed profiles resolve by target_profile_id; the legacy
+      // entity_id join is kept only for rows without one.
+      const profileFollows   = follows.filter(f => f.entity_type !== 'event');
+      const followedPids     = [...new Set(profileFollows.filter(f => f.target_profile_id).map(f => f.target_profile_id))];
+      const legacyFollowIds  = [...new Set(profileFollows.filter(f => !f.target_profile_id).map(f => f.entity_id).filter(Boolean))];
       const followedEventIds = new Set(follows.filter(f => f.entity_type === 'event').map(f => f.entity_id));
       const claimEventIds    = [...new Set(claimsData.map(c => c.event_id).filter(Boolean))];
       const appEventIds      = [...new Set(apps.map(a => a.event_id).filter(Boolean))];
@@ -133,21 +137,35 @@ export default function MySceneScreen({ isGuest, onSignOut }) {
       // Step 2: parallel fetches — date-windowed events (indexed, ~50 rows)
       const threeMonthsAgo = new Date(Date.now() - 90  * 86400000).toISOString().slice(0, 10);
       const sixMonthsAhead = new Date(Date.now() + 180 * 86400000).toISOString().slice(0, 10);
-      const [evRes, profFollowRes, claimEvRes] = await Promise.all([
+      const followCols = 'id,user_id,name,type,location,suburb,postcode,lat,lng,sound,updated_at';
+      const [evRes, profFollowRes, legacyFollowRes, claimEvRes] = await Promise.all([
         supabase.from('events').select('id,name,config,host_id,created_at').gte('config->>date', threeMonthsAgo).lte('config->>date', sixMonthsAhead).order('config->>date', { ascending: true }).limit(150),
-        profileFollowIds.length
-          ? supabase.from('profiles').select('user_id,name,type,location,suburb,postcode,lat,lng,sound,updated_at').in('user_id', profileFollowIds)
+        followedPids.length
+          ? supabase.from('profiles').select(followCols).in('id', followedPids)
+          : Promise.resolve({ data: [] }),
+        legacyFollowIds.length
+          ? supabase.from('profiles').select(followCols).in('user_id', legacyFollowIds)
           : Promise.resolve({ data: [] }),
         claimEventIds.length
           ? supabase.from('events').select('id,name,config').in('id', claimEventIds)
           : Promise.resolve({ data: [] }),
       ]);
 
-      // Build follow profiles map and detect updates
-      const rawProfiles = profFollowRes.data || [];
+      // Build follow profiles map and detect updates. The map stays keyed by
+      // f.entity_id — the renderer's lookup key (M5.1 §3.2 discipline).
+      const pidProfiles    = profFollowRes.data || [];
+      const legacyProfiles = legacyFollowRes.data || [];
+      const rawProfiles    = [...pidProfiles, ...legacyProfiles];
+      const followedById = {};
+      pidProfiles.forEach(p => { followedById[p.id] = p; });
+      const legacyByUid = {};
+      legacyProfiles.forEach(p => {
+        if (!legacyByUid[p.user_id] || p.type !== 'punter') legacyByUid[p.user_id] = p;
+      });
       const followProfileMap = {};
-      rawProfiles.forEach(p => {
-        if (!followProfileMap[p.user_id] || p.type !== 'punter') followProfileMap[p.user_id] = p;
+      profileFollows.forEach(f => {
+        const p = f.target_profile_id ? followedById[f.target_profile_id] : legacyByUid[f.entity_id];
+        if (p) followProfileMap[f.entity_id] = p;
       });
       const lastVisited    = localStorage.getItem('_mySceneLastVisited');
       const updatedFollows = lastVisited ? rawProfiles.filter(p => p.updated_at > lastVisited) : [];
@@ -187,12 +205,14 @@ export default function MySceneScreen({ isGuest, onSignOut }) {
     if (data.updatedFollows) setUpdatedFollows(data.updatedFollows);
   }, [data]);
 
-  // Lazy-load avatars for followed profiles after main data is ready
+  // Lazy-load avatars for followed profiles after main data is ready.
+  // M5.1 (D5): fetch by the resolved profiles' own ids; the avatar map stays
+  // keyed by user_id — the consumers' lookup key.
   useEffect(() => {
     if (!data?.followProfiles) return;
-    const ids = Object.keys(data.followProfiles);
-    if (!ids.length) return;
-    supabase.from('profiles').select('user_id,avatar').in('user_id', ids).then(({ data: rows }) => {
+    const pids = [...new Set(Object.values(data.followProfiles).map(p => p.id).filter(Boolean))];
+    if (!pids.length) return;
+    supabase.from('profiles').select('id,user_id,avatar').in('id', pids).then(({ data: rows }) => {
       if (!rows) return;
       const map = {};
       rows.forEach(r => { if (r.avatar) map[r.user_id] = r.avatar; });
@@ -382,19 +402,24 @@ export default function MySceneScreen({ isGuest, onSignOut }) {
     const dayEvs = datedEvents.filter(ev => ev.config?.date === dateStr);
     if (!dayEvs.length) return;
     const evIds = dayEvs.map(ev => ev.id);
-    const { data: membersData } = await supabase.from('lineup_members').select('event_id, artist_name, genre, sound, artist_id').in('event_id', evIds).neq('status', 'removed');
+    const { data: membersData } = await supabase.from('lineup_members').select('event_id, artist_name, genre, sound, artist_id, artist_profile_id').in('event_id', evIds).neq('status', 'removed');
     if (!membersData?.length) return;
-    const userIds = [...new Set(membersData.map(c => c.artist_id).filter(Boolean))];
-    let profMap = {};
-    if (userIds.length) {
-      const { data: profs } = await supabase.from('profiles').select('user_id, avatar').in('user_id', userIds);
-      (profs || []).forEach(p => { profMap[p.user_id] = p; });
-    }
+    // M5.1 (D8): avatars resolve by artist_profile_id; legacy artist_id join
+    // only for rows without one.
+    const pidMs = membersData.filter(c => c.artist_profile_id);
+    const uidMs = membersData.filter(c => !c.artist_profile_id && c.artist_id);
+    const [aPid, aUid] = await Promise.all([
+      pidMs.length ? supabase.from('profiles').select('id, user_id, avatar').in('id', pidMs.map(c => c.artist_profile_id)) : Promise.resolve({ data: [] }),
+      uidMs.length ? supabase.from('profiles').select('id, user_id, avatar').in('user_id', uidMs.map(c => c.artist_id)) : Promise.resolve({ data: [] }),
+    ]);
+    const avById = {}; (aPid.data || []).forEach(p => { avById[p.id] = p; });
+    const avByUid = {}; (aUid.data || []).forEach(p => { avByUid[p.user_id] = p; });
+    const profFor = c => (c.artist_profile_id ? avById[c.artist_profile_id] : avByUid[c.artist_id]) || null;
     const evMap = {};
     dayEvs.forEach(ev => { evMap[ev.id] = ev.name; });
     setDayArtists(membersData.map(c => ({
       name: c.artist_name, genre: c.genre, sound: c.sound,
-      avatar: profMap[c.artist_id]?.avatar, eventName: evMap[c.event_id],
+      avatar: profFor(c)?.avatar, eventName: evMap[c.event_id],
     })));
   }
 

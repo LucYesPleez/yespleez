@@ -167,15 +167,22 @@ export default function HostDashboard({ userId: userIdProp }) {
     if (!userId) return;
     setLoadingFollowing(true);
     async function loadFollowing() {
+      // M5.1 (D6): followed profiles resolve by target_profile_id; legacy
+      // entity_id join only for rows without one.
       const { data: rows } = await supabase.from('follows')
-        .select('entity_id').eq('user_id', userId).neq('entity_type', 'event');
-      const ids = (rows || []).map(r => r.entity_id).filter(Boolean);
-      if (!ids.length) { setLoadingFollowing(false); return; }
-      const { data: profs } = await supabase.from('profiles')
-        .select('user_id, name, avatar, type, sound, genre_string, location, bio').in('user_id', ids);
-      // Dedupe by user_id, preferring venue/artist over punter
+        .select('entity_id, target_profile_id').eq('user_id', userId).neq('entity_type', 'event');
+      const fPids = [...new Set((rows || []).filter(r => r.target_profile_id).map(r => r.target_profile_id))];
+      const fLegacy = [...new Set((rows || []).filter(r => !r.target_profile_id).map(r => r.entity_id).filter(Boolean))];
+      if (!fPids.length && !fLegacy.length) { setLoadingFollowing(false); return; }
+      const fCols = 'id, user_id, name, avatar, type, sound, genre_string, location, bio';
+      const [fPidRes, fUidRes] = await Promise.all([
+        fPids.length ? supabase.from('profiles').select(fCols).in('id', fPids) : Promise.resolve({ data: [] }),
+        fLegacy.length ? supabase.from('profiles').select(fCols).in('user_id', fLegacy) : Promise.resolve({ data: [] }),
+      ]);
+      // Dedupe (legacy rows only), preferring venue/artist over punter
       const seen = {};
-      (profs || []).forEach(p => {
+      (fPidRes.data || []).forEach(p => { seen[p.id] = p; });
+      (fUidRes.data || []).forEach(p => {
         if (!seen[p.user_id] || p.type !== 'punter') seen[p.user_id] = p;
       });
       setFollowing(Object.values(seen));
