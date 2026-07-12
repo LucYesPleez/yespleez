@@ -595,8 +595,8 @@ export default function MySceneScreen({ isGuest, onSignOut }) {
       {/* Add personal event sheet */}
       {showAddEvent && (
         <>
-          <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.65)', zIndex:600 }} onClick={() => setShowAddEvent(false)} />
-          <div style={{ position:'fixed', bottom:'var(--yp-safe-bottom)', left:'50%', transform:'translateX(-50%)', width:'min(100%,476px)', background:'var(--card)', borderRadius:'18px 18px 0 0', padding:'20px 20px 24px', zIndex:601, boxSizing:'border-box' }}>
+          <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.65)', zIndex:10000 }} onClick={() => setShowAddEvent(false)} />
+          <div style={{ position:'fixed', bottom:'var(--yp-safe-bottom)', left:'50%', transform:'translateX(-50%)', width:'min(100%,476px)', background:'var(--card)', borderRadius:'18px 18px 0 0', padding:'20px 20px 24px', zIndex:10001, boxSizing:'border-box' }}>
             {/* Drag handle */}
             <div style={{ width:36, height:4, background:'var(--border)', borderRadius:2, margin:'0 auto 20px' }} />
 
