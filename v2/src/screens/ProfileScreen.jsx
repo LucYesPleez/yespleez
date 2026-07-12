@@ -254,10 +254,11 @@ export default function ProfileScreen() {
   const grad2   = ta.grad2;
   const isHost  = profile.type === 'host';
   const isVenue = profile.type === 'venue';
-  // M5: always a profiles-shaped row; unclaimed profiles fall back to the
-  // generic type imagery (never a real likeness) when they have no avatar.
+  // M5: always a profiles-shaped row; any profile (claimed or not) falls back
+  // to the generic type imagery (never a real likeness) when it has no avatar.
+  const hasRealAvatar = !!(profile.avatar_hero || profile.avatar_thumb || profile.avatar);
   const heroUrl = profile.avatar_hero || profile.avatar_thumb || profile.avatar
-    || (isUnclaimed ? PLACEHOLDER_HERO[profile.type] : null) || null;
+    || PLACEHOLDER_HERO[profile.type] || null;
   const label   = isVenue ? ta.label : (profile.band_type || profile.act_type || ta.label);
   const loc     = [profile.suburb || profile.location, profile.state].filter(Boolean).join(', ');
   const mixLink = profile.mix_link || profile.soundcloud || profile.mixcloud || '';
@@ -307,7 +308,7 @@ export default function ProfileScreen() {
           className={s.heroImg}
           style={{
             backgroundImage: `url(${heroUrl})`,
-            ...(isUnclaimed && !profile.avatar
+            ...(!hasRealAvatar
               ? { height: '120dvh', transform: 'translateX(-50%) translateY(-20dvh)' }
               : {}),
           }}
