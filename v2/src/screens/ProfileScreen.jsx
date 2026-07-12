@@ -460,14 +460,15 @@ export default function ProfileScreen() {
                   {followed ? '✓ FOLLOWING' : <span style={{ backgroundImage: `linear-gradient(135deg, ${col}, ${grad2})`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>+ FOLLOW</span>}
                 </button>
               </span>
-              {isVenue && !isUnclaimed && (
+              {!isUnclaimed && !na(profile.contact_email) && (
                 <span style={{ flex: 1, display: 'inline-block', padding: 1, borderRadius: 12, background: `linear-gradient(135deg, ${col}, ${grad2})` }}>
-                  <button
+                  <a
+                    href={`mailto:${profile.contact_email}`}
                     className={s.followBtn}
-                    style={{ borderColor: 'transparent', background: 'rgba(19,19,31,.92)', width: '100%', margin: 0 }}
+                    style={{ borderColor: 'transparent', background: 'rgba(19,19,31,.92)', width: '100%', margin: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', textDecoration: 'none', boxSizing: 'border-box' }}
                   >
-                    <span style={{ backgroundImage: `linear-gradient(135deg, ${col}, ${grad2})`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>MESSAGE VENUE</span>
-                  </button>
+                    <span style={{ backgroundImage: `linear-gradient(135deg, ${col}, ${grad2})`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>MESSAGE</span>
+                  </a>
                 </span>
               )}
             </div>
