@@ -245,9 +245,9 @@ export default function StandupProfileScreen() {
                   <button key={v} type="button"
                     onClick={() => toggleVibe(v)}
                     style={{
-                      background: on ? 'rgba(255,136,170,.22)' : 'rgba(0,229,255,.04)',
-                      border: `1px solid ${on ? '#BF5FFF' : 'rgba(0,229,255,.15)'}`,
-                      color: on ? '#FF88AA' : 'var(--muted)',
+                      background: on ? 'rgba(0,229,160,.22)' : 'rgba(0,229,160,.06)',
+                      border: `1px solid rgba(0,229,160,${on ? '.5' : '.2'})`,
+                      color: '#FF88AA',
                       borderRadius: 20,
                       padding: '6px 14px',
                       fontFamily: "'DM Sans', sans-serif",
@@ -255,8 +255,8 @@ export default function StandupProfileScreen() {
                       cursor: 'pointer',
                       transition: 'all .15s',
                     }}
-                    onMouseEnter={e => { if (!on) { e.currentTarget.style.background = 'rgba(255,136,170,.22)'; e.currentTarget.style.borderColor = '#BF5FFF'; e.currentTarget.style.color = '#FF88AA'; } }}
-                    onMouseLeave={e => { if (!on) { e.currentTarget.style.background = 'rgba(0,229,255,.04)'; e.currentTarget.style.borderColor = 'rgba(0,229,255,.15)'; e.currentTarget.style.color = 'var(--muted)'; } }}>
+                    onMouseEnter={e => { if (!on) { e.currentTarget.style.background = 'rgba(0,229,160,.22)'; e.currentTarget.style.borderColor = 'rgba(0,229,160,.5)'; } }}
+                    onMouseLeave={e => { if (!on) { e.currentTarget.style.background = 'rgba(0,229,160,.06)'; e.currentTarget.style.borderColor = 'rgba(0,229,160,.2)'; } }}>
                     {v}
                   </button>
                 );
