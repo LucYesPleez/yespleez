@@ -209,6 +209,7 @@ export default function VenueDashboard({ userId: userIdProp }) {
       <DashboardProfileCard
         profile={profile}
         accent="#00E5A0"
+        gradient="linear-gradient(135deg, #00E5A0, #00B4D8)"
         icon={<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#00E5A0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>}
         setupRoute="/industry/venue/setup"
         subtitle={profile?.location || 'Add your venue details so promoters can find you'}

@@ -35,6 +35,7 @@ const DEFAULT_HERO = {
 export default function DashboardProfileCard({
   profile,
   accent = '#00E5A0',
+  gradient,
   icon,
   setupRoute,
   subtitle,
@@ -52,6 +53,7 @@ export default function DashboardProfileCard({
   const tagline    = profile?.tagline;
   const typeLabel  = TYPE_LABELS[profile?.type] || profile?.type?.toUpperCase();
   const isMobile   = typeof window !== 'undefined' && window.innerWidth < 640;
+  const themeGradient = gradient || `linear-gradient(90deg, ${accent}, #00B4D8)`;
 
   // Dark bg colour matching the page — used for the image-to-content fade
   const pageBg = '#0a0a14';
@@ -156,7 +158,7 @@ export default function DashboardProfileCard({
             <div style={{
               fontFamily: "'Bebas Neue', sans-serif",
               fontSize: 11, letterSpacing: 1.5, lineHeight: 1.35,
-              background: `linear-gradient(90deg, ${accent}, #00B4D8)`,
+              background: themeGradient,
               WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
               backgroundClip: 'text', display: 'inline-block',
             }}>{tagline}</div>
@@ -179,7 +181,7 @@ export default function DashboardProfileCard({
               height: '100%',
               width: `${completionPct}%`,
               borderRadius: 2,
-              background: `linear-gradient(90deg, ${accent}, #00B4D8)`,
+              background: themeGradient,
               transition: 'width .6s',
             }} />
           </div>
