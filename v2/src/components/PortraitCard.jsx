@@ -9,6 +9,14 @@ const PILL_STYLES = {
   standup: { bg: '#FF88AA', dark: true,  label: 'COMEDY' },
 };
 
+const DEFAULT_IMAGE = {
+  artist:  '/defaultdj.png',
+  band:    '/defaultband.png',
+  standup: '/defaultmic.png',
+  venue:   '/defaultvenueblur.png',
+  host:    '/defaultpromoter.jpg',
+};
+
 /**
  * Props:
  *   profile  – { user_id, name, type, avatar, location, sound }
@@ -34,7 +42,7 @@ export default function PortraitCard({ profile: p, onClick, width = 150, height 
       onMouseLeave={e => e.currentTarget.style.transform = ''}
     >
       {/* avatar image */}
-      {(p?.avatar_thumb || p?.avatar) && <img src={p.avatar_thumb || p.avatar} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} loading="lazy" decoding="async" />}
+      <img src={p?.avatar_thumb || p?.avatar || DEFAULT_IMAGE[type]} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} loading="lazy" decoding="async" />
       {/* gradient overlay */}
       <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom,rgba(0,0,0,.08) 0%,rgba(0,0,0,0) 35%,rgba(0,0,0,.6) 75%,rgba(0,0,0,.88) 100%)' }} />
       {/* type pill */}
