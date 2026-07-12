@@ -33,7 +33,7 @@ export default function FeaturedEventCard({ event, onClick, label = 'FEATURED' }
         )}
         {genreList.length > 0 && (
           <div className={s.tags}>
-            {genreList.map(g => <span key={g} className={s.tag}>{g}</span>)}
+            {genreList.map(g => <span key={g} className="glow-pill">{g}</span>)}
           </div>
         )}
       </div>
