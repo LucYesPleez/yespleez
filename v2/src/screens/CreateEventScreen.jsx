@@ -125,7 +125,7 @@ const HOST_CONTROL_INFO = [
   { label: 'Artists can remove their own claim', body: 'When on, artists can withdraw from their slot at any time without contacting you. Turn this off if you want full control — no one leaves the lineup without your say.' },
   { label: 'Show ranked backup preferences', body: 'Artists can nominate up to 3 slots they\'d like as a backup if their first choice is taken. Gives the auto-generator better data to fill your lineup fairly.' },
   { label: 'Show genre / vibe pickers', body: 'Adds sound and genre selectors to the application form. Helps you match the right artists to the right slots — especially useful for multi-genre or themed events.' },
-  { label: 'Private set times', body: 'Each artist only sees their own slot time. The full running order stays hidden from the lineup until you choose to reveal it — useful for surprise lineups or managing artist egos.' },
+  { label: 'Public set times', body: 'When on, the full running order is visible to every artist on the bill. Turn it off to keep set times private — each artist only sees their own slot until you choose to reveal the full lineup.' },
   { label: 'Show set times publicly', body: 'When on, a set times tab appears on the public event page so anyone can see the running order. Keep it off to build anticipation or if times are still being confirmed.' },
   { label: 'Applications open', body: 'Controls whether artists can submit an application to play your event. Turn off once you\'re booked out or want to close submissions without cancelling the event.' },
   { label: 'Public event', body: 'When on, your event is listed in Discover and searchable by anyone on the app. Turn off to keep it invite-only or while you\'re still setting up.' },
@@ -589,7 +589,7 @@ export default function CreateEventScreen() {
           <Toggle label="Artists can remove their own claim"    sub="When off, only the host can clear slots"                                    value={artistsCanRemove}  onChange={setArtistsCanRemove} />
           <Toggle label="Show ranked backup preferences"        sub="Artists rank up to 3 preferred slots for the generator"                    value={showRankedBackup}  onChange={setShowRankedBackup} />
           <Toggle label="Show genre / vibe pickers"            sub="Collect musical style info from artists"                                    value={showGenrePickers}  onChange={setShowGenrePickers} />
-          <Toggle label="Private set times"                    sub="Artists only see their own slot — lineup stays secret until you're ready"   value={privateSetTimes}   onChange={setPrivateSetTimes} />
+          <Toggle label="Public set times"                     sub="Full running order is visible to every artist on the bill — turn off to keep it under wraps until you're ready"   value={!privateSetTimes}   onChange={v => setPrivateSetTimes(!v)} />
           <Toggle label="Show set times publicly"              sub="When on, the set times tab is visible on the public event page"             value={showTimesPublicly} onChange={setShowTimesPublicly} />
           <Toggle label="Applications open"                    sub="Allow artists to apply to this event"                                       value={appsOpen}          onChange={setAppsOpen} />
           <Toggle label="Public event"                         sub="Visible in Discover to anyone browsing"                                     value={isPublic}          onChange={setIsPublic} />
