@@ -228,7 +228,7 @@
 }
 
 .bioText {
-  font-size: 14px;
+  font-size: 13px;
   color: var(--muted);
   line-height: 1.7;
   position: relative;
@@ -245,20 +245,26 @@
 }
 
 .genrePill {
-  background: rgba(0,229,255,.08);
-  border: 1px solid rgba(0,229,255,.25);
+  display: inline-block;
+  background: linear-gradient(to right, rgba(var(--pill-rgb),.15), transparent);
+  border: 1px solid rgba(var(--pill-rgb),.25);
   border-radius: 20px;
-  font-size: 12px;
-  padding: 4px 12px;
-  color: var(--neon2);
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 13px;
+  letter-spacing: 1.5px;
+  padding: 4px 13px;
+  box-shadow: 0 0 8px rgba(var(--pill-rgb),.2);
+  color: var(--pill-col);
 }
 
 .genreMore {
-  background: rgba(0,229,255,.05);
-  border: 1px solid rgba(0,229,255,.15);
+  background: rgba(var(--pill-rgb),.05);
+  border: 1px solid rgba(var(--pill-rgb),.15);
   border-radius: 20px;
-  font-size: 12px;
-  padding: 4px 12px;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 13px;
+  letter-spacing: 1.5px;
+  padding: 4px 13px;
   color: var(--muted);
   cursor: pointer;
 }

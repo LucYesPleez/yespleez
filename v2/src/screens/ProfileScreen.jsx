@@ -353,10 +353,8 @@ export default function ProfileScreen() {
               : genres.slice(0, 5);
             if (!pillSrc.length) return null;
             return (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 8 }}>
-                {pillSrc.map(p => (
-                  <span key={p} style={{ fontFamily: "'DM Sans'", fontSize: 11, color: col, background: `rgba(${rgb},.12)`, border: `1px solid rgba(${rgb},.3)`, borderRadius: 20, padding: '2px 10px' }}>{p}</span>
-                ))}
+              <div className={s.genrePills} style={{ '--pill-col': col, '--pill-rgb': rgb, marginTop: 8 }}>
+                {pillSrc.map(p => <span key={p} className={s.genrePill}>{p}</span>)}
               </div>
             );
           })()}
@@ -433,7 +431,7 @@ export default function ProfileScreen() {
 
           {/* Venue: combined Vibe tags + Sound + Venue Info box */}
           {isVenue && (
-            <div className={s.glassCard} style={{ '--card-col': col, '--card-grad2': grad2, padding: 0, overflow: 'hidden' }}>
+            <div className={s.glassCard} style={{ '--card-col': col, '--card-grad2': grad2, '--pill-col': col, '--pill-rgb': rgb, padding: 0, overflow: 'hidden' }}>
               {(() => {
                 const vibeTags = profile.card_pills
                   ? profile.card_pills.split(' · ').map(t => t.trim()).filter(Boolean).slice(0, 5)
@@ -443,20 +441,7 @@ export default function ProfileScreen() {
                   <div style={{ padding: '14px 16px' }}>
                     <div className={s.cardLabel} style={{ color: col, marginBottom: 8 }}>VIBE</div>
                     <div className={s.genrePills}>
-                      {vibeTags.map(t => (
-                        <span key={t} style={{
-                          display: 'inline-block',
-                          fontFamily: "'Bebas Neue', sans-serif",
-                          fontSize: 13,
-                          letterSpacing: 1.5,
-                          padding: '4px 13px',
-                          borderRadius: 20,
-                          background: `linear-gradient(to right, rgba(${rgb},.15), transparent)`,
-                          border: `1px solid rgba(${rgb},.25)`,
-                          boxShadow: `0 0 8px rgba(${rgb},.2)`,
-                          color: col,
-                        }}>{t}</span>
-                      ))}
+                      {vibeTags.map(t => <span key={t} className={s.genrePill}>{t}</span>)}
                     </div>
                   </div>
                 );
@@ -871,19 +856,25 @@ function VenueInfoDropdown({ profile, col, rgb, grad2, bare = false, socials = [
           {atmosphere.length > 0 && (
             <div style={{ ...rowStyle, alignItems: 'flex-start' }}>
               <div style={labelStyle}>ATMOSPHERE</div>
-              <div style={{ fontSize: 13, color: 'var(--muted)', flex: 1, lineHeight: 1.6 }}>{atmosphere.join(', ')}</div>
+              <div className={s.genrePills} style={{ '--pill-col': col, '--pill-rgb': rgb, flex: 1 }}>
+                {atmosphere.map(t => <span key={t} className={s.genrePill}>{t}</span>)}
+              </div>
             </div>
           )}
           {entertain.length > 0 && (
             <div style={{ ...rowStyle, alignItems: 'flex-start' }}>
               <div style={labelStyle}>WE BOOK</div>
-              <div style={{ fontSize: 13, color: 'var(--muted)', flex: 1, lineHeight: 1.6 }}>{entertain.join(', ')}</div>
+              <div className={s.genrePills} style={{ '--pill-col': col, '--pill-rgb': rgb, flex: 1 }}>
+                {entertain.map(t => <span key={t} className={s.genrePill}>{t}</span>)}
+              </div>
             </div>
           )}
           {perfectFor.length > 0 && (
             <div style={{ ...rowStyle, alignItems: 'flex-start' }}>
               <div style={labelStyle}>PERFECT FOR</div>
-              <div style={{ fontSize: 13, color: 'var(--muted)', flex: 1, lineHeight: 1.6 }}>{perfectFor.join(', ')}</div>
+              <div className={s.genrePills} style={{ '--pill-col': col, '--pill-rgb': rgb, flex: 1 }}>
+                {perfectFor.map(t => <span key={t} className={s.genrePill}>{t}</span>)}
+              </div>
             </div>
           )}
           {profile.bio && (
@@ -903,15 +894,19 @@ function VenueInfoDropdown({ profile, col, rgb, grad2, bare = false, socials = [
             <div style={{ ...rowStyle, alignItems: 'flex-start' }}>
               <div style={labelStyle}>STAGE & TECH</div>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 13, color: 'var(--muted)', lineHeight: 1.6 }}>{tech.join(', ')}</div>
-                {profile.stage_dims && <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}><span style={{ fontFamily: "'Bebas Neue'", letterSpacing: 1.5, fontSize: 11 }}>STAGE</span> — {profile.stage_dims}</div>}
+                <div className={s.genrePills} style={{ '--pill-col': col, '--pill-rgb': rgb }}>
+                  {tech.map(t => <span key={t} className={s.genrePill}>{t}</span>)}
+                </div>
+                {profile.stage_dims && <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 6 }}><span style={{ fontFamily: "'Bebas Neue'", letterSpacing: 1.5, fontSize: 11 }}>STAGE</span> — {profile.stage_dims}</div>}
               </div>
             </div>
           )}
           {nights.length > 0 && (
             <div style={{ ...rowStyle, alignItems: 'flex-start' }}>
               <div style={labelStyle}>LIVE NIGHTS</div>
-              <div style={{ fontSize: 13, color: 'var(--muted)', flex: 1, lineHeight: 1.6 }}>{nights.join(', ')}</div>
+              <div className={s.genrePills} style={{ '--pill-col': col, '--pill-rgb': rgb, flex: 1 }}>
+                {nights.map(t => <span key={t} className={s.genrePill}>{t}</span>)}
+              </div>
             </div>
           )}
           {socials.length > 0 && (
