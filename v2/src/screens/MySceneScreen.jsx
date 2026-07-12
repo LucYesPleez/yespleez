@@ -6,6 +6,7 @@ import { useSession } from '../App';
 import EventCard from '../components/EventCard';
 import FeaturedEventCard from '../components/FeaturedEventCard';
 import PortraitCard from '../components/PortraitCard';
+import ProfileCard from '../components/ProfileCard';
 import { SkeletonRow, SkeletonEventCard } from '../components/Skeleton';
 import s from './MySceneScreen.module.css';
 import { useDragScroll } from '../hooks/useDragScroll';
@@ -67,6 +68,7 @@ export default function MySceneScreen({ isGuest, onSignOut }) {
   const [followProfiles, setFollowProfiles] = useState({});
   const [followAvatars,  setFollowAvatars]  = useState({});
   const [followTab,       setFollowTab]       = useState('following');
+  const [followView,      setFollowView]      = useState('portrait');
   const [followRoleFilter,setFollowRoleFilter] = useState(null);
   const [followShowAll,   setFollowShowAll]   = useState(false);
   const [followSearch,    setFollowSearch]    = useState('');
@@ -990,16 +992,26 @@ export default function MySceneScreen({ isGuest, onSignOut }) {
                 {/* Following panel — horizontal preview */}
                 {!followShowAll && followTab === 'following' && (
                   <>
-                    {availableTypes.length > 1 && (
-                      <div className={s.roleFilters}>
-                        <button className={s.rolePill + (!followRoleFilter ? ' ' + s.rolePillActive : '')} onClick={() => setFollowRoleFilter(null)}>ALL</button>
-                        {availableTypes.map(t => (
-                          <button key={t} className={s.rolePill + (followRoleFilter === t ? ' ' + s.rolePillActive : '')} onClick={() => setFollowRoleFilter(followRoleFilter === t ? null : t)}>
-                            {TYPE_LABELS[t] || t.toUpperCase()}
-                          </button>
-                        ))}
-                      </div>
-                    )}
+                    <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                      {availableTypes.length > 1 && (
+                        <div className={s.roleFilters} style={{ margin:0 }}>
+                          <button className={s.rolePill + (!followRoleFilter ? ' ' + s.rolePillActive : '')} onClick={() => setFollowRoleFilter(null)}>ALL</button>
+                          {availableTypes.map(t => (
+                            <button key={t} className={s.rolePill + (followRoleFilter === t ? ' ' + s.rolePillActive : '')} onClick={() => setFollowRoleFilter(followRoleFilter === t ? null : t)}>
+                              {TYPE_LABELS[t] || t.toUpperCase()}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      <div style={{ flex: 1 }} />
+                      {filteredFollows.length > 0 && (
+                        <div style={{ display:'flex', background:'var(--card2)', borderRadius:8, overflow:'hidden', border:'1px solid var(--border)', flexShrink:0 }}>
+                          {[['portrait','▦'],['landscape','☰']].map(([v, icon]) => (
+                            <button key={v} onClick={() => setFollowView(v)} style={{ background: followView===v ? 'rgba(0,229,255,.18)' : 'none', border:'none', color: followView===v ? 'var(--neon2)' : 'var(--muted)', padding:'5px 10px', cursor:'pointer', fontSize:13, lineHeight:1, transition:'background .15s, color .15s' }}>{icon}</button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                     <div style={{ marginTop: 10 }}>
                       {filteredFollows.length === 0 ? (
                         <div className={s.empty}>
@@ -1008,11 +1020,18 @@ export default function MySceneScreen({ isGuest, onSignOut }) {
                             : "Follow artists and venues from their profiles — you'll get notified when they play."
                           }
                         </div>
-                      ) : (
+                      ) : followView === 'portrait' ? (
                         <div ref={followingDrag.ref} onMouseDown={followingDrag.onMouseDown} onMouseMove={followingDrag.onMouseMove} onMouseUp={followingDrag.onMouseUp} onMouseLeave={followingDrag.onMouseLeave} style={{ display:'flex', gap:10, overflowX:'auto', paddingBottom:8, WebkitOverflowScrolling:'touch', scrollbarWidth:'none', cursor:'grab' }}>
                           {filteredFollows.map(f => {
                             const p = followProfiles[f.entity_id];
                             return p ? <PortraitCard key={f.entity_id} profile={{ ...p, avatar: followAvatars[p.user_id] || p.avatar }} /> : null;
+                          })}
+                        </div>
+                      ) : (
+                        <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+                          {filteredFollows.map(f => {
+                            const p = followProfiles[f.entity_id];
+                            return p ? <ProfileCard key={f.entity_id} item={{ ...p, avatar: followAvatars[p.user_id] || p.avatar }} /> : null;
                           })}
                         </div>
                       )}
