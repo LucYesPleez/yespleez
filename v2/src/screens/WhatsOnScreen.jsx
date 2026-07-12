@@ -347,7 +347,7 @@ export default function WhatsOnScreen() {
         <div className={s.chips} ref={chipsDrag.ref} onMouseDown={chipsDrag.onMouseDown} onMouseMove={chipsDrag.onMouseMove} onMouseUp={chipsDrag.onMouseUp} onMouseLeave={chipsDrag.onMouseLeave} style={{ cursor:'grab' }}>
           <div className={s.postcodeWrap}>
             <input className={s.postcodeInput} type="text" inputMode="numeric" maxLength={4}
-              placeholder="📍 Postcode" value={postcode} onChange={e => setPostcode(e.target.value)} autoComplete="off" />
+              placeholder="📍 Your postcode" value={postcode} onChange={e => setPostcode(e.target.value)} autoComplete="off" />
           </div>
           {postcode.length === 4 && (
             <select className={s.radiusSelect} value={radius} onChange={e => setRadius(e.target.value)}>
