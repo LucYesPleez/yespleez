@@ -9,6 +9,7 @@ import { getEventBadges } from '../lib/eventBadges';
 import s from './ProfileScreen.module.css';
 import ClaimDialog from '../components/ClaimDialog';
 import { resolveProfileRoute, profileUrl } from '../lib/profileResolution';
+import PastEventsSearch, { filterPastEvents } from '../components/PastEventsSearch';
 
 const TYPE_ACCENTS = {
   host:    { col: '#FF2D78',      rgb: '255,45,120',  label: 'HOST',                grad2: '#BF5FFF' },
@@ -48,6 +49,7 @@ export default function ProfileScreen() {
   const [showPast,      setShowPast]      = useState(false);
   const [showAllUp,     setShowAllUp]     = useState(false);
   const [showAllPast,   setShowAllPast]   = useState(false);
+  const [pastGigSearch, setPastGigSearch] = useState('');
   const [gigsView,      setGigsView]      = useState('portrait'); // 'portrait' | 'list'
   const [pickerDate,    setPickerDate]    = useState(null);
   const [pickerProfs,   setPickerProfs]   = useState([]);
@@ -541,7 +543,7 @@ export default function ProfileScreen() {
             const todayStr = new Date().toISOString().split('T')[0];
             const upcoming = events.filter(ev => (ev.config?.date || '9999') >= todayStr).sort((a, b) => (a.config?.date || '').localeCompare(b.config?.date || ''));
             const past     = events.filter(ev => (ev.config?.date || '9999') <  todayStr).sort((a, b) => (b.config?.date || '').localeCompare(a.config?.date || ''));
-            const list     = showPast ? past : upcoming;
+            const list     = showPast ? filterPastEvents(past, pastGigSearch) : upcoming;
             const showAll  = showPast ? showAllPast : showAllUp;
             const setAll   = showPast ? setShowAllPast : setShowAllUp;
             if (!upcoming.length && !past.length) return null;
@@ -572,8 +574,11 @@ export default function ProfileScreen() {
                     )}
                   </div>
                 </div>
+                {showPast && past.length > 0 && (
+                  <PastEventsSearch query={pastGigSearch} onChange={setPastGigSearch} />
+                )}
                 {list.length === 0
-                  ? <p style={{ fontSize: 13, color: 'var(--muted)', margin: 0 }}>No {showPast ? 'past' : 'upcoming'} gigs.</p>
+                  ? <p style={{ fontSize: 13, color: 'var(--muted)', margin: 0 }}>{showPast && pastGigSearch.trim() ? 'No past gigs match your search.' : `No ${showPast ? 'past' : 'upcoming'} gigs.`}</p>
                   : gigsView === 'portrait'
                   ? <div style={{ display: 'flex', gap: 10, overflowX: 'auto', scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch', paddingBottom: 4 }}>
                       {list.map(ev => {
@@ -643,7 +648,7 @@ export default function ProfileScreen() {
 
       {/* Availability modal */}
       {availOpen && (
-        <div onClick={() => setAvailOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 9000, background: 'rgba(0,0,0,.85)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+        <div onClick={() => setAvailOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 9000, background: 'rgba(0,0,0,.85)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', paddingBottom: 'var(--yp-safe-bottom)' }}>
           <div onClick={e => e.stopPropagation()} style={{ background: '#0f0f1a', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 480, padding: '24px 20px 100px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
               <span style={{ fontFamily: "'Bebas Neue'", fontSize: 22, letterSpacing: 2, color: col }}>VENUE AVAILABILITY</span>
@@ -712,7 +717,7 @@ export default function ProfileScreen() {
 
       {/* Follow-from picker — multi-select */}
       {followPickerProfs.length > 0 && (
-        <div onClick={() => { setFollowPickerProfs([]); setFollowSelected(new Set()); }} style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,.6)', backdropFilter: 'blur(4px)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', paddingBottom: 67 }}>
+        <div onClick={() => { setFollowPickerProfs([]); setFollowSelected(new Set()); }} style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,.6)', backdropFilter: 'blur(4px)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', paddingBottom: 'var(--yp-safe-bottom)' }}>
           <div onClick={e => e.stopPropagation()} style={{ background: '#13131f', borderRadius: '20px 20px 0 0', padding: '24px 20px 32px', maxWidth: 520, width: '100%', margin: '0 auto', maxHeight: '85dvh', overflowY: 'auto', scrollbarWidth: 'none' }}>
             <div style={{ width: 36, height: 4, background: 'rgba(255,255,255,.2)', borderRadius: 2, margin: '0 auto 20px' }} />
             <div style={{ fontFamily: "'Bebas Neue'", fontSize: 22, letterSpacing: 2, marginBottom: 16, background: `linear-gradient(135deg,${col},${grad2})`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text', display: 'inline-block' }}>FOLLOW {profile.name.toUpperCase()}</div>
@@ -751,7 +756,7 @@ export default function ProfileScreen() {
       )}
 
       {pickerDate && pickerProfs.length > 0 && (
-        <div onClick={() => { setPickerDate(null); setPickerProfs([]); }} style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,.6)', backdropFilter: 'blur(4px)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+        <div onClick={() => { setPickerDate(null); setPickerProfs([]); }} style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,.6)', backdropFilter: 'blur(4px)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', paddingBottom: 'var(--yp-safe-bottom)' }}>
           <div onClick={e => e.stopPropagation()} style={{ background: '#13131f', borderRadius: '20px 20px 0 0', padding: '24px 20px 36px', maxWidth: 520, width: '100%', margin: '0 auto', maxHeight: '85dvh', overflowY: 'auto' }}>
             <div style={{ width: 36, height: 4, background: 'rgba(255,255,255,.2)', borderRadius: 2, margin: '0 auto 20px' }} />
             <div style={{ fontFamily: "'Bebas Neue'", fontSize: 11, letterSpacing: 2, color: col, marginBottom: 4 }}>ENQUIRING ABOUT</div>
@@ -781,7 +786,7 @@ export default function ProfileScreen() {
 
       {/* Enquiry sheet */}
       {enquiryProf && pickerDate && (
-        <div onClick={() => { setEnquiryProf(null); setEnquiryNote(''); }} style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,.6)', backdropFilter: 'blur(4px)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+        <div onClick={() => { setEnquiryProf(null); setEnquiryNote(''); }} style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,.6)', backdropFilter: 'blur(4px)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', paddingBottom: 'var(--yp-safe-bottom)' }}>
           <div onClick={e => e.stopPropagation()} style={{ background: '#13131f', borderRadius: '20px 20px 0 0', padding: '24px 20px 36px', maxWidth: 520, width: '100%', margin: '0 auto', maxHeight: '85dvh', overflowY: 'auto' }}>
             <div style={{ width: 36, height: 4, background: 'rgba(255,255,255,.2)', borderRadius: 2, margin: '0 auto 20px' }} />
             <div style={{ fontFamily: "'Bebas Neue'", fontSize: 11, letterSpacing: 2, color: col, marginBottom: 4 }}>ENQUIRE ABOUT THIS DATE</div>

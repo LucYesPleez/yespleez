@@ -139,9 +139,18 @@ function Shell({ session, isGuest, onSignOut }) {
       {player && (
         <div
           ref={el => {
-            if (!el) { document.body.style.paddingBottom = ''; return; }
+            if (!el) {
+              document.body.style.paddingBottom = '';
+              document.documentElement.style.setProperty('--yp-player-height', '0px');
+              return;
+            }
+            // Safe-area rule: while the mini player is mounted, it — not the
+            // nav — is the effective bottom of the screen; --yp-player-height
+            // feeds --yp-safe-bottom (index.css) so bottom-docked sheets stack
+            // above it automatically.
             const ro = new ResizeObserver(([e]) => {
               document.body.style.paddingBottom = e.contentRect.height + 'px';
+              document.documentElement.style.setProperty('--yp-player-height', e.contentRect.height + 'px');
             });
             ro.observe(el);
             el._ro = ro;

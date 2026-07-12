@@ -13,6 +13,15 @@
   --muted:  #7070a0;
   --green:  #00e676;
   --purple: #b060ff;
+
+  /* Safe-area rule: the top of the bottom nav (or the top of the mini
+     player when it's showing) is the effective bottom of the screen.
+     --yp-nav-height and --yp-player-height are kept live by BottomNav.jsx
+     and the MiniPlayer mount in App.jsx respectively; every bottom-docked
+     sheet/modal/popup should clear --yp-safe-bottom, not the literal 0. */
+  --yp-nav-height:    67px;
+  --yp-player-height: 0px;
+  --yp-safe-bottom:   calc(var(--yp-nav-height) + var(--yp-player-height));
 }
 
 *, *::before, *::after {
@@ -89,4 +98,33 @@ button {
 
 input, textarea, select {
   font-family: inherit;
+}
+
+/* ── GlowPill ──────────────────────────────────────────────────────────────
+   Reusable YesPleez pink→cyan gradient pill/chip. DEFINED for reuse — not
+   applied anywhere yet (wire it up on request).
+     Display / read-only:  .glow-pill   (inside a .glow-pills flex row)
+     Clickable toggle:      .glow-chip   (+ .glow-chip.on when selected)
+   Uses the brand tokens --neon (pink) / --neon2 (cyan). */
+.glow-pills { display: flex; flex-wrap: wrap; gap: 7px; }
+.glow-pill {
+  font-size: 11px; font-weight: 700; letter-spacing: .02em;
+  padding: 5px 12px; border-radius: 999px; color: #fff;
+  background: linear-gradient(135deg,
+    color-mix(in srgb, var(--neon) 20%, transparent),
+    color-mix(in srgb, var(--neon2) 14%, transparent));
+  border: 1px solid color-mix(in srgb, var(--neon) 40%, transparent);
+}
+.glow-chip {
+  font-size: 12px; font-weight: 600; padding: 6px 12px; border-radius: 999px;
+  cursor: pointer; user-select: none; transition: all .12s ease;
+  border: 1px solid rgba(255,255,255,.16);
+  background: var(--card); color: var(--muted);
+}
+.glow-chip:hover { border-color: rgba(255,255,255,.3); color: #fff; }
+.glow-chip.on {
+  color: #fff; border-color: var(--neon);
+  background: linear-gradient(135deg,
+    color-mix(in srgb, var(--neon) 22%, transparent),
+    color-mix(in srgb, var(--neon2) 16%, transparent));
 }

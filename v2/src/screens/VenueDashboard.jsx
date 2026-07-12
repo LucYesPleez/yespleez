@@ -48,7 +48,7 @@ export default function VenueDashboard({ userId: userIdProp }) {
   const [followFilter,     setFollowFilter]     = useState('ALL');
   const [regularsShowAll,  setRegularsShowAll]  = useState(false);
   const [regularsSearch,   setRegularsSearch]   = useState('');
-  const regularsDrag = useDragScroll();
+  const regularsDrag = useDragScroll('venue-dashboard-regulars');
 
   const { data, isLoading: loading } = useQuery({
     queryKey: ['venueDashboard', userId],
@@ -330,7 +330,7 @@ function VenueAvailCalendar({ availability, onToggle, onClose }) {
   const DAY_LABELS  = ['S','M','T','W','T','F','S'];
 
   return (
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 9000, background: 'rgba(0,0,0,.85)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 9000, background: 'rgba(0,0,0,.85)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', paddingBottom: 'var(--yp-safe-bottom)' }}>
       <div onClick={e => e.stopPropagation()} style={{ background: '#0f0f1a', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 480, padding: '24px 20px 100px' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
           <span style={{ fontFamily: "'Bebas Neue'", fontSize: 22, letterSpacing: 2, color: '#00E5A0' }}>VENUE AVAILABILITY</span>

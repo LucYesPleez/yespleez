@@ -73,7 +73,7 @@ export default function DiscoverScreen() {
   const [genreOpen,   setGenreOpen]   = useState(false);
   const [stateOpen,   setStateOpen]   = useState(false);
   const debounce    = useRef(null);
-  const profilesDrag = useDragScroll();
+  const profilesDrag = useDragScroll('discover-profiles');
 
   const radiusKm = RADIUS_STEPS[radiusIdx];
   const genreOptions = GENRE_BY_TYPE[type] || [...new Set(Object.values(GENRE_BY_TYPE).flat())].sort();

@@ -5,10 +5,12 @@
   background: rgba(0,0,0,.7);
 }
 
-/* Panel — slides up from bottom, matches v1 industryPanel */
+/* Panel — slides up from bottom, matches v1 industryPanel.
+   Docks above the nav (--yp-safe-bottom, see index.css) rather than at the
+   true viewport bottom, so its own content is never obscured by the nav. */
 .panel {
   position: fixed;
-  bottom: 0;
+  bottom: var(--yp-safe-bottom);
   left: 50%;
   transform: translate(-50%, 100%);
   width: min(67vw, 460px);
@@ -16,7 +18,7 @@
   background: var(--card);
   border-top: 1px solid var(--border);
   border-radius: 20px 20px 0 0;
-  padding-bottom: env(safe-area-inset-bottom, 0);
+  padding-bottom: 12px;
   transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1);
   max-height: 85vh;
   overflow-y: auto;

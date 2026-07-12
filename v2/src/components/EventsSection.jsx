@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import EventCard from './EventCard';
+import PastEventsSearch, { filterPastEvents } from './PastEventsSearch';
 
 const todayStr = () => new Date().toISOString().split('T')[0];
 
@@ -15,9 +16,11 @@ export default function EventsSection({
   const tabKeys = Object.keys(tabs);
   const [activeTab, setActiveTab] = useState(tabKeys[0] || 'UPCOMING');
   const [showAll, setShowAll] = useState(false);
+  const [pastSearch, setPastSearch] = useState('');
 
   const today = todayStr();
-  const events = tabs[activeTab] || [];
+  const isPastTab = activeTab === 'PAST';
+  const events = isPastTab ? filterPastEvents(tabs[activeTab] || [], pastSearch) : (tabs[activeTab] || []);
 
   return (
     <div id="section-events">
@@ -48,11 +51,19 @@ export default function EventsSection({
         })}
       </div>
 
+      {/* Past Events communal filter/search — only where there's something to search */}
+      {isPastTab && !loading && (tabs.PAST || []).length > 0 && (
+        <PastEventsSearch query={pastSearch} onChange={setPastSearch} />
+      )}
+
       {/* Content */}
+      <div>
       {loading ? (
         <p style={{ fontSize: 13, color: 'var(--muted)', padding: '8px 0' }}>Loading…</p>
       ) : events.length === 0 ? (
-        <p style={{ fontSize: 13, color: 'var(--muted)', padding: '8px 0' }}>No {activeTab.toLowerCase()} events.</p>
+        <p style={{ fontSize: 13, color: 'var(--muted)', padding: '8px 0' }}>
+          {isPastTab && pastSearch.trim() ? 'No past events match your search.' : `No ${activeTab.toLowerCase()} events.`}
+        </p>
       ) : (
         <>
           {events.length > 3 && (
@@ -123,6 +134,7 @@ export default function EventsSection({
           </div>
         </>
       )}
+      </div>
 
       {canCreate && (
         <button

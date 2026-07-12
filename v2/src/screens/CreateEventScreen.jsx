@@ -597,7 +597,7 @@ export default function CreateEventScreen() {
 
         {/* Host controls info modal */}
         {showHostInfo && (
-          <div style={{position:'fixed',inset:0,zIndex:9000,background:'rgba(0,0,0,0.75)',display:'flex',alignItems:'flex-end',justifyContent:'center'}} onClick={() => setShowHostInfo(false)}>
+          <div style={{position:'fixed',inset:0,zIndex:9000,background:'rgba(0,0,0,0.75)',display:'flex',alignItems:'flex-end',justifyContent:'center',paddingBottom:'var(--yp-safe-bottom)'}} onClick={() => setShowHostInfo(false)}>
             <div onClick={e => e.stopPropagation()} className={s.hostInfoSheet}>
               <div style={{width:36,height:4,borderRadius:2,background:'rgba(255,255,255,0.2)',margin:'0 auto 20px'}} />
               <p style={{fontFamily:"'Bebas Neue'",fontSize:16,letterSpacing:3,background:'linear-gradient(135deg,#00E5FF,#BF5FFF)',WebkitBackgroundClip:'text',WebkitTextFillColor:'transparent',backgroundClip:'text',marginBottom:20}}>HOST CONTROLS EXPLAINED</p>

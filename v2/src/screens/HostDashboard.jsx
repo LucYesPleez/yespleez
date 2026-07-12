@@ -42,7 +42,7 @@ export default function HostDashboard({ userId: userIdProp }) {
   const [followFilter,  setFollowFilter]  = useState('ALL');
   const [followShowAll, setFollowShowAll] = useState(false);
   const [followSearch,  setFollowSearch]  = useState('');
-  const followDrag = useDragScroll();
+  const followDrag = useDragScroll('host-dashboard-following');
   const appsLoaded    = useRef(false);
   const lineupsLoaded = useRef(false);
 
@@ -528,7 +528,7 @@ function SlotEditModal({ slot, claim, onSave, onClose }) {
     setSaving(false);
   }
 
-  const overlay = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,.7)', zIndex: 1000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' };
+  const overlay = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,.7)', zIndex: 1000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', paddingBottom: 'var(--yp-safe-bottom)' };
   const sheet   = { background: 'var(--bg2,#0f0f1a)', border: '1px solid var(--border)', borderRadius: '20px 20px 0 0', padding: '24px 20px 36px', width: '100%', maxWidth: 480 };
   const inp     = { width: '100%', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,.12)', borderRadius: 10, padding: '10px 12px', color: '#fff', fontFamily: 'inherit', fontSize: 14, boxSizing: 'border-box' };
   const lbl     = { fontFamily: "'Bebas Neue'", fontSize: 11, letterSpacing: 1.5, color: 'var(--muted)', display: 'block', marginBottom: 5 };

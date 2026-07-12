@@ -1,3 +1,4 @@
+import { useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import s from './BottomNav.module.css';
 
@@ -10,6 +11,22 @@ const TABS = [
 
 export default function BottomNav({ activeTab, onTabPress }) {
   const navigate = useNavigate();
+  const navRef = useRef(null);
+
+  // Safe-area rule: keep --yp-nav-height in sync with the real rendered
+  // height so bottom-docked sheets/modals can clear it via --yp-safe-bottom.
+  useEffect(() => {
+    const el = navRef.current;
+    if (!el) return;
+    // getBoundingClientRect (not ResizeObserver's contentRect) so the
+    // measurement includes the top border + safe-area-inset padding —
+    // the full space the nav actually occupies at the bottom of the screen.
+    const ro = new ResizeObserver(() => {
+      document.documentElement.style.setProperty('--yp-nav-height', el.getBoundingClientRect().height + 'px');
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   function handlePress(id, path) {
     if (onTabPress) { onTabPress(id); return; }
@@ -17,7 +34,7 @@ export default function BottomNav({ activeTab, onTabPress }) {
   }
 
   return (
-    <nav className={s.nav}>
+    <nav ref={navRef} className={s.nav}>
       {TABS.map(({ id, label, path, Icon }) => (
         <button
           key={id}

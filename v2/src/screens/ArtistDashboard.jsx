@@ -18,6 +18,7 @@ import DashboardStats from '../components/DashboardStats';
 import FollowingSection, { FOLLOW_FILTER_CONFIGS } from '../components/FollowingSection';
 import EnquiryCard from '../components/EnquiryCard';
 import AvailabilitySection from '../components/AvailabilitySection';
+import PastEventsSearch, { filterPastEvents } from '../components/PastEventsSearch';
 
 // Organiser-side (INCOMING) pipeline — what venues/hosts see
 const IN_STATUS_MAP  = {
@@ -72,6 +73,7 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
   const [outStatusTab,  setOutStatusTab]  = useState('SUBMITTED');
   const [gigTab,        setGigTab]        = useState('UPCOMING');
   const [enqSearch,     setEnqSearch]     = useState('');
+  const [pastGigSearch, setPastGigSearch] = useState('');
   const [unclaimedProf, setUnclaimedProf] = useState(null);
   const [claiming,      setClaiming]      = useState(false);
   const [following,     setFollowing]     = useState([]);
@@ -80,7 +82,7 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
   const [followFilter,  setFollowFilter]  = useState('ALL');
   const [followShowAll, setFollowShowAll] = useState(false);
   const [followSearch,  setFollowSearch]  = useState('');
-  const followDrag = useDragScroll();
+  const followDrag = useDragScroll('artist-dashboard-following');
   const [offers,        setOffers]        = useState([]);
   const [loadingOffers, setLoadingOffers] = useState(false);
   const offersLoaded = useRef(false);
@@ -260,7 +262,7 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
     return JSON.stringify(o).toLowerCase().includes(enqSearch.toLowerCase());
   });
 
-  const gigList = gigTab === 'UPCOMING' ? upcomingGigs : pastGigs;
+  const gigList = gigTab === 'UPCOMING' ? upcomingGigs : filterPastEvents(pastGigs, pastGigSearch);
 
   const newAppsCount  = applications.filter(a => (a.status || 'pending') === 'pending').length;
   const pendingOffers = offersLoaded.current
@@ -445,10 +447,13 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
                 );
               })}
             </div>
+            {gigTab === 'PAST' && !loading && pastGigs.length > 0 && (
+              <PastEventsSearch query={pastGigSearch} onChange={setPastGigSearch} />
+            )}
             {loading
               ? <p className={s.empty}>Loading…</p>
               : gigList.length === 0
-                ? <p className={s.empty}>No {gigTab.toLowerCase()} bookings.</p>
+                ? <p className={s.empty}>{gigTab === 'PAST' && pastGigSearch.trim() ? 'No past bookings match your search.' : `No ${gigTab.toLowerCase()} bookings.`}</p>
                 : <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                     {gigList.map(ev =>
                       <EventCard key={ev.id} event={ev}

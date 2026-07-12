@@ -10,6 +10,7 @@ import { SkeletonRow, SkeletonEventCard } from '../components/Skeleton';
 import s from './MySceneScreen.module.css';
 import { useDragScroll } from '../hooks/useDragScroll';
 import AU_POSTCODES from '../lib/postcodes';
+import PastEventsSearch, { filterPastEvents } from '../components/PastEventsSearch';
 
 let _discoverCache = [];
 
@@ -75,6 +76,7 @@ export default function MySceneScreen({ isGuest, onSignOut }) {
   const [savedLimit,      setSavedLimit]      = useState(3);
   const [pastLimit,       setPastLimit]       = useState(3);
   const [eventsExpanded,  setEventsExpanded]  = useState(false);
+  const [pastEventSearch, setPastEventSearch] = useState('');
   const upcomingRef = useRef(null);
 
   function haversineKm(lat1, lng1, lat2, lng2) {
@@ -98,11 +100,11 @@ export default function MySceneScreen({ isGuest, onSignOut }) {
     const c = AU_POSTCODES[String(pc)];
     return c ? { lat: c[0], lng: c[1] } : null;
   }
-  const discoverDrag   = useDragScroll();
-  const stripDrag      = useDragScroll();
+  const discoverDrag   = useDragScroll('myscene-discover-strip');
+  const stripDrag      = useDragScroll('myscene-date-strip');
   const stripRef       = stripDrag.ref;
-  const updatesDrag    = useDragScroll();
-  const followingDrag  = useDragScroll();
+  const updatesDrag    = useDragScroll('myscene-updated-follows');
+  const followingDrag  = useDragScroll('myscene-following');
 
   const uid = session?.user?.id;
   const queryClient = useQueryClient();
@@ -352,6 +354,7 @@ export default function MySceneScreen({ isGuest, onSignOut }) {
     }
   });
   pastEvents.sort((a, b) => (b.ev.config?.date || '').localeCompare(a.ev.config?.date || ''));
+  const filteredPastEvents = filterPastEvents(pastEvents, pastEventSearch);
 
   // Events for selected day
   const dayEvents = selDate ? datedEvents.filter(ev => ev.config?.date === selDate) : [];
@@ -568,7 +571,7 @@ export default function MySceneScreen({ isGuest, onSignOut }) {
       {showEdit && (
         <>
           <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.6)', zIndex: 600 }} onClick={() => setShowEdit(false)} />
-          <div style={{ position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: 'min(100%, 680px)', background: 'var(--card)', borderRadius: '18px 18px 0 0', padding: '20px 20px 40px', zIndex: 601 }}>
+          <div style={{ position: 'fixed', bottom: 'var(--yp-safe-bottom)', left: '50%', transform: 'translateX(-50%)', width: 'min(100%, 680px)', background: 'var(--card)', borderRadius: '18px 18px 0 0', padding: '20px 20px 24px', zIndex: 601 }}>
             <div style={{ width: 36, height: 4, background: 'var(--border)', borderRadius: 2, margin: '0 auto 20px' }} />
             <p style={{ fontFamily: "'Bebas Neue'", fontSize: 18, letterSpacing: 2, color: 'var(--text)', marginBottom: 16 }}>EDIT PROFILE</p>
             <label style={{ fontSize: 12, color: 'var(--muted)', letterSpacing: 1, fontFamily: "'Bebas Neue'", display: 'block', marginBottom: 6 }}>DISPLAY NAME</label>
@@ -593,7 +596,7 @@ export default function MySceneScreen({ isGuest, onSignOut }) {
       {showAddEvent && (
         <>
           <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.65)', zIndex:600 }} onClick={() => setShowAddEvent(false)} />
-          <div style={{ position:'fixed', bottom:0, left:'50%', transform:'translateX(-50%)', width:'min(100%,476px)', background:'var(--card)', borderRadius:'18px 18px 0 0', padding:'20px 20px 48px', zIndex:601, boxSizing:'border-box' }}>
+          <div style={{ position:'fixed', bottom:'var(--yp-safe-bottom)', left:'50%', transform:'translateX(-50%)', width:'min(100%,476px)', background:'var(--card)', borderRadius:'18px 18px 0 0', padding:'20px 20px 24px', zIndex:601, boxSizing:'border-box' }}>
             {/* Drag handle */}
             <div style={{ width:36, height:4, background:'var(--border)', borderRadius:2, margin:'0 auto 20px' }} />
 
@@ -662,7 +665,7 @@ export default function MySceneScreen({ isGuest, onSignOut }) {
       {monthPickerOpen && (
         <>
           <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.6)', zIndex:600 }} onClick={() => setMonthPickerOpen(false)} />
-          <div style={{ position:'fixed', bottom:0, left:'50%', transform:'translateX(-50%)', width:'min(100%,480px)', background:'var(--card)', borderRadius:'18px 18px 0 0', padding:'16px 20px calc(80px + env(safe-area-inset-bottom, 16px))', zIndex:601, boxSizing:'border-box' }}>
+          <div style={{ position:'fixed', bottom:'var(--yp-safe-bottom)', left:'50%', transform:'translateX(-50%)', width:'min(100%,480px)', background:'var(--card)', borderRadius:'18px 18px 0 0', padding:'16px 20px 20px', zIndex:601, boxSizing:'border-box' }}>
             <div style={{ width:36, height:4, background:'var(--border)', borderRadius:2, margin:'0 auto 16px' }} />
 
             {/* Month/year selects */}
@@ -921,13 +924,20 @@ export default function MySceneScreen({ isGuest, onSignOut }) {
                     </div>
                   )
                 ) : (
-                  pastEvents.length === 0
+                  <>
+                    {pastEvents.length > 0 && (
+                      <PastEventsSearch query={pastEventSearch} onChange={setPastEventSearch} />
+                    )}
+                    {pastEvents.length === 0
                     ? <div className={s.empty}>No past events yet — get out there!</div>
+                    : filteredPastEvents.length === 0
+                    ? <div className={s.empty}>No past events match your search.</div>
                     : <div style={{ display:'flex', flexDirection:'column', gap:6, marginTop:10, ...(!eventsExpanded ? { maxHeight:315, overflowY:'scroll', scrollbarWidth:'none', WebkitOverflowScrolling:'touch', maskImage:'linear-gradient(to bottom, black 75%, transparent 100%)', WebkitMaskImage:'linear-gradient(to bottom, black 75%, transparent 100%)' } : { overflowY:'visible' }) }}>
-                        {pastEvents.map(({ ev, badge, badgeColor }) => (
+                        {filteredPastEvents.map(({ ev, badge, badgeColor }) => (
                           <EventCard key={ev.id} event={ev} badge={badge} badgeColor={badgeColor} onClick={() => navigate(`/event/${ev.id}`)} />
                         ))}
-                      </div>
+                      </div>}
+                  </>
                 )}
               </div>
 

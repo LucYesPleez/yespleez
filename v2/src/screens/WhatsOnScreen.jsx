@@ -208,9 +208,9 @@ export default function WhatsOnScreen() {
       window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
     }, 50);
   }
-  const chipsDrag    = useDragScroll();
-  const weekendDrag1 = useDragScroll();
-  const weekendDrag2 = useDragScroll();
+  const chipsDrag    = useDragScroll('whatson-filter-chips');
+  const weekendDrag1 = useDragScroll('whatson-weekend-1');
+  const weekendDrag2 = useDragScroll('whatson-weekend-2');
 
   const stripDays = useMemo(() => buildDateStrip(stripMonth.year, stripMonth.month), [stripMonth]);
 

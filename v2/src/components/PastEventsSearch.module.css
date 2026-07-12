@@ -1,0 +1,16 @@
+.searchBar {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--card2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 14px;
+  color: var(--text);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  outline: none;
+  margin-bottom: 12px;
+  transition: border-color .15s;
+}
+.searchBar:focus { border-color: rgba(0,229,255,.4); }
+.searchBar::placeholder { color: var(--muted); }
