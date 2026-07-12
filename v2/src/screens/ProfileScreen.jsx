@@ -346,18 +346,6 @@ export default function ProfileScreen() {
             )}
             {(profile.years || profile.established_year) && <span className={s.est}>Est. {profile.years || profile.established_year}</span>}
           </div>
-          {/* card_pills tags (up to 5), fallback to genres — not shown for venues */}
-          {profile.type !== 'venue' && (() => {
-            const pillSrc = profile.card_pills
-              ? profile.card_pills.split(/\s*·\s*|,\s*/).map(p => p.trim()).filter(Boolean).slice(0, 5)
-              : genres.slice(0, 5);
-            if (!pillSrc.length) return null;
-            return (
-              <div className={s.genrePills} style={{ '--pill-col': col, '--pill-rgb': rgb, marginTop: 8 }}>
-                {pillSrc.map(p => <span key={p} className={s.genrePill}>{p}</span>)}
-              </div>
-            );
-          })()}
         </div>
 
         <div className={s.cards}>
