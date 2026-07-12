@@ -13,7 +13,7 @@ import PastEventsSearch, { filterPastEvents } from '../components/PastEventsSear
 
 const TYPE_ACCENTS = {
   host:    { col: '#FF2D78',      rgb: '255,45,120',  label: 'HOST',                grad2: '#BF5FFF' },
-  artist:  { col: '#00E5FF',      rgb: '0,229,255',   label: 'DJ / PROMOTER',       grad2: '#BF5FFF' },
+  artist:  { col: '#00E5FF',      rgb: '0,229,255',   label: 'DJ / PRODUCER',       grad2: '#BF5FFF' },
   band:    { col: '#FF8C42',      rgb: '255,140,66',  label: 'BAND',                grad2: '#FF5500' },
   standup: { col: '#FF88AA',      rgb: '255,136,170', label: 'SPOKEN WORD',         grad2: '#BF5FFF' },
   venue:   { col: '#00E5A0',      rgb: '0,229,160',   label: 'VENUE',               grad2: '#00E5FF' },
