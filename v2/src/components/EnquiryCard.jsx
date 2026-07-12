@@ -73,6 +73,25 @@ const STATUS_COLOR = {
   declined: 'var(--muted)',
 };
 
+// "What happens next" — same status set as STATUS_COLOR, worded per
+// direction (incoming = you received this; outgoing = you sent this).
+const NEXT_STEPS = {
+  incoming: {
+    new:         'Awaiting your review — shortlist or respond when ready.',
+    shortlisted: "You've shortlisted this — accept or decline when ready.",
+    accepted:    "You've accepted this — it's confirmed.",
+    booked:      "You've accepted this — it's confirmed.",
+    declined:    'You declined this.',
+  },
+  outgoing: {
+    awaiting:    'Waiting for a response.',
+    interested:  "They're interested — confirm to lock it in.",
+    accepted:    'Accepted — confirm to finalise the booking.',
+    booked:      'Booked and confirmed.',
+    declined:    'This was declined.',
+  },
+};
+
 export default function EnquiryCard({ enq, onRespond, onPlayDemo }) {
   const navigate = useNavigate();
   const [busy, setBusy]       = useState(false);
@@ -97,6 +116,7 @@ export default function EnquiryCard({ enq, onRespond, onPlayDemo }) {
   const accent        = TYPE_ACCENT[enq.applicant_type] || '#00E5FF';
   const accentRgb     = TYPE_RGB[enq.applicant_type]    || '0,229,255';
   const statusColor   = STATUS_COLOR[displayStatus] || '#FFD700';
+  const nextStepsCopy = NEXT_STEPS[enqDir]?.[displayStatus] || '';
 
   async function respond(status) {
     if (busy) return;
@@ -191,7 +211,7 @@ export default function EnquiryCard({ enq, onRespond, onPlayDemo }) {
 
   return (
     <div style={{ marginBottom: 8 }}>
-      <div className={ds.card} style={{ border: `1px solid rgba(${accentRgb},.35)`, cursor: 'default', marginBottom: 0, borderRadius: expanded ? '14px 14px 0 0' : 14 }}>
+      <div className={ds.card} style={{ border: `1px solid rgba(${accentRgb},.35)`, cursor: 'default', marginBottom: 0, borderRadius: (expanded || nextStepsCopy) ? '14px 14px 0 0' : 14, borderBottom: nextStepsCopy ? 'none' : `1px solid rgba(${accentRgb},.35)` }}>
         {avatar
           ? <img className={ds.cardAvatar} src={avatar} alt={name} style={{ borderColor: accent }} />
           : <div className={ds.cardAvatarPH} style={{ borderColor: accent }}>🎵</div>
@@ -203,6 +223,11 @@ export default function EnquiryCard({ enq, onRespond, onPlayDemo }) {
               {TYPE_LABEL[(p.role || enq.applicant_type || 'artist').toLowerCase()] || (p.role || enq.applicant_type || 'artist').toUpperCase()}
             </span>
           </div>
+          {enq.event_name && (
+            <div style={{ fontSize: 12, color: 'var(--text)', fontWeight: 600, marginTop: 2 }}>
+              {enq.event_name}
+            </div>
+          )}
           {loc   && <div className={ds.cardLoc}>{loc}</div>}
           {sound && <div className={ds.cardSound} style={{ color: accent }}>{sound}</div>}
         </div>
@@ -222,6 +247,17 @@ export default function EnquiryCard({ enq, onRespond, onPlayDemo }) {
           <HoverProfileBtn expanded={expanded} onClick={() => setExpanded(e => !e)} />
         </div>
       </div>
+
+      {nextStepsCopy && (
+        <div style={{
+          fontSize: 11, color: 'var(--muted)', padding: '6px 14px',
+          background: 'rgba(255,255,255,.02)',
+          border: `1px solid rgba(${accentRgb},.35)`, borderTop: 'none',
+          borderRadius: expanded ? 0 : '0 0 14px 14px',
+        }}>
+          {nextStepsCopy}
+        </div>
+      )}
 
       {expanded && profile && (
         <div ref={expandRef} style={{ background: 'var(--card)', border: `1px solid rgba(${accentRgb},.35)`, borderTop: 'none', borderRadius: '0 0 14px 14px', padding: '12px 18px' }}>
