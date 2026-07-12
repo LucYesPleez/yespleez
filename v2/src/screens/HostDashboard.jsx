@@ -282,12 +282,12 @@ export default function HostDashboard({ userId: userIdProp }) {
 
   return (
     <div className={s.screen}>
-      <DashboardHeader line1="HOST /" line2="PROMOTER" userId={userId} profileId={profile?.id} profileType="host" />
+      <DashboardHeader line1="HOST /" line2="PROMOTER" userId={userId} profileId={profile?.id} profileType="host" gradient="linear-gradient(135deg, #FF2D78, #00B4D8)" />
 
       <DashboardProfileCard
         profile={profile}
         accent="#FF3399"
-        gradient="linear-gradient(135deg, #FF2D78, #BF5FFF)"
+        gradient="linear-gradient(135deg, #FF2D78, #00B4D8)"
         icon={<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="rgba(255,51,153,.7)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="2" width="18" height="20" rx="2"/><circle cx="12" cy="13" r="5"/><circle cx="12" cy="13" r="2"/><line x1="9" y1="5.5" x2="15" y2="5.5" strokeWidth="1.5" strokeLinecap="round"/></svg>}
         setupRoute="/industry/host/setup"
         subtitle={profile?.location || 'Add your details so artists can find you'}

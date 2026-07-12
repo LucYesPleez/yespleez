@@ -4,7 +4,7 @@ const CONFIGS = {
   band: {
     headingLine1:     'BAND /',
     headingLine2:     'MUSO',
-    gradient:         'linear-gradient(135deg,#FF4500,#FF8C42,#FFB830,#FFE066)',
+    gradient:         'linear-gradient(135deg, #FFB830, #00B4D8)',
     accent:           '#FF8C42',
     accentRgb:        '255,140,66',
     profileType:      'band',
@@ -15,7 +15,7 @@ const CONFIGS = {
   standup: {
     headingLine1:     'STAND UP',
     headingLine2:     '/ POETRY',
-    gradient:         'linear-gradient(90deg,#FF88AA,#BF5FFF)',
+    gradient:         'linear-gradient(135deg, #FF88AA, #00B4D8)',
     accent:           '#FF88AA',
     accentRgb:        '255,136,170',
     profileType:      'standup',
