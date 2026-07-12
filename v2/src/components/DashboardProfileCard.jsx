@@ -24,6 +24,14 @@ const PinIcon = () => (
   </svg>
 );
 
+const DEFAULT_HERO = {
+  artist:  '/defaultdj.png',
+  band:    '/defaultband.png',
+  standup: '/defaultmic.png',
+  venue:   '/defaultvenueblur.png',
+  host:    '/defaultpromoter.jpg',
+};
+
 export default function DashboardProfileCard({
   profile,
   accent = '#00E5A0',
@@ -37,12 +45,12 @@ export default function DashboardProfileCard({
   const [hov, setHov] = useState(false);
   const accentRgb = ACCENT_RGB[accent] || '0,229,160';
 
-  const heroImg    = profile?.avatar_hero || profile?.avatar;
+  const hasProfile = !!profile?.name;
+  const heroImg    = profile?.avatar_hero || profile?.avatar || (hasProfile ? DEFAULT_HERO[profile.type] : null);
   const location   = [profile?.suburb, profile?.state].filter(Boolean).join(', ') || profile?.location;
   const estYear    = profile?.established_year;
   const tagline    = profile?.tagline;
   const typeLabel  = TYPE_LABELS[profile?.type] || profile?.type?.toUpperCase();
-  const hasProfile = !!profile?.name;
   const isMobile   = typeof window !== 'undefined' && window.innerWidth < 640;
 
   // Dark bg colour matching the page — used for the image-to-content fade
