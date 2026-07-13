@@ -849,25 +849,19 @@ function VenueInfoDropdown({ profile, col, rgb, grad2, bare = false, socials = [
           {atmosphere.length > 0 && (
             <div style={{ ...rowStyle, alignItems: 'flex-start' }}>
               <div style={labelStyle}>ATMOSPHERE</div>
-              <div className={s.genrePills} style={{ '--pill-col': col, '--pill-rgb': rgb, flex: 1 }}>
-                {atmosphere.map(t => <span key={t} className={s.genrePill}>{t}</span>)}
-              </div>
+              <div style={{ fontSize: 13, color: 'var(--muted)', flex: 1, lineHeight: 1.6 }}>{atmosphere.join(', ')}</div>
             </div>
           )}
           {entertain.length > 0 && (
             <div style={{ ...rowStyle, alignItems: 'flex-start' }}>
               <div style={labelStyle}>WE BOOK</div>
-              <div className={s.genrePills} style={{ '--pill-col': col, '--pill-rgb': rgb, flex: 1 }}>
-                {entertain.map(t => <span key={t} className={s.genrePill}>{t}</span>)}
-              </div>
+              <div style={{ fontSize: 13, color: 'var(--muted)', flex: 1, lineHeight: 1.6 }}>{entertain.join(', ')}</div>
             </div>
           )}
           {perfectFor.length > 0 && (
             <div style={{ ...rowStyle, alignItems: 'flex-start' }}>
               <div style={labelStyle}>PERFECT FOR</div>
-              <div className={s.genrePills} style={{ '--pill-col': col, '--pill-rgb': rgb, flex: 1 }}>
-                {perfectFor.map(t => <span key={t} className={s.genrePill}>{t}</span>)}
-              </div>
+              <div style={{ fontSize: 13, color: 'var(--muted)', flex: 1, lineHeight: 1.6 }}>{perfectFor.join(', ')}</div>
             </div>
           )}
           {profile.bio && (
@@ -887,19 +881,15 @@ function VenueInfoDropdown({ profile, col, rgb, grad2, bare = false, socials = [
             <div style={{ ...rowStyle, alignItems: 'flex-start' }}>
               <div style={labelStyle}>STAGE & TECH</div>
               <div style={{ flex: 1 }}>
-                <div className={s.genrePills} style={{ '--pill-col': col, '--pill-rgb': rgb }}>
-                  {tech.map(t => <span key={t} className={s.genrePill}>{t}</span>)}
-                </div>
-                {profile.stage_dims && <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 6 }}><span style={{ fontFamily: "'Bebas Neue'", letterSpacing: 1.5, fontSize: 11 }}>STAGE</span> — {profile.stage_dims}</div>}
+                <div style={{ fontSize: 13, color: 'var(--muted)', lineHeight: 1.6 }}>{tech.join(', ')}</div>
+                {profile.stage_dims && <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}><span style={{ fontFamily: "'Bebas Neue'", letterSpacing: 1.5, fontSize: 11 }}>STAGE</span> — {profile.stage_dims}</div>}
               </div>
             </div>
           )}
           {nights.length > 0 && (
             <div style={{ ...rowStyle, alignItems: 'flex-start' }}>
               <div style={labelStyle}>LIVE NIGHTS</div>
-              <div className={s.genrePills} style={{ '--pill-col': col, '--pill-rgb': rgb, flex: 1 }}>
-                {nights.map(t => <span key={t} className={s.genrePill}>{t}</span>)}
-              </div>
+              <div style={{ fontSize: 13, color: 'var(--muted)', flex: 1, lineHeight: 1.6 }}>{nights.join(', ')}</div>
             </div>
           )}
           {socials.length > 0 && (
