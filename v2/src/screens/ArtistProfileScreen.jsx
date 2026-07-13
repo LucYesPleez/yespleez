@@ -468,19 +468,6 @@ export default function ArtistProfileScreen() {
             <Field label="RELATIONSHIP"><input className={s.input} value={emergRel} onChange={e => setEmergRel(e.target.value)} placeholder="e.g. Partner, Mum" autoComplete="off" /></Field>
           </Section>
 
-          {/* ATTACHMENTS */}
-          <Section title={<>ATTACHMENTS <span className={s.sectionHintInline}>optional upload when relevant</span></>}>
-            {['Stage Plot','Tech Rider','Public Liability Insurance'].map(name => (
-              <div key={name} className={s.attachRow}>
-                <div>
-                  <div className={s.attachLabel}>{name}</div>
-                  <div className={s.attachStatus}>TAP TO UPLOAD</div>
-                </div>
-                <span className={s.attachArrow}>↑</span>
-              </div>
-            ))}
-          </Section>
-
           {/* ABN / GST */}
           <Section title="ABN / GST">
             <div className={s.feeRow}>
