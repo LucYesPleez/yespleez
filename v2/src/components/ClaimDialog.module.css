@@ -1,0 +1,144 @@
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(4px);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+.sheet {
+  background: #0f0f1a;
+  border-radius: 20px 20px 0 0;
+  width: 100%;
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 20px 20px 52px;
+  max-height: 85dvh;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+.sheet::-webkit-scrollbar { display: none; }
+
+.handle {
+  width: 36px;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 2px;
+  margin: 0 auto 22px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.title {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 21px;
+  letter-spacing: 2px;
+  color: #fff;
+}
+
+.closeBtn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 26px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 4px;
+  transition: color 0.15s;
+}
+.closeBtn:hover { color: var(--text); }
+
+.body {
+  font-size: 14px;
+  color: var(--muted);
+  line-height: 1.65;
+  margin-bottom: 22px;
+}
+
+.options {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  padding: 14px 16px;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.option:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+.optionInstagram .optionIcon { color: #E1306C; }
+
+.optionIcon {
+  width: 46px;
+  height: 46px;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--text);
+}
+
+.optionContent {
+  flex: 1;
+  min-width: 0;
+}
+
+.optionTitle {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 16px;
+  letter-spacing: 1px;
+  color: #fff;
+  margin-bottom: 4px;
+}
+
+.optionDesc {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.emailHighlight {
+  color: rgba(232, 232, 240, 0.7);
+}
+
+.igHighlight {
+  color: #E1306C;
+}
+
+.optionArrow {
+  font-size: 22px;
+  color: rgba(255, 255, 255, 0.25);
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.footer {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.25);
+  text-align: center;
+  line-height: 1.5;
+}
