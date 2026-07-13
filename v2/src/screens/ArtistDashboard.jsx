@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { writeNotification } from '../lib/writeNotification';
 import { useSession } from '../App';
@@ -53,9 +53,47 @@ function applicantLabel(status) {
 }
 const GIG_TABS  = ['UPCOMING', 'PAST'];
 
+// One application row: the event card, an "applied on" caption so it's always
+// clear which event/date this application refers to, and — only for terminal
+// (declined/rejected) applications — an optional delete affordance.
+function ApplicationRow({ app, badge, badgeColor, onDelete }) {
+  const [confirming, setConfirming] = useState(false);
+  const deletable = badge === 'NOT SELECTED';
+  const appliedOn = app.created_at ? formatDisplayDate(app.created_at.slice(0, 10)) : '';
+
+  return (
+    <div>
+      <EventCard event={app.event} badge={badge} badgeColor={badgeColor} />
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 12px 0' }}>
+        {appliedOn && <span style={{ fontSize: 11, color: 'rgba(255,255,255,.35)' }}>Applied {appliedOn}</span>}
+        {deletable && !confirming && (
+          <button onClick={() => setConfirming(true)}
+            style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1, padding: '4px 10px', borderRadius: 6, border: '1px solid rgba(255,51,51,.3)', background: 'rgba(255,51,51,.06)', color: 'rgba(255,80,80,.8)', cursor: 'pointer' }}>
+            DELETE
+          </button>
+        )}
+      </div>
+      {deletable && confirming && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'flex-end', background: 'rgba(255,45,45,.08)', border: '1px solid rgba(255,45,45,.3)', borderRadius: 10, padding: '10px 12px', marginTop: 6 }}>
+          <span style={{ fontSize: 11, color: 'rgba(255,255,255,.6)', marginRight: 'auto' }}>Delete this application?</span>
+          <button onClick={() => setConfirming(false)}
+            style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1, padding: '4px 10px', borderRadius: 6, border: '1px solid rgba(255,255,255,.2)', background: 'transparent', color: 'rgba(255,255,255,.7)', cursor: 'pointer' }}>
+            CANCEL
+          </button>
+          <button onClick={() => onDelete(app.id)}
+            style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1, padding: '4px 10px', borderRadius: 6, border: '1px solid rgba(255,51,51,.5)', background: 'rgba(255,51,51,.15)', color: '#fff', cursor: 'pointer' }}>
+            YES, DELETE
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function ArtistDashboard({ userId: userIdProp, config }) {
   const { session } = useSession();
   const navigate    = useNavigate();
+  const queryClient = useQueryClient();
   const userId      = userIdProp || session?.user?.id;
 
   const cfg = config || {
@@ -206,6 +244,12 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
     setClaiming(false);
   }
 
+  // User-initiated deletion is only ever offered for declined/rejected applications
+  // (never pending/shortlisted/accepted) — see ApplicationRow's `deletable` check.
+  async function handleDeleteApplication(appId) {
+    await supabase.from('applications').delete().eq('id', appId).in('status', ['declined', 'rejected']);
+    queryClient.invalidateQueries({ queryKey: ['artistDashboard', userId, cfg.profileType] });
+  }
 
   function updateOffer(id, changes) {
     setOffers(prev => prev.map(o => o.id === id ? { ...o, ...changes } : o));
@@ -421,9 +465,10 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
                 ? <p className={s.empty}>No {outStatusTab.toLowerCase()} applications yet.</p>
                 : <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                     {filteredApps.map(app => app.event
-                      ? <EventCard key={app.id} event={app.event}
+                      ? <ApplicationRow key={app.id} app={app}
                           badge={applicantLabel(app.status)}
-                          badgeColor={APP_TAB_COLOR[applicantLabel(app.status)] || '#FFD700'} />
+                          badgeColor={APP_TAB_COLOR[applicantLabel(app.status)] || '#FFD700'}
+                          onDelete={handleDeleteApplication} />
                       : null
                     )}
                   </div>
