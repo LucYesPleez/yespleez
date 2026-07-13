@@ -12,13 +12,13 @@ import ProfileCard from '../components/ProfileCard';
 import PortraitCard from '../components/PortraitCard';
 import { useDragScroll } from '../hooks/useDragScroll';
 import DashboardHeader from '../components/DashboardHeader';
+import PastEventsSearch, { filterPastEvents } from '../components/PastEventsSearch';
 import DashboardProfileCard from '../components/DashboardProfileCard';
 import NotificationBar from '../components/NotificationBar';
 import DashboardStats from '../components/DashboardStats';
 import FollowingSection, { FOLLOW_FILTER_CONFIGS } from '../components/FollowingSection';
 import EnquiryCard from '../components/EnquiryCard';
 import AvailabilitySection from '../components/AvailabilitySection';
-import PastEventsSearch, { filterPastEvents } from '../components/PastEventsSearch';
 
 // Organiser-side (INCOMING) pipeline — what venues/hosts see
 const IN_STATUS_MAP  = {
@@ -29,14 +29,14 @@ const IN_STATUS_MAP  = {
 };
 const IN_TABS = ['NEW', 'SHORTLISTED', 'ACCEPTED', 'DECLINED'];
 
-// Applicant-side (OUTGOING) pipeline — what artists see (asymmetric labels)
-const APP_TAB_STATUSES = {
-  'SUBMITTED':        ['pending', 'new', 'viewed'],
-  'BEING CONSIDERED': ['shortlisted', 'interested', 'tentative'],
-  'BOOKED':           ['accepted', 'booked'],
-  'NOT SELECTED':     ['declined', 'rejected'],
-};
-const APP_TABS = Object.keys(APP_TAB_STATUSES);
+// Applicant-side (OUTGOING) pipeline — what artists see (asymmetric labels).
+// Single source of truth for status -> tab: applicantLabel() is the only
+// place this mapping lives. The sub-tab counts, the list filter, and each
+// row's badge all call it, so they can never disagree with each other.
+// 'offered'/'confirmed' come from the host slot-offer flow (EventScreen.jsx /
+// notifActions.js) — they used to fall through every bucket here, counted in
+// the OUTGOING total but invisible in every sub-tab.
+const APP_TABS = ['SUBMITTED', 'BEING CONSIDERED', 'BOOKED', 'NOT SELECTED'];
 const APP_TAB_COLOR = {
   'SUBMITTED':        '#FFD700',
   'BEING CONSIDERED': '#BF5FFF',
@@ -45,11 +45,10 @@ const APP_TAB_COLOR = {
 };
 function applicantLabel(status) {
   const s = (status || 'pending').toLowerCase();
-  if (['pending', 'new', 'viewed'].includes(s))               return 'SUBMITTED';
-  if (['shortlisted', 'interested', 'tentative'].includes(s)) return 'BEING CONSIDERED';
-  if (['accepted', 'booked'].includes(s))                     return 'BOOKED';
-  if (['declined', 'rejected'].includes(s))                   return 'NOT SELECTED';
-  return 'SUBMITTED';
+  if (['declined', 'rejected'].includes(s))                              return 'NOT SELECTED';
+  if (['accepted', 'booked', 'confirmed'].includes(s))                   return 'BOOKED';
+  if (['shortlisted', 'interested', 'tentative', 'offered'].includes(s)) return 'BEING CONSIDERED';
+  return 'SUBMITTED'; // pending, new, viewed, or any other/unrecognised status
 }
 const GIG_TABS  = ['UPCOMING', 'PAST'];
 
@@ -112,8 +111,6 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
   const [gigTab,        setGigTab]        = useState('UPCOMING');
   const [enqSearch,     setEnqSearch]     = useState('');
   const [pastGigSearch, setPastGigSearch] = useState('');
-  const [unclaimedProf, setUnclaimedProf] = useState(null);
-  const [claiming,      setClaiming]      = useState(false);
   const [following,     setFollowing]     = useState([]);
   const [loadingFollow, setLoadingFollow] = useState(false);
   const [followView,    setFollowView]    = useState('portrait');
@@ -158,14 +155,7 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
         .select('id', { count: 'exact', head: true })
         .eq('applicant_user_id', userId);
 
-      let unclaimedProf = null;
-      if (session?.user?.email) {
-        const { data: unclaimed } = await supabase.from('unclaimed_profiles')
-          .select('*').eq('claim_email', session.user.email).limit(1).maybeSingle();
-        unclaimedProf = unclaimed || null;
-      }
-
-      return { profile: profRes.data, applications, upcomingGigs, pastGigs, offersCount: offersCount || 0, unclaimedProf };
+      return { profile: profRes.data, applications, upcomingGigs, pastGigs, offersCount: offersCount || 0 };
     },
     enabled: !!userId,
   });
@@ -175,10 +165,6 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
   const upcomingGigs = data?.upcomingGigs || [];
   const pastGigs     = data?.pastGigs     || [];
   const offersCount  = data?.offersCount  ?? 0;
-
-  useEffect(() => {
-    if (data?.unclaimedProf !== undefined) setUnclaimedProf(data.unclaimedProf);
-  }, [data?.unclaimedProf]);
 
   // Load offers lazily when INCOMING tab is first selected
   useEffect(() => {
@@ -231,19 +217,6 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
     })();
   }, [userId]);
 
-  async function claimProfile() {
-    if (!userId || !unclaimedProf || claiming) return;
-    setClaiming(true);
-    await supabase.from('profiles').upsert({
-      user_id: userId, type: cfg.profileType,
-      name: unclaimedProf.name, sound: unclaimedProf.sound,
-      genre_string: unclaimedProf.genre_string, bio: unclaimedProf.bio, mix_link: unclaimedProf.mix_link,
-    }, { onConflict: 'user_id,type' });
-    await supabase.from('unclaimed_profiles').delete().eq('claim_email', session.user.email);
-    setUnclaimedProf(null);
-    setClaiming(false);
-  }
-
   // User-initiated deletion is only ever offered for declined/rejected applications
   // (never pending/shortlisted/accepted) — see ApplicationRow's `deletable` check.
   async function handleDeleteApplication(appId) {
@@ -294,8 +267,7 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
   })();
 
   const filteredApps = applications.filter(a => {
-    const statuses = APP_TAB_STATUSES[outStatusTab] || [];
-    if (!statuses.includes((a.status || 'pending').toLowerCase())) return false;
+    if (applicantLabel(a.status) !== outStatusTab) return false;
     if (!enqSearch.trim()) return true;
     return JSON.stringify(a).toLowerCase().includes(enqSearch.toLowerCase());
   });
@@ -347,20 +319,6 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
         completionPct={hasProfile ? completionPct : undefined}
       />
 
-      {/* Unclaimed profile banner */}
-      {unclaimedProf && (
-        <div style={{ background: 'rgba(0,229,255,.08)', border: '1.5px solid rgba(0,229,255,.35)', borderRadius: 12, padding: '14px 16px', marginBottom: 16 }}>
-          <p style={{ fontFamily: "'Bebas Neue'", fontSize: 14, letterSpacing: 1.5, color: 'var(--neon2)', marginBottom: 4 }}>PROFILE WAITING FOR YOU</p>
-          <p style={{ fontSize: 13, color: 'var(--text)', marginBottom: 10 }}>
-            <strong>{unclaimedProf.name}</strong> was listed by a promoter — claim it to take ownership.
-          </p>
-          <button onClick={claimProfile} disabled={claiming}
-            style={{ background: 'var(--neon2)', color: '#000', fontFamily: "'Bebas Neue'", fontSize: 13, letterSpacing: 1.5, padding: '8px 20px', borderRadius: 8, border: 'none', cursor: 'pointer', opacity: claiming ? .6 : 1 }}>
-            {claiming ? 'CLAIMING…' : 'CLAIM THIS PROFILE'}
-          </button>
-        </div>
-      )}
-
       <NotificationBar
         message={attentionItems.length > 0 ? attentionItems.join(' · ') : null}
         onClick={() => scrollToSection('section-enquiries')}
@@ -398,6 +356,7 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
           })}
         </div>
 
+        <div>
         {/* INCOMING — venue offers/invites */}
         {enqDirTab === 'INCOMING' && (
           <div>
@@ -444,8 +403,7 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
           <div>
             <div className={s.subTabBar}>
               {APP_TABS.map(t => {
-                const statuses = APP_TAB_STATUSES[t] || [];
-                const count  = applications.filter(a => statuses.includes((a.status || 'pending').toLowerCase())).length;
+                const count  = applications.filter(a => applicantLabel(a.status) === t).length;
                 const active = outStatusTab === t;
                 const col    = APP_TAB_COLOR[t] || '#FFD700';
                 return (
@@ -510,6 +468,7 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
             }
           </div>
         )}
+        </div>
       </div>
 
       {/* ── FOLLOWING — always at bottom ── */}
