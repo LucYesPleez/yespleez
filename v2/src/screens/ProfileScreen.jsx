@@ -81,11 +81,14 @@ export default function ProfileScreen() {
         const eRes = await supabase.from('events').select('id,name,config').eq('venue_profile_id', ownedProfile.id).in('status', ['live','completed']).order('created_at', { ascending: false }).limit(100);
         events = eRes.data || [];
       } else {
-        // Compatibility read until M8: legacy rows key on artist_id (account),
-        // newer/unclaimed-linked rows on artist_profile_id. The user_id leg is
-        // skipped for unclaimed profiles (no account to match).
+        // Compatibility read until M8: newer/unclaimed-linked rows carry the
+        // canonical artist_profile_id; only genuinely un-migrated rows (null
+        // artist_profile_id) fall back to the legacy artist_id (account) key.
+        // The account key alone is NOT profile-specific — a multi-profile
+        // account would otherwise inherit every sibling profile's gigs — so it
+        // must never shadow a row that already names its own profile.
         const legs = [`artist_profile_id.eq.${ownedProfile.id}`];
-        if (ownedProfile.user_id) legs.push(`artist_id.eq.${ownedProfile.user_id}`);
+        if (ownedProfile.user_id) legs.push(`and(artist_id.eq.${ownedProfile.user_id},artist_profile_id.is.null)`);
         const claimsRes = await supabase.from('lineup_members').select('event_id').or(legs.join(',')).neq('status', 'removed');
         const eventIds = [...new Set((claimsRes.data || []).map(c => c.event_id).filter(Boolean))];
         if (eventIds.length) {
