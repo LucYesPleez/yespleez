@@ -17,6 +17,7 @@ import NotificationBar from '../components/NotificationBar';
 import DashboardStats from '../components/DashboardStats';
 import AvailabilitySection from '../components/AvailabilitySection';
 import EventsSection from '../components/EventsSection';
+import EventTabBar from '../components/EventTabBar';
 import { useDragScroll } from '../hooks/useDragScroll';
 
 export default function HostDashboard({ userId: userIdProp }) {
@@ -27,7 +28,7 @@ export default function HostDashboard({ userId: userIdProp }) {
   const [showAllLineup,  setShowAllLineup]  = useState(true);
   const [lineupFocusId,  setLineupFocusId]  = useState(null);  // null = show all
   const [lineupExpandMap, setLineupExpandMap] = useState({});  // eventId → bool (default true)
-  const [lineupSubTabs,  setLineupSubTabs]  = useState({});   // eventId → 'SET TIMES'|'SHORT LIST'|'PIPELINE'
+  const [lineupSubTabs,  setLineupSubTabs]  = useState({});   // eventId → 'LINEUP'|'SET TIMES'|'SHORT LIST'|'PIPELINE'
   const [setTimesMap,    setSetTimesMap]    = useState({});   // eventId → bool
   const [allApps,        setAllApps]        = useState([]);
   const [appProfiles,    setAppProfiles]    = useState({});
@@ -390,7 +391,7 @@ export default function HostDashboard({ userId: userIdProp }) {
               const evDate      = ev.config?.date ? new Date(ev.config.date).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' }) : null;
               const evExpanded  = lineupExpandMap[ev.id] !== false;
               const toggleExpand = () => setLineupExpandMap(prev => ({ ...prev, [ev.id]: !evExpanded }));
-              const activeTab   = lineupSubTabs[ev.id] || 'SHORT LIST';
+              const activeTab   = lineupSubTabs[ev.id] || 'LINEUP';
               const setTab      = (tab) => setLineupSubTabs(prev => ({ ...prev, [ev.id]: tab }));
               const evShortList = tentativeApps.filter(a => a.event_id === ev.id);
               const evPipeline  = newApps.filter(a => a.event_id === ev.id);
@@ -435,24 +436,49 @@ export default function HostDashboard({ userId: userIdProp }) {
                         pendingCount={evPipeline.length}
                       />
 
-                      {/* Sub-tabs: SHORT LIST | PIPELINE */}
-                      <div className={s.subTabBar}>
-                        {[
-                          { key: 'SHORT LIST', color: '#FFD700', count: evShortList.length },
-                          { key: 'PIPELINE',   color: '#00B4D8', count: evPipeline.length  },
-                        ].map(({ key, color, count }) => {
-                          const active = activeTab === key;
-                          return (
-                            <button key={key} className={s.subTab}
-                              style={{ color: active ? color : 'var(--muted)', borderBottomColor: active ? color : 'transparent' }}
-                              onClick={() => setTab(key)}>
-                              {key}
-                              {count > 0 && <span className={s.subTabCount} style={active ? { background: `rgba(255,215,0,.12)`, color } : {}}>{count}</span>}
-                            </button>
-                          );
-                        })}
-                      </div>
+                      {/* Communal event tabs: LINEUP | SET TIMES | SHORT LIST | PIPELINE */}
+                      <EventTabBar
+                        active={activeTab}
+                        onChange={setTab}
+                        style={{ marginBottom: 12 }}
+                        tabs={[
+                          { key: 'LINEUP',     label: `LINEUP${artists.length ? ` (${artists.length})` : ''}` },
+                          { key: 'SET TIMES',  label: 'SET TIMES' },
+                          { key: 'SHORT LIST', label: `SHORT LIST${evShortList.length ? ` (${evShortList.length})` : ''}` },
+                          { key: 'PIPELINE',   label: `PIPELINE${evPipeline.length ? ` (${evPipeline.length})` : ''}` },
+                        ]}
+                      />
 
+                      <div>
+                      {activeTab === 'LINEUP' && (
+                        artists.length === 0
+                          ? <p className={s.empty} style={{ fontSize: 12 }}>No confirmed artists yet.</p>
+                          : <div style={{ marginBottom: 12 }}>{artists.map(a => <ProfileCard key={a.id || a.artist_id} item={a.profile || { name: 'Unknown', type: 'artist' }} />)}</div>
+                      )}
+                      {activeTab === 'SET TIMES' && (() => {
+                        const slots = days.flatMap(d => d.slots || []);
+                        if (slots.length === 0) return <p className={s.empty} style={{ fontSize: 12 }}>No set times added for this event yet.</p>;
+                        const PREVIEW_COUNT = 4;
+                        const preview = slots.slice(0, PREVIEW_COUNT);
+                        const rest    = slots.length - preview.length;
+                        return (
+                          <div style={{ marginBottom: 12 }}>
+                            {preview.map(slot => (
+                              <div key={slot.id} style={{ display: 'flex', alignItems: 'baseline', gap: 10, padding: '7px 0', borderBottom: '1px solid rgba(255,255,255,.05)' }}>
+                                <span style={{ fontFamily: "'Bebas Neue'", fontSize: 13, letterSpacing: 1, color: 'var(--neon2)', minWidth: 56 }}>{[slot.time, slot.ampm].filter(Boolean).join(' ') || '—'}</span>
+                                <span style={{ fontSize: 13, color: evClaims[slot.id]?.name ? 'var(--text)' : 'var(--muted)', fontStyle: evClaims[slot.id]?.name ? 'normal' : 'italic' }}>{evClaims[slot.id]?.name || 'Open slot'}</span>
+                              </div>
+                            ))}
+                            {rest > 0 && <p style={{ fontSize: 12, color: 'var(--muted)', margin: '8px 0 0' }}>+{rest} more</p>}
+                            <button
+                              onClick={() => navigate(`/event/${ev.id}`)}
+                              style={{ marginTop: 10, background: 'none', border: '1px solid rgba(255,255,255,.15)', borderRadius: 8, padding: '6px 12px', color: 'var(--muted)', fontFamily: "'Bebas Neue'", fontSize: 11, letterSpacing: 1.5, cursor: 'pointer', transition: 'border-color .15s, color .15s' }}
+                              onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--neon2)'; e.currentTarget.style.color = 'var(--neon2)'; }}
+                              onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,.15)'; e.currentTarget.style.color = 'var(--muted)'; }}
+                            >OPEN FULL SCHEDULE →</button>
+                          </div>
+                        );
+                      })()}
                       {activeTab === 'SHORT LIST' && (
                         evShortList.length === 0
                           ? <p className={s.empty} style={{ fontSize: 12 }}>No shortlisted artists for this event.</p>
@@ -463,6 +489,7 @@ export default function HostDashboard({ userId: userIdProp }) {
                           ? <p className={s.empty} style={{ fontSize: 12 }}>No pending applications for this event.</p>
                           : <div style={{ marginBottom: 12 }}>{evPipeline.map(app => <AppCard key={app.id} app={app} prof={appProfiles[app.artist_id] || {}} event={evtMap[app.event_id]} onRespond={respondApp} />)}</div>
                       )}
+                      </div>
                     </div>
                   )}
                 </div>

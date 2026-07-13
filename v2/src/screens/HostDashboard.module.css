@@ -324,45 +324,6 @@
   padding: 40px 0;
 }
 
-/* Sub-tabs (PENDING / ACCEPTED / REJECTED) */
-.subTabBar {
-  display: flex;
-  gap: 0;
-  margin-bottom: 12px;
-  border-bottom: 1px solid var(--border);
-}
-
-.subTab {
-  flex: 1;
-  background: none;
-  border: none;
-  border-bottom: 2px solid transparent;
-  font-family: 'Bebas Neue', sans-serif;
-  font-size: 11px;
-  letter-spacing: 1.5px;
-  color: var(--muted);
-  padding: 7px 4px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  transition: color .15s, border-bottom-color .15s;
-  margin-bottom: -1px;
-}
-
-.subTabCount {
-  background: var(--card2);
-  color: var(--muted);
-  border-radius: 8px;
-  font-size: 9px;
-  padding: 1px 5px;
-  font-family: 'DM Sans', sans-serif;
-  font-weight: 700;
-  letter-spacing: 0;
-  transition: background .15s, color .15s;
-}
-
 /* Application card */
 .appCard {
   background: var(--card);

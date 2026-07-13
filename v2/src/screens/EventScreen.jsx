@@ -7,6 +7,7 @@ import { formatDateRange } from '../lib/dates';
 import Skeleton from '../components/Skeleton';
 import ApplicationCard from '../components/ApplicationCard';
 import ProfileCard from '../components/ProfileCard';
+import EventTabBar from '../components/EventTabBar';
 import FillSlotModal from '../components/FillSlotModal';
 import s from './EventScreen.module.css';
 import { likedEvents } from '../lib/likedEvents';
@@ -571,25 +572,16 @@ export default function EventScreen() {
 
         {/* Sub-tabs — host only, editor mode */}
         {effectiveIsHost && showEditor && (
-          <div style={{ display: 'flex', gap: 0, marginBottom: 20, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-            {[
+          <EventTabBar
+            active={eventTab}
+            onChange={setEventTab}
+            tabs={[
               { key: 'LINEUP',    label: `LINEUP${lineupMembers.length ? ` (${lineupMembers.length})` : ''}` },
               { key: 'SET_TIMES', label: 'SET TIMES' },
               { key: 'SHORTLIST', label: `SHORT LIST${shortList.length ? ` (${shortList.length})` : ''}` },
               { key: 'PIPELINE',  label: `PIPELINE${pipeline.length ? ` (${pipeline.length})` : ''}` },
-            ].map(tab => (
-              <button key={tab.key} onClick={() => setEventTab(tab.key)}
-                style={{
-                  flex: 1, background: 'none', border: 'none', cursor: 'pointer',
-                  fontFamily: "'Bebas Neue'", fontSize: 13, letterSpacing: 1.5,
-                  padding: '10px 4px 8px',
-                  color: eventTab === tab.key ? '#fff' : 'var(--muted)',
-                  borderBottom: eventTab === tab.key ? '2px solid var(--neon2)' : '2px solid transparent',
-                  transition: 'color .15s',
-                }}
-              >{tab.label}</button>
-            ))}
-          </div>
+            ]}
+          />
         )}
 
         {/* Set times toggle — SET_TIMES tab, editor mode */}

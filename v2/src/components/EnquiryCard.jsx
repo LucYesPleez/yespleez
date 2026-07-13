@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { formatDisplayDate } from '../lib/dates';
 import { normaliseStatus } from '../lib/enquiryUtils';
 import ds from '../screens/DiscoverScreen.module.css';
+import DateBox from './DateBox';
 
 
 export function HoverPill({ label, accentRgb, accent }) {
@@ -198,16 +199,7 @@ export default function EnquiryCard({ enq, onRespond, onPlayDemo }) {
     return null;
   }
 
-  const dateBox = (() => {
-    const raw = enq.date_requested || enq.preferred_date;
-    if (!raw) return null;
-    const d = new Date(raw + 'T12:00:00');
-    return {
-      dn:  d.toLocaleDateString('en-AU', { weekday: 'short' }).toUpperCase(),
-      mo:  d.toLocaleDateString('en-AU', { month: 'short' }).toUpperCase(),
-      num: d.getDate(),
-    };
-  })();
+  const dateRaw = enq.date_requested || enq.preferred_date || null;
 
   return (
     <div style={{ marginBottom: 8 }}>
@@ -235,15 +227,7 @@ export default function EnquiryCard({ enq, onRespond, onPlayDemo }) {
           <span style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1.5, color: statusColor, border: `1px solid ${statusColor}`, borderRadius: 4, padding: '2px 7px' }}>
             {displayStatus.toUpperCase()}
           </span>
-          {dateBox && (
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, border: '1px solid rgba(0,229,160,.5)', background: 'rgba(0,229,160,.08)', borderRadius: 7, padding: '4px 8px' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 1 }}>
-                <span style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1, color: 'rgba(0,229,160,.7)', lineHeight: 1 }}>{dateBox.dn}</span>
-                <span style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1, color: 'rgba(0,229,160,.7)', lineHeight: 1 }}>{dateBox.mo}</span>
-              </div>
-              <span style={{ fontFamily: "'Bebas Neue'", fontSize: 26, color: '#00E5A0', lineHeight: 1 }}>{dateBox.num}</span>
-            </div>
-          )}
+          {dateRaw && <DateBox date={dateRaw} size="sm" />}
           <HoverProfileBtn expanded={expanded} onClick={() => setExpanded(e => !e)} />
         </div>
       </div>

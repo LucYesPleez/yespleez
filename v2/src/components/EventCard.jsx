@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import s from './EventCard.module.css';
 import { formatDisplayDate } from '../lib/dates';
 import { getEventBadges } from '../lib/eventBadges';
+import DateBox from './DateBox';
 
 function fmtChip(dateStr) {
   if (!dateStr) return {};
@@ -87,10 +88,8 @@ export default function EventCard({ event, badge: badgeOverride, badgeColor, onC
             </div>
           )}
           {chip.dayNum && (
-            <div style={{ position:'absolute', top:8, right:8, background:'rgba(0,0,0,.65)', backdropFilter:'blur(4px)', borderRadius:8, padding:'4px 8px', textAlign:'center', minWidth:36 }}>
-              <div style={{ fontFamily:"'Bebas Neue'", fontSize:9, color:'rgba(255,255,255,.7)', letterSpacing:.5 }}>{chip.dayName}</div>
-              <div style={{ fontFamily:"'Bebas Neue'", fontSize:16, color:'white', lineHeight:1 }}>{chip.dayNum}</div>
-              <div style={{ fontFamily:"'Bebas Neue'", fontSize:9, color:'rgba(255,255,255,.7)', letterSpacing:.5 }}>{chip.mon}</div>
+            <div style={{ position:'absolute', top:8, right:8 }}>
+              <DateBox date={date} size="sm" />
             </div>
           )}
         </div>
@@ -161,10 +160,8 @@ export default function EventCard({ event, badge: badgeOverride, badgeColor, onC
         </div>
       )}
       {chip.dayNum && (
-        <div style={{ position:'absolute', top:'50%', left:12, transform:'translateY(-50%)', background:'rgba(0,0,0,.65)', backdropFilter:'blur(4px)', borderRadius:10, padding:'6px 10px', textAlign:'center', minWidth:44, zIndex:2 }}>
-          <div style={{ fontFamily:"'Bebas Neue'", fontSize:11, color:'rgba(255,255,255,.7)', letterSpacing:.5 }}>{chip.dayName}</div>
-          <div style={{ fontFamily:"'Bebas Neue'", fontSize:22, color:'white', lineHeight:1 }}>{chip.dayNum}</div>
-          <div style={{ fontFamily:"'Bebas Neue'", fontSize:11, color:'rgba(255,255,255,.7)', letterSpacing:.5 }}>{chip.mon}</div>
+        <div style={{ position:'absolute', top:'50%', left:12, transform:'translateY(-50%)', zIndex:2 }}>
+          <DateBox date={date} size="md" />
         </div>
       )}
       <div className={s.cardRow}>
