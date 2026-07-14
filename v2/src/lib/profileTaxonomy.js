@@ -66,14 +66,16 @@ export const SUBGENRES = {
   'Hard Dance / Hardcore': ['Hard Techno', 'Hardstyle', 'Hardcore', 'Gabber', 'Happy Hardcore', 'UK Hardcore'],
 };
 
-// The reviewer-facing "mood" tags the owner refines on claim. (Kept here as the
-// canonical set; screens may still show a superset while their own lists are
-// migrated — see VIBES divergence note in the drift-proofing task.)
+// The reviewer-facing "mood" tags the owner refines on claim. DJ/Producer
+// canonical set (2026-07 refresh) — this is the only list in active use;
+// ArtistProfileScreen imports it directly. See ArtistProfileScreen's
+// VIBE_RENAME_MAP/VIBE_REMOVE_SET for the migration of old stored values.
 export const VIBES = [
-  'Fun', 'Funky', 'Groove', 'Wobbly', 'Thinky', 'Bouncy', 'Uplifting', 'Clubby',
-  'Bangers', 'Staunch', 'Crankin', 'Chunks', 'Sinister', 'Techy', 'Melodic', 'Hypnotic',
-  'Deep', 'Dark', 'Dank', 'Organic', 'Shanti', 'Warm Up', 'Wonky', 'Classy',
-  'Experimental', 'Underground', 'Glitchy', 'Versatile', 'Sledgy',
+  'Fun', 'Funky', 'Groove', 'Wobbly', 'Wonky', 'Heady', 'Bouncy', 'Clubby',
+  'Bangers', 'Hefty', 'High Energy', 'Chunks', 'Sleazy', 'Sinister', 'Techy', 'Tribal',
+  'Melodic', 'Uplifting', 'Hypnotic', 'Deep', 'Dark', 'Dank', 'Organic', 'Psychedelic',
+  'Shanti', 'Atmospheric', 'Wind Down', 'Lounge', 'Kickons', 'Classy', 'Intimate', 'Lush',
+  'Experimental', 'Underground', 'Glitchy', 'Versatile', 'Minimal', 'UK', 'Vocals',
 ];
 
 // Genre-string encoding shared with the app (genre_string column).

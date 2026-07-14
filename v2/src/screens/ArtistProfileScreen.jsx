@@ -8,20 +8,32 @@ import { useProfileForm } from '../hooks/useProfileForm';
 import ProfileFormShell from '../components/ProfileFormShell';
 import SectionBlock from '../components/SectionBlock';
 import SocialSection from '../components/SocialSection';
-import { MAIN_GENRES, SUBGENRES } from '../lib/profileTaxonomy';
+import { MAIN_GENRES, SUBGENRES, VIBES } from '../lib/profileTaxonomy';
 
 const STATE_OPTIONS = ['NSW','VIC','QLD','WA','SA','TAS','ACT','NT','NZ','International'];
 const EXP_LEVELS   = ['EMERGING','DEVELOPING','ESTABLISHED','TOURING'];
 const TECH_OPTIONS = ['DJ DIGITAL','DJ VINYL','DJ HYBRID','LIVE ACT','LIVE + DJ','B2B'];
 
-// MAIN_GENRES + SUBGENRES now come from the shared ../lib/profileTaxonomy.
+// MAIN_GENRES + SUBGENRES + VIBES now come from the shared ../lib/profileTaxonomy.
 
-const VIBES = [
-  'Fun','Funky','Groove','Wobbly','Thinky','Bouncy','Uplifting','Clubby',
-  'Bangers','Staunch','Crankin','Chunks','Sinister','Techy','Melodic','Hypnotic',
-  'Deep','Dark','Dank','Organic','Shanti','Warm Up','Wonky','Sleazy/Slutty',
-  'Cocktail','Classy','Minimal','Experimental','USA','UK','Vocals','Glitchy','Sledgy',
-];
+// 2026-07 vibe taxonomy refresh — old stored values are migrated automatically
+// on load (no user action, no bulk DB migration). Renamed values become their
+// new name; removed values are dropped entirely (not replaced). Minimal/UK/
+// Vocals were previously hidden legacy passthroughs — they're now full
+// canonical VIBES options again, so no special-casing needed for them.
+const VIBE_RENAME_MAP = {
+  'Thinky': 'Heady',
+  'Staunch': 'Hefty',
+  'Sledgy': 'Hefty',
+  'Crankin': 'High Energy',
+  'Sleazy/Slutty': 'Sleazy',
+};
+const VIBE_REMOVE_SET = new Set(['Slutty', 'Warm Up', 'Cocktail', 'USA']);
+
+function normalizeVibeToken(tok) {
+  if (VIBE_REMOVE_SET.has(tok)) return null;
+  return VIBE_RENAME_MAP[tok] || tok;
+}
 
 const ACCENT  = '#00E5FF';
 const ACCENT2 = '#FF3399';
@@ -32,7 +44,8 @@ function parseProfile(data) {
   const genres = MAIN_GENRES.filter(g => parts.has(g));
   const allSubs = Object.values(SUBGENRES).flat();
   const subs = allSubs.filter(g => parts.has(g));
-  const vibes = VIBES.filter(v => parts.has(v));
+  const isVibeToken = t => VIBES.includes(t) || VIBE_RENAME_MAP[t] || VIBE_REMOVE_SET.has(t);
+  const vibes = [...new Set([...parts].filter(isVibeToken).map(normalizeVibeToken).filter(Boolean))];
   return { genres, subs, vibes };
 }
 
