@@ -101,6 +101,37 @@ export const BAND_VIBES = [
   'Experimental', 'Crowd Interactive',
 ];
 
+// Comedy / Poetry performance roles (2026-07 refresh). A performer can select
+// one or both roles; ROLE_TAGS gates which style tags are available for each,
+// on top of SHARED_PERFORMANCE_TAGS which always show. Modeled on
+// HOST_CATEGORIES/HOST_GENRES above so adding a future role (MC/Host,
+// Storyteller, Drag, Cabaret, etc.) is a data change here, not an editor
+// rewrite — StandupProfileScreen renders these generically with no
+// comedy/poetry-specific logic.
+export const PERFORMANCE_ROLES = [
+  { key: 'comedy', label: 'Comedy', enabled: true },
+  { key: 'poetry', label: 'Poetry', enabled: true },
+];
+
+export const VISIBLE_PERFORMANCE_ROLES = PERFORMANCE_ROLES.filter(r => r.enabled);
+
+// Always shown, regardless of which performance role(s) are selected.
+export const SHARED_PERFORMANCE_TAGS = [
+  'Political', 'Dark', 'Identity', 'Social Commentary', 'Feel Good', 'Interactive',
+];
+
+export const ROLE_TAGS = {
+  comedy: [
+    'Observational', 'Storytelling', 'Deadpan', 'Absurdist', 'One-Liners',
+    'Self-Deprecating', 'Musical Comedy', 'Improv', 'Crowd Work', 'Clean',
+    'Adult', 'High Energy',
+  ],
+  poetry: [
+    'Spoken Word', 'Slam', 'Narrative', 'Lyrical', 'Performance Poetry',
+    'Humorous', 'Spiritual / Reflective', 'Love & Relationships', 'Protest',
+  ],
+};
+
 // Genre-string encoding shared with the app (genre_string column).
 export const GENRE_SEP = ' · ';
 

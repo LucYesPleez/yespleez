@@ -7,15 +7,28 @@ import { useProfileForm } from '../hooks/useProfileForm';
 import ProfileFormShell from '../components/ProfileFormShell';
 import SectionBlock from '../components/SectionBlock';
 import SocialSection from '../components/SocialSection';
+import { VISIBLE_PERFORMANCE_ROLES, SHARED_PERFORMANCE_TAGS, ROLE_TAGS } from '../lib/profileTaxonomy';
 
 const STATE_OPTIONS = ['NSW','VIC','QLD','WA','SA','TAS','ACT','NT','NZ','International'];
 const EXP_LEVELS   = ['EMERGING','DEVELOPING','ESTABLISHED','TOURING'];
 
-const STANDUP_VIBES = [
-  'Dark','Observational','Political','Storytelling','Absurdist','Clean','Adult',
-  'Improv','Roast','Self-Deprecating','Surreal','Deadpan','Physical','Character',
-  'Topical','Experimental','Feminist','LGBTQ+','Cultural','Feel Good',
-];
+// PERFORMANCE_ROLES / SHARED_PERFORMANCE_TAGS / ROLE_TAGS now come from the
+// shared ../lib/profileTaxonomy (2026-07 refresh) — no comedy/poetry-specific
+// logic lives in this screen, so a future role is a data change there, not here.
+const ROLE_KEYS = VISIBLE_PERFORMANCE_ROLES.map(r => r.key);
+const ALL_ROLE_TAGS = [...new Set(Object.values(ROLE_TAGS).flat())];
+
+// Tags available for the currently-selected role(s) — shared tags always show;
+// role-specific tags are the union of the selected roles' lists (no
+// duplicates). If no role is selected yet (e.g. a profile from before this
+// role concept existed), fall back to every role's tags combined so an
+// existing selection isn't hidden — same fallback Host uses for "no category
+// selected yet" (see HostProfileScreen's genresForCats/ALL_GENRES).
+function tagsForRoles(roles) {
+  const fromRoles = [...new Set(roles.flatMap(r => ROLE_TAGS[r] || []))];
+  const roleTags = roles.length === 0 || fromRoles.length === 0 ? ALL_ROLE_TAGS : fromRoles;
+  return [...SHARED_PERFORMANCE_TAGS, ...roleTags.filter(t => !SHARED_PERFORMANCE_TAGS.includes(t))];
+}
 
 const COL  = '#FF88AA';
 const COL2 = '#BF5FFF';
@@ -60,14 +73,15 @@ export default function StandupProfileScreen() {
 
   // Page 1
   const [name,      setName]      = useState('');
-  const [actType,   setActType]   = useState('');
   const [setLength, setSetLength] = useState('');
   const [location,  setLocation]  = useState('');
   const [locState,  setLocState]  = useState('');
   const [postcode,  setPostcode]  = useState('');
   const [tagline,   setTagline]   = useState('');
   const [videoLink, setVideoLink] = useState('');
-  const [selVibes,  setSelVibes]  = useState([]);
+  const [selRoles,     setSelRoles]     = useState([]);
+  const [selStyleTags, setSelStyleTags] = useState([]);
+  const [selTags,      setSelTags]      = useState([]);
 
   // Page 2
   const [bio,           setBio]           = useState('');
@@ -99,7 +113,6 @@ export default function StandupProfileScreen() {
           setAvatarHero(data.avatar_hero || '');
           setAvatarThumb(data.avatar_thumb || '');
           setName(data.name || '');
-          setActType(data.act_type || '');
           setSetLength(data.set_length ? String(data.set_length) : '');
           setLocation(data.location || '');
           setLocState(data.state || '');
@@ -126,30 +139,58 @@ export default function StandupProfileScreen() {
           loadNa(data.contact_email, setContactEmail, 'contactEmail', naSet);
           loadNa(data.website,       setWebsite,      'website',      naSet);
           setNaFields(naSet);
-          const vibes = new Set((data.vibe_tags || '').split(',').map(v => v.trim()).filter(Boolean));
-          setSelVibes(STANDUP_VIBES.filter(v => vibes.has(v)));
+          // Roles + style tags live in genre_string (like Host's categories +
+          // genres). Legacy vibe_tags (comma-separated, pre-refresh) is also
+          // read here so an existing profile's old tags migrate in
+          // automatically: anything that still exists in the new taxonomy is
+          // kept, anything that doesn't (no rename was specified) is dropped.
+          const parts = new Set((data.genre_string || '').split(' · ').map(x => x.trim()).filter(Boolean));
+          const legacyTags = new Set((data.vibe_tags || '').split(',').map(x => x.trim()).filter(Boolean));
+          setSelRoles(ROLE_KEYS.filter(r => parts.has(r)));
+          setSelStyleTags([...SHARED_PERFORMANCE_TAGS, ...ALL_ROLE_TAGS].filter(t => parts.has(t) || legacyTags.has(t)));
+          if (data.card_pills) setSelTags(data.card_pills.split(' · ').filter(Boolean));
         }
         setLoading(false);
       });
   }, [userId]);
 
-  function toggleVibe(v) {
-    setSelVibes(p => p.includes(v) ? p.filter(x => x !== v) : [...p, v]);
+  function toggleRole(r) { setSelRoles(p => p.includes(r) ? p.filter(x => x !== r) : [...p, r]); setIsDirty(true); }
+  function toggleStyleTag(t) { setSelStyleTags(p => p.includes(t) ? p.filter(x => x !== t) : [...p, t]); setIsDirty(true); }
+  function toggleTag(t) {
+    setSelTags(p => p.includes(t) ? p.filter(x => x !== t) : p.length >= 5 ? p : [...p, t]);
     setIsDirty(true);
   }
+
+  // Dropping a role prunes any style tags that are no longer available for
+  // the remaining role selection (mirrors Host's category->genre pruning).
+  useEffect(() => {
+    const pool = new Set(tagsForRoles(selRoles));
+    setSelStyleTags(prev => prev.filter(t => pool.has(t)));
+  }, [selRoles]);
+
+  // "Your Style Tags" (card_pills) is its own stored column — prune it against
+  // the current style-tag pool so a tag that fell out of Step 2 doesn't stay
+  // stuck as a public tag.
+  useEffect(() => {
+    const pool = new Set(selStyleTags);
+    setSelTags(prev => prev.filter(t => pool.has(t)));
+  }, [selStyleTags]);
 
   function save(skipPostcodeCheck = false) {
     if (!userId || saving) return;
     if (!skipPostcodeCheck && !postcode && !location) { setShowPostcodePrompt(true); return; }
+    const genre_string = [...new Set([...selRoles, ...selStyleTags])].join(' · ');
     const payload = {
       user_id: userId, type: 'standup',
-      name, act_type: actType,
+      name,
       set_length:      setLength ? parseInt(setLength) : null,
       location, state: locState, postcode,
       tagline, bio,
       mix_link:        videoLink,
       video_link:      videoLink,
-      vibe_tags:       selVibes.join(', '),
+      genre_string,
+      card_pills:      selTags.join(' · '),
+      vibe_tags:       null,
       avatar: avatarHero || avatarUrl,
       avatar_hero: avatarHero || null, avatar_thumb: avatarThumb || null,
       experience:      expLevel,
@@ -216,9 +257,6 @@ export default function StandupProfileScreen() {
               <Field label="YOUR NAME / ACT NAME">
                 <input className={s.input} value={name} onChange={e => setName(e.target.value)} placeholder="Your name or stage name" autoComplete="off" />
               </Field>
-              <Field label="ACT TYPE">
-                <input className={s.input} value={actType} onChange={e => setActType(e.target.value)} placeholder="e.g. Stand-Up Comedy, Spoken Word, Slam Poetry, Improv" autoComplete="off" />
-              </Field>
               <div className={s.row}>
                 <Field label="SET LENGTH (MINS)">
                   <input className={s.input} type="number" min="1" value={setLength} onChange={e => setSetLength(e.target.value)} placeholder="e.g. 20" />
@@ -244,36 +282,68 @@ export default function StandupProfileScreen() {
               </div>
             </Section>
 
+            {/* WHAT DO YOU PERFORM? */}
+            <Section title="WHAT DO YOU PERFORM?">
+              <div className={s.pills}>
+                {VISIBLE_PERFORMANCE_ROLES.map(({ key, label }) => {
+                  const on = selRoles.includes(key);
+                  return (
+                    <button key={key} type="button"
+                      className={on ? s.catBtnOn : s.catBtn}
+                      style={on ? { background: 'rgba(255,136,170,.15)', borderColor: COL, color: COL } : {}}
+                      onClick={() => toggleRole(key)}>
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+            </Section>
+
+            {/* PERFORMANCE STYLE */}
+            <Section title="PERFORMANCE STYLE">
+              <p className={s.sectionHint}>Select up to 5 tags that best describe your performance style. These help organisers quickly understand what audiences can expect.</p>
+              <div className={s.chips}>
+                {tagsForRoles(selRoles).map(t => {
+                  const on = selStyleTags.includes(t);
+                  return (
+                    <button key={t} type="button"
+                      className={on ? s.chipOn : s.chip}
+                      style={on ? { background: 'rgba(255,136,170,.15)', borderColor: COL, color: COL } : {}}
+                      onClick={() => toggleStyleTag(t)}>
+                      {t}
+                    </button>
+                  );
+                })}
+              </div>
+            </Section>
+
+            {/* YOUR STYLE TAGS */}
+            {selStyleTags.length > 0 && (
+              <Section title="YOUR STYLE TAGS">
+                <p className={s.sectionHint}>Choose up to five tags that best represent your performance. These appear throughout YesPleez to help organisers quickly understand your style.</p>
+                <div className={s.chips}>
+                  {selStyleTags.map(t => {
+                    const on = selTags.includes(t);
+                    return (
+                      <button key={t} type="button"
+                        className={on ? s.chipOn : s.chip}
+                        style={on ? { background: 'rgba(255,136,170,.15)', borderColor: COL, color: COL } : {}}
+                        onClick={() => toggleTag(t)}
+                        disabled={!on && selTags.length >= 5}>
+                        {t}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className={s.charCount}>{selTags.length} / 5 selected</div>
+              </Section>
+            )}
+
             {/* YOUR STYLE */}
             <Section title="YOUR STYLE">
               <Field label="TAGLINE">
                 <input className={s.input} value={tagline} onChange={e => setTagline(e.target.value)} placeholder="One line that captures your act" maxLength={120} autoComplete="off" />
               </Field>
-              <div className={s.subLabel} style={{ color: COL, borderBottom: '1px solid transparent', borderImage: 'linear-gradient(90deg, #FF88AA, #BF5FFF) 1' }}>STYLE TAGS</div>
-              <div className={s.chips}>
-                {STANDUP_VIBES.map(v => {
-                  const on = selVibes.includes(v);
-                  return (
-                    <button key={v} type="button"
-                      onClick={() => toggleVibe(v)}
-                      style={{
-                        background: on ? 'rgba(0,229,160,.22)' : 'rgba(0,229,160,.06)',
-                        border: `1px solid rgba(0,229,160,${on ? '.5' : '.2'})`,
-                        color: '#FF88AA',
-                        borderRadius: 20,
-                        padding: '6px 14px',
-                        fontFamily: "'DM Sans', sans-serif",
-                        fontSize: 12,
-                        cursor: 'pointer',
-                        transition: 'all .15s',
-                      }}
-                      onMouseEnter={e => { if (!on) { e.currentTarget.style.background = 'rgba(0,229,160,.22)'; e.currentTarget.style.borderColor = 'rgba(0,229,160,.5)'; } }}
-                      onMouseLeave={e => { if (!on) { e.currentTarget.style.background = 'rgba(0,229,160,.06)'; e.currentTarget.style.borderColor = 'rgba(0,229,160,.2)'; } }}>
-                      {v}
-                    </button>
-                  );
-                })}
-              </div>
             </Section>
 
             {/* VIDEO LINK */}
