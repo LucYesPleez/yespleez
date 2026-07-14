@@ -9,6 +9,7 @@ import ds from './DiscoverScreen.module.css';
 import GlobalEventCard from '../components/EventCard';
 import ProfileCard from '../components/ProfileCard';
 import { getEventBadges } from '../lib/eventBadges';
+import { formatLocation } from '../lib/formatLocation';
 import FollowingSection, { FOLLOW_FILTER_CONFIGS } from '../components/FollowingSection';
 import EnquiryPanel from '../components/EnquiryPanel';
 import DashboardHeader from '../components/DashboardHeader';
@@ -779,7 +780,7 @@ function AppCard({ app, prof, event, onRespond }) {
 
   const p      = prof || {};
   const name   = p.name || app.artist_name || '—';
-  const loc    = [p.location, p.state].filter(Boolean).join(', ');
+  const loc    = formatLocation(p);
   const avatar = p.avatar || app.avatar_url || null;
   const sound  = p.sound || (p.genre_string || '').split(/[·,]/).slice(0, 3).join(' · ') || app.genre || '';
   const allTags = [...new Set([

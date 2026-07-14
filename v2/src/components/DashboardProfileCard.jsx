@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PROFILE_TYPES } from '../lib/profileTypes';
+import { formatLocation } from '../lib/formatLocation';
 
 const PinIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -35,7 +36,7 @@ export default function DashboardProfileCard({
 
   const hasProfile = !!profile?.name;
   const heroImg    = profile?.avatar_hero || profile?.avatar || (hasProfile ? DEFAULT_HERO[profile.type] : null);
-  const location   = [profile?.suburb, profile?.state].filter(Boolean).join(', ') || profile?.location;
+  const location   = formatLocation(profile || {});
   const estYear    = profile?.established_year;
   const tagline    = profile?.tagline;
   const isMobile   = typeof window !== 'undefined' && window.innerWidth < 640;

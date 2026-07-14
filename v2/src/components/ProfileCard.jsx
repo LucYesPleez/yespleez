@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import s from './ProfileCard.module.css';
 import { PROFILE_TYPES } from '../lib/profileTypes';
 import { profileUrl } from '../lib/profileResolution';
+import { formatLocation } from '../lib/formatLocation';
 
 // Re-exported in { col, rgb, label, emoji } shape — DiscoverScreen and others depend on this export.
 // ⚠️ Host col changed from #FF3399 → #FF2D78 (now consistent with profileTypes.js / --neon CSS var).
@@ -24,7 +25,7 @@ export default function ProfileCard({ item, badge, badgeColor, actions }) {
   if (!item) return null;
   const type  = item.type || 'artist';
   const ts    = TYPE_STYLES[type] || TYPE_STYLES.artist;
-  const loc   = [(item.suburb || item.location), item.state].filter(Boolean).join(', ');
+  const loc   = formatLocation(item);
   const sound = item.sound || item.genre_string?.split(' · ').slice(0, 3).join(' · ') || '';
   const img   = item.avatar_thumb || item.avatar || null;
 

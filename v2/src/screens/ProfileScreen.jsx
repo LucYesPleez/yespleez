@@ -10,6 +10,7 @@ import s from './ProfileScreen.module.css';
 import ClaimDialog from '../components/ClaimDialog';
 import { resolveProfileRoute, profileUrl } from '../lib/profileResolution';
 import PastEventsSearch, { filterPastEvents } from '../components/PastEventsSearch';
+import { formatLocation } from '../lib/formatLocation';
 
 const TYPE_ACCENTS = {
   host:    { col: '#FF2D78',      rgb: '255,45,120',  label: 'HOST',                grad2: '#BF5FFF' },
@@ -263,7 +264,7 @@ export default function ProfileScreen() {
   const heroUrl = profile.avatar_hero || profile.avatar_thumb || profile.avatar
     || PLACEHOLDER_HERO[profile.type] || null;
   const label   = isVenue ? ta.label : (profile.band_type || profile.act_type || ta.label);
-  const loc     = [profile.suburb || profile.location, profile.state].filter(Boolean).join(', ');
+  const loc     = formatLocation(profile);
   const mixLink = profile.mix_link || profile.soundcloud || profile.mixcloud || '';
 
   const tagline = (() => {
@@ -777,7 +778,7 @@ export default function ProfileScreen() {
               }
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontFamily: "'Bebas Neue'", fontSize: 17, letterSpacing: 1 }}>{enquiryProf.name}</div>
-                {enquiryProf.location && <div style={{ fontSize: 11, color: 'var(--muted)' }}>{enquiryProf.location}</div>}
+                {formatLocation(enquiryProf) && <div style={{ fontSize: 11, color: 'var(--muted)' }}>{formatLocation(enquiryProf)}</div>}
                 {enquiryProf.genre_string && <div style={{ fontSize: 11, color: col, marginTop: 2 }}>{enquiryProf.genre_string.split(' · ').slice(0,3).join(' · ')}</div>}
               </div>
             </div>

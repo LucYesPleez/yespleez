@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { formatDisplayDate } from '../lib/dates';
 import { normaliseStatus } from '../lib/enquiryUtils';
+import { formatLocation } from '../lib/formatLocation';
 import ds from '../screens/DiscoverScreen.module.css';
 import DateBox from './DateBox';
 
@@ -128,7 +129,7 @@ export default function EnquiryCard({ enq, onRespond, onPlayDemo }) {
 
   const p            = profile || {};
   const name         = p.name || enq.name || '—';
-  const loc          = [p.location, p.state].filter(Boolean).join(', ');
+  const loc          = formatLocation(p);
   const avatar       = p.avatar || null;
   const allTags      = (p.card_pills || '').split(/[,·]/).map(s => s.trim()).filter(Boolean);
   const dateLabel    = enq.date_requested ? formatDisplayDate(enq.date_requested) : enq.preferred_date ? formatDisplayDate(enq.preferred_date) : 'Flexible date';

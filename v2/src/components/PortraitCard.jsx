@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { profileUrl } from '../lib/profileResolution';
+import { formatLocation } from '../lib/formatLocation';
 
 const PILL_STYLES = {
   artist:  { bg: '#00E5FF', dark: true,  label: 'DJ / PRODUCER' },
@@ -54,7 +55,7 @@ export default function PortraitCard({ profile: p, onClick, width = 150, height 
       {/* info */}
       <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: 12 }}>
         <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 15, letterSpacing: 1, color: '#fff', lineHeight: 1.1 }}>{p?.name}</div>
-        {(p?.suburb || p?.location) && <div style={{ fontSize: 10, color: 'rgba(255,255,255,.55)', marginTop: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.suburb || p.location}</div>}
+        {formatLocation(p) && <div style={{ fontSize: 10, color: 'rgba(255,255,255,.55)', marginTop: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{formatLocation(p)}</div>}
         {p?.sound && <div style={{ fontSize: 10, color: '#00E5FF', marginTop: 5, lineHeight: 1.4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{p.sound}</div>}
       </div>
     </div>

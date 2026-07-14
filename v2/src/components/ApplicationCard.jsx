@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import ds from '../screens/DiscoverScreen.module.css';
+import { formatLocation } from '../lib/formatLocation';
 
 function AppBtn({ onClick, disabled, base, hover, children }) {
   const [hov, setHov] = useState(false);
@@ -39,7 +40,7 @@ export default function ApplicationCard({ app, prof, event, onRespond, onAssign 
 
   const p      = prof || {};
   const name   = p.name || app.artist_name || '—';
-  const loc    = [p.location, p.state].filter(Boolean).join(', ');
+  const loc    = formatLocation(p);
   const avatar = p.avatar || app.avatar_url || null;
   const sound  = p.sound || (p.genre_string || '').split(/[·,]/).slice(0, 3).join(' · ') || app.genre || '';
   const allTags = (p.card_pills || '').split(/[,·]/).map(t => t.trim()).filter(Boolean);

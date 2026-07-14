@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { writeNotification } from '../lib/writeNotification';
 import { resolveProfileId } from '../lib/resolveProfileId';
+import { formatLocation } from '../lib/formatLocation';
 
 const PERF_TYPES = ['DJ Set', 'Live Set', 'MC / Host', 'Band', 'Comedy / Spoken Word', 'Other'];
 
@@ -68,7 +69,7 @@ export default function InviteSheet({ artist, events = [], venueUserId, onClose 
 
   const type   = (artist.type || 'artist').toLowerCase();
   const sound  = artist.sound || artist.genre_string?.split(' · ').slice(0,3).join(' · ') || '';
-  const loc    = [artist.suburb || artist.location, artist.state].filter(Boolean).join(', ');
+  const loc    = formatLocation(artist);
   const img    = artist.avatar_thumb || artist.avatar || null;
 
   const TYPE_COL = { artist: '#00E5FF', host: '#FF3399', band: '#FF8C42', standup: '#FF88AA', venue: '#00E5A0' };
