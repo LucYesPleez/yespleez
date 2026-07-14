@@ -14,8 +14,16 @@ const STATE_OPTIONS = ['NSW','VIC','QLD','WA','SA','TAS','ACT','NT','NZ','Intern
 const EXP_LEVELS   = ['EMERGING','DEVELOPING','ESTABLISHED','TOURING'];
 
 // BAND_GENRES + BAND_SUBGENRES + BAND_VIBES now come from the shared
-// ../lib/profileTaxonomy (2026-07 refresh). No rename map — old stored values
-// that aren't in the new lists are simply dropped, none were declared renamed.
+// ../lib/profileTaxonomy (2026-07 refresh). Migrated automatically on load,
+// no user action required: a renamed value becomes its new name, anything
+// else no longer in the lists is dropped.
+const SUBGENRE_RENAME_MAP = {
+  'Alternative': 'Alt Rock',
+  'Progressive': 'Prog Rock',
+};
+function normalizeSubgenre(tok) {
+  return SUBGENRE_RENAME_MAP[tok] || tok;
+}
 
 const COL  = '#FFB830';
 const COL2 = '#FF8C42';
@@ -138,7 +146,8 @@ export default function BandProfileScreen() {
           const str = data.genre_string || '';
           const parts = new Set(str.split(/,\s*|\s+·\s+/).map(x => x.trim()).filter(Boolean));
           setSelGenres(BAND_GENRES.filter(g => parts.has(g)));
-          setSelSubs(BAND_SUBGENRES.filter(g => parts.has(g)));
+          const isSubToken = t => BAND_SUBGENRES.includes(t) || SUBGENRE_RENAME_MAP[t];
+          setSelSubs([...new Set([...parts].filter(isSubToken).map(normalizeSubgenre))]);
           setSelVibes(BAND_VIBES.filter(v => parts.has(v)));
           if (data.card_pills) setSelTags(data.card_pills.split(' · ').filter(Boolean));
         }

@@ -80,8 +80,8 @@ export const VIBES = [
 
 // Band / Muso canonical taxonomy (2026-07 refresh) — the only lists in active
 // use; BandProfileScreen imports these directly instead of keeping its own
-// local copy. See BandProfileScreen's parseProfile for how old stored values
-// not in these lists are dropped (no rename map — none was specified).
+// local copy. See BandProfileScreen's SUBGENRE_RENAME_MAP for the migration
+// of renamed subgenre values; anything else not in these lists is dropped.
 export const BAND_GENRES = [
   'Rock', 'Pop', 'Hip Hop', 'Electronic', 'Jazz', 'Blues', 'Folk',
   'Country', 'R&B / Soul', 'Funk', 'Reggae', 'Metal', 'Punk',
@@ -89,8 +89,8 @@ export const BAND_GENRES = [
 ];
 
 export const BAND_SUBGENRES = [
-  'Indie', 'Alternative', 'Hard Rock', 'Classic Rock', 'Grunge', 'Psychedelic',
-  'Progressive', 'Garage', 'Post-Punk', 'Emo', 'Lo-Fi', 'Ambient',
+  'Indie', 'Alt Rock', 'Hard Rock', 'Classic Rock', 'Grunge', 'Psychedelic',
+  'Prog Rock', 'Garage', 'Post-Punk', 'Emo', 'Lo-Fi', 'Ambient',
   'Synth Pop', 'Acoustic', 'Unplugged',
 ];
 
