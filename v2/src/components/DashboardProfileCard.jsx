@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PROFILE_TYPES } from '../lib/profileTypes';
 import { formatLocation } from '../lib/formatLocation';
@@ -39,7 +39,14 @@ export default function DashboardProfileCard({
   const location   = formatLocation(profile || {});
   const estYear    = profile?.established_year;
   const tagline    = profile?.tagline;
-  const isMobile   = typeof window !== 'undefined' && window.innerWidth < 640;
+  // Resize-reactive (matches VenueDashboard's established isNarrow pattern),
+  // rather than a one-shot read that never updates after mount.
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 640);
+  useEffect(() => {
+    const handler = () => setIsMobile(window.innerWidth < 640);
+    window.addEventListener('resize', handler, { passive: true });
+    return () => window.removeEventListener('resize', handler);
+  }, []);
   const themeGradient = gradient || `linear-gradient(90deg, ${accent}, #00B4D8)`;
 
   // Dark bg colour matching the page — used for the image-to-content fade
@@ -126,7 +133,6 @@ export default function DashboardProfileCard({
                   <PinIcon />{location}
                 </span>
               )}
-              <span style={{ flex: 1 }} />
               <span style={{
                 fontFamily: "'Bebas Neue', sans-serif",
                 fontSize: 10, letterSpacing: 1.5,
@@ -134,6 +140,7 @@ export default function DashboardProfileCard({
                 background: `rgba(${accentRgb},.1)`,
                 border: `1px solid rgba(${accentRgb},.3)`,
                 borderRadius: 6, padding: '3px 8px',
+                marginLeft: 'auto',
               }}>
                 {hasProfile ? 'EDIT PROFILE →' : 'SET UP →'}
               </span>

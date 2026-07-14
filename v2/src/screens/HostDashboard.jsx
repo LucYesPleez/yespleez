@@ -10,6 +10,7 @@ import GlobalEventCard from '../components/EventCard';
 import ProfileCard from '../components/ProfileCard';
 import { getEventBadges } from '../lib/eventBadges';
 import { formatLocation } from '../lib/formatLocation';
+import { HOST_CATEGORIES } from '../lib/profileTaxonomy';
 import FollowingSection, { FOLLOW_FILTER_CONFIGS } from '../components/FollowingSection';
 import EnquiryPanel from '../components/EnquiryPanel';
 import DashboardHeader from '../components/DashboardHeader';
@@ -276,7 +277,13 @@ export default function HostDashboard({ userId: userIdProp }) {
     window.scrollTo({ top: window.scrollY + rect.top - window.innerHeight * 0.35, behavior: 'smooth' });
   }
 
-  const genres = profile?.genre_string || '';
+  // Host has no card_pills/"5 tags" concept — its closest curated selection
+  // is "what do you host?" (selected categories), not the full flat
+  // genre/subgenre/vibe list also packed into genre_string.
+  const genres = (() => {
+    const parts = new Set((profile?.genre_string || '').split(' · ').map(t => t.trim()).filter(Boolean));
+    return HOST_CATEGORIES.filter(c => parts.has(c.key)).map(c => c.label).join(' · ');
+  })();
   const hasProfile = !!profile;
   const completionPct = !hasProfile ? 0
     : [profile.name, profile.avatar, profile.location, profile.sound, profile.tagline, profile.genre_string, profile.bio, profile.website]

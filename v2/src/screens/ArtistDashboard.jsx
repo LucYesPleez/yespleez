@@ -246,11 +246,12 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
   }
 
   const hasProfile    = !!profile;
-  const genres        = (() => {
-    if (!profile) return '';
-    const src = profile.card_pills || profile.genre_string || '';
-    return src.split(/\s*·\s*|,\s*/).map(t => t.trim()).filter(Boolean).slice(0, 5).join(' · ');
-  })();
+  // Only the user's own curated "5 tags" selection — never the full
+  // genre/subgenre/vibe taxonomy list (card_pills is empty until they pick
+  // some, so this intentionally shows nothing until they do, rather than
+  // falling back to the long raw genre_string).
+  const genres        = (profile?.card_pills || '')
+    .split(/\s*·\s*|,\s*/).map(t => t.trim()).filter(Boolean).slice(0, 5).join(' · ');
   const completionPct = !hasProfile ? 0 : (() => {
     const filled = v => !!(v && v !== 'N/A');
     const done   = v => !!(v === 'N/A' || (v && v.trim && v.trim()));
