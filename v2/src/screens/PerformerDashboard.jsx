@@ -1,12 +1,18 @@
 import ArtistDashboard from './ArtistDashboard';
+import { PROFILE_TYPES } from '../lib/profileTypes';
 
+// headingLine1/2 are this dashboard's own content (how the heading wraps to
+// two lines) and stay local. gradient/accent/accentRgb derive from
+// PROFILE_TYPES — both used to hand-type these and had drifted: both
+// gradients incorrectly ended in Venue's teal (#00B4D8), and Band's accent
+// pointed at its accent2 (#FF8C42) instead of its real accent (#FFB830).
 const CONFIGS = {
   band: {
     headingLine1:     'BAND /',
     headingLine2:     'MUSO',
-    gradient:         'linear-gradient(135deg, #FFB830, #00B4D8)',
-    accent:           '#FF8C42',
-    accentRgb:        '255,140,66',
+    gradient:         PROFILE_TYPES.band.gradient,
+    accent:           PROFILE_TYPES.band.accent,
+    accentRgb:        PROFILE_TYPES.band.rgb,
     profileType:      'band',
     setupPath:        '/industry/band/setup',
     browseLabel:      'BROWSE OPEN EVENTS →',
@@ -15,9 +21,9 @@ const CONFIGS = {
   standup: {
     headingLine1:     'STAND UP',
     headingLine2:     '/ POETRY',
-    gradient:         'linear-gradient(135deg, #FF88AA, #00B4D8)',
-    accent:           '#FF88AA',
-    accentRgb:        '255,136,170',
+    gradient:         PROFILE_TYPES.standup.gradient,
+    accent:           PROFILE_TYPES.standup.accent,
+    accentRgb:        PROFILE_TYPES.standup.rgb,
     profileType:      'standup',
     setupPath:        '/industry/standup/setup',
     browseLabel:      'BROWSE OPEN CALLS →',

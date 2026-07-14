@@ -7,6 +7,7 @@ import s from './ArtistProfileScreen.module.css';
 import PostcodePrompt from '../components/PostcodePrompt';
 import CardTagPicker from '../components/CardTagPicker';
 import { normalizeSocialValue, ensureHttps } from '../lib/socialLinks';
+import { PROFILE_TYPES } from '../lib/profileTypes';
 
 const STATE_OPTIONS = ['NSW','VIC','QLD','WA','SA','TAS','ACT','NT','NZ','International'];
 
@@ -391,7 +392,8 @@ export default function VenueProfileScreen() {
                 tagPool={tagPool}
                 selected={cardPills}
                 onChange={pills => { setCardPills(pills); setIsDirty(true); }}
-                accent="#00E5FF"
+                accent={PROFILE_TYPES.venue.accent}
+                accentRgb={PROFILE_TYPES.venue.rgb}
                 hint="Pick the tags that best describe your venue — shown on your profile card."
               />
             </div>

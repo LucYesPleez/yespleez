@@ -9,14 +9,6 @@ const PinIcon = () => (
   </svg>
 );
 
-const DEFAULT_HERO = {
-  artist:  '/defaultdj.png',
-  band:    '/defaultband.png',
-  standup: '/defaultmic.png',
-  venue:   '/defaultvenueblur.png',
-  host:    '/defaultpromoter.jpg',
-};
-
 export default function DashboardProfileCard({
   profile,
   accent = '#00E5A0',
@@ -32,10 +24,10 @@ export default function DashboardProfileCard({
 
   const pt         = PROFILE_TYPES[profile?.type] || PROFILE_TYPES.venue;
   const accentRgb  = pt.rgb;
-  const typeLabel  = pt.label;
+  const typeLabel  = pt.shortLabel;
 
   const hasProfile = !!profile?.name;
-  const heroImg    = profile?.avatar_hero || profile?.avatar || (hasProfile ? DEFAULT_HERO[profile.type] : null);
+  const heroImg    = profile?.avatar_hero || profile?.avatar || (hasProfile ? pt.defaultImage : null);
   const location   = formatLocation(profile || {});
   const estYear    = profile?.established_year;
   const tagline    = profile?.tagline;

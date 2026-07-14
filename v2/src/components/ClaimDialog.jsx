@@ -1,21 +1,14 @@
 import s from './ClaimDialog.module.css';
+import { PROFILE_TYPES } from '../lib/profileTypes';
 
 const CLAIMS_EMAIL      = 'claims@yespleez.com';
 const YESPLEEZ_INSTAGRAM = 'https://www.instagram.com/yespleez';
-
-const TYPE_LABELS = {
-  artist:  'Artist',
-  band:    'Band / Musician',
-  standup: 'Comedian / Spoken Word',
-  venue:   'Venue',
-  host:    'Promoter',
-};
 
 export default function ClaimDialog({ open, onClose, profile, session }) {
   if (!open || !profile) return null;
 
   const profileUrl = window.location.href;
-  const typeLabel  = TYPE_LABELS[profile.type] || profile.type || 'Artist';
+  const typeLabel  = PROFILE_TYPES[profile.type]?.label || profile.type || 'Artist';
   const userEmail  = session?.user?.email || '[your YesPleez account email]';
 
   const subject = `Profile Claim Request – ${profile.name}`;

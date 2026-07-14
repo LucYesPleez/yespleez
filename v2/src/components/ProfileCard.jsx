@@ -6,11 +6,12 @@ import { formatLocation } from '../lib/formatLocation';
 import { selectedPerformanceRoleLabels } from '../lib/profileTaxonomy';
 
 // Re-exported in { col, rgb, label, emoji } shape — DiscoverScreen and others depend on this export.
-// ⚠️ Host col changed from #FF3399 → #FF2D78 (now consistent with profileTypes.js / --neon CSS var).
+// `label` here is the compact badge/pill form (PROFILE_TYPES.shortLabel) — this
+// component's own `.typeBadge` pill is a tight space, same as PortraitCard's.
 export const TYPE_STYLES = Object.fromEntries(
   Object.entries(PROFILE_TYPES).map(([type, pt]) => [
     type,
-    { col: pt.accent, rgb: pt.rgb, label: pt.label, emoji: pt.emoji },
+    { col: pt.accent, rgb: pt.rgb, label: pt.shortLabel, emoji: pt.emoji },
   ])
 );
 

@@ -1,28 +1,26 @@
 import { useState } from 'react';
 import PortraitCard from './PortraitCard';
 import ProfileCard from './ProfileCard';
-import { PROFILE_TYPE_ORDER } from '../lib/profileTypes';
+import { PROFILE_TYPE_ORDER, PROFILE_TYPES } from '../lib/profileTypes';
 
 export const FOLLOW_TYPE_MAP = {
   VENUE: 'venue', HOST: 'host', ARTIST: 'artist', BAND: 'band', COMEDY: 'standup',
 };
 
+// 'ALL' isn't a profile type, so it keeps its own entry; every other token
+// derives its colour/label from the one canonical PROFILE_TYPES definition.
 export const FOLLOW_PILL_COLORS = {
-  ALL:    { col: 'var(--muted)',  rgb: '150,150,170' },
-  VENUE:  { col: '#00E5A0',      rgb: '0,229,160'   },
-  HOST:   { col: '#FF3399',      rgb: '255,51,153'  },
-  ARTIST: { col: 'var(--neon2)', rgb: '0,229,255'   },
-  BAND:   { col: '#FF8C42',      rgb: '255,140,66'  },
-  COMEDY: { col: '#FF88AA',      rgb: '255,136,170' },
+  ALL: { col: 'var(--muted)', rgb: '150,150,170' },
+  ...Object.fromEntries(Object.entries(FOLLOW_TYPE_MAP).map(([token, type]) => [
+    token, { col: PROFILE_TYPES[type].accent, rgb: PROFILE_TYPES[type].rgb },
+  ])),
 };
 
 export const FOLLOW_FILTER_LABELS = {
-  ALL:    'ALL',
-  VENUE:  'VENUE',
-  HOST:   'HOST / PROM',
-  ARTIST: 'DJ / PROD',
-  BAND:   'BAND',
-  COMEDY: 'COMEDY',
+  ALL: 'ALL',
+  ...Object.fromEntries(Object.entries(FOLLOW_TYPE_MAP).map(([token, type]) => [
+    token, PROFILE_TYPES[type].shortLabel,
+  ])),
 };
 
 // Single canonical order (Venue first, matching PROFILE_TYPE_ORDER) instead

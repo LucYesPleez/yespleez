@@ -13,12 +13,17 @@ import { BAND_GENRES, SHARED_PERFORMANCE_TAGS, ROLE_TAGS } from '../lib/profileT
 
 // Venue-first, matching the shared canonical role order (PROFILE_TYPE_ORDER
 // in profileTypes.js). 'event' isn't a profile role, so it stays last.
+// Deliberate sentence-case renderings of PROFILE_TYPES' ALL-CAPS canonical
+// labels — this filter row uses prose-style chips (DM Sans, not the Bebas
+// Neue ALL-CAPS treatment badges/pills use elsewhere), so the words are kept
+// in sync with canonical content by hand rather than mechanically
+// upper/lower-cased (which would mangle the "DJ" acronym).
 const TYPE_OPTIONS = [
   { value: 'venue',   label: 'Venue' },
   { value: 'host',    label: 'Host' },
   { value: 'artist',  label: 'DJ / Producer' },
   { value: 'band',    label: 'Band' },
-  { value: 'standup', label: 'Comedy / Poet' },
+  { value: 'standup', label: 'Comedy / Poetry' },
   { value: 'event',   label: 'Event' },
 ];
 

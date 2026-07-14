@@ -1,15 +1,9 @@
 import { useNavigate } from 'react-router-dom';
-
-const GRADIENTS = {
-  venue:  'linear-gradient(135deg, #00E5A0, #00B4D8)',
-  host:   'linear-gradient(135deg, #FF2D78, #BF5FFF)',
-  artist: 'linear-gradient(135deg, #00E5FF, #BF5FFF)',
-  dj:     'linear-gradient(135deg, #00E5FF, #BF5FFF)',
-};
+import { PROFILE_TYPES } from '../lib/profileTypes';
 
 export default function DashboardHeader({ line1, line2, userId, profileId, profileType = 'venue', gradient: gradientOverride }) {
   const navigate = useNavigate();
-  const gradient = gradientOverride || GRADIENTS[profileType] || GRADIENTS.venue;
+  const gradient = gradientOverride || PROFILE_TYPES[profileType]?.gradient || PROFILE_TYPES.venue.gradient;
   // M5: canonical profile.id self-link; legacy user_id URL only as a fallback
   // while the caller's profile row is loading (the redirect shim covers it).
   const viewProfile = () => navigate(profileId ? `/profile/${profileId}?type=${profileType}` : `/profile/${userId}?type=${profileType}`);

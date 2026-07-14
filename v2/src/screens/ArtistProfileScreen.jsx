@@ -10,6 +10,7 @@ import SectionBlock from '../components/SectionBlock';
 import SocialSection from '../components/SocialSection';
 import { MAIN_GENRES, SUBGENRES, VIBES } from '../lib/profileTaxonomy';
 import { normalizeSocialValue, ensureHttps } from '../lib/socialLinks';
+import { PROFILE_TYPES } from '../lib/profileTypes';
 
 const STATE_OPTIONS = ['NSW','VIC','QLD','WA','SA','TAS','ACT','NT','NZ','International'];
 const EXP_LEVELS   = ['EMERGING','DEVELOPING','ESTABLISHED','TOURING'];
@@ -373,6 +374,8 @@ export default function ArtistProfileScreen() {
                   tagPool={tagPool}
                   selected={selTags}
                   onChange={pills => { setSelTags(pills); setIsDirty(true); }}
+                  accent={PROFILE_TYPES.artist.accent}
+                  accentRgb={PROFILE_TYPES.artist.rgb}
                   hint="Pick the tags that best represent your sound — shown on your slot card and discovery profile."
                 />
               </Section>

@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { writeNotification } from '../lib/writeNotification';
 import { resolveProfileId } from '../lib/resolveProfileId';
 import { formatLocation } from '../lib/formatLocation';
+import { PROFILE_TYPES } from '../lib/profileTypes';
 
 const PERF_TYPES = ['DJ Set', 'Live Set', 'MC / Host', 'Band', 'Comedy / Spoken Word', 'Other'];
 
@@ -72,8 +73,7 @@ export default function InviteSheet({ artist, events = [], venueUserId, onClose 
   const loc    = formatLocation(artist);
   const img    = artist.avatar_thumb || artist.avatar || null;
 
-  const TYPE_COL = { artist: '#00E5FF', host: '#FF3399', band: '#FF8C42', standup: '#FF88AA', venue: '#00E5A0' };
-  const accent = TYPE_COL[type] || '#00E5FF';
+  const accent = PROFILE_TYPES[type]?.accent || '#00E5FF';
 
   return (
     <div

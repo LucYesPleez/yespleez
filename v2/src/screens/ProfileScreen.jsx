@@ -14,24 +14,9 @@ import { formatLocation } from '../lib/formatLocation';
 import { socialProfileUrl, ensureHttps } from '../lib/socialLinks';
 import ProfileSocialLinks from '../components/ProfileSocialLinks';
 import { selectedPerformanceRoleLabels } from '../lib/profileTaxonomy';
-
-const TYPE_ACCENTS = {
-  host:    { col: '#FF2D78',      rgb: '255,45,120',  label: 'HOST',                grad2: '#BF5FFF' },
-  artist:  { col: '#00E5FF',      rgb: '0,229,255',   label: 'DJ / PRODUCER',       grad2: '#BF5FFF' },
-  band:    { col: '#FF8C42',      rgb: '255,140,66',  label: 'BAND',                grad2: '#FF5500' },
-  standup: { col: '#FF88AA',      rgb: '255,136,170', label: 'SPOKEN WORD',         grad2: '#BF5FFF' },
-  venue:   { col: '#00E5A0',      rgb: '0,229,160',   label: 'VENUE',               grad2: '#00E5FF' },
-};
+import { PROFILE_TYPES } from '../lib/profileTypes';
 
 const OLD_CATS = new Set(['ELECTRONIC','BANDS','SPOKEN','SPOKEN WORD','RAVE','FESTIVAL']);
-
-const PLACEHOLDER_HERO = {
-  artist:  '/defaultdj.png',
-  band:    '/defaultband.png',
-  standup: '/defaultmic.png',
-  venue:   '/defaultvenueblur.png',
-  host:    '/defaultpromoter.jpg',
-};
 
 export default function ProfileScreen() {
   const { id }    = useParams();
@@ -158,7 +143,7 @@ export default function ProfileScreen() {
       .eq('user_id', session.user.id)
       .neq('type', 'punter').neq('type', 'venue');
     if (!profs?.length) return;
-    const mapped = profs.map(p => ({ ...p, label: TYPE_ACCENTS[p.type]?.label || p.type.toUpperCase() }));
+    const mapped = profs.map(p => ({ ...p, label: PROFILE_TYPES[p.type]?.label || p.type.toUpperCase() }));
     setEnquiryLoading(false);
     setPickerDate(dateStr);
     if (mapped.length === 1) { setEnquiryProf(mapped[0]); setPickerProfs([]); }
@@ -217,7 +202,7 @@ export default function ProfileScreen() {
     const { data: profs } = await supabase.from('profiles')
       .select('user_id, type, name, avatar, genre_string, sound')
       .eq('user_id', session.user.id);
-    const mapped = (profs || []).map(p => ({ ...p, label: TYPE_ACCENTS[p.type]?.label || p.type.toUpperCase() }));
+    const mapped = (profs || []).map(p => ({ ...p, label: PROFILE_TYPES[p.type]?.label || p.type.toUpperCase() }));
     if (mapped.length > 1) {
       setFollowPickerProfs(mapped);
       setFollowSelected(new Set());
@@ -258,10 +243,10 @@ export default function ProfileScreen() {
   }
 
 
-  const ta      = TYPE_ACCENTS[profile.type] || TYPE_ACCENTS.artist;
-  const col     = ta.col;
-  const rgb     = ta.rgb;
-  const grad2   = ta.grad2;
+  const pt      = PROFILE_TYPES[profile.type] || PROFILE_TYPES.artist;
+  const col     = pt.accent;
+  const rgb     = pt.rgb;
+  const grad2   = pt.accent2;
   const isHost    = profile.type === 'host';
   const isVenue   = profile.type === 'venue';
   const isStandup = profile.type === 'standup';
@@ -269,8 +254,8 @@ export default function ProfileScreen() {
   // to the generic type imagery (never a real likeness) when it has no avatar.
   const hasRealAvatar = !!(profile.avatar_hero || profile.avatar_thumb || profile.avatar);
   const heroUrl = profile.avatar_hero || profile.avatar_thumb || profile.avatar
-    || PLACEHOLDER_HERO[profile.type] || null;
-  const label   = isVenue ? ta.label : (profile.band_type || profile.act_type || ta.label);
+    || pt.defaultImage || null;
+  const label   = isVenue ? pt.label : (profile.band_type || profile.act_type || pt.label);
   // Standup: one pill per selected "what do you perform?" role (Comedy/
   // Poetry), data-driven so a future role works with no call-site change.
   // Falls back to the generic label above until roles have been selected.
@@ -521,7 +506,7 @@ export default function ProfileScreen() {
             {/* Restore shared social links row beneath Follow/Message for
                 every non-venue type — Venue keeps its own (unchanged) row
                 inside VenueInfoDropdown above. */}
-            {!isVenue && <ProfileSocialLinks socials={socials} />}
+            {!isVenue && <ProfileSocialLinks socials={socials} justify="center" />}
           </div>
 
           {/* Claim this profile — unclaimed profiles only (keyed on the row's
@@ -725,7 +710,9 @@ export default function ProfileScreen() {
             <div style={{ fontFamily: "'Bebas Neue'", fontSize: 22, letterSpacing: 2, marginBottom: 16, background: `linear-gradient(135deg,${col},${grad2})`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text', display: 'inline-block' }}>FOLLOW {profile.name.toUpperCase()}</div>
             <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 20 }}>Select which profiles to follow from, you can pick more than one.</div>
             {followPickerProfs.map((p, i) => {
-              const tc = { artist: { col: '#00E5FF', rgb: '0,229,255' }, host: { col: '#FF2D78', rgb: '255,45,120' }, band: { col: '#FF8C42', rgb: '255,140,66' }, standup: { col: '#FF88AA', rgb: '255,136,170' }, venue: { col: '#00E5A0', rgb: '0,229,160' }, punter: { col: '#BF5FFF', rgb: '191,95,255' } }[p.type] || { col: '#BF5FFF', rgb: '191,95,255' };
+              // 'punter' isn't a PROFILE_TYPES entry (not an industry identity type) — keeps its own fallback.
+              const ptp = PROFILE_TYPES[p.type];
+              const tc = ptp ? { col: ptp.accent, rgb: ptp.rgb } : { col: '#BF5FFF', rgb: '191,95,255' };
               const key = p.type;
               const checked = followSelected.has(key);
               const toggle = () => setFollowSelected(prev => { const s = new Set(prev); checked ? s.delete(key) : s.add(key); return s; });
@@ -765,7 +752,8 @@ export default function ProfileScreen() {
             <div style={{ fontFamily: "'Bebas Neue'", fontSize: 18, letterSpacing: 1, marginBottom: 4 }}>{new Date(pickerDate + 'T00:00:00').toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).toUpperCase()}</div>
             <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 20 }}>Who are you enquiring as?</div>
             {pickerProfs.map((p, i) => {
-              const tc = { artist: { col: '#00E5FF', rgb: '0,229,255' }, host: { col: '#FF2D78', rgb: '255,45,120' }, band: { col: '#FF8C42', rgb: '255,140,66' }, standup: { col: '#FF88AA', rgb: '255,136,170' } }[p.type] || { col: '#00E5A0', rgb: '0,229,160' };
+              const ptp = PROFILE_TYPES[p.type];
+              const tc = ptp ? { col: ptp.accent, rgb: ptp.rgb } : { col: '#00E5A0', rgb: '0,229,160' };
               return (
                 <button key={i} onClick={() => { setEnquiryProf(p); setPickerProfs([]); }} style={{ width: '100%', display: 'flex', gap: 12, alignItems: 'center', background: `rgba(${tc.rgb},.06)`, border: `1px solid rgba(${tc.rgb},.25)`, borderRadius: 12, padding: 12, cursor: 'pointer', textAlign: 'left', marginBottom: 8 }}>
                   {p.avatar

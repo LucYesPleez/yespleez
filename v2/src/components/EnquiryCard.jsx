@@ -7,6 +7,7 @@ import { formatLocation } from '../lib/formatLocation';
 import { socialProfileUrl, socialHandle, ensureHttps } from '../lib/socialLinks';
 import ds from '../screens/DiscoverScreen.module.css';
 import DateBox from './DateBox';
+import { PROFILE_TYPES } from '../lib/profileTypes';
 
 
 export function HoverPill({ label, accentRgb, accent }) {
@@ -65,10 +66,6 @@ export function HoverBtn({ onClick, disabled, base, hover, children }) {
   );
 }
 
-const TYPE_ACCENT = { artist: '#00E5FF', band: '#FF8C42', standup: '#FF88AA', host: '#FF3399', venue: '#00E5A0' };
-const TYPE_RGB    = { artist: '0,229,255', band: '255,140,66', standup: '255,136,170', host: '255,51,153', venue: '0,229,160' };
-const TYPE_LABEL  = { artist: 'DJ / PRODUCER', band: 'BAND', standup: 'SPOKEN', host: 'HOST', venue: 'VENUE' };
-
 const STATUS_COLOR = {
   new: '#FFD700', awaiting: '#FFD700',
   shortlisted: '#00B4D8', interested: '#00B4D8',
@@ -116,8 +113,9 @@ export default function EnquiryCard({ enq, onRespond, onPlayDemo }) {
 
   const displayStatus = normaliseStatus(enq);
   const enqDir        = (enq.direction || 'incoming').toLowerCase();
-  const accent        = TYPE_ACCENT[enq.applicant_type] || '#00E5FF';
-  const accentRgb     = TYPE_RGB[enq.applicant_type]    || '0,229,255';
+  const accentPt      = PROFILE_TYPES[enq.applicant_type];
+  const accent        = accentPt?.accent || '#00E5FF';
+  const accentRgb     = accentPt?.rgb    || '0,229,255';
   const statusColor   = STATUS_COLOR[displayStatus] || '#FFD700';
   const nextStepsCopy = NEXT_STEPS[enqDir]?.[displayStatus] || '';
 
@@ -214,7 +212,7 @@ export default function EnquiryCard({ enq, onRespond, onPlayDemo }) {
           <div className={ds.cardNameRow}>
             <span className={ds.cardName}>{name}</span>
             <span className={ds.cardBadge} style={{ color: accent, background: `rgba(${accentRgb},.15)`, borderColor: `rgba(${accentRgb},.3)` }}>
-              {TYPE_LABEL[(p.role || enq.applicant_type || 'artist').toLowerCase()] || (p.role || enq.applicant_type || 'artist').toUpperCase()}
+              {PROFILE_TYPES[(p.role || enq.applicant_type || 'artist').toLowerCase()]?.shortLabel || (p.role || enq.applicant_type || 'artist').toUpperCase()}
             </span>
           </div>
           {enq.event_name && (

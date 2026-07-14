@@ -19,6 +19,7 @@ import DashboardStats from '../components/DashboardStats';
 import FollowingSection, { FOLLOW_FILTER_CONFIGS } from '../components/FollowingSection';
 import EnquiryCard from '../components/EnquiryCard';
 import AvailabilitySection from '../components/AvailabilitySection';
+import { PROFILE_TYPES } from '../lib/profileTypes';
 
 // Organiser-side (INCOMING) pipeline — what venues/hosts see
 const IN_STATUS_MAP  = {
@@ -95,10 +96,14 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
   const queryClient = useQueryClient();
   const userId      = userIdProp || session?.user?.id;
 
+  // headingLine1/2 stay local (this dashboard's own heading copy);
+  // gradient/accent/accentRgb derive from PROFILE_TYPES.artist.
   const cfg = config || {
     headingLine1: 'DJ /',
     headingLine2: 'PRODUCER',
-    gradient:     'linear-gradient(135deg,#00E5FF,#00BFFF,#7B5EA7,#FF88AA)',
+    gradient:     PROFILE_TYPES.artist.gradient,
+    accent:       PROFILE_TYPES.artist.accent,
+    accentRgb:    PROFILE_TYPES.artist.rgb,
     profileType:  'artist',
     setupPath:    '/industry/artist/setup',
     browseLabel:  'BROWSE OPEN EVENTS →',
@@ -326,9 +331,9 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
       />
 
       <DashboardStats stats={[
-        { label: 'APPLICATIONS', value: loading ? '—' : applications.length,              accent: '#00E5FF', onClick: () => { scrollToSection('section-enquiries'); setEnqDirTab('OUTGOING'); } },
-        { label: 'OFFERS',       value: loading ? '—' : offersCount,                      accent: '#BF5FFF', onClick: () => { scrollToSection('section-enquiries'); setEnqDirTab('INCOMING'); } },
-        { label: 'BOOKINGS',     value: loading ? '—' : upcomingGigs.length + pastGigs.length, accent: '#00E5A0', onClick: () => { scrollToSection('section-enquiries'); setEnqDirTab('BOOKED'); } },
+        { label: 'APPLICATIONS', value: loading ? '—' : applications.length,              accent: '#00E5FF', accentRgb: '0,229,255', onClick: () => { scrollToSection('section-enquiries'); setEnqDirTab('OUTGOING'); } },
+        { label: 'OFFERS',       value: loading ? '—' : offersCount,                      accent: '#BF5FFF', accentRgb: '191,95,255', onClick: () => { scrollToSection('section-enquiries'); setEnqDirTab('INCOMING'); } },
+        { label: 'BOOKINGS',     value: loading ? '—' : upcomingGigs.length + pastGigs.length, accent: '#00E5A0', accentRgb: '0,229,160', onClick: () => { scrollToSection('section-enquiries'); setEnqDirTab('BOOKED'); } },
       ]} />
 
       {/* ── AVAILABILITY ── */}

@@ -1,18 +1,26 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { PROFILE_TYPES } from '../lib/profileTypes';
 import s from './RoleSelectorScreen.module.css';
 
 // Order is the shared canonical role ordering for V2 (Venue first — reflects
 // the platform's primary discovery flow). IndustryPanel.jsx imports this
 // array directly, so reordering here also reorders the Industry panel.
+//
+// title/hoverStyle/titleStyle all derive from PROFILE_TYPES — this screen
+// previously kept its own hand-typed colours here, several of which had
+// drifted from canonical (Host's hover border was Artist's pink #FF3399,
+// Band's was its accent2 not its accent, Comedy/Poetry's hover glow didn't
+// match its own border colour at all). desc/icon/path are role-picker
+// content, not identity, and stay local.
 const ROLES = [
   {
     id: 'venue',
     path: '/industry/venue',
-    hoverStyle: { borderColor: '#00E5A0', boxShadow: '0 0 28px rgba(0,229,160,.28)' },
-    titleStyle: { color: '#00E5A0' },
-    title: 'VENUES',
+    hoverStyle: { borderColor: PROFILE_TYPES.venue.accent, boxShadow: `0 0 28px rgba(${PROFILE_TYPES.venue.rgb},.28)` },
+    titleStyle: { color: PROFILE_TYPES.venue.accent },
+    title: PROFILE_TYPES.venue.label,
     desc: 'List your venue, set availability, get found by promoters and artists',
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -24,9 +32,9 @@ const ROLES = [
   {
     id: 'host',
     path: '/industry/host',
-    hoverStyle: { borderColor: '#FF3399', boxShadow: '0 0 28px rgba(255,51,153,.18)' },
-    titleStyle: { color: '#FF3399' },
-    title: 'HOST / PROMOTER',
+    hoverStyle: { borderColor: PROFILE_TYPES.host.accent, boxShadow: `0 0 28px rgba(${PROFILE_TYPES.host.rgb},.18)` },
+    titleStyle: { color: PROFILE_TYPES.host.accent },
+    title: PROFILE_TYPES.host.label,
     desc: 'Create events, build set times, manage your lineup, go live',
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -40,9 +48,9 @@ const ROLES = [
   {
     id: 'artist',
     path: '/industry/artist',
-    hoverStyle: { borderColor: '#00e5ff', boxShadow: '0 0 28px rgba(0,229,255,.18)' },
-    titleStyle: { color: '#00e5ff' },
-    title: 'DJ / PRODUCER',
+    hoverStyle: { borderColor: PROFILE_TYPES.artist.accent, boxShadow: `0 0 28px rgba(${PROFILE_TYPES.artist.rgb},.18)` },
+    titleStyle: { color: PROFILE_TYPES.artist.accent },
+    title: PROFILE_TYPES.artist.label,
     desc: 'Build your profile, track your bookings, apply to events',
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -55,9 +63,9 @@ const ROLES = [
   {
     id: 'band',
     path: '/industry/band',
-    hoverStyle: { borderColor: '#FF8C42', boxShadow: '0 0 28px rgba(255,140,66,.28)' },
-    titleStyle: { color: '#FF8C42' },
-    title: 'BAND / MUSO',
+    hoverStyle: { borderColor: PROFILE_TYPES.band.accent, boxShadow: `0 0 28px rgba(${PROFILE_TYPES.band.rgb},.28)` },
+    titleStyle: { color: PROFILE_TYPES.band.accent },
+    title: PROFILE_TYPES.band.label,
     desc: 'List your band, find gigs, connect with venues and promoters',
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -80,9 +88,9 @@ const ROLES = [
   {
     id: 'standup',
     path: '/industry/standup',
-    hoverStyle: { borderColor: '#FF88AA', boxShadow: '0 0 28px rgba(232,121,249,.28)' },
-    titleStyle: { background: 'linear-gradient(135deg,#FF88AA,#FF5588)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' },
-    title: 'COMEDY / POETRY',
+    hoverStyle: { borderColor: PROFILE_TYPES.standup.accent, boxShadow: `0 0 28px rgba(${PROFILE_TYPES.standup.rgb},.28)` },
+    titleStyle: { background: PROFILE_TYPES.standup.gradient, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' },
+    title: PROFILE_TYPES.standup.label,
     desc: 'Book gigs, share your sets, connect with comedy clubs and spoken word nights',
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">

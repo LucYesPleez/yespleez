@@ -7,14 +7,8 @@ function scrollToSection(id) {
   window.scrollTo({ top: window.scrollY + rect.top - window.innerHeight * 0.35, behavior: 'smooth' });
 }
 
-function StatBox({ label, value, accent = '#00E5A0', sectionId, onClick }) {
+function StatBox({ label, value, accent = '#00E5A0', accentRgb = '0,229,160', sectionId, onClick }) {
   const [hov, setHov] = useState(false);
-  const accentRgb = accent.startsWith('#00E5A0') ? '0,229,160'
-    : accent.startsWith('#FF2D78') ? '255,45,120'
-    : accent.startsWith('#FF3399') ? '255,51,153'
-    : accent.startsWith('#00E5FF') ? '0,229,255'
-    : accent.startsWith('#FF8C42') ? '255,140,66'
-    : '0,229,160';
   return (
     <div
       onClick={onClick || (sectionId ? () => scrollToSection(sectionId) : undefined)}
@@ -34,11 +28,12 @@ function StatBox({ label, value, accent = '#00E5A0', sectionId, onClick }) {
   );
 }
 
-export default function DashboardStats({ stats = [], accent }) {
+export default function DashboardStats({ stats = [], accent, accentRgb }) {
   return (
     <div style={{ display: 'flex', gap: 8, marginBottom: 24 }}>
       {stats.map(s => (
-        <StatBox key={s.label} label={s.label} value={s.value} sectionId={s.sectionId} accent={s.accent || accent} onClick={s.onClick} />
+        <StatBox key={s.label} label={s.label} value={s.value} sectionId={s.sectionId}
+          accent={s.accent || accent} accentRgb={s.accentRgb || accentRgb} onClick={s.onClick} />
       ))}
     </div>
   );

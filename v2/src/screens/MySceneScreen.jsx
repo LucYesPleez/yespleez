@@ -12,11 +12,14 @@ import s from './MySceneScreen.module.css';
 import { useDragScroll } from '../hooks/useDragScroll';
 import AU_POSTCODES from '../lib/postcodes';
 import PastEventsSearch, { filterPastEvents } from '../components/PastEventsSearch';
+import { PROFILE_TYPES, PROFILE_TYPE_ORDER } from '../lib/profileTypes';
 
 let _discoverCache = [];
 
-const TYPE_COLORS = { artist:'#00E5FF', band:'#FF8C42', venue:'#00E5A0', standup:'#FF88AA', host:'#FF3399', event:'#BF5FFF' };
-const TYPE_LABELS = { artist:'DJ / PRODUCER', band:'BAND', venue:'VENUE', standup:'COMEDY', host:'PROMOTER', event:'EVENT' };
+// 'event' isn't a profile type — kept as its own literal; every profile type
+// derives from the one canonical PROFILE_TYPES definition.
+const TYPE_COLORS = { ...Object.fromEntries(PROFILE_TYPE_ORDER.map(t => [t, PROFILE_TYPES[t].accent])), event: '#BF5FFF' };
+const TYPE_LABELS = { ...Object.fromEntries(PROFILE_TYPE_ORDER.map(t => [t, PROFILE_TYPES[t].shortLabel])), event: 'EVENT' };
 const TYPE_UPDATES = { artist:'Updated their profile', venue:'Updated event listings', host:'Updated their events', band:'Updated their profile', standup:'Updated their profile' };
 
 function timeAgo(iso) {
@@ -802,7 +805,7 @@ export default function MySceneScreen({ isGuest, onSignOut }) {
                   return Math.abs(new Date(d + 'T12:00:00') - selD) / 86400000 <= 7 && d !== selDate;
                 }).sort((a, b) => Math.abs(new Date(a.config.date + 'T12:00:00') - selD) - Math.abs(new Date(b.config.date + 'T12:00:00') - selD)).slice(0, 6);
 
-                const TYPE_STYLES = { host:'#FF3399', artist:'var(--neon2)', band:'#FF8C42', standup:'#FF88AA', venue:'#00E5A0' };
+                const TYPE_STYLES = Object.fromEntries(PROFILE_TYPE_ORDER.map(t => [t, PROFILE_TYPES[t].accent]));
 
                 return (
                   <>

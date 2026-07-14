@@ -2,6 +2,7 @@ import { useState } from 'react';
 import ds from '../screens/DiscoverScreen.module.css';
 import { formatLocation } from '../lib/formatLocation';
 import { socialProfileUrl, socialHandle, ensureHttps } from '../lib/socialLinks';
+import { PROFILE_TYPES } from '../lib/profileTypes';
 
 function AppBtn({ onClick, disabled, base, hover, children }) {
   const [hov, setHov] = useState(false);
@@ -28,11 +29,10 @@ export default function ApplicationCard({ app, prof, event, onRespond, onAssign 
   const isPending   = app.status === 'pending';
   const isTentative = app.status === 'tentative';
 
-  const TYPE_ACCENT = { artist: '#00E5FF', band: '#FF8C42', standup: '#FF88AA', dj: '#00E5FF', host: '#FF3399' };
-  const TYPE_RGB    = { artist: '0,229,255', band: '255,140,66', standup: '255,136,170', dj: '0,229,255', host: '255,51,153' };
   const pType     = prof?.type || 'artist';
-  const accent    = TYPE_ACCENT[pType] || '#00E5FF';
-  const accentRgb = TYPE_RGB[pType]    || '0,229,255';
+  const pt        = PROFILE_TYPES[pType];
+  const accent    = pt?.accent || '#00E5FF';
+  const accentRgb = pt?.rgb    || '0,229,255';
 
   const STATUS_COLOR = { confirmed: '#00E5A0', offered: '#FF8C42', accepted: '#FF8C42', rejected: '#888', declined: '#888', pending: '#FFD700', tentative: '#00B4D8' };
   const STATUS_LABEL = { confirmed: 'CONFIRMED', offered: 'OFFERED', accepted: 'OFFERED', rejected: 'DECLINED', declined: 'DECLINED', pending: 'PENDING', tentative: 'SHORTLISTED' };
@@ -80,7 +80,7 @@ export default function ApplicationCard({ app, prof, event, onRespond, onAssign 
         <div className={ds.cardInfo}>
           <div className={ds.cardNameRow}>
             <span className={ds.cardName}>{name}</span>
-            <span className={ds.cardBadge} style={{ color: accent, background: `rgba(${accentRgb},.15)`, borderColor: `rgba(${accentRgb},.3)` }}>{pType.toUpperCase()}</span>
+            <span className={ds.cardBadge} style={{ color: accent, background: `rgba(${accentRgb},.15)`, borderColor: `rgba(${accentRgb},.3)` }}>{pt?.shortLabel || pType.toUpperCase()}</span>
           </div>
           {loc   && <div className={ds.cardLoc}>{loc}</div>}
           {sound && <div className={ds.cardSound} style={{ color: accent }}>{sound}</div>}

@@ -2,22 +2,8 @@ import { useNavigate } from 'react-router-dom';
 import { profileUrl } from '../lib/profileResolution';
 import { formatLocation } from '../lib/formatLocation';
 import { selectedPerformanceRoleLabels } from '../lib/profileTaxonomy';
-
-const PILL_STYLES = {
-  artist:  { bg: '#00E5FF', dark: true,  label: 'DJ / PRODUCER' },
-  host:    { bg: '#FF3399', dark: false, label: 'HOST' },
-  band:    { bg: '#FF8C42', dark: true,  label: 'BAND' },
-  venue:   { bg: '#00E5A0', dark: true,  label: 'VENUE' },
-  standup: { bg: '#FF88AA', dark: true,  label: 'COMEDY' },
-};
-
-const DEFAULT_IMAGE = {
-  artist:  '/defaultdj.png',
-  band:    '/defaultband.png',
-  standup: '/defaultmic.png',
-  venue:   '/defaultvenueblur.png',
-  host:    '/defaultpromoter.jpg',
-};
+import { PROFILE_TYPES } from '../lib/profileTypes';
+import { getContrastText } from '../lib/color';
 
 /**
  * Props:
@@ -29,8 +15,8 @@ const DEFAULT_IMAGE = {
 export default function PortraitCard({ profile: p, onClick, width = 150, height = 200 }) {
   const navigate = useNavigate();
   const type = (p?.type || 'artist').toLowerCase();
-  const pill = PILL_STYLES[type] || { bg: '#00E5FF', dark: true, label: type.toUpperCase() };
-  const label = type === 'standup' ? 'COMEDY' : (PILL_STYLES[type]?.label || type.toUpperCase());
+  const pt = PROFILE_TYPES[type] || PROFILE_TYPES.artist;
+  const label = pt.shortLabel || type.toUpperCase();
   // Standup: one pill per selected performance role (Comedy/Poetry), data-
   // driven so a future role works everywhere with no call-site change.
   const roleLabels = type === 'standup' ? selectedPerformanceRoleLabels(p?.genre_string) : [];
@@ -48,13 +34,13 @@ export default function PortraitCard({ profile: p, onClick, width = 150, height 
       onMouseLeave={e => e.currentTarget.style.transform = ''}
     >
       {/* avatar image */}
-      <img src={p?.avatar_thumb || p?.avatar || DEFAULT_IMAGE[type]} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} loading="lazy" decoding="async" />
+      <img src={p?.avatar_thumb || p?.avatar || pt.defaultImage} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} loading="lazy" decoding="async" />
       {/* gradient overlay */}
       <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom,rgba(0,0,0,.08) 0%,rgba(0,0,0,0) 35%,rgba(0,0,0,.6) 75%,rgba(0,0,0,.88) 100%)' }} />
       {/* type pill(s) */}
       <div style={{ position: 'absolute', top: 10, right: 10, display: 'flex', gap: 6 }}>
         {pillLabels.map((l, i) => (
-          <span key={i} style={{ background: pill.bg, color: pill.dark ? '#0a0a0f' : '#fff', borderRadius: 6, padding: '3px 8px', fontSize: 9, fontWeight: 700, letterSpacing: .8, fontFamily: "'DM Sans',sans-serif" }}>
+          <span key={i} style={{ background: pt.accent, color: getContrastText(pt.accent), borderRadius: 6, padding: '3px 8px', fontSize: 9, fontWeight: 700, letterSpacing: .8, fontFamily: "'DM Sans',sans-serif" }}>
             {l}
           </span>
         ))}

@@ -11,6 +11,7 @@ import ProfileCard from '../components/ProfileCard';
 import { getEventBadges } from '../lib/eventBadges';
 import { formatLocation } from '../lib/formatLocation';
 import { HOST_CATEGORIES } from '../lib/profileTaxonomy';
+import { PROFILE_TYPES } from '../lib/profileTypes';
 import FollowingSection, { FOLLOW_FILTER_CONFIGS } from '../components/FollowingSection';
 import EnquiryPanel from '../components/EnquiryPanel';
 import DashboardHeader from '../components/DashboardHeader';
@@ -291,12 +292,12 @@ export default function HostDashboard({ userId: userIdProp }) {
 
   return (
     <div className={s.screen}>
-      <DashboardHeader line1="HOST /" line2="PROMOTER" userId={userId} profileId={profile?.id} profileType="host" gradient="linear-gradient(135deg, #FF2D78, #00B4D8)" />
+      <DashboardHeader line1="HOST /" line2="PROMOTER" userId={userId} profileId={profile?.id} profileType="host" gradient={PROFILE_TYPES.host.gradient} />
 
       <DashboardProfileCard
         profile={profile}
-        accent="#FF2D78"
-        gradient="linear-gradient(135deg, #FF2D78, #00B4D8)"
+        accent={PROFILE_TYPES.host.accent}
+        gradient={PROFILE_TYPES.host.gradient}
         icon={<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="rgba(255,45,120,.7)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="2" width="18" height="20" rx="2"/><circle cx="12" cy="13" r="5"/><circle cx="12" cy="13" r="2"/><line x1="9" y1="5.5" x2="15" y2="5.5" strokeWidth="1.5" strokeLinecap="round"/></svg>}
         setupRoute="/industry/host/setup"
         subtitle={profile?.location || 'Add your details so artists can find you'}
@@ -309,7 +310,7 @@ export default function HostDashboard({ userId: userIdProp }) {
         onClick={() => scrollToSection('section-enquiries')}
       />
 
-      <DashboardStats accent="#FF2D78" stats={[
+      <DashboardStats accent={PROFILE_TYPES.host.accent} accentRgb={PROFILE_TYPES.host.rgb} stats={[
         { label: 'EVENTS',   value: loadingEvents ? '—' : events.length,                sectionId: 'section-events' },
         { label: 'INCOMING', value: newAppsCount === null ? '—' : newAppsCount,          sectionId: 'section-enquiries' },
         { label: 'LINEUP',   value: lineupSlotsCount === null ? '—' : lineupSlotsCount,  sectionId: 'section-lineup' },
@@ -774,11 +775,10 @@ function AppCard({ app, prof, event, onRespond }) {
   const isPending   = app.status === 'pending';
   const isTentative = app.status === 'tentative';
 
-  const TYPE_ACCENT = { artist: '#00E5FF', band: '#FF8C42', standup: '#FF88AA', dj: '#00E5FF', host: '#FF3399' };
-  const TYPE_RGB    = { artist: '0,229,255', band: '255,140,66', standup: '255,136,170', dj: '0,229,255', host: '255,51,153' };
   const pType     = prof?.type || 'artist';
-  const accent    = TYPE_ACCENT[pType] || '#00E5FF';
-  const accentRgb = TYPE_RGB[pType]    || '0,229,255';
+  const pt        = PROFILE_TYPES[pType];
+  const accent    = pt?.accent || '#00E5FF';
+  const accentRgb = pt?.rgb    || '0,229,255';
 
   const STATUS_COLOR = { accepted: '#00E5A0', rejected: '#888', declined: '#888', pending: '#FFD700' };
   const STATUS_LABEL = { accepted: 'ACCEPTED', rejected: 'DECLINED', declined: 'DECLINED', pending: 'PENDING' };
@@ -831,7 +831,7 @@ function AppCard({ app, prof, event, onRespond }) {
         <div className={ds.cardInfo}>
           <div className={ds.cardNameRow}>
             <span className={ds.cardName}>{name}</span>
-            <span className={ds.cardBadge} style={{ color: accent, background: `rgba(${accentRgb},.15)`, borderColor: `rgba(${accentRgb},.3)` }}>{pType.toUpperCase()}</span>
+            <span className={ds.cardBadge} style={{ color: accent, background: `rgba(${accentRgb},.15)`, borderColor: `rgba(${accentRgb},.3)` }}>{pt?.shortLabel || pType.toUpperCase()}</span>
           </div>
           {loc  && <div className={ds.cardLoc}>{loc}</div>}
           {sound && <div className={ds.cardSound} style={{ color: accent }}>{sound}</div>}

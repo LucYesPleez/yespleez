@@ -2,12 +2,13 @@
  * CardTagPicker — reusable "pick up to N tags" chip selector.
  *
  * Props:
- *   tagPool   string[]   all available tags to choose from
- *   selected  string[]   currently selected tags
- *   onChange  fn         called with new selected array
- *   max       number     max selections (default 5)
- *   accent    string     active chip colour (default #00E5FF)
- *   hint      string     optional helper text below chips
+ *   tagPool    string[]   all available tags to choose from
+ *   selected   string[]   currently selected tags
+ *   onChange   fn         called with new selected array
+ *   max        number     max selections (default 5)
+ *   accent     string     active chip colour (default #00E5FF)
+ *   accentRgb  string     "r,g,b" for `accent` — pass PROFILE_TYPES[type].rgb (default '0,229,255')
+ *   hint       string     optional helper text below chips
  */
 export default function CardTagPicker({
   tagPool = [],
@@ -15,16 +16,10 @@ export default function CardTagPicker({
   onChange,
   max = 5,
   accent = '#00E5FF',
+  accentRgb = '0,229,255',
   hint,
 }) {
   if (!tagPool.length) return null;
-
-  const accentRgb = accent === '#00E5FF' ? '0,229,255'
-                  : accent === '#00E5A0' ? '0,229,160'
-                  : accent === '#FF8C42' ? '255,140,66'
-                  : accent === '#FF3399' ? '255,51,153'
-                  : accent === '#FF88AA' ? '255,136,170'
-                  : '0,229,255';
 
   function toggle(tag) {
     if (selected.includes(tag)) {

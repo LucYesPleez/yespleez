@@ -46,7 +46,7 @@
   font-family: 'Bebas Neue', sans-serif;
   font-size: 11px;
   letter-spacing: 3px;
-  color: #FF3399;
+  color: #FF2D78;
   margin-bottom: 4px;
 }
 
@@ -56,7 +56,7 @@
   line-height: .92;
   letter-spacing: 4px;
   font-weight: 400;
-  background: linear-gradient(135deg, #FF3399, #BF5FFF);
+  background: linear-gradient(135deg, #FF2D78, #00E5FF);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -77,8 +77,8 @@
   width: min(80vw, 340px);
   height: min(80vw, 340px);
   border-radius: 14px;
-  border: 2px solid #FF3399;
-  box-shadow: 0 0 40px rgba(255,51,153,.18);
+  border: 2px solid #FF2D78;
+  box-shadow: 0 0 40px rgba(255,45,120,.18);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -133,7 +133,7 @@
   font-family: 'Bebas Neue', sans-serif;
   font-size: 13px;
   letter-spacing: 2.5px;
-  color: #FF3399;
+  color: #FF2D78;
   border-bottom: 1px solid var(--border);
   padding-bottom: 8px;
   margin-bottom: 14px;
@@ -295,7 +295,7 @@
   font-family: 'Bebas Neue', sans-serif;
   font-size: 11px;
   letter-spacing: 2px;
-  color: #FF3399;
+  color: #FF2D78;
   border-bottom: 1px solid var(--border);
   padding-bottom: 6px;
   margin: 14px 0 10px;
@@ -325,8 +325,8 @@
   display: block;
   width: calc(100% - 40px);
   margin: 20px 20px 0;
-  background: linear-gradient(135deg, #FF3399, #BF5FFF);
-  box-shadow: 0 0 30px rgba(191,95,255,.22);
+  background: linear-gradient(135deg, #FF2D78, #00E5FF);
+  box-shadow: 0 0 30px rgba(0,229,255,.22);
   color: #fff;
   font-family: 'Bebas Neue', sans-serif;
   font-size: 18px;
