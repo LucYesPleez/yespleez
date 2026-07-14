@@ -5,10 +5,10 @@
 // "SOCIALS / LINKS" row and directly beneath the Follow/Message action
 // buttons for every other profile type, so the icon rendering lives in one
 // place instead of being duplicated per profile type.
-export default function ProfileSocialLinks({ socials = [], gap = 12 }) {
+export default function ProfileSocialLinks({ socials = [], gap = 12, justify = 'flex-start' }) {
   if (!socials.length) return null;
   return (
-    <div style={{ display: 'flex', gap, alignItems: 'center' }}>
+    <div style={{ display: 'flex', gap, alignItems: 'center', justifyContent: justify }}>
       {socials.map((sc, i) => (
         <a
           key={i}
