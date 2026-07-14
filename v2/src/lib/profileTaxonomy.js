@@ -78,6 +78,29 @@ export const VIBES = [
   'Experimental', 'Underground', 'Glitchy', 'Versatile', 'Minimal', 'UK', 'Vocals',
 ];
 
+// Band / Muso canonical taxonomy (2026-07 refresh) — the only lists in active
+// use; BandProfileScreen imports these directly instead of keeping its own
+// local copy. See BandProfileScreen's parseProfile for how old stored values
+// not in these lists are dropped (no rename map — none was specified).
+export const BAND_GENRES = [
+  'Rock', 'Pop', 'Hip Hop', 'Electronic', 'Jazz', 'Blues', 'Folk',
+  'Country', 'R&B / Soul', 'Funk', 'Reggae', 'Metal', 'Punk',
+  'Latin', 'World', 'Classical', 'Experimental', 'Ska', 'Bluegrass',
+];
+
+export const BAND_SUBGENRES = [
+  'Indie', 'Alternative', 'Hard Rock', 'Classic Rock', 'Grunge', 'Psychedelic',
+  'Progressive', 'Garage', 'Post-Punk', 'Emo', 'Lo-Fi', 'Ambient',
+  'Synth Pop', 'Acoustic', 'Unplugged',
+];
+
+export const BAND_VIBES = [
+  'High Energy', 'Feel Good', 'Emotional', 'Soulful', 'Groovy', 'Dark',
+  'Atmospheric', 'Cinematic', 'Party', 'Dance Floor', 'Chill', 'Laid Back',
+  'Late Night', 'All Ages', 'Intimate', 'Powerful', 'Raw', 'Uplifting',
+  'Experimental', 'Crowd Interactive',
+];
+
 // Genre-string encoding shared with the app (genre_string column).
 export const GENRE_SEP = ' · ';
 

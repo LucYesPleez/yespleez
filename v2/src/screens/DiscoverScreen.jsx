@@ -9,6 +9,7 @@ import { SkeletonRow } from '../components/Skeleton';
 import { useDragScroll } from '../hooks/useDragScroll';
 import s from './DiscoverScreen.module.css';
 import { resolveLocationToPostcodes, suggestLocations } from '../lib/auLocations';
+import { BAND_GENRES } from '../lib/profileTaxonomy';
 
 // Venue-first, matching the shared canonical role order (PROFILE_TYPE_ORDER
 // in profileTypes.js). 'event' isn't a profile role, so it stays last.
@@ -23,7 +24,7 @@ const TYPE_OPTIONS = [
 
 const GENRE_BY_TYPE = {
   artist:  ['Techno','House','Drum & Bass','Breaks','Trance','Psytrance','Progressive Psy','Dubstep / Bass','Hard Dance / Hardcore','Ambient / Downtempo','Electronica','Funk / Soul / Disco','Hip-Hop','Reggae / Dancehall','World / Global','Experimental','Multi Genre'],
-  band:    ['Rock','Alternative','Indie','Blues','Jazz','Funk / Soul / Disco','Hip-Hop','Reggae / Dancehall','Country','Folk / Acoustic','Metal','Pop','World / Global','Experimental','Multi Genre'],
+  band:    BAND_GENRES,
   standup: ['Stand-up Comedy','Improv','Poetry Slam','Spoken Word','Cabaret','Storytelling','Roast','Dark Comedy','Political Comedy','Character Comedy'],
   event:   ['Techno','House','Drum & Bass','Trance','Rock','Blues','Jazz','Hip-Hop','Comedy','Arts & Culture','Multi Genre'],
 };

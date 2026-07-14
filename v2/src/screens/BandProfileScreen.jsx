@@ -7,21 +7,14 @@ import { useProfileForm } from '../hooks/useProfileForm';
 import ProfileFormShell from '../components/ProfileFormShell';
 import SectionBlock from '../components/SectionBlock';
 import SocialSection from '../components/SocialSection';
+import { BAND_GENRES, BAND_SUBGENRES, BAND_VIBES } from '../lib/profileTaxonomy';
 
 const STATE_OPTIONS = ['NSW','VIC','QLD','WA','SA','TAS','ACT','NT','NZ','International'];
 const EXP_LEVELS   = ['EMERGING','DEVELOPING','ESTABLISHED','TOURING'];
 
-const BAND_GENRES = [
-  'Rock','Pop','Hip Hop','Electronic','Jazz','Blues','Folk',
-  'Country','R&B / Soul','Funk','Reggae','Metal','Punk',
-  'Latin','World','Classical','Experimental',
-];
-const BAND_VIBES = [
-  'Indie','Alt Rock','Hard Rock','Classic Rock','Grunge','Psychedelic','Prog Rock',
-  'Garage','Post-Punk','Emo','Lo-Fi','Ambient','Synth Pop','Acoustic','Unplugged',
-  'High Energy','Dance Floor','Chill','Laid Back','Late Night','All Ages',
-  'Feel Good','Emotional','Dark','Party','Soulful','Groovy','Cinematic','Storytelling',
-];
+// BAND_GENRES + BAND_SUBGENRES + BAND_VIBES now come from the shared
+// ../lib/profileTaxonomy (2026-07 refresh). No rename map — old stored values
+// that aren't in the new lists are simply dropped, none were declared renamed.
 
 const COL  = '#FFB830';
 const COL2 = '#FF8C42';
@@ -75,6 +68,7 @@ export default function BandProfileScreen() {
   const [tagline,     setTagline]     = useState('');
   const [epkLink,     setEpkLink]     = useState('');
   const [selGenres,   setSelGenres]   = useState([]);
+  const [selSubs,     setSelSubs]     = useState([]);
   const [selVibes,    setSelVibes]    = useState([]);
   const [selTags,     setSelTags]     = useState([]);
 
@@ -143,6 +137,7 @@ export default function BandProfileScreen() {
           const str = data.genre_string || '';
           const parts = new Set(str.split(/,\s*|\s+·\s+/).map(x => x.trim()).filter(Boolean));
           setSelGenres(BAND_GENRES.filter(g => parts.has(g)));
+          setSelSubs(BAND_SUBGENRES.filter(g => parts.has(g)));
           setSelVibes(BAND_VIBES.filter(v => parts.has(v)));
           if (data.card_pills) setSelTags(data.card_pills.split(' · ').filter(Boolean));
         }
@@ -150,14 +145,23 @@ export default function BandProfileScreen() {
       });
   }, [userId]);
 
+  // card_pills is its own stored column, separate from genre_string — prune it
+  // against the current genre/subgenre/vibe pool so a taxonomy refresh (values
+  // renamed or removed) doesn't leave an obsolete tag stuck in card_pills.
+  useEffect(() => {
+    const pool = new Set([...selGenres, ...selSubs, ...selVibes]);
+    setSelTags(prev => prev.filter(t => pool.has(t)));
+  }, [selGenres, selSubs, selVibes]);
+
   function toggleGenre(g) { setSelGenres(p => p.includes(g) ? p.filter(x => x !== g) : [...p, g]); setIsDirty(true); }
+  function toggleSub(sub) { setSelSubs(p   => p.includes(sub) ? p.filter(x => x !== sub) : [...p, sub]); setIsDirty(true); }
   function toggleVibe(v)  { setSelVibes(p  => p.includes(v) ? p.filter(x => x !== v) : [...p, v]); setIsDirty(true); }
   function toggleTag(t)   { setSelTags(p => p.includes(t) ? p.filter(x => x !== t) : p.length >= 5 ? p : [...p, t]); setIsDirty(true); }
 
   function save(skipPostcodeCheck = false) {
     if (!userId || saving) return;
     if (!skipPostcodeCheck && !postcode && !location) { setShowPostcodePrompt(true); return; }
-    const genre_string = [...selGenres, ...selVibes].join(' · ');
+    const genre_string = [...new Set([...selGenres, ...selSubs, ...selVibes])].join(' · ');
     const card_pills   = selTags.join(' · ');
     const payload = {
       user_id: userId, type: 'band',
@@ -282,6 +286,17 @@ export default function BandProfileScreen() {
                   </button>
                 ))}
               </div>
+              <div className={s.subLabel}>SUBGENRE</div>
+              <div className={s.chips}>
+                {BAND_SUBGENRES.map(g => (
+                  <button key={g} type="button"
+                    className={selSubs.includes(g) ? s.chipOn : s.chip}
+                    style={selSubs.includes(g) ? { background: `rgba(255,140,66,.15)`, borderColor: COL, color: COL } : {}}
+                    onClick={() => toggleSub(g)}>
+                    {g}
+                  </button>
+                ))}
+              </div>
               <div className={s.subLabel}>VIBES</div>
               <div className={s.chips}>
                 {BAND_VIBES.map(v => (
@@ -296,8 +311,8 @@ export default function BandProfileScreen() {
             </Section>
 
             {/* YOUR 5 CARD TAGS */}
-            {(selGenres.length > 0 || selVibes.length > 0) && (() => {
-              const tagPool = [...new Set([...selGenres, ...selVibes])];
+            {(selGenres.length > 0 || selSubs.length > 0 || selVibes.length > 0) && (() => {
+              const tagPool = [...new Set([...selGenres, ...selSubs, ...selVibes])];
               return (
                 <Section title="YOUR 5 CARD TAGS">
                   <p className={s.sectionHint}>Pick up to 5 tags that show on your slot card and discovery profile.</p>
