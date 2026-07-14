@@ -204,10 +204,7 @@ export default function EnquiryCard({ enq, onRespond, onPlayDemo }) {
   return (
     <div style={{ marginBottom: 8 }}>
       <div className={ds.card} style={{ border: `1px solid rgba(${accentRgb},.35)`, cursor: 'default', marginBottom: 0, borderRadius: (expanded || nextStepsCopy) ? '14px 14px 0 0' : 14, borderBottom: nextStepsCopy ? 'none' : `1px solid rgba(${accentRgb},.35)` }}>
-        {avatar
-          ? <img className={ds.cardAvatar} src={avatar} alt={name} style={{ borderColor: accent }} />
-          : <div className={ds.cardAvatarPH} style={{ borderColor: accent }}>🎵</div>
-        }
+        <img className={ds.cardAvatar} src={avatar || accentPt?.defaultImage || PROFILE_TYPES.artist.defaultImage} alt={name} style={{ borderColor: accent }} />
         <div className={ds.cardInfo}>
           <div className={ds.cardNameRow}>
             <span className={ds.cardName}>{name}</span>

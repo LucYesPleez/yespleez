@@ -721,7 +721,9 @@ export default function ProfileScreen() {
                 <button key={i} onClick={toggle} style={{ width: '100%', display: 'flex', gap: 12, alignItems: 'center', background: checked ? `rgba(${tc.rgb},.1)` : `rgba(${tc.rgb},.04)`, border: `1px solid ${checked ? tc.col : `rgba(${tc.rgb},.2)`}`, borderRadius: 12, padding: 12, cursor: 'pointer', textAlign: 'left', marginBottom: 8, transition: 'all .15s' }}>
                   {p.avatar
                     ? <img src={p.avatar} style={{ width: 44, height: 44, borderRadius: 8, objectFit: 'cover', border: `1.5px solid rgba(${tc.rgb},.5)`, flexShrink: 0 }} alt={p.name} />
-                    : <div style={{ width: 44, height: 44, borderRadius: 8, background: `rgba(${tc.rgb},.12)`, border: `1.5px solid rgba(${tc.rgb},.3)`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: tc.col }}>{p.type === 'punter' ? MySceneSVG : '🎵'}</div>
+                    : p.type === 'punter'
+                    ? <div style={{ width: 44, height: 44, borderRadius: 8, background: `rgba(${tc.rgb},.12)`, border: `1.5px solid rgba(${tc.rgb},.3)`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: tc.col }}>{MySceneSVG}</div>
+                    : <img src={ptp?.defaultImage || PROFILE_TYPES.artist.defaultImage} style={{ width: 44, height: 44, borderRadius: 8, objectFit: 'cover', border: `1.5px solid rgba(${tc.rgb},.5)`, flexShrink: 0 }} alt={p.name} />
                   }
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1.5, color: tc.col, marginBottom: 2 }}>{p.label}</div>
@@ -756,10 +758,7 @@ export default function ProfileScreen() {
               const tc = ptp ? { col: ptp.accent, rgb: ptp.rgb } : { col: '#00E5A0', rgb: '0,229,160' };
               return (
                 <button key={i} onClick={() => { setEnquiryProf(p); setPickerProfs([]); }} style={{ width: '100%', display: 'flex', gap: 12, alignItems: 'center', background: `rgba(${tc.rgb},.06)`, border: `1px solid rgba(${tc.rgb},.25)`, borderRadius: 12, padding: 12, cursor: 'pointer', textAlign: 'left', marginBottom: 8 }}>
-                  {p.avatar
-                    ? <img src={p.avatar} style={{ width: 44, height: 44, borderRadius: 8, objectFit: 'cover', border: `1.5px solid rgba(${tc.rgb},.5)`, flexShrink: 0 }} alt={p.name} />
-                    : <div style={{ width: 44, height: 44, borderRadius: 8, background: `rgba(${tc.rgb},.12)`, border: `1.5px solid rgba(${tc.rgb},.3)`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 18 }}>🎵</div>
-                  }
+                  <img src={p.avatar || ptp?.defaultImage || PROFILE_TYPES.artist.defaultImage} style={{ width: 44, height: 44, borderRadius: 8, objectFit: 'cover', border: `1.5px solid rgba(${tc.rgb},.5)`, flexShrink: 0 }} alt={p.name} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1.5, color: tc.col, marginBottom: 2 }}>{p.label}</div>
                     <div style={{ fontFamily: "'Bebas Neue'", fontSize: 16, letterSpacing: .5, color: '#e8e8f0' }}>{p.name}</div>
@@ -783,10 +782,7 @@ export default function ProfileScreen() {
             <div style={{ fontFamily: "'Bebas Neue'", fontSize: 20, letterSpacing: 1, marginBottom: 16 }}>{new Date(pickerDate + 'T00:00:00').toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).toUpperCase()}</div>
             {/* Profile preview */}
             <div style={{ display: 'flex', gap: 12, alignItems: 'center', background: 'rgba(255,255,255,.05)', border: `1px solid rgba(${rgb},.25)`, borderRadius: 12, padding: 12, marginBottom: 16 }}>
-              {enquiryProf.avatar
-                ? <img src={enquiryProf.avatar} style={{ width: 48, height: 48, borderRadius: 8, objectFit: 'cover', border: `2px solid ${col}`, flexShrink: 0 }} alt={enquiryProf.name} />
-                : <div style={{ width: 48, height: 48, borderRadius: 8, background: `rgba(${rgb},.12)`, border: `2px solid rgba(${rgb},.4)`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 20 }}>🎵</div>
-              }
+              <img src={enquiryProf.avatar || PROFILE_TYPES[enquiryProf.type]?.defaultImage || PROFILE_TYPES.artist.defaultImage} style={{ width: 48, height: 48, borderRadius: 8, objectFit: 'cover', border: `2px solid ${col}`, flexShrink: 0 }} alt={enquiryProf.name} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontFamily: "'Bebas Neue'", fontSize: 17, letterSpacing: 1 }}>{enquiryProf.name}</div>
                 {formatLocation(enquiryProf) && <div style={{ fontSize: 11, color: 'var(--muted)' }}>{formatLocation(enquiryProf)}</div>}

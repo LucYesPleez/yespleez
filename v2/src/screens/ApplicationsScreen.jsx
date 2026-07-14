@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { writeNotification } from '../lib/writeNotification';
 import { profileUrl } from '../lib/profileResolution';
 import { ensureHttps } from '../lib/socialLinks';
+import { PROFILE_TYPES } from '../lib/profileTypes';
 import s from './ApplicationsScreen.module.css';
 
 const STATUS_TABS = ['PENDING', 'TENTATIVE', 'OFFERED', 'CONFIRMED', 'REJECTED'];
@@ -126,8 +127,8 @@ function AppCard({ app, profile, onAccept, onReject }) {
   return (
     <div className={s.card}>
       <div className={s.cardTop} style={{ cursor: 'pointer' }} onClick={() => profile && navigate(profile.id ? profileUrl(profile) : `/profile/${app.artist_id}?type=${profile.type || 'artist'}`)}>
-        {profile?.avatar
-          ? <img className={s.avatar} src={profile.avatar} alt={name} />
+        {profile
+          ? <img className={s.avatar} src={profile.avatar || PROFILE_TYPES[profile.type]?.defaultImage || PROFILE_TYPES.artist.defaultImage} alt={name} />
           : <div className={s.avatarPH}>{name[0]?.toUpperCase()}</div>
         }
         <div className={s.cardInfo}>

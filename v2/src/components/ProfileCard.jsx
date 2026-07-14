@@ -30,6 +30,7 @@ export default function ProfileCard({ item, badge, badgeColor, actions }) {
   const loc   = formatLocation(item);
   const sound = item.sound || item.genre_string?.split(' · ').slice(0, 3).join(' · ') || '';
   const img   = item.avatar_thumb || item.avatar || null;
+  const defaultImg = (PROFILE_TYPES[type] || PROFILE_TYPES.artist).defaultImage;
   // Standup: one pill per selected performance role (Comedy/Poetry), data-
   // driven so a future role works everywhere with no call-site change.
   const roleLabels = type === 'standup' ? selectedPerformanceRoleLabels(item.genre_string) : [];
@@ -47,19 +48,13 @@ export default function ProfileCard({ item, badge, badgeColor, actions }) {
       }}
     >
       {/* Background image + overlay — same treatment as EventCard list rows */}
-      {img
-        ? <img className={s.bgImg} src={img} alt="" />
-        : <div className={s.bgPH} />
-      }
+      <img className={s.bgImg} src={img || defaultImg} alt="" />
       <div className={s.bgOverlay} />
 
       {/* Content sits above overlay */}
       <div className={s.content}>
         {/* Avatar thumbnail on the left */}
-        {img
-          ? <img className={s.avatar} src={img} alt={item.name} style={{ borderColor: ts.col }} />
-          : <div className={s.avatarPH} style={{ borderColor: ts.col, color: ts.col }}>{ts.emoji}</div>
-        }
+        <img className={s.avatar} src={img || defaultImg} alt={item.name} style={{ borderColor: ts.col }} />
         <div className={s.info}>
           <div className={s.nameRow}>
             <span className={s.name}>{item.name}</span>
