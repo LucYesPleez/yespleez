@@ -7,6 +7,7 @@ import { useSession } from '../App';
 import { today, dateStr, weekendRange, formatDisplayDate } from '../lib/dates';
 import { getDemoEvents } from '../lib/demoEvents';
 import FeaturedEventCard from '../components/FeaturedEventCard';
+import DemoEventNotice from '../components/DemoEventNotice';
 import s from './WhatsOnScreen.module.css';
 import { likedEvents } from '../lib/likedEvents';
 import { getEventBadges } from '../lib/eventBadges';
@@ -22,7 +23,9 @@ const DATE_TABS = [
   { id: 'ALL',       label: 'THIS MONTH', sub: MONTH_NAMES[new Date().getMonth()].toUpperCase() },
 ];
 
-const CATEGORIES = ['ALL', 'DJ', 'BAND / LIVE', 'COMEDY', 'SPOKEN WORD', 'FESTIVAL'];
+// FESTIVAL intentionally not offered as a Discover/What's On filter this
+// release — see HOST_CATEGORIES in profileTaxonomy.js.
+const CATEGORIES = ['ALL', 'DJ', 'BAND / LIVE', 'COMEDY', 'SPOKEN WORD'];
 
 
 function matchesCategory(event, category) {
@@ -33,7 +36,6 @@ function matchesCategory(event, category) {
   if (category === 'BAND / LIVE') return /band|live.music|folk|roots|rock|acoustic|singer|muso/.test(text);
   if (category === 'COMEDY')      return /comedy|standup|stand.up|open.mic/.test(text);
   if (category === 'SPOKEN WORD') return /spoken.word|poetry|slam/.test(text);
-  if (category === 'FESTIVAL')    return /festival/.test(text);
   if (category === 'MARKET')      return /market/.test(text);
   if (category === 'WORKSHOP')    return /workshop/.test(text);
   return true;
@@ -193,6 +195,7 @@ export default function WhatsOnScreen() {
   const todayIso = today();
   const [stripMonth,   setStripMonth]   = useState(() => { const d = new Date(todayIso); return { year: d.getFullYear(), month: d.getMonth() }; });
   const [selectedDate, setSelectedDate] = useState(null);
+  const [demoNotice,   setDemoNotice]   = useState(null);
   const stripRef     = useRef(null);
   const dragRef      = useRef({ dragging: false, startX: 0, scrollLeft: 0, moved: false });
   const tonightRef   = useRef(null);
@@ -282,6 +285,13 @@ export default function WhatsOnScreen() {
     const fmt = d => `${d.toLocaleDateString('en-AU', { weekday: 'short' }).toUpperCase()} ${d.getDate()} ${d.toLocaleDateString('en-AU', { month: 'short' }).toUpperCase()}`;
     return `${fmt(fri)} – ${fmt(sun)}`;
   }, [wr]);
+
+  // Demo cards explain themselves in a notice instead of navigating to a
+  // real event page they have no matching record for.
+  function openEvent(ev) {
+    if (ev._isDemo) setDemoNotice(ev);
+    else navigate(`/event/${ev.id}`);
+  }
 
   function prevMonth() {
     setStripMonth(({ year, month }) => month === 0 ? { year: year - 1, month: 11 } : { year, month: month - 1 });
@@ -425,7 +435,7 @@ export default function WhatsOnScreen() {
           </div>
           {dateFiltered.length === 0
             ? <div className={s.emptyDay}><div className={s.emptyDayTitle}>NOTHING ANNOUNCED YET</div><div className={s.emptyDaySub}>No events for this date.</div></div>
-            : dateFiltered.map(ev => <ComingUpRow key={ev.id} event={ev} onClick={() => navigate(`/event/${ev.id}`)} />)
+            : dateFiltered.map(ev => <ComingUpRow key={ev.id} event={ev} onClick={() => openEvent(ev)} />)
           }
         </div>
       )}
@@ -438,7 +448,7 @@ export default function WhatsOnScreen() {
           {featuredEvent && (
             <div className={s.sectionBlock}>
               <div style={{ marginBottom: 12 }}><span className={s.sectionTitle}>FEATURED EVENT</span></div>
-              <FeaturedEventCard event={featuredEvent} onClick={() => navigate(`/event/${featuredEvent.id}`)} />
+              <FeaturedEventCard event={featuredEvent} onClick={() => openEvent(featuredEvent)} />
             </div>
           )}
 
@@ -455,7 +465,7 @@ export default function WhatsOnScreen() {
               </div>
               <div className={s.weekendScroll} ref={weekendDrag1.ref} onMouseDown={weekendDrag1.onMouseDown} onMouseMove={weekendDrag1.onMouseMove} onMouseUp={weekendDrag1.onMouseUp} onMouseLeave={weekendDrag1.onMouseLeave} style={{ cursor:'grab' }}>
                 {tonightEvents.map(ev => (
-                  <WeekendCard key={ev.id} event={ev} onClick={() => navigate(`/event/${ev.id}`)} />
+                  <WeekendCard key={ev.id} event={ev} onClick={() => openEvent(ev)} />
                 ))}
               </div>
             </div>
@@ -472,7 +482,7 @@ export default function WhatsOnScreen() {
               </div>
               <div className={s.weekendScroll} ref={weekendDrag2.ref} onMouseDown={weekendDrag2.onMouseDown} onMouseMove={weekendDrag2.onMouseMove} onMouseUp={weekendDrag2.onMouseUp} onMouseLeave={weekendDrag2.onMouseLeave} style={{ cursor:'grab' }}>
                 {weekendEvents.map(ev => (
-                  <WeekendCard key={ev.id} event={ev} onClick={() => navigate(`/event/${ev.id}`)} />
+                  <WeekendCard key={ev.id} event={ev} onClick={() => openEvent(ev)} />
                 ))}
               </div>
             </div>
@@ -488,7 +498,7 @@ export default function WhatsOnScreen() {
                 <button className={s.viewAll}>View all ›</button>
               </div>
               {comingUpEvents.slice(0, 200).map(ev => (
-                <ComingUpRow key={ev.id} event={ev} onClick={() => navigate(`/event/${ev.id}`)} />
+                <ComingUpRow key={ev.id} event={ev} onClick={() => openEvent(ev)} />
               ))}
             </div>
           )}
@@ -498,6 +508,8 @@ export default function WhatsOnScreen() {
           )}
         </div>
       )}
+
+      <DemoEventNotice event={demoNotice} onClose={() => setDemoNotice(null)} />
     </div>
   );
 }

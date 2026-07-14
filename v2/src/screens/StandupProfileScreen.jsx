@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useSession } from '../App';
 import s from './ArtistProfileScreen.module.css';
 import AvatarUpload from '../components/AvatarUpload';
-import PostcodePrompt from '../components/PostcodePrompt';
+import { useProfileForm } from '../hooks/useProfileForm';
+import ProfileFormShell from '../components/ProfileFormShell';
+import SectionBlock from '../components/SectionBlock';
+import SocialSection from '../components/SocialSection';
 
 const STATE_OPTIONS = ['NSW','VIC','QLD','WA','SA','TAS','ACT','NT','NZ','International'];
 const EXP_LEVELS   = ['EMERGING','DEVELOPING','ESTABLISHED','TOURING'];
@@ -19,32 +21,53 @@ const COL  = '#FF88AA';
 const COL2 = '#BF5FFF';
 const GRAD = `linear-gradient(90deg, ${COL} 0%, ${COL2} 100%)`;
 
+function Section({ title, children }) {
+  return (
+    <SectionBlock title={title} accent={COL} accent2={COL2} className={s.section} titleClassName={s.sectionTitle} titleStyle={{ color: COL, fontSize: 15 }}>
+      {children}
+    </SectionBlock>
+  );
+}
+
+function Field({ label, children }) {
+  return (
+    <div className={s.field}>
+      <label className={s.fieldLabel}>{label}</label>
+      {children}
+    </div>
+  );
+}
+
 export default function StandupProfileScreen() {
   const { session } = useSession();
   const userId = session?.user?.id;
-  const navigate = useNavigate();
 
-  const [page,      setPage]    = useState(1);
-  const [loading,   setLoading] = useState(true);
-  const [saving,    setSaving]  = useState(false);
-  const [showPostcodePrompt, setShowPostcodePrompt] = useState(false);
-  const [saved,     setSaved]   = useState(false);
-  const [saveErr,   setSaveErr] = useState('');
-  const [profileId, setProfileId] = useState(null);
+  const {
+    avatarUrl, setAvatarUrl,
+    avatarHero, setAvatarHero,
+    avatarThumb, setAvatarThumb,
+    handleAvatarUpload, handleAvatarRemove,
+    naFields, setNaFields, toggleNa, loadNa,
+    isDirty: _isDirty, setIsDirty,
+    markDirty, blocker,
+    showPostcodePrompt, setShowPostcodePrompt,
+    saving, saved, saveErr, setSaveErr,
+    runSave,
+  } = useProfileForm();
+
+  const [loading,  setLoading]  = useState(true);
+  const [page,     setPage]     = useState(1);
 
   // Page 1
-  const [avatar,     setAvatar]     = useState('');
-  const [avatarHero, setAvatarHero] = useState('');
-  const [avatarThumb,setAvatarThumb]= useState('');
-  const [name,       setName]       = useState('');
-  const [actType,    setActType]    = useState('');
-  const [setLength,  setSetLength]  = useState('');
-  const [location,   setLocation]   = useState('');
-  const [locState,   setLocState]   = useState('');
-  const [postcode,   setPostcode]   = useState('');
-  const [tagline,    setTagline]    = useState('');
-  const [videoLink,  setVideoLink]  = useState('');
-  const [selVibes,   setSelVibes]   = useState([]);
+  const [name,      setName]      = useState('');
+  const [actType,   setActType]   = useState('');
+  const [setLength, setSetLength] = useState('');
+  const [location,  setLocation]  = useState('');
+  const [locState,  setLocState]  = useState('');
+  const [postcode,  setPostcode]  = useState('');
+  const [tagline,   setTagline]   = useState('');
+  const [videoLink, setVideoLink] = useState('');
+  const [selVibes,  setSelVibes]  = useState([]);
 
   // Page 2
   const [bio,           setBio]           = useState('');
@@ -63,26 +86,16 @@ export default function StandupProfileScreen() {
   const [instagram,     setInstagram]     = useState('');
   const [tiktok,        setTiktok]        = useState('');
   const [facebook,      setFacebook]      = useState('');
-
   const [contactEmail,  setContactEmail]  = useState('');
   const [website,       setWebsite]       = useState('');
-  const [naFields,      setNaFields]      = useState(new Set());
-
-  function toggleNa(field) {
-    setNaFields(prev => {
-      const next = new Set(prev);
-      if (next.has(field)) { next.delete(field); } else { next.add(field); }
-      return next;
-    });
-  }
 
   useEffect(() => {
     if (!userId) return;
     supabase.from('profiles').select('*').eq('user_id', userId).eq('type', 'standup').maybeSingle()
-      .then(({ data }) => {
+      .then(({ data, error }) => {
+        if (error) { setSaveErr('Failed to load profile. Please refresh.'); setLoading(false); return; }
         if (data) {
-          setProfileId(data.id);
-          setAvatar(data.avatar || '');
+          setAvatarUrl(data.avatar || '');
           setAvatarHero(data.avatar_hero || '');
           setAvatarThumb(data.avatar_thumb || '');
           setName(data.name || '');
@@ -94,43 +107,40 @@ export default function StandupProfileScreen() {
           setTagline(data.tagline || '');
           setVideoLink(data.mix_link || data.video_link || '');
           setBio(data.bio || '');
-          if (data.experience)    setExpLevel(data.experience);
-          if (data.fee_type)      setFeeType(data.fee_type);
-          if (data.fee)           setFeeAmount(String(data.fee));
-          if (data.fee_max)       setFeeMax(String(data.fee_max));
+          if (data.experience)   setExpLevel(data.experience);
+          if (data.fee_type)     setFeeType(data.fee_type);
+          if (data.fee)          setFeeAmount(String(data.fee));
+          if (data.fee_max)      setFeeMax(String(data.fee_max));
           setFeeNegotiable(!!data.fee_negotiable);
           setFeeTravel(!!data.fee_travel);
-          setEmergName(data.emergency_name || '');
+          setEmergName(data.emergency_name  || '');
           setEmergPhone(data.emergency_phone || '');
-          setEmergRel(data.emergency_rel || '');
+          setEmergRel(data.emergency_rel   || '');
           setHasAbn(!!data.has_abn);
           setAbn(data.abn || '');
           setGstReg(!!data.gst_registered);
           const naSet = new Set();
-          const loadNa = (val, setter, key) => {
-            if (val === 'N/A') { naSet.add(key); setter(''); }
-            else setter(val || '');
-          };
-          loadNa(data.instagram,     setInstagram,    'instagram');
-          loadNa(data.tiktok,        setTiktok,       'tiktok');
-          loadNa(data.facebook,      setFacebook,     'facebook');
-          loadNa(data.contact_email, setContactEmail, 'contactEmail');
-          loadNa(data.website,       setWebsite,      'website');
+          loadNa(data.instagram,     setInstagram,    'instagram',    naSet);
+          loadNa(data.tiktok,        setTiktok,       'tiktok',       naSet);
+          loadNa(data.facebook,      setFacebook,     'facebook',     naSet);
+          loadNa(data.contact_email, setContactEmail, 'contactEmail', naSet);
+          loadNa(data.website,       setWebsite,      'website',      naSet);
           setNaFields(naSet);
-          const vibes = new Set((data.vibe_tags || '').split(',').map(s => s.trim()).filter(Boolean));
+          const vibes = new Set((data.vibe_tags || '').split(',').map(v => v.trim()).filter(Boolean));
           setSelVibes(STANDUP_VIBES.filter(v => vibes.has(v)));
         }
         setLoading(false);
       });
   }, [userId]);
 
-  function toggleVibe(v) { setSelVibes(p => p.includes(v) ? p.filter(x => x !== v) : [...p, v]); }
+  function toggleVibe(v) {
+    setSelVibes(p => p.includes(v) ? p.filter(x => x !== v) : [...p, v]);
+    setIsDirty(true);
+  }
 
-  async function save(skipPostcodeCheck = false) {
+  function save(skipPostcodeCheck = false) {
     if (!userId || saving) return;
     if (!skipPostcodeCheck && !postcode && !location) { setShowPostcodePrompt(true); return; }
-    setSaving(true);
-    setSaveErr('');
     const payload = {
       user_id: userId, type: 'standup',
       name, act_type: actType,
@@ -140,7 +150,7 @@ export default function StandupProfileScreen() {
       mix_link:        videoLink,
       video_link:      videoLink,
       vibe_tags:       selVibes.join(', '),
-      avatar: avatarHero || avatar,
+      avatar: avatarHero || avatarUrl,
       avatar_hero: avatarHero || null, avatar_thumb: avatarThumb || null,
       experience:      expLevel,
       fee_type:        feeType,
@@ -160,24 +170,16 @@ export default function StandupProfileScreen() {
       contact_email: naFields.has('contactEmail') ? 'N/A' : contactEmail,
       website:       naFields.has('website')      ? 'N/A' : website,
     };
-    if (profileId) payload.id = profileId;
-    const { error } = await supabase.from('profiles').upsert(payload, { onConflict: 'user_id,type' });
-    if (error) {
-      setSaveErr('Save failed — ' + (error.message || 'unknown error'));
-    } else {
-      setSaved(true);
-      setTimeout(() => { setSaved(false); navigate('/industry/standup'); }, 1200);
-    }
-    setSaving(false);
+    runSave(async () => {
+      const { error } = await supabase.from('profiles').upsert(payload, { onConflict: 'user_id,type' });
+      if (error) throw error;
+    }, '/industry/standup', 1200);
   }
 
   if (loading) return <div className={s.loading}>LOADING…</div>;
 
-
   return (
     <div className={s.screen}>
-      {showPostcodePrompt && <PostcodePrompt onSave={() => setShowPostcodePrompt(false)} onDismiss={() => { setShowPostcodePrompt(false); save(true); }} />}
-
       {/* Header */}
       <div className={s.header}>
         <div className={s.headerText}>
@@ -189,232 +191,211 @@ export default function StandupProfileScreen() {
       </div>
 
       {page === 1 && (
-        <>
-          {/* Avatar */}
-          <AvatarUpload
-            userId={userId} bucket="avatars" pathPrefix="standup_avatars"
-            avatar={avatar}
-            ringClass={`${s.avatarRing} ${s.avatarRingStandup}`}
-            onUpload={({ avatar_hero, avatar_thumb }) => { setAvatarHero(avatar_hero); setAvatarThumb(avatar_thumb); setAvatar(avatar_hero); }}
-            onRemove={() => { setAvatar(''); setAvatarHero(''); setAvatarThumb(''); }}
-          />
+        <AvatarUpload
+          userId={userId} bucket="avatars" pathPrefix="standup_avatars"
+          avatar={avatarUrl}
+          ringClass={`${s.avatarRing} ${s.avatarRingStandup}`}
+          onUpload={handleAvatarUpload}
+          onRemove={handleAvatarRemove}
+        />
+      )}
 
-          {/* WHO YOU ARE */}
-          <Section title="WHO YOU ARE">
-            <Field label="YOUR NAME / ACT NAME">
-              <input className={s.input} value={name} onChange={e => setName(e.target.value)} placeholder="Your name or stage name" />
-            </Field>
-            <Field label="ACT TYPE">
-              <input className={s.input} value={actType} onChange={e => setActType(e.target.value)} placeholder="e.g. Stand-Up Comedy, Spoken Word, Slam Poetry, Improv" />
-            </Field>
-            <div className={s.row}>
-              <Field label="SET LENGTH (MINS)">
-                <input className={s.input} type="number" min="1" value={setLength} onChange={e => setSetLength(e.target.value)} placeholder="e.g. 20" />
+      <ProfileFormShell
+        blocker={blocker}
+        showPostcodePrompt={showPostcodePrompt}
+        onPostcodeSave={() => setShowPostcodePrompt(false)}
+        onPostcodeDismiss={() => { setShowPostcodePrompt(false); save(true); }}
+        onSubmit={e => { e.preventDefault(); if (page === 2) save(); }}
+        onFormChange={markDirty}
+      >
+
+        {page === 1 && (
+          <>
+            {/* WHO YOU ARE */}
+            <Section title="WHO YOU ARE">
+              <Field label="YOUR NAME / ACT NAME">
+                <input className={s.input} value={name} onChange={e => setName(e.target.value)} placeholder="Your name or stage name" autoComplete="off" />
               </Field>
-            </div>
-            <Field label="TOWN / SUBURB">
-              <input className={s.input} value={location} onChange={e => setLocation(e.target.value)} placeholder="e.g. Sydney" />
-            </Field>
-            <div className={s.row}>
-              <div style={{ flex: 1 }}>
-                <Field label="STATE">
-                  <select className={s.select} value={locState} onChange={e => setLocState(e.target.value)}>
-                    <option value="">—</option>
-                    {STATE_OPTIONS.map(st => <option key={st} value={st}>{st}</option>)}
-                  </select>
+              <Field label="ACT TYPE">
+                <input className={s.input} value={actType} onChange={e => setActType(e.target.value)} placeholder="e.g. Stand-Up Comedy, Spoken Word, Slam Poetry, Improv" autoComplete="off" />
+              </Field>
+              <div className={s.row}>
+                <Field label="SET LENGTH (MINS)">
+                  <input className={s.input} type="number" min="1" value={setLength} onChange={e => setSetLength(e.target.value)} placeholder="e.g. 20" />
                 </Field>
               </div>
-              <div style={{ flex: 1 }}>
-                <Field label="POSTCODE">
-                  <input className={s.input} value={postcode} onChange={e => setPostcode(e.target.value)} placeholder="e.g. 2000" inputMode="numeric" />
-                </Field>
-              </div>
-            </div>
-          </Section>
-
-          {/* YOUR STYLE */}
-          <Section title="YOUR STYLE">
-            <Field label="TAGLINE">
-              <input className={s.input} value={tagline} onChange={e => setTagline(e.target.value)} placeholder="One line that captures your act" maxLength={120} />
-            </Field>
-            <div className={s.subLabel} style={{ color: COL, borderBottom: '1px solid transparent', borderImage: 'linear-gradient(90deg, #FF88AA, #BF5FFF) 1' }}>STYLE TAGS</div>
-            <div className={s.chips}>
-              {STANDUP_VIBES.map(v => {
-                const on = selVibes.includes(v);
-                return (
-                  <button key={v} type="button"
-                    onClick={() => toggleVibe(v)}
-                    style={{
-                      background: on ? 'rgba(0,229,160,.22)' : 'rgba(0,229,160,.06)',
-                      border: `1px solid rgba(0,229,160,${on ? '.5' : '.2'})`,
-                      color: '#FF88AA',
-                      borderRadius: 20,
-                      padding: '6px 14px',
-                      fontFamily: "'DM Sans', sans-serif",
-                      fontSize: 12,
-                      cursor: 'pointer',
-                      transition: 'all .15s',
-                    }}
-                    onMouseEnter={e => { if (!on) { e.currentTarget.style.background = 'rgba(0,229,160,.22)'; e.currentTarget.style.borderColor = 'rgba(0,229,160,.5)'; } }}
-                    onMouseLeave={e => { if (!on) { e.currentTarget.style.background = 'rgba(0,229,160,.06)'; e.currentTarget.style.borderColor = 'rgba(0,229,160,.2)'; } }}>
-                    {v}
-                  </button>
-                );
-              })}
-            </div>
-          </Section>
-
-          {/* VIDEO LINK */}
-          <Section title="VIDEO / SHOWREEL">
-            <Field label="LINK TO YOUR BEST SET OR SHOWREEL">
-              <input className={s.input} value={videoLink} onChange={e => setVideoLink(e.target.value)} placeholder="YouTube, Vimeo, or social link" autoCapitalize="none" />
-            </Field>
-          </Section>
-
-          <button className={s.moreBtn} style={{ background: GRAD, color: '#fff' }} onClick={() => setPage(2)}>
-            MORE DETAILS →
-          </button>
-        </>
-      )}
-
-      {page === 2 && (
-        <>
-          {/* FULL BIO */}
-          <Section title="FULL BIO">
-            <textarea className={s.textarea} rows={5} value={bio} onChange={e => setBio(e.target.value)}
-              placeholder="Tell bookers about yourself. Background, credits, what makes your act unique." />
-          </Section>
-
-          {/* EXPERIENCE LEVEL */}
-          <Section title="EXPERIENCE LEVEL">
-            <div className={s.chips}>
-              {EXP_LEVELS.map(lv => (
-                <button key={lv} type="button"
-                  className={expLevel === lv ? s.chipOn : s.chip}
-                  onClick={() => setExpLevel(expLevel === lv ? '' : lv)}>
-                  {lv}
-                </button>
-              ))}
-            </div>
-          </Section>
-
-          {/* SET FEE */}
-          <Section title="SET FEE">
-            <div className={s.feeRow}>
-              <button type="button" className={feeType === 'minimum' ? s.feeBtnOn : s.feeBtn} onClick={() => setFeeType('minimum')}>DOOR / MINIMUM</button>
-              <button type="button" className={feeType === 'paid'    ? s.feeBtnOn : s.feeBtn} onClick={() => setFeeType('paid')}>PAID GIG</button>
-            </div>
-            {feeType === 'paid' && (
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12 }}>
+              <Field label="TOWN / SUBURB">
+                <input className={s.input} value={location} onChange={e => setLocation(e.target.value)} placeholder="e.g. Sydney" autoComplete="off" />
+              </Field>
+              <div className={s.row}>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 11, color: 'var(--muted)', letterSpacing: 1.5, fontFamily: "'Bebas Neue'", marginBottom: 6 }}>FROM $</div>
-                  <input className={s.input} type="text" inputMode="numeric" value={feeAmount} onChange={e => setFeeAmount(e.target.value)} placeholder="e.g. 200" />
+                  <Field label="STATE">
+                    <select className={s.select} value={locState} onChange={e => setLocState(e.target.value)}>
+                      <option value="">—</option>
+                      {STATE_OPTIONS.map(st => <option key={st} value={st}>{st}</option>)}
+                    </select>
+                  </Field>
                 </div>
-                <div style={{ flex: 1, opacity: feeNegotiable ? 1 : 0.35 }}>
-                  <div style={{ fontSize: 11, color: 'var(--muted)', letterSpacing: 1.5, fontFamily: "'Bebas Neue'", marginBottom: 6 }}>TO $</div>
-                  <input className={s.input} type="text" inputMode="numeric" value={feeMax} onChange={e => setFeeMax(e.target.value)} placeholder="e.g. 500" disabled={!feeNegotiable} />
+                <div style={{ flex: 1 }}>
+                  <Field label="POSTCODE">
+                    <input className={s.input} value={postcode} onChange={e => setPostcode(e.target.value)} placeholder="e.g. 2000" inputMode="numeric" />
+                  </Field>
                 </div>
               </div>
-            )}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
-              <label className={s.checkLabel}>
-                <input type="checkbox" checked={feeNegotiable} onChange={e => setFeeNegotiable(e.target.checked)} />
-                Fee is negotiable
-              </label>
-              <label className={s.checkLabel}>
-                <input type="checkbox" checked={feeTravel} onChange={e => setFeeTravel(e.target.checked)} />
-                Fee includes travel costs
-              </label>
-            </div>
-          </Section>
+            </Section>
 
-          {/* EMERGENCY CONTACT */}
-          <Section title="EMERGENCY CONTACT">
-            <Field label="NAME"><input className={s.input} value={emergName} onChange={e => setEmergName(e.target.value)} placeholder="Contact name" autoComplete="off" /></Field>
-            <Field label="PHONE"><input className={s.input} value={emergPhone} onChange={e => setEmergPhone(e.target.value)} placeholder="Phone number" type="tel" /></Field>
-            <Field label="RELATIONSHIP"><input className={s.input} value={emergRel} onChange={e => setEmergRel(e.target.value)} placeholder="e.g. Agent, Partner" /></Field>
-          </Section>
+            {/* YOUR STYLE */}
+            <Section title="YOUR STYLE">
+              <Field label="TAGLINE">
+                <input className={s.input} value={tagline} onChange={e => setTagline(e.target.value)} placeholder="One line that captures your act" maxLength={120} autoComplete="off" />
+              </Field>
+              <div className={s.subLabel} style={{ color: COL, borderBottom: '1px solid transparent', borderImage: 'linear-gradient(90deg, #FF88AA, #BF5FFF) 1' }}>STYLE TAGS</div>
+              <div className={s.chips}>
+                {STANDUP_VIBES.map(v => {
+                  const on = selVibes.includes(v);
+                  return (
+                    <button key={v} type="button"
+                      onClick={() => toggleVibe(v)}
+                      style={{
+                        background: on ? 'rgba(0,229,160,.22)' : 'rgba(0,229,160,.06)',
+                        border: `1px solid rgba(0,229,160,${on ? '.5' : '.2'})`,
+                        color: '#FF88AA',
+                        borderRadius: 20,
+                        padding: '6px 14px',
+                        fontFamily: "'DM Sans', sans-serif",
+                        fontSize: 12,
+                        cursor: 'pointer',
+                        transition: 'all .15s',
+                      }}
+                      onMouseEnter={e => { if (!on) { e.currentTarget.style.background = 'rgba(0,229,160,.22)'; e.currentTarget.style.borderColor = 'rgba(0,229,160,.5)'; } }}
+                      onMouseLeave={e => { if (!on) { e.currentTarget.style.background = 'rgba(0,229,160,.06)'; e.currentTarget.style.borderColor = 'rgba(0,229,160,.2)'; } }}>
+                      {v}
+                    </button>
+                  );
+                })}
+              </div>
+            </Section>
 
-          {/* ABN / GST */}
-          <Section title="ABN / GST">
-            <div className={s.feeRow}>
-              <button type="button" className={hasAbn ? s.feeBtnOn : s.feeBtn} onClick={() => setHasAbn(true)}>YES I HAVE AN ABN</button>
-              <button type="button" className={!hasAbn ? s.feeBtnOn : s.feeBtn} style={!hasAbn ? { background: 'rgba(255,184,48,.15)', borderColor: '#FFB830', color: '#FFB830' } : {}} onClick={() => { setHasAbn(false); setGstReg(false); }}>NO ABN</button>
-            </div>
-            {hasAbn && (
-              <>
-                <Field label="ABN">
-                  <input className={s.input} value={abn} onChange={e => setAbn(e.target.value)} placeholder="e.g. 12 345 678 901" inputMode="numeric" />
-                </Field>
-                <div className={s.feeRow}>
-                  <button type="button" className={gstReg ? s.feeBtnOn : s.feeBtn} onClick={() => setGstReg(true)}>GST REGISTERED</button>
-                  <button type="button" className={!gstReg ? s.feeBtnOn : s.feeBtn} style={!gstReg ? { background: 'rgba(255,184,48,.15)', borderColor: '#FFB830', color: '#FFB830' } : {}} onClick={() => setGstReg(false)}>NOT GST REG.</button>
-                </div>
-              </>
-            )}
-          </Section>
+            {/* VIDEO LINK */}
+            <Section title="VIDEO / SHOWREEL">
+              <Field label="LINK TO YOUR BEST SET OR SHOWREEL">
+                <input className={s.input} value={videoLink} onChange={e => setVideoLink(e.target.value)} placeholder="YouTube, Vimeo, or social link" autoCapitalize="none" />
+              </Field>
+            </Section>
 
-          {/* SOCIALS + LINKS */}
-          <Section title="SOCIALS + LINKS">
-            {[
-              { icon: 'ig',    key: 'instagram',    val: instagram,    set: setInstagram,    ph: '@handle or URL' },
-              { icon: 'tt',    key: 'tiktok',       val: tiktok,       set: setTiktok,       ph: '@handle or URL' },
-              { icon: 'fb',    key: 'facebook',     val: facebook,     set: setFacebook,     ph: 'facebook.com/...' },
-              { icon: 'email', key: 'contactEmail', val: contactEmail, set: setContactEmail, ph: 'Booking email' },
-              { icon: 'web',   key: 'website',      val: website,      set: setWebsite,      ph: 'https://yoursite.com' },
-            ].map(({ icon, key, val, set, ph }) => (
-              <SocialRow key={key} icon={icon} na={naFields.has(key)} onNa={() => toggleNa(key)}>
-                <input className={s.input} value={val} onChange={e => set(e.target.value)} placeholder={ph} autoCapitalize="none" disabled={naFields.has(key)} style={{ opacity: naFields.has(key) ? 0.4 : 1 }} />
-              </SocialRow>
-            ))}
-          </Section>
-
-          {saveErr && <div className={s.error}>{saveErr}</div>}
-          <div className={s.page2Nav}>
-            <button className={s.backNavBtn} onClick={() => setPage(1)}>←</button>
-            <button className={s.saveBtn} style={{ flex: 1, background: GRAD, color: '#fff' }} onClick={() => save()} disabled={saving || saved}>
-              {saved ? '✓ SAVED' : saving ? 'SAVING…' : 'SAVE PROFILE'}
+            <button type="button" className={s.moreBtn} style={{ background: GRAD, color: '#fff' }} onClick={() => setPage(2)}>
+              MORE DETAILS →
             </button>
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
+          </>
+        )}
 
-function Section({ title, children }) {
-  return (
-    <div className={s.section}>
-      <div className={s.sectionTitle} style={{ color: '#FF88AA', fontSize: 15, borderBottom: '1px solid transparent', borderImage: 'linear-gradient(90deg, #FF88AA, #BF5FFF) 1' }}>{title}</div>
-      {children}
-    </div>
-  );
-}
+        {page === 2 && (
+          <>
+            {/* FULL BIO */}
+            <Section title="FULL BIO">
+              <textarea className={s.textarea} rows={5} value={bio} onChange={e => setBio(e.target.value)}
+                placeholder="Tell bookers about yourself. Background, credits, what makes your act unique." />
+            </Section>
 
-function Field({ label, children }) {
-  return (
-    <div className={s.field}>
-      <label className={s.fieldLabel} dangerouslySetInnerHTML={{ __html: label }} />
-      {children}
-    </div>
-  );
-}
+            {/* EXPERIENCE LEVEL */}
+            <Section title="EXPERIENCE LEVEL">
+              <div className={s.chips}>
+                {EXP_LEVELS.map(lv => (
+                  <button key={lv} type="button"
+                    className={expLevel === lv ? s.chipOn : s.chip}
+                    onClick={() => { setExpLevel(expLevel === lv ? '' : lv); setIsDirty(true); }}>
+                    {lv}
+                  </button>
+                ))}
+              </div>
+            </Section>
 
-const TT_SVG    = <svg viewBox="0 0 24 24" width="18" height="18" fill="#fff"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1-2.89-2.89 2.89 2.89 0 0 1 2.89-2.89c.28 0 .54.04.79.1V9.01a6.33 6.33 0 0 0-.79-.05 6.34 6.34 0 0 0-6.34 6.34 6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.33-6.34V8.69a8.18 8.18 0 0 0 4.78 1.52V6.75a4.85 4.85 0 0 1-1.01-.06z"/></svg>;
-const IG_SVG    = <svg viewBox="0 0 24 24" width="18" height="18" fill="#E1306C"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>;
-const FB_SVG    = <svg viewBox="0 0 24 24" width="18" height="18" fill="#1877F2"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>;
-const EMAIL_SVG = <span style={{ fontSize: 16 }}>✉️</span>;
-const WEB_SVG   = <span style={{ fontSize: 16 }}>🌐</span>;
+            {/* SET FEE */}
+            <Section title="SET FEE">
+              <div className={s.feeRow}>
+                <button type="button" className={feeType === 'minimum' ? s.feeBtnOn : s.feeBtn} onClick={() => { setFeeType('minimum'); setIsDirty(true); }}>DOOR / MINIMUM</button>
+                <button type="button" className={feeType === 'paid'    ? s.feeBtnOn : s.feeBtn} onClick={() => { setFeeType('paid');    setIsDirty(true); }}>PAID GIG</button>
+              </div>
+              {feeType === 'paid' && (
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12 }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 11, color: 'var(--muted)', letterSpacing: 1.5, fontFamily: "'Bebas Neue'", marginBottom: 6 }}>FROM $</div>
+                    <input className={s.input} type="text" inputMode="numeric" value={feeAmount} onChange={e => setFeeAmount(e.target.value)} placeholder="e.g. 200" />
+                  </div>
+                  <div style={{ flex: 1, opacity: feeNegotiable ? 1 : 0.35 }}>
+                    <div style={{ fontSize: 11, color: 'var(--muted)', letterSpacing: 1.5, fontFamily: "'Bebas Neue'", marginBottom: 6 }}>TO $</div>
+                    <input className={s.input} type="text" inputMode="numeric" value={feeMax} onChange={e => setFeeMax(e.target.value)} placeholder="e.g. 500" disabled={!feeNegotiable} />
+                  </div>
+                </div>
+              )}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
+                <label className={s.checkLabel}>
+                  <input type="checkbox" checked={feeNegotiable} onChange={e => { setFeeNegotiable(e.target.checked); setIsDirty(true); }} />
+                  Fee is negotiable
+                </label>
+                <label className={s.checkLabel}>
+                  <input type="checkbox" checked={feeTravel} onChange={e => { setFeeTravel(e.target.checked); setIsDirty(true); }} />
+                  Fee includes travel costs
+                </label>
+              </div>
+            </Section>
 
-function SocialRow({ icon, children, na, onNa }) {
-  const icons = { ig: IG_SVG, tt: TT_SVG, fb: FB_SVG, email: EMAIL_SVG, web: WEB_SVG };
-  return (
-    <div className={s.socialRow}>
-      <div className={s.socialIcon}>{icons[icon]}</div>
-      {children}
-      {onNa && (
-        <button type="button" onClick={onNa} style={{ flexShrink: 0, alignSelf: 'stretch', padding: '0 10px', background: na ? 'rgba(255,255,255,.06)' : 'var(--card2)', border: `1px solid ${na ? 'var(--muted)' : 'var(--border)'}`, borderRadius: 8, color: na ? 'var(--muted)' : 'rgba(255,255,255,.4)', fontFamily: "'Bebas Neue', sans-serif", fontSize: 11, letterSpacing: 1.5, cursor: 'pointer' }}>N/A</button>
-      )}
+            {/* EMERGENCY CONTACT */}
+            <Section title="EMERGENCY CONTACT">
+              <Field label="NAME"><input className={s.input} value={emergName} onChange={e => setEmergName(e.target.value)} placeholder="Contact name" autoComplete="off" /></Field>
+              <Field label="PHONE"><input className={s.input} value={emergPhone} onChange={e => setEmergPhone(e.target.value)} placeholder="Phone number" type="tel" /></Field>
+              <Field label="RELATIONSHIP"><input className={s.input} value={emergRel} onChange={e => setEmergRel(e.target.value)} placeholder="e.g. Agent, Partner" autoComplete="off" /></Field>
+            </Section>
+
+            {/* ABN / GST */}
+            <Section title="ABN / GST">
+              <div className={s.feeRow}>
+                <button type="button" className={hasAbn ? s.feeBtnOn : s.feeBtn} onClick={() => { setHasAbn(true); setIsDirty(true); }}>YES I HAVE AN ABN</button>
+                <button type="button" className={!hasAbn ? s.feeBtnOn : s.feeBtn} style={!hasAbn ? { background: 'rgba(255,184,48,.15)', borderColor: '#FFB830', color: '#FFB830' } : {}} onClick={() => { setHasAbn(false); setGstReg(false); setIsDirty(true); }}>NO ABN</button>
+              </div>
+              {hasAbn && (
+                <>
+                  <Field label="ABN">
+                    <input className={s.input} value={abn} onChange={e => setAbn(e.target.value)} placeholder="e.g. 12 345 678 901" inputMode="numeric" />
+                  </Field>
+                  <div className={s.feeRow}>
+                    <button type="button" className={gstReg ? s.feeBtnOn : s.feeBtn} onClick={() => { setGstReg(true); setIsDirty(true); }}>GST REGISTERED</button>
+                    <button type="button" className={!gstReg ? s.feeBtnOn : s.feeBtn} style={!gstReg ? { background: 'rgba(255,184,48,.15)', borderColor: '#FFB830', color: '#FFB830' } : {}} onClick={() => { setGstReg(false); setIsDirty(true); }}>NOT GST REG.</button>
+                  </div>
+                </>
+              )}
+            </Section>
+
+            {/* SOCIALS + LINKS */}
+            <Section title="SOCIALS + LINKS">
+              <SocialSection
+                links={[
+                  { icon: 'ig',    key: 'instagram',    value: instagram,    onChange: e => setInstagram(e.target.value),    placeholder: '@handle or URL' },
+                  { icon: 'tt',    key: 'tiktok',       value: tiktok,       onChange: e => setTiktok(e.target.value),       placeholder: '@handle or URL' },
+                  { icon: 'fb',    key: 'facebook',     value: facebook,     onChange: e => setFacebook(e.target.value),     placeholder: 'facebook.com/…' },
+                  { icon: 'email', key: 'contactEmail', value: contactEmail, onChange: e => setContactEmail(e.target.value), placeholder: 'Booking email',       type: 'email' },
+                  { icon: 'web',   key: 'website',      value: website,      onChange: e => setWebsite(e.target.value),      placeholder: 'https://yoursite.com', type: 'url' },
+                ]}
+                naFields={naFields}
+                onToggleNa={toggleNa}
+                inputClass={s.input}
+                rowClass={s.socialRow}
+                iconClass={s.socialIcon}
+              />
+            </Section>
+
+            {saveErr && <div className={s.error}>{saveErr}</div>}
+
+            <div className={s.page2Nav}>
+              <button type="button" className={s.backNavBtn} onClick={() => setPage(1)}>←</button>
+              <button type="submit" className={s.saveBtn} style={{ flex: 1, background: GRAD, color: '#fff' }} disabled={saving || saved}>
+                {saved ? '✓ SAVED' : saving ? 'SAVING…' : 'SAVE PROFILE'}
+              </button>
+            </div>
+          </>
+        )}
+
+      </ProfileFormShell>
     </div>
   );
 }

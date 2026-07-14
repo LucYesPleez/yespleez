@@ -422,10 +422,11 @@ export default function CreateEventScreen() {
         <Field label="CATEGORY CHIP (optional)">
           {(() => {
             const auto = getEventBadges(genreText, name);
+            // Festival intentionally not offered here this release — see
+            // HOST_CATEGORIES in profileTaxonomy.js.
             const primary = [
               { label: 'Live Music', bg: '#ff2d78', col: '#fff' },
               { label: 'DJs',        bg: 'var(--neon2)', col: '#000' },
-              { label: 'Festival',   bg: '#BF5FFF', col: '#fff' },
               { label: 'Comedy',     bg: '#FF8C42', col: '#fff' },
               { label: 'Spoken Word',bg: '#FF8C42', col: '#fff' },
             ];

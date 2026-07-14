@@ -93,7 +93,7 @@ export default function ApplicationsScreen() {
         ))}
       </div>
 
-      <div className={s.list}>
+      <div className={s.list} style={{ minHeight: '60vh' }}>
         {loading && <p className={s.empty}>Loading…</p>}
         {!loading && filtered.length === 0 && (
           <p className={s.empty}>No {tab.toLowerCase()} applications.</p>
@@ -124,7 +124,7 @@ function AppCard({ app, profile, onAccept, onReject }) {
 
   return (
     <div className={s.card}>
-      <div className={s.cardTop} style={{ cursor: 'pointer' }} onClick={() => profile && navigate(profile.id ? profileUrl(profile) : `/profile/${app.artist_id}`)}>
+      <div className={s.cardTop} style={{ cursor: 'pointer' }} onClick={() => profile && navigate(profile.id ? profileUrl(profile) : `/profile/${app.artist_id}?type=${profile.type || 'artist'}`)}>
         {profile?.avatar
           ? <img className={s.avatar} src={profile.avatar} alt={name} />
           : <div className={s.avatarPH}>{name[0]?.toUpperCase()}</div>

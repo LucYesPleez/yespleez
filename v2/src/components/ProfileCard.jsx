@@ -1,14 +1,16 @@
 import { useNavigate } from 'react-router-dom';
 import s from './ProfileCard.module.css';
+import { PROFILE_TYPES } from '../lib/profileTypes';
 import { profileUrl } from '../lib/profileResolution';
 
-export const TYPE_STYLES = {
-  host:    { col: '#FF3399',     rgb: '255,51,153',  label: 'HOST',           emoji: '🎛️' },
-  artist:  { col: 'var(--neon2)',rgb: '0,229,255',   label: 'DJ / PRODUCER',  emoji: '🎧' },
-  band:    { col: '#FF8C42',     rgb: '255,140,66',  label: 'BAND',           emoji: '🎸' },
-  standup: { col: '#FF88AA',     rgb: '255,136,170', label: 'COMEDY',         emoji: '🎤' },
-  venue:   { col: '#00E5A0',     rgb: '0,229,160',   label: 'VENUE',          emoji: '📍' },
-};
+// Re-exported in { col, rgb, label, emoji } shape — DiscoverScreen and others depend on this export.
+// ⚠️ Host col changed from #FF3399 → #FF2D78 (now consistent with profileTypes.js / --neon CSS var).
+export const TYPE_STYLES = Object.fromEntries(
+  Object.entries(PROFILE_TYPES).map(([type, pt]) => [
+    type,
+    { col: pt.accent, rgb: pt.rgb, label: pt.label, emoji: pt.emoji },
+  ])
+);
 
 /**
  * Props:

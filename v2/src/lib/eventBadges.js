@@ -1,5 +1,10 @@
 export const OPEN_MIC_BADGE = { label: 'OPEN MIC', bg: '#FFD700', col: '#000' };
 
+// Festival is intentionally not an auto-detected category this release (see
+// HOST_CATEGORIES in profileTaxonomy.js) — Festival Edition will re-enable
+// it later; until then an event genre-tagged "festival" just falls through
+// to whatever else its genre text matches (e.g. "Festival,Folk,..." reads
+// as Live Music), same as any event with no special-cased keyword.
 export function getEventBadges(genres = '', name = '') {
   const text = (genres + ' ' + name).toLowerCase();
   const g    = genres.toLowerCase();
@@ -9,8 +14,6 @@ export function getEventBadges(genres = '', name = '') {
       ? { label: 'DJs',   bg: 'var(--neon2)', col: '#000' }
     : (g.includes('comedy') || g.includes('standup') || g.includes('stand-up'))
       ? { label: 'COMEDY',      bg: '#FF8C42',      col: '#fff' }
-    : g.includes('festival')
-      ? { label: 'FESTIVAL',    bg: '#BF5FFF',      col: '#fff' }
     : g.includes('spoken') || g.includes('poetry')
       ? { label: 'SPOKEN WORD', bg: '#FF8C42',      col: '#fff' }
     : (g.includes('live') || g.includes('band') || g.includes('folk') || g.includes('roots') || g.includes('rock') || g.includes('acoustic') || g.includes('singer'))

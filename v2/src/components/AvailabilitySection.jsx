@@ -14,6 +14,7 @@ export default function AvailabilitySection({
 }) {
   const [localAvail,   setLocalAvail]   = useState(null);
   const [showCal,      setShowCal]      = useState(false);
+  const [viewAllHov,   setViewAllHov]   = useState(false);
 
   useEffect(() => {
     if (!userId) return;
@@ -45,15 +46,12 @@ export default function AvailabilitySection({
           <span style={{ fontSize: 10, color: 'var(--muted)', letterSpacing: 0.3 }}>tap dates to add / remove</span>
         </div>
         <div style={{ flex: 1 }} />
-        {availability.length > 0 && (
-          <button onClick={() => setShowCal(true)}
-            style={{ fontFamily: "'Bebas Neue'", fontSize: 11, letterSpacing: 1, color: `rgba(${accentRgb},.7)`, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
-            View all &gt;
-          </button>
-        )}
-        <button onClick={() => setShowCal(true)}
-          style={{ fontFamily: "'Bebas Neue'", fontSize: 11, letterSpacing: 1, color: `rgba(${accentRgb},.7)`, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
-          MANAGE
+        <button
+          onClick={() => setShowCal(true)}
+          onMouseEnter={() => setViewAllHov(true)}
+          onMouseLeave={() => setViewAllHov(false)}
+          style={{ fontFamily: "'Bebas Neue'", fontSize: 13, letterSpacing: 1, color: viewAllHov ? 'var(--text)' : 'var(--muted)', opacity: viewAllHov ? 1 : 0.5, background: 'none', border: 'none', cursor: 'pointer', padding: 0, transition: 'color .15s, opacity .15s' }}>
+          VIEW ALL &gt;
         </button>
       </div>
 
@@ -91,12 +89,12 @@ function DateChip({ label, accent, accentRgb, onClick }) {
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
       style={{
-        fontFamily: "'DM Sans'", fontSize: 12,
-        color: hov ? '#fff' : accent,
-        background: hov ? 'rgba(255,255,255,.06)' : `rgba(${accentRgb},.1)`,
-        border: `1px solid ${hov ? 'rgba(255,255,255,.3)' : `rgba(${accentRgb},.3)`}`,
-        borderRadius: 20, padding: '3px 10px', cursor: 'pointer',
-        transition: 'all .15s',
+        fontFamily: "'Bebas Neue'", fontSize: 12, letterSpacing: 1,
+        color: hov ? accent : 'var(--muted)',
+        background: hov ? `rgba(${accentRgb},.08)` : 'var(--card2)',
+        border: `1px solid ${hov ? `rgba(${accentRgb},.4)` : 'var(--border)'}`,
+        borderRadius: 8, padding: '5px 12px', cursor: 'pointer',
+        transition: 'color .15s, border-color .15s, background .15s',
       }}
     >{label}</span>
   );

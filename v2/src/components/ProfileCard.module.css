@@ -19,6 +19,7 @@
   object-fit: cover;
   object-position: center 30%;
   display: block;
+  opacity: .85;
 }
 
 /* Fallback when no avatar */

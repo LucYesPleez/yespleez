@@ -4,8 +4,12 @@
 
 const DEMO_RAW = [
   // ── FEATURED ──────────────────────────────────────────────────────────────
-  { id: 'demo_feat', name: 'Bellingen Winter Solstice Festival',
-    config: { venue: 'Bellingen Showground, NSW', genres: 'Festival,Folk,World Music,Electronic,Acoustic',
+  // Not festival-flavoured this release — Discover/What's On don't showcase
+  // festivals yet (Festival Edition, a separate product, hasn't shipped) so
+  // demo content shouldn't set that expectation either. See HOST_CATEGORIES
+  // in profileTaxonomy.js.
+  { id: 'demo_feat', name: 'Bellingen Winter Solstice Sessions',
+    config: { venue: 'Bellingen Showground, NSW', genres: 'Live Music,Folk,World Music,Electronic,Acoustic',
               state: 'NSW', location: 'Bellingen', featured: true, daysFromNow: 3,
               _bg: 'linear-gradient(160deg,#1a0533 0%,#3d1a6e 35%,#1a3a0a 65%,#0a2a0a 100%)' } },
 
@@ -39,7 +43,7 @@ const DEMO_RAW = [
 
   // ── COMING UP ─────────────────────────────────────────────────────────────
   { id: 'demo_c1', name: 'Carriageworks Night Market',
-    config: { venue: 'Carriageworks, Sydney', genres: 'Live Music,Electronic,Festival',
+    config: { venue: 'Carriageworks, Sydney', genres: 'Live Music,Electronic,Community',
               state: 'NSW', location: 'Eveleigh', daysFromNow: 7,
               _bg: 'linear-gradient(135deg,#1a0f08,#0f1a08)' } },
   { id: 'demo_c2', name: 'Dune Rats',
@@ -86,4 +90,14 @@ export function getDemoEvents(realEvents = []) {
         _isDemo: true,
       };
     });
+}
+
+// Looks up a single demo event by id — used by EventScreen when a demo
+// card is opened directly via its /event/:id route (e.g. a bookmarked link).
+export function getDemoEventById(id) {
+  const raw = DEMO_RAW.find(ev => ev.id === id);
+  if (!raw) return null;
+  const d = new Date();
+  d.setDate(d.getDate() + (raw.config.daysFromNow || 0));
+  return { ...raw, config: { ...raw.config, date: localDateStr(d) }, _isDemo: true };
 }

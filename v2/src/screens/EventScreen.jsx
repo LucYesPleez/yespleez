@@ -7,11 +7,13 @@ import { formatDateRange } from '../lib/dates';
 import Skeleton from '../components/Skeleton';
 import ApplicationCard from '../components/ApplicationCard';
 import ProfileCard from '../components/ProfileCard';
-import EventTabBar from '../components/EventTabBar';
 import FillSlotModal from '../components/FillSlotModal';
+import EventTabBar from '../components/EventTabBar';
 import s from './EventScreen.module.css';
 import { likedEvents } from '../lib/likedEvents';
 import { resolveProfileId } from '../lib/resolveProfileId';
+import { getDemoEventById } from '../lib/demoEvents';
+import DemoEventNotice from '../components/DemoEventNotice';
 import {
   DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragOverlay,
 } from '@dnd-kit/core';
@@ -50,6 +52,7 @@ export default function EventScreen() {
 
   const { data, isLoading: loading } = useQuery({
     queryKey: ['event', id],
+    enabled: isRealEvent,
     queryFn: async () => {
       const { data: ev } = await supabase.from('events').select('*').eq('id', id).single();
       if (!ev) { navigate('/'); return null; }
@@ -66,6 +69,7 @@ export default function EventScreen() {
         if (!member) return;
         const status = p.status === 'accepted' ? 'confirmed'
           : p.status === 'declined' ? 'declined'
+          : p.status === 'draft'    ? 'draft'
           : !member.artist_id ? 'confirmed'
           : 'offered';
         map[p.slot_id] = {
@@ -85,7 +89,7 @@ export default function EventScreen() {
       // for multi-profile owners (replaces undefined row-order behaviour);
       // legacy user_id join kept only for rows without a profile id.
       const claimList = Object.values(map);
-      const socialCols = 'id, user_id, mix_link, soundcloud, mixcloud, instagram, facebook, youtube, website';
+      const socialCols = 'id, user_id, mix_link, soundcloud, mixcloud, instagram, facebook, youtube, website, genre_string, sound';
       const pidClaims = claimList.filter(c => c.profile_id);
       const uidClaims = claimList.filter(c => !c.profile_id && c.user_id);
       const [pidSocials, uidSocials] = await Promise.all([
@@ -105,6 +109,8 @@ export default function EventScreen() {
         if (p.facebook)   slot.facebook   = p.facebook;
         if (p.youtube)    slot.youtube    = p.youtube;
         if (p.website)    slot.website    = p.website;
+        if (!slot.genre && p.genre_string) slot.genre = p.genre_string;
+        if (!slot.sound && p.sound)        slot.sound = p.sound;
       });
       // Build member → performance map for the Lineup tab
       const memberPerfMap = {};
@@ -156,7 +162,7 @@ export default function EventScreen() {
 
   // Load applications + profiles for host
   useEffect(() => {
-    if (!id || !session?.user?.id) return;
+    if (!id || !session?.user?.id || !isRealEvent) return;
     let cancelled = false;
     async function loadApps() {
       const { data: apps } = await supabase
@@ -183,6 +189,17 @@ export default function EventScreen() {
     loadApps();
     return () => { cancelled = true; };
   }, [id, session?.user?.id]);
+
+  // Demo ids (e.g. from a bookmarked What's On card) have no Supabase record —
+  // explain that instead of the query silently redirecting home. Once real
+  // event data uses this same id space (UUIDs), isRealEvent is true and this
+  // never fires. An unrecognised non-UUID id (neither real nor a known demo
+  // event) still falls back to home, same as before.
+  if (!isRealEvent) {
+    const demoEvent = getDemoEventById(id);
+    if (!demoEvent) { navigate('/'); return null; }
+    return <DemoEventNotice event={demoEvent} onClose={() => navigate('/')} />;
+  }
 
   if (loading) return (
     <div className={s.screen} style={{ padding: '72px 16px 80px', maxWidth: 680, margin: '0 auto', boxSizing: 'border-box' }}>
@@ -584,6 +601,8 @@ export default function EventScreen() {
           />
         )}
 
+        <div style={{ minHeight: (effectiveIsHost && showEditor && eventTab !== 'SET_TIMES') ? '60vh' : 0 }}>
+
         {/* Set times toggle — SET_TIMES tab, editor mode */}
         {effectiveIsHost && showEditor && eventTab === 'SET_TIMES' && (
           <button
@@ -662,7 +681,7 @@ export default function EventScreen() {
 
         {/* LINEUP tab */}
         {effectiveIsHost && showEditor && eventTab === 'LINEUP' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {lineupMembers.length === 0
               ? (
                 <div style={{ textAlign: 'center', padding: '48px 16px' }}>
@@ -680,7 +699,7 @@ export default function EventScreen() {
                 else if (perf.status === 'accepted') { badge = 'CONFIRMED'; badgeColor = '#00E5A0'; }
                 else if (perf.status === 'declined') { badge = 'DECLINED';  badgeColor = '#FF3399'; }
                 const cardItem = {
-                  user_id:      member.artist_id || member.id,
+                  user_id:      member.artist_id || null,
                   name:         prof?.name         || member.artist_name,
                   type:         prof?.type         || 'artist',
                   avatar:       prof?.avatar        || null,
@@ -760,6 +779,8 @@ export default function EventScreen() {
             }
           </div>
         )}
+
+        </div>{/* end tab content minHeight wrapper */}
 
         {/* Manage Event sheet */}
         {showManage && (
@@ -1366,11 +1387,11 @@ function SlotCard({ slot, claim, onFill, onEdit, onRemove, onPin, isHost, isSort
         <div style={{ background: 'var(--card2)', border: `1px solid ${borderCol}`, borderTop: 'none', borderRadius: '0 0 10px 10px', padding: '14px 16px' }}>
 
           {/* Genre pills */}
-          {(claim?.card_pills || claim?.genre) && (() => {
-            const raw = claim.card_pills || claim.genre;
+          {(claim?.card_pills?.length || claim?.genre) && (() => {
+            const raw = claim.card_pills?.length ? claim.card_pills : claim.genre;
             const all = Array.isArray(raw)
               ? raw
-              : raw.split(/[\·,|]+/).map(g => g.trim()).filter(Boolean);
+              : raw.split(/[·,|/]+/).map(g => g.trim()).filter(Boolean);
             const SHOW = 6;
             const visible = genreShowAll ? all : all.slice(0, SHOW);
             const rest = all.length - visible.length;

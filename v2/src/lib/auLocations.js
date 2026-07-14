@@ -1,6 +1,6 @@
 // suburb / city name → postcode(s)
 // Used in Discover location filter so users can type a suburb name instead of a postcode
-const SUBURB_MAP = {
+export const SUBURB_MAP = {
   // ── NSW – Sydney inner ───────────────────────────────────────────────
   "sydney":["2000"],"haymarket":["2000"],"the rocks":["2000"],"barangaroo":["2000"],
   "pyrmont":["2009"],"ultimo":["2007"],"chippendale":["2008"],

@@ -285,28 +285,6 @@
 }
 .followBtn:hover { opacity: 1; filter: brightness(1.25); }
 
-/* Social icon row */
-.socials {
-  display: flex;
-  justify-content: center;
-  gap: 16px;
-  flex-wrap: wrap;
-  padding: 20px 0 8px;
-}
-
-.socialIcon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 44px;
-  height: 44px;
-  text-decoration: none;
-  opacity: .85;
-  transition: opacity .15s;
-}
-
-.socialIcon:hover { opacity: 1; }
-
 /* Events section */
 .eventsSection {
   margin-top: 8px;

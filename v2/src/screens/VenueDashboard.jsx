@@ -22,16 +22,6 @@ import { resolveProfileId } from '../lib/resolveProfileId';
 import s from './VenueDashboard.module.css';
 import ds from './DiscoverScreen.module.css';
 
-const DIR_TABS = [
-  { key: 'INCOMING', color: '#FFD700', rgb: '255,215,0',
-    subTabs: ['NEW', 'SHORTLISTED', 'ACCEPTED', 'DECLINED'] },
-  { key: 'OUTGOING', color: '#00B4D8', rgb: '0,180,216',
-    subTabs: ['AWAITING', 'INTERESTED', 'ACCEPTED', 'DECLINED'] },
-  { key: 'BOOKED',   color: '#00E5A0', rgb: '0,229,160',
-    subTabs: [] },
-];
-
-
 export default function VenueDashboard({ userId: userIdProp }) {
   const { session } = useSession();
   const { setPlayer } = usePlayer();
@@ -49,6 +39,13 @@ export default function VenueDashboard({ userId: userIdProp }) {
   const [regularsShowAll,  setRegularsShowAll]  = useState(false);
   const [regularsSearch,   setRegularsSearch]   = useState('');
   const regularsDrag = useDragScroll('venue-dashboard-regulars');
+  const [isNarrow, setIsNarrow] = useState(() => window.innerWidth < 640);
+
+  useEffect(() => {
+    const handler = () => setIsNarrow(window.innerWidth < 640);
+    window.addEventListener('resize', handler, { passive: true });
+    return () => window.removeEventListener('resize', handler);
+  }, []);
 
   const { data, isLoading: loading } = useQuery({
     queryKey: ['venueDashboard', userId],
@@ -196,8 +193,7 @@ export default function VenueDashboard({ userId: userIdProp }) {
       filled(profile.genre_string),
       done(profile.website),
       done(profile.instagram),
-      done(profile.phone),
-      done(profile.email || profile.contactEmail),
+      done(profile.contact_email),
     ];
     return fields.filter(Boolean).length / fields.length * 100;
   })();
@@ -237,11 +233,11 @@ export default function VenueDashboard({ userId: userIdProp }) {
 
       {/* Availability */}
       <div id="section-availability" style={{ marginTop: 40 }}>
-        <Section title="AVAILABLE DATES" subtitle="tap dates to add / remove" onAction={() => setShowAvailCal(true)} viewAll={availability.length > 0 ? 'View all >' : null} onViewAll={() => setShowAvailCal(true)}>
+        <Section title="AVAILABLE DATES" subtitle="tap dates to add / remove" action={availability.length > 0 ? 'View all >' : null} onAction={() => setShowAvailCal(true)}>
           {availability.length === 0
             ? null
             : <div className={s.chips}>
-                {availability.slice(0, window.innerWidth < 640 ? 8 : 12).map(d => (
+                {availability.slice(0, isNarrow ? 8 : 12).map(d => (
                   <DateChip key={d} label={formatDisplayDate(d)} onClick={() => setShowAvailCal(true)} />
                 ))}
               </div>
@@ -384,7 +380,7 @@ function DateChip({ label, onClick }) {
   );
 }
 
-function Section({ title, subtitle, action, onAction, viewAll, onViewAll, green, children }) {
+function Section({ title, subtitle, action, onAction, children }) {
   return (
     <div style={{ marginBottom: 20 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
@@ -396,29 +392,10 @@ function Section({ title, subtitle, action, onAction, viewAll, onViewAll, green,
         </div>
         <div style={{ flex: 1 }} />
         {action && <button onClick={onAction} className={s.viewAllBtn}>{action}</button>}
-        {viewAll && <button onClick={onViewAll} className={s.viewAllBtn}>{viewAll}</button>}
       </div>
       {children}
     </div>
   );
 }
 
-function EnqTabBtn({ active, color, rgb, onClick, children }) {
-  const [hov, setHov] = useState(false);
-  return (
-    <button
-      onClick={onClick}
-      onMouseEnter={() => setHov(true)}
-      onMouseLeave={() => setHov(false)}
-      style={{
-        fontFamily: "'Bebas Neue'", fontSize: 12, letterSpacing: 1.5,
-        padding: '5px 14px', borderRadius: 20, cursor: 'pointer',
-        transition: 'background .15s, border-color .15s, color .15s',
-        background: active ? `rgba(${rgb},.12)` : hov ? `rgba(${rgb},.08)` : 'transparent',
-        border: `1.5px solid ${active ? color : hov ? `rgba(${rgb},.6)` : 'rgba(255,255,255,.12)'}`,
-        color: active || hov ? color : 'var(--muted)',
-      }}
-    >{children}</button>
-  );
-}
 

@@ -2,7 +2,7 @@ import { useNavigate } from 'react-router-dom';
 
 const GRADIENTS = {
   venue:  'linear-gradient(135deg, #00E5A0, #00B4D8)',
-  host:   'linear-gradient(135deg, #FF3399, #BF5FFF)',
+  host:   'linear-gradient(135deg, #FF2D78, #BF5FFF)',
   artist: 'linear-gradient(135deg, #00E5FF, #BF5FFF)',
   dj:     'linear-gradient(135deg, #00E5FF, #BF5FFF)',
 };

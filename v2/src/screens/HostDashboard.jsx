@@ -287,9 +287,9 @@ export default function HostDashboard({ userId: userIdProp }) {
 
       <DashboardProfileCard
         profile={profile}
-        accent="#FF3399"
+        accent="#FF2D78"
         gradient="linear-gradient(135deg, #FF2D78, #00B4D8)"
-        icon={<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="rgba(255,51,153,.7)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="2" width="18" height="20" rx="2"/><circle cx="12" cy="13" r="5"/><circle cx="12" cy="13" r="2"/><line x1="9" y1="5.5" x2="15" y2="5.5" strokeWidth="1.5" strokeLinecap="round"/></svg>}
+        icon={<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="rgba(255,45,120,.7)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="2" width="18" height="20" rx="2"/><circle cx="12" cy="13" r="5"/><circle cx="12" cy="13" r="2"/><line x1="9" y1="5.5" x2="15" y2="5.5" strokeWidth="1.5" strokeLinecap="round"/></svg>}
         setupRoute="/industry/host/setup"
         subtitle={profile?.location || 'Add your details so artists can find you'}
         genres={genres}
@@ -301,7 +301,7 @@ export default function HostDashboard({ userId: userIdProp }) {
         onClick={() => scrollToSection('section-enquiries')}
       />
 
-      <DashboardStats accent="#FF3399" stats={[
+      <DashboardStats accent="#FF2D78" stats={[
         { label: 'EVENTS',   value: loadingEvents ? '—' : events.length,                sectionId: 'section-events' },
         { label: 'INCOMING', value: newAppsCount === null ? '—' : newAppsCount,          sectionId: 'section-enquiries' },
         { label: 'LINEUP',   value: lineupSlotsCount === null ? '—' : lineupSlotsCount,  sectionId: 'section-lineup' },
@@ -311,16 +311,16 @@ export default function HostDashboard({ userId: userIdProp }) {
       <EventsSection
         tabs={{ UPCOMING: upcomingEvents, DRAFTS: draftEvents, PAST: pastEvents }}
         loading={loadingEvents}
-        accent="#FF3399"
+        accent="#FF2D78"
       />
 
       {/* ── AVAILABILITY ── */}
-      <AvailabilitySection userId={userId} table="artist_availability" accent="#FF3399" accentRgb="255,51,153" />
+      <AvailabilitySection userId={userId} table="artist_availability" accent="#FF2D78" accentRgb="255,45,120" />
 
       {/* ── ENQUIRIES ── */}
       <div id="section-enquiries" style={{ marginTop: 40 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-          <span style={{ fontFamily: "'Bebas Neue'", fontSize: 18, letterSpacing: 2, color: '#fff' }}>ENQUIRIES</span>
+          <span style={{ fontFamily: "'Bebas Neue'", fontSize: 13, letterSpacing: 2.5, color: '#fff' }}>ENQUIRIES</span>
           {newAppsCount > 0 && <span style={{ fontFamily: "'DM Sans'", fontWeight: 700, fontSize: 11, color: 'var(--muted)', background: 'var(--card2)', borderRadius: 8, padding: '1px 7px' }}>{newAppsCount}</span>}
         </div>
         {loadingApps
@@ -330,9 +330,9 @@ export default function HostDashboard({ userId: userIdProp }) {
       </div>
 
       {/* ── LINEUP ── */}
-      <div id="section-lineup" style={{ marginTop: 32 }}>
+      <div id="section-lineup" style={{ marginTop: 40 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: lineups.length > 1 ? 8 : 12 }}>
-          <span style={{ fontFamily: "'Bebas Neue'", fontSize: 18, letterSpacing: 2, color: '#fff' }}>LINEUP</span>
+          <span style={{ fontFamily: "'Bebas Neue'", fontSize: 13, letterSpacing: 2.5, color: '#fff' }}>LINEUP</span>
           {lineupSlotsCount > 0 && <span style={{ fontFamily: "'DM Sans'", fontWeight: 700, fontSize: 11, color: 'var(--muted)', background: 'var(--card2)', borderRadius: 8, padding: '1px 7px' }}>{lineupSlotsCount}</span>}
           <button onClick={() => setShowAllLineup(v => !v)} style={{ marginLeft: 'auto', background: 'none', border: '1px solid rgba(255,255,255,.15)', borderRadius: 8, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--muted)', flexShrink: 0, transition: 'border-color .15s, color .15s' }}
             onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--neon2)'; e.currentTarget.style.color = 'var(--neon2)'; }}
@@ -453,7 +453,7 @@ export default function HostDashboard({ userId: userIdProp }) {
                       {activeTab === 'LINEUP' && (
                         artists.length === 0
                           ? <p className={s.empty} style={{ fontSize: 12 }}>No confirmed artists yet.</p>
-                          : <div style={{ marginBottom: 12 }}>{artists.map(a => <ProfileCard key={a.id || a.artist_id} item={a.profile || { name: 'Unknown', type: 'artist' }} />)}</div>
+                          : <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>{artists.map(a => <ProfileCard key={a.id || a.artist_id} item={a.profile || { name: 'Unknown', type: 'artist' }} />)}</div>
                       )}
                       {activeTab === 'SET TIMES' && (() => {
                         const slots = days.flatMap(d => d.slots || []);
@@ -834,17 +834,17 @@ function AppCard({ app, prof, event, onRespond }) {
             {statusLabel}
           </span>
           {evDateBox && (
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, border: '1px solid rgba(255,51,153,.4)', background: 'rgba(255,51,153,.08)', borderRadius: 7, padding: '4px 8px' }}>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, border: '1px solid rgba(255,45,120,.4)', background: 'rgba(255,45,120,.08)', borderRadius: 7, padding: '4px 8px' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                <span style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1, color: 'rgba(255,51,153,.7)', lineHeight: 1 }}>{evDateBox.dn}</span>
-                <span style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1, color: 'rgba(255,51,153,.7)', lineHeight: 1 }}>{evDateBox.mo}</span>
+                <span style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1, color: 'rgba(255,45,120,.7)', lineHeight: 1 }}>{evDateBox.dn}</span>
+                <span style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1, color: 'rgba(255,45,120,.7)', lineHeight: 1 }}>{evDateBox.mo}</span>
               </div>
-              <span style={{ fontFamily: "'Bebas Neue'", fontSize: 26, color: '#FF3399', lineHeight: 1 }}>{evDateBox.num}</span>
+              <span style={{ fontFamily: "'Bebas Neue'", fontSize: 26, color: '#FF2D78', lineHeight: 1 }}>{evDateBox.num}</span>
             </div>
           )}
           <button
             onClick={() => setExpanded(e => !e)}
-            style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1, background: 'rgba(255,51,153,.1)', border: '1px solid rgba(255,51,153,.35)', color: '#FF3399', borderRadius: 8, padding: '3px 8px', cursor: 'pointer' }}
+            style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1, background: 'rgba(255,45,120,.1)', border: '1px solid rgba(255,45,120,.35)', color: '#FF2D78', borderRadius: 8, padding: '3px 8px', cursor: 'pointer' }}
           >{expanded ? 'HIDE ▲' : 'VIEW FULL PROFILE ▼'}</button>
         </div>
       </div>

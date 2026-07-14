@@ -3,13 +3,15 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useSession } from '../App';
 import s from './ProfileEditScreen.module.css';
+import { PROFILE_TYPES } from '../lib/profileTypes';
 
-const TYPE_CONFIG = {
-  artist:  { label: 'DJ / PRODUCER',       color: 'var(--neon2)',  showMix: true,  showSound: true  },
-  host:    { label: 'HOST / PROMOTER',     color: 'var(--neon)',   showMix: false, showSound: false },
-  band:    { label: 'BAND / MUSO',         color: '#FF8C42',       showMix: true,  showSound: true  },
-  standup: { label: 'STAND-UP / COMEDY',   color: '#FF88AA',       showMix: false, showSound: true  },
-  venue:   { label: 'VENUE',               color: '#00E5A0',       showMix: false, showSound: false },
+// Screen-specific display flags — not shared metadata, stays local
+const PROFILE_FLAGS = {
+  artist:  { showMix: true,  showSound: true  },
+  host:    { showMix: false, showSound: false },
+  band:    { showMix: true,  showSound: true  },
+  standup: { showMix: false, showSound: true  },
+  venue:   { showMix: false, showSound: false },
 };
 
 const STATE_OPTIONS = ['NSW','VIC','QLD','WA','SA','TAS','ACT','NT','NZ','International'];
@@ -80,13 +82,14 @@ export default function ProfileEditScreen() {
 
   if (loading) return <div className={s.screen}><p className={s.loading}>LOADING…</p></div>;
 
-  const tc = TYPE_CONFIG[activeType] || TYPE_CONFIG.artist;
+  const pt    = PROFILE_TYPES[activeType] || PROFILE_TYPES.artist;
+  const flags = PROFILE_FLAGS[activeType] || PROFILE_FLAGS.artist;
 
   return (
     <div className={s.screen}>
       <div className={s.topRow}>
         <h1 className={s.title}>EDIT PROFILE</h1>
-        <button className={s.saveBtn} onClick={save} disabled={saving} style={{ color: tc.color, borderColor: tc.color }}>
+        <button className={s.saveBtn} onClick={save} disabled={saving} style={{ color: pt.accent, borderColor: pt.accent }}>
           {saving ? '…' : saved ? '✓ SAVED' : 'SAVE'}
         </button>
       </div>
@@ -94,25 +97,28 @@ export default function ProfileEditScreen() {
       {/* Role tabs */}
       {profiles.length > 1 && (
         <div className={s.typeTabs}>
-          {profiles.map(p => (
-            <button key={p.type}
-              className={activeType === p.type ? s.typeTabActive : s.typeTab}
-              style={activeType === p.type ? { borderColor: TYPE_CONFIG[p.type]?.color, color: TYPE_CONFIG[p.type]?.color } : {}}
-              onClick={() => switchType(p.type)}
-            >
-              {TYPE_CONFIG[p.type]?.label || p.type.toUpperCase()}
-            </button>
-          ))}
+          {profiles.map(p => {
+            const ppt = PROFILE_TYPES[p.type] || PROFILE_TYPES.artist;
+            return (
+              <button key={p.type}
+                className={activeType === p.type ? s.typeTabActive : s.typeTab}
+                style={activeType === p.type ? { borderColor: ppt.accent, color: ppt.accent } : {}}
+                onClick={() => switchType(p.type)}
+              >
+                {ppt.label}
+              </button>
+            );
+          })}
         </div>
       )}
 
       <div className={s.form}>
         {/* Avatar */}
         <div className={s.avatarSection}>
-          <div className={s.avatarPreview} style={{ borderColor: tc.color }}>
+          <div className={s.avatarPreview} style={{ borderColor: pt.accent }}>
             {form.avatar
               ? <img src={form.avatar} alt="avatar" className={s.avatarImg} />
-              : <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke={tc.color} strokeWidth="1.5"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 1 0-16 0"/></svg>
+              : <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke={pt.accent} strokeWidth="1.5"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 1 0-16 0"/></svg>
             }
           </div>
           <div className={s.avatarInputWrap}>
@@ -141,7 +147,7 @@ export default function ProfileEditScreen() {
 
         <Field label="NAME *" value={form.name || ''} onChange={v => set('name', v)} placeholder="Your name or stage name" />
         <Field label="TAGLINE" value={form.tagline || ''} onChange={v => set('tagline', v)} placeholder="One-liner that describes you" />
-        {tc.showSound && <Field label="SOUND / VIBE" value={form.sound || ''} onChange={v => set('sound', v)} placeholder="e.g. Deep rolling bass, hypnotic rhythms" />}
+        {flags.showSound && <Field label="SOUND / VIBE" value={form.sound || ''} onChange={v => set('sound', v)} placeholder="e.g. Deep rolling bass, hypnotic rhythms" />}
 
         <Field label="GENRES" value={form.genre_string || ''} onChange={v => set('genre_string', v)} placeholder="e.g. Techno · House · Drum & Bass" />
 
@@ -164,7 +170,7 @@ export default function ProfileEditScreen() {
           <Field label="YEARS ACTIVE" value={form.years || ''} onChange={v => set('years', v)} placeholder="e.g. 2018" />
         )}
 
-        {tc.showMix && <Field label="MIX / DEMO LINK" value={form.mix_link || ''} onChange={v => set('mix_link', v)} placeholder="SoundCloud, Mixcloud, YouTube link…" />}
+        {flags.showMix && <Field label="MIX / DEMO LINK" value={form.mix_link || ''} onChange={v => set('mix_link', v)} placeholder="SoundCloud, Mixcloud, YouTube link…" />}
 
         <div className={s.sectionDivider}>SOCIALS</div>
         <Field label="INSTAGRAM" value={form.instagram || ''} onChange={v => set('instagram', v)} placeholder="@handle" />
@@ -175,7 +181,7 @@ export default function ProfileEditScreen() {
         <Field label="WEBSITE" value={form.website || ''} onChange={v => set('website', v)} placeholder="https://…" />
 
         {saveErr && <p style={{ color: 'var(--red, #FF2D78)', fontSize: 12, textAlign: 'center', marginBottom: 8 }}>{saveErr}</p>}
-        <button className={s.saveBtnBottom} onClick={save} disabled={saving} style={{ background: tc.color }}>
+        <button className={s.saveBtnBottom} onClick={save} disabled={saving} style={{ background: pt.accent }}>
           {saving ? 'SAVING…' : saved ? '✓ SAVED!' : 'SAVE PROFILE'}
         </button>
       </div>

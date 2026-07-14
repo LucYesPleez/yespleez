@@ -33,7 +33,7 @@ const DEMO_UPCOMING = [
 const DEMO_FOLLOWING = [
   { name:'Lucious',              type:'artist', update:'Added a new show',    ago:'2h ago' },
   { name:'Bellingen Brewery',    type:'venue',  update:'Updated their event', ago:'6h ago' },
-  { name:'Deliverance Festival', type:'host',   update:'Released set times',  ago:'12h ago' },
+  { name:'Deliverance Sound System', type:'host', update:'Released set times', ago:'12h ago' },
 ];
 
 export default function MySceneScreen({ isGuest, onSignOut }) {
@@ -425,6 +425,10 @@ export default function MySceneScreen({ isGuest, onSignOut }) {
     setDayArtists(membersData.map(c => ({
       name: c.artist_name, genre: c.genre, sound: c.sound,
       avatar: profFor(c)?.avatar, eventName: evMap[c.event_id],
+      user_id: c.artist_id || null,
+      // M5: canonical link target — the lineup row's artist_profile_id, or the
+      // resolved profile's id; user_id stays as the legacy-URL fallback.
+      id: c.artist_profile_id || profFor(c)?.id || null,
     })));
   }
 
@@ -840,7 +844,7 @@ export default function MySceneScreen({ isGuest, onSignOut }) {
                 <div style={{ marginTop: 16 }}>
                   <div className={s.sectionHead} style={{ fontSize: 12, marginBottom: 8 }}>ARTISTS PLAYING</div>
                   {dayArtists.map((a, i) => (
-                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 12px', marginBottom: 6 }}>
+                    <div key={i} onClick={() => (a.id || a.user_id) && navigate(a.id ? `/profile/${a.id}?prefer=performer` : `/profile/${a.user_id}`)} style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 12px', marginBottom: 6, cursor: (a.id || a.user_id) ? 'pointer' : 'default' }}>
                       {a.avatar
                         ? <img src={a.avatar} alt={a.name} style={{ width: 36, height: 36, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />
                         : <div style={{ width: 36, height: 36, borderRadius: 8, background: 'var(--card2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Bebas Neue'", fontSize: 16, color: 'var(--neon2)', flexShrink: 0 }}>{(a.name || '?')[0]}</div>

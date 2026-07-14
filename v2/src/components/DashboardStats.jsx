@@ -10,6 +10,7 @@ function scrollToSection(id) {
 function StatBox({ label, value, accent = '#00E5A0', sectionId, onClick }) {
   const [hov, setHov] = useState(false);
   const accentRgb = accent.startsWith('#00E5A0') ? '0,229,160'
+    : accent.startsWith('#FF2D78') ? '255,45,120'
     : accent.startsWith('#FF3399') ? '255,51,153'
     : accent.startsWith('#00E5FF') ? '0,229,255'
     : accent.startsWith('#FF8C42') ? '255,140,66'

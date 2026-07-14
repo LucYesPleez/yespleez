@@ -119,6 +119,7 @@ export default function EnquiryPanel({ enquiries = [], onRespond, onPlayDemo }) 
       </div>
 
       {/* Cards */}
+      <div>
       {filtered.length === 0
         ? <p style={{ fontSize: 13, color: 'var(--muted)', padding: '12px 0' }}>
             No {dirTab === 'BOOKED' ? 'booked' : statusTab.toLowerCase()} enquiries{search ? ' matching your search' : ''}.
@@ -127,6 +128,7 @@ export default function EnquiryPanel({ enquiries = [], onRespond, onPlayDemo }) 
             <EnquiryCard key={enq.id} enq={enq} onRespond={onRespond} onPlayDemo={onPlayDemo} />
           ))
       }
+      </div>
     </div>
   );
 }

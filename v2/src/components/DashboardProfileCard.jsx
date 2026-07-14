@@ -1,22 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-
-const ACCENT_RGB = {
-  '#00E5A0': '0,229,160',
-  '#FF3399': '255,51,153',
-  '#00E5FF': '0,229,255',
-  '#FF8C42': '255,140,66',
-  '#FF88AA': '255,136,170',
-  '#BF5FFF': '191,95,255',
-};
-
-const TYPE_LABELS = {
-  venue:   'VENUE',
-  artist:  'DJ / PROMOTER',
-  band:    'BAND',
-  host:    'HOST / PROM',
-  standup: 'COMEDY',
-};
+import { PROFILE_TYPES } from '../lib/profileTypes';
 
 const PinIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -44,14 +28,16 @@ export default function DashboardProfileCard({
 }) {
   const navigate  = useNavigate();
   const [hov, setHov] = useState(false);
-  const accentRgb = ACCENT_RGB[accent] || '0,229,160';
+
+  const pt         = PROFILE_TYPES[profile?.type] || PROFILE_TYPES.venue;
+  const accentRgb  = pt.rgb;
+  const typeLabel  = pt.label;
 
   const hasProfile = !!profile?.name;
   const heroImg    = profile?.avatar_hero || profile?.avatar || (hasProfile ? DEFAULT_HERO[profile.type] : null);
   const location   = [profile?.suburb, profile?.state].filter(Boolean).join(', ') || profile?.location;
   const estYear    = profile?.established_year;
   const tagline    = profile?.tagline;
-  const typeLabel  = TYPE_LABELS[profile?.type] || profile?.type?.toUpperCase();
   const isMobile   = typeof window !== 'undefined' && window.innerWidth < 640;
   const themeGradient = gradient || `linear-gradient(90deg, ${accent}, #00B4D8)`;
 
