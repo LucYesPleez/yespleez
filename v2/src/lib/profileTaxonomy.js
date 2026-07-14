@@ -132,6 +132,18 @@ export const ROLE_TAGS = {
   ],
 };
 
+// Given a standup profile's genre_string, return the labels of whichever
+// PERFORMANCE_ROLES are selected (e.g. ['Comedy'], ['Poetry'], or
+// ['Comedy', 'Poetry']) — for any compact card/pill/badge that shows a
+// performer's role, so a future role (MC/Host, Storyteller, Drag, Cabaret,
+// etc.) automatically works everywhere without touching call sites. Returns
+// [] if none are selected yet — callers should fall back to their own
+// existing generic label in that case.
+export function selectedPerformanceRoleLabels(genreString) {
+  const parts = new Set((genreString || '').split(' · ').map(t => t.trim()).filter(Boolean));
+  return PERFORMANCE_ROLES.filter(r => parts.has(r.key)).map(r => r.label);
+}
+
 // Genre-string encoding shared with the app (genre_string column).
 export const GENRE_SEP = ' · ';
 

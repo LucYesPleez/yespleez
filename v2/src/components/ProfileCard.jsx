@@ -3,6 +3,7 @@ import s from './ProfileCard.module.css';
 import { PROFILE_TYPES } from '../lib/profileTypes';
 import { profileUrl } from '../lib/profileResolution';
 import { formatLocation } from '../lib/formatLocation';
+import { selectedPerformanceRoleLabels } from '../lib/profileTaxonomy';
 
 // Re-exported in { col, rgb, label, emoji } shape — DiscoverScreen and others depend on this export.
 // ⚠️ Host col changed from #FF3399 → #FF2D78 (now consistent with profileTypes.js / --neon CSS var).
@@ -28,6 +29,10 @@ export default function ProfileCard({ item, badge, badgeColor, actions }) {
   const loc   = formatLocation(item);
   const sound = item.sound || item.genre_string?.split(' · ').slice(0, 3).join(' · ') || '';
   const img   = item.avatar_thumb || item.avatar || null;
+  // Standup: one pill per selected performance role (Comedy/Poetry), data-
+  // driven so a future role works everywhere with no call-site change.
+  const roleLabels = type === 'standup' ? selectedPerformanceRoleLabels(item.genre_string) : [];
+  const typeLabels = roleLabels.length ? roleLabels : [ts.label];
 
   return (
     <div
@@ -57,7 +62,9 @@ export default function ProfileCard({ item, badge, badgeColor, actions }) {
         <div className={s.info}>
           <div className={s.nameRow}>
             <span className={s.name}>{item.name}</span>
-            <span className={s.typeBadge} style={{ color: ts.col, background: `rgba(${ts.rgb},.15)`, borderColor: `rgba(${ts.rgb},.3)` }}>{ts.label}</span>
+            {typeLabels.map((l, i) => (
+              <span key={i} className={s.typeBadge} style={{ color: ts.col, background: `rgba(${ts.rgb},.15)`, borderColor: `rgba(${ts.rgb},.3)` }}>{l}</span>
+            ))}
             {badge && (
               <span className={s.statusBadge} style={{ color: badgeColor || '#fff', background: badgeColor ? `${badgeColor}22` : 'rgba(255,255,255,.1)', borderColor: badgeColor || '#fff' }}>
                 {badge}

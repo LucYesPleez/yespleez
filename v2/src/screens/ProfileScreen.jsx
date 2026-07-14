@@ -13,6 +13,7 @@ import PastEventsSearch, { filterPastEvents } from '../components/PastEventsSear
 import { formatLocation } from '../lib/formatLocation';
 import { socialProfileUrl, ensureHttps } from '../lib/socialLinks';
 import ProfileSocialLinks from '../components/ProfileSocialLinks';
+import { selectedPerformanceRoleLabels } from '../lib/profileTaxonomy';
 
 const TYPE_ACCENTS = {
   host:    { col: '#FF2D78',      rgb: '255,45,120',  label: 'HOST',                grad2: '#BF5FFF' },
@@ -88,10 +89,13 @@ export default function ProfileScreen() {
         // canonical artist_profile_id; only genuinely un-migrated rows (null
         // artist_profile_id) fall back to the legacy artist_id (account) key.
         // The account key alone is NOT profile-specific — a multi-profile
-        // account would otherwise inherit every sibling profile's gigs — so it
-        // must never shadow a row that already names its own profile.
+        // account would otherwise inherit every sibling profile's gigs (e.g. a
+        // Comedy/Poetry profile showing a DJ set booked under the same
+        // account) — so the legacy fallback stays scoped to 'artist' only,
+        // the one type it originally existed for; every other type requires a
+        // genuine artist_profile_id-linked row.
         const legs = [`artist_profile_id.eq.${ownedProfile.id}`];
-        if (ownedProfile.user_id) legs.push(`and(artist_id.eq.${ownedProfile.user_id},artist_profile_id.is.null)`);
+        if (ownedProfile.user_id && ownedProfile.type === 'artist') legs.push(`and(artist_id.eq.${ownedProfile.user_id},artist_profile_id.is.null)`);
         const claimsRes = await supabase.from('lineup_members').select('event_id').or(legs.join(',')).neq('status', 'removed');
         const eventIds = [...new Set((claimsRes.data || []).map(c => c.event_id).filter(Boolean))];
         if (eventIds.length) {
@@ -258,14 +262,20 @@ export default function ProfileScreen() {
   const col     = ta.col;
   const rgb     = ta.rgb;
   const grad2   = ta.grad2;
-  const isHost  = profile.type === 'host';
-  const isVenue = profile.type === 'venue';
+  const isHost    = profile.type === 'host';
+  const isVenue   = profile.type === 'venue';
+  const isStandup = profile.type === 'standup';
   // M5: always a profiles-shaped row; any profile (claimed or not) falls back
   // to the generic type imagery (never a real likeness) when it has no avatar.
   const hasRealAvatar = !!(profile.avatar_hero || profile.avatar_thumb || profile.avatar);
   const heroUrl = profile.avatar_hero || profile.avatar_thumb || profile.avatar
     || PLACEHOLDER_HERO[profile.type] || null;
   const label   = isVenue ? ta.label : (profile.band_type || profile.act_type || ta.label);
+  // Standup: one pill per selected "what do you perform?" role (Comedy/
+  // Poetry), data-driven so a future role works with no call-site change.
+  // Falls back to the generic label above until roles have been selected.
+  const roleLabels = isStandup ? selectedPerformanceRoleLabels(profile.genre_string) : [];
+  const badgeLabels = roleLabels.length ? roleLabels : [label];
   const loc     = formatLocation(profile);
   const mixLink = ensureHttps(profile.mix_link) || socialProfileUrl('soundcloud', profile.soundcloud) || socialProfileUrl('mixcloud', profile.mixcloud) || '';
 
@@ -276,9 +286,14 @@ export default function ProfileScreen() {
     return isOld ? '' : tl;
   })();
 
-  const genres = profile.genre_string
-    ? profile.genre_string.split(/\s*·\s*|,\s*/).map(g => g.trim()).filter(Boolean)
-    : [];
+  // Standup stores performance roles as tokens inside genre_string alongside
+  // every style tag picked in the "PERFORMANCE STYLE" step — neither of those
+  // belongs in the public "tags" pill list. Show only the curated "YOUR STYLE
+  // TAGS" selection (card_pills) instead, same concept as every other type's
+  // card_pills-based compact display, just applied to this section too.
+  const genres = isStandup
+    ? (profile.card_pills || '').split(/\s*·\s*|,\s*/).map(g => g.trim()).filter(Boolean)
+    : (profile.genre_string ? profile.genre_string.split(/\s*·\s*|,\s*/).map(g => g.trim()).filter(Boolean) : []);
   const visibleGenres = genreExpanded ? genres : genres.slice(0, 5);
 
   const na = v => !v || v === 'N/A';
@@ -336,7 +351,9 @@ export default function ProfileScreen() {
         <div className={s.nameBlock}>
           <div className={s.name}>{profile.name}</div>
           <div className={s.metaRow}>
-            <span className={s.badge} style={{ color: col, background: `rgba(${rgb},.15)`, borderColor: `rgba(${rgb},.35)` }}>{label}</span>
+            {badgeLabels.map((l, i) => (
+              <span key={i} className={s.badge} style={{ color: col, background: `rgba(${rgb},.15)`, borderColor: `rgba(${rgb},.35)` }}>{l}</span>
+            ))}
             {isUnclaimed && (
               <span style={{ fontSize: 10, border: '1px solid rgba(255,255,255,.2)', borderRadius: 20, padding: '3px 10px', color: 'rgba(255,255,255,.35)', fontFamily: "'Bebas Neue', sans-serif", letterSpacing: 1 }}>
                 UNCLAIMED
@@ -378,7 +395,7 @@ export default function ProfileScreen() {
                     <span dangerouslySetInnerHTML={{ __html: seededWaveSvg(profile.name || '', rgb) }} />
                     <span style={{ position: 'relative', zIndex: 1 }}>
                       <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" style={{ verticalAlign: 'middle', marginRight: 6 }}><polygon points="6,3 20,12 6,21"/></svg>
-                      {player?.url === mixLink ? 'CLOSE PLAYER' : 'PLAY DEMO MIX'}
+                      {player?.url === mixLink ? 'CLOSE PLAYER' : (isStandup ? 'PLAY DEMO' : 'PLAY DEMO MIX')}
                     </span>
                   </button>
                 </>
@@ -386,7 +403,7 @@ export default function ProfileScreen() {
                   <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ verticalAlign: 'middle', marginRight: 5, opacity: .5 }}>
                     <path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3z"/><path d="M3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/>
                   </svg>
-                  DEMO MIX COMING SOON
+                  {isStandup ? 'DEMO COMING SOON' : 'DEMO MIX COMING SOON'}
                 </div>
           )}
 
@@ -399,7 +416,7 @@ export default function ProfileScreen() {
           {/* Genre — non-venue */}
           {genres.length > 0 && !isVenue && (
             <div className={s.glassCard} style={{ '--card-col': col, '--card-grad2': grad2, '--pill-col': col, '--pill-rgb': rgb, cursor: genres.length > 5 ? 'pointer' : 'default' }} onClick={() => genres.length > 5 && setGenreExpanded(e => !e)}>
-              <div className={s.cardLabel} style={{ color: col }}>GENRE</div>
+              <div className={s.cardLabel} style={{ color: col }}>{isStandup ? 'STYLE' : 'GENRE'}</div>
               <div className={s.genrePills}>
                 {visibleGenres.map(g => <span key={g} className={s.genrePill}>{g}</span>)}
                 {!genreExpanded && genres.length > 5 && (

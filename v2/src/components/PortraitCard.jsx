@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { profileUrl } from '../lib/profileResolution';
 import { formatLocation } from '../lib/formatLocation';
+import { selectedPerformanceRoleLabels } from '../lib/profileTaxonomy';
 
 const PILL_STYLES = {
   artist:  { bg: '#00E5FF', dark: true,  label: 'DJ / PRODUCER' },
@@ -30,6 +31,10 @@ export default function PortraitCard({ profile: p, onClick, width = 150, height 
   const type = (p?.type || 'artist').toLowerCase();
   const pill = PILL_STYLES[type] || { bg: '#00E5FF', dark: true, label: type.toUpperCase() };
   const label = type === 'standup' ? 'COMEDY' : (PILL_STYLES[type]?.label || type.toUpperCase());
+  // Standup: one pill per selected performance role (Comedy/Poetry), data-
+  // driven so a future role works everywhere with no call-site change.
+  const roleLabels = type === 'standup' ? selectedPerformanceRoleLabels(p?.genre_string) : [];
+  const pillLabels = roleLabels.length ? roleLabels : [label];
   // M5: canonical profile.id URL; legacy user_id URL only as a fallback for
   // callers whose selects don't carry `id` yet (the redirect shim covers it).
   const handleClick = onClick || (() => navigate(p?.id ? profileUrl(p) : `/profile/${p?.user_id}?type=${type}`));
@@ -46,11 +51,13 @@ export default function PortraitCard({ profile: p, onClick, width = 150, height 
       <img src={p?.avatar_thumb || p?.avatar || DEFAULT_IMAGE[type]} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} loading="lazy" decoding="async" />
       {/* gradient overlay */}
       <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom,rgba(0,0,0,.08) 0%,rgba(0,0,0,0) 35%,rgba(0,0,0,.6) 75%,rgba(0,0,0,.88) 100%)' }} />
-      {/* type pill */}
-      <div style={{ position: 'absolute', top: 10, right: 10 }}>
-        <span style={{ background: pill.bg, color: pill.dark ? '#0a0a0f' : '#fff', borderRadius: 6, padding: '3px 8px', fontSize: 9, fontWeight: 700, letterSpacing: .8, fontFamily: "'DM Sans',sans-serif" }}>
-          {label}
-        </span>
+      {/* type pill(s) */}
+      <div style={{ position: 'absolute', top: 10, right: 10, display: 'flex', gap: 6 }}>
+        {pillLabels.map((l, i) => (
+          <span key={i} style={{ background: pill.bg, color: pill.dark ? '#0a0a0f' : '#fff', borderRadius: 6, padding: '3px 8px', fontSize: 9, fontWeight: 700, letterSpacing: .8, fontFamily: "'DM Sans',sans-serif" }}>
+            {l}
+          </span>
+        ))}
       </div>
       {/* info */}
       <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: 12 }}>
