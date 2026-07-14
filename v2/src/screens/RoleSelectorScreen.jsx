@@ -3,7 +3,24 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import s from './RoleSelectorScreen.module.css';
 
+// Order is the shared canonical role ordering for V2 (Venue first — reflects
+// the platform's primary discovery flow). IndustryPanel.jsx imports this
+// array directly, so reordering here also reorders the Industry panel.
 const ROLES = [
+  {
+    id: 'venue',
+    path: '/industry/venue',
+    hoverStyle: { borderColor: '#00E5A0', boxShadow: '0 0 28px rgba(0,229,160,.28)' },
+    titleStyle: { color: '#00E5A0' },
+    title: 'VENUES',
+    desc: 'List your venue, set availability, get found by promoters and artists',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+        <polyline points="9 22 9 12 15 12 15 22"/>
+      </svg>
+    ),
+  },
   {
     id: 'host',
     path: '/industry/host',
@@ -57,20 +74,6 @@ const ROLES = [
         <circle cx="2.5" cy="1.5" r="1.3" fill="currentColor" stroke="none"/>
         <line x1="21" y1="2" x2="7" y2="16" strokeWidth="2"/>
         <circle cx="21.5" cy="1.5" r="1.3" fill="currentColor" stroke="none"/>
-      </svg>
-    ),
-  },
-  {
-    id: 'venue',
-    path: '/industry/venue',
-    hoverStyle: { borderColor: '#00E5A0', boxShadow: '0 0 28px rgba(0,229,160,.28)' },
-    titleStyle: { color: '#00E5A0' },
-    title: 'VENUES',
-    desc: 'List your venue, set availability, get found by promoters and artists',
-    icon: (
-      <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
-        <polyline points="9 22 9 12 15 12 15 22"/>
       </svg>
     ),
   },

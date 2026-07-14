@@ -1,35 +1,44 @@
 import { useState } from 'react';
 import PortraitCard from './PortraitCard';
 import ProfileCard from './ProfileCard';
+import { PROFILE_TYPE_ORDER } from '../lib/profileTypes';
 
 export const FOLLOW_TYPE_MAP = {
-  ARTIST: 'artist', BAND: 'band', HOST: 'host', COMEDY: 'standup', VENUE: 'venue',
+  VENUE: 'venue', HOST: 'host', ARTIST: 'artist', BAND: 'band', COMEDY: 'standup',
 };
 
 export const FOLLOW_PILL_COLORS = {
   ALL:    { col: 'var(--muted)',  rgb: '150,150,170' },
+  VENUE:  { col: '#00E5A0',      rgb: '0,229,160'   },
+  HOST:   { col: '#FF3399',      rgb: '255,51,153'  },
   ARTIST: { col: 'var(--neon2)', rgb: '0,229,255'   },
   BAND:   { col: '#FF8C42',      rgb: '255,140,66'  },
-  HOST:   { col: '#FF3399',      rgb: '255,51,153'  },
   COMEDY: { col: '#FF88AA',      rgb: '255,136,170' },
-  VENUE:  { col: '#00E5A0',      rgb: '0,229,160'   },
 };
 
 export const FOLLOW_FILTER_LABELS = {
   ALL:    'ALL',
+  VENUE:  'VENUE',
+  HOST:   'HOST / PROM',
   ARTIST: 'DJ / PROD',
   BAND:   'BAND',
   COMEDY: 'COMEDY',
-  HOST:   'HOST / PROM',
-  VENUE:  'VENUE',
 };
 
+// Single canonical order (Venue first, matching PROFILE_TYPE_ORDER) instead
+// of five near-identical hand-written arrays. Each viewer's list is derived
+// from the same FULL_ORDER — venue's list excludes its own type (pre-existing
+// behavior, preserved as-is); the others don't self-exclude (also pre-existing,
+// preserved as-is — not something this ordering pass changes).
+const TYPE_TO_TOKEN = Object.fromEntries(Object.entries(FOLLOW_TYPE_MAP).map(([token, type]) => [type, token]));
+const FULL_ORDER = PROFILE_TYPE_ORDER.map(type => TYPE_TO_TOKEN[type]);
+
 export const FOLLOW_FILTER_CONFIGS = {
-  venue:   ['ALL', 'ARTIST', 'BAND', 'COMEDY', 'HOST'],
-  artist:  ['ALL', 'VENUE', 'ARTIST', 'BAND', 'COMEDY', 'HOST'],
-  band:    ['ALL', 'VENUE', 'ARTIST', 'BAND', 'COMEDY', 'HOST'],
-  standup: ['ALL', 'VENUE', 'ARTIST', 'BAND', 'COMEDY', 'HOST'],
-  host:    ['ALL', 'VENUE', 'ARTIST', 'BAND', 'COMEDY', 'HOST'],
+  venue:   ['ALL', ...FULL_ORDER.filter(t => t !== 'VENUE')],
+  host:    ['ALL', ...FULL_ORDER],
+  artist:  ['ALL', ...FULL_ORDER],
+  band:    ['ALL', ...FULL_ORDER],
+  standup: ['ALL', ...FULL_ORDER],
 };
 
 export default function FollowingSection({

@@ -10,12 +10,14 @@ import { useDragScroll } from '../hooks/useDragScroll';
 import s from './DiscoverScreen.module.css';
 import { resolveLocationToPostcodes, suggestLocations } from '../lib/auLocations';
 
+// Venue-first, matching the shared canonical role order (PROFILE_TYPE_ORDER
+// in profileTypes.js). 'event' isn't a profile role, so it stays last.
 const TYPE_OPTIONS = [
+  { value: 'venue',   label: 'Venue' },
+  { value: 'host',    label: 'Host' },
   { value: 'artist',  label: 'DJ / Producer' },
   { value: 'band',    label: 'Band' },
   { value: 'standup', label: 'Comedy / Poet' },
-  { value: 'host',    label: 'Host' },
-  { value: 'venue',   label: 'Venue' },
   { value: 'event',   label: 'Event' },
 ];
 
