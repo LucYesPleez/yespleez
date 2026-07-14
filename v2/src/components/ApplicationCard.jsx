@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import ds from '../screens/DiscoverScreen.module.css';
 import { formatLocation } from '../lib/formatLocation';
+import { socialProfileUrl, socialHandle, ensureHttps } from '../lib/socialLinks';
 
 function AppBtn({ onClick, disabled, base, hover, children }) {
   const [hov, setHov] = useState(false);
@@ -60,7 +61,7 @@ export default function ApplicationCard({ app, prof, event, onRespond, onAssign 
   const appliedLabel = app.created_at
     ? new Date(app.created_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })
     : '';
-  const mixLink = app.mix_link || p.mix_link;
+  const mixLink = ensureHttps(app.mix_link || p.mix_link);
 
   async function respond(status) {
     if (busy) return;
@@ -148,10 +149,7 @@ export default function ApplicationCard({ app, prof, event, onRespond, onAssign 
           {p.instagram && p.instagram !== 'N/A' && (
             <div style={{ display: 'flex', gap: 8, padding: '7px 0', borderBottom: '1px solid rgba(255,255,255,.05)' }}>
               <div style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1.5, color: 'var(--muted)', minWidth: 70, paddingTop: 2 }}>INSTAGRAM</div>
-              {(() => {
-                const h = p.instagram.replace(/^@/, '').replace(/^(?:https?:\/\/)?(?:www\.)?instagram\.com\/?/i, '').replace(/\/$/, '');
-                return <a href={`https://instagram.com/${h}`} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, color: accent }}>@{h}</a>;
-              })()}
+              <a href={socialProfileUrl('instagram', p.instagram)} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, color: accent }}>@{socialHandle('instagram', p.instagram)}</a>
             </div>
           )}
           {isPending && (

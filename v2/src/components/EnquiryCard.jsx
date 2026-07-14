@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { formatDisplayDate } from '../lib/dates';
 import { normaliseStatus } from '../lib/enquiryUtils';
 import { formatLocation } from '../lib/formatLocation';
+import { socialProfileUrl, socialHandle, ensureHttps } from '../lib/socialLinks';
 import ds from '../screens/DiscoverScreen.module.css';
 import DateBox from './DateBox';
 
@@ -278,13 +279,13 @@ export default function EnquiryCard({ enq, onRespond, onPlayDemo }) {
           {(p.mix_link || p.soundcloud || p.mixcloud) && (
             <div style={{ display: 'flex', gap: 8, padding: '7px 0', borderBottom: '1px solid rgba(255,255,255,.05)' }}>
               <div style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1.5, color: 'var(--muted)', minWidth: 70, paddingTop: 2 }}>MIX / DEMO</div>
-              <button onClick={() => onPlayDemo?.({ url: p.mix_link || p.soundcloud || p.mixcloud, artistName: name })} style={{ background: 'none', border: 'none', padding: 0, fontSize: 13, color: accent, cursor: 'pointer', textAlign: 'left' }}>Play demo</button>
+              <button onClick={() => onPlayDemo?.({ url: ensureHttps(p.mix_link) || socialProfileUrl('soundcloud', p.soundcloud) || socialProfileUrl('mixcloud', p.mixcloud), artistName: name })} style={{ background: 'none', border: 'none', padding: 0, fontSize: 13, color: accent, cursor: 'pointer', textAlign: 'left' }}>Play demo</button>
             </div>
           )}
           {p.instagram && p.instagram !== 'N/A' && (
             <div style={{ display: 'flex', gap: 8, padding: '7px 0', borderBottom: '1px solid rgba(255,255,255,.05)' }}>
               <div style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1.5, color: 'var(--muted)', minWidth: 70, paddingTop: 2 }}>INSTAGRAM</div>
-              {(() => { const h = p.instagram.replace(/^@/, '').replace(/^(?:https?:\/\/)?(?:www\.)?instagram\.com\/?/i, '').replace(/\/$/, ''); return <a href={`https://instagram.com/${h}`} target="_blank" rel="noopener" style={{ fontSize: 13, color: accent }}>@{h}</a>; })()}
+              <a href={socialProfileUrl('instagram', p.instagram)} target="_blank" rel="noopener" style={{ fontSize: 13, color: accent }}>@{socialHandle('instagram', p.instagram)}</a>
             </div>
           )}
           {enq.applicant_user_id && (

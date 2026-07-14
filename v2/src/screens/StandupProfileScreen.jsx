@@ -8,6 +8,7 @@ import ProfileFormShell from '../components/ProfileFormShell';
 import SectionBlock from '../components/SectionBlock';
 import SocialSection from '../components/SocialSection';
 import { VISIBLE_PERFORMANCE_ROLES, SHARED_PERFORMANCE_TAGS, ROLE_TAGS } from '../lib/profileTaxonomy';
+import { normalizeSocialValue, ensureHttps } from '../lib/socialLinks';
 
 const STATE_OPTIONS = ['NSW','VIC','QLD','WA','SA','TAS','ACT','NT','NZ','International'];
 const EXP_LEVELS   = ['EMERGING','DEVELOPING','ESTABLISHED','TOURING'];
@@ -186,8 +187,8 @@ export default function StandupProfileScreen() {
       set_length:      setLength ? parseInt(setLength) : null,
       location, state: locState, postcode,
       tagline, bio,
-      mix_link:        videoLink,
-      video_link:      videoLink,
+      mix_link:        ensureHttps(videoLink),
+      video_link:      ensureHttps(videoLink),
       genre_string,
       card_pills:      selTags.join(' · '),
       vibe_tags:       null,
@@ -205,11 +206,11 @@ export default function StandupProfileScreen() {
       has_abn:         hasAbn,
       abn,
       gst_registered:  gstReg,
-      instagram:     naFields.has('instagram')    ? 'N/A' : instagram,
-      tiktok:        naFields.has('tiktok')       ? 'N/A' : tiktok,
-      facebook:      naFields.has('facebook')     ? 'N/A' : facebook,
+      instagram:     naFields.has('instagram')    ? 'N/A' : normalizeSocialValue('instagram', instagram),
+      tiktok:        naFields.has('tiktok')       ? 'N/A' : normalizeSocialValue('tiktok', tiktok),
+      facebook:      naFields.has('facebook')     ? 'N/A' : normalizeSocialValue('facebook', facebook),
       contact_email: naFields.has('contactEmail') ? 'N/A' : contactEmail,
-      website:       naFields.has('website')      ? 'N/A' : website,
+      website:       naFields.has('website')      ? 'N/A' : normalizeSocialValue('website', website),
     };
     runSave(async () => {
       const { error } = await supabase.from('profiles').upsert(payload, { onConflict: 'user_id,type' });
@@ -444,7 +445,7 @@ export default function StandupProfileScreen() {
                   { icon: 'tt',    key: 'tiktok',       value: tiktok,       onChange: e => setTiktok(e.target.value),       placeholder: '@handle or URL' },
                   { icon: 'fb',    key: 'facebook',     value: facebook,     onChange: e => setFacebook(e.target.value),     placeholder: 'facebook.com/…' },
                   { icon: 'email', key: 'contactEmail', value: contactEmail, onChange: e => setContactEmail(e.target.value), placeholder: 'Booking email',       type: 'email' },
-                  { icon: 'web',   key: 'website',      value: website,      onChange: e => setWebsite(e.target.value),      placeholder: 'https://yoursite.com', type: 'url' },
+                  { icon: 'web',   key: 'website',      value: website,      onChange: e => setWebsite(e.target.value),      placeholder: 'yoursite.com' },
                 ]}
                 naFields={naFields}
                 onToggleNa={toggleNa}

@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { writeNotification } from '../lib/writeNotification';
 import { profileUrl } from '../lib/profileResolution';
+import { ensureHttps } from '../lib/socialLinks';
 import s from './ApplicationsScreen.module.css';
 
 const STATUS_TABS = ['PENDING', 'TENTATIVE', 'OFFERED', 'CONFIRMED', 'REJECTED'];
@@ -120,7 +121,7 @@ function AppCard({ app, profile, onAccept, onReject }) {
   const name   = profile?.name  || `Artist #${app.artist_id?.slice(0, 6)}`;
   const sound  = profile?.sound || profile?.genre_string || '';
   const isPending = (app.status || 'pending') === 'pending';
-  const mixLink = app.mix_link || profile?.mix_link;
+  const mixLink = ensureHttps(app.mix_link || profile?.mix_link);
 
   return (
     <div className={s.card}>

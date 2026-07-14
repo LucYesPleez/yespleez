@@ -8,6 +8,7 @@ import ProfileFormShell from '../components/ProfileFormShell';
 import SectionBlock from '../components/SectionBlock';
 import SocialSection from '../components/SocialSection';
 import { MAIN_GENRES, HOST_GENRES, ALL_GENRES, SUBGENRES, HOST_CATEGORIES, VISIBLE_HOST_CATEGORIES } from '../lib/profileTaxonomy';
+import { normalizeSocialValue } from '../lib/socialLinks';
 
 const STATE_OPTIONS = ['NSW','VIC','QLD','WA','SA','TAS','ACT','NT','NZ','International'];
 
@@ -169,9 +170,9 @@ export default function HostProfileScreen() {
       user_id: userId, type: 'host',
       name, years, location, state, postcode,
       tagline, sound, bio,
-      instagram:     naFields.has('instagram')    ? 'N/A' : instagram,
-      facebook:      naFields.has('facebook')     ? 'N/A' : facebook,
-      website:       naFields.has('website')      ? 'N/A' : website,
+      instagram:     naFields.has('instagram')    ? 'N/A' : normalizeSocialValue('instagram', instagram),
+      facebook:      naFields.has('facebook')     ? 'N/A' : normalizeSocialValue('facebook', facebook),
+      website:       naFields.has('website')      ? 'N/A' : normalizeSocialValue('website', website),
       contact_email: naFields.has('contactEmail') ? 'N/A' : contactEmail,
       genre_string, avatar: avatarHero || avatarUrl,
       avatar_hero: avatarHero || null, avatar_thumb: avatarThumb || null,
@@ -328,9 +329,9 @@ export default function HostProfileScreen() {
         <Section title="CONTACT + SOCIALS">
           <SocialSection
             links={[
-              { icon: 'ig',    key: 'instagram',    value: instagram,    onChange: e => setInstagram(e.target.value),    placeholder: '@yourhandle' },
-              { icon: 'fb',    key: 'facebook',     value: facebook,     onChange: e => setFacebook(e.target.value),     placeholder: 'https://facebook.com/…', type: 'url' },
-              { icon: 'web',   key: 'website',      value: website,      onChange: e => setWebsite(e.target.value),      placeholder: 'Website',               type: 'url' },
+              { icon: 'ig',    key: 'instagram',    value: instagram,    onChange: e => setInstagram(e.target.value),    placeholder: '@handle or link' },
+              { icon: 'fb',    key: 'facebook',     value: facebook,     onChange: e => setFacebook(e.target.value),     placeholder: '@handle or link' },
+              { icon: 'web',   key: 'website',      value: website,      onChange: e => setWebsite(e.target.value),      placeholder: 'Website' },
               { icon: 'email', key: 'contactEmail', value: contactEmail, onChange: e => setContactEmail(e.target.value), placeholder: 'Booking contact email',  type: 'email' },
             ]}
             naFields={naFields}

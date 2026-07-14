@@ -14,6 +14,7 @@ import { likedEvents } from '../lib/likedEvents';
 import { resolveProfileId } from '../lib/resolveProfileId';
 import { getDemoEventById } from '../lib/demoEvents';
 import DemoEventNotice from '../components/DemoEventNotice';
+import { socialProfileUrl, ensureHttps } from '../lib/socialLinks';
 import {
   DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragOverlay,
 } from '@dnd-kit/core';
@@ -1442,7 +1443,7 @@ function SlotCard({ slot, claim, onFill, onEdit, onRemove, onPin, isHost, isSort
               {/* Social icons — centre, brand colours */}
               <div style={{ flex: 1, display: 'flex', justifyContent: 'center', gap: 12, alignItems: 'center', opacity: 0.8 }}>
                 {claim.instagram && (
-                  <a href={claim.instagram.startsWith('http') ? claim.instagram : `https://instagram.com/${claim.instagram.replace('@','')}`} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center' }}>
+                  <a href={socialProfileUrl('instagram', claim.instagram)} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center' }}>
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                       <defs><linearGradient id="ig" x1="0%" y1="100%" x2="100%" y2="0%"><stop offset="0%" stopColor="#F58529"/><stop offset="40%" stopColor="#DD2A7B"/><stop offset="100%" stopColor="#8134AF"/></linearGradient></defs>
                       <rect x="2" y="2" width="20" height="20" rx="5" stroke="url(#ig)"/>
@@ -1452,28 +1453,28 @@ function SlotCard({ slot, claim, onFill, onEdit, onRemove, onPin, isHost, isSort
                   </a>
                 )}
                 {(claim.soundcloud || claim.mix_link?.includes('soundcloud')) && (
-                  <a href={claim.soundcloud || claim.mix_link} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center' }}>
+                  <a href={socialProfileUrl('soundcloud', claim.soundcloud) || ensureHttps(claim.mix_link)} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center' }}>
                     <svg width="20" height="14" viewBox="0 0 24 16" fill="#FF5500">
                       <path d="M1.4 9.8c0-.5.4-.9.9-.9s.9.4.9.9v3.8c0 .5-.4.9-.9.9s-.9-.4-.9-.9V9.8zm2.4-.9c0-.6.5-1.1 1.1-1.1s1.1.5 1.1 1.1v4.7c0 .6-.5 1.1-1.1 1.1S3.8 14.2 3.8 13.6V8.9zm2.5-.4c0-.7.6-1.3 1.3-1.3s1.3.6 1.3 1.3v5.1c0 .7-.6 1.3-1.3 1.3S6.3 14.3 6.3 13.6V8.5zm2.6-.3c0-.8.6-1.4 1.4-1.4s1.4.6 1.4 1.4v5.4c0 .8-.6 1.4-1.4 1.4s-1.4-.6-1.4-1.4V8.2zm2.7.1c0-.9.7-1.6 1.6-1.6s1.6.7 1.6 1.6v5.2c0 .9-.7 1.6-1.6 1.6s-1.6-.7-1.6-1.6V8.3zm2.7-.6c0-1 .8-1.8 1.8-1.8s1.8.8 1.8 1.8v5.8c0 1-.8 1.8-1.8 1.8s-1.8-.8-1.8-1.8V7.7zm2.8 1.1c0-1 .8-1.9 1.9-1.9s1.9.8 1.9 1.9v4.5c0 1-.8 1.9-1.9 1.9s-1.9-.8-1.9-1.9V8.8zm3-2c-.1 0-.3 0-.4.1C21.3 3.9 18.9 2 16.1 2c-1 0-1.9.3-2.7.7-.3.2-.4.4-.4.5v10.4c0 .2.1.3.3.3h8.9c.7 0 1.3-.6 1.3-1.3V8.8c0-1.1-.9-2-2-2z"/>
                     </svg>
                   </a>
                 )}
                 {(claim.mixcloud || claim.mix_link?.includes('mixcloud')) && (
-                  <a href={claim.mixcloud || claim.mix_link} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center' }}>
+                  <a href={socialProfileUrl('mixcloud', claim.mixcloud) || ensureHttps(claim.mix_link)} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center' }}>
                     <svg width="22" height="14" viewBox="0 0 32 16" fill="#52AAD8">
                       <path d="M20 2c-3.3 0-6.1 2.2-6.9 5.2-.6-.4-1.3-.6-2.1-.6-2.2 0-3.9 1.8-3.9 4s1.7 4 3.9 4h13.1c2 0 3.6-1.6 3.6-3.6 0-1.8-1.3-3.3-3-3.5V7c0-3.3-2.7-5-4.7-5zM4.5 6C2 6.2 0 8.4 0 11v.1C-.9 11.5-1.5 12.5-1.5 13.5c0 1.7 1.3 3 3 3H2V6H1.5c-.7 0-1.3.3-1.8.6C-.7 5.5.1 4.5 1 3.8c.2-.2.5-.3.8-.4h.3c.4 0 .8.2 1.1.4l.2.3c-.4.2-.7.6-.9 1.2-.1.2-.1.5-.1.7H4.5z"/>
                     </svg>
                   </a>
                 )}
                 {claim.youtube && (
-                  <a href={claim.youtube} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center' }}>
+                  <a href={socialProfileUrl('youtube', claim.youtube)} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center' }}>
                     <svg width="20" height="14" viewBox="0 0 24 16" fill="#FF0000">
                       <path d="M23.5 2.5a3 3 0 0 0-2.1-2.1C19.5 0 12 0 12 0S4.5 0 2.6.4A3 3 0 0 0 .5 2.5 31 31 0 0 0 0 8a31 31 0 0 0 .5 5.5 3 3 0 0 0 2.1 2.1C4.5 16 12 16 12 16s7.5 0 9.4-.4a3 3 0 0 0 2.1-2.1A31 31 0 0 0 24 8a31 31 0 0 0-.5-5.5zM9.75 11.5v-7L16 8l-6.25 3.5z"/>
                     </svg>
                   </a>
                 )}
                 {claim.website && (
-                  <a href={claim.website} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} style={{ color: 'var(--muted)', display: 'flex', alignItems: 'center' }}>
+                  <a href={ensureHttps(claim.website)} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} style={{ color: 'var(--muted)', display: 'flex', alignItems: 'center' }}>
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
                   </a>
                 )}

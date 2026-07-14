@@ -6,6 +6,7 @@ import AvatarUpload from '../components/AvatarUpload';
 import s from './ArtistProfileScreen.module.css';
 import PostcodePrompt from '../components/PostcodePrompt';
 import CardTagPicker from '../components/CardTagPicker';
+import { normalizeSocialValue, ensureHttps } from '../lib/socialLinks';
 
 const STATE_OPTIONS = ['NSW','VIC','QLD','WA','SA','TAS','ACT','NT','NZ','International'];
 
@@ -202,10 +203,10 @@ export default function VenueProfileScreen() {
         abn:              abn.trim(),
         gst_registered:   gst,
         contact_email:    naFields.has('email')     ? 'N/A' : email.trim(),
-        website:          naFields.has('website')   ? 'N/A' : website.trim(),
-        instagram:        naFields.has('instagram') ? 'N/A' : instagram.trim(),
-        facebook:         naFields.has('facebook')  ? 'N/A' : facebook.trim(),
-        tiktok:           naFields.has('tiktok')    ? 'N/A' : tiktok.trim(),
+        website:          naFields.has('website')   ? 'N/A' : normalizeSocialValue('website', website),
+        instagram:        naFields.has('instagram') ? 'N/A' : normalizeSocialValue('instagram', instagram),
+        facebook:         naFields.has('facebook')  ? 'N/A' : normalizeSocialValue('facebook', facebook),
+        tiktok:           naFields.has('tiktok')    ? 'N/A' : normalizeSocialValue('tiktok', tiktok),
         avatar:           avatarHero || avatarUrl || null,
         avatar_hero:      avatarHero || null,
         avatar_thumb:     avatarThumb || null,
@@ -465,10 +466,10 @@ export default function VenueProfileScreen() {
           <div className={s.sectionTitle} style={SECTION_TITLE_STYLE}><GH>SOCIALS + LINKS</GH></div>
           {[
             { key: 'email',     svg: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#e8e8f0" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m2 7 10 7 10-7"/></svg>, val: email, set: setEmail, placeholder: 'Booking / enquiry email', type: 'email' },
-            { key: 'website',   svg: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#e8e8f0" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>, val: website, set: setWebsite, placeholder: 'Website URL', type: 'url' },
+            { key: 'website',   svg: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#e8e8f0" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>, val: website, set: setWebsite, placeholder: 'Website', type: 'text' },
             { key: 'instagram', svg: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><defs><linearGradient id="ig" x1="0%" y1="100%" x2="100%" y2="0%"><stop offset="0%" stopColor="#f09433"/><stop offset="25%" stopColor="#e6683c"/><stop offset="50%" stopColor="#dc2743"/><stop offset="75%" stopColor="#cc2366"/><stop offset="100%" stopColor="#bc1888"/></linearGradient></defs><rect x="2" y="2" width="20" height="20" rx="5" stroke="url(#ig)"/><circle cx="12" cy="12" r="5" stroke="url(#ig)"/><circle cx="17.5" cy="6.5" r="1" fill="#dc2743"/></svg>, val: instagram, set: setInstagram, placeholder: '@yourhandle', type: 'text' },
             { key: 'tiktok',    svg: <svg width="20" height="20" viewBox="0 0 24 24" fill="#e8e8f0"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1-2.89-2.89 2.89 2.89 0 0 1 2.89-2.89c.28 0 .54.04.79.1V9.01a6.33 6.33 0 0 0-.79-.05 6.34 6.34 0 0 0-6.34 6.34 6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.33-6.34V8.69a8.17 8.17 0 0 0 4.78 1.52V6.74a4.85 4.85 0 0 1-1.01-.05z"/></svg>, val: tiktok, set: setTiktok, placeholder: '@tiktokhandle', type: 'text' },
-            { key: 'facebook',  svg: <svg width="20" height="20" viewBox="0 0 24 24" fill="#1877F2"><path d="M24 12.073C24 5.405 18.627 0 12 0S0 5.405 0 12.073C0 18.1 4.388 23.094 10.125 24v-8.437H7.078v-3.49h3.047V9.41c0-3.025 1.792-4.697 4.533-4.697 1.312 0 2.686.236 2.686.236v2.97h-1.513c-1.491 0-1.956.93-1.956 1.886v2.267h3.328l-.532 3.49h-2.796V24C19.612 23.094 24 18.1 24 12.073z"/></svg>, val: facebook, set: setFacebook, placeholder: 'Facebook URL', type: 'url' },
+            { key: 'facebook',  svg: <svg width="20" height="20" viewBox="0 0 24 24" fill="#1877F2"><path d="M24 12.073C24 5.405 18.627 0 12 0S0 5.405 0 12.073C0 18.1 4.388 23.094 10.125 24v-8.437H7.078v-3.49h3.047V9.41c0-3.025 1.792-4.697 4.533-4.697 1.312 0 2.686.236 2.686.236v2.97h-1.513c-1.491 0-1.956.93-1.956 1.886v2.267h3.328l-.532 3.49h-2.796V24C19.612 23.094 24 18.1 24 12.073z"/></svg>, val: facebook, set: setFacebook, placeholder: '@handle or link', type: 'text' },
           ].map(({ key, svg, val, set, placeholder, type }) => {
             const na = naFields.has(key);
             return (

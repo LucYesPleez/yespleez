@@ -9,6 +9,7 @@ import ProfileFormShell from '../components/ProfileFormShell';
 import SectionBlock from '../components/SectionBlock';
 import SocialSection from '../components/SocialSection';
 import { MAIN_GENRES, SUBGENRES, VIBES } from '../lib/profileTaxonomy';
+import { normalizeSocialValue, ensureHttps } from '../lib/socialLinks';
 
 const STATE_OPTIONS = ['NSW','VIC','QLD','WA','SA','TAS','ACT','NT','NZ','International'];
 const EXP_LEVELS   = ['EMERGING','DEVELOPING','ESTABLISHED','TOURING'];
@@ -216,13 +217,13 @@ export default function ArtistProfileScreen() {
       user_id: userId, type: 'artist',
       name, label, years, location, state: locState, postcode,
       sound, tagline, bio,
-      mix_link: mixLink,
-      soundcloud: naFields.has('soundcloud') ? 'N/A' : soundcloud,
-      mixcloud:   naFields.has('mixcloud')   ? 'N/A' : mixcloud,
-      instagram:  naFields.has('instagram')  ? 'N/A' : instagram,
-      youtube:    naFields.has('youtube')    ? 'N/A' : youtube,
-      facebook:   naFields.has('facebook')   ? 'N/A' : facebook,
-      website:    naFields.has('website')    ? 'N/A' : website,
+      mix_link: ensureHttps(mixLink),
+      soundcloud: naFields.has('soundcloud') ? 'N/A' : normalizeSocialValue('soundcloud', soundcloud),
+      mixcloud:   naFields.has('mixcloud')   ? 'N/A' : normalizeSocialValue('mixcloud', mixcloud),
+      instagram:  naFields.has('instagram')  ? 'N/A' : normalizeSocialValue('instagram', instagram),
+      youtube:    naFields.has('youtube')    ? 'N/A' : normalizeSocialValue('youtube', youtube),
+      facebook:   naFields.has('facebook')   ? 'N/A' : normalizeSocialValue('facebook', facebook),
+      website:    naFields.has('website')    ? 'N/A' : normalizeSocialValue('website', website),
       genre_string, avatar: avatarHero || avatarUrl,
       avatar_hero: avatarHero || null, avatar_thumb: avatarThumb || null,
       card_pills:      selTags.join(' · '),
@@ -381,7 +382,7 @@ export default function ArtistProfileScreen() {
             <Section title="YOUR DEMO MIX">
               <p className={s.sectionHint}>This is what promoters listen to first — it's your audition. Keep it current and make it count. We suggest around 20 minutes.</p>
               <SocialSection
-                links={[{ icon: 'headphones', key: 'mixLink', value: mixLink, onChange: e => setMixLink(e.target.value), placeholder: 'SoundCloud / Mixcloud / YouTube link', type: 'url', noNa: true }]}
+                links={[{ icon: 'headphones', key: 'mixLink', value: mixLink, onChange: e => setMixLink(e.target.value), placeholder: 'SoundCloud / Mixcloud / YouTube link', noNa: true }]}
                 naFields={naFields}
                 onToggleNa={toggleNa}
                 inputClass={s.input}
@@ -510,11 +511,11 @@ export default function ArtistProfileScreen() {
             <Section title="SOCIALS + LINKS">
               <SocialSection
                 links={[
-                  { icon: 'sc', key: 'soundcloud', value: soundcloud, onChange: e => setSoundcloud(e.target.value), placeholder: 'SoundCloud', type: 'url' },
-                  { icon: 'mc', key: 'mixcloud',   value: mixcloud,   onChange: e => setMixcloud(e.target.value),   placeholder: 'Mixcloud',   type: 'url' },
-                  { icon: 'ig', key: 'instagram',  value: instagram,  onChange: e => setInstagram(e.target.value),  placeholder: '@yourhandle' },
-                  { icon: 'yt', key: 'youtube',    value: youtube,    onChange: e => setYoutube(e.target.value),    placeholder: 'YouTube',    type: 'url' },
-                  { icon: 'fb', key: 'facebook',   value: facebook,   onChange: e => setFacebook(e.target.value),   placeholder: 'https://facebook.com/…', type: 'url' },
+                  { icon: 'sc', key: 'soundcloud', value: soundcloud, onChange: e => setSoundcloud(e.target.value), placeholder: '@handle or link' },
+                  { icon: 'mc', key: 'mixcloud',   value: mixcloud,   onChange: e => setMixcloud(e.target.value),   placeholder: '@handle or link' },
+                  { icon: 'ig', key: 'instagram',  value: instagram,  onChange: e => setInstagram(e.target.value),  placeholder: '@handle or link' },
+                  { icon: 'yt', key: 'youtube',    value: youtube,    onChange: e => setYoutube(e.target.value),    placeholder: '@handle or link' },
+                  { icon: 'fb', key: 'facebook',   value: facebook,   onChange: e => setFacebook(e.target.value),   placeholder: '@handle or link' },
                 ]}
                 naFields={naFields}
                 onToggleNa={toggleNa}

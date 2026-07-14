@@ -8,6 +8,7 @@ import ProfileFormShell from '../components/ProfileFormShell';
 import SectionBlock from '../components/SectionBlock';
 import SocialSection from '../components/SocialSection';
 import { BAND_GENRES, BAND_SUBGENRES, BAND_VIBES } from '../lib/profileTaxonomy';
+import { normalizeSocialValue, ensureHttps } from '../lib/socialLinks';
 
 const STATE_OPTIONS = ['NSW','VIC','QLD','WA','SA','TAS','ACT','NT','NZ','International'];
 const EXP_LEVELS   = ['EMERGING','DEVELOPING','ESTABLISHED','TOURING'];
@@ -170,7 +171,7 @@ export default function BandProfileScreen() {
       established_year: established ? parseInt(established) : null,
       location, state: locState, postcode,
       tagline, bio,
-      mix_link: epkLink, epk_link: epkLink,
+      mix_link: ensureHttps(epkLink), epk_link: ensureHttps(epkLink),
       genre_string, card_pills, avatar: avatarHero || avatarUrl,
       avatar_hero: avatarHero || null, avatar_thumb: avatarThumb || null,
       experience:      expLevel,
@@ -185,13 +186,13 @@ export default function BandProfileScreen() {
       has_abn:         hasAbn,
       abn,
       gst_registered:  gstReg,
-      spotify:       naFields.has('spotify')      ? 'N/A' : spotify,
-      soundcloud:    naFields.has('soundcloud')   ? 'N/A' : soundcloud,
-      youtube:       naFields.has('youtube')      ? 'N/A' : youtube,
-      instagram:     naFields.has('instagram')    ? 'N/A' : instagram,
-      facebook:      naFields.has('facebook')     ? 'N/A' : facebook,
+      spotify:       naFields.has('spotify')      ? 'N/A' : normalizeSocialValue('spotify', spotify),
+      soundcloud:    naFields.has('soundcloud')   ? 'N/A' : normalizeSocialValue('soundcloud', soundcloud),
+      youtube:       naFields.has('youtube')      ? 'N/A' : normalizeSocialValue('youtube', youtube),
+      instagram:     naFields.has('instagram')    ? 'N/A' : normalizeSocialValue('instagram', instagram),
+      facebook:      naFields.has('facebook')     ? 'N/A' : normalizeSocialValue('facebook', facebook),
       contact_email: naFields.has('contactEmail') ? 'N/A' : contactEmail,
-      website:       naFields.has('website')      ? 'N/A' : website,
+      website:       naFields.has('website')      ? 'N/A' : ensureHttps(website),
     };
     runSave(async () => {
       const { error } = await supabase.from('profiles').upsert(payload, { onConflict: 'user_id,type' });
@@ -425,13 +426,13 @@ export default function BandProfileScreen() {
             <Section title="SOCIALS + LINKS">
               <SocialSection
                 links={[
-                  { icon: 'spotify', key: 'spotify',      value: spotify,       onChange: e => setSpotify(e.target.value),      placeholder: 'Spotify artist URL',  type: 'url' },
-                  { icon: 'sc',      key: 'soundcloud',   value: soundcloud,    onChange: e => setSoundcloud(e.target.value),   placeholder: 'soundcloud.com/...',   type: 'url' },
-                  { icon: 'yt',      key: 'youtube',      value: youtube,       onChange: e => setYoutube(e.target.value),      placeholder: 'YouTube channel URL',  type: 'url' },
-                  { icon: 'ig',      key: 'instagram',    value: instagram,     onChange: e => setInstagram(e.target.value),    placeholder: '@handle or URL' },
-                  { icon: 'fb',      key: 'facebook',     value: facebook,      onChange: e => setFacebook(e.target.value),     placeholder: 'facebook.com/...',     type: 'url' },
+                  { icon: 'spotify', key: 'spotify',      value: spotify,       onChange: e => setSpotify(e.target.value),      placeholder: '@handle or link' },
+                  { icon: 'sc',      key: 'soundcloud',   value: soundcloud,    onChange: e => setSoundcloud(e.target.value),   placeholder: '@handle or link' },
+                  { icon: 'yt',      key: 'youtube',      value: youtube,       onChange: e => setYoutube(e.target.value),      placeholder: '@handle or link' },
+                  { icon: 'ig',      key: 'instagram',    value: instagram,     onChange: e => setInstagram(e.target.value),    placeholder: '@handle or link' },
+                  { icon: 'fb',      key: 'facebook',     value: facebook,      onChange: e => setFacebook(e.target.value),     placeholder: '@handle or link' },
                   { icon: 'email',   key: 'contactEmail', value: contactEmail,  onChange: e => setContactEmail(e.target.value), placeholder: 'Booking email',        type: 'email' },
-                  { icon: 'web',     key: 'website',      value: website,       onChange: e => setWebsite(e.target.value),      placeholder: 'https://yourband.com', type: 'url' },
+                  { icon: 'web',     key: 'website',      value: website,       onChange: e => setWebsite(e.target.value),      placeholder: 'yourband.com' },
                 ]}
                 naFields={naFields}
                 onToggleNa={toggleNa}

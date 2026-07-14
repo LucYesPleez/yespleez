@@ -11,6 +11,7 @@ import ClaimDialog from '../components/ClaimDialog';
 import { resolveProfileRoute, profileUrl } from '../lib/profileResolution';
 import PastEventsSearch, { filterPastEvents } from '../components/PastEventsSearch';
 import { formatLocation } from '../lib/formatLocation';
+import { socialProfileUrl, ensureHttps } from '../lib/socialLinks';
 
 const TYPE_ACCENTS = {
   host:    { col: '#FF2D78',      rgb: '255,45,120',  label: 'HOST',                grad2: '#BF5FFF' },
@@ -265,7 +266,7 @@ export default function ProfileScreen() {
     || PLACEHOLDER_HERO[profile.type] || null;
   const label   = isVenue ? ta.label : (profile.band_type || profile.act_type || ta.label);
   const loc     = formatLocation(profile);
-  const mixLink = profile.mix_link || profile.soundcloud || profile.mixcloud || '';
+  const mixLink = ensureHttps(profile.mix_link) || socialProfileUrl('soundcloud', profile.soundcloud) || socialProfileUrl('mixcloud', profile.mixcloud) || '';
 
   const tagline = (() => {
     const tl = (profile.tagline || '').trim();
@@ -280,18 +281,18 @@ export default function ProfileScreen() {
   const visibleGenres = genreExpanded ? genres : genres.slice(0, 5);
 
   const na = v => !v || v === 'N/A';
-  const igHandle = v => v.replace(/^@/, '').replace(/^(?:https?:\/\/)?(?:www\.)?instagram\.com\/?/i, '').replace(/\/$/, '');
-  const fbUrl = v => { const slug = v.replace(/^(?:https?:\/\/)?(?:www\.)?facebook\.com\/?/i, '').replace(/\/$/, ''); return slug.startsWith('http') ? slug : `https://facebook.com/${slug}`; };
   // M5: the placeholder row-shape branch (social_links JSONB) is gone — the
   // resolver only returns profiles rows, whose socials are flat columns
   // (M3's promotion unpacked social_links into them).
   const socials = [
-        !na(profile.instagram) && { href: `https://instagram.com/${igHandle(profile.instagram)}`, col: '#E1306C', icon: 'instagram' },
-        !na(profile.facebook)  && { href: fbUrl(profile.facebook), col: '#1877F2', icon: 'facebook' },
-        !na(profile.youtube)   && { href: profile.youtube?.startsWith('http') ? profile.youtube : 'https://'+profile.youtube, col: '#FF0000', icon: 'youtube' },
-        !na(profile.soundcloud) && { href: profile.soundcloud.startsWith('http') ? profile.soundcloud : 'https://'+profile.soundcloud, col: '#FF5500', icon: 'soundcloud' },
-        !na(profile.mixcloud)  && { href: profile.mixcloud.startsWith('http') ? profile.mixcloud : 'https://'+profile.mixcloud, col: '#52aad8', icon: 'mixcloud' },
-        !na(profile.website)   && { href: profile.website?.startsWith('http') ? profile.website : 'https://'+profile.website, col: 'var(--neon2)', icon: 'globe' },
+        !na(profile.instagram)  && { href: socialProfileUrl('instagram', profile.instagram),   col: '#E1306C',     icon: 'instagram' },
+        !na(profile.facebook)   && { href: socialProfileUrl('facebook', profile.facebook),     col: '#1877F2',     icon: 'facebook' },
+        !na(profile.tiktok)     && { href: socialProfileUrl('tiktok', profile.tiktok),         col: '#fff',        icon: 'tiktok' },
+        !na(profile.youtube)    && { href: socialProfileUrl('youtube', profile.youtube),       col: '#FF0000',     icon: 'youtube' },
+        !na(profile.soundcloud) && { href: socialProfileUrl('soundcloud', profile.soundcloud), col: '#FF5500',     icon: 'soundcloud' },
+        !na(profile.spotify)    && { href: socialProfileUrl('spotify', profile.spotify),       col: '#1DB954',     icon: 'spotify' },
+        !na(profile.mixcloud)   && { href: socialProfileUrl('mixcloud', profile.mixcloud),     col: '#52aad8',     icon: 'mixcloud' },
+        !na(profile.website)    && { href: ensureHttps(profile.website),                       col: 'var(--neon2)', icon: 'globe' },
         !na(profile.contact_email) && { href: `mailto:${profile.contact_email}`, col: '#aaaacc', icon: 'email' },
       ].filter(Boolean);
 
@@ -939,6 +940,8 @@ function SocialSvg({ icon }) {
     case 'youtube':   return <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M2.5 17a24.12 24.12 0 0 1 0-10 2 2 0 0 1 1.4-1.4 49.56 49.56 0 0 1 16.2 0A2 2 0 0 1 21.5 7a24.12 24.12 0 0 1 0 10 2 2 0 0 1-1.4 1.4 49.55 49.55 0 0 1-16.2 0A2 2 0 0 1 2.5 17"/><path d="m10 15 5-3-5-3z"/></svg>;
     case 'soundcloud':return <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M2 13.5A3.5 3.5 0 0 0 5.5 17h11a3 3 0 0 0 .5-5.965V11a5 5 0 0 0-9.3-2.5"/><path d="M5 11.5v1M7 10v3M9 9.5v4"/></svg>;
     case 'mixcloud':  return <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3z"/><path d="M3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg>;
+    case 'tiktok':    return <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1-2.89-2.89 2.89 2.89 0 0 1 2.89-2.89c.28 0 .54.04.79.1V9.01a6.33 6.33 0 0 0-.79-.05 6.34 6.34 0 0 0-6.34 6.34 6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.33-6.34V8.69a8.18 8.18 0 0 0 4.78 1.52V6.75a4.85 4.85 0 0 1-1.01-.06z"/></svg>;
+    case 'spotify':   return <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/></svg>;
     case 'email':     return <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m2 7 10 7 10-7"/></svg>;
     default:          return <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>;
   }
