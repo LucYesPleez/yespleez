@@ -104,10 +104,12 @@ export default function ApplicationCard({ app, prof, event, onRespond, onAssign 
 
       {expanded && (
         <div style={{ background: 'var(--card)', border: `1px solid rgba(${accentRgb},.35)`, borderTop: 'none', borderRadius: '0 0 14px 14px', padding: '12px 18px' }}>
+          {/* The applicant's curated "Your 5 Tags" (card_pills) — their final
+              identity, so it gets the signature Glow Pill display. */}
           {allTags.length > 0 && (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 10 }}>
+            <div className="glow-pills" style={{ marginBottom: 10 }}>
               {allTags.slice(0, 8).map(g => (
-                <span key={g} style={{ background: `rgba(${accentRgb},.1)`, border: `1px solid rgba(${accentRgb},.3)`, borderRadius: 20, fontSize: 10, padding: '2px 8px', color: accent }}>{g}</span>
+                <span key={g} className="glow-pill">{g}</span>
               ))}
             </div>
           )}

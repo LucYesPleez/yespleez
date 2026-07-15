@@ -1387,9 +1387,13 @@ function SlotCard({ slot, claim, onFill, onEdit, onRemove, onPin, isHost, isSort
       {expanded && !isEmpty && (isHost || isConfirmed || claim) && (
         <div style={{ background: 'var(--card2)', border: `1px solid ${borderCol}`, borderTop: 'none', borderRadius: '0 0 10px 10px', padding: '14px 16px' }}>
 
-          {/* Genre pills */}
+          {/* Genre pills — when a card_pills value exists, this IS the performer's
+              curated "Your 5 Tags" (their final identity), so it gets the
+              signature Glow Pill. Falls back to the raw genre field otherwise,
+              which keeps its existing look (that's not the curated 5). */}
           {(claim?.card_pills?.length || claim?.genre) && (() => {
-            const raw = claim.card_pills?.length ? claim.card_pills : claim.genre;
+            const usingCardPills = !!claim.card_pills?.length;
+            const raw = usingCardPills ? claim.card_pills : claim.genre;
             const all = Array.isArray(raw)
               ? raw
               : raw.split(/[·,|/]+/).map(g => g.trim()).filter(Boolean);
@@ -1399,7 +1403,9 @@ function SlotCard({ slot, claim, onFill, onEdit, onRemove, onPin, isHost, isSort
             return (
               <div ref={genreShowAll ? null : pillHintRef} style={{ display: 'flex', flexWrap: genreShowAll ? 'wrap' : 'nowrap', gap: 5, marginBottom: 14, overflowX: genreShowAll ? 'visible' : 'auto', overflowY: 'hidden', scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}>
                 {visible.map(g => (
-                  <span key={g} style={{ fontSize: 10, fontFamily: "'DM Sans',sans-serif", background: 'rgba(0,229,255,.08)', border: '1px solid rgba(0,229,255,.25)', color: '#fff', borderRadius: 20, padding: '2px 10px', whiteSpace: 'nowrap', flexShrink: 0 }}>{g}</span>
+                  usingCardPills
+                    ? <span key={g} className="glow-pill" style={{ whiteSpace: 'nowrap', flexShrink: 0 }}>{g}</span>
+                    : <span key={g} style={{ fontSize: 10, fontFamily: "'DM Sans',sans-serif", background: 'rgba(0,229,255,.08)', border: '1px solid rgba(0,229,255,.25)', color: '#fff', borderRadius: 20, padding: '2px 10px', whiteSpace: 'nowrap', flexShrink: 0 }}>{g}</span>
                 ))}
                 {!genreShowAll && rest > 0 && (
                   <button onClick={e => { e.stopPropagation(); setGenreShowAll(true); }}

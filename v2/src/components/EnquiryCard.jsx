@@ -242,10 +242,12 @@ export default function EnquiryCard({ enq, onRespond, onPlayDemo }) {
 
       {expanded && profile && (
         <div ref={expandRef} style={{ background: 'var(--card)', border: `1px solid rgba(${accentRgb},.35)`, borderTop: 'none', borderRadius: '0 0 14px 14px', padding: '12px 18px' }}>
+          {/* The applicant's curated "Your 5 Tags" (card_pills) — their final
+              identity, so it gets the signature Glow Pill display. */}
           {allTags.length > 0 && (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>
+            <div className="glow-pills" style={{ marginBottom: 8 }}>
               {allTags.slice(0, 8).map(g => (
-                <HoverPill key={g} label={g} accentRgb={accentRgb} accent="#fff" />
+                <span key={g} className="glow-pill">{g}</span>
               ))}
             </div>
           )}

@@ -403,7 +403,12 @@ export default function ProfileScreen() {
             <div className={s.glassCard} style={{ '--card-col': col, '--card-grad2': grad2, '--pill-col': col, '--pill-rgb': rgb, cursor: genres.length > 5 ? 'pointer' : 'default' }} onClick={() => genres.length > 5 && setGenreExpanded(e => !e)}>
               <div className={s.cardLabel} style={{ color: col }}>{isStandup ? 'STYLE' : 'GENRE'}</div>
               <div className={s.genrePills}>
-                {visibleGenres.map(g => <span key={g} className={s.genrePill}>{g}</span>)}
+                {/* Standup's STYLE pills are the curated "Your 5 Tags" (card_pills) —
+                    the user's final identity, so they get the signature Glow Pill.
+                    Every other type's GENRE pills here come from genre_string (the
+                    broader taxonomy, not the curated 5), so they keep the existing
+                    treatment. */}
+                {visibleGenres.map(g => <span key={g} className={isStandup ? 'glow-pill' : s.genrePill}>{g}</span>)}
                 {!genreExpanded && genres.length > 5 && (
                   <span className={s.genreMore}>+{genres.length - 5} more</span>
                 )}
@@ -437,8 +442,10 @@ export default function ProfileScreen() {
                 return (
                   <div style={{ padding: '14px 16px' }}>
                     <div className={s.cardLabel} style={{ color: col, marginBottom: 8 }}>VIBE</div>
+                    {/* Venue's VIBE pills are the curated "Your 5 Tags" (card_pills) —
+                        the user's final identity, so they get the signature Glow Pill. */}
                     <div className={s.genrePills}>
-                      {vibeTags.map(t => <span key={t} className={s.genrePill}>{t}</span>)}
+                      {vibeTags.map(t => <span key={t} className="glow-pill">{t}</span>)}
                     </div>
                   </div>
                 );
