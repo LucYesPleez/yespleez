@@ -5,9 +5,7 @@ import { useSession } from '../App';
 import AvatarUpload from '../components/AvatarUpload';
 import s from './ArtistProfileScreen.module.css';
 import PostcodePrompt from '../components/PostcodePrompt';
-import CardTagPicker from '../components/CardTagPicker';
 import { normalizeSocialValue, ensureHttps } from '../lib/socialLinks';
-import { PROFILE_TYPES } from '../lib/profileTypes';
 
 const STATE_OPTIONS = ['NSW','VIC','QLD','WA','SA','TAS','ACT','NT','NZ','International'];
 
@@ -43,9 +41,26 @@ const DAYS = ['MON','TUE','WED','THU','FRI','SAT','SUN'];
 
 const ACCENT   = '#00E5A0';
 const ACCENT2  = '#00B4D8';
-const CYAN     = '#00E5FF';
-const CYAN_RGB = '0,229,255';
 const SECTION_TITLE_STYLE = { borderImage: `linear-gradient(90deg, ${ACCENT}, ${ACCENT2}) 1` };
+
+// ── EXPERIMENTAL — Venue editor only (temporary aesthetic prototype) ───────
+// Same "Glass Pill" treatment as the Artist editor, re-tuned to the Venue
+// accent pair (ACCENT/ACCENT2) — see ArtistProfileScreen.jsx for the full
+// rationale. Scoped to this file only.
+const GLASS_CHIP_ON_STYLE = {
+  border: '1px solid transparent',
+  backgroundImage: [
+    `linear-gradient(135deg, rgba(0,229,160,.045), rgba(0,180,216,.04))`,
+    `linear-gradient(rgba(17,19,26,.62), rgba(17,19,26,.62))`,
+    `linear-gradient(135deg, #00C78B, #009DBC)`,
+  ].join(', '),
+  backgroundOrigin: 'padding-box, padding-box, border-box',
+  backgroundClip: 'padding-box, padding-box, border-box',
+  color: '#fff',
+  backdropFilter: 'blur(14px)',
+  WebkitBackdropFilter: 'blur(14px)',
+  boxShadow: 'inset 0 1px 0 rgba(255,255,255,.14)',
+};
 
 const GH = ({ children }) => (
   <span style={{ display: 'inline-block', background: `linear-gradient(135deg, ${ACCENT} 40%, ${ACCENT2} 100%)`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
@@ -171,6 +186,15 @@ export default function VenueProfileScreen() {
     const next = new Set(set);
     next.has(val) ? next.delete(val) : next.add(val);
     setFn(next);
+    setIsDirty(true);
+  }
+
+  function toggleCardPill(t) {
+    setCardPills(prev => {
+      if (prev.includes(t)) return prev.filter(x => x !== t);
+      if (prev.length >= 5) return prev;
+      return [...prev, t];
+    });
     setIsDirty(true);
   }
 
@@ -323,7 +347,7 @@ export default function VenueProfileScreen() {
               {VENUE_TYPES.map(t => (
                 <button key={t} type="button"
                   className={venueType.has(t) ? s.chipOn : s.chip}
-                  style={venueType.has(t) ? { background: `rgba(${CYAN_RGB},.15)`, borderColor: CYAN, color: CYAN } : { background: `rgba(${CYAN_RGB},.06)`, borderColor: `rgba(${CYAN_RGB},.2)` }}
+                  style={venueType.has(t) ? GLASS_CHIP_ON_STYLE : undefined}
                   onClick={() => toggleSet(venueType, setVenueType, t)}>{t}</button>
               ))}
             </div>
@@ -350,7 +374,7 @@ export default function VenueProfileScreen() {
             {ATMOSPHERE_TAGS.map(t => (
               <button key={t} type="button"
                 className={atmosphere.has(t) ? s.chipOn : s.chip}
-                style={atmosphere.has(t) ? { background: `rgba(${CYAN_RGB},.15)`, borderColor: CYAN, color: CYAN } : { background: `rgba(${CYAN_RGB},.06)`, borderColor: `rgba(${CYAN_RGB},.2)` }}
+                style={atmosphere.has(t) ? GLASS_CHIP_ON_STYLE : undefined}
                 onClick={() => toggleSet(atmosphere, setAtmosphere, t)}>{t}</button>
             ))}
           </div>
@@ -363,7 +387,7 @@ export default function VenueProfileScreen() {
             {PERFECT_FOR.map(t => (
               <button key={t} type="button"
                 className={perfectFor.has(t) ? s.chipOn : s.chip}
-                style={perfectFor.has(t) ? { background: `rgba(${CYAN_RGB},.15)`, borderColor: CYAN, color: CYAN } : { background: `rgba(${CYAN_RGB},.06)`, borderColor: `rgba(${CYAN_RGB},.2)` }}
+                style={perfectFor.has(t) ? GLASS_CHIP_ON_STYLE : undefined}
                 onClick={() => toggleSet(perfectFor, setPerfectFor, t)}>{t}</button>
             ))}
           </div>
@@ -375,27 +399,42 @@ export default function VenueProfileScreen() {
           <div className={s.chips}>
             {ENTERTAINMENT.map(e => (
               <button key={e} type="button" className={entertain.has(e) ? s.chipOn : s.chip}
-                style={entertain.has(e) ? { background: `rgba(${CYAN_RGB},.15)`, borderColor: CYAN, color: CYAN } : { background: `rgba(${CYAN_RGB},.06)`, borderColor: `rgba(${CYAN_RGB},.2)` }}
+                style={entertain.has(e) ? GLASS_CHIP_ON_STYLE : undefined}
                 onClick={() => toggleSet(entertain, setEntertain, e)}>{e}</button>
             ))}
           </div>
         </div>
 
-        {/* Your 5 tags */}
+        {/* Your 5 tags — EXPERIMENTAL: Glass Pill treatment (Venue editor only).
+            This is a selection UI (actively picking your 5 tags), so per the
+            Glow-Pill-vs-Glass-Pill rule it stays on the same quiet Glass Pill
+            treatment as every other selector on this page, not Glow Pill —
+            Glow Pill is reserved for read-only display of the final result
+            elsewhere in the app (public profile, cards, applications, etc). */}
         {(() => {
           const tagPool = [...new Set([...entertain, ...atmosphere, ...perfectFor])];
           if (!tagPool.length) return null;
           return (
             <div className={s.section}>
               <div className={s.sectionTitle} style={SECTION_TITLE_STYLE}><GH>YOUR 5 TAGS</GH></div>
-              <CardTagPicker
-                tagPool={tagPool}
-                selected={cardPills}
-                onChange={pills => { setCardPills(pills); setIsDirty(true); }}
-                accent={PROFILE_TYPES.venue.accent}
-                accentRgb={PROFILE_TYPES.venue.rgb}
-                hint="Pick the tags that best describe your venue — shown on your profile card."
-              />
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+                {tagPool.map(t => {
+                  const on = cardPills.includes(t);
+                  const disabled = !on && cardPills.length >= 5;
+                  return (
+                    <button key={t} type="button" disabled={disabled} onClick={() => toggleCardPill(t)}
+                      className={on ? s.chipOn : s.chip}
+                      style={{ ...(on ? GLASS_CHIP_ON_STYLE : {}), opacity: disabled ? 0.35 : 1 }}
+                    >{t}</button>
+                  );
+                })}
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <p style={{ fontSize: 11, color: 'var(--muted)', margin: 0 }}>Pick the tags that best describe your venue — shown on your profile card.</p>
+                <span style={{ fontFamily: "'Bebas Neue'", fontSize: 11, letterSpacing: 1.5, color: cardPills.length >= 5 ? ACCENT : 'var(--muted)', marginLeft: 'auto' }}>
+                  {cardPills.length} / 5 selected
+                </span>
+              </div>
             </div>
           );
         })()}
@@ -415,7 +454,7 @@ export default function VenueProfileScreen() {
           <div className={s.chips} style={{ marginBottom: 12 }}>
             {TECH_OPTIONS.map(t => (
               <button key={t} type="button" className={tech.has(t) ? s.chipOn : s.chip}
-                style={tech.has(t) ? { background: `rgba(${CYAN_RGB},.15)`, borderColor: CYAN, color: CYAN, borderRadius: 6, fontFamily: "'Bebas Neue'", letterSpacing: 1.5 } : { background: `rgba(${CYAN_RGB},.06)`, borderColor: `rgba(${CYAN_RGB},.2)`, borderRadius: 6, fontFamily: "'Bebas Neue'", letterSpacing: 1.5 }}
+                style={tech.has(t) ? { ...GLASS_CHIP_ON_STYLE, borderRadius: 6, fontFamily: "'Bebas Neue'", letterSpacing: 1.5 } : { borderRadius: 6, fontFamily: "'Bebas Neue'", letterSpacing: 1.5 }}
                 onClick={() => toggleSet(tech, setTech, t)}>{t}</button>
             ))}
           </div>
@@ -432,7 +471,7 @@ export default function VenueProfileScreen() {
             {DAYS.map(d => (
               <button key={d} type="button"
                 className={days.has(d) ? s.catBtnOn : s.catBtn}
-                style={days.has(d) ? { background: `rgba(${CYAN_RGB},.15)`, borderColor: CYAN, color: CYAN, borderRadius: 6 } : { background: `rgba(${CYAN_RGB},.06)`, borderColor: `rgba(${CYAN_RGB},.2)`, borderRadius: 6 }}
+                style={days.has(d) ? { ...GLASS_CHIP_ON_STYLE, borderRadius: 6 } : { borderRadius: 6 }}
                 onClick={() => toggleSet(days, setDays, d)}>{d}</button>
             ))}
           </div>

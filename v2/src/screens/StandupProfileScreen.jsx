@@ -35,9 +35,34 @@ const COL  = '#FF88AA';
 const COL2 = '#BF5FFF';
 const GRAD = `linear-gradient(90deg, ${COL} 0%, ${COL2} 100%)`;
 
+// ── EXPERIMENTAL — Standup editor only (temporary aesthetic prototype) ─────
+// Same "Glass Pill" treatment as the Artist editor, re-tuned to the Standup
+// accent pair (COL/COL2) — see ArtistProfileScreen.jsx for the full
+// rationale. Scoped to this file only.
+const GLASS_CHIP_ON_STYLE = {
+  border: '1px solid transparent',
+  backgroundImage: [
+    `linear-gradient(135deg, rgba(255,136,170,.045), rgba(191,95,255,.04))`,
+    `linear-gradient(rgba(17,19,26,.62), rgba(17,19,26,.62))`,
+    `linear-gradient(135deg, #DE7694, #A653DE)`,
+  ].join(', '),
+  backgroundOrigin: 'padding-box, padding-box, border-box',
+  backgroundClip: 'padding-box, padding-box, border-box',
+  color: '#fff',
+  backdropFilter: 'blur(14px)',
+  WebkitBackdropFilter: 'blur(14px)',
+  boxShadow: 'inset 0 1px 0 rgba(255,255,255,.14)',
+};
+const EXPERIMENTAL_HEADING_STYLE = {
+  background: GRAD,
+  WebkitBackgroundClip: 'text',
+  WebkitTextFillColor: 'transparent',
+  backgroundClip: 'text',
+};
+
 function Section({ title, children }) {
   return (
-    <SectionBlock title={title} accent={COL} accent2={COL2} className={s.section} titleClassName={s.sectionTitle} titleStyle={{ color: COL, fontSize: 15 }}>
+    <SectionBlock title={title} accent={COL} accent2={COL2} className={s.section} titleClassName={s.sectionTitle} titleStyle={{ ...EXPERIMENTAL_HEADING_STYLE, fontSize: 15 }}>
       {children}
     </SectionBlock>
   );
@@ -291,7 +316,7 @@ export default function StandupProfileScreen() {
                   return (
                     <button key={key} type="button"
                       className={on ? s.catBtnOn : s.catBtn}
-                      style={on ? { background: 'rgba(255,136,170,.15)', borderColor: COL, color: COL } : {}}
+                      style={on ? GLASS_CHIP_ON_STYLE : undefined}
                       onClick={() => toggleRole(key)}>
                       {label}
                     </button>
@@ -309,7 +334,7 @@ export default function StandupProfileScreen() {
                   return (
                     <button key={t} type="button"
                       className={on ? s.chipOn : s.chip}
-                      style={on ? { background: 'rgba(255,136,170,.15)', borderColor: COL, color: COL } : {}}
+                      style={on ? GLASS_CHIP_ON_STYLE : undefined}
                       onClick={() => toggleStyleTag(t)}>
                       {t}
                     </button>
@@ -328,7 +353,7 @@ export default function StandupProfileScreen() {
                     return (
                       <button key={t} type="button"
                         className={on ? s.chipOn : s.chip}
-                        style={on ? { background: 'rgba(255,136,170,.15)', borderColor: COL, color: COL } : {}}
+                        style={on ? GLASS_CHIP_ON_STYLE : undefined}
                         onClick={() => toggleTag(t)}
                         disabled={!on && selTags.length >= 5}>
                         {t}
@@ -374,6 +399,7 @@ export default function StandupProfileScreen() {
                 {EXP_LEVELS.map(lv => (
                   <button key={lv} type="button"
                     className={expLevel === lv ? s.chipOn : s.chip}
+                    style={expLevel === lv ? GLASS_CHIP_ON_STYLE : undefined}
                     onClick={() => { setExpLevel(expLevel === lv ? '' : lv); setIsDirty(true); }}>
                     {lv}
                   </button>

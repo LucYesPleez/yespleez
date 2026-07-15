@@ -55,10 +55,36 @@ function genresForCats(cats) {
 
 const ACCENT  = '#FF2D78';
 const ACCENT2 = '#00E5FF';
+const GRAD    = `linear-gradient(90deg, ${ACCENT} 0%, ${ACCENT2} 100%)`;
+
+// ── EXPERIMENTAL — Host editor only (temporary aesthetic prototype) ────────
+// Same "Glass Pill" treatment as the Artist editor, re-tuned to the Host
+// accent pair (ACCENT/ACCENT2) — see ArtistProfileScreen.jsx for the full
+// rationale. Scoped to this file only.
+const GLASS_CHIP_ON_STYLE = {
+  border: '1px solid transparent',
+  backgroundImage: [
+    `linear-gradient(135deg, rgba(255,45,120,.045), rgba(0,229,255,.04))`,
+    `linear-gradient(rgba(17,19,26,.62), rgba(17,19,26,.62))`,
+    `linear-gradient(135deg, #DE2768, #00C7DE)`,
+  ].join(', '),
+  backgroundOrigin: 'padding-box, padding-box, border-box',
+  backgroundClip: 'padding-box, padding-box, border-box',
+  color: '#fff',
+  backdropFilter: 'blur(14px)',
+  WebkitBackdropFilter: 'blur(14px)',
+  boxShadow: 'inset 0 1px 0 rgba(255,255,255,.14)',
+};
+const EXPERIMENTAL_HEADING_STYLE = {
+  background: GRAD,
+  WebkitBackgroundClip: 'text',
+  WebkitTextFillColor: 'transparent',
+  backgroundClip: 'text',
+};
 
 function Section({ title, children }) {
   return (
-    <SectionBlock title={title} accent={ACCENT} accent2={ACCENT2} className={s.section} titleClassName={s.sectionTitle}>
+    <SectionBlock title={title} accent={ACCENT} accent2={ACCENT2} className={s.section} titleClassName={s.sectionTitle} titleStyle={EXPERIMENTAL_HEADING_STYLE}>
       {children}
     </SectionBlock>
   );
@@ -282,6 +308,7 @@ export default function HostProfileScreen() {
                 key={key}
                 type="button"
                 className={selCats.includes(key) ? s.catBtnOn : s.catBtn}
+                style={selCats.includes(key) ? GLASS_CHIP_ON_STYLE : undefined}
                 onClick={() => toggleCat(key)}
               >
                 {label}
@@ -294,7 +321,7 @@ export default function HostProfileScreen() {
         <Section title="GENRES YOU BOOK">
           <div className={s.chips}>
             {availableGenres.map(g => (
-              <button key={g} type="button" className={selGenres.includes(g) ? s.chipOn : s.chip} onClick={() => toggleGenre(g)}>
+              <button key={g} type="button" className={selGenres.includes(g) ? s.chipOn : s.chip} style={selGenres.includes(g) ? GLASS_CHIP_ON_STYLE : undefined} onClick={() => toggleGenre(g)}>
                 {g}
               </button>
             ))}
@@ -302,10 +329,10 @@ export default function HostProfileScreen() {
 
           {availSubs.length > 0 && (
             <>
-              <div className={s.subLabel}>SUB GENRES</div>
+              <div className={s.subLabel} style={{ ...EXPERIMENTAL_HEADING_STYLE, borderImage: `linear-gradient(90deg, ${ACCENT}, ${ACCENT2}) 1` }}>SUB GENRES</div>
               <div className={s.chips}>
                 {availSubs.map(sub => (
-                  <button key={sub} type="button" className={selSubs.includes(sub) ? s.chipOn : s.chip} onClick={() => toggleSub(sub)}>
+                  <button key={sub} type="button" className={selSubs.includes(sub) ? s.chipOn : s.chip} style={selSubs.includes(sub) ? GLASS_CHIP_ON_STYLE : undefined} onClick={() => toggleSub(sub)}>
                     {sub}
                   </button>
                 ))}
@@ -318,7 +345,7 @@ export default function HostProfileScreen() {
         <Section title="VIBES">
           <div className={s.chips}>
             {VIBES.map(v => (
-              <button key={v} type="button" className={selVibes.includes(v) ? s.chipOn : s.chip} onClick={() => toggleVibe(v)}>
+              <button key={v} type="button" className={selVibes.includes(v) ? s.chipOn : s.chip} style={selVibes.includes(v) ? GLASS_CHIP_ON_STYLE : undefined} onClick={() => toggleVibe(v)}>
                 {v}
               </button>
             ))}

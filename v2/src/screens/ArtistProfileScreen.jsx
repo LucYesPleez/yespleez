@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useSession } from '../App';
 import s from './ArtistProfileScreen.module.css';
-import CardTagPicker from '../components/CardTagPicker';
 import AvatarUpload from '../components/AvatarUpload';
 import { useProfileForm } from '../hooks/useProfileForm';
 import ProfileFormShell from '../components/ProfileFormShell';
@@ -40,6 +39,43 @@ function normalizeVibeToken(tok) {
 const ACCENT  = '#00E5FF';
 const ACCENT2 = '#FF3399';
 
+// ── EXPERIMENTAL — Artist editor only (temporary aesthetic prototype) ──────
+// "Glass Pill" selected-chip treatment: frosted/smoked glass fill with a
+// faint Artist-accent tint, a 1px accent->accent2 gradient border (via the
+// background-origin/clip layering trick, since `border` alone can't carry a
+// gradient), and a barely-there inset top highlight. Refinement pass: border
+// dimmed ~13% (darkened hex, not alpha, so it reads consistently regardless
+// of what's behind it), glass fill darkened ~13% and slightly denser, inner
+// tint cut roughly in half, and the outer bloom/glow removed entirely — the
+// pill now relies on the edge (border) for colour, not a surrounding glow.
+// Applied as an inline style on top of the existing .chipOn class —
+// padding/border-radius/font/cursor/transition all stay exactly as defined
+// there. Scoped to this file only; no shared component or CSS module touched.
+const GLASS_CHIP_ON_STYLE = {
+  border: '1px solid transparent',
+  backgroundImage: [
+    `linear-gradient(135deg, rgba(0,229,255,.045), rgba(255,51,153,.04))`,
+    `linear-gradient(rgba(17,19,26,.62), rgba(17,19,26,.62))`,
+    `linear-gradient(135deg, #00C7DE, #DE2C85)`,
+  ].join(', '),
+  backgroundOrigin: 'padding-box, padding-box, border-box',
+  backgroundClip: 'padding-box, padding-box, border-box',
+  color: '#fff',
+  backdropFilter: 'blur(14px)',
+  WebkitBackdropFilter: 'blur(14px)',
+  boxShadow: 'inset 0 1px 0 rgba(255,255,255,.14)',
+};
+// Gradient section-heading text, reusing the same canonical Artist gradient
+// as the page's own "MY PROFILE" title (font-size untouched — already 13px
+// across every profile editor, Artist included, so nothing to match here).
+// Divider lines are untouched — see Section below, separate borderImage.
+const EXPERIMENTAL_HEADING_STYLE = {
+  background: PROFILE_TYPES.artist.gradient,
+  WebkitBackgroundClip: 'text',
+  WebkitTextFillColor: 'transparent',
+  backgroundClip: 'text',
+};
+
 function parseProfile(data) {
   const str = data?.genre_string || '';
   const parts = new Set(str.split(' · ').map(x => x.trim()).filter(Boolean));
@@ -57,7 +93,7 @@ function buildGenreString(genres, subs, vibes) {
 
 function Section({ title, children }) {
   return (
-    <SectionBlock title={title} accent={ACCENT} accent2={ACCENT2} className={s.section} titleClassName={s.sectionTitle}>
+    <SectionBlock title={title} accent={ACCENT} accent2={ACCENT2} className={s.section} titleClassName={s.sectionTitle} titleStyle={EXPERIMENTAL_HEADING_STYLE}>
       {children}
     </SectionBlock>
   );
@@ -343,15 +379,15 @@ export default function ArtistProfileScreen() {
             <Section title="GENRES">
               <div className={s.chips}>
                 {MAIN_GENRES.map(g => (
-                  <button key={g} type="button" className={selGenres.includes(g) ? s.chipOn : s.chip} onClick={() => toggleGenre(g)}>{g}</button>
+                  <button key={g} type="button" className={selGenres.includes(g) ? s.chipOn : s.chip} style={selGenres.includes(g) ? GLASS_CHIP_ON_STYLE : undefined} onClick={() => toggleGenre(g)}>{g}</button>
                 ))}
               </div>
               {availSubs.length > 0 && (
                 <>
-                  <div className={s.subLabel}>SUB GENRES</div>
+                  <div className={s.subLabel} style={{ ...EXPERIMENTAL_HEADING_STYLE, borderImage: `linear-gradient(90deg, ${ACCENT}, ${ACCENT2}) 1` }}>SUB GENRES</div>
                   <div className={s.chips}>
                     {availSubs.map(sub => (
-                      <button key={sub} type="button" className={selSubs.includes(sub) ? s.chipOn : s.chip} onClick={() => toggleSub(sub)}>{sub}</button>
+                      <button key={sub} type="button" className={selSubs.includes(sub) ? s.chipOn : s.chip} style={selSubs.includes(sub) ? GLASS_CHIP_ON_STYLE : undefined} onClick={() => toggleSub(sub)}>{sub}</button>
                     ))}
                   </div>
                 </>
@@ -362,22 +398,37 @@ export default function ArtistProfileScreen() {
             <Section title="VIBES">
               <div className={s.chips}>
                 {VIBES.map(v => (
-                  <button key={v} type="button" className={selVibes.includes(v) ? s.chipOn : s.chip} onClick={() => toggleVibe(v)}>{v}</button>
+                  <button key={v} type="button" className={selVibes.includes(v) ? s.chipOn : s.chip} style={selVibes.includes(v) ? GLASS_CHIP_ON_STYLE : undefined} onClick={() => toggleVibe(v)}>{v}</button>
                 ))}
               </div>
             </Section>
 
-            {/* YOUR 5 CARD TAGS */}
+            {/* YOUR 5 CARD TAGS — EXPERIMENTAL: Glass Pill treatment (Artist editor
+                only). This is a selection UI (actively picking your 5 tags), so per
+                the Glow-Pill-vs-Glass-Pill rule it stays on the same quiet Glass
+                Pill treatment as every other selector on this page, not Glow Pill —
+                Glow Pill is reserved for read-only display of the final result
+                elsewhere in the app (public profile, cards, applications, etc). */}
             {tagPool.length > 0 && (
               <Section title="YOUR 5 CARD TAGS">
-                <CardTagPicker
-                  tagPool={tagPool}
-                  selected={selTags}
-                  onChange={pills => { setSelTags(pills); setIsDirty(true); }}
-                  accent={PROFILE_TYPES.artist.accent}
-                  accentRgb={PROFILE_TYPES.artist.rgb}
-                  hint="Pick the tags that best represent your sound — shown on your slot card and discovery profile."
-                />
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+                  {tagPool.map(t => {
+                    const on = selTags.includes(t);
+                    const disabled = !on && selTags.length >= 5;
+                    return (
+                      <button key={t} type="button" disabled={disabled} onClick={() => toggleTag(t)}
+                        className={on ? s.chipOn : s.chip}
+                        style={{ ...(on ? GLASS_CHIP_ON_STYLE : {}), opacity: disabled ? 0.35 : 1 }}
+                      >{t}</button>
+                    );
+                  })}
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <p style={{ fontSize: 11, color: 'var(--muted)', margin: 0 }}>Pick the tags that best represent your sound — shown on your slot card and discovery profile.</p>
+                  <span style={{ fontFamily: "'Bebas Neue'", fontSize: 11, letterSpacing: 1.5, color: selTags.length >= 5 ? PROFILE_TYPES.artist.accent : 'var(--muted)', marginLeft: 'auto' }}>
+                    {selTags.length} / 5 selected
+                  </span>
+                </div>
               </Section>
             )}
 
@@ -415,6 +466,7 @@ export default function ArtistProfileScreen() {
                 {EXP_LEVELS.map(lv => (
                   <button key={lv} type="button"
                     className={expLevel === lv ? s.chipOn : s.chip}
+                    style={expLevel === lv ? GLASS_CHIP_ON_STYLE : undefined}
                     onClick={() => { setExpLevel(lv); setIsDirty(true); }}
                   >{lv}</button>
                 ))}
@@ -444,6 +496,7 @@ export default function ArtistProfileScreen() {
                 {TECH_OPTIONS.map(t => (
                   <button key={t} type="button"
                     className={techSetup.includes(t) ? s.chipOn : s.chip}
+                    style={techSetup.includes(t) ? GLASS_CHIP_ON_STYLE : undefined}
                     onClick={() => toggleTech(t)}
                   >{t}</button>
                 ))}

@@ -29,9 +29,34 @@ const COL  = '#FFB830';
 const COL2 = '#FF8C42';
 const GRAD = `linear-gradient(90deg, ${COL} 0%, ${COL2} 100%)`;
 
+// ── EXPERIMENTAL — Band editor only (temporary aesthetic prototype) ────────
+// Same "Glass Pill" treatment as the Artist editor, re-tuned to the Band
+// accent pair (COL/COL2) — see ArtistProfileScreen.jsx for the full rationale.
+// Scoped to this file only.
+const GLASS_CHIP_ON_STYLE = {
+  border: '1px solid transparent',
+  backgroundImage: [
+    `linear-gradient(135deg, rgba(255,184,48,.045), rgba(255,140,66,.04))`,
+    `linear-gradient(rgba(17,19,26,.62), rgba(17,19,26,.62))`,
+    `linear-gradient(135deg, #DEA02A, #DE7A39)`,
+  ].join(', '),
+  backgroundOrigin: 'padding-box, padding-box, border-box',
+  backgroundClip: 'padding-box, padding-box, border-box',
+  color: '#fff',
+  backdropFilter: 'blur(14px)',
+  WebkitBackdropFilter: 'blur(14px)',
+  boxShadow: 'inset 0 1px 0 rgba(255,255,255,.14)',
+};
+const EXPERIMENTAL_HEADING_STYLE = {
+  background: GRAD,
+  WebkitBackgroundClip: 'text',
+  WebkitTextFillColor: 'transparent',
+  backgroundClip: 'text',
+};
+
 function Section({ title, children }) {
   return (
-    <SectionBlock title={title} accent={COL} accent2={COL2} className={s.section} titleClassName={s.sectionTitle}>
+    <SectionBlock title={title} accent={COL} accent2={COL2} className={s.section} titleClassName={s.sectionTitle} titleStyle={EXPERIMENTAL_HEADING_STYLE}>
       {children}
     </SectionBlock>
   );
@@ -285,34 +310,34 @@ export default function BandProfileScreen() {
               <Field label={<>TAGLINE <span style={{ fontSize:10, fontWeight:400, opacity:.55, letterSpacing:.3 }}>One line that captures your sound</span></>}>
                 <input className={s.input} value={tagline} onChange={e => setTagline(e.target.value)} placeholder="e.g. Psychedelic desert blues from the Blue Mountains" maxLength={120} />
               </Field>
-              <div className={s.subLabel}>GENRE</div>
+              <div className={s.subLabel} style={{ ...EXPERIMENTAL_HEADING_STYLE, borderImage: `linear-gradient(90deg, ${COL}, ${COL2}) 1` }}>GENRE</div>
               <div className={s.chips}>
                 {BAND_GENRES.map(g => (
                   <button key={g} type="button"
                     className={selGenres.includes(g) ? s.chipOn : s.chip}
-                    style={selGenres.includes(g) ? { background: `rgba(255,140,66,.15)`, borderColor: COL, color: COL } : {}}
+                    style={selGenres.includes(g) ? GLASS_CHIP_ON_STYLE : undefined}
                     onClick={() => toggleGenre(g)}>
                     {g}
                   </button>
                 ))}
               </div>
-              <div className={s.subLabel}>SUBGENRE</div>
+              <div className={s.subLabel} style={{ ...EXPERIMENTAL_HEADING_STYLE, borderImage: `linear-gradient(90deg, ${COL}, ${COL2}) 1` }}>SUBGENRE</div>
               <div className={s.chips}>
                 {BAND_SUBGENRES.map(g => (
                   <button key={g} type="button"
                     className={selSubs.includes(g) ? s.chipOn : s.chip}
-                    style={selSubs.includes(g) ? { background: `rgba(255,140,66,.15)`, borderColor: COL, color: COL } : {}}
+                    style={selSubs.includes(g) ? GLASS_CHIP_ON_STYLE : undefined}
                     onClick={() => toggleSub(g)}>
                     {g}
                   </button>
                 ))}
               </div>
-              <div className={s.subLabel}>VIBES</div>
+              <div className={s.subLabel} style={{ ...EXPERIMENTAL_HEADING_STYLE, borderImage: `linear-gradient(90deg, ${COL}, ${COL2}) 1` }}>VIBES</div>
               <div className={s.chips}>
                 {BAND_VIBES.map(v => (
                   <button key={v} type="button"
                     className={selVibes.includes(v) ? s.chipOn : s.chip}
-                    style={selVibes.includes(v) ? { background: `rgba(255,140,66,.15)`, borderColor: COL, color: COL } : {}}
+                    style={selVibes.includes(v) ? GLASS_CHIP_ON_STYLE : undefined}
                     onClick={() => toggleVibe(v)}>
                     {v}
                   </button>
@@ -330,7 +355,7 @@ export default function BandProfileScreen() {
                     {tagPool.map(t => (
                       <button key={t} type="button"
                         className={selTags.includes(t) ? s.chipOn : s.chip}
-                        style={selTags.includes(t) ? { background: `rgba(255,140,66,.15)`, borderColor: COL, color: COL } : {}}
+                        style={selTags.includes(t) ? GLASS_CHIP_ON_STYLE : undefined}
                         onClick={() => toggleTag(t)}
                         disabled={!selTags.includes(t) && selTags.length >= 5}
                       >{t}</button>
@@ -368,6 +393,7 @@ export default function BandProfileScreen() {
                 {EXP_LEVELS.map(lv => (
                   <button key={lv} type="button"
                     className={expLevel === lv ? s.chipOn : s.chip}
+                    style={expLevel === lv ? GLASS_CHIP_ON_STYLE : undefined}
                     onClick={() => { setExpLevel(expLevel === lv ? '' : lv); setIsDirty(true); }}>
                     {lv}
                   </button>
