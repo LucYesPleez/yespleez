@@ -315,7 +315,7 @@ export default function ProfileScreen() {
           style={{
             backgroundImage: `url(${heroUrl})`,
             ...(!hasRealAvatar
-              ? { height: '120dvh', transform: 'translateX(-50%) translateY(-20dvh)' }
+              ? { height: '105dvh', transform: 'translateX(-50%) translateY(-5dvh)', backgroundSize: 'auto 80%' }
               : {}),
           }}
         />
