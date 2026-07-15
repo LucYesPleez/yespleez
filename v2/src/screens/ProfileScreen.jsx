@@ -403,12 +403,11 @@ export default function ProfileScreen() {
             <div className={s.glassCard} style={{ '--card-col': col, '--card-grad2': grad2, '--pill-col': col, '--pill-rgb': rgb, cursor: genres.length > 5 ? 'pointer' : 'default' }} onClick={() => genres.length > 5 && setGenreExpanded(e => !e)}>
               <div className={s.cardLabel} style={{ color: col }}>{isStandup ? 'STYLE' : 'GENRE'}</div>
               <div className={s.genrePills}>
-                {/* Standup's STYLE pills are the curated "Your 5 Tags" (card_pills) —
-                    the user's final identity, so they get the signature Glow Pill.
-                    Every other type's GENRE pills here come from genre_string (the
-                    broader taxonomy, not the curated 5), so they keep the existing
-                    treatment. */}
-                {visibleGenres.map(g => <span key={g} className={isStandup ? 'glow-pill' : s.genrePill}>{g}</span>)}
+                {/* Every type's GENRE/STYLE pills get the signature Glow Pill —
+                    same treatment app-wide regardless of whether the source is
+                    the curated card_pills (Standup) or the broader genre_string
+                    (Artist/Band/Host). */}
+                {visibleGenres.map(g => <span key={g} className="glow-pill">{g}</span>)}
                 {!genreExpanded && genres.length > 5 && (
                   <span className={s.genreMore}>+{genres.length - 5} more</span>
                 )}

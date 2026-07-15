@@ -114,7 +114,13 @@ input, textarea, select {
 .glow-pill {
   font-family: 'Bebas Neue', sans-serif;
   font-size: 13px; font-weight: 400; letter-spacing: 1.5px;
-  padding: 5px 12px; border-radius: 999px; color: #fff;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  /* Bebas Neue's glyphs sit high in its line box (tall ascent, minimal
+     descent) — a touch more padding-top than padding-bottom compensates so
+     the label reads centered instead of riding high in the pill. */
+  padding: 6px 12px 4px; border-radius: 999px; color: #fff;
   border: 1px solid transparent;
   background-image:
     linear-gradient(135deg, color-mix(in srgb, var(--neon) 5%, transparent), color-mix(in srgb, var(--neon2) 4%, transparent)),
