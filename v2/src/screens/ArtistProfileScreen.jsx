@@ -261,7 +261,7 @@ export default function ArtistProfileScreen() {
       {/* Header — always visible */}
       <div className={s.header}>
         <div className={s.headerText}>
-          <div className={s.h1}>MY PROFILE</div>
+          <div className={s.h1} style={{ background: PROFILE_TYPES.artist.gradient, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>MY PROFILE</div>
           <div className={s.h1Sub}>Fill this in once · travels with you across every event</div>
         </div>
       </div>
