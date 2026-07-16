@@ -2,34 +2,40 @@ import { useState } from 'react';
 import PortraitCard from './PortraitCard';
 import ProfileCard from './ProfileCard';
 import { PROFILE_TYPE_ORDER, PROFILE_TYPES } from '../lib/profileTypes';
+import { VISIBLE_PERFORMANCE_ROLES } from '../lib/profileTaxonomy';
+
+// One pill per profile type, except standup — which splits into one pill per
+// performance role (Comedy / Poetry / MC / …) instead of a single "COMEDY"
+// pill covering every standup performer regardless of what they actually do.
+// Adding a role to PERFORMANCE_ROLES (profileTaxonomy.js) automatically gets
+// a filter pill here, no call-site changes needed.
+const BASE_TYPE_TOKENS = PROFILE_TYPE_ORDER.filter(t => t !== 'standup');
 
 export const FOLLOW_TYPE_MAP = {
-  VENUE: 'venue', HOST: 'host', ARTIST: 'artist', BAND: 'band', COMEDY: 'standup',
+  ...Object.fromEntries(BASE_TYPE_TOKENS.map(type => [type.toUpperCase(), { type }])),
+  ...Object.fromEntries(VISIBLE_PERFORMANCE_ROLES.map(r => [r.key.toUpperCase(), { type: 'standup', role: r.key }])),
 };
 
 // 'ALL' isn't a profile type, so it keeps its own entry; every other token
-// derives its colour/label from the one canonical PROFILE_TYPES definition.
+// derives its colour from the one canonical PROFILE_TYPES definition (role
+// tokens all share standup's colour, same as any other sub-filter of a type).
 export const FOLLOW_PILL_COLORS = {
   ALL: { col: 'var(--muted)', rgb: '150,150,170' },
-  ...Object.fromEntries(Object.entries(FOLLOW_TYPE_MAP).map(([token, type]) => [
+  ...Object.fromEntries(Object.entries(FOLLOW_TYPE_MAP).map(([token, { type }]) => [
     token, { col: PROFILE_TYPES[type].accent, rgb: PROFILE_TYPES[type].rgb },
   ])),
 };
 
 export const FOLLOW_FILTER_LABELS = {
   ALL: 'ALL',
-  ...Object.fromEntries(Object.entries(FOLLOW_TYPE_MAP).map(([token, type]) => [
-    token, PROFILE_TYPES[type].shortLabel,
-  ])),
+  ...Object.fromEntries(BASE_TYPE_TOKENS.map(type => [type.toUpperCase(), PROFILE_TYPES[type].shortLabel])),
+  ...Object.fromEntries(VISIBLE_PERFORMANCE_ROLES.map(r => [r.key.toUpperCase(), r.label.toUpperCase()])),
 };
 
-// Single canonical order (Venue first, matching PROFILE_TYPE_ORDER) instead
-// of five near-identical hand-written arrays. Each viewer's list is derived
-// from the same FULL_ORDER — venue's list excludes its own type (pre-existing
-// behavior, preserved as-is); the others don't self-exclude (also pre-existing,
-// preserved as-is — not something this ordering pass changes).
-const TYPE_TO_TOKEN = Object.fromEntries(Object.entries(FOLLOW_TYPE_MAP).map(([token, type]) => [type, token]));
-const FULL_ORDER = PROFILE_TYPE_ORDER.map(type => TYPE_TO_TOKEN[type]);
+// Canonical order: FOLLOW_TYPE_MAP's own insertion order (Venue-first types,
+// then each performance role) — no separate reverse-lookup needed now that a
+// type can own more than one token.
+const FULL_ORDER = Object.keys(FOLLOW_TYPE_MAP);
 
 export const FOLLOW_FILTER_CONFIGS = {
   venue:   ['ALL', ...FULL_ORDER.filter(t => t !== 'VENUE')],
@@ -47,13 +53,21 @@ export default function FollowingSection({
   followSearch, setFollowSearch,
   followDrag,
   emptyMsg = 'Not following anyone yet.',
-  filterTypes = ['ALL', 'VENUE', 'HOST', 'ARTIST', 'BAND', 'COMEDY'],
+  filterTypes = ['ALL', ...FULL_ORDER],
   sectionTitle = 'FOLLOWING',
   actions,   // optional: (profile) => jsx — extra action buttons in landscape view
 }) {
-  const filtered = following.filter(p =>
-    followFilter === 'ALL' || p.type === FOLLOW_TYPE_MAP[followFilter]
-  );
+  const filtered = following.filter(p => {
+    if (followFilter === 'ALL') return true;
+    const { type, role } = FOLLOW_TYPE_MAP[followFilter] || {};
+    if (p.type !== type) return false;
+    if (!role) return true;
+    // Role tokens (Comedy/Poetry/MC) live inside genre_string alongside style
+    // tags — same encoding StandupProfileScreen/selectedPerformanceRoleLabels
+    // use, so a performer only matches the roles they've actually selected.
+    const roles = new Set((p.genre_string || '').split(' · ').map(t => t.trim()).filter(Boolean));
+    return roles.has(role);
+  });
 
   return (
     <div style={{ marginTop: 24 }}>

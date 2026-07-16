@@ -111,6 +111,7 @@ export const BAND_VIBES = [
 export const PERFORMANCE_ROLES = [
   { key: 'comedy', label: 'Comedy', enabled: true },
   { key: 'poetry', label: 'Poetry', enabled: true },
+  { key: 'mc',     label: 'MC',     enabled: true },
 ];
 
 export const VISIBLE_PERFORMANCE_ROLES = PERFORMANCE_ROLES.filter(r => r.enabled);
