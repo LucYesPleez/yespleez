@@ -111,10 +111,21 @@ export const BAND_VIBES = [
 export const PERFORMANCE_ROLES = [
   { key: 'comedy', label: 'Comedy', enabled: true },
   { key: 'poetry', label: 'Poetry', enabled: true },
-  { key: 'mc',     label: 'MC',     enabled: true },
 ];
 
 export const VISIBLE_PERFORMANCE_ROLES = PERFORMANCE_ROLES.filter(r => r.enabled);
+
+// Artist roles (2026-07) — same concept as PERFORMANCE_ROLES above but for
+// the DJ/Producer type: a performer can be any combination of DJ, Producer,
+// and MC. Stored the same way (role keys inside genre_string, alongside
+// genres/subgenres/vibes), read with selectedArtistRoleLabels below.
+export const ARTIST_ROLES = [
+  { key: 'dj',       label: 'DJ',       enabled: true },
+  { key: 'producer', label: 'Producer', enabled: true },
+  { key: 'mc',       label: 'MC',       enabled: true },
+];
+
+export const VISIBLE_ARTIST_ROLES = ARTIST_ROLES.filter(r => r.enabled);
 
 // Always shown, regardless of which performance role(s) are selected.
 export const SHARED_PERFORMANCE_TAGS = [
@@ -133,17 +144,19 @@ export const ROLE_TAGS = {
   ],
 };
 
-// Given a standup profile's genre_string, return the labels of whichever
-// PERFORMANCE_ROLES are selected (e.g. ['Comedy'], ['Poetry'], or
-// ['Comedy', 'Poetry']) — for any compact card/pill/badge that shows a
-// performer's role, so a future role (MC/Host, Storyteller, Drag, Cabaret,
-// etc.) automatically works everywhere without touching call sites. Returns
-// [] if none are selected yet — callers should fall back to their own
-// existing generic label in that case.
-export function selectedPerformanceRoleLabels(genreString) {
+// Given a profile's genre_string and a role list (PERFORMANCE_ROLES or
+// ARTIST_ROLES), return the labels of whichever roles are selected — for any
+// compact card/pill/badge that shows a performer's role, so a future role
+// automatically works everywhere without touching call sites. Returns [] if
+// none are selected yet — callers should fall back to their own existing
+// generic label in that case.
+function selectedRoleLabels(genreString, roles) {
   const parts = new Set((genreString || '').split(' · ').map(t => t.trim()).filter(Boolean));
-  return PERFORMANCE_ROLES.filter(r => parts.has(r.key)).map(r => r.label);
+  return roles.filter(r => parts.has(r.key)).map(r => r.label);
 }
+
+export const selectedPerformanceRoleLabels = genreString => selectedRoleLabels(genreString, PERFORMANCE_ROLES);
+export const selectedArtistRoleLabels = genreString => selectedRoleLabels(genreString, ARTIST_ROLES);
 
 // Genre-string encoding shared with the app (genre_string column).
 export const GENRE_SEP = ' · ';

@@ -1,14 +1,9 @@
 import { useNavigate } from 'react-router-dom';
 import { profileUrl } from '../lib/profileResolution';
 import { formatLocation } from '../lib/formatLocation';
-import { selectedPerformanceRoleLabels } from '../lib/profileTaxonomy';
+import { selectedPerformanceRoleLabels, selectedArtistRoleLabels } from '../lib/profileTaxonomy';
 import { PROFILE_TYPES } from '../lib/profileTypes';
 import { getContrastText } from '../lib/color';
-
-// Portrait-card-only label overrides — tighter than PROFILE_TYPES.shortLabel
-// for the little space this card's category pill has. Scoped to this file;
-// every other badge/pill in the app keeps the canonical shortLabel.
-const PORTRAIT_LABEL_OVERRIDES = { artist: 'DJ / PROD.' };
 
 /**
  * Props:
@@ -21,10 +16,14 @@ export default function PortraitCard({ profile: p, onClick, width = 150, height 
   const navigate = useNavigate();
   const type = (p?.type || 'artist').toLowerCase();
   const pt = PROFILE_TYPES[type] || PROFILE_TYPES.artist;
-  const label = PORTRAIT_LABEL_OVERRIDES[type] || pt.shortLabel || type.toUpperCase();
-  // Standup: one pill per selected performance role (Comedy/Poetry), data-
-  // driven so a future role works everywhere with no call-site change.
-  const roleLabels = type === 'standup' ? selectedPerformanceRoleLabels(p?.genre_string) : [];
+  const label = pt.shortLabel || type.toUpperCase();
+  // Standup: one pill per selected performance role (Comedy/Poetry). Artist:
+  // same concept for DJ/Producer/MC. Data-driven so a future role works
+  // everywhere with no call-site change. Falls back to the generic type
+  // label until roles have been selected.
+  const roleLabels = type === 'standup' ? selectedPerformanceRoleLabels(p?.genre_string)
+    : type === 'artist' ? selectedArtistRoleLabels(p?.genre_string)
+    : [];
   const pillLabels = roleLabels.length ? roleLabels : [label];
   // M5: canonical profile.id URL; legacy user_id URL only as a fallback for
   // callers whose selects don't carry `id` yet (the redirect shim covers it).

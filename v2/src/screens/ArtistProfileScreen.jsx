@@ -7,7 +7,7 @@ import { useProfileForm } from '../hooks/useProfileForm';
 import ProfileFormShell from '../components/ProfileFormShell';
 import SectionBlock from '../components/SectionBlock';
 import SocialSection from '../components/SocialSection';
-import { MAIN_GENRES, SUBGENRES, VIBES } from '../lib/profileTaxonomy';
+import { MAIN_GENRES, SUBGENRES, VIBES, VISIBLE_ARTIST_ROLES } from '../lib/profileTaxonomy';
 import { normalizeSocialValue, ensureHttps } from '../lib/socialLinks';
 import { PROFILE_TYPES } from '../lib/profileTypes';
 
@@ -35,6 +35,10 @@ function normalizeVibeToken(tok) {
   if (VIBE_REMOVE_SET.has(tok)) return null;
   return VIBE_RENAME_MAP[tok] || tok;
 }
+
+// DJ / Producer / MC roles (2026-07) — same concept as Standup's performance
+// roles: stored as tokens inside genre_string alongside genres/subs/vibes.
+const ROLE_KEYS = VISIBLE_ARTIST_ROLES.map(r => r.key);
 
 const ACCENT  = '#00E5FF';
 const ACCENT2 = '#FF3399';
@@ -84,11 +88,12 @@ function parseProfile(data) {
   const subs = allSubs.filter(g => parts.has(g));
   const isVibeToken = t => VIBES.includes(t) || VIBE_RENAME_MAP[t] || VIBE_REMOVE_SET.has(t);
   const vibes = [...new Set([...parts].filter(isVibeToken).map(normalizeVibeToken).filter(Boolean))];
-  return { genres, subs, vibes };
+  const roles = ROLE_KEYS.filter(r => parts.has(r));
+  return { genres, subs, vibes, roles };
 }
 
-function buildGenreString(genres, subs, vibes) {
-  return [...new Set([...genres, ...subs, ...vibes])].join(' · ');
+function buildGenreString(genres, subs, vibes, roles) {
+  return [...new Set([...roles, ...genres, ...subs, ...vibes])].join(' · ');
 }
 
 function Section({ title, children }) {
@@ -142,6 +147,7 @@ export default function ArtistProfileScreen() {
   const [selSubs,    setSelSubs]    = useState([]);
   const [selVibes,   setSelVibes]   = useState([]);
   const [selTags,    setSelTags]    = useState([]);
+  const [selRoles,   setSelRoles]   = useState([]);
 
   // Page 2 fields
   const [bio,            setBio]            = useState('');
@@ -202,6 +208,7 @@ export default function ArtistProfileScreen() {
           setSelGenres(parsed.genres);
           setSelSubs(parsed.subs);
           setSelVibes(parsed.vibes);
+          setSelRoles(parsed.roles);
           if (data.card_pills)    setSelTags(data.card_pills.split(' · ').filter(Boolean));
           if (data.experience)    setExpLevel(data.experience);
           if (data.tech_setup)    setTechSetup(data.tech_setup.split(' · ').filter(Boolean));
@@ -235,6 +242,7 @@ export default function ArtistProfileScreen() {
     setSelTags(prev => prev.filter(t => pool.has(t)));
   }, [selGenres, selSubs, selVibes]);
 
+  function toggleRole(r)   { setSelRoles(prev   => prev.includes(r)   ? prev.filter(x => x !== r)   : [...prev, r]);   setIsDirty(true); }
   function toggleGenre(g)  { setSelGenres(prev => prev.includes(g)   ? prev.filter(x => x !== g)   : [...prev, g]);   setIsDirty(true); }
   function toggleSub(sub)  { setSelSubs(prev   => prev.includes(sub) ? prev.filter(x => x !== sub) : [...prev, sub]); setIsDirty(true); }
   function toggleVibe(v)   { setSelVibes(prev  => prev.includes(v)   ? prev.filter(x => x !== v)   : [...prev, v]);   setIsDirty(true); }
@@ -251,7 +259,7 @@ export default function ArtistProfileScreen() {
   function save(skipPostcodeCheck = false) {
     if (!userId || saving) return;
     if (!skipPostcodeCheck && !postcode && !location) { setShowPostcodePrompt(true); return; }
-    const genre_string = buildGenreString(selGenres, selSubs, selVibes);
+    const genre_string = buildGenreString(selGenres, selSubs, selVibes, selRoles);
     const payload = {
       user_id: userId, type: 'artist',
       name, label, years, location, state: locState, postcode,
@@ -363,6 +371,23 @@ export default function ArtistProfileScreen() {
                     <input className={s.input} value={postcode} onChange={e => setPostcode(e.target.value.replace(/\D/g,''))} placeholder="e.g. 2010" maxLength={4} inputMode="numeric" />
                   </Field>
                 </div>
+              </div>
+            </Section>
+
+            {/* WHAT DO YOU DO? */}
+            <Section title="WHAT DO YOU DO?">
+              <div className={s.pills}>
+                {VISIBLE_ARTIST_ROLES.map(({ key, label }) => {
+                  const on = selRoles.includes(key);
+                  return (
+                    <button key={key} type="button"
+                      className={on ? s.chipOn : s.chip}
+                      style={on ? GLASS_CHIP_ON_STYLE : undefined}
+                      onClick={() => toggleRole(key)}>
+                      {label}
+                    </button>
+                  );
+                })}
               </div>
             </Section>
 

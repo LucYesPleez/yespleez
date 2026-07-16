@@ -2,23 +2,25 @@ import { useState } from 'react';
 import PortraitCard from './PortraitCard';
 import ProfileCard from './ProfileCard';
 import { PROFILE_TYPE_ORDER, PROFILE_TYPES } from '../lib/profileTypes';
-import { VISIBLE_PERFORMANCE_ROLES } from '../lib/profileTaxonomy';
+import { VISIBLE_PERFORMANCE_ROLES, VISIBLE_ARTIST_ROLES } from '../lib/profileTaxonomy';
 
-// One pill per profile type, except standup — which splits into one pill per
-// performance role (Comedy / Poetry / MC / …) instead of a single "COMEDY"
-// pill covering every standup performer regardless of what they actually do.
-// Adding a role to PERFORMANCE_ROLES (profileTaxonomy.js) automatically gets
-// a filter pill here, no call-site changes needed.
-const BASE_TYPE_TOKENS = PROFILE_TYPE_ORDER.filter(t => t !== 'standup');
+// One pill per profile type, except standup and artist — which each split
+// into one pill per role (standup: Comedy / Poetry; artist: DJ / Producer /
+// MC) instead of a single pill covering every performer of that type
+// regardless of what they actually do. Adding a role to PERFORMANCE_ROLES or
+// ARTIST_ROLES (profileTaxonomy.js) automatically gets a filter pill here,
+// no call-site changes needed.
+const BASE_TYPE_TOKENS = PROFILE_TYPE_ORDER.filter(t => t !== 'standup' && t !== 'artist');
 
 export const FOLLOW_TYPE_MAP = {
   ...Object.fromEntries(BASE_TYPE_TOKENS.map(type => [type.toUpperCase(), { type }])),
+  ...Object.fromEntries(VISIBLE_ARTIST_ROLES.map(r => [r.key.toUpperCase(), { type: 'artist', role: r.key }])),
   ...Object.fromEntries(VISIBLE_PERFORMANCE_ROLES.map(r => [r.key.toUpperCase(), { type: 'standup', role: r.key }])),
 };
 
 // 'ALL' isn't a profile type, so it keeps its own entry; every other token
 // derives its colour from the one canonical PROFILE_TYPES definition (role
-// tokens all share standup's colour, same as any other sub-filter of a type).
+// tokens all share their type's colour, same as any other sub-filter of a type).
 export const FOLLOW_PILL_COLORS = {
   ALL: { col: 'var(--muted)', rgb: '150,150,170' },
   ...Object.fromEntries(Object.entries(FOLLOW_TYPE_MAP).map(([token, { type }]) => [
@@ -29,6 +31,7 @@ export const FOLLOW_PILL_COLORS = {
 export const FOLLOW_FILTER_LABELS = {
   ALL: 'ALL',
   ...Object.fromEntries(BASE_TYPE_TOKENS.map(type => [type.toUpperCase(), PROFILE_TYPES[type].shortLabel])),
+  ...Object.fromEntries(VISIBLE_ARTIST_ROLES.map(r => [r.key.toUpperCase(), r.label.toUpperCase()])),
   ...Object.fromEntries(VISIBLE_PERFORMANCE_ROLES.map(r => [r.key.toUpperCase(), r.label.toUpperCase()])),
 };
 

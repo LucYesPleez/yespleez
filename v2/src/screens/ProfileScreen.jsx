@@ -13,7 +13,7 @@ import PastEventsSearch, { filterPastEvents } from '../components/PastEventsSear
 import { formatLocation } from '../lib/formatLocation';
 import { socialProfileUrl, ensureHttps } from '../lib/socialLinks';
 import ProfileSocialLinks from '../components/ProfileSocialLinks';
-import { selectedPerformanceRoleLabels } from '../lib/profileTaxonomy';
+import { selectedPerformanceRoleLabels, selectedArtistRoleLabels, ARTIST_ROLES } from '../lib/profileTaxonomy';
 import { PROFILE_TYPES } from '../lib/profileTypes';
 
 const OLD_CATS = new Set(['ELECTRONIC','BANDS','SPOKEN','SPOKEN WORD','RAVE','FESTIVAL']);
@@ -271,6 +271,7 @@ export default function ProfileScreen() {
   const isHost    = profile.type === 'host';
   const isVenue   = profile.type === 'venue';
   const isStandup = profile.type === 'standup';
+  const isArtist  = profile.type === 'artist';
   // M5: always a profiles-shaped row; any profile (claimed or not) falls back
   // to the generic type imagery (never a real likeness) when it has no avatar.
   const hasRealAvatar = !!(profile.avatar_hero || profile.avatar_thumb || profile.avatar);
@@ -278,9 +279,12 @@ export default function ProfileScreen() {
     || pt.defaultImage || null;
   const label   = isVenue ? pt.label : (profile.band_type || profile.act_type || pt.label);
   // Standup: one pill per selected "what do you perform?" role (Comedy/
-  // Poetry), data-driven so a future role works with no call-site change.
-  // Falls back to the generic label above until roles have been selected.
-  const roleLabels = isStandup ? selectedPerformanceRoleLabels(profile.genre_string) : [];
+  // Poetry). Artist: same concept for DJ/Producer/MC. Both data-driven so a
+  // future role works with no call-site change. Falls back to the generic
+  // label above until roles have been selected.
+  const roleLabels = isStandup ? selectedPerformanceRoleLabels(profile.genre_string)
+    : isArtist ? selectedArtistRoleLabels(profile.genre_string)
+    : [];
   const badgeLabels = roleLabels.length ? roleLabels : [label];
   // Postcode dropped from this header line specifically — town + state reads
   // cleaner here; formatLocation still returns the full "Suburb, STATE
@@ -300,9 +304,13 @@ export default function ProfileScreen() {
   // belongs in the public "tags" pill list. Show only the curated "YOUR STYLE
   // TAGS" selection (card_pills) instead, same concept as every other type's
   // card_pills-based compact display, just applied to this section too.
+  // Artist stores its DJ/Producer/MC roles inside genre_string the same way
+  // (alongside genres/subs/vibes) — filter those role tokens back out so
+  // they never show up as if they were genre tags.
+  const ARTIST_ROLE_KEYS = new Set(ARTIST_ROLES.map(r => r.key));
   const genres = isStandup
     ? (profile.card_pills || '').split(/\s*·\s*|,\s*/).map(g => g.trim()).filter(Boolean)
-    : (profile.genre_string ? profile.genre_string.split(/\s*·\s*|,\s*/).map(g => g.trim()).filter(Boolean) : []);
+    : (profile.genre_string ? profile.genre_string.split(/\s*·\s*|,\s*/).map(g => g.trim()).filter(Boolean).filter(g => !isArtist || !ARTIST_ROLE_KEYS.has(g)) : []);
   // card_pills is the curated "Your 5 Tags" — the collapsed view shows those
   // specifically, not just the first 5 tokens of the broader genre_string.
   // "+N more" then reveals whatever's left in genre_string that isn't
@@ -441,7 +449,7 @@ export default function ProfileScreen() {
           {genres.length > 0 && !isVenue && (
             <div style={{ marginBottom: 12, cursor: remainingGenres.length > 0 ? 'pointer' : 'default' }} onClick={() => remainingGenres.length > 0 && setGenreExpanded(e => !e)}>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap', marginBottom: 10 }}>
-                <div className={s.cardLabel} style={{ color: 'rgba(232,232,240,.5)', marginBottom: 0 }}>{isStandup ? 'STYLE' : 'GENRES'}</div>
+                <div className={s.cardLabel} style={{ color: 'rgba(232,232,240,.5)', marginBottom: 0 }}>STYLE</div>
                 {profile.sound && (
                   <div style={{ fontSize: 14, fontStyle: 'italic', lineHeight: 1.5, opacity: .9, background: `linear-gradient(135deg,${col},${grad2})`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
                     {profile.sound}
