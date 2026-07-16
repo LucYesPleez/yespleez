@@ -116,13 +116,14 @@ export const PERFORMANCE_ROLES = [
 export const VISIBLE_PERFORMANCE_ROLES = PERFORMANCE_ROLES.filter(r => r.enabled);
 
 // Artist roles (2026-07) — same concept as PERFORMANCE_ROLES above but for
-// the DJ/Producer type: a performer can be any combination of DJ, Producer,
-// and MC. Stored the same way (role keys inside genre_string, alongside
+// the DJ/Producer type. Only two options on purpose: DJ and Producer aren't
+// split out (that distinction rarely matters at a glance and it's one chip
+// too many for how little room a card/badge has), MC is its own thing.
+// Stored the same way (role keys inside genre_string, alongside
 // genres/subgenres/vibes), read with selectedArtistRoleLabels below.
 export const ARTIST_ROLES = [
-  { key: 'dj',       label: 'DJ',       enabled: true },
-  { key: 'producer', label: 'Producer', enabled: true },
-  { key: 'mc',       label: 'MC',       enabled: true },
+  { key: 'dj_prod', label: 'DJ / Prod.', enabled: true },
+  { key: 'mc',       label: 'MC',        enabled: true },
 ];
 
 export const VISIBLE_ARTIST_ROLES = ARTIST_ROLES.filter(r => r.enabled);
