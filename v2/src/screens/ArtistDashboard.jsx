@@ -21,14 +21,18 @@ import EnquiryCard from '../components/EnquiryCard';
 import AvailabilitySection from '../components/AvailabilitySection';
 import { PROFILE_TYPES } from '../lib/profileTypes';
 
-// Organiser-side (INCOMING) pipeline — what venues/hosts see
+// Organiser-side (INCOMING) pipeline — what venues/hosts see. Matches
+// EnquiryPanel's own INCOMING sub-tabs (NEW/SEEN/SHORTLISTED/ACCEPTED/
+// DECLINED) so this dashboard's bespoke incoming tab bar stays in sync with
+// the shared component Host/Venue dashboards use for the same thing.
 const IN_STATUS_MAP  = {
   NEW:         ['new', 'pending'],
+  SEEN:        ['seen', 'viewed'],
   SHORTLISTED: ['shortlisted', 'interested'],
   ACCEPTED:    ['accepted', 'booked'],
   DECLINED:    ['declined'],
 };
-const IN_TABS = ['NEW', 'SHORTLISTED', 'ACCEPTED', 'DECLINED'];
+const IN_TABS = ['NEW', 'SEEN', 'SHORTLISTED', 'ACCEPTED', 'DECLINED'];
 
 // Applicant-side (OUTGOING) pipeline — what artists see (asymmetric labels).
 // Single source of truth for status -> tab: applicantLabel() is the only

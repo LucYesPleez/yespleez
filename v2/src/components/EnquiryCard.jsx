@@ -203,29 +203,49 @@ export default function EnquiryCard({ enq, onRespond, onPlayDemo }) {
 
   return (
     <div style={{ marginBottom: 8 }}>
-      <div className={ds.card} style={{ border: `1px solid rgba(${accentRgb},.35)`, cursor: 'default', marginBottom: 0, borderRadius: (expanded || nextStepsCopy) ? '14px 14px 0 0' : 14, borderBottom: nextStepsCopy ? 'none' : `1px solid rgba(${accentRgb},.35)` }}>
-        <img className={ds.cardAvatar} src={avatar || accentPt?.defaultImage || PROFILE_TYPES.artist.defaultImage} alt={name} style={{ borderColor: accent }} />
-        <div className={ds.cardInfo}>
-          <div className={ds.cardNameRow}>
-            <span className={ds.cardName}>{name}</span>
-            <span className={ds.cardBadge} style={{ color: accent, background: `rgba(${accentRgb},.15)`, borderColor: `rgba(${accentRgb},.3)` }}>
-              {PROFILE_TYPES[(p.role || enq.applicant_type || 'artist').toLowerCase()]?.shortLabel || (p.role || enq.applicant_type || 'artist').toUpperCase()}
-            </span>
-          </div>
-          {enq.event_name && (
-            <div style={{ fontSize: 12, color: 'var(--text)', fontWeight: 600, marginTop: 2 }}>
-              {enq.event_name}
+      <div style={{
+        position: 'relative', overflow: 'hidden', minHeight: 100,
+        border: `1px solid rgba(${accentRgb},.35)`, cursor: 'default', marginBottom: 0,
+        borderRadius: (expanded || nextStepsCopy) ? '14px 14px 0 0' : 14,
+        borderBottom: nextStepsCopy ? 'none' : `1px solid rgba(${accentRgb},.35)`,
+      }}>
+        {/* Background image — same technique as EventCard: absolutely-positioned
+            cover image + gradient overlay, content sits on top. */}
+        <img src={avatar || accentPt?.defaultImage || PROFILE_TYPES.artist.defaultImage} alt={name}
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+        <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(90deg, rgba(10,10,20,.92) 0%, rgba(10,10,20,.55) 50%, rgba(10,10,20,.82) 100%)' }} />
+
+        <div style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', gap: 16, padding: '16px 18px' }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div className={ds.cardNameRow}>
+              <span className={ds.cardName}>{name}</span>
+              <span className={ds.cardBadge} style={{ color: accent, background: `rgba(${accentRgb},.15)`, borderColor: `rgba(${accentRgb},.3)` }}>
+                {PROFILE_TYPES[(p.role || enq.applicant_type || 'artist').toLowerCase()]?.shortLabel || (p.role || enq.applicant_type || 'artist').toUpperCase()}
+              </span>
             </div>
-          )}
-          {loc   && <div className={ds.cardLoc}>{loc}</div>}
-          {sound && <div className={ds.cardSound} style={{ color: accent }}>{sound}</div>}
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, flexShrink: 0 }}>
-          <span style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1.5, color: statusColor, border: `1px solid ${statusColor}`, borderRadius: 4, padding: '2px 7px' }}>
-            {displayStatus.toUpperCase()}
-          </span>
-          {dateRaw && <DateBox date={dateRaw} size="sm" />}
-          <HoverProfileBtn expanded={expanded} onClick={() => setExpanded(e => !e)} />
+            {enq.event_name && (
+              <div style={{ fontSize: 12, color: 'var(--text)', fontWeight: 600, marginTop: 2 }}>
+                {enq.event_name}
+              </div>
+            )}
+            {loc   && <div className={ds.cardLoc}>{loc}</div>}
+            {sound && <div className={ds.cardSound} style={{ color: accent }}>{sound}</div>}
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, flexShrink: 0 }}>
+            <span style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1.5, color: statusColor, border: `1px solid ${statusColor}`, borderRadius: 4, padding: '2px 7px' }}>
+              {displayStatus.toUpperCase()}
+            </span>
+            {dateRaw && <DateBox date={dateRaw} size="sm" />}
+            <HoverProfileBtn expanded={expanded} onClick={() => {
+              const next = !expanded;
+              setExpanded(next);
+              // Mark as seen the moment the enquiree actually opens a brand-new
+              // incoming enquiry — reuses the same onRespond callback every
+              // dashboard already wires up for accept/decline/shortlist, so
+              // this works everywhere EnquiryCard is used with no new prop.
+              if (next && enqDir === 'incoming' && displayStatus === 'new') respond('seen');
+            }} />
+          </div>
         </div>
       </div>
 
