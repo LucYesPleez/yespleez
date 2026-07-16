@@ -88,12 +88,18 @@
   height: 62dvh;
 }
 
-/* Name block sits right after the spacer (overlaps bottom of hero fade) */
+/* Name block sits right after the spacer (overlaps bottom of hero fade).
+   Fades in from its own top edge to fully opaque by its own bottom edge —
+   a % here (unlike .cards, which is arbitrarily tall) is correct precisely
+   because this block's height is just the name + badge row: it guarantees
+   the gradient always finishes exactly where .cards' solid fill picks up,
+   instead of a fixed px value that stops short and leaves a hard seam. */
 .nameBlock {
   text-align: center;
   max-width: 680px;
   margin: 0 auto;
   padding: 0 20px 20px;
+  background: linear-gradient(to bottom, transparent 0%, #0a0a0f 100%);
 }
 
 .name {
@@ -138,11 +144,14 @@
   color: #fff;
 }
 
-/* Cards container */
+/* Cards container — the fade already completes in .nameBlock above, so this
+   is solid from its own top edge (standing in for .heroFade once the page
+   is scrolled past its fixed 45dvh). */
 .cards {
   max-width: 680px;
   margin: 0 auto;
   padding: 0 16px;
+  background: #0a0a0f;
 }
 
 .tagline {
@@ -220,8 +229,8 @@
 
 .cardLabel {
   font-family: 'Bebas Neue', sans-serif;
-  font-size: 11px;
-  letter-spacing: 2px;
+  font-size: 15px;
+  letter-spacing: 3px;
   margin-bottom: 8px;
   position: relative;
   z-index: 1;
@@ -233,6 +242,7 @@
   line-height: 1.7;
   position: relative;
   z-index: 1;
+  white-space: pre-line;
 }
 
 /* Genre pills */

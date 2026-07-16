@@ -168,6 +168,7 @@ export default function ArtistProfileScreen() {
   const [youtube,        setYoutube]        = useState('');
   const [facebook,       setFacebook]       = useState('');
   const [website,        setWebsite]        = useState('');
+  const [contactEmail,   setContactEmail]   = useState('');
 
   useEffect(() => {
     if (!userId) return;
@@ -195,6 +196,7 @@ export default function ArtistProfileScreen() {
           loadNa(data.youtube,    setYoutube,    'youtube',    naSet);
           loadNa(data.facebook,   setFacebook,   'facebook',   naSet);
           loadNa(data.website,    setWebsite,    'website',    naSet);
+          loadNa(data.contact_email, setContactEmail, 'contactEmail', naSet);
           setNaFields(naSet);
           const parsed = parseProfile(data);
           setSelGenres(parsed.genres);
@@ -261,6 +263,7 @@ export default function ArtistProfileScreen() {
       youtube:    naFields.has('youtube')    ? 'N/A' : normalizeSocialValue('youtube', youtube),
       facebook:   naFields.has('facebook')   ? 'N/A' : normalizeSocialValue('facebook', facebook),
       website:    naFields.has('website')    ? 'N/A' : normalizeSocialValue('website', website),
+      contact_email: naFields.has('contactEmail') ? 'N/A' : contactEmail,
       genre_string, avatar: avatarHero || avatarUrl,
       avatar_hero: avatarHero || null, avatar_thumb: avatarThumb || null,
       card_pills:      selTags.join(' · '),
@@ -572,6 +575,7 @@ export default function ArtistProfileScreen() {
                   { icon: 'ig', key: 'instagram',  value: instagram,  onChange: e => setInstagram(e.target.value),  placeholder: '@handle or link' },
                   { icon: 'yt', key: 'youtube',    value: youtube,    onChange: e => setYoutube(e.target.value),    placeholder: '@handle or link' },
                   { icon: 'fb', key: 'facebook',   value: facebook,   onChange: e => setFacebook(e.target.value),   placeholder: '@handle or link' },
+                  { icon: 'email', key: 'contactEmail', value: contactEmail, onChange: e => setContactEmail(e.target.value), placeholder: 'Booking email', type: 'email' },
                 ]}
                 naFields={naFields}
                 onToggleNa={toggleNa}

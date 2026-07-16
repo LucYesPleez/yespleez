@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
@@ -28,6 +28,7 @@ export default function ProfileScreen() {
   const [genreExpanded, setGenreExpanded] = useState(false);
   const [bioExpanded,   setBioExpanded]   = useState(false);
   const [heroLoaded,    setHeroLoaded]    = useState(false);
+  const heroImgRef = useRef(null);
   const [followed,    setFollowed]    = useState(false);
   const [followBusy,  setFollowBusy]  = useState(false);
   const { player, setPlayer } = usePlayer();
@@ -122,6 +123,26 @@ export default function ProfileScreen() {
     img.onload = () => setHeroLoaded(true);
     img.src = heroUrl;
   }, [profile?.avatar_hero, profile?.avatar_thumb, profile?.avatar]);
+
+  // Scroll-driven hero zoom-out — pulls the photo back inside its frame as
+  // the user scrolls one viewport height, then holds. Animates background-
+  // size (144% -> 104%) rather than transform: scale() on the element: the
+  // box itself never resizes, so there's no gap at the edges revealing the
+  // separately-cropped/blurred .heroBg layer underneath. Written straight to
+  // the DOM (not React state) so it doesn't trigger a re-render per scroll
+  // tick. Skipped for the placeholder-avatar case, which sets its own fixed
+  // background-size.
+  useEffect(() => {
+    function handleScroll() {
+      const el = heroImgRef.current;
+      if (!el || el.dataset.zoomable === 'false') return;
+      const progress = Math.min(Math.max(window.scrollY / window.innerHeight, 0), 1);
+      el.style.backgroundSize = `${144 - progress * 40}% auto`;
+    }
+    handleScroll();
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   // Load follow state once profile is known (M5: keyed on the resolved
   // profile, covering both the legacy entity_id keyspace and the canonical
@@ -261,7 +282,10 @@ export default function ProfileScreen() {
   // Falls back to the generic label above until roles have been selected.
   const roleLabels = isStandup ? selectedPerformanceRoleLabels(profile.genre_string) : [];
   const badgeLabels = roleLabels.length ? roleLabels : [label];
-  const loc     = formatLocation(profile);
+  // Postcode dropped from this header line specifically — town + state reads
+  // cleaner here; formatLocation still returns the full "Suburb, STATE
+  // POSTCODE" for every other call site (event cards, dashboards, etc).
+  const loc     = formatLocation({ ...profile, postcode: undefined });
   const mixLink = ensureHttps(profile.mix_link) || socialProfileUrl('soundcloud', profile.soundcloud) || socialProfileUrl('mixcloud', profile.mixcloud) || '';
 
   const tagline = (() => {
@@ -279,7 +303,18 @@ export default function ProfileScreen() {
   const genres = isStandup
     ? (profile.card_pills || '').split(/\s*·\s*|,\s*/).map(g => g.trim()).filter(Boolean)
     : (profile.genre_string ? profile.genre_string.split(/\s*·\s*|,\s*/).map(g => g.trim()).filter(Boolean) : []);
-  const visibleGenres = genreExpanded ? genres : genres.slice(0, 5);
+  // card_pills is the curated "Your 5 Tags" — the collapsed view shows those
+  // specifically, not just the first 5 tokens of the broader genre_string.
+  // "+N more" then reveals whatever's left in genre_string that isn't
+  // already one of the 5. Standup already sources `genres` straight from
+  // card_pills (its roles live separately in genre_string), so there's no
+  // separate broader list to fall back to there — same slice/expand as before.
+  const cardTags = (!isStandup && profile.card_pills)
+    ? profile.card_pills.split(/\s*·\s*|,\s*/).map(g => g.trim()).filter(Boolean)
+    : [];
+  const remainingGenres = cardTags.length ? genres.filter(g => !cardTags.includes(g)) : genres.slice(5);
+  const defaultVisibleGenres = cardTags.length ? cardTags : genres.slice(0, 5);
+  const visibleGenres = genreExpanded ? [...defaultVisibleGenres, ...remainingGenres] : defaultVisibleGenres;
 
   const na = v => !v || v === 'N/A';
   // M5: the placeholder row-shape branch (social_links JSONB) is gone — the
@@ -311,12 +346,14 @@ export default function ProfileScreen() {
       {/* Hero photo */}
       {heroUrl && (
         <div
+          ref={heroImgRef}
           className={s.heroImg}
+          data-zoomable={hasRealAvatar ? 'true' : 'false'}
           style={{
             backgroundImage: `url(${heroUrl})`,
-            ...(!hasRealAvatar
-              ? { height: '105dvh', transform: 'translateX(-50%) translateY(-5dvh)', backgroundSize: 'auto 80%' }
-              : {}),
+            ...(hasRealAvatar
+              ? { backgroundSize: '124% auto' }
+              : { height: '105dvh', transform: 'translateX(-50%) translateY(-5dvh)', backgroundSize: 'auto 80%' }),
           }}
         />
       )}
@@ -369,20 +406,24 @@ export default function ProfileScreen() {
           {!isHost && !isVenue && (
             mixLink
               ? <>
-                  <button className={s.mixBtn} style={{ color: col, borderColor: col, background: `rgba(${rgb},.12)` }}
-                    onClick={() => {
-                      if (mixLink.includes('soundcloud.com') || mixLink.includes('mixcloud.com')) {
-                        if (player?.url === mixLink) { setPlayer(null); } else { setPlayer({ url: mixLink, artistName: profile.name }); }
-                      } else {
-                        window.open(mixLink, '_blank', 'noopener');
-                      }
-                    }}>
-                    <span dangerouslySetInnerHTML={{ __html: seededWaveSvg(profile.name || '', rgb) }} />
-                    <span style={{ position: 'relative', zIndex: 1 }}>
-                      <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" style={{ verticalAlign: 'middle', marginRight: 6 }}><polygon points="6,3 20,12 6,21"/></svg>
-                      {player?.url === mixLink ? 'CLOSE PLAYER' : (isStandup ? 'PLAY DEMO' : 'PLAY DEMO MIX')}
-                    </span>
-                  </button>
+                  <span style={{ display: 'block', padding: 1, borderRadius: 12, marginBottom: 12, background: `linear-gradient(135deg, ${col}, ${grad2})` }}>
+                    <button className={s.mixBtn} style={{ borderColor: 'transparent', background: 'rgba(19,19,31,.92)', width: '100%', margin: 0 }}
+                      onClick={() => {
+                        if (mixLink.includes('soundcloud.com') || mixLink.includes('mixcloud.com')) {
+                          if (player?.url === mixLink) { setPlayer(null); } else { setPlayer({ url: mixLink, artistName: profile.name }); }
+                        } else {
+                          window.open(mixLink, '_blank', 'noopener');
+                        }
+                      }}>
+                      <span dangerouslySetInnerHTML={{ __html: seededWaveSvg(profile.name || '', rgb) }} />
+                      <span style={{ position: 'relative', zIndex: 1, display: 'inline-flex', alignItems: 'center' }}>
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill={col} style={{ verticalAlign: 'middle', marginRight: 6, flexShrink: 0 }}><polygon points="6,3 20,12 6,21"/></svg>
+                        <span style={{ backgroundImage: `linear-gradient(135deg, ${col}, ${grad2})`, WebkitBackgroundClip: 'text', backgroundClip: 'text', WebkitTextFillColor: 'transparent', color: 'transparent' }}>
+                          {player?.url === mixLink ? 'CLOSE PLAYER' : (isStandup ? 'PLAY DEMO' : 'PLAY DEMO MIX')}
+                        </span>
+                      </span>
+                    </button>
+                  </span>
                 </>
               : <div className={s.mixPlaceholder}>
                   <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ verticalAlign: 'middle', marginRight: 5, opacity: .5 }}>
@@ -392,42 +433,61 @@ export default function ProfileScreen() {
                 </div>
           )}
 
-          {profile.sound && !isVenue && (
-            <div className={s.glassCard} style={{ '--card-col': col, '--card-grad2': grad2 }}>
-              <div className={s.glassCardInner} style={{ color: col }}>{profile.sound}</div>
-            </div>
-          )}
-
-          {/* Genre — non-venue */}
+          {/* Genre — non-venue. Editorial treatment: no card chrome, no pills —
+              the sound descriptor sits inline next to the heading as an
+              italic gradient-clip line (same technique as the tagline
+              above), and the genre list itself as a quiet dot-separated
+              line below. */}
           {genres.length > 0 && !isVenue && (
-            <div className={s.glassCard} style={{ '--card-col': col, '--card-grad2': grad2, '--pill-col': col, '--pill-rgb': rgb, cursor: genres.length > 5 ? 'pointer' : 'default' }} onClick={() => genres.length > 5 && setGenreExpanded(e => !e)}>
-              <div className={s.cardLabel} style={{ color: col }}>{isStandup ? 'STYLE' : 'GENRE'}</div>
-              <div className={s.genrePills}>
-                {/* Every type's GENRE/STYLE pills get the signature Glow Pill —
-                    same treatment app-wide regardless of whether the source is
-                    the curated card_pills (Standup) or the broader genre_string
-                    (Artist/Band/Host). */}
-                {visibleGenres.map(g => <span key={g} className="glow-pill">{g}</span>)}
-                {!genreExpanded && genres.length > 5 && (
-                  <span className={s.genreMore}>+{genres.length - 5} more</span>
+            <div style={{ marginBottom: 12, cursor: remainingGenres.length > 0 ? 'pointer' : 'default' }} onClick={() => remainingGenres.length > 0 && setGenreExpanded(e => !e)}>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap', marginBottom: 10 }}>
+                <div className={s.cardLabel} style={{ color: 'rgba(232,232,240,.5)', marginBottom: 0 }}>{isStandup ? 'STYLE' : 'GENRES'}</div>
+                {profile.sound && (
+                  <div style={{ fontSize: 14, fontStyle: 'italic', lineHeight: 1.5, opacity: .9, background: `linear-gradient(135deg,${col},${grad2})`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
+                    {profile.sound}
+                  </div>
+                )}
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', rowGap: 6, fontSize: 14, lineHeight: 1.9, color: 'rgba(232,232,240,.85)' }}>
+                {visibleGenres.map((g, i) => (
+                  <span key={g} style={{ whiteSpace: 'nowrap' }}>
+                    {i > 0 && <span style={{ color: 'rgba(232,232,240,.3)', margin: '0 8px' }}>&middot;</span>}
+                    {g}
+                  </span>
+                ))}
+                {!genreExpanded && remainingGenres.length > 0 && (
+                  <span style={{ whiteSpace: 'nowrap' }}>
+                    <span style={{ color: 'rgba(232,232,240,.3)', margin: '0 8px' }}>&middot;</span>
+                    <span style={{ color: 'var(--muted)' }}>+{remainingGenres.length} more</span>
+                  </span>
                 )}
               </div>
             </div>
           )}
 
-          {/* Bio - non-venue only */}
+          {genres.length > 0 && !isVenue && (
+            <div style={{ height: 1, background: 'rgba(255,255,255,.08)', margin: '4px 0 20px' }} />
+          )}
+
+          {/* Bio - non-venue only. Same de-chromed treatment as Genres: no
+              card box, just a label and body text, with a standalone "READ
+              MORE" line (not an inline "...see more") below the preview. */}
           {profile.bio && !isVenue && (
-            <div className={s.glassCard} style={{ '--card-col': col, '--card-grad2': grad2 }}>
-              <div className={s.cardLabel} style={{ color: col }}>ABOUT</div>
+            <div style={{ marginBottom: 12 }}>
+              <div className={s.cardLabel} style={{ color: 'rgba(232,232,240,.5)' }}>ABOUT</div>
               <div className={s.bioText}>
-                {profile.bio.length <= 150
-                  ? profile.bio
-                  : bioExpanded
-                    ? <>{profile.bio} <span onClick={() => setBioExpanded(false)} style={{ color: 'rgba(255,255,255,.45)', cursor: 'pointer', fontStyle: 'italic', fontSize: 12 }}>see less</span></>
-                    : <>{profile.bio.slice(0, 150).trimEnd()}… <span onClick={() => setBioExpanded(true)} style={{ color: 'rgba(255,255,255,.45)', cursor: 'pointer', fontStyle: 'italic', fontSize: 12 }}>see more</span></>
-                }
+                {profile.bio.length <= 150 || bioExpanded ? profile.bio : `${profile.bio.slice(0, 150).trimEnd()}…`}
               </div>
+              {profile.bio.length > 150 && (
+                <div onClick={() => setBioExpanded(v => !v)} style={{ marginTop: 10, cursor: 'pointer', fontFamily: "'Bebas Neue', sans-serif", fontSize: 12, letterSpacing: 1.5, color: col }}>
+                  {bioExpanded ? 'READ LESS' : 'READ MORE'} <span style={{ marginLeft: 2 }}>&rsaquo;</span>
+                </div>
+              )}
             </div>
+          )}
+
+          {profile.bio && !isVenue && (
+            <div style={{ height: 1, background: 'rgba(255,255,255,.08)', margin: '4px 0 20px' }} />
           )}
 
           {/* Venue: combined Vibe tags + Sound + Venue Info box */}
@@ -462,11 +522,11 @@ export default function ProfileScreen() {
           {/* Action buttons */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             <div style={{ display: 'flex', gap: 10 }}>
-              <span style={{ flex: 1, display: 'inline-block', padding: 1, borderRadius: 12, background: followed ? col : `linear-gradient(135deg, ${col}, ${grad2})` }}>
+              <span style={{ flex: 1, display: 'inline-block', padding: 1, borderRadius: 12, background: `linear-gradient(135deg, ${col}, ${grad2})` }}>
                 <button
                   className={s.followBtn}
                   style={followed
-                    ? { borderColor: 'transparent', color: '#0a0a0f', background: col, width: '100%', margin: 0 }
+                    ? { borderColor: 'transparent', color: '#0a0a0f', background: `linear-gradient(135deg, ${col}, ${grad2})`, width: '100%', margin: 0 }
                     : { borderColor: 'transparent', background: 'rgba(19,19,31,.92)', width: '100%', margin: 0 }}
                   onClick={toggleFollow}
                   disabled={followBusy || !session}
@@ -474,15 +534,19 @@ export default function ProfileScreen() {
                   {followed ? '✓ FOLLOWING' : <span style={{ backgroundImage: `linear-gradient(135deg, ${col}, ${grad2})`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>+ FOLLOW</span>}
                 </button>
               </span>
-              {!isUnclaimed && !na(profile.contact_email) && (
+              {/* In-app messaging, not the contact_email mailto — that email is
+                  its own icon down in the socials row. Not wired to anything
+                  yet since the messaging system itself doesn't exist; this is
+                  just the button taking its place on every profile now. */}
+              {!isUnclaimed && (
                 <span style={{ flex: 1, display: 'inline-block', padding: 1, borderRadius: 12, background: `linear-gradient(135deg, ${col}, ${grad2})` }}>
-                  <a
-                    href={`mailto:${profile.contact_email}`}
+                  <button
+                    type="button"
                     className={s.followBtn}
-                    style={{ borderColor: 'transparent', background: 'rgba(19,19,31,.92)', width: '100%', margin: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', textDecoration: 'none', boxSizing: 'border-box' }}
+                    style={{ borderColor: 'transparent', background: 'rgba(19,19,31,.92)', width: '100%', margin: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box' }}
                   >
                     <span style={{ backgroundImage: `linear-gradient(135deg, ${col}, ${grad2})`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>MESSAGE</span>
-                  </a>
+                  </button>
                 </span>
               )}
             </div>

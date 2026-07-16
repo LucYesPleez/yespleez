@@ -28,7 +28,10 @@ export default function DashboardProfileCard({
 
   const hasProfile = !!profile?.name;
   const heroImg    = profile?.avatar_hero || profile?.avatar || (hasProfile ? pt.defaultImage : null);
-  const location   = formatLocation(profile || {});
+  // Postcode dropped here — this compact "pin + town, state" badge doesn't
+  // need it (formatLocation still returns the full "Suburb, STATE POSTCODE"
+  // for every other call site).
+  const location   = formatLocation({ ...(profile || {}), postcode: undefined });
   const estYear    = profile?.established_year;
   const tagline    = profile?.tagline;
   // Resize-reactive (matches VenueDashboard's established isNarrow pattern),
