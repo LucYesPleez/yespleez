@@ -5,6 +5,11 @@ import { selectedPerformanceRoleLabels } from '../lib/profileTaxonomy';
 import { PROFILE_TYPES } from '../lib/profileTypes';
 import { getContrastText } from '../lib/color';
 
+// Portrait-card-only label overrides — tighter than PROFILE_TYPES.shortLabel
+// for the little space this card's category pill has. Scoped to this file;
+// every other badge/pill in the app keeps the canonical shortLabel.
+const PORTRAIT_LABEL_OVERRIDES = { artist: 'DJ / PROD.' };
+
 /**
  * Props:
  *   profile  – { user_id, name, type, avatar, location, sound }
@@ -16,7 +21,7 @@ export default function PortraitCard({ profile: p, onClick, width = 150, height 
   const navigate = useNavigate();
   const type = (p?.type || 'artist').toLowerCase();
   const pt = PROFILE_TYPES[type] || PROFILE_TYPES.artist;
-  const label = pt.shortLabel || type.toUpperCase();
+  const label = PORTRAIT_LABEL_OVERRIDES[type] || pt.shortLabel || type.toUpperCase();
   // Standup: one pill per selected performance role (Comedy/Poetry), data-
   // driven so a future role works everywhere with no call-site change.
   const roleLabels = type === 'standup' ? selectedPerformanceRoleLabels(p?.genre_string) : [];
@@ -40,7 +45,7 @@ export default function PortraitCard({ profile: p, onClick, width = 150, height 
       {/* type pill(s) */}
       <div style={{ position: 'absolute', top: 10, right: 10, display: 'flex', gap: 6 }}>
         {pillLabels.map((l, i) => (
-          <span key={i} style={{ background: pt.accent, color: getContrastText(pt.accent), borderRadius: 6, padding: '3px 8px', fontSize: 9, fontWeight: 700, letterSpacing: .8, fontFamily: "'DM Sans',sans-serif" }}>
+          <span key={i} style={{ background: pt.accent, color: getContrastText(pt.accent), filter: 'brightness(.8)', borderRadius: 6, padding: '3px 8px', fontSize: 9, fontWeight: 700, letterSpacing: .8, fontFamily: "'DM Sans',sans-serif" }}>
             {l}
           </span>
         ))}
