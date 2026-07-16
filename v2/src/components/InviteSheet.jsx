@@ -6,18 +6,32 @@ import { resolveProfileId } from '../lib/resolveProfileId';
 import { formatLocation } from '../lib/formatLocation';
 import { PROFILE_TYPES } from '../lib/profileTypes';
 
-const PERF_TYPES = ['DJ Set', 'Live Set', 'MC / Host', 'Band', 'Comedy / Spoken Word', 'Other'];
+const SLOT_ROLES = ['Opener', 'Support', 'Headline'];
+const DURATIONS  = [30, 45, 60, 90, 120];
+const EXTRAS     = ['Accommodation', 'Meals', 'Travel'];
+
+// Turn "20:00" + 60min into "8:00–9:00pm" for the live preview / card facts.
+function fmtSlot(startHHMM, durationMin) {
+  if (!startHHMM) return '';
+  const fmt = d => d.toLocaleTimeString('en-AU', { hour: 'numeric', minute: d.getMinutes() ? '2-digit' : undefined }).replace(' ', '').toLowerCase();
+  const start = new Date(`2000-01-01T${startHHMM}`);
+  if (!durationMin) return fmt(start);
+  const end = new Date(start.getTime() + durationMin * 60000);
+  return `${fmt(start)}–${fmt(end)}`;
+}
 
 export default function InviteSheet({ artist, events = [], venueUserId, onClose }) {
   const navigate = useNavigate();
   const [eventId,   setEventId]   = useState('');
+  const [headliner, setHeadliner] = useState('');
   const [message,   setMessage]   = useState('');
-  const [perfType,  setPerfType]  = useState('');
+  const [slotRole,  setSlotRole]  = useState('');
   const [date,      setDate]      = useState('');
   const [time,      setTime]      = useState('');
+  const [duration,  setDuration]  = useState('');
   const [fee,       setFee]       = useState('');
-  const [notes,     setNotes]     = useState('');
-  const [showDetails, setShowDetails] = useState(true);
+  const [extras,    setExtras]    = useState(new Set());
+  const [respondBy, setRespondBy] = useState('');
   const [sending,   setSending]   = useState(false);
   const [sent,      setSent]      = useState(false);
   const [error,     setError]     = useState('');
@@ -29,6 +43,20 @@ export default function InviteSheet({ artist, events = [], venueUserId, onClose 
   }, []);
 
   const selectedEvent = events.find(e => e.id === eventId);
+
+  // Prefill the date from the chosen event (still overridable) — one less thing
+  // to type, and it keeps the invite's date honest to the event.
+  useEffect(() => {
+    if (selectedEvent?.config?.date && !date) setDate(selectedEvent.config.date);
+  }, [eventId]);
+
+  function toggleExtra(x) {
+    setExtras(prev => {
+      const next = new Set(prev);
+      next.has(x) ? next.delete(x) : next.add(x);
+      return next;
+    });
+  }
 
   async function handleSend() {
     setSending(true);
@@ -42,18 +70,22 @@ export default function InviteSheet({ artist, events = [], venueUserId, onClose 
       applicant_user_id: artist.user_id,
       applicant_type:   artist.type || 'artist',
       applicant_name:   artist.name,
-      event_id:         eventId || null,
+      event_id:         eventId && eventId !== '__new__' ? eventId : null,
       event_name:       selectedEvent?.name || null,
       message:          message.trim() || null,
-      performance_type: perfType || null,
       proposed_date:    date || null,
       proposed_time:    time || null,
-      proposed_fee:     fee || null,
-      notes:            notes.trim() || null,
+      proposed_fee:     fee.trim() || null,
       direction:        'outgoing',
       status:           'new',
       venue_profile_id:     venueProfileId,
       applicant_profile_id: applicantProfileId,
+      // New pitch fields (require the venue_enquiries columns — see migration).
+      headliner:        headliner.trim() || null,
+      slot_role:        slotRole || null,
+      set_duration:     duration ? parseInt(duration) : null,
+      extras:           extras.size ? [...extras] : null,
+      respond_by:       respondBy || null,
     };
     const { error: err } = await supabase.from('venue_enquiries').insert(payload);
     setSending(false);
@@ -69,11 +101,22 @@ export default function InviteSheet({ artist, events = [], venueUserId, onClose 
   }
 
   const type   = (artist.type || 'artist').toLowerCase();
-  const sound  = artist.sound || artist.genre_string?.split(' · ').slice(0,3).join(' · ') || '';
+  const sound  = artist.sound || artist.genre_string?.split(' · ').slice(0, 3).join(' · ') || '';
   const loc    = formatLocation(artist);
   const img    = artist.avatar_thumb || artist.avatar || null;
-
   const accent = PROFILE_TYPES[type]?.accent || '#00E5FF';
+
+  const firstName  = (artist.name || '').split(' ')[0];
+  const slotLabel  = fmtSlot(time, duration ? parseInt(duration) : null);
+  const extrasList = [...extras];
+  // Enough of a pitch to be worth sending — the message is the one thing a
+  // form can't fake, so it's the only hard requirement here.
+  const canSend    = message.trim().length > 0 && !sending;
+
+  const labelStyle = { fontFamily: "'Bebas Neue'", fontSize: 13, letterSpacing: 1.5, color: 'rgba(255,255,255,.6)', display: 'block', marginBottom: 8 };
+  const subLabel   = { fontFamily: "'Bebas Neue'", fontSize: 11, letterSpacing: 1.2, color: 'rgba(255,255,255,.45)', display: 'block', marginBottom: 5 };
+  const inputStyle = { width: '100%', boxSizing: 'border-box', background: 'rgba(255,255,255,.06)', border: '1px solid rgba(255,255,255,.12)', borderRadius: 8, padding: '10px 12px', color: '#fff', fontFamily: "'DM Sans',sans-serif", fontSize: 13, outline: 'none' };
+  const sectionGap = { marginBottom: 22 };
 
   return (
     <div
@@ -113,16 +156,16 @@ export default function InviteSheet({ artist, events = [], venueUserId, onClose 
           ) : (
             <>
               {/* ── Header ── */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
                 <div>
                   <div style={{ fontFamily: "'Bebas Neue'", fontSize: 22, letterSpacing: 2, color: '#fff' }}>INVITE ARTIST</div>
-                  <div style={{ fontSize: 12, color: 'rgba(255,255,255,.4)', letterSpacing: 1, marginTop: 1 }}>SEND AN INVITATION TO PERFORM</div>
+                  <div style={{ fontSize: 12, color: 'rgba(255,255,255,.4)', letterSpacing: 1, marginTop: 1 }}>MAKE THEM A BOOKING OFFER</div>
                 </div>
                 <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,.4)', fontSize: 22, cursor: 'pointer', lineHeight: 1, padding: 4 }}>✕</button>
               </div>
 
               {/* ── Artist chip ── */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.1)', borderRadius: 12, padding: '10px 14px', marginBottom: 24 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.1)', borderRadius: 12, padding: '10px 14px', marginBottom: 18 }}>
                 {img
                   ? <img src={img} alt="" style={{ width: 44, height: 44, borderRadius: 8, objectFit: 'cover', objectPosition: 'center top', border: `1.5px solid ${accent}`, flexShrink: 0 }} />
                   : <div style={{ width: 44, height: 44, borderRadius: 8, background: `rgba(0,229,255,.1)`, border: `1.5px solid ${accent}`, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>🎧</div>
@@ -133,9 +176,31 @@ export default function InviteSheet({ artist, events = [], venueUserId, onClose 
                 </div>
               </div>
 
-              {/* ── Which event? ── */}
-              <div style={{ marginBottom: 20 }}>
-                <label style={{ fontFamily: "'Bebas Neue'", fontSize: 13, letterSpacing: 1.5, color: 'rgba(255,255,255,.6)', display: 'block', marginBottom: 8 }}>WHICH EVENT?</label>
+              {/* ── LIVE PREVIEW — what the artist will actually receive.
+                    Builds itself as the promoter types; a thin pitch reads thin,
+                    which nudges them to fill the gaps without a single mandatory
+                    field. ── */}
+              <div style={{ border: `1px solid rgba(${accent === '#00E5FF' ? '0,229,255' : '255,51,153'},.3)`, borderRadius: 12, padding: '14px 16px', marginBottom: 24, background: 'rgba(255,255,255,.02)' }}>
+                <div style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1.5, color: accent, marginBottom: 10 }}>{firstName ? `WHAT ${firstName.toUpperCase()} WILL SEE` : 'WHAT THEY WILL SEE'}</div>
+                <div style={{ fontSize: 13.5, lineHeight: 1.65, color: '#fff' }}>
+                  <span style={{ fontWeight: 600 }}>Hey {firstName || 'there'} — </span>
+                  {message.trim()
+                    ? message.trim()
+                    : <span style={{ color: 'rgba(255,255,255,.3)', fontStyle: 'italic' }}>your pitch appears here as you write it…</span>}
+                </div>
+                {(slotLabel || slotRole || fee || extrasList.length > 0 || headliner) && (
+                  <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,.08)', fontSize: 12.5, color: 'rgba(255,255,255,.7)', lineHeight: 1.7 }}>
+                    {selectedEvent && <div>{selectedEvent.name}{date ? ` · ${new Date(date + 'T12:00:00').toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' })}` : ''}</div>}
+                    {headliner && <div>Headlining: <span style={{ color: '#fff' }}>{headliner}</span></div>}
+                    {(slotRole || slotLabel) && <div>Your slot: <span style={{ color: '#fff' }}>{[slotRole, slotLabel].filter(Boolean).join(' · ')}</span></div>}
+                    {(fee || extrasList.length > 0) && <div>Offer: <span style={{ color: '#00E5A0' }}>{[fee, ...extrasList].filter(Boolean).join(' + ')}</span></div>}
+                  </div>
+                )}
+              </div>
+
+              {/* ══ THE NIGHT ══ */}
+              <div style={sectionGap}>
+                <label style={labelStyle}>WHICH EVENT?</label>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {events.slice(0, 6).map(ev => (
                     <label key={ev.id} style={{ display: 'flex', alignItems: 'center', gap: 10, background: eventId === ev.id ? `rgba(${accent === '#00E5FF' ? '0,229,255' : '255,51,153'},.1)` : 'rgba(255,255,255,.04)', border: `1px solid ${eventId === ev.id ? accent : 'rgba(255,255,255,.1)'}`, borderRadius: 10, padding: '10px 14px', cursor: 'pointer', transition: 'all .15s' }}>
@@ -149,69 +214,90 @@ export default function InviteSheet({ artist, events = [], venueUserId, onClose 
                     <span style={{ fontFamily: "'DM Sans'", fontSize: 13, color: 'rgba(255,255,255,.6)' }}>+ Create New Event</span>
                   </label>
                 </div>
+                <div style={{ marginTop: 12 }}>
+                  <label style={subLabel}>WHO'S HEADLINING / ALSO PLAYING <span style={{ opacity: .6 }}>(the pull)</span></label>
+                  <input type="text" value={headliner} onChange={e => setHeadliner(e.target.value)} placeholder="e.g. Flowidus" style={inputStyle} />
+                </div>
               </div>
 
-              {/* ── Message ── */}
-              <div style={{ marginBottom: 16 }}>
-                <label style={{ fontFamily: "'Bebas Neue'", fontSize: 13, letterSpacing: 1.5, color: 'rgba(255,255,255,.6)', display: 'block', marginBottom: 8 }}>MESSAGE <span style={{ opacity: .5, fontSize: 11 }}>(OPTIONAL)</span></label>
+              {/* ══ YOUR PITCH ══ */}
+              <div style={sectionGap}>
+                <label style={labelStyle}>YOUR PITCH <span style={{ opacity: .5, fontSize: 11 }}>— WHY THEM?</span></label>
                 <textarea
                   value={message}
                   onChange={e => setMessage(e.target.value)}
-                  placeholder={`Hey ${artist.name.split(' ')[0]}, we'd love to have you perform at our event…`}
-                  rows={3}
-                  style={{ width: '100%', boxSizing: 'border-box', background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.12)', borderRadius: 10, padding: '10px 14px', color: '#fff', fontFamily: "'DM Sans',sans-serif", fontSize: 13, resize: 'vertical', outline: 'none', lineHeight: 1.5 }}
+                  placeholder={`Talk to ${firstName || 'them'} like a person. What's the night about, and why do you want them on it? "We've been deep in your recent mixes — that rolling jungle sound is exactly the energy we want to open the room…"`}
+                  rows={4}
+                  style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.5 }}
                 />
+                <div style={{ fontSize: 11, color: 'rgba(255,255,255,.35)', marginTop: 6 }}>This is the one thing that turns an invite into a real offer. Make it personal.</div>
               </div>
 
-              {/* ── Proposed details toggle ── */}
-              <button
-                onClick={() => setShowDetails(v => !v)}
-                style={{ fontFamily: "'Bebas Neue'", fontSize: 13, letterSpacing: 1.2, color: showDetails ? accent : 'rgba(255,255,255,.4)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, marginBottom: showDetails ? 14 : 20, display: 'flex', alignItems: 'center', gap: 6 }}
-              >
-                {showDetails ? '▾' : '▸'} PROPOSED DETAILS
-              </button>
-
-              {showDetails && (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 20 }}>
-                  {/* Performance type */}
-                  <div style={{ gridColumn: '1 / -1' }}>
-                    <label style={{ fontFamily: "'Bebas Neue'", fontSize: 11, letterSpacing: 1.2, color: 'rgba(255,255,255,.45)', display: 'block', marginBottom: 5 }}>PERFORMANCE TYPE</label>
-                    <select value={perfType} onChange={e => setPerfType(e.target.value)} style={{ width: '100%', background: 'rgba(255,255,255,.06)', border: '1px solid rgba(255,255,255,.12)', borderRadius: 8, padding: '9px 12px', color: perfType ? '#fff' : 'rgba(255,255,255,.35)', fontFamily: "'DM Sans',sans-serif", fontSize: 13, outline: 'none' }}>
-                      <option value="">Select…</option>
-                      {PERF_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+              {/* ══ THE SLOT ══ */}
+              <div style={sectionGap}>
+                <label style={labelStyle}>THE SLOT</label>
+                <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
+                  {SLOT_ROLES.map(r => (
+                    <button key={r} type="button" onClick={() => setSlotRole(slotRole === r ? '' : r)}
+                      style={{ fontFamily: "'Bebas Neue'", fontSize: 12, letterSpacing: 1, padding: '7px 16px', borderRadius: 20, cursor: 'pointer', transition: 'all .15s',
+                        background: slotRole === r ? `rgba(${accent === '#00E5FF' ? '0,229,255' : '255,51,153'},.15)` : 'rgba(255,255,255,.04)',
+                        border: `1px solid ${slotRole === r ? accent : 'rgba(255,255,255,.12)'}`,
+                        color: slotRole === r ? accent : 'rgba(255,255,255,.6)' }}>{r}</button>
+                  ))}
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+                  <div>
+                    <label style={subLabel}>DATE</label>
+                    <input type="date" value={date} onChange={e => setDate(e.target.value)} style={{ ...inputStyle, colorScheme: 'dark' }} />
+                  </div>
+                  <div>
+                    <label style={subLabel}>START</label>
+                    <input type="time" value={time} onChange={e => setTime(e.target.value)} style={{ ...inputStyle, colorScheme: 'dark' }} />
+                  </div>
+                  <div>
+                    <label style={subLabel}>LENGTH</label>
+                    <select value={duration} onChange={e => setDuration(e.target.value)} style={{ ...inputStyle, color: duration ? '#fff' : 'rgba(255,255,255,.35)' }}>
+                      <option value="">—</option>
+                      {DURATIONS.map(d => <option key={d} value={d}>{d} min</option>)}
                     </select>
                   </div>
-                  {/* Date */}
-                  <div>
-                    <label style={{ fontFamily: "'Bebas Neue'", fontSize: 11, letterSpacing: 1.2, color: 'rgba(255,255,255,.45)', display: 'block', marginBottom: 5 }}>DATE</label>
-                    <input type="date" value={date} onChange={e => setDate(e.target.value)} style={{ width: '100%', boxSizing: 'border-box', background: 'rgba(255,255,255,.06)', border: '1px solid rgba(255,255,255,.12)', borderRadius: 8, padding: '9px 12px', color: '#fff', fontFamily: "'DM Sans',sans-serif", fontSize: 13, outline: 'none', colorScheme: 'dark' }} />
-                  </div>
-                  {/* Time */}
-                  <div>
-                    <label style={{ fontFamily: "'Bebas Neue'", fontSize: 11, letterSpacing: 1.2, color: 'rgba(255,255,255,.45)', display: 'block', marginBottom: 5 }}>TIME</label>
-                    <input type="time" value={time} onChange={e => setTime(e.target.value)} style={{ width: '100%', boxSizing: 'border-box', background: 'rgba(255,255,255,.06)', border: '1px solid rgba(255,255,255,.12)', borderRadius: 8, padding: '9px 12px', color: '#fff', fontFamily: "'DM Sans',sans-serif", fontSize: 13, outline: 'none', colorScheme: 'dark' }} />
-                  </div>
-                  {/* Fee */}
-                  <div style={{ gridColumn: '1 / -1' }}>
-                    <label style={{ fontFamily: "'Bebas Neue'", fontSize: 11, letterSpacing: 1.2, color: 'rgba(255,255,255,.45)', display: 'block', marginBottom: 5 }}>PROPOSED FEE</label>
-                    <input type="text" value={fee} onChange={e => setFee(e.target.value)} placeholder="e.g. $300 + door" style={{ width: '100%', boxSizing: 'border-box', background: 'rgba(255,255,255,.06)', border: '1px solid rgba(255,255,255,.12)', borderRadius: 8, padding: '9px 12px', color: '#fff', fontFamily: "'DM Sans',sans-serif", fontSize: 13, outline: 'none' }} />
-                  </div>
-                  {/* Notes */}
-                  <div style={{ gridColumn: '1 / -1' }}>
-                    <label style={{ fontFamily: "'Bebas Neue'", fontSize: 11, letterSpacing: 1.2, color: 'rgba(255,255,255,.45)', display: 'block', marginBottom: 5 }}>NOTES</label>
-                    <textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Load-in time, stage requirements, parking…" rows={2} style={{ width: '100%', boxSizing: 'border-box', background: 'rgba(255,255,255,.06)', border: '1px solid rgba(255,255,255,.12)', borderRadius: 8, padding: '9px 12px', color: '#fff', fontFamily: "'DM Sans',sans-serif", fontSize: 13, resize: 'none', outline: 'none' }} />
-                  </div>
                 </div>
-              )}
+              </div>
+
+              {/* ══ THE OFFER ══ */}
+              <div style={sectionGap}>
+                <label style={labelStyle}>THE OFFER</label>
+                <input type="text" value={fee} onChange={e => setFee(e.target.value)} placeholder="e.g. $900, or $300 + door split" style={{ ...inputStyle, marginBottom: 10 }} />
+                <label style={subLabel}>WHAT'S COVERED</label>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  {EXTRAS.map(x => (
+                    <button key={x} type="button" onClick={() => toggleExtra(x)}
+                      style={{ fontFamily: "'Bebas Neue'", fontSize: 12, letterSpacing: 1, padding: '7px 16px', borderRadius: 20, cursor: 'pointer', transition: 'all .15s',
+                        background: extras.has(x) ? 'rgba(0,229,160,.12)' : 'rgba(255,255,255,.04)',
+                        border: `1px solid ${extras.has(x) ? '#00E5A0' : 'rgba(255,255,255,.12)'}`,
+                        color: extras.has(x) ? '#00E5A0' : 'rgba(255,255,255,.6)' }}>
+                      {extras.has(x) ? '✓ ' : '+ '}{x}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* ══ HOLDING THE SPOT ══ */}
+              <div style={{ marginBottom: 24 }}>
+                <label style={labelStyle}>HOLD THE SPOT UNTIL <span style={{ opacity: .5, fontSize: 11 }}>(OPTIONAL)</span></label>
+                <input type="date" value={respondBy} onChange={e => setRespondBy(e.target.value)} style={{ ...inputStyle, colorScheme: 'dark' }} />
+                <div style={{ fontSize: 11, color: 'rgba(255,255,255,.35)', marginTop: 6 }}>Gives {firstName || 'them'} an honest deadline — and keeps your night moving.</div>
+              </div>
 
               {error && <div style={{ fontSize: 13, color: '#ff6b6b', marginBottom: 12 }}>{error}</div>}
 
               {/* ── Send button ── */}
               <button
                 onClick={handleSend}
-                disabled={sending}
-                style={{ width: '100%', fontFamily: "'Bebas Neue'", fontSize: 16, letterSpacing: 2, padding: '14px', borderRadius: 12, border: 'none', background: sending ? 'rgba(255,255,255,.1)' : `linear-gradient(135deg, ${accent}, ${accent === '#00E5FF' ? '#00B4D8' : '#FF69B4'})`, color: sending ? 'rgba(255,255,255,.4)' : '#0a0a14', cursor: sending ? 'not-allowed' : 'pointer', transition: 'opacity .15s', fontWeight: 700 }}
-              >{sending ? 'SENDING…' : 'SEND INVITE'}</button>
+                disabled={!canSend}
+                style={{ width: '100%', fontFamily: "'Bebas Neue'", fontSize: 16, letterSpacing: 2, padding: '14px', borderRadius: 12, border: 'none', background: !canSend ? 'rgba(255,255,255,.08)' : `linear-gradient(135deg, ${accent}, ${accent === '#00E5FF' ? '#00B4D8' : '#FF69B4'})`, color: !canSend ? 'rgba(255,255,255,.35)' : '#0a0a14', cursor: !canSend ? 'not-allowed' : 'pointer', transition: 'opacity .15s', fontWeight: 700 }}
+              >{sending ? 'SENDING…' : 'SEND INVITATION'}</button>
+              {!message.trim() && <div style={{ fontSize: 11, color: 'rgba(255,255,255,.3)', marginTop: 8, textAlign: 'center' }}>Add a pitch to send</div>}
             </>
           )}
         </div>
