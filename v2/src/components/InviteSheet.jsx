@@ -106,7 +106,9 @@ export default function InviteSheet({ artist, events = [], venueUserId, onClose 
   const img    = artist.avatar_thumb || artist.avatar || null;
   const accent = PROFILE_TYPES[type]?.accent || '#00E5FF';
 
-  const firstName  = (artist.name || '').split(' ')[0];
+  // Always the full name — these are act names, not people's names. Splitting
+  // "Daddy Longlegs" to a first word gives you "Hey Daddy", which is nonsense.
+  const actName    = (artist.name || '').trim();
   const slotLabel  = fmtSlot(time, duration ? parseInt(duration) : null);
   const extrasList = [...extras];
   // Enough of a pitch to be worth sending — the message is the one thing a
@@ -181,9 +183,9 @@ export default function InviteSheet({ artist, events = [], venueUserId, onClose 
                     which nudges them to fill the gaps without a single mandatory
                     field. ── */}
               <div style={{ border: `1px solid rgba(${accent === '#00E5FF' ? '0,229,255' : '255,51,153'},.3)`, borderRadius: 12, padding: '14px 16px', marginBottom: 24, background: 'rgba(255,255,255,.02)' }}>
-                <div style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1.5, color: accent, marginBottom: 10 }}>{firstName ? `WHAT ${firstName.toUpperCase()} WILL SEE` : 'WHAT THEY WILL SEE'}</div>
+                <div style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1.5, color: accent, marginBottom: 10 }}>{actName ? `WHAT ${actName.toUpperCase()} WILL SEE` : 'WHAT THEY WILL SEE'}</div>
                 <div style={{ fontSize: 13.5, lineHeight: 1.65, color: '#fff' }}>
-                  <span style={{ fontWeight: 600 }}>Hey {firstName || 'there'} — </span>
+                  <span style={{ fontWeight: 600 }}>Hey {actName || 'there'} — </span>
                   {message.trim()
                     ? message.trim()
                     : <span style={{ color: 'rgba(255,255,255,.3)', fontStyle: 'italic' }}>your pitch appears here as you write it…</span>}
@@ -226,7 +228,7 @@ export default function InviteSheet({ artist, events = [], venueUserId, onClose 
                 <textarea
                   value={message}
                   onChange={e => setMessage(e.target.value)}
-                  placeholder={`Talk to ${firstName || 'them'} like a person. What's the night about, and why do you want them on it? "We've been deep in your recent mixes — that rolling jungle sound is exactly the energy we want to open the room…"`}
+                  placeholder={`Talk to ${actName || 'them'} like a person. What's the night about, and why do you want them on it? "We've been deep in your recent mixes — that rolling jungle sound is exactly the energy we want to open the room…"`}
                   rows={4}
                   style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.5 }}
                 />
@@ -286,7 +288,7 @@ export default function InviteSheet({ artist, events = [], venueUserId, onClose 
               <div style={{ marginBottom: 24 }}>
                 <label style={labelStyle}>HOLD THE SPOT UNTIL <span style={{ opacity: .5, fontSize: 11 }}>(OPTIONAL)</span></label>
                 <input type="date" value={respondBy} onChange={e => setRespondBy(e.target.value)} style={{ ...inputStyle, colorScheme: 'dark' }} />
-                <div style={{ fontSize: 11, color: 'rgba(255,255,255,.35)', marginTop: 6 }}>Gives {firstName || 'them'} an honest deadline — and keeps your night moving.</div>
+                <div style={{ fontSize: 11, color: 'rgba(255,255,255,.35)', marginTop: 6 }}>Gives {actName || 'them'} an honest deadline — and keeps your night moving.</div>
               </div>
 
               {error && <div style={{ fontSize: 13, color: '#ff6b6b', marginBottom: 12 }}>{error}</div>}
