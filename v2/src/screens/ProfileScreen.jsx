@@ -583,10 +583,38 @@ export default function ProfileScreen() {
             </div>
           )}
 
-          {/* Action buttons — primary booking CTA first (Check Availability /
-              Enquire), Follow + Message secondary. Order matches the core
-              journey: Discover → profile → check availability → enquire. */}
+          {/* Action buttons — Follow + Message first, then the booking CTA
+              (Check Availability / Enquire) below, then the socials row. */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <span style={{ flex: 1, display: 'inline-block', padding: 1, borderRadius: 12, background: `linear-gradient(135deg, ${col}, ${grad2})` }}>
+                <button
+                  className={s.followBtn}
+                  style={followed
+                    ? { borderColor: 'transparent', color: '#0a0a0f', background: `linear-gradient(135deg, ${col}, ${grad2})`, width: '100%', margin: 0 }
+                    : { borderColor: 'transparent', background: 'rgba(19,19,31,.92)', width: '100%', margin: 0 }}
+                  onClick={toggleFollow}
+                  disabled={followBusy || !session}
+                >
+                  {followed ? '✓ FOLLOWING' : <span style={{ backgroundImage: `linear-gradient(135deg, ${col}, ${grad2})`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>+ FOLLOW</span>}
+                </button>
+              </span>
+              {/* In-app messaging, not the contact_email mailto — that email is
+                  its own icon down in the socials row. Not wired to anything
+                  yet since the messaging system itself doesn't exist; this is
+                  just the button taking its place on every profile now. */}
+              {!isUnclaimed && (
+                <span style={{ flex: 1, display: 'inline-block', padding: 1, borderRadius: 12, background: `linear-gradient(135deg, ${col}, ${grad2})` }}>
+                  <button
+                    type="button"
+                    className={s.followBtn}
+                    style={{ borderColor: 'transparent', background: 'rgba(19,19,31,.92)', width: '100%', margin: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box' }}
+                  >
+                    <span style={{ backgroundImage: `linear-gradient(135deg, ${col}, ${grad2})`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>MESSAGE</span>
+                  </button>
+                </span>
+              )}
+            </div>
             {isVenue && !isUnclaimed && (
               <button
                 className={s.followBtn}
@@ -623,39 +651,10 @@ export default function ProfileScreen() {
                 CHECK AVAILABILITY &amp; ENQUIRE
               </button>
             )}
-            <div style={{ display: 'flex', gap: 10 }}>
-              <span style={{ flex: 1, display: 'inline-block', padding: 1, borderRadius: 12, background: `linear-gradient(135deg, ${col}, ${grad2})` }}>
-                <button
-                  className={s.followBtn}
-                  style={followed
-                    ? { borderColor: 'transparent', color: '#0a0a0f', background: `linear-gradient(135deg, ${col}, ${grad2})`, width: '100%', margin: 0 }
-                    : { borderColor: 'transparent', background: 'rgba(19,19,31,.92)', width: '100%', margin: 0 }}
-                  onClick={toggleFollow}
-                  disabled={followBusy || !session}
-                >
-                  {followed ? '✓ FOLLOWING' : <span style={{ backgroundImage: `linear-gradient(135deg, ${col}, ${grad2})`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>+ FOLLOW</span>}
-                </button>
-              </span>
-              {/* In-app messaging, not the contact_email mailto — that email is
-                  its own icon down in the socials row. Not wired to anything
-                  yet since the messaging system itself doesn't exist; this is
-                  just the button taking its place on every profile now. */}
-              {!isUnclaimed && (
-                <span style={{ flex: 1, display: 'inline-block', padding: 1, borderRadius: 12, background: `linear-gradient(135deg, ${col}, ${grad2})` }}>
-                  <button
-                    type="button"
-                    className={s.followBtn}
-                    style={{ borderColor: 'transparent', background: 'rgba(19,19,31,.92)', width: '100%', margin: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box' }}
-                  >
-                    <span style={{ backgroundImage: `linear-gradient(135deg, ${col}, ${grad2})`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>MESSAGE</span>
-                  </button>
-                </span>
-              )}
-            </div>
             {/* Restore shared social links row beneath Follow/Message for
                 every non-venue type — Venue keeps its own (unchanged) row
                 inside VenueInfoDropdown above. */}
-            {!isVenue && <ProfileSocialLinks socials={socials} justify="center" />}
+            {!isVenue && <div style={{ paddingTop: 12 }}><ProfileSocialLinks socials={socials} justify="center" /></div>}
           </div>
 
           {/* Claim this profile — unclaimed profiles only (keyed on the row's

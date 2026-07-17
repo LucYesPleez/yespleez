@@ -11,7 +11,7 @@
 
 ## Fixed in this pass
 
-**Primary booking CTA now sits above Follow** (`ProfileScreen`, commit `bbdb476`). The booking CTA was already styled as primary (full-width, solid gradient) but positioned *below* the Follow/Message row. Reordered per the agreed hierarchy and the Discover → profile → **check availability** → enquire journey. Verified live: venue profile shows CHECK AVAILABILITY on top; profiles with no booking CTA are unchanged. Pure JSX reorder, no logic change.
+**Action-button order** (`ProfileScreen`). `bbdb476` first moved the booking CTA *above* Follow; on review the owner preferred it back **below** Follow + Message, which is the order now shipped: Follow / Message, then Check Availability / Enquire, then the socials row. The booking CTA keeps its primary styling (full-width, solid gradient) so it still reads as the main action without being first. Also added top spacing above the socials row (they sat too close to the buttons). Verified live at 375px.
 
 ---
 
