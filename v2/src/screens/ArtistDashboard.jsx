@@ -17,22 +17,40 @@ import DashboardProfileCard from '../components/DashboardProfileCard';
 import NotificationBar from '../components/NotificationBar';
 import DashboardStats from '../components/DashboardStats';
 import FollowingSection, { FOLLOW_FILTER_CONFIGS } from '../components/FollowingSection';
-import EnquiryCard from '../components/EnquiryCard';
+import OpportunityCard from '../components/OpportunityCard';
+import BookingInvitation from '../components/BookingInvitation';
 import AvailabilitySection from '../components/AvailabilitySection';
 import { PROFILE_TYPES } from '../lib/profileTypes';
 
-// Organiser-side (INCOMING) pipeline — what venues/hosts see. Matches
-// EnquiryPanel's own INCOMING sub-tabs (NEW/SEEN/SHORTLISTED/ACCEPTED/
-// DECLINED) so this dashboard's bespoke incoming tab bar stays in sync with
-// the shared component Host/Venue dashboards use for the same thing.
+// The artist's opportunity pipeline.
+//
+// NEW means UNDECIDED, not unread. Reading is metadata — opening an offer
+// stores 'seen' purely to clear its NEW dot; it stays in NEW until the artist
+// consciously decides Consider / Accept / Decline. There is deliberately no
+// "Seen" bucket: looking at something isn't progress, and a read-but-undealt-
+// with pile is how inboxes become graveyards. The pipeline advances only on
+// intentional decisions.
+// ACCEPTED rather than BOOKED: the four-bucket model calls this "Booked", but
+// these buckets are scoped inside the INCOMING direction tab, which already
+// sits alongside a top-level BOOKED tab for confirmed gigs. Two nested tabs
+// sharing a name is worse than a slightly less pure label. Revisit if/when the
+// dashboard's top-level navigation gets reworked.
 const IN_STATUS_MAP  = {
-  NEW:         ['new', 'pending'],
-  SEEN:        ['seen', 'viewed'],
-  SHORTLISTED: ['shortlisted', 'interested'],
-  ACCEPTED:    ['accepted', 'booked'],
-  DECLINED:    ['declined'],
+  NEW:         ['new', 'pending', 'seen', 'viewed'],
+  CONSIDERING: ['shortlisted', 'interested', 'tentative'],
+  ACCEPTED:    ['accepted', 'booked', 'confirmed'],
+  HISTORY:     ['declined', 'rejected', 'cancelled', 'completed', 'expired'],
 };
-const IN_TABS = ['NEW', 'SEEN', 'SHORTLISTED', 'ACCEPTED', 'DECLINED'];
+const IN_TABS = ['NEW', 'CONSIDERING', 'ACCEPTED', 'HISTORY'];
+// Unread = never opened. Drives the NEW dot only, never the bucket.
+const UNREAD_STATUSES = ['new', 'pending'];
+// Calm by default — an empty bucket is a feature, not a gap.
+const IN_EMPTY = {
+  NEW:         'Nothing new right now.',
+  CONSIDERING: "You haven't put anything on your maybe list.",
+  ACCEPTED:    "You haven't accepted any invitations yet.",
+  HISTORY:     'Nothing here yet.',
+};
 
 // Applicant-side (OUTGOING) pipeline — what artists see (asymmetric labels).
 // Single source of truth for status -> tab: applicantLabel() is the only
@@ -116,6 +134,9 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
 
   const [enqDirTab,     setEnqDirTab]     = useState('INCOMING');
   const [inStatusTab,   setInStatusTab]   = useState('NEW');
+  const [openOffer,     setOpenOffer]     = useState(null);
+  const [undoItem,      setUndoItem]      = useState(null);
+  const undoTimer = useRef(null);
   const [outStatusTab,  setOutStatusTab]  = useState('SUBMITTED');
   const [gigTab,        setGigTab]        = useState('UPCOMING');
   const [enqSearch,     setEnqSearch]     = useState('');
@@ -185,7 +206,7 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
         .select('*').eq('applicant_user_id', userId).order('created_at', { ascending: false }).limit(50);
       // M5.1 (D4): venue resolves by the enquiry row's venue_profile_id; legacy
       // user_id+type join only for rows without one.
-      const venueCols = 'id, user_id, name, avatar, avatar_thumb, type, bio, sound, genre_string, location, card_pills';
+      const venueCols = 'id, user_id, name, avatar, avatar_hero, avatar_thumb, type, bio, sound, genre_string, location, suburb, state, postcode, card_pills';
       const pidRows = (rows || []).filter(r => r.venue_profile_id);
       const uidRows = (rows || []).filter(r => !r.venue_profile_id && r.venue_user_id);
       const [vPid, vUid] = await Promise.all([
@@ -288,6 +309,50 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
     return JSON.stringify(o).toLowerCase().includes(enqSearch.toLowerCase());
   });
 
+  // The clash-check — one source of truth for both the Opportunity Card and the
+  // Booking Invitation, so they can never disagree. v1 only checks against the
+  // artist's own confirmed gigs; conflicts between two un-accepted offers come
+  // with the pipeline.
+  function availabilityFor(offer) {
+    const d = offer.proposed_date || offer.date_requested;
+    if (!d) return { status: 'unknown' };
+    const clash = [...upcomingGigs, ...pastGigs].find(g => g.config?.date === d);
+    return clash ? { status: 'clash', clashWith: clash.name } : { status: 'free' };
+  }
+
+  // Opening is a read-receipt, not a pipeline move. It clears the NEW dot and
+  // nothing else — the offer stays in NEW until an actual decision is made.
+  function openOfferSheet(offer) {
+    if (UNREAD_STATUSES.includes((offer.status || 'new').toLowerCase())) {
+      handleOfferRespond(offer.id, 'seen');
+    }
+    setOpenOffer(offer);
+  }
+
+  // Consider — the conscious "keep this one alive". Private and silent: the
+  // venue is never notified (handleOfferRespond only notifies on accept).
+  function considerOffer(offer) {
+    handleOfferRespond(offer.id, 'shortlisted');
+  }
+
+  // Decline — instant, with a 5s undo. Safe to apply optimistically because
+  // declining notifies nobody; the only effect is the status itself, so undo
+  // just puts it back.
+  function declineOffer(offer) {
+    const prevStatus = offer.status || 'new';
+    handleOfferRespond(offer.id, 'declined');
+    setUndoItem({ id: offer.id, prevStatus, name: offer.event_name || offer.venue_name });
+    clearTimeout(undoTimer.current);
+    undoTimer.current = setTimeout(() => setUndoItem(null), 5000);
+  }
+
+  function undoDecline() {
+    if (!undoItem) return;
+    handleOfferRespond(undoItem.id, undoItem.prevStatus);
+    clearTimeout(undoTimer.current);
+    setUndoItem(null);
+  }
+
   const gigList = gigTab === 'UPCOMING' ? upcomingGigs : filterPastEvents(pastGigs, pastGigSearch);
 
   const newAppsCount  = applications.filter(a => (a.status || 'pending') === 'pending').length;
@@ -388,21 +453,17 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
             <input className={s.searchBar} placeholder="Search by venue, event, date…" value={enqSearch} onChange={e => setEnqSearch(e.target.value)} style={{ '--focus-col': 'rgba(191,95,255,.4)' }} />
             {loadingOffers
               ? <p className={s.empty}>Loading…</p>
-              : filteredOffers.map(offer => (
-                    <EnquiryCard key={offer.id} enq={{
-                      id: offer.id,
-                      direction: 'incoming',
-                      status: offer.status || 'new',
-                      applicant_user_id: offer.venue_user_id,
-                      applicant_type: 'venue',
-                      name: offer.venue_name || 'Venue',
-                      event_name: offer.event_name,
-                      date_requested: offer.proposed_date || offer.date_requested,
-                      created_at: offer.created_at,
-                      note: offer.message || offer.note,
-                      venue_name: offer.venue_name,
-                      profile: offer.venueProfile || null,
-                    }} onRespond={handleOfferRespond} />
+              : filteredOffers.length === 0
+                ? <p className={s.empty}>{enqSearch.trim() ? 'Nothing matches your search.' : IN_EMPTY[inStatusTab]}</p>
+                : filteredOffers.map(offer => (
+                    <OpportunityCard
+                      key={offer.id}
+                      offer={offer}
+                      availability={availabilityFor(offer)}
+                      onOpen={openOfferSheet}
+                      onConsider={considerOffer}
+                      onDecline={declineOffer}
+                    />
                   ))
             }
           </div>
@@ -511,6 +572,30 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
         onMouseEnter={e => { e.currentTarget.style.background = 'linear-gradient(135deg, #00E5A0, #00B4D8)'; }}
         onMouseLeave={e => { e.currentTarget.style.background = 'linear-gradient(#0f0f1a, #0f0f1a) padding-box, linear-gradient(90deg, #BF5FFF, #ffb830) border-box'; }}
       >{cfg.browseLabel}</button>
+
+      {/* Level 2 — the full Booking Invitation (same clash-check as the card) */}
+      {openOffer && (
+        <BookingInvitation
+          offer={openOffer}
+          artistName={profile?.name}
+          availability={availabilityFor(openOffer)}
+          onRespond={handleOfferRespond}
+          onClose={() => setOpenOffer(null)}
+        />
+      )}
+
+      {/* Undo, not confirm — the decline already happened; this just offers the
+          way back. Cheap on the common case, fully recoverable on the misfire. */}
+      {undoItem && (
+        <div style={{ position: 'fixed', left: '50%', transform: 'translateX(-50%)', bottom: 'calc(var(--yp-safe-bottom, 0px) + 78px)', zIndex: 9500, display: 'flex', alignItems: 'center', gap: 14, background: '#1c1c26', border: '1px solid rgba(255,255,255,.12)', borderRadius: 12, padding: '10px 14px', boxShadow: '0 8px 28px rgba(0,0,0,.5)', maxWidth: 'calc(100vw - 32px)' }}>
+          <span style={{ fontSize: 13, color: 'rgba(255,255,255,.75)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            Declined{undoItem.name ? ` ${undoItem.name}` : ''}
+          </span>
+          <button onClick={undoDecline}
+            style={{ fontFamily: "'Bebas Neue'", fontSize: 12, letterSpacing: 1.5, background: 'none', border: 'none', color: '#00E5FF', cursor: 'pointer', flexShrink: 0, padding: 0 }}
+          >UNDO</button>
+        </div>
+      )}
     </div>
   );
 }

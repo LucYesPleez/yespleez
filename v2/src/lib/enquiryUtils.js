@@ -4,10 +4,12 @@ export const STATUS_TAB_COLOR = {
   SEEN:        '#FF8C42',
   SHORTLISTED: '#00B4D8',
   INTERESTED:  '#00B4D8',
+  CONSIDERING: '#00B4D8',
   ACCEPTED:    '#00E5A0',
   BOOKED:      '#00E5A0',
   DECLINED:    '#888',
   REJECTED:    '#888',
+  HISTORY:     '#888',
 };
 
 // Single source of truth for raw application/offer status -> display tab.
