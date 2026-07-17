@@ -8,6 +8,7 @@ import EventCard from '../components/EventCard';
 import { getEventBadges } from '../lib/eventBadges';
 import s from './ProfileScreen.module.css';
 import ClaimDialog from '../components/ClaimDialog';
+import InviteSheet from '../components/InviteSheet';
 import { resolveProfileRoute, profileUrl } from '../lib/profileResolution';
 import PastEventsSearch, { filterPastEvents } from '../components/PastEventsSearch';
 import { formatLocation } from '../lib/formatLocation';
@@ -17,6 +18,10 @@ import { selectedPerformanceRoleLabels, selectedArtistRoleLabels, ARTIST_ROLES }
 import { PROFILE_TYPES } from '../lib/profileTypes';
 
 const OLD_CATS = new Set(['ELECTRONIC','BANDS','SPOKEN','SPOKEN WORD','RAVE','FESTIVAL']);
+
+// Who a venue can book. Hosts/promoters and other venues aren't performers, so
+// they never get the enquire action.
+const BOOKABLE_TYPES = ['artist', 'band', 'standup'];
 
 export default function ProfileScreen() {
   const { id }    = useParams();
@@ -50,6 +55,10 @@ export default function ProfileScreen() {
   const [followPickerProfs, setFollowPickerProfs] = useState([]);
   const [followSelected,    setFollowSelected]    = useState(new Set());
   const [claimOpen,         setClaimOpen]         = useState(false);
+  const [inviteOpen,        setInviteOpen]        = useState(false);
+  // Set only when the viewer owns a venue and is looking at someone bookable —
+  // gates the profile's primary "enquire" action. { id, events }.
+  const [venueCtx,          setVenueCtx]          = useState(null);
 
   const { data, isLoading: loading } = useQuery({
     queryKey: ['profile', id, typeFilter],
@@ -155,6 +164,31 @@ export default function ProfileScreen() {
       .limit(1)
       .then(({ data: fol }) => setFollowed(!!(fol && fol.length)));
   }, [profile?.id, session?.user?.id]);
+
+  // Booking runs both ways, so the profile is the front door both ways: an
+  // artist enquires from a venue's profile (CHECK AVAILABILITY, below), and a
+  // venue enquires from a performer's profile (this). Previously the only way
+  // in from the venue side was an INVITE button buried in the dashboard's
+  // Regulars list — and only in its non-default list view — so the whole
+  // invitation flow was effectively unreachable.
+  useEffect(() => {
+    if (!session?.user?.id || !profile?.id) return;
+    if (!BOOKABLE_TYPES.includes(profile.type)) return;
+    if (profile.user_id === session.user.id) return;   // your own profile
+    if (isUnclaimed) return;                           // nobody to receive it
+    let cancelled = false;
+    (async () => {
+      const { data: venue } = await supabase.from('profiles')
+        .select('id, user_id').eq('user_id', session.user.id).eq('type', 'venue').maybeSingle();
+      if (cancelled || !venue) return;
+      // Events are attributed by host_id on this table (see VenueDashboard).
+      const { data: evs } = await supabase.from('events')
+        .select('id, name, status, config').eq('host_id', session.user.id)
+        .neq('status', 'completed').order('created_at', { ascending: false }).limit(20);
+      if (!cancelled) setVenueCtx({ id: venue.id, events: evs || [] });
+    })();
+    return () => { cancelled = true; };
+  }, [session?.user?.id, profile?.id, profile?.type, isUnclaimed]);
 
   async function openEnquiry(dateStr) {
     if (!session?.user?.id) return;
@@ -581,6 +615,19 @@ export default function ProfileScreen() {
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 8, verticalAlign: 'middle', marginTop: -2 }}><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>CHECK AVAILABILITY
               </button>
             )}
+            {/* The canonical way a venue starts a booking conversation — the
+                mirror of CHECK AVAILABILITY above. Only renders for a viewer
+                who owns a venue, looking at a claimed performer. */}
+            {venueCtx && (
+              <button
+                className={s.followBtn}
+                style={{ background: `linear-gradient(135deg, ${col}, ${grad2})`, color: '#0a0a14', borderColor: 'transparent', width: '100%' }}
+                onClick={() => setInviteOpen(true)}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 8, verticalAlign: 'middle', marginTop: -2 }}><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+                CHECK AVAILABILITY &amp; ENQUIRE
+              </button>
+            )}
             {/* Restore shared social links row beneath Follow/Message for
                 every non-venue type — Venue keeps its own (unchanged) row
                 inside VenueInfoDropdown above. */}
@@ -889,6 +936,15 @@ export default function ProfileScreen() {
         profile={profile}
         session={session}
       />
+
+      {inviteOpen && venueCtx && (
+        <InviteSheet
+          artist={profile}
+          events={venueCtx.events}
+          venueUserId={session.user.id}
+          onClose={() => setInviteOpen(false)}
+        />
+      )}
     </div>
   );
 }
