@@ -68,8 +68,12 @@ export default function InviteSheet({ artist, events = [], venueUserId, onClose 
     // Every key here is a real column (verified against the live schema,
     // 2026-07-17). Names match the table, not the UI's vocabulary:
     //   date_requested — the proposed date. NOT NULL, no default: the insert
-    //                    fails without it. The old payload sent `proposed_date`,
-    //                    which never existed, and omitted this entirely.
+    //                    fails with 23502 without it. The old payload sent
+    //                    `proposed_date`, which never existed, and omitted this
+    //                    entirely. Renaming the field is NOT sufficient on its
+    //                    own — `date` is optional in the form, so the value can
+    //                    still be null; `canSend` is what actually guarantees
+    //                    the constraint is met.
     //   note           — the message body. The column has always been `note`.
     //   initiated_by   — absolute, not viewer-relative. 'venue' here because
     //                    this sheet is the venue inviting an artist.
@@ -132,7 +136,12 @@ export default function InviteSheet({ artist, events = [], venueUserId, onClose 
   const extrasList = [...extras];
   // Enough of a pitch to be worth sending — the message is the one thing a
   // form can't fake, so it's the only hard requirement here.
-  const canSend    = message.trim().length > 0 && !sending;
+  // `date` is required, not optional polish: it maps to venue_enquiries
+  // .date_requested, which is NOT NULL with no default, so sending without one
+  // is a guaranteed 23502. Gating here rather than failing at the insert. The
+  // DATE field prefills from the selected event, so picking an event satisfies
+  // this without extra typing.
+  const canSend    = message.trim().length > 0 && !!date && !sending;
 
   const labelStyle = { fontFamily: "'Bebas Neue'", fontSize: 13, letterSpacing: 1.5, color: 'rgba(255,255,255,.6)', display: 'block', marginBottom: 8 };
   const subLabel   = { fontFamily: "'Bebas Neue'", fontSize: 11, letterSpacing: 1.2, color: 'rgba(255,255,255,.45)', display: 'block', marginBottom: 5 };
