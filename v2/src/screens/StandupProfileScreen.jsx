@@ -8,6 +8,7 @@ import ProfileFormShell from '../components/ProfileFormShell';
 import SectionBlock from '../components/SectionBlock';
 import SocialSection from '../components/SocialSection';
 import { VISIBLE_PERFORMANCE_ROLES, SHARED_PERFORMANCE_TAGS, ROLE_TAGS } from '../lib/profileTaxonomy';
+import { PROFILE_TYPES } from '../lib/profileTypes';
 import { normalizeSocialValue, ensureHttps } from '../lib/socialLinks';
 
 const STATE_OPTIONS = ['NSW','VIC','QLD','WA','SA','TAS','ACT','NT','NZ','International'];
@@ -31,9 +32,14 @@ function tagsForRoles(roles) {
   return [...SHARED_PERFORMANCE_TAGS, ...roleTags.filter(t => !SHARED_PERFORMANCE_TAGS.includes(t))];
 }
 
-const COL  = '#FF88AA';
-const COL2 = '#BF5FFF';
-const GRAD = `linear-gradient(90deg, ${COL} 0%, ${COL2} 100%)`;
+// Comedy / Poetry identity comes from PROFILE_TYPES — the sole source of truth
+// since 10E.1. These were hand-typed copies of the same three values; identical
+// today, but a private copy is exactly how Host's pink drifted to #FF3399 in 8+
+// files before 10E.1. This is the last of the five editors to migrate
+// (Artist 10E.2A, Band 10E.3, Host 10E.4, Venue 10E.5). Same values, one owner.
+const COL  = PROFILE_TYPES.standup.accent;   // #FF88AA
+const COL2 = PROFILE_TYPES.standup.accent2;  // #BF5FFF
+const GRAD = PROFILE_TYPES.standup.gradient; // linear-gradient(90deg, #FF88AA, #BF5FFF)
 
 // ── EXPERIMENTAL — Standup editor only (temporary aesthetic prototype) ─────
 // Same "Glass Pill" treatment as the Artist editor, re-tuned to the Standup
@@ -250,7 +256,12 @@ export default function StandupProfileScreen() {
       {/* Header */}
       <div className={s.header}>
         <div className={s.headerText}>
-          <div className={s.h1} style={{ background: GRAD, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text', lineHeight: 1.1 }}>
+          {/* 10E.6 — filter: .h1 is shared from ArtistProfileScreen.module.css and
+              bakes in an Artist-cyan drop-shadow. Overriding `background` alone left
+              a pink heading glowing cyan. Third and last instance of this exact
+              leftover: Band (10E.3) and Venue (10E.5) were the other two files that
+              borrow this stylesheet. lineHeight stays — that's this heading's own. */}
+          <div className={s.h1} style={{ background: GRAD, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text', lineHeight: 1.1, filter: `drop-shadow(0 0 8px rgba(${PROFILE_TYPES.standup.rgb},.2))` }}>
             SPOKEN<br />PROFILE
           </div>
           <div className={s.h1Sub}>Fill this in once · travels with you across every event</div>
