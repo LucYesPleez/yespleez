@@ -142,6 +142,14 @@ Three `applications` call sites and `follows` are the gap — exactly v1.1's aud
 
 The unread badge queries `.eq('user_id', session.user.id)` ([`App.jsx:71`](../v2/src/App.jsx#L71)) — account-wide. **This already satisfies R5** ("the badge aggregates across every profile"). v1.1 §A4b flags this tension as *intentional*. When the feed becomes profile-scoped at M6+, **do not "fix" the badge to match.** Add a code comment saying so.
 
+### 2.3b The capability this unblocks — IA-01
+
+The active profile context is not only about *labelling*. It is what makes **`docs/identity-validation-scenarios.md` IA-01** possible: a user acting as their Venue enquiring to their own Artist profile, as two independent parties.
+
+Today [`ProfileScreen.jsx:177`](../v2/src/screens/ProfileScreen.jsx#L177) suppresses that entire affordance with `if (profile.user_id === session.user.id) return;` — an **account-level** fact answering a **profile-level** question. The profile-level form is `if (profile.id === activeProfile.id) return;`, which **cannot be written until this context exists**. The app cannot ask "am I this profile?" while it only knows which account you are.
+
+**So the scope here is larger than the review's framing implies.** §2.4 treats the missing context as a *confusion* risk. IA-01 shows it is also a *capability* gap: a fundamental interaction the architecture promises and the app cannot express. See IA-01 for why that scenario, in particular, isolates attribution — `can_act_as()` is true for both profiles, so nothing but attribution can carry the behaviour.
+
 ### 2.4 Screens where the wrong profile would confuse — ranked
 
 | Rank | Screen | Confusion |
