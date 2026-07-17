@@ -16,6 +16,15 @@ These live outside the soak backlog on purpose. The backlog counts defects; **th
 
 **They are also the M6 acceptance criteria.** M6 is not done when `from_profile_id` exists. M6 is done when these pass.
 
+### The suite
+
+| | Scenario | Accounts | `can_act_as()` | Isolates |
+|---|---|---|---|---|
+| **IA-01** | Self-owned profile interaction | one | true for **both** profiles | **Attribution** |
+| **IA-02** | Independent Venue → Independent Artist | two | true one way, **false** across the boundary | **Authorization** |
+
+**IA-01 and IA-02 are a matched pair and must be run together.** Each pins one axis so the other is the only thing that can carry the behaviour. Alone, either can be passed by an implementation that has not actually separated them.
+
 ---
 
 ## IA-01 — Self-owned profile interaction
@@ -112,7 +121,86 @@ Each step performed **as Elbows Rest**, against **Lucious**, from one account.
 | **Today (pre-M6)** | **Fails at step 1–2.** The affordance does not render (`ProfileScreen.jsx:177`). Not scheduled — M6 is paused. |
 | **Blocked on** | Active Profile Context (the app must know which profile is asking) **and** M6 (`from_profile_id` must exist to be stamped) |
 | **Not a backlog item** | Deliberately. This is a capability the architecture promises, not a defect against current behaviour |
-| **Needs** | A two-account control scenario, so IA-01 passing means what it appears to mean |
+| **Control** | **IA-02** — without it, IA-01 passing means less than it appears to |
+
+---
+
+## IA-02 — Independent Venue → Independent Artist
+
+> **User A owns a Venue profile. User B owns an Artist profile. A can act only as their own Venue; B only as their own Artist. An invitation from A's Venue to B's Artist is attributed to the Venue profile, and `can_act_as()` prevents either user from acting as the other's profiles.**
+
+### The scenario
+
+Elbows Rest (User A) invites Lucious (User B) to play. Two people, two accounts, two profiles.
+
+### Why this is fundamental
+
+**This is the market.** IA-01 is the special case; IA-02 is what the platform is *for* — a venue booking an act it does not own. If IA-02 does not hold, YesPleez does not work.
+
+It is also where authorization is load-bearing for real. In IA-01 nothing could be denied. Here, **denial is half the requirement**: A must not act as Lucious, and B must not act as Elbows Rest.
+
+### Why IA-02 is IA-01's control
+
+The two scenarios pin opposite axes, and **neither proves the architecture alone**:
+
+| | `can_act_as()` | What it isolates | What it catches |
+|---|---|---|---|
+| **IA-01** | true for **both** profiles | **Attribution** — nothing else can carry the behaviour | Attribution entangled with authorization |
+| **IA-02** | true one way, **false** across the boundary | **Authorization** — the seam must actually deny | An implementation that authorizes by *account* and looks correct |
+
+An implementation that conflates the two axes **passes IA-01** — because `can_act_as()` is true both ways, conflation is invisible. It fails IA-02, where the boundary is real. Conversely an implementation that authorizes correctly but attributes to the account passes IA-02's denials while failing IA-01.
+
+**Run them together or neither result means what it looks like.**
+
+### What the architecture requires
+
+| Axis | Rule | Required |
+|---|---|---|
+| Attribution | **R1**, **R6.1** | `from_profile_id` = **Elbows Rest**, stamped at the write. Not "User A" |
+| The human | **R1** | `from_user_id` = **A** — audit and delivery only, never the displayed actor |
+| Authorization | **R2**, **R3** | `can_act_as(Elbows Rest)` → **true for A, false for B**, server-side, through the seam only |
+| Forgery | **R3.2** | A writing `from_profile_id` = **any profile B owns** → **rejected by the database**, not by the client |
+| Active profile | **R2** | B setting their stored active profile to Elbows Rest gains **nothing** |
+
+### What happens today — the mirror image of IA-01
+
+**The affordance renders.** `ProfileScreen.jsx:177`'s guard passes (`profile.user_id !== session.user.id`), so A viewing Lucious *does* get CHECK AVAILABILITY & ENQUIRE.
+
+**And then the write is denied.** Backlog **S4**: `venue_enquiries`' sole INSERT policy is `WITH CHECK (auth.uid() = applicant_user_id)`, and `InviteSheet` sets `applicant_user_id` to the *artist* — B. A's `auth.uid()` is not B, so it fails `42501`, verified PRE and POST M4 (`m4-verification-evidence` B8). Venue-initiated invites *"have never been insertable, by policy design, not by accident."*
+
+So the pair inverts exactly:
+
+| | UI | Database |
+|---|---|---|
+| **IA-01** (self-owned) | **forbids** | would **permit** |
+| **IA-02** (independent) | **offers** | **denies** |
+
+**Both layers are wrong, in opposite directions, for the same reason: each reasons about accounts.** The UI asks "is this profile mine?" and means the account. The policy asks "am I the applicant?" and means the account. Neither can express "which profile is acting" — so one blocks the case it should allow, and the other allows the affordance for a case it will refuse. **That symmetry is the argument for the seam**, better than any statement of it.
+
+*(As in IA-01, schema drift would fail this write independently — `InviteSheet` sends eight columns that do not exist. Three unrelated faults on one path.)*
+
+### Acceptance criteria — verify after M6
+
+As A, acting as Elbows Rest, against B's Lucious.
+
+| # | Step | Passes when |
+|---|---|---|
+| **1** | Discover / enquire / invite | Row written. `from_profile_id` = Elbows Rest, `from_user_id` = A. **B sees an invitation from a venue, never from a person** |
+| **2** | Negotiate → book | Each message attributed to its profile and records its human author. Lucious lands on the bill naming both profile and human |
+| **3** | **A cannot forge B's identity** *(R3.2)* | A posting `from_profile_id` = a B-owned profile → **rejected server-side**. Must fail with the client bypassed entirely |
+| **4** | **B cannot act as A's Venue** *(R3)* | `can_act_as(Elbows Rest)` is false for B. B cannot send, edit or respond as Elbows Rest |
+| **5** | **B's active profile is inert** *(R2)* | B tampering their stored active profile to Elbows Rest → **only labels change**. No capability, anywhere |
+| **6** | Attribution survives switching *(R6.1)* | A switching profiles after sending does not re-attribute the sent invitation |
+
+**Steps 3–5 must be exercised with the client bypassed** — a direct authenticated request, not the UI. A picker that hides the option proves nothing; R3.2 is a database property.
+
+### Status
+
+| | |
+|---|---|
+| **Today (pre-M6)** | **Fails at step 1** — `42501` (S4). The affordance exists; the write has never succeeded |
+| **Blocked on** | M6 (`from_profile_id`, `can_act_as()`), and the `venue_enquiries` policy that S4 records |
+| **Pairs with** | **IA-01** — run together |
 
 ---
 
