@@ -1,0 +1,1059 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1"><style>:root{color-scheme:light}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}</style></head><body>
+<title>YesPleez v2 — Architecture Specification v1.0</title>
+<style>
+  :root {
+    --bg:        #0A0C10;
+    --surface:   #12151C;
+    --surface-2: #171B24;
+    --border:    rgba(255,255,255,.08);
+    --border-2:  rgba(255,255,255,.14);
+    --text:      #E6E8EE;
+    --muted:     #8B90A0;
+    --faint:     #5A5F6E;
+    --accent:    #00E5FF;
+    --accent-2:  #FF2D78;
+    --good:      #00E5A0;
+    --warn:      #FFB020;
+    --bad:       #FF4D6A;
+    --purple:    #BF5FFF;
+    --mono: 'Cascadia Code','Cascadia Mono','Consolas','SF Mono',ui-monospace,monospace;
+    --sans: 'Segoe UI Variable','Segoe UI',-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  body, .doc { background: var(--bg); }
+
+  .doc {
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+  }
+
+  .progress {
+    position: fixed; top: 0; left: 0; height: 2px; width: 0%;
+    background: linear-gradient(90deg, var(--accent), var(--purple));
+    z-index: 100; transition: width .1s linear;
+  }
+
+  .layout {
+    display: grid;
+    grid-template-columns: 264px minmax(0, 1fr);
+    max-width: 1180px;
+    margin: 0 auto;
+  }
+
+  /* ---------- Table of contents ---------- */
+  .toc {
+    position: sticky; top: 0; align-self: start;
+    height: 100vh; overflow-y: auto;
+    padding: 40px 24px 40px 32px;
+    border-right: 1px solid var(--border);
+    scrollbar-width: thin;
+  }
+  .toc-brand {
+    font-family: var(--mono); font-size: 11px; letter-spacing: .5px;
+    color: var(--accent); text-transform: uppercase; margin-bottom: 4px;
+  }
+  .toc-title {
+    font-size: 15px; font-weight: 700; letter-spacing: -.01em;
+    margin-bottom: 22px; color: var(--text); line-height: 1.3;
+  }
+  .toc-status {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-family: var(--mono); font-size: 10.5px; letter-spacing: .3px;
+    color: var(--good); border: 1px solid rgba(0,229,160,.35);
+    background: rgba(0,229,160,.07); border-radius: 20px;
+    padding: 3px 10px; margin-bottom: 26px;
+  }
+  .toc-status::before { content:''; width:6px; height:6px; border-radius:50%; background: var(--good); }
+  .toc nav { display: flex; flex-direction: column; gap: 1px; }
+  .toc a {
+    display: flex; gap: 10px; align-items: baseline;
+    color: var(--muted); text-decoration: none;
+    font-size: 13.5px; line-height: 1.4;
+    padding: 6px 10px; border-radius: 7px;
+    border-left: 2px solid transparent;
+    transition: color .15s, background .15s, border-color .15s;
+  }
+  .toc a .n { font-family: var(--mono); font-size: 11px; color: var(--faint); min-width: 20px; }
+  .toc a:hover { color: var(--text); background: rgba(255,255,255,.03); }
+  .toc a.active { color: var(--accent); border-left-color: var(--accent); background: rgba(0,229,255,.06); }
+  .toc a.active .n { color: var(--accent); }
+
+  /* ---------- Main column ---------- */
+  main { padding: 56px 56px 140px; min-width: 0; }
+
+  .doc-head { margin-bottom: 56px; }
+  .eyebrow {
+    font-family: var(--mono); font-size: 12px; letter-spacing: 2px;
+    text-transform: uppercase; color: var(--accent); margin-bottom: 16px;
+  }
+  h1.title {
+    font-size: 44px; line-height: 1.08; letter-spacing: -.025em;
+    font-weight: 800; margin: 0 0 20px; text-wrap: balance;
+  }
+  .lede { font-size: 18px; line-height: 1.6; color: var(--muted); max-width: 640px; }
+  .meta-row { display: flex; flex-wrap: wrap; gap: 8px 10px; margin-top: 28px; }
+  .meta {
+    font-family: var(--mono); font-size: 11.5px; letter-spacing: .3px;
+    color: var(--muted); background: var(--surface);
+    border: 1px solid var(--border); border-radius: 6px; padding: 5px 11px;
+  }
+  .meta b { color: var(--text); font-weight: 600; }
+  .meta.frozen { color: var(--good); border-color: rgba(0,229,160,.3); }
+
+  section { scroll-margin-top: 24px; padding-top: 8px; margin-top: 64px; }
+  section:first-of-type { margin-top: 0; }
+
+  .sec-head { display: flex; align-items: baseline; gap: 16px; margin-bottom: 8px; }
+  .sec-num { font-family: var(--mono); font-size: 14px; font-weight: 600; color: var(--accent); letter-spacing: 1px; }
+  h2 { font-size: 27px; line-height: 1.2; letter-spacing: -.02em; font-weight: 750; margin: 0; text-wrap: balance; }
+  .sec-sub { color: var(--muted); font-size: 15.5px; margin: 6px 0 28px; max-width: 680px; }
+
+  h3 {
+    font-size: 16px; letter-spacing: .04em; text-transform: uppercase;
+    font-weight: 700; color: var(--text); margin: 36px 0 14px;
+    padding-bottom: 8px; border-bottom: 1px solid var(--border);
+  }
+  h4 { font-size: 15px; font-weight: 700; margin: 26px 0 10px; color: var(--text); }
+
+  p { margin: 0 0 16px; max-width: 68ch; }
+  strong { color: #fff; font-weight: 650; }
+
+  a.inline { color: var(--accent); text-decoration: none; border-bottom: 1px solid rgba(0,229,255,.3); }
+  a.inline:hover { border-bottom-color: var(--accent); }
+
+  code, .tok {
+    font-family: var(--mono); font-size: 12.5px;
+    background: rgba(0,229,255,.08); color: #7EE9FF;
+    border: 1px solid rgba(0,229,255,.15);
+    border-radius: 5px; padding: 1px 6px; white-space: nowrap;
+  }
+  .tok.n { background: rgba(255,255,255,.05); color: var(--text); border-color: var(--border); }
+
+  ul, ol { margin: 0 0 18px; padding-left: 22px; }
+  li { margin-bottom: 8px; max-width: 68ch; }
+  li::marker { color: var(--faint); }
+  ul.clean { list-style: none; padding-left: 0; }
+  ul.clean > li { position: relative; padding-left: 26px; }
+  ul.clean > li::before {
+    content:''; position: absolute; left: 6px; top: 11px;
+    width: 6px; height: 6px; border-radius: 50%; background: var(--accent);
+  }
+  ul.check { list-style: none; padding-left: 0; }
+  ul.check > li { position: relative; padding-left: 30px; }
+  ul.check > li::before {
+    content:'✓'; position: absolute; left: 4px; top: 0;
+    color: var(--good); font-weight: 700;
+  }
+
+  /* ---------- Callouts ---------- */
+  .callout {
+    border: 1px solid var(--border); border-left-width: 3px;
+    background: var(--surface); border-radius: 8px;
+    padding: 16px 20px; margin: 22px 0; max-width: 720px;
+  }
+  .callout .label {
+    font-family: var(--mono); font-size: 10.5px; letter-spacing: 1.5px;
+    text-transform: uppercase; font-weight: 600; margin-bottom: 8px;
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  }
+  .callout p:last-child { margin-bottom: 0; }
+  .callout.principle { border-left-color: var(--accent); }
+  .callout.principle .label { color: var(--accent); }
+  .callout.risk { border-left-color: var(--accent-2); background: rgba(255,45,120,.05); }
+  .callout.risk .label { color: var(--accent-2); }
+  .callout.decision { border-left-color: var(--warn); background: rgba(255,176,32,.05); }
+  .callout.decision .label { color: var(--warn); }
+  .callout.note { border-left-color: var(--faint); }
+  .callout.note .label { color: var(--muted); }
+  .callout.rule { border-left-color: var(--good); background: rgba(0,229,160,.04); }
+  .callout.rule .label { color: var(--good); }
+  .callout.gate { border-left-color: var(--purple); background: rgba(191,95,255,.05); }
+  .callout.gate .label { color: var(--purple); }
+
+  /* ---------- Tables ---------- */
+  .table-wrap { overflow-x: auto; margin: 20px 0; border: 1px solid var(--border); border-radius: 10px; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; min-width: 520px; }
+  th, td { text-align: left; padding: 12px 16px; vertical-align: top; border-bottom: 1px solid var(--border); }
+  th {
+    font-family: var(--mono); font-size: 11px; letter-spacing: .5px;
+    text-transform: uppercase; color: var(--muted); font-weight: 600;
+    background: var(--surface-2); position: sticky; top: 0;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover { background: rgba(255,255,255,.015); }
+  table.compact th, table.compact td { padding: 9px 14px; }
+
+  /* ---------- Schema card ---------- */
+  .schema {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; overflow: hidden; margin: 22px 0; max-width: 720px;
+  }
+  .schema-head {
+    font-family: var(--mono); font-size: 13px; color: var(--text);
+    padding: 12px 18px; background: var(--surface-2);
+    border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px;
+  }
+  .schema-head .kw { color: var(--purple); }
+  .field {
+    display: grid; grid-template-columns: 200px 1fr; gap: 16px;
+    padding: 10px 18px; border-bottom: 1px solid var(--border); font-size: 13.5px;
+  }
+  .field:last-child { border-bottom: none; }
+  .field .fname { font-family: var(--mono); font-size: 12.5px; color: #7EE9FF; }
+  .field .fdesc { color: var(--muted); }
+  .field .fdesc b { color: var(--text); }
+
+  /* ---------- Pills ---------- */
+  .pill {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-family: var(--mono); font-size: 11px; letter-spacing: .3px;
+    border-radius: 20px; padding: 2px 9px; white-space: nowrap;
+    border: 1px solid var(--border-2);
+  }
+  .pill::before { content:''; width:5px; height:5px; border-radius:50%; background: currentColor; }
+  .pill.unclaimed { color: var(--muted); }
+  .pill.pending  { color: var(--warn); border-color: rgba(255,176,32,.35); }
+  .pill.claimed  { color: var(--good); border-color: rgba(0,229,160,.35); }
+  .pill.locked   { color: var(--bad); border-color: rgba(255,77,106,.35); }
+  .pill.ms       { color: var(--purple); border-color: rgba(191,95,255,.35); }
+
+  .yes { color: var(--good); font-weight: 600; }
+  .no  { color: var(--bad);  font-weight: 600; }
+
+  /* ---------- Flow / lifecycle ---------- */
+  .flow { display: flex; flex-direction: column; gap: 0; margin: 24px 0; max-width: 720px; }
+  .flow-step { display: grid; grid-template-columns: 40px 1fr; gap: 18px; }
+  .flow-rail { display: flex; flex-direction: column; align-items: center; }
+  .flow-dot {
+    width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0;
+    display: grid; place-items: center; font-family: var(--mono); font-size: 13px; font-weight: 700;
+    background: var(--surface-2); border: 1.5px solid var(--accent); color: var(--accent);
+  }
+  .flow-dot.p { border-color: var(--purple); color: var(--purple); }
+  .flow-line { width: 2px; flex: 1; background: linear-gradient(var(--accent), var(--border)); margin: 4px 0; min-height: 18px; }
+  .flow-step:last-child .flow-line { display: none; }
+  .flow-body { padding-bottom: 24px; }
+  .flow-body h4 { margin: 4px 0 6px; }
+  .flow-body p { font-size: 14.5px; color: var(--muted); margin-bottom: 8px; }
+
+  /* ---------- Two-col allowed/disabled ---------- */
+  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin: 22px 0; max-width: 760px; }
+  .panel { border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  .panel-head { padding: 12px 18px; font-weight: 700; font-size: 14px; letter-spacing: .03em; display: flex; align-items: center; gap: 8px; }
+  .panel.allow .panel-head { background: rgba(0,229,160,.08); color: var(--good); border-bottom: 1px solid rgba(0,229,160,.2); }
+  .panel.deny  .panel-head { background: rgba(255,77,106,.07); color: var(--bad); border-bottom: 1px solid rgba(255,77,106,.2); }
+  .panel ul { list-style: none; padding: 8px 0; margin: 0; }
+  .panel li { padding: 7px 18px; font-size: 14px; border-bottom: 1px solid var(--border); margin: 0; }
+  .panel li:last-child { border-bottom: none; }
+  .panel li small { display: block; color: var(--faint); font-size: 12px; margin-top: 2px; }
+
+  .ref-id {
+    font-family: var(--mono); font-size: 12px; font-weight: 700;
+    color: var(--accent-2); background: rgba(255,45,120,.1);
+    border: 1px solid rgba(255,45,120,.25); border-radius: 5px; padding: 1px 7px; margin-right: 8px;
+  }
+  .decision .ref-id { color: var(--warn); background: rgba(255,176,32,.1); border-color: rgba(255,176,32,.25); }
+  .rule .ref-id, .gate .ref-id { color: var(--good); background: rgba(0,229,160,.1); border-color: rgba(0,229,160,.25); }
+
+  .end-gate {
+    margin-top: 72px; padding: 32px; border-radius: 14px;
+    background: linear-gradient(135deg, rgba(0,229,160,.06), rgba(0,229,255,.05));
+    border: 1px solid var(--border-2); max-width: 720px;
+  }
+  .end-gate h3 { border: none; margin-top: 0; color: var(--good); }
+
+  @media (max-width: 1000px) {
+    .layout { grid-template-columns: 1fr; }
+    .toc { display: none; }
+    main { padding: 40px 24px 100px; }
+    h1.title { font-size: 34px; }
+    .split { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 560px) {
+    .field { grid-template-columns: 1fr; gap: 4px; }
+    .flow-step { grid-template-columns: 30px 1fr; gap: 12px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    .progress { transition: none; }
+  }
+  html { scroll-behavior: smooth; }
+</style>
+
+<div class="progress" id="progress"></div>
+
+<div class="doc">
+<div class="layout">
+
+  <!-- ============ TOC ============ -->
+  <aside class="toc">
+    <div class="toc-brand">YesPleez v2 · Architecture</div>
+    <div class="toc-title">Architecture Specification v1.0</div>
+    <div class="toc-status">CANONICAL · v1.0 · Architecture locked</div>
+    <nav id="toc">
+      <a href="#s0"><span class="n">00</span> Reading this document</a>
+      <a href="#s1"><span class="n">01</span> Product philosophy</a>
+      <a href="#s2"><span class="n">02</span> The Unclaimed Profile</a>
+      <a href="#s3"><span class="n">03</span> Data model &amp; ownership</a>
+      <a href="#s4"><span class="n">04</span> Public behaviour</a>
+      <a href="#s5"><span class="n">05</span> Follows</a>
+      <a href="#s6"><span class="n">06</span> Booking interest</a>
+      <a href="#s7"><span class="n">07</span> Claiming lifecycle</a>
+      <a href="#s8"><span class="n">08</span> While you were away</a>
+      <a href="#s9"><span class="n">09</span> Ethics</a>
+      <a href="#s10"><span class="n">10</span> Edge cases</a>
+      <a href="#s11"><span class="n">11</span> Locked decisions</a>
+      <a href="#s12"><span class="n">12</span> Migration plan</a>
+      <a href="#s13"><span class="n">13</span> Validation gate</a>
+      <a href="#s14"><span class="n">14</span> Identity Resolution</a>
+      <a href="#s15"><span class="n">15</span> Studio dependencies</a>
+      <a href="#s16"><span class="n">16</span> Open product decisions</a>
+      <a href="#s17"><span class="n">17</span> Versioning &amp; amendments</a>
+    </nav>
+  </aside>
+
+  <!-- ============ MAIN ============ -->
+  <main>
+    <header class="doc-head">
+      <div class="eyebrow">YesPleez v2 · Architecture Specification</div>
+      <h1 class="title">YesPleez v2<br/>Architecture Specification v1.0</h1>
+      <p class="lede">The single source of truth for the YesPleez v2 architecture: how profiles exist before ownership, how claiming attaches an owner without moving anything, and the engineering plan that migrates the live application to this architecture before beta.</p>
+      <div class="meta-row">
+        <span class="meta frozen"><b>Status</b> &nbsp;CANONICAL v1.0 — 10 Jul 2026</span>
+        <span class="meta"><b>Change control</b> &nbsp;Amendments only — see §17</span>
+        <span class="meta"><b>Scope</b> &nbsp;YesPleez v2 app · Studio dependencies documented in §15</span>
+      </div>
+    </header>
+
+    <!-- ===== 00 ===== -->
+    <section id="s0">
+      <div class="sec-head"><span class="sec-num">00</span><h2>Reading this document</h2></div>
+      <p class="sec-sub">What this specification is, the products it governs, and the architecture it assumes.</p>
+
+      <p>This is the <strong>frozen source of truth</strong> for the Unclaimed Profile and Claiming systems, and for the identity migration that precedes beta. From v1.0 onward, work against this document is <strong>implementation only</strong>. Architectural change is considered solely if implementation uncovers a genuine blocker — preference or optimisation does not reopen it.</p>
+
+      <div class="callout note">
+        <div class="label">Two products</div>
+        <p><strong>YesPleez</strong> (the public app) and <strong>YesPleez Studio</strong> (internal ops: importer, staging, promotion pipeline) are separate products. This specification governs the app. Studio obligations that the app depends on are documented as a cross-product contract in <a class="inline" href="#s15">§15</a> — they are dependencies, not app workstreams.</p>
+      </div>
+
+      <h3>Assumed architecture (not redesigned here)</h3>
+      <ul class="clean">
+        <li>Booking architecture based on <code>lineup_members</code> and <code>performances</code>.</li>
+        <li>Communal profile architecture — <strong>Venue is the canonical profile</strong>; Artist, Band, Host and Stand-up inherit from it.</li>
+        <li>Public profile navigation complete; profile QA complete.</li>
+      </ul>
+    </section>
+
+    <!-- ===== 01 ===== -->
+    <section id="s1">
+      <div class="sec-head"><span class="sec-num">01</span><h2>Product philosophy</h2></div>
+      <p class="sec-sub">Every decision below derives from these principles. They are constraints, not aspirations.</p>
+
+      <div class="callout principle">
+        <div class="label">◆ Profiles are entities, not accounts</div>
+        <p>A profile represents a real-world act, venue or promoter. It can exist with no user attached. An account is something a person <em>brings</em> to a profile by claiming it.</p>
+      </div>
+      <div class="callout principle">
+        <div class="label">◆ One profile per real-world entity — not per name</div>
+        <p>Entity uniqueness, not name uniqueness. Two different acts may legitimately share a name (disambiguated by type and location); the same act must never have two profiles. Duplicates are <strong>prevented at creation</strong> — during import, signup and booking — rather than repaired later.</p>
+      </div>
+      <div class="callout principle">
+        <div class="label">◆ Claiming attaches — it never recreates, and never merges</div>
+        <p>Claiming binds ownership to an <em>existing</em> profile. It must never duplicate, replace, migrate or rebuild anything. Merging is a separate, <strong>admin-only recovery mechanism</strong> users should never encounter. If a claim ever appears to need a merge, the failure happened upstream in prevention.</p>
+      </div>
+      <div class="callout principle">
+        <div class="label">◆ Commercial opportunity over social engagement</div>
+        <p>YesPleez records the history and future of the live scene; it does not rank the people in it. Follower counts are private infrastructure, not a scoreboard.</p>
+      </div>
+      <div class="callout principle">
+        <div class="label">◆ Discovery favours relevance and emerging acts</div>
+        <p>Unclaimed profiles are first-class citizens of discovery. Being unclaimed must never bury an act.</p>
+      </div>
+      <div class="callout principle">
+        <div class="label">◆ Conversations belong to accounts; commercial records belong to profiles</div>
+        <p>Message threads are personal and stay with the humans who wrote them. Booking interest, performance history and follows attach to the profile and survive any change of ownership.</p>
+      </div>
+    </section>
+
+    <!-- ===== 02 ===== -->
+    <section id="s2">
+      <div class="sec-head"><span class="sec-num">02</span><h2>The Unclaimed Profile</h2></div>
+      <p class="sec-sub">Precise definition, purpose, and the boundary of what data may and may not exist before ownership.</p>
+
+      <h3>Definition</h3>
+      <p>An <strong>Unclaimed Profile</strong> is a fully-formed communal profile row — in the one canonical <code>profiles</code> table — that has <strong>no owner</strong>: <code>owner_user_id</code> is <span class="tok n">NULL</span> and <code>claim_status</code> is <span class="pill unclaimed">unclaimed</span>. It is publicly visible and navigable at its permanent <code>profile.id</code> URL, and accumulates real relationships (performances, follows, booking interest) while no one owns it.</p>
+
+      <h3>Why it exists</h3>
+      <ul class="clean">
+        <li><b>The scene predates the platform.</b> Acts, venues and promoters have histories before they sign up.</li>
+        <li><b>Lineups need every act.</b> A performance links to all its performers via <code>lineup_members</code>.</li>
+        <li><b>Value accrues before ownership</b> — and becomes the reason someone claims.</li>
+      </ul>
+
+      <h3>What data belongs to an Unclaimed Profile</h3>
+      <div class="table-wrap">
+        <table class="compact">
+          <thead><tr><th>Category</th><th>Belongs to the profile</th></tr></thead>
+          <tbody>
+            <tr><td>Identity</td><td>Name, type, location/region, genre / sound, public socials, imported bio</td></tr>
+            <tr><td>Provenance</td><td>Source of the record, import date, "imported &amp; unverified" marker</td></tr>
+            <tr><td>Performances</td><td><code>lineup_members</code> rows linking it to past &amp; upcoming <code>performances</code></td></tr>
+            <tr><td>Subscriptions</td><td><code>follows</code> pointing at the profile</td></tr>
+            <tr><td>Commercial</td><td><code>booking_interest</code> expressed against the profile</td></tr>
+            <tr><td>Presentation</td><td>Generic, type-specific placeholder imagery (never a real likeness)</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>What must never exist until claim</h3>
+      <ul class="clean">
+        <li><b>Account/identity data</b> — credentials, verified contact channels, personal contact details.</li>
+        <li><b>Private workspaces</b> — dashboard state, availability calendar, settings, drafts.</li>
+        <li><b>Conversations</b> — threads, DMs, enquiry replies. Interest can be <em>received</em>; it cannot be <em>answered</em>.</li>
+        <li><b>Owner-authored edits</b> — any change presented as coming from the act itself.</li>
+        <li><b>Financial data</b> — fees, payout details, agreements.</li>
+      </ul>
+
+      <h3>How it differs from a claimed profile</h3>
+      <div class="table-wrap">
+        <table class="compact">
+          <thead><tr><th>Dimension</th><th>Unclaimed</th><th>Claimed</th></tr></thead>
+          <tbody>
+            <tr><td>Owner</td><td><span class="tok n">NULL</span></td><td><code>owner_user_id</code></td></tr>
+            <tr><td>Status</td><td><span class="pill unclaimed">unclaimed</span></td><td><span class="pill claimed">claimed</span></td></tr>
+            <tr><td>Editable</td><td class="no">No</td><td class="yes">By owner</td></tr>
+            <tr><td>Receives follows / interest</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
+            <tr><td>Responds to interest</td><td class="no">No</td><td class="yes">Yes</td></tr>
+            <tr><td>Avatar</td><td>Generic placeholder</td><td>Owner-supplied</td></tr>
+            <tr><td>Badge</td><td>UNCLAIMED</td><td>None / verified</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="callout rule">
+        <div class="label">Same row, different state</div>
+        <p>An unclaimed and a claimed profile are the <strong>same record in the same table</strong>, distinguished only by state. Claiming flips the state; the row never moves. This makes "nothing migrates" literally true.</p>
+      </div>
+    </section>
+
+    <!-- ===== 03 ===== -->
+    <section id="s3">
+      <div class="sec-head"><span class="sec-num">03</span><h2>Data model &amp; ownership</h2></div>
+      <p class="sec-sub">The resolved architecture: one canonical table, permanent public identity, ownership as a nullable attribute.</p>
+
+      <h3>The profile record (claiming fields)</h3>
+      <div class="schema">
+        <div class="schema-head"><span class="kw">profiles</span> · one canonical table (Venue-canonical design)</div>
+        <div class="field"><span class="fname">id</span><span class="fdesc"><b>The permanent public identity.</b> Minted once, never changes, survives claiming. All routing and relationships key on it.</span></div>
+        <div class="field"><span class="fname">type</span><span class="fdesc">venue · artist · band · host · standup</span></div>
+        <div class="field"><span class="fname">owner_user_id</span><span class="fdesc"><b>NULL = unclaimed.</b> Set once, on claim. The single source of truth for ownership. One user may own multiple typed profiles.</span></div>
+        <div class="field"><span class="fname">claim_status</span><span class="fdesc">unclaimed · claim_pending · claimed · locked</span></div>
+        <div class="field"><span class="fname">created_via</span><span class="fdesc">import · manual · user_signup — provenance of the record</span></div>
+        <div class="field"><span class="fname">source_*</span><span class="fdesc">Where an imported record came from (provenance display &amp; correction)</span></div>
+        <div class="field"><span class="fname">claimed_at / claimed_via</span><span class="fdesc">Attach timestamp and verification channel; NULL until claim</span></div>
+        <div class="field"><span class="fname">onboarding_seen_at</span><span class="fdesc">Gate for the one-time "While you were away" screen (<a class="inline" href="#s8">§08</a>)</span></div>
+      </div>
+
+      <h3>Relationships point at the profile, not the owner</h3>
+      <div class="table-wrap">
+        <table class="compact">
+          <thead><tr><th>Relation</th><th>Points at</th><th>Exists pre-claim?</th></tr></thead>
+          <tbody>
+            <tr><td><code>lineup_members</code></td><td>profile.id</td><td class="yes">Yes — links to performances</td></tr>
+            <tr><td><code>follows</code></td><td>profile.id</td><td class="yes">Yes — private subscriptions</td></tr>
+            <tr><td><code>booking_interest</code></td><td>profile.id</td><td class="yes">Yes — accrues, held</td></tr>
+            <tr><td><code>messages</code></td><td>user accounts</td><td class="no">No — conversations belong to accounts</td></tr>
+            <tr><td><code>availability</code></td><td>profile.id (owner-written)</td><td class="no">No — owner-scoped</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>The attach operation</h3>
+      <div class="callout rule">
+        <div class="label">Attach = one atomic update</div>
+        <p>On approved claim, within one transaction, on the existing row: set <code>owner_user_id</code>, set <code>claim_status = claimed</code>, stamp <code>claimed_at</code> / <code>claimed_via</code>. Nothing else is written. Idempotent, auditable, and <strong>ownership-reversible</strong> — a wrongful attach is undone by clearing the same fields. (Owner-authored <em>content</em> created after claim is not reversed; only ownership is.)</p>
+      </div>
+
+      <h3>The events attribution split</h3>
+      <p><code>events.host_id</code> historically served two roles. They are now separate concerns: <strong>authorisation</strong> (who may manage the event) remains account-based; <strong>public attribution</strong> (which venue/host profile the event belongs to) is profile-based via <code>venue_profile_id</code>. One column never again does both jobs.</p>
+
+      <h3>Identity stability &amp; the single exception</h3>
+      <div class="callout rule">
+        <div class="label">Merge is the only identity-changing event</div>
+        <p>A <code>profile.id</code> is permanent — except when an admin merge retires a duplicate into a survivor. Retired ids are <strong>tombstoned with a permanent redirect</strong> (<code>duplicate_of</code>); they never 404. Merges re-point and de-duplicate <code>follows</code>, <code>lineup_members</code> and <code>booking_interest</code> atomically. Prevention (<a class="inline" href="#s14">§14</a>) exists so this mechanism is rarely, ideally never, exercised.</p>
+      </div>
+    </section>
+
+    <!-- ===== 04 ===== -->
+    <section id="s4">
+      <div class="sec-head"><span class="sec-num">04</span><h2>Public behaviour</h2></div>
+      <p class="sec-sub">Exactly what any user may do on an Unclaimed Profile, and what is disabled until an owner exists.</p>
+
+      <div class="split">
+        <div class="panel allow">
+          <div class="panel-head">✓ Allowed to everyone</div>
+          <ul>
+            <li><b>View</b> the full public profile</li>
+            <li><b>Share</b> — permanent canonical link</li>
+            <li><b>Follow</b> the profile <small>Private subscription — §05</small></li>
+            <li><b>View performances</b> linked via lineup</li>
+            <li><b>View upcoming gigs</b></li>
+            <li><b>View past gigs</b></li>
+            <li><b>Express booking interest</b> <small>§06</small></li>
+            <li><b>Invite the act to join</b> <small>Shareable claim link</small></li>
+          </ul>
+        </div>
+        <div class="panel deny">
+          <div class="panel-head">✕ Disabled until claimed</div>
+          <ul>
+            <li><b>Messaging</b> the profile <small>No owner to receive</small></li>
+            <li><b>Editing</b> any field</li>
+            <li><b>Dashboard</b> access</li>
+            <li><b>Profile management</b> / settings</li>
+            <li><b>Availability</b> management</li>
+            <li><b>Responding</b> to booking interest</li>
+            <li><b>Uploading</b> real avatar / media</li>
+            <li><b>Any owner-scoped</b> capability</li>
+          </ul>
+        </div>
+      </div>
+
+      <h3>Invite the act to join</h3>
+      <ul class="clean">
+        <li>Inviting produces a <strong>shareable claim link</strong> the inviter delivers through their own channel.</li>
+        <li>It may flag the profile for team outreach — but outreach proceeds only through a channel the act has publicly published, or not at all.</li>
+        <li>Invites are de-duplicated and rate-limited, and never surface as a public popularity signal.</li>
+      </ul>
+    </section>
+
+    <!-- ===== 05 ===== -->
+    <section id="s5">
+      <div class="sec-head"><span class="sec-num">05</span><h2>Follows</h2></div>
+      <p class="sec-sub">Followers follow the profile, not the owner. Counts and lists are never public. Follows exist purely to deliver notifications.</p>
+
+      <ul class="clean">
+        <li>A follow targets <code>profile.id</code> — it survives claiming untouched.</li>
+        <li><b>Follower counts are never displayed publicly.</b> Not on profiles, not in discovery, not in search.</li>
+        <li><b>Follower lists are never displayed publicly</b>, and never shown to the owner as identities.</li>
+        <li>A follow is a <strong>private notification subscription</strong> to future public activity involving the profile.</li>
+      </ul>
+
+      <div class="callout note">
+        <div class="label">C1 · Notifications must not assume an owner</div>
+        <p>Pre-claim public activity (e.g. a newly imported gig) must notify followers. The pipeline keys off <strong>public-activity events on the profile</strong>, never owner actions.</p>
+      </div>
+      <div class="callout note">
+        <div class="label">C2 · Enumeration must be impossible</div>
+        <p>Users can read only <em>their own</em> follow rows. No endpoint may answer "who follows X." Enforced at the data layer, not the UI.</p>
+      </div>
+      <div class="callout note">
+        <div class="label">C3 · Follows de-duplicate across a merge</div>
+        <p>On the rare admin merge, follows re-point to the survivor and de-duplicate — one user, one follow, one notification.</p>
+      </div>
+    </section>
+
+    <!-- ===== 06 ===== -->
+    <section id="s6">
+      <div class="sec-head"><span class="sec-num">06</span><h2>Booking interest</h2></div>
+      <p class="sec-sub">Expressed before a profile is claimed, held against it, and available to the owner the instant they claim.</p>
+
+      <h3>Data model</h3>
+      <div class="schema">
+        <div class="schema-head"><span class="kw">booking_interest</span></div>
+        <div class="field"><span class="fname">id</span><span class="fdesc">Interest record</span></div>
+        <div class="field"><span class="fname">target_profile_id</span><span class="fdesc"><b>The act being approached.</b> Claimed or not.</span></div>
+        <div class="field"><span class="fname">from_profile_id</span><span class="fdesc">The promoter / venue expressing interest (a claimed profile)</span></div>
+        <div class="field"><span class="fname">from_user_id</span><span class="fdesc">Sender account, for auth &amp; notification</span></div>
+        <div class="field"><span class="fname">status</span><span class="fdesc">pending · seen · responded · withdrawn · expired</span></div>
+        <div class="field"><span class="fname">note</span><span class="fdesc">Optional short message (fee range, vibe, ask)</span></div>
+        <div class="field"><span class="fname">event_id / proposed_date</span><span class="fdesc">Optional link to a specific slot</span></div>
+        <div class="field"><span class="fname">created_at</span><span class="fdesc">Held from here until claim, then surfaced</span></div>
+      </div>
+
+      <h3>Workflow</h3>
+      <div class="flow">
+        <div class="flow-step">
+          <div class="flow-rail"><div class="flow-dot">1</div><div class="flow-line"></div></div>
+          <div class="flow-body"><h4>Promoter views the unclaimed profile</h4><p>Sees performances and gigs; sees <strong>Express Interest</strong> alongside the UNCLAIMED badge.</p></div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-rail"><div class="flow-dot">2</div><div class="flow-line"></div></div>
+          <div class="flow-body"><h4>Lightweight interest form</h4><p>Optional date/event, optional note. A signal, not a contract.</p></div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-rail"><div class="flow-dot">3</div><div class="flow-line"></div></div>
+          <div class="flow-body"><h4>Stored against <code>target_profile_id</code></h4><p>Sender sees: <em>"Interest sent — held until this act joins YesPleez."</em> Not public.</p></div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-rail"><div class="flow-dot">4</div><div class="flow-line"></div></div>
+          <div class="flow-body"><h4>Interest accumulates while unclaimed</h4><p>Multiple promoters may express interest independently; none can see each other's.</p></div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-rail"><div class="flow-dot">5</div><div class="flow-line"></div></div>
+          <div class="flow-body"><h4>On claim — instantly available</h4><p>The booking inbox is populated the moment ownership attaches. <strong>Nothing transfers</strong>; it was always there.</p></div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-rail"><div class="flow-dot">6</div></div>
+          <div class="flow-body"><h4>Owner responds</h4><p>Messaging unlocks on claim. Sender notified; status → <span class="pill claimed">responded</span>.</p></div>
+        </div>
+      </div>
+
+      <div class="callout risk">
+        <div class="label">⚠ Privacy of held interest</div>
+        <p>Interest sent pre-claim becomes visible to <em>whoever claims</em>. Verification rigor is the gate protecting third-party promoters' commercial intentions. Consider withholding sender identity until the owner responds, or a stronger verification tier specifically for the booking inbox.</p>
+      </div>
+    </section>
+
+    <!-- ===== 07 ===== -->
+    <section id="s7">
+      <div class="sec-head"><span class="sec-num">07</span><h2>Claiming lifecycle</h2></div>
+      <p class="sec-sub">From discovery to a fully-unlocked profile. Nothing migrates; nothing transfers. Ownership unlocks what was already attached.</p>
+
+      <div class="flow">
+        <div class="flow-step">
+          <div class="flow-rail"><div class="flow-dot">A</div><div class="flow-line"></div></div>
+          <div class="flow-body"><h4>Discovery</h4><p>Search, an event lineup, a shared link, an invite, the discovery feed — or <strong>search-first signup</strong> (<a class="inline" href="#s14">§14</a>), the claim system's front door.</p></div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-rail"><div class="flow-dot">B</div><div class="flow-line"></div></div>
+          <div class="flow-body"><h4>Viewing an unclaimed profile</h4><p>UNCLAIMED badge, generic type-avatar, performances and gigs visible. Prompt: <em>"Is this you? Claim this profile."</em></p></div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-rail"><div class="flow-dot">C</div><div class="flow-line"></div></div>
+          <div class="flow-body"><h4>Claim request</h4><p>Authenticated user initiates. Captured: claimant, target profile, asserted relationship, evidence. Status → <span class="pill pending">claim_pending</span>. <em>(MVP: manual via email / Instagram. Future: in-product verification behind the same entry point.)</em> The claimant's account works immediately as a punter while the claim is pending.</p></div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-rail"><div class="flow-dot">D</div><div class="flow-line"></div></div>
+          <div class="flow-body"><h4>Verification</h4><p>Manual admin review now; automated tiers later. Outcomes: <span class="yes">approve</span> → attach; <span class="no">reject</span> → return to unclaimed with a reason; <b>needs-info</b> → hold. The unlock gate for all held private data.</p></div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-rail"><div class="flow-dot">E</div><div class="flow-line"></div></div>
+          <div class="flow-body"><h4>Ownership attached</h4><p>The single atomic update from <a class="inline" href="#s3">§03</a>. One row. Ownership-reversible.</p></div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-rail"><div class="flow-dot">F</div><div class="flow-line"></div></div>
+          <div class="flow-body"><h4>Capabilities unlocked</h4><p>Edit, dashboard, availability, messaging, booking inbox — gated purely on <code>owner_user_id</code>. No data is created; access is granted.</p></div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-rail"><div class="flow-dot">G</div></div>
+          <div class="flow-body"><h4>"While you were away" onboarding</h4><p>First authenticated view reveals the value that accrued while unclaimed. <a class="inline" href="#s8">§08</a>.</p></div>
+        </div>
+      </div>
+
+      <div class="callout rule">
+        <div class="label">The invariant</div>
+        <p>At no point in A→G is a profile duplicated, copied, or moved. The profile discovered in step A is the same record the owner controls in step G — plus three fields.</p>
+      </div>
+    </section>
+
+    <!-- ===== 08 ===== -->
+    <section id="s8">
+      <div class="sec-head"><span class="sec-num">08</span><h2>While you were away</h2></div>
+      <p class="sec-sub">The first-run experience after claiming. Its single job: prove claiming was worth it — commercial value first.</p>
+
+      <p>Shown once, gated by <code>onboarding_seen_at</code>. Ordered deliberately per <a class="inline" href="#s1">§01</a>:</p>
+
+      <div class="table-wrap">
+        <table class="compact">
+          <thead><tr><th>Reveal</th><th>Content</th><th>Priority</th></tr></thead>
+          <tbody>
+            <tr><td><b>Booking enquiries waiting</b></td><td>Count + previews, CTA into the inbox</td><td class="yes">Highest</td></tr>
+            <tr><td><b>Promoters who expressed interest</b></td><td>Held <code>booking_interest</code>, now actionable</td><td class="yes">High</td></tr>
+            <tr><td><b>Upcoming performances</b></td><td>Already linked via lineup</td><td>Medium</td></tr>
+            <tr><td><b>Past performances</b></td><td>Timeline — the history was already yours</td><td>Medium</td></tr>
+            <tr><td><b>Followers already subscribed</b></td><td>Aggregate count, one-time, private — open decision <a class="inline" href="#s16">P2</a></td><td>Low</td></tr>
+            <tr><td><b>Your public profile is live</b></td><td>Link to view it as the public sees it</td><td>Context</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout note">
+        <div class="label">Tone</div>
+        <p><em>"Work was waiting for you"</em>, never <em>"look how popular you are."</em> If nothing commercial is waiting, lead with linked performances and the live public profile — never an empty follower stat.</p>
+      </div>
+    </section>
+
+    <!-- ===== 09 ===== -->
+    <section id="s9">
+      <div class="sec-head"><span class="sec-num">09</span><h2>Ethics</h2></div>
+      <p class="sec-sub">The system creates public records about real people before they consent. That obligates a higher standard.</p>
+
+      <div class="table-wrap">
+        <table class="compact">
+          <thead><tr><th>Principle</th><th>Requirement</th></tr></thead>
+          <tbody>
+            <tr><td><b>Transparency</b></td><td>Unclaimed profiles are clearly labelled and state they were compiled from public information. Never imply the act joined or endorsed YesPleez.</td></tr>
+            <tr><td><b>Accuracy</b></td><td>Imported data is marked <em>imported &amp; unverified</em> — a best-effort record, not fact asserted by the act.</td></tr>
+            <tr><td><b>User control</b></td><td>The real entity can request correction or removal <strong>without creating an account</strong>. Claiming is never the price of control over your own listing.</td></tr>
+            <tr><td><b>Removal &amp; deletion</b></td><td>One mechanism: suppress from public view + blocklist against re-import. Event history keeps unlinked billing text — that belongs to the event. The blocklist gates the importer only; it never blocks voluntary signup.</td></tr>
+            <tr><td><b>Correction requests</b></td><td>Lightweight, no-account channel. Corrections logged with provenance.</td></tr>
+            <tr><td><b>Public-info only</b></td><td>Only public, factual, scene-relevant data is imported. No private or personal data, ever.</td></tr>
+            <tr><td><b>Generic avatars</b></td><td>Before claim, only generic type-specific imagery. Never a photograph or likeness without rights.</td></tr>
+            <tr><td><b>No misleading representation</b></td><td>No fabricated activity, no "verified" styling pre-claim, no impersonation.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout risk">
+        <div class="label">⚠ Must ship with, not after, public unclaimed profiles</div>
+        <p>The no-account correction/removal channel, visible provenance ("where did this come from?"), claim/interest rate-limiting, a defined retention policy, and verification strong enough to protect held booking interest.</p>
+      </div>
+    </section>
+
+    <!-- ===== 10 ===== -->
+    <section id="s10">
+      <div class="sec-head"><span class="sec-num">10</span><h2>Edge cases</h2></div>
+      <p class="sec-sub">Defined behaviour for what will occur in production.</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th style="width:170px">Case</th><th>Behaviour</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><b>Duplicate claim attempts</b></td>
+              <td>Requests queue against one profile; soft-lock while a review is active; at most one attach can ever succeed. Losing claimant notified with a reason.</td>
+            </tr>
+            <tr>
+              <td><b>Incorrect imported info</b></td>
+              <td>Pre-claim: no-account correction channel. Post-claim: owner edits directly. Corrections logged; performance links corrected at the event, never silently deleted.</td>
+            </tr>
+            <tr>
+              <td><b>Removal / deletion</b></td>
+              <td>Unified mechanism — suppress + blocklist (see <a class="inline" href="#s9">§09</a>). Applies equally to pre-claim removal requests and post-claim owner deletion, so deleted acts are never resurrected by the next import.</td>
+            </tr>
+            <tr>
+              <td><b>Abandoned claims</b></td>
+              <td><span class="pill pending">claim_pending</span> with no progress auto-expires (window: open decision <a class="inline" href="#s16">P6</a>), returning the profile to <span class="pill unclaimed">unclaimed</span> and releasing the soft-lock.</td>
+            </tr>
+            <tr>
+              <td><b>Duplicate profiles</b></td>
+              <td><strong>Prevented at creation</strong> — import dedup, search-first signup, booking disambiguation (<a class="inline" href="#s14">§14</a>). When prevention fails: admin-only merge with atomic re-point + de-dupe and a permanent tombstone redirect. Users never see merge machinery.</td>
+            </tr>
+            <tr>
+              <td><b>Ownership disputes</b></td>
+              <td>Competing legitimate claims escalate to human review; capabilities freeze; audit trail kept. Attach is ownership-reversible, so reassignment loses no data. Conversations stay with the accounts that wrote them; commercial records stay with the profile.</td>
+            </tr>
+            <tr>
+              <td><b>Same name, different entities</b></td>
+              <td>Both profiles are legitimate. Disambiguated everywhere names collide — search, signup matching, lineup pickers — by type, location and recent activity.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ===== 11 ===== -->
+    <section id="s11">
+      <div class="sec-head"><span class="sec-num">11</span><h2>Locked decisions</h2></div>
+      <p class="sec-sub">Resolved 10 Jul 2026. These are no longer open to debate; implementation builds against them.</p>
+
+      <ul class="check">
+        <li>One canonical profile per real-world entity.</li>
+        <li><code>profiles.id</code> is the permanent public identity.</li>
+        <li>Ownership is represented by <code>owner_user_id</code> (nullable).</li>
+        <li>Claiming attaches ownership and never performs a merge.</li>
+        <li>Merging is an admin-only recovery mechanism.</li>
+        <li><code>placeholder_profiles</code> becomes importer staging only (Studio-owned) and is never a public identity.</li>
+        <li>Duplicate prevention occurs during import, signup and booking.</li>
+        <li>Identity resolution is a platform-wide concern — one shared resolution path, not per-screen logic.</li>
+        <li>Conversations belong to accounts.</li>
+        <li>Commercial records belong to profiles.</li>
+        <li>The identity migration happens <strong>before beta</strong>.</li>
+      </ul>
+
+      <div class="callout note">
+        <div class="label">Retired risks</div>
+        <p>R1 (placeholder table vs unified model) — resolved by the unified model. R2 (importer write-safety) — transferred to the Studio contract, <a class="inline" href="#s15">§15</a>. Remaining engineering risks live inside the migration plan phases where they apply.</p>
+      </div>
+    </section>
+
+    <!-- ===== 12 ===== -->
+    <section id="s12">
+      <div class="sec-head"><span class="sec-num">12</span><h2>Identity migration plan</h2></div>
+      <p class="sec-sub">Expand → dual-write → backfill → cut over reads → cut over writes → validate → contract. Every phase leaves the app deployable; every phase before the contract is reversible.</p>
+
+      <h3>Milestones</h3>
+      <div class="table-wrap">
+        <table class="compact">
+          <thead><tr><th>Milestone</th><th>Meaning</th></tr></thead>
+          <tbody>
+            <tr><td><span class="pill ms">M0</span></td><td>Preflight complete — RLS inventory, data census, feature freeze in force</td></tr>
+            <tr><td><span class="pill ms">M1</span></td><td>Schema expanded — additive columns live, zero behaviour change</td></tr>
+            <tr><td><span class="pill ms">M2</span></td><td>Dual-write live — no legacy-only relationship rows appearing</td></tr>
+            <tr><td><span class="pill ms">M3</span></td><td>Data parity — backfill + placeholder promotion complete and signed off</td></tr>
+            <tr><td><span class="pill ms">M4</span></td><td>RLS migrated — owner-based policies pass the multi-account matrix</td></tr>
+            <tr><td><span class="pill ms">M5</span></td><td>Reads canonical — all routing, URLs and public queries on <code>profile.id</code>; legacy redirects live</td></tr>
+            <tr><td><span class="pill ms">M6</span></td><td>Writes canonical — booking, enquiries, availability operate on profile ids</td></tr>
+            <tr><td><span class="pill ms">M7</span></td><td><b>Architecture Validation Gate passed</b> (<a class="inline" href="#s13">§13</a>)</td></tr>
+            <tr><td><span class="pill ms">M8</span></td><td>Legacy identity retired — dual-writes removed, legacy columns and policies gone</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Phases</h3>
+
+      <div class="flow">
+        <div class="flow-step">
+          <div class="flow-rail"><div class="flow-dot p">0</div><div class="flow-line"></div></div>
+          <div class="flow-body">
+            <h4>Preflight — inventory, census, freeze → <span class="pill ms">M0</span></h4>
+            <p><b>Objective:</b> know exactly what exists. RLS policy inventory from the dashboard (invisible from code); follows-table ambiguity census; orphan-row census; verified restorable backup. <b>Freeze:</b> no new tables keyed on user id as public identity; <strong>messaging is not built until the identity migration is complete and validated</strong>.</p>
+            <p><b>Done when:</b> inventory committed, ambiguity counts + resolution rules documented, restore rehearsed.</p>
+          </div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-rail"><div class="flow-dot p">1</div><div class="flow-line"></div></div>
+          <div class="flow-body">
+            <h4>Schema expansion (additive only) → <span class="pill ms">M1</span></h4>
+            <p><b>Objective:</b> every new column exists; nothing reads it yet. <code>owner_user_id</code> + claim fields on <code>profiles</code> (no rename of <code>user_id</code> yet); nullable <code>profile_id</code> columns beside every user-keyed relationship column; <code>events.venue_profile_id</code>. <b>Risk:</b> minimal — a regretted name is cheap now, expensive after backfill.</p>
+            <p><b>Done when:</b> app behaviour byte-identical. <b>Never combined with backfill.</b></p>
+          </div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-rail"><div class="flow-dot p">2</div><div class="flow-line"></div></div>
+          <div class="flow-body">
+            <h4>Dual-write deployment → <span class="pill ms">M2</span></h4>
+            <p><b>Objective:</b> every write path populates both keys, giving the backfill a fixed finish line. Introduces the <em>resolve-my-profile</em> pattern that becomes the template for the write cutover. <b>Prerequisite:</b> M1. <b>Risk:</b> a missed write site — caught by the parity audit.</p>
+            <p><b>Done when:</b> organic use produces zero legacy-only rows. <b>Never combined with the backfill.</b></p>
+          </div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-rail"><div class="flow-dot p">3</div><div class="flow-line"></div></div>
+          <div class="flow-body">
+            <h4>Backfill, placeholder promotion, parity audit → <span class="pill ms">M3</span></h4>
+            <p><b>Objective:</b> every historical row gets its profile id; every live placeholder becomes an ownerless <code>profiles</code> row <strong>preserving its UUID</strong> — healing the mixed keyspace with no re-pointing and no broken URLs. Ambiguous follows resolved by rule cascade (entity-name match → performer preference → manual queue); orphans parked and flagged, never guessed. <b>Prerequisites:</b> M2 + signed-off resolution rules.</p>
+            <p><b>Done when:</b> parity report shows zero unresolved nulls outside the documented orphan list; promoted profiles reachable at unchanged URLs.</p>
+          </div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-rail"><div class="flow-dot p">4</div><div class="flow-line"></div></div>
+          <div class="flow-body">
+            <h4>RLS migration → <span class="pill ms">M4</span></h4>
+            <p><b>Objective:</b> ownership authorisation flows through <code>owner_user_id</code>. Additive-permissive: new owner-based policies land beside old ones; old ones are removed only at contract. <b>Risk:</b> the security phase — too-broad leaks, too-narrow silently hides data. <b>Validation:</b> written multi-account matrix including the C2 guarantee (no follower enumeration).</p>
+            <p><b>Done when:</b> matrix passes on all accounts. <b>Never combined with any app-code change.</b></p>
+          </div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-rail"><div class="flow-dot p">5</div><div class="flow-line"></div></div>
+          <div class="flow-body">
+            <h4>Read-path cutover + legacy redirects → <span class="pill ms">M5</span></h4>
+            <p><b>Objective:</b> <code>profile.id</code> becomes the identity the app presents — routing, all link generation, ProfileScreen single query, Discover (which is also what makes unclaimed profiles discoverable at all). Ships the shared profile-resolution module: one platform-wide resolution path. Legacy user-id URLs fall through to a permanent redirect shim. <b>Prerequisites:</b> M3 + M4. <b>Risk:</b> graceful — a missed call site emits a legacy URL that still redirects.</p>
+            <p><b>Done when:</b> no code path generates a user-id profile URL; legacy URLs redirect correctly for multi-type users.</p>
+          </div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-rail"><div class="flow-dot p">6</div><div class="flow-line"></div></div>
+          <div class="flow-body">
+            <h4>Write-path cutover → <span class="pill ms">M6</span></h4>
+            <p><b>Objective:</b> booking, enquiries, availability and notification payloads operate on profile ids; the events attribution split completes (auth stays account-based, attribution becomes profile-based). <b>Prerequisite:</b> M5, soaked in real use — reads and writes are never cut in the same change. <b>Risk:</b> the deepest behavioural change; acting identity must come only from the shared resolution module.</p>
+            <p><b>Done when:</b> full booking E2E as a multi-type user passes; no relationship query filters by auth user id except self-scoped reads.</p>
+          </div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-rail"><div class="flow-dot p">✓</div><div class="flow-line"></div></div>
+          <div class="flow-body">
+            <h4>Architecture Validation Gate → <span class="pill ms">M7</span></h4>
+            <p>The formal checkpoint of <a class="inline" href="#s13">§13</a>. <strong>The contract phase may not begin until every gate item passes.</strong></p>
+          </div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-rail"><div class="flow-dot p">7</div></div>
+          <div class="flow-body">
+            <h4>Contract — retire the legacy identity → <span class="pill ms">M8</span></h4>
+            <p><b>Objective:</b> remove dual-writes, drop/rename legacy columns, remove superseded policies, delete dead code. The redirect shim stays — permanent infrastructure. <b>Prerequisites:</b> M7 passed + fresh verified backup taken immediately before. <b>Risk:</b> destructive; a usage sweep for every legacy column must return only the shim before this phase may start.</p>
+            <p><b>Done when:</b> one identity keyspace exists and "nothing migrates on claim" is literally true in production. <b>Always its own isolated change — combined with nothing, ever.</b></p>
+          </div>
+        </div>
+      </div>
+
+      <h3>Milestone dependencies</h3>
+      <ul class="clean">
+        <li><b>Messaging</b> begins only after the identity migration is complete and validated (M7 passed, M8 done) — it gets identity for free by waiting, and inherits a migration if it doesn't.</li>
+        <li><b>The Identity Resolution system</b> (<a class="inline" href="#s14">§14</a>) begins after M8.</li>
+        <li><b>Studio's ongoing promotion pipeline</b> (<a class="inline" href="#s15">§15</a>) feeds public profiles only after M8; the one-time promotion of existing placeholders is app-side work inside M3.</li>
+        <li><b>Beta</b> requires M8 plus the ethics ship-with items of <a class="inline" href="#s9">§09</a>.</li>
+      </ul>
+
+      <div class="callout rule">
+        <div class="label">Hard separation rules</div>
+        <p>Schema expansion and backfill: never one change. Dual-write code and backfill: never one change. RLS: always isolated from app code. Read cutover and write cutover: separate, with soak between. Contract: always alone, always preceded by its own backup.</p>
+      </div>
+    </section>
+
+    <!-- ===== 13 ===== -->
+    <section id="s13">
+      <div class="sec-head"><span class="sec-num">13</span><h2>Architecture Validation Gate</h2></div>
+      <p class="sec-sub">The formal checkpoint between the write cutover (M6) and the removal of the legacy identity (M8). All five must pass; any failure blocks the contract phase until fixed and the gate is re-run in full.</p>
+
+      <div class="callout gate">
+        <div class="label"><span class="ref-id">G1</span> Routing</div>
+        <p>All public routing uses <code>profile.id</code>. No code path generates a user-id profile URL. Verified by sweep and by click-through of every navigation source.</p>
+      </div>
+      <div class="callout gate">
+        <div class="label"><span class="ref-id">G2</span> Booking</div>
+        <p>Booking flows work end-to-end: create event → apply → shortlist → offer → accept → lineup → notification with working deep-link — executed as a multi-type user, the hardest identity case.</p>
+      </div>
+      <div class="callout gate">
+        <div class="label"><span class="ref-id">G3</span> Claiming</div>
+        <p>Claiming behaves correctly: unclaimed profile renders with claim entry point; <span class="pill pending">claim_pending</span> shows the held state; admin attach unlocks capabilities on the same row; attach is demonstrably ownership-reversible.</p>
+      </div>
+      <div class="callout gate">
+        <div class="label"><span class="ref-id">G4</span> Identity sweep</div>
+        <p>No remaining public identity references use <code>user_id</code>. A codebase sweep for legacy identity patterns returns only self-scoped reads (own dashboard, notification recipient) and the redirect shim.</p>
+      </div>
+      <div class="callout gate">
+        <div class="label"><span class="ref-id">G5</span> Legacy redirects</div>
+        <p>Legacy redirects work correctly: user-id URLs land on the right typed profile (multi-type users included); placeholder-era URLs resolve; redirected URLs are canonical.</p>
+      </div>
+    </section>
+
+    <!-- ===== 14 ===== -->
+    <section id="s14">
+      <div class="sec-head"><span class="sec-num">14</span><h2>Identity Resolution system</h2></div>
+      <p class="sec-sub">The user-facing half of "one profile per entity" — the system that makes duplicates nearly impossible to create and identity unambiguous everywhere it's encountered. Begins after M8.</p>
+
+      <p>This is not a UX polish phase. It is the platform's <strong>identity resolution</strong> surface: the mechanisms through which people find, claim, and distinguish entities. Its components:</p>
+
+      <h3>Search-first signup</h3>
+      <p>The first step of artist/venue/host onboarding is a <strong>search, not a form</strong>. Exact match → <em>"We found an existing profile for VOIDLING. Is this you?"</em> → [Claim existing] / [This isn't me]. Near matches surface as warnings before creation. "This isn't me" always remains available — same-name different-entity is legitimate — and proceeds to a disambiguated create.</p>
+
+      <h3>Claim discovery</h3>
+      <p>Every surface that can put an act in front of its owner routes to the same claim entry point: signup matching, the profile's "Is this you?" prompt, shareable invite links, and event-lineup encounters. The entry point is stable — the manual contact flow behind it is later replaced by automated verification without the surrounding UI changing.</p>
+
+      <h3>Booking &amp; lineup disambiguation</h3>
+      <p>Anywhere a promoter or venue selects an act — lineup pickers, invite sheets, search — colliding names are disambiguated by type, location and recent activity. Two indistinguishable results is the defined failure state; two distinguishable ones is correct behaviour.</p>
+
+      <h3>Duplicate prevention</h3>
+      <p>The signup and booking surfaces above, plus Studio's import dedup (<a class="inline" href="#s15">§15</a>), form the three-front prevention line from the locked decisions. Creating an exact duplicate of an existing entity must require deliberately clicking through a warning; doing it accidentally must be near-impossible.</p>
+
+      <h3>Entity disambiguation</h3>
+      <p>The presentation rules that make "one profile per entity" legible: disambiguators wherever names collide, provenance on imported profiles, and the UNCLAIMED badge — so a user always knows <em>which</em> entity they're looking at and what the platform does and doesn't assert about it.</p>
+
+      <div class="callout note">
+        <div class="label">Validation</div>
+        <p>Signup as an act with an existing unclaimed profile lands on the claim path; signup with a colliding-but-different name proceeds via "this isn't me"; lineup pickers distinguish same-named acts; the claim entry point reaches <span class="pill pending">claim_pending</span> end-to-end.</p>
+      </div>
+    </section>
+
+    <!-- ===== 15 ===== -->
+    <section id="s15">
+      <div class="sec-head"><span class="sec-num">15</span><h2>Studio dependencies</h2></div>
+      <p class="sec-sub">YesPleez Studio is a separate product. The importer, staging pipeline, promotion pipeline and importer lockdown are Studio workstreams. This section records only the contract the app depends on.</p>
+
+      <h3>The cross-product contract</h3>
+      <div class="table-wrap">
+        <table class="compact">
+          <thead><tr><th>#</th><th>Studio guarantees</th><th>The app assumes</th></tr></thead>
+          <tbody>
+            <tr><td>S1</td><td>Staging (<code>placeholder_profiles</code>, demoted) is <b>never publicly navigable</b>; nothing outside staging references a staging row.</td><td>Every public profile lives in <code>profiles</code>; the app never queries staging.</td></tr>
+            <tr><td>S2</td><td>Promotion into <code>profiles</code> creates ownerless rows with <b>stable UUIDs</b>; dedup against existing profiles and the blocklist runs before promotion.</td><td>New unclaimed profiles simply appear with permanent ids; lineups link only promoted profiles ("billed name" text fallback for unresolved acts).</td></tr>
+            <tr><td>S3</td><td>The importer runs as a <b>restricted database role</b> — not a policy-bypassing service key — structurally unable to write <code>owner_user_id</code> / <code>claim_status</code> or update any claimed row. May insert referencing rows (lineups) that point at claimed profiles; may never mutate them.</td><td>Claimed profile data can only change through owner or admin action. Owners can reject imported lineup links.</td></tr>
+            <tr><td>S4</td><td>The removal/deletion <b>blocklist is honoured</b> on every import run.</td><td>Removed and deleted acts stay removed; the blocklist never gates voluntary signup.</td></tr>
+            <tr><td>S5</td><td>Import provenance (<code>source_*</code>) is populated on every promoted row.</td><td>Ethics §09 provenance display has data to show.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Sequencing</h3>
+      <ul class="clean">
+        <li>Studio pipeline work may proceed in parallel with the app migration, but promotion into public profiles begins only after <span class="pill ms">M8</span>.</li>
+        <li>The one-time promotion of <em>existing</em> placeholder rows is app-side migration work inside <span class="pill ms">M3</span> — not a Studio deliverable.</li>
+        <li>S3's negative test (importer credentials attempting to update a claimed row and failing at the database) is part of Studio's definition of done, and the app team witnesses it before relying on S3.</li>
+      </ul>
+    </section>
+
+    <!-- ===== 16 ===== -->
+    <section id="s16">
+      <div class="sec-head"><span class="sec-num">16</span><h2>Open product decisions</h2></div>
+      <p class="sec-sub">Non-architectural. None block the migration; each must be resolved before the feature it gates ships.</p>
+
+      <div class="callout decision"><div class="label"><span class="ref-id">P1</span> Consent posture</div><p>Opt-out (list by default, honour removal) or opt-in? Working assumption opt-out; must be defensible for your regions before beta. Gates: public unclaimed profiles at scale.</p></div>
+      <div class="callout decision"><div class="label"><span class="ref-id">P2</span> One-time private follower count</div><p>May the owner see an aggregate count once in "While you were away"? Gates: §08 build.</p></div>
+      <div class="callout decision"><div class="label"><span class="ref-id">P3</span> Who may express interest</div><p>Any user, or claimed host/venue profiles only? Gates: §06 build.</p></div>
+      <div class="callout decision"><div class="label"><span class="ref-id">P4</span> Verification standard</div><p>Evidence threshold for attach — and whether the booking inbox needs a stronger tier. Gates: automated claiming; interim manual flow proceeds.</p></div>
+      <div class="callout decision"><div class="label"><span class="ref-id">P5</span> Duplicate-claim resolution rule</div><p>First-valid-wins, evidence-weighted, or always-manual? Gates: claim review procedure doc.</p></div>
+      <div class="callout decision"><div class="label"><span class="ref-id">P6</span> Abandoned-claim expiry window</div><p>How long may <span class="pill pending">claim_pending</span> sit before auto-expiry? Gates: §07 stage D build.</p></div>
+      <div class="callout decision"><div class="label"><span class="ref-id">P7</span> Retention policy</div><p>What is kept, suppressed or purged on removal, and for how long? Gates: beta (ethics ship-with list).</p></div>
+
+    </section>
+
+    <!-- ===== 17 ===== -->
+    <section id="s17">
+      <div class="sec-head"><span class="sec-num">17</span><h2>Versioning &amp; amendments</h2></div>
+      <p class="sec-sub">How this document changes from here — and how it doesn't.</p>
+
+      <div class="callout rule">
+        <div class="label">This is the single source of truth for YesPleez v2</div>
+        <p>This document is the authoritative architecture reference for the YesPleez v2 application. The public app and <strong>YesPleez Studio</strong> both treat it as canonical wherever their responsibilities intersect (see §15 for the Studio contract). Implementation must conform to it.</p>
+      </div>
+
+      <h3>The rule</h3>
+      <ul class="clean">
+        <li><b>No silent rewrites.</b> This document is not continually edited in place. Once frozen, its content is stable.</li>
+        <li><b>Amendments, not replacement.</b> Architectural evolution happens through versioned amendments — v1.1, v1.2, and so on — each scoped to the specific change and its rationale.</li>
+        <li><b>The bar for reopening is a genuine blocker.</b> Implementation uncovering a fact that makes the locked architecture unworkable — not a preference, not an optimisation, not a nicer pattern discovered mid-build.</li>
+        <li><b>History is preserved.</b> When an amendment supersedes part of this document, the prior version is kept as historical reference, not deleted. A reader should always be able to see what changed and why.</li>
+        <li><b>Product decisions (§16) are not architecture.</b> Resolving P1–P7 does not require an amendment — those are scoped, expected updates as each gating feature ships, and are tracked as edits within the current version.</li>
+      </ul>
+
+      <h3>Amendment record</h3>
+      <div class="table-wrap">
+        <table class="compact">
+          <thead><tr><th>Version</th><th>Date</th><th>Change</th></tr></thead>
+          <tbody>
+            <tr><td><b>v1.0</b></td><td>10 Jul 2026</td><td>Initial freeze. Unified profile architecture, identity migration plan (M0–M8), Architecture Validation Gate, Identity Resolution system, Studio contract.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="end-gate">
+        <h3>We are leaving the architecture phase</h3>
+        <p>From this point, the project's focus is <strong>disciplined implementation against this specification</strong>, beginning with M0. Architecture is not revisited casually — only amended, deliberately, when the ground truth demands it.</p>
+      </div>
+    </section>
+
+  </main>
+</div>
+</div>
+
+<script>
+  (function () {
+    var progress = document.getElementById('progress');
+    var sections = Array.prototype.slice.call(document.querySelectorAll('section[id]'));
+    var links = {};
+    Array.prototype.forEach.call(document.querySelectorAll('#toc a'), function (a) {
+      links[a.getAttribute('href').slice(1)] = a;
+    });
+
+    function onScroll() {
+      var h = document.documentElement;
+      var scrolled = h.scrollTop || document.body.scrollTop;
+      var height = h.scrollHeight - h.clientHeight;
+      progress.style.width = (height > 0 ? (scrolled / height) * 100 : 0) + '%';
+    }
+    window.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+
+    if ('IntersectionObserver' in window) {
+      var current = null;
+      var obs = new IntersectionObserver(function (entries) {
+        entries.forEach(function (e) {
+          if (e.isIntersecting) {
+            if (current && links[current]) links[current].classList.remove('active');
+            current = e.target.id;
+            if (links[current]) links[current].classList.add('active');
+          }
+        });
+      }, { rootMargin: '-10% 0px -80% 0px', threshold: 0 });
+      sections.forEach(function (s) { obs.observe(s); });
+    }
+  })();
+</script>
+
+</body></html>

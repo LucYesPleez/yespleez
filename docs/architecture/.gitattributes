@@ -1,0 +1,14 @@
+# These are canonical, byte-verified archive artifacts. README.md records the
+# exact byte count and sha256 of each committed file, and those hashes are the
+# evidence that the only change from the served artifacts was stripping the
+# 9,540-byte claude.ai frame-runtime wrapper.
+#
+# This repo inherits core.autocrlf=true. Without the rule below, git rewrites
+# LF -> CRLF on checkout: identity-v1.1.html becomes 64,790 bytes instead of
+# 63,899, and every hash in the README's provenance table stops matching on a
+# fresh clone. The archive would still *read* fine and be quietly unverifiable.
+#
+# -text disables all end-of-line conversion for this directory. The bytes on
+# disk are the bytes in the object store are the bytes that were ratified.
+# Do not remove this file. Do not add a rule that reintroduces eol conversion.
+* -text
