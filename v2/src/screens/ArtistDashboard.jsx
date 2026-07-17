@@ -180,10 +180,16 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
       }
       const applications = (appsRes.data || []).map(a => ({ ...a, event: appEvents[a.event_id] || null }));
 
+      // direction 'outgoing' is from the SENDER's side — i.e. a venue sent it,
+      // so it's incoming to this artist. Without this filter the artist's own
+      // enquiries to venues (ProfileScreen's availability flow, which stores
+      // only a date + note and never an event/pitch/fee) get counted and
+      // rendered here as if a venue had invited them.
       const { count: offersCount } = await supabase
         .from('venue_enquiries')
         .select('id', { count: 'exact', head: true })
-        .eq('applicant_user_id', userId);
+        .eq('applicant_user_id', userId)
+        .eq('direction', 'outgoing');
 
       return { profile: profRes.data, applications, upcomingGigs, pastGigs, offersCount: offersCount || 0 };
     },
@@ -202,8 +208,11 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
     offersLoaded.current = true;
     setLoadingOffers(true);
     (async () => {
+      // Venue-initiated invites only — see the offersCount query above for why
+      // the direction filter matters.
       const { data: rows } = await supabase.from('venue_enquiries')
-        .select('*').eq('applicant_user_id', userId).order('created_at', { ascending: false }).limit(50);
+        .select('*').eq('applicant_user_id', userId).eq('direction', 'outgoing')
+        .order('created_at', { ascending: false }).limit(50);
       // M5.1 (D4): venue resolves by the enquiry row's venue_profile_id; legacy
       // user_id+type join only for rows without one.
       const venueCols = 'id, user_id, name, avatar, avatar_hero, avatar_thumb, type, bio, sound, genre_string, location, suburb, state, postcode, card_pills';
