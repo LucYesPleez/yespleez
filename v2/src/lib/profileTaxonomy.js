@@ -225,3 +225,10 @@ export const PROFILE_FIELDS = {
   // No `festival` entry — a festival is an event category owned by a host
   // profile (see HOST_CATEGORIES above), not a separate profile type.
 };
+
+// ── Shared experience levels (10F) ───────────────────────────────────────
+// One list, three consumers. Declared byte-identically in ArtistProfileScreen,
+// BandProfileScreen and StandupProfileScreen — the three performer editors.
+// Lives here rather than in profileTypes.js: this is vocabulary a profile
+// chooses from, not identity a profile *has*.
+export const EXP_LEVELS = ['EMERGING','DEVELOPING','ESTABLISHED','TOURING'];

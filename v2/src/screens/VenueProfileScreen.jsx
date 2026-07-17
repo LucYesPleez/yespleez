@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { STATE_OPTIONS } from '../lib/auLocations';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useSession } from '../App';
@@ -8,7 +9,6 @@ import PostcodePrompt from '../components/PostcodePrompt';
 import { normalizeSocialValue } from '../lib/socialLinks';
 import { PROFILE_TYPES } from '../lib/profileTypes';
 
-const STATE_OPTIONS = ['NSW','VIC','QLD','WA','SA','TAS','ACT','NT','NZ','International'];
 
 // 'Festival Site' / 'Festivals' intentionally not offered this release — see
 // HOST_CATEGORIES in profileTaxonomy.js.

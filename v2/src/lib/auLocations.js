@@ -325,3 +325,11 @@ export function suggestLocations(input) {
     .slice(0, 8)
     .map(s => s.replace(/\b\w/g, c => c.toUpperCase())); // Title Case
 }
+
+// ── Shared state options (10F) ───────────────────────────────────────────
+// One list, seven consumers. This exact array was declared byte-identically in
+// ArtistProfileScreen, BandProfileScreen, StandupProfileScreen, HostProfileScreen,
+// VenueProfileScreen, ProfileEditScreen and DiscoverScreen — seven copies of the
+// same ten strings, any one of which could gain or lose an entry on its own.
+// "NZ" and "International" are deliberate: the scene isn't only Australian.
+export const STATE_OPTIONS = ['NSW','VIC','QLD','WA','SA','TAS','ACT','NT','NZ','International'];

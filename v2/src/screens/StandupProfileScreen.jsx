@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import { STATE_OPTIONS } from '../lib/auLocations';
+import { EXP_LEVELS } from '../lib/profileTaxonomy';
 import { supabase } from '../lib/supabase';
 import { useSession } from '../App';
 import s from './ArtistProfileScreen.module.css';
@@ -11,8 +13,6 @@ import { VISIBLE_PERFORMANCE_ROLES, SHARED_PERFORMANCE_TAGS, ROLE_TAGS } from '.
 import { PROFILE_TYPES } from '../lib/profileTypes';
 import { normalizeSocialValue, ensureHttps } from '../lib/socialLinks';
 
-const STATE_OPTIONS = ['NSW','VIC','QLD','WA','SA','TAS','ACT','NT','NZ','International'];
-const EXP_LEVELS   = ['EMERGING','DEVELOPING','ESTABLISHED','TOURING'];
 
 // PERFORMANCE_ROLES / SHARED_PERFORMANCE_TAGS / ROLE_TAGS now come from the
 // shared ../lib/profileTaxonomy (2026-07 refresh) — no comedy/poetry-specific

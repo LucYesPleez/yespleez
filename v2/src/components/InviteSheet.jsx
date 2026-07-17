@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 import { writeNotification } from '../lib/writeNotification';
 import { resolveProfileId } from '../lib/resolveProfileId';
 import { formatLocation } from '../lib/formatLocation';
-import { PROFILE_TYPES } from '../lib/profileTypes';
+import { profileIdentity } from '../lib/profileTypes';
 
 const SLOT_ROLES = ['Opener', 'Support', 'Headline'];
 const DURATIONS  = [30, 45, 60, 90, 120];
@@ -123,11 +123,21 @@ export default function InviteSheet({ artist, events = [], venueUserId, onClose 
     setSent(true);
   }
 
-  const type   = (artist.type || 'artist').toLowerCase();
   const sound  = artist.sound || artist.genre_string?.split(' · ').slice(0, 3).join(' · ') || '';
   const loc    = formatLocation(artist);
   const img    = artist.avatar_thumb || artist.avatar || null;
-  const accent = PROFILE_TYPES[type]?.accent || '#00E5FF';
+
+  // 10F (S35): all four identity values come from one resolver. This screen used
+  // to derive `accent` from the token and then infer everything else from it with
+  // `accent === '#00E5FF' ? cyan : pink` — a TWO-way test for FIVE types. Every
+  // non-artist fell to the else branch, so a Band (#FFB830) rendered orange
+  // borders on pink fills with an orange->pink SEND button, and Host's rgb came
+  // out as #FF3399's rather than its own. rgb/accent2 were on the token the whole
+  // time; the ternary was inferring what it could have looked up.
+  const pt         = profileIdentity(artist.type);
+  const accent     = pt.accent;
+  const accentRgb  = pt.rgb;
+  const accent2    = pt.accent2;
 
   // Always the full name — these are act names, not people's names. Splitting
   // "Daddy Longlegs" to a first word gives you "Hey Daddy", which is nonsense.
@@ -175,7 +185,7 @@ export default function InviteSheet({ artist, events = [], venueUserId, onClose 
               <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
                 <button
                   onClick={() => { onClose(); navigate('/venue?section=enquiries&dir=OUTGOING&status=NEW'); }}
-                  style={{ fontFamily: "'Bebas Neue'", fontSize: 14, letterSpacing: 1.5, padding: '10px 24px', borderRadius: 10, border: `1px solid ${accent}`, background: `rgba(${accent === '#00E5FF' ? '0,229,255' : '255,51,153'},.12)`, color: accent, cursor: 'pointer' }}
+                  style={{ fontFamily: "'Bebas Neue'", fontSize: 14, letterSpacing: 1.5, padding: '10px 24px', borderRadius: 10, border: `1px solid ${accent}`, background: `rgba(${accentRgb},.12)`, color: accent, cursor: 'pointer' }}
                 >VIEW OUTGOING ENQUIRIES</button>
                 <button
                   onClick={onClose}
@@ -210,7 +220,7 @@ export default function InviteSheet({ artist, events = [], venueUserId, onClose 
                     Builds itself as the promoter types; a thin pitch reads thin,
                     which nudges them to fill the gaps without a single mandatory
                     field. ── */}
-              <div style={{ border: `1px solid rgba(${accent === '#00E5FF' ? '0,229,255' : '255,51,153'},.3)`, borderRadius: 12, padding: '14px 16px', marginBottom: 24, background: 'rgba(255,255,255,.02)' }}>
+              <div style={{ border: `1px solid rgba(${accentRgb},.3)`, borderRadius: 12, padding: '14px 16px', marginBottom: 24, background: 'rgba(255,255,255,.02)' }}>
                 <div style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1.5, color: accent, marginBottom: 10 }}>{actName ? `WHAT ${actName.toUpperCase()} WILL SEE` : 'WHAT THEY WILL SEE'}</div>
                 <div style={{ fontSize: 13.5, lineHeight: 1.65, color: '#fff' }}>
                   <span style={{ fontWeight: 600 }}>Hey {actName || 'there'} — </span>
@@ -233,7 +243,7 @@ export default function InviteSheet({ artist, events = [], venueUserId, onClose 
                 <label style={labelStyle}>WHICH EVENT?</label>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {events.slice(0, 6).map(ev => (
-                    <label key={ev.id} style={{ display: 'flex', alignItems: 'center', gap: 10, background: eventId === ev.id ? `rgba(${accent === '#00E5FF' ? '0,229,255' : '255,51,153'},.1)` : 'rgba(255,255,255,.04)', border: `1px solid ${eventId === ev.id ? accent : 'rgba(255,255,255,.1)'}`, borderRadius: 10, padding: '10px 14px', cursor: 'pointer', transition: 'all .15s' }}>
+                    <label key={ev.id} style={{ display: 'flex', alignItems: 'center', gap: 10, background: eventId === ev.id ? `rgba(${accentRgb},.1)` : 'rgba(255,255,255,.04)', border: `1px solid ${eventId === ev.id ? accent : 'rgba(255,255,255,.1)'}`, borderRadius: 10, padding: '10px 14px', cursor: 'pointer', transition: 'all .15s' }}>
                       <input type="radio" name="invite-event" value={ev.id} checked={eventId === ev.id} onChange={() => setEventId(ev.id)} style={{ accentColor: accent, flexShrink: 0 }} />
                       <span style={{ fontFamily: "'DM Sans'", fontSize: 13, color: '#fff' }}>{ev.name}</span>
                       {ev.config?.date && <span style={{ fontSize: 11, color: 'rgba(255,255,255,.4)', marginLeft: 'auto' }}>{ev.config.date}</span>}
@@ -270,7 +280,7 @@ export default function InviteSheet({ artist, events = [], venueUserId, onClose 
                   {SLOT_ROLES.map(r => (
                     <button key={r} type="button" onClick={() => setSlotRole(slotRole === r ? '' : r)}
                       style={{ fontFamily: "'Bebas Neue'", fontSize: 12, letterSpacing: 1, padding: '7px 16px', borderRadius: 20, cursor: 'pointer', transition: 'all .15s',
-                        background: slotRole === r ? `rgba(${accent === '#00E5FF' ? '0,229,255' : '255,51,153'},.15)` : 'rgba(255,255,255,.04)',
+                        background: slotRole === r ? `rgba(${accentRgb},.15)` : 'rgba(255,255,255,.04)',
                         border: `1px solid ${slotRole === r ? accent : 'rgba(255,255,255,.12)'}`,
                         color: slotRole === r ? accent : 'rgba(255,255,255,.6)' }}>{r}</button>
                   ))}
@@ -325,7 +335,7 @@ export default function InviteSheet({ artist, events = [], venueUserId, onClose 
               <button
                 onClick={handleSend}
                 disabled={!canSend}
-                style={{ width: '100%', fontFamily: "'Bebas Neue'", fontSize: 16, letterSpacing: 2, padding: '14px', borderRadius: 12, border: 'none', background: !canSend ? 'rgba(255,255,255,.08)' : `linear-gradient(135deg, ${accent}, ${accent === '#00E5FF' ? '#00B4D8' : '#FF69B4'})`, color: !canSend ? 'rgba(255,255,255,.35)' : '#0a0a14', cursor: !canSend ? 'not-allowed' : 'pointer', transition: 'opacity .15s', fontWeight: 700 }}
+                style={{ width: '100%', fontFamily: "'Bebas Neue'", fontSize: 16, letterSpacing: 2, padding: '14px', borderRadius: 12, border: 'none', background: !canSend ? 'rgba(255,255,255,.08)' : `linear-gradient(135deg, ${accent}, ${accent2})`, color: !canSend ? 'rgba(255,255,255,.35)' : '#0a0a14', cursor: !canSend ? 'not-allowed' : 'pointer', transition: 'opacity .15s', fontWeight: 700 }}
               >{sending ? 'SENDING…' : 'SEND INVITATION'}</button>
               {!message.trim() && <div style={{ fontSize: 11, color: 'rgba(255,255,255,.3)', marginTop: 8, textAlign: 'center' }}>Add a pitch to send</div>}
             </>

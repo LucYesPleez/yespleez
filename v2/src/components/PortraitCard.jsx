@@ -2,7 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import { profileUrl } from '../lib/profileResolution';
 import { formatLocation } from '../lib/formatLocation';
 import { selectedPerformanceRoleLabels, selectedArtistRoleLabels } from '../lib/profileTaxonomy';
-import { PROFILE_TYPES } from '../lib/profileTypes';
+import { profileIdentity } from '../lib/profileTypes';
 import { getContrastText } from '../lib/color';
 
 /**
@@ -14,9 +14,12 @@ import { getContrastText } from '../lib/color';
  */
 export default function PortraitCard({ profile: p, onClick, width = 150, height = 200 }) {
   const navigate = useNavigate();
-  const type = (p?.type || 'artist').toLowerCase();
-  const pt = PROFILE_TYPES[type] || PROFILE_TYPES.artist;
-  const label = pt.shortLabel || type.toUpperCase();
+  // 10F: one resolver, no artist sentinel. A row with a missing/unknown type used
+  // to render as a cyan "DJ / PROD." with a DJ's placeholder photo; it now renders
+  // neutral, which is honest rather than confidently wrong.
+  const type = String(p?.type || '').toLowerCase();
+  const pt = profileIdentity(type);
+  const label = pt.shortLabel;
   // Standup: one pill per selected performance role (Comedy/Poetry). Artist:
   // same concept for DJ/Producer/MC. Data-driven so a future role works
   // everywhere with no call-site change. Falls back to the generic type
@@ -53,7 +56,10 @@ export default function PortraitCard({ profile: p, onClick, width = 150, height 
       <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: 12 }}>
         <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 15, letterSpacing: 1, color: '#fff', lineHeight: 1.1 }}>{p?.name}</div>
         {formatLocation(p) && <div style={{ fontSize: 10, color: 'rgba(255,255,255,.55)', marginTop: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{formatLocation(p)}</div>}
-        {p?.sound && <div style={{ fontSize: 10, color: '#00E5FF', marginTop: 5, lineHeight: 1.4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{p.sound}</div>}
+        {/* 10F: was a hardcoded '#00E5FF' — Artist's cyan on EVERY type's card.
+            ProfileCard renders the same field in the row's own accent (ts.col);
+            this one didn't. Now both derive from the resolved type. */}
+        {p?.sound && <div style={{ fontSize: 10, color: pt.accent, marginTop: 5, lineHeight: 1.4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{p.sound}</div>}
       </div>
     </div>
   );

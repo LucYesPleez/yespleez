@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { STATE_OPTIONS } from '../lib/auLocations';
 import { supabase } from '../lib/supabase';
 import { useSession } from '../App';
 import s from './HostProfileScreen.module.css';
@@ -11,7 +12,6 @@ import { HOST_GENRES, ALL_GENRES, SUBGENRES, HOST_CATEGORIES, VISIBLE_HOST_CATEG
 import { PROFILE_TYPES } from '../lib/profileTypes';
 import { normalizeSocialValue } from '../lib/socialLinks';
 
-const STATE_OPTIONS = ['NSW','VIC','QLD','WA','SA','TAS','ACT','NT','NZ','International'];
 
 // Keys only, for the genre-filter/parse logic below — labels come from
 // VISIBLE_HOST_CATEGORIES at render time. Parsing uses the FULL category list

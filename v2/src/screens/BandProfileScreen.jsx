@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import { STATE_OPTIONS } from '../lib/auLocations';
+import { EXP_LEVELS } from '../lib/profileTaxonomy';
 import { supabase } from '../lib/supabase';
 import { useSession } from '../App';
 import s from './ArtistProfileScreen.module.css';
@@ -11,8 +13,6 @@ import { BAND_GENRES, BAND_SUBGENRES, BAND_VIBES } from '../lib/profileTaxonomy'
 import { PROFILE_TYPES } from '../lib/profileTypes';
 import { normalizeSocialValue, ensureHttps } from '../lib/socialLinks';
 
-const STATE_OPTIONS = ['NSW','VIC','QLD','WA','SA','TAS','ACT','NT','NZ','International'];
-const EXP_LEVELS   = ['EMERGING','DEVELOPING','ESTABLISHED','TOURING'];
 
 // BAND_GENRES + BAND_SUBGENRES + BAND_VIBES now come from the shared
 // ../lib/profileTaxonomy (2026-07 refresh). Migrated automatically on load,

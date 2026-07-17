@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import s from './ProfileCard.module.css';
-import { PROFILE_TYPES } from '../lib/profileTypes';
+import { PROFILE_TYPES, profileIdentity } from '../lib/profileTypes';
 import { profileUrl } from '../lib/profileResolution';
 import { formatLocation } from '../lib/formatLocation';
 import { selectedPerformanceRoleLabels } from '../lib/profileTaxonomy';
@@ -25,12 +25,19 @@ export const TYPE_STYLES = Object.fromEntries(
 export default function ProfileCard({ item, badge, badgeColor, actions }) {
   const navigate = useNavigate();
   if (!item) return null;
-  const type  = item.type || 'artist';
-  const ts    = TYPE_STYLES[type] || TYPE_STYLES.artist;
+  // 10F: one resolver, no artist sentinel. `item.type || 'artist'` then
+  // `TYPE_STYLES[type] || TYPE_STYLES.artist` meant a row with a missing type
+  // rendered as a cyan "DJ / PROD." with a DJ's photo — twice over.
+  const type  = String(item.type || '').toLowerCase();
+  const pt    = profileIdentity(type);
+  const ts    = { col: pt.accent, rgb: pt.rgb, label: pt.shortLabel, emoji: pt.emoji };
   const loc   = formatLocation(item);
   const sound = item.sound || item.genre_string?.split(' · ').slice(0, 3).join(' · ') || '';
   const img   = item.avatar_thumb || item.avatar || null;
-  const defaultImg = (PROFILE_TYPES[type] || PROFILE_TYPES.artist).defaultImage;
+  // 10F: null for an unknown type — see UNKNOWN_PROFILE. There is no neutral
+  // placeholder asset, and borrowing a real type's photo is what this pass exists
+  // to stop. A malformed row now shows no image rather than a stranger's.
+  const defaultImg = pt.defaultImage;
   // Standup: one pill per selected performance role (Comedy/Poetry), data-
   // driven so a future role works everywhere with no call-site change.
   const roleLabels = type === 'standup' ? selectedPerformanceRoleLabels(item.genre_string) : [];

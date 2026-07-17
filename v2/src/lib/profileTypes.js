@@ -91,3 +91,47 @@ export const PROFILE_TYPES = Object.fromEntries(
 // Canonical ordered list of type keys — reuse this instead of writing another
 // hardcoded venue/host/artist/band/standup array (see FollowingSection.jsx).
 export const PROFILE_TYPE_ORDER = Object.keys(PROFILE_TYPES);
+
+// ── The unknown type (10F) ───────────────────────────────────────────────
+// A shared component handed a missing or unrecognised type must NOT inherit
+// another profile's identity. Before 10F the fallback was `|| PROFILE_TYPES
+// .artist` in ~12 places, so a band row with no `type` rendered as cyan
+// "DJ / PROD." with a DJ's placeholder photo — confidently, and wrongly.
+// Deliberately neutral and deliberately not pretty: if this ever renders,
+// something upstream is broken and it should look like it, not like a DJ.
+//
+// `defaultImage` is null on purpose. There is no neutral placeholder asset,
+// and picking any type's photo would reintroduce exactly the bug this exists
+// to remove. Callers that render an <img> must handle null (see ProfileCard).
+export const UNKNOWN_PROFILE = Object.freeze({
+  accent:       '#8B90A0',
+  accent2:      '#5A5F6E',
+  rgb:          '139,144,160',
+  accent2Rgb:   '90,95,110',
+  emoji:        '',
+  label:        'PROFILE',
+  shortLabel:   'PROFILE',
+  pathPrefix:   null,
+  dashPath:     null,
+  gradient:     'linear-gradient(90deg, #8B90A0, #5A5F6E)',
+  defaultImage: null,
+});
+
+/**
+ * The one way to turn a profile type into its identity tokens.
+ *
+ * Replaces the hand-written `PROFILE_TYPES[t] || PROFILE_TYPES.artist` pattern
+ * that was copy-pasted across cards, screens and editors — each copy free to
+ * pick a different (and differently wrong) fallback. Two of those copies
+ * defaulted to venue, the rest to artist, which is how an empty Band dashboard
+ * came to render a VENUE pill (fixed in 10E.3).
+ *
+ * Never returns undefined, never guesses a type. Unknown -> UNKNOWN_PROFILE.
+ *
+ * @param {string|null|undefined} type
+ * @returns {typeof UNKNOWN_PROFILE} the type's tokens, or the neutral fallback
+ */
+export function profileIdentity(type) {
+  if (!type) return UNKNOWN_PROFILE;
+  return PROFILE_TYPES[String(type).toLowerCase()] || UNKNOWN_PROFILE;
+}

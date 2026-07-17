@@ -10,6 +10,7 @@ import { useDragScroll } from '../hooks/useDragScroll';
 import s from './DiscoverScreen.module.css';
 import { resolveLocationToPostcodes, suggestLocations } from '../lib/auLocations';
 import { BAND_GENRES, SHARED_PERFORMANCE_TAGS, ROLE_TAGS } from '../lib/profileTaxonomy';
+import { STATE_OPTIONS } from '../lib/auLocations';
 
 // Venue-first, matching the shared canonical role order (PROFILE_TYPE_ORDER
 // in profileTypes.js). 'event' isn't a profile role, so it stays last.
@@ -34,7 +35,6 @@ const GENRE_BY_TYPE = {
   event:   ['Techno','House','Drum & Bass','Trance','Rock','Blues','Jazz','Hip-Hop','Comedy','Arts & Culture','Multi Genre'],
 };
 
-const STATE_OPTIONS = ['NSW','VIC','QLD','WA','SA','TAS','ACT','NT','NZ','International'];
 const RADIUS_STEPS = [0, 5, 10, 20, 50, 100, 250, 500];
 
 

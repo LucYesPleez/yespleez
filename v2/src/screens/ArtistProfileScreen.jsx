@@ -10,9 +10,9 @@ import SocialSection from '../components/SocialSection';
 import { MAIN_GENRES, SUBGENRES, VIBES, VISIBLE_ARTIST_ROLES } from '../lib/profileTaxonomy';
 import { normalizeSocialValue, ensureHttps } from '../lib/socialLinks';
 import { PROFILE_TYPES } from '../lib/profileTypes';
+import { STATE_OPTIONS } from '../lib/auLocations';
+import { EXP_LEVELS } from '../lib/profileTaxonomy';
 
-const STATE_OPTIONS = ['NSW','VIC','QLD','WA','SA','TAS','ACT','NT','NZ','International'];
-const EXP_LEVELS   = ['EMERGING','DEVELOPING','ESTABLISHED','TOURING'];
 const TECH_OPTIONS = ['DJ DIGITAL','DJ VINYL','DJ HYBRID','LIVE ACT','LIVE + DJ','B2B'];
 
 // MAIN_GENRES + SUBGENRES + VIBES now come from the shared ../lib/profileTaxonomy.

@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { useSession } from '../App';
 import s from './ProfileEditScreen.module.css';
 import { PROFILE_TYPES } from '../lib/profileTypes';
+import { STATE_OPTIONS } from '../lib/auLocations';
 
 // Screen-specific display flags — not shared metadata, stays local
 const PROFILE_FLAGS = {
@@ -14,7 +15,6 @@ const PROFILE_FLAGS = {
   venue:   { showMix: false, showSound: false },
 };
 
-const STATE_OPTIONS = ['NSW','VIC','QLD','WA','SA','TAS','ACT','NT','NZ','International'];
 
 export default function ProfileEditScreen() {
   const navigate = useNavigate();
