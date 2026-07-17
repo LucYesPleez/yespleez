@@ -7,7 +7,8 @@ import { useProfileForm } from '../hooks/useProfileForm';
 import ProfileFormShell from '../components/ProfileFormShell';
 import SectionBlock from '../components/SectionBlock';
 import SocialSection from '../components/SocialSection';
-import { MAIN_GENRES, HOST_GENRES, ALL_GENRES, SUBGENRES, HOST_CATEGORIES, VISIBLE_HOST_CATEGORIES } from '../lib/profileTaxonomy';
+import { HOST_GENRES, ALL_GENRES, SUBGENRES, HOST_CATEGORIES, VISIBLE_HOST_CATEGORIES } from '../lib/profileTaxonomy';
+import { PROFILE_TYPES } from '../lib/profileTypes';
 import { normalizeSocialValue } from '../lib/socialLinks';
 
 const STATE_OPTIONS = ['NSW','VIC','QLD','WA','SA','TAS','ACT','NT','NZ','International'];
@@ -53,9 +54,13 @@ function genresForCats(cats) {
   return cats.length === 0 || fromCats.length === 0 ? ALL_GENRES : fromCats;
 }
 
-const ACCENT  = '#FF2D78';
-const ACCENT2 = '#00E5FF';
-const GRAD    = `linear-gradient(90deg, ${ACCENT} 0%, ${ACCENT2} 100%)`;
+// Host identity comes from PROFILE_TYPES — the sole source of truth since 10E.1.
+// These were hand-typed copies of the same three values; identical today, but a
+// private copy is exactly how Host's own pink drifted to #FF3399 in 8+ files
+// before 10E.1 corrected it. Same values, one owner.
+const ACCENT  = PROFILE_TYPES.host.accent;   // #FF2D78
+const ACCENT2 = PROFILE_TYPES.host.accent2;  // #00E5FF
+const GRAD    = PROFILE_TYPES.host.gradient; // linear-gradient(90deg, #FF2D78, #00E5FF)
 
 // ── EXPERIMENTAL — Host editor only (temporary aesthetic prototype) ────────
 // Same "Glass Pill" treatment as the Artist editor, re-tuned to the Host
@@ -220,7 +225,13 @@ export default function HostProfileScreen() {
       {/* Header */}
       <div className={s.header}>
         <div className={s.headerText}>
-          <div className={s.h1}>YOUR<br/>HOST<br/>PROFILE</div>
+          {/* 10E.4: this heading had no inline override, so it rendered .h1's
+              hand-typed `135deg` gradient instead of the canonical 90deg token —
+              Host was the last editor still doing this (Artist was fixed at
+              10E.2A, Band at 10E.3; Standup and Venue already override). Colours
+              were already right post-10E.1; the ANGLE was the drift, and Host's
+              own borders/section styles below already use 90deg. */}
+          <div className={s.h1} style={{ background: GRAD, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>YOUR<br/>HOST<br/>PROFILE</div>
         </div>
       </div>
 
