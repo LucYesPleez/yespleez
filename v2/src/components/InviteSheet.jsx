@@ -65,22 +65,29 @@ export default function InviteSheet({ artist, events = [], venueUserId, onClose 
       resolveProfileId(venueUserId, 'venue'),
       resolveProfileId(artist.user_id, artist.type || 'artist'),
     ]);
+    // Every key here is a real column (verified against the live schema,
+    // 2026-07-17). Names match the table, not the UI's vocabulary:
+    //   date_requested — the proposed date. NOT NULL, no default: the insert
+    //                    fails without it. The old payload sent `proposed_date`,
+    //                    which never existed, and omitted this entirely.
+    //   note           — the message body. The column has always been `note`.
+    //   initiated_by   — absolute, not viewer-relative. 'venue' here because
+    //                    this sheet is the venue inviting an artist.
+    // applicant_name/event_name are deliberately NOT stored — both are derived
+    // from applicant_profile_id / event_id at read time.
     const payload = {
       venue_user_id:    venueUserId,
       applicant_user_id: artist.user_id,
       applicant_type:   artist.type || 'artist',
-      applicant_name:   artist.name,
       event_id:         eventId && eventId !== '__new__' ? eventId : null,
-      event_name:       selectedEvent?.name || null,
-      message:          message.trim() || null,
-      proposed_date:    date || null,
+      date_requested:   date || null,
       proposed_time:    time || null,
       proposed_fee:     fee.trim() || null,
-      direction:        'outgoing',
-      status:           'new',
+      note:             message.trim() || null,
+      initiated_by:     'venue',
+      status:           'pending',
       venue_profile_id:     venueProfileId,
       applicant_profile_id: applicantProfileId,
-      // New pitch fields (require the venue_enquiries columns — see migration).
       headliner:        headliner.trim() || null,
       slot_role:        slotRole || null,
       set_duration:     duration ? parseInt(duration) : null,
@@ -89,7 +96,19 @@ export default function InviteSheet({ artist, events = [], venueUserId, onClose 
     };
     const { error: err } = await supabase.from('venue_enquiries').insert(payload);
     setSending(false);
-    if (err) { setError('Something went wrong. Please try again.'); return; }
+    if (err) {
+      // Surface the real reason. This flow has been silently broken more than
+      // once behind "Something went wrong" — most recently a 42501 from the
+      // applicant-side-only INSERT policy (S4), which is expected until M6
+      // replaces it with can_act_as().
+      console.error('venue_enquiries insert failed:', err.code, err.message, err.details, err.hint);
+      setError(
+        err.code === '42501'
+          ? "Venues can't send invites yet — this is a known limitation."
+          : `Couldn't send the invite (${err.code || 'error'}). Please try again.`
+      );
+      return;
+    }
     // Notify the artist
     await writeNotification(
       artist.user_id,

@@ -220,9 +220,16 @@ export default function ProfileScreen() {
       applicant_profile_id: enquiryProf.id ?? null,
       date_requested:       pickerDate,
       note:                 enquiryNote.trim() || null,
+      // Absolute, not viewer-relative: this flow is the applicant approaching a
+      // venue. InviteSheet writes 'venue' for the mirror case. The UI derives
+      // incoming/outgoing from this — see enquiryUtils.deriveDirection.
+      initiated_by:         'applicant',
       status:               'pending',
     });
     setEnquirySending(false);
+    if (error && !error.message?.includes('duplicate') && !error.message?.includes('unique')) {
+      console.error('venue_enquiries insert failed:', error.code, error.message, error.details, error.hint);
+    }
     if (!error || error.message?.includes('duplicate') || error.message?.includes('unique')) {
       setEnquiryProf(null); setPickerDate(null); setEnquiryNote('');
     }

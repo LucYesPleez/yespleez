@@ -10,7 +10,7 @@ import FollowingSection, { FOLLOW_FILTER_CONFIGS } from '../components/Following
 import ProfileCard from '../components/ProfileCard';
 import InviteSheet from '../components/InviteSheet';
 import EnquiryCard, { HoverPill, HoverProfileBtn, HoverBtn } from '../components/EnquiryCard';
-import { normaliseStatus, STATUS_TAB_COLOR } from '../lib/enquiryUtils';
+import { normaliseStatus, STATUS_TAB_COLOR, withDirection } from '../lib/enquiryUtils';
 import EnquiryPanel from '../components/EnquiryPanel';
 import DashboardHeader from '../components/DashboardHeader';
 import DashboardProfileCard from '../components/DashboardProfileCard';
@@ -63,7 +63,10 @@ export default function VenueDashboard({ userId: userIdProp }) {
       // M5.1 (D3): resolve by the enquiry row's applicant_profile_id (an id names
       // exactly the typed profile the old user_id+type key-pair approximated);
       // legacy join kept only for rows without one.
-      const enqs = enqRes.data || [];
+      // This screen reads the table from the venue's side: an applicant-initiated
+      // row is incoming here, a venue-initiated one is outgoing. `direction` is
+      // derived, never stored — see enquiryUtils.deriveDirection.
+      const enqs = withDirection(enqRes.data, 'venue');
       const applicantCols = 'id, user_id, name, avatar, avatar_thumb, type, bio, sound, genre_string, location, mix_link, tagline, card_pills';
       const pidEnqs = enqs.filter(e => e.applicant_profile_id);
       const uidEnqs = enqs.filter(e => !e.applicant_profile_id && e.applicant_user_id);

@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabase';
 import { writeNotification } from '../lib/writeNotification';
 import { useSession } from '../App';
 import { today, formatDisplayDate } from '../lib/dates';
-import { STATUS_TAB_COLOR } from '../lib/enquiryUtils';
+import { STATUS_TAB_COLOR, withDirection } from '../lib/enquiryUtils';
 import s from './ArtistDashboard.module.css';
 import EventCard from '../components/EventCard';
 import ProfileCard from '../components/ProfileCard';
@@ -180,16 +180,21 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
       }
       const applications = (appsRes.data || []).map(a => ({ ...a, event: appEvents[a.event_id] || null }));
 
-      // direction 'outgoing' is from the SENDER's side — i.e. a venue sent it,
-      // so it's incoming to this artist. Without this filter the artist's own
+      // Venue-initiated invites only. Without this filter the artist's own
       // enquiries to venues (ProfileScreen's availability flow, which stores
       // only a date + note and never an event/pitch/fee) get counted and
       // rendered here as if a venue had invited them.
+      //
+      // This used to filter `.eq('direction', 'outgoing')` — a column that has
+      // never existed, so the query failed live with
+      // `42703: column venue_enquiries.direction does not exist` and this count
+      // was always 0. `initiated_by` says the same thing without the
+      // viewer-relative riddle the old comment had to explain.
       const { count: offersCount } = await supabase
         .from('venue_enquiries')
         .select('id', { count: 'exact', head: true })
         .eq('applicant_user_id', userId)
-        .eq('direction', 'outgoing');
+        .eq('initiated_by', 'venue');
 
       return { profile: profRes.data, applications, upcomingGigs, pastGigs, offersCount: offersCount || 0 };
     },
@@ -209,10 +214,13 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
     setLoadingOffers(true);
     (async () => {
       // Venue-initiated invites only — see the offersCount query above for why
-      // the direction filter matters.
-      const { data: rows } = await supabase.from('venue_enquiries')
-        .select('*').eq('applicant_user_id', userId).eq('direction', 'outgoing')
+      // the filter matters, and why it is `initiated_by`, not `direction`.
+      const { data: rawRows } = await supabase.from('venue_enquiries')
+        .select('*').eq('applicant_user_id', userId).eq('initiated_by', 'venue')
         .order('created_at', { ascending: false }).limit(50);
+      // This screen reads the table from the applicant's side, so a
+      // venue-initiated row is incoming here.
+      const rows = withDirection(rawRows, 'applicant');
       // M5.1 (D4): venue resolves by the enquiry row's venue_profile_id; legacy
       // user_id+type join only for rows without one.
       const venueCols = 'id, user_id, name, avatar, avatar_hero, avatar_thumb, type, bio, sound, genre_string, location, suburb, state, postcode, card_pills';

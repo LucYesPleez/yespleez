@@ -46,6 +46,26 @@ const OUTGOING_STATUS_MAP = {
   rejected:    'declined',
 };
 
+// `direction` is viewer-relative and is deliberately NOT stored: the same row is
+// incoming to the venue and outgoing to the artist, so there is no correct value
+// to put in a column. The database stores `initiated_by` ('venue' | 'applicant'),
+// which is absolute; each screen derives direction from it plus which side is
+// looking. Rows written before initiated_by existed default to 'applicant', which
+// is correct by construction — venue-initiated inserts have never been possible
+// (see docs/known-issues/venue-enquiries-schema-drift.md, backlog S4).
+export function deriveDirection(enq, viewerSide) {
+  const startedBy = (enq?.initiated_by || 'applicant').toLowerCase();
+  return startedBy === viewerSide ? 'outgoing' : 'incoming';
+}
+
+// Attach the derived direction at the fetch site so every downstream consumer
+// (EnquiryCard, EnquiryPanel, normaliseStatus) keeps reading `.direction`
+// unchanged. viewerSide is 'venue' or 'applicant'.
+export function withDirection(rows, viewerSide) {
+  return (rows || []).map(e => ({ ...e, direction: deriveDirection(e, viewerSide) }));
+}
+
+// `e.direction` here is the derived value attached by withDirection(), not a column.
 export function normaliseStatus(e) {
   const dir = (e.direction || 'incoming').toLowerCase();
   const st  = (e.status   || 'pending').toLowerCase();
