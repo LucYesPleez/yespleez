@@ -206,7 +206,7 @@ export default function BookingInvitation({ offer, artistName, availability, onR
                 <button
                   onClick={() => respond('accepted')}
                   disabled={busy}
-                  style={{ width: '100%', fontFamily: "'Bebas Neue'", fontSize: 17, letterSpacing: 2, padding: '15px', borderRadius: 12, border: 'none', background: `linear-gradient(135deg, ${ACCENT}, #00B4D8)`, color: '#0a0a14', cursor: busy ? 'default' : 'pointer', fontWeight: 700, opacity: busy ? .6 : 1, marginBottom: 10 }}
+                  style={{ width: '100%', fontFamily: "'Bebas Neue'", fontSize: 17, letterSpacing: 2, padding: '15px', borderRadius: 12, border: 'none', background: PROFILE_TYPES.venue.gradient, color: '#0a0a14', cursor: busy ? 'default' : 'pointer', fontWeight: 700, opacity: busy ? .6 : 1, marginBottom: 10 }}
                 >{busy ? '…' : 'ACCEPT INVITATION'}</button>
 
                 <div style={{ display: 'flex', gap: 8 }}>

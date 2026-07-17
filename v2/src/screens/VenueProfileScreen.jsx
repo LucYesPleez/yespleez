@@ -1,11 +1,12 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useSession } from '../App';
 import AvatarUpload from '../components/AvatarUpload';
 import s from './ArtistProfileScreen.module.css';
 import PostcodePrompt from '../components/PostcodePrompt';
-import { normalizeSocialValue, ensureHttps } from '../lib/socialLinks';
+import { normalizeSocialValue } from '../lib/socialLinks';
+import { PROFILE_TYPES } from '../lib/profileTypes';
 
 const STATE_OPTIONS = ['NSW','VIC','QLD','WA','SA','TAS','ACT','NT','NZ','International'];
 
@@ -39,8 +40,13 @@ const TECH_OPTIONS = [
 
 const DAYS = ['MON','TUE','WED','THU','FRI','SAT','SUN'];
 
-const ACCENT   = '#00E5A0';
-const ACCENT2  = '#00B4D8';
+// Venue identity comes from PROFILE_TYPES — the sole source of truth since 10E.1.
+// These were hand-typed copies of the same two values; identical today, but a
+// private copy is exactly how Host's pink drifted to #FF3399 in 8+ files before
+// 10E.1, and how this file's own siblings drifted before 10E.2A/10E.3/10E.4.
+// Same values, one owner.
+const ACCENT   = PROFILE_TYPES.venue.accent;   // #00E5A0
+const ACCENT2  = PROFILE_TYPES.venue.accent2;  // #00B4D8
 const SECTION_TITLE_STYLE = { borderImage: `linear-gradient(90deg, ${ACCENT}, ${ACCENT2}) 1` };
 
 // ── EXPERIMENTAL — Venue editor only (temporary aesthetic prototype) ───────
@@ -272,7 +278,13 @@ export default function VenueProfileScreen() {
       {/* Header */}
       <div className={s.header}>
         <div className={s.headerText}>
-          <div className={s.h1} style={{ background: `linear-gradient(135deg,${ACCENT},${ACCENT2})`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>YOUR<br/>VENUE</div>
+          {/* 10E.5: `background` is now the canonical token (identical value — Venue's
+              gradient is the one that is legitimately 135deg). `filter` is the fix:
+              .h1 is shared from ArtistProfileScreen.module.css and bakes in an
+              Artist-cyan drop-shadow, so overriding only `background` left a green
+              heading glowing cyan — the same leftover Band had until 10E.3, and the
+              same class 10E.2A fixed on Artist's own heading. */}
+          <div className={s.h1} style={{ background: PROFILE_TYPES.venue.gradient, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text', filter: `drop-shadow(0 0 8px rgba(${PROFILE_TYPES.venue.rgb},.2))` }}>YOUR<br/>VENUE</div>
         </div>
       </div>
 

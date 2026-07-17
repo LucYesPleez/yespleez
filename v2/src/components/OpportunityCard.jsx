@@ -78,7 +78,7 @@ export default function OpportunityCard({ offer, availability, onOpen, onConside
 
           {/* The single value hook */}
           {dealLine && (
-            <div style={{ fontFamily: "'Bebas Neue'", fontSize: 15, letterSpacing: .5, color: '#00E5A0', marginTop: 6 }}>{dealLine}</div>
+            <div style={{ fontFamily: "'Bebas Neue'", fontSize: 15, letterSpacing: .5, color: ACCENT, marginTop: 6 }}>{dealLine}</div>
           )}
 
           {/* The gate — the thing no email can tell you */}
