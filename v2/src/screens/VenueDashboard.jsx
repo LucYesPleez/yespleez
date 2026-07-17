@@ -1,16 +1,13 @@
-import { useState, useMemo, useRef, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { writeNotification } from '../lib/writeNotification';
 import { useSession, usePlayer } from '../App';
 import { today, formatDisplayDate } from '../lib/dates';
-import PortraitCard from '../components/PortraitCard';
 import FollowingSection, { FOLLOW_FILTER_CONFIGS } from '../components/FollowingSection';
-import ProfileCard from '../components/ProfileCard';
 import InviteSheet from '../components/InviteSheet';
-import EnquiryCard, { HoverPill, HoverProfileBtn, HoverBtn } from '../components/EnquiryCard';
-import { normaliseStatus, STATUS_TAB_COLOR, withDirection } from '../lib/enquiryUtils';
+import { normaliseStatus, withDirection } from '../lib/enquiryUtils';
 import EnquiryPanel from '../components/EnquiryPanel';
 import DashboardHeader from '../components/DashboardHeader';
 import DashboardProfileCard from '../components/DashboardProfileCard';
@@ -20,7 +17,6 @@ import EventsSection from '../components/EventsSection';
 import { useDragScroll } from '../hooks/useDragScroll';
 import { resolveProfileId } from '../lib/resolveProfileId';
 import s from './VenueDashboard.module.css';
-import ds from './DiscoverScreen.module.css';
 import { PROFILE_TYPES } from '../lib/profileTypes';
 
 export default function VenueDashboard({ userId: userIdProp }) {
@@ -179,7 +175,6 @@ export default function VenueDashboard({ userId: userIdProp }) {
   const hasProfile   = !!profile;
   const enquiryCount = allEnquiries.length;
   const availCount   = availability.length;
-  const enquiredDates = new Set(allEnquiries.map(e => e.date_requested || e.preferred_date).filter(Boolean));
 
   const completionPct = !hasProfile ? 0 : (() => {
     const filled = v => !!(v && v !== 'N/A');

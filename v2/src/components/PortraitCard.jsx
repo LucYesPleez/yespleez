@@ -31,7 +31,6 @@ export default function PortraitCard({ profile: p, onClick, width = 150, height 
   // M5: canonical profile.id URL; legacy user_id URL only as a fallback for
   // callers whose selects don't carry `id` yet (the redirect shim covers it).
   const handleClick = onClick || (() => navigate(p?.id ? profileUrl(p) : `/profile/${p?.user_id}?type=${type}`));
-  const soundTags = p?.sound ? p.sound.split(/\s*[·,/]\s*/).map(t => t.trim()).filter(Boolean).slice(0, 5) : [];
 
   return (
     <div

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useSession } from '../App';
 import s from './ProfileEditScreen.module.css';
@@ -17,7 +17,6 @@ const PROFILE_FLAGS = {
 
 
 export default function ProfileEditScreen() {
-  const navigate = useNavigate();
   const [params] = useSearchParams();
   const { session } = useSession();
   const userId = session?.user?.id;

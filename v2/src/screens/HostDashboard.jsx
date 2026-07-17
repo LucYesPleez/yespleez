@@ -6,9 +6,7 @@ import { writeNotification } from '../lib/writeNotification';
 import { useSession } from '../App';
 import s from './HostDashboard.module.css';
 import ds from './DiscoverScreen.module.css';
-import GlobalEventCard from '../components/EventCard';
 import ProfileCard from '../components/ProfileCard';
-import { getEventBadges } from '../lib/eventBadges';
 import { formatLocation } from '../lib/formatLocation';
 import { HOST_CATEGORIES } from '../lib/profileTaxonomy';
 import { PROFILE_TYPES } from '../lib/profileTypes';
@@ -209,9 +207,6 @@ export default function HostDashboard({ userId: userIdProp }) {
     if (notif) await writeNotification(artistId, notif.type, notif.message, { event_name: eventName });
   }
 
-  function toggleSetTimes(evId) {
-    setSetTimesMap(prev => ({ ...prev, [evId]: !prev[evId] }));
-  }
 
   async function saveSlot(ev, dayIdx, slotIdx, updated) {
     const newDays = ev.config.days.map((day, di) =>
@@ -241,8 +236,6 @@ export default function HostDashboard({ userId: userIdProp }) {
   // Pre-compute application lists
   const newApps       = allApps.filter(a => a.status === 'pending');
   const tentativeApps = allApps.filter(a => a.status === 'tentative');
-  const acceptedApps  = allApps.filter(a => a.status === 'accepted');
-  const declinedApps  = allApps.filter(a => a.status === 'rejected' || a.status === 'declined');
 
   // Map applications to the common enquiry shape for EnquiryPanel
   const mappedEnquiries = allApps.map(app => ({
@@ -612,21 +605,6 @@ function SlotEditModal({ slot, claim, onSave, onClose }) {
   );
 }
 
-function ProgressRow({ label, value, total, color }) {
-  const pct = total > 0 ? Math.min(value / total, 1) : 0;
-  const done = total > 0 && value >= total;
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-      <span style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1.5, color: 'var(--muted)', width: 72, flexShrink: 0 }}>{label}</span>
-      <div style={{ flex: 1, height: 4, borderRadius: 4, background: 'rgba(255,255,255,0.08)', overflow: 'hidden' }}>
-        <div style={{ height: '100%', width: `${pct * 100}%`, borderRadius: 4, background: color, transition: 'width .4s' }} />
-      </div>
-      <span style={{ fontFamily: "'Bebas Neue'", fontSize: 11, color: done ? color : 'var(--muted)', minWidth: 36, textAlign: 'right' }}>
-        {done ? 'DONE' : total > 0 ? `${value}/${total}` : '—'}
-      </span>
-    </div>
-  );
-}
 
 function EventProgressSummary({ lineupCount, totalSlots, filledSlots, hasPoster, pendingCount }) {
   const cols = [
@@ -678,14 +656,6 @@ function EventProgressSummary({ lineupCount, totalSlots, filledSlots, hasPoster,
   );
 }
 
-function fmtDur(mins) {
-  if (!mins) return null;
-  const h = Math.floor(mins / 60);
-  const m = mins % 60;
-  if (h && m) return `${h}h ${m}m`;
-  if (h) return `${h} hr${h > 1 ? 's' : ''}`;
-  return `${m} min`;
-}
 
 const LABEL_COLORS = {
   main: '#FF3399', headliner: '#FF3399',
@@ -693,63 +663,10 @@ const LABEL_COLORS = {
   opening: '#00B4D8', resident: '#00E5A0',
   sunset: '#FFD700', sunrise: '#FFD700', sunrise_set: '#FFD700',
 };
-function labelColor(label) {
-  if (!label) return '#888';
-  return LABEL_COLORS[label.toLowerCase().replace(/\s+/g, '_')] || '#888';
-}
 
 
-function TabBtn({ id, label, active, set }) {
-  const isActive = active === id;
-  return (
-    <button
-      className={s.tabBtn}
-      style={{ borderBottomColor: isActive ? 'var(--neon2)' : 'transparent', color: isActive ? 'var(--text)' : 'var(--muted)' }}
-      onClick={() => set(id)}
-    >
-      {label}
-    </button>
-  );
-}
 
-function PillTab({ label, color, rgb, active, onClick }) {
-  const [hov, setHov] = useState(false);
-  const lit = active || hov;
-  return (
-    <button
-      onClick={onClick}
-      onMouseEnter={() => setHov(true)}
-      onMouseLeave={() => setHov(false)}
-      style={{
-        fontFamily: "'Bebas Neue'", fontSize: 12, letterSpacing: 1.5,
-        padding: '5px 14px', borderRadius: 20, cursor: 'pointer',
-        transition: 'border-color .15s, color .15s, background .15s',
-        background: lit ? `rgba(${rgb},.12)` : 'transparent',
-        border: `1.5px solid ${lit ? color : 'rgba(255,255,255,.12)'}`,
-        color: lit ? color : 'var(--muted)',
-      }}
-    >{label}</button>
-  );
-}
 
-function LineupToggle({ value, onChange }) {
-  return (
-    <button onClick={onChange} type="button"
-      style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
-      <div style={{
-        width: 36, height: 20, borderRadius: 10, position: 'relative', flexShrink: 0,
-        background: value ? 'var(--neon2)' : 'rgba(255,255,255,0.15)',
-        transition: 'background .2s',
-      }}>
-        <div style={{
-          position: 'absolute', top: 2, left: value ? 18 : 2,
-          width: 16, height: 16, borderRadius: '50%', background: '#fff',
-          transition: 'left .2s',
-        }} />
-      </div>
-    </button>
-  );
-}
 
 function AppBtn({ onClick, disabled, base, hover, children }) {
   const [hov, setHov] = useState(false);
@@ -791,11 +708,6 @@ function AppCard({ app, prof, event, onRespond }) {
   const loc    = formatLocation(p);
   const avatar = p.avatar || app.avatar_url || null;
   const sound  = p.sound || (p.genre_string || '').split(/[·,]/).slice(0, 3).join(' · ') || app.genre || '';
-  const allTags = [...new Set([
-    ...(p.genre_string || '').split(/[,·]/).map(t => t.trim()),
-    ...(p.vibe_tags    || '').split(',').map(t => t.trim()),
-    ...(p.card_pills   || '').split(',').map(t => t.trim()),
-  ].filter(Boolean))];
 
   const evName = event?.name || '—';
   const evDateBox = (() => {

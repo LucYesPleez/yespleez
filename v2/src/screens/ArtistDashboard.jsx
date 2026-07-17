@@ -8,8 +8,6 @@ import { today, formatDisplayDate } from '../lib/dates';
 import { STATUS_TAB_COLOR, withDirection } from '../lib/enquiryUtils';
 import s from './ArtistDashboard.module.css';
 import EventCard from '../components/EventCard';
-import ProfileCard from '../components/ProfileCard';
-import PortraitCard from '../components/PortraitCard';
 import { useDragScroll } from '../hooks/useDragScroll';
 import DashboardHeader from '../components/DashboardHeader';
 import PastEventsSearch, { filterPastEvents } from '../components/PastEventsSearch';
@@ -618,7 +616,4 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
   );
 }
 
-function appStatusColor(status) {
-  return { accepted: '#00e676', tentative: '#00E5FF', pending: '#ffb830', rejected: 'var(--muted)' }[status] || 'var(--muted)';
-}
 
