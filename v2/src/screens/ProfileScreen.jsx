@@ -146,11 +146,22 @@ export default function ProfileScreen() {
       const el = heroImgRef.current;
       if (!el || el.dataset.zoomable === 'false') return;
       const progress = Math.min(Math.max(window.scrollY / window.innerHeight, 0), 1);
-      el.style.backgroundSize = `${144 - progress * 40}% auto`;
+      // Mobile only: scale the resting photo up (168% vs the original 144%) so its
+      // bottom edge clears where the content layer goes solid — a square/short
+      // image otherwise ended mid-frame with a hard sharp→blur line at its foot.
+      // On desktop the frame is capped at 680px wide, so 144% already renders the
+      // image tall enough that its foot falls off-screen; it keeps the original.
+      // Both ease back to a framed 104% over one viewport of scroll.
+      const base = window.innerWidth < 640 ? 168 : 144;
+      el.style.backgroundSize = `${base - progress * (base - 104)}% auto`;
     }
     handleScroll();
     window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
+    window.addEventListener('resize', handleScroll, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+      window.removeEventListener('resize', handleScroll);
+    };
   }, []);
 
   // Load follow state once profile is known (M5: keyed on the resolved
