@@ -71,6 +71,17 @@ function applicantLabel(status) {
   if (['shortlisted', 'interested', 'tentative', 'offered'].includes(s)) return 'BEING CONSIDERED';
   return 'SUBMITTED'; // pending, new, viewed, or any other/unrecognised status
 }
+// Per-tab empty states, mirroring IN_EMPTY above. The OUTGOING list previously
+// built its empty string as `No ${tab.toLowerCase()} applications yet`, which
+// produced "No being considered applications yet" / "No not selected
+// applications yet" for the two multi-word tabs. Same calm voice as IN_EMPTY,
+// no new wording.
+const OUT_EMPTY = {
+  'SUBMITTED':        "You haven't applied to anything yet.",
+  'BEING CONSIDERED': 'Nothing being considered right now.',
+  'BOOKED':           'Nothing booked yet.',
+  'NOT SELECTED':     'Nothing here yet.',
+};
 const GIG_TABS  = ['UPCOMING', 'PAST'];
 
 // One application row: the event card, an "applied on" caption so it's always
@@ -507,7 +518,7 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
             {loading
               ? <p className={s.empty}>Loading…</p>
               : filteredApps.length === 0
-                ? <p className={s.empty}>No {outStatusTab.toLowerCase()} applications yet.</p>
+                ? <p className={s.empty}>{OUT_EMPTY[outStatusTab] || 'Nothing here yet.'}</p>
                 : <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                     {filteredApps.map(app => app.event
                       ? <ApplicationRow key={app.id} app={app}

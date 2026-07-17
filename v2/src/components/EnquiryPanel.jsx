@@ -122,7 +122,12 @@ export default function EnquiryPanel({ enquiries = [], onRespond, onPlayDemo }) 
       <div>
       {filtered.length === 0
         ? <p style={{ fontSize: 13, color: 'var(--muted)', padding: '12px 0' }}>
-            No {dirTab === 'BOOKED' ? 'booked' : statusTab.toLowerCase()} enquiries{search ? ' matching your search' : ''}.
+            {/* 10H: was `No ${statusTab.toLowerCase()} enquiries`, which read
+                "No awaiting enquiries" / "No interested enquiries" for the
+                OUTGOING sub-tabs. The active tab is already highlighted above,
+                so the empty state needn't force the tab name into an
+                adjective slot. */}
+            No enquiries{search ? ' match your search' : ' here yet'}.
           </p>
         : filtered.map(enq => (
             <EnquiryCard key={enq.id} enq={enq} onRespond={onRespond} onPlayDemo={onPlayDemo} />
