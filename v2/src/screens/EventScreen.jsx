@@ -53,7 +53,12 @@ export default function EventScreen() {
 
   const { data, isLoading: loading } = useQuery({
     queryKey: ['event', id],
-    enabled: isRealEvent,
+    // The query's `enabled` is `!!id`, set at the end of this object. There used
+    // to be a second `enabled: isRealEvent` here — a duplicate key, silently
+    // overridden by the later one (11A). Removed to make the effective condition
+    // obvious. Behaviour is unchanged: for a malformed non-UUID id the queryFn's
+    // `.eq('id', id)` 400s, `if (!ev)` redirects home, and the `if (!isRealEvent)`
+    // branch below shows the demo notice or redirects — same as shipped.
     queryFn: async () => {
       const { data: ev } = await supabase.from('events').select('*').eq('id', id).single();
       if (!ev) { navigate('/'); return null; }
