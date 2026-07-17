@@ -296,6 +296,7 @@ export default function HostDashboard({ userId: userIdProp }) {
 
       <DashboardProfileCard
         profile={profile}
+        profileType="host"
         accent={PROFILE_TYPES.host.accent}
         gradient={PROFILE_TYPES.host.gradient}
         icon={<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="rgba(255,45,120,.7)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="2" width="18" height="20" rx="2"/><circle cx="12" cy="13" r="5"/><circle cx="12" cy="13" r="2"/><line x1="9" y1="5.5" x2="15" y2="5.5" strokeWidth="1.5" strokeLinecap="round"/></svg>}

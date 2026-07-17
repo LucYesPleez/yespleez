@@ -312,6 +312,10 @@ export default function ProfileScreen() {
   const isHost    = profile.type === 'host';
   const isVenue   = profile.type === 'venue';
   const isStandup = profile.type === 'standup';
+  // A Band's link is an EPK / Spotify / Bandcamp URL (BandProfileScreen's field is
+  // literally "LINK TO MUSIC OR PRESS KIT"), stored in the DJ-named mix_link column.
+  // "DEMO MIX" is DJ vocabulary and was showing on every Band profile.
+  const isBand    = profile.type === 'band';
   const isArtist  = profile.type === 'artist';
   // M5: always a profiles-shaped row; any profile (claimed or not) falls back
   // to the generic type imagery (never a real likeness) when it has no avatar.
@@ -468,7 +472,7 @@ export default function ProfileScreen() {
                       <span style={{ position: 'relative', zIndex: 1, display: 'inline-flex', alignItems: 'center' }}>
                         <svg viewBox="0 0 24 24" width="14" height="14" fill={col} style={{ verticalAlign: 'middle', marginRight: 6, flexShrink: 0 }}><polygon points="6,3 20,12 6,21"/></svg>
                         <span style={{ backgroundImage: `linear-gradient(135deg, ${col}, ${grad2})`, WebkitBackgroundClip: 'text', backgroundClip: 'text', WebkitTextFillColor: 'transparent', color: 'transparent' }}>
-                          {player?.url === mixLink ? 'CLOSE PLAYER' : (isStandup ? 'PLAY DEMO' : 'PLAY DEMO MIX')}
+                          {player?.url === mixLink ? 'CLOSE PLAYER' : (isStandup ? 'PLAY DEMO' : isBand ? 'PLAY MUSIC' : 'PLAY DEMO MIX')}
                         </span>
                       </span>
                     </button>
@@ -478,7 +482,7 @@ export default function ProfileScreen() {
                   <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ verticalAlign: 'middle', marginRight: 5, opacity: .5 }}>
                     <path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3z"/><path d="M3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/>
                   </svg>
-                  {isStandup ? 'DEMO COMING SOON' : 'DEMO MIX COMING SOON'}
+                  {isStandup ? 'DEMO COMING SOON' : isBand ? 'MUSIC COMING SOON' : 'DEMO MIX COMING SOON'}
                 </div>
           )}
 

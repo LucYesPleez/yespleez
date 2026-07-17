@@ -8,6 +8,7 @@ import ProfileFormShell from '../components/ProfileFormShell';
 import SectionBlock from '../components/SectionBlock';
 import SocialSection from '../components/SocialSection';
 import { BAND_GENRES, BAND_SUBGENRES, BAND_VIBES } from '../lib/profileTaxonomy';
+import { PROFILE_TYPES } from '../lib/profileTypes';
 import { normalizeSocialValue, ensureHttps } from '../lib/socialLinks';
 
 const STATE_OPTIONS = ['NSW','VIC','QLD','WA','SA','TAS','ACT','NT','NZ','International'];
@@ -25,9 +26,14 @@ function normalizeSubgenre(tok) {
   return SUBGENRE_RENAME_MAP[tok] || tok;
 }
 
-const COL  = '#FFB830';
-const COL2 = '#FF8C42';
-const GRAD = `linear-gradient(90deg, ${COL} 0%, ${COL2} 100%)`;
+// Band identity comes from PROFILE_TYPES — the sole source of truth since 10E.1.
+// These were hand-typed copies of the same three values; identical today, but a
+// private copy is exactly how Host's pink drifted to #FF3399 in 8+ files before
+// 10E.1, and how this screen's sibling (ArtistProfileScreen) inherited a stale
+// 4-stop gradient until 10E.2A. Same values, one owner.
+const COL  = PROFILE_TYPES.band.accent;   // #FFB830
+const COL2 = PROFILE_TYPES.band.accent2;  // #FF8C42
+const GRAD = PROFILE_TYPES.band.gradient; // linear-gradient(90deg, #FFB830, #FF8C42)
 
 // ── EXPERIMENTAL — Band editor only (temporary aesthetic prototype) ────────
 // Same "Glass Pill" treatment as the Artist editor, re-tuned to the Band
@@ -36,7 +42,7 @@ const GRAD = `linear-gradient(90deg, ${COL} 0%, ${COL2} 100%)`;
 const GLASS_CHIP_ON_STYLE = {
   border: '1px solid transparent',
   backgroundImage: [
-    `linear-gradient(135deg, rgba(255,184,48,.045), rgba(255,140,66,.04))`,
+    `linear-gradient(135deg, rgba(${PROFILE_TYPES.band.rgb},.045), rgba(${PROFILE_TYPES.band.accent2Rgb},.04))`,
     `linear-gradient(rgba(17,19,26,.62), rgba(17,19,26,.62))`,
     `linear-gradient(135deg, #DEA02A, #DE7A39)`,
   ].join(', '),
@@ -241,7 +247,11 @@ export default function BandProfileScreen() {
       {/* Header */}
       <div className={s.header}>
         <div className={s.headerText}>
-          <div className={s.h1} style={{ background: GRAD, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
+          {/* filter: .h1 (shared from ArtistProfileScreen.module.css) bakes in an
+              Artist-cyan drop-shadow. Overriding `background` alone left an orange
+              heading wearing a cyan halo — the same class of leftover the Artist
+              heading itself had until 10E.2A. */}
+          <div className={s.h1} style={{ background: GRAD, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text', filter: `drop-shadow(0 0 8px rgba(${PROFILE_TYPES.band.rgb},.2))` }}>
             YOUR<br />MUSO<br />PROFILE
           </div>
           <div className={s.h1Sub}>Fill this in once · travels with you across every event</div>
@@ -252,7 +262,7 @@ export default function BandProfileScreen() {
         <AvatarUpload
           userId={userId} bucket="avatars" pathPrefix="band_avatars"
           avatar={avatarUrl}
-          ringClass={s.avatarRing}
+          ringClass={`${s.avatarRing} ${s.avatarRingBand}`}
           onUpload={handleAvatarUpload}
           onRemove={handleAvatarRemove}
         />

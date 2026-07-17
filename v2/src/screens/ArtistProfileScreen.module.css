@@ -119,6 +119,19 @@
   box-shadow: 0 0 40px rgba(191,95,255,.25);
 }
 
+/* Band — accent #FFB830, hovering to accent2 #FF8C42, mirroring .avatarRingStandup.
+   Without this the Band editor inherited the base .avatarRing, which is Artist's
+   pink (#FF3399) hovering to Artist cyan. Venue and Standup both had a modifier;
+   Band was the only performer type that never got one. */
+.avatarRingBand {
+  border-color: #FFB830;
+  box-shadow: 0 0 40px rgba(255,184,48,.18);
+}
+.avatarRingBand:hover {
+  border-color: #FF8C42;
+  box-shadow: 0 0 40px rgba(255,140,66,.25);
+}
+
 .avatarImg {
   width: 100%;
   height: 100%;

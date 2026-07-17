@@ -11,6 +11,7 @@ const PinIcon = () => (
 
 export default function DashboardProfileCard({
   profile,
+  profileType,
   accent = '#00E5A0',
   gradient,
   icon,
@@ -22,7 +23,12 @@ export default function DashboardProfileCard({
   const navigate  = useNavigate();
   const [hov, setHov] = useState(false);
 
-  const pt         = PROFILE_TYPES[profile?.type] || PROFILE_TYPES.venue;
+  // Fall back to the dashboard's OWN type, not venue. Before a profile row exists
+  // (`profile` is null — the "SET UP →" state, the first thing a new user sees)
+  // `profile?.type` is undefined, so a Band dashboard rendered a VENUE pill in
+  // venue-green tints while its text stayed band orange. The callers always know
+  // their type; they just weren't passing it.
+  const pt         = PROFILE_TYPES[profile?.type] || PROFILE_TYPES[profileType] || PROFILE_TYPES.venue;
   const accentRgb  = pt.rgb;
   const typeLabel  = pt.shortLabel;
 
