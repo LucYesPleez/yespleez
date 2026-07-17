@@ -81,7 +81,7 @@
 | Artist | `#00E5FF` | **`--neon2`** | `#FF3399` | — |
 | Band | `#FFB830` | **`--gold`** | `#FF8C42` | Comedy/Spoken Word badges |
 | Standup | `#FF88AA` | — | `#BF5FFF` | the generic purple / Festival |
-**There is no type whose identity is expressible as a hex without ambiguity.** That is the finding: profile identity and semantic/brand palettes were drawn from one pool. Every brand pass had to reason case-by-case about whether a literal meant *identity* or *meaning*, and the code gives no signal either way. |
+**There is no type whose identity is expressible as a hex without ambiguity.** That is the finding: profile identity and semantic/brand palettes were drawn from one pool. Every brand pass had to reason case-by-case about whether a literal meant *identity* or *meaning*, and the code gives no signal either way.
 
 ### Global polish pass — completed 2026-07-12
 
