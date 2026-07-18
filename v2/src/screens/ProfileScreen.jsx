@@ -1013,15 +1013,16 @@ function VenueInfoDropdown({ profile, col, rgb, grad2, bare = false, socials = [
     <>
       <button
         onClick={() => setOpen(o => !o)}
-        style={{ width: '100%', background: 'none', border: 'none', padding: '0 0 12px', cursor: 'pointer', display: 'flex', gap: 10, justifyContent: 'space-between', alignItems: 'center' }}
+        style={{ position: 'relative', width: '100%', background: 'none', border: 'none', padding: '0 0 12px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
       >
-        <span style={{ fontFamily: "'Bebas Neue'", fontSize: 14, letterSpacing: 2, color: col, flexShrink: 0 }}>VENUE INFO</span>
-        {/* Vibe descriptor sits centred on the VENUE INFO row — neutral off-white
-            italics — so a venue with no vibe tags still reads cleanly. */}
+        <span style={{ fontFamily: "'Bebas Neue'", fontSize: 14, letterSpacing: 2, color: col }}>VENUE INFO</span>
+        {/* Vibe descriptor absolutely centred to the row (true screen centre),
+            neutral off-white italics; pointer-events off so the row still
+            toggles. Ellipsis if it would reach the label/chevron. */}
         {profile.sound && (
-          <span style={{ flex: 1, textAlign: 'center', fontStyle: 'italic', fontSize: 13, color: 'rgba(235,235,240,.6)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{profile.sound}</span>
+          <span style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', maxWidth: '60%', textAlign: 'center', fontStyle: 'italic', fontSize: 13, color: 'rgba(235,235,240,.6)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', pointerEvents: 'none' }}>{profile.sound}</span>
         )}
-        <span style={{ fontFamily: "'Bebas Neue'", fontSize: 12, color: col, flexShrink: 0 }}>{open ? '▲' : '▼'}</span>
+        <span style={{ fontFamily: "'Bebas Neue'", fontSize: 12, color: col }}>{open ? '▲' : '▼'}</span>
       </button>
       {open && (
         <div style={{ padding: '0 0 6px' }}>
