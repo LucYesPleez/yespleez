@@ -13,6 +13,7 @@ The **canonical, frozen** architecture of YesPleez, and the source of truth cite
 | `identity-v1.1.md` | Reading copy. Not authoritative. |
 | `errata.md` | Known factual errors in the frozen documents. Records; corrects nothing. |
 | `render-markdown.js` | Regenerates the `.md` copies from the `.html` sources. |
+| `publication-v1.0-draft.md` | **DRAFT — not canonical, not binding.** Proposed Publication Model v1.0. See below. |
 
 **The `.html` files are authoritative.** The `.md` files are mechanically converted reading copies
 for diff-review and GitHub navigation. **Where they disagree, the HTML is correct.** Never cite a
@@ -28,6 +29,23 @@ that is how paraphrase enters a canonical record.
 
 The two documents are canonical **together**. v1.1 is an amendment under v1.0 §17, not a
 replacement: v1.0 remains binding in full except for the clauses v1.1 §A2 lists.
+
+## Drafts
+
+`publication-v1.0-draft.md` is the only hand-authored Markdown permitted in this directory, and it
+is permitted only because it is **not canonical**. It proposes a future specification; it governs
+nothing, and no implementation may cite it.
+
+It lives here rather than in `docs/` because it is versioned and will be ratified, not a dated
+snapshot — but it is deliberately excluded from the canonical table above and carries a refusal
+banner as its first lines.
+
+**On ratification it is re-authored as `publication-v1.0.html`** (per the provenance convention: the
+canonical form is the frozen HTML artifact), added to the canonical table, and the draft is deleted.
+A draft that outlives its ratification is a second source of truth.
+
+**If a draft is abandoned, delete it.** A stale proposal in this directory is worse than no
+proposal — it reads as decided to anyone who skims the banner.
 
 ## Why this is not in `docs/`
 
