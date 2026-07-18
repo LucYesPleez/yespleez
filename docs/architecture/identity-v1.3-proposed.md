@@ -6,7 +6,7 @@
 > Section numbers use the prefix **`O`** (ownership), unused by any other document in this
 > directory. Rule numbers elsewhere are untouched.
 >
-> Status: **PROPOSED** — 18 Jul 2026 · complete rewrite, superseding the 18 Jul draft.
+> Status: **PROPOSED** — 18 Jul 2026 · rev. 2, incorporating the event-ownership design review.
 
 YesPleez v2 · Architecture Amendment (proposed)
 
@@ -108,7 +108,7 @@ implementer must be able to see it immediately.
 
 | | §A4 rejects | §O5 proposes |
 |---|---|---|
-| **What decides authority** | The **active profile** — R6 UX state | A **stored column** — `host_profile_id` |
+| **What decides authority** | The **active profile** — R6 UX state | A **stored column** — `owner_profile_id` |
 | **Where it lives** | Client-held, per-session, changes on a switcher | Persisted on the row, written once at creation |
 | **Trust** | Untrusted by definition (v1.1 R6) | A database fact, subject to R3.2 at write time |
 | **Read at check time** | Yes — the check would consult a client selection | **No.** The check consults the row and `can_act_as` |
@@ -130,7 +130,7 @@ implementer must be able to see it immediately.
 >
 > | Column | Job |
 > |---|---|
-> | `host_profile_id` | **Owns** — the sole authorization anchor |
+> | `owner_profile_id` | **Owns** — the sole authorization anchor |
 > | `host_id` | **Records the human** who created it — never consulted for permission |
 > | `venue_profile_id` | **Locates** — where the event happens |
 >
@@ -147,10 +147,10 @@ depends on them.
 
 | Fact | Value | Consequence |
 |---|---|---|
-| `events.host_id` nullable | **YES**, no default | No column alteration needed. An ownerless row is already insertable. |
-| `events.venue_profile_id` nullable | **YES**, no default | The venue link is optional at the schema level. |
+| `events.host_id` nullable | **YES**, no default | No column alteration needed. A row with no human creator is already insertable — which is why §O1's blocker is about *authority*, not existence. (`O-R6` forbids an event with no **owner**; that is a different column and a different claim.) |
+| `events.venue_profile_id` nullable | **YES**, no default | Location is genuinely optional — warehouses, parks, house shows. Confirms it cannot serve as the ownership column even if every current row happens to populate it. |
 | Events with `venue_profile_id` populated | **24 of 24** | **No venue backfill required.** |
-| `host_profile_id` exists | **No** | The single column this amendment adds. |
+| `owner_profile_id` exists | **No** | The single column this amendment adds. |
 | Authority resolved via | `host_id = auth.uid()` — confirmed in the `applications` policies | The policy surface this eventually moves to `can_act_as`. |
 
 *(The `events` policies themselves have not been read — the authority basis is established from the
@@ -172,23 +172,56 @@ not of ratification.)*
 > permission.** Ownership moves to the profile; authorship stays with the human. Dropping the
 > second clause would trade one loss for another: accountability for *who actually did this*.
 
-> **◆ `O-R4` Applied to events**
+> **◆ `O-R4` Applied to events — authority, location and authorship are three concepts**
 >
-> `events` gains **`host_profile_id`** — the owning profile, and the sole input to authorization.
-> `host_id` is retained unchanged as the human record.
+> `events` gains **`owner_profile_id`**: the profile with authority, and the sole input to
+> authorization. **Never null. Any profile type.**
 >
-> An imported event sets `host_profile_id` to the venue's profile whether or not that profile is
-> claimed. `can_act_as()` returns false for an unclaimed profile (v1.1 §A9; implemented at M6a),
-> so nobody can act on it — correctly — until it is claimed.
+> | Column | Concept | Cardinality | Null |
+> |---|---|---|---|
+> | `owner_profile_id` | **Authority** — who is accountable and may manage it | Exactly one | **Never** |
+> | `venue_profile_id` | **Location** — where it happens | At most one | Yes — warehouses, parks, house shows |
+> | `host_id` | **Authorship** — which human created the row | At most one | Yes — imports have none |
+>
+> **The owner column is deliberately neutral.** A venue-type owner is a venue running its own night;
+> a host-type owner is a promoter presenting one; a festival-type owner is a festival programming
+> its own bill. **The owner's `type` already tells the application how to present it** — no further
+> column is needed to say what the owner already implies.
+>
+> **No `host_profile_id` is introduced.** Naming the authority column for one participant role would
+> assert that every event has a host, which is false for venue-run nights, false for imports where
+> the promoter is unknown, and false for Festival. A column whose name misdescribes a third of its
+> rows compounds: every query, policy and screen written against it inherits the wrong model.
+>
+> **Owner equal to venue is normal, not degenerate.** A venue running its own night carries the same
+> profile id in both columns because the same profile answers two different questions. Nothing needs
+> to detect or special-case it.
 
 > **◆ `O-R5` Claiming grants authority without ownership migration**
 >
 > Claiming sets `user_id` on the profile (v1.0 §07 — attach is three fields, atomic).
-> `can_act_as(host_profile_id)` becomes true in the same instant, and every object already
-> attributed to that profile becomes manageable.
+> `can_act_as(owner_profile_id)` becomes true in the same instant, and every object already
+> attributed to that profile becomes manageable — **whatever type that profile is.** A claimed venue
+> gains its imported nights; a claimed promoter gains theirs. One mechanism, no type branch.
 >
 > **No row is rewritten.** This is not an optimisation of migration; it is the absence of migration,
 > and it is the whole point of the amendment.
+
+> **◆ `O-R6` Every event has exactly one accountable owner**
+>
+> An event **must** resolve to exactly one owner profile. There is no ownerless event — at import or
+> anywhere else.
+>
+> **For imports specifically:** Studio resolves an owner — creating an unclaimed profile where
+> necessary — *before* import. If it can identify neither a responsible party nor a venue, the
+> listing is **held for manual review, not imported.**
+>
+> This is not a Studio policy that the architecture happens to permit; it is the invariant that
+> makes the rest of the model work. An event with no owner is precisely the permanently unmanageable
+> row §O1 exists to prevent, and admitting one would reintroduce the blocker this amendment removes.
+> Every downstream system — RLS, notifications, messaging, editing, analytics, audit — may rely on
+> the owner being present without a null branch, and none of them need a fallback that would
+> otherwise have to be designed, tested and maintained forever.
 
 ### Scope
 
@@ -203,15 +236,25 @@ every `*_user_id` delivery, dedup or authorship column.
 
 ## §O6 — Assessment
 
-**1 · Should `host_id` become `host_profile_id`?** No — **add alongside**. Renaming would destroy
+**1 · Should `host_id` become `owner_profile_id`?** No — **add alongside**. Renaming would destroy
 the record of which human created an event, and `O-R2` requires one column per job. Since `host_id`
 is nullable already (§O4), adding is purely additive.
 
+**1b · Why a neutral owner rather than a role-named column?** Because authority and role are
+different questions, and one column answering both is the fault §03 named. Today's owners are
+venues and promoters; tomorrow's may include festivals, organisations or community groups.
+**Under a neutral owner, none of those require an amendment** — a new profile type is simply
+another possible owner, and the type field already carries the presentation difference. A
+role-named column would need revisiting each time, and the intervening rows would misdescribe
+themselves.
+
 **2 · Should other ownership fields convert?** No. §O5's scope paragraph — `events` is the last one.
+`venue_profile_id` is **not** an ownership field and is unaffected: it answers *where*, and it keeps
+answering only that.
 
 **3 · Does this conflict with existing RLS or workflow?**
 
-*RLS:* no conflict, a **scheduled change**. Moving authority to `can_act_as(host_profile_id)` is the
+*RLS:* no conflict, a **scheduled change**. Moving authority to `can_act_as(owner_profile_id)` is the
 same operation R3.2 performs on `applications` and `follows`. Landing them together avoids rewriting
 and re-verifying event policies twice.
 
@@ -228,10 +271,12 @@ account) — both directions were always in the model.
 
 | Area | Effect |
 |---|---|
-| **Studio import** | Decisive — imports reference an identifier that is stable from creation. No placeholder accounts, no system user, no post-claim fixup. |
-| **Claiming** | Becomes a no-op for ownership (`O-R5`). |
-| **Messaging / notifications** | Neutral. Conversations already belong to profiles (§A5) and the three notification identities (§A7) already separate subject, recipient and delivery — an unclaimed owner is representable, it simply has no delivery leg. |
-| **Workflow ownership** | One axis. A venue hosting its own night and a promoter hosting at that venue become the same shape. |
+| **Studio import** | Decisive — imports reference an identifier that is stable from creation, and the importer never has to decide what *kind* of thing the owner is. No placeholder accounts, no system user, no post-claim fixup. |
+| **Claiming** | Becomes a no-op for ownership (`O-R5`), for any owner type. |
+| **Messaging / notifications** | Improved. *"The event's owner"* is one lookup with no type branch, so `Q1` (an unclaimed owner has no delivery identity) has exactly one place to be handled rather than one per owner type. |
+| **Analytics** | Improved, and this is an argument a role-named column cannot answer: `owner_profile_id` plus the owner's type makes **venue-run versus promoter-run** a first-class dimension. Forcing venues into a host-named column would make that question answerable only by heuristic. |
+| **Workflow ownership** | One axis. A venue hosting its own night, a promoter hosting at that venue, and a festival programming its own bill are the same shape. |
+| **Extensibility** | The decisive one. A new participant type — festival, organisation, community group — becomes another owner without touching this amendment. Under a role-named column each would need either an amendment or a misnamed row. |
 
 ---
 
@@ -268,7 +313,7 @@ names a clause. The README's reading rule extends accordingly:
 - v1.1 binding in full except the §A12 `U2` cell **v1.2 §B2** supersedes. **v1.3 changes nothing in
   v1.1** — §A3 and §A4 are reconciled, not amended.
 
-**Citation interface.** v1.3 introduces prefix **`O`** (`O-R1`–`O-R5`, §O0–§O11), unused elsewhere
+**Citation interface.** v1.3 introduces prefix **`O`** (`O-R1`–`O-R6`, §O0–§O11), unused elsewhere
 in this directory, so no existing citation is ambiguated. Nothing is renumbered anywhere.
 
 **Ratification requires:**
@@ -279,7 +324,7 @@ in this directory, so no existing citation is ambiguated. Nothing is renumbered 
    byte-identical.
 4. Update `CLAUDE.md` — `O-R3` as operative statement, events in scope for R3.2.
 5. Delete this proposal **and** `docs/unclaimed-host-assessment-2026-07.md`, which this absorbs.
-6. Freeze `O-R1`–`O-R5` and §O0–§O11 as a citation interface. Never renumber.
+6. Freeze `O-R1`–`O-R6` and §O0–§O11 as a citation interface. Never renumber.
 
 **What ratification does not do.** It does not begin implementation, does not alter M6, and does not
 unblock R3.2 — which remains deferred on its own terms until real client writes carrying
@@ -289,11 +334,11 @@ unblock R3.2 — which remains deferred on its own terms until real client write
 
 ## §O8 — Migration · conceptual only
 
-**Phase 1 · Additive.** `host_profile_id` added, nullable. Nothing reads it. **No column is
+**Phase 1 · Additive.** `owner_profile_id` added, nullable. Nothing reads it. **No column is
 altered** — `host_id` is already nullable (§O4), so this phase touches no existing definition and is
 safe against a running application, as M6b was.
 
-**Phase 1 also cuts over writes.** Event creation stamps `host_profile_id` from the acting profile
+**Phase 1 also cuts over writes.** Event creation stamps `owner_profile_id` from the acting profile
 via the existing M6 seam (`actingProfile.js`), so **no event created after phase 1 needs
 backfilling**.
 
@@ -301,11 +346,19 @@ backfilling**.
 exactly one host-type profile.
 
 > `U4` cannot be reused wholesale. For an application, a null sender is an inert historical record.
-> **For an event, a null owner is a live object nobody can manage.** Ambiguous events must therefore
-> be *resolved* — by prompting the owner on next edit, or a one-time reconciliation — never left
-> null. State the rule before the backfill runs.
+> **For an event, a null owner is a live object nobody can manage**, and `O-R6` forbids one
+> existing at all. Ambiguous events must therefore be *resolved* — never left null.
+>
+> **A fallback exists here that a role-named column could not have offered.** Where a creator cannot
+> be resolved, `venue_profile_id` is a defensible owner: the venue demonstrably hosted the event, and
+> under a neutral owner column that is simply a venue-type owner rather than a venue written into a
+> host field. **All 24 existing events already carry `venue_profile_id`** (§O4), so this fallback is
+> available for every current row.
+>
+> It should be **offered as a decision, not applied silently** — assigning ownership to a venue that
+> did not consider itself the organiser is a claim about the world, not a data repair.
 
-**Phase 3 · Dual authority.** Policies accept `can_act_as(host_profile_id)` **or**
+**Phase 3 · Dual authority.** Policies accept `can_act_as(owner_profile_id)` **or**
 `host_id = auth.uid()`. This is M4's additive-permissive pattern, which v1.1 §A10 endorses precisely
 because it makes cutover reversible. Existing flows keep working; imported events become manageable
 on claim. **Rides with R3.2.**
@@ -343,9 +396,9 @@ not answered by this one.
 | **`Q1`** | Notifications, applications and messages addressed to an event whose owner is unclaimed — **held until claim, or suppressed?** | Studio import |
 | **`Q2`** | Backfill ambiguity: an account owning two host profiles (§O8 phase 2, K2) | Migration phase 2 |
 | **`Q3`** | Enumerate the `events` RLS policies — the full authority surface (§O4) | Implementation, not ratification |
-| **`Q4`** | **Which profile owns an imported event when a venue *and* a promoter are both identifiable?** `O-R4` says "the venue's profile", but the requirement names *Host and Venue* profiles. If ownership goes to the venue and the promoter later claims their Host profile, the promoter gets nothing — and vice versa. One owner, two plausible claimants. | **Studio import** — it decides what the importer writes |
+| ~~`Q4`~~ | ~~Which profile owns an imported event when a venue *and* a promoter are both identifiable?~~ **Closed by the event-ownership design review, 18 Jul 2026.** The owner is whichever profile is *accountable* for the event, of any type — the importer records that rather than choosing between roles. Where a promoter is identifiable it owns and the venue is the location; where only a venue is identifiable the venue owns. `O-R6` requires exactly one, resolved before import. | — |
 | **`Q5`** | **Who may publish an unclaimed event?** The publication model starts imported content `PRIVATE` (§P8), and `can_act_as` returns false for an unclaimed owner — so **nobody can advance it**. But a catalog nobody can see defeats the purpose of importing one. Either imports publish without an owner authorising it, or the catalog is invisible until claimed. | **Studio import** — it decides whether the product works |
-| **`Q6`** | **Is `host_profile_id` reassignable?** An event imported against the wrong profile needs correction, which is ownership transfer — and v1.1 §A12 `U3` defers transfer as "not a v1 operation". Import makes mis-attribution likely enough that this stops being theoretical. | Studio import at scale |
+| **`Q6`** | **Is `owner_profile_id` reassignable?** An event imported against the wrong profile needs correction, which is ownership transfer — and v1.1 §A12 `U3` defers transfer as "not a v1 operation". Import makes mis-attribution likely enough that the deferral stops holding. **Sharper under a neutral owner:** correction may cross profile *types* — a venue-owned import turning out to be a promoter's event — so any answer must permit re-pointing to a different type, not only a different profile. | Studio import at scale |
 | **`Q7`** | **Claiming now grants authority over a catalog, not an empty profile.** A wrongful claim yields immediate control of every imported event attributed to that profile. §07 makes claims reversible, but the exposure between claim and reversal is materially larger than it was. Does claim verification need strengthening under this model? | Before import runs at scale |
 
 *(The two questions the previous draft carried are closed: `events.host_id` nullability is verified
