@@ -83,7 +83,7 @@ arrive. Those silences are where the trust problem lives, and they are what §2 
 
 > ### Operations publishes imported events **as custodian**, never as owner. Custody ends the instant the profile is claimed.
 
-Option C, with three constraints that make it honest rather than merely workable.
+Option C, with five constraints that make it honest rather than merely workable — two of them added after review: `P-C5` separates publication from ingestion, and `P-C6` stops custody becoming permanent by default.
 
 ### `P-C1` · Publication authority and ownership authority are different questions
 
@@ -132,9 +132,94 @@ announced bill) — both of which are on the poster Studio read.
 change, and are the stage an owner most obviously wants control of. Studio will rarely have them and
 must not publish them if it does.
 
+### `P-C5` · Publication is policy-gated, and Studio is not the editor
+
+**Studio must never publish because it imported.** An event is published because it satisfies a
+stated **publication policy**, and because a custodian then authorises it. Import is ingestion; it
+carries no editorial weight.
+
+A candidate is **eligible** for custodial publication when it:
+
+- derives from a **public source** — a poster, a venue site, a ticketing page, a public post;
+- **passes review** by a human custodian;
+- is **not a duplicate** of an existing event, imported or owner-created;
+- has **not been withdrawn** by a prior objection or opt-out (`P-C3`);
+- **satisfies moderation** standards.
+
+> **Eligibility is necessary, never sufficient.** A policy that publishes automatically on passing is
+> **Option B with extra steps** — the accountability objection returns in full, because no person
+> decided anything. The policy decides what *may* be published; the custodian decides that it *is*.
+>
+> This is also what keeps Studio an **ingestion tool rather than an editor**. Studio proposes;
+> Operations publishes. Collapsing those two makes Studio a publisher, which is exactly what §P8
+> exists to prevent — and the distinction will be quietly eroded by convenience unless it is written
+> down as a rule rather than a habit.
+
+---
+
+### `P-C6` · Custody is time-boxed, never indefinite
+
+**Custodial publication expires.** Without an expiry, "temporary custody" becomes permanent
+ownership by default — and it does so silently, which is the failure mode nobody notices until
+unwinding it is expensive.
+
+Three mechanisms, addressing different halves of the problem:
+
+| Mechanism | Applies to | Why |
+|---|---|---|
+| **Natural expiry** | The event | A custodially published event passes its own date and becomes archive. Custody over a past event is meaningless and should lapse rather than persist. |
+| **Source revalidation** | Future events | If the public source that justified publication disappears — listing pulled, page dead, event cancelled at source — the justification is gone and the event returns to `PRIVATE`. Publication rested on that source under `P-C5`. |
+| **Profile review horizon** | The owner profile | A profile that has carried custodial publications for a defined period **without ever being claimed** is reviewed: still trading? still accurate? still worth publishing? Either revalidated or retired. |
+
+The third is the one that matters, because it is the only one that catches **accumulation**. The
+first two clear individual events; a venue that never claims will otherwise sit behind an endlessly
+refreshing stream of custodially published nights, none individually stale, collectively amounting
+to a business the platform publishes indefinitely without consent.
+
+> **The exact durations are a product decision, not an architectural one** — but *having* a horizon
+> is architectural, because it is the difference between custody and de facto ownership.
+
 ---
 
 ## 3 · Lifecycle of an imported event
+
+```
+                    Public Source
+                          │
+                          ▼
+                    Studio Import                 ← ingestion only (P-C5)
+                          │
+                          ▼
+                  Publication Policy              ← eligibility, not permission
+                   ┌──────┴──────┐
+              fails│             │passes
+                   ▼             ▼
+              Held / Review   Ops authorises      ← the act (P-C1)
+                                 │
+                                 ▼
+                  Custodial Publication (Ops)     ← LISTED / LINEUP only (P-C4)
+                   owner shown UNCLAIMED (P-C2)
+                                 │
+        ┌────────────────────────┼────────────────────────┐
+        │                        │                        │
+        ▼                        ▼                        ▼
+    Opt-out                Profile Claimed          Custody Expires
+  (no account              (can_act_as true)        (P-C6: stale source,
+   required, P-C3)               │                   past date, or
+        │                        ▼                   review horizon)
+        │                  Custody Ends              │
+        │                  (no migration, O-R5)      │
+        ▼                        │                   ▼
+    → PRIVATE                    ▼               → PRIVATE
+                        Owner Controls Event
+                        (full ladder, may
+                         retract — P-C3)
+```
+
+**Read the three branches as one claim:** custodial publication always ends. It ends by consent
+(claim), by objection (opt-out), or by time (`P-C6`). There is no path in which it simply continues.
+
+
 
 | Stage | Publication state | Who is authorised | Notes |
 |---|---|---|---|
@@ -185,7 +270,7 @@ position to withhold it. The clause should distinguish:
 Without that precision, custodial publication reads as a violation of `P8` rather than a case `P8`
 never contemplated.
 
-**5.2 · Add custodial publication as a named concept**, with `P-C1`–`P-C4` as its rules: the
+**5.2 · Add custodial publication as a named concept**, with `P-C1`–`P-C6` as its rules: the
 divergence of publication and ownership authority, the unclaimed-owner disclosure requirement, the
 retraction and opt-out guarantees, and the `LINEUP` ceiling.
 
@@ -204,7 +289,7 @@ ownership is untouched.
 |---|---|---|
 | **R1** | **A venue objects publicly** — "you listed us without asking". The reputational damage lands on the platform, not the import job. | `P-C2` makes the unclaimed status visible so the claim was never implied; `P-C3` makes removal available without signing up; and Ops review (stage 2) means a human saw it. Worth preparing the response *before* the first objection, not during it. |
 | **R2** | **Stale or wrong data goes public** under the platform's name, attributed to a business that cannot correct it. | Stage 2 review; and an unclaimed event's visible "claim this to correct it" doubles as the correction path. Consider an age cap on custodially published events. |
-| **R3** | **Custody becomes permanent in practice** — nobody claims, and thousands of Ops-published events accumulate with no accountable owner. | Custody should have a **stated review horizon** rather than running forever. This is the `K4` orphaned-imports risk from v1.3, now with a mechanism attached. |
+| **R3** | **Custody becomes permanent in practice** — nobody claims, and Ops-published events accumulate with no accountable owner. | **Addressed by `P-C6`:** natural expiry per event, source revalidation for future events, and a profile-level review horizon that catches accumulation. This is v1.3's `K4` with a mechanism attached. Durations remain a product decision; *having* a horizon does not. |
 | **R4** | **Ops publication authority is abused or over-scoped** — it becomes a general "Ops can publish anything" power. | `P-C1` scopes custody to *publication only*, on *unclaimed owners only*, and every custodial act is attributable to a person. It must never extend to editing or to claimed profiles. |
 | **R5** | **A wrongful claimant inherits a published catalog.** Custody ending on claim means a bad claim gains publication control immediately. | This is v1.3 `Q7`, and Q5 makes it sharper rather than solving it. **Flagged for Phase 13's `Q7`, deliberately not addressed here.** |
 | **R6** | **Artists named on imported lineups** did not consent either — `P-C2` addresses the owner, not the bill. | Lineup names come from public posters, but the same unclaimed-marker logic should apply to imported artist profiles. Worth confirming during Studio import design. |
@@ -213,7 +298,7 @@ ownership is untouched.
 
 ## 7 · Recommendation
 
-**Adopt custodial publication** — Option C with `P-C1`–`P-C4`.
+**Adopt custodial publication** — Option C with `P-C1`–`P-C6`.
 
 **Option A should be rejected on product grounds**, and it is worth being explicit about why: it is
 not the cautious choice, it is a different product. It removes the visibility that motivates
