@@ -3,6 +3,15 @@
 **18 Jul 2026 · design proposal.** Product and architecture design. No implementation, no SQL.
 Identity v1.3 is canonical and unchanged by anything here.
 
+> **⚠ Correction, added 18 Jul 2026 during Q7.** `P-C2`, `P-C3` and `P-C5`'s public-source criterion
+> **restate ratified requirements from Architecture v1.0 §09 (Ethics)** — they are not new proposals,
+> and this document should be read as citing §09 rather than inventing it. §09 also carries
+> constraints this document missed: imported data marked *imported & unverified*, generic avatars
+> only pre-claim, no "verified" styling pre-claim, a removal blocklist gating re-import, and the
+> shipping condition *"must ship with, not after, public unclaimed profiles."* See
+> `phase-13-q7-claim-verification-2026-07.md` §0. The recommendation is unaffected; its provenance
+> is corrected.
+
 **The question.** Who may publish an imported event before its owner has claimed the profile?
 
 ---
