@@ -583,21 +583,16 @@ export default function ProfileScreen() {
             return (
               <>
                 {vibeTags.length > 0 && (
-                  <>
-                    <div style={{ marginBottom: 12 }}>
-                      <div className={s.cardLabel} style={{ color: 'rgba(232,232,240,.5)', marginBottom: 6 }}>VIBE</div>
-                      {profile.sound && (
-                        <div style={{ fontSize: 14, fontStyle: 'italic', lineHeight: 1.5, opacity: .9, marginBottom: 10, background: `linear-gradient(135deg,${col},${grad2})`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
-                          {profile.sound}
-                        </div>
-                      )}
-                      <div className={s.tagPills}>
-                        {vibeTags.map(t => <span key={t} className={s.tagPill}>{t}</span>)}
-                      </div>
+                  <div style={{ marginBottom: 20 }}>
+                    <div className={s.cardLabel} style={{ color: 'rgba(232,232,240,.5)', marginBottom: 8 }}>VIBE</div>
+                    <div className={s.tagPills}>
+                      {vibeTags.map(t => <span key={t} className={s.tagPill}>{t}</span>)}
                     </div>
-                    <div style={{ height: 1, background: 'rgba(255,255,255,.08)', margin: '4px 0 20px' }} />
-                  </>
+                  </div>
                 )}
+                {/* Always a divider before VENUE INFO so an empty-vibe venue
+                    (no tags) isn't cramped straight under the tagline. */}
+                <div style={{ height: 1, background: 'rgba(255,255,255,.08)', margin: '4px 0 20px' }} />
                 <VenueInfoDropdown bare profile={profile} col={col} rgb={rgb} grad2={grad2} socials={socials} />
                 <div style={{ height: 1, background: 'rgba(255,255,255,.08)', margin: '4px 0 20px' }} />
               </>
@@ -1018,10 +1013,15 @@ function VenueInfoDropdown({ profile, col, rgb, grad2, bare = false, socials = [
     <>
       <button
         onClick={() => setOpen(o => !o)}
-        style={{ width: '100%', background: 'none', border: 'none', padding: '0 0 12px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+        style={{ width: '100%', background: 'none', border: 'none', padding: '0 0 12px', cursor: 'pointer', display: 'flex', gap: 10, justifyContent: 'space-between', alignItems: 'center' }}
       >
-        <span style={{ fontFamily: "'Bebas Neue'", fontSize: 14, letterSpacing: 2, color: col }}>VENUE INFO</span>
-        <span style={{ fontFamily: "'Bebas Neue'", fontSize: 12, color: col }}>{open ? '▲' : '▼'}</span>
+        <span style={{ fontFamily: "'Bebas Neue'", fontSize: 14, letterSpacing: 2, color: col, flexShrink: 0 }}>VENUE INFO</span>
+        {/* Vibe descriptor sits centred on the VENUE INFO row — neutral off-white
+            italics — so a venue with no vibe tags still reads cleanly. */}
+        {profile.sound && (
+          <span style={{ flex: 1, textAlign: 'center', fontStyle: 'italic', fontSize: 13, color: 'rgba(235,235,240,.6)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{profile.sound}</span>
+        )}
+        <span style={{ fontFamily: "'Bebas Neue'", fontSize: 12, color: col, flexShrink: 0 }}>{open ? '▲' : '▼'}</span>
       </button>
       {open && (
         <div style={{ padding: '0 0 6px' }}>
