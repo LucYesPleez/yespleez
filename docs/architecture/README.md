@@ -17,7 +17,7 @@ The **canonical, frozen** architecture of YesPleez, and the source of truth cite
 | `render-markdown.js` | Regenerates the `.md` copies from the `.html` sources. |
 | `publication-v1.0-draft.md` | **DRAFT — not canonical, not binding.** Proposed Publication Model v1.0. See below. |
 | `communication-v1.0-draft.md` | **DRAFT — not canonical, not binding.** Proposed Communication Architecture v1.0 — the specification M8 will implement. See below. |
-| `identity-v1.3-proposed.md` | **PROPOSAL — not canonical, not binding.** Objects belong to profiles; adds `events.host_profile_id`. Blocks on E1/E2. |
+| `identity-v1.3-proposed.md` | **PROPOSAL — not canonical, not binding.** Ownership that survives claiming; adds `events.host_profile_id`. Amends v1.0 §03 authorization basis. |
 
 **The `.html` files are authoritative.** The `.md` files are mechanically converted reading copies
 for diff-review and GitHub navigation. **Where they disagree, the HTML is correct.** Never cite a
