@@ -583,11 +583,8 @@ export default function ProfileScreen() {
             return (
               <>
                 {vibeTags.length > 0 && (
-                  <div style={{ marginBottom: 20 }}>
-                    <div className={s.cardLabel} style={{ color: 'rgba(232,232,240,.5)', marginBottom: 8 }}>VIBE</div>
-                    <div className={s.tagPills}>
-                      {vibeTags.map(t => <span key={t} className={s.tagPill}>{t}</span>)}
-                    </div>
+                  <div className={s.tagPills} style={{ marginBottom: 20 }}>
+                    {vibeTags.map(t => <span key={t} className={s.tagPill}>{t}</span>)}
                   </div>
                 )}
                 {/* Always a divider before VENUE INFO so an empty-vibe venue
