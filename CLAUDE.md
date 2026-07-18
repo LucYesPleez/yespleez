@@ -69,3 +69,8 @@ A row with only a user *cannot name its sender*. A row with only a profile *cann
 
 - Existing tables carry the pair under **table-specific names** (`venue_enquiries.applicant_profile_id`, `lineup_members.artist_profile_id`, `events.venue_profile_id`). These are correct and are not renamed. **New tables use the canonical `from_profile_id` / `from_user_id`.**
 - Tables for **account-level** actions (claims, signup, sessions, settings, billing) take a user column **only** — no profile. You claim a profile *as a person*, not as a profile.
+
+## Design principles
+
+Cross-cutting UX standards live in `docs/design-principles.md`. Currently:
+- **Date/time selection is picker-only** — all dates, times and date-ranges are chosen through a standardised picker (or one-tap presets); no free-text date/time entry. A bare native `<input type="date">` does not satisfy this on its own (it still allows typing). Native date/time controls also carry `color-scheme: dark`.
