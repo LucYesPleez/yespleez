@@ -46,6 +46,7 @@ td.addRule('callout',{filter:n=>n.classList&&n.classList.contains('callout'),rep
   '\n\n'+c.trim().split('\n').map(l=>l.trim()?`> ${l}`:'>').join('\n')+'\n\n'});
 
 for(const [html,md,rat] of [
+  ['identity-v1.3.html','identity-v1.3.md','RATIFIED v1.3 — 18 Jul 2026'],
   ['identity-v1.2.html','identity-v1.2.md','RATIFIED v1.2 — 18 Jul 2026'],
   ['identity-v1.1.html','identity-v1.1.md','RATIFIED v1.1 — 17 Jul 2026'],
   ['architecture-v1.0.html','architecture-v1.0.md','CANONICAL v1.0 — 10 Jul 2026'],

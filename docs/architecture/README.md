@@ -10,14 +10,15 @@ The **canonical, frozen** architecture of YesPleez, and the source of truth cite
 | **`architecture-v1.0.html`** | **CANONICAL** — Architecture Specification v1.0, 10 Jul 2026 |
 | **`identity-v1.1.html`** | **CANONICAL** — Identity Architecture v1.1 (Amendment), ratified + frozen 17 Jul 2026. Binding in full except the one cell v1.2 supersedes. |
 | **`identity-v1.2.html`** | **CANONICAL** — Identity Architecture v1.2 (Amendment), ratified + frozen 18 Jul 2026 |
+| **`identity-v1.3.html`** | **CANONICAL** — Identity Architecture v1.3 (Amendment), ratified + frozen 18 Jul 2026 |
 | `architecture-v1.0.md` | Reading copy. Not authoritative. |
 | `identity-v1.1.md` | Reading copy. Not authoritative. |
 | `identity-v1.2.md` | Reading copy. Not authoritative. |
+| `identity-v1.3.md` | Reading copy. Not authoritative. |
 | `errata.md` | Known factual errors in the frozen documents. Records; corrects nothing. |
 | `render-markdown.js` | Regenerates the `.md` copies from the `.html` sources. |
 | `publication-v1.0-draft.md` | **DRAFT — not canonical, not binding.** Proposed Publication Model v1.0. See below. |
 | `communication-v1.0-draft.md` | **DRAFT — not canonical, not binding.** Proposed Communication Architecture v1.0 — the specification M8 will implement. See below. |
-| `identity-v1.3-proposed.md` | **PROPOSAL — not canonical, not binding.** Ownership that survives claiming; adds `events.host_profile_id`. Amends v1.0 §03 authorization basis. |
 
 **The `.html` files are authoritative.** The `.md` files are mechanically converted reading copies
 for diff-review and GitHub navigation. **Where they disagree, the HTML is correct.** Never cite a
@@ -31,12 +32,16 @@ node docs/architecture/render-markdown.js
 The conversion is mechanical by design. Nobody should ever retype a frozen document by hand —
 that is how paraphrase enters a canonical record.
 
-The three documents are canonical **together**, each an amendment under v1.0 §17 rather than a
+The four documents are canonical **together**, each an amendment under v1.0 §17 rather than a
 replacement:
 
-- **v1.0** remains binding in full except for the clauses **v1.1 §A2** lists.
+- **v1.0** remains binding in full except for the clauses **v1.1 §A2** lists **and** the event
+  **authorization basis** in §03 that **v1.3 `O-R4`** supersedes. §03's separation principle —
+  *"one column never again does both jobs"* — is **preserved**, not reversed (v1.3 `O-R2`).
 - **v1.1** remains binding in full except for the single §A12 `U2` cell **v1.2 §B2** supersedes.
+  **v1.3 changes nothing in v1.1** — §A3 and §A4 are reconciled, not amended.
 - **v1.2** adds §A14 and renumbers nothing.
+- **v1.3** adds `O-R1`–`O-R6` and renumbers nothing.
 
 Read together, latest amendment wins on the specific clauses it names, and nowhere else.
 
@@ -88,12 +93,12 @@ v1.0 and v1.1 were authored as Claude artifacts and remain retrievable at their 
 - v1.0 — `https://claude.ai/code/artifact/a71257bf-b384-4b62-8bce-4ba9f9762ef8`
 - v1.1 — `https://claude.ai/code/artifact/16703884-032f-4ed2-8478-eea51c8654ed`
 
-**`identity-v1.2.html` has a different provenance and it is recorded here rather than glossed.** It
-was authored in-repo on 18 Jul 2026, not as a served artifact, so there is no source URL and the
-byte-count reconciliation below does not apply to it. Its `<head>`, stylesheet and class vocabulary
-were **copied mechanically** from `identity-v1.1.html` (the first 275 lines, with only the `<title>`
-changed) rather than retyped, for the reason stated above: nobody should hand-retype a canonical
-document. Only the document body is new.
+**`identity-v1.2.html` and `identity-v1.3.html` have a different provenance and it is recorded here
+rather than glossed.** Both were authored in-repo on 18 Jul 2026, not as served artifacts, so there
+is no source URL for either and the byte-count reconciliation below does not apply to them. Their
+`<head>`, stylesheet and class vocabulary were **copied mechanically** from `identity-v1.1.html`
+(the first 275 lines, with only the `<title>` changed) rather than retyped, for the reason stated
+above: nobody should hand-retype a canonical document. Only the document bodies are new.
 
 **One modification was made to the served bytes, and only one.** claude.ai injects a 9,540-byte
 `<!-- frame-runtime -->` script block when serving an artifact — host scaffolding added at serve

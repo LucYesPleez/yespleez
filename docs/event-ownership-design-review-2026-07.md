@@ -1,3 +1,8 @@
+> **Outcome, added 18 Jul 2026.** This review's recommendation was adopted. `identity-v1.3-proposed.md`
+> was amended accordingly and then **ratified as `docs/architecture/identity-v1.3.html`** — see
+> `O-R4` (three concepts) and `O-R6` (exactly one accountable owner). The proposal file it refers to
+> below no longer exists; the canonical document supersedes it. The review text itself is unrevised.
+
 # Event ownership — design review
 
 **18 Jul 2026 · design review, not a specification.** Prompted by a flaw found in the v1.3 proposal
