@@ -742,6 +742,7 @@
   font-size: 9px;
   font-weight: 700;
   letter-spacing: .8px;
+  text-transform: uppercase;
   padding: 3px 8px;
   border-radius: 6px;
 }
@@ -887,6 +888,7 @@
   font-size: 9px;
   font-weight: 700;
   letter-spacing: .8px;
+  text-transform: uppercase;
   padding: 2px 7px;
   border-radius: 6px;
 }

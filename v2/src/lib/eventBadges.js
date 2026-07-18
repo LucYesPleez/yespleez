@@ -1,16 +1,18 @@
 export const OPEN_MIC_BADGE = { label: 'OPEN MIC', bg: '#FFD700', col: '#000' };
 
-// Festival is intentionally not an auto-detected category this release (see
-// HOST_CATEGORIES in profileTaxonomy.js) — Festival Edition will re-enable
-// it later; until then an event genre-tagged "festival" just falls through
-// to whatever else its genre text matches (e.g. "Festival,Folk,..." reads
-// as Live Music), same as any event with no special-cased keyword.
+// Festival shows its own badge even though the Festival Edition app isn't built
+// yet — a festival should still read as a festival in What's On / Discover
+// (owner call, 2026-07-18). Detected from the genre text and taking priority
+// over the music-type match (a "Festival, Folk, …" event is a festival first).
+// Colour matches the 'Festival' category badge used on the cards (#BF5FFF).
 export function getEventBadges(genres = '', name = '') {
   const text = (genres + ' ' + name).toLowerCase();
   const g    = genres.toLowerCase();
   const isOpenMic = /open.?mic/i.test(text);
   const primary =
-    (g.includes('dj') || g.includes('electronic') || g.includes('house') || g.includes('techno') || g.includes('drum'))
+    g.includes('festival')
+      ? { label: 'FESTIVAL', bg: '#BF5FFF',      col: '#fff' }
+    : (g.includes('dj') || g.includes('electronic') || g.includes('house') || g.includes('techno') || g.includes('drum'))
       ? { label: 'DJs',   bg: 'var(--neon2)', col: '#000' }
     : (g.includes('comedy') || g.includes('standup') || g.includes('stand-up'))
       ? { label: 'COMEDY',      bg: '#FF8C42',      col: '#fff' }

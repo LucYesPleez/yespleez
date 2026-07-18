@@ -36,6 +36,7 @@ function Pill({ label, bg, col }) {
       fontSize: 9,
       fontWeight: 700,
       letterSpacing: .8,
+      textTransform: 'uppercase',
       padding: '3px 8px',
       borderRadius: 6,
       background: bg,
