@@ -1,0 +1,94 @@
+-- ============================================================
+-- M6d — FOLLOWS SENDER BACKFILL  (DATA ONLY — no schema)
+-- ============================================================
+--
+-- Run ALONE, after M6c. Changes data and nothing else.
+--
+-- Owner decision, 18 Jul 2026:
+--   "Attribute historical follows to the owning account's Personal
+--    profile. This is a normalization of legacy account-owned
+--    relationships into the new identity model, not an inference
+--    between competing candidate profiles."
+--
+-- ── WHY THIS IS NOT A U4-STYLE INFERENCE ──
+--
+-- U4 governs applications, where a user may own several performer
+-- profiles and the row does not record which one applied. That is a
+-- choice between competing candidates, so U4 forbids guessing.
+--
+-- Follows are different in kind. The legacy semantic was "this
+-- ACCOUNT follows X" — there was no profile switcher for follows, so
+-- no profile context was ever chosen or lost. Under v1.1 the account
+-- browsing personally IS the Personal profile (§A9), and v1.1 §A12
+-- U5 already leans the same way for event follows. Mapping
+-- account → Personal restates the existing fact in the new model.
+--
+-- ── IT IS DETERMINISTIC AND TOTAL, AND THAT IS PROVABLE ──
+--
+--  1. follows.user_id is NOT NULL (live schema, verified 2026-07-18).
+--  2. M5.5 verified every account owns exactly one Personal profile
+--     (census 18 │ 18 │ 0 │ 0), and M5.5b's trigger keeps that true
+--     for accounts created since.
+--  3. profiles_user_type_unique UNIQUE (user_id, type) makes a second
+--     Personal profile per account impossible.
+--
+-- So the join below matches at most one row per follow and should
+-- match exactly one for every follow whose account still exists.
+-- There is no ambiguity for the migration to resolve, and therefore
+-- nothing for it to guess.
+--
+-- The only rows that can remain NULL are follows whose user_id no
+-- longer resolves to an account — orphans, which the dry run counts
+-- before this file is run. Those stay NULL: an orphaned follow has
+-- no Personal profile to normalise into, and inventing one would be
+-- exactly the guess this migration avoids.
+--
+-- ── WHAT THIS FIXES, AND WHAT IT DOES NOT ──
+--
+-- §A6's motivating bug: a venue owner's personal follows pollute the
+-- venue's roster, because the roster reads follows by user_id.
+--
+-- This migration makes the fix POSSIBLE by recording which profile
+-- each follow belongs to. It does NOT fix the bug on its own — the
+-- roster query in v2/src still reads by user_id and must be cut over
+-- to from_profile_id separately. Schema first, app second; that
+-- cutover is the app-side half of M6.
+--
+-- ── IDEMPOTENT ──
+-- `AND f.from_profile_id IS NULL` makes a re-run a no-op and stops
+-- it overwriting anything the app writes after cutover.
+-- ============================================================
+
+UPDATE public.follows f
+SET from_profile_id = p.id
+FROM public.profiles p
+WHERE p.user_id = f.user_id
+  AND p.type = 'punter'
+  AND f.from_profile_id IS NULL;
+
+-- ============================================================
+-- VERIFY — expect orphans = 0 and unattributed = orphans
+-- ============================================================
+--   SELECT count(*)                                             AS total,
+--          count(*) FILTER (WHERE from_profile_id IS NOT NULL)  AS attributed,
+--          count(*) FILTER (WHERE from_profile_id IS NULL)      AS unattributed
+--   FROM public.follows;
+--
+-- Every attributed follow must point at a Personal profile owned by
+-- the account the follow already named. Both of these must return 0:
+--
+--   SELECT count(*) AS wrong_owner
+--   FROM public.follows f
+--   JOIN public.profiles p ON p.id = f.from_profile_id
+--   WHERE p.user_id IS DISTINCT FROM f.user_id;
+--
+--   SELECT count(*) AS wrong_type
+--   FROM public.follows f
+--   JOIN public.profiles p ON p.id = f.from_profile_id
+--   WHERE p.type <> 'punter';
+--
+-- wrong_owner > 0 would mean a follow was attributed to a different
+-- human's profile. wrong_type > 0 would mean it normalised onto
+-- something that is not a Personal profile. Either is worse than
+-- leaving the column NULL.
+-- ============================================================
