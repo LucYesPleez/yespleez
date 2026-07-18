@@ -522,11 +522,12 @@ export default function ProfileScreen() {
                 </div>
           )}
 
-          {/* Genre — non-venue. Editorial treatment: no card chrome, no pills —
-              the sound descriptor sits inline next to the heading as an
-              italic gradient-clip line (same technique as the tagline
-              above), and the genre list itself as a quiet dot-separated
-              line below. */}
+          {/* Genre — non-venue. The sound descriptor sits inline next to the
+              STYLE heading as an italic gradient-clip line (same technique as
+              the tagline above); the genre list below renders as the shared
+              simple tag pills — same quiet pill every profile type uses now,
+              venue VIBE included (11C.4). Collapses to the first 5 with a
+              "+N more" pill; tapping the block expands. */}
           {genres.length > 0 && !isVenue && (
             <div style={{ marginBottom: 12, cursor: remainingGenres.length > 0 ? 'pointer' : 'default' }} onClick={() => remainingGenres.length > 0 && setGenreExpanded(e => !e)}>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap', marginBottom: 10 }}>
@@ -537,18 +538,10 @@ export default function ProfileScreen() {
                   </div>
                 )}
               </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', rowGap: 6, fontSize: 14, lineHeight: 1.9, color: 'rgba(232,232,240,.85)' }}>
-                {visibleGenres.map((g, i) => (
-                  <span key={g} style={{ whiteSpace: 'nowrap' }}>
-                    {i > 0 && <span style={{ color: 'rgba(232,232,240,.3)', margin: '0 8px' }}>&middot;</span>}
-                    {g}
-                  </span>
-                ))}
+              <div className={s.tagPills}>
+                {visibleGenres.map(g => <span key={g} className={s.tagPill}>{g}</span>)}
                 {!genreExpanded && remainingGenres.length > 0 && (
-                  <span style={{ whiteSpace: 'nowrap' }}>
-                    <span style={{ color: 'rgba(232,232,240,.3)', margin: '0 8px' }}>&middot;</span>
-                    <span style={{ color: 'var(--muted)' }}>+{remainingGenres.length} more</span>
-                  </span>
+                  <span className={`${s.tagPill} ${s.tagPillMore}`}>+{remainingGenres.length} more</span>
                 )}
               </div>
             </div>
@@ -593,17 +586,8 @@ export default function ProfileScreen() {
                     {/* VIBE tags (the curated "Your 5 Tags", card_pills) as simple,
                         uniform outlined pills — neutral grey border, dark fill, no
                         accent colour and no glow (were the loud Glow Pill). 11C.4. */}
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                      {vibeTags.map(t => (
-                        <span key={t} style={{
-                          fontFamily: "'DM Sans', sans-serif", fontSize: 13, lineHeight: 1,
-                          padding: '6px 14px', borderRadius: 999,
-                          background: 'rgba(255,255,255,.04)',
-                          border: '1px solid rgba(255,255,255,.15)',
-                          color: 'rgba(232,232,240,.9)',
-                          whiteSpace: 'nowrap',
-                        }}>{t}</span>
-                      ))}
+                    <div className={s.tagPills}>
+                      {vibeTags.map(t => <span key={t} className={s.tagPill}>{t}</span>)}
                     </div>
                   </div>
                 );

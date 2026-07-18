@@ -245,6 +245,23 @@
   white-space: pre-line;
 }
 
+/* Simple tag pills — the shared quiet pill for a profile's descriptive tags
+   across every type (venue VIBE, performer STYLE). Neutral by design: no accent
+   colour, no glow, all pills identical, so the tags read calmly (11C.4). */
+.tagPills { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.tagPill {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  line-height: 1;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.04);
+  border: 1px solid rgba(255,255,255,.15);
+  color: rgba(232,232,240,.9);
+  white-space: nowrap;
+}
+.tagPillMore { color: var(--muted); }
+
 /* Genre pills */
 .genrePills {
   display: flex;
