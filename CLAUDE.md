@@ -26,6 +26,8 @@ Two documents are canonical **together**, and both are frozen. They live in **`d
 >
 > **`O-R6`** — **every event has exactly one accountable owner.** No ownerless event exists. Studio resolves an owner before import, creating an unclaimed profile where necessary, and **holds a listing for review rather than importing it ownerless**. Subsystems ask *who owns this event*, never *does this event have an owner*.
 >
+> **`owner_profile_id` is stable in normal operation and correctable by exception** — §O3's *"written once at creation"* describes persistence, not immutability. See `docs/architecture/errata.md` **E2** and Phase 13 `Q6`. Correction is audited, atomic, and post-claim requires consent or adjudication.
+>
 > **`O-R1`** — the active profile determines **nothing**. `can_act_as()` remains the sole authorization mechanism. Test: switching the active profile changes nothing about who can manage any event.
 
 The `.html` files are authoritative. The `.md` files beside them are mechanically-converted reading copies — never cite one. Known errors in the frozen text are recorded in `docs/architecture/errata.md` and are **not** corrected in place.

@@ -82,3 +82,47 @@ fact in a frozen document. Fixing it is a judgment call about whether accuracy i
 record is worth an amendment, and that call belongs to the owner. **Do not raise a v1.2 for E1
 alone without being asked.** If a v1.2 is raised for other reasons, folding E1 into it costs
 nothing.
+
+---
+
+## E2 — v1.3 §O3's "written once at creation" reads as immutability
+
+| | |
+|---|---|
+| **Document** | Identity Architecture v1.3 |
+| **Location** | §O3, the §A4 reconciliation table, row *"Where it lives"* |
+| **Status** | **Open — not corrected.** v1.3 remains as ratified. |
+| **Severity** | Wording. No architectural consequence, but capable of misleading an implementer. |
+| **Found** | 18 Jul 2026, during Phase 13 `Q6` (event reattribution) |
+
+### What v1.3 says
+
+> | **Where it lives** | Client-held, per-session, changes on a switcher | Persisted on the row, **written once at creation** |
+
+### What was meant
+
+The row's purpose is to contrast a **stored column** with §A4's rejected **client-held active
+profile**. *"Written once at creation"* describes **persistence and provenance** — the value is not
+re-evaluated per session — not **immutability**.
+
+### Why it matters
+
+Phase 13 `Q6` establishes that `owner_profile_id` must be correctable: an event imported against
+the wrong profile has to be reattributable, and pre-claim that is routine data correction rather
+than any kind of transfer. An implementer reading only this line would reasonably refuse to build
+it.
+
+### The correct reading
+
+`owner_profile_id` is **stable in normal operation and correctable by exception.** Correction is
+audited, atomic, never leaves the event ownerless (`O-R6`), and post-claim requires consent or
+adjudication — see `docs/phase-13-q6-reattribution-2026-07.md` `T1`–`T7`.
+
+**Nothing in v1.3's rules — `O-R1` through `O-R6` — asserts immutability.** The phrase appears only
+in an explanatory comparison, not in a rule.
+
+### Disposition
+
+**Recorded, not corrected.** A versioned amendment to clarify one parenthetical phrase would be
+disproportionate; `E1` set the precedent that frozen text stands and operative documents cite the
+erratum. `CLAUDE.md` should cite `E2` where it states the ownership rule.
