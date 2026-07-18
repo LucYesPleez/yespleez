@@ -148,7 +148,7 @@
    [Est. xxxx] — instead of being pinned to the right. Desktop keeps the
    pinned-right layout as-is. */
 @media (max-width: 640px) {
-  .est { position: static; }
+  .est { position: static; margin-left: 12px; }
 }
 
 /* Cards container — the fade already completes in .nameBlock above, so this
