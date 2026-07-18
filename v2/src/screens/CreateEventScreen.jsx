@@ -422,13 +422,12 @@ export default function CreateEventScreen() {
         <Field label="CATEGORY CHIP (optional)">
           {(() => {
             const auto = getEventBadges(genreText, name);
-            // Festival intentionally not offered here this release — see
-            // HOST_CATEGORIES in profileTaxonomy.js.
             const primary = [
               { label: 'Live Music', bg: '#ff2d78', col: '#fff' },
               { label: 'DJs',        bg: 'var(--neon2)', col: '#000' },
               { label: 'Comedy',     bg: '#FF8C42', col: '#fff' },
               { label: 'Spoken Word',bg: '#FF8C42', col: '#fff' },
+              { label: 'Festival',   bg: '#BF5FFF', col: '#fff' },
             ];
             const openMicOpt = { label: 'Open Mic', bg: '#FFD700', col: '#000' };
             return (
@@ -436,7 +435,7 @@ export default function CreateEventScreen() {
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
                   {primary.map(opt => {
                     const manualActive = categoryBadge === opt.label;
-                    const autoActive = !categoryBadge && auto[0]?.label === opt.label;
+                    const autoActive = !categoryBadge && auto[0]?.label?.toUpperCase() === opt.label.toUpperCase();
                     const active = manualActive || autoActive;
                     return (
                       <button key={opt.label} type="button" onClick={() => setCategoryBadge(manualActive ? '' : opt.label)}
