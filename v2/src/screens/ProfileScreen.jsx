@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
+import { getPersonalProfileId } from '../lib/actingProfile';
 import { writeNotification } from '../lib/writeNotification';
 import { useSession, usePlayer } from '../App';
 import EventCard from '../components/EventCard';
@@ -332,8 +333,11 @@ export default function ProfileScreen() {
     // param. Written columns are unchanged (entity_id + dual-written
     // target_profile_id); for claimed targets the values are byte-identical
     // to pre-M5 rows.
-    await Promise.all(ids.map(uid =>
-      supabase.from('follows').insert({ user_id: uid, entity_id: legacyEntityId, entity_type: 'profile', entity_name: profile.name, target_profile_id: profile.id })
+    // M6 (R6.1): stamp attribution at write time. Resolved per uid — this
+    // path can write for more than one account, and a shared lookup would
+    // attribute one human's follow to another's profile.
+    await Promise.all(ids.map(async uid =>
+      supabase.from('follows').insert({ user_id: uid, from_profile_id: await getPersonalProfileId(uid), entity_id: legacyEntityId, entity_type: 'profile', entity_name: profile.name, target_profile_id: profile.id })
     ));
     // Bust the My Scene cache so the new follow appears immediately
     queryClient.invalidateQueries({ queryKey: ['myScene'] });

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, createContext, useContext } from 'react';
 import { HashRouter, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { supabase } from './lib/supabase';
+import { clearActingProfileCache } from './lib/actingProfile';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -219,6 +220,7 @@ export default function App() {
   function handleSignOut() {
     sessionStorage.removeItem('yp_guest');
     setIsGuest(false);
+    clearActingProfileCache();  // M6: a cached profile id must not outlive its session
     supabase.auth.signOut();
   }
 

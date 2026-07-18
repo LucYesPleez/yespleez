@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
+import { getPersonalProfileId } from '../lib/actingProfile';
 import { useSession, usePlayer } from '../App';
 import { formatDateRange } from '../lib/dates';
 import Skeleton from '../components/Skeleton';
@@ -235,7 +236,10 @@ export default function EventScreen() {
       if (!error) { likedEvents.delete(id); setLiked(false); }
       else console.error('unfollow error:', error);
     } else {
-      const { error } = await supabase.from('follows').insert({ user_id: session.user.id, entity_id: id, entity_type: 'event', entity_name: event.name });
+      // M6 (R6.1): stamp attribution at write time — a follow is a
+      // personal act, so it comes from the Personal profile (§A6/§A9).
+      const fromProfileId = await getPersonalProfileId(session.user.id);
+      const { error } = await supabase.from('follows').insert({ user_id: session.user.id, from_profile_id: fromProfileId, entity_id: id, entity_type: 'event', entity_name: event.name });
       if (!error) { likedEvents.add(id); setLiked(true); }
       else console.error('follow error:', error.message, error.code, error.details, error.hint);
     }
@@ -1437,7 +1441,11 @@ function SlotCard({ slot, claim, onFill, onEdit, onRemove, onPin, isHost, isSort
                       setFollowed(false);
                     } else {
                       const targetProfileId = await resolveProfileId(claim.user_id, 'artist');
-                      await supabase.from('follows').insert({ user_id: session.user.id, entity_id: claim.user_id, entity_type: 'artist', entity_name: claim.name, target_profile_id: targetProfileId });
+                      // M6 (R6.1): from_profile_id is the follower (Personal);
+                      // target_profile_id is who is being followed. Two ends,
+                      // two columns — never conflate them.
+                      const fromProfileId = await getPersonalProfileId(session.user.id);
+                      await supabase.from('follows').insert({ user_id: session.user.id, from_profile_id: fromProfileId, entity_id: claim.user_id, entity_type: 'artist', entity_name: claim.name, target_profile_id: targetProfileId });
                       setFollowed(true);
                     }
                     setFollowBusy(false);

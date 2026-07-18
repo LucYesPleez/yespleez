@@ -3,6 +3,7 @@ import { SkeletonRow, SkeletonEventCard } from '../components/Skeleton';
 import { useNavigate } from 'react-router-dom';
 import { useEvents } from '../lib/useEvents';
 import { supabase } from '../lib/supabase';
+import { getPersonalProfileId } from '../lib/actingProfile';
 import { useSession } from '../App';
 import { today, dateStr, weekendRange, formatDisplayDate } from '../lib/dates';
 import { getDemoEvents } from '../lib/demoEvents';
@@ -103,7 +104,9 @@ function HeartBtn({ event, className }) {
       await supabase.from('follows').delete().eq('user_id', session.user.id).eq('entity_id', event.id);
       likedEvents.delete(event.id); setLiked(false);
     } else {
-      await supabase.from('follows').insert({ user_id: session.user.id, entity_id: event.id, entity_type: 'event', entity_name: event.name });
+      // M6 (R6.1): stamp attribution at write time — personal act (§A6/§A9).
+      const fromProfileId = await getPersonalProfileId(session.user.id);
+      await supabase.from('follows').insert({ user_id: session.user.id, from_profile_id: fromProfileId, entity_id: event.id, entity_type: 'event', entity_name: event.name });
       likedEvents.add(event.id); setLiked(true);
     }
     setBusy(false);
