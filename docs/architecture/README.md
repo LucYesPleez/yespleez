@@ -14,6 +14,7 @@ The **canonical, frozen** architecture of YesPleez, and the source of truth cite
 | `errata.md` | Known factual errors in the frozen documents. Records; corrects nothing. |
 | `render-markdown.js` | Regenerates the `.md` copies from the `.html` sources. |
 | `publication-v1.0-draft.md` | **DRAFT — not canonical, not binding.** Proposed Publication Model v1.0. See below. |
+| `communication-v1.0-draft.md` | **DRAFT — not canonical, not binding.** Proposed Communication Architecture v1.0 — the specification M8 will implement. See below. |
 
 **The `.html` files are authoritative.** The `.md` files are mechanically converted reading copies
 for diff-review and GitHub navigation. **Where they disagree, the HTML is correct.** Never cite a
@@ -32,9 +33,13 @@ replacement: v1.0 remains binding in full except for the clauses v1.1 §A2 lists
 
 ## Drafts
 
-`publication-v1.0-draft.md` is the only hand-authored Markdown permitted in this directory, and it
-is permitted only because it is **not canonical**. It proposes a future specification; it governs
-nothing, and no implementation may cite it.
+`publication-v1.0-draft.md` and `communication-v1.0-draft.md` are the only hand-authored Markdown
+permitted in this directory, and they are permitted only because they are **not canonical**. They
+propose future specifications; they govern nothing, and no implementation may cite them.
+
+Rule-number prefixes are namespaced per document — `P` for publication, `C`/`D` for communication —
+and do not collide with the `R`/`B`/`D`/`A` interface of `identity-v1.1`. A citation must name its
+document.
 
 It lives here rather than in `docs/` because it is versioned and will be ratified, not a dated
 snapshot — but it is deliberately excluded from the canonical table above and carries a refusal
