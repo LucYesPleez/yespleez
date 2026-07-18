@@ -12,14 +12,14 @@
 > Rule numbers `C1`–`C31` are namespaced to this document and do not refer to rules in
 > `architecture-v1.0` (`§`), `identity-v1.1` (`R`/`B`/`D`/`A`) or `publication-v1.0` (`P`).
 >
-> Status: **DRAFT v1.0** — 18 Jul 2026 · rule numbers provisional until ratified.
+> Status: **DRAFT v1.0 · Revision 2** — 18 Jul 2026 · rule numbers provisional until ratified.
+> Full amendment record at **§13**.
 >
-> **Revision record.** Amended 18 Jul 2026 by the owner's Messaging Philosophy & Workflow Handoffs
-> clarification: **Messenger is not the authoritative business record — structured workflows are.**
-> This reversed the document's founding assumption and rewrote §1, §2.4, §2.6, §3.2, §7, §8 and the
-> `D1` blocker; added §9 and rules `C25`–`C31`; renumbered the former §9–§11 to §10–§12 (section
-> numbers are not the citation interface — rule numbers are, and none were renumbered).
-> Amending a draft in place is correct: versions are minted at ratification, not during drafting.
+> **Why this is a revision and not a v1.1.** Under this directory's rules a version is minted when a
+> document is **ratified and frozen** — that is what makes `identity-v1.1` a separate file from
+> `identity-v1.0`. This document has never been ratified, so there is nothing frozen to amend
+> against, and a `v1.1-draft` beside a `v1.0-draft` would leave two live proposals for one
+> specification. Revisions accumulate in place until ratification mints v1.0 proper.
 
 YesPleez · Architecture Specification (proposed)
 
@@ -90,6 +90,20 @@ that produced them on Instagram DMs and phone screenshots.
 > retained, what may be erased, what may be deleted by whom, and what the platform owes a user who
 > asks for their data to be removed. It is the reason §8 is a narrower problem than it first appeared.
 
+> **◆ `C26` Copy, never reference — the rule that makes `C25` structural rather than declarative**
+>
+> When information crosses from Messenger into a workflow, it is **copied into that workflow's own
+> data model**. A workflow object never reads its content back out of a conversation.
+>
+> **Deleting a message, attachment or voice note must never invalidate an existing workflow object.**
+> Workflow objects are **self-contained records**: complete on their own, independent of the
+> conversation that preceded them, and unaffected by anything that later happens to it.
+>
+> Without this rule `C25` is a statement of intent. A Booking that references an erasable message can
+> be emptied by the counterparty deleting that message — reintroducing precisely the failure `C25`
+> was established to remove. **`C26` is what converts the separation from a claim into a property of
+> the system.**
+
 The measure of this platform is therefore not whether a conversation is preserved forever. It is
 whether the industry finds this a genuinely good place to talk — fast, beautiful, unhurried — and
 whether, when talk turns into commitment, the step into the workflow that records it is short and
@@ -97,11 +111,13 @@ obvious. The record lives in the workflow. The conversation is allowed to be a c
 
 > **A caution that belongs with `C25`, not buried in §8**
 >
-> "Not the authoritative record" is an **internal architectural statement**. It must never be
-> presented to users as a promise that conversations are private, deniable, or unrecoverable.
-> Discoverability is not determined by what an architecture document calls something: a conversation
-> in which two parties agree a fee is evidence of that agreement, whatever the platform's position
-> on authority. See §8.2.
+> `C25` describes **how the platform behaves**: official bookings, invitations and agreements are
+> created and managed through structured workflows. It is not a statement about the status of
+> anything outside the platform, and must not be written or presented as one (`C28`).
+>
+> In particular, it must never be shown to users as a promise that conversations are private,
+> deniable, or unrecoverable. The platform may offer erasure (§8.4); it makes no representation about
+> what having said something means.
 
 ### Goals
 
@@ -141,7 +157,7 @@ Stated so they are not designed for by accident:
 | **`C7`** | **Context is immutable; status is not.** What a conversation is *about* never changes. What is *happening* to that subject changes constantly. |
 | **`C8`** | **The profile converses; the human writes.** Participants are profiles. Authorship is a user. Read state is per-human (§2.5) — this falls out of multi-owner profiles and is the most commonly-missed consequence of §A5. |
 | **`C9`** | **Workflow objects are never deleted quietly; conversations may be.** A workflow object is a shared commitment and no party destroys it unilaterally. A conversation is communication — a participant may remove their own contribution, subject to §8. The two halves of this rule were one rule before `C25`, and collapsing them again is the error §8 exists to prevent. |
-| **`C26`** | **Crossing the boundary is a copy, never a reference.** Content promoted from a conversation into a workflow object is copied into the workflow's retention domain. A workflow may not depend on an erasable conversation for its content. See §9.3 — this is the mechanism that makes `C25` safe rather than merely stated. |
+| **`C26`** | **Copy, never reference.** Stated in full above. Workflow objects are self-contained; conversation deletion can never invalidate one. |
 | **`C27`** | **Assistance reads structure, never content.** Workflow assistance derives from platform state — conversation context, participant roles, linked event, existing workflow status — and never from interpreting what people said. §9.4. |
 
 ---
@@ -287,9 +303,9 @@ found a gap in this document (§10 `D8`), not licence to add a string.
 > 4. **Workflow assistance derives from it** (`C27`, §9.4). Structured context is the *only*
 >    permitted signal for draft preparation, so it must be trustworthy and stable.
 >
-> An earlier draft gave a fifth reason — that the conversation is *evidence* of its context. `C25`
-> removed it: the workflow object is the evidence. Context immutability survives on the four reasons
-> above, none of which depend on the thread being a record.
+> None of these four reasons depends on a conversation being a record. Context immutability is a
+> property the *communication* domain needs for its own sake — permissions, links, deduplication and
+> assistance all resolve through it — and it holds unchanged under `C25`.
 
 ### 3.3 Immutable context, progressing subject
 
@@ -515,8 +531,9 @@ a two-minute voice message interrupted at 1:10 resumes at 1:10.
 ### 6.6 Upload pipeline
 
 Record → compute peaks → upload with the message in a pending state → message resolves to sent when
-the upload completes. The message row and the media object are separate concerns; the row is
-authoritative for the record, the object for the audio.
+the upload completes. The message row and the media object are separate concerns: the row carries the
+message and its metadata, the object carries the audio. A voice note promoted into a workflow is
+copied there (`C26`) and no longer depends on either.
 
 **Explicitly excluded**, per brief: transcription, AI enhancement, filters, effects.
 
@@ -563,38 +580,36 @@ profile inbox (§A5). **Blocks M8. Legal input required.**"*
 
 ### 8.2 The widening, and its substantial retraction
 
-> **`C23` U2 was widened, then `C25` narrowed it again — this is the record of both**
+> **`C23` The scenario that reopened `U2`, and why the architecture now absorbs it**
 >
-> **The widening (raised 18 Jul 2026).** §7's storage model made the tension reachable by ordinary
-> user action: an artist frees storage by deleting the voice message stating their agreed fee, and
-> the host's record of their own booking is altered by the counterparty through a housekeeping
-> screen. No account deletion required.
+> **The scenario.** An artist frees storage by deleting a voice message that discussed their fee. No
+> account deletion, no unusual action — routine housekeeping.
 >
-> **The retraction (same day, `C25`).** If the fee is recorded in the Booking workflow object, that
-> deletion destroys a *conversation*, not a *record*. The host's booking is untouched. With `C26`
-> (promotion copies rather than references) the workflow cannot be hollowed out by conversation
-> deletion at all.
+> **Why it is no longer an architectural contradiction.** Under `C25` the fee is recorded in the
+> Booking workflow object, and under `C26` that object holds its own copy of anything promoted into
+> it. The deletion removes conversation content. The workflow object is untouched and remains
+> complete on its own.
 >
-> **What survives.** The scenario is no longer an architectural contradiction. It remains a
-> **product** question — a user may still believe the voice note was the agreement, and be wrong —
-> and a **legal** one, because §8.3 does not depend on the platform's view of authority.
+> **What remains.** A user may believe a conversation was the arrangement when the workflow says
+> otherwise. That is a product and communication problem — addressed by making the step into the
+> workflow short and obvious (§9) — not a defect in the data model.
 
-> **`C28` Non-authoritative is not non-discoverable**
+> **`C28` The architecture defines platform behaviour, not legal status**
 >
-> `C25` settles what the *platform* treats as the record. It does not settle what a court, tribunal,
-> or regulator treats as evidence, and it cannot: discoverability attaches to relevance, not to a
-> vendor's architecture.
+> **Official YesPleez bookings, invitations and agreements are created and managed through structured
+> workflows.** That is the whole of what this document asserts.
 >
-> Two obligations follow, and they are the platform's, not the user's:
+> It defines what **YesPleez recognises** as an official action. It does not define — and must not be
+> written as though it defines — what any court, tribunal or regulator may treat as evidence. That
+> question is outside the scope of an architecture specification, and characterising it here would
+> put a guess where advice belongs (§8.5).
 >
-> 1. **Never represent conversations as deniable or unrecoverable.** A product that implies "this
->    doesn't count" and then produces the thread under subpoena has misled its users about their
->    legal exposure. Erasure may be offered; immunity may not be implied.
-> 2. **The unformalised half is a real gap.** People agree in chat and formalise partially or not at
->    all. Booking says $800; the voice note said $800 plus accommodation. `C25` answers which
->    governs — the workflow — and that is better than ambiguity, but it means the platform is
->    asserting the unformalised half did not count. That assertion belongs in the terms, stated
->    plainly, not left as an emergent property of the schema.
+> One product obligation does follow, because it is about platform behaviour rather than legal
+> effect:
+>
+> **Never present conversations to users as private, deniable, or unrecoverable.** The platform may
+> offer erasure of conversation content (§8.4). It may not imply anything about the consequences of
+> having said something.
 
 ### 8.3 The full scenario set
 
@@ -636,9 +651,11 @@ classified; it is never the record.
 
 ### 8.5 Where legal advice is required
 
-**I am not able to answer any of these and this document must not be read as advice.** `C25`
-rewrote this list: the questions are now about **workflow objects**, which the platform asserts are
-records, rather than about conversations, which it asserts are not.
+**I am not able to answer any of these and this document must not be read as advice.** `C25` and
+`C28` rewrote this list: the questions concern **workflow objects**, the things YesPleez recognises
+as official actions, rather than conversations. The architecture describes platform behaviour; these
+questions ask what obligations attach to that behaviour, which is a matter for legal review and not
+for this document to characterise.
 
 1. Does a **Booking or Agreement workflow object** constitute a business record attracting retention
    obligations, for how long, and in which of the jurisdictions where hosts and venues operate?
@@ -649,11 +666,11 @@ records, rather than about conversations, which it asserts are not.
    two domains differently — erasable conversations versus retained workflow objects?
 4. Is YesPleez **controller, processor, or joint controller** for each domain? The answer may differ
    between them, and determines who must answer an erasure request at all.
-5. May the terms **assert that only workflow objects are authoritative** — that an arrangement
-   discussed in Messenger and never formalised has no platform-recognised status (`C28.2`)? Is that
-   assertion enforceable, and does it need to be conspicuous rather than buried?
-6. What must an **export** contain to be useful in a dispute, given `C28.1` — that conversations
-   remain discoverable regardless of the platform's position on authority?
+5. The platform's behaviour is that official bookings, invitations and agreements are created and
+   managed through structured workflows (`C28`). **How should that behaviour be described in the
+   terms and in the product**, accurately and without implying more or less than it does?
+6. If a participant requests conversation history — for a dispute or otherwise — **what should an
+   export contain**, and does the platform have any obligation to provide one?
 
 > **Severity, revised.** v1.1 §A12 records `U2` as *"Blocks M8. Legal input required."* Under `C25`
 > the **architectural** decision is made — two retention domains, conversations erasable, workflow
@@ -735,15 +752,29 @@ by a human. Nothing enters this domain by inference.
 >
 > Structured context is both the more reliable signal and the one that requires reading nothing.
 
-> **`C29` An invited AI participant is not ambient analysis**
+> **◆ `C29` An assistant that reads a conversation must appear in that conversation**
 >
-> `C27` forbids the platform reading conversations. It does not forbid an AI **participant** (`C24`,
-> §10.4) that a user has deliberately brought into a conversation from reading that conversation —
-> that is a party to the discussion, present by invitation, visible in the participant list.
+> **This is an ecosystem principle, binding on Scene, Festival, Operations, Studio and every future
+> product.** It is stated here because messaging is where it will first be tested, not because it is
+> scoped to messaging.
 >
-> These will be conflated. The distinction is consent and visibility: a participant is present and
-> attributed; ambient analysis is neither. **An assistant that reads a conversation must appear in
-> it.**
+> **The platform performs no hidden ambient analysis of private conversations.** Not for intent, not
+> for assistance, not for product analytics, not for model training, not for safety heuristics. There
+> is no exception in which conversation content is read by an automated system that is not visibly
+> present in the conversation.
+>
+> **Any AI participant is explicit, visible, and intentionally invited by the participants.** It
+> appears in the participant list. Its messages are attributed to it (`C24`). A user can see that it
+> is there and can remove it.
+>
+> `C27` and `C29` are the same commitment stated from two directions: assistance derives from
+> structured context, and anything that needs more than structured context must join the conversation
+> in the open. The two will be conflated by anyone who reads only one of them — the distinguishing
+> test is **visibility**, not capability or consent-in-a-settings-screen.
+>
+> **Why this is architecture and not policy:** a policy can be revised quietly by a later team under
+> product pressure. A rule stated here, cited by implementations, and enforced by the absence of any
+> read path for conversation content is considerably harder to reverse by accident.
 
 ### 9.5 Drafts and non-interruption
 
@@ -795,6 +826,22 @@ Internal and moderation conversations via `operations` context, staff acting as 
 re-publish (`publication-v1.0-draft` §P8). An Ops conversation quoting withheld content does not
 make that content published.
 
+> **`C29` binds Operations, and this is where it will be tested**
+>
+> `C29` forbids automated reading of private conversations. It does not, on its face, address a
+> **human** moderator reviewing a conversation that has been explicitly reported to them.
+>
+> These are genuinely different — reported human review is bounded, accountable and initiated by a
+> participant; ambient automated analysis is none of those. But the boundary must be drawn
+> deliberately rather than discovered when the first report arrives, because every erosion of `C29`
+> will arrive dressed as a safety requirement.
+>
+> **What must be specified before Operations ships** (`D17`): what a report grants access to, for how
+> long, to whom, whether participants are told, and — the load-bearing one — whether any *automated*
+> scanning is permitted for safety at all. This document's position is that automated scanning is
+> not permitted under `C29`; if a future product requires it, that requires a versioned amendment and
+> an honest disclosure to users, not an internal exception.
+
 ### 10.3 Studio
 
 System messaging — moderation outcomes, catalog notices — is a conversation from a system profile,
@@ -839,6 +886,7 @@ Every question this document deliberately leaves open, why, and when it must be 
 | **`D14`** | Conversation export — whether, and in what form | No longer a legal necessity under `C25`, but `C28.1` means it will be asked for | Post-v1 acceptable |
 | **`D15`** | **Amendment to v1.1 §A12 `U2`** — downgrading it from "Blocks M8" to "blocks launch" | This document cannot downgrade a frozen document's blocker by asserting it; it requires a versioned amendment | Before M8 begins |
 | **`D16`** | Assistance volume — how much draft preparation is helpful before it is intrusive (§9.6) | Not knowable from architecture; set by foundational users | During beta |
+| **`D17`** | **Moderation access boundary** (§10.2) — what a report grants, to whom, for how long, whether participants are told, and whether *any* automated safety scanning is permitted | `C29` forbids ambient automated analysis; human review on an explicit report is a different thing and the line must be drawn deliberately, not under pressure | Before Operations ships |
 
 ### Not decided here, and not architecture
 
@@ -863,3 +911,45 @@ amendment. It must obey the existing rule that primary navigation renders on eve
    (README, "Drafts").
 6. **Rule numbers frozen.** `C1`–`C24` and `D1`–`D10` become a citation interface on ratification and
    may never be renumbered.
+
+---
+
+## §13 — Amendment record
+
+Per `architecture-v1.0` §17, restated for a document still in draft. Revisions accumulate here until
+ratification; on ratification this section becomes the document's provenance.
+
+### Revision 2 — 18 Jul 2026 · Messenger & Workflow Separation
+
+| Field | Value |
+|---|---|
+| **Requested by** | Owner — "Messaging Philosophy & Workflow Handoffs", then "Communication Architecture — Philosophy Clarification", 18 Jul 2026 |
+| **Nature** | Foundational. Reverses the assumption Revision 1 was built on. |
+| **Bar cleared** | `architecture-v1.0` §00 — this is not preference. Revision 1 modelled conversations as business records, which made `D1` a hard blocker on M8 and produced a storage model in contradiction with itself (`C23`). The clarification resolves both. |
+
+**What changed:**
+
+| # | Change |
+|---|---|
+| **1** | **`C25` Messenger is not the authoritative business record.** Structured workflows — Applications, Invitations, Bookings, Agreements, and future modules — record official actions. Messenger facilitates communication. Two domains, different responsibilities. |
+| **2** | **`C26` Copy, never reference** — promoted to a founding rule (§1). Information crossing into a workflow is copied into that workflow's own data model. Workflow objects are self-contained; deleting a message, attachment or voice note can never invalidate one. |
+| **3** | **`C27` Assistance reads structure, never content.** Draft preparation derives from conversation context, participant roles, linked events and workflow state — never from interpreting what people said. |
+| **4** | **`C28` rewritten to remove legal assertion.** Revision 2a stated that the platform "asserts the unformalised half did not count" and characterised discoverability. Both removed. The document now states only what YesPleez recognises as an official action and leaves legal characterisation to §8.5. |
+| **5** | **`C29` strengthened to an ecosystem principle.** No hidden ambient analysis of private conversations, anywhere in the ecosystem, for any purpose. Any AI participant is explicit, visible and invited. Binds Operations (§10.2). |
+| **6** | **`C30`/`C31` drafts and non-interruption.** Drafts are private, single-party, never auto-submitted, invisible to the counterparty. Assistance never interrupts a conversation. |
+| **7** | **§8 reassessed.** Retention splits by object type — workflow retained, communication erasable — replacing Revision 1's "retention class by conversation context". `D2` closed. |
+| **8** | **`D1` downgraded** from blocking M8 to blocking launch, and **`D15` added**: this downgrade is a proposed amendment to `identity-v1.1` §A12 `U2` and has no force until ratified as one. |
+| **9** | **New §9** (Messenger, workflow and assistance). Former §9–§11 renumbered §10–§12. **No rule numbers were renumbered.** |
+| **10** | **`D11`–`D14`, `D16`, `D17` added.** Principally `D11` — the workflow side of the `C25` boundary is not specified by this document and must be before M8 schema work. |
+
+**What did not change:** the conversation model (§2), context model (§3), permission model (§4),
+notification architecture (§5) and voice pipeline (§6) are unaffected. `C25` governs what a
+conversation *is for*, not how it works.
+
+**Standing constraint.** This revision does not begin M8, does not alter M6–M8, and contains no
+implementation. Identity v1.1 §A5, §A3, §A4 and §A9 remain binding and unreopened.
+
+### Revision 1 — 18 Jul 2026 · Initial draft
+
+Phase 11A. The specification M8 will implement, written while M6–M8 remain paused. Superseded in its
+treatment of business records by Revision 2; unchanged elsewhere.
