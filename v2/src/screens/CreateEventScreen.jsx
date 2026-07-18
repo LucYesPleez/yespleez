@@ -121,15 +121,25 @@ function SectionHeader({ label, onInfo }) {
   );
 }
 
+/* 11C.7 — beta surfaces only the `beta: true` controls. The rest stay defined
+   (and fully wired below) so re-enabling them is a one-line flag flip. */
 const HOST_CONTROL_INFO = [
+  { label: 'Public Event', beta: true, body: 'When on, your event is listed in Discover and searchable by anyone on the app. Turn off to keep it invite-only or while you\'re still setting up.' },
+  { label: 'Show Set Times to Artists', beta: true, body: 'Booked artists can see the running order before it is public. Turn it off to keep set times private — each artist only sees their own slot until you choose to reveal the full lineup.' },
+  { label: 'Publish Set Times', beta: true, body: 'Show the running order on the public event page. Keep it off to build anticipation or if times are still being confirmed — your artists can still see it via the control above.' },
   { label: 'Artists can remove their own claim', body: 'When on, artists can withdraw from their slot at any time without contacting you. Turn this off if you want full control — no one leaves the lineup without your say.' },
   { label: 'Show ranked backup preferences', body: 'Artists can nominate up to 3 slots they\'d like as a backup if their first choice is taken. Gives the auto-generator better data to fill your lineup fairly.' },
   { label: 'Show genre / vibe pickers', body: 'Adds sound and genre selectors to the application form. Helps you match the right artists to the right slots — especially useful for multi-genre or themed events.' },
-  { label: 'Public set times', body: 'When on, the full running order is visible to every artist on the bill. Turn it off to keep set times private — each artist only sees their own slot until you choose to reveal the full lineup.' },
-  { label: 'Show set times publicly', body: 'When on, a set times tab appears on the public event page so anyone can see the running order. Keep it off to build anticipation or if times are still being confirmed.' },
   { label: 'Applications open', body: 'Controls whether artists can submit an application to play your event. Turn off once you\'re booked out or want to close submissions without cancelling the event.' },
-  { label: 'Public event', body: 'When on, your event is listed in Discover and searchable by anyone on the app. Turn off to keep it invite-only or while you\'re still setting up.' },
 ];
+
+/* Flip to true to restore the full host-controls set (state, persistence and
+   behaviour for these are untouched — they are hidden, not removed). */
+const SHOW_ADVANCED_HOST_CONTROLS = false;
+
+const VISIBLE_HOST_CONTROL_INFO = HOST_CONTROL_INFO.filter(
+  item => SHOW_ADVANCED_HOST_CONTROLS || item.beta
+);
 
 /* ── Field ───────────────────────────────────────────────────────────────── */
 function Field({ label, children, flex }) {
@@ -581,13 +591,18 @@ export default function CreateEventScreen() {
         {/* ── HOST CONTROLS ── */}
         <SectionHeader label="HOST CONTROLS" onInfo={() => setShowHostInfo(true)} />
         <div className={s.controlsCard}>
-          <Toggle label="Artists can remove their own claim"    sub="When off, only the host can clear slots"                                    value={artistsCanRemove}  onChange={setArtistsCanRemove} />
-          <Toggle label="Show ranked backup preferences"        sub="Artists rank up to 3 preferred slots for the generator"                    value={showRankedBackup}  onChange={setShowRankedBackup} />
-          <Toggle label="Show genre / vibe pickers"            sub="Collect musical style info from artists"                                    value={showGenrePickers}  onChange={setShowGenrePickers} />
-          <Toggle label="Public set times"                     sub="Full running order is visible to every artist on the bill — turn off to keep it under wraps until you're ready"   value={!privateSetTimes}   onChange={v => setPrivateSetTimes(!v)} />
-          <Toggle label="Show set times publicly"              sub="When on, the set times tab is visible on the public event page"             value={showTimesPublicly} onChange={setShowTimesPublicly} />
-          <Toggle label="Applications open"                    sub="Allow artists to apply to this event"                                       value={appsOpen}          onChange={setAppsOpen} />
-          <Toggle label="Public event"                         sub="Visible in Discover to anyone browsing"                                     value={isPublic}          onChange={setIsPublic} />
+          <Toggle label="Public Event"                         sub="Visible in Discover to anyone browsing"                                     value={isPublic}          onChange={setIsPublic} />
+          <div className={s.controlsGroupDivider} />
+          <Toggle label="Show Set Times to Artists"            sub="Booked artists can see the running order before it is public."              value={!privateSetTimes}  onChange={v => setPrivateSetTimes(!v)} />
+          <Toggle label="Publish Set Times"                    sub="Show the running order on the public event page."                           value={showTimesPublicly} onChange={setShowTimesPublicly} />
+
+          {SHOW_ADVANCED_HOST_CONTROLS && (<>
+            <div className={s.controlsGroupDivider} />
+            <Toggle label="Artists can remove their own claim" sub="When off, only the host can clear slots"                                     value={artistsCanRemove}  onChange={setArtistsCanRemove} />
+            <Toggle label="Show ranked backup preferences"     sub="Artists rank up to 3 preferred slots for the generator"                      value={showRankedBackup}  onChange={setShowRankedBackup} />
+            <Toggle label="Show genre / vibe pickers"          sub="Collect musical style info from artists"                                     value={showGenrePickers}  onChange={setShowGenrePickers} />
+            <Toggle label="Applications open"                  sub="Allow artists to apply to this event"                                       value={appsOpen}          onChange={setAppsOpen} />
+          </>)}
         </div>
 
         {/* Host controls info modal */}
@@ -596,7 +611,7 @@ export default function CreateEventScreen() {
             <div onClick={e => e.stopPropagation()} className={s.hostInfoSheet}>
               <div style={{width:36,height:4,borderRadius:2,background:'rgba(255,255,255,0.2)',margin:'0 auto 20px'}} />
               <p style={{fontFamily:"'Bebas Neue'",fontSize:16,letterSpacing:3,background:'linear-gradient(135deg,#00E5FF,#BF5FFF)',WebkitBackgroundClip:'text',WebkitTextFillColor:'transparent',backgroundClip:'text',marginBottom:20}}>HOST CONTROLS EXPLAINED</p>
-              {HOST_CONTROL_INFO.map(item => (
+              {VISIBLE_HOST_CONTROL_INFO.map(item => (
                 <div key={item.label} style={{marginBottom:18,paddingBottom:18,borderBottom:'1px solid rgba(255,255,255,0.06)'}}>
                   <p style={{fontFamily:"'Bebas Neue'",fontSize:13,letterSpacing:1.5,color:'var(--text)',marginBottom:5}}>{item.label}</p>
                   <p style={{fontSize:13,color:'rgba(255,255,255,0.55)',lineHeight:1.6}}>{item.body}</p>

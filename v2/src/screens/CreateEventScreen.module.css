@@ -231,6 +231,15 @@
 
 .toggleRow:last-child { border-bottom: none; }
 
+/* Separates groups of related controls inside .controlsCard.
+   The -1px pull sits it over the previous row's hairline so the two
+   never read as a double line. */
+.controlsGroupDivider {
+  height: 1px;
+  margin-top: -1px;
+  background: linear-gradient(90deg, rgba(0,229,255,0.35), rgba(191,95,255,0.35), transparent);
+}
+
 .toggleLabel {
   font-size: 14px;
   color: var(--text);
