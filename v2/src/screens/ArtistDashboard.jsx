@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
+import { resolvePerformerProfileId } from '../lib/actingProfile';
 import { writeNotification } from '../lib/writeNotification';
 import { useSession } from '../App';
 import { today, formatDisplayDate } from '../lib/dates';
@@ -288,8 +289,17 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
     const offer = offers.find(o => o.id === id);
     if (!offer) return;
     if (status === 'accepted' && offer.event_id) {
+      // M6 (R6.1): the invitation already names the profile that was
+      // invited — applicant_profile_id on venue_enquiries. Use it rather
+      // than re-deriving: the host chose this profile, so any other answer
+      // would attribute the application to someone they did not invite.
+      // Fall back to the seam only for legacy offers that predate that
+      // column being populated.
+      const fromProfileId = offer.applicant_profile_id
+        ?? (await resolvePerformerProfileId(userId)).profileId
+        ?? null;
       await supabase.from('applications').insert({
-        event_id: offer.event_id, artist_id: userId, status: 'pending',
+        event_id: offer.event_id, artist_id: userId, from_profile_id: fromProfileId, status: 'pending',
       });
     }
     await supabase.from('venue_enquiries').update({ status }).eq('id', id);

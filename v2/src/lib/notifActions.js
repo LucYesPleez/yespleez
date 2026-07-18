@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { resolvePerformerProfileId } from './actingProfile';
 
 export async function acceptSlotOffer(data, userId) {
   if (data.performance_id) {
@@ -45,10 +46,23 @@ export async function declineSlotOffer(data, userId) {
 }
 
 export async function acceptInvite(data, userId) {
+  // M6 (R6.1): stamp the sender profile. This path has no UI to ask with,
+  // so it resolves deterministically only. Where the account owns several
+  // performer profiles the sender stays NULL rather than being guessed —
+  // U4's rule applied at write time instead of at backfill time.
+  //
+  // If the invite ever starts carrying the invited profile id (as
+  // venue_enquiries.applicant_profile_id already does), prefer that and
+  // this branch stops mattering.
+  const { profileId, ambiguous } = await resolvePerformerProfileId(userId);
+  if (ambiguous) {
+    console.warn('[acceptInvite] multiple performer profiles; sender left unattributed', { userId });
+  }
   await supabase.from('applications').insert({
-    event_id:  data.event_id,
-    artist_id: userId,
-    status:    'tentative',
+    event_id:        data.event_id,
+    artist_id:       userId,
+    from_profile_id: profileId ?? null,
+    status:          'tentative',
   });
   if (data.host_id) {
     await supabase.from('notifications').insert({

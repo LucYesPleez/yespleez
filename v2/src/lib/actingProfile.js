@@ -65,6 +65,69 @@ export async function getPersonalProfileId(userId) {
   return data.id;
 }
 
+/**
+ * Types that can apply for a gig. Personal is excluded because a
+ * Personal profile does not perform (§A9), and venue/host are not
+ * performers. Same set the U4 backfill used — they must not drift, or
+ * historical and new attribution stop meaning the same thing.
+ */
+export const PERFORMER_TYPES = ['artist', 'band', 'standup'];
+
+/**
+ * Every profile the user could apply as, deterministically ordered.
+ *
+ * Ordering is explicit and stable (type, then created_at, then id).
+ * The pre-M6 code read `.neq('type','punter').limit(1)` with no ORDER
+ * BY, so which profile the UI claimed to be "applying as" was
+ * undefined row order — the same class of fault M5.1 fixed for
+ * profile routes. A picker over an unstable list would be no better.
+ */
+export async function getPerformerProfiles(userId) {
+  if (!userId) return [];
+
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id, type, name, sound, genre_string')
+    .eq('user_id', userId)
+    .in('type', PERFORMER_TYPES)
+    .order('type', { ascending: true })
+    .order('created_at', { ascending: true })
+    .order('id', { ascending: true });
+
+  if (error) {
+    console.error('[actingProfile] performer profile lookup failed', error);
+    return [];
+  }
+  return data ?? [];
+}
+
+/**
+ * Deterministic acting-profile resolution for applications.
+ *
+ * Exactly one eligible profile  → { profileId }        decided
+ * Several eligible profiles     → { ambiguous: [...] } caller must ask
+ * None                          → { profileId: null }  nothing to apply as
+ *
+ * ── THIS IS THE SEAM (M6, deliberately not R6) ──
+ *
+ * v1.1 R6 specifies an active-profile context with a "Sending as ▾"
+ * control — a P-class product decision (§A11) that is NOT built during
+ * M6. When it is, it replaces the BODY of this function and nothing
+ * else: write sites ask "which profile is acting", and continue to ask
+ * exactly that. The ambiguous branch simply stops occurring, because
+ * R6 will already know the answer.
+ *
+ * So do not inline this logic at a call site, and do not let a caller
+ * choose a profile by any other route. The whole point is that R6 can
+ * land later without touching a single application write.
+ */
+export async function resolvePerformerProfileId(userId) {
+  const profiles = await getPerformerProfiles(userId);
+  if (profiles.length === 1) return { profileId: profiles[0].id };
+  if (profiles.length === 0) return { profileId: null };
+  return { ambiguous: profiles };
+}
+
 /** Call on sign-out — a cached id must not leak across sessions. */
 export function clearActingProfileCache() {
   personalCache.clear();

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
-import { getPersonalProfileId } from '../lib/actingProfile';
+import { getPersonalProfileId, getPerformerProfiles } from '../lib/actingProfile';
 import { useSession, usePlayer } from '../App';
 import { formatDateRange } from '../lib/dates';
 import Skeleton from '../components/Skeleton';
@@ -1134,7 +1134,8 @@ function ApplyButton({ eventId, userId }) {
   const [open,          setOpen]          = useState(false);
   const [loading,       setLoading]       = useState(false);
   const [checked,       setChecked]       = useState(false);
-  const [artistProfile, setArtistProfile] = useState(null);
+  const [performers,    setPerformers]    = useState([]);
+  const [actingId,      setActingId]      = useState(null);
 
   useEffect(() => {
     if (!userId || !eventId) { setChecked(true); return; }
@@ -1144,8 +1145,14 @@ function ApplyButton({ eventId, userId }) {
 
   useEffect(() => {
     if (!userId) return;
-    supabase.from('profiles').select('name,sound,genre_string,mix_link').eq('user_id', userId).neq('type', 'punter').limit(1).maybeSingle()
-      .then(({ data }) => setArtistProfile(data));
+    // M6: the acting profile comes from the one seam (actingProfile.js).
+    // Auto-select ONLY when there is exactly one eligible profile; with
+    // several the user chooses, because guessing the sender is precisely
+    // what B2 cost us on every pre-M6 application row.
+    getPerformerProfiles(userId).then(list => {
+      setPerformers(list);
+      setActingId(list.length === 1 ? list[0].id : null);
+    });
   }, [userId]);
 
   if (!checked) return null;
@@ -1163,10 +1170,13 @@ function ApplyButton({ eventId, userId }) {
   }
 
   async function submit() {
+    // R6.1: never write an application that cannot name its sender.
+    if (!actingId) return;
     setLoading(true);
     const { error } = await supabase.from('applications').insert({
       event_id: eventId,
       artist_id: userId,
+      from_profile_id: actingId,
       status: 'pending',
       note,
     });
@@ -1181,9 +1191,39 @@ function ApplyButton({ eventId, userId }) {
       ) : (
         <div className={s.applyForm}>
           <p style={{ fontFamily: "'Bebas Neue'", fontSize: 14, letterSpacing: 2, marginBottom: 8 }}>YOUR APPLICATION</p>
-          {artistProfile && (
+          {/* M6 · acting profile. One eligible profile is stated; several
+              are chosen from. Nothing is pre-selected when it is ambiguous —
+              a default here would be a guess wearing a confirmation. */}
+          {performers.length === 1 && (
             <p style={{ fontSize: 12, color: 'var(--neon2)', marginBottom: 8, fontFamily: "'Bebas Neue'", letterSpacing: 1 }}>
-              APPLYING AS: {artistProfile.name} · {artistProfile.sound || artistProfile.genre_string || ''}
+              APPLYING AS: {performers[0].name} · {performers[0].sound || performers[0].genre_string || ''}
+            </p>
+          )}
+          {performers.length > 1 && (
+            <div style={{ marginBottom: 10 }}>
+              <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 6, fontFamily: "'Bebas Neue'", letterSpacing: 1 }}>APPLYING AS</p>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {performers.map(p => {
+                  const on = p.id === actingId;
+                  return (
+                    <button key={p.id} type="button" onClick={() => setActingId(p.id)}
+                      style={{
+                        padding: '6px 12px', borderRadius: 8, cursor: 'pointer',
+                        fontFamily: "'Bebas Neue'", fontSize: 12, letterSpacing: 1,
+                        border: `1px solid ${on ? 'var(--neon2)' : 'var(--border)'}`,
+                        background: on ? 'rgba(0,229,255,.12)' : 'none',
+                        color: on ? 'var(--neon2)' : 'var(--muted)',
+                      }}>
+                      {p.name || '(unnamed)'}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+          {performers.length === 0 && (
+            <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 8 }}>
+              You need an artist, band or comedy profile before you can apply.
             </p>
           )}
           <textarea value={note} onChange={e => setNote(e.target.value)}
@@ -1192,8 +1232,9 @@ function ApplyButton({ eventId, userId }) {
           <div style={{ display: 'flex', gap: 8 }}>
             <button onClick={() => setOpen(false)}
               style={{ flex: 1, background: 'none', border: '1px solid var(--border)', color: 'var(--muted)', fontFamily: "'Bebas Neue'", fontSize: 14, letterSpacing: 1.5, padding: 10, borderRadius: 8 }}>CANCEL</button>
-            <button onClick={submit} disabled={loading} className={s.applyBtn} style={{ flex: 2 }}>
-              {loading ? '…' : 'SEND APPLICATION'}
+            <button onClick={submit} disabled={loading || !actingId} className={s.applyBtn}
+              style={{ flex: 2, opacity: actingId ? 1 : .5 }}>
+              {loading ? '…' : performers.length > 1 && !actingId ? 'CHOOSE A PROFILE' : 'SEND APPLICATION'}
             </button>
           </div>
         </div>
