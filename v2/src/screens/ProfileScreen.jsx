@@ -598,7 +598,7 @@ export default function ProfileScreen() {
                   <div style={{ padding: '12px 16px', textAlign: 'center', fontStyle: 'italic', fontSize: 15, color: 'rgba(232,232,240,.75)', lineHeight: 1.6 }}>{profile.sound}</div>
                 </>
               )}
-              <VenueInfoDropdown bare profile={profile} col={col} rgb={rgb} grad2={grad2} socials={socials} />
+              <VenueInfoDropdown bare profile={profile} col={col} rgb={rgb} grad2={grad2} />
             </div>
           )}
 
@@ -683,10 +683,10 @@ export default function ProfileScreen() {
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 8, verticalAlign: 'middle', marginTop: -2 }}><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>CHECK AVAILABILITY
               </button>
             )}
-            {/* Restore shared social links row beneath Follow/Message for
-                every non-venue type — Venue keeps its own (unchanged) row
-                inside VenueInfoDropdown above. */}
-            {!isVenue && <div style={{ paddingTop: 12 }}><ProfileSocialLinks socials={socials} justify="center" /></div>}
+            {/* Shared social links row beneath the action buttons — now on
+                every profile type, venue included (11C.4: the venue's socials
+                used to be buried inside the VENUE INFO dropdown). */}
+            <div style={{ paddingTop: 12 }}><ProfileSocialLinks socials={socials} justify="center" /></div>
           </div>
 
           {/* Claim this profile — unclaimed profiles only (keyed on the row's
@@ -998,7 +998,7 @@ export default function ProfileScreen() {
   );
 }
 
-function VenueInfoDropdown({ profile, col, rgb, grad2, bare = false, socials = [] }) {
+function VenueInfoDropdown({ profile, col, rgb, grad2, bare = false }) {
   const [open, setOpen] = useState(false);
   const [bioExpanded, setBioExpanded] = useState(false);
   const entertain  = profile.genre_string  ? profile.genre_string.split(/\s*·\s*|,\s*/).map(g => g.trim()).filter(Boolean) : [];
@@ -1081,14 +1081,6 @@ function VenueInfoDropdown({ profile, col, rgb, grad2, bare = false, socials = [
             <div style={{ ...rowStyle, alignItems: 'flex-start' }}>
               <div style={labelStyle}>LIVE NIGHTS</div>
               <div style={{ fontSize: 13, color: 'var(--muted)', flex: 1, lineHeight: 1.6 }}>{nights.join(', ')}</div>
-            </div>
-          )}
-          {socials.length > 0 && (
-            <div style={{ ...rowStyle, alignItems: 'center', borderBottom: 'none' }}>
-              <div style={labelStyle}>SOCIALS / LINKS</div>
-              <div style={{ flex: 1 }}>
-                <ProfileSocialLinks socials={socials} />
-              </div>
             </div>
           )}
         </div>
