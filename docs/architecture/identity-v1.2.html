@@ -1,0 +1,487 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1"><style>:root{color-scheme:light}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}</style></head><body>
+<title>YesPleez v2 — Identity Architecture v1.2 (Amendment)</title>
+<style>
+  :root {
+    --bg:        #0A0C10;
+    --surface:   #12151C;
+    --surface-2: #171B24;
+    --border:    rgba(255,255,255,.08);
+    --border-2:  rgba(255,255,255,.14);
+    --text:      #E6E8EE;
+    --muted:     #8B90A0;
+    --faint:     #5A5F6E;
+    --accent:    #00E5FF;
+    --accent-2:  #FF2D78;
+    --good:      #00E5A0;
+    --warn:      #FFB020;
+    --bad:       #FF4D6A;
+    --purple:    #BF5FFF;
+    --mono: 'Cascadia Code','Cascadia Mono','Consolas','SF Mono',ui-monospace,monospace;
+    --sans: 'Segoe UI Variable','Segoe UI',-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+  body, .doc { background: var(--bg); }
+
+  .doc {
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+  }
+
+  .layout {
+    display: grid;
+    grid-template-columns: 264px minmax(0, 1fr);
+    max-width: 1180px;
+    margin: 0 auto;
+  }
+
+  /* ---------- Table of contents ---------- */
+  .toc {
+    position: sticky; top: 0; align-self: start;
+    height: 100vh; overflow-y: auto;
+    padding: 40px 24px 40px 32px;
+    border-right: 1px solid var(--border);
+    scrollbar-width: thin;
+  }
+  .toc-brand {
+    font-family: var(--mono); font-size: 11px; letter-spacing: .5px;
+    color: var(--warn); text-transform: uppercase; margin-bottom: 4px;
+  }
+  .toc-title {
+    font-size: 15px; font-weight: 700; letter-spacing: -.01em;
+    margin-bottom: 22px; color: var(--text); line-height: 1.3;
+  }
+  .toc-status {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-family: var(--mono); font-size: 10.5px; letter-spacing: .3px;
+    color: var(--warn); border: 1px solid rgba(255,176,32,.35);
+    background: rgba(255,176,32,.07); border-radius: 20px;
+    padding: 3px 10px; margin-bottom: 26px;
+  }
+  .toc-status::before { content:''; width:6px; height:6px; border-radius:50%; background: var(--warn); }
+  .toc nav { display: flex; flex-direction: column; gap: 1px; }
+  .toc a {
+    display: flex; gap: 10px; align-items: baseline;
+    color: var(--muted); text-decoration: none;
+    font-size: 13.5px; line-height: 1.4;
+    padding: 6px 10px; border-radius: 7px;
+    border-left: 2px solid transparent;
+    transition: color .15s, background .15s, border-color .15s;
+  }
+  .toc a .n { font-family: var(--mono); font-size: 11px; color: var(--faint); min-width: 26px; }
+  .toc a:hover { color: var(--text); background: rgba(255,255,255,.03); }
+  .toc a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .toc a.active { color: var(--warn); border-left-color: var(--warn); background: rgba(255,176,32,.06); }
+  .toc a.active .n { color: var(--warn); }
+
+  /* ---------- Main column ---------- */
+  main { padding: 56px 56px 140px; min-width: 0; }
+
+  .doc-head { margin-bottom: 56px; }
+  .eyebrow {
+    font-family: var(--mono); font-size: 12px; letter-spacing: 2px;
+    text-transform: uppercase; color: var(--warn); margin-bottom: 16px;
+  }
+  h1.title {
+    font-size: 44px; line-height: 1.08; letter-spacing: -.025em;
+    font-weight: 800; margin: 0 0 20px; text-wrap: balance;
+  }
+  .lede { font-size: 18px; line-height: 1.6; color: var(--muted); max-width: 640px; }
+  .meta-row { display: flex; flex-wrap: wrap; gap: 8px 10px; margin-top: 28px; }
+  .meta {
+    font-family: var(--mono); font-size: 11.5px; letter-spacing: .3px;
+    color: var(--muted); background: var(--surface);
+    border: 1px solid var(--border); border-radius: 6px; padding: 5px 11px;
+  }
+  .meta b { color: var(--text); font-weight: 600; }
+  .meta.amend { color: var(--warn); border-color: rgba(255,176,32,.3); }
+
+  section { scroll-margin-top: 24px; padding-top: 8px; margin-top: 64px; }
+  section:first-of-type { margin-top: 0; }
+
+  .sec-head { display: flex; align-items: baseline; gap: 16px; margin-bottom: 8px; }
+  .sec-num { font-family: var(--mono); font-size: 14px; font-weight: 600; color: var(--warn); letter-spacing: 1px; }
+  h2 { font-size: 27px; line-height: 1.2; letter-spacing: -.02em; font-weight: 750; margin: 0; text-wrap: balance; }
+  .sec-sub { color: var(--muted); font-size: 15.5px; margin: 6px 0 28px; max-width: 680px; }
+
+  h3 {
+    font-size: 16px; letter-spacing: .04em; text-transform: uppercase;
+    font-weight: 700; color: var(--text); margin: 36px 0 14px;
+    padding-bottom: 8px; border-bottom: 1px solid var(--border);
+  }
+  h4 { font-size: 15px; font-weight: 700; margin: 26px 0 10px; color: var(--text); }
+
+  p { margin: 0 0 16px; max-width: 68ch; }
+  strong { color: #fff; font-weight: 650; }
+
+  a.inline { color: var(--accent); text-decoration: none; border-bottom: 1px solid rgba(0,229,255,.3); }
+  a.inline:hover { border-bottom-color: var(--accent); }
+
+  code, .tok {
+    font-family: var(--mono); font-size: 12.5px;
+    background: rgba(0,229,255,.08); color: #7EE9FF;
+    border: 1px solid rgba(0,229,255,.15);
+    border-radius: 5px; padding: 1px 6px; white-space: nowrap;
+  }
+  .tok.n { background: rgba(255,255,255,.05); color: var(--text); border-color: var(--border); }
+
+  ul, ol { margin: 0 0 18px; padding-left: 22px; }
+  li { margin-bottom: 8px; max-width: 68ch; }
+  li::marker { color: var(--faint); }
+  ul.clean { list-style: none; padding-left: 0; }
+  ul.clean > li { position: relative; padding-left: 26px; }
+  ul.clean > li::before {
+    content:''; position: absolute; left: 6px; top: 11px;
+    width: 6px; height: 6px; border-radius: 50%; background: var(--accent);
+  }
+
+  /* ---------- Callouts ---------- */
+  .callout {
+    border: 1px solid var(--border); border-left-width: 3px;
+    background: var(--surface); border-radius: 8px;
+    padding: 16px 20px; margin: 22px 0; max-width: 720px;
+  }
+  .callout .label {
+    font-family: var(--mono); font-size: 10.5px; letter-spacing: 1.5px;
+    text-transform: uppercase; font-weight: 600; margin-bottom: 8px;
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  }
+  .callout p:last-child, .callout ul:last-child { margin-bottom: 0; }
+  .callout.principle { border-left-color: var(--accent); }
+  .callout.principle .label { color: var(--accent); }
+  .callout.risk { border-left-color: var(--accent-2); background: rgba(255,45,120,.05); }
+  .callout.risk .label { color: var(--accent-2); }
+  .callout.decision { border-left-color: var(--warn); background: rgba(255,176,32,.05); }
+  .callout.decision .label { color: var(--warn); }
+  .callout.note { border-left-color: var(--faint); }
+  .callout.note .label { color: var(--muted); }
+  .callout.rule { border-left-color: var(--good); background: rgba(0,229,160,.04); }
+  .callout.rule .label { color: var(--good); }
+  .callout.gate { border-left-color: var(--purple); background: rgba(191,95,255,.05); }
+  .callout.gate .label { color: var(--purple); }
+
+  /* ---------- Tables ---------- */
+  .table-wrap { overflow-x: auto; margin: 20px 0; border: 1px solid var(--border); border-radius: 10px; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; min-width: 560px; }
+  th, td { text-align: left; padding: 12px 16px; vertical-align: top; border-bottom: 1px solid var(--border); }
+  th {
+    font-family: var(--mono); font-size: 11px; letter-spacing: .5px;
+    text-transform: uppercase; color: var(--muted); font-weight: 600;
+    background: var(--surface-2); position: sticky; top: 0;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover { background: rgba(255,255,255,.015); }
+  table.compact th, table.compact td { padding: 9px 14px; }
+  td.was { color: var(--muted); text-decoration: line-through; text-decoration-color: rgba(255,77,106,.5); }
+  td.now { color: var(--text); }
+
+  /* ---------- Schema card ---------- */
+  .schema {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; overflow: hidden; margin: 22px 0; max-width: 720px;
+  }
+  .schema-head {
+    font-family: var(--mono); font-size: 13px; color: var(--text);
+    padding: 12px 18px; background: var(--surface-2);
+    border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px;
+  }
+  .schema-head .kw { color: var(--purple); }
+  .field {
+    display: grid; grid-template-columns: 200px 1fr; gap: 16px;
+    padding: 10px 18px; border-bottom: 1px solid var(--border); font-size: 13.5px;
+  }
+  .field:last-child { border-bottom: none; }
+  .field .fname { font-family: var(--mono); font-size: 12.5px; color: #7EE9FF; }
+  .field .fdesc { color: var(--muted); }
+  .field .fdesc b { color: var(--text); }
+
+  /* ---------- Diagram ---------- */
+  .diagram {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 20px 16px; margin: 24px 0; max-width: 760px;
+    overflow-x: auto;
+  }
+  .diagram svg { width: 100%; min-width: 560px; height: auto; display: block; }
+  .d-box { fill: var(--surface-2); stroke: var(--border-2); stroke-width: 1; }
+  .d-acct { stroke: var(--text); }
+  .d-personal { stroke: var(--faint); stroke-dasharray: 3 3; }
+  .d-prof { stroke: var(--border-2); }
+  .d-active { stroke: var(--warn); fill: rgba(255,176,32,.07); }
+  .d-action { stroke: var(--text); fill: rgba(255,255,255,.04); }
+  .d-attr { stroke: rgba(0,229,255,.4); fill: rgba(0,229,255,.05); }
+  .d-auth { stroke: rgba(255,45,120,.4); fill: rgba(255,45,120,.05); }
+  .d-line { stroke: var(--faint); stroke-width: 1.2; fill: none; }
+  .d-dash { stroke-dasharray: 4 3; stroke: var(--warn); }
+  .d-pink-line { stroke: rgba(255,45,120,.45); stroke-dasharray: 4 3; }
+  .d-lbl {
+    font-family: var(--mono); font-size: 12px; font-weight: 700; fill: var(--text);
+    text-anchor: middle; letter-spacing: .4px;
+  }
+  .d-sub { font-family: var(--sans); font-size: 10px; fill: var(--muted); text-anchor: middle; }
+  .d-edge { font-family: var(--mono); font-size: 9.5px; fill: var(--muted); letter-spacing: .3px; }
+  .d-note { font-family: var(--sans); font-size: 11px; fill: var(--faint); text-anchor: middle; font-style: italic; }
+  .d-cyan { fill: var(--accent); }
+  .d-pink { fill: var(--accent-2); }
+  .d-warn { fill: var(--warn); }
+  .d-faint { fill: var(--faint); }
+  .d-on { fill: var(--warn); }
+  .d-vert { writing-mode: tb; letter-spacing: 1px; }
+
+  /* ---------- Pills ---------- */
+  .pill {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-family: var(--mono); font-size: 11px; letter-spacing: .3px;
+    border-radius: 20px; padding: 2px 9px; white-space: nowrap;
+    border: 1px solid var(--border-2);
+  }
+  .pill::before { content:''; width:5px; height:5px; border-radius:50%; background: currentColor; }
+  .pill.unclaimed { color: var(--muted); }
+  .pill.claimed  { color: var(--good); border-color: rgba(0,229,160,.35); }
+  .pill.open     { color: var(--warn); border-color: rgba(255,176,32,.35); }
+
+  .yes { color: var(--good); font-weight: 600; }
+  .no  { color: var(--bad);  font-weight: 600; }
+
+  .ref-id {
+    font-family: var(--mono); font-size: 12px; font-weight: 700;
+    color: var(--accent-2); background: rgba(255,45,120,.1);
+    border: 1px solid rgba(255,45,120,.25); border-radius: 5px; padding: 1px 7px; margin-right: 8px;
+  }
+  .decision .ref-id { color: var(--warn); background: rgba(255,176,32,.1); border-color: rgba(255,176,32,.25); }
+  .rule .ref-id, .gate .ref-id { color: var(--good); background: rgba(0,229,160,.1); border-color: rgba(0,229,160,.25); }
+
+  .end-gate {
+    margin-top: 72px; padding: 32px; border-radius: 14px;
+    background: linear-gradient(135deg, rgba(255,176,32,.06), rgba(0,229,255,.05));
+    border: 1px solid var(--border-2); max-width: 720px;
+  }
+  .end-gate h3 { border: none; margin-top: 0; color: var(--warn); }
+
+  @media (max-width: 1000px) {
+    .layout { grid-template-columns: 1fr; }
+    .toc { display: none; }
+    main { padding: 40px 24px 100px; }
+    h1.title { font-size: 34px; }
+  }
+  @media (max-width: 560px) {
+    .field { grid-template-columns: 1fr; gap: 4px; }
+  }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+  html { scroll-behavior: smooth; }
+</style>
+<div class="doc">
+<div class="layout">
+
+  <aside class="toc">
+    <div class="toc-brand">YesPleez v2 · Amendment</div>
+    <div class="toc-title">Identity Architecture v1.2</div>
+    <div class="toc-status">RATIFIED · v1.2 · Frozen — 18 Jul 2026</div>
+    <nav>
+      <a href="#b0"><span class="n">B0</span> Scope</a>
+      <a href="#b1"><span class="n">B1</span> The bar</a>
+      <a href="#b2"><span class="n">B2</span> Change 1 · §A12 U2</a>
+      <a href="#b3"><span class="n">B3</span> Change 2 · new §A14</a>
+      <a href="#b4"><span class="n">B4</span> Wording justification</a>
+      <a href="#b5"><span class="n">B5</span> What does not change</a>
+      <a href="#b6"><span class="n">B6</span> Consequences</a>
+      <a href="#b7"><span class="n">B7</span> Amendment record</a>
+    </nav>
+  </aside>
+
+  <main>
+    <header class="doc-head">
+      <div class="eyebrow">YesPleez v2 · Architecture Amendment</div>
+      <h1 class="title">Identity Architecture v1.2</h1>
+      <p class="lede">A minimal amendment to Identity Architecture v1.1 under Architecture Specification v1.0 §17. Narrows the blocking scope of <code>U2</code> and records the boundary between identity architecture and communication design. It changes nothing else.</p>
+      <div class="meta-row">
+        <span class="meta amend"><b>Status</b> &nbsp;RATIFIED v1.2 — 18 Jul 2026 · frozen</span>
+        <span class="meta"><b>Amends</b> &nbsp;v1.1 (17 Jul 2026)</span>
+        <span class="meta"><b>Change control</b> &nbsp;v1.0 §17</span>
+        <span class="meta"><b>Supersedes</b> &nbsp;§A12 <code>U2</code> blocking scope (one cell)</span>
+      </div>
+    </header>
+
+    <!-- ===== B0 ===== -->
+    <section id="b0">
+      <div class="sec-head"><span class="sec-num">B0</span><h2>Scope, and why it is this small</h2></div>
+      <p class="sec-sub">Two changes. Everything else in v1.1 stands exactly as ratified on 17 July 2026.</p>
+
+      <table>
+        <thead><tr><th>#</th><th>Change</th><th>Where</th></tr></thead>
+        <tbody>
+          <tr><td><b>1</b></td><td><code>U2</code> blocking scope: <em>"Blocks M8"</em> becomes <em>"Blocks public launch. Does not block M8 implementation."</em></td><td>§A12, one table cell</td></tr>
+          <tr><td><b>2</b></td><td>A new section recording that communication <strong>design</strong> is specified elsewhere, while identity <strong>rules</strong> remain governed here</td><td>§A14, new</td></tr>
+        </tbody>
+      </table>
+
+      <p>Nothing is rewritten, modernised, restructured or clarified in passing. The prose of v1.1 is not improved. <strong>An amendment that tidies while it amends is how paraphrase enters a canonical record.</strong></p>
+
+      <div class="callout note">
+        <div class="label">v1.1 remains canonical</div>
+        <p>This is an <strong>amendment, not a replacement</strong>. Identity Architecture v1.1 remains binding in full except for the single cell listed above, and <code>identity-v1.1.html</code> is preserved as historical reference so existing citations stay resolvable. <strong>No rule number is renumbered by this amendment.</strong></p>
+      </div>
+    </section>
+
+    <!-- ===== B1 ===== -->
+    <section id="b1">
+      <div class="sec-head"><span class="sec-num">B1</span><h2>The bar, and why this clears it</h2></div>
+      <p class="sec-sub">This amendment does not rely on the blocker clause in v1.0 §00, because it reopens no rule.</p>
+
+      <div class="callout principle">
+        <div class="label">◆ <code>U2</code> is a listed open question, and this resolves part of it</div>
+        <p>§A12 exists precisely for this: <em>"Known open questions. Listed so they are decided deliberately rather than by accident of implementation."</em></p>
+        <p><strong>Deciding an entry in §A12 is the intended lifecycle of that section, not an amendment to the architecture.</strong> v1.1 did exactly this to <code>U1</code> — marked it <em>"closed"</em>, struck its options, and recorded the resolution — within the same document that introduced it.</p>
+        <p>This amendment follows the <code>U1</code> precedent, with one difference: <code>U1</code> was closed outright, whereas <code>U2</code> is <strong>narrowed in scope but remains open</strong>. Its question is unchanged and still requires legal input; only what it blocks changes.</p>
+      </div>
+
+      <h3>What changed in the world to permit it</h3>
+
+      <p>A <strong>product decision</strong> by the owner, 18 July 2026: <em>conversations help people discuss opportunities; workflows record official commitments.</em> Applications, Invitations, Bookings and Agreements are the authoritative record; Messenger is not.</p>
+
+      <p><code>U2</code> asked what happens when <em>"account deletion leaves authored messages in a profile inbox"</em>, and it blocked M8 because the answer determined <strong>what messaging must be built to preserve</strong>. Under the product decision that determination is made: messaging preserves communication, workflow objects preserve the record. The schema follows from the decision, not from the legal answer.</p>
+
+      <p><strong>The legal question is unchanged and unanswered.</strong> It has moved in the sequence, not in substance.</p>
+
+      <div class="callout risk">
+        <div class="label">Why this amendment does not cite the Communication Architecture as its authority</div>
+        <p>The Communication Architecture is a <strong>draft</strong> and carries no authority. A frozen canonical document may not rest a rule on a document that has none — doing so would canonise the draft by citation, without ratification.</p>
+        <p>This amendment therefore rests on the <strong>product decision of the owner</strong>, recorded in <a class="inline" href="#b7">§B7</a> as provenance. The Communication Architecture is referenced only as <em>where the resulting design is specified</em>, and §A14 states its status explicitly rather than implying authority it does not have.</p>
+      </div>
+    </section>
+
+    <!-- ===== B2 ===== -->
+    <section id="b2">
+      <div class="sec-head"><span class="sec-num">B2</span><h2>Change 1 · §A12 <code>U2</code></h2></div>
+      <p class="sec-sub">One cell. The question column is untouched.</p>
+
+      <h3>Current text (v1.1 §A12)</h3>
+      <table>
+        <thead><tr><th>#</th><th>Question</th><th>Blocks</th></tr></thead>
+        <tbody><tr><td><b>U2</b></td><td><strong>Erasure vs. business record</strong> — account deletion leaves authored messages in a profile inbox (§A5)</td><td>Blocks M8. Legal input required.</td></tr></tbody>
+      </table>
+
+      <h3>Amended text (v1.2)</h3>
+      <table>
+        <thead><tr><th>#</th><th>Question</th><th>Blocks</th></tr></thead>
+        <tbody><tr><td><b>U2</b> <em>(narrowed, v1.2)</em></td><td><strong>Erasure vs. business record</strong> — account deletion leaves authored messages in a profile inbox (§A5)</td><td><strong>Blocks public launch. Does not block M8 implementation.</strong> Legal input required. Narrowed by the product decision that structured workflows, not messaging, are the authoritative record (§A14). The question is unchanged.</td></tr></tbody>
+      </table>
+
+      <p><strong>The only cell that changes is the third.</strong> Any citation of the substance of <code>U2</code> remains accurate.</p>
+    </section>
+
+    <!-- ===== B3 ===== -->
+    <section id="b3">
+      <div class="sec-head"><span class="sec-num">B3</span><h2>Change 2 · new §A14</h2></div>
+      <p class="sec-sub">Placed after §A13 so no existing section number moves.</p>
+
+      <div class="callout rule">
+        <div class="label">§A14 — Relationship to the Communication Architecture</div>
+        <p>Communication <strong>design</strong> — the conversation model, message semantics, retention domains, and the boundary between messaging and structured workflows — is specified in the <strong>Communication Architecture</strong>, a separate document.</p>
+        <p><strong>This document remains the canonical source for identity architecture.</strong> Where the two touch, the identity rules in v1.0 and v1.1 govern and the Communication Architecture implements them. It may not weaken, reinterpret or except any of them; where it appears to, it is wrong.</p>
+        <p><strong>Status at the time of this amendment:</strong> the Communication Architecture is a draft and is not canonical. This section records the division of subject matter, which holds regardless of the status of that document. It grants it no authority.</p>
+        <p>The product decision recorded in <a class="inline" href="#b7">§B7</a> — that structured workflows are the authoritative record — is what narrows <code>U2</code> (§A12). That decision stands on its own and does not depend on the Communication Architecture being ratified.</p>
+      </div>
+    </section>
+
+    <!-- ===== B4 ===== -->
+    <section id="b4">
+      <div class="sec-head"><span class="sec-num">B4</span><h2>Justification for every added word</h2></div>
+      <p class="sec-sub">New wording is explained rather than silently introduced.</p>
+
+      <table>
+        <thead><tr><th>Wording</th><th>Why it is required</th></tr></thead>
+        <tbody>
+          <tr><td><em>"Blocks public launch"</em></td><td><code>U2</code> must still block <strong>something</strong> — the legal question is real and unanswered. Removing the block entirely would be weakening a guarantee. "Public launch" names the point at which retention and erasure obligations attach in practice.</td></tr>
+          <tr><td><em>"Does not block M8 implementation"</em></td><td>Stated explicitly rather than left as an inference. An implementer must be able to read the answer, not derive it.</td></tr>
+          <tr><td><em>"Legal input required"</em></td><td><strong>Retained verbatim from v1.1.</strong> Deleting it would weaken the guarantee.</td></tr>
+          <tr><td><em>"The question is unchanged"</em></td><td>Prevents a future reader concluding that narrowing the block also narrowed the question. It does not.</td></tr>
+          <tr><td><em>"Narrowed by the product decision that…"</em></td><td>Records <em>why</em> on the row itself. A blocking scope that changed without a stated cause invites re-litigation.</td></tr>
+          <tr><td>§A14 <em>"remains the canonical source for identity architecture"</em></td><td>Without it, a later reader could infer that the newer document supersedes the older on shared ground. It does not.</td></tr>
+          <tr><td>§A14 <em>"where it appears to, it is wrong"</em></td><td>Mirrors the construction the Communication Architecture already uses about v1.1, making the subordination explicit from both sides.</td></tr>
+          <tr><td>§A14 <em>"It grants it no authority"</em></td><td>Prevents this amendment from ratifying a draft by reference — see <a class="inline" href="#b1">§B1</a>.</td></tr>
+        </tbody>
+      </table>
+
+      <p><strong>No other wording is added.</strong> In particular this amendment does not define "public launch", does not characterise any legal position, and does not describe the workflow domain — all of which belong to other documents or to legal review.</p>
+    </section>
+
+    <!-- ===== B5 ===== -->
+    <section id="b5">
+      <div class="sec-head"><span class="sec-num">B5</span><h2>What does not change</h2></div>
+      <p class="sec-sub">Every guarantee below is untouched and remains binding.</p>
+
+      <table>
+        <thead><tr><th>Guarantee</th><th>Where</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td>Conversations belong to profiles; every message records its human author</td><td>§A5</td><td><b>Unchanged</b></td></tr>
+          <tr><td>The identity pair <code>(from_profile_id, from_user_id)</code></td><td>§A3</td><td><b>Unchanged</b></td></tr>
+          <tr><td><code>can_act_as(profile_id)</code> as the sole ownership predicate</td><td>§A4</td><td><b>Unchanged</b></td></tr>
+          <tr><td>Attribution ≠ authorization</td><td>§A4 · §01</td><td><b>Unchanged</b></td></tr>
+          <tr><td><strong>Messaging is built profile-owned from day one. No retrofit.</strong></td><td>§A10 (M8)</td><td><b>Unchanged</b></td></tr>
+          <tr><td>Milestone sequencing M6 → M7 → M8</td><td>§A10</td><td><b>Unchanged — no amendment required.</b> v1.1 already sequences M8 after M6 and M7. Messaging remains dependent on both.</td></tr>
+          <tr><td><strong>Backfill principles</strong> — <em>"Do not let a backfill silently guess"</em></td><td>§A10</td><td><b>Unchanged</b></td></tr>
+          <tr><td><code>U4</code> blocks M6</td><td>§A12</td><td><b>Unchanged and still blocking</b></td></tr>
+          <tr><td><code>U3</code> transfer policy · <code>U5</code> · <code>U6</code></td><td>§A12</td><td><b>Unchanged</b></td></tr>
+          <tr><td>Personal is inalienable; the Personal exception</td><td>§A9</td><td><b>Unchanged</b></td></tr>
+          <tr><td>M5.5 Personal profile census as a precondition for <code>NOT NULL</code></td><td>§A10</td><td><b>Unchanged and still required</b></td></tr>
+        </tbody>
+      </table>
+
+      <div class="callout gate">
+        <div class="label">No guarantee is weakened</div>
+        <p>This amendment adds a scoping section and edits one cell in a register of open questions. <strong>It has no reach into any rule.</strong></p>
+      </div>
+    </section>
+
+    <!-- ===== B6 ===== -->
+    <section id="b6">
+      <div class="sec-head"><span class="sec-num">B6</span><h2>Consequences</h2></div>
+      <p class="sec-sub">What this amendment does and does not unblock.</p>
+
+      <table>
+        <thead><tr><th>Question</th><th>Answer</th></tr></thead>
+        <tbody>
+          <tr><td><b>Is <code>D15</code> in the Communication Architecture resolved?</b></td><td><strong>Yes.</strong> <code>D15</code> existed because that document cannot downgrade the blocker of a frozen document by asserting it. Ratifying v1.2 is the proper mechanism, and <code>D15</code> is discharged by it.</td></tr>
+          <tr><td><b>Does M8 become unblocked?</b></td><td><strong>No.</strong> <code>U2</code> no longer blocks it, but M6 and M7 remain incomplete and <code>U4</code> still blocks M6. The prerequisites of M8 are unchanged.</td></tr>
+          <tr><td><b>Does M6 become the next active milestone?</b></td><td><strong>Yes</strong>, the owner having ended the soak period and decided <code>U4</code> on 18 July 2026.</td></tr>
+          <tr><td><b>What remains before messaging implementation?</b></td><td>M6 complete · M7 complete · M5.5 census confirmed. Separately, the Communication Architecture should be ratified before it is implemented against.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ===== B7 ===== -->
+    <section id="b7">
+      <div class="sec-head"><span class="sec-num">B7</span><h2>Amendment record</h2></div>
+      <p class="sec-sub">Per v1.0 §17, in the manner of v1.1 §A13.</p>
+
+      <table>
+        <tbody>
+          <tr><td><b>Version</b></td><td>v1.2</td></tr>
+          <tr><td><b>Amends</b></td><td>v1.1, ratified 17 Jul 2026, frozen</td></tr>
+          <tr><td><b>Ratified</b></td><td>18 Jul 2026 · frozen</td></tr>
+          <tr><td><b>Change control</b></td><td>Architecture Specification v1.0 §17</td></tr>
+          <tr><td><b>Supersedes</b></td><td>§A12 <code>U2</code> blocking scope (one table cell). Nothing else.</td></tr>
+          <tr><td><b>Adds</b></td><td>§A14</td></tr>
+          <tr><td><b>Renumbers</b></td><td>Nothing</td></tr>
+          <tr><td><b>Provenance</b></td><td>Product decision of the owner, 18 Jul 2026: <em>conversations help people discuss opportunities; workflows record official commitments.</em> Structured workflows — Applications, Invitations, Bookings, Agreements — are the authoritative record; Messenger is not.</td></tr>
+          <tr><td><b>Bar</b></td><td>§A12 is a register of open questions and exists to be decided deliberately. Narrowing an entry follows the <code>U1</code> precedent set within v1.1 itself and is not a reopening of any rule.</td></tr>
+          <tr><td><b>Guarantees weakened</b></td><td><b>None.</b> See <a class="inline" href="#b5">§B5</a>.</td></tr>
+          <tr><td><b>Citation impact</b></td><td>None. Verified 18 Jul 2026: <code>U2</code> is cited nowhere outside <code>docs/architecture</code>. Nothing is renumbered.</td></tr>
+        </tbody>
+      </table>
+
+      <div class="callout gate end-gate">
+        <div class="label">From v1.2 onward</div>
+        <p>Work against v1.0, v1.1 and v1.2 is <strong>implementation only</strong>. They change solely via a further versioned amendment, and solely if implementation uncovers a genuine contradiction or an unrepresentable state. Preference, taste and optimisation do not reopen them.</p>
+        <p><strong>If you believe you have found a contradiction: stop and surface it. Do not route around it.</strong></p>
+      </div>
+    </section>
+
+  </main>
+</div>
+</div>
+</body></html>

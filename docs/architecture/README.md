@@ -8,9 +8,11 @@ The **canonical, frozen** architecture of YesPleez, and the source of truth cite
 | File | Role |
 |---|---|
 | **`architecture-v1.0.html`** | **CANONICAL** — Architecture Specification v1.0, 10 Jul 2026 |
-| **`identity-v1.1.html`** | **CANONICAL** — Identity Architecture v1.1 (Amendment), ratified + frozen 17 Jul 2026 |
+| **`identity-v1.1.html`** | **CANONICAL** — Identity Architecture v1.1 (Amendment), ratified + frozen 17 Jul 2026. Binding in full except the one cell v1.2 supersedes. |
+| **`identity-v1.2.html`** | **CANONICAL** — Identity Architecture v1.2 (Amendment), ratified + frozen 18 Jul 2026 |
 | `architecture-v1.0.md` | Reading copy. Not authoritative. |
 | `identity-v1.1.md` | Reading copy. Not authoritative. |
+| `identity-v1.2.md` | Reading copy. Not authoritative. |
 | `errata.md` | Known factual errors in the frozen documents. Records; corrects nothing. |
 | `render-markdown.js` | Regenerates the `.md` copies from the `.html` sources. |
 | `publication-v1.0-draft.md` | **DRAFT — not canonical, not binding.** Proposed Publication Model v1.0. See below. |
@@ -28,8 +30,14 @@ node docs/architecture/render-markdown.js
 The conversion is mechanical by design. Nobody should ever retype a frozen document by hand —
 that is how paraphrase enters a canonical record.
 
-The two documents are canonical **together**. v1.1 is an amendment under v1.0 §17, not a
-replacement: v1.0 remains binding in full except for the clauses v1.1 §A2 lists.
+The three documents are canonical **together**, each an amendment under v1.0 §17 rather than a
+replacement:
+
+- **v1.0** remains binding in full except for the clauses **v1.1 §A2** lists.
+- **v1.1** remains binding in full except for the single §A12 `U2` cell **v1.2 §B2** supersedes.
+- **v1.2** adds §A14 and renumbers nothing.
+
+Read together, latest amendment wins on the specific clauses it names, and nowhere else.
 
 ## Drafts
 
@@ -52,6 +60,17 @@ A draft that outlives its ratification is a second source of truth.
 **If a draft is abandoned, delete it.** A stale proposal in this directory is worse than no
 proposal — it reads as decided to anyone who skims the banner.
 
+**A proposed amendment to a frozen document is a third case.** It is not a draft of a new
+specification; it is a specific, minimal edit to a ratified file that has not yet been approved. The
+frozen document it amends **remains canonical and unchanged in full** until ratification — which
+means authoring the new versioned `.html`, recording the supersession here, regenerating the reading
+copy, and deleting the proposal. `identity-v1.2-proposed.md` followed this path on 18 Jul 2026 and
+was deleted on ratification.
+
+**A proposal may not rest on a draft.** A frozen document that cited a non-canonical one would
+canonise it by reference, without ratification. Where an amendment is prompted by work in a draft,
+its stated authority must be the underlying decision, not the draft.
+
 ## Why this is not in `docs/`
 
 `docs/` holds **dated snapshots** — design reviews, migration plans, verification evidence
@@ -63,10 +82,17 @@ directory. Nothing here is dated in its filename; everything is versioned.
 
 ## Provenance
 
-Both documents were authored as Claude artifacts and remain retrievable at their source URLs:
+v1.0 and v1.1 were authored as Claude artifacts and remain retrievable at their source URLs:
 
 - v1.0 — `https://claude.ai/code/artifact/a71257bf-b384-4b62-8bce-4ba9f9762ef8`
 - v1.1 — `https://claude.ai/code/artifact/16703884-032f-4ed2-8478-eea51c8654ed`
+
+**`identity-v1.2.html` has a different provenance and it is recorded here rather than glossed.** It
+was authored in-repo on 18 Jul 2026, not as a served artifact, so there is no source URL and the
+byte-count reconciliation below does not apply to it. Its `<head>`, stylesheet and class vocabulary
+were **copied mechanically** from `identity-v1.1.html` (the first 275 lines, with only the `<title>`
+changed) rather than retyped, for the reason stated above: nobody should hand-retype a canonical
+document. Only the document body is new.
 
 **One modification was made to the served bytes, and only one.** claude.ai injects a 9,540-byte
 `<!-- frame-runtime -->` script block when serving an artifact — host scaffolding added at serve
@@ -106,8 +132,12 @@ point at different text. Superseded versions stay readable so old citations stay
 text until a versioned amendment supersedes it. See `errata.md` E1.
 
 **4. Rule numbers are the citation interface.** `R1`, `R2`, `R3`, `R3.1`, `R3.2`, `R4`, `R5`, `R6`,
-`R6.1`, `B1`, `B2`, `D1`, and sections `A0`–`A13` are cited from outside this directory. **Never
-renumber** — it breaks every citation in the repo and in merged PRs.
+`R6.1`, `B1`, `B2`, `D1`, sections `A0`–`A14`, and v1.2's own `B0`–`B7` are cited from outside this
+directory. **Never renumber** — it breaks every citation in the repo and in merged PRs.
+
+Note the collision hazard: v1.1 uses `B1`/`B2` for its blocker findings, and v1.2 uses `B0`–`B7` for
+its section numbers. **A citation must name its document** — "v1.1 `B2`" and "v1.2 §B2" are
+different things.
 
 ## Citation check
 
@@ -115,6 +145,10 @@ Verified 17 Jul 2026: **every rule cited anywhere in this repository exists in v
 the CI spec and the PR template between them cite `R1`, `R2`, `R3`, `R3.1`, `R3.2`, `R5`, `R6.1`
 and `§A9` — all present. `R4` (follow split) and `D1` (single owner) are defined in v1.1 and cited
 by nothing here; that is fine, not a gap.
+
+Re-verified 18 Jul 2026 for v1.2: **`U2` is cited nowhere outside this directory** — not in
+`CLAUDE.md`, the CI spec, or the PR template. v1.2 renumbers nothing, so ratification broke no
+citation anywhere in the repository.
 
 ## Open questions — not decided
 

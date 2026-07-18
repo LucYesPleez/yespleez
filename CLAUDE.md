@@ -17,6 +17,7 @@ Two documents are canonical **together**, and both are frozen. They live in **`d
 
 - **Architecture Specification v1.0** (10 Jul 2026) — `docs/architecture/architecture-v1.0.html`
 - **Identity Architecture v1.1** (ratified + frozen 17 Jul 2026) — `docs/architecture/identity-v1.1.html`
+- **Identity Architecture v1.2** (ratified + frozen 18 Jul 2026) — `docs/architecture/identity-v1.2.html` — minimal amendment: narrows §A12 `U2` to block launch rather than M8, adds §A14. v1.1 stands in full otherwise.
 
 The `.html` files are authoritative. The `.md` files beside them are mechanically-converted reading copies — never cite one. Known errors in the frozen text are recorded in `docs/architecture/errata.md` and are **not** corrected in place.
 
@@ -24,9 +25,21 @@ Work against them is **implementation only**. Do not propose alternatives, redes
 
 If you believe you have found a contradiction: **stop and surface it.** Do not route around it.
 
-## The migration is PAUSED at M5.1
+## The migration is ACTIVE at M6
 
-M0–M5.1 are complete. **M6, M7 and M8 are paused.** Do not begin write-cutover work, contract work, or any proactive migration work without the owner explicitly resuming it. Several rules below describe what M6 *will* do — that is not permission to start it.
+**Resumed 18 Jul 2026 by the owner.** The soak period has ended.
+
+M0–M5.1 are complete. **M6 is the active milestone.** M7 and M8 remain **not started** — M6 must complete before M7 begins, and M7 before M8. Finishing M6 is not permission to start M7.
+
+**`U4` is decided (18 Jul 2026), and this is the operative statement of it.** For ambiguous historical applications: **infer the sender profile only where the user owns exactly one profile of the applicable type; leave every other row `NULL`.** M7 exempts pre-cutover rows from the not-null assertion.
+
+This is derivation with a single candidate, not inference from context — v1.1 §A10 forbids a backfill that *guesses*, and a single-candidate derivation does not guess. **Where more than one candidate exists the row stays `NULL` and no heuristic is applied**: not most-recent-profile, not most-active, not best-match. v1.1 is explicit that this history is unrecoverable, and a plausible reconstruction is worse than an honest null.
+
+Still blocking, and unchanged by the resumption:
+
+- **M5.5** — the Personal profile census. Every account must own exactly one before `from_profile_id` can be `NOT NULL` (v1.1 §A10). Confirm coverage before sizing it.
+- **`U2`** — now blocks public launch rather than M8 (v1.2 §B2). Legal input still required.
+- **`U3`, `U5`, `U6`** — unchanged.
 
 ---
 
