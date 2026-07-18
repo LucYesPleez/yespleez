@@ -212,6 +212,26 @@ profile (`actingProfile.js`, the M6 seam), so no event created after phase 1 nee
 
 ---
 
+## §C6b — Risks
+
+Ordered by what they would actually cost, not by likelihood.
+
+| # | Risk | Mitigation |
+|---|---|---|
+| **R1** | **A live event becomes unmanageable.** If phase 3's dual-authority policy is mis-written, or phase 4 drops the legacy arm before every event has a `host_profile_id`, a host loses access to their own event. This is the worst outcome here — worse than a failed import, because it hits existing users doing nothing wrong. | Phase 4 gates on a census, exactly as M5.5 did: zero events with a NULL owner before the legacy arm is dropped. Never the other order. |
+| **R2** | **Ambiguous backfill (`E4`).** An account owning two host profiles has no recorded answer for which one owns a given event. Unlike `U4`, a NULL is not inert — it is R1. | Resolve rather than null: prompt the owner on next edit, or a one-time reconciliation. Scale is expected to be tiny; verify with a census before writing the backfill, not after. |
+| **R3** | **Orphaned imports.** Studio imports events against a venue profile nobody ever claims. They accumulate, owned by a profile with no human, invisible to moderation because nobody is accountable for them. | A product/Ops question, not architectural — but it should be answered before import runs at scale, because the answer may imply an expiry or review queue. Related to publication `§P8`. |
+| **R4** | **Notifications and applications with no recipient (`E3`).** An unclaimed owner has no delivery identity, so anything addressed to it goes nowhere. Silently dropping them is the bad failure mode: an artist applies, sees success, and nobody ever reads it. | Decide hold-vs-suppress before Studio import, and make the artist-facing state honest either way. |
+| **R5** | **Two ownership axes during transition.** Between phases 1 and 4, `host_id` and `host_profile_id` both exist and both grant authority. That is deliberate and bounded, but it is exactly the state §03 warns about. | The dual arm is removed at M8, a milestone that already exists. No new milestone, and the debt has a named end — unlike M4's inline policies, which acquired one only in retrospect. |
+| **R6** | **§A3 discrepancy is resolved by guesswork.** If `E2` is left undecided, a future implementer reading §A3 will reasonably assume `host_profile_id` already exists and write code against a column that is not there. | Answer `E2` at ratification. Whichever way it goes, record it — v1.3 or `errata.md` E2. |
+
+**The risk of *not* doing this** belongs in the same table and is larger than any row in it: Studio
+imports events against accounts that do not exist, and every one of them needs its ownership
+re-derived after the fact. `U4` has just shown what re-derived ownership costs when the data no
+longer contains the answer — and that was twelve rows, not a catalog.
+
+---
+
 ## §C7 — Recommendation
 
 **Ratify before Studio implementation.** Not because Studio is blocked on paperwork, but because
