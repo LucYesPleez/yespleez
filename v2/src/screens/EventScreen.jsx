@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { getPersonalProfileId, getPerformerProfiles } from '../lib/actingProfile';
+import { writeNotification, writeNotifications } from '../lib/writeNotification';
 import { useSession, usePlayer } from '../App';
 import { formatDateRange } from '../lib/dates';
 import Skeleton from '../components/Skeleton';
@@ -266,12 +267,12 @@ export default function EventScreen() {
     await supabase.from('performances').delete().eq('id', claim.id);
     if (claim?.user_id) {
       await Promise.all([
-        supabase.from('notifications').insert({
-          user_id: claim.user_id,
-          type: 'slot_removed',
-          message: `You have been removed from a slot at ${event.name}.`,
-          data: { event_id: id, event_name: event.name },
-        }),
+        writeNotification(
+          claim.user_id,
+          'slot_removed',
+          `You have been removed from a slot at ${event.name}.`,
+          { event_id: id, event_name: event.name },
+        ),
         supabase.from('applications')
           .update({ status: 'tentative' })
           .eq('event_id', id)
@@ -299,9 +300,11 @@ export default function EventScreen() {
       await supabase.from('performances').update({ status: 'offered' }).eq('event_id', id).eq('status', 'draft');
       const withArtist = (drafts || []).filter(d => d.lineup_members?.artist_id);
       if (withArtist.length) {
-        await supabase.from('notifications').insert(
+        // Batch: one insert, as before. writeNotifications exists so this
+        // stays a single round trip rather than N sequential writes.
+        await writeNotifications(
           withArtist.map(d => ({
-            user_id: d.lineup_members.artist_id,
+            userId:  d.lineup_members.artist_id,
             type:    'slot_offer',
             message: `You've been offered a slot at ${event.name}.`,
             data:    { performance_id: d.id, event_id: id, event_name: event.name, slot_id: d.slot_id },
@@ -378,12 +381,12 @@ export default function EventScreen() {
     }));
     if (status === 'tentative') {
       try {
-        await supabase.from('notifications').insert({
-          user_id: artistId,
-          type: 'shortlisted',
-          message: `You've been shortlisted for ${evtName}.`,
-          data: { event_id: id },
-        });
+        await writeNotification(
+          artistId,
+          'shortlisted',
+          `You've been shortlisted for ${evtName}.`,
+          { event_id: id },
+        );
       } catch (_) {}
     }
   }
@@ -420,12 +423,12 @@ export default function EventScreen() {
     }).select('id').single();
     await Promise.all([
       supabase.from('applications').update({ status: 'offered' }).eq('id', aApp.id),
-      supabase.from('notifications').insert({
-        user_id: aApp.artist_id,
-        type:    'slot_offer',
-        message: `You've been offered a slot${slotTime ? ` at ${slotTime}` : ''} at ${event.name}.`,
-        data: { performance_id: perf?.id, event_id: id, event_name: event.name, slot_id: slot.id, slot_time: slotTime, artist_name: artistName, host_id: session?.user?.id },
-      }),
+      writeNotification(
+        aApp.artist_id,
+        'slot_offer',
+        `You've been offered a slot${slotTime ? ` at ${slotTime}` : ''} at ${event.name}.`,
+        { performance_id: perf?.id, event_id: id, event_name: event.name, slot_id: slot.id, slot_time: slotTime, artist_name: artistName, host_id: session?.user?.id },
+      ),
     ]);
     setAllApps(prev => prev.map(a => a.id === aApp.id ? { ...a, status: 'offered' } : a));
     queryClient.invalidateQueries({ queryKey: ['event', id] });
