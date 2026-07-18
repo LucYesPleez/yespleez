@@ -144,6 +144,13 @@
   color: #fff;
 }
 
+/* Phone: Est. joins the centred meta line inline — [role] [town, state]
+   [Est. xxxx] — instead of being pinned to the right. Desktop keeps the
+   pinned-right layout as-is. */
+@media (max-width: 640px) {
+  .est { position: static; }
+}
+
 /* Cards container — the fade already completes in .nameBlock above, so this
    is solid from its own top edge (standing in for .heroFade once the page
    is scrolled past its fixed 45dvh). */
