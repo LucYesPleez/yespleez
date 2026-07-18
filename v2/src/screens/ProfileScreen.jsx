@@ -14,6 +14,7 @@ import PastEventsSearch, { filterPastEvents } from '../components/PastEventsSear
 import { formatLocation } from '../lib/formatLocation';
 import { socialProfileUrl, ensureHttps } from '../lib/socialLinks';
 import ProfileSocialLinks from '../components/ProfileSocialLinks';
+import AvailabilityCalendar from '../components/AvailabilityCalendar';
 import { selectedPerformanceRoleLabels, selectedArtistRoleLabels, ARTIST_ROLES } from '../lib/profileTaxonomy';
 import { PROFILE_TYPES } from '../lib/profileTypes';
 
@@ -791,73 +792,42 @@ export default function ProfileScreen() {
         </div>
       </div>
 
-      {/* Availability modal */}
+      {/* Availability modal — shared AvailabilityCalendar (11C.2). View mode:
+          available future dates tap through to openEnquiry; event days show a
+          pink dot. Month stays controlled here so it's remembered across
+          reopens, exactly as before. */}
       {availOpen && (
-        <div onClick={() => setAvailOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 9000, background: 'rgba(0,0,0,.85)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', paddingBottom: 'var(--yp-safe-bottom)' }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: '#0f0f1a', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 480, padding: '24px 20px 100px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
-              <span style={{ fontFamily: "'Bebas Neue'", fontSize: 22, letterSpacing: 2, color: col }}>VENUE AVAILABILITY</span>
-              <button onClick={() => setAvailOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--muted)', fontSize: 24, cursor: 'pointer', lineHeight: 1 }}>×</button>
-            </div>
-            <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 16 }}>Dates this venue is available for hire.</p>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-              <button onClick={() => setAvailMonth(new Date(availMonth.getFullYear(), availMonth.getMonth() - 1, 1))} style={{ background: 'none', border: 'none', color: 'var(--muted)', fontSize: 20, cursor: 'pointer' }}>‹</button>
-              <span style={{ fontFamily: "'Bebas Neue'", fontSize: 18, letterSpacing: 2, color: 'var(--text)' }}>{availMonth.toLocaleDateString('en-AU', { month: 'long', year: 'numeric' }).toUpperCase()}</span>
-              <button onClick={() => setAvailMonth(new Date(availMonth.getFullYear(), availMonth.getMonth() + 1, 1))} style={{ background: 'none', border: 'none', color: 'var(--muted)', fontSize: 20, cursor: 'pointer' }}>›</button>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 4, marginBottom: 4 }}>
-              {['S','M','T','W','T','F','S'].map((d, i) => <div key={i} style={{ textAlign: 'center', fontSize: 10, color: 'var(--muted)', fontFamily: "'Bebas Neue'" }}>{d}</div>)}
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 4 }}>
-              {(() => {
-                const todayStr = new Date().toISOString().split('T')[0];
-                const yr = availMonth.getFullYear(), mo = availMonth.getMonth();
-                const firstDay = new Date(yr, mo, 1).getDay();
-                const daysInMonth = new Date(yr, mo + 1, 0).getDate();
-                const cells = [];
-                for (let i = 0; i < firstDay; i++) cells.push(<div key={`e${i}`} />);
-                for (let d = 1; d <= daysInMonth; d++) {
-                  const ds = `${yr}-${String(mo+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-                  const isPast  = ds < todayStr;
-                  const hasEvent = eventDates.has(ds);
-                  const isAvail = !hasEvent && (availDates ? availDates.has(ds) : false);
-                  const isToday = ds === todayStr;
-                  cells.push(
-                    <div key={ds} onClick={() => !isPast && isAvail && openEnquiry(ds)} style={{
-                      textAlign: 'center', padding: '7px 2px 4px', borderRadius: 6, fontSize: 13,
-                      background: isAvail ? 'rgba(0,229,160,.18)' : 'rgba(255,255,255,.04)',
-                      color: isPast ? 'rgba(255,255,255,.2)' : isAvail ? '#00E5A0' : 'var(--text)',
-                      border: isAvail ? '1px solid rgba(0,229,160,.5)' : isToday ? '1px solid rgba(255,255,255,.3)' : '1px solid transparent',
-                      display: 'flex', flexDirection: 'column', alignItems: 'center',
-                      cursor: isAvail && !isPast ? 'pointer' : 'default',
-                    }}>
-                      <span>{d}</span>
-                      {hasEvent
-                        ? <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#FF2D78', marginTop: 2, display: 'block' }} />
-                        : <span style={{ height: 7, display: 'block' }} />
-                      }
-                    </div>
-                  );
-                }
-                return cells;
-              })()}
-            </div>
-            {availDates === null && <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 12 }}>Loading…</p>}
-            {enquiryLoading && <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 12 }}>Loading…</p>}
-            {availDates !== null && (
-              <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ width: 14, height: 14, borderRadius: 3, background: 'rgba(0,229,160,.18)', border: '1px solid rgba(0,229,160,.5)', flexShrink: 0 }} />
-                  <span style={{ fontSize: 12, color: 'var(--muted)', fontFamily: "'Bebas Neue'", letterSpacing: 1 }}>TAP DATE TO ENQUIRE</span>
+        <AvailabilityCalendar
+          onClose={() => setAvailOpen(false)}
+          title="VENUE AVAILABILITY"
+          subtitle="Dates this venue is available for hire."
+          accent="#00E5A0"
+          accentRgb="0,229,160"
+          availableDates={availDates}
+          eventDates={eventDates}
+          mode="view"
+          onSelectDate={openEnquiry}
+          month={availMonth}
+          onMonthChange={setAvailMonth}
+          footer={
+            <>
+              {availDates === null && <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 12 }}>Loading…</p>}
+              {enquiryLoading && <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 12 }}>Loading…</p>}
+              {availDates !== null && (
+                <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ width: 14, height: 14, borderRadius: 3, background: 'rgba(0,229,160,.18)', border: '1px solid rgba(0,229,160,.5)', flexShrink: 0 }} />
+                    <span style={{ fontSize: 12, color: 'var(--muted)', fontFamily: "'Bebas Neue'", letterSpacing: 1 }}>TAP DATE TO ENQUIRE</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ width: 14, height: 14, borderRadius: '50%', background: '#FF2D78', flexShrink: 0 }} />
+                    <span style={{ fontSize: 12, color: 'var(--muted)', fontFamily: "'Bebas Neue'", letterSpacing: 1 }}>EVENT BOOKED</span>
+                  </div>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ width: 14, height: 14, borderRadius: '50%', background: '#FF2D78', flexShrink: 0 }} />
-                  <span style={{ fontSize: 12, color: 'var(--muted)', fontFamily: "'Bebas Neue'", letterSpacing: 1 }}>EVENT BOOKED</span>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
+              )}
+            </>
+          }
+        />
       )}
 
       {/* Follow-from picker — multi-select */}
