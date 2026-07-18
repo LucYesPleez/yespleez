@@ -598,7 +598,7 @@ export default function ProfileScreen() {
                   <div style={{ padding: '12px 16px', textAlign: 'center', fontStyle: 'italic', fontSize: 15, color: 'rgba(232,232,240,.75)', lineHeight: 1.6 }}>{profile.sound}</div>
                 </>
               )}
-              <VenueInfoDropdown bare profile={profile} col={col} rgb={rgb} grad2={grad2} />
+              <VenueInfoDropdown bare profile={profile} col={col} rgb={rgb} grad2={grad2} socials={socials} />
             </div>
           )}
 
@@ -998,7 +998,7 @@ export default function ProfileScreen() {
   );
 }
 
-function VenueInfoDropdown({ profile, col, rgb, grad2, bare = false }) {
+function VenueInfoDropdown({ profile, col, rgb, grad2, bare = false, socials = [] }) {
   const [open, setOpen] = useState(false);
   const [bioExpanded, setBioExpanded] = useState(false);
   const entertain  = profile.genre_string  ? profile.genre_string.split(/\s*·\s*|,\s*/).map(g => g.trim()).filter(Boolean) : [];
@@ -1081,6 +1081,17 @@ function VenueInfoDropdown({ profile, col, rgb, grad2, bare = false }) {
             <div style={{ ...rowStyle, alignItems: 'flex-start' }}>
               <div style={labelStyle}>LIVE NIGHTS</div>
               <div style={{ fontSize: 13, color: 'var(--muted)', flex: 1, lineHeight: 1.6 }}>{nights.join(', ')}</div>
+            </div>
+          )}
+          {/* Socials also live here in the full info panel (labelled, to match the
+              other rows) — a deliberate duplicate of the quick-access icon row up
+              top under the action buttons. */}
+          {socials.length > 0 && (
+            <div style={{ ...rowStyle, alignItems: 'center', borderBottom: 'none' }}>
+              <div style={labelStyle}>SOCIALS / LINKS</div>
+              <div style={{ flex: 1 }}>
+                <ProfileSocialLinks socials={socials} />
+              </div>
             </div>
           )}
         </div>
