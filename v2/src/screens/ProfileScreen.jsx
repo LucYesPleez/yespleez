@@ -582,7 +582,7 @@ export default function ProfileScreen() {
                 if (!vibeTags.length) return null;
                 return (
                   <div style={{ padding: '14px 16px' }}>
-                    <div className={s.cardLabel} style={{ color: col, marginBottom: 8 }}>VIBE</div>
+                    <div className={s.cardLabel} style={{ color: 'rgba(232,232,240,.5)', marginBottom: 8 }}>VIBE</div>
                     {/* VIBE tags (the curated "Your 5 Tags", card_pills) as simple,
                         uniform outlined pills — neutral grey border, dark fill, no
                         accent colour and no glow (were the loud Glow Pill). 11C.4. */}
