@@ -12,7 +12,7 @@
 > Rule numbers `C1`–`C31` are namespaced to this document and do not refer to rules in
 > `architecture-v1.0` (`§`), `identity-v1.1` (`R`/`B`/`D`/`A`) or `publication-v1.0` (`P`).
 >
-> Status: **DRAFT v1.0 · Revision 2** — 18 Jul 2026 · rule numbers provisional until ratified.
+> Status: **DRAFT v1.0 · Revision 3** — 18 Jul 2026 · rule numbers provisional until ratified.
 > Full amendment record at **§13**.
 >
 > **Why this is a revision and not a v1.1.** Under this directory's rules a version is minted when a
@@ -752,29 +752,44 @@ by a human. Nothing enters this domain by inference.
 >
 > Structured context is both the more reliable signal and the one that requires reading nothing.
 
-> **◆ `C29` An assistant that reads a conversation must appear in that conversation**
+> **◆ `C29` No undisclosed or ambient AI analysis. An AI that reads a conversation must appear in it.**
 >
-> **This is an ecosystem principle, binding on Scene, Festival, Operations, Studio and every future
-> product.** It is stated here because messaging is where it will first be tested, not because it is
-> scoped to messaging.
+> **This is an ecosystem principle**, binding on Scene, Festival, Studio and every future product. It
+> is stated here because messaging is where it will first be tested, not because it is scoped to
+> messaging.
 >
-> **The platform performs no hidden ambient analysis of private conversations.** Not for intent, not
-> for assistance, not for product analytics, not for model training, not for safety heuristics. There
-> is no exception in which conversation content is read by an automated system that is not visibly
-> present in the conversation.
+> **The rule, in two halves:**
 >
-> **Any AI participant is explicit, visible, and intentionally invited by the participants.** It
-> appears in the participant list. Its messages are attributed to it (`C24`). A user can see that it
-> is there and can remove it.
+> 1. **No undisclosed or ambient AI analysis of private conversations.** No automated interpretation
+>    of conversation content that participants have not been told about and cannot see — not for
+>    intent detection, assistance, product analytics, or model training.
+> 2. **Any AI participant is explicit and visible to the participants.** It appears in the
+>    participant list. Its messages are attributed to it (`C24`). A user can see that it is there and
+>    can remove it.
 >
-> `C27` and `C29` are the same commitment stated from two directions: assistance derives from
-> structured context, and anything that needs more than structured context must join the conversation
-> in the open. The two will be conflated by anyone who reads only one of them — the distinguishing
-> test is **visibility**, not capability or consent-in-a-settings-screen.
+> **The distinguishing test is visibility**, not capability and not a consent checkbox buried in
+> settings. An AI a user has invited into a conversation may read that conversation — it is a party
+> to the discussion, present and attributed. An AI reading the same conversation from outside it may
+> not, whatever its purpose.
 >
+> `C27` and `C29` are one commitment stated from two directions: assistance derives from structured
+> context, and anything needing more than structured context joins the conversation in the open.
+
+> **What `C29` does not govern**
+>
+> **Governance functions are outside its scope**: human moderation, legal compliance, and
+> investigation of user-reported conversations. These are not AI analysis and are not what this rule
+> addresses. They are legitimate functions of operating a platform, and they are governed by
+> operational and legal policy — see `D17`, which is a governance question rather than a `C29`
+> question.
+>
+> Stating this boundary explicitly matters in both directions. It stops `C29` being read as a
+> prohibition on necessary governance, and it stops governance being used as the doorway through
+> which ambient AI arrives.
+
 > **Why this is architecture and not policy:** a policy can be revised quietly by a later team under
 > product pressure. A rule stated here, cited by implementations, and enforced by the absence of any
-> read path for conversation content is considerably harder to reverse by accident.
+> ambient read path for conversation content is considerably harder to reverse by accident.
 
 ### 9.5 Drafts and non-interruption
 
@@ -826,21 +841,23 @@ Internal and moderation conversations via `operations` context, staff acting as 
 re-publish (`publication-v1.0-draft` §P8). An Ops conversation quoting withheld content does not
 make that content published.
 
-> **`C29` binds Operations, and this is where it will be tested**
+> **Governance access is a governance question, not a `C29` question**
 >
-> `C29` forbids automated reading of private conversations. It does not, on its face, address a
-> **human** moderator reviewing a conversation that has been explicitly reported to them.
+> Human moderation, legal compliance and the investigation of user-reported conversations sit
+> **outside `C29`** by design. They are governance functions of operating a platform — bounded,
+> accountable, and typically initiated by a participant or a legal obligation rather than running
+> ambiently across everyone's messages.
 >
-> These are genuinely different — reported human review is bounded, accountable and initiated by a
-> participant; ambient automated analysis is none of those. But the boundary must be drawn
-> deliberately rather than discovered when the first report arrives, because every erosion of `C29`
-> will arrive dressed as a safety requirement.
+> This architecture therefore does not attempt to permit or forbid them. It notes only that they
+> require their own explicit policy, and that the policy should exist **before** Operations ships
+> rather than being improvised during the first serious incident. That policy is `D17`: what a report
+> or lawful request grants access to, to whom, for how long, and whether participants are informed.
 >
-> **What must be specified before Operations ships** (`D17`): what a report grants access to, for how
-> long, to whom, whether participants are told, and — the load-bearing one — whether any *automated*
-> scanning is permitted for safety at all. This document's position is that automated scanning is
-> not permitted under `C29`; if a future product requires it, that requires a versioned amendment and
-> an honest disclosure to users, not an internal exception.
+> The one thing this document does hold: a governance function is not a route by which ambient AI
+> analysis enters the product. Governance being out of `C29`'s scope means human and legal process is
+> out of scope — it does not mean an automated system may read conversations under a governance
+> heading. If a governance function ever needs AI assistance, that intersection is a `D17` decision
+> taken deliberately and disclosed, not an implied exception.
 
 ### 10.3 Studio
 
@@ -886,7 +903,7 @@ Every question this document deliberately leaves open, why, and when it must be 
 | **`D14`** | Conversation export — whether, and in what form | No longer a legal necessity under `C25`, but `C28.1` means it will be asked for | Post-v1 acceptable |
 | **`D15`** | **Amendment to v1.1 §A12 `U2`** — downgrading it from "Blocks M8" to "blocks launch" | This document cannot downgrade a frozen document's blocker by asserting it; it requires a versioned amendment | Before M8 begins |
 | **`D16`** | Assistance volume — how much draft preparation is helpful before it is intrusive (§9.6) | Not knowable from architecture; set by foundational users | During beta |
-| **`D17`** | **Moderation access boundary** (§10.2) — what a report grants, to whom, for how long, whether participants are told, and whether *any* automated safety scanning is permitted | `C29` forbids ambient automated analysis; human review on an explicit report is a different thing and the line must be drawn deliberately, not under pressure | Before Operations ships |
+| **`D17`** | **Governance access policy** (§10.2) — what a user report or lawful request grants access to, to whom, for how long, and whether participants are informed. Includes the intersection question: whether a governance function may use AI assistance, which `C29` leaves to be decided deliberately and disclosed rather than assumed either way | A governance question, not an architectural one. `C29` scopes itself to AI visibility and consent and deliberately does not adjudicate human moderation, legal compliance or reported-conversation investigation | Before Operations ships |
 
 ### Not decided here, and not architecture
 
@@ -918,6 +935,24 @@ amendment. It must obey the existing rule that primary navigation renders on eve
 
 Per `architecture-v1.0` §17, restated for a document still in draft. Revisions accumulate here until
 ratification; on ratification this section becomes the document's provenance.
+
+### Revision 3 — 18 Jul 2026 · `C29` scoped to AI
+
+| Field | Value |
+|---|---|
+| **Requested by** | Owner, 18 Jul 2026 — confirming Revision 2, and narrowing `C29` |
+| **Nature** | Scoping. Narrows one rule; changes nothing else. |
+| **Bar cleared** | Corrective. Revision 2 wrote `C29` as a prohibition on all automated reading of conversations *including* safety and moderation, which made an architectural rule adjudicate governance functions it has no standing to decide. |
+
+| # | Change |
+|---|---|
+| **1** | **`C29` reframed around AI visibility and user consent.** It prohibits undisclosed or ambient AI analysis of private conversations, and requires any AI participant to be explicit and visible to the participants. The distinguishing test is visibility. |
+| **2** | **Governance functions placed explicitly outside `C29`'s scope** — human moderation, legal compliance, and investigation of user-reported conversations. These are functions of operating a platform, governed by operational and legal policy, and an architecture specification is the wrong instrument for permitting or forbidding them. |
+| **3** | **§10.2 rewritten.** Revision 2 framed Operations as the place `C29` "would be tested" and asserted that no automated safety scanning was permitted. Both removed. The section now records only that governance access needs its own policy, and that being out of `C29`'s scope means human and legal process is out of scope — not that an automated system may read conversations under a governance heading. |
+| **4** | **`D17` reframed** from "moderation access boundary under `C29`" to **governance access policy**, including the intersection question of whether a governance function may use AI assistance — left to be decided deliberately and disclosed. |
+
+**What did not change:** `C25`, `C26`, `C27`, `C28`, `C30`, `C31`, and every model section. Revision 2
+stands in full except for the `C29` scope and the two passages that followed from it.
 
 ### Revision 2 — 18 Jul 2026 · Messenger & Workflow Separation
 
