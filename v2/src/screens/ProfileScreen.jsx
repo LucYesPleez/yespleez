@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabase';
 import { writeNotification } from '../lib/writeNotification';
 import { useSession, usePlayer } from '../App';
 import EventCard from '../components/EventCard';
-import { getEventBadges } from '../lib/eventBadges';
+import { getEventBadges, resolveCategoryBadge, OPEN_MIC_BADGE } from '../lib/eventBadges';
 import s from './ProfileScreen.module.css';
 import ClaimDialog from '../components/ClaimDialog';
 import InviteSheet from '../components/InviteSheet';
@@ -777,9 +777,9 @@ export default function ProfileScreen() {
                                 <div style={{ fontFamily: "'Bebas Neue'", fontSize: 22, color: '#fff', lineHeight: 1 }}>{dateNum}</div>
                                 <div style={{ fontFamily: "'Bebas Neue'", fontSize: 11, color: 'rgba(255,255,255,.7)', letterSpacing: .5 }}>{dateMon}</div>
                               </div>}
-                              {(() => { const BADGE_STYLES = { 'Live Music': { bg:'#ff2d78', col:'#fff' }, 'DJs': { bg:'var(--neon2)', col:'#000' }, 'Festival': { bg:'#BF5FFF', col:'#fff' }, 'Comedy': { bg:'#FF8C42', col:'#fff' }, 'Spoken Word': { bg:'#FF8C42', col:'#fff' }, 'Open Mic': { bg:'#FFD700', col:'#000' } }; const bs = BADGE_STYLES[cfg.categoryBadge] || { bg:'#fff', col:'#000' }; let badges = cfg.categoryBadge ? [{ label: cfg.categoryBadge, bg: bs.bg, col: bs.col }] : getEventBadges(cfg.genres || '', ev.name || ''); if (cfg.openMicBadge && !badges.find(b => b.label === 'Open Mic')) { badges = [...badges, { label: 'Open Mic', bg: '#FFD700', col: '#000' }]; } return badges.length > 0 && (
+                              {(() => { let badges = cfg.categoryBadge ? [resolveCategoryBadge(cfg.categoryBadge)] : getEventBadges(cfg.genres || '', ev.name || ''); if (cfg.openMicBadge && !badges.find(b => b.label === OPEN_MIC_BADGE.label)) { badges = [...badges, OPEN_MIC_BADGE]; } return badges.length > 0 && (
                                 <div style={{ position: 'absolute', top: 8, left: 8, display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                                  {badges.slice(0,1).map(p => <span key={p.label} style={{ fontFamily: "'DM Sans'", fontSize: 9, fontWeight: 700, letterSpacing: .8, textTransform: 'uppercase', padding: '3px 8px', borderRadius: 6, background: p.bg, color: p.col }}>{p.label}</span>)}
+                                  {badges.slice(0,1).map(p => <span key={p.label} style={{ fontFamily: "'DM Sans'", fontSize: 9, fontWeight: 700, letterSpacing: .8, padding: '3px 8px', borderRadius: 6, background: p.bg, color: p.col }}>{p.label}</span>)}
                                 </div>
                               ); })()}
                             </div>

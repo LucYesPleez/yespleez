@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 import { useSession } from '../App';
 import s from './CreateEventScreen.module.css';
 import ImageUploadButton from '../components/ImageUploadButton';
-import { getEventBadges } from '../lib/eventBadges';
+import { getEventBadges, CATEGORY_BADGES, CATEGORY_CHOICES, OPEN_MIC_BADGE, sameCategory } from '../lib/eventBadges';
 import { resolveProfileId } from '../lib/resolveProfileId';
 
 const CAL_DAYS = ['Su','Mo','Tu','We','Th','Fr','Sa'];
@@ -422,20 +422,15 @@ export default function CreateEventScreen() {
         <Field label="CATEGORY CHIP (optional)">
           {(() => {
             const auto = getEventBadges(genreText, name);
-            const primary = [
-              { label: 'Live Music', bg: '#ff2d78', col: '#fff' },
-              { label: 'DJs',        bg: 'var(--neon2)', col: '#000' },
-              { label: 'Comedy',     bg: '#FF8C42', col: '#fff' },
-              { label: 'Spoken Word',bg: '#FF8C42', col: '#fff' },
-              { label: 'Festival',   bg: '#BF5FFF', col: '#fff' },
-            ];
-            const openMicOpt = { label: 'Open Mic', bg: '#FFD700', col: '#000' };
+            const openMicOpt = OPEN_MIC_BADGE;
             return (
               <div>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
-                  {primary.map(opt => {
-                    const manualActive = categoryBadge === opt.label;
-                    const autoActive = !categoryBadge && auto[0]?.label?.toUpperCase() === opt.label.toUpperCase();
+                  {CATEGORY_CHOICES.map(opt => {
+                    // sameCategory, not ===, so an event saved before the labels
+                    // were canonicalised ("Live Music") still highlights its chip.
+                    const manualActive = sameCategory(categoryBadge, opt.label);
+                    const autoActive = !categoryBadge && sameCategory(auto[0]?.label, opt.label);
                     const active = manualActive || autoActive;
                     return (
                       <button key={opt.label} type="button" onClick={() => setCategoryBadge(manualActive ? '' : opt.label)}
@@ -452,7 +447,7 @@ export default function CreateEventScreen() {
                 {!categoryBadge && auto.length > 0 && (
                   <p style={{ fontSize: 11, color: 'var(--muted)', margin: 0 }}>Auto-detected from your genres: <strong style={{ color: 'var(--text)' }}>{auto[0].label}</strong> — select above to override</p>
                 )}
-                {categoryBadge === 'Live Music' && auto[0]?.label === 'DJs' && (
+                {sameCategory(categoryBadge, CATEGORY_BADGES.LIVE_MUSIC.label) && sameCategory(auto[0]?.label, CATEGORY_BADGES.DJS.label) && (
                   <p style={{ fontSize: 11, color: 'var(--muted)', margin: 0 }}>We've auto-detected you as a DJ — Live Music is for bands, acoustic and live instruments.</p>
                 )}
               </div>

@@ -108,9 +108,14 @@ export const BAND_VIBES = [
 // Storyteller, Drag, Cabaret, etc.) is a data change here, not an editor
 // rewrite — StandupProfileScreen renders these generically with no
 // comedy/poetry-specific logic.
+// Labels are display-only (the KEY is what's stored in genre_string), and they
+// render as profile badges alongside the PROFILE_TYPES labels — which are
+// all-caps. Kept caps here so a profile with roles selected doesn't render
+// "Comedy" next to another card's "VENUE"/"BAND". Same rule as the event
+// category badges: canonical casing at the source, no per-site text-transform.
 export const PERFORMANCE_ROLES = [
-  { key: 'comedy', label: 'Comedy', enabled: true },
-  { key: 'poetry', label: 'Poetry', enabled: true },
+  { key: 'comedy', label: 'COMEDY', enabled: true },
+  { key: 'poetry', label: 'POETRY', enabled: true },
 ];
 
 export const VISIBLE_PERFORMANCE_ROLES = PERFORMANCE_ROLES.filter(r => r.enabled);
@@ -122,7 +127,7 @@ export const VISIBLE_PERFORMANCE_ROLES = PERFORMANCE_ROLES.filter(r => r.enabled
 // Stored the same way (role keys inside genre_string, alongside
 // genres/subgenres/vibes), read with selectedArtistRoleLabels below.
 export const ARTIST_ROLES = [
-  { key: 'dj_prod', label: 'DJ / Prod.', enabled: true },
+  { key: 'dj_prod', label: 'DJ / PROD.', enabled: true },
   { key: 'mc',       label: 'MC',        enabled: true },
 ];
 

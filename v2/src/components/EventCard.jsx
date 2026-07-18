@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import s from './EventCard.module.css';
 import { formatDisplayDate } from '../lib/dates';
-import { getEventBadges } from '../lib/eventBadges';
+import { getEventBadges, resolveCategoryBadge, OPEN_MIC_BADGE } from '../lib/eventBadges';
 import DateBox from './DateBox';
 
 function fmtChip(dateStr) {
@@ -36,7 +36,6 @@ function Pill({ label, bg, col }) {
       fontSize: 9,
       fontWeight: 700,
       letterSpacing: .8,
-      textTransform: 'uppercase',
       padding: '3px 8px',
       borderRadius: 6,
       background: bg,
@@ -64,14 +63,13 @@ export default function EventCard({ event, badge: badgeOverride, badgeColor, onC
   const venue  = cfg.venue || '';
   const genres = cfg.genres || '';
 
-  const BADGE_STYLES = { 'Live Music': { bg:'#ff2d78', col:'#fff' }, 'DJs': { bg:'var(--neon2)', col:'#000' }, 'Festival': { bg:'#BF5FFF', col:'#fff' }, 'Comedy': { bg:'#FF8C42', col:'#fff' }, 'Spoken Word': { bg:'#FF8C42', col:'#fff' }, 'Open Mic': { bg:'#FFD700', col:'#000' } };
-  const manualBadge = cfg.categoryBadge ? [{ label: cfg.categoryBadge, ...(BADGE_STYLES[cfg.categoryBadge] || { bg:'#fff', col:'#000' }) }] : null;
+  const manualBadge = cfg.categoryBadge ? [resolveCategoryBadge(cfg.categoryBadge)] : null;
   const autoBadges = getEventBadges(genres, event?.name || '');
   let pills = badgeOverride
     ? [{ label: badgeOverride, bg: badgeColor || '#fff', col: '#fff' }]
     : (manualBadge || autoBadges);
-  if (!badgeOverride && cfg.openMicBadge && !pills.find(p => p.label === 'Open Mic')) {
-    pills = [...pills, { label: 'Open Mic', bg: '#FFD700', col: '#000' }];
+  if (!badgeOverride && cfg.openMicBadge && !pills.find(p => p.label === OPEN_MIC_BADGE.label)) {
+    pills = [...pills, OPEN_MIC_BADGE];
   }
 
   const handleClick = onClick || (() => navigate(`/event/${event.id}`));
