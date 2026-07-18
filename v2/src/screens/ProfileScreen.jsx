@@ -60,6 +60,7 @@ export default function ProfileScreen() {
   const [followSelected,    setFollowSelected]    = useState(new Set());
   const [claimOpen,         setClaimOpen]         = useState(false);
   const [inviteOpen,        setInviteOpen]        = useState(false);
+  const [inviteDate,        setInviteDate]        = useState(null); // 11C.3: date tapped on the availability calendar, prefilled into InviteSheet
   // Set only when the viewer owns a venue and is looking at someone bookable —
   // gates the profile's primary "enquire" action. { id, events }.
   const [venueCtx,          setVenueCtx]          = useState(null);
@@ -670,29 +671,22 @@ export default function ProfileScreen() {
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 8, verticalAlign: 'middle', marginTop: -2 }}><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>CHECK AVAILABILITY
               </button>
             )}
-            {/* 11C.3: read-only public availability for performers. Opens the
-                shared calendar showing when this performer is available — no
-                enquiry, no booking. Shown whenever they have upcoming dates. */}
-            {isPerformer && !isUnclaimed && perfAvailDates && perfAvailDates.size > 0 && (
+            {/* 11C.3 revision: one CHECK AVAILABILITY button for performers.
+                Opens the shared availability calendar. A venue-owning viewer can
+                tap an available date to enquire (existing InviteSheet flow, date
+                prefilled); everyone else sees it read-only. If the performer has
+                no published availability, a venue owner's button opens the
+                enquiry sheet directly — no lost enquiry path. */}
+            {isPerformer && !isUnclaimed && ((perfAvailDates && perfAvailDates.size > 0) || venueCtx) && (
               <button
                 className={s.followBtn}
                 style={{ background: `linear-gradient(135deg, ${col}, ${grad2})`, color: '#0a0a14', borderColor: 'transparent', width: '100%' }}
-                onClick={() => setPerfAvailOpen(true)}
+                onClick={() => {
+                  if (perfAvailDates && perfAvailDates.size > 0) setPerfAvailOpen(true);
+                  else { setInviteDate(null); setInviteOpen(true); }
+                }}
               >
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 8, verticalAlign: 'middle', marginTop: -2 }}><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>CHECK AVAILABILITY
-              </button>
-            )}
-            {/* The canonical way a venue starts a booking conversation — the
-                mirror of CHECK AVAILABILITY above. Only renders for a viewer
-                who owns a venue, looking at a claimed performer. */}
-            {venueCtx && (
-              <button
-                className={s.followBtn}
-                style={{ background: `linear-gradient(135deg, ${col}, ${grad2})`, color: '#0a0a14', borderColor: 'transparent', width: '100%' }}
-                onClick={() => setInviteOpen(true)}
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 8, verticalAlign: 'middle', marginTop: -2 }}><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
-                CHECK AVAILABILITY &amp; ENQUIRE
               </button>
             )}
             {/* Restore shared social links row beneath Follow/Message for
@@ -871,16 +865,17 @@ export default function ProfileScreen() {
         <AvailabilityCalendar
           onClose={() => setPerfAvailOpen(false)}
           title="AVAILABILITY"
-          subtitle={`Dates ${profile.name} is available.`}
+          subtitle={venueCtx ? `Tap an available date to enquire with ${profile.name}.` : `Dates ${profile.name} is available.`}
           accent={col}
           accentRgb={rgb}
           availableDates={perfAvailDates}
           mode="view"
-          readOnly
+          readOnly={!venueCtx}
+          onSelectDate={venueCtx ? (ds) => { setInviteDate(ds); setPerfAvailOpen(false); setInviteOpen(true); } : undefined}
           footer={
             <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ width: 14, height: 14, borderRadius: 3, background: `rgba(${rgb},.18)`, border: `1px solid rgba(${rgb},.5)`, flexShrink: 0 }} />
-              <span style={{ fontSize: 12, color: 'var(--muted)', fontFamily: "'Bebas Neue'", letterSpacing: 1 }}>AVAILABLE</span>
+              <span style={{ fontSize: 12, color: 'var(--muted)', fontFamily: "'Bebas Neue'", letterSpacing: 1 }}>{venueCtx ? 'TAP DATE TO ENQUIRE' : 'AVAILABLE'}</span>
             </div>
           }
         />
@@ -1001,7 +996,8 @@ export default function ProfileScreen() {
           artist={profile}
           events={venueCtx.events}
           venueUserId={session.user.id}
-          onClose={() => setInviteOpen(false)}
+          initialDate={inviteDate || ''}
+          onClose={() => { setInviteOpen(false); setInviteDate(null); }}
         />
       )}
     </div>

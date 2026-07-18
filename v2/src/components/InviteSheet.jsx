@@ -20,13 +20,16 @@ function fmtSlot(startHHMM, durationMin) {
   return `${fmt(start)}–${fmt(end)}`;
 }
 
-export default function InviteSheet({ artist, events = [], venueUserId, onClose }) {
+export default function InviteSheet({ artist, events = [], venueUserId, initialDate = '', onClose }) {
   const navigate = useNavigate();
   const [eventId,   setEventId]   = useState('');
   const [headliner, setHeadliner] = useState('');
   const [message,   setMessage]   = useState('');
   const [slotRole,  setSlotRole]  = useState('');
-  const [date,      setDate]      = useState('');
+  // initialDate prefills the proposed date when the sheet is opened by tapping
+  // a date on the performer's availability calendar (11C.3 revision). Still
+  // fully editable via the DATE field below.
+  const [date,      setDate]      = useState(initialDate || '');
   const [time,      setTime]      = useState('');
   const [duration,  setDuration]  = useState('');
   const [fee,       setFee]       = useState('');
