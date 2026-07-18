@@ -315,12 +315,8 @@ export default function ProfileScreen() {
     setFollowSelected(new Set());
   }
 
-  async function share() {
-    const url = window.location.href;
-    if (navigator.share) { try { await navigator.share({ title: profile.name, url }); } catch (_) {} }
-    else { try { await navigator.clipboard.writeText(url); } catch (_) {} }
-  }
-
+  // Sharing lives in the header (GlobalHeader's Share icon) as the single
+  // share action — see 11C.1 revision. No profile-local share() here.
 
   const pt      = PROFILE_TYPES[profile.type] || PROFILE_TYPES.artist;
   const col     = pt.accent;
@@ -589,11 +585,13 @@ export default function ProfileScreen() {
             </div>
           )}
 
-          {/* Action buttons — Follow + Share first, then the booking CTA
-              (Check Availability / Enquire) below, then the socials row. */}
+          {/* Action buttons — Follow + Message first, then the booking CTA
+              (Check Availability / Enquire) below, then the socials row.
+              Share is not here — it lives as the header icon (GlobalHeader),
+              the single share action (11C.1 revision). */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             <div style={{ display: 'flex', gap: 10 }}>
-              <span style={{ flex: 1, display: 'inline-block', padding: 1, borderRadius: 12, background: `linear-gradient(135deg, ${col}, ${grad2})` }}>
+              <span style={{ flex: 1, minWidth: 0, display: 'inline-block', padding: 1, borderRadius: 12, background: `linear-gradient(135deg, ${col}, ${grad2})` }}>
                 <button
                   className={s.followBtn}
                   style={followed
@@ -605,28 +603,27 @@ export default function ProfileScreen() {
                   {followed ? '✓ FOLLOWING' : <span style={{ backgroundImage: `linear-gradient(135deg, ${col}, ${grad2})`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>+ FOLLOW</span>}
                 </button>
               </span>
-              {/* Share — reuses the existing share() handler (native share
-                  sheet, clipboard fallback) and the GlobalHeader share glyph.
-                  Shown on every profile, claimed or not: sharing a public URL
-                  needs no ownership. Replaces the former dead MESSAGE button —
-                  in-app messaging doesn't exist yet, so a placeholder would be
-                  dead UI (11C.1). */}
-              <span style={{ flex: 1, display: 'inline-block', padding: 1, borderRadius: 12, background: `linear-gradient(135deg, ${col}, ${grad2})` }}>
-                <button
-                  type="button"
-                  className={s.followBtn}
-                  onClick={share}
-                  aria-label="Share profile"
-                  style={{ borderColor: 'transparent', background: 'rgba(19,19,31,.92)', width: '100%', margin: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, boxSizing: 'border-box' }}
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={col} strokeWidth="2" style={{ flexShrink: 0 }}>
-                    <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
-                    <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
-                    <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
-                  </svg>
-                  <span style={{ backgroundImage: `linear-gradient(135deg, ${col}, ${grad2})`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>SHARE</span>
-                </button>
-              </span>
+              {/* Message — placeholder only. In-app messaging doesn't exist
+                  yet, so the button is disabled and tagged SOON: it signals a
+                  future capability without shipping dead UI or any backend
+                  (11C.1 revision). Claimed profiles only — an unclaimed profile
+                  has no user to message — matching the pre-11C.1 behaviour. The
+                  muted border wrapper mirrors Follow's gradient wrapper so the
+                  two buttons stay the same size, but reads inactive. */}
+              {!isUnclaimed && (
+                <span style={{ flex: 1, minWidth: 0, display: 'inline-block', padding: 1, borderRadius: 12, background: 'var(--border)' }}>
+                  <button
+                    type="button"
+                    className={s.followBtn}
+                    disabled
+                    aria-label="Message — coming soon"
+                    style={{ borderColor: 'transparent', background: 'rgba(19,19,31,.55)', width: '100%', margin: 0, cursor: 'not-allowed', opacity: 0.75, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, boxSizing: 'border-box' }}
+                  >
+                    <span style={{ color: 'var(--muted)' }}>MESSAGE</span>
+                    <span style={{ fontSize: 9, letterSpacing: 1, padding: '2px 6px', borderRadius: 999, border: '1px solid var(--border)', color: 'var(--muted)', fontFamily: "'Bebas Neue', sans-serif", lineHeight: 1 }}>SOON</span>
+                  </button>
+                </span>
+              )}
             </div>
             {isVenue && !isUnclaimed && (
               <button

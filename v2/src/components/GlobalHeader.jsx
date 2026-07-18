@@ -55,6 +55,18 @@ export default function GlobalHeader({ onMarkRead, unreadCount = 0 }) {
     if (window.history.length > 1) navigate(-1);
   }
 
+  // Header share utility (11C.1): shares the current page — on a profile route
+  // that's the canonical /profile/<id> URL. Native share sheet where available,
+  // clipboard copy as fallback. Pure client-side; no backend, no page context
+  // needed. The info sheets already advertise this icon ("Share … with the
+  // share icon in the top right"); it simply had no handler until now.
+  function handleShare() {
+    const url   = window.location.href;
+    const title = document.title || 'YesPleez';
+    if (navigator.share) { navigator.share({ title, url }).catch(() => {}); }
+    else if (navigator.clipboard) { navigator.clipboard.writeText(url).catch(() => {}); }
+  }
+
   return (
     <>
       <div className={s.header}>
@@ -96,7 +108,7 @@ export default function GlobalHeader({ onMarkRead, unreadCount = 0 }) {
               <polyline points="11 12 12 12 12 16"/>
             </svg>
           </button>
-          <button className={s.iconBtn} aria-label="Share">
+          <button className={s.iconBtn} onClick={handleShare} aria-label="Share">
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
               <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
