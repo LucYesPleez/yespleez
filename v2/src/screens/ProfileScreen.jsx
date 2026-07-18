@@ -572,35 +572,39 @@ export default function ProfileScreen() {
             <div style={{ height: 1, background: 'rgba(255,255,255,.08)', margin: '4px 0 20px' }} />
           )}
 
-          {/* Venue: combined Vibe tags + Sound + Venue Info box */}
-          {isVenue && (
-            <div className={s.glassCard} style={{ '--card-col': col, '--card-grad2': grad2, '--pill-col': col, '--pill-rgb': rgb, padding: 0, overflow: 'hidden' }}>
-              {(() => {
-                const vibeTags = profile.card_pills
-                  ? profile.card_pills.split(' · ').map(t => t.trim()).filter(Boolean).slice(0, 5)
-                  : [];
-                if (!vibeTags.length) return null;
-                return (
-                  <div style={{ padding: '14px 16px' }}>
-                    <div className={s.cardLabel} style={{ color: 'rgba(232,232,240,.5)', marginBottom: 8 }}>VIBE</div>
-                    {/* VIBE tags (the curated "Your 5 Tags", card_pills) as simple,
-                        uniform outlined pills — neutral grey border, dark fill, no
-                        accent colour and no glow (were the loud Glow Pill). 11C.4. */}
-                    <div className={s.tagPills}>
-                      {vibeTags.map(t => <span key={t} className={s.tagPill}>{t}</span>)}
+          {/* Venue: de-chromed to match the performer STYLE/ABOUT layout — no
+              card box. VIBE section (neutral label + inline gradient sound +
+              centred pills), then the VENUE INFO dropdown, each followed by the
+              same divider line the performer sections use. */}
+          {isVenue && (() => {
+            const vibeTags = profile.card_pills
+              ? profile.card_pills.split(' · ').map(t => t.trim()).filter(Boolean).slice(0, 5)
+              : [];
+            return (
+              <>
+                {vibeTags.length > 0 && (
+                  <>
+                    <div style={{ marginBottom: 12 }}>
+                      <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap', marginBottom: 10 }}>
+                        <div className={s.cardLabel} style={{ color: 'rgba(232,232,240,.5)', marginBottom: 0 }}>VIBE</div>
+                        {profile.sound && (
+                          <div style={{ fontSize: 14, fontStyle: 'italic', lineHeight: 1.5, opacity: .9, background: `linear-gradient(135deg,${col},${grad2})`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
+                            {profile.sound}
+                          </div>
+                        )}
+                      </div>
+                      <div className={s.tagPills}>
+                        {vibeTags.map(t => <span key={t} className={s.tagPill}>{t}</span>)}
+                      </div>
                     </div>
-                  </div>
-                );
-              })()}
-              {profile.sound && (
-                <>
-                  <div style={{ height: 1, background: 'rgba(255,255,255,.06)', margin: '0 16px' }} />
-                  <div style={{ padding: '12px 16px', textAlign: 'center', fontStyle: 'italic', fontSize: 15, color: 'rgba(232,232,240,.75)', lineHeight: 1.6 }}>{profile.sound}</div>
-                </>
-              )}
-              <VenueInfoDropdown bare profile={profile} col={col} rgb={rgb} grad2={grad2} socials={socials} />
-            </div>
-          )}
+                    <div style={{ height: 1, background: 'rgba(255,255,255,.08)', margin: '4px 0 20px' }} />
+                  </>
+                )}
+                <VenueInfoDropdown bare profile={profile} col={col} rgb={rgb} grad2={grad2} socials={socials} />
+                <div style={{ height: 1, background: 'rgba(255,255,255,.08)', margin: '4px 0 20px' }} />
+              </>
+            );
+          })()}
 
           {/* Action buttons — Follow + Message first, then the booking CTA
               (Check Availability / Enquire) below, then the socials row.
@@ -1014,17 +1018,15 @@ function VenueInfoDropdown({ profile, col, rgb, grad2, bare = false, socials = [
 
   const inner = (
     <>
-      <div style={{ borderTop: '1px solid rgba(255,255,255,.06)' }}>
-        <button
-          onClick={() => setOpen(o => !o)}
-          style={{ width: '100%', background: 'none', border: 'none', padding: '12px 16px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
-        >
-          <span style={{ fontFamily: "'Bebas Neue'", fontSize: 14, letterSpacing: 2, color: col }}>VENUE INFO</span>
-          <span style={{ fontFamily: "'Bebas Neue'", fontSize: 12, color: col }}>{open ? '▲' : '▼'}</span>
-        </button>
-      </div>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{ width: '100%', background: 'none', border: 'none', padding: '0 0 12px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+      >
+        <span style={{ fontFamily: "'Bebas Neue'", fontSize: 14, letterSpacing: 2, color: col }}>VENUE INFO</span>
+        <span style={{ fontFamily: "'Bebas Neue'", fontSize: 12, color: col }}>{open ? '▲' : '▼'}</span>
+      </button>
       {open && (
-        <div style={{ padding: '0 16px 14px', borderTop: '1px solid rgba(255,255,255,.06)' }}>
+        <div style={{ padding: '0 0 6px' }}>
           {profile.venue_type && (
             <div style={rowStyle}>
               <div style={labelStyle}>VENUE TYPE</div>
