@@ -15,10 +15,13 @@ import { formatLocation } from '../lib/formatLocation';
 import { socialProfileUrl, ensureHttps } from '../lib/socialLinks';
 import ProfileSocialLinks from '../components/ProfileSocialLinks';
 import AvailabilityCalendar from '../components/AvailabilityCalendar';
-import { selectedPerformanceRoleLabels, selectedArtistRoleLabels, ARTIST_ROLES } from '../lib/profileTaxonomy';
+import { selectedPerformanceRoleLabels, selectedArtistRoleLabels, ARTIST_ROLES, HOST_CATEGORIES } from '../lib/profileTaxonomy';
 import { PROFILE_TYPES } from '../lib/profileTypes';
 
 const OLD_CATS = new Set(['ELECTRONIC','BANDS','SPOKEN','SPOKEN WORD','RAVE','FESTIVAL']);
+// Host genre_string leads with broad category KEYS (ELECTRONIC/BANDS/…); filter
+// them out of the public "WE BOOK" list so it reads as actual programming genres.
+const HOST_CAT_KEYS = new Set(HOST_CATEGORIES.map(c => c.key));
 
 // Who a venue can book. Hosts/promoters and other venues aren't performers, so
 // they never get the enquire action.
@@ -83,6 +86,16 @@ export default function ProfileScreen() {
         // Attribution split (M1/M5): public attribution reads venue_profile_id,
         // never the auth-only host_id.
         const eRes = await supabase.from('events').select('id,name,config').eq('venue_profile_id', ownedProfile.id).in('status', ['live','completed']).order('created_at', { ascending: false }).limit(100);
+        events = eRes.data || [];
+      } else if (ownedProfile.type === 'host') {
+        // 11C.6: a host's HOSTED events — events.host_id is the promoter's
+        // account (see CreateEventScreen / HostDashboard). NOT lineup_members:
+        // a host doesn't perform, so the performer query below returned nothing,
+        // leaving every host's event sections empty. Unclaimed host (no
+        // user_id) has nothing to show.
+        const eRes = ownedProfile.user_id
+          ? await supabase.from('events').select('id,name,config').eq('host_id', ownedProfile.user_id).in('status', ['live','completed']).order('created_at', { ascending: false }).limit(100)
+          : { data: [] };
         events = eRes.data || [];
       } else {
         // Compatibility read until M8: newer/unclaimed-linked rows carry the
@@ -391,7 +404,7 @@ export default function ProfileScreen() {
   const ARTIST_ROLE_KEYS = new Set(ARTIST_ROLES.map(r => r.key));
   const genres = isStandup
     ? (profile.card_pills || '').split(/\s*·\s*|,\s*/).map(g => g.trim()).filter(Boolean)
-    : (profile.genre_string ? profile.genre_string.split(/\s*·\s*|,\s*/).map(g => g.trim()).filter(Boolean).filter(g => !isArtist || !ARTIST_ROLE_KEYS.has(g)) : []);
+    : (profile.genre_string ? profile.genre_string.split(/\s*·\s*|,\s*/).map(g => g.trim()).filter(Boolean).filter(g => !isArtist || !ARTIST_ROLE_KEYS.has(g)).filter(g => !isHost || !HOST_CAT_KEYS.has(g)) : []);
   // card_pills is the curated "Your 5 Tags" — the collapsed view shows those
   // specifically, not just the first 5 tokens of the broader genre_string.
   // "+N more" then reveals whatever's left in genre_string that isn't
@@ -531,7 +544,7 @@ export default function ProfileScreen() {
           {genres.length > 0 && !isVenue && (
             <div style={{ marginBottom: 12, cursor: remainingGenres.length > 0 ? 'pointer' : 'default' }} onClick={() => remainingGenres.length > 0 && setGenreExpanded(e => !e)}>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap', marginBottom: 10 }}>
-                <div className={s.cardLabel} style={{ color: 'rgba(232,232,240,.5)', marginBottom: 0 }}>STYLE</div>
+                <div className={s.cardLabel} style={{ color: 'rgba(232,232,240,.5)', marginBottom: 0 }}>{isHost ? 'WE BOOK' : 'STYLE'}</div>
                 {profile.sound && (
                   <div style={{ fontSize: 14, fontStyle: 'italic', lineHeight: 1.5, opacity: .9, background: `linear-gradient(135deg,${col},${grad2})`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
                     {profile.sound}
