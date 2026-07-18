@@ -9,10 +9,10 @@
 > Hand-authored Markdown, permitted here only because it is not canonical (see [`README.md`](README.md),
 > "Drafts"). **On ratification it is re-authored as `communication-v1.0.html`** and this draft deleted.
 >
-> Rule numbers `C1`–`C31` are namespaced to this document and do not refer to rules in
+> Rule numbers `C1`–`C32` are namespaced to this document and do not refer to rules in
 > `architecture-v1.0` (`§`), `identity-v1.1` (`R`/`B`/`D`/`A`) or `publication-v1.0` (`P`).
 >
-> Status: **DRAFT v1.0 · Revision 4** — 18 Jul 2026 · rule numbers provisional until ratified.
+> Status: **DRAFT v1.0 · Revision 5** — 18 Jul 2026 · rule numbers provisional until ratified.
 > Full amendment record at **§13**.
 >
 > **Why this is a revision and not a v1.1.** Under this directory's rules a version is minted when a
@@ -33,8 +33,27 @@ be answered before implementation.
 **Status** DRAFT — not ratified **Governed by** Identity v1.1 §A5 (frozen) **Implements** M8
 **Blocked by** M6 · M7 **Scope** Scene · Festival · Operations · Studio · future products
 
-**`C25` governs this document.** Messenger is not the authoritative business record; structured
-workflows are. Every retention, deletion and erasure statement below follows from that boundary.
+---
+
+## Constitutional principles
+
+Five rules are **constitutional**: they define what this platform is, and everything else in this
+document is a consequence of them. A future implementation that finds one of them inconvenient has
+found the point at which it must stop and surface the conflict (`architecture-v1.0` §00) — not the
+point at which it may make an exception.
+
+| Rule | Principle |
+|---|---|
+| **`C1`** | Communication is infrastructure, not a feature. One platform, every product. |
+| **`C25`** | Conversations help people discuss opportunities. Workflows record official commitments. Messenger is not the authoritative record. |
+| **`C26`** | Copy, never reference. Workflow objects are self-contained; conversation deletion can never invalidate one. |
+| **`C29`** | Private conversations belong to the participants. AI does not enter them — not ambiently, not on request, not by invitation, not with consent. |
+| **`C32`** | **Private conversation content is excluded from the platform's decision-making systems.** YesPleez intelligence derives from structured platform data. |
+
+`C29` and `C32` are related but distinct, and both are needed. `C29` prohibits AI from reading
+conversations. `C32` prohibits conversation content from becoming an input to *any* decision-making
+system — a keyword heuristic, a ranking signal, a recommendation input, an analytics pipeline that
+shapes product behaviour. None of those are AI, and each would pass `C29` untouched.
 
 ---
 
@@ -103,6 +122,64 @@ that produced them on Instagram DMs and phone screenshots.
 > be emptied by the counterparty deleting that message — reintroducing precisely the failure `C25`
 > was established to remove. **`C26` is what converts the separation from a claim into a property of
 > the system.**
+
+> **◆ `C32` The intelligence boundary — conversation content is not an input to any decision**
+>
+> **Private conversation content is intentionally excluded from the platform's decision-making
+> systems.** This is a foundational architectural decision, not an implementation detail and not a
+> policy that a later team may revisit under product pressure.
+>
+> **YesPleez intelligence derives from structured platform data**: applications, invitations,
+> bookings, event relationships, profile relationships, workflow state, user actions, and explicit
+> platform events.
+>
+> **Private messages, voice notes and attachments are never inputs** to workflow preparation,
+> recommendations, ranking, matching, prioritisation, scoring, or any future decision-making system.
+>
+> **The platform becomes intelligent because it understands its structured workflows — not because it
+> analyses private conversations.**
+
+> **The line is content, not communication — and the distinction is precise**
+>
+> `C32` excludes what is *said*. It does not exclude the *fact and shape* of a conversation, which is
+> ordinary structured platform data and is already relied upon elsewhere in this document:
+>
+> | Structured — permitted input | Content — never an input |
+> |---|---|
+> | A conversation exists, and its immutable context (§3) | What anyone wrote in it |
+> | Its participants and their profile roles | The tone, sentiment or subject of the discussion |
+> | Its linked event, application or booking | Any word, number, date or figure appearing in a message |
+> | That a message was sent, and when | The message body, voice note audio, or attachment contents |
+>
+> So `C27`'s draft preparation — triggered by an application being submitted, populated from the
+> linked event — is fully inside `C32`. A future feature that ranked conversations by "how likely
+> this is to become a booking" using anything said inside them is outside it, permanently.
+
+> **What `C32` does not prohibit**
+>
+> Stated so the rule is not read as forbidding the messaging system from functioning:
+>
+> - **Delivering, storing and displaying messages.** Obviously.
+> - **A user searching their own conversations.** Search serves the participant, on their own data,
+>   at their own request. It is not the platform making a decision — provided the index serves only
+>   the participants and never feeds a platform-side system.
+> - **Unread counts, read state and ordering by recency.** These derive from message *events*, not
+>   message *content*.
+> - **Governance functions**, which are outside this architecture entirely (§10.2).
+>
+> The test in every case: **does conversation content flow into something that decides, ranks,
+> suggests or predicts?** If yes, it is prohibited. If it flows only back to the people who wrote it,
+> it is fine.
+
+> **Why this is constitutional rather than an implementation choice**
+>
+> An implementation choice gets revisited when a quarterly metric is soft. A constitutional boundary
+> is the thing a proposal has to argue against, in the open, with an amendment.
+>
+> The long-term value is not privacy alone. It is that **the boundary never has to be renegotiated**:
+> there is no gradient along which access to conversation content slowly expands, no accumulating
+> set of special cases, no edge conditions where one system may read what another may not. The
+> architecture stays simpler because the answer is always the same answer.
 
 The measure of this platform is therefore not whether a conversation is preserved forever. It is
 whether the industry finds this a genuinely good place to talk — fast, beautiful, unhurried — and
@@ -749,7 +826,8 @@ by a human. Nothing enters this domain by inference.
 > workflow state.
 >
 > **Message content is never analysed.** Not for money, dates, times, set lengths, equipment, travel,
-> or any other keyword. Under `C29` there is no mechanism by which it could be.
+> or any other keyword. Under `C29` no AI may read it, and under `C32` it is not an input to this or
+> any other decision-making system regardless of the technique used.
 >
 > **The accuracy argument:** those words dominate ordinary conversation between musicians. "How much
 > was your new pedal" is not a fee negotiation. Content inference in this domain has a false-positive
@@ -943,6 +1021,30 @@ amendment. It must obey the existing rule that primary navigation renders on eve
 
 Per `architecture-v1.0` §17, restated for a document still in draft. Revisions accumulate here until
 ratification; on ratification this section becomes the document's provenance.
+
+### Revision 5 — 18 Jul 2026 · `C32` the intelligence boundary, made constitutional
+
+| Field | Value |
+|---|---|
+| **Requested by** | Owner, 18 Jul 2026 |
+| **Nature** | Clarification of architectural philosophy. Broadens `C29`'s protection from a prohibition on AI to a boundary around the intelligence layer, and elevates the result to constitutional status. |
+| **Bar cleared** | Not a new feature or implementation requirement. It states, permanently and visibly, a boundary the previous four revisions had been approaching one exception at a time. |
+
+| # | Change |
+|---|---|
+| **1** | **`C32` added.** Private conversation content is excluded from the platform's decision-making systems. Intelligence derives from structured platform data — applications, invitations, bookings, event and profile relationships, workflow state, user actions, explicit platform events. Messages, voice notes and attachments are never inputs to workflow preparation, recommendation, ranking, matching or any future decision system. |
+| **2** | **New "Constitutional principles" section** at the head of the document, naming `C1`, `C25`, `C26`, `C29` and `C32` as the rules a future implementation must stop and surface a conflict against rather than make an exception to. Placed before §0 so it is the first thing read. |
+| **3** | **`C29` and `C32` distinguished explicitly.** `C29` prohibits AI from reading conversations; `C32` prohibits conversation content from becoming an input to any decision-making system. A keyword heuristic, a ranking signal or an analytics pipeline is not AI and would pass `C29` untouched — which is precisely why both rules are needed. |
+| **4** | **The content/structure line drawn precisely.** `C32` excludes what is *said*; it does not exclude the fact and shape of a conversation — existence, context, participants, linked workflow object, that a message was sent and when — which is ordinary structured data and is already relied on by `C15` and `C27`. Given as a table so the distinction is unambiguous. |
+| **5** | **Carve-outs stated** so the rule is not read as forbidding the messaging system from working: delivery, storage, display, a participant searching their own conversations, unread counts and recency ordering. The test in every case is whether content flows into something that decides, ranks, suggests or predicts — or only back to the people who wrote it. |
+
+**Why this was worth a revision of its own.** Revisions 2–4 each narrowed the same boundary from a
+different direction, and each time the rule was framed around a *mechanism* — assistance, then
+ambient analysis, then AI participation. A mechanism-shaped rule is one new mechanism away from
+irrelevance. `C32` is framed around the **boundary itself**, which is what makes it durable: it does
+not matter what the technique is called.
+
+**What did not change:** every other rule and every model section.
 
 ### Revision 4 — 18 Jul 2026 · AI removed from private conversations
 
