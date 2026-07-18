@@ -585,14 +585,12 @@ export default function ProfileScreen() {
                 {vibeTags.length > 0 && (
                   <>
                     <div style={{ marginBottom: 12 }}>
-                      <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap', marginBottom: 10 }}>
-                        <div className={s.cardLabel} style={{ color: 'rgba(232,232,240,.5)', marginBottom: 0 }}>VIBE</div>
-                        {profile.sound && (
-                          <div style={{ fontSize: 14, fontStyle: 'italic', lineHeight: 1.5, opacity: .9, background: `linear-gradient(135deg,${col},${grad2})`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
-                            {profile.sound}
-                          </div>
-                        )}
-                      </div>
+                      <div className={s.cardLabel} style={{ color: 'rgba(232,232,240,.5)', marginBottom: 6 }}>VIBE</div>
+                      {profile.sound && (
+                        <div style={{ fontSize: 14, fontStyle: 'italic', lineHeight: 1.5, opacity: .9, marginBottom: 10, background: `linear-gradient(135deg,${col},${grad2})`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
+                          {profile.sound}
+                        </div>
+                      )}
                       <div className={s.tagPills}>
                         {vibeTags.map(t => <span key={t} className={s.tagPill}>{t}</span>)}
                       </div>
