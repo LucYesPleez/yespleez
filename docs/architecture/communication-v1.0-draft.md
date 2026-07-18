@@ -12,7 +12,7 @@
 > Rule numbers `C1`–`C31` are namespaced to this document and do not refer to rules in
 > `architecture-v1.0` (`§`), `identity-v1.1` (`R`/`B`/`D`/`A`) or `publication-v1.0` (`P`).
 >
-> Status: **DRAFT v1.0 · Revision 3** — 18 Jul 2026 · rule numbers provisional until ratified.
+> Status: **DRAFT v1.0 · Revision 4** — 18 Jul 2026 · rule numbers provisional until ratified.
 > Full amendment record at **§13**.
 >
 > **Why this is a revision and not a v1.1.** Under this directory's rules a version is minted when a
@@ -31,7 +31,7 @@ as a layer above it, the voice pipeline, the storage model, and the unresolved q
 be answered before implementation.
 
 **Status** DRAFT — not ratified **Governed by** Identity v1.1 §A5 (frozen) **Implements** M8
-**Blocked by** M6 · M7 **Scope** Scene · Festival · Operations · Studio · future AI
+**Blocked by** M6 · M7 **Scope** Scene · Festival · Operations · Studio · future products
 
 **`C25` governs this document.** Messenger is not the authoritative business record; structured
 workflows are. Every retention, deletion and erasure statement below follows from that boundary.
@@ -144,8 +144,9 @@ Stated so they are not designed for by accident:
 - **Not an administrative surface.** A user in a conversation is talking, not filing. Workflow
   prompts never interrupt (§9.5). If Messenger starts to feel like paperwork, it has failed at the
   thing it exists to do.
-- **Not a conversation-analysis engine.** The platform does not read message content to infer intent
-  (`C27`, §9.4).
+- **Not a conversation-analysis engine, and not an AI product.** The platform does not read message
+  content to infer intent, and no AI participates in, analyses or assists private conversations
+  (`C27`, `C29`). Messenger is simply a messaging platform.
 - **Not a replacement for notifications.** Notifications are a delivery layer above messaging (§5),
   not a kind of message.
 
@@ -388,9 +389,13 @@ It is never deleted, and never silently emptied. §C12.
 
 ### 4.5 System and non-human participants
 
-Operations staff, Studio system messaging, and future AI assistants participate **as profiles**,
-subject to the same rules. There is no privileged non-conversation message path. An AI that can
-message a user is a participant profile whose `can_act_as` is constrained — see §9.4.
+Operations staff and Studio system messaging participate **as profiles**, subject to the same rules.
+There is no privileged non-conversation message path.
+
+**AI is not among them.** No AI participates in private conversations (`C29`), so there is no AI
+participant profile and no path by which one could be added to a thread. Where the ecosystem needs a
+non-human sender — a moderation outcome, a catalogue notice — that is a **system profile**, which
+sends without reading (§10.4).
 
 ---
 
@@ -728,17 +733,23 @@ by a human. Nothing enters this domain by inference.
 
 ### 9.4 Assisted preparation — structure, not content
 
-> **`C27` restated, and the reason it is a privacy rule rather than an accuracy one**
+> **`C27` restated — assistance is driven entirely by structured platform events**
 >
-> The platform prepares workflow drafts from **structured context only**:
+> Workflow drafts are prepared from **platform structure only**. The triggering signals are events,
+> not utterances:
 >
-> - the conversation's immutable context (`application`, `invitation`, `event` — §3)
-> - participant roles (a venue profile and an artist profile is a meaningful pairing)
-> - the linked event, its date, venue and slots
-> - existing workflow state for those parties
+> - an application is submitted
+> - an invitation is accepted
+> - a booking workflow is started
+> - a venue connects with an artist
+> - an event relationship already exists
 >
-> It does **not** analyse message content to infer intent. Not for money, dates, times, set lengths,
-> equipment, travel, or any other keyword.
+> and the fields are populated from what the platform already holds — the conversation's immutable
+> context (§3), participant roles, the linked event with its date, venue and slots, and existing
+> workflow state.
+>
+> **Message content is never analysed.** Not for money, dates, times, set lengths, equipment, travel,
+> or any other keyword. Under `C29` there is no mechanism by which it could be.
 >
 > **The accuracy argument:** those words dominate ordinary conversation between musicians. "How much
 > was your new pedal" is not a fee negotiation. Content inference in this domain has a false-positive
@@ -752,44 +763,39 @@ by a human. Nothing enters this domain by inference.
 >
 > Structured context is both the more reliable signal and the one that requires reading nothing.
 
-> **◆ `C29` No undisclosed or ambient AI analysis. An AI that reads a conversation must appear in it.**
+> **◆ `C29` Private conversations belong to the participants. AI does not enter them.**
 >
-> **This is an ecosystem principle**, binding on Scene, Festival, Studio and every future product. It
-> is stated here because messaging is where it will first be tested, not because it is scoped to
-> messaging.
+> **This is an ecosystem principle**, binding on Scene, Festival, Operations, Studio and every future
+> product.
 >
-> **The rule, in two halves:**
+> **The platform does not analyse, interpret, participate in, or provide AI assistance within private
+> conversations.** There is no feature by which AI reads private messages to generate suggestions,
+> infer bookings, summarise conversations, or otherwise take part in communication. Not ambiently,
+> not on request, not by invitation, not with consent.
 >
-> 1. **No undisclosed or ambient AI analysis of private conversations.** No automated interpretation
->    of conversation content that participants have not been told about and cannot see — not for
->    intent detection, assistance, product analytics, or model training.
-> 2. **Any AI participant is explicit and visible to the participants.** It appears in the
->    participant list. Its messages are attributed to it (`C24`). A user can see that it is there and
->    can remove it.
+> **This is a deliberate product decision, not a technical limitation.** It is stated as an absolute
+> because a rule with a permitted exception is a rule with a doorway, and every subsequent proposal
+> arrives as a reason to use the doorway. There is no doorway.
 >
-> **The distinguishing test is visibility**, not capability and not a consent checkbox buried in
-> settings. An AI a user has invited into a conversation may read that conversation — it is a party
-> to the discussion, present and attributed. An AI reading the same conversation from outside it may
-> not, whatever its purpose.
->
-> `C27` and `C29` are one commitment stated from two directions: assistance derives from structured
-> context, and anything needing more than structured context joins the conversation in the open.
+> Workflow assistance comes from structured platform events (`C27`, §9.4) — an application submitted,
+> an invitation accepted, a booking started, a venue connected with an artist, an event relationship
+> that already exists. That is where the platform's intelligence lives: **in the structure, not in
+> the conversation.**
 
 > **What `C29` does not govern**
 >
-> **Governance functions are outside its scope**: human moderation, legal compliance, and
-> investigation of user-reported conversations. These are not AI analysis and are not what this rule
-> addresses. They are legitimate functions of operating a platform, and they are governed by
-> operational and legal policy — see `D17`, which is a governance question rather than a `C29`
-> question.
+> **Governance is a separate platform responsibility and is outside the Communication Architecture
+> entirely**: human moderation, abuse reporting, legal compliance, and investigation of
+> user-reported conversations.
 >
-> Stating this boundary explicitly matters in both directions. It stops `C29` being read as a
-> prohibition on necessary governance, and it stops governance being used as the doorway through
-> which ambient AI arrives.
+> `C29` is a rule about AI functionality. It neither permits nor forbids governance functions,
+> because an architecture specification is the wrong instrument for deciding them. They are owned by
+> operational and legal policy (§10.2).
 
 > **Why this is architecture and not policy:** a policy can be revised quietly by a later team under
 > product pressure. A rule stated here, cited by implementations, and enforced by the absence of any
-> ambient read path for conversation content is considerably harder to reverse by accident.
+> read path from conversation content into any interpretive system is considerably harder to reverse
+> by accident. The absence of the capability is the enforcement.
 
 ### 9.5 Drafts and non-interruption
 
@@ -841,23 +847,17 @@ Internal and moderation conversations via `operations` context, staff acting as 
 re-publish (`publication-v1.0-draft` §P8). An Ops conversation quoting withheld content does not
 make that content published.
 
-> **Governance access is a governance question, not a `C29` question**
+> **Governance is outside this architecture**
 >
-> Human moderation, legal compliance and the investigation of user-reported conversations sit
-> **outside `C29`** by design. They are governance functions of operating a platform — bounded,
-> accountable, and typically initiated by a participant or a legal obligation rather than running
-> ambiently across everyone's messages.
+> Human moderation, abuse reporting, legal compliance and the investigation of user-reported
+> conversations are **separate platform responsibilities**, owned by operational and legal policy.
+> The Communication Architecture does not specify them, permit them, or forbid them.
 >
-> This architecture therefore does not attempt to permit or forbid them. It notes only that they
-> require their own explicit policy, and that the policy should exist **before** Operations ships
-> rather than being improvised during the first serious incident. That policy is `D17`: what a report
-> or lawful request grants access to, to whom, for how long, and whether participants are informed.
+> It records only that such a policy needs to exist before Operations ships, rather than being
+> improvised during the first serious incident — noted as `D17` and owned elsewhere.
 >
-> The one thing this document does hold: a governance function is not a route by which ambient AI
-> analysis enters the product. Governance being out of `C29`'s scope means human and legal process is
-> out of scope — it does not mean an automated system may read conversations under a governance
-> heading. If a governance function ever needs AI assistance, that intersection is a `D17` decision
-> taken deliberately and disclosed, not an implied exception.
+> `C29` remains unaffected by whatever that policy says: it is a rule about **AI functionality**, and
+> AI does not read private conversations under any heading, governance included.
 
 ### 10.3 Studio
 
@@ -865,19 +865,27 @@ System messaging — moderation outcomes, catalog notices — is a conversation 
 not a separate notification channel. This is the concrete test of §C4: if Studio needs its own
 message table, the architecture failed.
 
-### 10.4 AI assistants
+### 10.4 AI and the conversation boundary
 
-> **`C24` An AI participant is a profile, and the identity pair already models it**
+> **`C24` AI operates on structure, never on conversation**
 >
-> v1.1 §A3's `(from_profile_id, from_user_id)` pair was designed so attribution and authorship are
-> separately recorded. An assistant acting for a host is exactly that shape: **attributed** to the
-> assistant's profile (or the host's, if it acts as them), **authored** by the human who invoked it —
-> or explicitly authored by no human, which the pair can state rather than fake.
+> Future AI systems in the YesPleez ecosystem work with **structured platform data** — workflows,
+> events, lineups, availability, catalogue. They do not read, summarise, interpret or participate in
+> private conversations (`C29`).
 >
-> The rule that must not bend: an AI message is never recorded as having been written by a human who
-> did not write it. `can_act_as` governs what an assistant may do; the pair governs what the record
-> says it did. This is v1.1 §A4's attribution/authorization split doing exactly the job it was
-> promoted to a founding principle to do.
+> This bounds what future AI can be, and it does so deliberately. An assistant that helps a host fill
+> a lineup from availability and past bookings is squarely inside the boundary. An assistant that
+> reads a negotiation and offers to draft the booking is outside it, permanently — that capability is
+> not deferred pending safeguards, it is declined.
+>
+> **Where non-human senders remain legitimate**, the identity model already handles them honestly:
+> Studio system messaging and Operations notices are **system profiles** (§4.5), and v1.1 §A3's
+> `(from_profile_id, from_user_id)` pair records a message as attributed to that profile and authored
+> by no human, rather than faking a human author. The rule that must not bend: **a message is never
+> recorded as having been written by a human who did not write it.**
+>
+> A system profile sending a notice is not AI participating in a conversation. The distinction is
+> that it neither reads nor interprets what anyone said.
 
 ---
 
@@ -903,7 +911,7 @@ Every question this document deliberately leaves open, why, and when it must be 
 | **`D14`** | Conversation export — whether, and in what form | No longer a legal necessity under `C25`, but `C28.1` means it will be asked for | Post-v1 acceptable |
 | **`D15`** | **Amendment to v1.1 §A12 `U2`** — downgrading it from "Blocks M8" to "blocks launch" | This document cannot downgrade a frozen document's blocker by asserting it; it requires a versioned amendment | Before M8 begins |
 | **`D16`** | Assistance volume — how much draft preparation is helpful before it is intrusive (§9.6) | Not knowable from architecture; set by foundational users | During beta |
-| **`D17`** | **Governance access policy** (§10.2) — what a user report or lawful request grants access to, to whom, for how long, and whether participants are informed. Includes the intersection question: whether a governance function may use AI assistance, which `C29` leaves to be decided deliberately and disclosed rather than assumed either way | A governance question, not an architectural one. `C29` scopes itself to AI visibility and consent and deliberately does not adjudicate human moderation, legal compliance or reported-conversation investigation | Before Operations ships |
+| **`D17`** *(out of scope — pointer only)* | **Governance access policy** — what a user report or lawful request grants access to, to whom, for how long, and whether participants are informed | **Not a decision this document makes.** Governance is a separate platform responsibility (§10.2). Recorded here solely so it is not forgotten, since messaging is what creates the need for it | Before Operations ships · owned by operational and legal policy |
 
 ### Not decided here, and not architecture
 
@@ -935,6 +943,33 @@ amendment. It must obey the existing rule that primary navigation renders on eve
 
 Per `architecture-v1.0` §17, restated for a document still in draft. Revisions accumulate here until
 ratification; on ratification this section becomes the document's provenance.
+
+### Revision 4 — 18 Jul 2026 · AI removed from private conversations
+
+| Field | Value |
+|---|---|
+| **Requested by** | Owner, 18 Jul 2026 |
+| **Nature** | Simplification. Removes a capability the previous three revisions had been carefully constraining. |
+| **Bar cleared** | Product decision, explicitly stated as such rather than as a technical limitation. Supersedes all previous discussion of AI participants in private conversations. |
+
+| # | Change |
+|---|---|
+| **1** | **`C29` rewritten as an absolute.** Private conversations belong to the participants. The platform does not analyse, interpret, participate in, or provide AI assistance within them — not ambiently, not on request, **not by invitation, not with consent**. The "invited, visible AI participant" allowance of Revisions 2–3 is withdrawn entirely. |
+| **2** | **`C24` rewritten.** Was *"an AI participant is a profile, and the identity pair already models it"*. AI now operates on **structured platform data only** — workflows, events, lineups, availability, catalogue — and never on conversation content. §10.4 retitled *AI and the conversation boundary*. |
+| **3** | **`C27` restated around structured platform events** — application submitted, invitation accepted, booking started, venue connects with artist, existing event relationship — rather than around "structured context" as a category. |
+| **4** | **§4.5 corrected.** It listed *"future AI assistants"* among legitimate non-human participants. Removed. Where a non-human sender is genuinely needed (Studio notices, moderation outcomes) it is a **system profile**, which sends without reading. |
+| **5** | **Governance moved fully outside the document.** Revision 3 placed governance outside `C29`; Revision 4 places it outside the Communication Architecture entirely. `D17` is retained as a pointer only, explicitly marked as not a decision this document makes. |
+| **6** | **Scope line** changed from *"future AI"* to *"future products"*. |
+
+**Why an absolute rather than a constrained permission.** Revisions 2 and 3 permitted an invited,
+visible AI participant and spent considerable text policing the boundary. A rule with a permitted
+exception is a rule with a doorway, and each future proposal arrives as a reason to use the doorway.
+Removing the capability removes the argument. **The absence of any read path from conversation
+content into an interpretive system is the enforcement mechanism** — stronger than a rule, because
+there is nothing to enforce.
+
+**What did not change:** `C25`, `C26`, `C28`, `C30`, `C31`, and every model section. The workflow
+separation and copy-never-reference principles are untouched.
 
 ### Revision 3 — 18 Jul 2026 · `C29` scoped to AI
 
