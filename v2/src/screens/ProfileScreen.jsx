@@ -590,10 +590,17 @@ export default function ProfileScreen() {
                 return (
                   <div style={{ padding: '14px 16px' }}>
                     <div className={s.cardLabel} style={{ color: col, marginBottom: 8 }}>VIBE</div>
-                    {/* Venue's VIBE pills are the curated "Your 5 Tags" (card_pills) —
-                        the user's final identity, so they get the signature Glow Pill. */}
-                    <div className={s.genrePills}>
-                      {vibeTags.map(t => <span key={t} className="glow-pill">{t}</span>)}
+                    {/* VIBE tags (the curated "Your 5 Tags", card_pills) render as
+                        the same quiet dot-separated line every other profile type
+                        uses for its STYLE/genre tags — they were the loud Glow
+                        Pill, which stood out against the rest (11C.4). */}
+                    <div style={{ display: 'flex', flexWrap: 'wrap', rowGap: 6, fontSize: 14, lineHeight: 1.9, color: 'rgba(232,232,240,.85)' }}>
+                      {vibeTags.map((t, i) => (
+                        <span key={t} style={{ whiteSpace: 'nowrap' }}>
+                          {i > 0 && <span style={{ color: 'rgba(232,232,240,.3)', margin: '0 8px' }}>&middot;</span>}
+                          {t}
+                        </span>
+                      ))}
                     </div>
                   </div>
                 );
