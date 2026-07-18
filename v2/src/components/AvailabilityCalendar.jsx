@@ -27,6 +27,7 @@ export default function AvailabilityCalendar({
   availableDates,
   eventDates,
   mode = 'view',
+  readOnly = false,
   onSelectDate,
   month: controlledMonth,
   onMonthChange,
@@ -51,7 +52,7 @@ export default function AvailabilityCalendar({
     const hasEvent = mode === 'view' && eventSet.has(ds);
     const isAvail  = !hasEvent && availSet.has(ds);
     const isToday  = ds === todayStr;
-    const tappable = mode === 'edit' ? !isPast : (!isPast && isAvail);
+    const tappable = !readOnly && (mode === 'edit' ? !isPast : (!isPast && isAvail));
     cells.push(
       <div key={ds}
         onClick={() => tappable && onSelectDate && onSelectDate(ds)}

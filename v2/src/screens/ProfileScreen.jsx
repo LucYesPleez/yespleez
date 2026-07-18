@@ -42,6 +42,9 @@ export default function ProfileScreen() {
   const [availDates,    setAvailDates]    = useState(null);
   const [eventDates,    setEventDates]    = useState(new Set());
   const [availMonth,    setAvailMonth]    = useState(() => { const d = new Date(); d.setDate(1); return d; });
+  // 11C.3: read-only public performer availability (artist/band/standup).
+  const [perfAvailOpen,  setPerfAvailOpen]  = useState(false);
+  const [perfAvailDates, setPerfAvailDates] = useState(null);
   const [showPast,      setShowPast]      = useState(false);
   const [showAllUp,     setShowAllUp]     = useState(false);
   const [showAllPast,   setShowAllPast]   = useState(false);
@@ -208,6 +211,23 @@ export default function ProfileScreen() {
     return () => { cancelled = true; };
   }, [session?.user?.id, profile?.id, profile?.type, isUnclaimed]);
 
+  // 11C.3: load this performer's public availability. Artist/Band/Comedy all
+  // share one account-keyed table (artist_availability, by user_id) — the same
+  // single source of truth the dashboard editor writes to. Read-only here: no
+  // write path, no enquiry change. Cleared for non-performers so stale dates
+  // never leak across a client-side profile→profile navigation (cf. S40).
+  useEffect(() => {
+    if (!profile?.id || !BOOKABLE_TYPES.includes(profile.type) || !profile.user_id) { setPerfAvailDates(null); return; }
+    let cancelled = false;
+    (async () => {
+      const today = new Date().toISOString().split('T')[0];
+      const { data: rows } = await supabase.from('artist_availability')
+        .select('available_date').eq('user_id', profile.user_id).gte('available_date', today).order('available_date');
+      if (!cancelled) setPerfAvailDates(new Set((rows || []).map(r => r.available_date)));
+    })();
+    return () => { cancelled = true; };
+  }, [profile?.id, profile?.type, profile?.user_id]);
+
   async function openEnquiry(dateStr) {
     if (!session?.user?.id) return;
     setEnquiryLoading(true);
@@ -331,6 +351,7 @@ export default function ProfileScreen() {
   // "DEMO MIX" is DJ vocabulary and was showing on every Band profile.
   const isBand    = profile.type === 'band';
   const isArtist  = profile.type === 'artist';
+  const isPerformer = isArtist || isBand || isStandup;
   // M5: always a profiles-shaped row; any profile (claimed or not) falls back
   // to the generic type imagery (never a real likeness) when it has no avatar.
   const hasRealAvatar = !!(profile.avatar_hero || profile.avatar_thumb || profile.avatar);
@@ -649,6 +670,18 @@ export default function ProfileScreen() {
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 8, verticalAlign: 'middle', marginTop: -2 }}><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>CHECK AVAILABILITY
               </button>
             )}
+            {/* 11C.3: read-only public availability for performers. Opens the
+                shared calendar showing when this performer is available — no
+                enquiry, no booking. Shown whenever they have upcoming dates. */}
+            {isPerformer && !isUnclaimed && perfAvailDates && perfAvailDates.size > 0 && (
+              <button
+                className={s.followBtn}
+                style={{ background: `linear-gradient(135deg, ${col}, ${grad2})`, color: '#0a0a14', borderColor: 'transparent', width: '100%' }}
+                onClick={() => setPerfAvailOpen(true)}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 8, verticalAlign: 'middle', marginTop: -2 }}><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>CHECK AVAILABILITY
+              </button>
+            )}
             {/* The canonical way a venue starts a booking conversation — the
                 mirror of CHECK AVAILABILITY above. Only renders for a viewer
                 who owns a venue, looking at a claimed performer. */}
@@ -826,6 +859,29 @@ export default function ProfileScreen() {
                 </div>
               )}
             </>
+          }
+        />
+      )}
+
+      {/* Performer availability modal — read-only shared calendar (11C.3).
+          Same AvailabilityCalendar, view mode + readOnly: available dates are
+          highlighted in the performer's own accent, nothing is tappable, no
+          enquiry. Uncontrolled month (opens on the current month). */}
+      {perfAvailOpen && (
+        <AvailabilityCalendar
+          onClose={() => setPerfAvailOpen(false)}
+          title="AVAILABILITY"
+          subtitle={`Dates ${profile.name} is available.`}
+          accent={col}
+          accentRgb={rgb}
+          availableDates={perfAvailDates}
+          mode="view"
+          readOnly
+          footer={
+            <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ width: 14, height: 14, borderRadius: 3, background: `rgba(${rgb},.18)`, border: `1px solid rgba(${rgb},.5)`, flexShrink: 0 }} />
+              <span style={{ fontSize: 12, color: 'var(--muted)', fontFamily: "'Bebas Neue'", letterSpacing: 1 }}>AVAILABLE</span>
+            </div>
           }
         />
       )}
