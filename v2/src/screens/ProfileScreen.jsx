@@ -185,7 +185,13 @@ export default function ProfileScreen() {
   useEffect(() => {
     if (!session?.user?.id || !profile?.id) return;
     if (!BOOKABLE_TYPES.includes(profile.type)) return;
-    if (profile.user_id === session.user.id) return;   // your own profile
+    // NOTE: no "skip my own account" guard here (IA-01). The enquiry actor is
+    // always your VENUE profile and the target is always a PERFORMER profile —
+    // two different profiles, even when the same login owns both. So a venue
+    // enquiring to its own act is a legitimate profile-to-profile booking, and
+    // it goes through the identical InviteSheet flow. This is the one venue-
+    // initiated case that already passes RLS today (applicant_user_id === you),
+    // so it works pre-M6. Attribution ≠ authorization.
     if (isUnclaimed) return;                           // nobody to receive it
     let cancelled = false;
     (async () => {
