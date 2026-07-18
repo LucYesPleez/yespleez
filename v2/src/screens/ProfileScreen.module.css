@@ -248,7 +248,7 @@
 /* Simple tag pills — the shared quiet pill for a profile's descriptive tags
    across every type (venue VIBE, performer STYLE). Neutral by design: no accent
    colour, no glow, all pills identical, so the tags read calmly (11C.4). */
-.tagPills { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.tagPills { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; justify-content: center; }
 .tagPill {
   font-family: 'DM Sans', sans-serif;
   font-size: 13px;
