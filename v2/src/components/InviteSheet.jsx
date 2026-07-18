@@ -299,7 +299,7 @@ export default function InviteSheet({ artist, events = [], venueUserId, initialD
                   </div>
                   <div>
                     <label style={subLabel}>LENGTH</label>
-                    <select value={duration} onChange={e => setDuration(e.target.value)} style={{ ...inputStyle, color: duration ? '#fff' : 'rgba(255,255,255,.35)' }}>
+                    <select value={duration} onChange={e => setDuration(e.target.value)} style={{ ...inputStyle, colorScheme: 'dark', color: duration ? '#fff' : 'rgba(255,255,255,.35)' }}>
                       <option value="">—</option>
                       {DURATIONS.map(d => <option key={d} value={d}>{d} min</option>)}
                     </select>
