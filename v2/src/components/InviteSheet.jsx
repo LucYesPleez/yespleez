@@ -9,6 +9,16 @@ import { profileIdentity } from '../lib/profileTypes';
 const SLOT_ROLES = ['Opener', 'Support', 'Headline'];
 const DURATIONS  = [30, 45, 60, 90, 120];
 const EXTRAS     = ['Accommodation', 'Meals', 'Travel'];
+const HOLD_PRESETS = [{ label: '1 WEEK', days: 7 }, { label: '2 WEEKS', days: 14 }, { label: '1 MONTH', days: 30 }];
+
+// Local YYYY-MM-DD for "n days from today" — used by the HOLD-THE-SPOT quick
+// presets. Built from local getFullYear/Month/Date (not toISOString/UTC) so the
+// deadline can't roll a day near midnight in AU time.
+const dateInDays = n => {
+  const d = new Date();
+  d.setDate(d.getDate() + n);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
 
 // Turn "20:00" + 60min into "8:00–9:00pm" for the live preview / card facts.
 function fmtSlot(startHHMM, durationMin) {
@@ -328,6 +338,21 @@ export default function InviteSheet({ artist, events = [], venueUserId, initialD
               {/* ══ HOLDING THE SPOT ══ */}
               <div style={{ marginBottom: 24 }}>
                 <label style={labelStyle}>HOLD THE SPOT UNTIL <span style={{ opacity: .5, fontSize: 11 }}>(OPTIONAL)</span></label>
+                {/* Quick-set presets — one tap sets the deadline without typing
+                    (date-picker design principle). Tap again to clear. */}
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
+                  {HOLD_PRESETS.map(p => {
+                    const d  = dateInDays(p.days);
+                    const on = respondBy === d;
+                    return (
+                      <button key={p.label} type="button" onClick={() => setRespondBy(on ? '' : d)}
+                        style={{ fontFamily: "'Bebas Neue'", fontSize: 12, letterSpacing: 1, padding: '7px 16px', borderRadius: 20, cursor: 'pointer', transition: 'all .15s',
+                          background: on ? `rgba(${accentRgb},.15)` : 'rgba(255,255,255,.04)',
+                          border: `1px solid ${on ? accent : 'rgba(255,255,255,.12)'}`,
+                          color: on ? accent : 'rgba(255,255,255,.6)' }}>{p.label}</button>
+                    );
+                  })}
+                </div>
                 <input type="date" value={respondBy} onChange={e => setRespondBy(e.target.value)} style={{ ...inputStyle, colorScheme: 'dark' }} />
                 <div style={{ fontSize: 11, color: 'rgba(255,255,255,.35)', marginTop: 6 }}>Gives {actName || 'them'} an honest deadline — and keeps your night moving.</div>
               </div>
