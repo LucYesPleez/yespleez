@@ -50,7 +50,12 @@ const ROLES = [
     path: '/industry/artist',
     hoverStyle: { borderColor: PROFILE_TYPES.artist.accent, boxShadow: `0 0 28px rgba(${PROFILE_TYPES.artist.rgb},.18)` },
     titleStyle: { color: PROFILE_TYPES.artist.accent },
-    title: PROFILE_TYPES.artist.label,
+    // Deliberate divergence from PROFILE_TYPES.artist.label ('DJ / PROD.').
+    // The abbreviation exists for badges and pills where space is tight; the
+    // role picker has room and is where someone decides what they are, so it
+    // spells the role out. Picker-only — IndustryPanel reads this same array,
+    // every other surface still shows the canonical label.
+    title: 'DJ / PRODUCER',
     desc: 'Build your profile, track your bookings, apply to events',
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
