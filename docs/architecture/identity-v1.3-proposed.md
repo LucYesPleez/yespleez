@@ -251,6 +251,42 @@ account) — both directions were always in the model.
 
 ---
 
+## §O7b — Governance impact
+
+**What kind of change this is.** The first amendment to supersede a clause of `architecture-v1.0`
+on grounds other than an internal contradiction. v1.1 superseded §01, §03 and §05 because v1.0
+contradicted itself (§A1's `B1`, `B2`). This supersedes §03's *authorization basis* because a new
+requirement cannot be expressed — §00's other limb. **The precedent it sets is narrow and should
+stay narrow:** a new product capability justifies amendment only when the capability is
+unrepresentable, never when it is merely awkward.
+
+**Canonical set becomes four.** v1.0 + v1.1 + v1.2 + v1.3, each binding except where a later one
+names a clause. The README's reading rule extends accordingly:
+
+- v1.0 binding except clauses **v1.1 §A2** lists **and** the event-authorization basis **v1.3
+  `O-R4`** supersedes.
+- v1.1 binding in full except the §A12 `U2` cell **v1.2 §B2** supersedes. **v1.3 changes nothing in
+  v1.1** — §A3 and §A4 are reconciled, not amended.
+
+**Citation interface.** v1.3 introduces prefix **`O`** (`O-R1`–`O-R5`, §O0–§O11), unused elsewhere
+in this directory, so no existing citation is ambiguated. Nothing is renumbered anywhere.
+
+**Ratification requires:**
+
+1. Author `identity-v1.3.html` — canonical form is the frozen HTML artifact.
+2. Record supersession in `README.md`; canonical table and reading rule to four documents.
+3. Regenerate reading copies via `render-markdown.js`; verify existing `.md` files come back
+   byte-identical.
+4. Update `CLAUDE.md` — `O-R3` as operative statement, events in scope for R3.2.
+5. Delete this proposal **and** `docs/unclaimed-host-assessment-2026-07.md`, which this absorbs.
+6. Freeze `O-R1`–`O-R5` and §O0–§O11 as a citation interface. Never renumber.
+
+**What ratification does not do.** It does not begin implementation, does not alter M6, and does not
+unblock R3.2 — which remains deferred on its own terms until real client writes carrying
+`from_profile_id` have been observed.
+
+---
+
 ## §O8 — Migration · conceptual only
 
 **Phase 1 · Additive.** `host_profile_id` added, nullable. Nothing reads it. **No column is
@@ -299,14 +335,25 @@ operation §O1 identifies as unrepresentable-by-design and `U4` has already pric
 
 ## §O10 — Open questions
 
+Raised by adversarial self-review, 18 Jul 2026. `Q4`–`Q7` were not in the previous draft and are
+not answered by this one.
+
 | # | Question | Blocks |
 |---|---|---|
 | **`Q1`** | Notifications, applications and messages addressed to an event whose owner is unclaimed — **held until claim, or suppressed?** | Studio import |
 | **`Q2`** | Backfill ambiguity: an account owning two host profiles (§O8 phase 2, K2) | Migration phase 2 |
 | **`Q3`** | Enumerate the `events` RLS policies — the full authority surface (§O4) | Implementation, not ratification |
+| **`Q4`** | **Which profile owns an imported event when a venue *and* a promoter are both identifiable?** `O-R4` says "the venue's profile", but the requirement names *Host and Venue* profiles. If ownership goes to the venue and the promoter later claims their Host profile, the promoter gets nothing — and vice versa. One owner, two plausible claimants. | **Studio import** — it decides what the importer writes |
+| **`Q5`** | **Who may publish an unclaimed event?** The publication model starts imported content `PRIVATE` (§P8), and `can_act_as` returns false for an unclaimed owner — so **nobody can advance it**. But a catalog nobody can see defeats the purpose of importing one. Either imports publish without an owner authorising it, or the catalog is invisible until claimed. | **Studio import** — it decides whether the product works |
+| **`Q6`** | **Is `host_profile_id` reassignable?** An event imported against the wrong profile needs correction, which is ownership transfer — and v1.1 §A12 `U3` defers transfer as "not a v1 operation". Import makes mis-attribution likely enough that this stops being theoretical. | Studio import at scale |
+| **`Q7`** | **Claiming now grants authority over a catalog, not an empty profile.** A wrongful claim yields immediate control of every imported event attributed to that profile. §07 makes claims reversible, but the exposure between claim and reversal is materially larger than it was. Does claim verification need strengthening under this model? | Before import runs at scale |
 
 *(The two questions the previous draft carried are closed: `events.host_id` nullability is verified
 in §O4, and the v1.1 §A3 question is void — §A3 is accurate, so no erratum arises.)*
+
+> **`Q5` is the one to answer first.** `Q1`, `Q4`, `Q6` and `Q7` change how Studio is built. `Q5`
+> asks whether the imported catalog is visible at all, and a "no" would mean the import pipeline
+> produces nothing a user can see — which is worth discovering before it is built, not after.
 
 ---
 
