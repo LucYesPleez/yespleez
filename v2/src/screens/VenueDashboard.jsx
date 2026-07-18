@@ -33,9 +33,13 @@ export default function VenueDashboard({ userId: userIdProp }) {
   const [loadingFollow,  setLoadingFollow]  = useState(false);
   const [followView,       setFollowView]       = useState('portrait'); // 'portrait' | 'landscape'
   const [followFilter,     setFollowFilter]     = useState('ALL');
-  const [regularsShowAll,  setRegularsShowAll]  = useState(false);
-  const [regularsSearch,   setRegularsSearch]   = useState('');
-  const regularsDrag = useDragScroll('venue-dashboard-regulars');
+  const [followingShowAll, setFollowingShowAll] = useState(false);
+  const [followingSearch,  setFollowingSearch]  = useState('');
+  // Discovery-bump key stays 'venue-dashboard-regulars' even though the
+  // section is now FOLLOWING: it keys a persisted visit counter
+  // (yp_hscroll_visits_*), so renaming it would replay the swipe hint for
+  // everyone who has already seen it.
+  const followingDrag = useDragScroll('venue-dashboard-regulars');
   const [isNarrow, setIsNarrow] = useState(() => window.innerWidth < 640);
 
   useEffect(() => {
@@ -271,12 +275,11 @@ export default function VenueDashboard({ userId: userIdProp }) {
         setFollowView={setFollowView}
         followFilter={followFilter}
         setFollowFilter={setFollowFilter}
-        followShowAll={regularsShowAll}
-        setFollowShowAll={setRegularsShowAll}
-        followSearch={regularsSearch}
-        setFollowSearch={setRegularsSearch}
-        followDrag={regularsDrag}
-        sectionTitle="THE REGULARS"
+        followShowAll={followingShowAll}
+        setFollowShowAll={setFollowingShowAll}
+        followSearch={followingSearch}
+        setFollowSearch={setFollowingSearch}
+        followDrag={followingDrag}
         emptyMsg="Follow artists from their profiles to build your roster here."
         filterTypes={FOLLOW_FILTER_CONFIGS.venue}
         actions={p => (
