@@ -16,6 +16,7 @@ import { likedEvents } from '../lib/likedEvents';
 import { resolveProfileId } from '../lib/resolveProfileId';
 import { getDemoEventById } from '../lib/demoEvents';
 import DemoEventNotice from '../components/DemoEventNotice';
+import UnclaimedBadge from '../components/UnclaimedBadge';
 import { socialProfileUrl, ensureHttps } from '../lib/socialLinks';
 import {
   DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragOverlay,
@@ -109,6 +110,16 @@ export default function EventScreen() {
       claimList.forEach(slot => {
         const p = slot.profile_id ? socialsById[slot.profile_id] : socialsByUid[slot.user_id];
         if (!p) return;
+        // M15: keep the resolved profiles row itself, not just fields lifted
+        // off it. `slot.user_id` above is lineup_members.artist_id — a
+        // different column with a different meaning — and FillSlotModal writes
+        // that as prof.user_id, which is NULL for an unclaimed profile. A
+        // claim-state test against it would therefore look correct on exactly
+        // the case it gets wrong. isProfileUnclaimed takes this row instead.
+        // Left undefined for a typed billing name with no profile behind it,
+        // which is not an unclaimed profile. socialCols already selects
+        // `id, user_id`, so no query change is needed.
+        slot.profile = p;
         const link = [p.mix_link, p.soundcloud, p.mixcloud].find(v => v && v.trim() && v !== 'N/A');
         if (link && !slot.mix_link) slot.mix_link = link;
         if (p.soundcloud) slot.soundcloud = p.soundcloud;
@@ -1381,6 +1392,11 @@ function SlotCard({ slot, claim, onFill, onEdit, onRemove, onPin, isHost, isSort
             <span className={s.djName} style={{ color: isEmpty ? 'var(--muted)' : publicName === 'PENDING' ? 'var(--muted)' : isDraft ? 'rgba(255,255,255,.6)' : 'var(--text)', fontStyle: isEmpty ? 'italic' : 'normal' }}>
               {isEmpty ? 'Open slot' : publicName}
             </span>
+            {/* Identity before slot status, same order as every other surface.
+                .djNameRow is already flex with a 6px gap and .djName carries
+                nowrap + ellipsis, so the name yields width and the badge needs
+                no spacing of its own. */}
+            <UnclaimedBadge profile={claim?.profile} />
             {isHost && isDraft && (
               <span style={{ fontFamily: "'Bebas Neue'", fontSize: 9, letterSpacing: 1.5, color: 'rgba(255,255,255,.35)', border: '1px solid rgba(255,255,255,.15)', borderRadius: 3, padding: '1px 5px', flexShrink: 0 }}>DRAFT</span>
             )}
