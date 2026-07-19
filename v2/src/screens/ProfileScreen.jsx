@@ -493,9 +493,22 @@ export default function ProfileScreen() {
               // which read as a broken image rather than a placeholder.
               // `cover` fills the frame at every width, exactly as a real photo
               // does, and works for the landscape defaults (band/mic, ratio ~1.5)
-              // too. The hero fades out at its foot, so the cropped axis is never
-              // the subject.
-              : { backgroundSize: 'cover' }),
+              // too.
+              //
+              // Anchored BOTTOM, overriding .heroImg's `center top`. These
+              // placeholders put their subject low in the frame — defaultdj.png
+              // is silhouette, hands and decks across its bottom ~55%, with the
+              // top 40% only lights and haze. At 680px wide the image renders
+              // 1208px tall in a 917px frame, so `top` cropped 291px off the
+              // foot and threw away the entire subject, leaving a photo of an
+              // empty ceiling. Anchoring to the bottom keeps the figure and
+              // decks and discards the haze instead.
+              //
+              // Portrait-only concern: at phone width the frame is narrower than
+              // the art, so height fills exactly and there is no vertical crop —
+              // this changes nothing there. The landscape defaults crop
+              // horizontally, where the anchor is still centred.
+              : { backgroundSize: 'cover', backgroundPosition: 'center bottom' }),
           }}
         />
       )}
