@@ -12,6 +12,14 @@ import { VISIBLE_PERFORMANCE_ROLES, VISIBLE_ARTIST_ROLES } from '../lib/profileT
 // no call-site changes needed.
 const BASE_TYPE_TOKENS = PROFILE_TYPE_ORDER.filter(t => t !== 'standup' && t !== 'artist');
 
+// The artist default-role model. Every Artist HAS a role: `dj_prod` is the
+// canonical default and `mc` is an explicit override, so an artist with no
+// stored role IS a DJ / Producer rather than an artist of unknown role.
+// Derived from ARTIST_ROLES so adding a role there cannot silently desync
+// this. See the filter predicate below for what it means in practice.
+const ARTIST_ROLE_KEYS     = VISIBLE_ARTIST_ROLES.map(r => r.key);
+const DEFAULT_ARTIST_ROLE  = 'dj_prod';
+
 export const FOLLOW_TYPE_MAP = {
   ...Object.fromEntries(BASE_TYPE_TOKENS.map(type => [type.toUpperCase(), { type }])),
   ...Object.fromEntries(VISIBLE_ARTIST_ROLES.map(r => [r.key.toUpperCase(), { type: 'artist', role: r.key }])),
@@ -69,7 +77,36 @@ export default function FollowingSection({
     // tags — same encoding StandupProfileScreen/selectedPerformanceRoleLabels
     // use, so a performer only matches the roles they've actually selected.
     const roles = new Set((p.genre_string || '').split(' · ').map(t => t.trim()).filter(Boolean));
-    return roles.has(role);
+    if (roles.has(role)) return true;
+
+    // ── The artist DEFAULT ROLE model ──────────────────────────────────
+    //
+    // Every Artist HAS a role. `dj_prod` is the canonical default; `mc` is an
+    // explicit override. An artist with no role key stored therefore IS a
+    // DJ / Producer — an absent role is the default, NOT unknown data and NOT
+    // a gap to be filled in later.
+    //
+    // This is a product rule, not a lenient-matching heuristic. It follows
+    // from there being no plain ARTIST pill: artists split into DJ / PROD.
+    // and MC (see BASE_TYPE_TOKENS above, which excludes 'artist'). Without
+    // this, an artist who never opened the role picker matches NEITHER pill
+    // and is invisible under every filter except ALL — which is what happened
+    // to every artist created before roles existed, and to every new artist
+    // who has not yet chosen one.
+    //
+    // Consequences, deliberately:
+    //   DJ / PROD.  matches role 'dj_prod'  OR no artist role stored
+    //   MC          matches role 'mc' only — never by default
+    // So new artists work correctly before selecting anything, and no data
+    // backfill is needed or wanted.
+    //
+    // Standup roles (Comedy/Poetry) have NO default and are unaffected: that
+    // type has no canonical primary role, so an absent value there really is
+    // absent.
+    if (type === 'artist' && role === DEFAULT_ARTIST_ROLE) {
+      return !ARTIST_ROLE_KEYS.some(k => roles.has(k));
+    }
+    return false;
   });
 
   return (
