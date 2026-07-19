@@ -392,3 +392,61 @@ Per §7, and now explicit. The module returns a **resolution result object**, ne
 
 Confidence and workflow outcome stay distinct fields backed by distinct modules; see `11.4`.
 Downstream code must never have to reconstruct context from an identifier.
+
+---
+
+## 12 · M5 complete — 19 Jul 2026
+
+Studio commit `5008bba` (local-only). `owner-resolution.js` + `test/owner-resolution.test.js`,
+21 tests passing under `node:test`, no new dependency. No Core engine modified, no queue-model
+change, `eventBlocked()` untouched. Ownerless events block through validation category 1 via
+`OWNER_REQUIRED_RULE`, registered through `addEntityRule` — business rule added by configuration,
+which is the extension point the frozen architecture intends.
+
+### 12.1 · The principle worth carrying forward
+
+**A recall-oriented engine must not gate a precision-oriented decision.**
+
+`duplicate-detection.js` answers *"could these represent the same entity?"* — deliberately
+recall-oriented, because a reviewer confirms every suggestion. `owner-resolution.js` answers *"can I
+assign ownership without a human?"* — necessarily precision-oriented, because nothing downstream
+catches a wrong answer. Same score, different thresholds.
+
+Measured 19 Jul 2026, the engine scores token-containment as an exact name alias:
+
+```
+"Thick Ear"           vs "Thick Ear Records"                -> 100%
+"Subsonic Collective" vs "Subsonic Sound System Sydney"     -> 100%
+```
+
+Correct for its job. Unsafe as an unattended ownership gate — those are different organisations, and
+asserting one owns the other's night is `E3` in a new costume. The resolver therefore requires
+**corroboration** before assigning: names equal once normalised, or a non-name signal
+(website / socials) matched. Otherwise it downgrades to a proposal. Fixed **consumer-side**; the
+engine is untouched. Regression cover: tests `7c` (100% name-only → not assigned), `7d`
+(corroborated → assigned), `7e` (exact-name equality is itself corroboration).
+
+**Generalises.** Any future Studio feature that consumes a suggestion engine to take an *unattended*
+action inherits this asymmetry. Re-derive the threshold for the decision being made; do not inherit
+the engine's.
+
+### 12.2 · Dependency injection is the supported path
+
+`opts.detector` / `opts.scorer` are the **supported** execution path. The `globalThis` fallback in
+the IIFE tail is **legacy compatibility** only — Studio's house tail
+(`typeof window !== 'undefined' ? window : this`) resolves to `module.exports` under CommonJS, so
+cross-module lookup silently returns `null` outside a browser. Other modules still carry the original
+pattern and were not touched; the same latent issue applies if they are ever tested under Node. If
+Studio moves further toward Node-based testing, injection should become the primary mechanism
+everywhere.
+
+### 12.3 · Open from M5
+
+- **`S4` has no provider.** No removal blocklist exists anywhere in Studio. The resolver takes it
+  injected, so precedence is correct and testable today, and the missing work is isolated to a
+  provider rather than entangled with resolution. `S4` is **not satisfied** in the pipeline.
+- **Next integration point: `refs.owner` as a dependency edge**, not a new queue status. The queue
+  already understands dependencies; owner resolution becomes another one whose absence manifests
+  through validation and whose review state follows the existing proposal/confirmation pattern.
+  `§12` of `review-queue.md` sanctions new edge kinds. `held` stays **computed**, never stored.
+  This keeps ownership inside the existing model instead of creating a parallel workflow for it.
