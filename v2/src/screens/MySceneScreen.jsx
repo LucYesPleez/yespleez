@@ -13,6 +13,7 @@ import { useDragScroll } from '../hooks/useDragScroll';
 import AU_POSTCODES from '../lib/postcodes';
 import PastEventsSearch, { filterPastEvents } from '../components/PastEventsSearch';
 import { PROFILE_TYPES, PROFILE_TYPE_ORDER } from '../lib/profileTypes';
+import UnclaimedBadge from '../components/UnclaimedBadge';
 
 let _discoverCache = [];
 
@@ -430,14 +431,24 @@ export default function MySceneScreen({ isGuest, onSignOut }) {
     const profFor = c => (c.artist_profile_id ? avById[c.artist_profile_id] : avByUid[c.artist_id]) || null;
     const evMap = {};
     dayEvs.forEach(ev => { evMap[ev.id] = ev.name; });
-    setDayArtists(membersData.map(c => ({
-      name: c.artist_name, genre: c.genre, sound: c.sound,
-      avatar: profFor(c)?.avatar, eventName: evMap[c.event_id],
-      user_id: c.artist_id || null,
-      // M5: canonical link target — the lineup row's artist_profile_id, or the
-      // resolved profile's id; user_id stays as the legacy-URL fallback.
-      id: c.artist_profile_id || profFor(c)?.id || null,
-    })));
+    setDayArtists(membersData.map(c => {
+      const prof = profFor(c);
+      return {
+        name: c.artist_name, genre: c.genre, sound: c.sound,
+        avatar: prof?.avatar, eventName: evMap[c.event_id],
+        user_id: c.artist_id || null,
+        // M5: canonical link target — the lineup row's artist_profile_id, or the
+        // resolved profile's id; user_id stays as the legacy-URL fallback.
+        id: c.artist_profile_id || prof?.id || null,
+        // M15: the resolved profiles row, carried whole rather than flattened.
+        // `user_id` above is lineup_members.artist_id — a DIFFERENT column with
+        // a different meaning — so testing it for claim state would be
+        // confidently wrong. isProfileUnclaimed must be given a real profiles
+        // row; null here means the bill was a typed name with no profile
+        // behind it, which is not an unclaimed profile.
+        profile: prof,
+      };
+    }));
   }
 
   function openAddEvent(date) {
@@ -858,7 +869,15 @@ export default function MySceneScreen({ isGuest, onSignOut }) {
                         : <div style={{ width: 36, height: 36, borderRadius: 8, background: 'var(--card2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Bebas Neue'", fontSize: 16, color: 'var(--neon2)', flexShrink: 0 }}>{(a.name || '?')[0]}</div>
                       }
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontFamily: "'Bebas Neue'", fontSize: 14, letterSpacing: 1, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.name || 'Unknown Artist'}</div>
+                        {/* Badge pairs with the NAME, not the row. The name
+                            already truncates (nowrap + ellipsis) so it yields
+                            the width gracefully; the genre line below wraps
+                            freely, and a trailing badge on the row stole ~76px
+                            from it and grew a long-genre row by 28px. */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
+                          <div style={{ fontFamily: "'Bebas Neue'", fontSize: 14, letterSpacing: 1, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{a.name || 'Unknown Artist'}</div>
+                          <UnclaimedBadge profile={a.profile} />
+                        </div>
                         <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 1 }}>{a.genre || a.sound || ''}{a.eventName ? ` · ${a.eventName}` : ''}</div>
                       </div>
                     </div>
