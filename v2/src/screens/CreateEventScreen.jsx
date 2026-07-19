@@ -6,6 +6,8 @@ import s from './CreateEventScreen.module.css';
 import ImageUploadButton from '../components/ImageUploadButton';
 import { getEventBadges, CATEGORY_BADGES, CATEGORY_CHOICES, OPEN_MIC_BADGE, sameCategory } from '../lib/eventBadges';
 import { resolveProfileId } from '../lib/resolveProfileId';
+import { resolveOwnerProfileId } from '../lib/actingProfile';
+import { PROFILE_TYPES } from '../lib/profileTypes';
 
 const CAL_DAYS = ['Su','Mo','Tu','We','Th','Fr','Sa'];
 const CAL_MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -302,6 +304,12 @@ export default function CreateEventScreen() {
   const [days, setDays] = useState([{ id:makeId(), name:'', slots:[] }]);
   const [slotsCollapsed, setSlotsCollapsed] = useState(false);
 
+  // M14b · owning profile (identity v1.3 O-R4). `?as=` is the dashboard the
+  // user created from — a convenience that removes the picker in the common
+  // case, never a permission: can_act_as re-checks whatever is written (R2).
+  const [owners,  setOwners]  = useState([]);
+  const [ownerId, setOwnerId] = useState(null);
+
   // Host controls
   const [isPublic,           setIsPublic]           = useState(true);
   const [appsOpen,           setAppsOpen]           = useState(true);
@@ -311,6 +319,17 @@ export default function CreateEventScreen() {
   const [privateSetTimes,    setPrivateSetTimes]    = useState(true);
   const [showTimesPublicly,  setShowTimesPublicly]  = useState(false);
   const [showHostInfo,       setShowHostInfo]       = useState(false);
+
+  // Owner resolution. Skipped when editing — an event's owner is set once at
+  // creation and changed only by exception (Phase 13 Q6 `T1`, erratum E2), so
+  // the edit path must never restamp it.
+  useEffect(() => {
+    if (editId || !session?.user?.id) return;
+    resolveOwnerProfileId(session.user.id, searchParams.get('as')).then(res => {
+      if (res.ambiguous) { setOwners(res.ambiguous); setOwnerId(null); }
+      else { setOwners(res.profileId ? [{ id: res.profileId }] : []); setOwnerId(res.profileId); }
+    });
+  }, [editId, session?.user?.id, searchParams]);
 
   useEffect(() => {
     if (!editId) return;
@@ -381,9 +400,23 @@ export default function CreateEventScreen() {
       return;
     }
 
+    // M14b (identity v1.3 O-R4/O-R6): an event must name its owning profile
+    // at creation. venue_profile_id answers WHERE; owner_profile_id answers
+    // WHO IS ACCOUNTABLE; host_id records the human. Three columns, three
+    // questions — they coincide for a venue running its own night, and that
+    // is a coincidence of values rather than of meaning.
+    if (!ownerId) {
+      setSaving(false);
+      setError(owners.length > 1
+        ? 'Choose which profile is hosting this event.'
+        : 'You need a host or venue profile before you can create an event.');
+      return;
+    }
+
     const venueProfileId = await resolveProfileId(session.user.id, 'venue');
     const { data, error:err } = await supabase.from('events').insert({
       name, config:cfg, host_id:session.user.id,
+      owner_profile_id: ownerId,
       status: goLive ? 'live' : 'draft',
       is_public:isPublic, applications_open:appsOpen,
       venue_profile_id: venueProfileId,
@@ -585,6 +618,33 @@ export default function CreateEventScreen() {
               ))}
               <button className={s.addAnotherDayBtn} onClick={addDay}>+ ADD ANOTHER DAY</button>
             </>}
+          </>
+        )}
+
+        {/* ── HOSTING AS (M14b) ── only when genuinely ambiguous.
+            Nothing is pre-selected: a default here would be a guess wearing a
+            confirmation, and ownership is the one field that must not be
+            guessed (O-R6). Same chip pattern as the apply form. */}
+        {!editId && owners.length > 1 && (
+          <>
+            <SectionHeader label="HOSTING AS" />
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
+              {owners.map(p => {
+                const on = p.id === ownerId;
+                return (
+                  <button key={p.id} type="button" onClick={() => setOwnerId(p.id)}
+                    style={{
+                      padding: '8px 14px', borderRadius: 8, cursor: 'pointer',
+                      fontFamily: "'Bebas Neue'", fontSize: 13, letterSpacing: 1,
+                      border: `1px solid ${on ? 'var(--neon2)' : 'var(--border)'}`,
+                      background: on ? 'rgba(0,229,255,.12)' : 'none',
+                      color: on ? 'var(--neon2)' : 'var(--muted)',
+                    }}>
+                    {p.name || '(unnamed)'} · {PROFILE_TYPES[p.type]?.shortLabel || p.type}
+                  </button>
+                );
+              })}
+            </div>
           </>
         )}
 

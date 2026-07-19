@@ -230,6 +230,7 @@ export default function VenueDashboard({ userId: userIdProp }) {
 
       {/* Events */}
       <EventsSection
+        ownerType="venue"
         tabs={{ UPCOMING: upcomingEvents, DRAFTS: draftEvents, PAST: pastEvents }}
         loading={loading}
         accent="#00E5A0"

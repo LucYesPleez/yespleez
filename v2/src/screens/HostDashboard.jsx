@@ -312,6 +312,7 @@ export default function HostDashboard({ userId: userIdProp }) {
 
       {/* ── EVENTS ── */}
       <EventsSection
+        ownerType="host"
         tabs={{ UPCOMING: upcomingEvents, DRAFTS: draftEvents, PAST: pastEvents }}
         loading={loadingEvents}
         accent="#FF2D78"

@@ -11,6 +11,10 @@ export default function EventsSection({
   accent = '#00E5A0',
   canCreate = true,
   renderExtraBadges,    // optional: (ev) => jsx — for genre badges etc.
+  ownerType,            // M14b: 'host' | 'venue' — which dashboard this is.
+                        // Passed to /create-event as ?as= so owner resolution
+                        // can skip the picker when the answer is obvious.
+                        // A hint, never a permission (identity v1.3 R2).
 }) {
   const navigate = useNavigate();
   const tabKeys = Object.keys(tabs);
@@ -138,7 +142,7 @@ export default function EventsSection({
 
       {canCreate && (
         <button
-          onClick={() => navigate('/create-event')}
+          onClick={() => navigate(ownerType ? `/create-event?as=${ownerType}` : '/create-event')}
           style={{ display: 'block', width: '100%', marginTop: 8, marginBottom: 12, background: 'linear-gradient(135deg, #99204d, #6b2e99)', color: '#fff', fontFamily: "'Bebas Neue', sans-serif", fontSize: 18, letterSpacing: 2, padding: 14, borderRadius: 10, border: 'none', cursor: 'pointer', transition: 'opacity .15s' }}
           onMouseEnter={e => e.currentTarget.style.opacity = '.85'}
           onMouseLeave={e => e.currentTarget.style.opacity = '1'}

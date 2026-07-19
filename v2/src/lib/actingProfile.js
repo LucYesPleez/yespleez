@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { PROFILE_TYPE_ORDER } from './profileTypes';
 
 /**
  * M6 write cutover — who is acting?
@@ -123,6 +124,75 @@ export async function getPerformerProfiles(userId) {
  */
 export async function resolvePerformerProfileId(userId) {
   const profiles = await getPerformerProfiles(userId);
+  if (profiles.length === 1) return { profileId: profiles[0].id };
+  if (profiles.length === 0) return { profileId: null };
+  return { ambiguous: profiles };
+}
+
+/**
+ * Types that can OWN an event (identity v1.3 `O-R4`).
+ *
+ * v1.3 is explicit that an event's owner may be **any profile type** —
+ * a venue running its own night, a promoter presenting one, a festival
+ * programming its own bill. The only exclusion is Personal: §A9 makes
+ * it inalienable and non-commercial, and it does not run events.
+ *
+ * Derived from the profile registry rather than hand-listed, so a new
+ * profile type becomes owner-eligible without editing this file —
+ * which is precisely the extensibility `O-R4` was chosen for.
+ */
+export const OWNER_ELIGIBLE_TYPES = PROFILE_TYPE_ORDER.filter(t => t !== 'punter');
+
+/**
+ * Profiles the user could own an event as, deterministically ordered.
+ *
+ * @param {string} userId
+ * @param {string} [type] optional narrowing — the context the user is
+ *   creating from (a host dashboard means a host profile). Narrowing is
+ *   a convenience, never a permission: `can_act_as` re-checks whatever
+ *   is written, so a wrong hint produces a rejected write, not an
+ *   escalation (R2).
+ */
+export async function getOwnerProfiles(userId, type) {
+  if (!userId) return [];
+
+  const wanted = type && OWNER_ELIGIBLE_TYPES.includes(type)
+    ? [type]
+    : OWNER_ELIGIBLE_TYPES;
+
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id, type, name')
+    .eq('user_id', userId)
+    .in('type', wanted)
+    .order('type', { ascending: true })
+    .order('created_at', { ascending: true })
+    .order('id', { ascending: true });
+
+  if (error) {
+    console.error('[actingProfile] owner profile lookup failed', error);
+    return [];
+  }
+  return data ?? [];
+}
+
+/**
+ * Deterministic owner resolution for events (`O-R4`, `O-R6`).
+ *
+ * Exactly one eligible profile → { profileId }        decided
+ * Several                      → { ambiguous: [...] } caller must ask
+ * None                         → { profileId: null }  cannot own an event
+ *
+ * `O-R6` requires every event to have exactly one owner, so a caller
+ * receiving `{ profileId: null }` must refuse to create the event
+ * rather than writing one without an owner.
+ *
+ * Same contract as `resolvePerformerProfileId` on purpose: one seam,
+ * one shape, and R6 later replaces both bodies without touching a
+ * single write site.
+ */
+export async function resolveOwnerProfileId(userId, type) {
+  const profiles = await getOwnerProfiles(userId, type);
   if (profiles.length === 1) return { profileId: profiles[0].id };
   if (profiles.length === 0) return { profileId: null };
   return { ambiguous: profiles };
