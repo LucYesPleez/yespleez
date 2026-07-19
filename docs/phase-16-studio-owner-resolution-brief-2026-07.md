@@ -147,6 +147,8 @@ promoter." Getting this wrong reintroduces `E3` at import scale.
 **Q2 · What does "create an unclaimed profile where necessary" mean operationally?**
 Which profile type is minted for an unidentified promoter — `host`? Under what confidence threshold?
 Dedup against the live catalog and the removal blocklist must run **before** promotion (`S2`, `S4`).
+**SETTLED 19 Jul 2026 — see §11.7.** Mint an unclaimed `host` only when a promoter name was
+*observed*; hold otherwise. Never mint a nameless placeholder.
 
 **Q3 · Does the restricted-role constraint (`S3`) hold today?** — **RESOLVED 19 Jul 2026, see §11.**
 Answered by reading the export path rather than by discussion. Short answer: **no.** `S3` is not
@@ -236,8 +238,9 @@ Not part of this phase, but they touch the same pipeline. Do not silently absorb
 3. ~~Establish what the uncommitted `review-export.js` change is, and whether HEAD `48ff213` is the
    intended baseline.~~ **Done 19 Jul 2026 — see §11.5. `48ff213` is a sound baseline.**
 4. Re-probe the live schema; confirm §3 still holds.
-5. ~~Settle Q1–Q4 with the owner~~ **Q1 and Q3 settled 19 Jul 2026 (§11); Q4 refined; Q2 still open**
-   — settle Q2 **before** writing `owner-resolution.js`.
+5. ~~Settle Q1–Q4 with the owner **before** writing `owner-resolution.js`.~~
+   **All four settled 19 Jul 2026 — Q1 §11.4, Q2 §11.7, Q3 §11.1, Q4 §11.3. Cleared to start M5;
+   build to §11.7 (resolution order) and §11.8 (return shape).**
 
 ---
 
@@ -266,9 +269,20 @@ Two observations that make the gap concrete rather than theoretical:
 - `sql-export-mapping.js:39` whitelists `claim_status`, `claimed_at`, `claimed_via`.
   **`owner_user_id` is correctly absent** from the whitelist.
 
-**This does not block M5.** Owner resolution is a Studio-side decision and does not depend on the
-role model. It *does* mean `S3` should be recorded as an accepted deviation with a compensating
-control, or the pipeline changed — a decision for the owner, not for the implementing session.
+**Owner's ruling, 19 Jul 2026 — `S3` is marked DEVIATED, not complete.**
+
+| | |
+|---|---|
+| **Current state** | Procedural protection — exporter whitelist + manual review |
+| **Desired state** | Structural protection — a restricted role the database enforces |
+| **Decision** | Acceptable for M5 **if explicitly recorded**, not silently assumed |
+
+The requirement is *"Studio is structurally unable to write protected ownership fields."* The
+implementation is *"Studio generates SQL, a human reviews it, then executes it as a privileged
+role."* Those are different guarantees. That `claim_status: 'unclaimed'` is already emitted proves
+Studio **can** write ownership-related fields whenever the exporter allows it. Not unsafe today; not
+what `S3` says. **This does not block M5** — owner resolution is a Studio-side decision independent
+of the role model.
 
 ### 11.2 · New finding: the export publishes on import, contradicting `P-C5`
 
@@ -330,3 +344,51 @@ discard it; either way it does not affect the implementation baseline.
 file contains no write calls (`.insert` / `.update` / `.upsert` / `.delete` all absent) and is
 referenced by no other file in the repo — it is superseded by the v3 app. Not a live path and not an
 `S3` concern. Flagged only so a future audit does not rediscover it as new.
+
+### 11.7 · Q2 settled: only mint entities that correspond to an observed identity
+
+Ratified by the owner, 19 Jul 2026. The governing invariant:
+
+> **Only mint entities that correspond to an observed real-world identity.**
+> A *named* promoter is an observation. An *unnamed* promoter is not an observation — it is a
+> possibility. Minting a profile for it encodes an assumption into the data model.
+
+This is `11.4`'s principle applied one level up. `11.4` refuses to infer a *relationship* from
+absence; this refuses to infer an *entity* from absence. `E3` is the precedent for both.
+
+**Resolution order for `owner-resolution.js`:**
+
+1. Resolve from observed evidence.
+2. Match against existing canonical profiles.
+3. Apply deduplication / blocklist rules (`S2`, `S4`) — **before** any minting, so existing entities
+   are reused wherever possible.
+4. If still unresolved:
+   - **A promoter name was observed** → mint an unclaimed `host` profile under the observed name.
+   - **No promoter name was observed** → **hold for review. Do not create a placeholder entity.**
+5. Venue ownership is never inferred automatically — established only by explicit reviewer
+   confirmation, with provenance presented as supporting evidence (see `11.4`).
+
+Holding is not a failure state. It is the honest output when the observation is *owner unknown*, and
+`O-R6` provides the branch explicitly. A held row still reaches a reviewer, who can confirm venue
+ownership or supply the promoter.
+
+**Type note.** There are exactly three profile types — `venue`, `host`, `artist`
+(`review-export-sql.js:56`). "Promoter" is `host`. Mind `O-R4` while writing M5: the minted profile's
+identity lands on `events.owner_profile_id`; `events.host_id` is a *different* column meaning
+authorship. There is no `host_profile_id`.
+
+**Precedent already in the codebase.** `sql-export-mapping.js:60` — a dropped field "never fabricated
+a substitute." Same principle, one level up: do not fabricate the entity either.
+
+### 11.8 · Implementation target for `owner-resolution.js`
+
+Per §7, and now explicit. The module returns a **resolution result object**, never a bare UUID:
+
+- the **resolved entity** (the profile, with type, claim state, provenance) — or the **hold state**;
+- **provenance** — what source the decision drew on;
+- **reasoning** — why this outcome, so a reviewer sees the basis and not just the conclusion;
+- **confidence**, where applicable (scoring only — `confidence.js`);
+- **workflow outcome** — assigned / proposed / held (queue state only — `queue-store.js`).
+
+Confidence and workflow outcome stay distinct fields backed by distinct modules; see `11.4`.
+Downstream code must never have to reconstruct context from an identifier.
