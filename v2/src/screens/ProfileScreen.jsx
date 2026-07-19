@@ -393,7 +393,15 @@ export default function ProfileScreen() {
   const hasRealAvatar = !!(profile.avatar_hero || profile.avatar_thumb || profile.avatar);
   const heroUrl = profile.avatar_hero || profile.avatar_thumb || profile.avatar
     || pt.defaultImage || null;
-  const label   = isVenue ? pt.label : (profile.band_type || profile.act_type || pt.label);
+  // `band_type` is user-set (BandProfileScreen lets a band choose e.g.
+  // "Jazz / Blues") and is a meaningful public label, so it still wins.
+  //
+  // `act_type` is NOT: nothing in this app writes it, no taxonomy defines it,
+  // and this line was its only reader. The three profiles carrying it are the
+  // three Studio minted, all stamped 'DJs' — Studio's internal taxonomy, which
+  // then rendered verbatim as the public pill. Dropping it here falls through
+  // to PROFILE_TYPES, the canonical source, with no hardcoded string.
+  const label   = isVenue ? pt.label : (profile.band_type || pt.label);
   // Standup: one pill per selected "what do you perform?" role (Comedy/
   // Poetry). Artist: same concept for DJ/Producer/MC. Both data-driven so a
   // future role works with no call-site change. Falls back to the generic
@@ -477,7 +485,17 @@ export default function ProfileScreen() {
             backgroundImage: `url(${heroUrl})`,
             ...(hasRealAvatar
               ? { backgroundSize: '124% auto' }
-              : { height: '105dvh', transform: 'translateX(-50%) translateY(-5dvh)', backgroundSize: 'auto 80%' }),
+              // Default (no photo yet — §09 requires a generic avatar pre-claim).
+              // Was `auto 80%`, which sizes by HEIGHT: fine at phone width, but
+              // .heroImg is capped at max-width 680px, so on desktop a portrait
+              // placeholder (defaultdj.png is 941x1672, ratio 0.56) rendered only
+              // ~405px wide inside a 680px frame — 137px of dead space each side,
+              // which read as a broken image rather than a placeholder.
+              // `cover` fills the frame at every width, exactly as a real photo
+              // does, and works for the landscape defaults (band/mic, ratio ~1.5)
+              // too. The hero fades out at its foot, so the cropped axis is never
+              // the subject.
+              : { backgroundSize: 'cover' }),
           }}
         />
       )}
