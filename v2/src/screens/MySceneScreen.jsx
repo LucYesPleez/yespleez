@@ -29,16 +29,32 @@ function timeAgo(iso) {
   return h < 1 ? 'just now' : h < 24 ? `${h}h ago` : `${Math.floor(h/24)}d ago`;
 }
 
+/* Placeholder content shown only when a section has no real data yet.
+ *
+ * Names are DELIBERATELY INVENTED. They previously used real acts, venues and
+ * promoters from the local scene — people the owner knows personally — which
+ * made an empty state indistinguishable from live data and read as if those
+ * acts had actually posted something. A placeholder must never be mistakable
+ * for a real person's activity.
+ *
+ * Anything added here must stay obviously fictional: no real act, venue,
+ * promoter or event, and nothing close enough to be misread as one.
+ * Rendered dimmed (see DEMO_DIM) so the state is visibly a sample.
+ */
 const DEMO_UPCOMING = [
-  { name:'Friends of Owl',    venue:'Bellingen Brewery', badge:'ATTENDING', badgeColor:'#FF2D78', dayName:'SUN', dayNum:14, mon:'JUN', timeStr:'8:00 PM' },
-  { name:'Subsonic Sessions', venue:'The Loft',          badge:'MY EVENT',  badgeColor:'#9D4EDD', dayName:'FRI', dayNum:20, mon:'JUN', timeStr:'10:00 PM' },
-  { name:'Lucious',           venue:'The Basement',      badge:'PLAYING',   badgeColor:'#BF5FFF', dayName:'SAT', dayNum:28, mon:'JUN', timeStr:'11:30 PM' },
+  { name:'Paper Lanterns',    venue:'The Old Depot',   badge:'ATTENDING', badgeColor:'#FF2D78', dayName:'SUN', dayNum:14, mon:'JUN', timeStr:'8:00 PM' },
+  { name:'Nightshift Social', venue:'Room Twelve',     badge:'MY EVENT',  badgeColor:'#9D4EDD', dayName:'FRI', dayNum:20, mon:'JUN', timeStr:'10:00 PM' },
+  { name:'Static Bloom',      venue:'The Grain Store', badge:'PLAYING',   badgeColor:'#BF5FFF', dayName:'SAT', dayNum:28, mon:'JUN', timeStr:'11:30 PM' },
 ];
 const DEMO_FOLLOWING = [
-  { name:'Lucious',              type:'artist', update:'Added a new show',    ago:'2h ago' },
-  { name:'Bellingen Brewery',    type:'venue',  update:'Updated their event', ago:'6h ago' },
-  { name:'Deliverance Sound System', type:'host', update:'Released set times', ago:'12h ago' },
+  { name:'Static Bloom',        type:'artist', update:'Added a new show',    ago:'2h ago' },
+  { name:'The Old Depot',       type:'venue',  update:'Updated their event', ago:'6h ago' },
+  { name:'Northbound Collective', type:'host', update:'Released set times',  ago:'12h ago' },
 ];
+
+/* Dimming for placeholder rows. Applied to the demo branches only — real data
+ * always renders at full opacity, so the difference is the signal. */
+const DEMO_DIM = { opacity: 0.45, filter: 'saturate(0.75)', pointerEvents: 'none' };
 
 export default function MySceneScreen({ isGuest, onSignOut }) {
   const navigate = useNavigate();
@@ -918,7 +934,9 @@ export default function MySceneScreen({ isGuest, onSignOut }) {
                     ? upcomingForYou.map(({ ev, badge, badgeColor }) => (
                         <EventCard key={ev.id} variant="scroll" event={ev} badge={badge} badgeColor={badgeColor} onClick={() => navigate(`/event/${ev.id}`)} />
                       ))
-                    : DEMO_UPCOMING.map((d, i) => <DemoUpcomingCard key={i} {...d} />)
+                    : DEMO_UPCOMING.map((d, i) => (
+                        <div key={i} style={DEMO_DIM} aria-hidden="true"><DemoUpcomingCard {...d} /></div>
+                      ))
                   }
                 </div>
               </div>
@@ -1014,7 +1032,9 @@ export default function MySceneScreen({ isGuest, onSignOut }) {
                     {updatedFollows.length > 0
                       ? updatedFollows.map(p => <PortraitCard key={p.user_id} profile={{ ...p, avatar: followAvatars[p.user_id] || p.avatar }} />)
                       : DEMO_FOLLOWING.map((d, i) => (
-                          <PortraitCard key={i} profile={{ user_id: null, name: d.name, type: d.type, avatar: null, location: null, sound: d.update }} onClick={() => {}} />
+                          <div key={i} style={DEMO_DIM} aria-hidden="true">
+                            <PortraitCard profile={{ user_id: null, name: d.name, type: d.type, avatar: null, location: null, sound: d.update }} onClick={() => {}} />
+                          </div>
                         ))
                     }
                   </div>
@@ -1136,8 +1156,9 @@ export default function MySceneScreen({ isGuest, onSignOut }) {
                 })()}
               </div>
 
-              {/* Sign out */}
-              <button className={s.signOut} onClick={onSignOut}>SIGN OUT</button>
+              {/* Sign out removed from My Scene — this is a browsing surface,
+                  not an account screen. `onSignOut` is still used above for the
+                  guest gate's SIGN IN / CREATE ACCOUNT action, so the prop stays. */}
             </div>
           )}
         </>
