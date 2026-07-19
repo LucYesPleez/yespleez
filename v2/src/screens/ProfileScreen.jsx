@@ -393,15 +393,20 @@ export default function ProfileScreen() {
   const hasRealAvatar = !!(profile.avatar_hero || profile.avatar_thumb || profile.avatar);
   const heroUrl = profile.avatar_hero || profile.avatar_thumb || profile.avatar
     || pt.defaultImage || null;
-  // `band_type` is user-set (BandProfileScreen lets a band choose e.g.
-  // "Jazz / Blues") and is a meaningful public label, so it still wins.
+  // The type pill states WHAT THIS PROFILE IS, always from PROFILE_TYPES — the
+  // canonical source — for every type. VENUE / HOST / PROMOTER / DJ / PROD. /
+  // BAND / COMEDY / POETRY.
   //
-  // `act_type` is NOT: nothing in this app writes it, no taxonomy defines it,
-  // and this line was its only reader. The three profiles carrying it are the
-  // three Studio minted, all stamped 'DJs' — Studio's internal taxonomy, which
-  // then rendered verbatim as the public pill. Dropping it here falls through
-  // to PROFILE_TYPES, the canonical source, with no hardcoded string.
-  const label   = isVenue ? pt.label : (profile.band_type || pt.label);
+  // It previously fell through to band_type or act_type first, which put a
+  // SUBTYPE where the type belongs: a band read "Jazz / Blues" instead of
+  // "BAND", and a Studio-imported artist read "DJs" — Studio's internal
+  // taxonomy rendered verbatim on a public profile. Genre already has a home
+  // in the STYLE section directly below, so the pill was also duplicating it.
+  //
+  // act_type is written by nothing in this app and defined by no taxonomy;
+  // band_type is user-set in BandProfileScreen and still stored, just no longer
+  // mistaken for the profile's type.
+  const label   = pt.label;
   // Standup: one pill per selected "what do you perform?" role (Comedy/
   // Poetry). Artist: same concept for DJ/Producer/MC. Both data-driven so a
   // future role works with no call-site change. Falls back to the generic
