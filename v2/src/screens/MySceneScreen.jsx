@@ -839,7 +839,7 @@ export default function MySceneScreen({ isGuest, onSignOut }) {
                         </div>
                         <div ref={discoverDrag.ref} onMouseDown={discoverDrag.onMouseDown} onMouseMove={discoverDrag.onMouseMove} onMouseUp={discoverDrag.onMouseUp} onMouseLeave={discoverDrag.onMouseLeave} style={{ display:'flex', gap:10, overflowX:'auto', paddingBottom:8, WebkitOverflowScrolling:'touch', scrollbarWidth:'none', cursor:'grab' }}>
                           {discoverProfiles.map(p => (
-                            <PortraitCard key={p.user_id} profile={p} />
+                            <PortraitCard key={p.id} profile={p} />
                           ))}
                         </div>
                       </>
