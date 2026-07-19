@@ -131,7 +131,7 @@ role**, structurally unable to write `owner_user_id` / `claim_status` or mutate 
 These are **implementation questions within the frozen architecture**, not invitations to redesign.
 Surface them to the owner rather than deciding unilaterally.
 
-**Q1 · Is "else the venue" a sound owner fallback?**
+**Q1 · Is "else the venue" a sound owner fallback?** — **SETTLED 19 Jul 2026, see §11.4.**
 `docs/phase-14-studio-implementation-plan-2026-07.md` §M5 sketches *promoter if identifiable, else
 venue profile, else hold*. `O-R6` itself says *resolve, create an unclaimed profile where necessary,
 else hold* — it does not name a venue fallback.
@@ -148,14 +148,15 @@ promoter." Getting this wrong reintroduces `E3` at import scale.
 Which profile type is minted for an unidentified promoter — `host`? Under what confidence threshold?
 Dedup against the live catalog and the removal blocklist must run **before** promotion (`S2`, `S4`).
 
-**Q3 · Does the restricted-role constraint (`S3`) hold today?**
-Studio currently generates SQL for manual application rather than writing directly. Confirm what
-actually executes the export and under which role, before assuming `S3` is satisfied.
+**Q3 · Does the restricted-role constraint (`S3`) hold today?** — **RESOLVED 19 Jul 2026, see §11.**
+Answered by reading the export path rather than by discussion. Short answer: **no.** `S3` is not
+satisfied and there is no restricted role anywhere in the pipeline.
 
 **Q4 · `created_via` is present but universally NULL.**
 `S5` requires provenance on every promoted row, and §09's transparency clause depends on it. Phase 15
 recorded this as `R10` — unimplemented. Owner resolution is the natural place to start populating it,
-but confirm scope rather than assuming.
+but confirm scope rather than assuming. **Refined 19 Jul 2026 — see §11.3: the generator already
+emits `created_via`; it has simply never been executed.**
 
 ---
 
@@ -232,7 +233,100 @@ Not part of this phase, but they touch the same pipeline. Do not silently absorb
 1. Read `CLAUDE.md` (app repo) and `docs/studio-core.md` + `docs/review-queue.md` (Studio repo).
 2. Read `identity-v1.3.html` and `phase-13-q5-publication-of-imports-2026-07.md` — the two that bind
    this phase most directly.
-3. Establish what the uncommitted `review-export.js` change is, and whether HEAD `48ff213` is the
-   intended baseline.
+3. ~~Establish what the uncommitted `review-export.js` change is, and whether HEAD `48ff213` is the
+   intended baseline.~~ **Done 19 Jul 2026 — see §11.5. `48ff213` is a sound baseline.**
 4. Re-probe the live schema; confirm §3 still holds.
-5. Settle Q1–Q4 with the owner **before** writing `owner-resolution.js`.
+5. ~~Settle Q1–Q4 with the owner~~ **Q1 and Q3 settled 19 Jul 2026 (§11); Q4 refined; Q2 still open**
+   — settle Q2 **before** writing `owner-resolution.js`.
+
+---
+
+## 11 · Addendum, 19 Jul 2026 — resolutions from a second audit
+
+Written after the brief was committed and pushed. Everything here is **observed**, with the file and
+line that shows it; inferences are labelled as such.
+
+### 11.1 · Q3 resolved: `S3` is not satisfied, and no restricted role exists
+
+`review-export-sql.js:5-6` and `review-queue.html:1041-1042` both state it plainly, and the code
+agrees: **Studio never writes to Supabase.** It serializes a `DO $$ … $$` block that an operator
+pastes into the **Supabase SQL Editor** and runs by hand.
+
+That editor session executes as a **privileged** role — not a restricted importer role. So `S3`'s
+guarantee ("structurally unable to write `owner_user_id` / `claim_status` or mutate any claimed row")
+is **not enforced by the database at all.** What actually constrains the import is the column
+whitelist in `sql-export-mapping.js` plus a human reading the SQL before running it. That is a
+**conventional** control, not a structural one.
+
+Two observations that make the gap concrete rather than theoretical:
+
+- `review-export-sql.js:95` emits `claim_status: 'unclaimed'` — a column `S3` says the importer must
+  be *unable* to write. Benign in intent (it is Phase 15 unclaimed marking) but it demonstrates that
+  nothing prevents the write.
+- `sql-export-mapping.js:39` whitelists `claim_status`, `claimed_at`, `claimed_via`.
+  **`owner_user_id` is correctly absent** from the whitelist.
+
+**This does not block M5.** Owner resolution is a Studio-side decision and does not depend on the
+role model. It *does* mean `S3` should be recorded as an accepted deviation with a compensating
+control, or the pipeline changed — a decision for the owner, not for the implementing session.
+
+### 11.2 · New finding: the export publishes on import, contradicting `P-C5`
+
+`review-export-sql.js:137` emits **`is_public: true`** on every new event. `P-C5` and §6 M6 both
+require the opposite — publication is a separate, policy-gated act from import.
+
+**Currently masked, not safe.** The same statement also sets `status: 'draft'`, and Discover requires
+both (`DiscoverScreen.jsx:54-55`, `131-132`: `.eq('status','live')` *and*
+`.or('is_public.eq.true,is_public.is.null')`). So imported events do not surface in Discover today —
+but only because of `status`. The moment a custodial publish flips `status` to `live`, the row is
+public with no separate gate, because `is_public` was already set true at import. M6's
+`is_public = false` is the fix and should land **with** M6, not after.
+
+**Not verified:** whether `EventScreen.jsx` renders a `draft` event on a direct `#/event/<id>` link.
+If it does, §09's pre-claim ethics clauses apply sooner than this section assumes. Check during M7.
+
+### 11.3 · Q4 refined: `created_via` is implemented, never executed
+
+`review-export-sql.js:96` already emits `created_via: 'studio_import'`, and `:100` sets
+`source = { studio_local_id: … }`. The live column is universally NULL because **no row has ever been
+created through this path** — consistent with the §3 blocker (the migration it depends on has never
+been applied). R10 is therefore *"written but never exercised,"* not *"unstarted."* Scope for this
+phase is smaller than the brief implied: verify on first real export rather than build.
+
+### 11.4 · Q1 settled: provenance proposes, a human decides
+
+Ratified by the owner, 19 Jul 2026. The governing distinction is that **evidence of venue ownership**
+and **absence of evidence for another owner** are not equivalent — conflating them is what `E3` cost.
+
+Resolution order:
+
+1. Promoter identified → assign promoter.
+2. Else, if the source is the **venue's own channel** and no promoter is identified → **propose** the
+   venue in the Inspector, with provenance visible.
+3. Venue ownership is **never** assigned without explicit reviewer confirmation. Not at any score.
+4. Else `O-R6` unchanged — create an unclaimed profile, or hold.
+
+Provenance is an **input to moderation**, not an ownership rule. `E3` cannot recur through an
+automatic path because no automatic path to venue ownership exists.
+
+**Implementation note (owner's refinement).** The venue proposal is a **review action / workflow
+state**, not a confidence level. Confidence communicates probability; this communicates position in
+the review workflow. Keep them in separate modules: scoring stays in `confidence.js`, proposal state
+belongs with the queue state in `queue-store.js`. Collapsing them would put a workflow flag inside a
+scorer and make the Inspector harder to reason about.
+
+### 11.5 · Baseline confirmed
+
+The uncommitted `review-export.js` change is **comment-only** — 12 added lines, no executable change:
+a TODO from the 2026-07-14 SQL-export verification noting that `venue_*` / `host_*` / `festival_*`
+prefixed fields pass through `projectEventFields` into `events.config`, proposing a prefix-match
+extension to `EVENT_DROP`. It describes itself as non-blocking and *"noise, not incorrect."*
+**`48ff213` is a sound baseline for M5.** Commit the note with the eventual prefix-match work or
+discard it; either way it does not affect the implementation baseline.
+
+### 11.6 · Incidental: a stray credential in a dead file
+
+`yesPleez-gig-importer-v2_3.html:160-161` holds a Supabase URL and a **publishable** anon key. The
+file contains no write calls (`.insert` / `.update` / `.upsert` / `.delete` all absent) and is
+referenced by no other file in the repo — it is superseded by the v3 app. Not a live path and not an
+`S3` concern. Flagged only so a future audit does not rediscover it as new.
