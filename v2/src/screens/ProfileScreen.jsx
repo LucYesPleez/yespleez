@@ -365,11 +365,25 @@ export default function ProfileScreen() {
     // follow picker went unnoticed — three notifications were delivered to a
     // real person for a follow that never happened. Never discard it again.
     const results = await Promise.all(ids.map(async uid =>
-      supabase.from('follows').insert({ user_id: uid, from_profile_id: await getPersonalProfileId(uid), entity_id: legacyEntityId, entity_type: 'profile', entity_name: profile.name, target_profile_id: profile.id })
+      // entity_type is the FOLLOWED PROFILE'S TYPE — 'artist' / 'venue' /
+      // 'host' / 'band' / 'standup' — not the literal string 'profile'.
+      // A CHECK constraint (follows_entity_type_check) permits only the
+      // profile types, so 'profile' was rejected with 23514 on every insert.
+      // Every pre-existing row stores the type, so this restores the original
+      // convention rather than inventing one.
+      supabase.from('follows').insert({ user_id: uid, from_profile_id: await getPersonalProfileId(uid), entity_id: legacyEntityId, entity_type: profile.type, entity_name: profile.name, target_profile_id: profile.id })
     ));
     const failed = results.filter(r => r?.error);
     if (failed.length) {
-      console.error('[follow] insert rejected — not marking as followed', failed.map(f => f.error));
+      // Printed as text, not as an object: a collapsed [{…}] in the console
+      // hides the one thing worth reading — code, message, details, hint.
+      failed.forEach(f => console.error(
+        '[follow] insert rejected —',
+        `code=${f.error?.code}`,
+        `message=${f.error?.message}`,
+        `details=${f.error?.details}`,
+        `hint=${f.error?.hint}`,
+      ));
       setFollowBusy(false);
       setFollowed(false);
       return;   // no optimistic success, and no notification for a follow that did not happen
