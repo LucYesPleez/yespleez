@@ -541,3 +541,79 @@ Two architectural principles that emerged from implementation rather than design
 
 Both were discovered by measuring rather than reasoning: one by running the matcher against real
 name pairs, the other by opening the running app. Neither would have been found by reading code.
+
+---
+
+## 14 · M7 prerequisite — the app reads `host_id`, never `owner_profile_id`
+
+**Found 19 Jul 2026**, after the first real Studio import landed in production. The event imported
+correctly and is invisible on the owner's profile page. Publishing it will not fix that.
+
+### 14.1 · What was observed
+
+The imported event (`external_ref = 'studio:e1'`) persisted exactly as designed:
+
+```
+venue_profile_id  4e77c0ae-…   ✓ linked
+owner_profile_id  null          ✓ M7 sets it (I6 — platform-owned)
+host_id           null          ← and it will ALWAYS be null for an import
+status            draft
+```
+
+Two screens were expected to show it, and they fail for **different** reasons:
+
+| Screen | Query | Why it's invisible | Fixed by publishing? |
+|---|---|---|---|
+| Venue (brewery) | `.eq('venue_profile_id', …).in('status', ['live','completed'])` — `ProfileScreen.jsx:91` | `status='draft'` only | **Yes** |
+| Host (YesPleez) | `.eq('host_id', ownedProfile.user_id).in('status', …)` — `ProfileScreen.jsx:100` | `host_id` is null and always will be | **No** |
+
+`O-R4` defines `host_id` as **authorship** — which human created the row. An importer has no auth
+user, so an imported event has no author, permanently. Matching ownership on `host_id` therefore
+cannot ever surface imported content.
+
+### 14.2 · The measurement that matters
+
+```
+event queries filtered by host_id …… 7   (ProfileScreen ×2, HostDashboard ×3,
+                                          VenueDashboard, MySceneScreen)
+places that WRITE owner_profile_id … 1   (CreateEventScreen.jsx:441)
+places that READ  owner_profile_id … 0
+```
+
+**`owner_profile_id` is write-only across the entire application.** It is set at event creation,
+was backfilled by M14c, is now resolved by Studio and carried through export by `refs.owner` — and
+nothing has ever read it. The authority column exists and answers nothing.
+
+This is `13.1` again, on the app side of the boundary: the column is correct, the resolution is
+correct, the decision now survives export, and the consumer was never updated.
+
+### 14.3 · What M7 must include
+
+Custodial publication is the first thing that will populate `owner_profile_id` on imported rows, so
+it is the milestone where reading it stops being inert. **Setting the column is not sufficient — the
+surfaces have to ask the new question.**
+
+Minimum for an imported event to be visible to its owner:
+
+```js
+// ProfileScreen.jsx:100 — public profile, "events by this profile"
+.or(`host_id.eq.${ownedProfile.user_id},owner_profile_id.eq.${ownedProfile.id}`)
+```
+
+**Do not blanket-replace all seven sites.** Authorship and authority are different questions and
+some callers legitimately want the first:
+
+- **Public profile pages** (`ProfileScreen.jsx:91`, `:100`) — must use **ownership**. This is "what
+  does this act/venue put on," and an imported listing belongs there.
+- **Dashboards** (`HostDashboard`, `VenueDashboard`, `MySceneScreen`) — decide per screen. "Events I
+  created" is authorship; "events I'm accountable for" is ownership. A claimed profile that owns
+  imported events probably wants them in its dashboard, which argues for ownership — but that is a
+  product call, not a mechanical substitution.
+
+### 14.4 · Related, already recorded
+
+`R3` (`docs/m15-verification-evidence-2026-07.md`) gates Follow / socials / VIEW PROFILE on
+`claim?.user_id`, so an unclaimed act is marked but has no affordances. Same root: the app keys
+event and profile relationships off **accounts**, while identity v1.3 keys them off **profiles**.
+M7 is the natural place to close both, since it is the first milestone whose output is only visible
+if the app asks the profile-shaped question.
