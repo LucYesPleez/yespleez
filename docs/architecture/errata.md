@@ -126,3 +126,57 @@ in an explanatory comparison, not in a rule.
 **Recorded, not corrected.** A versioned amendment to clarify one parenthetical phrase would be
 disproportionate; `E1` set the precedent that frozen text stands and operative documents cite the
 erratum. `CLAUDE.md` should cite `E2` where it states the ownership rule.
+
+---
+
+## E3 — v1.3 §O4 concludes "no venue backfill required" from a population count
+
+| | |
+|---|---|
+| **Document** | Identity Architecture v1.3 |
+| **Location** | §O4 (Verified facts), the `venue_profile_id` populated row |
+| **Status** | **Open — not corrected.** v1.3 remains as ratified. |
+| **Severity** | Wrong consequence drawn from a correct fact. No rule affected. |
+| **Found** | 18 Jul 2026, during the M14c owner-backfill dry run |
+
+### What v1.3 says
+
+> | Events with `venue_profile_id` populated | **24 of 24** | **No venue backfill required.** |
+
+### What is true
+
+**The fact is correct.** All 24 events have `venue_profile_id` populated, and none dangles.
+
+**The consequence does not follow.** All 24 point at the *same* venue profile — "Elbows Rest" —
+while their own `config.venue` text names four different places: Bellingen Memorial Hall, Bellingen
+Brewery, Tabbouleh RSL, The Old Supper Room. The column is therefore **semantically wrong on at
+least 23 of the 24 rows**, and a venue backfill is required rather than excluded.
+
+### Cause
+
+`CreateEventScreen` set `venue_profile_id` from `resolveProfileId(session.user.id, 'venue')` — the
+**creator's own** venue profile — rather than the venue the event happens at. Every event created by
+an account owning a venue profile inherited that venue regardless of location.
+
+Fixed 18 Jul 2026 in the same milestone that found it: the link is now written only when the owning
+profile *is* the venue and the typed venue name is blank or matches it. A promoter's event at another
+room resolves to `NULL`, which `O-R4` explicitly permits.
+
+### How the error was made
+
+Population was verified; **meaning was not**. A `count(*) FILTER (WHERE venue_profile_id IS NOT
+NULL)` cannot distinguish a correct link from a wrong one, and the conclusion was drawn from the
+count alone.
+
+### Why it matters beyond the wording
+
+The M14c dry run proposed `venue_profile_id` as a **fallback owner** for events whose creator could
+not be resolved. Had §O4's conclusion been trusted, that fallback would have assigned 23 events to a
+venue that does not host them — asserting a commercial relationship that does not exist, on a column
+the platform would then treat as authoritative.
+
+### Disposition
+
+**Recorded, not corrected.** No rule is affected: §O4 is a facts table, and `O-R1`–`O-R6` are
+untouched. The operative correction is that **`venue_profile_id` must not be used as an ownership
+signal** until the data is repaired.

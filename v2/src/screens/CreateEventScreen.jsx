@@ -5,8 +5,7 @@ import { useSession } from '../App';
 import s from './CreateEventScreen.module.css';
 import ImageUploadButton from '../components/ImageUploadButton';
 import { getEventBadges, CATEGORY_BADGES, CATEGORY_CHOICES, OPEN_MIC_BADGE, sameCategory } from '../lib/eventBadges';
-import { resolveProfileId } from '../lib/resolveProfileId';
-import { resolveOwnerProfileId } from '../lib/actingProfile';
+import { getOwnerProfiles } from '../lib/actingProfile';
 import { PROFILE_TYPES } from '../lib/profileTypes';
 
 const CAL_DAYS = ['Su','Mo','Tu','We','Th','Fr','Sa'];
@@ -325,9 +324,11 @@ export default function CreateEventScreen() {
   // the edit path must never restamp it.
   useEffect(() => {
     if (editId || !session?.user?.id) return;
-    resolveOwnerProfileId(session.user.id, searchParams.get('as')).then(res => {
-      if (res.ambiguous) { setOwners(res.ambiguous); setOwnerId(null); }
-      else { setOwners(res.profileId ? [{ id: res.profileId }] : []); setOwnerId(res.profileId); }
+    // Full profile objects, not just ids — `type` and `name` are needed by the
+    // picker and by venue resolution below.
+    getOwnerProfiles(session.user.id, searchParams.get('as')).then(list => {
+      setOwners(list);
+      setOwnerId(list.length === 1 ? list[0].id : null);
     });
   }, [editId, session?.user?.id, searchParams]);
 
@@ -413,7 +414,28 @@ export default function CreateEventScreen() {
       return;
     }
 
-    const venueProfileId = await resolveProfileId(session.user.id, 'venue');
+    // M14c fix · venue_profile_id is LOCATION, not ownership (v1.3 O-R4).
+    //
+    // It previously read `resolveProfileId(session.user.id, 'venue')` — the
+    // CREATOR's own venue profile — so every event created by an account that
+    // owns a venue was stamped with that venue regardless of where the gig
+    // actually was. The M14c dry run found all 24 existing events pointing at
+    // one venue while their config.venue named four different places.
+    //
+    // Linked only when the evidence supports it: the owning profile IS the
+    // venue, and the typed venue name is blank or matches it. A promoter's
+    // event at someone else's room resolves to NULL, which is correct and
+    // honest — the venue link is optional (v1.3 O-R4: warehouses, parks,
+    // house shows). Resolving it properly for those needs a venue picker,
+    // which is a feature rather than a defect fix.
+    const ownerProfile = owners.find(o => o.id === ownerId) || null;
+    const typed  = (venue || '').trim().toLowerCase();
+    const ownNm  = (ownerProfile?.name || '').trim().toLowerCase();
+    const venueProfileId =
+      ownerProfile?.type === 'venue' && (!typed || typed === ownNm)
+        ? ownerProfile.id
+        : null;
+
     const { data, error:err } = await supabase.from('events').insert({
       name, config:cfg, host_id:session.user.id,
       owner_profile_id: ownerId,
