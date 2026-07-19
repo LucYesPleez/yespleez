@@ -62,8 +62,6 @@ export default function ProfileScreen() {
   const [enquiryNote,   setEnquiryNote]   = useState('');
   const [enquirySending,setEnquirySending]= useState(false);
   const [enquiryLoading,setEnquiryLoading]= useState(false);
-  const [followPickerProfs, setFollowPickerProfs] = useState([]);
-  const [followSelected,    setFollowSelected]    = useState(new Set());
   const [claimOpen,         setClaimOpen]         = useState(false);
   const [inviteOpen,        setInviteOpen]        = useState(false);
   const [inviteDate,        setInviteDate]        = useState(null); // 11C.3: date tapped on the availability calendar, prefilled into InviteSheet
@@ -331,17 +329,23 @@ export default function ProfileScreen() {
       setFollowBusy(false);
       return;
     }
-    // Check if user has multiple profiles — if so, show picker
-    const { data: profs } = await supabase.from('profiles')
-      .select('user_id, type, name, avatar, genre_string, sound')
-      .eq('user_id', session.user.id);
-    const mapped = (profs || []).map(p => ({ ...p, label: PROFILE_TYPES[p.type]?.label || p.type.toUpperCase() }));
-    if (mapped.length > 1) {
-      setFollowPickerProfs(mapped);
-      setFollowSelected(new Set());
-    } else {
-      await doFollow(session.user.id);
-    }
+    // Following is a USER-level relationship, not a per-profile one: who you
+    // follow is the same on every screen, whichever of your profiles you are
+    // looking at. So there is nothing to choose and no picker to show.
+    //
+    // A "follow from which profile?" picker used to appear here for accounts
+    // with more than one profile. It was removed because it could not work:
+    // it collected profile TYPES ('artist', 'band') and passed them to
+    // doFollow(), which expects ACCOUNT ids and resolves
+    // getPersonalProfileId(uid) regardless — so the selection was discarded
+    // and every follow was written from Personal anyway. The UI offered a
+    // choice the write path could not honour, and its "FOLLOW FROM 2 PROFILES"
+    // label described something that never happened.
+    //
+    // Personal is now the single, honest answer. If per-profile following is
+    // ever wanted, it needs the follows table and doFollow() reworked first —
+    // not a picker bolted back onto a user-level write.
+    await doFollow(session.user.id);
   }
 
   async function doFollow(userIds) {
@@ -950,49 +954,6 @@ export default function ProfileScreen() {
         />
       )}
 
-      {/* Follow-from picker — multi-select */}
-      {followPickerProfs.length > 0 && (
-        <div onClick={() => { setFollowPickerProfs([]); setFollowSelected(new Set()); }} style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,.6)', backdropFilter: 'blur(4px)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', paddingBottom: 'var(--yp-safe-bottom)' }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: '#13131f', borderRadius: '20px 20px 0 0', padding: '24px 20px 32px', maxWidth: 520, width: '100%', margin: '0 auto', maxHeight: '85dvh', overflowY: 'auto', scrollbarWidth: 'none' }}>
-            <div style={{ width: 36, height: 4, background: 'rgba(255,255,255,.2)', borderRadius: 2, margin: '0 auto 20px' }} />
-            <div style={{ fontFamily: "'Bebas Neue'", fontSize: 22, letterSpacing: 2, marginBottom: 16, background: `linear-gradient(135deg,${col},${grad2})`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text', display: 'inline-block' }}>FOLLOW {profile.name.toUpperCase()}</div>
-            <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 20 }}>Select which profiles to follow from, you can pick more than one.</div>
-            {followPickerProfs.map((p, i) => {
-              // 'punter' isn't a PROFILE_TYPES entry (not an industry identity type) — keeps its own fallback.
-              const ptp = PROFILE_TYPES[p.type];
-              const tc = ptp ? { col: ptp.accent, rgb: ptp.rgb } : { col: '#BF5FFF', rgb: '191,95,255' };
-              const key = p.type;
-              const checked = followSelected.has(key);
-              const toggle = () => setFollowSelected(prev => { const s = new Set(prev); checked ? s.delete(key) : s.add(key); return s; });
-              const MySceneSVG = <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M16.051 12.616a1 1 0 0 1 1.909.024l.737 1.452a1 1 0 0 0 .737.535l1.634.256a1 1 0 0 1 .588 1.806l-1.172 1.168a1 1 0 0 0-.282.866l.259 1.613a1 1 0 0 1-1.541 1.134l-1.465-.75a1 1 0 0 0-.912 0l-1.465.75a1 1 0 0 1-1.539-1.133l.258-1.613a1 1 0 0 0-.282-.866l-1.156-1.153a1 1 0 0 1 .572-1.822l1.633-.256a1 1 0 0 0 .737-.535z"/><path d="M8 15H7a4 4 0 0 0-4 4v2"/><circle cx="10" cy="7" r="4"/></svg>;
-              return (
-                <button key={i} onClick={toggle} style={{ width: '100%', display: 'flex', gap: 12, alignItems: 'center', background: checked ? `rgba(${tc.rgb},.1)` : `rgba(${tc.rgb},.04)`, border: `1px solid ${checked ? tc.col : `rgba(${tc.rgb},.2)`}`, borderRadius: 12, padding: 12, cursor: 'pointer', textAlign: 'left', marginBottom: 8, transition: 'all .15s' }}>
-                  {p.avatar
-                    ? <img src={p.avatar} style={{ width: 44, height: 44, borderRadius: 8, objectFit: 'cover', border: `1.5px solid rgba(${tc.rgb},.5)`, flexShrink: 0 }} alt={p.name} />
-                    : p.type === 'punter'
-                    ? <div style={{ width: 44, height: 44, borderRadius: 8, background: `rgba(${tc.rgb},.12)`, border: `1.5px solid rgba(${tc.rgb},.3)`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: tc.col }}>{MySceneSVG}</div>
-                    : <img src={ptp?.defaultImage || PROFILE_TYPES.artist.defaultImage} style={{ width: 44, height: 44, borderRadius: 8, objectFit: 'cover', border: `1.5px solid rgba(${tc.rgb},.5)`, flexShrink: 0 }} alt={p.name} />
-                  }
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1.5, color: tc.col, marginBottom: 2 }}>{p.label}</div>
-                    <div style={{ fontFamily: "'Bebas Neue'", fontSize: 16, letterSpacing: .5, color: '#e8e8f0' }}>{p.name}</div>
-                    {(p.genre_string || p.sound) && <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 1 }}>{(p.genre_string || p.sound).split(' · ').slice(0,3).join(' · ')}</div>}
-                  </div>
-                  <div style={{ width: 22, height: 22, borderRadius: 6, border: `2px solid ${checked ? tc.col : 'rgba(255,255,255,.2)'}`, background: checked ? tc.col : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all .15s' }}>
-                    {checked && <svg width="12" height="12" viewBox="0 0 12 12"><polyline points="2,6 5,9 10,3" fill="none" stroke="#0a0a14" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>}
-                  </div>
-                </button>
-              );
-            })}
-            <button
-              onClick={() => followSelected.size > 0 && doFollow([...followSelected])}
-              disabled={followSelected.size === 0}
-              style={{ width: '100%', fontFamily: "'Bebas Neue'", fontSize: 15, letterSpacing: 2, padding: '13px', borderRadius: 12, border: 'none', background: followSelected.size > 0 ? `linear-gradient(135deg,${col},${grad2})` : 'rgba(255,255,255,.08)', color: followSelected.size > 0 ? '#0a0a14' : 'rgba(255,255,255,.3)', cursor: followSelected.size > 0 ? 'pointer' : 'not-allowed', marginTop: 4, transition: 'all .15s' }}
-            >FOLLOW{followSelected.size > 1 ? ` FROM ${followSelected.size} PROFILES` : ''}</button>
-            <button onClick={() => { setFollowPickerProfs([]); setFollowSelected(new Set()); }} style={{ marginTop: 8, width: '100%', background: 'none', border: 'none', color: 'var(--muted)', fontSize: 13, cursor: 'pointer', padding: 8 }}>Cancel</button>
-          </div>
-        </div>
-      )}
 
       {pickerDate && pickerProfs.length > 0 && (
         <div onClick={() => { setPickerDate(null); setPickerProfs([]); }} style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,.6)', backdropFilter: 'blur(4px)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', paddingBottom: 'var(--yp-safe-bottom)' }}>
