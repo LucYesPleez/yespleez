@@ -5,6 +5,7 @@ import { writeNotification } from '../lib/writeNotification';
 import { profileUrl } from '../lib/profileResolution';
 import { ensureHttps } from '../lib/socialLinks';
 import { PROFILE_TYPES } from '../lib/profileTypes';
+import UnclaimedBadge from '../components/UnclaimedBadge';
 import s from './ApplicationsScreen.module.css';
 
 const STATUS_TABS = ['PENDING', 'TENTATIVE', 'OFFERED', 'CONFIRMED', 'REJECTED'];
@@ -132,7 +133,14 @@ function AppCard({ app, profile, onAccept, onReject }) {
           : <div className={s.avatarPH}>{name[0]?.toUpperCase()}</div>
         }
         <div className={s.cardInfo}>
-          <p className={s.cardName}>{name}</p>
+          {/* Paired with the name rather than trailed on .cardTop, which
+              already ends with the .status pill — two trailing badges would
+              read as one status group. .cardName truncates, so it yields the
+              width. */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
+            <p className={s.cardName}>{name}</p>
+            <UnclaimedBadge profile={profile} />
+          </div>
           {sound && <p className={s.cardSound}>{sound}</p>}
         </div>
         <span className={s.status} data-status={app.status || 'pending'}>
