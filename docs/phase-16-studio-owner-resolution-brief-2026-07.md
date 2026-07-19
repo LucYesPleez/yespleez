@@ -445,8 +445,37 @@ everywhere.
 - **`S4` has no provider.** No removal blocklist exists anywhere in Studio. The resolver takes it
   injected, so precedence is correct and testable today, and the missing work is isolated to a
   provider rather than entangled with resolution. `S4` is **not satisfied** in the pipeline.
+- **M6 prerequisites, not cleanup.** Both are implementation prerequisites for the export milestone:
+  1. **`D5`** — a **correctness** issue. Until the schema and the exporter agree, SQL export cannot
+     be considered complete.
+  2. **`is_public: true` on import** — an **invariant** issue. The fix is not only
+     `is_public = false` at import; **publishing must set both values explicitly as part of the
+     publish transition**:
+     ```
+     import   ->  status = 'draft'   AND  is_public = false
+     publish  ->  sets BOTH, explicitly, as one transition
+     ```
+     Fixing only the import default leaves the same latent coupling pointed the other way. With both
+     ends explicit, no future change to publishing logic can expose imported events merely by
+     changing `status`, and no change to import defaults can expose them by changing `is_public`.
 - **Next integration point: `refs.owner` as a dependency edge**, not a new queue status. The queue
   already understands dependencies; owner resolution becomes another one whose absence manifests
   through validation and whose review state follows the existing proposal/confirmation pattern.
   `§12` of `review-queue.md` sanctions new edge kinds. `held` stays **computed**, never stored.
   This keeps ownership inside the existing model instead of creating a parallel workflow for it.
+
+### 12.4 · Three classes of defect — a review taxonomy
+
+Phases 14–16 surfaced three architecturally distinct kinds of defect, none of which required changing
+frozen infrastructure. Keeping them separate in future reviews decides *where a finding goes*:
+
+| Class | Question it fails | Found so far | Remedy belongs in |
+|---|---|---|---|
+| **Inference** | Is this conclusion supported by the evidence? | `E3`; recall-vs-precision (`12.1`) | **business rules** — a rule or threshold change |
+| **Contract** | Does the implementation deliver the guarantee it claims? | `S3` (procedural, not structural); `S4` (no provider) | **infrastructure** — a provider, or a recorded deviation |
+| **Invariant** | Does this hold independently of unrelated changes? | `is_public: true`; `D5` | **deployment / schema** — a migration or a transition fix |
+
+The classes have **different remedies**, which is why the distinction earns its keep. Misfiling sends
+a finding to the wrong remedy — roughly how `is_public` stayed invisible: it reads as a default-value
+nit (cosmetic) when it is actually a coupling between two concepts that must vary independently
+(invariant). Classify first, then decide the fix.
