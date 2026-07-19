@@ -21,6 +21,26 @@ import EventsSection from '../components/EventsSection';
 import EventTabBar from '../components/EventTabBar';
 import { useDragScroll } from '../hooks/useDragScroll';
 
+/* Phase 16 §14 — the ONE definition of "events this host is responsible for".
+ *
+ * Responsibility follows OWNERSHIP (identity v1.3 O-R4). `owner_profile_id` is
+ * authority and works for claimed and unclaimed profiles alike; `host_id` is
+ * authorship — the auth account that created the row — and is kept only as a
+ * backward-compatibility arm for events created before owner_profile_id was
+ * populated.
+ *
+ * Every query on this dashboard uses this helper. The event list, the
+ * applications lookup and the lineup lookup must answer the SAME question:
+ * if they diverge, an owned event appears with no applications and no lineup,
+ * which reads as broken rather than absent.
+ */
+function ownedByFilter(userId, hostProfileId) {
+  const arms = [];
+  if (hostProfileId) arms.push(`owner_profile_id.eq.${hostProfileId}`);
+  if (userId) arms.push(`host_id.eq.${userId}`);
+  return arms.join(',');
+}
+
 export default function HostDashboard({ userId: userIdProp }) {
   const { session } = useSession();
   const userId = userIdProp || session?.user?.id;
@@ -51,13 +71,24 @@ export default function HostDashboard({ userId: userIdProp }) {
   const { data, isLoading: loadingEvents } = useQuery({
     queryKey: ['hostDashboard', userId],
     queryFn: async () => {
-      const [profRes, evtRes] = await Promise.all([
-        supabase.from('profiles').select('*').eq('user_id', userId).eq('type', 'host').limit(1).maybeSingle(),
-        supabase.from('events').select('id, name, status, config, applications_open, is_public, created_at')
-          .eq('host_id', userId)
-          .order('created_at', { ascending: false })
-          .limit(50),
-      ]);
+      // Phase 16 §14 — a dashboard answers "which events am I responsible
+      // for?", and responsibility follows OWNERSHIP (identity v1.3 O-R4), not
+      // authorship. `host_id` is the auth account that created the row; a
+      // Studio-imported event has no author and never will, so an owner could
+      // own an event they could not see, edit, publish or retract here.
+      //
+      // The profile must be fetched BEFORE the events (no longer in parallel):
+      // owner_profile_id is keyed on the profile, not the account, so its id is
+      // an input to the event query. One extra round trip, deliberately.
+      const profRes = await supabase.from('profiles').select('*')
+        .eq('user_id', userId).eq('type', 'host').limit(1).maybeSingle();
+      const hostProfileId = profRes.data?.id || null;
+
+      const evtRes = await supabase.from('events')
+        .select('id, name, status, config, applications_open, is_public, created_at')
+        .or(ownedByFilter(userId, hostProfileId))
+        .order('created_at', { ascending: false })
+        .limit(50);
       const evtIds = (evtRes.data || []).map(e => e.id);
       let newAppsCount = 0, lineupSlotsCount = 0;
       if (evtIds.length) {
@@ -83,13 +114,16 @@ export default function HostDashboard({ userId: userIdProp }) {
   const newAppsCount     = data?.newAppsCount     ?? null;
   const lineupSlotsCount = data?.lineupSlotsCount ?? null;
 
-  // Load applications on mount
+  // Load applications on mount.
+  // §14: waits for the host PROFILE, not just the account — applications must
+  // cover owned events too, or an owned event shows up with none.
   useEffect(() => {
-    if (!userId || appsLoaded.current) return;
+    if (!userId || !profile?.id || appsLoaded.current) return;
     appsLoaded.current = true;
     setLoadingApps(true);
     async function loadApps() {
-      const { data: evIds } = await supabase.from('events').select('id').eq('host_id', userId);
+      const { data: evIds } = await supabase.from('events').select('id')
+        .or(ownedByFilter(userId, profile.id));
       if (!evIds?.length) { setLoadingApps(false); return; }
       const ids = evIds.map(e => e.id);
       const { data: apps } = await supabase.from('applications')
@@ -106,16 +140,17 @@ export default function HostDashboard({ userId: userIdProp }) {
       setLoadingApps(false);
     }
     loadApps();
-  }, [userId]);
+  }, [userId, profile?.id]);   // §14: re-runs once the host profile resolves (loadApps)
 
-  // Load lineups lazily — triggered by BOOKED tab or LINEUP section scroll
+  // Load lineups lazily — triggered by BOOKED tab or LINEUP section scroll.
+  // §14: same ownership question as the event list and applications above.
   useEffect(() => {
-    if (!userId || lineupsLoaded.current) return;
+    if (!userId || !profile?.id || lineupsLoaded.current) return;
     lineupsLoaded.current = true;
     setLoadingLineups(true);
     async function loadLineups() {
       const { data: evRows } = await supabase.from('events')
-        .select('id, name, config, status').eq('host_id', userId);
+        .select('id, name, config, status').or(ownedByFilter(userId, profile.id));
       if (!evRows?.length) { setLoadingLineups(false); return; }
       const ids = evRows.map(e => e.id);
       const { data: apps } = await supabase.from('applications')
@@ -162,7 +197,7 @@ export default function HostDashboard({ userId: userIdProp }) {
       setLoadingLineups(false);
     }
     loadLineups();
-  }, [userId]);
+  }, [userId, profile?.id]);   // §14: re-runs once the host profile resolves (loadLineups)
 
   // Load following on mount
   useEffect(() => {
