@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { writeNotification } from '../lib/writeNotification';
+import { resolvePerformerProfileId } from '../lib/actingProfile';
 import { profileUrl } from '../lib/profileResolution';
 import { ensureHttps } from '../lib/socialLinks';
 import { PROFILE_TYPES } from '../lib/profileTypes';
@@ -16,6 +17,7 @@ export default function ApplicationsScreen() {
   const [apps,      setApps]      = useState([]);
   const [profiles,  setProfiles]  = useState({});
   const [eventName, setEventName] = useState('');
+  const [eventOwnerProfileId, setEventOwnerProfileId] = useState(null);  // §A7 subject
   const [tab,       setTab]       = useState('PENDING');
   const [loading,   setLoading]   = useState(true);
 
@@ -26,9 +28,12 @@ export default function ApplicationsScreen() {
     async function load() {
       const [{ data: appData }, { data: evData }] = await Promise.all([
         supabase.from('applications').select('*').eq('event_id', eventId).order('created_at', { ascending: false }),
-        supabase.from('events').select('name').eq('id', eventId).maybeSingle(),
+        // owner_profile_id comes along for §A7: an application decision is
+        // ABOUT the event's owner, and it is one more column on a query we
+        // already make rather than a second round trip.
+        supabase.from('events').select('name, owner_profile_id').eq('id', eventId).maybeSingle(),
       ]);
-      if (!cancelled) setEventName(evData?.name || '');
+      if (!cancelled) { setEventName(evData?.name || ''); setEventOwnerProfileId(evData?.owner_profile_id || null); }
 
       if (cancelled) return;
       const rows = appData || [];
@@ -61,7 +66,16 @@ export default function ApplicationsScreen() {
       rejected:  { type: 'application_declined', message: `Your application was unsuccessful${evLabel}.` },
     };
     const notif = NOTIF[status];
-    if (notif) await writeNotification(artistId, notif.type, notif.message, { event_name: eventName, event_id: eventId });
+    // §A7: about = the event's owner (whose decision this is); to = the
+    // artist's performer profile, U4-resolved, null if ambiguous.
+    if (notif) await writeNotification({
+      toUserId:       artistId,
+      toProfileId:    (await resolvePerformerProfileId(artistId)).profileId ?? null,
+      aboutProfileId: eventOwnerProfileId,
+      type:    notif.type,
+      message: notif.message,
+      data:    { event_name: eventName, event_id: eventId },
+    });
   }
 
   const filtered = apps.filter(a => {

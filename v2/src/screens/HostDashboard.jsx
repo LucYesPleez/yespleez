@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
+import { resolvePerformerProfileId } from '../lib/actingProfile';
 import { writeNotification } from '../lib/writeNotification';
 import { useSession } from '../App';
 import s from './HostDashboard.module.css';
@@ -239,7 +240,16 @@ export default function HostDashboard({ userId: userIdProp }) {
       rejected:  { type: 'application_declined', message: `Your application was unsuccessful${evLabel}.` },
     };
     const notif = NOTIF[status];
-    if (notif) await writeNotification(artistId, notif.type, notif.message, { event_name: eventName });
+    // §A7: about = this host's profile (whose decision this is);
+    // to = the artist's performer profile, U4-resolved, null if ambiguous.
+    if (notif) await writeNotification({
+      toUserId:       artistId,
+      toProfileId:    (await resolvePerformerProfileId(artistId)).profileId ?? null,
+      aboutProfileId: profile?.id ?? null,
+      type:    notif.type,
+      message: notif.message,
+      data:    { event_name: eventName },
+    });
   }
 
 

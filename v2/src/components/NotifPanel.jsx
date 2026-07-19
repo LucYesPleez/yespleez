@@ -19,7 +19,10 @@ export default function NotifPanel({ onClose, onMarkAll }) {
       const { data } = await supabase
         .from('notifications')
         .select('*')
-        .eq('user_id', session.user.id)
+        // Account-wide, per R5. Feed scoping to the active profile is
+        // deferred until an active-profile concept exists — see
+        // writeNotification.js.
+        .eq('to_user_id', session.user.id)
         .order('created_at', { ascending: false })
         .limit(60);
       setNotifs(data || []);

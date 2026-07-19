@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
+import { resolvePerformerProfileId } from '../lib/actingProfile';
 import { writeNotification } from '../lib/writeNotification';
 import { useSession, usePlayer } from '../App';
 import { today, formatDisplayDate } from '../lib/dates';
@@ -140,7 +141,16 @@ export default function VenueDashboard({ userId: userIdProp }) {
     };
     const notif = NOTIF[status];
     if (notif && artistId) {
-      await writeNotification(artistId, notif.type, notif.message, { event_name: eventName, venue_name: venueName, enquiry_id: id });
+      // §A7: about = this venue's profile (whose decision this is);
+      // to = the artist's performer profile, U4-resolved, null if ambiguous.
+      await writeNotification({
+        toUserId:       artistId,
+        toProfileId:    (await resolvePerformerProfileId(artistId)).profileId ?? null,
+        aboutProfileId: profile?.id ?? null,
+        type:    notif.type,
+        message: notif.message,
+        data:    { event_name: eventName, venue_name: venueName, enquiry_id: id },
+      });
     }
   }
 

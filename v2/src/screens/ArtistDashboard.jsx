@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { resolvePerformerProfileId } from '../lib/actingProfile';
-import { writeNotification } from '../lib/writeNotification';
+import { writeNotification, inferToProfileId } from '../lib/writeNotification';
 import { useSession } from '../App';
 import { today, formatDisplayDate } from '../lib/dates';
 import { STATUS_TAB_COLOR, withDirection } from '../lib/enquiryUtils';
@@ -304,9 +304,18 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
     }
     await supabase.from('venue_enquiries').update({ status }).eq('id', id);
     if (offer.venue_user_id && status === 'accepted') {
-      await writeNotification(offer.venue_user_id, 'invite_accepted',
-        `An artist accepted your invite${offer.event_name ? ` to ${offer.event_name}` : ''}.`,
-        { event_id: offer.event_id, event_name: offer.event_name });
+      // §A7: about = the performer profile that accepted (the same one the
+      // application was attributed to, resolved above — never re-derived, or
+      // the notice and the application could name different profiles).
+      // to = the venue's profile, inferred under U4; null if ambiguous.
+      await writeNotification({
+        toUserId:       offer.venue_user_id,
+        toProfileId:    await inferToProfileId(offer.venue_user_id, 'venue'),
+        aboutProfileId: fromProfileId,
+        type:    'invite_accepted',
+        message: `An artist accepted your invite${offer.event_name ? ` to ${offer.event_name}` : ''}.`,
+        data:    { event_id: offer.event_id, event_name: offer.event_name },
+      });
     }
     updateOffer(id, { status });
   }

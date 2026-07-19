@@ -360,12 +360,17 @@ export default function ProfileScreen() {
     // Bust the My Scene cache so the new follow appears immediately
     queryClient.invalidateQueries({ queryKey: ['myScene'] });
     // Notify the profile owner that someone followed them
-    if (profile.user_id) await writeNotification(
-      profile.user_id,
-      'new_follower',
-      `Someone followed your profile${profile.name ? ` — ${profile.name}` : ''}.`,
-      { follower_id: session.user.id }
-    );
+    // §A7: no inference needed here — both identities are known outright.
+    // to = the profile that was followed (this page). about = the follower's
+    // Personal profile, the same one the follow rows were attributed to.
+    if (profile.user_id) await writeNotification({
+      toUserId:       profile.user_id,
+      toProfileId:    profile.id,
+      aboutProfileId: await getPersonalProfileId(session.user.id),
+      type:    'new_follower',
+      message: `Someone followed your profile${profile.name ? ` — ${profile.name}` : ''}.`,
+      data:    { follower_id: session.user.id },
+    });
     setFollowed(true);
     setFollowBusy(false);
     setFollowPickerProfs([]);

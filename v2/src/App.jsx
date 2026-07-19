@@ -69,7 +69,10 @@ function Shell({ session, isGuest, onSignOut }) {
       const { count } = await supabase
         .from('notifications')
         .select('id', { count: 'exact', head: true })
-        .eq('user_id', session.user.id)
+        // R5: the badge deliberately does NOT scope to a profile. It
+        // aggregates across every profile the account owns, so an artist
+        // browsing as Personal still sees an urgent venue enquiry.
+        .eq('to_user_id', session.user.id)
         .eq('read', false);
       setUnreadCount(count || 0);
     }
@@ -77,7 +80,7 @@ function Shell({ session, isGuest, onSignOut }) {
     // Realtime subscription for instant badge updates
     const channel = supabase
       .channel('notif-badge')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${session.user.id}` }, () => {
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `to_user_id=eq.${session.user.id}` }, () => {
         setUnreadCount(c => c + 1);
       })
       .subscribe();

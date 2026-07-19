@@ -127,12 +127,17 @@ export default function InviteSheet({ artist, events = [], venueUserId, initialD
       return;
     }
     // Notify the artist
-    await writeNotification(
-      artist.user_id,
-      'event_invite',
-      `You've received an invite to perform${selectedEvent ? ` at ${selectedEvent.name}` : ''}.`,
-      { event_id: eventId || null, event_name: selectedEvent?.name || null, host_id: venueUserId, proposed_date: date || null, proposed_fee: fee || null }
-    );
+    // §A7 identities. Both are already resolved above for the enquiry row —
+    // reuse them rather than inferring. These are the profiles the invite was
+    // actually addressed between, which beats anything U4 could derive.
+    await writeNotification({
+      toUserId:       artist.user_id,      // delivery
+      toProfileId:    applicantProfileId,  // the invited profile
+      aboutProfileId: venueProfileId,      // the venue doing the inviting
+      type:    'event_invite',
+      message: `You've received an invite to perform${selectedEvent ? ` at ${selectedEvent.name}` : ''}.`,
+      data:    { event_id: eventId || null, event_name: selectedEvent?.name || null, host_id: venueUserId, proposed_date: date || null, proposed_fee: fee || null },
+    });
     setSent(true);
   }
 

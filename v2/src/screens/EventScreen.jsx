@@ -278,12 +278,15 @@ export default function EventScreen() {
     await supabase.from('performances').delete().eq('id', claim.id);
     if (claim?.user_id) {
       await Promise.all([
-        writeNotification(
-          claim.user_id,
-          'slot_removed',
-          `You have been removed from a slot at ${event.name}.`,
-          { event_id: id, event_name: event.name },
-        ),
+        // §A7: about = the event's owner, whose lineup decision this is.
+        writeNotification({
+          toUserId:       claim.user_id,
+          toProfileId:    (await resolvePerformerProfileId(claim.user_id)).profileId ?? null,
+          aboutProfileId: event.owner_profile_id ?? null,
+          type:    'slot_removed',
+          message: `You have been removed from a slot at ${event.name}.`,
+          data:    { event_id: id, event_name: event.name },
+        }),
         supabase.from('applications')
           .update({ status: 'tentative' })
           .eq('event_id', id)
@@ -313,14 +316,18 @@ export default function EventScreen() {
       if (withArtist.length) {
         // Batch: one insert, as before. writeNotifications exists so this
         // stays a single round trip rather than N sequential writes.
-        await writeNotifications(
-          withArtist.map(d => ({
-            userId:  d.lineup_members.artist_id,
-            type:    'slot_offer',
-            message: `You've been offered a slot at ${event.name}.`,
-            data:    { performance_id: d.id, event_id: id, event_name: event.name, slot_id: d.slot_id },
-          }))
-        );
+        // §A7 on the batch path too. toProfileId is resolved per recipient
+        // BEFORE the insert so this stays one round trip — mapping it to N
+        // sequential writes would trade the batch for attribution.
+        const batchRows = await Promise.all(withArtist.map(async d => ({
+          toUserId:       d.lineup_members.artist_id,
+          toProfileId:    (await resolvePerformerProfileId(d.lineup_members.artist_id)).profileId ?? null,
+          aboutProfileId: event.owner_profile_id ?? null,
+          type:    'slot_offer',
+          message: `You've been offered a slot at ${event.name}.`,
+          data:    { performance_id: d.id, event_id: id, event_name: event.name, slot_id: d.slot_id },
+        })));
+        await writeNotifications(batchRows);
         await Promise.all([...new Set(withArtist.map(d => d.lineup_members.artist_id))].map(artistId =>
           supabase.from('applications').update({ status: 'offered' })
             .eq('event_id', id).eq('artist_id', artistId).in('status', ['pending', 'tentative'])
@@ -392,12 +399,14 @@ export default function EventScreen() {
     }));
     if (status === 'tentative') {
       try {
-        await writeNotification(
-          artistId,
-          'shortlisted',
-          `You've been shortlisted for ${evtName}.`,
-          { event_id: id },
-        );
+        await writeNotification({
+          toUserId:       artistId,
+          toProfileId:    (await resolvePerformerProfileId(artistId)).profileId ?? null,
+          aboutProfileId: event.owner_profile_id ?? null,
+          type:    'shortlisted',
+          message: `You've been shortlisted for ${evtName}.`,
+          data:    { event_id: id },
+        });
       } catch (_) {}
     }
   }
@@ -434,12 +443,14 @@ export default function EventScreen() {
     }).select('id').single();
     await Promise.all([
       supabase.from('applications').update({ status: 'offered' }).eq('id', aApp.id),
-      writeNotification(
-        aApp.artist_id,
-        'slot_offer',
-        `You've been offered a slot${slotTime ? ` at ${slotTime}` : ''} at ${event.name}.`,
-        { performance_id: perf?.id, event_id: id, event_name: event.name, slot_id: slot.id, slot_time: slotTime, artist_name: artistName, host_id: session?.user?.id },
-      ),
+      writeNotification({
+        toUserId:       aApp.artist_id,
+        toProfileId:    (await resolvePerformerProfileId(aApp.artist_id)).profileId ?? null,
+        aboutProfileId: event.owner_profile_id ?? null,
+        type:    'slot_offer',
+        message: `You've been offered a slot${slotTime ? ` at ${slotTime}` : ''} at ${event.name}.`,
+        data:    { performance_id: perf?.id, event_id: id, event_name: event.name, slot_id: slot.id, slot_time: slotTime, artist_name: artistName, host_id: session?.user?.id },
+      }),
     ]);
     setAllApps(prev => prev.map(a => a.id === aApp.id ? { ...a, status: 'offered' } : a));
     queryClient.invalidateQueries({ queryKey: ['event', id] });
