@@ -397,7 +397,12 @@ export default function MySceneScreen({ isGuest, onSignOut }) {
   async function loadDiscoverProfiles() {
     if (_discoverCache.length) return;
     const { data } = await supabase.from('profiles')
-      .select('user_id, name, type, avatar, location, suburb, sound, genre_string')
+      // M15: `id` is required, not cosmetic. PortraitCard navigates on
+      // profile.id and only falls back to /profile/<user_id> when it is
+      // absent — and an unclaimed row's user_id is NULL, so that fallback
+      // builds /profile/undefined. Every other profile select here already
+      // leads with id (see followCols above).
+      .select('id, user_id, name, type, avatar, location, suburb, sound, genre_string')
       .in('type', ['artist','host','band','standup','venue'])
       .order('updated_at', { ascending: false })
       .limit(10);
