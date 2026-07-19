@@ -1,6 +1,19 @@
 # Phase 14.1 — Studio vertical slice · implementation plan
 
-**18 Jul 2026 · implementation plan.** No code written. Architecture is not reopened.
+**18 Jul 2026 · implementation plan.** Architecture is not reopened.
+
+> **Decisions confirmed by the owner, 18 Jul 2026:**
+> 1. **Custodial publication uses the existing `is_public` field** (§0.1). The ladder waits for
+>    publication-model ratification.
+> 2. **Authority transfer is proven in application logic before R3.2 changes production RLS**
+>    (§2, option a).
+> 3. **`I6` is a blocker on the exporter milestone.** `owner_profile_id` and `is_public` are
+>    **platform-owned fields** and must never be overwritten by import upserts.
+>
+> **The third generalises usefully and is now recorded in the M14a migration**, where an importer
+> author will actually read it: *import-owned fields describe the event as the source stated it;
+> platform-owned fields describe decisions the platform made about it. An importer may write the
+> first and must never write the second.* That rule will outlive these two columns.
 
 **Goal.** The minimum implementation proving the ratified architecture works end to end:
 public source → import → owner resolution → review queue → Ops review → custodial publication →
