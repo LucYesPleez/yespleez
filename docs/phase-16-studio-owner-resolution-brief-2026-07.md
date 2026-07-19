@@ -479,3 +479,65 @@ The classes have **different remedies**, which is why the distinction earns its 
 a finding to the wrong remedy — roughly how `is_public` stayed invisible: it reads as a default-value
 nit (cosmetic) when it is actually a coupling between two concepts that must vary independently
 (invariant). Classify first, then decide the fix.
+
+---
+
+## 13 · Phase 16 closure — 19 Jul 2026
+
+**Engineering: complete.** M5 (`5008bba`), M6 (`fb2992e`), the boot-wiring fix (`3f06010`),
+M6F (`63e52de`), M6G (`895860e`). All Studio-local. 59 tests passing under `node:test`.
+Core unchanged, queue semantics unchanged, `eventBlocked()` byte-identical, resolver pure,
+no Supabase reads introduced.
+
+**Operations: three items outstanding.** These are deployment and acceptance, not engineering:
+
+1. Apply `supabase/migrations/20260714000000_studio_sql_export_columns.sql` in the Supabase
+   SQL Editor. Requires database privileges no part of Studio has, by design (`S3`).
+2. Run the verification queries in that migration's footer.
+3. Confirm `created_via` persists on the first real export — moving it from *implemented*
+   to *operational* (`R10`).
+
+**One temporary policy.** The unconfigured-blocklist override (M6F) is a stopgap: it refuses
+by default but permits a recorded operator override, because no blocklist provider exists yet
+and a hard refusal would block every import. **Once a real provider is configured the default
+becomes strict enforcement** — the `confirm()` is removed and the refusal is unconditional.
+
+### 13.1 · The principle worth carrying forward
+
+> **Unit tests validate implementations. Integration tests validate contracts.**
+>
+> Every new consumer of an existing subsystem must have at least one regression test that
+> exercises the **production call path**, not merely the subsystem's public API.
+
+Phase 16 surfaced **four** defects of identical shape, none catchable by a unit test:
+
+| # | Defect | The contract that went unsatisfied |
+|---|---|---|
+| 1 | `OWNER_REQUIRED_RULE` never registered | `review-queue.html` never called `registerRules()` |
+| 2 | `owner-resolution.js` never loaded on the importer page | resolution silently no-opped; **every** event would have been held |
+| 3 | `ctx` was `{}` at the import call site | provenance null, so venue-own-channel could never fire |
+| 4 | `opts.blocklist` never passed | the §09 removal check silently never ran |
+
+In each case the module existed, its behaviour was correct, and its tests passed — while the
+production caller failed to satisfy the contract. **That is a categorically different failure
+mode from a logic bug**, and a green unit suite is structurally incapable of detecting it: a
+unit test cannot catch an argument that is never passed, or a script tag that was never added.
+
+This is a **contract defect** in the `12.4` taxonomy, and it is the class most likely to recur
+as Studio grows. It generalises well past owner resolution — to analytics, notifications,
+messaging, publishing, and any future orchestration layer.
+
+The structural remedy is already in place for this subsystem: `test/m6f-importer-integration.test.js`
+asserts the call site itself (script load order, argument shape, recorded provenance), and
+`test/m6g-catalog-enrichment.test.js` asserts the evidence assembled *before* the resolver runs.
+Any future consumer needs the same treatment from the start.
+
+### 13.2 · What Phase 16 actually produced
+
+Two architectural principles that emerged from implementation rather than design, and outlive it:
+
+- **`12.1`** — a recall-oriented engine must not gate a precision-oriented decision.
+- **`13.1`** — unit tests validate implementations; integration tests validate contracts.
+
+Both were discovered by measuring rather than reasoning: one by running the matcher against real
+name pairs, the other by opening the running app. Neither would have been found by reading code.
