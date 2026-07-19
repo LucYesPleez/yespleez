@@ -508,7 +508,16 @@ export default function ProfileScreen() {
               // the art, so height fills exactly and there is no vertical crop —
               // this changes nothing there. The landscape defaults crop
               // horizontally, where the anchor is still centred.
-              : { backgroundSize: 'cover', backgroundPosition: 'center bottom' }),
+              // Lifted off the bottom edge by 9dvh. Bottom-anchoring alone is
+              // enough on desktop, where cover leaves ~291px of vertical
+              // overflow to give back — but at phone width the frame is
+              // narrower than the art, so height fills EXACTLY, there is no
+              // overflow, and `bottom` has nothing left to surrender. The decks
+              // do render, flush to the foot of the viewport, underneath the
+              // content layer and nav bar. Raising the image clears them into
+              // view. On desktop this simply spends a little of the existing
+              // overflow, so it costs nothing there.
+              : { backgroundSize: 'cover', backgroundPosition: 'center calc(100% - 9dvh)' }),
           }}
         />
       )}
