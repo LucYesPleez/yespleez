@@ -94,11 +94,24 @@ export default function ProfileScreen() {
         // 11C.6: a host's HOSTED events — events.host_id is the promoter's
         // account (see CreateEventScreen / HostDashboard). NOT lineup_members:
         // a host doesn't perform, so the performer query below returned nothing,
-        // leaving every host's event sections empty. Unclaimed host (no
-        // user_id) has nothing to show.
-        const eRes = ownedProfile.user_id
-          ? await supabase.from('events').select('id,name,config').eq('host_id', ownedProfile.user_id).in('status', ['live','completed']).order('created_at', { ascending: false }).limit(100)
-          : { data: [] };
+        // leaving every host's event sections empty.
+        //
+        // Phase 16 §14 — ask the PROFILE-shaped question, not the account one.
+        // `host_id` is AUTHORSHIP (which human created the row, O-R4). An
+        // imported event has no author and never will, so matching ownership on
+        // host_id could never surface Studio-imported listings — and an
+        // unclaimed host has no user_id at all, so this branch returned nothing
+        // for exactly the profiles custodial publication creates.
+        //
+        // `owner_profile_id` is AUTHORITY and works for claimed and unclaimed
+        // alike. host_id is kept as a compatibility arm so events created before
+        // owner_profile_id was populated still appear.
+        const ownerFilters = ['owner_profile_id.eq.' + ownedProfile.id];
+        if (ownedProfile.user_id) ownerFilters.push('host_id.eq.' + ownedProfile.user_id);
+        const eRes = await supabase.from('events').select('id,name,config')
+          .or(ownerFilters.join(','))
+          .in('status', ['live','completed'])
+          .order('created_at', { ascending: false }).limit(100);
         events = eRes.data || [];
       } else {
         // Compatibility read until M8: newer/unclaimed-linked rows carry the
