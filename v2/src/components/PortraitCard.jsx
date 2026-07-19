@@ -4,6 +4,8 @@ import { formatLocation } from '../lib/formatLocation';
 import { selectedPerformanceRoleLabels, selectedArtistRoleLabels } from '../lib/profileTaxonomy';
 import { profileIdentity } from '../lib/profileTypes';
 import { getContrastText } from '../lib/color';
+import UnclaimedBadge from './UnclaimedBadge';
+import { isProfileUnclaimed } from '../lib/profileClaim';
 
 /**
  * Props:
@@ -54,6 +56,16 @@ export default function PortraitCard({ profile: p, onClick, width = 150, height 
       {/* info */}
       <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: 12 }}>
         <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 15, letterSpacing: 1, color: '#fff', lineHeight: 1.1 }}>{p?.name}</div>
+        {/* Not in the top-right pill row: at 150px wide, a type pill plus this
+            badge measures ~146px against ~130px of usable width, so it would
+            overflow and be clipped by the card. The bottom block has the room.
+            The wrapper is gated rather than rendered-then-emptied because an
+            empty div's 4px margin collapses with the location row's 3px and
+            shifts every CLAIMED card by 1px. This is the one place a card
+            touches the predicate, and it asks only whether, never how. */}
+        {isProfileUnclaimed(p) && (
+          <div style={{ marginTop: 4 }}><UnclaimedBadge profile={p} /></div>
+        )}
         {formatLocation(p) && <div style={{ fontSize: 10, color: 'rgba(255,255,255,.55)', marginTop: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{formatLocation(p)}</div>}
         {/* 10F: was a hardcoded '#00E5FF' — Artist's cyan on EVERY type's card.
             ProfileCard renders the same field in the row's own accent (ts.col);

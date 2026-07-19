@@ -4,6 +4,7 @@ import { PROFILE_TYPES, profileIdentity } from '../lib/profileTypes';
 import { profileUrl } from '../lib/profileResolution';
 import { formatLocation } from '../lib/formatLocation';
 import { selectedPerformanceRoleLabels } from '../lib/profileTaxonomy';
+import UnclaimedBadge from './UnclaimedBadge';
 
 // Re-exported in { col, rgb, label, emoji } shape — DiscoverScreen and others depend on this export.
 // `label` here is the compact badge/pill form (PROFILE_TYPES.shortLabel) — this
@@ -68,6 +69,10 @@ export default function ProfileCard({ item, badge, badgeColor, actions }) {
             {typeLabels.map((l, i) => (
               <span key={i} className={s.typeBadge} style={{ color: ts.col, background: `rgba(${ts.rgb},.15)`, borderColor: `rgba(${ts.rgb},.3)` }}>{l}</span>
             ))}
+            {/* Sits after the type badge, same order as ProfileScreen's meta
+                row. .nameRow is already flex with a 7px gap and wraps, so this
+                needs no spacing of its own. */}
+            <UnclaimedBadge profile={item} />
             {badge && (
               <span className={s.statusBadge} style={{ color: badgeColor || '#fff', background: badgeColor ? `${badgeColor}22` : 'rgba(255,255,255,.1)', borderColor: badgeColor || '#fff' }}>
                 {badge}
