@@ -394,8 +394,14 @@ export default function ProfileScreen() {
     // §A7: no inference needed here — both identities are known outright.
     // to = the profile that was followed (this page). about = the follower's
     // Personal profile, the same one the follow rows were attributed to.
-    if (profile.user_id) await writeNotification({
-      toUserId:       profile.user_id,
+    //
+    // N1: no `if (profile.user_id)` guard. An unclaimed profile has no owner
+    // yet, so this writes a HELD row — recipient set, delivery identity null —
+    // which is delivered on claim (N3). Guarding here discarded exactly the
+    // rows N4 says never expire and N3 calls the payoff of the whole model:
+    // the venue that claims its profile and finds twelve followers waiting.
+    await writeNotification({
+      toUserId:       profile.user_id ?? null,   // null ⇒ held (N1)
       toProfileId:    profile.id,
       aboutProfileId: await getPersonalProfileId(session.user.id),
       type:    'new_follower',

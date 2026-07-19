@@ -20,10 +20,42 @@ import { getOwnerProfiles } from './actingProfile';
  *   to_profile_id     RECIPIENT — which of the reader's profiles this is
  *                                 for. Scopes the feed. See the NULL note.
  *   to_user_id        DELIVERY  — the human with the device. Dedup and
- *                                 delivery both key on it. Never null.
+ *                                 delivery both key on it. NULL means HELD;
+ *                                 see the N1 note below.
  *
  * "Addressed to a profile, delivered to an account" is only two-thirds of
  * the model; the subject is a third, independent identity.
+ *
+ * ── N1 · A NULL to_user_id MEANS HELD, NOT BROKEN ────────────────────
+ *
+ * Phase 13.2 `N1`: a notification to an UNCLAIMED profile is CREATED AND
+ * HELD, never suppressed. A held row carries its recipient (to_profile_id)
+ * and NO delivery identity — that absence IS the held state, which is why
+ * there is no separate flag to disagree with it.
+ *
+ * This helper used to do the opposite. It returned early whenever toUserId
+ * was missing, under the comment "no delivery identity, no notification" —
+ * stating the rule exactly backwards from the spec. Callers compounded it:
+ * ProfileScreen guarded its follow write behind `if (profile.user_id)`.
+ * Between them, every follow of an unclaimed profile was discarded.
+ *
+ *     "A held notification is an asset; a suppressed one is a deleted fact."
+ *
+ * That was not a missing feature. `N3` makes the held pile the payoff of
+ * the entire model — a venue claims and finds followers and enquiries
+ * waiting — and `N4` names follows as the kind that NEVER expires. The
+ * rows being thrown away were the most valuable ones.
+ *
+ * THE INVARIANT IS ADDRESSABILITY, NOT DELIVERY. A row must carry at least
+ * one identity that can reach someone, now or later:
+ *
+ *     delivered   to_user_id set,  to_profile_id may be null (U4)
+ *     held        to_user_id null, to_profile_id set          (N1)
+ *     rejected    both null — addressed to nobody
+ *
+ * Enforced in the database by CHECK notifications_addressable, and here by
+ * isAddressable(). Do NOT tighten this to "to_profile_id is required" —
+ * that breaks U4 below, whose NULLs are correct answers.
  *
  * ── ⚠ A NULL to_profile_id IS A CORRECT ANSWER, NOT MISSING DATA ─────
  *
@@ -92,16 +124,37 @@ export async function inferToProfileId(userId, profileType) {
  * Build a notification row. The single definition of a notification's
  * shape — extend here, never at a call site.
  */
-function buildRow({ toUserId, toProfileId = null, aboutProfileId = null, type, message, data = {} }) {
+function buildRow({ toUserId = null, toProfileId = null, aboutProfileId = null, type, message, data = {} }) {
   return {
-    to_user_id:       toUserId,
-    to_profile_id:    toProfileId,      // may be null — see U4 note
-    about_profile_id: aboutProfileId,   // may be null for account-level notices
+    to_user_id:       toUserId ?? null,   // null = HELD (N1)
+    to_profile_id:    toProfileId,        // may be null — see U4 note
+    about_profile_id: aboutProfileId,     // may be null for account-level notices
     type,
     message,
     data,
     read: false,
   };
+}
+
+/**
+ * The addressability invariant (N1). Mirrors the database's
+ * CHECK notifications_addressable — a row must be reachable by someone,
+ * now (to_user_id) or after a claim (to_profile_id).
+ *
+ * This is the ONLY reason to refuse to write. Absence of a delivery
+ * identity is not a reason; that is a held notification.
+ */
+function isAddressable(row) {
+  return Boolean(row.to_user_id || row.to_profile_id);
+}
+
+/**
+ * True when a row is held rather than delivered (N1).
+ * Exported so readers and future claim-delivery share one definition of
+ * "held" instead of each re-deriving `to_user_id == null`.
+ */
+export function isHeld(row) {
+  return Boolean(row) && !row.to_user_id && Boolean(row.to_profile_id);
 }
 
 /**
@@ -111,9 +164,13 @@ function buildRow({ toUserId, toProfileId = null, aboutProfileId = null, type, m
  * carries three id-shaped values, and positional UUIDs across eleven call
  * sites is an argument-swap bug waiting to be written.
  *
+ * Writes a HELD row when toUserId is absent but toProfileId is present
+ * (N1) — the unclaimed-profile case. Refuses only when neither is given,
+ * which would be a row addressed to nobody.
+ *
  * @param {object}  opts
- * @param {string}  opts.toUserId          recipient's auth user id — DELIVERY (§A7), required
- * @param {string} [opts.toProfileId]      recipient profile — RECIPIENT (§A7); null when not uniquely inferable (U4)
+ * @param {string} [opts.toUserId]         recipient's auth user id — DELIVERY (§A7); omit for a held row (N1)
+ * @param {string} [opts.toProfileId]      recipient profile — RECIPIENT (§A7); null when not uniquely inferable (U4); REQUIRED when toUserId is absent
  * @param {string} [opts.aboutProfileId]   subject profile — SUBJECT (§A7); may be an unclaimed profile
  * @param {string}  opts.type              e.g. 'slot_offer', 'invite_accepted'
  * @param {string}  opts.message           readable message
@@ -121,10 +178,13 @@ function buildRow({ toUserId, toProfileId = null, aboutProfileId = null, type, m
  * @returns {Promise<object|null>} the Postgres error, or null on success
  */
 export async function writeNotification(opts) {
-  if (!opts || !opts.toUserId) return null;   // no delivery identity, no notification
+  const row = buildRow(opts || {});
+  // N1: a missing delivery identity is a HELD notification, not a reason
+  // to discard. Only an unaddressable row — neither identity — is refused.
+  if (!isAddressable(row)) return null;
   const { error } = await supabase
     .from('notifications')
-    .insert(buildRow(opts));
+    .insert(row);
   return error;
 }
 
@@ -140,10 +200,16 @@ export async function writeNotification(opts) {
  * @returns {Promise<object|null>} the Postgres error, or null on success
  */
 export async function writeNotifications(rows) {
-  const list = (rows || []).filter(r => r && r.toUserId);
+  // N1: same rule as the single write — held rows are kept, only
+  // unaddressable ones are dropped. The old filter was `r.toUserId`,
+  // which silently discarded every held row in a batch.
+  const list = (rows || [])
+    .filter(Boolean)
+    .map(buildRow)
+    .filter(isAddressable);
   if (!list.length) return null;
   const { error } = await supabase
     .from('notifications')
-    .insert(list.map(buildRow));
+    .insert(list);
   return error;
 }
