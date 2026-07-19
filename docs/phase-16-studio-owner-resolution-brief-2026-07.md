@@ -617,3 +617,88 @@ some callers legitimately want the first:
 event and profile relationships off **accounts**, while identity v1.3 keys them off **profiles**.
 M7 is the natural place to close both, since it is the first milestone whose output is only visible
 if the app asks the profile-shaped question.
+
+---
+
+## 15 · M7 — custodial publication, and the `P-C4` deferral
+
+**19 Jul 2026.** Studio commit `1d629ec` (`custodial-publish.js` + 16 tests, 93 total).
+
+### 15.1 · `P-C4` is DEFERRED — deliberately, and on record
+
+**Owner's decision, 19 Jul 2026: scope M7 to today's ratified schema and defer `P-C4`.**
+
+`P-C4` — *"Imports publish to `LISTED` at most, never `TIMETABLE`"* — rests entirely on the
+publication ladder defined in `docs/architecture/publication-v1.0-draft.md`. That document opens:
+
+> **⚠ DRAFT — NOT RATIFIED · NOT BINDING**
+> This document has no authority… **Nothing here governs current code, and no implementation may
+> cite it.**
+
+And the states do not exist: no migration defines `LISTED`, `LINEUP`, `TIMETABLE`, or any visibility
+column. The database has `status` and `is_public`.
+
+**`P-C4` is therefore vacuous in this schema rather than skipped.** There is no `TIMETABLE` stage to
+over-publish into, and set times are not a publishable stage at all. `status` + `is_public` is the
+whole of what publication currently means, so M7 cannot violate a distinction the system does not
+draw.
+
+**M7 is implemented against the ratified schema only** — `status`, `is_public`, `owner_profile_id`.
+It invents no ladder state and cites no unratified document.
+
+**On ratification of the publication model, M7 must be revisited** so publication targets `LINEUP`
+explicitly rather than a binary public flag. Until then the deferral is printed in the header of
+**every generated publish artifact**, so an operator running the SQL sees it rather than discovering
+it later.
+
+*Why this is recorded here and not only in code:* the deferral previously existed in
+`custodial-publish.js`'s header, a commit message, and the generated SQL. None of those is the
+document a future session reads first. `P-C5` warns that the Studio/Operations distinction "will be
+quietly eroded by convenience unless it is written down as a rule rather than a habit" — the same
+applies to a deferral.
+
+### 15.2 · What M7 implements
+
+`P-C5`'s load-bearing property is enforced in the **API's shape**, not in discipline:
+
+- `generate()` throws unless the caller names each event in `authorisedEventIds` — there is no
+  "publish all", and it is not expressible.
+- It throws again without a named `custodian`.
+- A custodian **cannot authorise past a blocker**. The policy decides what *may* be published; the
+  custodian decides that it *is*.
+- `assess()` reports eligibility and emits **nothing** publishable.
+
+Publication sets three columns as **one transition**: `owner_profile_id` (from `refs.owner`),
+`status = 'live'`, `is_public = true`. Import set the latter two to `draft`/`false` and never wrote
+the first — custodial publication is one of the platform workflows `I6` names as permitted to.
+
+Emitted SQL is guarded on the owner expression being non-null **and** on `status` still being
+`'draft'`, so a retracted or already-published event is never silently re-published.
+
+`assess()` reports criteria it cannot decide as **UNVERIFIABLE** rather than passing them —
+`not-a-duplicate`, `not-withdrawn`, `satisfies-moderation` are custodian judgement or need data
+Studio does not hold. Reporting an unrun check as met is the unrun-blocklist error again.
+
+### 15.3 · Open — not met by M7, named so their absence is visible
+
+| Item | Status |
+|---|---|
+| **`P-C1`** custodial audit record | M8 |
+| **`P-C6`** time-boxed custody | unassigned — custody does not expire |
+| **`P-C3`** retraction / opt-out | unassigned |
+| **Durable custodian attribution** | **OPEN DECISION** — see below |
+
+**The custodian is currently recorded only as a comment in the generated SQL.** `generate()` refuses
+without one, so the act is attributed at authoring time — but the attribution does not persist.
+Once the SQL runs, nothing in the database says who published the event.
+
+Two coherent options, to be decided deliberately rather than opportunistically:
+
+- **Minimal M7** — custodian identity exists only at publication time, durable attribution deferred
+  to `P-C1` / M8.
+- **Expanded M7** — introduce a minimal persistent publication attribution now, if *"who published
+  this?"* is a core operational requirement rather than part of the broader audit trail.
+
+This is architectural: it decides **where platform-owned publication metadata lives**.
+`events.config` is import-owned and wrong for a platform act; a proper audit table is M8's job.
+Held open as of 19 Jul 2026.
