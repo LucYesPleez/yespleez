@@ -18,6 +18,8 @@ import ProfileSocialLinks from '../components/ProfileSocialLinks';
 import AvailabilityCalendar from '../components/AvailabilityCalendar';
 import { selectedPerformanceRoleLabels, selectedArtistRoleLabels, ARTIST_ROLES, HOST_CATEGORIES } from '../lib/profileTaxonomy';
 import { PROFILE_TYPES } from '../lib/profileTypes';
+import { isProfileUnclaimed } from '../lib/profileClaim';
+import UnclaimedBadge from '../components/UnclaimedBadge';
 
 const OLD_CATS = new Set(['ELECTRONIC','BANDS','SPOKEN','SPOKEN WORD','RAVE','FESTIVAL']);
 // Host genre_string leads with broad category KEYS (ELECTRONIC/BANDS/…); filter
@@ -126,7 +128,10 @@ export default function ProfileScreen() {
   const profile     = data?.profile || null;
   const events      = data?.events  || [];
   // M5: unclaimed state is a property of the row, not of which table answered.
-  const isUnclaimed = !!profile && profile.user_id == null;
+  // M15: this test is now the canonical predicate — the same one every other
+  // surface uses. `profile` here comes from profileResolution's select('*'),
+  // so user_id is always present and the answer is unchanged.
+  const isUnclaimed = isProfileUnclaimed(profile);
   // Legacy entity key for the follows table's mixed keyspace: account id for
   // claimed targets (byte-identical to pre-M5 rows), profile id for unclaimed.
   const legacyEntityId = profile ? (profile.user_id ?? profile.id) : null;
@@ -482,11 +487,7 @@ export default function ProfileScreen() {
             {badgeLabels.map((l, i) => (
               <span key={i} className={s.badge} style={{ color: col, background: `rgba(${rgb},.15)`, borderColor: `rgba(${rgb},.35)` }}>{l}</span>
             ))}
-            {isUnclaimed && (
-              <span style={{ fontSize: 10, border: '1px solid rgba(255,255,255,.2)', borderRadius: 20, padding: '3px 10px', color: 'rgba(255,255,255,.35)', fontFamily: "'Bebas Neue', sans-serif", letterSpacing: 1 }}>
-                UNCLAIMED
-              </span>
-            )}
+            <UnclaimedBadge profile={profile} />
             {loc && (
               <span className={s.location}>
                 <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ verticalAlign: 'middle', marginRight: 2 }}>
