@@ -1,0 +1,22 @@
+/* Extracted verbatim from the inline pill at ProfileScreen.jsx:486.
+   Every declaration below is the JSX style object translated 1:1 — no
+   values retuned, no tokens substituted. It deliberately does NOT match
+   the neighbouring .badge class in ProfileScreen.module.css (11px/4px 14px);
+   aligning them would be a redesign, and this commit is an extraction. */
+.badge {
+  font-size: 10px;
+  border: 1px solid rgba(255, 255, 255, .2);
+  border-radius: 20px;
+  padding: 3px 10px;
+  color: rgba(255, 255, 255, .35);
+  font-family: 'Bebas Neue', sans-serif;
+  letter-spacing: 1px;
+
+  /* The only two additions. Layout safeguards for the card rows this badge
+     enters in later commits — ProfileCard's .nameRow already competes for
+     width, and PortraitCard is 150px wide. Neither affects how the pill
+     renders in its current home, where it is not a flex child under
+     pressure. */
+  white-space: nowrap;
+  flex-shrink: 0;
+}
