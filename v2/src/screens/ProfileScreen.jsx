@@ -358,9 +358,22 @@ export default function ProfileScreen() {
     // M6 (R6.1): stamp attribution at write time. Resolved per uid — this
     // path can write for more than one account, and a shared lookup would
     // attribute one human's follow to another's profile.
-    await Promise.all(ids.map(async uid =>
+    // Supabase RETURNS errors, it does not throw them. This result was
+    // previously discarded, so a rejected insert was indistinguishable from a
+    // successful one: the UI set followed=true, wrote a "new follower"
+    // notification, and the row never existed. That is exactly how a broken
+    // follow picker went unnoticed — three notifications were delivered to a
+    // real person for a follow that never happened. Never discard it again.
+    const results = await Promise.all(ids.map(async uid =>
       supabase.from('follows').insert({ user_id: uid, from_profile_id: await getPersonalProfileId(uid), entity_id: legacyEntityId, entity_type: 'profile', entity_name: profile.name, target_profile_id: profile.id })
     ));
+    const failed = results.filter(r => r?.error);
+    if (failed.length) {
+      console.error('[follow] insert rejected — not marking as followed', failed.map(f => f.error));
+      setFollowBusy(false);
+      setFollowed(false);
+      return;   // no optimistic success, and no notification for a follow that did not happen
+    }
     // Bust the My Scene cache so the new follow appears immediately
     queryClient.invalidateQueries({ queryKey: ['myScene'] });
     // Notify the profile owner that someone followed them
@@ -377,8 +390,6 @@ export default function ProfileScreen() {
     });
     setFollowed(true);
     setFollowBusy(false);
-    setFollowPickerProfs([]);
-    setFollowSelected(new Set());
   }
 
   // Sharing lives in the header (GlobalHeader's Share icon) as the single
