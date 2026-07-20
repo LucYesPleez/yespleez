@@ -78,6 +78,29 @@ export async function openConversation({ contextType, contextId, participantIds 
 }
 
 /**
+ * Open a direct conversation between two profiles (M8h).
+ *
+ * `C17` (no cold DM) was amended by the owner on 20 Jul 2026 — any profile may
+ * message any other. The STRICT caller rule is unchanged: you must be able to
+ * act as the profile you are sending AS. Message anyone; never as someone else.
+ *
+ * Idempotent and symmetric — A→B and B→A resolve to ONE thread, because the
+ * database derives the context id from the sorted pair.
+ *
+ * @returns {Promise<{conversationId: string|null, error: object|null}>}
+ */
+export async function openDirectConversation(fromProfileId, toProfileId) {
+  if (!fromProfileId || !toProfileId) {
+    return { conversationId: null, error: { message: 'openDirectConversation: both profiles are required' } };
+  }
+  const { data, error } = await supabase.rpc('open_direct_conversation', {
+    p_from_profile_id: fromProfileId,
+    p_to_profile_id:   toProfileId,
+  });
+  return { conversationId: error ? null : data, error: error ?? null };
+}
+
+/**
  * Send a message.
  *
  * Returns the created row as well as the error — unlike writeNotification,

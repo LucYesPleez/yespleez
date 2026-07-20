@@ -18,6 +18,8 @@ import ProfileSocialLinks from '../components/ProfileSocialLinks';
 import AvailabilityCalendar from '../components/AvailabilityCalendar';
 import { selectedPerformanceRoleLabels, selectedArtistRoleLabels, ARTIST_ROLES, HOST_CATEGORIES } from '../lib/profileTaxonomy';
 import { PROFILE_TYPES } from '../lib/profileTypes';
+import { openDirectConversation } from '../lib/messaging';
+import { useConversationUi } from '../lib/conversationUi';
 import { isProfileUnclaimed } from '../lib/profileClaim';
 import UnclaimedBadge from '../components/UnclaimedBadge';
 import UnclaimedNotice from '../components/UnclaimedNotice';
@@ -35,6 +37,7 @@ export default function ProfileScreen() {
   const { id }    = useParams();
   const navigate  = useNavigate();
   const { session } = useSession();
+  const { open: openConversation } = useConversationUi();
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
   const typeFilter = searchParams.get('type');
@@ -44,6 +47,7 @@ export default function ProfileScreen() {
   const heroImgRef = useRef(null);
   const [followed,    setFollowed]    = useState(false);
   const [followBusy,  setFollowBusy]  = useState(false);
+  const [messageBusy, setMessageBusy] = useState(false);
   const { player, setPlayer } = usePlayer();
   const [availOpen,     setAvailOpen]     = useState(false);
   const [availDates,    setAvailDates]    = useState(null);
@@ -316,6 +320,40 @@ export default function ProfileScreen() {
       <p className={s.loading}>Profile not found.</p>
     </div>
   );
+
+  /**
+   * M8h — open a direct conversation with this profile.
+   *
+   * Sends AS the viewer's Personal profile. That is the identity a person
+   * browsing the app is acting under; sending as an industry profile is a
+   * choice that needs an active-profile concept the app does not have yet
+   * (R5's deferred clauses), and guessing would attribute someone's message to
+   * the wrong identity while looking perfectly populated.
+   *
+   * Opens the DOCK rather than navigating — the visitor stays on the profile
+   * they were reading, which is the whole point of the interaction model.
+   */
+  async function handleMessage() {
+    if (!session?.user?.id || messageBusy || !profile?.id) return;
+    setMessageBusy(true);
+    try {
+      const fromProfileId = await getPersonalProfileId(session.user.id);
+      if (!fromProfileId) {
+        setMessageBusy(false);
+        return;
+      }
+      const { conversationId, error } = await openDirectConversation(fromProfileId, profile.id);
+      if (error || !conversationId) {
+        setMessageBusy(false);
+        return;
+      }
+      openConversation(conversationId, {
+        profile: { id: profile.id, name: profile.name, type: profile.type },
+      });
+    } finally {
+      setMessageBusy(false);
+    }
+  }
 
   async function toggleFollow() {
     if (!session?.user?.id || followBusy) return;
@@ -731,24 +769,27 @@ export default function ProfileScreen() {
                   {followed ? '✓ FOLLOWING' : <span style={{ backgroundImage: `linear-gradient(135deg, ${col}, ${grad2})`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>+ FOLLOW</span>}
                 </button>
               </span>
-              {/* Message — placeholder only. In-app messaging doesn't exist
-                  yet, so the button is disabled and tagged SOON: it signals a
-                  future capability without shipping dead UI or any backend
-                  (11C.1 revision). Claimed profiles only — an unclaimed profile
-                  has no user to message — matching the pre-11C.1 behaviour. The
-                  muted border wrapper mirrors Follow's gradient wrapper so the
-                  two buttons stay the same size, but reads inactive. */}
+              {/* Message — LIVE as of M8h. `C17` (no cold DM) was amended by the
+                  owner on 20 Jul 2026: any profile may open a conversation with
+                  any other. Opens the ConversationDock rather than navigating,
+                  so the visitor stays on the profile they were reading.
+
+                  Claimed profiles only — an unclaimed profile has no human, so
+                  a message would sit held with nobody able to reply. Following
+                  an unclaimed profile IS supported (N1); messaging one is not. */}
               {!isUnclaimed && (
                 <span style={{ flex: 1, minWidth: 0, display: 'inline-block', padding: 1, borderRadius: 12, background: 'var(--border)' }}>
                   <button
                     type="button"
                     className={s.followBtn}
-                    disabled
-                    aria-label="Message — coming soon"
-                    style={{ borderColor: 'transparent', background: 'rgba(19,19,31,.55)', width: '100%', margin: 0, cursor: 'not-allowed', opacity: 0.75, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, boxSizing: 'border-box' }}
+                    disabled={!session || messageBusy}
+                    onClick={handleMessage}
+                    aria-label={`Message ${profile?.name ?? 'this profile'}`}
+                    style={{ borderColor: 'transparent', background: 'rgba(19,19,31,.55)', width: '100%', margin: 0, cursor: session && !messageBusy ? 'pointer' : 'not-allowed', opacity: session ? 1 : 0.75, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, boxSizing: 'border-box' }}
                   >
-                    <span style={{ color: 'var(--muted)' }}>MESSAGE</span>
-                    <span style={{ fontSize: 9, letterSpacing: 1, padding: '2px 6px', borderRadius: 999, border: '1px solid var(--border)', color: 'var(--muted)', fontFamily: "'Bebas Neue', sans-serif", lineHeight: 1 }}>SOON</span>
+                    <span style={{ color: session ? 'var(--text)' : 'var(--muted)' }}>
+                      {messageBusy ? 'OPENING…' : 'MESSAGE'}
+                    </span>
                   </button>
                 </span>
               )}
