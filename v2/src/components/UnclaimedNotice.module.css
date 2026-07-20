@@ -1,0 +1,35 @@
+/* Action-time disclosure (`N2`). Sits beneath the control it qualifies.
+
+   Styled as quiet body copy, not as an alert: DM Sans at 12px in --muted,
+   matching ProfileScreen's "Is this you? Claim this profile" line rather than
+   any warning or error treatment. The owner's constraint is that disclosure
+   "should feel like part of the normal UX rather than a warning dialog", and
+   the spec's intent is that a user reads it and makes an informed choice —
+   an alert colour would push them toward not acting, which N2 does not want.
+
+   No border, no background, no icon. The neighbouring UnclaimedBadge already
+   carries the visual marker (P-C2, display-time); this is the sentence that
+   explains what happens next, and two decorated elements next to each other
+   would read as an error state. */
+.notice {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12px;
+  line-height: 1.45;
+  letter-spacing: 0.2px;
+  color: var(--muted);
+  text-align: center;
+  margin: 8px 2px 0;
+
+  /* Long copy in a narrow column (PortraitCard is 150px, lineup cards
+     narrower still) must wrap rather than force its parent wider. */
+  text-wrap: pretty;
+  overflow-wrap: anywhere;
+}
+
+/* Host-facing surfaces sit inside dense modal rows rather than under a
+   full-width button, so they align left with the field they qualify. */
+.alignStart {
+  text-align: left;
+  margin-left: 0;
+  margin-right: 0;
+}

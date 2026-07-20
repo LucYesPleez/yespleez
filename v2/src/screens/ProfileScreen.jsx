@@ -20,6 +20,7 @@ import { selectedPerformanceRoleLabels, selectedArtistRoleLabels, ARTIST_ROLES, 
 import { PROFILE_TYPES } from '../lib/profileTypes';
 import { isProfileUnclaimed } from '../lib/profileClaim';
 import UnclaimedBadge from '../components/UnclaimedBadge';
+import UnclaimedNotice from '../components/UnclaimedNotice';
 
 const OLD_CATS = new Set(['ELECTRONIC','BANDS','SPOKEN','SPOKEN WORD','RAVE','FESTIVAL']);
 // Host genre_string leads with broad category KEYS (ELECTRONIC/BANDS/…); filter
@@ -752,6 +753,13 @@ export default function ProfileScreen() {
                 </span>
               )}
             </div>
+            {/* N2 · action-time disclosure. Follow is the ONE action reachable
+                against an unclaimed profile — the button above is gated on
+                `followBusy || !session`, never on claim state — so following
+                writes a held notification and, until now, said nothing about
+                it. Renders itself only when unclaimed, so the claimed flow is
+                untouched by construction. */}
+            <UnclaimedNotice profile={profile} context="follow" />
             {isVenue && !isUnclaimed && (
               <button
                 className={s.followBtn}
