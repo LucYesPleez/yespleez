@@ -124,6 +124,12 @@ export default function ConversationView({ conversationId, compact = false, onMi
       // `C11` — this human's watermark. Monotonic in the database.
       await markConversationRead(conversationId);
       patch(conversationId, { unread: 0 }, true);
+      // DEF-2 — tell the app shell the watermark moved. Advancing read state
+      // is a WRITE that emits no realtime event, so the nav badge (which
+      // refreshes on notification inserts or a 60s poll) would otherwise show
+      // a stale count until the poll caught up. A window event rather than a
+      // prop chain because the badge lives ABOVE this provider in the tree.
+      window.dispatchEvent(new CustomEvent('yp:messages-read'));
     })();
 
     return () => { cancelled.current = true; };

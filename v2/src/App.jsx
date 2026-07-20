@@ -124,10 +124,17 @@ function Shell({ session, isGuest, onSignOut }) {
       })
       .subscribe();
 
+    // DEF-2 — reading a conversation advances the watermark, which is a write
+    // with no realtime event. Without this the badge would hold a stale count
+    // until the 60s poll, so the user reads everything and the number stays.
+    const onRead = () => fetchMessages();
+    window.addEventListener('yp:messages-read', onRead);
+
     // Fallback poll every 60s
     pollRef.current = setInterval(() => { fetchUnread(); fetchMessages(); }, 60000);
     return () => {
       supabase.removeChannel(channel);
+      window.removeEventListener('yp:messages-read', onRead);
       clearInterval(pollRef.current);
     };
   }, [session]);
