@@ -38,15 +38,24 @@ function sourceFiles(dir) {
 
 /**
  * Each `.from('notifications')` call, with the chained calls that follow it.
- * A window is used rather than a parser because the chains are short and
- * uniform; the assertion below only needs to see which operators appear.
+ *
+ * The chain runs to the statement's semicolon rather than a fixed number of
+ * characters. A 500-char window was tried first and was wrong: adding two
+ * comment lines to App.jsx's badge query pushed `.is('suppressed_at', null)`
+ * past the boundary, and the test failed on correct code. The window length
+ * was silently coupled to how much prose sat between the operators.
+ *
+ * Bounded at 2000 to fail loudly rather than swallow the file if a semicolon
+ * is ever missing.
  */
 function notificationQueries(source) {
   const hits = [];
   const marker = /\.from\(\s*['"]notifications['"]\s*\)/g;
   let m;
   while ((m = marker.exec(source)) !== null) {
-    hits.push({ index: m.index, chain: source.slice(m.index, m.index + 500) });
+    const end = source.indexOf(';', m.index);
+    const stop = end === -1 ? m.index + 2000 : Math.min(end, m.index + 2000);
+    hits.push({ index: m.index, chain: source.slice(m.index, stop) });
   }
   return hits;
 }
@@ -71,6 +80,35 @@ test('every notifications READ filters on to_user_id, so held rows stay invisibl
     offenders, [],
     'These read notifications without scoping to a delivery identity, which would ' +
     'expose held rows belonging to unclaimed profiles (N1/N5):\n  ' + offenders.join('\n  '),
+  );
+});
+
+test('every notifications READ excludes suppressed rows (NP1)', () => {
+  // Preferences govern delivery, never existence: a muted notification is
+  // written and retained, and withheld only from the feed. That withholding is
+  // entirely a reader-side filter — the row is indistinguishable from a
+  // delivered one except for suppressed_at. A reader that forgets it shows the
+  // user precisely what they asked not to see, and the mute switch appears
+  // broken rather than the query.
+  const offenders = [];
+
+  for (const file of sourceFiles(SRC)) {
+    const source = readFileSync(file, 'utf8');
+    for (const { chain } of notificationQueries(source)) {
+      const isRead = /\.select\(/.test(chain);
+      const isWrite = /\.(insert|upsert|update|delete)\(/.test(chain);
+      if (!isRead || isWrite) continue;
+
+      if (!/\.is\(\s*['"]suppressed_at['"]\s*,\s*null\s*\)/.test(chain)) {
+        offenders.push(relative(SRC, file));
+      }
+    }
+  }
+
+  assert.deepEqual(
+    offenders, [],
+    'These read notifications without excluding suppressed rows, so muted ' +
+    'categories would still appear in the feed (NP1):\n  ' + offenders.join('\n  '),
   );
 });
 

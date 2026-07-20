@@ -19,6 +19,8 @@ export default function NotificationsScreen() {
       // Account-wide, per R5. Feed scoping to the active profile is deferred
       // until an active-profile concept exists — see writeNotification.js.
       .eq('to_user_id', session.user.id)
+      // NP1: muted categories are recorded but never shown.
+      .is('suppressed_at', null)
       .order('created_at', { ascending: false })
       .limit(60);
     if (cancelled.current) return;

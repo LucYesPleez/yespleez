@@ -73,6 +73,9 @@ function Shell({ session, isGuest, onSignOut }) {
         // aggregates across every profile the account owns, so an artist
         // browsing as Personal still sees an urgent venue enquiry.
         .eq('to_user_id', session.user.id)
+        // NP1: a muted notification is written and kept, but never counted.
+        // Preferences govern delivery, never existence.
+        .is('suppressed_at', null)
         .eq('read', false);
       setUnreadCount(count || 0);
     }
