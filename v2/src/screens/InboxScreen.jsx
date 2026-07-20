@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useSession } from '../App';
+import { supabase } from '../lib/supabase';
 import { useConversationUi } from '../lib/conversationUi';
 import {
   listConversations, listParticipants, actableProfileIds, unreadCount,
@@ -55,10 +56,83 @@ function relativeTime(iso) {
 
 export default function InboxScreen() {
   const { session } = useSession();
-  const { open: openConversation } = useConversationUi();
+  const { open: openConversation, openId } = useConversationUi();
   const location = useLocation();
   const [rows, setRows]       = useState([]);
   const [loading, setLoading] = useState(true);
+
+  /**
+   * DEF-1 — the list stays LIVE while the dock is open.
+   *
+   * MSG-UX-5 made the inbox a long-lived mounted view: opening a conversation
+   * overlays it rather than unmounting it. That removed the accidental remount
+   * that used to refresh this list, so ordering, previews and unread counts
+   * could drift indefinitely while the user worked in the dock.
+   *
+   * The fix is a subscription, not a refetch trigger. One channel covers every
+   * conversation the caller participates in — RLS scopes realtime exactly as it
+   * scopes reads, so no per-conversation filter is needed and none is used.
+   *
+   * Rows are updated IN PLACE. The list is never refetched, so an insert costs
+   * one unread RPC for the affected conversation and nothing else.
+   *
+   * §5.6 — the unread count is re-read from the DATABASE rather than
+   * incremented locally. Incrementing here would be a second counting rule,
+   * and the whole point of that clause is that the four surfaces cannot
+   * disagree. One targeted RPC is cheaper than being wrong.
+   */
+  useEffect(() => {
+    if (!session) return undefined;
+
+    const channel = supabase
+      .channel('inbox-live')
+      .on('postgres_changes', {
+        event: 'INSERT', schema: 'public', table: 'messages',
+      }, async ({ new: row }) => {
+        const cid = row.conversation_id;
+
+        // Only conversations already on screen. A message in a brand-new
+        // conversation arrives with its own row on next mount; inventing a
+        // placeholder here would mean guessing participants we have not read.
+        let known = false;
+        setRows(prev => {
+          known = prev.some(c => c.id === cid);
+          if (!known) return prev;
+          return prev
+            .map(c => c.id === cid
+              ? { ...c, last_message_at: row.created_at,
+                  lastPreview: { text: row.body, kind: row.kind ?? 'text' } }
+              : c)
+            // Re-sort on every insert so ordering is correct immediately
+            // rather than at the next load. Archived still sinks (UX-4).
+            .sort((a, b) => (Number(a.isArchived) - Number(b.isArchived))
+              || (new Date(b.last_message_at ?? 0) - new Date(a.last_message_at ?? 0)));
+        });
+        if (!known) return;
+
+        const { count } = await unreadCount(cid);
+        setRows(prev => prev.map(c => (c.id === cid ? { ...c, unread: count } : c)));
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [session]);
+
+  /**
+   * The other half of DEF-1: opening a conversation clears its unread here too.
+   *
+   * ConversationView advances the read watermark server-side, but that is a
+   * write with no realtime event this list subscribes to, so without this the
+   * row would keep showing a stale count until the next load — the same class
+   * of staleness, just in the opposite direction.
+   *
+   * Mirrors what the dock already does to shell state rather than refetching,
+   * so the two cannot disagree about a conversation the user is looking at.
+   */
+  useEffect(() => {
+    if (!openId) return;
+    setRows(prev => prev.map(c => (c.id === openId ? { ...c, unread: 0 } : c)));
+  }, [openId]);
 
   // A deep link (/messages/:id, e.g. from a notification) redirects here and
   // carries the id as navigation state. Opening it once the route has settled
