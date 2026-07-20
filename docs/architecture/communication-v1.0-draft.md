@@ -1001,19 +1001,46 @@ amendment. It must obey the existing rule that primary navigation renders on eve
 
 ## §12 — What ratification requires
 
+> **Amended 20 Jul 2026.** Items 2 and 3 were over-constraining: they gated *ratification* on
+> things that gate *implementation*. A dependency analysis established that none of `D3`, `D9`,
+> `D11` or `D12` blocks any table, constraint, RLS policy or invariant in the v1 schema. The
+> original numbering also repeated item 4. **Nothing was weakened** — every decision survives, with
+> a recorded default and a named point at which it must be answered.
+
 1. **`D15` ratified** — the amendment to v1.1 §A12 `U2`. This document asserts that `C25` downgrades
    a blocker in a frozen document; that assertion has no force until amended properly. **This is the
    first item, ahead of `D1`, because it is the one that unblocks the rest.**
-2. **`D3`, `D9`, `D11`, `D12` decided** — they change the model, not just the implementation.
-   `D11` in particular: `C25` is only meaningful if the workflow side of the boundary is specified.
-3. **M6 and M7 complete** — this document assumes `can_act_as` exists (§0).
-4. **`D1` scheduled, not necessarily answered** — legal input gates launch, not implementation.
+   ✅ **Satisfied** — Identity v1.2, ratified and frozen 18 Jul 2026.
+
+2. **`D3`, `D9`, `D11`, `D12` — decided *or* defaulted, with the default recorded here.** Each
+   changes the model and needs an answer before the behaviour it governs ships. **None blocks the
+   v1 schema, so none gates ratification:**
+
+   | | Default for v1 | Why it does not block the schema | Answer before |
+   |---|---|---|---|
+   | **`D3`** | Access stays live via `can_act_as` (§2.2); inheritance is emergent, not stored | Profile transfer is not a v1 operation (v1.1 `U3`). Restricting it later is an additive column on `conversation_participants` plus a policy clause | transfer ships |
+   | **`D9`** | **Messages are immutable** — no `UPDATE` policy on `messages` | The restrictive default. Adding `edited_at` / `deleted_at` and loosening the policy later is additive; the reverse would not be | editing ships |
+   | **`D11`** | Conversations reference workflow objects that **already exist** — `applications`, `venue_enquiries`, `events`, `lineup_members` | **`C25`: "a conversation never has to be classified; it is never the record."** Retention is not a property of the conversation schema. `D11` governs the workflow side, which Messaging does not build. `C26` promotion is the only dependent feature | `C26` promotion, or a new workflow object |
+   | **`D12`** | No deletion in v1, therefore no visibility question | Downstream of `D9`; additive in either direction when deletion ships | deletion ships |
+
+3. **`D1` scheduled, not necessarily answered** — legal input gates launch, not implementation.
+   ✅ **Satisfied** — scheduled as a launch prerequisite.
+
 4. **A conversation-model review against v1.1 §A5** by whoever ratifies, confirming this document
    implements rather than reinterprets it.
+
 5. **Re-authored as `communication-v1.0.html`**, added to the canonical table, this draft deleted
    (README, "Drafts").
-6. **Rule numbers frozen.** `C1`–`C24` and `D1`–`D10` become a citation interface on ratification and
+
+6. **Rule numbers frozen.** `C1`–`C32` and `D1`–`D17` become a citation interface on ratification and
    may never be renumbered.
+
+### Moved to implementation prerequisites — not ratification
+
+**M6 and M7 complete.** §0 already states these as prerequisites *"before implementation begins"*,
+which is where they belong: ratification settles what the document *says*, not whether the codebase
+is ready to act on it. Listing them here made a design document's status depend on migration
+progress. **They remain binding on implementation and are unchanged in §0.**
 
 ---
 
