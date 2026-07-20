@@ -199,10 +199,9 @@ open finding.
 It is **not** "finished" in the sense of nothing remaining — §3 lists five items, one of which
 (SEC-1 / Phase B) is a deployment prerequisite. None blocks Messaging.
 
-**Messaging is the next active milestone**, with one standing gate that is not an engineering
-task: `communication-v1.0-draft.md` states that *"no implementation may cite it"* until ratified.
-`D1`/`U2` were recorded as gating launch rather than code (handover §5), so the sequence is
-**ratify → re-author as `communication-v1.0.html` → build**.
+**Messaging is the next active milestone.** `communication-v1.0.md` was **ratified and frozen
+20 Jul 2026** and may now be implemented against. `D1`/`U2` gate launch rather than code
+(handover §5). Implementation prerequisites remain M6 · M7 (§0).
 
 Two things from Notifications that Messaging should inherit:
 

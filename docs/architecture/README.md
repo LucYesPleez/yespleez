@@ -11,6 +11,7 @@ The **canonical, frozen** architecture of YesPleez, and the source of truth cite
 | **`identity-v1.1.html`** | **CANONICAL** — Identity Architecture v1.1 (Amendment), ratified + frozen 17 Jul 2026. Binding in full except the one cell v1.2 supersedes. |
 | **`identity-v1.2.html`** | **CANONICAL** — Identity Architecture v1.2 (Amendment), ratified + frozen 18 Jul 2026 |
 | **`identity-v1.3.html`** | **CANONICAL** — Identity Architecture v1.3 (Amendment), ratified + frozen 18 Jul 2026 |
+| **`communication-v1.0.md`** | **CANONICAL** — Communication Architecture v1.0, ratified + frozen 20 Jul 2026. **Authored in Markdown, so this file is authoritative** — see "Which artifact is authoritative" below. |
 | `architecture-v1.0.md` | Reading copy. Not authoritative. |
 | `identity-v1.1.md` | Reading copy. Not authoritative. |
 | `identity-v1.2.md` | Reading copy. Not authoritative. |
@@ -18,11 +19,20 @@ The **canonical, frozen** architecture of YesPleez, and the source of truth cite
 | `errata.md` | Known factual errors in the frozen documents. Records; corrects nothing. |
 | `render-markdown.js` | Regenerates the `.md` copies from the `.html` sources. |
 | `publication-v1.0-draft.md` | **DRAFT — not canonical, not binding.** Proposed Publication Model v1.0. See below. |
-| `communication-v1.0-draft.md` | **DRAFT — not canonical, not binding.** Proposed Communication Architecture v1.0 — the specification M8 will implement. See below. |
 
-**The `.html` files are authoritative.** The `.md` files are mechanically converted reading copies
-for diff-review and GitHub navigation. **Where they disagree, the HTML is correct.** Never cite a
-`.md`; never hand-edit one — re-run the converter:
+## Which artifact is authoritative
+
+**The authored artifact is authoritative.** That is the rule; HTML is not special in itself.
+
+- **`architecture-v1.0`, `identity-v1.1`, `identity-v1.2`, `identity-v1.3`** were **authored in
+  HTML**. Their `.md` files are mechanically converted reading copies for diff-review and GitHub
+  navigation. **Where they disagree, the HTML is correct.** Never cite those `.md` files; never
+  hand-edit one — re-run the converter below.
+- **`communication-v1.0`** was **authored in Markdown**. That `.md` file *is* the canonical record.
+  There is no HTML derivative, and one must not be generated and then treated as canonical: doing so
+  would make the derived artifact authoritative, which is the exact failure this rule prevents.
+
+The converter runs **HTML → Markdown only**. It is not a general document pipeline:
 
 ```bash
 npm i turndown turndown-plugin-gfm     # not a repo dependency; install ad hoc
@@ -47,9 +57,12 @@ Read together, latest amendment wins on the specific clauses it names, and nowhe
 
 ## Drafts
 
-`publication-v1.0-draft.md` and `communication-v1.0-draft.md` are the only hand-authored Markdown
-permitted in this directory, and they are permitted only because they are **not canonical**. They
-propose future specifications; they govern nothing, and no implementation may cite them.
+`publication-v1.0-draft.md` is the only remaining draft. It is hand-authored Markdown, permitted
+because it is **not canonical**. It proposes a future specification; it governs nothing, and no
+implementation may cite it.
+
+`communication-v1.0-draft.md` was **ratified 20 Jul 2026** and is now `communication-v1.0.md` in
+the canonical table above.
 
 Rule-number prefixes are namespaced per document — `P` for publication, `C`/`D` for communication —
 and do not collide with the `R`/`B`/`D`/`A` interface of `identity-v1.1`. A citation must name its

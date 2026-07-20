@@ -73,7 +73,7 @@ need to happen before Messaging starts** — it needs to happen before `R3.2` is
 
 ## 4 · Does Messaging need Active Profile Context? Only for `general`.
 
-Established by reading `communication-v1.0-draft.md` §2.2 and §3.1, not inferred.
+Established by reading `communication-v1.0.md` §2.2 and §3.1, not inferred.
 
 **Participants are derived from context.** Of the eight contexts, seven derive both parties from
 rows that already exist:
@@ -151,8 +151,8 @@ Do not redesign these; several are frozen.
 - **Read state is per-human** (§2.5).
 - **`C18`** — notifications are a delivery layer over **domain events**, not over messages, and are
   **never generated in UI components**.
-- **Ratification first.** The spec is `DRAFT v1.0 · Revision 5` and its header states **no
-  implementation may cite it**. On ratification it is re-authored as `communication-v1.0.html`.
+- **Ratified 20 Jul 2026.** `communication-v1.0.md` is canonical and frozen. Rule numbers
+  `C1`–`C32` and `D1`–`D17` are a stable citation interface and may never be renumbered.
 
 ---
 
