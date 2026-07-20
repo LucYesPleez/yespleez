@@ -35,6 +35,8 @@ let queries = [];
 let queryResult = { data: [], error: null };
 /** Who the session says we are. */
 let sessionUser = { id: USER };
+/** What every rpc resolves to. can_act_as tests flip this. */
+let rpcAnswer = 'rpc-result';
 
 mock.module('./supabase', {
   exports: {
@@ -44,16 +46,18 @@ mock.module('./supabase', {
       },
       rpc: async (fn, args) => {
         rpcCalls.push({ fn, args });
-        return { data: 'rpc-result', error: null };
+        return { data: fn === 'can_act_as' ? rpcAnswer : 'rpc-result', error: null };
       },
       from(table) {
         const q = {
           table,
           eqs: [],
+          ins: [],
           orders: [],
           insert(row) { inserted.push({ table, row }); q.insertedRow = row; return q; },
           select(cols) { q.cols = cols; return q; },
           eq(col, val) { q.eqs.push([col, val]); return q; },
+          in(col, vals) { q.ins.push([col, vals]); return q; },
           order(col, opts) { q.orders.push([col, opts]); return q; },
           single: async () => ({ data: { id: 'new-message', ...q.insertedRow }, error: null }),
           // Thenable so `await supabase.from(...).select(...)` resolves.
@@ -69,6 +73,7 @@ mock.module('./supabase', {
 const {
   openConversation, sendMessage, listMessages,
   listConversations, markConversationRead, unreadCount, totalUnread,
+  listParticipants, resolveSenderProfile,
 } = await import('./messaging.js');
 
 beforeEach(() => {
@@ -77,6 +82,7 @@ beforeEach(() => {
   queries = [];
   queryResult = { data: [], error: null };
   sessionUser = { id: USER };
+  rpcAnswer = 'rpc-result';
 });
 
 // ── §A3 · the audit identity is the session's, never the caller's ──
@@ -205,6 +211,52 @@ test('marking read goes through the monotonic function', async () => {
   assert.equal(rpcCalls[0].fn, 'mark_conversation_read');
   assert.deepEqual(rpcCalls[0].args, { p_conversation_id: CONV });
   assert.equal(inserted.length, 0, 'read state is never written directly from the client');
+});
+
+// ── §A4 · ownership is asked, never recomputed in the client ──
+
+test('resolving the sender profile asks can_act_as — it never compares user_id', async () => {
+  queryResult = {
+    data: [
+      { conversation_id: CONV, profile_id: 'theirs', profiles: { id: 'theirs', name: 'Them', type: 'venue', user_id: OTHER } },
+      { conversation_id: CONV, profile_id: 'mine',   profiles: { id: 'mine',   name: 'Me',   type: 'artist', user_id: USER } },
+    ],
+    error: null,
+  };
+  // can_act_as answers true. Note the module requires a STRICT true — a
+  // truthy string is not an ownership answer.
+  rpcAnswer = true;
+
+  const { profileId } = await resolveSenderProfile(CONV);
+
+  assert.ok(rpcCalls.length > 0, 'A4: can_act_as is the sole ownership predicate');
+  assert.ok(rpcCalls.every(c => c.fn === 'can_act_as'));
+  // The stub answers true for the FIRST profile asked, so a client-side
+  // user_id comparison would have returned 'mine' instead.
+  assert.equal(profileId, 'theirs',
+    'must take the database answer, not the row that happens to match the session');
+});
+
+test('resolving the sender profile returns null when no profile answers true', async () => {
+  queryResult = {
+    data: [{ conversation_id: CONV, profile_id: 'theirs' }],
+    error: null,
+  };
+  rpcAnswer = false;
+
+  const { profileId, error } = await resolveSenderProfile(CONV);
+
+  assert.equal(profileId, null, 'no speakable profile is a null, not a guess');
+  assert.equal(error, null, 'and not an error — it is a legitimate state');
+});
+
+test('participants are fetched for every requested conversation, unfiltered', async () => {
+  await listParticipants([CONV, 'other-conv']);
+  const q = queries.at(-1);
+  assert.equal(q.table, 'conversation_participants');
+  assert.deepEqual(q.ins, [['conversation_id', [CONV, 'other-conv']]]);
+  assert.equal(q.eqs.length, 0,
+    '2.2: a participant sees the WHOLE set; a filter here would hide the other party');
 });
 
 test('both badge surfaces use the database counting rule, not a local count', async () => {

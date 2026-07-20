@@ -180,6 +180,77 @@ export async function unreadCount(conversationId) {
   return { count: error ? 0 : (data ?? 0), error: error ?? null };
 }
 
+/**
+ * Participants of one or more conversations, with the profile fields a list
+ * needs to render.
+ *
+ * M8b's SELECT policy returns the WHOLE participant set to any participant —
+ * §2.2 makes a conversation a relationship, and a thread whose other party is
+ * invisible cannot be reasoned about. So this needs no filter.
+ *
+ * @param {string|string[]} conversationIds
+ */
+export async function listParticipants(conversationIds) {
+  const ids = [].concat(conversationIds ?? []).filter(Boolean);
+  if (!ids.length) return { participants: [], error: null };
+  const { data, error } = await supabase
+    .from('conversation_participants')
+    .select('conversation_id, profile_id, archived_at, profiles ( id, name, type )')
+    .in('conversation_id', ids);
+  return { participants: error ? [] : (data ?? []), error: error ?? null };
+}
+
+/**
+ * Of these profile ids, which may the caller act as?
+ *
+ * Deduplicates before asking, because an inbox repeats the same few profiles
+ * across many conversations. Exists so a SCREEN never has to work out "is this
+ * one mine?" — the answer comes from `can_act_as` (§A4), never from comparing
+ * `profiles.user_id` in the client.
+ *
+ * @param {string[]} profileIds
+ * @returns {Promise<{mine: Set<string>, error: object|null}>}
+ */
+export async function actableProfileIds(profileIds) {
+  const unique = [...new Set((profileIds ?? []).filter(Boolean))];
+  const mine = new Set();
+  for (const id of unique) {
+    const { data, error } = await supabase.rpc('can_act_as', { profile_id: id });
+    if (error) return { mine, error };
+    if (data === true) mine.add(id);
+  }
+  return { mine, error: null };
+}
+
+/**
+ * Which of the caller's profiles may speak in this conversation.
+ *
+ * ⚠ DOES NOT COMPARE `profiles.user_id` TO THE SESSION. That would be a second
+ * ownership rule living in the client, and §A4 makes `can_act_as` the SOLE
+ * ownership predicate. When identity goes multi-owner, a client-side
+ * `user_id === session.user.id` silently becomes wrong while continuing to
+ * return an answer — the same failure `profile_actors` was written to avoid on
+ * the server side.
+ *
+ * Asks the database once per participant. A conversation has two.
+ *
+ * @returns {Promise<{profileId: string|null, error: object|null}>}
+ */
+export async function resolveSenderProfile(conversationId) {
+  const { participants, error } = await listParticipants(conversationId);
+  if (error) return { profileId: null, error };
+
+  for (const p of participants) {
+    const { data, error: rpcError } = await supabase.rpc('can_act_as', {
+      profile_id: p.profile_id,
+    });
+    if (rpcError) return { profileId: null, error: rpcError };
+    if (data === true) return { profileId: p.profile_id, error: null };
+  }
+  // Not a participant, or the thread belongs to profiles you no longer own.
+  return { profileId: null, error: null };
+}
+
 /** §5.6 — the app-icon / nav-bar badge. Same rule, aggregated. */
 export async function totalUnread() {
   const { data, error } = await supabase.rpc('total_unread_count');

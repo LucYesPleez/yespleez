@@ -23,6 +23,8 @@ import EventScreen from './screens/EventScreen';
 import CreateEventScreen from './screens/CreateEventScreen';
 import ApplicationsScreen from './screens/ApplicationsScreen';
 import NotificationsScreen from './screens/NotificationsScreen';
+import InboxScreen from './screens/InboxScreen';
+import ConversationScreen from './screens/ConversationScreen';
 import IndustryPanel from './components/IndustryPanel';
 import GlobalHeader from './components/GlobalHeader';
 import RoleSelectorScreen from './screens/RoleSelectorScreen';
@@ -122,6 +124,8 @@ function Shell({ session, isGuest, onSignOut }) {
         <Route path="/create-event"           element={<CreateEventScreen />} />
         <Route path="/event/:id/applications" element={<ApplicationsScreen />} />
         <Route path="/notifications"          element={<NotificationsScreen />} />
+        <Route path="/messages"               element={<InboxScreen />} />
+        <Route path="/messages/:id"           element={<ConversationScreen />} />
         <Route path="/industry/artist"   element={<ArtistDashboard />} />
         <Route path="/industry/venue"    element={<VenueDashboard />} />
         <Route path="/industry/venue/setup"  element={<VenueProfileScreen />} />
