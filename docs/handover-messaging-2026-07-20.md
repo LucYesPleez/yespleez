@@ -1,7 +1,7 @@
 # Messaging (M8) — implementation handover, 20 Jul 2026
 
-For a fresh session. **Messaging is under construction.** Three layers are applied and verified in
-production; the next is read state (`C11`).
+For a fresh session. **Messaging is under construction.** Four layers are applied and verified in
+production; the next is the notification bridge.
 
 Every claim here was verified against the live database. Where something is unverified it says so.
 
@@ -35,6 +35,7 @@ is **identity M8**), Studio M5–M9, product phases 9–17. `CLAUDE.md`'s *"M7 n
 | **M8a** schema | `20260720000004_m8a_messaging_foundation.sql` | ✅ | tables, columns, RLS-on-with-zero-policies, context CHECK rejects `general` |
 | **M8b** RLS | `20260720000005_m8b_messaging_rls.sql` | ✅ | exactly four policies; both predicates live and returning `false` for a non-participant |
 | **M8c** creation | `20260720000006_m8c_conversation_creation.sql` | ✅ | seven assertions, incl. the strict caller rule refusing a non-participant |
+| **M8d** read state | `20260720000007_m8d_read_state.sql` | ✅ | own message not unread to self; watermark monotonic; another human's read state refused |
 
 **Repo:** branch `v2-react`, in sync with origin. Clean tree. 26 tests passing (`npm test` in
 `v2/`).
@@ -161,13 +162,60 @@ Three implementation decisions worth knowing before changing it:
 A one-participant conversation is deliberately **not** rejected: M8a's own `C15` note contemplates
 one, so forbidding it would be a new rule. Adding a minimum later is additive.
 
+---
+
+## 3b · M8d — read state (DONE)
+
+`conversation_read_state`, keyed **`(conversation_id, user_id)`** per `C11`. `user_id` references
+`auth.users`: the one place in Messaging where a human id is the **key** rather than an audit
+column (contrast `messages.from_user_id`, which is audit-only and never a permission input). M8a's
+comment forbidding read state on `conversation_participants` is now satisfied rather than
+outstanding.
+
+- **A watermark, not per-message rows.** One timestamp per (conversation, human); everything at or
+  before it is read. This makes §5.6's *one counting rule, four surfaces, cannot disagree*
+  structural rather than a convention — all four call `conversation_unread_count` /
+  `total_unread_count`.
+- **Unread excludes messages this HUMAN sent** — `from_user_id`, not `from_profile_id`. A colleague
+  acting as the same profile is still unread to you. Using `from_profile_id` would be the exact
+  per-profile mistake `C11` exists to prevent.
+- **`SECURITY INVOKER`, unlike `open_conversation`.** RLS already states who may write a read row,
+  so elevating would move authority into a second place that could disagree with it. The unread
+  scan is scoped by RLS on `messages` rather than a predicate of its own, so it cannot drift from
+  what the caller may actually see. `open_conversation` must be elevated only because M8b grants no
+  INSERT at all — the asymmetry is deliberate.
+- **`mark_conversation_read` is monotonic** (`GREATEST`): a replayed or out-of-order call cannot
+  move the watermark backwards and resurrect read messages as unread.
+- **No read receipts.** No SELECT on another human's read state. §2.5 draws this line itself —
+  *"someone on your team replied"* is a profile-level signal about **authorship**, not a read
+  receipt. Granting visibility later is additive; retracting it would not be.
+
+Reads message *events* only, never `body` — §1's explicit `C32` carve-out.
+
+### ⚠ A tension recorded, not resolved: archived conversations and the badge
+
+§2.6 makes `archived` **per-participant**, and a participant is a **profile**. §2.5 makes unread
+**per-human**. Those cannot both be honoured cleanly: a human acting as two profiles could have one
+archive a thread and not the other, and making a per-human count depend on per-profile state
+reintroduces exactly the coupling `C11` forbids.
+
+**v1 default: archived conversations still count.** The restrictive direction is the one that cannot
+silently hide a real booking enquiry from a human. This is a default, not a ruling — resolving it is
+a specification question (§2.6 vs §2.5), and no multi-owner profile exists yet to make it bite.
+**Raise it with the owner before building the inbox UI.**
+
 ### Next
 
-Read state (**`C11`**, keyed `(conversation, user)` — its own table), then the notification bridge
-(`new_message` is already categorised in `notification_expiry_policy` as `messages`/`never`, and
-`NotificationPreferences.jsx` carries a comment marking the one line that enables its switch), then
-UI. **Do not jump to UI** — the owner set the order: schema → migrations → RLS → verification →
-commit, one layer at a time.
+The **notification bridge**. `new_message` is already categorised in `notification_expiry_policy` as
+`messages`/`never`, and `NotificationPreferences.jsx` carries a comment marking the one line that
+enables its switch. Then UI.
+
+**Do not jump to UI** — the owner set the order: schema → migrations → RLS → verification → commit,
+one layer at a time.
+
+Note §6's **notification fan-out** item becomes live work here: §5.3 and `C11` require delivery to
+*every* human who can act as the recipient profile, and the notification system delivers to one.
+M8d makes the read side per-human; the delivery side is still per-profile-owner-singular.
 
 ---
 
@@ -192,6 +240,15 @@ commit, one layer at a time.
   linear applied history (live-schema audit **D5**). **M6c proved it matters**: it had been
   committed for two days and never run.
 - **A migration committed is not a migration applied.** Verify, do not assume.
+- **A migration *reported* applied is not a migration applied either.** M8d came back "success" and
+  had created nothing — the editor runs only the *selected* text if anything is highlighted, so a
+  stray selection silently applies a fragment. Caught only because the next block asserted the table
+  existed instead of trusting the message. **Follow every apply with a check that the object is
+  really there.** Clear the editor (Ctrl+A, Delete) before pasting.
+- **Split a long migration into chunks when re-running after a failure.** M8d went in as table+RLS,
+  then functions, each with its own assertion — so a second failure would have been localised
+  instead of ambiguous. `LANGUAGE sql` functions are parsed at creation, so they fail loudly if the
+  table they reference is missing; that made chunk B corroborate chunk A for free.
 - **`UPDATE` in the SQL editor reports "Success" with no row count.** Add `RETURNING`, or verify
   with a follow-up count.
 - **Write checks whose success is the evidence.** A check wrapped in an exception handler reports
@@ -237,9 +294,9 @@ Not blockers; recorded so they are not rediscovered.
 
 ## 7 · Suggested first message
 
-> Read `docs/handover-messaging-2026-07-20.md`. M8a, M8b and M8c are applied and verified. Write
-> the read-state layer — `C11`, its own table keyed `(conversation, user)`, never on
-> `conversation_participants`.
+> Read `docs/handover-messaging-2026-07-20.md`. M8a–M8d are applied and verified. Write the
+> notification bridge for `new_message`, and settle the fan-out question in §6 first — `C11`
+> requires delivery to every human who can act as the recipient profile.
 
 Remember that **you cannot apply or verify SQL yourself** (§5) — migrations are applied by the owner
 by hand. Write the migration, then hand over a runbook the owner can paste with no substitutions,
