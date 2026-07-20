@@ -82,9 +82,13 @@ That is exactly what makes it valuable: **every remaining question is an attribu
 
 The last row is the one today's code gets wrong.
 
-### What happens today — the button does not exist
+### The guard that blocked this — REMOVED 20 Jul 2026
 
-[`ProfileScreen.jsx:177`](../v2/src/screens/ProfileScreen.jsx#L177), inside the effect that builds the venue context:
+> **Historical.** The code described below no longer exists. The analysis is retained because it
+> explains *why* the guard was wrong, and the comment that replaced it depends on that reasoning.
+> **The line reference is to the code as it stood when this was written; it no longer resolves.**
+
+At `ProfileScreen.jsx:177` as it then was, inside the effect that builds the venue context:
 
 ```js
 if (profile.user_id === session.user.id) return;   // your own profile
@@ -100,7 +104,9 @@ The profile-level form of the same intent is:
 if (profile.id === activeProfile.id) return;   // this IS the profile I'm acting as
 ```
 
-Which the app cannot express today, **because there is no active profile.** IA-01 is therefore blocked on the Active Profile Context work (`active-profile-ux-review-2026-07.md`), not merely on M6's columns. You cannot ask "am I this profile?" until the app knows which profile you are.
+Which the app cannot express today, **because there is no active profile.** You cannot ask "am I this profile?" until the app knows which profile you are.
+
+**What was done instead (20 Jul 2026).** The guard was removed outright rather than reformulated. `ProfileScreen`'s venue-context effect now carries a comment citing IA-01 by name, on the reasoning that the enquiry actor is always a *venue* profile and the target always a *performer* profile — two different profiles even when one login owns both — so no self-exclusion belongs there at all. The active-profile form above is therefore not needed for this step, and **steps 1–3 and 5 no longer depend on Active Profile Context.** Steps 7–8 still do; see the Validation Deferral Register.
 
 ### The irony that matters most
 
@@ -135,8 +141,8 @@ Each step performed **as Elbows Rest**, against **Lucious**, from one account.
 
 | | |
 |---|---|
-| **Today (pre-M6)** | **Fails at step 1–2.** The affordance does not render (`ProfileScreen.jsx:177`). Not scheduled — M6 is paused. |
-| **Blocked on** | Active Profile Context (the app must know which profile is asking) **and** M6 (`from_profile_id` must exist to be stamped) |
+| **Observed 20 Jul 2026** | **Step 1 observed passing** — Lucious appears as an ordinary Discover result while signed in as the account owning both profiles. **Step 2's affordance renders** (CHECK AVAILABILITY). The step 2 **write is unobserved**: submitting creates a `venue_enquiries` row that cannot be removed client-side (**S39** — no DELETE policy). **No acceptance verdict is recorded here**; that belongs to the acceptance run |
+| **Blocked on** | Steps 7–8 on Active Profile Context; step 4 on messaging — both in the Validation Deferral Register. M6's identity columns and `can_act_as()` **exist and are verified live** (20 Jul), and `from_profile_id` has been **observed being stamped by a real client write** (`verification-held-notification-production-2026-07-20.md`) |
 | **Not a backlog item** | Deliberately. This is a capability the architecture promises, not a defect against current behaviour |
 | **Control** | **IA-02** — without it, IA-01 passing means less than it appears to |
 
@@ -215,8 +221,9 @@ As A, acting as Elbows Rest, against B's Lucious.
 
 | | |
 |---|---|
-| **Today (pre-M6)** | **Fails at step 1** — `42501` (S4). The affordance exists; the write has never succeeded |
-| **Blocked on** | M6 (`from_profile_id`, `can_act_as()`), and the `venue_enquiries` policy that S4 records |
+| **Last recorded** | **Step 1 fails** — `42501` (S4). The affordance exists; the write has never succeeded. **Not re-tested as of 20 Jul 2026** — IA-02 needs a second account, which does not exist |
+| **Blocked on** | The `venue_enquiries` INSERT policy that **S4** records. M6's `from_profile_id` and `can_act_as()` **exist and are verified live** (20 Jul), so they are no longer the blocker |
+| **Also requires** | **Two accounts** — a dataset prerequisite, not a missing capability, so it does not belong in the Validation Deferral Register |
 | **Pairs with** | **IA-01** — run together |
 
 ---
