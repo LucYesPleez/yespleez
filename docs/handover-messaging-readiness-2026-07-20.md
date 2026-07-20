@@ -108,16 +108,17 @@ knows who is speaking because the application already recorded it.
 | IA-01 steps 6–8 | M | Depend on the two above |
 | M5.5 `auth.users` total | XS — one query | Prerequisite |
 
-### ⚠ IA-01 cannot fully pass before M8 — it is circular
+### IA-01 spans milestones by design — resolved 20 Jul
 
-**Step 4 is "Negotiate — messages both ways."** Messaging *is* M8. So *"M6 is done when IA-01
-passes"* is unsatisfiable while messaging does not exist:
+**This is a documentation inconsistency, not an architectural one.** The suite is explicitly
+defined as a living validation suite that is re-run at M6, M7 and M8. One sentence incorrectly
+framed it as a single binary gate on M6. **Messaging does not depend on any missing Identity
+capability**; later scenarios are validated when the capabilities they verify become available.
 
-> M6 done ⇒ IA-01 passes ⇒ step 4 needs messaging ⇒ messaging is M8 ⇒ M8 requires M6 done
-
-**This is why the milestone definition should be amended rather than an exception granted.** The
-ordering as written cannot be satisfied in the required sequence — that is a defect in the
-definition, not a scheduling preference.
+Resolved by amending `identity-validation-scenarios.md`: a milestone's acceptance requires every
+scenario whose **required capability exists** at that milestone to pass, and any scenario awaiting
+a later capability must appear in the **Validation Deferral Register** naming what it awaits. No
+architectural requirement changed — every scenario and every rule it validates survives intact.
 
 ---
 

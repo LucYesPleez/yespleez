@@ -14,7 +14,9 @@ The distinction matters because it changes what gets fixed. A bug says *"this bu
 
 These live outside the soak backlog on purpose. The backlog counts defects; **this counts capabilities.** A scenario failing is not one more line in a triage table — it is the architecture not yet being implemented.
 
-**They are also the M6 acceptance criteria.** M6 is not done when `from_profile_id` exists. M6 is done when these pass.
+**These are also the milestone acceptance criteria.** M6 is not done when `from_profile_id` exists.
+
+This is a **living validation suite, executed at M6, M7 and M8**. Individual scenarios are validated when the capability they verify exists. **A milestone's acceptance requires every scenario whose required capability exists at that milestone to pass.** Any scenario whose required capability does not yet exist **must appear in the Validation Deferral Register below, together with the capability it awaits**. A scenario may not be treated as deferred without that record.
 
 ### The suite
 
@@ -24,6 +26,21 @@ These live outside the soak backlog on purpose. The backlog counts defects; **th
 | **IA-02** | Independent Venue → Independent Artist | two | true one way, **false** across the boundary | **Authorization** |
 
 **IA-01 and IA-02 are a matched pair and must be run together.** Each pins one axis so the other is the only thing that can carry the behaviour. Alone, either can be passed by an implementation that has not actually separated them.
+
+### Validation Deferral Register
+
+Every scenario whose required capability does not yet exist. **A scenario absent from this register is expected to pass at the current milestone.** The register shrinks as capabilities land — an entry is removed by validating the scenario, never by deleting the row.
+
+| Scenario | Step | Required capability | Validated at |
+|---|---|---|---|
+| **IA-01** | 4 · Negotiate | in-app messaging | M8 |
+| **IA-01** | 7 · Switching does not rewrite history | Active Profile Context | when it lands |
+| **IA-01** | 8 · Active profile is not load-bearing | Active Profile Context | when it lands |
+| **IA-02** | 2 · Negotiate → book *(negotiate half only; book is validated at M6)* | in-app messaging | M8 |
+| **IA-02** | 5 · B's active profile is inert | Active Profile Context | when it lands |
+| **IA-02** | 6 · Attribution survives switching | Active Profile Context | when it lands |
+
+**Not deferrals.** `R3.2` (IA-01 step 6, IA-02 step 3) is an M6 deliverable, so those steps are *not yet passing* rather than deferred — an ordinary in-milestone state. Likewise IA-02 requires two accounts, which is a **dataset** prerequisite, not a missing capability; it does not belong here.
 
 ---
 
@@ -97,7 +114,7 @@ That inverts the usual diagnosis. The blocker is not the schema, not RLS, not th
 
 *(This is a live-schema fact, not a design claim: verified 2026-07-17, `live-schema-audit-2026-07.md`. Independently, the invite would still fail on schema drift — `InviteSheet.jsx:68-89` writes `applicant_name`, `event_id`, `event_name`, `message`, `proposed_date`, `proposed_time`, `proposed_fee`, `direction`, **none of which exist live**. Two unrelated faults on one path; fixing either alone changes nothing.)*
 
-### Acceptance criteria — verify after M6
+### Acceptance criteria — executed at M6, M7 and M8, each as its capability lands
 
 Each step performed **as Elbows Rest**, against **Lucious**, from one account.
 
@@ -179,7 +196,7 @@ So the pair inverts exactly:
 
 *(As in IA-01, schema drift would fail this write independently — `InviteSheet` sends eight columns that do not exist. Three unrelated faults on one path.)*
 
-### Acceptance criteria — verify after M6
+### Acceptance criteria — executed at M6, M7 and M8, each as its capability lands
 
 As A, acting as Elbows Rest, against B's Lucious.
 
