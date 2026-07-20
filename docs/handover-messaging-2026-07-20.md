@@ -1,7 +1,7 @@
 # Messaging (M8) — implementation handover, 20 Jul 2026
 
-For a fresh session. **Messaging is under construction.** Two layers are applied and verified in
-production; the next is M8c.
+For a fresh session. **Messaging is under construction.** Three layers are applied and verified in
+production; the next is read state (`C11`).
 
 Every claim here was verified against the live database. Where something is unverified it says so.
 
@@ -34,40 +34,40 @@ is **identity M8**), Studio M5–M9, product phases 9–17. `CLAUDE.md`'s *"M7 n
 |---|---|---|---|
 | **M8a** schema | `20260720000004_m8a_messaging_foundation.sql` | ✅ | tables, columns, RLS-on-with-zero-policies, context CHECK rejects `general` |
 | **M8b** RLS | `20260720000005_m8b_messaging_rls.sql` | ✅ | exactly four policies; both predicates live and returning `false` for a non-participant |
-| **M8c** creation | — | not written | — |
+| **M8c** creation | `20260720000006_m8c_conversation_creation.sql` | ✅ | seven assertions, incl. the strict caller rule refusing a non-participant |
 
-**Repo:** branch `v2-react`, **2 commits ahead of origin** (`c62d47f` M8a, `dfab38c` M8b). Clean
-tree. 26 tests passing (`npm test` in `v2/`).
+**Repo:** branch `v2-react`, in sync with origin. Clean tree. 26 tests passing (`npm test` in
+`v2/`).
 
-### ⚠ One check still open: `C13`
+### `C13` — VERIFIED 20 Jul 2026
 
-`C13` (context immutability) is enforced by a trigger in M8a and has **not been verified**. The
-first block written for it was wrapped in an exception handler, so it reported success whether or
-not the guarantee held — the outcome was only in a `NOTICE`. That was a design error in the check,
-not in the trigger.
+Closed. The replacement check ran clean, so the M8a trigger does block context mutation.
 
-**Run this before M8c.** Success *is* the evidence; it is self-cleaning either way:
+The original check was wrapped in `WHEN others` and reported success whether or not the guarantee
+held — the outcome was only in a `NOTICE`. That was a design error in the *check*, not the trigger,
+and it is generalised in §5 as a rule.
 
-```sql
-do $$
-declare v_id uuid; v_blocked boolean := false;
-begin
-  insert into public.conversations (context_type, context_id)
-  values ('application', gen_random_uuid()) returning id into v_id;
+### What M8c's verification actually proved
 
-  begin
-    update public.conversations set context_type = 'booking' where id = v_id;
-  exception when others then
-    v_blocked := true;
-  end;
+Run as `94a88288-…`, in a rolled-back transaction, discovering profile ids via `can_act_as` rather
+than hand-substitution. Each assertion raises on failure, so a clean run is the evidence:
 
-  delete from public.conversations where id = v_id;
+1. `open_conversation` creates and returns an id
+2. `C15` — a repeated act returns the **same** conversation, it does not raise
+3. participant **order is irrelevant** (`[a,b]` ≡ `[b,a]`)
+4. a **duplicated** id in the input collapses rather than forking
+5. `participant_key` was derived — M8a's trigger fired
+6. a **different** participant set on the same context forks a new thread (`C15`'s two-artists case)
+7. **the strict caller rule** — a caller who can act as no participant is refused `42501`
 
-  if not v_blocked then
-    raise exception 'C13 FAILED — context mutation was permitted';
-  end if;
-end $$;
-```
+A fourth block confirmed M8b did not regress: clients still cannot `INSERT` a conversation directly.
+
+Note (6) and (7) are the load-bearing ones. (7) is the migration's whole purpose, and it is only
+meaningful because 18 accounts exist — with a single-account dataset it would have raised
+`CANNOT TEST` rather than passing, by design.
+
+The runbook that produced this is **not committed**; it is a throwaway. The permanent version is the
+verification footer inside the migration.
 
 ---
 
@@ -132,32 +132,36 @@ functions carry a pinned `search_path`.
 
 ---
 
-## 3 · Next: M8c — conversation creation
+## 3 · M8c — conversation creation (DONE)
 
-Nothing can create a conversation today. That is by design, and M8c is what makes Messaging
-reachable.
+`public.open_conversation(context_type, context_id, participant_ids)` is the only sanctioned way a
+thread comes into being. `SECURITY DEFINER`, pinned `search_path`, `EXECUTE` granted to
+`authenticated` only and revoked from `PUBLIC` and `anon`.
 
-A `SECURITY DEFINER` function that opens a conversation from a workflow act:
+**The caller rule is STRICT — owner decision, 20 Jul 2026.** The caller must be able to
+`can_act_as` at least one participant profile. *Creation derives from participant authority, never
+merely from authentication or visibility.* The loose reading — any authenticated caller may open a
+thread for a workflow object they can see — was rejected: it is the same shape of hole as SEC-1.
 
-- Takes `(context_type, context_id)` and the participant profile ids
-- **Enforces `C15` by returning the existing conversation** if one already matches, rather than
-  raising — *"one artist applying twice to the same event produces one conversation"*
-- Creates the conversation and all participants **in one transaction**, which is why `C15`'s
-  constraint is deferrable
-- Pinned `search_path`, like every other elevated function here
+Note what the rule does **not** require: that the caller act as a *particular* side. §2.2 makes a
+conversation a relationship, so authority over either end is authority to open it.
 
-### ⚠ Open design question — needs the owner
+Three implementation decisions worth knowing before changing it:
 
-**Who may call it.** Two readings of §4.3:
+- **`C15` is satisfied by returning, not raising.** A repeated workflow act returns the existing
+  conversation, so callers need no duplicate defence.
+- **A transaction-scoped advisory lock** on `(context, participant_key)` makes check-then-insert
+  atomic. Without it, a double-submitted application would have both calls find nothing, both
+  insert, and surface a constraint violation *at COMMIT* to a caller who did nothing wrong — after
+  `C15` promised idempotence instead.
+- **The participant key is derived in two places** — here and in M8a's trigger — with the same
+  expression. This is the one fragile seam: if they drift, the idempotence lookup silently misses an
+  existing conversation and only collides at COMMIT. Change both or neither.
 
-- **Strict** — the caller must be able to `can_act_as` at least one participant profile, and is
-  refused otherwise. Keeps the SEC-1 lesson intact: a caller who can act as neither party has no
-  business opening a thread between them.
-- **Loose** — any authenticated caller may create a conversation for a workflow object they can see.
+A one-participant conversation is deliberately **not** rejected: M8a's own `C15` note contemplates
+one, so forbidding it would be a new rule. Adding a minimum later is additive.
 
-**Recommended: strict.** Not yet decided by the owner.
-
-### After M8c
+### Next
 
 Read state (**`C11`**, keyed `(conversation, user)` — its own table), then the notification bridge
 (`new_message` is already categorised in `notification_expiry_policy` as `messages`/`never`, and
@@ -233,5 +237,10 @@ Not blockers; recorded so they are not rediscovered.
 
 ## 7 · Suggested first message
 
-> Read `docs/handover-messaging-2026-07-20.md`. Run the `C13` check in §1, then write M8c —
-> conversation creation. I want the strict caller rule.
+> Read `docs/handover-messaging-2026-07-20.md`. M8a, M8b and M8c are applied and verified. Write
+> the read-state layer — `C11`, its own table keyed `(conversation, user)`, never on
+> `conversation_participants`.
+
+Remember that **you cannot apply or verify SQL yourself** (§5) — migrations are applied by the owner
+by hand. Write the migration, then hand over a runbook the owner can paste with no substitutions,
+where every block raises on failure. That is what made M8c's verification actually get run.

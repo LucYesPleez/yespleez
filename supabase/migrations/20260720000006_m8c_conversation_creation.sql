@@ -46,7 +46,7 @@ RETURNS uuid
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public, pg_temp
-AS $$
+AS $fn$
 DECLARE
   v_participants    uuid[];
   v_participant_key text;
@@ -142,7 +142,7 @@ BEGIN
 
   RETURN v_conversation_id;
 END;
-$$;
+$fn$;
 
 COMMENT ON FUNCTION public.open_conversation(text, uuid, uuid[]) IS
   'Communication Architecture v1.0 4.3 — the ONLY sanctioned way to create a '
