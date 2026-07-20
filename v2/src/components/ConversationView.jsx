@@ -44,11 +44,30 @@ export default function ConversationView({ conversationId, compact = false, onMi
   const [error, setError]          = useState(null);
   const [loading, setLoading]      = useState(true);
   const scrollRef = useRef(null);
+  const inputRef  = useRef(null);
 
   // Restore the draft when the drawer swaps to a different conversation.
   useEffect(() => {
     setDraft(ui.getState(conversationId).draft || '');
   }, [conversationId, ui]);
+
+  // Restore the CARET, not just the text. Without this, reopening drops the
+  // cursor to the end, so someone resuming mid-sentence types in the wrong
+  // place — the draft looks preserved while the edit position silently is not.
+  useEffect(() => {
+    const el = inputRef.current;
+    const sel = ui.getState(conversationId).selection;
+    if (!el || !sel) return;
+    try { el.setSelectionRange(sel.start, sel.end); } catch { /* input may not support it */ }
+  }, [conversationId, ui]);
+
+  function rememberSelection() {
+    const el = inputRef.current;
+    if (!el) return;
+    ui.patch(conversationId, {
+      selection: { start: el.selectionStart, end: el.selectionEnd },
+    });
+  }
 
   useEffect(() => {
     if (!session || !conversationId) { setLoading(false); return undefined; }
@@ -155,7 +174,7 @@ export default function ConversationView({ conversationId, compact = false, onMi
           (content never feeds ranking or recommendation). */}
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '8px 16px', fontSize: 11, color: 'var(--muted)', borderBottom: '1px solid var(--border)' }}>
         <span aria-hidden="true">🔒</span>
-        <span>Private — only you and {title} can see this conversation.</span>
+        <span>Private — only you and the participants in this conversation can see these messages.</span>
       </div>
 
       <div
@@ -186,8 +205,12 @@ export default function ConversationView({ conversationId, compact = false, onMi
 
       <form onSubmit={onSend} style={{ display: 'flex', gap: 8, padding: '10px 16px', borderTop: '1px solid var(--border)' }}>
         <input
+          ref={inputRef}
           value={draft}
-          onChange={e => onDraftChange(e.target.value)}
+          onChange={e => { onDraftChange(e.target.value); rememberSelection(); }}
+          onSelect={rememberSelection}
+          onKeyUp={rememberSelection}
+          onBlur={rememberSelection}
           disabled={!senderProfile || sending}
           placeholder={senderProfile ? 'Type a message…' : 'You cannot write in this conversation'}
           aria-label="Message"

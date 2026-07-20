@@ -40,6 +40,10 @@ const ConversationUiCtx = createContext(null);
 function emptyUiState() {
   return {
     draft:        '',
+    // Cursor/selection inside the composer. Restoring the draft without this
+    // drops the caret to the end, so resuming mid-sentence silently moves
+    // where the next character lands.
+    selection:    null,   // {start, end}
     scrollTop:    null,
     playback:     null,   // {messageId, positionMs} — voice notes
     replyTo:      null,   // selected reply target

@@ -1,4 +1,5 @@
-import { Link } from 'react-router-dom';
+import { useEffect, useRef } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import { useConversationUi } from '../lib/conversationUi';
 import ConversationView from './ConversationView';
 
@@ -20,6 +21,32 @@ import ConversationView from './ConversationView';
  */
 export default function ConversationDock() {
   const { openId, minimised, open, minimise, dismiss, getState } = useConversationUi();
+  const location = useLocation();
+  const touchStartY = useRef(null);
+
+  // "Opening another screen" MINIMISES — it does not close, and it does not
+  // leave the drawer covering the screen the user just navigated to. The dock
+  // outlives the route change; only its presentation collapses.
+  useEffect(() => {
+    if (openId) minimise(openId);
+    // Intentionally keyed on the path alone: this must fire on navigation, not
+    // when a conversation opens.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.pathname]);
+
+  function onTouchStart(e) {
+    touchStartY.current = e.touches?.[0]?.clientY ?? null;
+  }
+
+  // Swipe down to minimise. Deliberately generous (56px) and downward-only, so
+  // a scroll gesture inside the thread cannot collapse the drawer by accident.
+  function onTouchEnd(e) {
+    const start = touchStartY.current;
+    const end   = e.changedTouches?.[0]?.clientY;
+    touchStartY.current = null;
+    if (start == null || end == null) return;
+    if (end - start > 56) minimise(openId);
+  }
 
   return (
     <>
@@ -48,6 +75,8 @@ export default function ConversationDock() {
             role="dialog"
             aria-label="Conversation"
             onClick={e => e.stopPropagation()}
+            onTouchStart={onTouchStart}
+            onTouchEnd={onTouchEnd}
             style={{
               width: '100%', maxWidth: 560,
               height: 'min(78dvh, 680px)',
