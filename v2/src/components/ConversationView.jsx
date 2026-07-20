@@ -101,7 +101,11 @@ export default function ConversationView({ conversationId, compact = false, onMi
       setSender(mineRow?.profile_id ?? null);
       setSenderMeta(mineRow?.profiles ?? null);
 
-      const otherParties = participants.filter(p => !mineSet.has(p.profile_id));
+      // The other party is everyone except the profile I am sending AS — not
+      // everyone I cannot act as. Messaging between two of your own profiles
+      // is legitimate, and the ownership-based version returns nothing for
+      // those, which is why the header read "Conversation" with no name.
+      const otherParties = participants.filter(p => p.profile_id !== mineRow?.profile_id);
       setOthers(otherParties);
 
       // Seed the pill so a minimised conversation can name who it is with.

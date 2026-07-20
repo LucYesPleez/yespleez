@@ -95,10 +95,17 @@ export default function InboxScreen() {
       const decorated = conversations.map(c => {
         const mates = participants.filter(p => p.conversation_id === c.id);
         // §2.2 — a conversation is a relationship; show the OTHER party.
-        const others = mates.filter(p => !mine.has(p.profile_id));
         // Which of MY profiles is in this thread. Without it, three
         // conversations with the same artist render as three identical rows.
-        const asProfile = mates.find(p => mine.has(p.profile_id))?.profiles ?? null;
+        const asRow     = mates.find(p => mine.has(p.profile_id));
+        const asProfile = asRow?.profiles ?? null;
+
+        // The other party is "everyone except the profile I am sending as" —
+        // NOT "everyone I cannot act as". A user can legitimately message
+        // between two of their OWN profiles (Personal → Dusky Waters), and the
+        // ownership-based version returns an empty set for those, rendering
+        // the row as "Unknown".
+        const others = mates.filter(p => p.profile_id !== asRow?.profile_id);
         // Archived is per-participant, so it is MY participant row that decides.
         const isArchived = mates.some(p => mine.has(p.profile_id) && p.archived_at);
         return { ...c, others, asProfile, isArchived, unread: countBy[c.id] ?? 0 };
