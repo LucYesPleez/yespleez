@@ -75,11 +75,11 @@ export default function ConversationDock() {
              --yp-nav-height is measured by BottomNav's ResizeObserver and
              includes the safe-area inset, so this is reserved layout space —
              not padding applied after the fact. */
-          /* +40px so the surface reads as docked BELOW the top bar with air
+          /* +20px so the surface reads as docked BELOW the top bar with air
              between them, rather than butting straight up against it. The gap
              is part of the overlay, so the scrim fades across it and the
              background stays visible through the gap. */
-          style={{ position: 'fixed', top: 'calc(var(--yp-header-height, 56px) + 40px)', left: 0, right: 0, bottom: 'var(--yp-nav-height, 64px)', zIndex: 160, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', // A GRADIENT SCRIM, not a blurred pane. backdrop-filter clips hard at its
+          style={{ position: 'fixed', top: 'calc(var(--yp-header-height, 56px) + 20px)', left: 0, right: 0, bottom: 'var(--yp-nav-height, 64px)', zIndex: 160, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', // A GRADIENT SCRIM, not a blurred pane. backdrop-filter clips hard at its
              // own bounds, which stamped a visible seam across the app's ambient
              // gradient exactly where the overlay began. Fading the scrim in over the
              // first ~18% means the surface reads as sliding OVER the background
