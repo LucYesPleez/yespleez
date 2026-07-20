@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import s from './GlobalHeader.module.css';
 import NotifPanel from './NotifPanel';
@@ -52,6 +52,24 @@ export default function GlobalHeader({ onMarkRead, unreadCount = 0 }) {
   const [panelOpen, setPanelOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const shareTarget = useCurrentShareTarget();
+  const headerRef = useRef(null);
+
+  // The top bar is permanent chrome, exactly like the bottom nav, so overlays
+  // must stop below it rather than running underneath. Published as
+  // --yp-header-height and measured with getBoundingClientRect so it includes
+  // borders and any safe-area padding — reserved layout space, not a constant
+  // that goes stale the first time the header changes.
+  useEffect(() => {
+    const el = headerRef.current;
+    if (!el) return undefined;
+    const ro = new ResizeObserver(() => {
+      document.documentElement.style.setProperty(
+        '--yp-header-height', el.getBoundingClientRect().height + 'px',
+      );
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   const info = INFO[location.pathname] || FALLBACK;
 
@@ -72,7 +90,7 @@ export default function GlobalHeader({ onMarkRead, unreadCount = 0 }) {
 
   return (
     <>
-      <div className={s.header}>
+      <div className={s.header} ref={headerRef}>
         <button className={s.backBtn} onClick={handleBack} aria-label="Back">
           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="m15 18-6-6 6-6"/>

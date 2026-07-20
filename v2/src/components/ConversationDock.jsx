@@ -75,7 +75,7 @@ export default function ConversationDock() {
              --yp-nav-height is measured by BottomNav's ResizeObserver and
              includes the safe-area inset, so this is reserved layout space —
              not padding applied after the fact. */
-          style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 'var(--yp-nav-height, 64px)', zIndex: 160, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', background: 'rgba(0,0,0,.78)', backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)', animation: 'ypDockFade .28s ease-out' }}
+          style={{ position: 'fixed', top: 'var(--yp-header-height, 56px)', left: 0, right: 0, bottom: 'var(--yp-nav-height, 64px)', zIndex: 160, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', background: 'rgba(0,0,0,.78)', backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)', animation: 'ypDockFade .28s ease-out' }}
           onClick={() => minimise(openId)}
         >
           <div

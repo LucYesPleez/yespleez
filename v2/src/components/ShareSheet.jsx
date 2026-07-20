@@ -65,7 +65,7 @@ export default function ShareSheet({ target, onClose }) {
       onClick={onClose}
       /* CONSTITUTIONAL LAYOUT RULE — the bottom navigation is sacred. This
          sheet ends at the top of the nav; nothing renders underneath it. */
-      style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 'var(--yp-nav-height, 64px)', background: 'rgba(0,0,0,.6)', zIndex: 200, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}
+      style={{ position: 'fixed', top: 'var(--yp-header-height, 56px)', left: 0, right: 0, bottom: 'var(--yp-nav-height, 64px)', background: 'rgba(0,0,0,.6)', zIndex: 200, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}
     >
       <div
         onClick={e => e.stopPropagation()}
