@@ -33,13 +33,19 @@ import { useConversationUi } from '../lib/conversationUi';
  */
 export default function ConversationView({ conversationId, compact = false, onMinimise }) {
   const { session } = useSession();
-  const ui = useConversationUi();
+  // Destructured deliberately. The context VALUE changes identity whenever a
+  // conversation opens or a pill repaints, so depending on `ui` in an effect
+  // that also calls patch() creates a restart loop: the patch changes the
+  // context, the effect re-runs, cancels its own in-flight load, and patches
+  // again — the thread never finishes loading. getState/patch are useCallback
+  // -stable, so depend on those instead of the object holding them.
+  const { getState, patch } = useConversationUi();
 
   const [messages, setMessages]    = useState([]);
   const [mine, setMine]            = useState(new Set());
   const [senderProfile, setSender] = useState(null);
   const [others, setOthers]        = useState([]);
-  const [draft, setDraft]          = useState(() => ui.getState(conversationId).draft || '');
+  const [draft, setDraft]          = useState(() => getState(conversationId).draft || '');
   const [sending, setSending]      = useState(false);
   const [error, setError]          = useState(null);
   const [loading, setLoading]      = useState(true);
@@ -48,23 +54,23 @@ export default function ConversationView({ conversationId, compact = false, onMi
 
   // Restore the draft when the drawer swaps to a different conversation.
   useEffect(() => {
-    setDraft(ui.getState(conversationId).draft || '');
-  }, [conversationId, ui]);
+    setDraft(getState(conversationId).draft || '');
+  }, [conversationId, getState]);
 
   // Restore the CARET, not just the text. Without this, reopening drops the
   // cursor to the end, so someone resuming mid-sentence types in the wrong
   // place — the draft looks preserved while the edit position silently is not.
   useEffect(() => {
     const el = inputRef.current;
-    const sel = ui.getState(conversationId).selection;
+    const sel = getState(conversationId).selection;
     if (!el || !sel) return;
     try { el.setSelectionRange(sel.start, sel.end); } catch { /* input may not support it */ }
-  }, [conversationId, ui]);
+  }, [conversationId, getState]);
 
   function rememberSelection() {
     const el = inputRef.current;
     if (!el) return;
-    ui.patch(conversationId, {
+    patch(conversationId, {
       selection: { start: el.selectionStart, end: el.selectionEnd },
     });
   }
@@ -89,7 +95,7 @@ export default function ConversationView({ conversationId, compact = false, onMi
 
       // Seed the pill so a minimised conversation can name who it is with.
       const head = otherParties[0]?.profiles;
-      if (head) ui.patch(conversationId, { profile: { id: head.id, name: head.name, type: head.type } }, true);
+      if (head) patch(conversationId, { profile: { id: head.id, name: head.name, type: head.type } }, true);
 
       const { messages: rows } = await listMessages(conversationId);
       if (cancelled.current) return;
@@ -98,28 +104,28 @@ export default function ConversationView({ conversationId, compact = false, onMi
 
       // `C11` — this human's watermark. Monotonic in the database.
       await markConversationRead(conversationId);
-      ui.patch(conversationId, { unread: 0 }, true);
+      patch(conversationId, { unread: 0 }, true);
     })();
 
     return () => { cancelled.current = true; };
-  }, [session, conversationId, ui]);
+  }, [session, conversationId, patch]);
 
   // Restore scroll, or stick to the bottom on new messages.
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
-    const saved = ui.getState(conversationId).scrollTop;
+    const saved = getState(conversationId).scrollTop;
     el.scrollTop = saved ?? el.scrollHeight;
-  }, [messages.length, conversationId, ui]);
+  }, [messages.length, conversationId, getState]);
 
   function onScroll() {
     const el = scrollRef.current;
-    if (el) ui.patch(conversationId, { scrollTop: el.scrollTop });
+    if (el) patch(conversationId, { scrollTop: el.scrollTop });
   }
 
   function onDraftChange(value) {
     setDraft(value);
-    ui.patch(conversationId, { draft: value });   // silent — no shell re-render
+    patch(conversationId, { draft: value });   // silent — no shell re-render
   }
 
   async function onSend(e) {
@@ -143,7 +149,7 @@ export default function ConversationView({ conversationId, compact = false, onMi
     setMessages(prev => [...prev, message]);
     onDraftChange('');
     setSending(false);
-    ui.patch(conversationId, { lastPreview: { text: message.body, kind: 'text' } }, true);
+    patch(conversationId, { lastPreview: { text: message.body, kind: 'text' } }, true);
     await markConversationRead(conversationId);
   }
 
