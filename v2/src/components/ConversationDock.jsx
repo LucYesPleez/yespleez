@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import { useConversationUi } from '../lib/conversationUi';
 import ConversationView from './ConversationView';
 
@@ -115,17 +115,6 @@ export default function ConversationDock() {
               onMinimise={() => minimise(openId)}
             />
 
-            <div style={{ borderTop: '1px solid var(--border)', padding: '8px 16px', textAlign: 'center' }}>
-              {/* The full inbox still exists — for search, archive, pinning and
-                  management. Daily communication happens in this drawer. */}
-              <Link
-                to="/messages"
-                onClick={() => minimise(openId)}
-                style={{ color: 'var(--muted)', fontFamily: "'Bebas Neue',sans-serif", fontSize: 12, letterSpacing: 1.5, textDecoration: 'none' }}
-              >
-                SEE ALL MESSAGES
-              </Link>
-            </div>
           </div>
 
           <style>{`

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useSession } from '../App';
 import { useConversationUi } from '../lib/conversationUi';
 import {
@@ -55,8 +56,18 @@ function relativeTime(iso) {
 export default function InboxScreen() {
   const { session } = useSession();
   const { open: openConversation } = useConversationUi();
+  const location = useLocation();
   const [rows, setRows]       = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // A deep link (/messages/:id, e.g. from a notification) redirects here and
+  // carries the id as navigation state. Opening it once the route has settled
+  // keeps the ONE messaging environment: the list is the home, the dock is the
+  // workspace, and an external link lands in both rather than a third place.
+  useEffect(() => {
+    const wanted = location.state?.openConversation;
+    if (wanted) openConversation(wanted);
+  }, [location.state, openConversation]);
 
   useEffect(() => {
     if (!session) { setLoading(false); return; }

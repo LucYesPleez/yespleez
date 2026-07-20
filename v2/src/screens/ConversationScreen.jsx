@@ -1,28 +1,29 @@
-import { useParams } from 'react-router-dom';
-import ConversationView from '../components/ConversationView';
+import { useParams, Navigate } from 'react-router-dom';
 
 /**
- * FULL-PAGE conversation, at /messages/:id.
+ * `/messages/:id` — an ENTRY POINT, not a page.
  *
- * The DRAWER is the primary experience — daily communication happens there,
- * without leaving whatever the user was doing. This route survives for direct
- * links, deep links from a notification, and anyone who navigated here on
- * purpose.
+ * The canonical model has exactly two concepts: the conversation LIST (the
+ * home of messaging) and the ConversationDock (the workspace). There is no
+ * second conversation page and no secondary inbox — that split was the thing
+ * making Messaging behave like a drawer and a separate app at once.
  *
- * It renders the SAME ConversationView the drawer renders, so the two cannot
- * drift. Two thread implementations would mean fixing one and rotting the
- * other, and the drawer is the one that matters day to day.
+ * This route survives only so an external link still lands somewhere sensible:
+ * a notification deep link, a shared URL, a bookmark. It opens the dock and
+ * redirects to the list, so the user arrives in the one messaging environment
+ * rather than a parallel one that looks almost the same.
+ *
+ * Nothing inside the app should link here. The list opens conversations
+ * directly through `useConversationUi().open`, with no navigation and no URL
+ * change — navigating is the context switch the model exists to avoid.
  */
 export default function ConversationScreen() {
   const { id } = useParams();
 
-  return (
-    /* The nav is reserved layout space, not padding sprayed on afterwards —
-       the composer must land immediately above it. See ConversationDock. */
-    <div style={{ paddingTop: 72, height: 'calc(100dvh - var(--yp-nav-height, 64px))', background: 'var(--bg)', boxSizing: 'border-box' }}>
-      <div style={{ maxWidth: 680, margin: '0 auto', height: '100%', padding: '0 8px', boxSizing: 'border-box' }}>
-        <ConversationView conversationId={id} />
-      </div>
-    </div>
-  );
+  // The id travels as navigation STATE rather than being opened here. Opening
+  // first would race the dock's minimise-on-navigation rule — this component
+  // redirects, the path changes, and the dock would close the conversation it
+  // had just opened. Letting the list open it after the route settles avoids
+  // fighting that rule instead of special-casing it.
+  return <Navigate to="/messages" replace state={{ openConversation: id }} />;
 }
