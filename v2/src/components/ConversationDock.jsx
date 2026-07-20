@@ -75,7 +75,13 @@ export default function ConversationDock() {
              --yp-nav-height is measured by BottomNav's ResizeObserver and
              includes the safe-area inset, so this is reserved layout space —
              not padding applied after the fact. */
-          style={{ position: 'fixed', top: 'var(--yp-header-height, 56px)', left: 0, right: 0, bottom: 'var(--yp-nav-height, 64px)', zIndex: 160, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', background: 'rgba(0,0,0,.78)', backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)', animation: 'ypDockFade .28s ease-out' }}
+          style={{ position: 'fixed', top: 'var(--yp-header-height, 56px)', left: 0, right: 0, bottom: 'var(--yp-nav-height, 64px)', zIndex: 160, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', // A GRADIENT SCRIM, not a blurred pane. backdrop-filter clips hard at its
+             // own bounds, which stamped a visible seam across the app's ambient
+             // gradient exactly where the overlay began. Fading the scrim in over the
+             // first ~18% means the surface reads as sliding OVER the background
+             // rather than cutting it off.
+             background: 'linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,.42) 10%, rgba(0,0,0,.74) 26%, rgba(0,0,0,.82) 100%)',
+             animation: 'ypDockFade .28s ease-out' }}
           onClick={() => minimise(openId)}
         >
           <div
