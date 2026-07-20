@@ -94,7 +94,7 @@ export async function sendableProfiles(userId) {
   if (!userId) return { profiles: [], error: null };
   const { data, error } = await supabase
     .from('profiles')
-    .select('id, name, type')
+    .select('id, name, type, avatar_thumb, avatar')
     .eq('user_id', userId)
     .order('type');
   return { profiles: error ? [] : (data ?? []), error: error ?? null };

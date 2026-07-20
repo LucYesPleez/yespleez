@@ -19,6 +19,7 @@ import AvailabilityCalendar from '../components/AvailabilityCalendar';
 import { selectedPerformanceRoleLabels, selectedArtistRoleLabels, ARTIST_ROLES, HOST_CATEGORIES } from '../lib/profileTaxonomy';
 import { PROFILE_TYPES } from '../lib/profileTypes';
 import { openDirectConversation, sendableProfiles } from '../lib/messaging';
+import MessageAsSheet from '../components/MessageAsSheet';
 import { useConversationUi } from '../lib/conversationUi';
 import { isProfileUnclaimed } from '../lib/profileClaim';
 import UnclaimedBadge from '../components/UnclaimedBadge';
@@ -823,46 +824,11 @@ export default function ProfileScreen() {
                   else, so messaging cannot reveal that one person runs a
                   venue, a festival and an artist alias. */}
               {senderChoices && (
-                <div
-                  role="dialog"
-                  aria-label="Choose which profile to message as"
-                  onClick={() => setSenderChoices(null)}
-                  style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.6)', zIndex: 200, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}
-                >
-                  <div
-                    onClick={e => e.stopPropagation()}
-                    style={{ width: '100%', maxWidth: 480, background: 'var(--bg)', borderTop: '1px solid var(--border)', borderRadius: '18px 18px 0 0', padding: 20, boxSizing: 'border-box' }}
-                  >
-                    <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 18, letterSpacing: 2, color: 'var(--text)', marginBottom: 4 }}>
-                      MESSAGE AS
-                    </div>
-                    <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 14 }}>
-                      This is fixed for this conversation.
-                    </div>
-
-                    {senderChoices.map(p => (
-                      <button
-                        key={p.id}
-                        type="button"
-                        onClick={() => startConversationAs(p.id)}
-                        style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', textAlign: 'left', background: 'rgba(255,255,255,.04)', border: '1px solid var(--border)', borderRadius: 12, padding: '12px 14px', marginBottom: 8, color: 'var(--text)', fontSize: 14, cursor: 'pointer' }}
-                      >
-                        <span>{p.name}</span>
-                        <span style={{ marginLeft: 'auto', fontSize: 10, letterSpacing: 1, color: 'var(--muted)', fontFamily: "'Bebas Neue',sans-serif" }}>
-                          {(PROFILE_TYPES[p.type]?.shortLabel ?? p.type ?? '').toUpperCase()}
-                        </span>
-                      </button>
-                    ))}
-
-                    <button
-                      type="button"
-                      onClick={() => setSenderChoices(null)}
-                      style={{ width: '100%', background: 'transparent', border: '1px solid var(--border)', borderRadius: 12, padding: '11px 14px', color: 'var(--muted)', fontSize: 14, cursor: 'pointer' }}
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
+                <MessageAsSheet
+                  profiles={senderChoices}
+                  onConfirm={startConversationAs}
+                  onCancel={() => setSenderChoices(null)}
+                />
               )}
             </div>
             {/* N2 · action-time disclosure. Follow is the ONE action reachable
