@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { useSession } from '../App';
 import { getNotifMeta, cleanMessage } from '../lib/notifMeta';
 import { acceptSlotOffer, declineSlotOffer, acceptInvite, declineInvite } from '../lib/notifActions';
+import { conversationNotificationTypes } from '../lib/conversationNotifications';
 
 export default function NotifPanel({ onClose, onMarkAll }) {
   const navigate = useNavigate();
@@ -16,6 +17,7 @@ export default function NotifPanel({ onClose, onMarkAll }) {
   useEffect(() => {
     if (!session) { setLoading(false); return; }
     (async () => {
+      const convTypes = await conversationNotificationTypes();
       const { data } = await supabase
         .from('notifications')
         .select('*')
@@ -25,6 +27,11 @@ export default function NotifPanel({ onClose, onMarkAll }) {
         .eq('to_user_id', session.user.id)
         // NP1: muted categories are recorded but never shown.
         .is('suppressed_at', null)
+        // DEF-3 — conversation activity belongs to the MESSAGES badge and
+        // nowhere else. This panel is the bell's own dropdown, so a message
+        // appearing here is the bell reporting conversation activity by
+        // another name.
+        .not('type', 'in', `(${convTypes.join(',')})`)
         .order('created_at', { ascending: false })
         .limit(60);
       setNotifs(data || []);

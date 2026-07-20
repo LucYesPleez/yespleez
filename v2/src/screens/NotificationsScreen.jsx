@@ -4,6 +4,9 @@ import { useSession } from '../App';
 import { getNotifMeta, cleanMessage } from '../lib/notifMeta';
 import { acceptSlotOffer, declineSlotOffer, acceptInvite, declineInvite } from '../lib/notifActions';
 import NotificationPreferences from '../components/NotificationPreferences';
+import {
+  conversationNotificationTypes, KNOWN_CONVERSATION_TYPES,
+} from '../lib/conversationNotifications';
 
 export default function NotificationsScreen() {
   const { session } = useSession();
@@ -12,6 +15,12 @@ export default function NotificationsScreen() {
   const [expanded, setExpanded] = useState(false);
   const [prefsOpen, setPrefsOpen] = useState(false);
   const pollRef = useRef(null);
+  // Conversation types are read from the policy table so voice notes, images
+  // and attachments join the rule by being categorised, not by someone
+  // remembering to extend a list. Falls back to the known set on failure —
+  // an empty list would mean "exclude nothing" and put messages back in the
+  // feed, which is the defect this fixes.
+  const convTypesRef = useRef(KNOWN_CONVERSATION_TYPES);
 
   async function load(cancelled = { current: false }) {
     if (!session) { setLoading(false); return; }
@@ -23,6 +32,12 @@ export default function NotificationsScreen() {
       .eq('to_user_id', session.user.id)
       // NP1: muted categories are recorded but never shown.
       .is('suppressed_at', null)
+      // DEF-3 — conversation activity belongs to the MESSAGES badge and
+      // nowhere else. The rows are still WRITTEN (N1's held pile and future
+      // push both need them); they are simply not a notification-feed concern.
+      // Excluding them from the bell COUNT but not from this list is what made
+      // the feed fill up with "New message" while the bell stayed at zero.
+      .not('type', 'in', `(${convTypesRef.current.join(',')})`)
       .order('created_at', { ascending: false })
       .limit(60);
     if (cancelled.current) return;
@@ -37,7 +52,10 @@ export default function NotificationsScreen() {
   useEffect(() => {
     if (!session) { setLoading(false); return; }
     const cancelled = { current: false };
-    load(cancelled);
+    (async () => {
+      convTypesRef.current = await conversationNotificationTypes();
+      if (!cancelled.current) load(cancelled);
+    })();
     pollRef.current = setInterval(() => load(cancelled), 30000);
     return () => { cancelled.current = true; clearInterval(pollRef.current); };
   }, [session]);
