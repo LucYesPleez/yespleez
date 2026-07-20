@@ -18,7 +18,7 @@ import ProfileSocialLinks from '../components/ProfileSocialLinks';
 import AvailabilityCalendar from '../components/AvailabilityCalendar';
 import { selectedPerformanceRoleLabels, selectedArtistRoleLabels, ARTIST_ROLES, HOST_CATEGORIES } from '../lib/profileTaxonomy';
 import { PROFILE_TYPES } from '../lib/profileTypes';
-import { openDirectConversation } from '../lib/messaging';
+import { openDirectConversation, sendableProfiles } from '../lib/messaging';
 import { useConversationUi } from '../lib/conversationUi';
 import { isProfileUnclaimed } from '../lib/profileClaim';
 import UnclaimedBadge from '../components/UnclaimedBadge';
@@ -48,6 +48,7 @@ export default function ProfileScreen() {
   const [followed,    setFollowed]    = useState(false);
   const [followBusy,  setFollowBusy]  = useState(false);
   const [messageBusy, setMessageBusy] = useState(false);
+  const [senderChoices, setSenderChoices] = useState(null);
   const { player, setPlayer } = usePlayer();
   const [availOpen,     setAvailOpen]     = useState(false);
   const [availDates,    setAvailDates]    = useState(null);
@@ -324,29 +325,43 @@ export default function ProfileScreen() {
   /**
    * M8h — open a direct conversation with this profile.
    *
-   * Sends AS the viewer's Personal profile. That is the identity a person
-   * browsing the app is acting under; sending as an industry profile is a
-   * choice that needs an active-profile concept the app does not have yet
-   * (R5's deferred clauses), and guessing would attribute someone's message to
-   * the wrong identity while looking perfectly populated.
+   * MESSAGING IDENTITY (canonical, 20 Jul 2026): conversations are between
+   * PROFILES. The human authenticates and operates a profile via can_act_as;
+   * the visible identity is always the participating profile. from_user_id
+   * stays audit-only and is never displayed — §A3 unchanged.
+   *
+   * The sender profile is chosen ONCE, when the conversation is created. §2.1
+   * freezes the participant set, so there is nothing to re-ask afterwards and
+   * no "speak as" selector on every message. If the user can act as exactly
+   * one profile there is no ambiguity, so no prompt is shown at all.
    *
    * Opens the DOCK rather than navigating — the visitor stays on the profile
-   * they were reading, which is the whole point of the interaction model.
+   * they were reading.
    */
   async function handleMessage() {
     if (!session?.user?.id || messageBusy || !profile?.id) return;
     setMessageBusy(true);
     try {
-      const fromProfileId = await getPersonalProfileId(session.user.id);
-      if (!fromProfileId) {
-        setMessageBusy(false);
-        return;
-      }
+      const { profiles } = await sendableProfiles(session.user.id);
+      const options = profiles.filter(p => p.id !== profile.id);
+
+      if (options.length === 0) { setMessageBusy(false); return; }
+      if (options.length === 1) { await startConversationAs(options[0].id); return; }
+
+      // More than one identity is genuinely ambiguous — ask, once.
+      setSenderChoices(options);
+      setMessageBusy(false);
+    } catch {
+      setMessageBusy(false);
+    }
+  }
+
+  async function startConversationAs(fromProfileId) {
+    setSenderChoices(null);
+    setMessageBusy(true);
+    try {
       const { conversationId, error } = await openDirectConversation(fromProfileId, profile.id);
-      if (error || !conversationId) {
-        setMessageBusy(false);
-        return;
-      }
+      if (error || !conversationId) return;
       openConversation(conversationId, {
         profile: { id: profile.id, name: profile.name, type: profile.type },
       });
@@ -792,6 +807,57 @@ export default function ProfileScreen() {
                     </span>
                   </button>
                 </span>
+              )}
+
+              {/* "Message as…" — shown ONCE, only when the sender genuinely has
+                  more than one identity. §2.1 freezes the participant set at
+                  creation, so this is never asked again for this conversation.
+
+                  This list is the SENDER'S OWN. It is never shown to a
+                  recipient: they see the participating profile and nothing
+                  else, so messaging cannot reveal that one person runs a
+                  venue, a festival and an artist alias. */}
+              {senderChoices && (
+                <div
+                  role="dialog"
+                  aria-label="Choose which profile to message as"
+                  onClick={() => setSenderChoices(null)}
+                  style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.6)', zIndex: 200, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}
+                >
+                  <div
+                    onClick={e => e.stopPropagation()}
+                    style={{ width: '100%', maxWidth: 480, background: 'var(--bg)', borderTop: '1px solid var(--border)', borderRadius: '18px 18px 0 0', padding: 20, boxSizing: 'border-box' }}
+                  >
+                    <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 18, letterSpacing: 2, color: 'var(--text)', marginBottom: 4 }}>
+                      MESSAGE AS
+                    </div>
+                    <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 14 }}>
+                      This is fixed for this conversation.
+                    </div>
+
+                    {senderChoices.map(p => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => startConversationAs(p.id)}
+                        style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', textAlign: 'left', background: 'rgba(255,255,255,.04)', border: '1px solid var(--border)', borderRadius: 12, padding: '12px 14px', marginBottom: 8, color: 'var(--text)', fontSize: 14, cursor: 'pointer' }}
+                      >
+                        <span>{p.name}</span>
+                        <span style={{ marginLeft: 'auto', fontSize: 10, letterSpacing: 1, color: 'var(--muted)', fontFamily: "'Bebas Neue',sans-serif" }}>
+                          {(PROFILE_TYPES[p.type]?.shortLabel ?? p.type ?? '').toUpperCase()}
+                        </span>
+                      </button>
+                    ))}
+
+                    <button
+                      type="button"
+                      onClick={() => setSenderChoices(null)}
+                      style={{ width: '100%', background: 'transparent', border: '1px solid var(--border)', borderRadius: 12, padding: '11px 14px', color: 'var(--muted)', fontSize: 14, cursor: 'pointer' }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
               )}
             </div>
             {/* N2 · action-time disclosure. Follow is the ONE action reachable

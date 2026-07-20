@@ -78,6 +78,29 @@ export async function openConversation({ contextType, contextId, participantIds 
 }
 
 /**
+ * The profiles this human may send AS.
+ *
+ * Feeds the one-time "Message as…" prompt when starting a NEW conversation.
+ * Once a conversation exists its sender identity is fixed — the participant
+ * set is frozen at creation (§2.1), so there is nothing to re-ask.
+ *
+ * ⚠ THIS LIST IS FOR THE SENDER'S OWN EYES ONLY. Never render another human's
+ * profile set anywhere in messaging: the recipient needs to know which PROFILE
+ * is participating and nothing else. Exposing the set would leak that one
+ * person runs a venue, a festival and an artist alias — a link the app does
+ * not otherwise make, and cannot un-make once seen.
+ */
+export async function sendableProfiles(userId) {
+  if (!userId) return { profiles: [], error: null };
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id, name, type')
+    .eq('user_id', userId)
+    .order('type');
+  return { profiles: error ? [] : (data ?? []), error: error ?? null };
+}
+
+/**
  * Open a direct conversation between two profiles (M8h).
  *
  * `C17` (no cold DM) was amended by the owner on 20 Jul 2026 — any profile may
