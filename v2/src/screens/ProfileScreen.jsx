@@ -791,18 +791,23 @@ export default function ProfileScreen() {
 
                   Claimed profiles only — an unclaimed profile has no human, so
                   a message would sit held with nobody able to reply. Following
-                  an unclaimed profile IS supported (N1); messaging one is not. */}
+                  an unclaimed profile IS supported (N1); messaging one is not.
+
+                  Styled exactly as Follow — gradient wrapper as the border,
+                  dark interior, gradient text. It was muted only while the
+                  feature was a placeholder; now it is a real action and reads
+                  as Follow's equal rather than its lesser. */}
               {!isUnclaimed && (
-                <span style={{ flex: 1, minWidth: 0, display: 'inline-block', padding: 1, borderRadius: 12, background: 'var(--border)' }}>
+                <span style={{ flex: 1, minWidth: 0, display: 'inline-block', padding: 1, borderRadius: 12, background: `linear-gradient(135deg, ${col}, ${grad2})` }}>
                   <button
                     type="button"
                     className={s.followBtn}
                     disabled={!session || messageBusy}
                     onClick={handleMessage}
                     aria-label={`Message ${profile?.name ?? 'this profile'}`}
-                    style={{ borderColor: 'transparent', background: 'rgba(19,19,31,.55)', width: '100%', margin: 0, cursor: session && !messageBusy ? 'pointer' : 'not-allowed', opacity: session ? 1 : 0.75, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, boxSizing: 'border-box' }}
+                    style={{ borderColor: 'transparent', background: 'rgba(19,19,31,.92)', width: '100%', margin: 0 }}
                   >
-                    <span style={{ color: session ? 'var(--text)' : 'var(--muted)' }}>
+                    <span style={{ backgroundImage: `linear-gradient(135deg, ${col}, ${grad2})`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
                       {messageBusy ? 'OPENING…' : 'MESSAGE'}
                     </span>
                   </button>
