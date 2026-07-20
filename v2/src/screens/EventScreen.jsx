@@ -17,6 +17,7 @@ import { resolveProfileId } from '../lib/resolveProfileId';
 import { getDemoEventById } from '../lib/demoEvents';
 import DemoEventNotice from '../components/DemoEventNotice';
 import UnclaimedBadge from '../components/UnclaimedBadge';
+import UnclaimedNotice from '../components/UnclaimedNotice';
 import { socialProfileUrl, ensureHttps } from '../lib/socialLinks';
 import {
   DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragOverlay,
@@ -65,6 +66,15 @@ export default function EventScreen() {
     queryFn: async () => {
       const { data: ev } = await supabase.from('events').select('*').eq('id', id).single();
       if (!ev) { navigate('/'); return null; }
+      // N2: the event owner's canonical profiles row, for action-time
+      // disclosure on APPLY TO PLAY. `ev` carries owner_profile_id (authority,
+      // per Phase 16) but not the row, and claim state lives on the row —
+      // isProfileUnclaimed must be given the real thing, never a synthetic
+      // object. Read-only and additive: nothing gates on it, so an event whose
+      // owner cannot be resolved behaves exactly as it does today.
+      const { data: ownerProfile } = ev.owner_profile_id
+        ? await supabase.from('profiles').select('id, user_id, name, type').eq('id', ev.owner_profile_id).maybeSingle()
+        : { data: null };
       const [{ data: membersData }, { data: perfsData }] = await Promise.all([
         supabase.from('lineup_members').select('id, artist_id, artist_profile_id, artist_name, genre, sound, card_pills').eq('event_id', id).neq('status', 'removed'),
         supabase.from('performances').select('id, lineup_member_id, slot_id, status').eq('event_id', id),
@@ -152,7 +162,7 @@ export default function EventScreen() {
         const p = m.artist_profile_id ? mProfById[m.artist_profile_id] : mProfByUid[m.artist_id];
         if (p) memberProfiles[m.artist_id] = p;
       });
-      return { event: ev, claims: map, lineupMembers: membersData || [], memberPerfMap, memberProfiles };
+      return { event: ev, ownerProfile, claims: map, lineupMembers: membersData || [], memberPerfMap, memberProfiles };
     },
     enabled: !!id,
   });
@@ -505,7 +515,7 @@ export default function EventScreen() {
 
         {/* Apply bar — non-host, applications open */}
         {!effectiveIsHost && !isGuest && event.applications_open && (
-          <ApplyButton eventId={id} userId={session?.user?.id} />
+          <ApplyButton eventId={id} userId={session?.user?.id} ownerProfile={data?.ownerProfile} />
         )}
 
         {/* Punter preview banner */}
@@ -1153,7 +1163,7 @@ function SlotEditModal({ slot, onSave, onClose }) {
   );
 }
 
-function ApplyButton({ eventId, userId }) {
+function ApplyButton({ eventId, userId, ownerProfile }) {
   const [status,        setStatus]        = useState(null);
   const [note,          setNote]          = useState('');
   const [open,          setOpen]          = useState(false);
@@ -1254,6 +1264,11 @@ function ApplyButton({ eventId, userId }) {
           <textarea value={note} onChange={e => setNote(e.target.value)}
             placeholder="Add a note for the host (optional)…" rows={3}
             style={{ width: '100%', background: 'var(--card2)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text)', padding: '10px 12px', fontSize: 13, outline: 'none', resize: 'none', marginBottom: 10 }} />
+          {/* N2 · immediately above SEND, the last thing read before acting.
+              APPLY TO PLAY is gated on `!isHost && !isGuest && applications_open`
+              and never on the owner's claim state, so an event imported for an
+              organiser who has never joined is applyable — and said nothing. */}
+          <UnclaimedNotice profile={ownerProfile} context="apply" />
           <div style={{ display: 'flex', gap: 8 }}>
             <button onClick={() => setOpen(false)}
               style={{ flex: 1, background: 'none', border: '1px solid var(--border)', color: 'var(--muted)', fontFamily: "'Bebas Neue'", fontSize: 14, letterSpacing: 1.5, padding: 10, borderRadius: 8 }}>CANCEL</button>

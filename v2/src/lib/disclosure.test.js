@@ -81,19 +81,25 @@ test('the copy parser actually found the copy', () => {
 });
 
 /**
- * Every interaction the map found reachable against an unclaimed target.
- * `done: false` entries are scoped and not yet wired — they are listed so the
- * remaining work is visible in the suite rather than only in a document.
+ * Every interaction reachable against an unclaimed target, per the corrected
+ * interaction map. N2 is complete when all of these are wired.
+ *
+ * The LINEUP FOLLOW was on the first draft of the map and has been REMOVED:
+ * it is not reachable. EventScreen gates the whole public row (Follow, socials,
+ * View Full Profile) on `claim?.user_id`, and that value is
+ * lineup_members.artist_id, which FillSlotModal writes as `prof.user_id` —
+ * NULL for every unclaimed profile. So the row never renders for an unclaimed
+ * performer. The follow-state effect and the notification write guard on the
+ * same value. Disclosure there would be dead UI that can never appear.
  */
 const REQUIRED_SITES = [
-  { file: 'screens/ProfileScreen.jsx',      context: 'follow', done: true,  note: 'Follow — the only action reachable today that holds a notification' },
-  { file: 'screens/EventScreen.jsx',        context: 'apply',  done: false, note: 'APPLY TO PLAY — needs the event owner profile row loaded first' },
-  { file: 'screens/EventScreen.jsx',        context: 'follow', done: false, note: 'lineup follow — needs a canonical profiles row, not the synthetic claim object' },
-  { file: 'components/FillSlotModal.jsx',   context: 'slot',   done: false, note: 'host adds an unclaimed performer to a slot' },
+  { file: 'screens/ProfileScreen.jsx',      context: 'follow', note: 'Follow — the one action that reaches an unclaimed profile and holds a notification' },
+  { file: 'screens/EventScreen.jsx',        context: 'apply',  note: 'APPLY TO PLAY — never gated on the owner\'s claim state' },
+  { file: 'components/FillSlotModal.jsx',   context: 'slot',   note: 'host adds an unclaimed performer to a slot; no invite goes out' },
 ];
 
-test('every wired disclosure site renders UnclaimedNotice', () => {
-  for (const site of REQUIRED_SITES.filter(s => s.done)) {
+test('every disclosure site renders UnclaimedNotice', () => {
+  for (const site of REQUIRED_SITES) {
     const src = readFileSync(join(SRC, site.file), 'utf8');
     assert.match(src, /import UnclaimedNotice from/, `${site.file} must import UnclaimedNotice`);
     assert.match(

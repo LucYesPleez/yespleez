@@ -44,8 +44,8 @@ Legend — **Reachable**: can a user perform this against an unclaimed target to
 | # | Interaction | Site | Reachable when target unclaimed | Notifies | Disclosure | Verdict |
 |---|---|---|---|---|---|---|
 | **A** | **Follow a profile** | `ProfileScreen.jsx:374` insert · `:397` notify · button `:727` | ✅ **YES** — the Follow button is gated only on `followBusy \|\| !session`, never on claim state | ✅ **Held** since N1 | ❌ **none** | **`N2` REQUIRED — the live gap** |
-| **B** | **Apply to an event** | `EventScreen.jsx:1201` insert · button `:1215` · render guard `:507` | ✅ **YES** — gated only on `!effectiveIsHost && !isGuest && event.applications_open`. **Never on the event owner's claim state.** Studio-imported events owned by unclaimed profiles are applyable today | ❌ **no notification at all** — `submit()` inserts the row and stops | ❌ none | **`N2` REQUIRED** |
-| **C** | **Follow a performer from an event lineup** | `EventScreen.jsx:1519` | ✅ YES — no claim gate | ❌ none — unlike A, this path never calls `writeNotification` | ❌ none | **`N2` REQUIRED + N1 gap (§2)** |
+| **B** | **Apply to an event** | `EventScreen.jsx:1201` insert · button `:1215` · render guard `:507` | ⚠️ **Code path ungated** — gated only on `!effectiveIsHost && !isGuest && event.applications_open`, **never on the event owner's claim state**. But **NOT live today**: see correction C2 in §6 | ❌ **no notification at all** — `submit()` inserts the row and stops | ❌ none | **`N2` REQUIRED (defensive)** |
+| **C** | ~~Follow a performer from an event lineup~~ | `EventScreen.jsx:1519` | 🚫 **NOT REACHABLE** — corrected, see C1 in §6 | ❌ none | n/a | **No disclosure — dead UI** |
 | **D** | **Add a performer to a slot** | `FillSlotModal.jsx:38-41` | ✅ YES — selects profiles by `user_id`, which is NULL for unclaimed | ❌ none | ❌ none | **`N2` REQUIRED (host-facing)** |
 | **E** | **Enquire — venue profile** (CHECK AVAILABILITY) | `ProfileScreen.jsx:755` | 🚫 **HIDDEN** by `isVenue && !isUnclaimed` | n/a | n/a — action absent | **Spec divergence (§3)** |
 | **F** | **Enquire — performer profile** (CHECK AVAILABILITY) | `ProfileScreen.jsx:784` | 🚫 **HIDDEN** by `isPerformer && !isUnclaimed` | n/a | n/a | **Spec divergence (§3)** |
@@ -147,3 +147,82 @@ answer. Rows C and D are exactly those paths.
    does **not** appear on a claimed profile.
 3. Confirm no claimed-profile flow changed: A/B/C/D must be byte-identical when the target is
    claimed.
+
+---
+
+## 6 · Corrections found during implementation
+
+The audit was written from reading; implementing it disproved two of its claims. Both are
+recorded rather than quietly edited, because both were wrong in the direction that overstates
+risk — and an audit that silently revises itself cannot be trusted the next time.
+
+### C1 · The lineup follow (row C) is NOT reachable. Disclosure there would be dead UI.
+
+The map said "no claim gate". The gate exists, indirectly. `EventScreen.jsx:1516` wraps the
+entire public row — Follow, socials, View Full Profile — in `{claim?.user_id && (`. That value
+is `lineup_members.artist_id`, which `FillSlotModal.jsx:42` writes as `prof.user_id` — **NULL
+for every unclaimed profile**. The follow-state effect (`:1349`) and the notification write
+(`:289`) guard on the same value.
+
+So an unclaimed performer's lineup card renders no Follow button at all. Row C was removed from
+the required sites rather than wired, and `disclosure.test.js` records why so nobody adds it back.
+
+This also **resolves F1**: the profile follow and the lineup follow do not disagree about holding
+notifications, because the lineup follow cannot run against an unclaimed target in the first place.
+
+### C2 · Applying to an unclaimed owner's event is not a LIVE exposure yet.
+
+The map said "Studio-imported events owned by unclaimed profiles are applyable today." The code
+path is genuinely ungated — that part stands — but **no such event exists**. Probed live
+2026-07-20: every row in `events` carries the same `owner_profile_id`
+(`4bdb2004…`, the **claimed** platform profile "YesPleez", `user_id 94a88288…`). Phase 16
+assigned all 24 events to it.
+
+The disclosure is therefore correct and currently dormant. It becomes live at **custodial
+publication (M7)**, when events are assigned to unclaimed venue and host profiles — which is
+exactly when it must already be in place. Implemented for that reason, not because it fires today.
+
+### C3 · `FillSlotModal` collided React keys on unclaimed profiles.
+
+`key={prof.user_id}` — NULL for every unclaimed profile, so two unclaimed results in one search
+shared the same null key. Fixed to `prof.id`. Not a disclosure change; it is the same code path,
+and the defect appears precisely in the rows this milestone exists to surface.
+
+---
+
+## 7 · Final audit — remaining undisclosed interactions
+
+Re-run after implementation. **Result: none.**
+
+| Interaction | Status |
+|---|---|
+| Follow a profile | ✅ disclosed (`ProfileScreen`) |
+| Apply to an event | ✅ disclosed (`EventScreen`, dormant until M7 — C2) |
+| Add a performer to a slot | ✅ disclosed (`FillSlotModal`) |
+| Follow from a lineup | 🚫 unreachable — C1 |
+| Enquire (venue / performer) | 🚫 hidden by `!isUnclaimed`; deferred as its own milestone (§3) |
+| Message | 🚫 hidden, and unbuilt |
+| Follow an event | ➖ deliberately excluded — F5 |
+| Accept / decline an invite | 🚫 an unclaimed venue cannot have sent one |
+| Shortlist / decline an applicant | 🚫 an applicant is always a real account |
+
+**One trap for whoever extends this.** `FillSlotModal.jsx:146` (the ACCEPTED list) calls
+`fillFromProfile({ user_id: app.artist_id, … })` — a **synthetic object**, not a profiles row.
+It carries a `user_id` key whose value is a different column, so passing it to
+`isProfileUnclaimed()` would compile, run, and return a confidently wrong answer. It needs no
+disclosure today because accepted applicants are always real accounts, but do not add one there
+without attaching the resolved profile row first.
+
+### Verification performed
+
+- **Live, real data:** unclaimed Farfetchd shows badge + notice + Follow; claimed Heffekt
+  (artist) and Elbows Rest (venue) show Follow with **no** badge and **no** notice. Computed
+  style confirmed DM Sans 12px in `--muted`, centred, no overflow.
+- **`FillSlotModal`'s exact search query** replicated against production: returns Farfetchd with
+  `user_id: null` and a real `id` — a canonical row `isProfileUnclaimed()` answers true for.
+- **Not driven end to end:** the FillSlot modal itself and the apply panel were not opened in a
+  browser. The apply panel is unreachable for the signed-in account (it owns every event, so
+  `effectiveIsHost` hides it) and no unclaimed-owned event exists to test against (C2). Both are
+  covered by the contract test and by the live proof that the shared component renders correctly
+  for exactly this row shape — but neither was observed rendering in situ, and that gap is
+  stated rather than papered over.

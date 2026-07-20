@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import UnclaimedNotice from './UnclaimedNotice';
 import { supabase } from '../lib/supabase';
 
 export default function FillSlotModal({ slot, eventId, eventName = '', hostId, acceptedArtists = [], acceptedProfiles = {}, onFilled, onClose }) {
@@ -155,15 +156,30 @@ export default function FillSlotModal({ slot, eventId, eventName = '', hostId, a
             <div>
               <SearchInput value={query} onChange={setQuery} placeholder="Search by name…" autoFocus />
               {busy && <Empty>Searching…</Empty>}
+              {/* N2 · host-facing disclosure at the point of choosing. This
+                  search has no claim filter (only `.neq('type','punter')`), so
+                  unclaimed profiles are selectable — and `fillFromProfile`
+                  writes `artist_id: prof.user_id`, which is NULL for them. The
+                  performer lands on the lineup and no invitation goes out, so
+                  a host who is not told will wait for a reply nobody was asked
+                  for. `prof` is a canonical profiles row from the query above,
+                  which is what isProfileUnclaimed requires.
+
+                  key is `prof.id`, not `prof.user_id`: user_id is NULL for
+                  every unclaimed profile, so two of them in one result set
+                  collided on the same null key — precisely the rows this
+                  disclosure exists to surface. */}
               {!busy && results.map(prof => (
-                <ArtistRow
-                  key={prof.user_id}
-                  avatar={prof.avatar}
-                  name={prof.name}
-                  sub={prof.sound || prof.genre_string || ''}
-                  disabled={busy}
-                  onSelect={() => fillFromProfile(prof)}
-                />
+                <div key={prof.id ?? prof.user_id}>
+                  <ArtistRow
+                    avatar={prof.avatar}
+                    name={prof.name}
+                    sub={prof.sound || prof.genre_string || ''}
+                    disabled={busy}
+                    onSelect={() => fillFromProfile(prof)}
+                  />
+                  <UnclaimedNotice profile={prof} context="slot" />
+                </div>
               ))}
               {!busy && query && results.length === 0 && (
                 <div style={{ textAlign: 'center', padding: '24px 0' }}>
