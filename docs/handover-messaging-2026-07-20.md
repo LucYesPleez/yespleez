@@ -1,7 +1,10 @@
 # Messaging (M8) — implementation handover, 20 Jul 2026
 
-For a fresh session. **Messaging is under construction.** Five layers are applied and verified in
-production. The database side is COMPLETE; the next work is the send/receive client flow.
+For a fresh session. **Messaging is under construction.** The database side is COMPLETE and verified
+in production (M8a–M8e). The client service layer and both screens are BUILT (M8f, M8g).
+
+**Start here:** the inbox has **no entry point** — nothing in the app links to `/messages` — and the
+**authenticated data path has never been exercised**. See §3d.
 
 Every claim here was verified against the live database. Where something is unverified it says so.
 
@@ -259,16 +262,48 @@ function is.
   sender is *claimed*, so it must not fall through to the held branch. Verification block 2b exists
   solely to catch that inversion.
 
-### Next — the send/receive client flow
+---
 
-The database side is complete. Sending is `INSERT INTO messages`; everything else (last_message_at,
-notifications, fan-out, preferences) happens by trigger. Reading is a plain select under RLS.
+## 3d · M8f / M8g — client layer and UI (BUILT, partly unverified)
 
-Remaining before UI: a client service layer over these primitives, mirroring `writeNotification.js`
-as *the one place* messages are sent — the same consolidation that file's header describes, applied
-before the fifteen call sites exist rather than after.
+| Piece | File | State |
+|---|---|---|
+| Service layer | `v2/src/lib/messaging.js` | built, 16 unit tests |
+| Inbox | `v2/src/screens/InboxScreen.jsx` | route `/messages` |
+| Thread | `v2/src/screens/ConversationScreen.jsx` | route `/messages/:id` |
 
-**Still open, and needed before the inbox UI:** the archived-vs-badge tension in §3b.
+**`lib/messaging.js` is the ONE place messages are sent and read**, written before the call sites
+exist. `writeNotification.js`'s header records what the late version of that consolidation cost:
+fifteen write paths, and the sixteenth missed every change.
+
+- **`sendMessage` takes no `fromUserId`.** Attribution is the caller's choice; the audit identity
+  comes from the session, always (§A3). M8b would reject a forged one anyway — but an API that
+  accepts a value it then polices is an API inviting the bug.
+- **No notification write on send.** `notify_new_message` already fanned out per human. A client
+  write would double-notify *and* be the wrong shape. Locked by test.
+- **No screen asks an ownership question.** `actableProfileIds` / `resolveSenderProfile` ask
+  `can_act_as` (§A4). A client-side `profiles.user_id === session.user.id` works today and silently
+  becomes wrong at multi-owner while still returning an answer.
+- **Composer is disabled, not hidden**, when no profile can speak — §4.4 `restricted` and
+  "a profile you no longer own" are real states; removing the box reads as a bug.
+
+**ARCHIVED STILL COUNTS — owner ruling, 20 Jul 2026.** The §3b tension is CLOSED. Archived threads
+sink and dim in the list, but never leave it and never leave the unread count, because the
+alternative can silently hide a booking enquiry. Archive is read from the caller's OWN participant
+row (§2.6 makes it per-profile).
+
+### ⚠ Two gaps — do these first
+
+1. **The inbox is unreachable.** Nothing links to `/messages`. `BottomNav` has four tabs and adding
+   a fifth is a navigation design change, **needs the owner**. Options: fifth tab; an entry from My
+   Scene; or deep-linking `new_message` notifications into the thread — those rows already carry
+   `conversation_id` in `data`. Recommendation was deep-link + My Scene entry, leaving the nav alone.
+2. **The authenticated data path has NEVER been exercised.** Verification ran as a GUEST on port
+   5199 (another session held 5173, and a different port is a different origin, so the signed-in
+   preview session did not carry). That proves the routes mount and render; it proves **nothing**
+   about RLS reads, `can_act_as` resolution, real unread counts, or an actual send. The unit tests
+   cannot cover this — they stub Supabase, so they cannot catch an argument that is never passed.
+   **Sign in and send one real message before trusting any of it.**
 
 ---
 
@@ -348,9 +383,10 @@ Not blockers; recorded so they are not rediscovered.
 
 ## 7 · Suggested first message
 
-> Read `docs/handover-messaging-2026-07-20.md`. M8a–M8e are applied and verified; the database side
-> of Messaging is complete. Build the send/receive client flow — one service module over the
-> primitives, tested, before any UI.
+> Read `docs/handover-messaging-2026-07-20.md`. M8a–M8g are built; the database side is applied and
+> verified. Do §3d's two gaps: sign in and exercise the real authenticated path end to end (send one
+> message, confirm the notification row and the unread count), then wire an entry point to
+> `/messages` — I'll decide which of the three options.
 
 Remember that **you cannot apply or verify SQL yourself** (§5) — migrations are applied by the owner
 by hand. Write the migration, then hand over a runbook the owner can paste with no substitutions,
