@@ -6,6 +6,7 @@ import { getPersonalProfileId, getPerformerProfiles } from '../lib/actingProfile
 import { writeNotification, writeNotifications } from '../lib/writeNotification';
 import { useSession, usePlayer } from '../App';
 import { formatDateRange } from '../lib/dates';
+import { useShareTarget, shareUrl } from '../lib/shareTarget';
 import Skeleton from '../components/Skeleton';
 import ApplicationCard from '../components/ApplicationCard';
 import ProfileCard from '../components/ProfileCard';
@@ -168,6 +169,19 @@ export default function EventScreen() {
   });
 
   const event         = data?.event         || null;
+
+  // Resource-driven share (navigation & sharing architecture). This screen
+  // declares its own canonical payload; the header's Share button stays
+  // generic and needs no knowledge of events. The URL is built from the
+  // event id rather than window.location.href, so the link is canonical
+  // regardless of how the visitor arrived.
+  useShareTarget(event ? {
+    type:    'event',
+    title:   event.name,
+    url:     shareUrl(`/event/${event.id ?? id}`),
+    preview: event.blurb || event.description || undefined,
+    access:  'public',
+  } : null);
   const claims        = data?.claims        || {};
   const lineupMembers  = data?.lineupMembers  || [];
   const memberPerfMap  = data?.memberPerfMap  || {};

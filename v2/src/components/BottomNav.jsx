@@ -2,14 +2,24 @@ import { useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import s from './BottomNav.module.css';
 
+/**
+ * THE PERMANENT BOTTOM NAVIGATION. Five tabs, fixed by the navigation
+ * architecture. Adding or removing one is an architecture change, not a tweak.
+ *
+ * MESSAGES carries its own badge, and it is the ONLY surface for conversation
+ * activity — message notifications, voice notes, images, attachments. The
+ * notification bell in GlobalHeader carries application activity and must never
+ * show conversation activity. See lib/conversationNotifications.js.
+ */
 const TABS = [
   { id: 'my-scene',  label: 'MY SCENE',  path: '/my-scene',  Icon: MySceneIcon },
   { id: 'whats-on', label: "WHAT'S ON",  path: '/',          Icon: CalendarIcon },
   { id: 'discover', label: 'DISCOVER',   path: '/discover',  Icon: SearchIcon },
+  { id: 'messages', label: 'MESSAGES',   path: '/messages',  Icon: MessagesIcon },
   { id: 'industry', label: 'INDUSTRY',   path: '/industry',  Icon: IndustryIcon },
 ];
 
-export default function BottomNav({ activeTab, onTabPress }) {
+export default function BottomNav({ activeTab, onTabPress, messagesBadge = 0 }) {
   const navigate = useNavigate();
   const navRef = useRef(null);
 
@@ -41,11 +51,29 @@ export default function BottomNav({ activeTab, onTabPress }) {
           className={activeTab === id ? s.tabActive : s.tab}
           onClick={() => handlePress(id, path)}
         >
-          <span className={s.iconWrap}><Icon /></span>
+          <span className={s.iconWrap} style={{ position: 'relative' }}>
+            <Icon />
+            {id === 'messages' && messagesBadge > 0 && (
+              <span
+                aria-label={`${messagesBadge} unread messages`}
+                style={{ position: 'absolute', top: -4, right: -8, minWidth: 16, height: 16, borderRadius: 8, background: '#FF3B30', color: '#fff', fontSize: 10, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1, padding: '0 3px', boxSizing: 'border-box', fontFamily: 'DM Sans, sans-serif' }}
+              >
+                {messagesBadge > 9 ? '9+' : messagesBadge}
+              </span>
+            )}
+          </span>
           <span className={s.label}>{label}</span>
         </button>
       ))}
     </nav>
+  );
+}
+
+function MessagesIcon() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
+    </svg>
   );
 }
 

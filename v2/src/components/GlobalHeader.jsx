@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import s from './GlobalHeader.module.css';
 import NotifPanel from './NotifPanel';
+import ShareSheet from './ShareSheet';
+import { useCurrentShareTarget, pageFallback } from '../lib/shareTarget';
 
 const INFO = {
   '/': {
@@ -48,6 +50,8 @@ export default function GlobalHeader({ onMarkRead, unreadCount = 0 }) {
   const location    = useLocation();
   const [infoOpen,  setInfoOpen]  = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+  const shareTarget = useCurrentShareTarget();
 
   const info = INFO[location.pathname] || FALLBACK;
 
@@ -55,16 +59,15 @@ export default function GlobalHeader({ onMarkRead, unreadCount = 0 }) {
     if (window.history.length > 1) navigate(-1);
   }
 
-  // Header share utility (11C.1): shares the current page — on a profile route
-  // that's the canonical /profile/<id> URL. Native share sheet where available,
-  // clipboard copy as fallback. Pure client-side; no backend, no page context
-  // needed. The info sheets already advertise this icon ("Share … with the
-  // share icon in the top right"); it simply had no handler until now.
+  // SHARE IS RESOURCE-DRIVEN and this button stays generic. It renders
+  // whatever the mounted screen declared via useShareTarget — never a
+  // screen-specific branch, and never window.location.href, which is only
+  // where you happened to arrive rather than the resource's canonical address.
+  //
+  // A screen that declares nothing falls back to the page, so nothing breaks;
+  // but a screen representing a shareable resource should always declare.
   function handleShare() {
-    const url   = window.location.href;
-    const title = document.title || 'YesPleez';
-    if (navigator.share) { navigator.share({ title, url }).catch(() => {}); }
-    else if (navigator.clipboard) { navigator.clipboard.writeText(url).catch(() => {}); }
+    setShareOpen(true);
   }
 
   return (
@@ -78,7 +81,24 @@ export default function GlobalHeader({ onMarkRead, unreadCount = 0 }) {
 
         <div className={s.ypTag}>YESPLEEZ</div>
 
+        {/* Standard top bar order: Back · logo · Share · Info · bell. */}
         <div className={s.actions} style={{ position: 'relative' }}>
+          <button className={s.iconBtn} onClick={handleShare} aria-label="Share">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+              <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
+              <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+            </svg>
+          </button>
+
+          <button className={s.iconBtn} onClick={() => setInfoOpen(true)} aria-label="Info">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="12" y1="8" x2="12" y2="8.01"/>
+              <polyline points="11 12 12 12 12 16"/>
+            </svg>
+          </button>
+
           <button
             className={s.iconBtn}
             onClick={() => { setPanelOpen(v => !v); setInfoOpen(false); }}
@@ -101,22 +121,15 @@ export default function GlobalHeader({ onMarkRead, unreadCount = 0 }) {
               onMarkAll={() => { if (onMarkRead) onMarkRead(); }}
             />
           )}
-          <button className={s.iconBtn} onClick={() => setInfoOpen(true)} aria-label="Info">
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="10"/>
-              <line x1="12" y1="8" x2="12" y2="8.01"/>
-              <polyline points="11 12 12 12 12 16"/>
-            </svg>
-          </button>
-          <button className={s.iconBtn} onClick={handleShare} aria-label="Share">
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
-              <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
-              <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
-            </svg>
-          </button>
         </div>
       </div>
+
+      {shareOpen && (
+        <ShareSheet
+          target={shareTarget ?? pageFallback()}
+          onClose={() => setShareOpen(false)}
+        />
+      )}
 
       {/* Info sheet */}
       <div className={infoOpen ? s.infoOverlayOpen : s.infoOverlay}>

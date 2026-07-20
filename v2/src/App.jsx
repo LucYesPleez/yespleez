@@ -25,6 +25,12 @@ import ApplicationsScreen from './screens/ApplicationsScreen';
 import NotificationsScreen from './screens/NotificationsScreen';
 import InboxScreen from './screens/InboxScreen';
 import ConversationScreen from './screens/ConversationScreen';
+import AccessRequiredScreen from './screens/AccessRequiredScreen';
+import { ShareTargetProvider } from './lib/shareTarget';
+import { totalUnread } from './lib/messaging';
+import {
+  conversationNotificationTypes, isConversationActivity, KNOWN_CONVERSATION_TYPES,
+} from './lib/conversationNotifications';
 import IndustryPanel from './components/IndustryPanel';
 import GlobalHeader from './components/GlobalHeader';
 import RoleSelectorScreen from './screens/RoleSelectorScreen';
@@ -48,6 +54,7 @@ export const PlayerCtx = createContext(null);
 export function usePlayer() { return useContext(PlayerCtx); }
 
 function tabFromPath(pathname) {
+  if (pathname.startsWith('/messages'))  return 'messages';
   if (pathname.startsWith('/discover'))  return 'discover';
   if (pathname.startsWith('/my-scene'))  return 'my-scene';
   if (pathname.startsWith('/industry'))  return 'industry';
@@ -62,11 +69,20 @@ function Shell({ session, isGuest, onSignOut }) {
   const [industryOpen, setIndustryOpen] = useState(false);
   const [player, setPlayer] = useState(null); // { url, artistName }
   const [unreadCount, setUnreadCount] = useState(0);
+  const [messagesBadge, setMessagesBadge] = useState(0);
   const pollRef = useRef(null);
   const activeTab = tabFromPath(location.pathname);
 
   useEffect(() => {
     if (!session) return;
+
+    // Navigation architecture: conversation activity NEVER increments the
+    // bell. It updates the MESSAGES badge only. The excluded types are read
+    // from the policy table rather than hardcoded, so voice notes, images and
+    // attachments join the rule by being categorised — see
+    // lib/conversationNotifications.js.
+    let conversationTypes = KNOWN_CONVERSATION_TYPES;
+
     async function fetchUnread() {
       const { count } = await supabase
         .from('notifications')
@@ -78,19 +94,36 @@ function Shell({ session, isGuest, onSignOut }) {
         // NP1: a muted notification is written and kept, but never counted.
         // Preferences govern delivery, never existence.
         .is('suppressed_at', null)
-        .eq('read', false);
+        .eq('read', false)
+        .not('type', 'in', `(${conversationTypes.join(',')})`);
       setUnreadCount(count || 0);
     }
-    fetchUnread();
-    // Realtime subscription for instant badge updates
+
+    // §5.6 — ONE counting rule for messages, shared by every surface. The nav
+    // badge calls the same function the inbox and each thread call, so they
+    // cannot disagree.
+    async function fetchMessages() {
+      const { count } = await totalUnread();
+      setMessagesBadge(count || 0);
+    }
+
+    (async () => {
+      conversationTypes = await conversationNotificationTypes();
+      fetchUnread();
+      fetchMessages();
+    })();
+
+    // Realtime. An inserted row bumps exactly one badge, never both.
     const channel = supabase
       .channel('notif-badge')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `to_user_id=eq.${session.user.id}` }, () => {
-        setUnreadCount(c => c + 1);
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `to_user_id=eq.${session.user.id}` }, ({ new: row }) => {
+        if (isConversationActivity(row, conversationTypes)) fetchMessages();
+        else setUnreadCount(c => c + 1);
       })
       .subscribe();
+
     // Fallback poll every 60s
-    pollRef.current = setInterval(fetchUnread, 60000);
+    pollRef.current = setInterval(() => { fetchUnread(); fetchMessages(); }, 60000);
     return () => {
       supabase.removeChannel(channel);
       clearInterval(pollRef.current);
@@ -103,12 +136,16 @@ function Shell({ session, isGuest, onSignOut }) {
       return;
     }
     setIndustryOpen(false);
-    const paths = { 'whats-on': '/', 'discover': '/discover', 'my-scene': '/my-scene' };
+    const paths = {
+      'whats-on': '/', 'discover': '/discover', 'my-scene': '/my-scene',
+      'messages': '/messages',
+    };
     navigate(paths[tabId] || '/');
   }
 
   return (
     <PlayerCtx.Provider value={{ player, setPlayer }}>
+      <ShareTargetProvider>
       {location.pathname !== '/role-select' && (
         <GlobalHeader
           unreadCount={unreadCount}
@@ -126,6 +163,7 @@ function Shell({ session, isGuest, onSignOut }) {
         <Route path="/notifications"          element={<NotificationsScreen />} />
         <Route path="/messages"               element={<InboxScreen />} />
         <Route path="/messages/:id"           element={<ConversationScreen />} />
+        <Route path="/access-required"        element={<AccessRequiredScreen />} />
         <Route path="/industry/artist"   element={<ArtistDashboard />} />
         <Route path="/industry/venue"    element={<VenueDashboard />} />
         <Route path="/industry/venue/setup"  element={<VenueProfileScreen />} />
@@ -144,6 +182,7 @@ function Shell({ session, isGuest, onSignOut }) {
       <BottomNav
         activeTab={industryOpen ? 'industry' : activeTab}
         onTabPress={handleTabPress}
+        messagesBadge={messagesBadge}
       />
 
       {/* Global mini player — persists across navigation */}
@@ -200,6 +239,7 @@ function Shell({ session, isGuest, onSignOut }) {
         isGuest={isGuest}
         onSignOut={onSignOut}
       />
+      </ShareTargetProvider>
     </PlayerCtx.Provider>
   );
 }
