@@ -309,6 +309,7 @@ export default function ConversationView({ conversationId, compact = false, onMi
       <div
         ref={scrollRef}
         onScroll={onScroll}
+        className="yp-noscrollbar"
         style={{ flex: 1, overflowY: 'auto', padding: '22px 18px 8px', minHeight: 0 }}
       >
         {loading && (

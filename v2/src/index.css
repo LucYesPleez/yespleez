@@ -145,3 +145,16 @@ input, textarea, select {
     color-mix(in srgb, var(--neon) 22%, transparent),
     color-mix(in srgb, var(--neon2) 16%, transparent));
 }
+
+/* Scrollable surfaces that should not show a scrollbar — the conversation
+   thread in particular. The content still scrolls by wheel, touch, keyboard
+   and programmatic scrollTop; only the visible track is suppressed, so
+   ConversationView's scroll restoration and atBottom maths are unaffected. */
+.yp-noscrollbar {
+  scrollbar-width: none;        /* Firefox */
+  -ms-overflow-style: none;     /* legacy Edge */
+}
+.yp-noscrollbar::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
