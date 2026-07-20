@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { supabase } from '../lib/supabase';
 import { useSession } from '../App';
 import {
   listMessages, listParticipants, actableProfileIds,
@@ -49,8 +50,10 @@ export default function ConversationView({ conversationId, compact = false, onMi
   const [sending, setSending]      = useState(false);
   const [error, setError]          = useState(null);
   const [loading, setLoading]      = useState(true);
+  const [pendingNew, setPendingNew] = useState(0);
   const scrollRef = useRef(null);
   const inputRef  = useRef(null);
+  const atBottomRef = useRef(true);
 
   // Restore the draft when the drawer swaps to a different conversation.
   useEffect(() => {
@@ -110,17 +113,80 @@ export default function ConversationView({ conversationId, compact = false, onMi
     return () => { cancelled.current = true; };
   }, [session, conversationId, patch]);
 
-  // Restore scroll, or stick to the bottom on new messages.
+  /**
+   * REAL-TIME. Subscribes to inserts on THIS conversation only.
+   *
+   * Dedupes by message id, which matters because the sender receives their own
+   * insert back: onSend already appended it optimistically, so without the
+   * guard every message you send would appear twice.
+   *
+   * RLS applies to realtime as it does to reads, so a non-participant receives
+   * nothing — the filter below is a narrowing, not the security boundary.
+   */
+  useEffect(() => {
+    if (!session || !conversationId) return undefined;
+
+    const channel = supabase
+      .channel(`messages:${conversationId}`)
+      .on('postgres_changes', {
+        event: 'INSERT', schema: 'public', table: 'messages',
+        filter: `conversation_id=eq.${conversationId}`,
+      }, ({ new: row }) => {
+        setMessages(prev => {
+          if (prev.some(m => m.id === row.id)) return prev;   // dedupe
+          return [...prev, row];
+        });
+
+        const isOwn = row.from_user_id === session.user.id;
+        if (!isOwn) {
+          if (atBottomRef.current) {
+            // Reading at the bottom: the watermark should follow.
+            markConversationRead(conversationId);
+          } else {
+            // Scrolled up reading history — do NOT yank them to the bottom.
+            // Surface an indicator and let them choose.
+            setPendingNew(n => n + 1);
+          }
+        }
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [session, conversationId]);
+
+  // Restore saved scroll on open; afterwards only follow new messages if the
+  // reader is already at the bottom. Forcing scroll while someone reads older
+  // messages is the classic chat defect this guards against.
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
     const saved = getState(conversationId).scrollTop;
-    el.scrollTop = saved ?? el.scrollHeight;
+    if (saved != null && atBottomRef.current === false) { el.scrollTop = saved; return; }
+    if (atBottomRef.current) el.scrollTop = el.scrollHeight;
+    else if (saved != null) el.scrollTop = saved;
   }, [messages.length, conversationId, getState]);
 
   function onScroll() {
     const el = scrollRef.current;
-    if (el) patch(conversationId, { scrollTop: el.scrollTop });
+    if (!el) return;
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+    atBottomRef.current = atBottom;
+    patch(conversationId, { scrollTop: el.scrollTop });
+    if (atBottom && pendingNew > 0) {
+      setPendingNew(0);
+      markConversationRead(conversationId);
+      patch(conversationId, { unread: 0 }, true);
+    }
+  }
+
+  function jumpToLatest() {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+    atBottomRef.current = true;
+    setPendingNew(0);
+    markConversationRead(conversationId);
+    patch(conversationId, { unread: 0 }, true);
   }
 
   function onDraftChange(value) {
@@ -204,6 +270,18 @@ export default function ConversationView({ conversationId, compact = false, onMi
           <MessageBubble key={m.id} message={m} isMine={mine.has(m.from_profile_id)} />
         ))}
       </div>
+
+      {/* Arrives only when a message lands while the reader is scrolled up.
+          An indicator rather than a forced scroll — see the realtime effect. */}
+      {pendingNew > 0 && (
+        <button
+          type="button"
+          onClick={jumpToLatest}
+          style={{ position: 'relative', alignSelf: 'center', marginTop: -34, marginBottom: 8, border: 'none', borderRadius: 999, padding: '7px 16px', fontSize: 12, fontWeight: 600, cursor: 'pointer', background: 'linear-gradient(135deg, #00E5FF, #BF5FFF)', color: '#000', boxShadow: '0 4px 14px rgba(0,0,0,.4)' }}
+        >
+          {pendingNew} new message{pendingNew > 1 ? 's' : ''} ↓
+        </button>
+      )}
 
       {error && (
         <div role="alert" style={{ color: 'var(--neon)', fontSize: 12, padding: '4px 16px' }}>{error}</div>
