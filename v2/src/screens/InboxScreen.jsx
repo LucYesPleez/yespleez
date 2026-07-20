@@ -85,9 +85,12 @@ export default function InboxScreen() {
         const mates = participants.filter(p => p.conversation_id === c.id);
         // §2.2 — a conversation is a relationship; show the OTHER party.
         const others = mates.filter(p => !mine.has(p.profile_id));
+        // Which of MY profiles is in this thread. Without it, three
+        // conversations with the same artist render as three identical rows.
+        const asProfile = mates.find(p => mine.has(p.profile_id))?.profiles ?? null;
         // Archived is per-participant, so it is MY participant row that decides.
         const isArchived = mates.some(p => mine.has(p.profile_id) && p.archived_at);
-        return { ...c, others, isArchived, unread: countBy[c.id] ?? 0 };
+        return { ...c, others, asProfile, isArchived, unread: countBy[c.id] ?? 0 };
       });
 
       // Archived sinks, but is never removed — and its unread still counts.
@@ -164,9 +167,31 @@ export default function InboxScreen() {
                 </div>
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 6 }}>
-                <div style={{ color: 'var(--text)', fontSize: 15, fontWeight: c.unread > 0 ? 600 : 400 }}>
-                  {other?.profiles?.name ?? 'Unknown'}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 10 }}>
+                <span style={{ width: 46, height: 46, borderRadius: 999, flexShrink: 0, padding: 2, background: `linear-gradient(135deg, ${accent}, ${PROFILE_TYPES[other?.profiles?.type]?.accent2 ?? '#00E5FF'})`, display: 'flex' }}>
+                  <span style={{ width: '100%', height: '100%', borderRadius: 999, overflow: 'hidden', background: '#0d0d10', display: 'flex', alignItems: 'center', justifyContent: 'center', color: accent, fontFamily: "'Bebas Neue',sans-serif", fontSize: 17 }}>
+                    {(other?.profiles?.avatar_thumb || other?.profiles?.avatar || PROFILE_TYPES[other?.profiles?.type]?.defaultImage)
+                      ? <img src={other?.profiles?.avatar_thumb || other?.profiles?.avatar || PROFILE_TYPES[other?.profiles?.type]?.defaultImage} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      : (other?.profiles?.name ?? '?').slice(0, 1).toUpperCase()}
+                  </span>
+                </span>
+
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ color: 'var(--text)', fontSize: 16, fontWeight: c.unread > 0 ? 700 : 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {other?.profiles?.name ?? 'Unknown'}
+                  </div>
+                  {/* WHICH IDENTITY THIS THREAD IS FROM. Three conversations
+                      with the same artist are otherwise three identical rows. */}
+                  {c.asProfile && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 3 }}>
+                      <span style={{ fontSize: 9.5, letterSpacing: 1, color: 'rgba(255,255,255,.35)', fontFamily: "'Bebas Neue',sans-serif" }}>
+                        YOU ARE
+                      </span>
+                      <span style={{ fontSize: 12, color: '#D9A6FF', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {c.asProfile.name}
+                      </span>
+                    </div>
+                  )}
                 </div>
                 {c.unread > 0 && (
                   <div aria-label={`${c.unread} unread`} style={{ marginLeft: 'auto', minWidth: 20, height: 20, borderRadius: 999, background: 'var(--neon)', color: '#000', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 6px' }}>

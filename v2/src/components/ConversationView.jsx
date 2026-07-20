@@ -6,6 +6,7 @@ import {
   sendMessage, markConversationRead,
 } from '../lib/messaging';
 import { useConversationUi } from '../lib/conversationUi';
+import { PROFILE_TYPES } from '../lib/profileTypes';
 
 /**
  * ONE conversation, rendered identically in the DRAWER and in the FULL PAGE.
@@ -45,6 +46,11 @@ export default function ConversationView({ conversationId, compact = false, onMi
   const [messages, setMessages]    = useState([]);
   const [mine, setMine]            = useState(new Set());
   const [senderProfile, setSender] = useState(null);
+  // The FULL sending profile, not just its id — the header must state which
+  // identity is talking, and "you are messaging as" is meaningless without a
+  // name. This is the answer to "which profile am I messaging from?", which
+  // the user should never have to ask.
+  const [senderMeta, setSenderMeta] = useState(null);
   const [others, setOthers]        = useState([]);
   const [draft, setDraft]          = useState(() => getState(conversationId).draft || '');
   const [sending, setSending]      = useState(false);
@@ -90,8 +96,10 @@ export default function ConversationView({ conversationId, compact = false, onMi
       const { mine: mineSet } = await actableProfileIds(participants.map(p => p.profile_id));
       if (cancelled.current) return;
 
+      const mineRow = participants.find(p => mineSet.has(p.profile_id));
       setMine(mineSet);
-      setSender(participants.find(p => mineSet.has(p.profile_id))?.profile_id ?? null);
+      setSender(mineRow?.profile_id ?? null);
+      setSenderMeta(mineRow?.profiles ?? null);
 
       const otherParties = participants.filter(p => !mineSet.has(p.profile_id));
       setOthers(otherParties);
@@ -219,34 +227,75 @@ export default function ConversationView({ conversationId, compact = false, onMi
     await markConversationRead(conversationId);
   }
 
-  const title = others.map(o => o.profiles?.name).filter(Boolean).join(', ') || 'Conversation';
+  const title       = others.map(o => o.profiles?.name).filter(Boolean).join(', ') || 'Conversation';
+  const otherHead   = others[0]?.profiles ?? null;
+  const otherMeta   = PROFILE_TYPES[otherHead?.type] ?? {};
+  const otherAccent = otherMeta.accent  ?? '#BF5FFF';
+  const otherAccent2= otherMeta.accent2 ?? '#00E5FF';
+  const otherType   = otherMeta.label ?? otherHead?.type ?? '';
+  const otherAvatar = otherHead?.avatar_thumb || otherHead?.avatar || otherMeta.defaultImage;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
 
-      {compact && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
-          <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 16, letterSpacing: 1.5, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {title.toUpperCase()}
-          </div>
+      {/* HEADER — rendered in BOTH hosts, so the drawer and the full page
+          present the same conversation rather than two different ones. */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', borderBottom: '1px solid rgba(255,255,255,.07)', flexShrink: 0 }}>
+        {compact && (
           <button
             type="button"
             onClick={onMinimise}
             aria-label="Minimise conversation"
-            style={{ marginLeft: 'auto', background: 'none', border: '1px solid var(--border)', borderRadius: 999, color: 'var(--muted)', fontFamily: "'Bebas Neue',sans-serif", fontSize: 11, letterSpacing: 1.5, padding: '5px 12px', cursor: 'pointer' }}
+            style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,.55)', fontSize: 22, lineHeight: 1, cursor: 'pointer', padding: 0, flexShrink: 0 }}
           >
-            MINIMISE
+            ‹
           </button>
-        </div>
-      )}
+        )}
 
-      {/* Privacy line. Says PRIVATE, not "secure" — messages are not
+        <span style={{ width: 44, height: 44, borderRadius: 999, flexShrink: 0, padding: 2, background: `linear-gradient(135deg, ${otherAccent}, ${otherAccent2})`, display: 'flex' }}>
+          <span style={{ width: '100%', height: '100%', borderRadius: 999, overflow: 'hidden', background: '#0d0d10', display: 'flex', alignItems: 'center', justifyContent: 'center', color: otherAccent, fontFamily: "'Bebas Neue',sans-serif", fontSize: 17 }}>
+            {otherAvatar
+              ? <img src={otherAvatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              : title.slice(0, 1).toUpperCase()}
+          </span>
+        </span>
+
+        <span style={{ minWidth: 0, flex: 1 }}>
+          <span style={{ display: 'block', color: '#fff', fontSize: 17, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.2 }}>
+            {title}
+          </span>
+          <span style={{ display: 'block', color: 'rgba(255,255,255,.42)', fontSize: 12, marginTop: 1 }}>
+            {otherType}
+          </span>
+
+          {/* IDENTITY PILL — the answer to "which profile am I messaging
+              from?", always visible while the conversation is open. Two
+              conversations with the same recipient are indistinguishable
+              without it, and §2.1 makes the sending identity permanent, so
+              getting it wrong is not recoverable by switching. */}
+          {senderMeta && (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 6, padding: '3px 9px 3px 7px', borderRadius: 999, background: 'rgba(191,95,255,.13)', border: '1px solid rgba(191,95,255,.32)', maxWidth: '100%' }}>
+              <span style={{ fontSize: 9.5, letterSpacing: 1, color: 'rgba(255,255,255,.45)', fontFamily: "'Bebas Neue',sans-serif" }}>
+                TALKING AS
+              </span>
+              <span style={{ fontSize: 11.5, fontWeight: 600, color: '#D9A6FF', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {senderMeta.name}
+              </span>
+            </span>
+          )}
+        </span>
+      </div>
+
+      {/* Privacy strip. Says PRIVATE, not "secure" — messages are not
           end-to-end encrypted, and claiming otherwise would be a promise the
           system does not keep. What IS guaranteed: C29 (no AI, ever) and C32
-          (content never feeds ranking or recommendation). */}
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '8px 16px', fontSize: 11, color: 'var(--muted)', borderBottom: '1px solid var(--border)' }}>
-        <span aria-hidden="true">🔒</span>
-        <span>Private — only you and the participants in this conversation can see these messages.</span>
+          (content never feeds ranking or recommendation). Muted, never a
+          warning colour: this is reassurance, not an alert. */}
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'center', padding: '9px 16px', fontSize: 11.5, color: 'rgba(255,255,255,.34)', background: 'rgba(255,255,255,.025)', borderBottom: '1px solid rgba(255,255,255,.05)', flexShrink: 0 }}>
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" style={{ flexShrink: 0 }}>
+          <rect x="4" y="11" width="16" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" />
+        </svg>
+        <span>Private — only you and the participants can see these messages.</span>
       </div>
 
       <div

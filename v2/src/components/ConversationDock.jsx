@@ -68,7 +68,7 @@ export default function ConversationDock() {
       {/* ── The drawer ── */}
       {openId && (
         <div
-          style={{ position: 'fixed', inset: 0, zIndex: 160, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', background: 'rgba(0,0,0,.5)' }}
+          style={{ position: 'fixed', inset: 0, zIndex: 160, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', background: 'rgba(0,0,0,.78)', backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)', animation: 'ypDockFade .28s ease-out' }}
           onClick={() => minimise(openId)}
         >
           <div
@@ -79,13 +79,23 @@ export default function ConversationDock() {
             onTouchEnd={onTouchEnd}
             style={{
               width: '100%', maxWidth: 560,
-              height: 'min(78dvh, 680px)',
-              background: 'var(--bg)',
-              border: '1px solid var(--border)',
-              borderRadius: '18px 18px 0 0',
+              height: 'min(94dvh, 900px)',
+              // OPAQUE, deliberately. The conversation is its own environment,
+              // not a pane of glass over the profile you came from — seeing a
+              // face through the thread undermines that it is a separate space.
+              // Charcoal with a slight gradient and a soft vignette, so it has
+              // depth without translucency.
+              background: `
+                radial-gradient(120% 70% at 50% 0%, rgba(191,95,255,.10), transparent 60%),
+                radial-gradient(100% 60% at 50% 100%, rgba(0,0,0,.55), transparent 60%),
+                linear-gradient(180deg, #17171B 0%, #121215 40%, #0E0E11 100%)
+              `,
+              border: '1px solid rgba(255,255,255,.08)',
+              borderRadius: '30px 30px 0 0',
               display: 'flex', flexDirection: 'column',
               overflow: 'hidden',
-              animation: 'ypDrawerUp .22s ease-out',
+              boxShadow: '0 -24px 70px rgba(0,0,0,.7)',
+              animation: 'ypDrawerUp .44s cubic-bezier(.16,1,.3,1)',
             }}
           >
             <ConversationView
@@ -107,7 +117,10 @@ export default function ConversationDock() {
             </div>
           </div>
 
-          <style>{`@keyframes ypDrawerUp { from { transform: translateY(12%); opacity: .6 } to { transform: translateY(0); opacity: 1 } }`}</style>
+          <style>{`
+            @keyframes ypDrawerUp { from { transform: translateY(100%) } to { transform: translateY(0) } }
+            @keyframes ypDockFade { from { opacity: 0 } to { opacity: 1 } }
+          `}</style>
         </div>
       )}
     </>

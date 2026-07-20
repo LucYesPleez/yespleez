@@ -241,7 +241,7 @@ export async function listParticipants(conversationIds) {
   if (!ids.length) return { participants: [], error: null };
   const { data, error } = await supabase
     .from('conversation_participants')
-    .select('conversation_id, profile_id, archived_at, profiles ( id, name, type )')
+    .select('conversation_id, profile_id, archived_at, profiles ( id, name, type, avatar_thumb, avatar )')
     .in('conversation_id', ids);
   return { participants: error ? [] : (data ?? []), error: error ?? null };
 }
