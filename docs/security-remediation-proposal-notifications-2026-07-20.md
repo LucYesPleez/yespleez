@@ -25,26 +25,29 @@ for — permits **only notes to oneself** and silently kills the subsystem. It m
 
 ---
 
-## Phase A · Close SEC-5 now — low risk, high confidence
+## ~~Phase A · Close SEC-5~~ — **CANCELLED. SEC-5 was a false positive.**
 
-```sql
--- PROPOSAL, NOT APPLIED
-ALTER POLICY "Users update own notifs" ON public.notifications
-  USING      (auth.uid() = to_user_id)
-  WITH CHECK (auth.uid() = to_user_id);
-```
+**Do not implement this phase.** SEC-5 was withdrawn on 2026-07-20, before implementation, when
+checking the exact semantics of an omitted `WITH CHECK`:
 
-Stops a user re-addressing a notification they own to somebody else.
+> If no `WITH CHECK` expression is defined, then the `USING` expression will be used both to
+> determine which rows are visible and which new rows will be allowed to be added.
+> — PostgreSQL, `CREATE POLICY`
 
-**Why this is safe:** the only thing the app ever updates on a notification is `read` (three
-sites) and `responded_at`. Neither changes `to_user_id`, so no client path is affected. The one
-statement that *does* change `to_user_id` is `deliver_held_notifications()`, which runs in the SQL
-editor under a privileged role that RLS does not constrain — and which the `USING` clause already
-excludes from app contexts anyway (a held row has `to_user_id IS NULL`, so it can never match).
+`auth.uid() = to_user_id` was therefore already being enforced on the post-update row. Proven by a
+rolled-back `SET ROLE authenticated` transaction, which returned
+`ERROR 42501: new row violates row-level security policy`.
 
-**Before applying:** SEC-6 means there are **two** identical UPDATE policies. Both must be
-altered, or the untouched one still permits the write and the fix will appear to work while
-changing nothing. This is exactly the trap SEC-6 describes.
+**Had this shipped as written it would have been a no-op that looked like a security fix** — the
+finding marked remediated, and nobody looking again. That is worse than leaving it open.
+
+`pg_policies` reports the **stored** definition. The **effective** policy is what Postgres
+evaluates, and for UPDATE the two differ exactly when `with_check` is null.
+
+**Residual, non-security:** writing the check explicitly would remove the reader-trap. That is
+schema documentation and belongs with the SEC-6 duplicate-policy cleanup, not here.
+
+Remediation now begins at Phase B.
 
 ---
 
@@ -124,17 +127,26 @@ that observation or deliberately supersede it.
 
 ## Recommendation
 
-**Phase A now** — small, verifiable, closes a confirmed hole, and the blast radius is understood.
+**Phase A is cancelled** — the vulnerability it addressed does not exist.
 
-**Phase B after the call-site audit**, as its own change with its own verification. Not bundled
-with A: if a notification stops being written, we need to know which change caused it.
+**Phase B only after the call-site audit.** With A gone, B is the first change that would actually
+alter behaviour, so it carries the whole risk on its own. The audit is not optional: if any call
+site writes a notice *about* a profile the writer does not own, the policy rejects a legitimate
+write at runtime, and `writeNotification()`'s return value is ignored at most call sites — so it
+fails invisibly.
 
-**Phase C as a scheduled milestone**, not squeezed in. It is the correct answer and it is also the
-one that can take the app down.
+**Phase C as a scheduled milestone**, not squeezed in. It is the correct answer and also the one
+that can take the app down.
 
-**Do not do all three at once.** The failure mode of every phase is the same — a legitimate write
-silently rejected, at a call site that ignores the error — and the only defence is changing one
-thing at a time.
+**Still one change at a time.** The failure mode of both remaining phases is identical — a
+legitimate write silently rejected at a call site that ignores the error.
+
+**A note on sequencing that SEC-5 changed:** the stated rationale for doing A first was to
+"establish the correct policy pattern before Messaging". That rationale is gone with the phase.
+The pattern worth carrying into Messaging is the one already in `profiles` and
+`notification_preferences` — the same expression in both `USING` and `WITH CHECK`, written
+explicitly — and it is worth writing explicitly there precisely because the implicit form misled a
+careful reader once already.
 
 ---
 

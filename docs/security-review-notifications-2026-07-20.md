@@ -176,24 +176,61 @@ change needed now.
 
 ---
 
-## SEC-5 · `notifications` UPDATE has no `WITH CHECK` — **MEDIUM, CONFIRMED**
+## SEC-5 · ~~`notifications` UPDATE has no `WITH CHECK`~~ — **WITHDRAWN, FALSE POSITIVE**
 
 ```
 Users update own notifs / users can update their own notifications
 cmd : UPDATE   qual : (auth.uid() = to_user_id)   with_check : null
 ```
 
-`qual` correctly restricts you to rows you already own. But with **no `with_check`**, nothing
-constrains the row *after* the update — so a user can take a notification they legitimately
-received and **re-address it to somebody else** by setting `to_user_id`.
+**I read `with_check = null` as "no check". It means "same as `USING`".** PostgreSQL's
+`CREATE POLICY` documentation is explicit:
 
-A second path into another person's feed, and a nastier one than SEC-1: it starts from a genuine
-notification rather than a fabricated one, so the content is authentic and only the recipient is
-forged.
+> If no `WITH CHECK` expression is defined, then the `USING` expression will be used both to
+> determine which rows are visible and which new rows will be allowed to be added.
 
-**This matters for the remediation.** A fix that only adds an INSERT `with_check` leaves this
-open. Both statements need constraining, and the `profiles` policy (SEC-4) is the model: the same
-expression in both `USING` and `WITH CHECK`.
+So `auth.uid() = to_user_id` is applied to the **post-update row** as well, and re-addressing a
+notification to another user was never possible.
+
+### Proven, not merely argued
+
+Run as the `authenticated` role inside a transaction, so it was fully reversible:
+
+```sql
+begin;
+  set local role authenticated;
+  set local request.jwt.claims = '{"sub":"<real user id>"}';
+  update public.notifications
+     set to_user_id = '<another user id>'
+   where to_user_id = '<real user id>';
+rollback;
+```
+
+```
+ERROR: 42501: new row violates row-level security policy for table "notifications"
+```
+
+The policy rejected the *new row* — which only happens if a `WITH CHECK` is in force. Confirmed.
+
+### Why this was worth catching before acting on it
+
+Phase A of the remediation proposal existed solely to fix this. Had it been implemented as a
+security fix it would have been a **no-op that appeared to close a vulnerability**, which is worse
+than doing nothing: the finding would have been recorded as remediated and nobody would have
+looked again.
+
+The error is the same shape as reading HTTP 200 as "deployed" or a green suite as "correct" —
+inferring behaviour from a surface value without checking the semantics underneath. `pg_policies`
+reports the **stored** definition; the **effective** policy is what Postgres evaluates, and for
+UPDATE they differ precisely when `with_check` is null.
+
+**SEC-1 is unaffected.** It is an INSERT policy, which has no `USING` clause to fall back on, and
+it carries an explicit `with_check` of `auth.role() = 'authenticated'` regardless. That finding
+and its behavioural probe stand exactly as recorded.
+
+**Residual value:** making the check explicit would remove the reader-trap that caught me. That is
+schema documentation, not remediation, and belongs with the SEC-6 cleanup rather than being
+presented as a security fix.
 
 ---
 
@@ -290,7 +327,7 @@ returning `true` is a finding** — nothing else in this subsystem should be ele
 | ID | Finding | Severity | Status |
 |---|---|---|---|
 | **SEC-1** | `notifications` INSERT `with_check` is only `auth.role() = 'authenticated'`; forged notices carry attacker-chosen ids into `notifActions` under the victim's authority | **HIGH** | **CONFIRMED, open** — remediation is an owner decision |
-| **SEC-5** | `notifications` UPDATE has no `with_check`; a user can re-address their own notification to another user | **MEDIUM** | **CONFIRMED, open** — must be fixed with SEC-1 |
+| **SEC-5** | ~~`notifications` UPDATE has no `with_check`~~ | — | ❌ **WITHDRAWN** — false positive; an omitted `WITH CHECK` means `USING` is used, proven by a rolled-back `SET ROLE` test |
 | **SEC-6** | Two duplicate SELECT policies and two duplicate UPDATE policies; no DELETE policy (root cause of S39) | Minor | Confirmed — collapse alongside SEC-1/SEC-5 |
 | **SEC-2** | `notification_preferences` RLS and policies | — | ✅ Verified correct |
 | **SEC-3** | `SECURITY DEFINER` usage and `search_path` | Low | ✅ Justified; residual disappears with SEC-1's fix |
