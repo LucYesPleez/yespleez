@@ -27,6 +27,8 @@ import InboxScreen from './screens/InboxScreen';
 import ConversationScreen from './screens/ConversationScreen';
 import AccessRequiredScreen from './screens/AccessRequiredScreen';
 import { ShareTargetProvider } from './lib/shareTarget';
+import { ConversationUiProvider } from './lib/conversationUi';
+import ConversationDock from './components/ConversationDock';
 import { totalUnread } from './lib/messaging';
 import {
   conversationNotificationTypes, isConversationActivity, KNOWN_CONVERSATION_TYPES,
@@ -146,6 +148,10 @@ function Shell({ session, isGuest, onSignOut }) {
   return (
     <PlayerCtx.Provider value={{ player, setPlayer }}>
       <ShareTargetProvider>
+      {/* Messaging is APP-SHELL state, not screen state. The dock is mounted
+          once, above the router, so a conversation survives navigation and
+          "minimise" never means "unmount and lose the draft". */}
+      <ConversationUiProvider>
       {location.pathname !== '/role-select' && (
         <GlobalHeader
           unreadCount={unreadCount}
@@ -239,6 +245,8 @@ function Shell({ session, isGuest, onSignOut }) {
         isGuest={isGuest}
         onSignOut={onSignOut}
       />
+      <ConversationDock />
+      </ConversationUiProvider>
       </ShareTargetProvider>
     </PlayerCtx.Provider>
   );

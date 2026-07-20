@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
 import { useSession } from '../App';
+import { useConversationUi } from '../lib/conversationUi';
 import {
   listConversations, listParticipants, actableProfileIds, unreadCount,
 } from '../lib/messaging';
@@ -54,6 +54,7 @@ function relativeTime(iso) {
 
 export default function InboxScreen() {
   const { session } = useSession();
+  const { open: openConversation } = useConversationUi();
   const [rows, setRows]       = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -133,10 +134,18 @@ export default function InboxScreen() {
           const other = c.others[0];
           const accent = PROFILE_TYPES[other?.profiles?.type]?.accent ?? 'var(--muted)';
           return (
-            <Link
+            <button
               key={c.id}
-              to={`/messages/${c.id}`}
-              style={{ display: 'block', textDecoration: 'none', border: '1px solid var(--border)', borderRadius: 14, padding: '14px 16px', marginBottom: 10, background: c.unread > 0 ? 'rgba(255,255,255,.04)' : 'transparent', opacity: c.isArchived ? 0.55 : 1 }}
+              type="button"
+              // Opens the DRAWER rather than navigating. Navigation is the
+              // context switch the interaction model exists to avoid — the
+              // inbox is for search, archive and management, not for reading.
+              onClick={() => openConversation(c.id, {
+                profile: other?.profiles
+                  ? { id: other.profiles.id, name: other.profiles.name, type: other.profiles.type }
+                  : null,
+              })}
+              style={{ display: 'block', width: '100%', textAlign: 'left', cursor: 'pointer', textDecoration: 'none', border: '1px solid var(--border)', borderRadius: 14, padding: '14px 16px', marginBottom: 10, background: c.unread > 0 ? 'rgba(255,255,255,.04)' : 'transparent', opacity: c.isArchived ? 0.55 : 1 }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 11, letterSpacing: 1.5, color: accent }}>
@@ -165,7 +174,7 @@ export default function InboxScreen() {
                   </div>
                 )}
               </div>
-            </Link>
+            </button>
           );
         })}
       </div>
