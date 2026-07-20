@@ -17,7 +17,9 @@ export default function ConversationScreen() {
   const { id } = useParams();
 
   return (
-    <div style={{ paddingTop: 72, paddingBottom: 90, height: '100dvh', background: 'var(--bg)', boxSizing: 'border-box' }}>
+    /* The nav is reserved layout space, not padding sprayed on afterwards —
+       the composer must land immediately above it. See ConversationDock. */
+    <div style={{ paddingTop: 72, height: 'calc(100dvh - var(--yp-nav-height, 64px))', background: 'var(--bg)', boxSizing: 'border-box' }}>
       <div style={{ maxWidth: 680, margin: '0 auto', height: '100%', padding: '0 8px', boxSizing: 'border-box' }}>
         <ConversationView conversationId={id} />
       </div>

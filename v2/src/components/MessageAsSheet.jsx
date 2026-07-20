@@ -31,7 +31,11 @@ export default function MessageAsSheet({ profiles, onConfirm, onCancel }) {
       aria-label="Choose which profile will start this conversation"
       onClick={onCancel}
       style={{
-        position: 'fixed', inset: 0, zIndex: 220,
+        // CONSTITUTIONAL LAYOUT RULE — the bottom navigation is sacred.
+        // This sheet stops at the top of the nav; neither it nor its backdrop
+        // may render underneath. See ConversationDock for the full note.
+        position: 'fixed', top: 0, left: 0, right: 0,
+        bottom: 'var(--yp-nav-height, 64px)', zIndex: 220,
         display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
         background: 'rgba(0,0,0,.55)',
         backdropFilter: 'blur(18px) saturate(140%)',

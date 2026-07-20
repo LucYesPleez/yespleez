@@ -68,7 +68,14 @@ export default function ConversationDock() {
       {/* ── The drawer ── */}
       {openId && (
         <div
-          style={{ position: 'fixed', inset: 0, zIndex: 160, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', background: 'rgba(0,0,0,.78)', backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)', animation: 'ypDockFade .28s ease-out' }}
+          /* CONSTITUTIONAL LAYOUT RULE — THE BOTTOM NAVIGATION IS SACRED.
+             Nothing renders underneath it. Not this dock, not the backdrop.
+             So the overlay STOPS at the top of the nav (`bottom`), rather than
+             covering the viewport and letting the nav sit on top of it.
+             --yp-nav-height is measured by BottomNav's ResizeObserver and
+             includes the safe-area inset, so this is reserved layout space —
+             not padding applied after the fact. */
+          style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 'var(--yp-nav-height, 64px)', zIndex: 160, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', background: 'rgba(0,0,0,.78)', backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)', animation: 'ypDockFade .28s ease-out' }}
           onClick={() => minimise(openId)}
         >
           <div
@@ -79,7 +86,11 @@ export default function ConversationDock() {
             onTouchEnd={onTouchEnd}
             style={{
               width: '100%', maxWidth: 560,
-              height: 'min(94dvh, 900px)',
+              // Fills the space the overlay allows — which already excludes the
+              // nav — so the composer lands immediately above it and the thread
+              // is never clipped. Sizing from dvh here would reintroduce the
+              // overlap the rule forbids.
+              height: '100%',
               // OPAQUE, deliberately. The conversation is its own environment,
               // not a pane of glass over the profile you came from — seeing a
               // face through the thread undermines that it is a separate space.

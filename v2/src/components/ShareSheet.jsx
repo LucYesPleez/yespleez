@@ -63,7 +63,9 @@ export default function ShareSheet({ target, onClose }) {
       role="dialog"
       aria-label="Share"
       onClick={onClose}
-      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.6)', zIndex: 200, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}
+      /* CONSTITUTIONAL LAYOUT RULE — the bottom navigation is sacred. This
+         sheet ends at the top of the nav; nothing renders underneath it. */
+      style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 'var(--yp-nav-height, 64px)', background: 'rgba(0,0,0,.6)', zIndex: 200, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}
     >
       <div
         onClick={e => e.stopPropagation()}
