@@ -3,12 +3,14 @@ import { supabase } from '../lib/supabase';
 import { useSession } from '../App';
 import { getNotifMeta, cleanMessage } from '../lib/notifMeta';
 import { acceptSlotOffer, declineSlotOffer, acceptInvite, declineInvite } from '../lib/notifActions';
+import NotificationPreferences from '../components/NotificationPreferences';
 
 export default function NotificationsScreen() {
   const { session } = useSession();
   const [notifs, setNotifs]   = useState([]);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState(false);
+  const [prefsOpen, setPrefsOpen] = useState(false);
   const pollRef = useRef(null);
 
   async function load(cancelled = { current: false }) {
@@ -50,11 +52,24 @@ export default function NotificationsScreen() {
     <div style={{ paddingTop: 72, paddingBottom: 90, minHeight: '100dvh', background: 'var(--bg)', boxSizing: 'border-box' }}>
       <div style={{ maxWidth: 680, margin: '0 auto', padding: '0 16px' }}>
 
-        <div style={{ marginBottom: 24 }}>
+        <div style={{ marginBottom: 24, display: 'flex', alignItems: 'center', gap: 12 }}>
           <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 28, letterSpacing: 3, background: 'linear-gradient(135deg, #00E5FF, #BF5FFF)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text', display: 'inline-block' }}>
             NOTIFICATIONS
           </div>
+          {/* NP1 · preferences live here rather than in a settings section the
+              app does not have. This is where someone comes when they want
+              fewer of these, so it is where the control belongs. */}
+          <button
+            type="button"
+            onClick={() => setPrefsOpen(o => !o)}
+            aria-expanded={prefsOpen}
+            style={{ marginLeft: 'auto', background: 'none', border: '1px solid var(--border)', borderRadius: 999, color: 'var(--muted)', fontFamily: "'Bebas Neue', sans-serif", fontSize: 12, letterSpacing: 1.5, padding: '5px 12px', cursor: 'pointer' }}
+          >
+            {prefsOpen ? 'DONE' : 'MANAGE'}
+          </button>
         </div>
+
+        {prefsOpen && <NotificationPreferences session={session} />}
 
         {loading && (
           <div style={{ textAlign: 'center', color: 'rgba(255,255,255,.35)', fontFamily: "'Bebas Neue',sans-serif", fontSize: 14, letterSpacing: 2, padding: '48px 0' }}>

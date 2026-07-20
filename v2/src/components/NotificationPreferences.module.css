@@ -1,0 +1,102 @@
+/* NP1 preferences panel. Uses the app's existing idiom — Bebas Neue for
+   labels, DM Sans for explanatory copy, --muted for secondary text — rather
+   than introducing a settings-page style the app does not otherwise have. */
+
+.panel {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: rgba(19, 19, 31, .55);
+  padding: 4px 16px;
+  margin-bottom: 24px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, .06);
+}
+.row:last-child { border-bottom: none; }
+
+.rowText { flex: 1; min-width: 0; }
+
+.label {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 15px;
+  letter-spacing: 1.5px;
+  color: var(--text);
+}
+
+.desc {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--muted);
+  margin-top: 2px;
+  text-wrap: pretty;
+}
+
+/* The switch. Off is inert; on carries the GlowPill gradient the app uses for
+   active chips, so "on" reads the same here as everywhere else. */
+.switch {
+  position: relative;
+  flex-shrink: 0;
+  width: 46px;
+  height: 26px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, .05);
+  cursor: pointer;
+  padding: 0;
+  transition: background .18s ease, border-color .18s ease;
+}
+
+.switchOn {
+  background: linear-gradient(135deg, #FF2D78, #00E5FF);
+  border-color: transparent;
+}
+
+.knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #f4f4f8;
+  transition: transform .18s ease;
+}
+.switchOn .knob { transform: translateX(20px); }
+
+.switch:disabled { cursor: default; opacity: .5; }
+
+/* Locked categories — payments and account. Shown rather than hidden, so the
+   absence of a switch is explained instead of leaving the user hunting. */
+.locked {
+  flex-shrink: 0;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 11px;
+  letter-spacing: 1.2px;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 10px;
+  white-space: nowrap;
+}
+
+.footnote {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--muted);
+  padding: 12px 0 14px;
+  text-wrap: pretty;
+}
+
+.error {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12px;
+  color: #FF6B6B;
+  padding: 0 0 12px;
+}
