@@ -33,6 +33,20 @@ import { PROFILE_TYPES } from '../lib/profileTypes';
  * dispatches on a `kind` so those land as new branches rather than a rewrite —
  * but only `text` exists today. Nothing here fakes the others.
  */
+/**
+ * Header icon button. One definition so Back, Call and Overflow are the same
+ * weight and size — mismatched icon buttons are the fastest way to make a
+ * premium header look assembled rather than designed.
+ */
+const ghostBtn = {
+  width: 34, height: 34, flexShrink: 0, borderRadius: 999,
+  display: 'flex', alignItems: 'center', justifyContent: 'center',
+  background: 'rgba(255,255,255,.05)',
+  border: '1px solid rgba(255,255,255,.08)',
+  color: 'rgba(255,255,255,.72)',
+  cursor: 'pointer', padding: 0,
+};
+
 export default function ConversationView({ conversationId, compact = false, onMinimise }) {
   const { session } = useSession();
   // Destructured deliberately. The context VALUE changes identity whenever a
@@ -249,24 +263,50 @@ export default function ConversationView({ conversationId, compact = false, onMi
   const otherType   = otherMeta.label ?? otherHead?.type ?? '';
   const otherAvatar = otherHead?.avatar_thumb || otherHead?.avatar || otherMeta.defaultImage;
 
+  /**
+   * PRESENCE — the layout supports three states and invents none of them.
+   *
+   *   null                              → no presence; the row closes up
+   *   { online: true,  label: 'Active now' }
+   *   { online: false, label: 'Last seen 2h ago' }
+   *
+   * There is no presence system in YesPleez, so this is null. It is a named
+   * slot rather than commented-out markup: when presence ships it assigns
+   * here and the header already handles it. Rendering a green dot today would
+   * be asserting something we do not know.
+   */
+  const presence = null;
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
 
       {/* HEADER — rendered in BOTH hosts, so the drawer and the full page
-          present the same conversation rather than two different ones. */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', borderBottom: '1px solid rgba(255,255,255,.07)', flexShrink: 0 }}>
+          present the same conversation rather than two different ones.
+
+          NO borderBottom. A hard rule is what made this read as a toolbar
+          bolted on top of the conversation; the surface should feel like one
+          continuous environment. Separation comes from a faint downward wash
+          instead, which reads as depth rather than as a divider. */}
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 13,
+        padding: '18px 18px 16px', flexShrink: 0,
+        background: 'linear-gradient(180deg, rgba(255,255,255,.035) 0%, rgba(255,255,255,0) 100%)',
+      }}>
         {compact && (
           <button
             type="button"
             onClick={onMinimise}
             aria-label="Minimise conversation"
-            style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,.55)', fontSize: 22, lineHeight: 1, cursor: 'pointer', padding: 0, flexShrink: 0 }}
+            style={{ ...ghostBtn, marginLeft: -4 }}
           >
-            ‹
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="m15 18-6-6 6-6" />
+            </svg>
           </button>
         )}
 
-        <span style={{ width: 44, height: 44, borderRadius: 999, flexShrink: 0, padding: 2, background: `linear-gradient(135deg, ${otherAccent}, ${otherAccent2})`, display: 'flex' }}>
+        {/* Avatar — unchanged size. It is the visual anchor. */}
+        <span style={{ width: 44, height: 44, borderRadius: 999, flexShrink: 0, padding: 2, background: `linear-gradient(135deg, ${otherAccent}, ${otherAccent2})`, display: 'flex', boxShadow: `0 4px 16px -6px ${otherAccent}80` }}>
           <span style={{ width: '100%', height: '100%', borderRadius: 999, overflow: 'hidden', background: '#0d0d10', display: 'flex', alignItems: 'center', justifyContent: 'center', color: otherAccent, fontFamily: "'Bebas Neue',sans-serif", fontSize: 17 }}>
             {otherAvatar
               ? <img src={otherAvatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -275,29 +315,66 @@ export default function ConversationView({ conversationId, compact = false, onMi
         </span>
 
         <span style={{ minWidth: 0, flex: 1 }}>
-          <span style={{ display: 'block', color: '#fff', fontSize: 17, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.2 }}>
+          {/* PRIMARY. Lifted to 19px/650 and tightened, so the name wins the
+              composition outright instead of competing with the row below. */}
+          <span style={{ display: 'block', color: '#fff', fontSize: 19, fontWeight: 650, letterSpacing: '-.2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.15 }}>
             {title}
           </span>
-          <span style={{ display: 'block', color: 'rgba(255,255,255,.42)', fontSize: 12, marginTop: 1 }}>
-            {otherType}
+
+          {/* SECONDARY ROW — type pill and presence share one line. Presence
+              is absent today and the row simply closes up; it does not reserve
+              empty space for a feature that does not exist. */}
+          <span style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 5, minWidth: 0 }}>
+            <span style={{
+              flexShrink: 0, fontFamily: "'Bebas Neue',sans-serif", fontSize: 10,
+              letterSpacing: 1.2, lineHeight: 1, padding: '4px 8px', borderRadius: 999,
+              color: otherAccent,
+              background: `${otherAccent}1F`,
+              border: `1px solid ${otherAccent}3D`,
+            }}>
+              {String(otherType).toUpperCase()}
+            </span>
+
+            {presence && (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, minWidth: 0, fontSize: 11.5, color: 'rgba(255,255,255,.42)' }}>
+                <span style={{ width: 6, height: 6, borderRadius: 999, flexShrink: 0, background: presence.online ? '#00E5A0' : 'rgba(255,255,255,.28)' }} />
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{presence.label}</span>
+              </span>
+            )}
           </span>
 
-          {/* IDENTITY PILL — the answer to "which profile am I messaging
-              from?", always visible while the conversation is open. Two
-              conversations with the same recipient are indistinguishable
-              without it, and §2.1 makes the sending identity permanent, so
-              getting it wrong is not recoverable by switching. */}
+          {/* TALKING AS — kept, but demoted to a single quiet line. It was a
+              third bordered pill stacked under two others, which made the
+              header feel like a stack of chips; the sender identity has to be
+              unmissable, not loud. A tinted swatch carries the meaning and the
+              name does the rest. §2.1 makes this permanent for the life of the
+              conversation, so it must never be ambiguous. */}
           {senderMeta && (
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 6, padding: '3px 9px 3px 7px', borderRadius: 999, background: 'rgba(191,95,255,.13)', border: '1px solid rgba(191,95,255,.32)', maxWidth: '100%' }}>
-              <span style={{ fontSize: 9.5, letterSpacing: 1, color: 'rgba(255,255,255,.45)', fontFamily: "'Bebas Neue',sans-serif" }}>
-                TALKING AS
-              </span>
-              <span style={{ fontSize: 11.5, fontWeight: 600, color: '#D9A6FF', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, minWidth: 0 }}>
+              <span style={{ width: 5, height: 5, borderRadius: 999, flexShrink: 0, background: 'linear-gradient(135deg, #00E5FF, #BF5FFF)' }} />
+              <span style={{ fontSize: 11, color: 'rgba(255,255,255,.38)', flexShrink: 0 }}>as</span>
+              <span style={{ fontSize: 11.5, fontWeight: 600, color: '#CFA4FF', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {senderMeta.name}
               </span>
             </span>
           )}
         </span>
+
+        {/* Reserved affordances. Neither calling nor an overflow menu exists,
+            so these are visibly disabled rather than wired to nothing — the
+            same treatment QR and Info were given. A dead control that looks
+            live is worse than one that admits it is not ready. */}
+        <button type="button" disabled aria-label="Call — not available yet" title="Calling is not available yet" style={{ ...ghostBtn, opacity: .32, cursor: 'not-allowed' }}>
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z" />
+          </svg>
+        </button>
+
+        <button type="button" disabled aria-label="More — not available yet" title="No conversation actions yet" style={{ ...ghostBtn, opacity: .32, cursor: 'not-allowed' }}>
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor">
+            <circle cx="5" cy="12" r="1.7" /><circle cx="12" cy="12" r="1.7" /><circle cx="19" cy="12" r="1.7" />
+          </svg>
+        </button>
       </div>
 
       {/* Privacy strip. Says PRIVATE, not "secure" — messages are not
