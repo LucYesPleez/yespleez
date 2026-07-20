@@ -103,17 +103,36 @@ export default function ConversationDock() {
               `,
               border: '1px solid rgba(255,255,255,.08)',
               borderRadius: '30px 30px 0 0',
+              position: 'relative',   // anchors the hand watermark below
               display: 'flex', flexDirection: 'column',
               overflow: 'hidden',
               boxShadow: '0 -24px 70px rgba(0,0,0,.7)',
               animation: 'ypDrawerUp .44s cubic-bezier(.16,1,.3,1)',
             }}
           >
-            <ConversationView
-              conversationId={openId}
-              compact
-              onMinimise={() => minimise(openId)}
+            {/* The app-wide hand watermark (index.css body::after) cannot show
+                through an opaque surface, so the conversation carries its own.
+                Same asset, same centring, a little fainter — the dock sits
+                closer to the eye than the page behind it. */}
+            <div
+              aria-hidden="true"
+              style={{
+                position: 'absolute', inset: 0, pointerEvents: 'none',
+                backgroundImage: "url('/hand-logo.png')",
+                backgroundRepeat: 'no-repeat',
+                backgroundPosition: 'center 46%',
+                backgroundSize: 'min(66%, 330px)',
+                opacity: 0.06,
+              }}
             />
+
+            <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
+              <ConversationView
+                conversationId={openId}
+                compact
+                onMinimise={() => minimise(openId)}
+              />
+            </div>
 
           </div>
 

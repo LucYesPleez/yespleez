@@ -301,7 +301,7 @@ export default function ConversationView({ conversationId, compact = false, onMi
       <div
         ref={scrollRef}
         onScroll={onScroll}
-        style={{ flex: 1, overflowY: 'auto', padding: '12px 16px', minHeight: 0 }}
+        style={{ flex: 1, overflowY: 'auto', padding: '22px 18px 8px', minHeight: 0 }}
       >
         {loading && (
           <div style={{ textAlign: 'center', color: 'rgba(255,255,255,.35)', fontFamily: "'Bebas Neue',sans-serif", fontSize: 13, letterSpacing: 2, padding: '32px 0' }}>
@@ -336,7 +336,7 @@ export default function ConversationView({ conversationId, compact = false, onMi
         <div role="alert" style={{ color: 'var(--neon)', fontSize: 12, padding: '4px 16px' }}>{error}</div>
       )}
 
-      <form onSubmit={onSend} style={{ display: 'flex', gap: 8, padding: '10px 16px', borderTop: '1px solid var(--border)' }}>
+      <form onSubmit={onSend} style={{ display: 'flex', gap: 10, padding: '14px 16px 18px', borderTop: '1px solid rgba(255,255,255,.06)', flexShrink: 0 }}>
         <input
           ref={inputRef}
           value={draft}
@@ -347,14 +347,21 @@ export default function ConversationView({ conversationId, compact = false, onMi
           disabled={!senderProfile || sending}
           placeholder={senderProfile ? 'Type a message…' : 'You cannot write in this conversation'}
           aria-label="Message"
-          style={{ flex: 1, background: 'rgba(255,255,255,.04)', border: '1px solid var(--border)', borderRadius: 999, padding: '11px 16px', color: 'var(--text)', fontSize: 14, outline: 'none' }}
+          style={{ flex: 1, background: 'rgba(255,255,255,.045)', border: '1px solid rgba(255,255,255,.09)', borderRadius: 999, padding: '14px 18px', color: 'var(--text)', fontSize: 14.5, outline: 'none' }}
         />
         <button
           type="submit"
           disabled={!senderProfile || sending || !draft.trim()}
-          style={{ border: 'none', borderRadius: 999, padding: '11px 18px', fontFamily: "'Bebas Neue',sans-serif", fontSize: 14, letterSpacing: 1.5, cursor: senderProfile && draft.trim() ? 'pointer' : 'not-allowed', background: senderProfile && draft.trim() ? 'linear-gradient(135deg, #00E5FF, #BF5FFF)' : 'rgba(255,255,255,.08)', color: senderProfile && draft.trim() ? '#000' : 'var(--muted)' }}
+          aria-label="Send"
+          style={{ border: 'none', borderRadius: 999, width: 48, height: 48, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: senderProfile && draft.trim() ? 'pointer' : 'not-allowed', background: senderProfile && draft.trim() ? 'linear-gradient(135deg, #00E5FF, #BF5FFF)' : 'rgba(255,255,255,.07)', color: senderProfile && draft.trim() ? '#0a0a0f' : 'rgba(255,255,255,.3)', boxShadow: senderProfile && draft.trim() ? '0 8px 22px -8px rgba(191,95,255,.75)' : 'none', transition: 'background .25s ease, box-shadow .25s ease' }}
         >
-          {sending ? '…' : 'SEND'}
+          {sending
+            ? '…'
+            : (
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M22 2 11 13" /><path d="M22 2 15 22l-4-9-9-4 20-7z" />
+              </svg>
+            )}
         </button>
       </form>
     </div>
@@ -370,8 +377,21 @@ function MessageBubble({ message, isMine }) {
   const kind = message.kind ?? 'text';
 
   return (
-    <div style={{ display: 'flex', justifyContent: isMine ? 'flex-end' : 'flex-start', marginBottom: 8 }}>
-      <div style={{ maxWidth: '78%', border: '1px solid var(--border)', borderRadius: 14, padding: '10px 13px', background: isMine ? 'rgba(191,95,255,.14)' : 'rgba(255,255,255,.03)' }}>
+    <div style={{ display: 'flex', justifyContent: isMine ? 'flex-end' : 'flex-start', marginBottom: 14 }}>
+      {/* Sent messages carry the canonical YesPleez cyan→purple gradient
+          rather than a flat purple. Held at low alpha over the charcoal
+          surface so it reads as tinted glass — restrained, not neon. Received
+          messages stay near-black so the gradient is what the eye follows. */}
+      <div style={{
+        maxWidth: '76%',
+        borderRadius: isMine ? '20px 20px 6px 20px' : '20px 20px 20px 6px',
+        padding: '13px 17px',
+        border: isMine ? '1px solid rgba(191,95,255,.34)' : '1px solid rgba(255,255,255,.07)',
+        background: isMine
+          ? 'linear-gradient(135deg, rgba(0,229,255,.20) 0%, rgba(191,95,255,.40) 100%)'
+          : 'rgba(255,255,255,.035)',
+        boxShadow: isMine ? '0 6px 22px -10px rgba(191,95,255,.6)' : 'none',
+      }}>
         {kind === 'text' ? (
           <div style={{ color: 'var(--text)', fontSize: 14, lineHeight: 1.45, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
             {message.body}
