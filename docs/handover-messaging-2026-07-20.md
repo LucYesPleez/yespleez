@@ -1,7 +1,7 @@
 # Messaging (M8) — implementation handover, 20 Jul 2026
 
-For a fresh session. **Messaging is under construction.** Four layers are applied and verified in
-production; the next is the notification bridge.
+For a fresh session. **Messaging is under construction.** Five layers are applied and verified in
+production. The database side is COMPLETE; the next work is the send/receive client flow.
 
 Every claim here was verified against the live database. Where something is unverified it says so.
 
@@ -36,6 +36,7 @@ is **identity M8**), Studio M5–M9, product phases 9–17. `CLAUDE.md`'s *"M7 n
 | **M8b** RLS | `20260720000005_m8b_messaging_rls.sql` | ✅ | exactly four policies; both predicates live and returning `false` for a non-participant |
 | **M8c** creation | `20260720000006_m8c_conversation_creation.sql` | ✅ | seven assertions, incl. the strict caller rule refusing a non-participant |
 | **M8d** read state | `20260720000007_m8d_read_state.sql` | ✅ | own message not unread to self; watermark monotonic; another human's read state refused |
+| **M8e** notification bridge | `20260720000008_m8e_notification_bridge.sql` | ✅ | authority models agree; fan-out to another account's owner; sender skipped; held row for unclaimed; no body leak |
 
 **Repo:** branch `v2-react`, in sync with origin. Clean tree. 26 tests passing (`npm test` in
 `v2/`).
@@ -204,18 +205,70 @@ silently hide a real booking enquiry from a human. This is a default, not a ruli
 a specification question (§2.6 vs §2.5), and no multi-owner profile exists yet to make it bite.
 **Raise it with the owner before building the inbox UI.**
 
-### Next
+---
 
-The **notification bridge**. `new_message` is already categorised in `notification_expiry_policy` as
-`messages`/`never`, and `NotificationPreferences.jsx` carries a comment marking the one line that
-enables its switch. Then UI.
+## 3c · M8e — notification bridge (DONE)
 
-**Do not jump to UI** — the owner set the order: schema → migrations → RLS → verification → commit,
-one layer at a time.
+**Owner decision, 20 Jul 2026: delivery derives from CURRENT participant authority.** If several
+humans can act as a participant profile, each receives their own notification. No ownership
+snapshot, and no second authority model.
 
-Note §6's **notification fan-out** item becomes live work here: §5.3 and `C11` require delivery to
-*every* human who can act as the recipient profile, and the notification system delivers to one.
-M8d makes the read side per-human; the delivery side is still per-profile-owner-singular.
+**It needed no schema change to `notifications`, and that is the interesting part.** §A7 already
+separates the three identities and `N1` already gives the unclaimed case a meaning:
+
+- recipient profile with **three owners** → three rows differing only in `to_user_id`
+- recipient profile with **no owner** → one **held** row (`to_user_id` NULL), per `N1`
+
+**Fan-out and the held pile are the same mechanism at different owner counts.** Nothing needed
+adding; `CHECK notifications_addressable` already permits both shapes, and NP1's
+`apply_notification_preferences` trigger fires on these inserts like any other, so muting works with
+no involvement from M8e.
+
+### `profile_actors` — the inverse of `can_act_as`, NOT a second model
+
+`can_act_as(profile)` answers *"may I act as this?"*; fan-out needs *"who may act as this?"*. Both
+read `profiles.user_id` (M6a). **They are two projections of one fact.**
+
+- `can_act_as`'s own comment says *"signature frozen; body may evolve (V1 single-owner)"* — **when
+  that body goes multi-owner, `profile_actors` must change in the same commit.**
+- That obligation is **asserted, not commented**: verification block 1 checks the two agree for every
+  profile, and can be re-run any time.
+- **Not granted to any client role.** It maps a profile to the humans behind it; exposing it would
+  let any logged-in user enumerate profile ownership. Only the elevated trigger calls it.
+
+### What M8e does NOT do
+
+**It does not make multi-owner profiles exist.** `profiles.user_id` is a single-owner column, so
+`profile_actors` returns at most one row today and fan-out fans out to one. §6's fan-out item is now
+**structurally resolved and factually unchanged**. A single delivered row in production is correct —
+do not read it as a broken bridge. When identity goes multi-owner, delivery is not rewritten; one
+function is.
+
+### Two more decisions
+
+- **A trigger, not a call in the send path.** `C18`/§A7: notifications originate from shared
+  services, never from UI. A trigger cannot be forgotten by a send path and leaves no second call
+  site to drift. Mirrors `touch_conversation_last_message`.
+- **No message body in the notification, ever.** Two independent reasons: `C32` excludes
+  conversation content from platform systems, and `D1`'s **two retention domains** mean copying body
+  text into `notifications` would leave content behind when a conversation is erased. The row
+  carries ids; the client resolves display from the conversation, under RLS, where the participant
+  could read it anyway.
+- **The sender is skipped by HUMAN** (`from_user_id`), so a colleague acting as the sending profile
+  IS notified. The actor count is taken **before** the skip — a profile whose only owner is the
+  sender is *claimed*, so it must not fall through to the held branch. Verification block 2b exists
+  solely to catch that inversion.
+
+### Next — the send/receive client flow
+
+The database side is complete. Sending is `INSERT INTO messages`; everything else (last_message_at,
+notifications, fan-out, preferences) happens by trigger. Reading is a plain select under RLS.
+
+Remaining before UI: a client service layer over these primitives, mirroring `writeNotification.js`
+as *the one place* messages are sent — the same consolidation that file's header describes, applied
+before the fifteen call sites exist rather than after.
+
+**Still open, and needed before the inbox UI:** the archived-vs-badge tension in §3b.
 
 ---
 
@@ -284,9 +337,10 @@ Not blockers; recorded so they are not rediscovered.
 - **The `applications` write path is unobserved** — not known to be broken. The dataset makes it
   untestable: 23 of 24 events are hosted by the only account, and the hostless one has
   `applications_open = false`.
-- **Notification fan-out** — §5.3 and `C11` require delivery to *every* human who can act as the
-  recipient profile. The notification system delivers to one. Not a defect today (no multi-owner
-  profile exists); decide deliberately when it matters.
+- ~~**Notification fan-out**~~ — **RESOLVED by M8e**, 20 Jul 2026. Delivery now derives from
+  `profile_actors` at send time, so it fans out to however many humans can act as the recipient
+  profile. That number is currently always 0 or 1 because `profiles.user_id` is single-owner; the
+  *structure* no longer assumes it. See §3c.
 - **Deployment is PARKED** until Notifications/Analytics/Messaging/QA are done. `yespleez.pages.dev`
   serves the legacy HTML prototype. Verify against `localhost:5173`.
 
@@ -294,9 +348,9 @@ Not blockers; recorded so they are not rediscovered.
 
 ## 7 · Suggested first message
 
-> Read `docs/handover-messaging-2026-07-20.md`. M8a–M8d are applied and verified. Write the
-> notification bridge for `new_message`, and settle the fan-out question in §6 first — `C11`
-> requires delivery to every human who can act as the recipient profile.
+> Read `docs/handover-messaging-2026-07-20.md`. M8a–M8e are applied and verified; the database side
+> of Messaging is complete. Build the send/receive client flow — one service module over the
+> primitives, tested, before any UI.
 
 Remember that **you cannot apply or verify SQL yourself** (§5) — migrations are applied by the owner
 by hand. Write the migration, then hand over a runbook the owner can paste with no substitutions,
