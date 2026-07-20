@@ -97,7 +97,12 @@ export default function InboxScreen() {
         // §2.2 — a conversation is a relationship; show the OTHER party.
         // Which of MY profiles is in this thread. Without it, three
         // conversations with the same artist render as three identical rows.
-        const asRow     = mates.find(p => mine.has(p.profile_id));
+        // When BOTH participants are yours the thread is really note-keeping,
+        // so Personal is treated as "you" and the industry profile as the
+        // recipient. Deterministic, unlike "whichever row came back first" —
+        // and it means the same thread never renders swapped between loads.
+        const asRow = mates.find(p => mine.has(p.profile_id) && p.profiles?.type === 'punter')
+                   ?? mates.find(p => mine.has(p.profile_id));
         const asProfile = asRow?.profiles ?? null;
 
         // The other party is "everyone except the profile I am sending as" —

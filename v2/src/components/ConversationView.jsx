@@ -96,7 +96,11 @@ export default function ConversationView({ conversationId, compact = false, onMi
       const { mine: mineSet } = await actableProfileIds(participants.map(p => p.profile_id));
       if (cancelled.current) return;
 
-      const mineRow = participants.find(p => mineSet.has(p.profile_id));
+      // Both sides yours = note-keeping, so Personal is "you" and the other
+      // profile is the recipient. Deterministic, so the header cannot flip
+      // between loads. See InboxScreen for the same rule.
+      const mineRow = participants.find(p => mineSet.has(p.profile_id) && p.profiles?.type === 'punter')
+                   ?? participants.find(p => mineSet.has(p.profile_id));
       setMine(mineSet);
       setSender(mineRow?.profile_id ?? null);
       setSenderMeta(mineRow?.profiles ?? null);
