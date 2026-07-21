@@ -346,23 +346,6 @@ export default function InboxScreen() {
                       </span>
                     )}
 
-                    <div style={{ marginLeft: 'auto' }} />
-
-                    {/* Right column: WHEN over WHY. Both are metadata about
-                        the conversation rather than parts of its name, so they
-                        stack together on the trailing edge instead of pushing
-                        the name around. The context sits under the time
-                        because recency is what the eye scans for. */}
-                    <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3, lineHeight: 1.15 }}>
-                      {c.context_type !== 'direct' && (
-                        <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 13, letterSpacing: 1.4, color: CONTEXT_COLOR }}>
-                          {CONTEXT_LABEL[c.context_type] ?? String(c.context_type).toUpperCase()}
-                        </span>
-                      )}
-                      <span style={{ fontSize: 11, color: c.unread > 0 ? '#D9A6FF' : 'rgba(255,255,255,.35)' }}>
-                        {relativeTime(c.last_message_at)}
-                      </span>
-                    </div>
                   </div>
                   {/* WHICH IDENTITY THIS THREAD IS FROM. Three conversations
                       with the same artist are otherwise three identical rows. */}
@@ -398,8 +381,30 @@ export default function InboxScreen() {
                     </div>
                   )}
                 </div>
+
+                {/* META COLUMN — a SIBLING of the text column, not a child of
+                    the name line.
+
+                    Nested inside the name row it had two lines to the name's
+                    one, so it stretched that row to its own height and the
+                    name floated at the top of it — which is where the gap
+                    under the name came from. As a sibling it stacks against
+                    the whole row and the name line stays exactly one line
+                    tall. alignSelf keeps it pinned to the top rather than
+                    centring against the avatar. */}
+                <div style={{ flexShrink: 0, alignSelf: 'flex-start', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2, lineHeight: 1.15 }}>
+                  {c.context_type !== 'direct' && (
+                    <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 13, letterSpacing: 1.4, color: CONTEXT_COLOR }}>
+                      {CONTEXT_LABEL[c.context_type] ?? String(c.context_type).toUpperCase()}
+                    </span>
+                  )}
+                  <span style={{ fontSize: 11, color: c.unread > 0 ? '#D9A6FF' : 'rgba(255,255,255,.35)' }}>
+                    {relativeTime(c.last_message_at)}
+                  </span>
+                </div>
+
                 {c.unread > 0 && (
-                  <div aria-label={`${c.unread} unread`} style={{ marginLeft: 'auto', minWidth: 20, height: 20, borderRadius: 999, background: 'var(--neon)', color: '#000', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 6px' }}>
+                  <div aria-label={`${c.unread} unread`} style={{ alignSelf: 'flex-start', minWidth: 20, height: 20, borderRadius: 999, background: 'var(--neon)', color: '#000', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 6px' }}>
                     {c.unread}
                   </div>
                 )}
