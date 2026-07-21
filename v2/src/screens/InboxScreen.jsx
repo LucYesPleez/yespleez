@@ -346,20 +346,31 @@ export default function InboxScreen() {
                       </span>
                     )}
 
+                    {/* Context rides the NAME line, right-aligned. One item per
+                        line rather than a two-line column beside a one-line
+                        name — that column was what stretched the row and left
+                        a gap under the name. */}
+                    {c.context_type !== 'direct' && (
+                      <span style={{ marginLeft: 'auto', flexShrink: 0, fontFamily: "'Bebas Neue',sans-serif", fontSize: 13, letterSpacing: 1.4, color: CONTEXT_COLOR }}>
+                        {CONTEXT_LABEL[c.context_type] ?? String(c.context_type).toUpperCase()}
+                      </span>
+                    )}
                   </div>
-                  {/* WHICH IDENTITY THIS THREAD IS FROM. Three conversations
-                      with the same artist are otherwise three identical rows. */}
-                  {/* Preview sits directly under the name — it is what the row
-                      is actually about. Unread is brighter and heavier; read
-                      recedes. */}
-                  {c.preview && (
-                    <div style={{ marginTop: 3, fontSize: 13, lineHeight: 1.35, color: c.unread > 0 ? 'rgba(255,255,255,.78)' : 'rgba(255,255,255,.42)', fontWeight: c.unread > 0 ? 500 : 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {c.preview.mine && (
+
+                  {/* Preview and timestamp share the second line: what was said
+                      and when it was said belong together. The preview
+                      truncates; the time never does. */}
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginTop: 3 }}>
+                    <div style={{ minWidth: 0, flex: 1, fontSize: 13, lineHeight: 1.35, color: c.unread > 0 ? 'rgba(255,255,255,.78)' : 'rgba(255,255,255,.42)', fontWeight: c.unread > 0 ? 500 : 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {c.preview?.mine && (
                         <span style={{ color: 'rgba(255,255,255,.34)' }}>You: </span>
                       )}
-                      {c.preview.text}
+                      {c.preview?.text ?? ''}
                     </div>
-                  )}
+                    <span style={{ flexShrink: 0, fontSize: 11, color: c.unread > 0 ? '#D9A6FF' : 'rgba(255,255,255,.35)' }}>
+                      {relativeTime(c.last_message_at)}
+                    </span>
+                  </div>
 
                   {/* IDENTITY, only when it is not the obvious one.
                       Speaking as your Personal profile is the default — saying
@@ -380,27 +391,6 @@ export default function InboxScreen() {
                       ARCHIVED
                     </div>
                   )}
-                </div>
-
-                {/* META COLUMN — a SIBLING of the text column, not a child of
-                    the name line.
-
-                    Nested inside the name row it had two lines to the name's
-                    one, so it stretched that row to its own height and the
-                    name floated at the top of it — which is where the gap
-                    under the name came from. As a sibling it stacks against
-                    the whole row and the name line stays exactly one line
-                    tall. alignSelf keeps it pinned to the top rather than
-                    centring against the avatar. */}
-                <div style={{ flexShrink: 0, alignSelf: 'flex-start', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2, lineHeight: 1.15 }}>
-                  {c.context_type !== 'direct' && (
-                    <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 13, letterSpacing: 1.4, color: CONTEXT_COLOR }}>
-                      {CONTEXT_LABEL[c.context_type] ?? String(c.context_type).toUpperCase()}
-                    </span>
-                  )}
-                  <span style={{ fontSize: 11, color: c.unread > 0 ? '#D9A6FF' : 'rgba(255,255,255,.35)' }}>
-                    {relativeTime(c.last_message_at)}
-                  </span>
                 </div>
 
                 {c.unread > 0 && (
