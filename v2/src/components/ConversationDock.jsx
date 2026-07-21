@@ -52,7 +52,13 @@ export default function ConversationDock() {
     <>
       {/* ── Minimised pills, stacked above the bottom nav ── */}
       {minimised.length > 0 && (
-        <div style={{ position: 'fixed', left: 0, right: 0, bottom: 'calc(var(--yp-nav-height, 64px) + 8px)', zIndex: 140, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, pointerEvents: 'none' }}>
+        /* Docked FLUSH to the nav, not floating above it. The 8px gap and
+           centred column made these read as cards hovering over the page;
+           sitting on the nav's top edge makes them read as tabs belonging to
+           it. Laid out as a ROW from the left so a second and third
+           conversation extend sideways like browser tabs — the language
+           already scales without a redesign. */
+        <div style={{ position: 'fixed', left: 0, right: 0, bottom: 'var(--yp-nav-height, 64px)', zIndex: 140, display: 'flex', flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'flex-start', gap: 6, padding: '0 10px', pointerEvents: 'none' }}>
           {minimised.map(id => (
             <ConversationPill
               key={id}
@@ -161,50 +167,66 @@ export default function ConversationDock() {
  * draft, scroll, playback and everything else held in shell state.
  */
 function ConversationPill({ state, onOpen, onDismiss }) {
-  const name    = state.profile?.name ?? 'Conversation';
-  const preview = state.lastPreview;
-  const unread  = state.unread ?? 0;
+  const name     = state.profile?.name ?? 'Conversation';
+  const unread   = state.unread ?? 0;
   const hasDraft = Boolean(state.draft?.trim());
 
   return (
-    <div style={{ pointerEvents: 'auto', display: 'flex', alignItems: 'center', gap: 10, width: 'min(92%, 520px)', background: 'rgba(20,20,24,.96)', border: '1px solid var(--border)', borderRadius: 999, padding: '8px 12px', boxShadow: '0 6px 24px rgba(0,0,0,.45)' }}>
+    /* A TAB, not a card. Square top corners on a flat bottom edge, docked to
+       the nav, sized to its content rather than 92% of the screen. No shadow —
+       a drop shadow is what lifts something off the page and makes it read as
+       floating content. Width is capped so a long name truncates instead of
+       pushing a second tab off screen. */
+    <div style={{
+      pointerEvents: 'auto', display: 'flex', alignItems: 'center', gap: 7,
+      maxWidth: 210, minWidth: 0,
+      background: 'rgba(24,24,29,.97)',
+      border: '1px solid rgba(255,255,255,.09)',
+      borderBottom: 'none',
+      borderRadius: '11px 11px 0 0',
+      padding: '5px 8px 6px 6px',
+    }}>
       <button
         type="button"
         onClick={onOpen}
         aria-label={`Reopen conversation with ${name}`}
-        style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0, background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', padding: 0 }}
+        style={{ display: 'flex', alignItems: 'center', gap: 7, flex: 1, minWidth: 0, background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', padding: 0 }}
       >
-        <span style={{ width: 30, height: 30, borderRadius: 999, background: 'linear-gradient(135deg, #00E5FF, #BF5FFF)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#000', fontFamily: "'Bebas Neue',sans-serif", fontSize: 13, flexShrink: 0 }}>
+        <span style={{ width: 20, height: 20, borderRadius: 999, background: 'linear-gradient(135deg, #00E5FF, #BF5FFF)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0a0a0f', fontFamily: "'Bebas Neue',sans-serif", fontSize: 10, flexShrink: 0 }}>
           {name.slice(0, 1).toUpperCase()}
         </span>
 
-        <span style={{ minWidth: 0, flex: 1 }}>
-          <span style={{ display: 'block', color: 'var(--text)', fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {name}
-          </span>
-          <span style={{ display: 'block', color: 'var(--muted)', fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {hasDraft
-              ? 'Draft saved'
-              : preview?.kind === 'voice'
-                ? '🎤 Voice note'
-                : preview?.text || 'Tap to continue'}
-          </span>
+        {/* Name only. The subtitle is gone: "Tap to continue" told the user
+            nothing they could not infer, and a message preview is content —
+            it invites reading, which is the opposite of a reminder you barely
+            notice. Draft state survives as a dot rather than a sentence. */}
+        <span style={{ minWidth: 0, flex: 1, color: 'rgba(255,255,255,.86)', fontSize: 12.5, fontWeight: 550, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {name}
         </span>
 
+        {hasDraft && unread === 0 && (
+          <span
+            aria-label="Draft saved"
+            title="Draft saved"
+            style={{ width: 5, height: 5, borderRadius: 999, flexShrink: 0, background: 'linear-gradient(135deg, #00E5FF, #BF5FFF)' }}
+          />
+        )}
+
         {unread > 0 && (
-          <span aria-label={`${unread} unread`} style={{ minWidth: 18, height: 18, borderRadius: 999, background: '#FF3B30', color: '#fff', fontSize: 10, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 5px', flexShrink: 0 }}>
+          <span aria-label={`${unread} unread`} style={{ minWidth: 15, height: 15, borderRadius: 999, background: '#FF3B30', color: '#fff', fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px', flexShrink: 0 }}>
             {unread > 9 ? '9+' : unread}
           </span>
         )}
       </button>
 
       {/* Explicit teardown. Separate from minimise so an accidental tap on the
-          drawer backdrop can never discard a draft. */}
+          drawer backdrop can never discard a draft. Quiet, but still a real
+          target — it is the only way to actually end a conversation. */}
       <button
         type="button"
         onClick={onDismiss}
         aria-label={`Close conversation with ${name}`}
-        style={{ background: 'none', border: 'none', color: 'var(--muted)', fontSize: 16, cursor: 'pointer', lineHeight: 1, padding: '0 2px', flexShrink: 0 }}
+        style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,.34)', fontSize: 14, cursor: 'pointer', lineHeight: 1, padding: '0 1px', flexShrink: 0 }}
       >
         ×
       </button>
