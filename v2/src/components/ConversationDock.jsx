@@ -4,7 +4,7 @@ import { useConversationUi } from '../lib/conversationUi';
 import ConversationView from './ConversationView';
 
 /**
- * THE CONVERSATION DOCK — drawer + minimised pills. Mounted ONCE by the app
+ * THE CONVERSATION DOCK — drawer + minimised tabs. Mounted ONCE by the app
  * shell, above the router.
  *
  * Because it lives above the router it survives navigation: opening a
@@ -15,8 +15,8 @@ import ConversationView from './ConversationView';
  * ── THE DRAWER IS AN OVERLAY, NOT A PAGE TRANSITION ──────────────────
  *
  * It slides up over the current screen and the screen underneath is preserved,
- * not replaced. Closing minimises to a pill immediately above the bottom nav.
- * `--yp-nav-height` is maintained by BottomNav's ResizeObserver, so the pill
+ * not replaced. Closing minimises to a tab docked on the bottom nav.
+ * `--yp-nav-height` is maintained by BottomNav's ResizeObserver, so the tab
  * sits correctly above it including the safe-area inset.
  */
 /**
@@ -81,7 +81,7 @@ export default function ConversationDock() {
 
   return (
     <>
-      {/* ── Minimised pills, stacked above the bottom nav ── */}
+      {/* ── Minimised tabs, docked on the bottom nav ── */}
       {minimised.length > 0 && (
         /* Docked FLUSH to the nav, not floating above it. The 8px gap and
            centred column made these read as cards hovering over the page;
@@ -95,7 +95,7 @@ export default function ConversationDock() {
            than the nav, which is exactly what happened on desktop. */
         <div style={{ position: 'fixed', left: 0, right: 0, margin: '0 auto', width: 'min(100%, 680px)', bottom: 'var(--yp-nav-height, 64px)', zIndex: 140, display: 'flex', flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'flex-start', gap: 6, padding: '0 10px', boxSizing: 'border-box', pointerEvents: 'none' }}>
           {minimised.slice(0, MAX_VISIBLE_TABS).map(id => (
-            <ConversationPill
+            <ConversationTab
               key={id}
               conversationId={id}
               state={getState(id)}
@@ -284,7 +284,7 @@ export default function ConversationDock() {
  * The minimised conversation. It is ALIVE, not a shortcut — reopening restores
  * draft, scroll, playback and everything else held in shell state.
  */
-function ConversationPill({ state, onOpen, onDismiss }) {
+function ConversationTab({ state, onOpen, onDismiss }) {
   const name     = state.profile?.name ?? 'Conversation';
   const unread   = state.unread ?? 0;
   const hasDraft = Boolean(state.draft?.trim());
@@ -295,11 +295,27 @@ function ConversationPill({ state, onOpen, onDismiss }) {
        a drop shadow is what lifts something off the page and makes it read as
        floating content. Width is capped so a long name truncates instead of
        pushing a second tab off screen. */
+    /* An UNREAD tab wears the brand gradient as its border — no glow. The tab
+       is the thing sitting on the nav, so it is where "something is waiting"
+       belongs; the inbox card says WHICH conversation, the tab only says
+       there is one.
+
+       Two-background trick: an opaque padding-box keeps the dark fill while
+       the border-box carries the gradient. A plain `border` cannot take a
+       gradient, and a solid approximation would drift from the brand ramp
+       used everywhere else. */
     <div style={{
       pointerEvents: 'auto', display: 'flex', alignItems: 'center', gap: 7,
       maxWidth: 210, minWidth: 0,
-      background: 'rgba(24,24,29,.97)',
-      border: '1px solid rgba(255,255,255,.09)',
+      ...(unread > 0
+        ? {
+            background: 'linear-gradient(rgba(24,24,29,.97), rgba(24,24,29,.97)) padding-box, linear-gradient(135deg, #00E5FF, #BF5FFF) border-box',
+            border: '1px solid transparent',
+          }
+        : {
+            background: 'rgba(24,24,29,.97)',
+            border: '1px solid rgba(255,255,255,.09)',
+          }),
       borderBottom: 'none',
       borderRadius: '11px 11px 0 0',
       padding: '5px 8px 6px 6px',
