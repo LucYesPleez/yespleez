@@ -1,6 +1,9 @@
+import { useRef } from 'react';
 import { useVoiceRecorder } from '../hooks/useVoiceRecorder';
 import { formatDuration } from '../lib/voiceNotes';
 import HandIcon from './HandIcon';
+import VoiceDock from './VoiceDock';
+import LiveWaveform from './LiveWaveform';
 
 /**
  * THE COMPOSER — one owner, one row, four modes.
@@ -47,7 +50,10 @@ export default function Composer({
   inputRef,
   onInputEvent,
 }) {
-  const rec = useVoiceRecorder({ onRecorded, onNotice, disabled: !canWrite || sending });
+  // The gesture hit-tests this, so the hook needs the live element rather than
+  // a distance — where the dock sits depends on the width of the text field.
+  const dockRef = useRef(null);
+  const rec = useVoiceRecorder({ onRecorded, onNotice, disabled: !canWrite || sending, dockRef });
 
   const hasText = Boolean(draft.trim());
 
@@ -134,6 +140,18 @@ export default function Composer({
         />
       )}
 
+      {/* ── THE DOCK ────────────────────────────────────────────────
+          Permanent, and to the LEFT of the microphone so the gesture travels
+          rightward into it. It is on screen before anything happens, which is
+          what makes "drag the microphone here" guessable without being told. */}
+      {rec.supported && !hasText && (
+        <VoiceDock
+          ref={dockRef}
+          active={recording}
+          locking={rec.justLocked}
+        />
+      )}
+
       {/* ── MIC ─────────────────────────────────────────────────────
           Hidden once there is text: recording and a half-typed message are two
           different intentions, and showing both invites the question of what
@@ -142,23 +160,6 @@ export default function Composer({
           cleared. */}
       {rec.supported && !hasText && mode !== 'recordingLocked' && (
         <>
-          {mode === 'recordingHeld' && (
-            <span
-              ref={rec.refs.lockHint}
-              aria-hidden="true"
-              style={{
-                position: 'absolute', right: 22, bottom: 66, opacity: 0,
-                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
-                fontSize: 11, color: 'var(--muted)', pointerEvents: 'none',
-                willChange: 'transform, opacity',
-              }}
-            >
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                <rect x="4" y="11" width="16" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" />
-              </svg>
-              <span>▲</span>
-            </span>
-          )}
           <button
             ref={rec.refs.button}
             type="button"
@@ -167,7 +168,7 @@ export default function Composer({
             onContextMenu={e => e.preventDefault()}   // suppresses the iOS hold callout
             aria-label={
               mode === 'recordingHeld'
-                ? 'Recording — release to send, slide left to cancel, slide up to lock'
+                ? 'Recording — release to send, drag onto the waveform to lock, drag down to cancel'
                 : 'Hold to record a voice message'
             }
             style={{
@@ -271,9 +272,10 @@ function RecordingDisplay({ rec, phase, mode }) {
       )}
 
       {mode === 'recordingLocked' ? (
-        <span style={{ marginLeft: 'auto', fontSize: 11.5, color: 'var(--muted)', flexShrink: 0 }}>
-          Locked
-        </span>
+        // LOCKED: the field becomes the recording. Live audio fills the space
+        // the placeholder used to occupy, growing left to right, so the thing
+        // taking up the composer is the thing being captured.
+        <LiveWaveform getLevel={rec.getLevel} />
       ) : (
         <span
           ref={rec.refs.cancelHint}
@@ -282,7 +284,7 @@ function RecordingDisplay({ rec, phase, mode }) {
             whiteSpace: 'nowrap', willChange: 'opacity', flexShrink: 0,
           }}
         >
-          ◀ Release to cancel
+          Release to cancel
         </span>
       )}
     </div>

@@ -270,6 +270,34 @@ export async function startRecording() {
 
   const { stream: recordStream, context: mixContext, downmixed } = forceMono(stream);
 
+  /**
+   * LIVE LEVEL, for the recording waveform in the composer.
+   *
+   * Taps the AudioContext the downmix already created rather than opening a
+   * second one — contexts are limited, and a recorder that needed two would
+   * halve how many can exist.
+   *
+   * An AnalyserNode is read-only and sits on a branch of the graph, so it
+   * cannot colour what is recorded. `fftSize` is small because this drives ~17
+   * bars a second, not a spectrum: 512 samples is plenty for an amplitude
+   * reading and costs almost nothing.
+   *
+   * Returns null when there is no context (WebAudio unavailable), and the UI
+   * simply shows no live waveform — recording still works.
+   */
+  let analyser = null;
+  let levelBuffer = null;
+  if (mixContext) {
+    try {
+      analyser = mixContext.createAnalyser();
+      analyser.fftSize = 512;
+      mixContext.createMediaStreamSource(stream).connect(analyser);
+      levelBuffer = new Float32Array(analyser.fftSize);
+    } catch {
+      analyser = null;   // metering is decoration; never fail a recording for it
+    }
+  }
+
   const recorder = new MediaRecorder(recordStream, {
     mimeType,
     audioBitsPerSecond: TARGET_BITS_PER_SECOND,
@@ -306,6 +334,25 @@ export async function startRecording() {
 
     /** Elapsed ms, for a live duration readout while held. */
     elapsedMs: () => Date.now() - startedAt,
+
+    /**
+     * Current loudness, 0..1, for the live recording waveform.
+     *
+     * RMS rather than peak, for the same reason the stored peaks are RMS: peak
+     * follows clicks, RMS follows how loud it actually sounds. Returns 0 when
+     * there is no analyser, which draws a flat line rather than throwing.
+     *
+     * Scaled by 2.2 because speech RMS sits low — around .1 to .25 — and an
+     * unscaled meter would sit flat against the bottom of the composer for a
+     * normal voice. Clamped so a shout cannot overflow the bar.
+     */
+    level: () => {
+      if (!analyser || !levelBuffer) return 0;
+      analyser.getFloatTimeDomainData(levelBuffer);
+      let sum = 0;
+      for (let i = 0; i < levelBuffer.length; i++) sum += levelBuffer[i] * levelBuffer[i];
+      return Math.min(1, Math.sqrt(sum / levelBuffer.length) * 2.2);
+    },
 
     /** Finish and return the audio. Resolves after the recorder flushes. */
     stop: () => new Promise((resolve, reject) => {

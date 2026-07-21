@@ -286,6 +286,54 @@ input, textarea, select {
   transition: background-color var(--yp-settle) var(--yp-ease);
 }
 
+/* THE VOICEY DOCK (M9r) — the permanent waveform control.
+
+   Always present, so it can be a destination rather than a surprise. Its whole
+   job is to say "drag the microphone here", which it does by lighting up as the
+   microphone approaches: --dock-near is written by the gesture at display rate,
+   0 at rest and 1 when the finger is on it.
+
+   Nothing here animates unless that variable moves, so the control costs
+   nothing while the composer is idle. */
+.yp-dock {
+  --dock-near: 0;
+  position: relative;
+  transition: background var(--yp-medium) var(--yp-ease),
+              border-color var(--yp-medium) var(--yp-ease);
+  background:
+    linear-gradient(160deg,
+      rgba(191,95,255, calc(.06 + .34 * var(--dock-near))) 0%,
+      rgba(120,60,220, calc(.10 + .30 * var(--dock-near))) 100%);
+  border: 1px solid rgba(191,95,255, calc(.22 + .55 * var(--dock-near)));
+  box-shadow: 0 0 calc(22px * var(--dock-near)) rgba(191,95,255, calc(.45 * var(--dock-near)));
+  /* Grows very slightly as the microphone nears — enough to read as reaching
+     back, not enough to shift the row. */
+  transform: scale(calc(1 + .07 * var(--dock-near)));
+}
+
+/* The confirmation when recording locks. One pulse, then done — a dock that
+   kept pulsing would be an alarm rather than an acknowledgement. */
+@keyframes ypDockLock {
+  0%   { transform: scale(1);    box-shadow: 0 0 0 0 rgba(191,95,255,.55); }
+  45%  { transform: scale(1.22); box-shadow: 0 0 0 12px rgba(191,95,255,0); }
+  100% { transform: scale(1);    box-shadow: 0 0 0 0 rgba(191,95,255,0); }
+}
+.yp-dock-lock { animation: ypDockLock .44s var(--yp-ease); }
+
+/* The live recording waveform, filling the text field left to right. Bars are
+   sized inline from real audio levels; only the entrance is CSS. */
+@keyframes ypLiveIn {
+  from { opacity: 0; transform: translateX(-6px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.yp-live-wave { animation: ypLiveIn var(--yp-medium) var(--yp-ease); }
+
+@media (prefers-reduced-motion: reduce) {
+  .yp-dock { transition: none; transform: none; }
+  .yp-dock-lock,
+  .yp-live-wave { animation: none; }
+}
+
 /* THE VOICEY PLAY CONTROL (M9n).
 
    Hover and press live here rather than in React state: `:hover` costs no

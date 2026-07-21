@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { startRecording, canRecordVoice } from '../lib/voiceNotes';
-import { commitAxis, resolveGesture, CANCEL_DISTANCE_PX, LOCK_DISTANCE_PX } from '../lib/voiceGesture';
+import { commitAxis, resolveGesture, CANCEL_DISTANCE_PX } from '../lib/voiceGesture';
 
 /**
  * THE RECORDING STATE MACHINE, WITHOUT ANY UI.
@@ -49,9 +49,13 @@ const SENT_DWELL_MS = 900;
 /** Ignore the click that ENDS the lock gesture. See onPrimaryClick. */
 const LOCK_CLICK_GUARD_MS = 350;
 
-export function useVoiceRecorder({ onRecorded, onNotice, disabled = false } = {}) {
+export function useVoiceRecorder({ onRecorded, onNotice, disabled = false, dockRef } = {}) {
   const [phase,   setPhase]   = useState('idle');
   const [elapsed, setElapsed] = useState(0);
+  // True for one animation's length after locking, so the dock can confirm the
+  // dock once. State rather than a class toggle because the animation must be
+  // able to REPLAY on a second recording — a class that never leaves cannot.
+  const [justLocked, setJustLocked] = useState(false);
 
   // Mirrors `phase` for synchronous reads inside event handlers, which see a
   // stale closure otherwise — the bug that lets a pointerup arrive believing it
@@ -75,6 +79,10 @@ export function useVoiceRecorder({ onRecorded, onNotice, disabled = false } = {}
 
   const supported = canRecordVoice();
 
+  // Stable identity: LiveWaveform keys an interval on this, and a new function
+  // each render would restart the sampling loop continuously.
+  const readLevel = useCallback(() => handleRef.current?.level?.() ?? 0, []);
+
   const setPhaseBoth = useCallback(next => {
     phaseRef.current = next;
     setPhase(next);
@@ -88,8 +96,9 @@ export function useVoiceRecorder({ onRecorded, onNotice, disabled = false } = {}
       lockHintRef.current.style.opacity   = '0';
       lockHintRef.current.style.transform = 'translate3d(0,0,0)';
     }
+    if (dockRef?.current) dockRef.current.style.setProperty('--dock-near', '0');
     frameRef.current = { dx: 0, dy: 0 };
-  }, []);
+  }, [dockRef]);
 
   /**
    * Release everything. Idempotent, and safe to call from any state.
@@ -203,6 +212,9 @@ export function useVoiceRecorder({ onRecorded, onNotice, disabled = false } = {}
     rafRef.current = null;
     resetVisuals();
     setPhaseBoth('locked');
+
+    setJustLocked(true);
+    setTimeout(() => setJustLocked(false), 480);
   }
 
   /** One write per frame, transform and opacity only — never layout. */
@@ -210,19 +222,30 @@ export function useVoiceRecorder({ onRecorded, onNotice, disabled = false } = {}
     rafRef.current = null;
     const { dx, dy } = frameRef.current;
     const axis = axisRef.current;
-    const { cancelProgress, lockProgress } = resolveGesture(dx, dy, axis);
+    const { cancelProgress, dockProgress } = resolveGesture({
+      dx, dy, axis,
+      point: { x: frameRef.current.x, y: frameRef.current.y },
+      dockRect: dockRef?.current?.getBoundingClientRect() ?? null,
+    });
 
     if (buttonRef.current) {
-      // Follows the finger along the committed axis only, so a drifting drag
-      // does not wander diagonally away from the gesture.
-      const x = axis === 'x' ? Math.max(-CANCEL_DISTANCE_PX, Math.min(0, dx)) : 0;
-      const y = axis === 'y' ? Math.max(-LOCK_DISTANCE_PX,   Math.min(0, dy)) : 0;
+      // The microphone follows the finger on whichever axis was committed.
+      // Horizontal travel is UNCAPPED in both directions — the dock's distance
+      // depends on the width of the text field, so any cap would be wrong at
+      // some viewport. Downward is capped at the cancel threshold, past which
+      // the gesture has already fired and further travel means nothing.
+      const x = axis === 'x' ? dx : 0;
+      const y = axis === 'y' ? Math.max(0, Math.min(CANCEL_DISTANCE_PX, dy)) : 0;
       buttonRef.current.style.transform = `translate3d(${x}px, ${y}px, 0)`;
     }
     if (cancelHintRef.current) cancelHintRef.current.style.opacity = String(cancelProgress);
-    if (lockHintRef.current) {
-      lockHintRef.current.style.opacity   = String(Math.max(0.35, lockProgress));
-      lockHintRef.current.style.transform = `translate3d(0, ${-8 * lockProgress}px, 0)`;
+
+    // THE DOCK LIGHTS UP AS THE MICROPHONE NEARS IT. This is the entire
+    // affordance — the reason nobody needs telling what the control is for.
+    // Written as a CSS variable so the styling stays in the stylesheet while
+    // the value tracks the finger at display rate, with no re-render.
+    if (dockRef?.current) {
+      dockRef.current.style.setProperty('--dock-near', dockProgress.toFixed(3));
     }
   }
 
@@ -285,10 +308,14 @@ export function useVoiceRecorder({ onRecorded, onNotice, disabled = false } = {}
 
     if (!axisRef.current) axisRef.current = commitAxis(dx, dy);
 
-    frameRef.current = { dx, dy };
+    frameRef.current = { dx, dy, x: e.clientX, y: e.clientY };
     if (rafRef.current === null) rafRef.current = requestAnimationFrame(paint);
 
-    const { action } = resolveGesture(dx, dy, axisRef.current);
+    const { action } = resolveGesture({
+      dx, dy, axis: axisRef.current,
+      point: { x: e.clientX, y: e.clientY },
+      dockRect: dockRef?.current?.getBoundingClientRect() ?? null,
+    });
     if (action === 'cancel')    void discard();
     else if (action === 'lock') lock();
   }
@@ -336,6 +363,15 @@ export function useVoiceRecorder({ onRecorded, onNotice, disabled = false } = {}
 
     send,
     discard,
+
+    /**
+     * Current loudness, 0..1, or 0 when nothing is recording.
+     *
+     * A stable function that reads through the ref, so the consumer can hold it
+     * across renders without its effect restarting every frame.
+     */
+    getLevel: readLevel,
+    justLocked,
 
     /** Spread onto the press target. */
     handlers: {

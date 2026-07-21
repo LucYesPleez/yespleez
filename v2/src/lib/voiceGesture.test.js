@@ -2,14 +2,17 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  commitAxis, resolveGesture,
-  SLOP_PX, CANCEL_DISTANCE_PX, LOCK_DISTANCE_PX,
+  commitAxis, resolveGesture, isOverDock,
+  SLOP_PX, CANCEL_DISTANCE_PX, DOCK_PADDING_PX, DOCK_MIN_TRAVEL_PX,
 } from './voiceGesture.js';
+
+/** A dock sitting to the RIGHT of the microphone, as it does in the composer. */
+const dock = { left: 300, right: 340, top: 100, bottom: 140, width: 40, height: 40 };
+const at = (x, y = 120) => ({ x, y });
 
 // ── small movements are not gestures ────────────────────────────────
 
 test('a press that barely moves commits to no axis', () => {
-  // Finger tremor, and the few pixels a touch travels during a normal press.
   assert.equal(commitAxis(0, 0), null);
   assert.equal(commitAxis(3, -4), null);          // hypot 5
   assert.equal(commitAxis(-6, 6), null);          // hypot 8.49
@@ -17,122 +20,136 @@ test('a press that barely moves commits to no axis', () => {
 
 test('the dead zone is a circle, not a diamond', () => {
   // Comparing axes separately makes a diamond, and a diagonal drag escapes a
-  // diamond sooner than a straight one — so the gesture would engage at
-  // different distances depending on direction. Both of these are just inside
-  // the radius and must behave identically.
-  const diagonal = SLOP_PX / Math.SQRT2 - 0.1;    // ~6.97 on each axis
-  assert.equal(commitAxis(-diagonal, -diagonal), null, 'diagonal must not engage early');
-  assert.equal(commitAxis(-(SLOP_PX - 0.1), 0), null, 'straight must not engage early');
-
-  // And both engage once past it.
-  assert.ok(commitAxis(-(SLOP_PX + 1), 0));
-  assert.ok(commitAxis(-SLOP_PX, -SLOP_PX));
+  // diamond sooner than a straight one — the gesture would engage at different
+  // distances depending on direction.
+  const diagonal = SLOP_PX / Math.SQRT2 - 0.1;
+  assert.equal(commitAxis(diagonal, diagonal), null);
+  assert.equal(commitAxis(SLOP_PX - 0.1, 0), null);
+  assert.ok(commitAxis(SLOP_PX + 1, 0));
 });
 
-test('no gesture can fire before an axis is committed', () => {
-  // Even movement far past a threshold does nothing while axis is null — the
-  // component must commit first, and this is what stops a fast flick from
-  // triggering both meanings at once.
-  const r = resolveGesture(-500, -500, null);
+test('ties commit to horizontal, because that is where both meanings live', () => {
+  // A gesture that committed to vertical could then do nothing at all.
+  assert.equal(commitAxis(30, 30), 'x');
+  assert.equal(commitAxis(-30, -30), 'x');
+});
+
+// ── the axes swapped: horizontal docks, vertical cancels ────────────
+
+test('dragging UP does nothing — lock is no longer a distance', () => {
+  // The old model locked this way. Anyone with that muscle memory must get a
+  // no-op rather than a surprise.
+  const r = resolveGesture({ dx: 0, dy: -400, axis: 'y', point: at(120, -280), dockRect: dock });
   assert.equal(r.action, null);
   assert.equal(r.cancelProgress, 0);
-  assert.equal(r.lockProgress, 0);
 });
 
-// ── axis commitment ─────────────────────────────────────────────────
-
-test('the dominant direction wins the axis', () => {
-  assert.equal(commitAxis(-40, -5),  'x');
-  assert.equal(commitAxis(-5,  -40), 'y');
+test('no gesture fires before an axis is committed', () => {
+  const r = resolveGesture({ dx: -500, dy: 0, axis: null, point: at(-380), dockRect: dock });
+  assert.equal(r.action, null);
 });
 
-test('a tie commits to lock, never to cancel', () => {
-  // Lock is recoverable, cancel destroys the recording. An exactly diagonal
-  // drag must not resolve to the destructive one.
-  assert.equal(commitAxis(-30, -30), 'y');
+// ── LOCK is a hit test on a real target ─────────────────────────────
+
+test('the microphone locks when it reaches the dock', () => {
+  const r = resolveGesture({ dx: -60, dy: 0, axis: 'x', point: at(320), dockRect: dock });
+  assert.equal(r.action, 'lock');
+  assert.equal(r.dockProgress, 1);
 });
 
-// ── only the committed axis can act ─────────────────────────────────
-
-test('a lock drag that drifts left cannot cancel', () => {
-  // THE defect this design exists to prevent. A finger travelling up to lock
-  // also drifts sideways; if both axes stayed live, a drag toward lock would
-  // destroy the recording on the way.
-  const drifted = resolveGesture(-CANCEL_DISTANCE_PX * 2, -LOCK_DISTANCE_PX, 'y');
-  assert.equal(drifted.action, 'lock', 'must lock, never cancel');
-  assert.equal(drifted.cancelProgress, 0, 'the cancel hint must not even light up');
+test('direction does not matter — only arriving does', () => {
+  // The dock sits left of the microphone today; a future layout could move it.
+  // Testing the target rather than a direction means neither the gesture nor
+  // this test has to know which way it lies.
+  const fromLeft  = resolveGesture({ dx:  40, dy: 0, axis: 'x', point: at(dock.left + 5), dockRect: dock });
+  const fromRight = resolveGesture({ dx: -40, dy: 0, axis: 'x', point: at(dock.right - 5), dockRect: dock });
+  assert.equal(fromLeft.action, 'lock');
+  assert.equal(fromRight.action, 'lock');
 });
 
-test('a cancel drag that drifts up cannot lock', () => {
-  const drifted = resolveGesture(-CANCEL_DISTANCE_PX, -LOCK_DISTANCE_PX * 2, 'x');
-  assert.equal(drifted.action, 'cancel');
-  assert.equal(drifted.lockProgress, 0);
+test('travelling toward the dock but stopping short does NOT lock', () => {
+  // The whole difference from a distance threshold: getting close is not
+  // arriving, however far you went.
+  const r = resolveGesture({ dx: -30, dy: 0, axis: 'x', point: at(370), dockRect: dock });
+  assert.equal(r.action, null);
+  assert.ok(r.dockProgress > 0, 'but the dock should be lighting up');
+  assert.ok(r.dockProgress < 1);
 });
 
-// ── the thresholds themselves ───────────────────────────────────────
+test('the dock target is padded for a fingertip', () => {
+  assert.equal(isOverDock(at(dock.left - DOCK_PADDING_PX + 1), dock), true);
+  assert.equal(isOverDock(at(dock.left - DOCK_PADDING_PX - 5), dock), false);
+  assert.equal(isOverDock(at(320, dock.bottom + DOCK_PADDING_PX - 1), dock), true);
+  assert.equal(isOverDock(at(320, dock.bottom + DOCK_PADDING_PX + 5), dock), false);
+});
+
+test('with no dock on screen, nothing can lock', () => {
+  // The dock is conditionally rendered. A gesture must not lock against a
+  // target that is not there.
+  const r = resolveGesture({ dx: -400, dy: 0, axis: 'x', point: at(-280), dockRect: null });
+  assert.equal(r.action, null);
+  assert.equal(r.dockProgress, 0);
+});
+
+test('the glow follows where the finger IS, not how far it came', () => {
+  // Measured from the dock rather than from the origin, so starting closer does
+  // not mean starting brighter.
+  const near = resolveGesture({ dx: -5,   dy: 0, axis: 'x', point: at(dock.left - 20), dockRect: dock });
+  const far  = resolveGesture({ dx: -300, dy: 0, axis: 'x', point: at(dock.left - 120), dockRect: dock });
+  assert.ok(near.dockProgress > far.dockProgress,
+    'the closer pointer must glow brighter despite the shorter drag');
+});
+
+// ── CANCEL is downward, and a distance ──────────────────────────────
 
 test('cancel fires exactly at its threshold and not before', () => {
-  assert.equal(resolveGesture(-(CANCEL_DISTANCE_PX - 1), 0, 'x').action, null);
-  assert.equal(resolveGesture(-CANCEL_DISTANCE_PX, 0, 'x').action, 'cancel');
+  const short = resolveGesture({ dx: 0, dy: CANCEL_DISTANCE_PX - 1, axis: 'y', point: at(120, 200), dockRect: dock });
+  assert.equal(short.action, null);
+  const far = resolveGesture({ dx: 0, dy: CANCEL_DISTANCE_PX, axis: 'y', point: at(120, 200), dockRect: dock });
+  assert.equal(far.action, 'cancel');
 });
 
-test('lock fires exactly at its threshold and not before', () => {
-  assert.equal(resolveGesture(0, -(LOCK_DISTANCE_PX - 1), 'y').action, null);
-  assert.equal(resolveGesture(0, -LOCK_DISTANCE_PX, 'y').action, 'lock');
+test('a vertical drag never lights the dock', () => {
+  const r = resolveGesture({ dx: 0, dy: 50, axis: 'y', point: at(320, 160), dockRect: dock });
+  assert.equal(r.dockProgress, 0);
+  assert.ok(r.cancelProgress > 0);
 });
 
-test('cancel is harder to reach than lock', () => {
-  // Deliberate: the destructive gesture must be the harder one to perform by
-  // accident. If this ever inverts, an accidental swipe destroys recordings.
-  assert.ok(CANCEL_DISTANCE_PX > LOCK_DISTANCE_PX,
-    `cancel ${CANCEL_DISTANCE_PX}px must exceed lock ${LOCK_DISTANCE_PX}px`);
-});
+// ── progress values drive animation, so they must stay bounded ──────
 
-// ── direction ───────────────────────────────────────────────────────
-
-test('sliding right or down is not a gesture', () => {
-  const right = resolveGesture(CANCEL_DISTANCE_PX * 3, 0, 'x');
-  assert.equal(right.action, null);
-  assert.equal(right.cancelProgress, 0);
-
-  const down = resolveGesture(0, LOCK_DISTANCE_PX * 3, 'y');
-  assert.equal(down.action, null);
-  assert.equal(down.lockProgress, 0);
-});
-
-test('overshooting back past the origin reports no progress, not negative', () => {
-  // A finger that goes left then swings right past where it started would
-  // otherwise drive a negative transform and push the affordance off-screen.
-  assert.equal(resolveGesture(120, 0, 'x').cancelProgress, 0);
-});
-
-// ── progress is bounded, because it drives transforms ───────────────
-
-test('progress stays within 0..1 however far the finger travels', () => {
-  const far = resolveGesture(-4000, 0, 'x');
-  assert.equal(far.cancelProgress, 1);
-
-  const farUp = resolveGesture(0, -4000, 'y');
-  assert.equal(farUp.lockProgress, 1);
-
-  for (const d of [0, 5, 25, 79, 80, 81, 500]) {
-    const p = resolveGesture(-d, 0, 'x').cancelProgress;
-    assert.ok(p >= 0 && p <= 1, `progress ${p} out of range at ${d}px`);
-  }
-});
-
-test('progress is monotonic — the affordance never jumps backwards', () => {
-  let previous = -1;
-  for (let d = 0; d <= LOCK_DISTANCE_PX * 2; d += 4) {
-    const p = resolveGesture(0, -d, 'y').lockProgress;
-    assert.ok(p >= previous, `progress fell from ${previous} to ${p} at ${d}px`);
-    previous = p;
+test('both progress values stay within 0..1', () => {
+  for (const [dx, dy, axis] of [[-500,0,'x'], [-80,0,'x'], [0,0,'x'], [200,0,'x'], [0,-300,'y'], [0,500,'y']]) {
+    const r = resolveGesture({ dx, dy, axis, point: at(120 + dx, 120 + dy), dockRect: dock });
+    assert.ok(r.cancelProgress >= 0 && r.cancelProgress <= 1, `cancel ${r.cancelProgress}`);
+    assert.ok(r.dockProgress >= 0 && r.dockProgress <= 1, `dock ${r.dockProgress}`);
   }
 });
 
 test('the same input always gives the same output', () => {
-  // "Deterministic" in the literal sense — no time, no randomness, no state.
-  const a = resolveGesture(-42, -17, 'x');
-  const b = resolveGesture(-42, -17, 'x');
+  const a = resolveGesture({ dx: -42, dy: 7, axis: 'x', point: at(300), dockRect: dock });
+  const b = resolveGesture({ dx: -42, dy: 7, axis: 'x', point: at(300), dockRect: dock });
   assert.deepEqual(a, b);
+});
+
+// ── a twitch is not a journey ───────────────────────────────────────
+
+test('a small slip toward the dock does not lock', () => {
+  // MEASURED: the dock sits 9px from the microphone, so its padded hit zone
+  // starts inside the microphone. A 20px slip used to lock the recording.
+  const r = resolveGesture({ dx: -20, dy: 0, axis: 'x', point: at(dock.right - 2), dockRect: dock });
+  assert.equal(r.action, null, 'twitching onto a neighbouring control is not docking');
+  assert.ok(r.dockProgress > 0, 'though it may still glow, which is the invitation');
+});
+
+test('a deliberate drag onto the dock locks', () => {
+  const r = resolveGesture({ dx: -DOCK_MIN_TRAVEL_PX, dy: 0, axis: 'x', point: at(dock.right - 2), dockRect: dock });
+  assert.equal(r.action, 'lock');
+});
+
+test('distance alone never locks, however far', () => {
+  // The gate is a minimum, not a trigger. Travelling a long way while missing
+  // the dock must still do nothing — otherwise it is a distance threshold
+  // wearing a target's clothes.
+  const r = resolveGesture({ dx: -900, dy: 0, axis: 'x', point: at(-800), dockRect: dock });
+  assert.equal(r.action, null);
 });
