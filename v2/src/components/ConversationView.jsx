@@ -107,6 +107,19 @@ function ThreadMarker({ label }) {
 const SENT_BUBBLE     = 'rgba(0,0,0,.55)';
 const RECEIVED_BUBBLE = 'rgba(255,255,255,.10)';
 
+/**
+ * How far the wallpaper is pushed back behind the conversation.
+ *
+ * The photograph is high-contrast and was overpowering the thread at full
+ * strength — it read as the subject rather than the surface. This is the one
+ * number that controls that: raise the alpha to quiet it further, lower it to
+ * let more of the image through.
+ *
+ * Tinted with the app's own --dark rather than pure black, so the dimmed image
+ * settles into the surrounding UI instead of turning into a grey wash.
+ */
+const CHAT_BG_SCRIM = 'rgba(10,10,15,.72)';
+
 const ghostBtn = {
   width: 34, height: 34, flexShrink: 0, borderRadius: 999,
   display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -626,12 +639,33 @@ export default function ConversationView({ conversationId, compact = false, onMi
           // the image away with the content; `fixed` would pin it to the
           // browser viewport, so inside the drawer it would align to the window
           // rather than to the thread.
-          backgroundImage: "url('/chat-bg.png')",
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-          backgroundRepeat: 'no-repeat',
-          // Under the image, so a slow load or a failed fetch shows the app's
-          // own surface rather than a white flash in a dark thread.
+          // TWO LAYERS: a flat scrim over the photograph. Order matters —
+          // the first background paints on TOP.
+          //
+          // `100% auto` — the image's WIDTH is locked to the window and its
+          // height follows proportionally.
+          //
+          // Not `contain`: that fits the whole image, which in the wide desktop
+          // drawer shrank it to a 333px column inside a 558px box with black
+          // bars either side — the opposite of sitting at full width. Not
+          // `cover` either, which is free to scale UP past the window to fill
+          // the height.
+          //
+          // The image is very tall (ratio 0.555), so at full width it overflows
+          // vertically and the middle shows. On a phone that overflow is about
+          // 10% of the height; in the drawer it is more. Full width is the
+          // fixed constraint, and the vertical crop is what gives.
+          //
+          // The scrim is what stops the image competing with the conversation.
+          // It is a flat fill rather than a gradient: the photograph is already
+          // strongly graded left-to-right, and a gradient scrim on top of that
+          // would fight its composition instead of quieting it.
+          backgroundImage: `linear-gradient(${CHAT_BG_SCRIM}, ${CHAT_BG_SCRIM}), url('/chat-bg.png')`,
+          backgroundSize: 'auto, 100% auto',
+          backgroundPosition: 'center, center',
+          backgroundRepeat: 'no-repeat, no-repeat',
+          // Fills the letterbox, and shows through if the image is slow or
+          // fails — a dark thread should never flash white.
           backgroundColor: 'var(--dark)',
         }}
       >
