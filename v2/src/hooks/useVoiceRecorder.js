@@ -1,36 +1,53 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { startRecording, canRecordVoice } from '../lib/voiceNotes';
-import { commitAxis, resolveGesture, CANCEL_DISTANCE_PX } from '../lib/voiceGesture';
+import { decideToggle, decideSend, isTooShort } from '../lib/voiceMachine';
 
 /**
  * THE RECORDING STATE MACHINE, WITHOUT ANY UI.
  *
- * Lifted out of `VoiceRecorderButton` unchanged during the M9h composer
- * redesign. Not a rewrite — the teardown, the race guards and the gesture
- * arithmetic are the same code that was verified on a real device, and the
- * point of moving it is that it can now be driven by a composer that owns its
- * own row instead of a button that drew into someone else's.
+ *   idle ──toggle──▶ recording ──toggle──▶ pending ──send──▶ uploading ──▶ sent ──▶ idle
+ *                        │                    │
+ *                        ├──send────────────▶ uploading
+ *                        ├──discard──▶ idle   └──discard──▶ idle
+ *                        └──6:00─────────────▶ uploading
  *
- *   idle ──press──▶ recording ──release──▶ uploading ──▶ sent ──▶ idle
- *                      │  │
- *                      │  └──slide up──▶ locked ──send──▶ uploading ──▶ …
- *                      │                   │
- *                      └──slide left───────┴──discard──▶ idle
+ * ── WHY THERE IS NO GESTURE ANY MORE (M9s) ───────────────────────────
  *
- * ── WHAT THE CALLER GETS AND WHAT IT MUST NOT DO ─────────────────────
+ * Recording used to be a press-and-hold with a drag: hold the microphone, drag
+ * it sideways into a dock to lock, drag it down to discard. That model existed
+ * to solve a problem hold-to-record creates and nothing else does — your finger
+ * is stuck on the button, so there has to be a way to get it back. Lock was the
+ * escape hatch.
  *
- * `handlers` go on the press target. `refs` go on the three animated nodes —
- * the hook writes transform and opacity to them directly during a drag, so a
- * pointermove never re-renders React. The caller decides what those nodes look
- * like; it must not decide when they move.
+ * The microphone is now a TOGGLE that slides between the ends of its pill. You
+ * are never holding anything, so there is nothing to escape from, and the whole
+ * lock concept goes with it — along with the axis arithmetic, the dead zone,
+ * the dock hit test and the pointer capture that made a drag survive leaving
+ * the button. `lib/voiceGesture.js` is deleted, not disabled.
+ *
+ * ── WHY `pending` EXISTS ─────────────────────────────────────────────
+ *
+ * Toggling back stops capture but does NOT send. Under the old model, letting
+ * go WAS sending, so there was never a finished-but-unsent recording. A toggle
+ * separates those acts, and the state between them has to be real: the audio
+ * exists, it is not going anywhere, and the user decides.
+ *
+ * That is the one thing this rewrite ADDS. Everything else it removes.
+ *
+ * ── WHAT THE CALLER GETS ─────────────────────────────────────────────
  *
  * `phase` is the only state the caller should branch on, and it must never be
  * copied into state of its own. A stored mode is a second source of truth that
- * can disagree with this one.
+ * can disagree with this one — the bug that produced a locked state with no way
+ * out.
  */
 
-/** Presses shorter than this send nothing — a tap is an accident, not a message. */
-const MIN_DURATION_MS = 400;
+/**
+ * The too-short notice. Under the old hold model this read "Hold to record",
+ * which taught the gesture; there is no gesture left to teach, so it says what
+ * actually happened. The threshold itself lives in `lib/voiceMachine`.
+ */
+const TOO_SHORT_NOTICE = 'Too short to send';
 
 /**
  * Hard ceiling (§6.3). At the measured ~27 kbps this is about 1.2 MB, well
@@ -38,7 +55,9 @@ const MIN_DURATION_MS = 400;
  *
  * Reaching it STOPS AND SENDS. It never discards: someone who has talked for
  * six minutes meant it, and throwing it away at an invisible limit is the worst
- * available response.
+ * available response. It does not stop to `pending` either — an unattended
+ * recording that hits the ceiling should complete, not wait for a press that
+ * may never come.
  */
 export const MAX_DURATION_MS   = 6 * 60 * 1000;
 export const WARN_REMAINING_MS = 15 * 1000;
@@ -46,36 +65,18 @@ export const WARN_REMAINING_MS = 15 * 1000;
 /** How long `sent` shows before returning to idle. */
 const SENT_DWELL_MS = 900;
 
-/** Ignore the click that ENDS the lock gesture. See onPrimaryClick. */
-const LOCK_CLICK_GUARD_MS = 350;
-
-export function useVoiceRecorder({ onRecorded, onNotice, disabled = false, dockRef } = {}) {
+export function useVoiceRecorder({ onRecorded, onNotice, disabled = false } = {}) {
   const [phase,   setPhase]   = useState('idle');
   const [elapsed, setElapsed] = useState(0);
-  // True for one animation's length after locking, so the dock can confirm the
-  // dock once. State rather than a class toggle because the animation must be
-  // able to REPLAY on a second recording — a class that never leaves cannot.
-  const [justLocked, setJustLocked] = useState(false);
 
-  // Mirrors `phase` for synchronous reads inside event handlers, which see a
-  // stale closure otherwise — the bug that lets a pointerup arrive believing it
-  // is still recording after the gesture already locked.
+  // Mirrors `phase` for synchronous reads inside async gaps and interval
+  // callbacks, which see a stale closure otherwise.
   const phaseRef    = useRef('idle');
-  const handleRef   = useRef(null);    // the live recorder
-  const originRef   = useRef(null);    // {x, y} of the press
-  const axisRef     = useRef(null);    // committed gesture axis
-  const settledRef  = useRef(false);   // "only one gesture may succeed"
-  const abortRef    = useRef(false);   // press ended before getUserMedia resolved
-  const pointerRef  = useRef({ id: null, el: null });
+  const handleRef   = useRef(null);   // the live recorder
+  const pendingRef  = useRef(null);   // a finished recording awaiting send
+  const abortRef    = useRef(false);  // toggled off before getUserMedia resolved
+  const startingRef = useRef(false);  // inside the getUserMedia gap
   const tickRef     = useRef(null);
-  const lockedAtRef = useRef(0);
-  const rafRef      = useRef(null);
-  const frameRef    = useRef({ dx: 0, dy: 0 });
-
-  // Animated nodes, written directly during a drag.
-  const buttonRef     = useRef(null);
-  const cancelHintRef = useRef(null);
-  const lockHintRef   = useRef(null);
 
   const supported = canRecordVoice();
 
@@ -88,24 +89,12 @@ export function useVoiceRecorder({ onRecorded, onNotice, disabled = false, dockR
     setPhase(next);
   }, []);
 
-  /** Return every animated node to rest, in one place. */
-  const resetVisuals = useCallback(() => {
-    if (buttonRef.current) buttonRef.current.style.transform = 'translate3d(0,0,0)';
-    if (cancelHintRef.current) cancelHintRef.current.style.opacity = '0';
-    if (lockHintRef.current) {
-      lockHintRef.current.style.opacity   = '0';
-      lockHintRef.current.style.transform = 'translate3d(0,0,0)';
-    }
-    if (dockRef?.current) dockRef.current.style.setProperty('--dock-near', '0');
-    frameRef.current = { dx: 0, dy: 0 };
-  }, [dockRef]);
-
   /**
-   * Release everything. Idempotent, and safe to call from any state.
+   * Release the recorder. Idempotent, and safe to call from any state.
    *
-   * `mode` decides the recorder's fate: 'cancel' discards, 'keep' returns the
-   * audio. Everything else is unconditional, because a teardown that only
-   * cleans up on the happy path is not a teardown.
+   * `mode` decides the audio's fate: 'cancel' discards, 'keep' returns it.
+   * Everything else is unconditional, because a teardown that only cleans up on
+   * the happy path is not a teardown.
    */
   const teardown = useCallback(async (mode = 'cancel') => {
     const handle = handleRef.current;
@@ -113,54 +102,35 @@ export function useVoiceRecorder({ onRecorded, onNotice, disabled = false, dockR
 
     clearInterval(tickRef.current);
     tickRef.current = null;
-    cancelAnimationFrame(rafRef.current);
-    rafRef.current = null;
-
-    const { id, el } = pointerRef.current;
-    if (id !== null && el?.hasPointerCapture?.(id)) {
-      try { el.releasePointerCapture(id); } catch { /* already gone */ }
-    }
-    pointerRef.current = { id: null, el: null };
-
-    originRef.current = null;
-    axisRef.current   = null;
-    resetVisuals();
 
     if (!handle) return null;
     if (mode === 'cancel') { handle.cancel(); return null; }
     try { return await handle.stop(); } catch { return null; }
-  }, [resetVisuals]);
+  }, []);
 
-  // Unmount: drawer closed, or navigated away, possibly mid-press.
+  // Unmount: drawer closed, or navigated away, possibly mid-recording. The
+  // pending blob goes too — it belongs to a composer that no longer exists.
   useEffect(() => () => {
     handleRef.current?.cancel();
     handleRef.current = null;
+    pendingRef.current = null;
     clearInterval(tickRef.current);
-    cancelAnimationFrame(rafRef.current);
   }, []);
 
+  /** Throw away whatever exists — live recording or parked note. */
   const discard = useCallback(async () => {
-    settledRef.current = true;
+    // Covers a discard racing a start that has not resolved yet: the recorder
+    // does not exist to be torn down, so the flag is the only thing that can
+    // stop it arriving.
+    abortRef.current = true;
     await teardown('cancel');
+    pendingRef.current = null;
     setElapsed(0);
     setPhaseBoth('idle');
   }, [teardown, setPhaseBoth]);
 
-  /** Stop, hand the audio up, and show the upload through to its end. */
-  const send = useCallback(async () => {
-    settledRef.current = true;
-    const result = await teardown('keep');
-
-    if (!result) { setElapsed(0); setPhaseBoth('idle'); return; }
-
-    if (result.durationMs < MIN_DURATION_MS) {
-      // Silently dropping teaches nothing; the hint is what teaches the gesture.
-      onNotice?.('Hold to record');
-      setElapsed(0);
-      setPhaseBoth('idle');
-      return;
-    }
-
+  /** Upload a finished result and show it through to its end. */
+  const upload = useCallback(async result => {
     setPhaseBoth('uploading');
     try {
       await onRecorded?.(result);
@@ -172,118 +142,99 @@ export function useVoiceRecorder({ onRecorded, onNotice, disabled = false, dockR
     } catch {
       setPhaseBoth('idle');
     }
-  }, [teardown, onRecorded, onNotice, setPhaseBoth]);
+  }, [onRecorded, setPhaseBoth]);
 
-  // Escape and blur, bound only while a recording exists.
-  useEffect(() => {
-    if (phase !== 'recording' && phase !== 'locked') return undefined;
+  /**
+   * Stop capturing and PARK the result. The audio is finished; nothing is sent.
+   *
+   * Returns the parked result so `send` can stop-and-send in one act without
+   * routing through a `pending` render the user would see flash past.
+   */
+  const park = useCallback(async () => {
+    const result = await teardown('keep');
 
-    const onKey = e => { if (e.key === 'Escape') { e.preventDefault(); void discard(); } };
-
-    // Blur while UNLOCKED cancels: the pointer gesture cannot complete once the
-    // window is gone, and the pointerup may never arrive at all.
-    //
-    // Blur while LOCKED does NOT cancel — hands-free recording that survives an
-    // app switch is the entire reason lock exists, and a notification stealing
-    // focus must not destroy a recording in progress.
-    const onBlur = () => { if (phaseRef.current === 'recording') void discard(); };
-
-    window.addEventListener('keydown', onKey);
-    window.addEventListener('blur', onBlur);
-    return () => {
-      window.removeEventListener('keydown', onKey);
-      window.removeEventListener('blur', onBlur);
-    };
-  }, [phase, discard]);
-
-  function lock() {
-    settledRef.current  = true;      // the gesture is spent; nothing else may fire
-    lockedAtRef.current = Date.now();
-
-    // Hand the pointer back immediately, or Discard cannot be pressed —
-    // capture would keep routing every event to the press target.
-    const { id, el } = pointerRef.current;
-    if (id !== null && el?.hasPointerCapture?.(id)) {
-      try { el.releasePointerCapture(id); } catch { /* already gone */ }
+    if (isTooShort(result)) {
+      if (result) onNotice?.(TOO_SHORT_NOTICE);
+      pendingRef.current = null;
+      setElapsed(0);
+      setPhaseBoth('idle');
+      return null;
     }
-    pointerRef.current = { id: null, el: null };
 
-    cancelAnimationFrame(rafRef.current);
-    rafRef.current = null;
-    resetVisuals();
-    setPhaseBoth('locked');
+    pendingRef.current = result;
+    setElapsed(result.durationMs);
+    setPhaseBoth('pending');
+    return result;
+  }, [teardown, onNotice, setPhaseBoth]);
 
-    setJustLocked(true);
-    setTimeout(() => setJustLocked(false), 480);
-  }
+  /**
+   * Send — from either state that can hold audio.
+   *
+   * While recording this stops and sends in one act. While pending it uploads
+   * what is already parked. Both are "the user pressed Send", so they are one
+   * function rather than two the caller has to choose between.
+   */
+  const send = useCallback(async () => {
+    const action = decideSend({ phase: phaseRef.current });
 
-  /** One write per frame, transform and opacity only — never layout. */
-  function paint() {
-    rafRef.current = null;
-    const { dx, dy } = frameRef.current;
-    const axis = axisRef.current;
-    const { cancelProgress, dockProgress } = resolveGesture({
-      dx, dy, axis,
-      point: { x: frameRef.current.x, y: frameRef.current.y },
-      dockRect: dockRef?.current?.getBoundingClientRect() ?? null,
-    });
-
-    if (buttonRef.current) {
-      // The microphone follows the finger on whichever axis was committed.
-      // Horizontal travel is UNCAPPED in both directions — the dock's distance
-      // depends on the width of the text field, so any cap would be wrong at
-      // some viewport. Downward is capped at the cancel threshold, past which
-      // the gesture has already fired and further travel means nothing.
-      const x = axis === 'x' ? dx : 0;
-      const y = axis === 'y' ? Math.max(0, Math.min(CANCEL_DISTANCE_PX, dy)) : 0;
-      buttonRef.current.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+    if (action === 'upload-parked') {
+      const held = pendingRef.current;
+      pendingRef.current = null;
+      if (!held) { setElapsed(0); setPhaseBoth('idle'); return; }
+      await upload(held);
+      return;
     }
-    if (cancelHintRef.current) cancelHintRef.current.style.opacity = String(cancelProgress);
 
-    // THE DOCK LIGHTS UP AS THE MICROPHONE NEARS IT. This is the entire
-    // affordance — the reason nobody needs telling what the control is for.
-    // Written as a CSS variable so the styling stays in the stylesheet while
-    // the value tracks the finger at display rate, with no re-render.
-    if (dockRef?.current) {
-      dockRef.current.style.setProperty('--dock-near', dockProgress.toFixed(3));
+    if (action !== 'stop-and-upload') return;
+
+    const result = await teardown('keep');
+    if (isTooShort(result)) {
+      if (result) onNotice?.(TOO_SHORT_NOTICE);
+      setElapsed(0);
+      setPhaseBoth('idle');
+      return;
     }
-  }
 
-  async function onPointerDown(e) {
-    if (disabled || !supported || handleRef.current || phaseRef.current !== 'idle') return;
+    await upload(result);
+  }, [teardown, upload, onNotice, setPhaseBoth]);
 
-    // Keeps pointermove/up addressed here even when the finger leaves the
-    // target — without it, sliding away stops delivering events and a cancel
-    // gesture becomes indistinguishable from a press that never ended.
-    e.currentTarget.setPointerCapture?.(e.pointerId);
-    pointerRef.current = { id: e.pointerId, el: e.currentTarget };
+  /** Begin capturing. */
+  const start = useCallback(async () => {
+    if (disabled || !supported || handleRef.current || startingRef.current) return;
+    if (phaseRef.current !== 'idle') return;
 
-    originRef.current  = { x: e.clientX, y: e.clientY };
-    axisRef.current    = null;
-    settledRef.current = false;
-    abortRef.current   = false;
+    abortRef.current    = false;
+    startingRef.current = true;
     setElapsed(0);
 
     let handle;
     try {
       handle = await startRecording();
     } catch (err) {
+      startingRef.current = false;
       onNotice?.(
         err?.name === 'NotAllowedError'
           ? 'Microphone access was declined'
           : 'Cannot record on this device',
       );
       await teardown('cancel');
+      setElapsed(0);
+      setPhaseBoth('idle');
       return;
     }
 
-    // The press can END before getUserMedia resolves — a quick tap. The
-    // pointerup handler already ran, found no handle and returned, so nothing
-    // would ever stop this recorder and the microphone would stay open. A ref,
-    // not state, because this runs inside an async gap where state is stale.
+    startingRef.current = false;
+
+    // The toggle can be pressed AGAIN before getUserMedia resolves. Without
+    // this the second press finds no handle, returns, and nothing would ever
+    // stop this recorder — the microphone would stay open with nothing on
+    // screen to explain it. A ref, not state, because this runs inside an async
+    // gap where state is stale.
     if (abortRef.current) {
       handle.cancel();
       await teardown('cancel');
+      setElapsed(0);
+      setPhaseBoth('idle');
       return;
     }
 
@@ -293,64 +244,57 @@ export function useVoiceRecorder({ onRecorded, onNotice, disabled = false, dockR
     tickRef.current = setInterval(() => {
       const ms = handleRef.current?.elapsedMs() ?? 0;
       setElapsed(ms);
-      if (ms >= MAX_DURATION_MS && !settledRef.current) void send();
+      if (ms >= MAX_DURATION_MS) void send();
     }, 100);
-  }
-
-  function onPointerMove(e) {
-    // Locked has no gesture left to make: the finger is free and the recording
-    // continues without it. This is also what stops horizontal movement from
-    // cancelling after a lock.
-    if (phaseRef.current !== 'recording' || settledRef.current || !originRef.current) return;
-
-    const dx = e.clientX - originRef.current.x;
-    const dy = e.clientY - originRef.current.y;
-
-    if (!axisRef.current) axisRef.current = commitAxis(dx, dy);
-
-    frameRef.current = { dx, dy, x: e.clientX, y: e.clientY };
-    if (rafRef.current === null) rafRef.current = requestAnimationFrame(paint);
-
-    const { action } = resolveGesture({
-      dx, dy, axis: axisRef.current,
-      point: { x: e.clientX, y: e.clientY },
-      dockRect: dockRef?.current?.getBoundingClientRect() ?? null,
-    });
-    if (action === 'cancel')    void discard();
-    else if (action === 'lock') lock();
-  }
+  }, [disabled, supported, onNotice, teardown, send, setPhaseBoth]);
 
   /**
-   * Send, when locked — but not on the click that ENDED the lock gesture.
+   * THE TOGGLE. Slide right-to-left to record, left-to-right to stop.
    *
-   * `lock()` releases pointer capture so Discard becomes pressable, which means
-   * the following pointerup goes to whatever is under the finger. Release above
-   * the button and it targets the row; drift back down over the button first
-   * and it targets the button, synthesising a click that would send the instant
-   * the user locked — without them ever pressing Send.
+   * From `pending` it starts a NEW recording, discarding the parked one. The
+   * microphone sitting back at the idle end is the only thing it can honestly
+   * mean — the alternative is a toggle that does nothing in one of the three
+   * states it is visible in.
    */
-  function onPrimaryClick() {
-    if (Date.now() - lockedAtRef.current < LOCK_CLICK_GUARD_MS) return;
-    void send();
-  }
+  const toggle = useCallback(async () => {
+    if (disabled || !supported) return;
 
-  function onPointerUp() {
-    abortRef.current = true;        // covers the pre-getUserMedia tap
-    if (phaseRef.current !== 'recording' || settledRef.current) return;
-    void send();
-  }
+    switch (decideToggle({ phase: phaseRef.current, starting: startingRef.current })) {
+      // Pressed again inside the getUserMedia gap. `start` honours this flag
+      // when it resolves, and cancels the recorder it just opened.
+      case 'abort-start':
+        abortRef.current = true;
+        return;
 
-  function onPointerCancel() {
-    abortRef.current = true;
-    if (phaseRef.current === 'recording' && !settledRef.current) void discard();
-  }
+      case 'park':
+        await park();
+        return;
 
-  function onLostPointerCapture() {
-    // A press that ended somewhere the target never saw. Only meaningful while
-    // still recording — locking releases capture deliberately.
-    abortRef.current = true;
-    if (phaseRef.current === 'recording' && !settledRef.current) void discard();
-  }
+      case 'start':
+        pendingRef.current = null;      // starting over discards a parked note
+        phaseRef.current   = 'idle';    // so `start`'s idle guard passes
+        await start();
+        return;
+
+      default:
+        return;
+    }
+  }, [disabled, supported, park, start]);
+
+  // Escape discards from any state that holds audio.
+  //
+  // NOTE: blur does NOT cancel, and that is a deliberate change. Under the hold
+  // model an unlocked recording was cancelled on blur because the pointer
+  // gesture could no longer complete and `pointerup` might never arrive. A
+  // toggle has no such dependency — it is hands-free by construction, which is
+  // exactly what lock used to buy. A notification stealing focus must not
+  // destroy a recording in progress.
+  useEffect(() => {
+    if (phase !== 'recording' && phase !== 'pending') return undefined;
+    const onKey = e => { if (e.key === 'Escape') { e.preventDefault(); void discard(); } };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [phase, discard]);
 
   return {
     phase,
@@ -358,9 +302,13 @@ export function useVoiceRecorder({ onRecorded, onNotice, disabled = false, dockR
     supported,
     remaining: MAX_DURATION_MS - elapsed,
     closing:   MAX_DURATION_MS - elapsed <= WARN_REMAINING_MS,
-    active:    phase === 'recording' || phase === 'locked',
+    recording: phase === 'recording',
+    pending:   phase === 'pending',
+    /** Anything the composer must not lose: live capture or a parked note. */
+    active:    phase === 'recording' || phase === 'pending',
     busy:      phase === 'uploading',
 
+    toggle,
     send,
     discard,
 
@@ -371,16 +319,5 @@ export function useVoiceRecorder({ onRecorded, onNotice, disabled = false, dockR
      * across renders without its effect restarting every frame.
      */
     getLevel: readLevel,
-    justLocked,
-
-    /** Spread onto the press target. */
-    handlers: {
-      onPointerDown, onPointerMove, onPointerUp,
-      onPointerCancel, onLostPointerCapture,
-    },
-    onPrimaryClick,
-
-    /** Attach to the animated nodes. The hook writes to them during a drag. */
-    refs: { button: buttonRef, cancelHint: cancelHintRef, lockHint: lockHintRef },
   };
 }

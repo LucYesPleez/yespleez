@@ -1,41 +1,58 @@
-import { useRef } from 'react';
 import { useVoiceRecorder } from '../hooks/useVoiceRecorder';
 import { formatDuration } from '../lib/voiceNotes';
 import HandIcon from './HandIcon';
-import VoiceDock from './VoiceDock';
+import VoicePill, { PILL_WIDTH as PILL_W } from './VoicePill';
 import LiveWaveform from './LiveWaveform';
 
 /**
- * THE COMPOSER — one owner, one row, four modes.
+ * THE COMPOSER — one glass capsule, four slots, four states.
  *
- * ── WHY THIS EXISTS ──────────────────────────────────────────────────
+ * ┌──────────────────────────────────────────────────────────┐
+ * │  [ + ]   Message……………………   [ ~~|mic ]   [ hand ]         │
+ * └──────────────────────────────────────────────────────────┘
+ *    left        centre            pill        trailing
  *
- * Before M9h the recorder rendered two absolutely-positioned elements INTO
- * `ConversationView`'s form, carrying `inset: '0 62px 0 0'` — a magic number
- * encoding a sibling button's width plus the flex gap. Two components owned
- * one row, and neither could be changed without silently invalidating the
- * other. That is why "can the user reach Send while locked?" was a layout
- * question at all.
+ * ── ONE COMPONENT, NOT FOUR CONTROLS IN A ROW ────────────────────────
  *
- * Now one component owns the row. There are no overlays and no magic numbers:
- * every mode is a different arrangement of the SAME flex row, so constant
- * height is structural rather than something each mode has to remember.
+ * The capsule is the object; the controls live INSIDE it. Before M9t each
+ * element carried its own border and fill — the field was a bordered pill, the
+ * buttons were separate circles — so the composer read as four things that
+ * happened to be adjacent. Now one outline, one glass surface, one shadow, and
+ * the controls sit in it rather than beside each other.
+ *
+ * The field in particular has no border or background of its own any more. It
+ * is a hole in the glass, which is what stops the capsule from looking like a
+ * frame drawn around a smaller frame.
+ *
+ * ── FOUR SLOTS THAT NEVER CHANGE COUNT ───────────────────────────────
+ *
+ * Every state is the SAME four slots wearing different costumes. Nothing mounts
+ * or unmounts on a state change, so nothing can jump:
+ *
+ *   slot      idle          typing        recording      pending
+ *   ────────────────────────────────────────────────────────────────
+ *   left      + (disabled)  + (disabled)  discard        discard
+ *   centre    field         field         timer + wave   duration
+ *   pill      at rest       collapsed     live           at rest
+ *   trailing  hand          send          send           send
+ *
+ * The pill COLLAPSES rather than unmounting when you type — width and opacity
+ * to zero — because a control that vanishes on the first keystroke is the
+ * abrupt layout change this redesign exists to remove. Everything else is a
+ * costume change on a box that never moves.
  *
  * ── MODE IS DERIVED, NEVER STORED ────────────────────────────────────
  *
  * The recorder's `phase` is the authority. A `mode` in state would be a second
  * source of truth that can disagree with it — the exact class of bug that
  * produced a locked state with no way out.
- *
- * ── THE TRAILING BUTTON IS ALWAYS THE SAME BUTTON ────────────────────
- *
- * Hand → Send → Send-while-locked is one control changing costume. It is never
- * unmounted and remounted, which is what makes the change read as a morph
- * rather than a replacement, and what guarantees the completion path can never
- * be laid out away.
  */
 
-const HEIGHT = 46;   // every control in the row, so the row cannot change height
+/** Every control in the capsule. One number governs the whole row. */
+const CONTROL = 46;
+
+/** Breathing room between the glass and the controls inside it. */
+const INSET = 6;
 
 export default function Composer({
   draft,
@@ -50,210 +67,189 @@ export default function Composer({
   inputRef,
   onInputEvent,
 }) {
-  // The gesture hit-tests this, so the hook needs the live element rather than
-  // a distance — where the dock sits depends on the width of the text field.
-  const dockRef = useRef(null);
-  const rec = useVoiceRecorder({ onRecorded, onNotice, disabled: !canWrite || sending, dockRef });
+  const rec = useVoiceRecorder({ onRecorded, onNotice, disabled: !canWrite || sending });
 
   const hasText = Boolean(draft.trim());
+  const busy    = rec.busy;
 
   // Derived. See header.
   const mode =
-    rec.phase === 'locked'    ? 'recordingLocked'
-    : rec.phase === 'recording' ? 'recordingHeld'
+    rec.phase === 'recording' ? 'recording'
+    : rec.phase === 'pending'   ? 'pending'
     : hasText                   ? 'typing'
     : 'idle';
 
-  const recording = mode === 'recordingHeld' || mode === 'recordingLocked';
-  const busy      = rec.phase === 'uploading';
+  // The centre belongs to the voice note from the moment recording starts until
+  // the "Sent" dwell ends — one continuous story in one place.
+  const showVoiceSlot = rec.active || busy || rec.phase === 'sent';
+
+  // Collapsed while typing, and while the note is on its way — in both cases
+  // starting a recording is not the next thing anyone wants.
+  const pillOpen = rec.supported && !hasText && !busy && rec.phase !== 'sent';
+
+  const trailingIsSend = hasText || rec.active;
 
   function submit(e) {
     e.preventDefault();
     if (hasText) onSubmit?.(e);
   }
 
-  /** Trailing button: Send when there is text or a locked recording, else Hand. */
-  const trailingIsSend = hasText || mode === 'recordingLocked';
-
   return (
-    <form onSubmit={submit} style={{
-      display: 'flex', alignItems: 'center', gap: 9,
-      padding: '12px 16px 16px', flexShrink: 0,
-      // Translucent, not solid, so the wallpaper bleeds through the bar rather
-      // than being cut off by a hard edge at the bottom of the thread.
-      //
-      // Darkened enough to keep the input and its placeholder legible over the
-      // bright half of the image — the composer is the one surface that must
-      // stay readable regardless of what is behind it.
-      background: 'linear-gradient(0deg, rgba(0,0,0,.62) 0%, rgba(0,0,0,.34) 100%)',
-      backdropFilter: 'blur(12px)',
-      WebkitBackdropFilter: 'blur(12px)',
-    }}>
-      {/* ── LEADING ─────────────────────────────────────────────────
-          Discard while locked; nothing otherwise.
-
-          There is deliberately no attachments (+) button yet. Images and files
-          are declared kinds with no implementation, so a + would be a control
-          that does nothing — the same defect as the padlock that could not
-          send. It goes in when attachments do. */}
-      {mode === 'recordingLocked' && (
-        <button
-          type="button"
-          onClick={() => void rec.discard()}
-          aria-label="Discard recording"
-          style={{
-            width: HEIGHT, height: HEIGHT, flexShrink: 0, borderRadius: 999,
-            border: '1px solid rgba(255,59,92,.35)', background: 'rgba(255,59,92,.12)',
-            color: '#FF3B5C', display: 'flex', alignItems: 'center', justifyContent: 'center',
-            cursor: 'pointer',
-          }}
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round">
-            <path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="M6 6l1 14h10l1-14" />
-          </svg>
-        </button>
-      )}
-
-      {/* ── CENTRE ──────────────────────────────────────────────────
-          The text field and the recording display are the same slot, so
-          swapping them cannot change the row's height or the position of
-          anything beside them. */}
-      {recording || busy || rec.phase === 'sent' ? (
-        <RecordingDisplay rec={rec} phase={rec.phase} mode={mode} />
-      ) : (
-        <input
-          ref={inputRef}
-          value={draft}
-          onChange={e => { onDraftChange(e.target.value); onInputEvent?.(); }}
-          onSelect={onInputEvent}
-          onKeyUp={onInputEvent}
-          onBlur={onInputEvent}
-          disabled={!canWrite || sending}
-          placeholder={placeholder}
-          aria-label="Message"
-          style={{
-            flex: 1, minWidth: 0, height: HEIGHT, boxSizing: 'border-box',
-            background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.10)',
-            borderRadius: 999, padding: '0 18px', color: 'var(--text)', fontSize: 14.5,
-            outline: 'none',
-          }}
-        />
-      )}
-
-      {/* ── THE DOCK ────────────────────────────────────────────────
-          Permanent, and to the LEFT of the microphone so the gesture travels
-          rightward into it. It is on screen before anything happens, which is
-          what makes "drag the microphone here" guessable without being told. */}
-      {rec.supported && !hasText && (
-        <VoiceDock
-          ref={dockRef}
-          // Bound to the row's own constant rather than left to VoiceDock's
-          // default, so the dock and the microphone cannot drift apart — one
-          // number governs every control in the composer.
-          size={HEIGHT}
-          active={recording}
-          locking={rec.justLocked}
-        />
-      )}
-
-      {/* ── MIC ─────────────────────────────────────────────────────
-          Hidden once there is text: recording and a half-typed message are two
-          different intentions, and showing both invites the question of what
-          happens to the draft. The draft is preserved either way — it lives in
-          shell state, not here — so the mic simply returns when the field is
-          cleared. */}
-      {rec.supported && !hasText && mode !== 'recordingLocked' && (
-        <>
-          <button
-            ref={rec.refs.button}
-            type="button"
-            disabled={!canWrite || sending || busy}
-            {...rec.handlers}
-            onContextMenu={e => e.preventDefault()}   // suppresses the iOS hold callout
-            aria-label={
-              mode === 'recordingHeld'
-                ? 'Recording — release to send, drag onto the waveform to lock, drag down to cancel'
-                : 'Hold to record a voice message'
-            }
-            style={{
-              width: HEIGHT, height: HEIGHT, flexShrink: 0, borderRadius: 999, border: 'none',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              cursor: canWrite ? 'pointer' : 'not-allowed',
-              touchAction: 'none',   // or the browser scrolls instead of recording
-              userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none',
-              willChange: 'transform',
-              // A FILLED VIOLET CIRCLE, not a faint grey one. It is the
-              // control the whole gesture starts from, and at .07 alpha it read
-              // as the least important thing in the row. Bright against the
-              // dock's deep panel: the thing that MOVES comes forward, the
-              // destination sits back.
-              background: recording
-                ? 'linear-gradient(135deg, #00E5FF, #BF5FFF)'
-                : 'linear-gradient(150deg, #A855F7 0%, #7C3AED 100%)',
-              boxShadow: recording ? 'none' : '0 4px 14px -6px rgba(124,58,237,.85)',
-              color: recording ? '#0a0a0f' : '#FFFFFF',
-              transition: 'background .2s ease',   // never on transform: it tracks the finger
-            }}
-          >
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="9" y="2" width="6" height="11" rx="3" />
-              <path d="M5 10a7 7 0 0 0 14 0" /><path d="M12 17v5" />
-            </svg>
-          </button>
-        </>
-      )}
-
-      {/* ── TRAILING · one button, three costumes ───────────────────
-          Hand when there is nothing to say, Send when there is, Send when a
-          locked recording is waiting. Always mounted, always 46px, always
-          last — so the way to finish can never be squeezed out by anything
-          beside it. */}
-      <button
-        type={trailingIsSend && mode !== 'recordingLocked' ? 'submit' : 'button'}
-        onClick={
-          mode === 'recordingLocked' ? rec.onPrimaryClick
-          : hasText                  ? undefined              // the form submits
-          : () => onSendHand?.()
-        }
-        disabled={!canWrite || sending || busy}
-        aria-label={
-          mode === 'recordingLocked' ? 'Send voice message'
-          : hasText                  ? 'Send'
-          : 'Send a Yes'
-        }
-        title={hasText || mode === 'recordingLocked' ? undefined : 'Send a Yes'}
+    <form
+      onSubmit={submit}
+      style={{
+        padding: '26px 14px 14px', flexShrink: 0,
+        // ⚠ THE WASH IS LOAD-BEARING, NOT DECORATION.
+        //
+        // The wallpaper is painted on the thread and simply STOPS where the
+        // thread ends. Without something covering that boundary the image cuts
+        // off against flat dark in a dead straight line across the full width —
+        // a hard rule nobody drew. Removing this in M9t is exactly what put it
+        // there.
+        //
+        // Transparent at the top and only reaching full strength at the bottom,
+        // over 26px of padding, so it reads as the surface receding rather than
+        // as a panel with an edge. Any abrupt stop here IS the line again.
+        background: 'linear-gradient(180deg, rgba(10,10,15,0) 0%, rgba(10,10,15,.42) 42%, rgba(10,10,15,.72) 100%)',
+      }}
+    >
+      <div
+        className="yp-composer"
+        // Drives the capsule's recording accent, and gives the state one
+        // inspectable name rather than leaving it implied by which children
+        // happen to be mounted.
+        data-state={mode}
         style={{
-          width: HEIGHT, height: HEIGHT, flexShrink: 0, borderRadius: 999, border: 'none',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          cursor: canWrite && !busy ? 'pointer' : 'not-allowed',
-          background: trailingIsSend
-            ? 'linear-gradient(135deg, #00E5FF, #BF5FFF)'
-            : 'rgba(255,255,255,.07)',
-          color: trailingIsSend ? '#0a0a0f' : 'rgba(255,255,255,.72)',
-          boxShadow: trailingIsSend ? '0 8px 22px -8px rgba(191,95,255,.75)' : 'none',
-          transition: 'background .25s ease, box-shadow .25s ease, color .2s ease',
+          display: 'flex', alignItems: 'center', gap: INSET,
+          padding: INSET, borderRadius: 999, boxSizing: 'border-box',
         }}
       >
-        {busy ? '…' : trailingIsSend ? (
-          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M22 2 11 13" /><path d="M22 2 15 22l-4-9-9-4 20-7z" />
-          </svg>
+        {/* ── LEFT · attach, or discard ───────────────────────────────
+            ONE button, two costumes, like the trailing one. A separate discard
+            that appeared beside a separate + would change the slot count
+            mid-recording and shove the field sideways.
+
+            THE + IS DISABLED, DELIBERATELY. `image`, `video`, `file` and
+            `location` are declared message kinds with no client implementation,
+            so a working-looking + would be a control that does nothing — the
+            padlock defect. It holds its place in the layout and says why. It
+            becomes live the day attachments ship, with no layout change. */}
+        <button
+          type="button"
+          onClick={rec.active ? () => void rec.discard() : undefined}
+          disabled={!rec.active}
+          aria-label={
+            rec.active
+              ? (mode === 'pending' ? 'Discard voice message' : 'Discard recording')
+              : 'Attachments — coming soon'
+          }
+          title={rec.active ? undefined : 'Attachments coming soon'}
+          className={`yp-ctl ${rec.active ? 'yp-ctl-danger' : 'yp-ctl-attach'}`}
+          style={{ width: CONTROL, height: CONTROL }}
+        >
+          {rec.active ? (
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round">
+              <path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="M6 6l1 14h10l1-14" />
+            </svg>
+          ) : (
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+              <path d="M12 5v14" /><path d="M5 12h14" />
+            </svg>
+          )}
+        </button>
+
+        {/* ── CENTRE · the hole in the glass ──────────────────────────
+            No border and no background: the capsule already draws the surface,
+            and a second outline here is what made the old composer read as a
+            frame inside a frame. Both costumes share one box, so swapping them
+            costs no layout. */}
+        {showVoiceSlot ? (
+          <VoiceSlot rec={rec} phase={rec.phase} />
         ) : (
-          // 38 in a 46px button, larger than it looks: the artwork is uncropped
-          // so its own padding is inside the box, and `contain` fits the whole
-          // image rather than the mark. ~33px of actual ink.
-          <HandIcon size={38} />
+          <input
+            ref={inputRef}
+            value={draft}
+            onChange={e => { onDraftChange(e.target.value); onInputEvent?.(); }}
+            onSelect={onInputEvent}
+            onKeyUp={onInputEvent}
+            onBlur={onInputEvent}
+            disabled={!canWrite || sending}
+            placeholder={placeholder}
+            aria-label="Message"
+            className="yp-composer-field"
+            style={{ flex: 1, minWidth: 0, height: CONTROL }}
+          />
         )}
-      </button>
+
+        {/* ── PILL · collapses, never unmounts ────────────────────────
+            Width and opacity to zero so typing does not pop a control out of
+            the row. `overflow: hidden` on the wrapper keeps the pill's own
+            geometry intact while the slot closes around it — animating the
+            pill itself would squash the microphone. */}
+        <span
+          className="yp-slot-collapse"
+          style={{
+            width: pillOpen ? PILL_W : 0,
+            opacity: pillOpen ? 1 : 0,
+            // A zero-width flex child still gets a gap on BOTH sides, so
+            // closing the slot would otherwise leave 6px of nothing behind.
+            // Cancelling one gap makes the collapse land exactly closed.
+            marginRight: pillOpen ? 0 : -INSET,
+          }}
+          aria-hidden={!pillOpen}
+        >
+          {rec.supported && (
+            <VoicePill
+              recording={mode === 'recording'}
+              disabled={!canWrite || sending || !pillOpen}
+              onToggle={() => void rec.toggle()}
+            />
+          )}
+        </span>
+
+        {/* ── TRAILING · hand, or send ────────────────────────────────
+            Never unmounted, always last, so the way to finish can never be
+            squeezed out by anything beside it. */}
+        <button
+          type={hasText && !rec.active ? 'submit' : 'button'}
+          onClick={
+            rec.active ? () => void rec.send()
+            : hasText   ? undefined              // the form submits
+            : () => onSendHand?.()
+          }
+          disabled={!canWrite || sending || busy}
+          aria-label={
+            rec.active ? 'Send voice message'
+            : hasText   ? 'Send'
+            : 'Send a Yes'
+          }
+          title={trailingIsSend ? undefined : 'Send a Yes'}
+          // The Hand wears the gradient as a RING; Send wears it as a fill. Same
+          // gradient — the difference is "this is ours" versus "this is the act".
+          className={`yp-ctl${trailingIsSend ? ' yp-ctl-send' : ' yp-hand-ring'}`}
+          style={{ width: CONTROL, height: CONTROL }}
+        >
+          {busy ? '…' : trailingIsSend ? (
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M22 2 11 13" /><path d="M22 2 15 22l-4-9-9-4 20-7z" />
+            </svg>
+          ) : (
+            // 38 in a 46px button, larger than it looks: the artwork is uncropped
+            // so its own padding is inside the box, and `contain` fits the whole
+            // image rather than the mark. ~33px of actual ink.
+            <HandIcon size={38} />
+          )}
+        </button>
+      </div>
     </form>
   );
 }
 
 /**
- * The recording readout — occupies the text field's slot, at the field's exact
- * height, so nothing around it moves when recording starts.
+ * The voice readout — the centre slot's other costume, at the field's exact
+ * height so nothing around it moves when recording starts.
  */
-function RecordingDisplay({ rec, phase, mode }) {
+function VoiceSlot({ rec, phase }) {
   if (phase === 'uploading' || phase === 'sent') {
     return (
       <div style={{ ...slot, gap: 8, color: 'var(--muted)', fontSize: 13 }}>
@@ -262,6 +258,22 @@ function RecordingDisplay({ rec, phase, mode }) {
           background: phase === 'sent' ? '#3DDC84' : 'var(--muted)',
         }} />
         {phase === 'sent' ? 'Sent' : 'Sending…'}
+      </div>
+    );
+  }
+
+  // PARKED. A still dot, not a pulsing one: the pulse means a live microphone,
+  // and reusing it here would say the thing this state exists to deny.
+  if (phase === 'pending') {
+    return (
+      <div style={{ ...slot, gap: 10 }}>
+        <span style={{ width: 9, height: 9, borderRadius: 999, flexShrink: 0, background: '#BF5FFF' }} />
+        <span style={{ fontSize: 13.5, fontVariantNumeric: 'tabular-nums', color: 'var(--text)', flexShrink: 0 }}>
+          {formatDuration(rec.elapsed / 1000)}
+        </span>
+        <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--muted)', whiteSpace: 'nowrap', flexShrink: 0 }}>
+          Ready to send
+        </span>
       </div>
     );
   }
@@ -283,30 +295,16 @@ function RecordingDisplay({ rec, phase, mode }) {
         </span>
       )}
 
-      {mode === 'recordingLocked' ? (
-        // LOCKED: the field becomes the recording. Live audio fills the space
-        // the placeholder used to occupy, growing left to right, so the thing
-        // taking up the composer is the thing being captured.
-        <LiveWaveform getLevel={rec.getLevel} />
-      ) : (
-        <span
-          ref={rec.refs.cancelHint}
-          style={{
-            marginLeft: 'auto', opacity: 0, fontSize: 12, color: 'var(--neon)',
-            whiteSpace: 'nowrap', willChange: 'opacity', flexShrink: 0,
-          }}
-        >
-          Release to cancel
-        </span>
-      )}
+      {/* The field becomes the recording: live audio rolling right to left, so
+          the thing taking up the composer is the thing being captured. */}
+      <LiveWaveform getLevel={rec.getLevel} />
     </div>
   );
 }
 
-/** The text field's exact box, so the swap costs no layout. */
+/** The field's exact box — no surface of its own; the capsule is the surface. */
 const slot = {
-  flex: 1, minWidth: 0, height: HEIGHT, boxSizing: 'border-box',
+  flex: 1, minWidth: 0, height: CONTROL, boxSizing: 'border-box',
   display: 'flex', alignItems: 'center',
-  padding: '0 18px', borderRadius: 999,
-  background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.10)',
+  padding: '0 4px',
 };

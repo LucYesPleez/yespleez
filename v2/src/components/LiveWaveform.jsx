@@ -1,27 +1,33 @@
 import { useEffect, useRef } from 'react';
+import { alignRight } from '../lib/liveWaveform';
 
 /**
- * THE LIVE RECORDING WAVEFORM, filling the composer's field left to right.
+ * THE LIVE RECORDING WAVEFORM, rolling right to left across the composer's field.
  *
- * Samples real loudness from the recorder while a locked recording runs, so what
- * you see is what the microphone is hearing. A decorative animation here would
- * be worse than nothing: it would look identical whether or not the microphone
- * was actually picking anything up, which is exactly the question someone
- * recording wants answered.
+ * Samples real loudness from the recorder while recording runs, so what you see
+ * is what the microphone is hearing. A decorative animation here would be worse
+ * than nothing: it would look identical whether or not the microphone was
+ * actually picking anything up, which is exactly the question someone recording
+ * wants answered.
  *
- * ── IT GROWS, THEN IT SCROLLS ────────────────────────────────────────
+ * ── IT ENTERS AT THE RIGHT AND TRAVELS LEFT ──────────────────────────
  *
- * Bars accumulate from the left until the row is full, then the oldest falls off
- * — so a short recording reads as progress and a long one as a moving window.
- * Starting full and scrolling immediately would make the first second look the
- * same as the fiftieth.
+ * The newest sample is always the RIGHTMOST bar, hard against the edge nearest
+ * the microphone, and every older one shifts left to make room. The field fills
+ * from the right and empties off the left.
+ *
+ * It used to accumulate from the left instead, which put NOW at a point that
+ * wandered rightward for the first two and a half seconds and then stopped
+ * moving. Anchoring the newest sample means the live edge is in the same place
+ * at 0:01 as at 5:00, so what the microphone is hearing this instant is always
+ * in one spot rather than somewhere that depends on how long you have been
+ * talking.
  *
  * ── WRITTEN TO THE DOM, NOT THROUGH STATE ────────────────────────────
  *
- * Seventeen samples a second through React would re-render the whole composer —
- * including the microphone the user is currently dragging. The bars are written
- * directly, the same technique the playback waveform uses, so recording costs
- * the composer nothing.
+ * Seventeen samples a second through React would re-render the whole composer.
+ * The bars are written directly, the same technique the playback waveform uses,
+ * so recording costs the composer nothing.
  */
 
 /** Bars across the field. Enough to read as audio, few enough to stay legible. */
@@ -48,10 +54,12 @@ export default function LiveWaveform({ getLevel }) {
       if (history.length > BAR_COUNT) history.shift();
 
       const nodes = barsRef.current;
+      const values = alignRight(history, nodes.length);
+
       for (let i = 0; i < nodes.length; i++) {
         const node = nodes[i];
         if (!node) continue;
-        const v = history[i];
+        const v = values[i];
         if (v === undefined) {
           // Not yet reached — nothing drawn, so the row fills rather than
           // starting as a flat line pretending to be silence.

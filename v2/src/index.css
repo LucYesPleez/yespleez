@@ -11,6 +11,20 @@
   --border: #2a2a3d;
   --text:   #e8e8f0;
   --muted:  #7070a0;
+
+  /* THE HAND'S INK — every place the mark is drawn in its resting state.
+
+     One token because the mark appears in three unrelated files: the composer's
+     trailing button, a standalone acknowledgement in the thread, and a reaction
+     overhanging a bubble. They had drifted — the thread's two used `--text`
+     (#e8e8f0) while the composer's used a translucent white that resolved to
+     about #d5d5d7, so the same mark was visibly brighter in the thread than on
+     the bar directly below it.
+
+     SOLID, not a translucent white. The mark sits on a button, on the
+     wallpaper, and over a bubble; an alpha would take a different value from
+     each backdrop and the three would never actually match. */
+  --yp-hand-ink: #d5d5d7;
   --green:  #00e676;
   --purple: #b060ff;
 
@@ -286,43 +300,228 @@ input, textarea, select {
   transition: background-color var(--yp-settle) var(--yp-ease);
 }
 
-/* THE VOICEY DOCK (M9r) — the permanent waveform control.
+/* THE VOICEY PILL (M9s) — one outline, two ends, a microphone between them.
 
-   Always present, so it can be a destination rather than a surprise. Its whole
-   job is to say "drag the microphone here", which it does by lighting up as the
-   microphone approaches: --dock-near is written by the gesture at display rate,
-   0 at rest and 1 when the finger is on it.
+   The microphone and the waveform panel are a SINGLE control. The pill's top
+   and bottom edges are the microphone's own, so the two do not read as
+   neighbours that happen to be adjacent — they read as one object with a part
+   that moves.
 
-   Nothing here animates unless that variable moves, so the control costs
-   nothing while the composer is idle. */
-.yp-dock {
-  --dock-near: 0;
+   Left end is recording, right end is rest. That is the entire model: there is
+   no hold, no drag, no lock, and nothing to be told. A toggle is guessable from
+   its own shape, which is what the dock needed an approach-glow to achieve.
+
+   TRAVEL IS DELIBERATELY SHORT. The distance carries no meaning — arriving
+   does. A long slide would imply the journey mattered and make every recording
+   start feel laboured. */
+.yp-pill {
   position: relative;
+  flex-shrink: 0;
+  border-radius: 999px;
+  /* MUCH DIMMER THAN THE DOCK IT REPLACED. The old panel was a deep, filled
+     violet because it had to look like somewhere you could DROP something —
+     a destination competing for attention with the thing being dragged. There
+     is no drag now, so the panel is only a track. It should read as the recess
+     the microphone sits in, not as a second lit control. */
+  border: 1px solid rgba(168,124,255,.16);
+  background: linear-gradient(160deg, rgba(88,44,168,.22) 0%, rgba(58,28,120,.26) 100%);
+  padding: 0;
+  cursor: pointer;
   transition: background var(--yp-medium) var(--yp-ease),
               border-color var(--yp-medium) var(--yp-ease);
-  /* A DEEP, FILLED PANEL — not a faint outline. It has to look like a place
-     something can land, and at .06 alpha it looked like a disabled control.
-     Deep violet against the microphone's bright one: the destination sits back,
-     the thing that moves comes forward. */
-  background:
-    linear-gradient(160deg,
-      rgba(88,44,168, calc(.62 + .30 * var(--dock-near))) 0%,
-      rgba(58,28,120, calc(.70 + .24 * var(--dock-near))) 100%);
-  border: 1px solid rgba(168,124,255, calc(.30 + .50 * var(--dock-near)));
-  box-shadow: 0 0 calc(22px * var(--dock-near)) rgba(191,95,255, calc(.45 * var(--dock-near)));
-  /* Grows very slightly as the microphone nears — enough to read as reaching
-     back, not enough to shift the row. */
-  transform: scale(calc(1 + .07 * var(--dock-near)));
+}
+.yp-pill:disabled { cursor: not-allowed; opacity: .5; }
+
+/* Recording lights the whole panel, not just the microphone. The container is
+   the state; the microphone only says where in that state you are. */
+.yp-pill-live {
+  border-color: rgba(0,229,255,.45);
+  background: linear-gradient(160deg, rgba(0,110,140,.55) 0%, rgba(30,20,110,.70) 100%);
 }
 
-/* The confirmation when recording locks. One pulse, then done — a dock that
-   kept pulsing would be an alarm rather than an acknowledgement. */
-@keyframes ypDockLock {
-  0%   { transform: scale(1);    box-shadow: 0 0 0 0 rgba(191,95,255,.55); }
-  45%  { transform: scale(1.22); box-shadow: 0 0 0 12px rgba(191,95,255,0); }
-  100% { transform: scale(1);    box-shadow: 0 0 0 0 rgba(191,95,255,0); }
+/* The moving part. Transform only — it slides inside a fixed box, so the row
+   cannot change height or width when it moves. */
+.yp-pill-mic {
+  position: absolute;
+  top: -1px;   /* over the pill's own border, so the circle meets its edges */
+  left: -1px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform var(--yp-medium) var(--yp-ease),
+              color var(--yp-medium) var(--yp-ease),
+              box-shadow var(--yp-medium) var(--yp-ease);
 }
-.yp-dock-lock { animation: ypDockLock .44s var(--yp-ease); }
+
+/* ═══ THE COMPOSER (M9t) ══════════════════════════════════════════════
+
+   ONE GLASS CAPSULE, four slots inside it. Every element used to carry its own
+   border and fill — a bordered field flanked by separate circles — so the row
+   read as four things that happened to be adjacent. One surface, one outline,
+   one shadow; the controls sit IN it. */
+.yp-composer {
+  position: relative;
+  /* Glass, then a faint brand wash beneath it. The violet is barely there on
+     purpose: it should tint the material, not colour it. Anything stronger and
+     the capsule competes with the controls it contains, which is the noise this
+     redesign is removing. */
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.090) 0%, rgba(255,255,255,.034) 100%),
+    linear-gradient(118deg, rgba(168,124,255,.11) 0%, rgba(0,229,255,.045) 100%);
+  border: 1px solid rgba(255,255,255,.13);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  /* Soft lighting: a highlight along the top edge and a shadow under the
+     bottom, so the capsule reads as a raised object catching light from above
+     rather than a flat rectangle with a border. */
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.14),
+    inset 0 -1px 0 rgba(0,0,0,.30),
+    0 14px 36px -16px rgba(0,0,0,.92);
+  transition: border-color var(--yp-medium) var(--yp-ease),
+              box-shadow var(--yp-medium) var(--yp-ease);
+}
+
+/* The capsule picks up the recording's colour at its own edge — the quietest
+   possible way for the container to acknowledge the state, given the pill is
+   already saying it loudly. */
+.yp-composer[data-state="recording"] {
+  border-color: rgba(0,229,255,.28);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.14),
+    inset 0 -1px 0 rgba(0,0,0,.30),
+    0 14px 36px -16px rgba(0,0,0,.92),
+    0 0 26px -10px rgba(0,229,255,.42);
+}
+
+/* Every control in the capsule shares one base. Differences are costumes on
+   top, so a new state cannot accidentally invent a new shape. */
+.yp-ctl {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--yp-hand-ink);
+  cursor: pointer;
+  padding: 0;
+  transition: background var(--yp-medium) var(--yp-ease),
+              color var(--yp-medium) var(--yp-ease),
+              border-color var(--yp-medium) var(--yp-ease),
+              box-shadow var(--yp-medium) var(--yp-ease),
+              transform .12s var(--yp-ease);
+}
+/* The one micro-interaction: a control gives slightly under the finger. */
+.yp-ctl:active:not(:disabled) { transform: scale(.93); }
+.yp-ctl:disabled { cursor: not-allowed; }
+
+/* ATTACHMENTS — present, dimmed, and inert. It holds its slot so the layout is
+   the real four-element layout, but `image`/`video`/`file`/`location` have no
+   client implementation, so it must not look pressable. */
+.yp-ctl-attach {
+  background: rgba(255,255,255,.045);
+  color: rgba(255,255,255,.32);
+}
+
+.yp-ctl-danger {
+  background: rgba(255,59,92,.12);
+  border-color: rgba(255,59,92,.35);
+  color: #FF3B5C;
+}
+
+.yp-ctl-send {
+  background: linear-gradient(135deg, #00E5FF, #BF5FFF);
+  color: #0a0a0f;
+  box-shadow: 0 8px 22px -8px rgba(191,95,255,.75);
+}
+
+/* THE HAND'S GRADIENT RING.
+
+   Two backgrounds on one element: the neutral face clipped to the padding box,
+   the gradient clipped to the border box, with a transparent border letting the
+   second show through as a ring. No extra element and no pseudo-element, so the
+   button keeps one box and one hit area.
+
+   A ring, never a fill: a filled Hand would compete with Send, which is the one
+   control in the row that should ever be solid.
+
+   1px matches the microphone's border so the controls either side of the row
+   agree. Written as 1px rather than 1.5px because Chrome snaps border widths to
+   whole device pixels — 1.5 computed to 1 anyway, and a declared value the
+   browser silently rewrites is a value that lies.
+
+   Declared AFTER .yp-ctl so its background wins; both are single classes. */
+.yp-hand-ring {
+  background:
+    linear-gradient(#15151E, #15151E) padding-box,
+    linear-gradient(135deg, #00E5FF, #BF5FFF) border-box;
+  border: 1px solid transparent;
+}
+
+/* THE FIELD — a hole in the glass, not a box on it. No border and no fill of
+   its own; the capsule already draws the surface, and a second outline here is
+   what made the old composer read as a frame inside a frame. */
+.yp-composer-field {
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text);
+  font-size: 15px;
+  font-family: inherit;
+  padding: 0 6px;
+}
+.yp-composer-field::placeholder { color: rgba(255,255,255,.36); }
+
+/* A slot that closes rather than disappearing. `overflow: hidden` keeps the
+   pill's own geometry intact while the slot shuts around it — animating the
+   pill itself would squash the microphone on the way out. */
+.yp-slot-collapse {
+  display: inline-flex;
+  align-items: center;
+  overflow: hidden;
+  flex-shrink: 0;
+  /* ⚠ REQUIRED, and not obvious. This span is a flex ITEM of the capsule, and
+     a flex item's default `min-width: auto` floors it at its content's
+     min-content width — 84px of pill. Without this the slot reports `width: 0`
+     and renders at full width, so the collapse silently does nothing while
+     every other part of the state change works. */
+  min-width: 0;
+  transition: width var(--yp-medium) var(--yp-ease),
+              opacity .18s var(--yp-ease),
+              margin-right var(--yp-medium) var(--yp-ease);
+}
+
+/* Motion is polish on controls whose job is to send a message. Removing it must
+   not remove the control, or the state. */
+@media (prefers-reduced-motion: reduce) {
+  .yp-composer,
+  .yp-ctl,
+  .yp-slot-collapse { transition: none; }
+  .yp-ctl:active:not(:disabled) { transform: none; }
+}
+
+/* The bars sit in whichever end the microphone is not occupying, so the pill
+   always reads as full rather than as a control with a gap in it. */
+.yp-pill-bars {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2.5px;
+  pointer-events: none;
+  transition: transform var(--yp-medium) var(--yp-ease);
+}
+.yp-pill-bars span {
+  width: 3px;
+  border-radius: 999px;
+  transition: background-color var(--yp-medium) var(--yp-ease);
+}
 
 /* The live recording waveform, filling the text field left to right. Bars are
    sized inline from real audio levels; only the entrance is CSS. */
@@ -332,9 +531,13 @@ input, textarea, select {
 }
 .yp-live-wave { animation: ypLiveIn var(--yp-medium) var(--yp-ease); }
 
+/* The microphone must still ARRIVE at the other end — the position is the
+   state, and removing the transition removes the animation, not the travel. */
 @media (prefers-reduced-motion: reduce) {
-  .yp-dock { transition: none; transform: none; }
-  .yp-dock-lock,
+  .yp-pill,
+  .yp-pill-mic,
+  .yp-pill-bars,
+  .yp-pill-bars span { transition: none; }
   .yp-live-wave { animation: none; }
 }
 
