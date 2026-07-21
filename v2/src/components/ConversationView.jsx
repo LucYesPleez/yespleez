@@ -120,6 +120,20 @@ const RECEIVED_BUBBLE = 'rgba(255,255,255,.10)';
  */
 const CHAT_BG_SCRIM = 'rgba(10,10,15,.72)';
 
+/**
+ * The wallpaper's aspect ratio, from the file: 1162x2093.
+ *
+ * Hardcoded because `background-size: 100% auto` gives the browser no API to
+ * report the rendered height back, and `paintWallpaper` needs it to know how
+ * far the image overflows the window. Loading the image again in JS just to
+ * measure it would download it twice.
+ *
+ * ⚠ If chat-bg.png is ever replaced with a differently-proportioned image, this
+ * number must change with it — otherwise the scroll clamp is computed against
+ * a height the image does not have, and it will pin early or late.
+ */
+const CHAT_BG_RATIO = 1162 / 2093;
+
 const ghostBtn = {
   width: 34, height: 34, flexShrink: 0, borderRadius: 999,
   display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -313,9 +327,54 @@ export default function ConversationView({ conversationId, compact = false, onMi
     else if (saved != null) el.scrollTop = saved;
   }, [messages.length, conversationId, getState]);
 
+  /**
+   * THE WALLPAPER TRACKS THE SCROLL, THEN PINS.
+   *
+   * At the bottom of the thread the image's bottom sits on the window's bottom.
+   * Scrolling up drags the image down with the content, revealing more of it —
+   * so the wallpaper belongs to the conversation rather than floating over it.
+   * The moment its TOP reaches the window top it stops, and messages carry on
+   * scrolling past a now-stationary image.
+   *
+   * That clamp is the whole reason this is JS. `background-attachment: local`
+   * gives the first half for free, but it keeps going — the image would slide
+   * off the bottom and leave a gap above it in any thread taller than the
+   * picture, which is most of them.
+   *
+   * Written straight to style on a ref, never through state: scroll fires at
+   * display rate and a re-render per event would make the thread stutter for a
+   * decorative effect.
+   */
+  function paintWallpaper(el) {
+    // Width-locked (background-size: 100% auto), so the rendered height follows
+    // from the container's width and the image's own ratio.
+    const renderedHeight = el.clientWidth / CHAT_BG_RATIO;
+    const overflow = Math.max(0, renderedHeight - el.clientHeight);
+    // 0 at the newest message, growing as the reader moves back through time.
+    const fromBottom = el.scrollHeight - el.clientHeight - el.scrollTop;
+    // -overflow puts the image's bottom on the window's bottom; 0 puts its top
+    // on the window's top. Clamped so it can never travel past either.
+    const y = Math.min(0, fromBottom - overflow);
+    el.style.backgroundPosition = `center, center ${Math.round(y)}px`;
+  }
+
+  // Position it before the first paint of a thread, and again whenever the
+  // container resizes — the offset is derived from clientWidth/Height, so a
+  // drawer resize or an orientation change invalidates it.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return undefined;
+    paintWallpaper(el);
+    if (typeof ResizeObserver === 'undefined') return undefined;
+    const ro = new ResizeObserver(() => paintWallpaper(el));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [conversationId, messages.length]);   // eslint-disable-line react-hooks/exhaustive-deps
+
   function onScroll() {
     const el = scrollRef.current;
     if (!el) return;
+    paintWallpaper(el);
     const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
     atBottomRef.current = atBottom;
     patch(conversationId, { scrollTop: el.scrollTop });
