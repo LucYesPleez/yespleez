@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useMemo, useCallback, memo } from 'react';
 import { signedUrlFor, formatDuration } from '../lib/voiceNotes';
 import { toDisplayPeaks } from '../lib/voicePeaks';
 import { timeOf } from '../lib/clock';
+import { claimPlayback, releasePlayback } from '../lib/voicePlayback';
 
 /**
  * THE `voice` RENDERER — the inside of a bubble, and nothing else.
@@ -155,7 +156,11 @@ export default function VoiceMessage({ message }) {
   // Pause on unmount. Closing a drawer mid-playback must stop the audio — an
   // element that outlives its bubble keeps playing with nothing on screen to
   // stop it.
-  useEffect(() => () => { audioRef.current?.pause(); }, []);
+  useEffect(() => () => {
+    const el = audioRef.current;
+    el?.pause();
+    releasePlayback(el);
+  }, []);
 
   /**
    * THE PLAYHEAD RUNS ON FRAMES, NOT ON `timeupdate`.
@@ -247,6 +252,10 @@ export default function VoiceMessage({ message }) {
     const el = audioRef.current;
     if (!el) return;
     if (el.src !== src) el.src = src;
+    // Silences any other note first. Before play(), not after — after would
+    // let both sound for a frame.
+    claimPlayback(el);
+
     try {
       await el.play();
     } catch (err) {
@@ -412,8 +421,8 @@ export default function VoiceMessage({ message }) {
         ref={audioRef}
         preload="none"
         onPlay={() => setPlaying(true)}
-        onPause={() => setPlaying(false)}
-        onEnded={() => { setPlaying(false); setPosition(0); setFinished(true); }}
+        onPause={e => { releasePlayback(e.currentTarget); setPlaying(false); }}
+        onEnded={e => { releasePlayback(e.currentTarget); setPlaying(false); setPosition(0); setFinished(true); }}
         // Keeps the readout honest while PAUSED and on seek; the frame loop
         // above owns it during playback.
         // Drives the DURATION READOUT only. The waveform is painted by the
