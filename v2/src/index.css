@@ -169,19 +169,25 @@ input, textarea, select {
 
 /* THE HAND (M9h) — the brand mark used as an icon.
 
-   `hand-icon.png` is DERIVED FROM `hand-logo.png`, not drawn: the alpha is
-   dilated by 18px and trimmed to its bounding box. The gesture is therefore
-   exactly the brand mark, and only the stroke weight changes. Redrawing it by
-   hand would mean approximating a mark that already exists — an earlier attempt
-   did, and produced a generic open palm that was not this gesture at all.
+   ⚠ TWO DIFFERENT FILES ARE BOTH CALLED hand-logo.png. `public/hand-logo.png`
+   (1122×1402) is the OUTLINE drawing, used as the page watermark. The SOLID
+   mark is a separate square artwork kept at `scripts/hand-solid.png` — masking
+   the outline by mistake cost two attempts at this icon.
 
-   The dilation is necessary because the logo is line art at ~10% coverage:
-   those strokes are a few pixels wide at 1122px, so at 21px they fall below one
-   pixel and render as grey fuzz. Verified in the running app before this
-   existed. Dilated coverage is 44%.
+   `hand-icon.png` is DERIVED FROM the solid mark: cropped to its bounding box
+   and downsampled, with NO thickening. The solid mark is ~30% coverage and
+   needs none; an earlier version dilated the outline by 18px purely to
+   compensate for using the wrong source.
 
-   Regenerate if the logo ever changes:
-     node scripts/thicken-hand.js public/hand-logo.png public/hand-icon.png 18 256
+   The crop matters: the artwork carries padding, and without trimming it the
+   mark floats small inside its box while the button decides the spacing.
+
+   The 489KB source lives in `scripts/`, NOT `public/` — anything in public is
+   copied into dist and would ship to every user despite nothing referencing it.
+
+   Regenerate if the artwork changes (last arg is dilation radius — keep it 0
+   for a solid source):
+     node scripts/thicken-hand.cjs scripts/hand-solid.png public/hand-icon.png 0 256
 
    The alpha is used as a STENCIL filled with currentColor, which is the only
    way a PNG can inherit colour — the icon has to go dark when the composer

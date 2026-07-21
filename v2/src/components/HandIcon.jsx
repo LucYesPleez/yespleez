@@ -1,12 +1,13 @@
 /**
  * THE HAND — the real mark, tintable.
  *
- * `public/hand-logo.png` IS the brand mark: it is the watermark behind the
- * dock, the auth screen and the app background. An approximation drawn beside
- * it is worse than useless — this gesture is meant to become recognisable
- * enough that the mark IS the brand, and a lookalike in the one place people
- * tap every day is exactly where that breaks down. An earlier version of this
- * file drew a generic open palm and did not match.
+ * The artwork IS the brand mark — never redrawn, never approximated. This
+ * gesture is meant to become recognisable enough that the mark IS the brand,
+ * so a lookalike in the one place people tap every day is exactly where that
+ * breaks down. Two earlier versions of this file got it wrong: the first drew
+ * a generic open palm from a rough trace, the second masked the OUTLINE
+ * drawing rather than the solid mark. See the note in `index.css` — two
+ * different files are both called hand-logo.png.
  *
  * ── WHY A MASK AND NOT AN <img> ──────────────────────────────────────
  *
@@ -15,14 +16,6 @@
  * `mask-image` uses the PNG's ALPHA as a stencil and fills it with
  * `currentColor`, so the shape is exactly the artwork while the colour is
  * inherited like every other icon in the composer.
- *
- * ── THE HONEST LIMITATION ────────────────────────────────────────────
- *
- * The mark is line art at roughly 10% pixel coverage. Those strokes are a few
- * pixels wide at 1122px, so the smaller this renders the thinner they get.
- * It holds up at conversational size; on a 46px button it is close to the
- * limit. If it reads as fuzz rather than a hand, the answer is an icon-weight
- * SOURCE — a solid version of the same gesture — not a different gesture.
  *
  * The mask lives in `index.css` because vendor prefixes and the `@supports`
  * fallback cannot be expressed inline. Without that fallback, a browser with
