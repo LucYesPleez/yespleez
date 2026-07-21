@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { signedUrlFor, formatDuration } from '../lib/voiceNotes';
+import { isRenderablePeaks, PEAK_MAX } from '../lib/voicePeaks';
 
 /**
  * THE `voice` RENDERER — the inside of a bubble, and nothing else.
@@ -30,6 +31,7 @@ import { signedUrlFor, formatDuration } from '../lib/voiceNotes';
 export default function VoiceMessage({ message }) {
   const path       = message?.payload?.path ?? null;
   const storedMs   = Number(message?.payload?.duration_ms ?? 0);
+  const peaks      = message?.payload?.peaks ?? null;
 
   const audioRef   = useRef(null);
   const [url,      setUrl]      = useState(null);
@@ -125,9 +127,34 @@ export default function VoiceMessage({ message }) {
       </button>
 
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ height: 3, borderRadius: 999, background: track, overflow: 'hidden' }}>
-          <div style={{ width: `${progress * 100}%`, height: '100%', background: tint, borderRadius: 999 }} />
-        </div>
+        {/* §6.4 — drawn from peaks stored at record time. Nothing is decoded
+            and no audio is fetched to render this.
+
+            Notes recorded before M9f have no peaks and never will (they cannot
+            be retrofitted without re-downloading every one), so the plain bar
+            is a permanent state rather than a loading one. */}
+        {isRenderablePeaks(peaks) ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 1.5, height: 22 }} aria-hidden="true">
+            {peaks.map((p, i) => (
+              <span
+                key={i}
+                style={{
+                  flex: 1,
+                  // Floor at 2px: a near-silent bucket must still read as a bar,
+                  // or a pause in speech looks like a gap in the file.
+                  height: Math.max(2, (p / PEAK_MAX) * 22),
+                  borderRadius: 999,
+                  background: (i / peaks.length) <= progress ? tint : track,
+                  transition: 'background .12s linear',
+                }}
+              />
+            ))}
+          </div>
+        ) : (
+          <div style={{ height: 3, borderRadius: 999, background: track, overflow: 'hidden' }}>
+            <div style={{ width: `${progress * 100}%`, height: '100%', background: tint, borderRadius: 999 }} />
+          </div>
+        )}
         <div style={{ marginTop: 5, fontSize: 11, color: 'rgba(255,255,255,.62)' }}>
           {error ?? formatDuration(playing || position > 0 ? position : duration)}
         </div>

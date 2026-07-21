@@ -343,7 +343,7 @@ export default function ConversationView({ conversationId, compact = false, onMi
    * sameness is the point: a voice note is a message with a different kind,
    * not a second send path that has to be kept in step with this one.
    */
-  async function onRecordedVoice({ blob, durationMs }) {
+  async function onRecordedVoice({ blob, durationMs, capture }) {
     if (!senderProfile || sending) return;
     setSending(true);
     setError(null);
@@ -353,6 +353,7 @@ export default function ConversationView({ conversationId, compact = false, onMi
       fromProfileId: senderProfile,
       blob,
       durationMs,
+      capture,   // `C21` — what the device actually negotiated, not what we asked for
     });
 
     if (sendError) {

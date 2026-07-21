@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { sendMessage } from './messaging';
+import { computePeaks } from './voicePeaks';
 
 /**
  * VOICE NOTES — recording, storage and playback URLs.
@@ -56,21 +57,65 @@ export function formatDuration(seconds) {
 }
 
 /**
+ * THE CAPTURE PROFILE — `C20`, and the single largest quality decision here.
+ *
+ * `getUserMedia` defaults every one of these to TRUE, and those defaults are
+ * tuned for telephony: aggressive gain riding, noise gating, and effective
+ * bandwidth at or below 16 kHz. Correct for a noisy phone call, destructive for
+ * a voice message — it pumps, swallows room tone, and mangles anything musical
+ * behind the speaker. Communication v1.0 §6.1 records that this matters MORE
+ * than the codec choice, and that it is written as architecture precisely
+ * because it looks like a detail and gets defaulted away.
+ *
+ * The cost is accepted deliberately (§6.1): without noise suppression, a noisy
+ * room sounds noisy. These users are in venues, and the room is often the point.
+ *
+ * Flipping any of these to `true` is a change to ratified architecture, not a
+ * tuning decision.
+ */
+const CAPTURE_CONSTRAINTS = {
+  echoCancellation: false,
+  noiseSuppression: false,
+  autoGainControl:  false,
+  channelCount:     1,       // §6.3 — voice is not stereo content
+  sampleRate:       48000,   // §6.2 — full-band, not telephony bandwidth
+};
+
+/**
+ * §6.2 — Opus VBR 32–48 kbps at 48 kHz mono. Bottom of the ratified range:
+ * speech at 48 kHz mono Opus is transparent well below the top of it, and the
+ * saving is paid by every listener on every playback.
+ *
+ * Ignored by browsers that will not honour it, which is why the NEGOTIATED
+ * values are read back and persisted rather than assumed (`C21`).
+ */
+const TARGET_BITS_PER_SECOND = 32000;
+
+/**
  * Preferred capture format, best first.
  *
- * Opus in WebM is small and universally decodable on the browsers this app
- * targets; Safari records mp4/aac instead and cannot produce WebM at all, so
- * the list is a negotiation rather than a preference. Every entry here must
- * also appear in M9b's `allowed_mime_types` or the upload is refused by the
- * bucket after a successful recording — the worst moment to discover it.
+ * `C21` — record natively, store the source, never transcode. Every re-encode
+ * is generational loss, so the platform stores whatever the device produced:
+ * Opus where available, AAC-LC where not. Chromium and Firefox give Opus in
+ * WebM or Ogg; Safari's recorder produces AAC in MP4 and cannot make WebM at
+ * all. This list is a negotiation, not a preference.
+ *
+ * Every entry must also appear in M9b's `allowed_mime_types`, or the upload is
+ * refused by the bucket after a successful recording — the worst possible
+ * moment to find out.
+ *
+ * ⚠ §6.2 requires the recording AND PLAYBACK support matrix to be re-measured
+ * rather than assumed from a document's date. The open item is whether an
+ * Android-recorded WebM/Opus note plays in an `<audio>` element on iOS Safari;
+ * if it does not, Ogg/Opus moves above WebM here. `D6`.
  */
 const PREFERRED_MIME_TYPES = [
   'audio/webm;codecs=opus',
+  'audio/ogg;codecs=opus',
   'audio/webm',
+  'audio/ogg',
   'audio/mp4',
   'audio/mpeg',
-  'audio/ogg;codecs=opus',
-  'audio/ogg',
 ];
 
 /** Can this browser record at all, in a format the bucket accepts? */
@@ -116,9 +161,16 @@ export async function startRecording() {
   // Throws on denial. Left to the caller: "you declined the microphone" and
   // "your browser cannot record" need different words, and only the caller
   // knows where to put them.
-  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  //
+  // The constraints are ADVISORY — a browser may silently ignore any of them,
+  // which is exactly why what was actually negotiated is read back below rather
+  // than assumed (`C21`).
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: CAPTURE_CONSTRAINTS });
 
-  const recorder = new MediaRecorder(stream, { mimeType });
+  const recorder = new MediaRecorder(stream, {
+    mimeType,
+    audioBitsPerSecond: TARGET_BITS_PER_SECOND,
+  });
   const chunks = [];
   recorder.addEventListener('dataavailable', e => {
     if (e.data?.size > 0) chunks.push(e.data);
@@ -127,6 +179,14 @@ export async function startRecording() {
 
   const startedAt = Date.now();
   let released = false;
+
+  // `C21` — what the browser ACTUALLY gave us, not what we asked for. Every
+  // constraint above is advisory and any of them may be silently ignored, so
+  // the negotiated settings are read from the live track and persisted with the
+  // message. Without this the payload would record an intention rather than a
+  // fact, and a future support-matrix question ("do our iOS notes have DSP on?")
+  // would be unanswerable from the data.
+  const settings = stream.getAudioTracks()[0]?.getSettings?.() ?? {};
 
   /** Idempotent: stop() then unmount must not stop the tracks twice. */
   function release() {
@@ -153,7 +213,22 @@ export async function startRecording() {
         // Blob type from the recorder, not from `mimeType` — they can differ,
         // and the blob's own type is what actually gets uploaded.
         const blob = new Blob(chunks, { type: baseMimeType(recorder.mimeType || mimeType) });
-        resolve({ blob, durationMs: Date.now() - startedAt });
+        resolve({
+          blob,
+          durationMs: Date.now() - startedAt,
+          // What was negotiated, for the payload. See `C21` above.
+          capture: {
+            mime:        recorder.mimeType || mimeType,
+            bitrate:     recorder.audioBitsPerSecond ?? null,
+            sample_rate: settings.sampleRate ?? null,
+            channels:    settings.channelCount ?? null,
+            dsp: {
+              echo_cancellation: settings.echoCancellation ?? null,
+              noise_suppression: settings.noiseSuppression ?? null,
+              auto_gain:         settings.autoGainControl ?? null,
+            },
+          },
+        });
       }, { once: true });
       recorder.addEventListener('error', e => { release(); reject(e.error ?? e); }, { once: true });
       recorder.stop();
@@ -232,7 +307,15 @@ export async function signedUrlFor(path, expiresIn = SIGNED_URL_TTL_SECONDS) {
  * broken player is worse than one that was never sent — the sender believes it
  * went.
  */
-export async function sendVoiceNote({ conversationId, fromProfileId, blob, durationMs } = {}) {
+export async function sendVoiceNote({ conversationId, fromProfileId, blob, durationMs, capture } = {}) {
+  // §6.6's pipeline order: record → compute peaks → upload → message.
+  //
+  // Peaks are computed BEFORE the upload, not after, so a peak failure costs
+  // nothing: at this point no object exists and no row exists, so degrading to
+  // a note without a waveform is free. Computing after the upload would mean a
+  // decorative step could fail with an orphan already written.
+  const peaks = await computePeaks(blob);
+
   const { path, error: uploadError } = await uploadVoiceNote({ conversationId, blob });
   if (uploadError) return { message: null, error: uploadError };
 
@@ -245,6 +328,14 @@ export async function sendVoiceNote({ conversationId, fromProfileId, blob, durat
       path,                                        // stable; the url is derived
       duration_ms: Math.max(0, Math.round(durationMs ?? 0)),
       mime: baseMimeType(blob?.type),
+      // §6.4 — the waveform, computed once. Omitted entirely when it could not
+      // be computed, so `peaks` is absent rather than null: the renderer's test
+      // is "can I draw this", and a key holding null answers that identically
+      // to no key at all while costing bytes on every read.
+      ...(peaks && { peaks }),
+      // `C21` — what the device actually produced. Answers support-matrix
+      // questions from the data instead of from assumptions about a browser.
+      ...(capture && { capture }),
     },
   });
 }
