@@ -220,6 +220,26 @@ const CHAT_BG_PARALLAX = 0.175;
  */
 const COMPOSER_BLEED = 88;
 
+/**
+ * HOW FAR THE WALLPAPER CAN DRIFT — and therefore how much image is needed.
+ *
+ * The image can only travel as far as it has spare height above `restBottom`,
+ * so this number and the crop are the same decision seen from two ends. It went
+ * in because the drift had quietly fallen to 5px: growing the list by
+ * COMPOSER_BLEED, then resting the image half way up the composer, between them
+ * consumed all the headroom the width-locked artwork had. The parallax rate was
+ * still being applied to almost nothing.
+ *
+ * 180 buys visible movement without a severe crop. At 412px wide it needs the
+ * image about 23% wider than the screen, taken off the LEFT (see the
+ * right-anchored background-position below).
+ *
+ * Raise it for more drift and more crop; lower it for the reverse. Where the
+ * width alone already provides this much — the desktop drawer always does —
+ * nothing is cropped at all.
+ */
+const BG_TRAVEL_PX = 180;
+
 const ghostBtn = {
   width: 34, height: 34, flexShrink: 0, borderRadius: 999,
   display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -443,27 +463,27 @@ export default function ConversationView({ conversationId, compact = false, onMi
     // where it ends is behind the composer rather than out in the open.
     const restBottom = el.clientHeight - COMPOSER_BLEED / 2;
 
-    // Width-locked (background-size: 100% auto), so the rendered height follows
-    // from the container's width and the image's own ratio.
-    let renderedHeight = el.clientWidth / CHAT_BG_RATIO;
+    // ── HOW TALL THE IMAGE HAS TO BE ────────────────────────────────
+    //
+    // Two things depend on it, and at phone size the width alone delivers
+    // neither. It must reach `restBottom` so nothing is chopped off, AND carry
+    // BG_TRAVEL_PX of surplus above that, because the surplus IS the parallax:
+    // the image can only drift as far as it has spare height.
+    //
+    // Width-locked (100% wide) is the ideal — the whole photograph shows. Where
+    // that is tall enough, it is what gets used; on the desktop drawer it
+    // always is. At phone size it falls ~200px short, so the height is locked
+    // instead and the width overflows.
+    const widthLocked = el.clientWidth / CHAT_BG_RATIO;
+    const needed      = restBottom + BG_TRAVEL_PX;
+    const renderedHeight = Math.max(widthLocked, needed);
 
-    // ⚠ THE FLOOR IS WHAT STOPS IT BEING CHOPPED OFF.
-    //
-    // This artwork is tall, so on most screens it overflows and there is spare
-    // image in hand. It is NOT guaranteed: on a wide, short container — or once
-    // the list grew by COMPOSER_BLEED, which is exactly what caused this — the
-    // width-locked height comes out SHORTER than the box, and the difference
-    // renders as a band of flat --dark under the picture.
-    //
-    // Locking the height instead in that case costs a little crop at the sides,
-    // which is invisible on a photograph with no subject at its edges. A hard
-    // horizon across the thread is not invisible at all.
-    if (renderedHeight < restBottom) {
-      renderedHeight = restBottom;
-      el.style.backgroundSize = `auto, auto ${Math.ceil(renderedHeight)}px`;
-    } else {
-      el.style.backgroundSize = 'auto, 100% auto';
-    }
+    // Only pay the crop when the width genuinely cannot deliver. `100% auto`
+    // and `auto Npx` are the same picture at the same ratio — the difference is
+    // only which axis is doing the constraining.
+    el.style.backgroundSize = renderedHeight > widthLocked
+      ? `auto, auto ${Math.ceil(renderedHeight)}px`
+      : 'auto, 100% auto';
 
     // 0 at the newest message, growing as the reader moves back through time.
     const fromBottom = el.scrollHeight - el.clientHeight - el.scrollTop;
@@ -480,7 +500,11 @@ export default function ConversationView({ conversationId, compact = false, onMi
     // a long conversation is a better outcome than one that races the text.
     const rest = restBottom - renderedHeight;
     const y = Math.min(0, fromBottom * CHAT_BG_PARALLAX + rest);
-    el.style.backgroundPosition = `center, center ${Math.round(y)}px`;
+    // RIGHT-ANCHORED, so when the image is wider than the box the overflow is
+    // taken off the LEFT. Owner's choice, and it is a choice about the artwork
+    // rather than about layout — `center` would halve the loss but take it from
+    // both edges, and the right of this photograph is the side worth keeping.
+    el.style.backgroundPosition = `center, right ${Math.round(y)}px`;
   }
 
   // Position it before the first paint of a thread, and again whenever the
@@ -906,7 +930,10 @@ export default function ConversationView({ conversationId, compact = false, onMi
           // A 39× saving on the one asset every conversation waits for.
           backgroundImage: `linear-gradient(${CHAT_BG_SCRIM}, ${CHAT_BG_SCRIM}), url('/chat-bg.webp')`,
           backgroundSize: 'auto, 100% auto',
-          backgroundPosition: 'center, center',
+          // Right-anchored so any horizontal overflow crops off the LEFT.
+          // paintWallpaper overwrites the vertical part on every scroll; this
+          // is only what shows for the frame before it first runs.
+          backgroundPosition: 'center, right',
           backgroundRepeat: 'no-repeat, no-repeat',
           // Fills the letterbox, and shows through if the image is slow or
           // fails — a dark thread should never flash white.
