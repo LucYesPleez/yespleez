@@ -14,6 +14,7 @@ import { PROFILE_TYPES } from '../lib/profileTypes';
 import { renderMessage, isBareKind, shapeFor, materialFor } from '../lib/messageKinds';
 import HandIcon from './HandIcon';
 import { timeOf } from '../lib/clock';
+import { shouldDismiss, pullProgress } from '../lib/dismissGesture';
 
 /**
  * ONE conversation, rendered identically in the DRAWER and in the FULL PAGE.
@@ -90,25 +91,57 @@ function ThreadMarker({ label }) {
  * premium header look assembled rather than designed.
  */
 /**
- * BUBBLE FILLS.
+ * BUBBLE FILLS — SMOKED BLACK GLASS, not coloured plastic (M9u).
  *
  * Both are translucent so the wallpaper reads through them — that is the point
  * of having one at all.
  *
- * The canonical cyan→purple gradient on sent messages, restored after a spell
- * as a flat rgba(0,0,0,.55) panel. Held at low alpha so it reads as tinted
- * glass rather than neon, and it is the only thing distinguishing sent from
- * received at a glance — two dark translucent panels differing by a few percent
- * alpha were much harder to tell apart over a photograph than they looked in a
- * mockup.
+ * ── THE PURPLE IS THE LIGHT, NOT THE MATERIAL ────────────────────────
  *
- * RECEIVED were rgba(255,255,255,.035) originally — all but invisible on this
- * surface, which left the other participant quieter than you in their own
- * conversation. .085 is legible and clearly present, still nowhere near bright,
- * and still visibly the calmer of the two so the gradient keeps the lead.
+ * Sent bubbles were `rgba(0,229,255,.20) → rgba(191,95,255,.40)`: a saturated
+ * cyan-to-violet wash that WAS the surface. Repeated down a thread it read as
+ * bright plastic, and it competed with the text and the waveform sitting on
+ * top of it — the two things a message actually consists of.
+ *
+ * The fill is now near-black with a violet lean, and the colour has moved to
+ * where light belongs: the border, the top highlight, and above all the
+ * waveform, which is the one element allowed to be vivid. Think of a dark
+ * surface catching a coloured light rather than a surface that IS the colour.
+ *
+ * Kept dark enough that an idle Voicey settles into the conversation, so
+ * pressing play is what brings the colour up.
+ *
+ * ── STILL CLEARLY DISTINGUISHABLE FROM RECEIVED ──────────────────────
+ *
+ * The old comment's warning stands: two dark translucent panels differing by a
+ * few percent alpha are much harder to tell apart over a photograph than they
+ * look in a mockup. Sent no longer wins on saturation, so it has to win
+ * elsewhere — it is warmer, it is lit along its top edge, and its border
+ * carries violet where received carries plain white. Those three together do
+ * the job the wash used to do alone.
  */
-const SENT_BUBBLE     = 'linear-gradient(135deg, rgba(0,229,255,.20) 0%, rgba(191,95,255,.40) 100%)';
+/**
+ * Same treatment as a Voicey's, one notch lighter so a wall of text bubbles
+ * does not go heavier than the wallpaper behind it. `rgba(30,27,38)` is eight
+ * points of red-to-blue spread — charcoal that has been NEAR something violet,
+ * rather than something violet.
+ *
+ * The magenta edge lives in the border layer, so the fill can stay neutral.
+ */
+const SENT_BUBBLE =
+  'linear-gradient(155deg, rgba(30,27,38,.72) 0%, rgba(16,14,21,.82) 100%) padding-box,'
+  + 'linear-gradient(150deg, rgba(255,79,216,.34) 0%, rgba(191,95,255,.13) 46%, rgba(255,255,255,.04) 100%) border-box';
 const RECEIVED_BUBBLE = 'rgba(255,255,255,.085)';
+
+/** Transparent, so the border-box gradient above shows through as the edge. */
+const SENT_BORDER   = '1px solid transparent';
+/**
+ * A single lit pixel along the top edge. Not a glow: a glow around every sent
+ * message is decoration repeated dozens of times down a thread, and that is
+ * why `boxShadow` stays otherwise off. This is one inset line, which is what
+ * makes a dark panel read as glass rather than as a hole.
+ */
+const SENT_LIGHTING = 'inset 0 1px 0 rgba(216,180,255,.11)';
 
 /**
  * How far the wallpaper is pushed back behind the conversation.
@@ -615,9 +648,22 @@ export default function ConversationView({ conversationId, compact = false, onMi
           bolted on top of the conversation; the surface should feel like one
           continuous environment. Separation comes from a faint downward wash
           instead, which reads as depth rather than as a divider. */}
+      {/* ── THE GRAB HANDLE — and the ONLY place pull-to-minimise lives ──
+          It sits in the header, which does not scroll. That is the entire fix
+          for conversations dismissing themselves mid-read: the gesture used to
+          be on the dialog, an ancestor of the message list, where every scroll
+          bubbled into it. Nothing above the scroll container listens for a drag
+          any more, so the two can no longer compete for one gesture.
+
+          It is also now VISIBLE. The old swipe was undiscoverable — an
+          invisible gesture on the whole surface, which is the worst of both:
+          nobody could find it deliberately and everybody triggered it by
+          accident. */}
+      {compact && <DismissHandle onDismiss={onMinimise} />}
+
       <div style={{
         display: 'flex', alignItems: 'center', gap: 13,
-        padding: '18px 18px 16px', flexShrink: 0,
+        padding: compact ? '6px 18px 16px' : '18px 18px 16px', flexShrink: 0,
         background: 'linear-gradient(180deg, rgba(255,255,255,.035) 0%, rgba(255,255,255,0) 100%)',
       }}>
         {compact && (
@@ -726,6 +772,15 @@ export default function ConversationView({ conversationId, compact = false, onMi
         className="yp-noscrollbar"
         style={{
           flex: 1, overflowY: 'auto', padding: '22px 18px 8px', minHeight: 0,
+          // THE MESSAGE LIST OWNS VERTICAL SCROLLING, AND KEEPS IT.
+          //
+          // `contain` stops the scroll CHAINING outward when the thread reaches
+          // either end: without it, continuing to drag at the top hands the
+          // scroll to whatever is behind the drawer, which on mobile also arms
+          // pull-to-refresh. Reaching the oldest message and being answered by
+          // the page underneath moving is the same class of surprise as the
+          // dismiss bug — a reading gesture escaping the thing being read.
+          overscrollBehavior: 'contain',
           // THE WALLPAPER.
           //
           // On the SCROLL CONTAINER, with attachment left at its default
@@ -869,6 +924,98 @@ export default function ConversationView({ conversationId, compact = false, onMi
 }
 
 /**
+ * PULL DOWN TO PUT THE CONVERSATION AWAY.
+ *
+ * ── WHY IT IS ITS OWN ELEMENT ────────────────────────────────────────
+ *
+ * Because it must not be an ancestor of anything that scrolls. The previous
+ * implementation listened on the dialog wrapping the whole drawer, so a drag
+ * inside the message list bubbled up and read as a dismissal — and "dragged
+ * downward a long way" is what reading back through a thread looks like.
+ * Conversations closed themselves, on both iOS and Android.
+ *
+ * Raising the threshold could not have fixed that, because no distance
+ * separates the two gestures: they are the same gesture. Only ownership does,
+ * so the handler now lives on 34 pixels of header that can never scroll.
+ *
+ * ── POINTER EVENTS, WITH CAPTURE ─────────────────────────────────────
+ *
+ * Capture keeps the drag addressed here once it starts, so a finger that slides
+ * off the handle still finishes its own gesture rather than abandoning it
+ * half-done. `touch-action: none` stops the browser claiming the drag as a
+ * scroll before the handler ever sees it — safe on this element precisely
+ * because it is not scrollable.
+ */
+function DismissHandle({ onDismiss }) {
+  const originRef = useRef(null);
+  const barRef    = useRef(null);
+
+  function paint(progress) {
+    const bar = barRef.current;
+    if (!bar) return;
+    // Written straight to the DOM. A drag is a stream of events, and routing it
+    // through state would re-render the entire conversation on every frame.
+    bar.style.transform = `translate3d(0, ${(progress * 6).toFixed(1)}px, 0) scaleX(${(1 + progress * .5).toFixed(3)})`;
+    bar.style.opacity   = String(0.35 + progress * 0.65);
+  }
+
+  function reset() {
+    originRef.current = null;
+    paint(0);
+  }
+
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      aria-label="Minimise conversation"
+      onKeyDown={e => {
+        // The gesture has a keyboard equivalent, because a drag has none.
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onDismiss?.(); }
+      }}
+      onPointerDown={e => {
+        e.currentTarget.setPointerCapture?.(e.pointerId);
+        originRef.current = { x: e.clientX, y: e.clientY };
+      }}
+      onPointerMove={e => {
+        const o = originRef.current;
+        if (!o) return;
+        paint(pullProgress({ dy: e.clientY - o.y }));
+      }}
+      onPointerUp={e => {
+        const o = originRef.current;
+        reset();
+        if (!o) return;
+        if (shouldDismiss({ dx: e.clientX - o.x, dy: e.clientY - o.y })) onDismiss?.();
+      }}
+      // A drag that the system takes away (a call, a notification) must leave
+      // the handle at rest rather than stuck mid-pull.
+      onPointerCancel={reset}
+      onLostPointerCapture={reset}
+      style={{
+        flexShrink: 0,
+        height: 34,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        cursor: 'grab',
+        touchAction: 'none',
+        userSelect: 'none', WebkitUserSelect: 'none',
+      }}
+    >
+      <span
+        ref={barRef}
+        style={{
+          width: 38, height: 4, borderRadius: 999,
+          background: 'rgba(255,255,255,.30)',
+          opacity: .35,
+          transition: 'opacity .18s ease',
+          willChange: 'transform, opacity',
+        }}
+      />
+    </div>
+  );
+}
+
+/**
  * Dispatches on message kind so voice notes, images, attachments and native
  * YesPleez cards land as branches rather than a rewrite. Only `text` exists —
  * the others are declared, not built, and nothing here pretends otherwise.
@@ -972,12 +1119,12 @@ function MessageBubble({ message, isMine, grouped = false, endsBurst = true, spe
           flexDirection: 'column',
           justifyContent: 'center',
         }),
-        border: isMine ? '1px solid rgba(191,95,255,.34)' : '1px solid rgba(255,255,255,.12)',
+        border: isMine ? SENT_BORDER : '1px solid rgba(255,255,255,.12)',
         background: isMine ? SENT_BUBBLE : RECEIVED_BUBBLE,
-        // No glow. A halo on every sent message is decoration repeated dozens
-        // of times down a thread — the gradient already distinguishes it, and
-        // the glow was competing with the text sitting on top of it.
-        boxShadow: 'none',
+        // No glow, still. A halo on every sent message is decoration repeated
+        // dozens of times down a thread. What sent messages get instead is a
+        // single lit edge — depth, not radiance.
+        boxShadow: isMine ? SENT_LIGHTING : 'none',
         // A kind may supply its own finish. Spread LAST so it wins — placed
         // above, the defaults below would have silently overwritten it, which
         // is the classic way a style object stops doing what it reads as doing.
@@ -1048,7 +1195,7 @@ function MessageBubble({ message, isMine, grouped = false, endsBurst = true, spe
               // one it is the screen edge.
               [isMine ? 'left' : 'right']: -8,
               display: 'flex',
-              color: 'var(--text)',
+              color: 'var(--yp-hand-ink)',   // shared with the composer's Hand
               // FREE FLOATING — no chip, no circle, no border. The mark sits on
               // the thread exactly as the standalone acknowledgement does: this
               // app's language is that the mark needs no container, and a badge

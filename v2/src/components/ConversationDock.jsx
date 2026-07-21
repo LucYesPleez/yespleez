@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useConversationUi } from '../lib/conversationUi';
 import { useSession } from '../App';
@@ -54,7 +54,6 @@ export default function ConversationDock() {
   const { openId, minimised, open, minimise, dismiss, getState, patch } = useConversationUi();
   const { session } = useSession();
   const location = useLocation();
-  const touchStartY = useRef(null);
   // Purely presentational — which conversations are minimised lives in shell
   // state; this is only whether the fan is showing.
   const [overflowOpen, setOverflowOpen] = useState(false);
@@ -107,19 +106,29 @@ export default function ConversationDock() {
     return () => { supabase.removeChannel(channel); };
   }, [session, openId, minimised, patch]);
 
-  function onTouchStart(e) {
-    touchStartY.current = e.touches?.[0]?.clientY ?? null;
-  }
-
-  // Swipe down to minimise. Deliberately generous (56px) and downward-only, so
-  // a scroll gesture inside the thread cannot collapse the drawer by accident.
-  function onTouchEnd(e) {
-    const start = touchStartY.current;
-    const end   = e.changedTouches?.[0]?.clientY;
-    touchStartY.current = null;
-    if (start == null || end == null) return;
-    if (end - start > 56) minimise(openId);
-  }
+  /* ── THE DISMISS GESTURE DOES NOT LIVE HERE ANY MORE ─────────────────
+   *
+   * It used to: `onTouchStart`/`onTouchEnd` on the dialog below, minimising
+   * whenever the touch ended more than 56px lower than it began.
+   *
+   * ⚠ THAT WAS A REAL BUG, reproduced on iPhone and Android — conversations
+   * dismissed themselves during ordinary reading.
+   *
+   * The dialog is an ANCESTOR of the message list, which is the element that
+   * actually scrolls. Touch events bubble, so every drag inside the list
+   * arrived here too, and a downward drag of more than 56px is not an unusual
+   * gesture — it is precisely what scrolling back through a conversation looks
+   * like. The old comment argued that downward-only made it safe from scrolling;
+   * downward-only is exactly what put it in the scroller's path.
+   *
+   * No threshold fixes this. Two handlers were competing for one drag and the
+   * ancestor had no way to know the descendant had consumed it — so the gesture
+   * moved to an element that never scrolls (the header's grab handle, in
+   * `ConversationView`). The conflict is gone rather than arbitrated: there is
+   * now no dismiss handler anywhere above the scroll container.
+   *
+   * Do not reintroduce a drag listener on this element or on the scrim.
+   */
 
   return (
     <>
@@ -258,8 +267,6 @@ export default function ConversationDock() {
             role="dialog"
             aria-label="Conversation"
             onClick={e => e.stopPropagation()}
-            onTouchStart={onTouchStart}
-            onTouchEnd={onTouchEnd}
             style={{
               width: '100%', maxWidth: 560,
               // Fills the space the overlay allows — which already excludes the
