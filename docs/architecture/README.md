@@ -12,6 +12,7 @@ The **canonical, frozen** architecture of YesPleez, and the source of truth cite
 | **`identity-v1.2.html`** | **CANONICAL** — Identity Architecture v1.2 (Amendment), ratified + frozen 18 Jul 2026 |
 | **`identity-v1.3.html`** | **CANONICAL** — Identity Architecture v1.3 (Amendment), ratified + frozen 18 Jul 2026 |
 | **`communication-v1.0.md`** | **CANONICAL** — Communication Architecture v1.0, ratified + frozen 20 Jul 2026. **Authored in Markdown, so this file is authoritative** — see "Which artifact is authoritative" below. |
+| **`messaging-availability-v1.0.md`** | **CANONICAL** — Messaging Availability Constitution v1.0, ratified + frozen 21 Jul 2026. Governed by `communication-v1.0`. **Authored in Markdown, so this file is authoritative.** |
 | `architecture-v1.0.md` | Reading copy. Not authoritative. |
 | `identity-v1.1.md` | Reading copy. Not authoritative. |
 | `identity-v1.2.md` | Reading copy. Not authoritative. |
@@ -28,9 +29,10 @@ The **canonical, frozen** architecture of YesPleez, and the source of truth cite
   HTML**. Their `.md` files are mechanically converted reading copies for diff-review and GitHub
   navigation. **Where they disagree, the HTML is correct.** Never cite those `.md` files; never
   hand-edit one — re-run the converter below.
-- **`communication-v1.0`** was **authored in Markdown**. That `.md` file *is* the canonical record.
-  There is no HTML derivative, and one must not be generated and then treated as canonical: doing so
-  would make the derived artifact authoritative, which is the exact failure this rule prevents.
+- **`communication-v1.0`** and **`messaging-availability-v1.0`** were **authored in Markdown**. Those
+  `.md` files *are* the canonical record. There is no HTML derivative of either, and one must not be
+  generated and then treated as canonical: doing so would make the derived artifact authoritative,
+  which is the exact failure this rule prevents.
 
 The converter runs **HTML → Markdown only**. It is not a general document pipeline:
 
