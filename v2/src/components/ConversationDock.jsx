@@ -19,6 +19,14 @@ import ConversationView from './ConversationView';
  * `--yp-nav-height` is maintained by BottomNav's ResizeObserver, so the pill
  * sits correctly above it including the safe-area inset.
  */
+/**
+ * How many minimised conversations show as tabs before the rest collapse into
+ * a "+n". Three 210px-capped tabs plus the count fit inside the nav's 680px
+ * without any of them shrinking below a readable name — the failure mode this
+ * avoids is tabs that all fit but none of which can be identified.
+ */
+const MAX_VISIBLE_TABS = 3;
+
 export default function ConversationDock() {
   const { openId, minimised, open, minimise, dismiss, getState } = useConversationUi();
   const location = useLocation();
@@ -58,8 +66,12 @@ export default function ConversationDock() {
            it. Laid out as a ROW from the left so a second and third
            conversation extend sideways like browser tabs — the language
            already scales without a redesign. */
-        <div style={{ position: 'fixed', left: 0, right: 0, bottom: 'var(--yp-nav-height, 64px)', zIndex: 140, display: 'flex', flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'flex-start', gap: 6, padding: '0 10px', pointerEvents: 'none' }}>
-          {minimised.map(id => (
+        /* Width and centring MIRROR BottomNav's own `min(100%, 680px)`. The
+           tabs belong to the nav, so they must share its bounds — anchored to
+           the viewport instead, they drift to the far left on any screen wider
+           than the nav, which is exactly what happened on desktop. */
+        <div style={{ position: 'fixed', left: 0, right: 0, margin: '0 auto', width: 'min(100%, 680px)', bottom: 'var(--yp-nav-height, 64px)', zIndex: 140, display: 'flex', flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'flex-start', gap: 6, padding: '0 10px', boxSizing: 'border-box', pointerEvents: 'none' }}>
+          {minimised.slice(0, MAX_VISIBLE_TABS).map(id => (
             <ConversationPill
               key={id}
               conversationId={id}
@@ -68,6 +80,29 @@ export default function ConversationDock() {
               onDismiss={() => dismiss(id)}
             />
           ))}
+
+          {/* OVERFLOW. Once the tabs would fill the nav's width, the remainder
+              collapse into a count rather than shrinking every tab until none
+              of the names are readable. Deliberately NOT a button: there is no
+              tab-switcher to open, and wiring it to something invented would
+              be worse than a control that plainly states there are more. */}
+          {minimised.length > MAX_VISIBLE_TABS && (
+            <span
+              aria-label={`${minimised.length - MAX_VISIBLE_TABS} more minimised conversations`}
+              style={{
+                pointerEvents: 'auto', flexShrink: 0,
+                display: 'flex', alignItems: 'center',
+                height: 32, padding: '0 10px',
+                background: 'rgba(24,24,29,.97)',
+                border: '1px solid rgba(255,255,255,.09)',
+                borderBottom: 'none',
+                borderRadius: '11px 11px 0 0',
+                color: 'rgba(255,255,255,.5)', fontSize: 12, fontWeight: 600,
+              }}
+            >
+              +{minimised.length - MAX_VISIBLE_TABS}
+            </span>
+          )}
         </div>
       )}
 
