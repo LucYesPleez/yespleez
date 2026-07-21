@@ -120,7 +120,15 @@ const RECEIVED_BUBBLE = 'rgba(255,255,255,.085)';
  * Tinted with the app's own --dark rather than pure black, so the dimmed image
  * settles into the surrounding UI instead of turning into a grey wash.
  */
-const CHAT_BG_SCRIM = 'rgba(10,10,15,.72)';
+/**
+ * .72 → .80, which is "another 30% dimmer".
+ *
+ * Measured on what SHOWS rather than on the alpha itself: at .72 the image came
+ * through at 28%, and 30% less of that is 19.6% — an alpha of .804, rounded to
+ * .80. Scaling the alpha directly instead (.72 × 1.3) would land at .94 and
+ * leave almost nothing visible, which is a different instruction.
+ */
+const CHAT_BG_SCRIM = 'rgba(10,10,15,.80)';
 
 /**
  * The wallpaper's aspect ratio, from the file: 1162x2093.
