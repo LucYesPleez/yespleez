@@ -89,23 +89,25 @@ function ThreadMarker({ label }) {
  * premium header look assembled rather than designed.
  */
 /**
- * BUBBLE FILLS OVER THE WALLPAPER.
+ * BUBBLE FILLS.
  *
- * Both are translucent so the image reads through them — that is the point of
- * having a wallpaper at all.
+ * Both are translucent so the wallpaper reads through them — that is the point
+ * of having one at all.
  *
- * ⚠ THE SENT FILL REPLACES THE BRAND GRADIENT, as specified. It is worth
- * knowing what that costs: the cyan→purple gradient was the only thing
- * distinguishing sent from received at a glance, and both are now dark
- * translucent panels differing by about 10% alpha. On a flat background that
- * reads; over a photograph with this much texture, two near-identical
- * translucent panels are much harder to tell apart than they are on a mockup.
+ * The canonical cyan→purple gradient on sent messages, restored after a spell
+ * as a flat rgba(0,0,0,.55) panel. Held at low alpha so it reads as tinted
+ * glass rather than neon, and it is the only thing distinguishing sent from
+ * received at a glance — two dark translucent panels differing by a few percent
+ * alpha were much harder to tell apart over a photograph than they looked in a
+ * mockup.
  *
- * Swapping the one constant below back to the gradient is the whole change:
- *   linear-gradient(135deg, rgba(0,229,255,.20) 0%, rgba(191,95,255,.40) 100%)
+ * RECEIVED were rgba(255,255,255,.035) originally — all but invisible on this
+ * surface, which left the other participant quieter than you in their own
+ * conversation. .085 is legible and clearly present, still nowhere near bright,
+ * and still visibly the calmer of the two so the gradient keeps the lead.
  */
-const SENT_BUBBLE     = 'rgba(0,0,0,.55)';
-const RECEIVED_BUBBLE = 'rgba(255,255,255,.10)';
+const SENT_BUBBLE     = 'linear-gradient(135deg, rgba(0,229,255,.20) 0%, rgba(191,95,255,.40) 100%)';
+const RECEIVED_BUBBLE = 'rgba(255,255,255,.085)';
 
 /**
  * How far the wallpaper is pushed back behind the conversation.
