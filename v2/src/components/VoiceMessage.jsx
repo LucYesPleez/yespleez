@@ -286,12 +286,45 @@ export default function VoiceMessage({ message }) {
             line below, two timings stacked saying different things inside a
             component whose whole point is that it is one object. */}
         <div style={{
-          marginTop: 5, fontSize: 11, color: 'rgba(255,255,255,.62)',
+          marginTop: 6,
           display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10,
         }}>
-          <span>{error ?? formatDuration(playing || position > 0 ? position : duration)}</span>
+          {/* SECONDARY — the duration. Readable at a glance and clearly below
+              the waveform: heavier than the timestamp, lighter than the wave.
+
+              TABULAR FIGURES. This counts up during playback, and proportional
+              digits are different widths — a '1' is narrower than a '0', so the
+              readout shifts left and right as the seconds tick. Tabular locks
+              every digit to one width and the number stays still. */}
+          <span style={{
+            fontSize: 11.5,
+            fontWeight: 500,
+            lineHeight: 1,
+            letterSpacing: '.01em',
+            fontVariantNumeric: 'tabular-nums',
+            color: error ? 'var(--neon)' : 'rgba(255,255,255,.74)',
+          }}>
+            {error ?? formatDuration(playing || position > 0 ? position : duration)}
+          </span>
+
+          {/* TERTIARY — the clock. Deliberately quieter and smaller than the
+              duration: they sit on one line, and at equal weight the eye cannot
+              tell which one it is meant to read.
+
+              10px and this alpha match the timestamp inside a TEXT bubble, so
+              the clocks line up in weight down the whole thread rather than the
+              Voicey having its own. Tabular here too, so times of different
+              digits do not shuffle the right edge between messages. */}
           {message?.created_at && (
-            <span style={{ flexShrink: 0, color: 'rgba(255,255,255,.5)', userSelect: 'none' }}>
+            <span style={{
+              flexShrink: 0,
+              fontSize: 10,
+              lineHeight: 1,
+              letterSpacing: '.02em',
+              fontVariantNumeric: 'tabular-nums',
+              color: 'rgba(255,255,255,.46)',
+              userSelect: 'none',
+            }}>
               {timeOf(message.created_at)}
             </span>
           )}

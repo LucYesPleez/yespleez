@@ -1011,6 +1011,11 @@ function MessageBubble({ message, isMine, grouped = false, endsBurst = true, spe
             color: isMine ? 'rgba(255,255,255,.55)' : 'rgba(255,255,255,.42)',
             marginTop: 5,
             textAlign: 'right',
+            // Tabular so the right edge of the clock lines up down the whole
+            // thread — proportional digits make each message's timestamp end a
+            // pixel or two apart, which reads as sloppy without being nameable.
+            fontVariantNumeric: 'tabular-nums',
+            letterSpacing: '.02em',
             // Cannot be selected or dragged — it sits inside the double-tap
             // target and a text selection would swallow the second tap.
             userSelect: 'none',
