@@ -77,6 +77,39 @@ export function isBareKind(kind) {
 }
 
 /**
+ * CONTAINER GEOMETRY FOR KINDS THAT ARE NOT PLAIN BUBBLES.
+ *
+ * `BARE_KINDS` answered "chrome or no chrome". This answers the question one
+ * step in: a kind can keep the chrome and still not be shaped like a message.
+ *
+ * A voice note is the case that forced it. Inside a standard bubble it reads as
+ * a chat message with a player dropped into it; given its own proportions it
+ * reads as a purpose-built audio component that happens to live in a thread.
+ * Only the SHAPE differs — the fill, border and colour are the bubble's, so a
+ * Voicey still belongs to whoever sent it.
+ *
+ * Geometry only, deliberately. Nothing here may set a colour: the moment this
+ * map can restyle a bubble, "what kind is this" and "how does this look" stop
+ * being separable and every future kind arrives with its own palette.
+ *
+ * `tail: false` drops the asymmetric corner. A tail is what makes a rectangle
+ * read as speech, and a voice note is not speech — it is an object.
+ */
+export const KIND_SHAPE = {
+  voice: {
+    radius: 24,              // 20 → 24, softer and more deliberate
+    padding: '15px 17px',    // 12/16 → more room around the player
+    minHeight: 76,           // gives it presence next to a one-line text bubble
+    tail: false,
+  },
+};
+
+/** Geometry overrides for this kind, or null for a standard bubble. */
+export function shapeFor(kind) {
+  return KIND_SHAPE[kind] ?? null;
+}
+
+/**
  * ACKNOWLEDGEMENT SIZING — designed in now, driven later.
  *
  * A quick tap sends the default. A future press-and-hold will send something

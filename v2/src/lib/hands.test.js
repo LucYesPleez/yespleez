@@ -121,3 +121,38 @@ test('a tap sends no scale at all', async () => {
   await sendHand({ conversationId: CONV, fromProfileId: PROFILE });
   assert.equal(inserted.at(-1).row.payload, undefined);
 });
+
+// ── container geometry per kind ─────────────────────────────────────
+
+test('voice has its own container shape and text does not', async () => {
+  const { shapeFor } = await import('./messageKindList.js');
+  const voice = shapeFor('voice');
+  assert.ok(voice, 'a voice note must not be shaped like a chat bubble');
+  assert.ok(voice.radius >= 22 && voice.radius <= 26, `radius ${voice.radius} outside the intended 22-26`);
+  assert.equal(voice.tail, false, 'a tail makes a rectangle read as speech; a voice note is an object');
+  assert.ok(voice.minHeight > 0);
+
+  assert.equal(shapeFor('text'), null, 'text sizes to its content — no minimum, no override');
+  assert.equal(shapeFor(undefined), null);
+});
+
+test('shape overrides carry geometry only, never colour', async () => {
+  const { KIND_SHAPE } = await import('./messageKindList.js');
+  // The moment this map can restyle a bubble, "what kind is this" and "how does
+  // this look" stop being separable, and every future kind arrives with its own
+  // palette. Fill and border stay the bubble's so a Voicey still reads as
+  // belonging to whoever sent it.
+  const banned = /colou?r|background|gradient|border(?!Radius)|shadow|fill/i;
+  for (const [kind, shape] of Object.entries(KIND_SHAPE)) {
+    for (const key of Object.keys(shape)) {
+      assert.doesNotMatch(key, banned, `${kind}.${key} is a colour concern, not geometry`);
+    }
+  }
+});
+
+test('every shaped kind is a real kind', async () => {
+  const { KIND_SHAPE, KINDS: K } = await import('./messageKindList.js');
+  for (const k of Object.keys(KIND_SHAPE)) {
+    assert.ok(K.includes(k), `'${k}' has a shape but is not a kind`);
+  }
+});

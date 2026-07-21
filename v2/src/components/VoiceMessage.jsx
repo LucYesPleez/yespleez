@@ -108,7 +108,11 @@ export default function VoiceMessage({ message }) {
   const track = 'rgba(255,255,255,.22)';
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 168 }}>
+    // 168 → 244, and the gap opened up with it. A player that sizes itself to
+    // the smallest thing it can contain reads as a control someone dropped into
+    // a message; a consistent, deliberate footprint reads as a component. The
+    // container's own padding and min-height (KIND_SHAPE.voice) do the rest.
+    <div style={{ display: 'flex', alignItems: 'center', gap: 13, minWidth: 244 }}>
       <button
         type="button"
         onClick={toggle}

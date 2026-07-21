@@ -11,7 +11,7 @@ import { listHands, toggleHand } from '../lib/messageState';
 import Composer from './Composer';
 import { useConversationUi } from '../lib/conversationUi';
 import { PROFILE_TYPES } from '../lib/profileTypes';
-import { renderMessage, isBareKind } from '../lib/messageKinds';
+import { renderMessage, isBareKind, shapeFor } from '../lib/messageKinds';
 import HandIcon from './HandIcon';
 
 /**
@@ -891,6 +891,13 @@ function MessageBubble({ message, isMine, grouped = false, endsBurst = true, spe
   // bubble is a fact about the kind, and this component deliberately knows
   // nothing else about kinds.
   const bare = isBareKind(message.kind);
+  // Geometry only — the fill and border stay the bubble's, so a Voicey still
+  // reads as belonging to whoever sent it.
+  const shape = shapeFor(message.kind);
+  const radius = shape?.radius ?? 20;
+  // A tail is what makes a rectangle read as speech. Kinds that are objects
+  // rather than utterances opt out and get equal corners.
+  const corner = shape?.tail === false ? radius : tail;
 
   return (
     <div style={{
@@ -949,9 +956,17 @@ function MessageBubble({ message, isMine, grouped = false, endsBurst = true, spe
         } : {
         maxWidth: '76%', position: 'relative',
         borderRadius: isMine
-          ? `20px 20px ${tail}px 20px`
-          : `20px 20px 20px ${tail}px`,
-        padding: '12px 16px',
+          ? `${radius}px ${radius}px ${corner}px ${radius}px`
+          : `${radius}px ${radius}px ${radius}px ${corner}px`,
+        padding: shape?.padding ?? '12px 16px',
+        // Only set when a kind asks for one, so a text bubble still sizes to
+        // exactly the text in it.
+        ...(shape?.minHeight && {
+          minHeight: shape.minHeight,
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center',
+        }),
         border: isMine ? '1px solid rgba(191,95,255,.34)' : '1px solid rgba(255,255,255,.12)',
         background: isMine ? SENT_BUBBLE : RECEIVED_BUBBLE,
         // No glow. A halo on every sent message is decoration repeated dozens
