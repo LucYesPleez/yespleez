@@ -134,6 +134,17 @@ const CHAT_BG_SCRIM = 'rgba(10,10,15,.72)';
  */
 const CHAT_BG_RATIO = 1162 / 2093;
 
+/**
+ * How fast the wallpaper travels relative to the messages.
+ *
+ * 1 moves it with the content, which reads as the image being part of the
+ * thread. 0.5 is parallax — it drifts at half rate, so the messages appear to
+ * slide over something sitting further back, which is the point.
+ *
+ * 0 would pin it outright, and is the same as no effect at all.
+ */
+const CHAT_BG_PARALLAX = 0.5;
+
 const ghostBtn = {
   width: 34, height: 34, flexShrink: 0, borderRadius: 999,
   display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -354,7 +365,14 @@ export default function ConversationView({ conversationId, compact = false, onMi
     const fromBottom = el.scrollHeight - el.clientHeight - el.scrollTop;
     // -overflow puts the image's bottom on the window's bottom; 0 puts its top
     // on the window's top. Clamped so it can never travel past either.
-    const y = Math.min(0, fromBottom - overflow);
+    //
+    // PARALLAX halves the rate, so the image drifts behind the messages instead
+    // of moving with them — which is what reads as depth. The side effect is
+    // that full reveal now takes 1/PARALLAX times as much scrolling, so a short
+    // thread may never expose the top of the image at all. That is correct: the
+    // clamp still guarantees no gap, and a wallpaper that only fully appears in
+    // a long conversation is a better outcome than one that races the text.
+    const y = Math.min(0, fromBottom * CHAT_BG_PARALLAX - overflow);
     el.style.backgroundPosition = `center, center ${Math.round(y)}px`;
   }
 
