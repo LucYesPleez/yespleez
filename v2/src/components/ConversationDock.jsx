@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useConversationUi } from '../lib/conversationUi';
 import ConversationView from './ConversationView';
@@ -31,6 +31,9 @@ export default function ConversationDock() {
   const { openId, minimised, open, minimise, dismiss, getState } = useConversationUi();
   const location = useLocation();
   const touchStartY = useRef(null);
+  // Purely presentational — which conversations are minimised lives in shell
+  // state; this is only whether the fan is showing.
+  const [overflowOpen, setOverflowOpen] = useState(false);
 
   // "Opening another screen" MINIMISES — it does not close, and it does not
   // leave the drawer covering the screen the user just navigated to. The dock
@@ -81,26 +84,88 @@ export default function ConversationDock() {
             />
           ))}
 
-          {/* OVERFLOW. Once the tabs would fill the nav's width, the remainder
-              collapse into a count rather than shrinking every tab until none
-              of the names are readable. Deliberately NOT a button: there is no
-              tab-switcher to open, and wiring it to something invented would
-              be worse than a control that plainly states there are more. */}
+          {/* OVERFLOW. Tabs beyond the third collapse into a count rather than
+              shrinking every tab until no name is readable. Tapping it fans the
+              remainder upward, so hidden conversations stay one tap away
+              instead of being unreachable until another tab closes. */}
           {minimised.length > MAX_VISIBLE_TABS && (
-            <span
-              aria-label={`${minimised.length - MAX_VISIBLE_TABS} more minimised conversations`}
-              style={{
-                pointerEvents: 'auto', flexShrink: 0,
-                display: 'flex', alignItems: 'center',
-                height: 32, padding: '0 10px',
-                background: 'rgba(24,24,29,.97)',
-                border: '1px solid rgba(255,255,255,.09)',
-                borderBottom: 'none',
-                borderRadius: '11px 11px 0 0',
-                color: 'rgba(255,255,255,.5)', fontSize: 12, fontWeight: 600,
-              }}
-            >
-              +{minimised.length - MAX_VISIBLE_TABS}
+            <span style={{ position: 'relative', pointerEvents: 'auto', flexShrink: 0 }}>
+              {overflowOpen && (
+                <>
+                  {/* Dismiss layer — below the fan, above everything else, so a
+                      tap closes it without also activating what sits beneath. */}
+                  <div onClick={() => setOverflowOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 1 }} />
+
+                  <div style={{ position: 'absolute', bottom: 'calc(100% + 7px)', left: 0, zIndex: 2, display: 'flex', flexDirection: 'column-reverse', gap: 6, minWidth: 190 }}>
+                    {minimised.slice(MAX_VISIBLE_TABS).map((id, i) => {
+                      const st = getState(id);
+                      const nm = st.profile?.name ?? 'Conversation';
+                      const un = st.unread ?? 0;
+                      return (
+                        <div
+                          key={id}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: 8,
+                            background: 'rgba(26,26,32,.98)',
+                            border: '1px solid rgba(255,255,255,.10)',
+                            borderRadius: 11, padding: '7px 9px',
+                            boxShadow: '0 8px 22px -10px rgba(0,0,0,.8)',
+                            // Staggered so they fan open rather than appearing at once.
+                            animation: `ypFanUp .26s cubic-bezier(.16,1,.3,1) ${i * 40}ms both`,
+                          }}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => { setOverflowOpen(false); open(id); }}
+                            aria-label={`Reopen conversation with ${nm}`}
+                            style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0, background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', padding: 0 }}
+                          >
+                            <span style={{ width: 20, height: 20, borderRadius: 999, background: 'linear-gradient(135deg, #00E5FF, #BF5FFF)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0a0a0f', fontFamily: "'Bebas Neue',sans-serif", fontSize: 10, flexShrink: 0 }}>
+                              {nm.slice(0, 1).toUpperCase()}
+                            </span>
+                            <span style={{ minWidth: 0, flex: 1, color: 'rgba(255,255,255,.86)', fontSize: 12.5, fontWeight: 550, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {nm}
+                            </span>
+                            {un > 0 && (
+                              <span aria-label={`${un} unread`} style={{ minWidth: 15, height: 15, borderRadius: 999, background: '#FF3B30', color: '#fff', fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px', flexShrink: 0 }}>
+                                {un > 9 ? '9+' : un}
+                              </span>
+                            )}
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => dismiss(id)}
+                            aria-label={`Close conversation with ${nm}`}
+                            style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,.34)', fontSize: 14, cursor: 'pointer', lineHeight: 1, padding: '0 1px', flexShrink: 0 }}
+                          >
+                            ×
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+
+              <button
+                type="button"
+                onClick={() => setOverflowOpen(o => !o)}
+                aria-expanded={overflowOpen}
+                aria-label={`${minimised.length - MAX_VISIBLE_TABS} more minimised conversations`}
+                style={{
+                  display: 'flex', alignItems: 'center',
+                  height: 32, padding: '0 10px',
+                  background: 'rgba(24,24,29,.97)',
+                  border: '1px solid rgba(255,255,255,.09)',
+                  borderBottom: 'none',
+                  borderRadius: '11px 11px 0 0',
+                  color: overflowOpen ? 'rgba(255,255,255,.85)' : 'rgba(255,255,255,.5)',
+                  fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                }}
+              >
+                +{minimised.length - MAX_VISIBLE_TABS}
+              </button>
             </span>
           )}
         </div>

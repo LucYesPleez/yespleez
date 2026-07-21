@@ -158,3 +158,11 @@ input, textarea, select {
   width: 0;
   height: 0;
 }
+
+/* Conversation-tab overflow fan. Lives here rather than in a <style> inside
+   ConversationDock because that block only renders while the drawer is OPEN,
+   and the fan is used when every conversation is minimised. */
+@keyframes ypFanUp {
+  from { opacity: 0; transform: translateY(8px) scale(.97); }
+  to   { opacity: 1; transform: translateY(0)   scale(1); }
+}
