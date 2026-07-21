@@ -94,6 +94,10 @@ export default function VoiceMessage({ message }) {
   const [playing,  setPlaying]  = useState(false);
   const [position, setPosition] = useState(0);
   const [duration, setDuration] = useState(storedMs / 1000);
+  // Playback reached the end. Only changes the LABEL — the control stays the
+  // play triangle, because replay is play, and the brief rules out adding
+  // icons. A screen reader still hears the difference.
+  const [finished, setFinished] = useState(false);
 
   // Computed once per payload, not per frame. The playhead re-renders this
   // component every frame while playing, and re-deriving 36 bars each time
@@ -154,6 +158,7 @@ export default function VoiceMessage({ message }) {
       audioRef.current?.pause();
       return;
     }
+    setFinished(false);
     const src = await ensureUrl();
     if (!src) return;
 
@@ -186,22 +191,62 @@ export default function VoiceMessage({ message }) {
     // the smallest thing it can contain reads as a control someone dropped into
     // a message; a consistent, deliberate footprint reads as a component. The
     // container's own padding and min-height (KIND_SHAPE.voice) do the rest.
-    <div style={{ display: 'flex', alignItems: 'center', gap: 13, minWidth: 244 }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 15, minWidth: 252 }}>
+      {/* THE ANCHOR. 32 → 44, which is also the first size that is a genuine
+          touch target rather than one you aim at. Everything else in the
+          component steps down from here — button, then waveform, then the
+          duration line — so the eye starts in one place and travels left to
+          right. */}
       <button
         type="button"
+        className="yp-voice-play"
         onClick={toggle}
         disabled={loading}
-        aria-label={playing ? 'Pause voice message' : 'Play voice message'}
+        aria-label={
+          loading ? 'Loading voice message'
+          : playing ? 'Pause voice message'
+          : finished ? 'Replay voice message'
+          : 'Play voice message'
+        }
         style={{
-          width: 32, height: 32, flexShrink: 0, borderRadius: 999,
-          border: '1px solid rgba(255,255,255,.28)',
-          background: 'rgba(255,255,255,.10)',
-          color: PLAY_TINT, cursor: loading ? 'default' : 'pointer',
+          width: 44, height: 44, flexShrink: 0, borderRadius: 999,
+          position: 'relative',
+          // The bubble's material, one step brighter: same glass, lifted enough
+          // to read as the thing you press.
+          border: '1px solid rgba(255,255,255,.24)',
+          background: 'linear-gradient(160deg, rgba(255,255,255,.17) 0%, rgba(255,255,255,.07) 100%)',
+          boxShadow: 'inset 0 1px 0 rgba(255,255,255,.20), 0 4px 12px -7px rgba(0,0,0,.9)',
+          backdropFilter: 'blur(6px)',
+          WebkitBackdropFilter: 'blur(6px)',
+          color: PLAY_TINT,
+          cursor: loading ? 'default' : 'pointer',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 13, lineHeight: 1, padding: 0,
+          padding: 0,
+          opacity: loading ? .55 : 1,
         }}
       >
-        {loading ? '…' : playing ? '❚❚' : '▶'}
+        {/* Both glyphs are always mounted and cross-faded. Swapping them would
+            blink; fading means the control CHANGES rather than flickers.
+            The play triangle is nudged a pixel right — an equilateral triangle
+            centred by its bounding box always reads as sitting left. */}
+        <span className="yp-voice-glyph" style={{
+          opacity: playing ? 0 : 1,
+          transform: playing ? 'scale(.7)' : 'scale(1)',
+        }}>
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"
+               style={{ marginLeft: 2 }}>
+            <path d="M8 5.2v13.6a1 1 0 0 0 1.53.85l10.7-6.8a1 1 0 0 0 0-1.7L9.53 4.35A1 1 0 0 0 8 5.2z" />
+          </svg>
+        </span>
+        <span className="yp-voice-glyph" style={{
+          opacity: playing ? 1 : 0,
+          transform: playing ? 'scale(1)' : 'scale(.7)',
+        }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <rect x="6" y="4.5" width="4.4" height="15" rx="1.6" />
+            <rect x="13.6" y="4.5" width="4.4" height="15" rx="1.6" />
+          </svg>
+        </span>
       </button>
 
       <div style={{ flex: 1, minWidth: 0 }}>
@@ -260,7 +305,7 @@ export default function VoiceMessage({ message }) {
         preload="none"
         onPlay={() => setPlaying(true)}
         onPause={() => setPlaying(false)}
-        onEnded={() => { setPlaying(false); setPosition(0); }}
+        onEnded={() => { setPlaying(false); setPosition(0); setFinished(true); }}
         // Keeps the readout honest while PAUSED and on seek; the frame loop
         // above owns it during playback.
         onTimeUpdate={e => { if (e.currentTarget.paused) setPosition(e.currentTarget.currentTime); }}
