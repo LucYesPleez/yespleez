@@ -166,3 +166,17 @@ input, textarea, select {
   from { opacity: 0; transform: translateY(8px) scale(.97); }
   to   { opacity: 1; transform: translateY(0)   scale(1); }
 }
+
+/* The recording dot (M9g). Opacity only — it sits beside a timer that updates
+   ten times a second, and anything animating layout here would fight it. */
+@keyframes ypPulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: .35; }
+}
+
+/* A recording indicator that blinks is a recording indicator that is HARDER to
+   notice for anyone sensitive to motion — and this one signals a live
+   microphone, so it must stay visible rather than stop existing. */
+@media (prefers-reduced-motion: reduce) {
+  .yp-no-motion, [style*="ypPulse"] { animation: none !important; }
+}

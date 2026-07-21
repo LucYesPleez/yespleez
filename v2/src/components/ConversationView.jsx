@@ -361,7 +361,10 @@ export default function ConversationView({ conversationId, compact = false, onMi
       // sender only cares that it did not send.
       setError(sendError.message ?? 'Could not send that recording.');
       setSending(false);
-      return;
+      // Thrown, not returned: the recorder awaits this to decide between its
+      // `sent` and `idle` states, and a silent return would show "Sent" for a
+      // message that never left.
+      throw sendError;
     }
 
     setMessages(prev => [...prev, message]);
@@ -594,6 +597,10 @@ export default function ConversationView({ conversationId, compact = false, onMi
           was continuous at the top and abruptly segmented at the bottom.
           Separation is now an upward wash — the mirror of the header's. */}
       <form onSubmit={onSend} style={{
+        // `relative` is the positioning context for the recording bar, which
+        // overlays this row rather than joining it — so starting a recording
+        // reflows nothing (M9g).
+        position: 'relative',
         display: 'flex', alignItems: 'center', gap: 9,
         padding: '12px 16px 16px', flexShrink: 0,
         background: 'linear-gradient(0deg, rgba(255,255,255,.035) 0%, rgba(255,255,255,0) 100%)',
