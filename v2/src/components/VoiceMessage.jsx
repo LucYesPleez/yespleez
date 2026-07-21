@@ -1,6 +1,6 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { signedUrlFor, formatDuration } from '../lib/voiceNotes';
-import { isRenderablePeaks, PEAK_MAX } from '../lib/voicePeaks';
+import { toDisplayPeaks } from '../lib/voicePeaks';
 import { timeOf } from '../lib/clock';
 
 /**
@@ -29,6 +29,59 @@ import { timeOf } from '../lib/clock';
  * duration wins — it is the truth about the file, and the recorded value is a
  * measurement of wall-clock time that a paused or throttled tab can overstate.
  */
+/** Taller than the old 22, so the peaks have somewhere to go. */
+const WAVE_HEIGHT = 27;
+
+/**
+ * PLAYED and REMAINING, interpolated per bar.
+ *
+ * Played is the brand purple at full strength; remaining is a muted white that
+ * sits back without disappearing. Kept as component channels rather than CSS
+ * strings so the two can be mixed — a binary swap at the playhead is what made
+ * the old waveform look like a progress bar wearing bars.
+ */
+const PLAYED = { r: 191, g: 95, b: 255, a: 1 };
+const REST   = { r: 255, g: 255, b: 255, a: 0.26 };
+
+const rgba = c => `rgba(${Math.round(c.r)},${Math.round(c.g)},${Math.round(c.b)},${c.a.toFixed(3)})`;
+const PLAYED_CSS = rgba(PLAYED);
+const REST_CSS   = rgba(REST);
+const PLAY_TINT  = 'rgba(255,255,255,.92)';
+
+/**
+ * The colour fade is exactly ONE bar wide, and that is not an aesthetic choice.
+ *
+ * A bar represents a slice of audio. One bar of fade means each bar fills in
+ * across precisely the time its own audio is playing — so the colour is
+ * synchronised to what you are hearing rather than smeared decoratively across
+ * it. The softness comes free: at 36 bars over a ten-second note, one bar is
+ * about a quarter of a second of gradual fill.
+ *
+ * Wider was tried and measured wrong. At 2.5 the last bar reached only 40% by
+ * the end of playback, because the fade trails the head and never catches up.
+ */
+const FADE_BARS = 1;
+
+/**
+ * The colour of bar `i`, given where the playhead is.
+ *
+ * The fade TRAILS the playhead rather than straddling it. An earlier version
+ * centred the blend on the head (`+ 0.5`), which meant the first bar rendered
+ * half-lit at progress 0 — measured as rgba(223,175,255,.63) on an untouched
+ * note. A waveform that looks partly played before you press play is telling
+ * you something untrue about the audio.
+ */
+function barColour(i, count, progress) {
+  const head = progress * count;
+  const t = Math.max(0, Math.min(1, (head - i) / FADE_BARS));
+  return rgba({
+    r: REST.r + (PLAYED.r - REST.r) * t,
+    g: REST.g + (PLAYED.g - REST.g) * t,
+    b: REST.b + (PLAYED.b - REST.b) * t,
+    a: REST.a + (PLAYED.a - REST.a) * t,
+  });
+}
+
 export default function VoiceMessage({ message }) {
   const path       = message?.payload?.path ?? null;
   const storedMs   = Number(message?.payload?.duration_ms ?? 0);
@@ -42,10 +95,38 @@ export default function VoiceMessage({ message }) {
   const [position, setPosition] = useState(0);
   const [duration, setDuration] = useState(storedMs / 1000);
 
+  // Computed once per payload, not per frame. The playhead re-renders this
+  // component every frame while playing, and re-deriving 36 bars each time
+  // would put avoidable work in exactly the wrong place.
+  const bars = useMemo(() => toDisplayPeaks(peaks), [peaks]);
+
   // Pause on unmount. Closing a drawer mid-playback must stop the audio — an
   // element that outlives its bubble keeps playing with nothing on screen to
   // stop it.
   useEffect(() => () => { audioRef.current?.pause(); }, []);
+
+  /**
+   * THE PLAYHEAD RUNS ON FRAMES, NOT ON `timeupdate`.
+   *
+   * `timeupdate` fires about four times a second, which is fine for a numeric
+   * readout and visibly steppy on a waveform — the colour would jump several
+   * bars at a time. Reading `currentTime` each frame instead makes the leading
+   * edge travel continuously, which is the whole of the animation: the bars
+   * themselves never move.
+   *
+   * Bound only while playing, so a thread of paused voice notes costs nothing.
+   */
+  useEffect(() => {
+    if (!playing) return undefined;
+    let frame;
+    const tick = () => {
+      const el = audioRef.current;
+      if (el && !el.paused) setPosition(el.currentTime);
+      frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [playing]);
 
   async function ensureUrl() {
     if (url) return url;
@@ -100,14 +181,6 @@ export default function VoiceMessage({ message }) {
 
   const progress = duration > 0 ? Math.min(1, position / duration) : 0;
 
-  // Deliberately NOT branched on which side sent it. The registry calls
-  // renderers as `renderer(message)`, and widening that signature would mean
-  // editing MessageBubble — which has to stay generic across every kind. A
-  // near-white tint reads on both the sent gradient and the received .085
-  // fill, so the branch would buy nothing worth that coupling.
-  const tint  = 'rgba(255,255,255,.92)';
-  const track = 'rgba(255,255,255,.22)';
-
   return (
     // 168 → 244, and the gap opened up with it. A player that sizes itself to
     // the smallest thing it can contain reads as a control someone dropped into
@@ -123,7 +196,7 @@ export default function VoiceMessage({ message }) {
           width: 32, height: 32, flexShrink: 0, borderRadius: 999,
           border: '1px solid rgba(255,255,255,.28)',
           background: 'rgba(255,255,255,.10)',
-          color: tint, cursor: loading ? 'default' : 'pointer',
+          color: PLAY_TINT, cursor: loading ? 'default' : 'pointer',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           fontSize: 13, lineHeight: 1, padding: 0,
         }}
@@ -138,26 +211,28 @@ export default function VoiceMessage({ message }) {
             Notes recorded before M9f have no peaks and never will (they cannot
             be retrofitted without re-downloading every one), so the plain bar
             is a permanent state rather than a loading one. */}
-        {isRenderablePeaks(peaks) ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 1.5, height: 22 }} aria-hidden="true">
-            {peaks.map((p, i) => (
+        {bars ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 2, height: WAVE_HEIGHT }} aria-hidden="true">
+            {bars.map((v, i) => (
               <span
                 key={i}
                 style={{
                   flex: 1,
                   // Floor at 2px: a near-silent bucket must still read as a bar,
                   // or a pause in speech looks like a gap in the file.
-                  height: Math.max(2, (p / PEAK_MAX) * 22),
+                  height: Math.max(2, v * WAVE_HEIGHT),
                   borderRadius: 999,
-                  background: (i / peaks.length) <= progress ? tint : track,
-                  transition: 'background .12s linear',
+                  background: barColour(i, bars.length, progress),
+                  // No transition. The playhead already moves every frame, and a
+                  // per-bar ease on top of that smears the leading edge into a
+                  // gradient that lags the audio.
                 }}
               />
             ))}
           </div>
         ) : (
-          <div style={{ height: 3, borderRadius: 999, background: track, overflow: 'hidden' }}>
-            <div style={{ width: `${progress * 100}%`, height: '100%', background: tint, borderRadius: 999 }} />
+          <div style={{ height: 3, borderRadius: 999, background: REST_CSS, overflow: 'hidden' }}>
+            <div style={{ width: `${progress * 100}%`, height: '100%', background: PLAYED_CSS, borderRadius: 999 }} />
           </div>
         )}
         {/* LENGTH LEFT, CLOCK RIGHT, ONE LINE.
@@ -186,7 +261,9 @@ export default function VoiceMessage({ message }) {
         onPlay={() => setPlaying(true)}
         onPause={() => setPlaying(false)}
         onEnded={() => { setPlaying(false); setPosition(0); }}
-        onTimeUpdate={e => setPosition(e.currentTarget.currentTime)}
+        // Keeps the readout honest while PAUSED and on seek; the frame loop
+        // above owns it during playback.
+        onTimeUpdate={e => { if (e.currentTarget.paused) setPosition(e.currentTarget.currentTime); }}
         onLoadedMetadata={e => {
           // The file's own duration beats the recorded one. See header.
           const real = e.currentTarget.duration;

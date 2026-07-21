@@ -123,6 +123,67 @@ export function peaksFromChannel(samples) {
  * here, and falls back to the plain bar rather than rendering a distorted
  * waveform or throwing inside a thread.
  */
+/**
+ * BARS ACTUALLY DRAWN, which is not the same as bars stored.
+ *
+ * PEAK_COUNT is 56 because that is what makes a good stored summary. Drawing 56
+ * bars inside a ~190px player leaves each one under two pixels wide, and a row
+ * of two-pixel bars reads as a comb rather than as audio — which is the real
+ * reason the waveform looked uniform. The heights varied; they were just too
+ * thin to see varying.
+ *
+ * 36 bars at ~3px with a 2px gap fills the same space and looks like something
+ * recorded. This is a DISPLAY choice and changes no stored data, so it can be
+ * retuned freely — unlike PEAK_COUNT, which is frozen into every payload ever
+ * written.
+ */
+export const DISPLAY_BARS = 36;
+
+/**
+ * Contrast curve applied to the drawn heights.
+ *
+ * Stored peaks are RMS, which is the right measure for a summary and a slightly
+ * flat one to look at: RMS averages transients away, so speech arrives as a
+ * gentle mound. An exponent above 1 pushes quiet buckets down harder than loud
+ * ones, restoring the valleys between words that make a waveform read as speech
+ * rather than as noise.
+ *
+ * Applied at DRAW time, never at record time. Baking it into the payload would
+ * throw away the real measurement, and the curve is exactly the kind of thing
+ * that gets retuned later.
+ */
+const CONTRAST = 1.7;
+
+/**
+ * Turn stored peaks into the heights to draw: 0..1, one per bar.
+ *
+ * Downsamples by MAXIMUM rather than average. Averaging a second time after RMS
+ * flattens what little dynamic range survived; taking the loudest bucket in
+ * each group keeps the peaks where they actually were. Safe here precisely
+ * because the stored values are already RMS — a single click cannot spike a bar,
+ * because it was averaged out before it was ever stored.
+ *
+ * Returns null for anything unrenderable, so the caller falls back to the plain
+ * bar exactly as before.
+ */
+export function toDisplayPeaks(peaks, bars = DISPLAY_BARS) {
+  if (!isRenderablePeaks(peaks)) return null;
+
+  const per = peaks.length / bars;
+  const out = new Array(bars);
+
+  for (let i = 0; i < bars; i++) {
+    const start = Math.floor(i * per);
+    const end   = Math.max(start + 1, Math.floor((i + 1) * per));
+    let loudest = 0;
+    for (let j = start; j < end && j < peaks.length; j++) {
+      if (peaks[j] > loudest) loudest = peaks[j];
+    }
+    out[i] = Math.pow(loudest / PEAK_MAX, CONTRAST);
+  }
+  return out;
+}
+
 export function isRenderablePeaks(peaks) {
   return Array.isArray(peaks)
     && peaks.length === PEAK_COUNT

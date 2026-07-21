@@ -132,3 +132,56 @@ test('only a well-formed peak array is renderable', () => {
   assert.equal(isRenderablePeaks(new Array(PEAK_COUNT).fill(NaN)), false);
   assert.equal(isRenderablePeaks('not an array'), false);
 });
+
+// ── display peaks: stored summary → drawn bars ──────────────────────
+
+test('drawn bars are fewer than stored peaks, and always the same count', async () => {
+  const { toDisplayPeaks, DISPLAY_BARS } = await import('./voicePeaks.js');
+  // 56 bars in a ~190px player is under 2px each, which reads as a comb rather
+  // than as audio — the real reason the waveform looked uniform.
+  const drawn = toDisplayPeaks(peaksFromChannel(tone()));
+  assert.equal(drawn.length, DISPLAY_BARS);
+  assert.ok(DISPLAY_BARS < PEAK_COUNT, 'drawing must downsample, never upsample');
+});
+
+test('drawn heights are 0..1 so the caller can scale them freely', async () => {
+  const { toDisplayPeaks } = await import('./voicePeaks.js');
+  for (const v of toDisplayPeaks(peaksFromChannel(tone()))) {
+    assert.ok(v >= 0 && v <= 1, `${v} outside 0..1`);
+  }
+});
+
+test('the contrast curve deepens valleys rather than flattening them', async () => {
+  const { toDisplayPeaks } = await import('./voicePeaks.js');
+  // A stored peak at half scale must draw at LESS than half height, or the
+  // curve is doing nothing and the waveform stays a gentle mound.
+  const half = new Array(PEAK_COUNT).fill(Math.round(PEAK_MAX / 2));
+  const drawn = toDisplayPeaks(half);
+  assert.ok(drawn[0] < 0.5, `half-scale drew at ${drawn[0]}, expected below 0.5`);
+  assert.ok(drawn[0] > 0.15, 'but not so deep that ordinary speech vanishes');
+});
+
+test('full scale still draws at full height', async () => {
+  const { toDisplayPeaks } = await import('./voicePeaks.js');
+  const loud = new Array(PEAK_COUNT).fill(PEAK_MAX);
+  assert.equal(toDisplayPeaks(loud)[0], 1, 'the loudest moment must reach the top');
+});
+
+test('downsampling keeps peaks rather than averaging them away', async () => {
+  const { toDisplayPeaks } = await import('./voicePeaks.js');
+  // One loud bucket in a quiet passage must survive into its bar. Averaging a
+  // second time after RMS would flatten what little range was left.
+  const quiet = new Array(PEAK_COUNT).fill(1);
+  quiet[0] = PEAK_MAX;
+  const drawn = toDisplayPeaks(quiet);
+  assert.equal(drawn[0], 1, 'the loud bucket must carry its bar');
+  assert.ok(drawn[10] < 0.1, 'and must not lift the quiet ones');
+});
+
+test('unrenderable peaks draw nothing, so the caller falls back', async () => {
+  const { toDisplayPeaks } = await import('./voicePeaks.js');
+  assert.equal(toDisplayPeaks(undefined), null, 'pre-M9f notes have no peaks');
+  assert.equal(toDisplayPeaks(null), null);
+  assert.equal(toDisplayPeaks([1, 2, 3]), null, 'wrong length is not drawable');
+  assert.equal(toDisplayPeaks(new Array(PEAK_COUNT).fill(NaN)), null);
+});
