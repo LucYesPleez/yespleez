@@ -468,9 +468,14 @@ input, textarea, select {
     background: rgba(0,0,0,.82);
   }
   .yp-drawer-panel {
-    /* Rounded top corners belong to a sheet that has something behind it.
-       Full-bleed, they would frame the status bar. */
-    border-radius: 0;
+    /* Keeps its rounded top even full-bleed. The corners cut to the scrim
+       behind rather than to the page, so the thread reads as a surface laid
+       over the app rather than as the app repainted — which is the whole
+       reason it covers the header instead of sitting under it.
+
+       Tighter than the desktop 30px: at the screen's edge a large radius eats
+       into the back button and the avatar. */
+    border-radius: 22px 22px 0 0;
     border: none;
     box-shadow: none;
   }

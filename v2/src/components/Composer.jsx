@@ -49,18 +49,33 @@ import LiveWaveform from './LiveWaveform';
  */
 
 /**
- * The composer's own surface, and the colour the wallpaper dissolves into.
+ * The composer's surface, and the colour the wallpaper settles into.
  *
- * ONE constant, used twice — as this element's fill and as the opaque end of
- * the fade above it. If the two ever differ the seam comes back, just softer
- * and harder to name.
+ * IT IS A GRADIENT, AND THAT IS DOING TWO JOBS AT ONCE.
+ *
+ * The message list bleeds down behind this bar, and the image's bottom now
+ * rests half way up it (`COMPOSER_BLEED / 2` in ConversationView). So the top
+ * half of this strip has photograph behind it and the bottom half does not.
+ *
+ *   .34 at the top  — light enough that the picture genuinely reads through,
+ *                     which is the whole point of running it under here.
+ *   .94 at the base — opaque enough to bury the line where the image ends,
+ *                     so it stops behind something solid rather than in view.
+ *
+ * A flat fill could only ever get one of those right: light enough to show the
+ * image meant showing where it stopped, and dark enough to hide that meant
+ * hiding the image too.
+ *
+ * Legibility never depended on any of it — the capsule draws its own glass and
+ * the field sits on that.
  *
  * `SCRIM_CLEAR` is the same colour at zero alpha rather than `transparent`.
  * `transparent` is rgba(0,0,0,0), so on some engines a gradient to it passes
- * through grey on the way — a faint dirty band across the bottom of the image.
+ * through grey on the way — a faint dirty band across the image.
  */
-const SCRIM       = 'rgba(11,11,15,.88)';
-const SCRIM_CLEAR = 'rgba(11,11,15,0)';
+const SCRIM_TOP    = 'rgba(11,11,15,.34)';
+const SCRIM_BOTTOM = 'rgba(11,11,15,.94)';
+const SCRIM_CLEAR  = 'rgba(11,11,15,0)';
 
 /** Every control in the capsule. One number governs the whole row. */
 const CONTROL = 46;
@@ -114,7 +129,7 @@ export default function Composer({
       style={{
         padding: '14px', flexShrink: 0,
         position: 'relative',   // anchors the fade above
-        background: SCRIM,
+        background: `linear-gradient(180deg, ${SCRIM_TOP} 0%, ${SCRIM_BOTTOM} 100%)`,
       }}
     >
       {/* ⚠ THE FADE HAS TO SIT ABOVE THIS ELEMENT, NOT INSIDE IT.
@@ -136,7 +151,10 @@ export default function Composer({
         aria-hidden="true"
         style={{
           position: 'absolute', left: 0, right: 0, bottom: '100%', height: 76,
-          background: `linear-gradient(to top, ${SCRIM}, ${SCRIM_CLEAR})`,
+          // Closes on SCRIM_TOP, which is what the composer opens with — the
+          // two meet at the same value so the join is invisible. Ending on any
+          // other alpha would draw a line exactly where this exists to avoid one.
+          background: `linear-gradient(to top, ${SCRIM_TOP}, ${SCRIM_CLEAR})`,
           pointerEvents: 'none',
         }}
       />

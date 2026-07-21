@@ -205,6 +205,21 @@ const CHAT_BG_RATIO = 1162 / 2093;
  */
 const CHAT_BG_PARALLAX = 0.175;
 
+/**
+ * How far the message list extends DOWN behind the composer.
+ *
+ * The wallpaper is painted on the scroll container, so this is what stops the
+ * image ending in a straight line where the composer starts. 88px is the
+ * composer's own height — capsule (60) plus its 14px of padding top and bottom
+ * — so the picture runs the full way under it and only stops at the drawer's
+ * bottom edge.
+ *
+ * If the composer's height ever changes, this changes with it. Too small
+ * reopens a sliver of the old edge; too large only wastes scroll distance, so
+ * err high rather than low.
+ */
+const COMPOSER_BLEED = 88;
+
 const ghostBtn = {
   width: 34, height: 34, flexShrink: 0, borderRadius: 999,
   display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -417,22 +432,54 @@ export default function ConversationView({ conversationId, compact = false, onMi
    * decorative effect.
    */
   function paintWallpaper(el) {
+    // ── WHERE THE IMAGE'S BOTTOM RESTS ──────────────────────────────
+    //
+    // Half way up the composer, not at the very bottom of the container.
+    //
+    // The list bleeds COMPOSER_BLEED past the composer so the picture runs on
+    // underneath it — but resting the image's bottom down THERE spent its whole
+    // last stretch hidden behind an opaque bar. Stopping half way up means far
+    // more of the photograph lands where it can actually be seen, and the point
+    // where it ends is behind the composer rather than out in the open.
+    const restBottom = el.clientHeight - COMPOSER_BLEED / 2;
+
     // Width-locked (background-size: 100% auto), so the rendered height follows
     // from the container's width and the image's own ratio.
-    const renderedHeight = el.clientWidth / CHAT_BG_RATIO;
-    const overflow = Math.max(0, renderedHeight - el.clientHeight);
+    let renderedHeight = el.clientWidth / CHAT_BG_RATIO;
+
+    // ⚠ THE FLOOR IS WHAT STOPS IT BEING CHOPPED OFF.
+    //
+    // This artwork is tall, so on most screens it overflows and there is spare
+    // image in hand. It is NOT guaranteed: on a wide, short container — or once
+    // the list grew by COMPOSER_BLEED, which is exactly what caused this — the
+    // width-locked height comes out SHORTER than the box, and the difference
+    // renders as a band of flat --dark under the picture.
+    //
+    // Locking the height instead in that case costs a little crop at the sides,
+    // which is invisible on a photograph with no subject at its edges. A hard
+    // horizon across the thread is not invisible at all.
+    if (renderedHeight < restBottom) {
+      renderedHeight = restBottom;
+      el.style.backgroundSize = `auto, auto ${Math.ceil(renderedHeight)}px`;
+    } else {
+      el.style.backgroundSize = 'auto, 100% auto';
+    }
+
     // 0 at the newest message, growing as the reader moves back through time.
     const fromBottom = el.scrollHeight - el.clientHeight - el.scrollTop;
-    // -overflow puts the image's bottom on the window's bottom; 0 puts its top
-    // on the window's top. Clamped so it can never travel past either.
+
+    // At rest the image's bottom sits on `restBottom`; scrolling back drags it
+    // down until its TOP reaches the top of the box, and then it pins. Clamped
+    // at 0 so it can never travel past that and open a gap above.
     //
-    // PARALLAX halves the rate, so the image drifts behind the messages instead
+    // PARALLAX slows the rate, so the image drifts behind the messages instead
     // of moving with them — which is what reads as depth. The side effect is
-    // that full reveal now takes 1/PARALLAX times as much scrolling, so a short
+    // that full reveal takes 1/PARALLAX times as much scrolling, so a short
     // thread may never expose the top of the image at all. That is correct: the
     // clamp still guarantees no gap, and a wallpaper that only fully appears in
     // a long conversation is a better outcome than one that races the text.
-    const y = Math.min(0, fromBottom * CHAT_BG_PARALLAX - overflow);
+    const rest = restBottom - renderedHeight;
+    const y = Math.min(0, fromBottom * CHAT_BG_PARALLAX + rest);
     el.style.backgroundPosition = `center, center ${Math.round(y)}px`;
   }
 
@@ -797,7 +844,26 @@ export default function ConversationView({ conversationId, compact = false, onMi
         onScroll={onScroll}
         className="yp-noscrollbar"
         style={{
-          flex: 1, overflowY: 'auto', padding: '22px 18px 8px', minHeight: 0,
+          flex: 1, overflowY: 'auto', minHeight: 0,
+          // ── THE IMAGE RUNS ON UNDERNEATH THE COMPOSER ──────────────
+          //
+          // The wallpaper is painted on THIS element, so wherever this element
+          // ends, the image ends. While it stopped exactly where the composer
+          // began, that boundary was a straight line across the screen — and no
+          // amount of fading over it fully hid the fact that the picture simply
+          // stopped there.
+          //
+          // A negative bottom margin lets this box extend BEHIND the composer
+          // instead. The image now carries on under the text field and only
+          // ends at the drawer's own bottom edge, which is a real edge rather
+          // than an invented one.
+          //
+          // The padding gives the extra distance back to the CONTENT, so the
+          // last message still comes to rest above the composer rather than
+          // underneath it. Margin moves the box; padding protects what is in
+          // it — they are not cancelling each other out.
+          marginBottom: -COMPOSER_BLEED,
+          padding: `22px 18px ${COMPOSER_BLEED + 8}px`,
           // THE MESSAGE LIST OWNS VERTICAL SCROLLING, AND KEEPS IT.
           //
           // `contain` stops the scroll CHAINING outward when the thread reaches
