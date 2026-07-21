@@ -300,11 +300,15 @@ input, textarea, select {
   position: relative;
   transition: background var(--yp-medium) var(--yp-ease),
               border-color var(--yp-medium) var(--yp-ease);
+  /* A DEEP, FILLED PANEL — not a faint outline. It has to look like a place
+     something can land, and at .06 alpha it looked like a disabled control.
+     Deep violet against the microphone's bright one: the destination sits back,
+     the thing that moves comes forward. */
   background:
     linear-gradient(160deg,
-      rgba(191,95,255, calc(.06 + .34 * var(--dock-near))) 0%,
-      rgba(120,60,220, calc(.10 + .30 * var(--dock-near))) 100%);
-  border: 1px solid rgba(191,95,255, calc(.22 + .55 * var(--dock-near)));
+      rgba(88,44,168, calc(.62 + .30 * var(--dock-near))) 0%,
+      rgba(58,28,120, calc(.70 + .24 * var(--dock-near))) 100%);
+  border: 1px solid rgba(168,124,255, calc(.30 + .50 * var(--dock-near)));
   box-shadow: 0 0 calc(22px * var(--dock-near)) rgba(191,95,255, calc(.45 * var(--dock-near)));
   /* Grows very slightly as the microphone nears — enough to read as reaching
      back, not enough to shift the row. */

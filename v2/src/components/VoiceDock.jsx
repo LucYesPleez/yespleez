@@ -26,12 +26,15 @@ const VoiceDock = forwardRef(function VoiceDock({ size = 46, active = false, loc
       role="img"
       aria-label={active ? 'Recording' : 'Drag the microphone here to lock recording'}
       style={{
-        // THE SAME SIZE AND SHAPE AS THE MICROPHONE, deliberately. They are a
-        // pair — one you press, one you drag onto — and a smaller dock read as
-        // an indicator sitting beside a control rather than as its counterpart.
-        // Matching them makes the relationship the geometry's job instead of
-        // something the interface has to explain.
-        width: size, height: size, flexShrink: 0, borderRadius: 999,
+        // SAME SIZE AS THE MICROPHONE, DIFFERENT SHAPE — and the difference is
+        // the point. They are a pair, so they match in weight; they do opposite
+        // things, so they do not match in outline. A round dock beside a round
+        // microphone read as two buttons that both wanted pressing, when only
+        // one of them does.
+        //
+        // The rounded square is what a DESTINATION looks like: a slot, a place
+        // something goes. The circle is the thing that moves.
+        width: size, height: size, flexShrink: 0, borderRadius: 15,
         display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2.5,
       }}
     >
@@ -48,7 +51,7 @@ const VoiceDock = forwardRef(function VoiceDock({ size = 46, active = false, loc
             width: Math.max(2, size * .058),
             height: Math.round(size * .44 * h),
             borderRadius: 999,
-            background: active ? '#E9D5FF' : 'rgba(233,213,255,.82)',
+            background: active ? '#F3E8FF' : '#C084FC',
           }}
         />
       ))}

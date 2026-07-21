@@ -182,8 +182,16 @@ export default function Composer({
               touchAction: 'none',   // or the browser scrolls instead of recording
               userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none',
               willChange: 'transform',
-              background: recording ? 'linear-gradient(135deg, #00E5FF, #BF5FFF)' : 'rgba(255,255,255,.07)',
-              color: recording ? '#0a0a0f' : 'rgba(255,255,255,.72)',
+              // A FILLED VIOLET CIRCLE, not a faint grey one. It is the
+              // control the whole gesture starts from, and at .07 alpha it read
+              // as the least important thing in the row. Bright against the
+              // dock's deep panel: the thing that MOVES comes forward, the
+              // destination sits back.
+              background: recording
+                ? 'linear-gradient(135deg, #00E5FF, #BF5FFF)'
+                : 'linear-gradient(150deg, #A855F7 0%, #7C3AED 100%)',
+              boxShadow: recording ? 'none' : '0 4px 14px -6px rgba(124,58,237,.85)',
+              color: recording ? '#0a0a0f' : '#FFFFFF',
               transition: 'background .2s ease',   // never on transform: it tracks the finger
             }}
           >
