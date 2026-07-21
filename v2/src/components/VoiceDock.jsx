@@ -18,7 +18,7 @@ import { forwardRef } from 'react';
  * Once recording locks it stops being a target and becomes the indicator: the
  * bars animate, and the composer's left side carries the live waveform.
  */
-const VoiceDock = forwardRef(function VoiceDock({ size = 40, active = false, locking = false }, ref) {
+const VoiceDock = forwardRef(function VoiceDock({ size = 46, active = false, locking = false }, ref) {
   return (
     <span
       ref={ref}
@@ -26,19 +26,27 @@ const VoiceDock = forwardRef(function VoiceDock({ size = 40, active = false, loc
       role="img"
       aria-label={active ? 'Recording' : 'Drag the microphone here to lock recording'}
       style={{
-        width: size, height: size, flexShrink: 0, borderRadius: 14,
-        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2,
+        // THE SAME SIZE AND SHAPE AS THE MICROPHONE, deliberately. They are a
+        // pair — one you press, one you drag onto — and a smaller dock read as
+        // an indicator sitting beside a control rather than as its counterpart.
+        // Matching them makes the relationship the geometry's job instead of
+        // something the interface has to explain.
+        width: size, height: size, flexShrink: 0, borderRadius: 999,
+        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2.5,
       }}
     >
       {/* A static glyph, not a live meter. The live audio is drawn across the
           text field where there is room for it; here it only has to READ as a
-          waveform so the control is recognisable at a glance. */}
+          waveform so the control is recognisable at a glance.
+
+          Heights are proportional to the button, so the pair still matches if
+          either is ever resized. */}
       {[.42, .72, 1, .58, .86, .34].map((h, i) => (
         <span
           key={i}
           style={{
-            width: 2.5,
-            height: Math.round(18 * h),
+            width: Math.max(2, size * .058),
+            height: Math.round(size * .44 * h),
             borderRadius: 999,
             background: active ? '#E9D5FF' : 'rgba(233,213,255,.82)',
           }}

@@ -147,6 +147,10 @@ export default function Composer({
       {rec.supported && !hasText && (
         <VoiceDock
           ref={dockRef}
+          // Bound to the row's own constant rather than left to VoiceDock's
+          // default, so the dock and the microphone cannot drift apart — one
+          // number governs every control in the composer.
+          size={HEIGHT}
           active={recording}
           locking={rec.justLocked}
         />
