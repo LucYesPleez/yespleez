@@ -318,20 +318,25 @@ export default function InboxScreen() {
                         so it appeared on most rows and told the reader nothing.
                         A booking or an application is genuinely useful context
                         — it says what the thread is FOR. */}
-                    {c.context_type !== 'direct' && (
-                      /* NEUTRAL, deliberately. This was drawn in the other
-                         participant's profile accent, which made the same
-                         BOOKING cyan beside an artist and green beside a
-                         venue — one colour carrying two meanings, identity
-                         AND context, so a booking looked like a different
-                         kind of thing depending on who it was with.
-
-                         Profile accents belong to things that ARE the profile:
-                         the avatar ring, the type pill in the header. A
-                         context label is about the workflow, so it reads the
-                         same everywhere. */
-                      <span style={{ flexShrink: 0, fontFamily: "'Bebas Neue',sans-serif", fontSize: 9.5, letterSpacing: 1.2, lineHeight: 1, padding: '3px 7px', borderRadius: 999, color: 'rgba(255,255,255,.58)', background: 'rgba(255,255,255,.07)', border: '1px solid rgba(255,255,255,.11)' }}>
-                        {CONTEXT_LABEL[c.context_type] ?? String(c.context_type).toUpperCase()}
+                    {/* Context and identity, plain text beside the name. No
+                        pill: a chip is a container, and containers imply
+                        something you can act on. These are just qualifiers on
+                        the name — WHY the conversation exists and WHO you are
+                        in it. Neutral rather than the profile accent, so a
+                        booking reads the same whoever it is with. */}
+                    {(c.context_type !== 'direct' || (c.asProfile && c.asProfile.type !== 'punter')) && (
+                      <span style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'rgba(255,255,255,.4)' }}>
+                        {c.context_type !== 'direct' && (
+                          <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 10, letterSpacing: 1.2 }}>
+                            {CONTEXT_LABEL[c.context_type] ?? String(c.context_type).toUpperCase()}
+                          </span>
+                        )}
+                        {c.context_type !== 'direct' && c.asProfile && c.asProfile.type !== 'punter' && (
+                          <span style={{ width: 2, height: 2, borderRadius: 999, background: 'rgba(255,255,255,.25)' }} />
+                        )}
+                        {c.asProfile && c.asProfile.type !== 'punter' && (
+                          <span>as <span style={{ color: '#D9A6FF', fontWeight: 600 }}>{c.asProfile.name}</span></span>
+                        )}
                       </span>
                     )}
 
@@ -364,16 +369,13 @@ export default function InboxScreen() {
 
                       With a punter identity and a direct context, this line
                       disappears entirely and the row loses a whole storey. */}
-                  {((c.asProfile && c.asProfile.type !== 'punter') || c.isArchived) && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 3, minWidth: 0 }}>
-                      {c.asProfile && c.asProfile.type !== 'punter' && (
-                        <span style={{ minWidth: 0, fontSize: 11.5, color: 'rgba(255,255,255,.42)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          as <span style={{ color: '#D9A6FF', fontWeight: 600 }}>{c.asProfile.name}</span>
-                        </span>
-                      )}
-                      {c.isArchived && (
-                        <span style={{ flexShrink: 0, fontSize: 9.5, letterSpacing: 1, color: 'rgba(255,255,255,.3)' }}>ARCHIVED</span>
-                      )}
+                  {/* Identity moved up beside the name, so this line now
+                      exists only for the archived state — which is rare, and
+                      the one thing that genuinely wants its own line because
+                      it describes the row rather than the conversation. */}
+                  {c.isArchived && (
+                    <div style={{ marginTop: 3, fontSize: 9.5, letterSpacing: 1, color: 'rgba(255,255,255,.3)' }}>
+                      ARCHIVED
                     </div>
                   )}
                 </div>
