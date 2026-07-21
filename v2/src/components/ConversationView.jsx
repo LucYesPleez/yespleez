@@ -7,10 +7,12 @@ import {
 } from '../lib/messaging';
 import { sendVoiceNote } from '../lib/voiceNotes';
 import { sendHand } from '../lib/hands';
+import { listHands, toggleHand } from '../lib/messageState';
 import Composer from './Composer';
 import { useConversationUi } from '../lib/conversationUi';
 import { PROFILE_TYPES } from '../lib/profileTypes';
 import { renderMessage, isBareKind } from '../lib/messageKinds';
+import HandIcon from './HandIcon';
 
 /**
  * ONE conversation, rendered identically in the DRAWER and in the FULL PAGE.
@@ -122,6 +124,10 @@ export default function ConversationView({ conversationId, compact = false, onMi
   // profile_id -> profile, so a received bubble can show its speaker. Keyed by
   // the ATTRIBUTION id (from_profile_id), never the human — §A3.
   const [profilesById, setProfilesById] = useState({});
+  // message_id -> [profile_id], every Yes on every message in view. A Set of
+  // MY handed message ids would be simpler, but would make "did anyone say
+  // yes" unanswerable when group threads arrive (`DA1`).
+  const [handsByMessage, setHandsByMessage] = useState(new Map());
   const scrollRef = useRef(null);
   const inputRef  = useRef(null);
   const atBottomRef = useRef(true);
@@ -200,6 +206,13 @@ export default function ConversationView({ conversationId, compact = false, onMi
       if (cancelled.current) return;
       setMessages(rows);
       setLoading(false);
+
+      // Every Yes on the thread, in one query rather than one per message.
+      // Loaded AFTER the messages are on screen: a reaction is decoration on
+      // something already readable, and blocking the thread behind it would
+      // trade the important render for the ornamental one.
+      const { byMessage } = await listHands(rows.map(r => r.id));
+      if (!cancelled.current) setHandsByMessage(byMessage);
 
       // `C11` — this human's watermark. Monotonic in the database.
       await markConversationRead(conversationId);
@@ -349,6 +362,46 @@ export default function ConversationView({ conversationId, compact = false, onMi
    * taps is not a Yes worth having, and the entire value is that it costs
    * nothing to send.
    */
+  /**
+   * Double-tap: give a message a Yes, or take it back.
+   *
+   * OPTIMISTIC. The gesture has to feel instant — it is meant to become the
+   * most-used interaction in the app — so the badge appears on the tap and the
+   * write follows. On failure the state is put back exactly as it was, which
+   * is why the previous value is captured rather than recomputed.
+   *
+   * `handed_at` is per PROFILE (§A3 attribution), so the question is "has the
+   * profile I am speaking as said yes to this", not "have I".
+   */
+  async function onToggleHand(messageId) {
+    if (!senderProfile) return;
+
+    const before  = handsByMessage.get(messageId) ?? [];
+    const wasHanded = before.includes(senderProfile);
+    const after = wasHanded
+      ? before.filter(id => id !== senderProfile)
+      : [...before, senderProfile];
+
+    setHandsByMessage(prev => {
+      const next = new Map(prev);
+      if (after.length) next.set(messageId, after); else next.delete(messageId);
+      return next;
+    });
+
+    const { error: toggleError } = await toggleHand({
+      messageId, profileId: senderProfile, handed: wasHanded,
+    });
+
+    if (toggleError) {
+      setHandsByMessage(prev => {
+        const next = new Map(prev);
+        if (before.length) next.set(messageId, before); else next.delete(messageId);
+        return next;
+      });
+      setError(toggleError.message ?? 'Could not update that.');
+    }
+  }
+
   async function onSendHand() {
     if (!senderProfile || sending) return;
     setSending(true);
@@ -600,6 +653,8 @@ export default function ConversationView({ conversationId, compact = false, onMi
                 // no longer tied to it.
                 endsBurst={!sameAsNext}
                 speaker={profilesById[m.from_profile_id]}
+                handed={(handsByMessage.get(m.id) ?? []).includes(senderProfile)}
+                onToggleHand={() => onToggleHand(m.id)}
               />
             </Fragment>
           );
@@ -653,7 +708,7 @@ export default function ConversationView({ conversationId, compact = false, onMi
  * YesPleez cards land as branches rather than a rewrite. Only `text` exists —
  * the others are declared, not built, and nothing here pretends otherwise.
  */
-function MessageBubble({ message, isMine, grouped = false, endsBurst = true, speaker }) {
+function MessageBubble({ message, isMine, grouped = false, endsBurst = true, speaker, handed = false, onToggleHand }) {
 
   // Avatar on RECEIVED messages only — you know who you are. Rendered once per
   // burst, on the last message, so a run of five gets one avatar rather than
@@ -712,15 +767,23 @@ function MessageBubble({ message, isMine, grouped = false, endsBurst = true, spe
           side, its avatar, its place in the order and its timestamp, because
           it is still a message in every respect except how it looks. */}
       <div
+        // DOUBLE-TAP TO YES. React's onDoubleClick covers mouse and touch, and
+        // needs no disambiguation delay because single tap does nothing now —
+        // the timestamp gave up that gesture in M9h.3 precisely so this one
+        // could be instant.
+        onDoubleClick={onToggleHand}
+        // Suppresses the text selection a double-tap otherwise makes, which
+        // would flash a highlight across the message every time.
+        onMouseDown={e => { if (e.detail > 1) e.preventDefault(); }}
         style={bare ? {
-          maxWidth: '76%',
+          maxWidth: '76%', position: 'relative',
           // The mark supplies its own presence; padding here would only push
           // the timestamp away from it.
           padding: 0,
           background: 'none',
           border: 'none',
         } : {
-        maxWidth: '76%',
+        maxWidth: '76%', position: 'relative',
         borderRadius: isMine
           ? `20px 20px ${tail}px 20px`
           : `20px 20px 20px ${tail}px`,
@@ -763,6 +826,33 @@ function MessageBubble({ message, isMine, grouped = false, endsBurst = true, spe
           }}>
             {timeOf(message.created_at)}
           </div>
+        )}
+
+        {/* THE YES, WHERE INSTAGRAM PUTS THE HEART.
+            Overhangs the bubble's bottom corner so it reads as attached to the
+            message rather than as part of what was said. Negative margins keep
+            it out of the layout entirely, so a message does not change height
+            when it gains one — otherwise the thread would jump under the
+            reader's thumb at the moment they react. */}
+        {handed && (
+          <span
+            role="img"
+            aria-label="You said Yes to this"
+            style={{
+              position: 'absolute',
+              bottom: -9,
+              [isMine ? 'left' : 'right']: -6,
+              width: 26, height: 26, borderRadius: 999,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: '#15151d',
+              border: '1px solid rgba(255,255,255,.14)',
+              color: 'var(--text)',
+              animation: 'ypYes .32s cubic-bezier(.2,1.5,.4,1)',
+              pointerEvents: 'none',
+            }}
+          >
+            <HandIcon size={22} />
+          </span>
         )}
       </div>
     </div>

@@ -174,7 +174,7 @@ export default function Composer({
               transition: 'background .2s ease',   // never on transform: it tracks the finger
             }}
           >
-            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round">
               <rect x="9" y="2" width="6" height="11" rx="3" />
               <path d="M5 10a7 7 0 0 0 14 0" /><path d="M12 17v5" />
             </svg>
@@ -218,7 +218,10 @@ export default function Composer({
             <path d="M22 2 11 13" /><path d="M22 2 15 22l-4-9-9-4 20-7z" />
           </svg>
         ) : (
-          <HandIcon size={21} />
+          // 38 in a 46px button, larger than it looks: the artwork is uncropped
+          // so its own padding is inside the box, and `contain` fits the whole
+          // image rather than the mark. ~33px of actual ink.
+          <HandIcon size={38} />
         )}
       </button>
     </form>

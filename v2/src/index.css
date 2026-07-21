@@ -221,6 +221,14 @@ input, textarea, select {
   }
 }
 
+/* A Yes landing on a message (M9i). Overshoots and settles, the way a reaction
+   should feel — arriving rather than appearing. transform/opacity only, so it
+   cannot reflow the thread it lands in. */
+@keyframes ypYes {
+  from { opacity: 0; transform: scale(.2); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
 /* The recording dot (M9g). Opacity only — it sits beside a timer that updates
    ten times a second, and anything animating layout here would fight it. */
 @keyframes ypPulse {
