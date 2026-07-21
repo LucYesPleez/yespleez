@@ -7,6 +7,7 @@ import {
 } from '../lib/messaging';
 import { useConversationUi } from '../lib/conversationUi';
 import { PROFILE_TYPES } from '../lib/profileTypes';
+import { renderMessage } from '../lib/messageKinds';
 
 /**
  * ONE conversation, rendered identically in the DRAWER and in the FULL PAGE.
@@ -597,7 +598,6 @@ export default function ConversationView({ conversationId, compact = false, onMi
  * the others are declared, not built, and nothing here pretends otherwise.
  */
 function MessageBubble({ message, isMine, grouped = false, endsBurst = true, speaker, revealed = false, onToggleTime }) {
-  const kind = message.kind ?? 'text';
 
   // Avatar on RECEIVED messages only — you know who you are. Rendered once per
   // burst, on the last message, so a run of five gets one avatar rather than
@@ -666,17 +666,10 @@ function MessageBubble({ message, isMine, grouped = false, endsBurst = true, spe
         // the glow was competing with the text sitting on top of it.
         boxShadow: 'none',
       }}>
-        {kind === 'text' ? (
-          <div style={{ color: 'var(--text)', fontSize: 14, lineHeight: 1.45, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-            {message.body}
-          </div>
-        ) : (
-          // Unknown kind from a newer client. Show something honest rather
-          // than an empty bubble.
-          <div style={{ color: 'var(--muted)', fontSize: 13, fontStyle: 'italic' }}>
-            Unsupported message type — update the app to view this.
-          </div>
-        )}
+        {/* The bubble owns the CONTAINER — alignment, tail, spacing, tap-to-
+            reveal — and knows nothing about kinds. Content comes from the
+            registry, so a new kind is a renderer there and no change here. */}
+        {renderMessage(message)}
         {/* Time on demand. Tapping a message asks it directly; otherwise the
             thread markers carry when, and the bubbles carry only what. */}
         {revealed && message.created_at && (
