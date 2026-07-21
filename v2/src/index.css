@@ -167,6 +167,55 @@ input, textarea, select {
   to   { opacity: 1; transform: translateY(0)   scale(1); }
 }
 
+/* THE HAND (M9h) — the brand mark used as an icon.
+
+   `hand-icon.png` is DERIVED FROM `hand-logo.png`, not drawn: the alpha is
+   dilated by 18px and trimmed to its bounding box. The gesture is therefore
+   exactly the brand mark, and only the stroke weight changes. Redrawing it by
+   hand would mean approximating a mark that already exists — an earlier attempt
+   did, and produced a generic open palm that was not this gesture at all.
+
+   The dilation is necessary because the logo is line art at ~10% coverage:
+   those strokes are a few pixels wide at 1122px, so at 21px they fall below one
+   pixel and render as grey fuzz. Verified in the running app before this
+   existed. Dilated coverage is 44%.
+
+   Regenerate if the logo ever changes:
+     node scripts/thicken-hand.js public/hand-logo.png public/hand-icon.png 18 256
+
+   The alpha is used as a STENCIL filled with currentColor, which is the only
+   way a PNG can inherit colour — the icon has to go dark when the composer
+   button becomes the gradient.
+
+   `contain` rather than `cover`: the mark is portrait and cover would crop the
+   fingers off inside a square box. */
+.yp-hand {
+  display: inline-block;
+  flex-shrink: 0;
+  background-color: currentColor;
+  -webkit-mask-image: url('/hand-icon.png');
+          mask-image: url('/hand-icon.png');
+  -webkit-mask-repeat: no-repeat;
+          mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+          mask-position: center;
+  -webkit-mask-size: contain;
+          mask-size: contain;
+}
+
+/* Without this, a browser with no mask support paints a solid currentColor
+   square — a filled block where a hand should be, which is a far worse failure
+   than no icon at all. */
+@supports not ((-webkit-mask-image: url('/hand-icon.png')) or (mask-image: url('/hand-icon.png'))) {
+  .yp-hand {
+    background-color: transparent;
+    background-image: url('/hand-icon.png');
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: contain;
+  }
+}
+
 /* The recording dot (M9g). Opacity only — it sits beside a timer that updates
    ten times a second, and anything animating layout here would fight it. */
 @keyframes ypPulse {
