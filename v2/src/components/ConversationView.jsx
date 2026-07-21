@@ -69,10 +69,9 @@ function dayLabel(iso) {
 /**
  * Centred marker carrying WHEN. Quiet — it orients, it does not announce.
  *
- * This is where time lives now. Per-message timestamps were repeated down the
- * edge saying the same thing over and over; a marker states it once for
- * everything beneath it, and an individual message can still be asked directly
- * by tapping it.
+ * Marks days and long silences. Each bubble also carries its own time now, so
+ * this is orientation at the scale of the thread rather than the only place
+ * time exists.
  */
 function ThreadMarker({ label }) {
   return (
@@ -127,10 +126,6 @@ export default function ConversationView({ conversationId, compact = false, onMi
   const [error, setError]          = useState(null);
   const [loading, setLoading]      = useState(true);
   const [pendingNew, setPendingNew] = useState(0);
-  // Which message is currently showing its time. One at a time: revealing
-  // every tapped message would slowly rebuild the timestamp column this
-  // replaced.
-  const [revealedId, setRevealedId] = useState(null);
   // profile_id -> profile, so a received bubble can show its speaker. Keyed by
   // the ATTRIBUTION id (from_profile_id), never the human — §A3.
   const [profilesById, setProfilesById] = useState({});
@@ -610,8 +605,6 @@ export default function ConversationView({ conversationId, compact = false, onMi
                 // no longer tied to it.
                 endsBurst={!sameAsNext}
                 speaker={profilesById[m.from_profile_id]}
-                revealed={revealedId === m.id}
-                onToggleTime={() => setRevealedId(id => (id === m.id ? null : m.id))}
               />
             </Fragment>
           );
@@ -665,7 +658,7 @@ export default function ConversationView({ conversationId, compact = false, onMi
  * YesPleez cards land as branches rather than a rewrite. Only `text` exists —
  * the others are declared, not built, and nothing here pretends otherwise.
  */
-function MessageBubble({ message, isMine, grouped = false, endsBurst = true, speaker, revealed = false, onToggleTime }) {
+function MessageBubble({ message, isMine, grouped = false, endsBurst = true, speaker }) {
 
   // Avatar on RECEIVED messages only — you know who you are. Rendered once per
   // burst, on the last message, so a run of five gets one avatar rather than
@@ -713,13 +706,7 @@ function MessageBubble({ message, isMine, grouped = false, endsBurst = true, spe
           clearly present, still nowhere near bright, and still visibly the
           calmer of the two so the gradient keeps the lead. */}
       <div
-        onClick={onToggleTime}
-        role="button"
-        tabIndex={0}
-        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggleTime?.(); } }}
-        aria-label={revealed ? undefined : 'Show time'}
         style={{
-        cursor: 'pointer',
         maxWidth: '76%',
         borderRadius: isMine
           ? `20px 20px ${tail}px 20px`
@@ -734,14 +721,33 @@ function MessageBubble({ message, isMine, grouped = false, endsBurst = true, spe
         // the glow was competing with the text sitting on top of it.
         boxShadow: 'none',
       }}>
-        {/* The bubble owns the CONTAINER — alignment, tail, spacing, tap-to-
-            reveal — and knows nothing about kinds. Content comes from the
-            registry, so a new kind is a renderer there and no change here. */}
+        {/* The bubble owns the CONTAINER — alignment, tail, spacing — and knows
+            nothing about kinds. Content comes from the registry, so a new kind
+            is a renderer there and no change here. */}
         {renderMessage(message)}
-        {/* Time on demand. Tapping a message asks it directly; otherwise the
-            thread markers carry when, and the bubbles carry only what. */}
-        {revealed && message.created_at && (
-          <div style={{ fontSize: 10, color: isMine ? 'rgba(255,255,255,.5)' : 'rgba(255,255,255,.38)', marginTop: 5, textAlign: 'right' }}>
+
+        {/* ALWAYS VISIBLE, never on tap.
+
+            This used to be tap-to-reveal, which spent the single tap — the most
+            valuable gesture a message has — on the least valuable information.
+            The ratified decision is that double-tap-to-Yes takes precedence and
+            the timestamp is secondary, so the timestamp gives up its gesture
+            entirely rather than competing for it with a disambiguation delay
+            that would make every tap feel slow.
+
+            Permanently visible is also simply better: WhatsApp does it, and
+            "when was this said" stops being a question you have to ask. */}
+        {message.created_at && (
+          <div style={{
+            fontSize: 10,
+            lineHeight: 1,
+            color: isMine ? 'rgba(255,255,255,.55)' : 'rgba(255,255,255,.42)',
+            marginTop: 5,
+            textAlign: 'right',
+            // Cannot be selected or dragged — it sits inside the double-tap
+            // target and a text selection would swallow the second tap.
+            userSelect: 'none',
+          }}>
             {timeOf(message.created_at)}
           </div>
         )}

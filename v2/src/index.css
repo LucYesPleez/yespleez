@@ -174,20 +174,19 @@ input, textarea, select {
    mark is a separate square artwork kept at `scripts/hand-solid.png` — masking
    the outline by mistake cost two attempts at this icon.
 
-   `hand-icon.png` is DERIVED FROM the solid mark: cropped to its bounding box
-   and downsampled, with NO thickening. The solid mark is ~30% coverage and
-   needs none; an earlier version dilated the outline by 18px purely to
-   compensate for using the wrong source.
+   `hand-mark.png` IS THE ARTWORK, BYTE FOR BYTE. Not cropped, not resized, not
+   thickened — the owner supplied it and asked for it unmodified, so every
+   derivation was removed. `scripts/thicken-hand.cjs` and its earlier output
+   remain only as a record of what was tried.
 
-   The crop matters: the artwork carries padding, and without trimming it the
-   mark floats small inside its box while the button decides the spacing.
+   COST, ACCEPTED KNOWINGLY: the file is 489KB and is fetched to draw a 21px
+   icon. A cropped-and-downsampled copy was 15KB. If that ever matters, the fix
+   is to regenerate — not to redraw:
+     node scripts/thicken-hand.cjs scripts/hand-solid.png public/hand-mark.png 0 256
 
-   The 489KB source lives in `scripts/`, NOT `public/` — anything in public is
-   copied into dist and would ship to every user despite nothing referencing it.
-
-   Regenerate if the artwork changes (last arg is dilation radius — keep it 0
-   for a solid source):
-     node scripts/thicken-hand.cjs scripts/hand-solid.png public/hand-icon.png 0 256
+   Because it is uncropped, the artwork's own padding is inside the box, so the
+   mark renders smaller than its container. Sizes here are set larger than an
+   equivalent SVG would need to compensate.
 
    The alpha is used as a STENCIL filled with currentColor, which is the only
    way a PNG can inherit colour — the icon has to go dark when the composer
@@ -199,8 +198,8 @@ input, textarea, select {
   display: inline-block;
   flex-shrink: 0;
   background-color: currentColor;
-  -webkit-mask-image: url('/hand-icon.png');
-          mask-image: url('/hand-icon.png');
+  -webkit-mask-image: url('/hand-mark.png');
+          mask-image: url('/hand-mark.png');
   -webkit-mask-repeat: no-repeat;
           mask-repeat: no-repeat;
   -webkit-mask-position: center;
@@ -212,10 +211,10 @@ input, textarea, select {
 /* Without this, a browser with no mask support paints a solid currentColor
    square — a filled block where a hand should be, which is a far worse failure
    than no icon at all. */
-@supports not ((-webkit-mask-image: url('/hand-icon.png')) or (mask-image: url('/hand-icon.png'))) {
+@supports not ((-webkit-mask-image: url('/hand-mark.png')) or (mask-image: url('/hand-mark.png'))) {
   .yp-hand {
     background-color: transparent;
-    background-image: url('/hand-icon.png');
+    background-image: url('/hand-mark.png');
     background-repeat: no-repeat;
     background-position: center;
     background-size: contain;
