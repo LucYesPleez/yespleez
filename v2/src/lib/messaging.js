@@ -78,6 +78,40 @@ export async function openConversation({ contextType, contextId, participantIds 
 }
 
 /**
+ * The most recent message in each of these conversations, for inbox previews.
+ *
+ * ONE query rather than one per conversation: rows come back newest-first and
+ * the first hit per conversation wins. The cap is a safety limit, not a page —
+ * an inbox of any realistic size resolves well inside it, and a conversation
+ * that falls outside simply shows no preview rather than a wrong one.
+ *
+ * §C32 is unaffected: this is content shown back to a participant who can
+ * already read it, not content feeding a platform system.
+ *
+ * @param {string[]} conversationIds
+ * @returns {Promise<{byConversation: object, error: object|null}>}
+ */
+export async function latestMessages(conversationIds) {
+  const ids = [].concat(conversationIds ?? []).filter(Boolean);
+  if (!ids.length) return { byConversation: {}, error: null };
+
+  const { data, error } = await supabase
+    .from('messages')
+    .select('conversation_id, body, created_at, from_profile_id')
+    .in('conversation_id', ids)
+    .order('created_at', { ascending: false })
+    .limit(400);
+
+  if (error) return { byConversation: {}, error };
+
+  const byConversation = {};
+  for (const m of data ?? []) {
+    if (!byConversation[m.conversation_id]) byConversation[m.conversation_id] = m;
+  }
+  return { byConversation, error: null };
+}
+
+/**
  * The profiles this human may send AS.
  *
  * Feeds the one-time "Message as…" prompt when starting a NEW conversation.

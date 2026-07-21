@@ -658,7 +658,10 @@ function MessageBubble({ message, isMine, grouped = false, endsBurst = true, spe
         background: isMine
           ? 'linear-gradient(135deg, rgba(0,229,255,.20) 0%, rgba(191,95,255,.40) 100%)'
           : 'rgba(255,255,255,.085)',
-        boxShadow: isMine ? '0 6px 22px -10px rgba(191,95,255,.6)' : 'none',
+        // No glow. A halo on every sent message is decoration repeated dozens
+        // of times down a thread — the gradient already distinguishes it, and
+        // the glow was competing with the text sitting on top of it.
+        boxShadow: 'none',
       }}>
         {kind === 'text' ? (
           <div style={{ color: 'var(--text)', fontSize: 14, lineHeight: 1.45, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>

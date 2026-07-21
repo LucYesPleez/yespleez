@@ -4,7 +4,7 @@ import { useSession } from '../App';
 import { supabase } from '../lib/supabase';
 import { useConversationUi } from '../lib/conversationUi';
 import {
-  listConversations, listParticipants, actableProfileIds, unreadCount,
+  listConversations, listParticipants, actableProfileIds, unreadCount, latestMessages,
 } from '../lib/messaging';
 import { PROFILE_TYPES } from '../lib/profileTypes';
 
@@ -101,7 +101,11 @@ export default function InboxScreen() {
           return prev
             .map(c => c.id === cid
               ? { ...c, last_message_at: row.created_at,
-                  lastPreview: { text: row.body, kind: row.kind ?? 'text' } }
+                  // Same shape the initial load writes, or a live message
+                  // would update the timestamp and leave a stale preview.
+                  // `mine` keys on the human here because the profile set is
+                  // not in scope in this handler; it agrees in every real case.
+                  preview: { text: row.body, mine: row.from_user_id === session.user.id } }
               : c)
             // Re-sort on every insert so ordering is correct immediately
             // rather than at the next load. Archived still sinks (UX-4).
@@ -166,6 +170,9 @@ export default function InboxScreen() {
       if (cancelled.current) return;
       const countBy = Object.fromEntries(counts);
 
+      const { byConversation: latest } = await latestMessages(ids);
+      if (cancelled.current) return;
+
       const decorated = conversations.map(c => {
         const mates = participants.filter(p => p.conversation_id === c.id);
         // §2.2 — a conversation is a relationship; show the OTHER party.
@@ -187,7 +194,17 @@ export default function InboxScreen() {
         const others = mates.filter(p => p.profile_id !== asRow?.profile_id);
         // Archived is per-participant, so it is MY participant row that decides.
         const isArchived = mates.some(p => mine.has(p.profile_id) && p.archived_at);
-        return { ...c, others, asProfile, isArchived, unread: countBy[c.id] ?? 0 };
+        const last = latest[c.id];
+        return {
+          ...c, others, asProfile, isArchived,
+          unread: countBy[c.id] ?? 0,
+          // "You:" when the last word was yours — otherwise a preview reads as
+          // though the other person said it, which is actively misleading when
+          // you are waiting on a reply.
+          preview: last
+            ? { text: last.body, mine: mine.has(last.from_profile_id) }
+            : null,
+        };
       });
 
       // Archived sinks, but is never removed — and its unread still counts.
@@ -257,7 +274,18 @@ export default function InboxScreen() {
               // rgba(255,255,255,.09) border language, rather than the older
               // 14px / var(--border) pairing. An unread row is lifted slightly
               // instead of being a different colour — weight, not hue.
-              style={{ display: 'block', width: '100%', textAlign: 'left', cursor: 'pointer', textDecoration: 'none', border: `1px solid rgba(255,255,255,${c.unread > 0 ? '.13' : '.08'})`, borderRadius: 18, padding: '15px 16px', marginBottom: 11, background: c.unread > 0 ? 'rgba(255,255,255,.055)' : 'rgba(255,255,255,.022)', opacity: c.isArchived ? 0.55 : 1 }}
+              // Unread carries a gradient-tinted border and a soft glow; read
+              // rows stay flat. The glow is the ONE place decoration earns its
+              // place — it marks the handful of rows that need attention,
+              // rather than being repeated on everything.
+              style={{
+                display: 'block', width: '100%', textAlign: 'left', cursor: 'pointer', textDecoration: 'none',
+                border: `1px solid ${c.unread > 0 ? 'rgba(191,95,255,.45)' : 'rgba(255,255,255,.08)'}`,
+                borderRadius: 18, padding: '15px 16px', marginBottom: 11,
+                background: c.unread > 0 ? 'rgba(191,95,255,.07)' : 'rgba(255,255,255,.022)',
+                boxShadow: c.unread > 0 ? '0 0 20px -6px rgba(191,95,255,.55)' : 'none',
+                opacity: c.isArchived ? 0.55 : 1,
+              }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 11, letterSpacing: 1.5, color: accent }}>
@@ -291,8 +319,20 @@ export default function InboxScreen() {
                   </div>
                   {/* WHICH IDENTITY THIS THREAD IS FROM. Three conversations
                       with the same artist are otherwise three identical rows. */}
+                  {/* Preview sits directly under the name — it is what the row
+                      is actually about. Unread is brighter and heavier; read
+                      recedes. */}
+                  {c.preview && (
+                    <div style={{ marginTop: 3, fontSize: 13, lineHeight: 1.35, color: c.unread > 0 ? 'rgba(255,255,255,.78)' : 'rgba(255,255,255,.42)', fontWeight: c.unread > 0 ? 500 : 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {c.preview.mine && (
+                        <span style={{ color: 'rgba(255,255,255,.34)' }}>You: </span>
+                      )}
+                      {c.preview.text}
+                    </div>
+                  )}
+
                   {c.asProfile && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 3 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 5 }}>
                       <span style={{ fontSize: 9.5, letterSpacing: 1, color: 'rgba(255,255,255,.35)', fontFamily: "'Bebas Neue',sans-serif" }}>
                         YOU ARE
                       </span>
