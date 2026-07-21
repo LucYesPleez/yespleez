@@ -309,9 +309,22 @@ export default function InboxScreen() {
 
                 <div style={{ minWidth: 0, flex: 1 }}>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-                    <div style={{ minWidth: 0, flex: 1, color: 'var(--text)', fontSize: 16, fontWeight: c.unread > 0 ? 700 : 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <div style={{ minWidth: 0, flexShrink: 1, color: 'var(--text)', fontSize: 16, fontWeight: c.unread > 0 ? 700 : 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {other?.profiles?.name ?? 'Unknown'}
                     </div>
+
+                    {/* WHY this conversation exists, beside the name like a
+                        subtitle. `direct` is omitted: it is the default case,
+                        so it appeared on most rows and told the reader nothing.
+                        A booking or an application is genuinely useful context
+                        — it says what the thread is FOR. */}
+                    {c.context_type !== 'direct' && (
+                      <span style={{ flexShrink: 0, fontFamily: "'Bebas Neue',sans-serif", fontSize: 9.5, letterSpacing: 1.2, lineHeight: 1, padding: '3px 7px', borderRadius: 999, color: accent, background: `${accent}1F`, border: `1px solid ${accent}33` }}>
+                        {CONTEXT_LABEL[c.context_type] ?? String(c.context_type).toUpperCase()}
+                      </span>
+                    )}
+
+                    <div style={{ marginLeft: 'auto' }} />
                     <div style={{ flexShrink: 0, fontSize: 11, color: c.unread > 0 ? '#D9A6FF' : 'rgba(255,255,255,.35)' }}>
                       {relativeTime(c.last_message_at)}
                     </div>
@@ -330,26 +343,28 @@ export default function InboxScreen() {
                     </div>
                   )}
 
-                  {/* Context and sending identity share the third line —
-                      both are orienting detail, and stacking them cost a whole
-                      row each. Identity stays because a second conversation
-                      with the same person is otherwise indistinguishable. */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 3, minWidth: 0 }}>
-                    <span style={{ flexShrink: 0, fontFamily: "'Bebas Neue',sans-serif", fontSize: 9.5, letterSpacing: 1.2, color: accent }}>
-                      {CONTEXT_LABEL[c.context_type] ?? String(c.context_type).toUpperCase()}
-                    </span>
-                    {c.asProfile && (
-                      <>
-                        <span style={{ flexShrink: 0, width: 2, height: 2, borderRadius: 999, background: 'rgba(255,255,255,.25)' }} />
+                  {/* IDENTITY, only when it is not the obvious one.
+                      Speaking as your Personal profile is the default — saying
+                      so on every row is noise, and it buried the cases that
+                      matter. When you ARE talking as Beat Cave or a festival,
+                      that is genuinely load-bearing: §2.1 fixes it for the life
+                      of the conversation, so a second thread with the same
+                      person is otherwise indistinguishable.
+
+                      With a punter identity and a direct context, this line
+                      disappears entirely and the row loses a whole storey. */}
+                  {((c.asProfile && c.asProfile.type !== 'punter') || c.isArchived) && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 3, minWidth: 0 }}>
+                      {c.asProfile && c.asProfile.type !== 'punter' && (
                         <span style={{ minWidth: 0, fontSize: 11.5, color: 'rgba(255,255,255,.42)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           as <span style={{ color: '#D9A6FF', fontWeight: 600 }}>{c.asProfile.name}</span>
                         </span>
-                      </>
-                    )}
-                    {c.isArchived && (
-                      <span style={{ flexShrink: 0, fontSize: 9.5, letterSpacing: 1, color: 'rgba(255,255,255,.3)' }}>ARCHIVED</span>
-                    )}
-                  </div>
+                      )}
+                      {c.isArchived && (
+                        <span style={{ flexShrink: 0, fontSize: 9.5, letterSpacing: 1, color: 'rgba(255,255,255,.3)' }}>ARCHIVED</span>
+                      )}
+                    </div>
+                  )}
                 </div>
                 {c.unread > 0 && (
                   <div aria-label={`${c.unread} unread`} style={{ marginLeft: 'auto', minWidth: 20, height: 20, borderRadius: 999, background: 'var(--neon)', color: '#000', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 6px' }}>

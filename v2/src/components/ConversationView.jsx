@@ -423,7 +423,10 @@ export default function ConversationView({ conversationId, compact = false, onMi
               unmissable, not loud. A tinted swatch carries the meaning and the
               name does the rest. §2.1 makes this permanent for the life of the
               conversation, so it must never be ambiguous. */}
-          {senderMeta && (
+          {/* Hidden when you are speaking as Personal — that is the default,
+              and stating it on every conversation is noise that buries the
+              cases where the identity actually matters. */}
+          {senderMeta && senderMeta.type !== 'punter' && (
             <span style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, minWidth: 0 }}>
               <span style={{ width: 5, height: 5, borderRadius: 999, flexShrink: 0, background: 'linear-gradient(135deg, #00E5FF, #BF5FFF)' }} />
               <span style={{ fontSize: 11, color: 'rgba(255,255,255,.38)', flexShrink: 0 }}>as</span>
