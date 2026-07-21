@@ -42,19 +42,35 @@ import { PROFILE_TYPES } from '../lib/profileTypes';
  */
 const GROUP_WINDOW_MS = 5 * 60 * 1000;
 
+/**
+ * How long a thread must be quiet before the next message earns a time marker.
+ *
+ * Twenty minutes is the point where "when was this?" becomes a real question.
+ * Below it the conversation is still one sitting and a marker is clutter.
+ */
+const DORMANT_MS = 20 * 60 * 1000;
+
 const dayKey = iso => new Date(iso).toDateString();
 const withinWindow = (a, b) => (new Date(b) - new Date(a)) < GROUP_WINDOW_MS;
+const timeOf = iso => new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-/** Centred day marker. Quiet — it orients, it does not announce. */
-function DaySeparator({ iso }) {
-  const d     = new Date(iso);
+function dayLabel(iso) {
   const today = new Date();
   const yest  = new Date(); yest.setDate(today.getDate() - 1);
+  if (dayKey(iso) === dayKey(today)) return 'Today';
+  if (dayKey(iso) === dayKey(yest))  return 'Yesterday';
+  return new Date(iso).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
+}
 
-  const label = dayKey(iso) === dayKey(today) ? 'Today'
-    : dayKey(iso) === dayKey(yest)           ? 'Yesterday'
-    : d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
-
+/**
+ * Centred marker carrying WHEN. Quiet — it orients, it does not announce.
+ *
+ * This is where time lives now. Per-message timestamps were repeated down the
+ * edge saying the same thing over and over; a marker states it once for
+ * everything beneath it, and an individual message can still be asked directly
+ * by tapping it.
+ */
+function ThreadMarker({ label }) {
   return (
     <div style={{ display: 'flex', justifyContent: 'center', margin: '18px 0 14px' }}>
       <span style={{
@@ -107,6 +123,10 @@ export default function ConversationView({ conversationId, compact = false, onMi
   const [error, setError]          = useState(null);
   const [loading, setLoading]      = useState(true);
   const [pendingNew, setPendingNew] = useState(0);
+  // Which message is currently showing its time. One at a time: revealing
+  // every tapped message would slowly rebuild the timestamp column this
+  // replaced.
+  const [revealedId, setRevealedId] = useState(null);
   const scrollRef = useRef(null);
   const inputRef  = useRef(null);
   const atBottomRef = useRef(true);
@@ -448,9 +468,17 @@ export default function ConversationView({ conversationId, compact = false, onMi
           const next = messages[i + 1];
           const day  = dayKey(m.created_at);
 
-          // A new day gets a separator. Without one a thread spanning weeks
+          // A new day gets a marker. Without one a thread spanning weeks
           // reads as a single undifferentiated column.
           const newDay = !prev || dayKey(prev.created_at) !== day;
+
+          // ...and so does a thread waking up after being quiet. Between the
+          // two, time is simply not mentioned.
+          const dormant = prev && (new Date(m.created_at) - new Date(prev.created_at)) >= DORMANT_MS;
+
+          const markerLabel = newDay
+            ? `${dayLabel(m.created_at)} · ${timeOf(m.created_at)}`
+            : dormant ? timeOf(m.created_at) : null;
 
           // Consecutive messages from the same sender inside GROUP_WINDOW are
           // one burst, not separate exchanges. Grouping is what turns a list
@@ -466,15 +494,16 @@ export default function ConversationView({ conversationId, compact = false, onMi
 
           return (
             <Fragment key={m.id}>
-              {newDay && <DaySeparator iso={m.created_at} />}
+              {markerLabel && <ThreadMarker label={markerLabel} />}
               <MessageBubble
                 message={m}
                 isMine={mine.has(m.from_profile_id)}
                 grouped={Boolean(sameAsPrev)}
-                // One timestamp per burst, on the last message. Six messages
-                // in a minute previously stamped six identical times down the
-                // edge — noise that told the reader nothing.
-                showTime={!sameAsNext}
+                // Drives shape and spacing only — where a burst ends. Time is
+                // no longer tied to it.
+                endsBurst={!sameAsNext}
+                revealed={revealedId === m.id}
+                onToggleTime={() => setRevealedId(id => (id === m.id ? null : m.id))}
               />
             </Fragment>
           );
@@ -545,12 +574,12 @@ export default function ConversationView({ conversationId, compact = false, onMi
  * YesPleez cards land as branches rather than a rewrite. Only `text` exists —
  * the others are declared, not built, and nothing here pretends otherwise.
  */
-function MessageBubble({ message, isMine, grouped = false, showTime = true }) {
+function MessageBubble({ message, isMine, grouped = false, endsBurst = true, revealed = false, onToggleTime }) {
   const kind = message.kind ?? 'text';
 
   // The tail corner belongs to the LAST bubble of a burst. Mid-burst bubbles
   // keep square-ish inner corners so a run reads as one block.
-  const tail = showTime ? 6 : 20;
+  const tail = endsBurst ? 6 : 20;
 
   return (
     <div style={{
@@ -558,7 +587,7 @@ function MessageBubble({ message, isMine, grouped = false, showTime = true }) {
       justifyContent: isMine ? 'flex-end' : 'flex-start',
       // 3px inside a burst, 14px between turns. The gap is what separates
       // "one person talking" from "two people exchanging".
-      marginBottom: showTime ? 14 : 3,
+      marginBottom: endsBurst ? 14 : 3,
       marginTop: grouped ? 0 : 2,
     }}>
       {/* Sent messages carry the canonical cyan→purple gradient, held at low
@@ -569,7 +598,14 @@ function MessageBubble({ message, isMine, grouped = false, showTime = true }) {
           own conversation. Lifted to .085 with a .12 border: legible and
           clearly present, still nowhere near bright, and still visibly the
           calmer of the two so the gradient keeps the lead. */}
-      <div style={{
+      <div
+        onClick={onToggleTime}
+        role="button"
+        tabIndex={0}
+        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggleTime?.(); } }}
+        aria-label={revealed ? undefined : 'Show time'}
+        style={{
+        cursor: 'pointer',
         maxWidth: '76%',
         borderRadius: isMine
           ? `20px 20px ${tail}px 20px`
@@ -592,10 +628,11 @@ function MessageBubble({ message, isMine, grouped = false, showTime = true }) {
             Unsupported message type — update the app to view this.
           </div>
         )}
-        {/* One timestamp per burst, on its last message. */}
-        {showTime && message.created_at && (
+        {/* Time on demand. Tapping a message asks it directly; otherwise the
+            thread markers carry when, and the bubbles carry only what. */}
+        {revealed && message.created_at && (
           <div style={{ fontSize: 10, color: isMine ? 'rgba(255,255,255,.5)' : 'rgba(255,255,255,.38)', marginTop: 5, textAlign: 'right' }}>
-            {new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            {timeOf(message.created_at)}
           </div>
         )}
       </div>
