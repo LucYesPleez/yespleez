@@ -324,25 +324,30 @@ export default function InboxScreen() {
                         the name — WHY the conversation exists and WHO you are
                         in it. Neutral rather than the profile accent, so a
                         booking reads the same whoever it is with. */}
-                    {(c.context_type !== 'direct' || (c.asProfile && c.asProfile.type !== 'punter')) && (
-                      <span style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'rgba(255,255,255,.4)' }}>
-                        {c.context_type !== 'direct' && (
-                          <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 10, letterSpacing: 1.2 }}>
-                            {CONTEXT_LABEL[c.context_type] ?? String(c.context_type).toUpperCase()}
-                          </span>
-                        )}
-                        {c.context_type !== 'direct' && c.asProfile && c.asProfile.type !== 'punter' && (
-                          <span style={{ width: 2, height: 2, borderRadius: 999, background: 'rgba(255,255,255,.25)' }} />
-                        )}
-                        {c.asProfile && c.asProfile.type !== 'punter' && (
-                          <span>as <span style={{ color: '#D9A6FF', fontWeight: 600 }}>{c.asProfile.name}</span></span>
-                        )}
+                    {/* Identity stays beside the name — it qualifies WHO you
+                        are talking as, so it belongs to the name. */}
+                    {c.asProfile && c.asProfile.type !== 'punter' && (
+                      <span style={{ flexShrink: 0, fontSize: 11, color: 'rgba(255,255,255,.4)' }}>
+                        as <span style={{ color: '#D9A6FF', fontWeight: 600 }}>{c.asProfile.name}</span>
                       </span>
                     )}
 
                     <div style={{ marginLeft: 'auto' }} />
-                    <div style={{ flexShrink: 0, fontSize: 11, color: c.unread > 0 ? '#D9A6FF' : 'rgba(255,255,255,.35)' }}>
-                      {relativeTime(c.last_message_at)}
+
+                    {/* Right column: WHEN over WHY. Both are metadata about
+                        the conversation rather than parts of its name, so they
+                        stack together on the trailing edge instead of pushing
+                        the name around. The context sits under the time
+                        because recency is what the eye scans for. */}
+                    <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2, lineHeight: 1.2 }}>
+                      <span style={{ fontSize: 11, color: c.unread > 0 ? '#D9A6FF' : 'rgba(255,255,255,.35)' }}>
+                        {relativeTime(c.last_message_at)}
+                      </span>
+                      {c.context_type !== 'direct' && (
+                        <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 10, letterSpacing: 1.2, color: 'rgba(255,255,255,.38)' }}>
+                          {CONTEXT_LABEL[c.context_type] ?? String(c.context_type).toUpperCase()}
+                        </span>
+                      )}
                     </div>
                   </div>
                   {/* WHICH IDENTITY THIS THREAD IS FROM. Three conversations
