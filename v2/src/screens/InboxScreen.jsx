@@ -42,29 +42,18 @@ const CONTEXT_LABEL = {
 };
 
 /**
- * One colour per CONTEXT — never per profile.
+ * ONE colour for every context label — the brand gold.
  *
- * An earlier version tinted this with the other participant's profile accent,
- * which made the same BOOKING cyan beside an artist and green beside a venue.
- * Keyed on the context instead, a booking looks like a booking everywhere,
- * which is the only way the colour can carry meaning.
+ * A colour per context (cyan application, green booking, and so on) meant the
+ * reader had to learn five codes to gain nothing the word beside it did not
+ * already say. Worse, each hex already carries a status or identity meaning
+ * elsewhere in the app, so five of them here multiplied the collisions.
  *
- * Roughly ordered by how far along the workflow is: an application is an ask,
- * an invitation is an offer, a booking is settled. Event and venue are
- * subject-matter rather than a stage, so they take the remaining brand hues.
- *
- * ⚠ These hexes also carry status/identity meanings elsewhere in YesPleez
- * (see the brand-pass collision table). That is tolerable HERE because the
- * label sits beside its own word — the text says which meaning is intended,
- * so the colour reinforces rather than has to disambiguate on its own.
+ * One colour says the useful thing — "this thread came from a workflow, not a
+ * DM" — and the WORD says which workflow. Adding a context later needs no
+ * palette decision.
  */
-const CONTEXT_COLOR = {
-  application: '#00E5FF',  // cyan — an ask, in flight
-  invitation:  '#BF5FFF',  // purple — an offer extended
-  booking:     '#00E5A0',  // green — settled
-  event:       '#FF2D78',  // pink
-  venue:       '#FFB830',  // gold
-};
+const CONTEXT_COLOR = '#FFB830';
 
 function relativeTime(iso) {
   if (!iso) return '';
@@ -366,7 +355,7 @@ export default function InboxScreen() {
                         because recency is what the eye scans for. */}
                     <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3, lineHeight: 1.15 }}>
                       {c.context_type !== 'direct' && (
-                        <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 13, letterSpacing: 1.4, color: CONTEXT_COLOR[c.context_type] ?? 'rgba(255,255,255,.55)' }}>
+                        <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 13, letterSpacing: 1.4, color: CONTEXT_COLOR }}>
                           {CONTEXT_LABEL[c.context_type] ?? String(c.context_type).toUpperCase()}
                         </span>
                       )}
