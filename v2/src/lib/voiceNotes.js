@@ -42,6 +42,20 @@ const SIGNED_URL_TTL_SECONDS = 3600;
 export const VOICE_FALLBACK_BODY = 'Voice message';
 
 /**
+ * m:ss. Voice notes are short; anything needing hours is not this feature.
+ *
+ * Lives here rather than beside the player so it can be tested — a component
+ * file cannot be imported by `node --test`, and a duration that renders
+ * "0:07" as "0:7" is exactly the kind of thing worth a test.
+ */
+export function formatDuration(seconds) {
+  const total = Math.max(0, Math.round(Number(seconds) || 0));
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+/**
  * Preferred capture format, best first.
  *
  * Opus in WebM is small and universally decodable on the browsers this app

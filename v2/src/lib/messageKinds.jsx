@@ -38,6 +38,7 @@
  */
 export { KINDS, LABELS, isKind } from './messageKindList';
 import { KINDS, LABELS } from './messageKindList';
+import VoiceMessage from '../components/VoiceMessage';
 
 /** Text is the only kind with a renderer today. Everything else falls back. */
 function renderText(message) {
@@ -74,12 +75,17 @@ function renderFallback(message, kind) {
 
 
 /**
- * kind → renderer. Only text is implemented; the rest resolve to the fallback
- * until they have one. Registered deliberately rather than left absent, so
- * this file is the complete picture of what exists and what does not.
+ * kind → renderer. text and voice are implemented; the rest resolve to the
+ * fallback until they have one. Registered deliberately rather than left
+ * absent, so this file is the complete picture of what exists and what does not.
+ *
+ * Voice was the first kind added after this registry existed, and it cost one
+ * import and one line here. That was the entire point of building the registry
+ * before the feature rather than during it.
  */
 const RENDERERS = {
-  text: renderText,
+  text:  renderText,
+  voice: message => <VoiceMessage message={message} />,
 };
 
 /**

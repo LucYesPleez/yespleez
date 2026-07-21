@@ -151,3 +151,16 @@ test('a failed upload sends no message at all', async () => {
   assert.ok(error, 'the failure must reach the caller');
   assert.equal(inserted.length, 0, 'no row may exist for audio that failed to upload');
 });
+
+// ── the duration readout ────────────────────────────────────────────
+
+test('durations pad the seconds and never go negative', async () => {
+  const { formatDuration } = await import('./voiceNotes.js');
+  assert.equal(formatDuration(7),    '0:07', 'unpadded seconds read as 0:7');
+  assert.equal(formatDuration(0),    '0:00');
+  assert.equal(formatDuration(65),   '1:05');
+  assert.equal(formatDuration(600),  '10:00');
+  assert.equal(formatDuration(-5),   '0:00', 'a negative position must not render as -0:-5');
+  assert.equal(formatDuration(NaN),  '0:00', 'audio duration is NaN until metadata loads');
+  assert.equal(formatDuration(undefined), '0:00');
+});
