@@ -78,8 +78,103 @@ const CAPTURE_CONSTRAINTS = {
   noiseSuppression: false,
   autoGainControl:  false,
   channelCount:     1,       // §6.3 — voice is not stereo content
-  sampleRate:       48000,   // §6.2 — full-band, not telephony bandwidth
+  sampleRate:       48000,   // preferred; see SAMPLE RATE below
 };
+
+/**
+ * The same profile, demanded rather than requested.
+ *
+ * Plain values are ADVISORY — Chrome accepted `channelCount: 1` and handed back
+ * a stereo track anyway, measured on a real device. At ~32 kbps that is not
+ * cosmetic: Opus spends part of the budget coding a stereo image of one voice,
+ * so the bits `C20` was protecting go to a channel that carries no information.
+ *
+ * `exact` makes them mandatory — the request fails rather than being silently
+ * downgraded. DSP is included because getting it back ON is the one failure
+ * `C20` exists to prevent, and it must never happen quietly.
+ *
+ * NOT sampleRate. `exact: 48000` fails outright on a device whose microphone
+ * runs at 44.1 kHz, which is most of them — and it would buy nothing, because
+ * **Opus has no rate other than 48 kHz**: it is defined at 48 k and the encoder
+ * resamples whatever it is given. The stored file is full-band 48 kHz Opus
+ * either way. `C20`'s target is telephony bandwidth limiting (16 kHz and
+ * below); a 44.1 kHz capture track is not that.
+ */
+const EXACT_CAPTURE_CONSTRAINTS = {
+  echoCancellation: { exact: false },
+  noiseSuppression: { exact: false },
+  autoGainControl:  { exact: false },
+  channelCount:     { exact: 1 },
+  sampleRate:       48000,   // advisory — see above
+};
+
+/**
+ * Open the microphone on the ratified profile, demanding it first.
+ *
+ * Falls back to the advisory form ONLY on OverconstrainedError — a device that
+ * genuinely cannot deliver the profile. Every other error (denial, no device)
+ * propagates, because retrying a permission refusal just prompts twice.
+ *
+ * The fallback still records: `C21`'s readback means a note captured in stereo,
+ * or with DSP forced on, says so in its own payload rather than being
+ * indistinguishable from a compliant one.
+ */
+async function openMicrophone() {
+  try {
+    return await navigator.mediaDevices.getUserMedia({ audio: EXACT_CAPTURE_CONSTRAINTS });
+  } catch (err) {
+    if (err?.name !== 'OverconstrainedError') throw err;
+    return await navigator.mediaDevices.getUserMedia({ audio: CAPTURE_CONSTRAINTS });
+  }
+}
+
+/**
+ * Force the capture to mono, rather than asking for it.
+ *
+ * Measured on a real device: Chrome accepts `channelCount: { exact: 1 }`
+ * WITHOUT raising, and hands back a stereo track anyway. That is spec-correct —
+ * a user agent that does not *support* a constraint ignores it silently, and
+ * only an unsatisfiable *supported* constraint raises OverconstrainedError. So
+ * there is no version of asking that gets mono here, and no error to catch.
+ *
+ * Routing the track through a one-channel destination node downmixes it
+ * deterministically, on every browser, regardless of what the device reports.
+ *
+ * ── IS THIS WORTH AN AUDIOCONTEXT IN THE RECORD PATH? ────────────────
+ *
+ * On the measured device, nearly nothing: a mono microphone exposed as
+ * dual-channel produces identical L and R, Opus codes the side channel as
+ * near-silence, and the result was 25 kbps either way. The reason to do it
+ * anyway is that this is a venue app — a stereo interface or a stereo mic
+ * produces two genuinely different channels, and then §6.3's "stereo doubles
+ * storage for no perceptual gain" is a real cost paid by every listener.
+ *
+ * Guaranteeing it costs one node and one context. Hoping for it costs nothing
+ * until the day someone plugs in an interface.
+ *
+ * Returns the ORIGINAL stream unchanged if WebAudio is unavailable — a
+ * recording in stereo is far better than no recording, and `C21`'s readback
+ * records which one happened.
+ */
+function forceMono(stream) {
+  const Ctx = typeof window !== 'undefined' && (window.AudioContext ?? window.webkitAudioContext);
+  if (!Ctx) return { stream, context: null, downmixed: false };
+
+  try {
+    const context = new Ctx();
+    const source  = context.createMediaStreamSource(stream);
+    // channelCount 1 + explicit mode is what performs the downmix; the default
+    // 'max' mode would simply follow the source and stay stereo.
+    const dest    = context.createMediaStreamDestination();
+    dest.channelCount          = 1;
+    dest.channelCountMode      = 'explicit';
+    dest.channelInterpretation = 'speakers';   // proper L/R fold, not L-only
+    source.connect(dest);
+    return { stream: dest.stream, context, downmixed: true };
+  } catch {
+    return { stream, context: null, downmixed: false };
+  }
+}
 
 /**
  * §6.2 — Opus VBR 32–48 kbps at 48 kHz mono. Bottom of the ratified range:
@@ -162,12 +257,20 @@ export async function startRecording() {
   // "your browser cannot record" need different words, and only the caller
   // knows where to put them.
   //
-  // The constraints are ADVISORY — a browser may silently ignore any of them,
-  // which is exactly why what was actually negotiated is read back below rather
-  // than assumed (`C21`).
-  const stream = await navigator.mediaDevices.getUserMedia({ audio: CAPTURE_CONSTRAINTS });
+  // Demands the profile, falls back only if the device genuinely cannot meet
+  // it. Even then the result is read back rather than assumed (`C21`) — a
+  // browser can still hand back something other than what it agreed to.
+  const stream = await openMicrophone();
 
-  const recorder = new MediaRecorder(stream, {
+  // Settings come from the ORIGINAL microphone track — the downmix destination
+  // below is a synthetic track that knows nothing about echo cancellation or
+  // the device's sample rate. Reading them off the wrong track would report a
+  // DSP state that was never asked of the hardware.
+  const settings = stream.getAudioTracks()[0]?.getSettings?.() ?? {};
+
+  const { stream: recordStream, context: mixContext, downmixed } = forceMono(stream);
+
+  const recorder = new MediaRecorder(recordStream, {
     mimeType,
     audioBitsPerSecond: TARGET_BITS_PER_SECOND,
   });
@@ -180,19 +283,22 @@ export async function startRecording() {
   const startedAt = Date.now();
   let released = false;
 
-  // `C21` — what the browser ACTUALLY gave us, not what we asked for. Every
-  // constraint above is advisory and any of them may be silently ignored, so
-  // the negotiated settings are read from the live track and persisted with the
-  // message. Without this the payload would record an intention rather than a
-  // fact, and a future support-matrix question ("do our iOS notes have DSP on?")
-  // would be unanswerable from the data.
-  const settings = stream.getAudioTracks()[0]?.getSettings?.() ?? {};
 
-  /** Idempotent: stop() then unmount must not stop the tracks twice. */
+  /**
+   * Idempotent: stop() then unmount must not release twice.
+   *
+   * Releases THREE things now, not one — the microphone, the synthetic downmix
+   * track, and the AudioContext. Missing the first leaves the browser's
+   * recording indicator lit; missing the third leaks a context per recording,
+   * and contexts are limited, so that failure only appears after heavy use and
+   * then refuses to record at all.
+   */
   function release() {
     if (released) return;
     released = true;
     stream.getTracks().forEach(t => t.stop());
+    if (downmixed) recordStream.getTracks().forEach(t => t.stop());
+    mixContext?.close?.().catch(() => { /* already closed */ });
   }
 
   return {
@@ -221,7 +327,12 @@ export async function startRecording() {
             mime:        recorder.mimeType || mimeType,
             bitrate:     recorder.audioBitsPerSecond ?? null,
             sample_rate: settings.sampleRate ?? null,
-            channels:    settings.channelCount ?? null,
+            // What was RECORDED, which after a downmix is not what the device
+            // reported. `source_channels` keeps the device's own answer so a
+            // support-matrix question can still be asked of the data.
+            channels:        downmixed ? 1 : (settings.channelCount ?? null),
+            source_channels: settings.channelCount ?? null,
+            downmixed,
             dsp: {
               echo_cancellation: settings.echoCancellation ?? null,
               noise_suppression: settings.noiseSuppression ?? null,
