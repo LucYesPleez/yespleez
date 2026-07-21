@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useConversationUi } from '../lib/conversationUi';
+import { useSession } from '../App';
+import { supabase } from '../lib/supabase';
+import { unreadCount } from '../lib/messaging';
 import ConversationView from './ConversationView';
 
 /**
@@ -48,7 +51,8 @@ function TabAvatar({ name, src }) {
 }
 
 export default function ConversationDock() {
-  const { openId, minimised, open, minimise, dismiss, getState } = useConversationUi();
+  const { openId, minimised, open, minimise, dismiss, getState, patch } = useConversationUi();
+  const { session } = useSession();
   const location = useLocation();
   const touchStartY = useRef(null);
   // Purely presentational — which conversations are minimised lives in shell
@@ -64,6 +68,44 @@ export default function ConversationDock() {
     // when a conversation opens.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.pathname]);
+
+  /**
+   * A minimised tab must be able to become UNREAD.
+   *
+   * Shell state's `unread` was only ever driven DOWN — open() zeroes it and
+   * ConversationView zeroes it after marking read — so nothing raised it and a
+   * docked tab could never light up. The inbox row and the nav badge each
+   * refresh from their own subscription; the tab had none, which is why it sat
+   * grey while the card beside it glowed.
+   *
+   * Only conversations that are MINIMISED and NOT open count: a conversation
+   * you are looking at is read by definition, and ConversationView is already
+   * advancing its watermark.
+   *
+   * §5.6 — the count is re-read from the database rather than incremented
+   * locally, so the tab, the card and the nav badge all answer to the same
+   * counting rule instead of three approximations.
+   */
+  useEffect(() => {
+    if (!session) return undefined;
+
+    const channel = supabase
+      .channel('dock-unread')
+      .on('postgres_changes', {
+        event: 'INSERT', schema: 'public', table: 'messages',
+      }, async ({ new: row }) => {
+        const cid = row.conversation_id;
+        if (row.from_user_id === session.user.id) return;   // your own message
+        if (cid === openId) return;                          // you are reading it
+        if (!minimised.includes(cid)) return;                // not a docked tab
+
+        const { count } = await unreadCount(cid);
+        patch(cid, { unread: count }, true);                 // notify — repaints tabs
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [session, openId, minimised, patch]);
 
   function onTouchStart(e) {
     touchStartY.current = e.touches?.[0]?.clientY ?? null;
