@@ -319,7 +319,18 @@ export default function InboxScreen() {
                         A booking or an application is genuinely useful context
                         — it says what the thread is FOR. */}
                     {c.context_type !== 'direct' && (
-                      <span style={{ flexShrink: 0, fontFamily: "'Bebas Neue',sans-serif", fontSize: 9.5, letterSpacing: 1.2, lineHeight: 1, padding: '3px 7px', borderRadius: 999, color: accent, background: `${accent}1F`, border: `1px solid ${accent}33` }}>
+                      /* NEUTRAL, deliberately. This was drawn in the other
+                         participant's profile accent, which made the same
+                         BOOKING cyan beside an artist and green beside a
+                         venue — one colour carrying two meanings, identity
+                         AND context, so a booking looked like a different
+                         kind of thing depending on who it was with.
+
+                         Profile accents belong to things that ARE the profile:
+                         the avatar ring, the type pill in the header. A
+                         context label is about the workflow, so it reads the
+                         same everywhere. */
+                      <span style={{ flexShrink: 0, fontFamily: "'Bebas Neue',sans-serif", fontSize: 9.5, letterSpacing: 1.2, lineHeight: 1, padding: '3px 7px', borderRadius: 999, color: 'rgba(255,255,255,.58)', background: 'rgba(255,255,255,.07)', border: '1px solid rgba(255,255,255,.11)' }}>
                         {CONTEXT_LABEL[c.context_type] ?? String(c.context_type).toUpperCase()}
                       </span>
                     )}
