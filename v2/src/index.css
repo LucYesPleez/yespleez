@@ -188,15 +188,20 @@ input, textarea, select {
    mark is a separate square artwork kept at `scripts/hand-solid.png` — masking
    the outline by mistake cost two attempts at this icon.
 
-   `hand-mark.png` IS THE ARTWORK, BYTE FOR BYTE. Not cropped, not resized, not
-   thickened — the owner supplied it and asked for it unmodified, so every
-   derivation was removed. `scripts/thicken-hand.cjs` and its earlier output
+   `hand-mark.webp` IS THE ARTWORK — same 1078×1078, not cropped, not resized,
+   not thickened. The owner supplied it and asked for it unmodified, so every
+   derivation was removed; `scripts/thicken-hand.cjs` and its earlier output
    remain only as a record of what was tried.
 
-   COST, ACCEPTED KNOWINGLY: the file is 489KB and is fetched to draw a 21px
-   icon. A cropped-and-downsampled copy was 15KB. If that ever matters, the fix
-   is to regenerate — not to redraw:
-     node scripts/thicken-hand.cjs scripts/hand-solid.png public/hand-mark.png 0 256
+   RE-ENCODED, NOT REDRAWN (owner approved after a side-by-side, 2026-07-22).
+   `hand-mark.png` was 489KB fetched to draw a 21px icon; the WebP is 149KB at
+   quality 90, with identical dimensions. The PNG is kept in `public/` as the
+   master — regenerate from it rather than from the WebP if this is ever
+   revisited, since re-encoding an encode compounds the loss.
+
+   Only the ALPHA of this file is used (see the mask note below), so artefacts
+   in the colour channels cannot show; what matters is that the edge of the
+   stencil stayed clean, which is what the comparison was checking.
 
    Because it is uncropped, the artwork's own padding is inside the box, so the
    mark renders smaller than its container. Sizes here are set larger than an
@@ -228,8 +233,8 @@ input, textarea, select {
   flex-shrink: 0;
   transform: translate(12.85%, 2.23%);
   background-color: currentColor;
-  -webkit-mask-image: url('/hand-mark.png');
-          mask-image: url('/hand-mark.png');
+  -webkit-mask-image: url('/hand-mark.webp');
+          mask-image: url('/hand-mark.webp');
   -webkit-mask-repeat: no-repeat;
           mask-repeat: no-repeat;
   -webkit-mask-position: center;
@@ -241,10 +246,10 @@ input, textarea, select {
 /* Without this, a browser with no mask support paints a solid currentColor
    square — a filled block where a hand should be, which is a far worse failure
    than no icon at all. */
-@supports not ((-webkit-mask-image: url('/hand-mark.png')) or (mask-image: url('/hand-mark.png'))) {
+@supports not ((-webkit-mask-image: url('/hand-mark.webp')) or (mask-image: url('/hand-mark.webp'))) {
   .yp-hand {
     background-color: transparent;
-    background-image: url('/hand-mark.png');
+    background-image: url('/hand-mark.webp');
     background-repeat: no-repeat;
     background-position: center;
     background-size: contain;
@@ -352,6 +357,123 @@ input, textarea, select {
   transition: transform var(--yp-medium) var(--yp-ease),
               color var(--yp-medium) var(--yp-ease),
               box-shadow var(--yp-medium) var(--yp-ease);
+}
+
+/* ═══ THE CONVERSATION DRAWER ═════════════════════════════════════════
+
+   ⚠ THE BOTTOM NAVIGATION IS SACRED. Nothing renders underneath it — not the
+   drawer, not the scrim. Both stop at `--yp-nav-height`, which BottomNav
+   measures live and which already includes the safe-area inset. This is
+   reserved layout space, not padding applied afterwards. "Full screen" below
+   means full WIDTH and full height DOWN TO THE NAV; it never means over it. */
+.yp-drawer-overlay {
+  position: fixed;
+  /* Desktop: docked below the top bar with 20px of air, so it reads as a panel
+     sitting in the app rather than replacing it. */
+  top: calc(var(--yp-header-height, 56px) + 20px);
+  left: 0;
+  right: 0;
+  bottom: var(--yp-nav-height, 64px);
+  z-index: 160;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  /* A GRADIENT SCRIM, not a blurred pane. backdrop-filter clips hard at its own
+     bounds, which stamped a visible seam across the app's ambient gradient
+     exactly where the overlay began. Fading in over the first ~18% means the
+     surface reads as sliding OVER the background rather than cutting it off. */
+  background: linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,.42) 10%, rgba(0,0,0,.74) 26%, rgba(0,0,0,.82) 100%);
+  animation: ypDockFade .28s ease-out;
+}
+
+/* ── THE CONVERSATION HEADER ────────────────────────────────────────
+   These values ARE the desktop layout, moved out of inline styles so the phone
+   block below can override them. An inline style beats a stylesheet, so
+   anything left on the element would make the media query silently inert —
+   which has already caught this file twice. */
+.yp-convo-header  { padding: 18px 18px 16px; }
+.yp-convo-pillrow { margin-top: 5px; }
+.yp-convo-as      { margin-top: 6px; }
+
+/* PHONE: three stacked rows became two.
+
+   The pill moves up onto the name's line and the "as …" line wraps below it,
+   which removes a whole row plus its margin from a header that was eating the
+   top of the conversation. Wrapping rather than repositioning means a long
+   name still pushes the pill down on its own instead of colliding with it.
+
+   Nothing is removed. The sending identity is permanent for the life of a
+   conversation (§2.1), so it stays visible — it just stops needing its own
+   floor. */
+@media (max-width: 640px) {
+  .yp-convo-header {
+    padding: 11px 14px 11px;
+  }
+  .yp-convo-id {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    column-gap: 9px;
+    row-gap: 3px;
+  }
+  /* `flex: 0 1 auto` lets the name shrink and ellipsize before it shoves the
+     pill onto a line of its own. */
+  .yp-convo-name {
+    flex: 0 1 auto;
+    font-size: 17px;
+  }
+  .yp-convo-pillrow {
+    margin-top: 0;
+    flex: 0 0 auto;
+  }
+  /* Full basis forces this onto its own line, under both of the above. */
+  .yp-convo-as {
+    margin-top: 0;
+    flex: 1 0 100%;
+  }
+}
+
+/* The panel's finish. These three live here rather than inline BECAUSE the
+   phone breakpoint below has to override them — an inline style wins over a
+   stylesheet, so declaring them on the element would make that media query
+   silently do nothing. */
+.yp-drawer-panel {
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 30px 30px 0 0;
+  box-shadow: 0 -24px 70px rgba(0,0,0,.7);
+}
+
+/* ── PHONE: THE CONVERSATION IS THE SCREEN ──────────────────────────
+   On a phone that 20px of air plus the header strip left the page visible and
+   scrolling behind the drawer, so a conversation read as a small window
+   floating over the app rather than as somewhere you had gone. At this width
+   the thread takes the whole screen down to the nav.
+
+   The desktop geometry above is deliberately untouched — a panel docked inside
+   a wide window is correct there, and only correct there. */
+@media (max-width: 640px) {
+  .yp-drawer-overlay {
+    top: 0;
+    /* ABOVE the global header (fixed, z-index 199), which the desktop value of
+       160 deliberately sits under. At full-screen the top bar must be covered
+       COMPLETELY or not at all — starting at top: 0 while the header painted
+       over the drawer left the banner and bell floating half-in, half-out of
+       the thread. Covering is the right half of that choice: the drawer has
+       its own header and back button, so nothing is unreachable, and
+       minimising restores the bar. Stays below the nav (9999), which remains
+       uncovered because the overlay stops at --yp-nav-height regardless. */
+    z-index: 250;
+    /* No scrim left to fade against: the panel covers the overlay completely,
+       so the gradient would only ever show through the panel's own edges. */
+    background: rgba(0,0,0,.82);
+  }
+  .yp-drawer-panel {
+    /* Rounded top corners belong to a sheet that has something behind it.
+       Full-bleed, they would frame the status bar. */
+    border-radius: 0;
+    border: none;
+    box-shadow: none;
+  }
 }
 
 /* ═══ THE COMPOSER (M9t) ══════════════════════════════════════════════

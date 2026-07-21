@@ -48,6 +48,20 @@ import LiveWaveform from './LiveWaveform';
  * produced a locked state with no way out.
  */
 
+/**
+ * The composer's own surface, and the colour the wallpaper dissolves into.
+ *
+ * ONE constant, used twice — as this element's fill and as the opaque end of
+ * the fade above it. If the two ever differ the seam comes back, just softer
+ * and harder to name.
+ *
+ * `SCRIM_CLEAR` is the same colour at zero alpha rather than `transparent`.
+ * `transparent` is rgba(0,0,0,0), so on some engines a gradient to it passes
+ * through grey on the way — a faint dirty band across the bottom of the image.
+ */
+const SCRIM       = 'rgba(11,11,15,.88)';
+const SCRIM_CLEAR = 'rgba(11,11,15,0)';
+
 /** Every control in the capsule. One number governs the whole row. */
 const CONTROL = 46;
 
@@ -98,21 +112,34 @@ export default function Composer({
     <form
       onSubmit={submit}
       style={{
-        padding: '26px 14px 14px', flexShrink: 0,
-        // ⚠ THE WASH IS LOAD-BEARING, NOT DECORATION.
-        //
-        // The wallpaper is painted on the thread and simply STOPS where the
-        // thread ends. Without something covering that boundary the image cuts
-        // off against flat dark in a dead straight line across the full width —
-        // a hard rule nobody drew. Removing this in M9t is exactly what put it
-        // there.
-        //
-        // Transparent at the top and only reaching full strength at the bottom,
-        // over 26px of padding, so it reads as the surface receding rather than
-        // as a panel with an edge. Any abrupt stop here IS the line again.
-        background: 'linear-gradient(180deg, rgba(10,10,15,0) 0%, rgba(10,10,15,.42) 42%, rgba(10,10,15,.72) 100%)',
+        padding: '14px', flexShrink: 0,
+        position: 'relative',   // anchors the fade above
+        background: SCRIM,
       }}
     >
+      {/* ⚠ THE FADE HAS TO SIT ABOVE THIS ELEMENT, NOT INSIDE IT.
+
+          The wallpaper is painted on the message list and simply STOPS where
+          the list ends — which is exactly where this form begins. A gradient
+          running from transparent at the form's own top therefore starts AT the
+          boundary, so the image still cuts off against it in a dead straight
+          line. That was the first attempt, and the line survived it.
+
+          This strip is anchored to `bottom: 100%`, so it lives in the 76px
+          ABOVE the composer, over the last of the image, fading from the
+          composer's exact colour up to nothing. The boundary is now inside a
+          gradient rather than at the end of one.
+
+          `pointer-events: none` so it cannot swallow taps on the last message
+          it covers. */}
+      <span
+        aria-hidden="true"
+        style={{
+          position: 'absolute', left: 0, right: 0, bottom: '100%', height: 76,
+          background: `linear-gradient(to top, ${SCRIM}, ${SCRIM_CLEAR})`,
+          pointerEvents: 'none',
+        }}
+      />
       <div
         className="yp-composer"
         // Drives the capsule's recording accent, and gives the state one

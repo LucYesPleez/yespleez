@@ -69,6 +69,29 @@ export default function ConversationDock() {
   }, [location.pathname]);
 
   /**
+   * FREEZE THE PAGE UNDERNEATH WHILE A CONVERSATION IS OPEN.
+   *
+   * The drawer is `position: fixed`, so it does not scroll itself — but the
+   * document behind it still did. On a phone that showed as the app sliding
+   * around behind the thread, which is the thing that made a conversation read
+   * as a window floating over the app rather than as somewhere you had gone.
+   *
+   * Covering the screen was not enough on its own: a scroll that begins inside
+   * the thread and reaches either end chains outward to the document unless
+   * something stops it. The message list sets `overscroll-behavior: contain`,
+   * and this closes the same hole from the other side.
+   *
+   * Restores the PREVIOUS value rather than clearing it, so this cannot quietly
+   * take ownership of a property another overlay was already managing.
+   */
+  useEffect(() => {
+    if (!openId) return undefined;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = previous; };
+  }, [openId]);
+
+  /**
    * A minimised tab must be able to become UNREAD.
    *
    * Shell state's `unread` was only ever driven DOWN — open() zeroes it and
@@ -123,9 +146,10 @@ export default function ConversationDock() {
    *
    * No threshold fixes this. Two handlers were competing for one drag and the
    * ancestor had no way to know the descendant had consumed it — so the gesture
-   * moved to an element that never scrolls (the header's grab handle, in
-   * `ConversationView`). The conflict is gone rather than arbitrated: there is
-   * now no dismiss handler anywhere above the scroll container.
+   * was first moved to a non-scrolling grab handle in the header, and then
+   * REMOVED ENTIRELY (owner, 2026-07-22): the back button and the desktop
+   * scrim already close the drawer, so the handle was a second control for a
+   * solved problem. There is now no dismiss drag anywhere in the drawer.
    *
    * Do not reintroduce a drag listener on this element or on the scrim.
    */
@@ -243,29 +267,20 @@ export default function ConversationDock() {
       {/* ── The drawer ── */}
       {openId && (
         <div
-          /* CONSTITUTIONAL LAYOUT RULE — THE BOTTOM NAVIGATION IS SACRED.
-             Nothing renders underneath it. Not this dock, not the backdrop.
-             So the overlay STOPS at the top of the nav (`bottom`), rather than
-             covering the viewport and letting the nav sit on top of it.
-             --yp-nav-height is measured by BottomNav's ResizeObserver and
-             includes the safe-area inset, so this is reserved layout space —
-             not padding applied after the fact. */
-          /* +20px so the surface reads as docked BELOW the top bar with air
-             between them, rather than butting straight up against it. The gap
-             is part of the overlay, so the scrim fades across it and the
-             background stays visible through the gap. */
-          style={{ position: 'fixed', top: 'calc(var(--yp-header-height, 56px) + 20px)', left: 0, right: 0, bottom: 'var(--yp-nav-height, 64px)', zIndex: 160, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', // A GRADIENT SCRIM, not a blurred pane. backdrop-filter clips hard at its
-             // own bounds, which stamped a visible seam across the app's ambient
-             // gradient exactly where the overlay began. Fading the scrim in over the
-             // first ~18% means the surface reads as sliding OVER the background
-             // rather than cutting it off.
-             background: 'linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,.42) 10%, rgba(0,0,0,.74) 26%, rgba(0,0,0,.82) 100%)',
-             animation: 'ypDockFade .28s ease-out' }}
+          /* Geometry lives in `.yp-drawer-overlay` (index.css), because it has
+             to differ between phone and desktop and an inline style cannot
+             carry a media query. On a phone the drawer is the whole screen;
+             on desktop it stays a panel docked below the top bar.
+
+             The nav rule is enforced there too: the overlay stops at
+             `--yp-nav-height` in BOTH cases. */
+          className="yp-drawer-overlay"
           onClick={() => minimise(openId)}
         >
           <div
             role="dialog"
             aria-label="Conversation"
+            className="yp-drawer-panel"
             onClick={e => e.stopPropagation()}
             style={{
               width: '100%', maxWidth: 560,
@@ -284,12 +299,13 @@ export default function ConversationDock() {
                 radial-gradient(100% 60% at 50% 100%, rgba(0,0,0,.55), transparent 60%),
                 linear-gradient(180deg, #17171B 0%, #121215 40%, #0E0E11 100%)
               `,
-              border: '1px solid rgba(255,255,255,.08)',
-              borderRadius: '30px 30px 0 0',
+              // border / border-radius / box-shadow live in `.yp-drawer-panel`,
+              // NOT here. The phone breakpoint has to square the corners off,
+              // and an inline style beats a stylesheet rule — leaving them here
+              // would make the media query silently do nothing.
               position: 'relative',   // anchors the hand watermark below
               display: 'flex', flexDirection: 'column',
               overflow: 'hidden',
-              boxShadow: '0 -24px 70px rgba(0,0,0,.7)',
               animation: 'ypDrawerUp .44s cubic-bezier(.16,1,.3,1)',
             }}
           >

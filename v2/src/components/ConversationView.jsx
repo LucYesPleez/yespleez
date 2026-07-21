@@ -14,7 +14,6 @@ import { PROFILE_TYPES } from '../lib/profileTypes';
 import { renderMessage, isBareKind, shapeFor, materialFor } from '../lib/messageKinds';
 import HandIcon from './HandIcon';
 import { timeOf } from '../lib/clock';
-import { shouldDismiss, pullProgress } from '../lib/dismissGesture';
 
 /**
  * ONE conversation, rendered identically in the DRAWER and in the FULL PAGE.
@@ -172,7 +171,7 @@ const CHAT_BG_SCRIM = 'rgba(10,10,15,.80)';
  * far the image overflows the window. Loading the image again in JS just to
  * measure it would download it twice.
  *
- * ⚠ If chat-bg.png is ever replaced with a differently-proportioned image, this
+ * ⚠ If chat-bg.webp is ever replaced with a differently-proportioned image, this
  * number must change with it — otherwise the scroll clamp is computed against
  * a height the image does not have, and it will pin early or late.
  */
@@ -194,7 +193,17 @@ const CHAT_BG_RATIO = 1162 / 2093;
  * made deliberately: depth in exchange for how much of the picture is ever
  * seen.
  */
-const CHAT_BG_PARALLAX = 0.35;
+/**
+ * 0.35 → 0.175 (owner, 2026-07-22): halved again, so the image drifts at about
+ * a sixth of the messages' speed.
+ *
+ * The cost named above is now doubled with it — full reveal needs roughly
+ * 2600px of scrolling rather than 1300. Most threads will only ever show the
+ * lowest part of the picture. That remains the deliberate trade: this is a
+ * surface the conversation sits ON, and the further back it sits, the less it
+ * competes with what is being read.
+ */
+const CHAT_BG_PARALLAX = 0.175;
 
 const ghostBtn = {
   width: 34, height: 34, flexShrink: 0, borderRadius: 999,
@@ -648,22 +657,23 @@ export default function ConversationView({ conversationId, compact = false, onMi
           bolted on top of the conversation; the surface should feel like one
           continuous environment. Separation comes from a faint downward wash
           instead, which reads as depth rather than as a divider. */}
-      {/* ── THE GRAB HANDLE — and the ONLY place pull-to-minimise lives ──
-          It sits in the header, which does not scroll. That is the entire fix
-          for conversations dismissing themselves mid-read: the gesture used to
-          be on the dialog, an ancestor of the message list, where every scroll
-          bubbled into it. Nothing above the scroll container listens for a drag
-          any more, so the two can no longer compete for one gesture.
+      {/* There is deliberately NO pull-down grab handle here, and NO dismiss
+          gesture anywhere in the drawer.
 
-          It is also now VISIBLE. The old swipe was undiscoverable — an
-          invisible gesture on the whole surface, which is the worst of both:
-          nobody could find it deliberately and everybody triggered it by
-          accident. */}
-      {compact && <DismissHandle onDismiss={onMinimise} />}
+          The gesture's history is a cautionary tale in two acts. It began as an
+          invisible swipe on the whole dialog — an ancestor of the scrolling
+          message list — so ordinary reading dismissed conversations on both iOS
+          and Android. It was then rebuilt as a visible handle on this header,
+          which fixed the conflict but earned its 34px only if people actually
+          pulled it. They did not: the back button and, on desktop, the
+          click-away scrim already close the drawer, so the handle was a second
+          control for a solved problem. Owner removed it 2026-07-22.
 
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: 13,
-        padding: compact ? '6px 18px 16px' : '18px 18px 16px', flexShrink: 0,
+          If a dismiss gesture is ever wanted again, the constraint that matters
+          is the one that survives both acts: it must NOT listen anywhere above
+          the message list's scroll container. */}
+      <div className="yp-convo-header" style={{
+        display: 'flex', alignItems: 'center', gap: 13, flexShrink: 0,
         background: 'linear-gradient(180deg, rgba(255,255,255,.035) 0%, rgba(255,255,255,0) 100%)',
       }}>
         {compact && (
@@ -688,17 +698,32 @@ export default function ConversationView({ conversationId, compact = false, onMi
           </span>
         </span>
 
-        <span style={{ minWidth: 0, flex: 1 }}>
+        {/* ── THE IDENTITY COLUMN ──────────────────────────────────
+            Three stacked rows on desktop: name, then the type pill, then who
+            you are speaking as.
+
+            On a PHONE that stack made the header tall enough to eat the top of
+            the conversation. The phone rules in `index.css` pull the pill up
+            ONTO the name's line and let the "as" line wrap beneath, so the same
+            information lands in two rows instead of three. Nothing is hidden —
+            §2.1 makes the sending identity permanent for the life of the
+            conversation, so it must never become ambiguous to save space.
+
+            Desktop is untouched: the layout below IS the desktop layout. */}
+        <span className="yp-convo-id" style={{ minWidth: 0, flex: 1 }}>
           {/* PRIMARY. Lifted to 19px/650 and tightened, so the name wins the
               composition outright instead of competing with the row below. */}
-          <span style={{ display: 'block', color: '#fff', fontSize: 19, fontWeight: 650, letterSpacing: '-.2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.15 }}>
+          <span className="yp-convo-name" style={{ display: 'block', color: '#fff', fontSize: 19, fontWeight: 650, letterSpacing: '-.2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.15 }}>
             {title}
           </span>
 
           {/* SECONDARY ROW — type pill and presence share one line. Presence
               is absent today and the row simply closes up; it does not reserve
-              empty space for a feature that does not exist. */}
-          <span style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 5, minWidth: 0 }}>
+              empty space for a feature that does not exist.
+
+              `margin-top` lives in the stylesheet, not here: the phone rules
+              zero it, and an inline value would beat them silently. */}
+          <span className="yp-convo-pillrow" style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
             <span style={{
               flexShrink: 0, fontFamily: "'Bebas Neue',sans-serif", fontSize: 10,
               letterSpacing: 1.2, lineHeight: 1, padding: '4px 8px', borderRadius: 999,
@@ -727,7 +752,7 @@ export default function ConversationView({ conversationId, compact = false, onMi
               and stating it on every conversation is noise that buries the
               cases where the identity actually matters. */}
           {senderMeta && senderMeta.type !== 'punter' && (
-            <span style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, minWidth: 0 }}>
+            <span className="yp-convo-as" style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
               <span style={{ width: 5, height: 5, borderRadius: 999, flexShrink: 0, background: 'linear-gradient(135deg, #00E5FF, #BF5FFF)' }} />
               <span style={{ fontSize: 11, color: 'rgba(255,255,255,.38)', flexShrink: 0 }}>as</span>
               <span style={{ fontSize: 11.5, fontWeight: 600, color: '#CFA4FF', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -754,17 +779,18 @@ export default function ConversationView({ conversationId, compact = false, onMi
         </button>
       </div>
 
-      {/* Privacy strip. Says PRIVATE, not "secure" — messages are not
-          end-to-end encrypted, and claiming otherwise would be a promise the
-          system does not keep. What IS guaranteed: C29 (no AI, ever) and C32
-          (content never feeds ranking or recommendation). Muted, never a
-          warning colour: this is reassurance, not an alert. */}
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'center', padding: '9px 16px', fontSize: 11.5, color: 'rgba(255,255,255,.34)', background: 'rgba(255,255,255,.025)', borderBottom: '1px solid rgba(255,255,255,.05)', flexShrink: 0 }}>
-        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" style={{ flexShrink: 0 }}>
-          <rect x="4" y="11" width="16" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" />
-        </svg>
-        <span>Private — only you and the participants can see these messages.</span>
-      </div>
+      {/* The privacy strip lived here — a padlock and "Private — only you and
+          the participants can see these messages." Removed by owner decision.
+
+          It cost a permanent band plus its own borderBottom at the top of every
+          conversation, to say something true of every conversation in the app.
+          A reassurance that never varies is not information; it is furniture.
+
+          NOTHING ABOUT PRIVACY CHANGED. C29 (no AI, ever) and C32 (content
+          never feeds ranking or recommendation) are enforced in the database,
+          not asserted by this banner. If the guarantee ever needs stating in
+          the UI again, the honest home for it is the conversation's info
+          panel — on request — rather than a line nobody reads twice. */}
 
       <div
         ref={scrollRef}
@@ -810,7 +836,9 @@ export default function ConversationView({ conversationId, compact = false, onMi
           // It is a flat fill rather than a gradient: the photograph is already
           // strongly graded left-to-right, and a gradient scrim on top of that
           // would fight its composition instead of quieting it.
-          backgroundImage: `linear-gradient(${CHAT_BG_SCRIM}, ${CHAT_BG_SCRIM}), url('/chat-bg.png')`,
+          // WebP, not PNG: same artwork at the same 1162×2093, 1.85MB → 46KB.
+          // A 39× saving on the one asset every conversation waits for.
+          backgroundImage: `linear-gradient(${CHAT_BG_SCRIM}, ${CHAT_BG_SCRIM}), url('/chat-bg.webp')`,
           backgroundSize: 'auto, 100% auto',
           backgroundPosition: 'center, center',
           backgroundRepeat: 'no-repeat, no-repeat',
@@ -918,98 +946,6 @@ export default function ConversationView({ conversationId, compact = false, onMi
         placeholder={senderProfile ? 'Type a message…' : 'You cannot write in this conversation'}
         inputRef={inputRef}
         onInputEvent={rememberSelection}
-      />
-    </div>
-  );
-}
-
-/**
- * PULL DOWN TO PUT THE CONVERSATION AWAY.
- *
- * ── WHY IT IS ITS OWN ELEMENT ────────────────────────────────────────
- *
- * Because it must not be an ancestor of anything that scrolls. The previous
- * implementation listened on the dialog wrapping the whole drawer, so a drag
- * inside the message list bubbled up and read as a dismissal — and "dragged
- * downward a long way" is what reading back through a thread looks like.
- * Conversations closed themselves, on both iOS and Android.
- *
- * Raising the threshold could not have fixed that, because no distance
- * separates the two gestures: they are the same gesture. Only ownership does,
- * so the handler now lives on 34 pixels of header that can never scroll.
- *
- * ── POINTER EVENTS, WITH CAPTURE ─────────────────────────────────────
- *
- * Capture keeps the drag addressed here once it starts, so a finger that slides
- * off the handle still finishes its own gesture rather than abandoning it
- * half-done. `touch-action: none` stops the browser claiming the drag as a
- * scroll before the handler ever sees it — safe on this element precisely
- * because it is not scrollable.
- */
-function DismissHandle({ onDismiss }) {
-  const originRef = useRef(null);
-  const barRef    = useRef(null);
-
-  function paint(progress) {
-    const bar = barRef.current;
-    if (!bar) return;
-    // Written straight to the DOM. A drag is a stream of events, and routing it
-    // through state would re-render the entire conversation on every frame.
-    bar.style.transform = `translate3d(0, ${(progress * 6).toFixed(1)}px, 0) scaleX(${(1 + progress * .5).toFixed(3)})`;
-    bar.style.opacity   = String(0.35 + progress * 0.65);
-  }
-
-  function reset() {
-    originRef.current = null;
-    paint(0);
-  }
-
-  return (
-    <div
-      role="button"
-      tabIndex={0}
-      aria-label="Minimise conversation"
-      onKeyDown={e => {
-        // The gesture has a keyboard equivalent, because a drag has none.
-        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onDismiss?.(); }
-      }}
-      onPointerDown={e => {
-        e.currentTarget.setPointerCapture?.(e.pointerId);
-        originRef.current = { x: e.clientX, y: e.clientY };
-      }}
-      onPointerMove={e => {
-        const o = originRef.current;
-        if (!o) return;
-        paint(pullProgress({ dy: e.clientY - o.y }));
-      }}
-      onPointerUp={e => {
-        const o = originRef.current;
-        reset();
-        if (!o) return;
-        if (shouldDismiss({ dx: e.clientX - o.x, dy: e.clientY - o.y })) onDismiss?.();
-      }}
-      // A drag that the system takes away (a call, a notification) must leave
-      // the handle at rest rather than stuck mid-pull.
-      onPointerCancel={reset}
-      onLostPointerCapture={reset}
-      style={{
-        flexShrink: 0,
-        height: 34,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        cursor: 'grab',
-        touchAction: 'none',
-        userSelect: 'none', WebkitUserSelect: 'none',
-      }}
-    >
-      <span
-        ref={barRef}
-        style={{
-          width: 38, height: 4, borderRadius: 999,
-          background: 'rgba(255,255,255,.30)',
-          opacity: .35,
-          transition: 'opacity .18s ease',
-          willChange: 'transform, opacity',
-        }}
       />
     </div>
   );
