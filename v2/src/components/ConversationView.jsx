@@ -5,6 +5,8 @@ import {
   listMessages, listParticipants, actableProfileIds,
   sendMessage, markConversationRead,
 } from '../lib/messaging';
+import { sendVoiceNote } from '../lib/voiceNotes';
+import VoiceRecorderButton from './VoiceRecorderButton';
 import { useConversationUi } from '../lib/conversationUi';
 import { PROFILE_TYPES } from '../lib/profileTypes';
 import { renderMessage } from '../lib/messageKinds';
@@ -333,6 +335,40 @@ export default function ConversationView({ conversationId, compact = false, onMi
     await markConversationRead(conversationId);
   }
 
+  /**
+   * A finished recording, on its way to becoming a message.
+   *
+   * Everything after the upload is identical to sending text — the same
+   * optimistic append, the same preview patch, the same read mark. That
+   * sameness is the point: a voice note is a message with a different kind,
+   * not a second send path that has to be kept in step with this one.
+   */
+  async function onRecordedVoice({ blob, durationMs }) {
+    if (!senderProfile || sending) return;
+    setSending(true);
+    setError(null);
+
+    const { message, error: sendError } = await sendVoiceNote({
+      conversationId,
+      fromProfileId: senderProfile,
+      blob,
+      durationMs,
+    });
+
+    if (sendError) {
+      // Upload and insert failures arrive here identically, and should: the
+      // sender only cares that it did not send.
+      setError(sendError.message ?? 'Could not send that recording.');
+      setSending(false);
+      return;
+    }
+
+    setMessages(prev => [...prev, message]);
+    setSending(false);
+    patch(conversationId, { lastPreview: { text: message.body, kind: message.kind } }, true);
+    await markConversationRead(conversationId);
+  }
+
   const title       = others.map(o => o.profiles?.name).filter(Boolean).join(', ') || 'Conversation';
   const otherHead   = others[0]?.profiles ?? null;
   const otherMeta   = PROFILE_TYPES[otherHead?.type] ?? {};
@@ -576,8 +612,20 @@ export default function ConversationView({ conversationId, compact = false, onMi
           // you feel as imbalance without being able to name it.
           style={{ flex: 1, minWidth: 0, height: 46, boxSizing: 'border-box', background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.10)', borderRadius: 999, padding: '0 18px', color: 'var(--text)', fontSize: 14.5, outline: 'none' }}
         />
+        {/* The mic takes the send button's place when nothing is typed, rather
+            than sitting beside it. Two always-visible actions would make the
+            composer ask which one you meant on every message; the draft
+            already answers that. */}
+        {!draft.trim() && (
+          <VoiceRecorderButton
+            disabled={!senderProfile || sending}
+            onNotice={setError}
+            onRecorded={onRecordedVoice}
+          />
+        )}
         <button
           type="submit"
+          hidden={!draft.trim()}
           disabled={!senderProfile || sending || !draft.trim()}
           aria-label="Send"
           style={{ border: 'none', borderRadius: 999, width: 46, height: 46, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: senderProfile && draft.trim() ? 'pointer' : 'not-allowed', background: senderProfile && draft.trim() ? 'linear-gradient(135deg, #00E5FF, #BF5FFF)' : 'rgba(255,255,255,.07)', color: senderProfile && draft.trim() ? '#0a0a0f' : 'rgba(255,255,255,.3)', boxShadow: senderProfile && draft.trim() ? '0 8px 22px -8px rgba(191,95,255,.75)' : 'none', transition: 'background .25s ease, box-shadow .25s ease' }}
