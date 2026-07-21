@@ -27,6 +27,26 @@ import ConversationView from './ConversationView';
  */
 const MAX_VISIBLE_TABS = 3;
 
+/**
+ * The 20px avatar shared by a docked tab and its overflow row.
+ *
+ * One definition so the two can never diverge — the fan is literally the same
+ * conversation shown somewhere else, and a tab that looks different once it
+ * overflows would read as a different thing.
+ *
+ * Falls back to the initial on a gradient when a profile has no image, which
+ * is also what an unclaimed profile looks like.
+ */
+function TabAvatar({ name, src }) {
+  return (
+    <span style={{ width: 20, height: 20, borderRadius: 999, overflow: 'hidden', flexShrink: 0, background: 'linear-gradient(135deg, #00E5FF, #BF5FFF)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0a0a0f', fontFamily: "'Bebas Neue',sans-serif", fontSize: 10 }}>
+      {src
+        ? <img src={src} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        : (name ?? '?').slice(0, 1).toUpperCase()}
+    </span>
+  );
+}
+
 export default function ConversationDock() {
   const { openId, minimised, open, minimise, dismiss, getState } = useConversationUi();
   const location = useLocation();
@@ -120,9 +140,7 @@ export default function ConversationDock() {
                             aria-label={`Reopen conversation with ${nm}`}
                             style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0, background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', padding: 0 }}
                           >
-                            <span style={{ width: 20, height: 20, borderRadius: 999, background: 'linear-gradient(135deg, #00E5FF, #BF5FFF)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0a0a0f', fontFamily: "'Bebas Neue',sans-serif", fontSize: 10, flexShrink: 0 }}>
-                              {nm.slice(0, 1).toUpperCase()}
-                            </span>
+                            <TabAvatar name={nm} src={st.profile?.avatar} />
                             <span style={{ minWidth: 0, flex: 1, color: 'rgba(255,255,255,.86)', fontSize: 12.5, fontWeight: 550, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                               {nm}
                             </span>
@@ -292,9 +310,7 @@ function ConversationPill({ state, onOpen, onDismiss }) {
         aria-label={`Reopen conversation with ${name}`}
         style={{ display: 'flex', alignItems: 'center', gap: 7, flex: 1, minWidth: 0, background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', padding: 0 }}
       >
-        <span style={{ width: 20, height: 20, borderRadius: 999, background: 'linear-gradient(135deg, #00E5FF, #BF5FFF)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0a0a0f', fontFamily: "'Bebas Neue',sans-serif", fontSize: 10, flexShrink: 0 }}>
-          {name.slice(0, 1).toUpperCase()}
-        </span>
+        <TabAvatar name={name} src={state.profile?.avatar} />
 
         {/* Name only. The subtitle is gone: "Tap to continue" told the user
             nothing they could not infer, and a message preview is content —

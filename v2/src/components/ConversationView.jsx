@@ -127,6 +127,9 @@ export default function ConversationView({ conversationId, compact = false, onMi
   // every tapped message would slowly rebuild the timestamp column this
   // replaced.
   const [revealedId, setRevealedId] = useState(null);
+  // profile_id -> profile, so a received bubble can show its speaker. Keyed by
+  // the ATTRIBUTION id (from_profile_id), never the human — §A3.
+  const [profilesById, setProfilesById] = useState({});
   const scrollRef = useRef(null);
   const inputRef  = useRef(null);
   const atBottomRef = useRef(true);
@@ -182,9 +185,24 @@ export default function ConversationView({ conversationId, compact = false, onMi
       const otherParties = participants.filter(p => p.profile_id !== mineRow?.profile_id);
       setOthers(otherParties);
 
-      // Seed the pill so a minimised conversation can name who it is with.
+      // Every participant, so a received bubble can show who said it without
+      // re-fetching per message.
+      setProfilesById(Object.fromEntries(
+        participants.filter(p => p.profiles).map(p => [p.profile_id, p.profiles]),
+      ));
+
+      // Seed the pill so a minimised conversation can name AND show who it is
+      // with — the tab carries the avatar too, so it is recognisable at a
+      // glance rather than by reading.
       const head = otherParties[0]?.profiles;
-      if (head) patch(conversationId, { profile: { id: head.id, name: head.name, type: head.type } }, true);
+      if (head) {
+        patch(conversationId, {
+          profile: {
+            id: head.id, name: head.name, type: head.type,
+            avatar: head.avatar_thumb || head.avatar || null,
+          },
+        }, true);
+      }
 
       const { messages: rows } = await listMessages(conversationId);
       if (cancelled.current) return;
@@ -502,6 +520,7 @@ export default function ConversationView({ conversationId, compact = false, onMi
                 // Drives shape and spacing only — where a burst ends. Time is
                 // no longer tied to it.
                 endsBurst={!sameAsNext}
+                speaker={profilesById[m.from_profile_id]}
                 revealed={revealedId === m.id}
                 onToggleTime={() => setRevealedId(id => (id === m.id ? null : m.id))}
               />
@@ -574,8 +593,17 @@ export default function ConversationView({ conversationId, compact = false, onMi
  * YesPleez cards land as branches rather than a rewrite. Only `text` exists —
  * the others are declared, not built, and nothing here pretends otherwise.
  */
-function MessageBubble({ message, isMine, grouped = false, endsBurst = true, revealed = false, onToggleTime }) {
+function MessageBubble({ message, isMine, grouped = false, endsBurst = true, speaker, revealed = false, onToggleTime }) {
   const kind = message.kind ?? 'text';
+
+  // Avatar on RECEIVED messages only — you know who you are. Rendered once per
+  // burst, on the last message, so a run of five gets one avatar rather than
+  // five. Mid-burst messages get a same-width spacer so every bubble in the
+  // run stays on the same left edge; without it the run would stagger.
+  const meta   = PROFILE_TYPES[speaker?.type] ?? {};
+  const accent = meta.accent ?? '#BF5FFF';
+  const avatar = speaker?.avatar_thumb || speaker?.avatar || meta.defaultImage;
+  const AVATAR = 26;
 
   // The tail corner belongs to the LAST bubble of a burst. Mid-burst bubbles
   // keep square-ish inner corners so a run reads as one block.
@@ -584,12 +612,27 @@ function MessageBubble({ message, isMine, grouped = false, endsBurst = true, rev
   return (
     <div style={{
       display: 'flex',
+      alignItems: 'flex-end',
+      gap: 8,
       justifyContent: isMine ? 'flex-end' : 'flex-start',
       // 3px inside a burst, 14px between turns. The gap is what separates
       // "one person talking" from "two people exchanging".
       marginBottom: endsBurst ? 14 : 3,
       marginTop: grouped ? 0 : 2,
     }}>
+      {!isMine && (
+        endsBurst ? (
+          <span title={speaker?.name} style={{ width: AVATAR, height: AVATAR, borderRadius: 999, flexShrink: 0, padding: 1.5, background: `linear-gradient(135deg, ${accent}, ${meta.accent2 ?? '#00E5FF'})`, display: 'flex' }}>
+            <span style={{ width: '100%', height: '100%', borderRadius: 999, overflow: 'hidden', background: '#0d0d10', display: 'flex', alignItems: 'center', justifyContent: 'center', color: accent, fontFamily: "'Bebas Neue',sans-serif", fontSize: 11 }}>
+              {avatar
+                ? <img src={avatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                : (speaker?.name ?? '?').slice(0, 1).toUpperCase()}
+            </span>
+          </span>
+        ) : (
+          <span aria-hidden="true" style={{ width: AVATAR, flexShrink: 0 }} />
+        )
+      )}
       {/* Sent messages carry the canonical cyan→purple gradient, held at low
           alpha so it reads as tinted glass rather than neon.
 

@@ -242,7 +242,15 @@ export default function InboxScreen() {
               // inbox is for search, archive and management, not for reading.
               onClick={() => openConversation(c.id, {
                 profile: other?.profiles
-                  ? { id: other.profiles.id, name: other.profiles.name, type: other.profiles.type }
+                  ? {
+                      id: other.profiles.id,
+                      name: other.profiles.name,
+                      type: other.profiles.type,
+                      // Seeded here as well as in ConversationView, so a tab
+                      // minimised immediately shows the avatar rather than an
+                      // initial until the conversation finishes loading.
+                      avatar: other.profiles.avatar_thumb || other.profiles.avatar || null,
+                    }
                   : null,
               })}
               // Parity with the conversation surface: 18px radius and the same
