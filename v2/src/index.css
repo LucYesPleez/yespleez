@@ -194,9 +194,25 @@ input, textarea, select {
 
    `contain` rather than `cover`: the mark is portrait and cover would crop the
    fingers off inside a square box. */
+/* OPTICAL CENTRING — the artwork is not centred in its own canvas.
+
+   Measured on hand-mark.png (1078×1078): the ink occupies x 36..765, so there
+   is 36px of padding on the left and 312px on the right. Its centre sits at
+   400.5 where the canvas centre is 539 — 12.85% of the width to the left. The
+   vertical offset is 2.23% up, from 52px top padding against 99px bottom.
+   That is why it reads as off-centre in a round button: it IS off-centre.
+
+   Corrected by translating the element rather than editing the file, since the
+   artwork is used unmodified by decision. Percentages, so it holds at every
+   size — 38px in the composer, 22px on a reaction badge, 58px in a thread.
+
+   `mask-position` cannot do this: with `contain` and a square image in a square
+   box there is no overflow, so positional percentages have nothing to slide
+   against. Regenerate a cropped asset and this rule comes out. */
 .yp-hand {
   display: inline-block;
   flex-shrink: 0;
+  transform: translate(12.85%, 2.23%);
   background-color: currentColor;
   -webkit-mask-image: url('/hand-mark.png');
           mask-image: url('/hand-mark.png');
