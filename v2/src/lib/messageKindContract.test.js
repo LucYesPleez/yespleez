@@ -32,7 +32,7 @@ import { fileURLToPath } from 'node:url';
 const MIGRATION = fileURLToPath(
   new URL('../../../supabase/migrations/20260721000000_m9a_message_kinds.sql', import.meta.url),
 );
-const REGISTRY = fileURLToPath(new URL('./messageKinds.jsx', import.meta.url));
+import { KINDS, LABELS } from './messageKindList.js';
 
 /** The kinds the DATABASE will accept — from `messages_kind_valid`. */
 function kindsInMigration() {
@@ -42,12 +42,18 @@ function kindsInMigration() {
   return quoted(match[1]);
 }
 
-/** The kinds the CLIENT will render — from `export const KINDS`. */
+/**
+ * The kinds the CLIENT will render.
+ *
+ * Imported, not parsed. This was regex over `messageKinds.jsx` because JSX
+ * cannot be imported by the test runner; the list now lives in a plain-data
+ * module the registry re-exports, so the test compares against the REAL value
+ * the app uses rather than against source text that merely looks like it.
+ *
+ * The migration side stays textual — SQL cannot be imported at all.
+ */
 function kindsInRegistry() {
-  const src = readFileSync(REGISTRY, 'utf8');
-  const match = src.match(/export\s+const\s+KINDS\s*=\s*\[([\s\S]*?)\]/);
-  if (!match) throw new Error('no `export const KINDS = [...]` in messageKinds.jsx — has it been renamed?');
-  return quoted(match[1]);
+  return KINDS;
 }
 
 /** Single-quoted string literals, in order, ignoring comments and whitespace. */
@@ -73,12 +79,19 @@ test('the client kind list matches the database CHECK exactly', () => {
 test('every kind has a human label', () => {
   // A kind with no label renders unnamed in the fallback — an unplayable voice
   // note that does not say it is a voice note.
-  const src = readFileSync(REGISTRY, 'utf8');
-  const block = src.match(/export\s+const\s+LABELS\s*=\s*\{([\s\S]*?)\n\}/);
-  assert.ok(block, 'no `export const LABELS = {...}` in messageKinds.jsx');
-
-  const labelled = new Set([...block[1].matchAll(/^\s*(\w+)\s*:/gm)].map(m => m[1]));
   for (const kind of kindsInMigration()) {
-    assert.ok(labelled.has(kind), `kind '${kind}' has no entry in LABELS`);
+    assert.ok(LABELS[kind], `kind '${kind}' has no entry in LABELS`);
   }
+});
+
+test('the registry still re-exports the list the app imports', () => {
+  // The split is an implementation detail: `messageKinds.jsx` must remain the
+  // one import a caller needs. If the re-export is dropped, every consumer
+  // that reaches through the registry breaks — and this file would not notice,
+  // because it imports the data module directly.
+  const src = readFileSync(fileURLToPath(new URL('./messageKinds.jsx', import.meta.url)), 'utf8');
+  assert.match(src, /export\s*\{[^}]*\bKINDS\b[^}]*\}\s*from\s*'\.\/messageKindList'/,
+    'messageKinds.jsx must re-export KINDS from messageKindList');
+  assert.match(src, /export\s*\{[^}]*\bLABELS\b[^}]*\}\s*from\s*'\.\/messageKindList'/,
+    'messageKinds.jsx must re-export LABELS from messageKindList');
 });

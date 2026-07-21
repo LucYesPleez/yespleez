@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { isKind } from './messageKindList';
 
 /**
  * The one place messages are sent and read.
@@ -178,14 +179,32 @@ export async function openDirectConversation(fromProfileId, toProfileId) {
  * @param {object} opts
  * @param {string} opts.conversationId
  * @param {string} opts.fromProfileId  which of the sender's profiles is speaking (§A3)
- * @param {string} opts.body
+ * @param {string} opts.body    for a non-text kind this is the FALLBACK text —
+ *                              what a notification preview, a screen reader and
+ *                              an older client will show. Required either way.
+ * @param {string} [opts.kind]  M9a. Omitted means text, applied by the column
+ *                              default rather than by a literal here.
+ * @param {object} [opts.payload] kind-specific structure. The renderer owns its
+ *                              shape; the database validates none of it.
  * @returns {Promise<{message: object|null, error: object|null}>}
  */
-export async function sendMessage({ conversationId, fromProfileId, body } = {}) {
+export async function sendMessage({ conversationId, fromProfileId, body, kind, payload } = {}) {
   // Mirror CHECK messages_body_not_blank rather than letting Postgres raise it.
   // A constraint name is not a message a UI can show.
+  //
+  // body is required for EVERY kind, not just text. A voice note sends
+  // 'Voice message' — M9a keeps the column non-blank precisely so an
+  // unrenderable message is still legible to the three surfaces that only ever
+  // see text.
   if (!conversationId || !fromProfileId || !body || !body.trim()) {
     return { message: null, error: { message: 'sendMessage: conversationId, fromProfileId and a non-blank body are required' } };
+  }
+
+  // Mirror CHECK messages_kind_valid, same reasoning as body above. The
+  // database remains the authority — this exists so a typo surfaces as a
+  // sentence instead of as `23514 messages_kind_valid`.
+  if (kind !== undefined && !isKind(kind)) {
+    return { message: null, error: { message: `sendMessage: '${kind}' is not a message kind` } };
   }
 
   // §A3 AUDIT identity — from the session, never from the caller. See header.
@@ -203,6 +222,12 @@ export async function sendMessage({ conversationId, fromProfileId, body } = {}) 
       from_profile_id: fromProfileId,   // ATTRIBUTION — the caller's choice
       from_user_id:    userId,          // AUDIT — the session's, always
       body:            body.trim(),
+      // Spread rather than set: an omitted kind must reach Postgres ABSENT so
+      // the column default applies. Writing `kind: kind ?? 'text'` here would
+      // put a client literal on every row, which is the shape of bug that made
+      // lastPreview claim 'text' for messages that had no kind at all.
+      ...(kind    !== undefined && { kind }),
+      ...(payload !== undefined && { payload }),
     })
     .select(MESSAGE_COLUMNS)
     .single();

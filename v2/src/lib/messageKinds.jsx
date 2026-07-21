@@ -28,18 +28,16 @@
  */
 
 /**
- * Canonical kinds. MUST stay in step with the CHECK in
- * `20260721000000_m9a_message_kinds.sql` — the database is the authority, this
- * is the client's copy of the same list.
+ * Canonical kinds and their labels, re-exported so this file stays the one
+ * import anything needs. They LIVE in `messageKindList.js` — plain data with
+ * no JSX, so the data layer and `node --test` can reach them; both are shut
+ * out of this file by the JSX in it.
+ *
+ * MUST stay in step with the CHECK in `20260721000000_m9a_message_kinds.sql`
+ * — the database is the authority, this is the client's copy of the same list.
  */
-export const KINDS = [
-  // Authored by the sender
-  'text', 'voice', 'image', 'video', 'file', 'location',
-  // Authored by a workflow act
-  'event', 'application', 'booking', 'approval',
-  // Authored by the platform, via a system profile (C29)
-  'system',
-];
+export { KINDS, LABELS, isKind } from './messageKindList';
+import { KINDS, LABELS } from './messageKindList';
 
 /** Text is the only kind with a renderer today. Everything else falls back. */
 function renderText(message) {
@@ -74,20 +72,6 @@ function renderFallback(message, kind) {
   );
 }
 
-/** Human labels, used by the fallback and available to previews and badges. */
-export const LABELS = {
-  text:        'Message',
-  voice:       'Voice message',
-  image:       'Photo',
-  video:       'Video',
-  file:        'File',
-  location:    'Location',
-  event:       'Event',
-  application: 'Application',
-  booking:     'Booking',
-  approval:    'Approval',
-  system:      'System message',
-};
 
 /**
  * kind → renderer. Only text is implemented; the rest resolve to the fallback
