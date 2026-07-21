@@ -80,3 +80,44 @@ test('a Hand needs a conversation and a sender', async () => {
   assert.ok(missing.error, 'a Hand with no sender must not reach the database');
   assert.equal(inserted.length, 0);
 });
+
+// ── the acknowledgement is not drawn in a bubble ────────────────────
+
+test('hand is a BARE kind and text is not', async () => {
+  const { isBareKind } = await import('./messageKindList.js');
+  // A bubble means "someone said this". An acknowledgement is not saying
+  // anything — it IS the thing, so wrapping it makes it a picture of a gesture.
+  assert.equal(isBareKind('hand'), true);
+  assert.equal(isBareKind('text'), false);
+  assert.equal(isBareKind('voice'), false);
+  assert.equal(isBareKind(undefined), false, 'a message with no kind must still get its bubble');
+});
+
+test('every bare kind is a real kind', async () => {
+  const { BARE_KINDS, KINDS: K } = await import('./messageKindList.js');
+  // A bare kind the database would reject is a presentation rule for a message
+  // that can never exist.
+  for (const k of BARE_KINDS) assert.ok(K.includes(k), `'${k}' is bare but not a kind`);
+});
+
+// ── scale, designed in before it is driven ──────────────────────────
+
+test('scale defaults to the minimum and never escapes its range', async () => {
+  const { handScale, HAND_SCALE_MIN, HAND_SCALE_MAX } = await import('./messageKindList.js');
+  // payload is unvalidated by design (M9a), so the renderer owns this.
+  assert.equal(handScale(undefined), HAND_SCALE_MIN);
+  assert.equal(handScale(null), HAND_SCALE_MIN);
+  assert.equal(handScale('nonsense'), HAND_SCALE_MIN, 'junk must not render a NaN-sized mark');
+  assert.equal(handScale(NaN), HAND_SCALE_MIN);
+  assert.equal(handScale(-40), HAND_SCALE_MIN, 'a negative scale would flip or vanish the mark');
+  assert.equal(handScale(9999), HAND_SCALE_MAX, 'an unbounded scale would fill the screen');
+  assert.equal(handScale(2), 2, 'a legitimate value passes through');
+});
+
+test('a tap sends no scale at all', async () => {
+  // Same rule as waveform peaks: omit the default rather than writing it. A key
+  // holding the default answers the renderer identically to no key, and costs
+  // bytes on every read of every message forever.
+  await sendHand({ conversationId: CONV, fromProfileId: PROFILE });
+  assert.equal(inserted.at(-1).row.payload, undefined);
+});

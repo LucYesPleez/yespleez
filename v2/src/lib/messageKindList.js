@@ -52,3 +52,52 @@ export const LABELS = {
 export function isKind(kind) {
   return KINDS.includes(kind);
 }
+
+/**
+ * KINDS THAT ARE NOT DRAWN IN A BUBBLE.
+ *
+ * A bubble says "someone said this". Some messages are not saying anything —
+ * they ARE the thing. An acknowledgement is a mark, and wrapping a mark in a
+ * speech bubble makes it look like a picture of a gesture rather than the
+ * gesture itself. Messenger's standalone 👍 works for exactly this reason.
+ *
+ * Bare kinds keep everything else a message has — position in the thread, the
+ * sender's side, the avatar, the timestamp, read state, scrolling. ONLY the
+ * container is dropped: no background, no border, no padding, no tail.
+ *
+ * Declared here rather than branched on inside the bubble, because "is this
+ * drawn in a bubble" is a property of the KIND, and the kind list is the one
+ * place that knows about kinds.
+ */
+export const BARE_KINDS = new Set(['hand']);
+
+/** True when this kind renders as a standalone graphic, not inside a bubble. */
+export function isBareKind(kind) {
+  return BARE_KINDS.has(kind);
+}
+
+/**
+ * ACKNOWLEDGEMENT SIZING — designed in now, driven later.
+ *
+ * A quick tap sends the default. A future press-and-hold will send something
+ * bigger, the way Messenger grows an emoji the longer you hold it.
+ *
+ * `payload.scale` is stored rather than a pixel size: pixels are a rendering
+ * decision that changes with the design, while "the sender meant this one
+ * BIGGER" is a fact about the message that stays true forever. Storing pixels
+ * would freeze today's layout into every row.
+ *
+ * Supported from the outset because payload shape is the expensive thing to
+ * change afterwards — every Hand sent before a scale existed would need
+ * rewriting, which is the same asymmetry that made waveform peaks a
+ * record-time decision.
+ */
+export const HAND_SCALE_MIN = 1;
+export const HAND_SCALE_MAX = 3;
+
+/** Clamp an incoming scale. Payloads are unvalidated by design (M9a). */
+export function handScale(raw) {
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return HAND_SCALE_MIN;
+  return Math.min(HAND_SCALE_MAX, Math.max(HAND_SCALE_MIN, n));
+}

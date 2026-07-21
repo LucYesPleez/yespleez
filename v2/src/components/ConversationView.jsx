@@ -10,7 +10,7 @@ import { sendHand } from '../lib/hands';
 import Composer from './Composer';
 import { useConversationUi } from '../lib/conversationUi';
 import { PROFILE_TYPES } from '../lib/profileTypes';
-import { renderMessage } from '../lib/messageKinds';
+import { renderMessage, isBareKind } from '../lib/messageKinds';
 
 /**
  * ONE conversation, rendered identically in the DRAWER and in the FULL PAGE.
@@ -46,14 +46,6 @@ import { renderMessage } from '../lib/messageKinds';
  */
 const GROUP_WINDOW_MS = 5 * 60 * 1000;
 
-/**
- * How long a thread must be quiet before the next message earns a time marker.
- *
- * Twenty minutes is the point where "when was this?" becomes a real question.
- * Below it the conversation is still one sitting and a marker is clutter.
- */
-const DORMANT_MS = 20 * 60 * 1000;
-
 const dayKey = iso => new Date(iso).toDateString();
 const withinWindow = (a, b) => (new Date(b) - new Date(a)) < GROUP_WINDOW_MS;
 const timeOf = iso => new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -67,11 +59,12 @@ function dayLabel(iso) {
 }
 
 /**
- * Centred marker carrying WHEN. Quiet — it orients, it does not announce.
+ * Centred DATE marker. Quiet — it orients, it does not announce.
  *
- * Marks days and long silences. Each bubble also carries its own time now, so
- * this is orientation at the scale of the thread rather than the only place
- * time exists.
+ * Days only. Every bubble carries its own clock, so a marker that also carried
+ * a time repeated what was already on screen, and the old dormant-gap marker
+ * was nothing BUT a time. What a bubble cannot say is which day 18:10 was, and
+ * that is all this is for now.
  */
 function ThreadMarker({ label }) {
   return (
@@ -574,13 +567,15 @@ export default function ConversationView({ conversationId, compact = false, onMi
           // reads as a single undifferentiated column.
           const newDay = !prev || dayKey(prev.created_at) !== day;
 
-          // ...and so does a thread waking up after being quiet. Between the
-          // two, time is simply not mentioned.
-          const dormant = prev && (new Date(m.created_at) - new Date(prev.created_at)) >= DORMANT_MS;
-
-          const markerLabel = newDay
-            ? `${dayLabel(m.created_at)} · ${timeOf(m.created_at)}`
-            : dormant ? timeOf(m.created_at) : null;
+          // DATE ONLY — never a time.
+          //
+          // Every bubble carries its own clock now, so a marker that repeated
+          // it said the same thing twice on the same screen. The dormant-gap
+          // marker was PURELY a time and is gone entirely.
+          //
+          // Day markers stay, and are not redundant: a bubble shows 18:10, and
+          // only the marker can say whether that was today or three weeks ago.
+          const markerLabel = newDay ? dayLabel(m.created_at) : null;
 
           // Consecutive messages from the same sender inside GROUP_WINDOW are
           // one burst, not separate exchanges. Grouping is what turns a list
@@ -673,6 +668,11 @@ function MessageBubble({ message, isMine, grouped = false, endsBurst = true, spe
   // keep square-ish inner corners so a run reads as one block.
   const tail = endsBurst ? 6 : 20;
 
+  // Asked of the registry, not decided here. Whether a kind is drawn in a
+  // bubble is a fact about the kind, and this component deliberately knows
+  // nothing else about kinds.
+  const bare = isBareKind(message.kind);
+
   return (
     <div style={{
       display: 'flex',
@@ -704,9 +704,22 @@ function MessageBubble({ message, isMine, grouped = false, endsBurst = true, spe
           surface, which left the other participant quieter than you in their
           own conversation. Lifted to .085 with a .12 border: legible and
           clearly present, still nowhere near bright, and still visibly the
-          calmer of the two so the gradient keeps the lead. */}
+          calmer of the two so the gradient keeps the lead.
+
+          BARE KINDS GET NONE OF IT. An acknowledgement is not someone SAYING
+          something, so it is not drawn in a thing that means "someone said
+          this" — no background, no border, no padding, no tail. It keeps its
+          side, its avatar, its place in the order and its timestamp, because
+          it is still a message in every respect except how it looks. */}
       <div
-        style={{
+        style={bare ? {
+          maxWidth: '76%',
+          // The mark supplies its own presence; padding here would only push
+          // the timestamp away from it.
+          padding: 0,
+          background: 'none',
+          border: 'none',
+        } : {
         maxWidth: '76%',
         borderRadius: isMine
           ? `20px 20px ${tail}px 20px`

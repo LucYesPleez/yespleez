@@ -36,8 +36,8 @@
  * MUST stay in step with the CHECK in `20260721000000_m9a_message_kinds.sql`
  * — the database is the authority, this is the client's copy of the same list.
  */
-export { KINDS, LABELS, isKind } from './messageKindList';
-import { KINDS, LABELS } from './messageKindList';
+export { KINDS, LABELS, isKind, isBareKind, BARE_KINDS } from './messageKindList';
+import { KINDS, LABELS, handScale, HAND_SCALE_MIN } from './messageKindList';
 import VoiceMessage from '../components/VoiceMessage';
 import HandIcon from '../components/HandIcon';
 
@@ -87,22 +87,52 @@ function renderFallback(message, kind) {
 const RENDERERS = {
   text:  renderText,
   voice: message => <VoiceMessage message={message} />,
-  // The Hand: YesPleez's universal acknowledgement. No text of its own — the
-  // mark IS the message, so it renders as the mark at conversational scale
-  // rather than as the word 'Yes' its body carries for previews and screen
-  // readers.
-  hand:  () => <HandMessage />,
+  // The Hand: YesPleez's universal acknowledgement. A BARE kind — see
+  // BARE_KINDS — so MessageBubble draws no container around this and the mark
+  // stands alone in the thread.
+  hand:  message => <HandMessage message={message} />,
 };
 
-/** A Hand, at the size of something someone said. */
-function HandMessage() {
+/**
+ * A Hand, standing on its own in the thread.
+ *
+ * No bubble, no background, no label. The mark IS the message: an
+ * acknowledgement is not someone SAYING "yes", it is someone GIVING a yes, and
+ * a speech bubble around it turns the gesture into a picture of a gesture.
+ * Messenger's standalone 👍 is the same idea with a borrowed symbol.
+ *
+ * The word 'Yes' still exists — in `body`, where the inbox preview, the push
+ * notification and the screen reader read it. It is simply not drawn here,
+ * because next to the mark it would be a caption explaining the obvious.
+ *
+ * Size comes from `payload.scale`, defaulting to 1. Press-and-hold sizing is
+ * not built, but nothing here needs to change when it is.
+ */
+function HandMessage({ message }) {
+  const scale = handScale(message?.payload?.scale ?? HAND_SCALE_MIN);
+
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 9, color: 'var(--text)' }}>
-      <HandIcon size={30} />
-      <span style={{ fontSize: 13, color: 'var(--muted)', letterSpacing: '.04em' }}>Yes</span>
-    </div>
+    <span
+      // Presentational, so the accessible name comes from `body` via the
+      // thread rather than from the mark. Without this a screen reader would
+      // announce nothing at all — the mark carries no text.
+      role="img"
+      aria-label="Yes"
+      style={{ display: 'inline-flex', color: 'var(--text)' }}
+    >
+      <HandIcon size={HAND_BASE_PX * scale} />
+    </span>
   );
 }
+
+/**
+ * The default drawn size of an acknowledgement.
+ *
+ * Deliberately large — several times an icon. It is standing in open space
+ * with no bubble to give it presence, and at bubble-text size it would read as
+ * a stray glyph someone left behind rather than as a deliberate gesture.
+ */
+const HAND_BASE_PX = 58;
 
 /**
  * Resolve a renderer for a message.
