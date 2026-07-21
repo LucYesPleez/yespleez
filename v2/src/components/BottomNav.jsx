@@ -50,6 +50,17 @@ export default function BottomNav({ activeTab, onTabPress, messagesBadge = 0 }) 
           key={id}
           className={activeTab === id ? s.tabActive : s.tab}
           onClick={() => handlePress(id, path)}
+          /* Unread messages give the Messages tab a gradient BORDER — no glow.
+             The two-background trick: a transparent padding-box lets the nav
+             show through the middle, while the border-box carries the
+             gradient. A plain `border` cannot take a gradient, and painting a
+             solid approximation would drift from the brand ramp used
+             everywhere else. */
+          style={id === 'messages' && messagesBadge > 0 ? {
+            background: 'linear-gradient(transparent, transparent) padding-box, linear-gradient(135deg, #00E5FF, #BF5FFF) border-box',
+            border: '1px solid transparent',
+            borderRadius: 14,
+          } : undefined}
         >
           <span className={s.iconWrap} style={{ position: 'relative' }}>
             <Icon />

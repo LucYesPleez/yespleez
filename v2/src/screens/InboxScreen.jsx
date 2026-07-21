@@ -280,10 +280,16 @@ export default function InboxScreen() {
               // rather than being repeated on everything.
               style={{
                 display: 'block', width: '100%', textAlign: 'left', cursor: 'pointer', textDecoration: 'none',
-                border: `1px solid ${c.unread > 0 ? 'rgba(191,95,255,.45)' : 'rgba(255,255,255,.08)'}`,
+                border: `1px solid ${c.unread > 0 ? 'rgba(191,95,255,.62)' : 'rgba(255,255,255,.08)'}`,
                 borderRadius: 18, padding: '15px 16px', marginBottom: 11,
-                background: c.unread > 0 ? 'rgba(191,95,255,.07)' : 'rgba(255,255,255,.022)',
-                boxShadow: c.unread > 0 ? '0 0 20px -6px rgba(191,95,255,.55)' : 'none',
+                background: c.unread > 0 ? 'rgba(191,95,255,.10)' : 'rgba(255,255,255,.022)',
+                // Two shadows: a tight ring that reads as the edge glowing,
+                // and a wider bloom for spill. The previous single shadow used
+                // a -6px spread, which pulled it so far inside the border that
+                // it was invisible against the dark surface.
+                boxShadow: c.unread > 0
+                  ? '0 0 0 1px rgba(191,95,255,.28), 0 0 26px rgba(191,95,255,.35)'
+                  : 'none',
                 opacity: c.isArchived ? 0.55 : 1,
               }}
             >
