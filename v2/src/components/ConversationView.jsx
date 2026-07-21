@@ -6,7 +6,8 @@ import {
   sendMessage, markConversationRead,
 } from '../lib/messaging';
 import { sendVoiceNote } from '../lib/voiceNotes';
-import VoiceRecorderButton from './VoiceRecorderButton';
+import { sendHand } from '../lib/hands';
+import Composer from './Composer';
 import { useConversationUi } from '../lib/conversationUi';
 import { PROFILE_TYPES } from '../lib/profileTypes';
 import { renderMessage } from '../lib/messageKinds';
@@ -307,6 +308,26 @@ export default function ConversationView({ conversationId, compact = false, onMi
     patch(conversationId, { draft: value });   // silent — no shell re-render
   }
 
+  /**
+   * What happens to EVERY message once it exists, whatever kind it is.
+   *
+   * Text, voice and Hand differ only in how the row is created; from here they
+   * are identical — optimistic append, preview patch, read mark. Written once
+   * because three copies of this is how the third one quietly drifts, and
+   * `writeNotification.js` already records what fifteen copies of a write path
+   * cost this codebase.
+   *
+   * The kind comes from the ROW, never a literal. `lastPreview` once said
+   * kind: 'text' while `messages` had no kind column at all — true by accident,
+   * and wrong the moment any other kind existed.
+   */
+  async function afterSend(message) {
+    setMessages(prev => [...prev, message]);
+    setSending(false);
+    patch(conversationId, { lastPreview: { text: message.body, kind: message.kind } }, true);
+    await markConversationRead(conversationId);
+  }
+
   async function onSend(e) {
     e.preventDefault();
     if (!draft.trim() || !senderProfile || sending) return;
@@ -325,14 +346,38 @@ export default function ConversationView({ conversationId, compact = false, onMi
       return;
     }
 
-    setMessages(prev => [...prev, message]);
     onDraftChange('');
-    setSending(false);
-    // The kind comes from the row, not from a literal. This said kind: 'text'
-    // while `messages` had no kind column — true by accident, and it would have
-    // stayed 'text' for a voice note and been wrong the moment one existed.
-    patch(conversationId, { lastPreview: { text: message.body, kind: message.kind } }, true);
-    await markConversationRead(conversationId);
+    await afterSend(message);
+  }
+
+  /**
+   * A Hand — YesPleez's universal acknowledgement, sent to the conversation.
+   *
+   * The ratified rule: a CONVERSATION Hand is a message, a MESSAGE Hand is
+   * metadata. This is the first form, so it is an ordinary message with an
+   * ordinary kind and no special path — which is why it is four lines.
+   *
+   * One tap sends it. No confirmation step, deliberately: a Yes that takes two
+   * taps is not a Yes worth having, and the entire value is that it costs
+   * nothing to send.
+   */
+  async function onSendHand() {
+    if (!senderProfile || sending) return;
+    setSending(true);
+    setError(null);
+
+    const { message, error: sendError } = await sendHand({
+      conversationId,
+      fromProfileId: senderProfile,
+    });
+
+    if (sendError) {
+      setError(sendError.message ?? 'Could not send.');
+      setSending(false);
+      return;
+    }
+
+    await afterSend(message);
   }
 
   /**
@@ -367,10 +412,7 @@ export default function ConversationView({ conversationId, compact = false, onMi
       throw sendError;
     }
 
-    setMessages(prev => [...prev, message]);
-    setSending(false);
-    patch(conversationId, { lastPreview: { text: message.body, kind: message.kind } }, true);
-    await markConversationRead(conversationId);
+    await afterSend(message);
   }
 
   const title       = others.map(o => o.profiles?.name).filter(Boolean).join(', ') || 'Conversation';
@@ -595,58 +637,25 @@ export default function ConversationView({ conversationId, compact = false, onMi
       {/* No borderTop. M2 removed the header's hard rule because it read as a
           bolted-on toolbar; the identical line was still here, so the surface
           was continuous at the top and abruptly segmented at the bottom.
-          Separation is now an upward wash — the mirror of the header's. */}
-      <form onSubmit={onSend} style={{
-        // `relative` is the positioning context for the recording bar, which
-        // overlays this row rather than joining it — so starting a recording
-        // reflows nothing (M9g).
-        position: 'relative',
-        display: 'flex', alignItems: 'center', gap: 9,
-        padding: '12px 16px 16px', flexShrink: 0,
-        background: 'linear-gradient(0deg, rgba(255,255,255,.035) 0%, rgba(255,255,255,0) 100%)',
-      }}>
-        <input
-          ref={inputRef}
-          value={draft}
-          onChange={e => { onDraftChange(e.target.value); rememberSelection(); }}
-          onSelect={rememberSelection}
-          onKeyUp={rememberSelection}
-          onBlur={rememberSelection}
-          disabled={!senderProfile || sending}
-          placeholder={senderProfile ? 'Type a message…' : 'You cannot write in this conversation'}
-          aria-label="Message"
-          // 13px padding puts the field at 46px, matching the send button
-          // exactly — they were 46 and 48, which is the kind of 2px mismatch
-          // you feel as imbalance without being able to name it.
-          style={{ flex: 1, minWidth: 0, height: 46, boxSizing: 'border-box', background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.10)', borderRadius: 999, padding: '0 18px', color: 'var(--text)', fontSize: 14.5, outline: 'none' }}
-        />
-        {/* The mic takes the send button's place when nothing is typed, rather
-            than sitting beside it. Two always-visible actions would make the
-            composer ask which one you meant on every message; the draft
-            already answers that. */}
-        {!draft.trim() && (
-          <VoiceRecorderButton
-            disabled={!senderProfile || sending}
-            onNotice={setError}
-            onRecorded={onRecordedVoice}
-          />
-        )}
-        <button
-          type="submit"
-          hidden={!draft.trim()}
-          disabled={!senderProfile || sending || !draft.trim()}
-          aria-label="Send"
-          style={{ border: 'none', borderRadius: 999, width: 46, height: 46, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: senderProfile && draft.trim() ? 'pointer' : 'not-allowed', background: senderProfile && draft.trim() ? 'linear-gradient(135deg, #00E5FF, #BF5FFF)' : 'rgba(255,255,255,.07)', color: senderProfile && draft.trim() ? '#0a0a0f' : 'rgba(255,255,255,.3)', boxShadow: senderProfile && draft.trim() ? '0 8px 22px -8px rgba(191,95,255,.75)' : 'none', transition: 'background .25s ease, box-shadow .25s ease' }}
-        >
-          {sending
-            ? '…'
-            : (
-              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M22 2 11 13" /><path d="M22 2 15 22l-4-9-9-4 20-7z" />
-              </svg>
-            )}
-        </button>
-      </form>
+          Separation is now an upward wash — the mirror of the header's.
+
+          The composer owns its own row entirely (M9h). This view no longer
+          renders the field, the mic or the send button, and no longer holds a
+          positioning context for anything to overlay — which is what the old
+          `inset: 0 62px 0 0` depended on. */}
+      <Composer
+        draft={draft}
+        onDraftChange={onDraftChange}
+        onSubmit={onSend}
+        onRecorded={onRecordedVoice}
+        onSendHand={onSendHand}
+        onNotice={setError}
+        sending={sending}
+        canWrite={Boolean(senderProfile)}
+        placeholder={senderProfile ? 'Type a message…' : 'You cannot write in this conversation'}
+        inputRef={inputRef}
+        onInputEvent={rememberSelection}
+      />
     </div>
   );
 }

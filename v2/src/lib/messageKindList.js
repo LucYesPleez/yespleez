@@ -22,7 +22,7 @@
 /** Canonical kinds, in the migration's order. */
 export const KINDS = [
   // Authored by the sender
-  'text', 'voice', 'image', 'video', 'file', 'location',
+  'text', 'voice', 'image', 'video', 'file', 'location', 'hand',
   // Authored by a workflow act
   'event', 'application', 'booking', 'approval',
   // Authored by the platform, via a system profile (C29)
@@ -37,6 +37,10 @@ export const LABELS = {
   video:       'Video',
   file:        'File',
   location:    'Location',
+  // The MARK is the Hand; the WORD is Yes. This label is what an inbox
+  // preview, a notification and a screen reader say, so it says what the
+  // gesture means rather than what it looks like.
+  hand:        'Yes',
   event:       'Event',
   application: 'Application',
   booking:     'Booking',

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 /**
@@ -29,14 +29,32 @@ import { fileURLToPath } from 'node:url';
  * silently comparing two empty arrays.
  */
 
-const MIGRATION = fileURLToPath(
-  new URL('../../../supabase/migrations/20260721000000_m9a_message_kinds.sql', import.meta.url),
-);
+const MIGRATIONS_DIR = fileURLToPath(new URL('../../../supabase/migrations/', import.meta.url));
+
+/**
+ * The migration that currently DEFINES the kind CHECK.
+ *
+ * A CHECK cannot be amended in place — it is dropped and recreated — so the
+ * authority is whichever migration touched it LAST, not whichever created it.
+ * This used to name M9a directly, which meant the first migration to add a kind
+ * would fail this test for a drift that did not exist.
+ *
+ * Sorted by filename, which is the timestamp prefix, which is apply order.
+ */
+function authoritativeMigration() {
+  const files = readdirSync(MIGRATIONS_DIR)
+    .filter(f => f.endsWith('.sql'))
+    .sort()
+    .filter(f => /ADD CONSTRAINT messages_kind_valid/i.test(readFileSync(MIGRATIONS_DIR + f, 'utf8')));
+
+  if (!files.length) throw new Error('no migration defines messages_kind_valid');
+  return MIGRATIONS_DIR + files.at(-1);
+}
 import { KINDS, LABELS } from './messageKindList.js';
 
 /** The kinds the DATABASE will accept — from `messages_kind_valid`. */
 function kindsInMigration() {
-  const sql = readFileSync(MIGRATION, 'utf8');
+  const sql = readFileSync(authoritativeMigration(), 'utf8');
   const match = sql.match(/kind\s+IN\s*\(([^)]*)\)/i);
   if (!match) throw new Error('no `kind IN (...)` in the migration — has the CHECK been renamed?');
   return quoted(match[1]);

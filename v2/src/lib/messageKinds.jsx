@@ -39,6 +39,7 @@
 export { KINDS, LABELS, isKind } from './messageKindList';
 import { KINDS, LABELS } from './messageKindList';
 import VoiceMessage from '../components/VoiceMessage';
+import HandIcon from '../components/HandIcon';
 
 /** Text is the only kind with a renderer today. Everything else falls back. */
 function renderText(message) {
@@ -86,7 +87,22 @@ function renderFallback(message, kind) {
 const RENDERERS = {
   text:  renderText,
   voice: message => <VoiceMessage message={message} />,
+  // The Hand: YesPleez's universal acknowledgement. No text of its own — the
+  // mark IS the message, so it renders as the mark at conversational scale
+  // rather than as the word 'Yes' its body carries for previews and screen
+  // readers.
+  hand:  () => <HandMessage />,
 };
+
+/** A Hand, at the size of something someone said. */
+function HandMessage() {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 9, color: 'var(--text)' }}>
+      <HandIcon size={30} />
+      <span style={{ fontSize: 13, color: 'var(--muted)', letterSpacing: '.04em' }}>Yes</span>
+    </div>
+  );
+}
 
 /**
  * Resolve a renderer for a message.
