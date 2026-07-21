@@ -101,12 +101,72 @@ export const KIND_SHAPE = {
     padding: '15px 17px',    // 12/16 → more room around the player
     minHeight: 76,           // gives it presence next to a one-line text bubble
     tail: false,
+    // The player already draws a line carrying its duration. Left to the
+    // bubble, the clock would land on a SECOND line underneath it — two
+    // timings stacked, saying different things, in a component whose whole
+    // point is that it is one object. So the renderer draws both on one line:
+    // length on the left, clock on the right.
+    ownsTimestamp: true,
   },
 };
 
 /** Geometry overrides for this kind, or null for a standard bubble. */
 export function shapeFor(kind) {
   return KIND_SHAPE[kind] ?? null;
+}
+
+/**
+ * MATERIAL — the finish a kind is made of, kept apart from its geometry.
+ *
+ * `KIND_SHAPE` is forbidden from carrying colour, and a test enforces it. This
+ * is where colour is allowed to live instead. The separation is the point: one
+ * map answers "what shape is this", the other "what is it made of", and neither
+ * can quietly become the other.
+ *
+ * ── WHY DIRECTION STILL BRANCHES ─────────────────────────────────────
+ *
+ * A Voicey gets its own finish, but it must still say WHO SENT IT — that is
+ * what the bubble fill has always carried. So the material is per direction:
+ * sent takes the deep violet, received a neutral glass of the same family.
+ * Giving both the violet would have made a Voicey the one message type where
+ * you cannot tell at a glance whose it is.
+ *
+ * ── DEEP VIOLET, NOT BRIGHT PURPLE ───────────────────────────────────
+ *
+ * A radial highlight at the top over a violet→indigo body: lit from within
+ * rather than coloured all over, which is the difference between glass and
+ * plastic. Alphas are high (.82–.9) so the wallpaper sits behind the content
+ * instead of competing with it, and the blur keeps it glass rather than paint.
+ *
+ * The inset top hairline is a highlight, not a bevel — one pixel of light at
+ * the top edge, no bottom shadow, nothing skeuomorphic.
+ */
+export const KIND_MATERIAL = {
+  voice: {
+    sent: {
+      background:
+        'radial-gradient(120% 85% at 50% -10%, rgba(167,110,255,.34) 0%, rgba(167,110,255,0) 62%),' +
+        'linear-gradient(158deg, rgba(74,44,146,.88) 0%, rgba(41,24,84,.92) 100%)',
+      border: '1px solid rgba(168,124,255,.30)',
+      boxShadow: 'inset 0 1px 0 rgba(255,255,255,.11), 0 10px 26px -18px rgba(0,0,0,.95)',
+      backdropFilter: 'blur(14px)',
+    },
+    received: {
+      background:
+        'radial-gradient(120% 85% at 50% -10%, rgba(255,255,255,.07) 0%, rgba(255,255,255,0) 62%),' +
+        'linear-gradient(158deg, rgba(32,32,44,.86) 0%, rgba(20,20,30,.90) 100%)',
+      border: '1px solid rgba(255,255,255,.11)',
+      boxShadow: 'inset 0 1px 0 rgba(255,255,255,.07), 0 10px 26px -18px rgba(0,0,0,.95)',
+      backdropFilter: 'blur(14px)',
+    },
+  },
+};
+
+/** The finish for this kind and direction, or null to use the bubble's own. */
+export function materialFor(kind, isMine) {
+  const m = KIND_MATERIAL[kind];
+  if (!m) return null;
+  return (isMine ? m.sent : m.received) ?? null;
 }
 
 /**

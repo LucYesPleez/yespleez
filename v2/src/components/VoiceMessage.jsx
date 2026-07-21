@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { signedUrlFor, formatDuration } from '../lib/voiceNotes';
 import { isRenderablePeaks, PEAK_MAX } from '../lib/voicePeaks';
+import { timeOf } from '../lib/clock';
 
 /**
  * THE `voice` RENDERER — the inside of a bubble, and nothing else.
@@ -159,8 +160,21 @@ export default function VoiceMessage({ message }) {
             <div style={{ width: `${progress * 100}%`, height: '100%', background: tint, borderRadius: 999 }} />
           </div>
         )}
-        <div style={{ marginTop: 5, fontSize: 11, color: 'rgba(255,255,255,.62)' }}>
-          {error ?? formatDuration(playing || position > 0 ? position : duration)}
+        {/* LENGTH LEFT, CLOCK RIGHT, ONE LINE.
+            The bubble stands down from drawing the timestamp for this kind
+            (KIND_SHAPE.ownsTimestamp) — otherwise the clock landed on a second
+            line below, two timings stacked saying different things inside a
+            component whose whole point is that it is one object. */}
+        <div style={{
+          marginTop: 5, fontSize: 11, color: 'rgba(255,255,255,.62)',
+          display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10,
+        }}>
+          <span>{error ?? formatDuration(playing || position > 0 ? position : duration)}</span>
+          {message?.created_at && (
+            <span style={{ flexShrink: 0, color: 'rgba(255,255,255,.5)', userSelect: 'none' }}>
+              {timeOf(message.created_at)}
+            </span>
+          )}
         </div>
       </div>
 

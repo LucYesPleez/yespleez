@@ -11,8 +11,9 @@ import { listHands, toggleHand } from '../lib/messageState';
 import Composer from './Composer';
 import { useConversationUi } from '../lib/conversationUi';
 import { PROFILE_TYPES } from '../lib/profileTypes';
-import { renderMessage, isBareKind, shapeFor } from '../lib/messageKinds';
+import { renderMessage, isBareKind, shapeFor, materialFor } from '../lib/messageKinds';
 import HandIcon from './HandIcon';
+import { timeOf } from '../lib/clock';
 
 /**
  * ONE conversation, rendered identically in the DRAWER and in the FULL PAGE.
@@ -50,7 +51,7 @@ const GROUP_WINDOW_MS = 5 * 60 * 1000;
 
 const dayKey = iso => new Date(iso).toDateString();
 const withinWindow = (a, b) => (new Date(b) - new Date(a)) < GROUP_WINDOW_MS;
-const timeOf = iso => new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
 
 function dayLabel(iso) {
   const today = new Date();
@@ -898,6 +899,9 @@ function MessageBubble({ message, isMine, grouped = false, endsBurst = true, spe
   // A tail is what makes a rectangle read as speech. Kinds that are objects
   // rather than utterances opt out and get equal corners.
   const corner = shape?.tail === false ? radius : tail;
+  // The only route by which a kind may set colour. Per direction, so a Voicey
+  // still says whose it is.
+  const material = materialFor(message.kind, isMine);
 
   return (
     <div style={{
@@ -973,6 +977,12 @@ function MessageBubble({ message, isMine, grouped = false, endsBurst = true, spe
         // of times down a thread — the gradient already distinguishes it, and
         // the glow was competing with the text sitting on top of it.
         boxShadow: 'none',
+        // A kind may supply its own finish. Spread LAST so it wins — placed
+        // above, the defaults below would have silently overwritten it, which
+        // is the classic way a style object stops doing what it reads as doing.
+        // This is the only route by which a kind may touch colour, and it comes
+        // from KIND_MATERIAL alone.
+        ...(material ?? {}),
       }}>
         {/* The bubble owns the CONTAINER — alignment, tail, spacing — and knows
             nothing about kinds. Content comes from the registry, so a new kind
@@ -989,8 +999,12 @@ function MessageBubble({ message, isMine, grouped = false, endsBurst = true, spe
             that would make every tap feel slow.
 
             Permanently visible is also simply better: WhatsApp does it, and
-            "when was this said" stops being a question you have to ask. */}
-        {message.created_at && (
+            "when was this said" stops being a question you have to ask.
+
+            A kind may claim the clock for itself — see KIND_SHAPE.ownsTimestamp.
+            The Voicey does, so its length and its clock share one line instead
+            of stacking two timings on top of each other. */}
+        {message.created_at && !shape?.ownsTimestamp && (
           <div style={{
             fontSize: 10,
             lineHeight: 1,

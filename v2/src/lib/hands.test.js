@@ -156,3 +156,48 @@ test('every shaped kind is a real kind', async () => {
     assert.ok(K.includes(k), `'${k}' has a shape but is not a kind`);
   }
 });
+
+// ── material is separate from shape, and knows direction ────────────
+
+test('a Voicey has a different finish depending on who sent it', async () => {
+  const { materialFor } = await import('./messageKindList.js');
+  const sent = materialFor('voice', true);
+  const received = materialFor('voice', false);
+
+  assert.ok(sent && received);
+  assert.notDeepEqual(sent, received,
+    'a Voicey must still say whose it is — that is what the fill has always carried');
+  assert.match(sent.background, /rgba\(1[0-9]{2},/, 'sent carries the violet');
+  assert.doesNotMatch(received.background, /rgba\(1[0-9]{2},\s*[0-9]{2,3},\s*255/,
+    'received must not wear the sender colour');
+});
+
+test('kinds without a material fall back to the bubble', async () => {
+  const { materialFor } = await import('./messageKindList.js');
+  assert.equal(materialFor('text', true), null);
+  assert.equal(materialFor('hand', false), null);
+  assert.equal(materialFor(undefined, true), null);
+});
+
+test('material carries finish, never geometry', async () => {
+  const { KIND_MATERIAL } = await import('./messageKindList.js');
+  // The mirror of the KIND_SHAPE rule. If material could set padding or a
+  // radius there would be two places that decide a bubble's size, and they
+  // would disagree the first time one was edited alone.
+  const geometry = /padding|radius|width|height|margin|gap|flex|position|inset/i;
+  for (const [kind, byDirection] of Object.entries(KIND_MATERIAL)) {
+    for (const [dir, style] of Object.entries(byDirection)) {
+      for (const key of Object.keys(style)) {
+        assert.doesNotMatch(key, geometry, `${kind}.${dir}.${key} is geometry, not finish`);
+      }
+    }
+  }
+});
+
+test('the Voicey draws its own clock so the bubble does not', async () => {
+  const { shapeFor } = await import('./messageKindList.js');
+  // Both drawing it stacks two timings; neither drawing it loses the clock.
+  assert.equal(shapeFor('voice').ownsTimestamp, true);
+  assert.equal(shapeFor('text')?.ownsTimestamp, undefined,
+    'text must keep the bubble-drawn timestamp');
+});
