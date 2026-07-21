@@ -136,8 +136,15 @@ export function peaksFromChannel(samples) {
  * recorded. This is a DISPLAY choice and changes no stored data, so it can be
  * retuned freely — unlike PEAK_COUNT, which is frozen into every payload ever
  * written.
+ *
+ * ── 36 → 42 (M9u) ────────────────────────────────────────────────────
+ *
+ * Finer, for a more organic read. Held well short of the comb: at the player's
+ * ~193px this is about 2.6px a bar against 3.05 at 36, where 56 gave under 2
+ * and failed. The lesson from that failure is the constraint here — "thinner"
+ * has a floor, and it is nearer than it looks.
  */
-export const DISPLAY_BARS = 36;
+export const DISPLAY_BARS = 42;
 
 /**
  * Contrast curve applied to the drawn heights.
@@ -151,8 +158,20 @@ export const DISPLAY_BARS = 36;
  * Applied at DRAW time, never at record time. Baking it into the payload would
  * throw away the real measurement, and the curve is exactly the kind of thing
  * that gets retuned later.
+ *
+ * ── 1.7 → 2.1 (M9u) ──────────────────────────────────────────────────
+ *
+ * The waveform still read as "generated", and evenness was why: RMS plus a
+ * gentle curve produces a row of similar mounds, which is what a synthesised
+ * waveform looks like. A steeper exponent widens the gap between the loud parts
+ * of a word and the gaps between words, so the shape becomes uneven in the way
+ * real speech is.
+ *
+ * It cannot go much further. The curve only redistributes what RMS preserved;
+ * push it hard and quiet passages collapse to the 2px floor, which turns
+ * genuine speech into a flat line and loses more than it gains.
  */
-const CONTRAST = 1.7;
+const CONTRAST = 2.1;
 
 /**
  * Turn stored peaks into the heights to draw: 0..1, one per bar.

@@ -3,6 +3,7 @@ import { signedUrlFor, formatDuration } from '../lib/voiceNotes';
 import { toDisplayPeaks } from '../lib/voicePeaks';
 import { timeOf } from '../lib/clock';
 import { claimPlayback, releasePlayback } from '../lib/voicePlayback';
+import { playedAt } from '../lib/waveColour';
 
 /**
  * THE `voice` RENDERER — the inside of a bubble, and nothing else.
@@ -34,20 +35,41 @@ import { claimPlayback, releasePlayback } from '../lib/voicePlayback';
 const WAVE_HEIGHT = 27;
 
 /**
- * PLAYED and REMAINING, interpolated per bar.
+ * THE WAVEFORM CARRIES THE COLOUR (M9u).
  *
- * Played is the brand purple at full strength; remaining is a muted white that
- * sits back without disappearing. Kept as component channels rather than CSS
- * strings so the two can be mixed — a binary swap at the playhead is what made
- * the old waveform look like a progress bar wearing bars.
+ * The bubble is smoked glass now, and the play button with it. This is the one
+ * element in a Voicey allowed to be vivid — and only once it is playing.
+ *
+ * ── PLAYED IS A GRADIENT ACROSS THE WAVE, NOT ONE COLOUR ─────────────
+ *
+ * Every played bar used to be the same violet, so the "gradient" in the design
+ * language existed everywhere except the one place with enough width to show
+ * one. Played bars now run cyan at the start of the note to magenta at the end,
+ * so the wave itself is the gradient and the playhead reveals it left to right.
+ *
+ * ── REST IS DIMMER THAN IT WAS ───────────────────────────────────────
+ *
+ * .26 → .17. An idle Voicey should settle into the thread rather than announce
+ * itself; the colour arriving on play is the moment, and it only reads as a
+ * moment if there is somewhere to arrive FROM.
  */
-const PLAYED = { r: 191, g: 95, b: 255, a: 1 };
-const REST   = { r: 255, g: 255, b: 255, a: 0.26 };
+/**
+ * REST — dimmer again, .17 → .13.
+ *
+ * The bubble is near-black now, so white bars gained contrast for free and were
+ * reading louder than before at the same alpha. An idle Voicey should settle
+ * into the thread; the colour arriving on play is the moment, and it only reads
+ * as a moment if there is somewhere quiet to arrive from.
+ */
+const REST = { r: 255, g: 255, b: 255, a: 0.13 };
 
 const rgba = c => `rgba(${Math.round(c.r)},${Math.round(c.g)},${Math.round(c.b)},${c.a.toFixed(3)})`;
-const PLAYED_CSS = rgba(PLAYED);
 const REST_CSS   = rgba(REST);
-const PLAY_TINT  = 'rgba(255,255,255,.92)';
+/** The fallback progress bar has no width to run a gradient across, so it takes
+    the gradient's midpoint — derived, so it dims with WAVE_BRIGHTNESS too. */
+const PLAYED_CSS = rgba(playedAt(0.58));
+const PLAY_TINT  = '#FFFFFF';
+
 
 /**
  * The colour fade is exactly ONE bar wide, and that is not an aesthetic choice.
@@ -75,11 +97,15 @@ const FADE_BARS = 1;
 function barColour(i, count, progress) {
   const head = progress * count;
   const t = Math.max(0, Math.min(1, (head - i) / FADE_BARS));
+  // This bar's own place in the gradient — fixed by WHERE it is, not by how far
+  // playback has got. The colour a bar will become is decided before it lights,
+  // so the wave reveals a gradient rather than sweeping one along with the head.
+  const played = playedAt(count > 1 ? i / (count - 1) : 0);
   return rgba({
-    r: REST.r + (PLAYED.r - REST.r) * t,
-    g: REST.g + (PLAYED.g - REST.g) * t,
-    b: REST.b + (PLAYED.b - REST.b) * t,
-    a: REST.a + (PLAYED.a - REST.a) * t,
+    r: REST.r + (played.r - REST.r) * t,
+    g: REST.g + (played.g - REST.g) * t,
+    b: REST.b + (played.b - REST.b) * t,
+    a: REST.a + (played.a - REST.a) * t,
   });
 }
 
@@ -98,7 +124,10 @@ const Waveform = memo(function Waveform({ bars, settle, register }) {
   return (
     <div
       className={settle ? 'yp-wave-settle' : undefined}
-      style={{ display: 'flex', alignItems: 'center', gap: 2, height: WAVE_HEIGHT }}
+      // gap 2 → 1.5: at 42 bars the gaps would otherwise eat the width the
+      // extra bars were added to use, and the wave would end up thinner in
+      // ink rather than finer in detail.
+      style={{ display: 'flex', alignItems: 'center', gap: 1.5, height: WAVE_HEIGHT }}
       aria-hidden="true"
     >
       {bars.map((v, i) => (
@@ -312,13 +341,30 @@ export default function VoiceMessage({ message }) {
         style={{
           width: 44, height: 44, flexShrink: 0, borderRadius: 999,
           position: 'relative',
-          // The bubble's material, one step brighter: same glass, lifted enough
-          // to read as the thing you press.
-          border: '1px solid rgba(255,255,255,.24)',
-          background: 'linear-gradient(160deg, rgba(255,255,255,.17) 0%, rgba(255,255,255,.07) 100%)',
-          boxShadow: 'inset 0 1px 0 rgba(255,255,255,.20), 0 4px 12px -7px rgba(0,0,0,.9)',
-          backdropFilter: 'blur(6px)',
-          WebkitBackdropFilter: 'blur(6px)',
+          boxSizing: 'border-box',
+          // SMOKED BLACK WITH A GRADIENT RING (M9u).
+          //
+          // It used to be a pale glass disc — the brightest object inside the
+          // bubble, which made the control louder than the content. Now the
+          // disc is nearly black and the only colour is the ring around it, so
+          // it reads as machined rather than lit.
+          //
+          // Two backgrounds on one element: the dark face clipped to the
+          // padding box, the gradient to the border box, with a transparent
+          // border letting it through as a ring. Same technique as the
+          // composer's Hand, so the two rings are the same object.
+          border: '1px solid transparent',
+          background:
+            // Nearly black, and NEUTRAL — five points of spread. The disc used
+            // to be the brightest object inside the bubble, which made the
+            // control louder than the content it plays.
+            'linear-gradient(160deg, rgba(23,21,29,.96) 0%, rgba(10,9,13,.98) 100%) padding-box, '
+            // A thin purple ring, warming to magenta where the light catches.
+            + 'linear-gradient(140deg, rgba(191,95,255,.85) 0%, rgba(255,79,216,.95) 100%) border-box',
+          // A tiny magenta bloom — barely a halo, just enough that the ring
+          // looks lit rather than drawn. Small radius, low alpha: this repeats
+          // once per voice note down the thread.
+          boxShadow: '0 0 10px -3px rgba(255,79,216,.30), 0 4px 14px -8px rgba(0,0,0,.95)',
           color: PLAY_TINT,
           cursor: loading ? 'default' : 'pointer',
           display: 'flex', alignItems: 'center', justifyContent: 'center',

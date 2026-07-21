@@ -138,22 +138,47 @@ export function shapeFor(kind) {
  *
  * ── DEEP VIOLET, NOT BRIGHT PURPLE ───────────────────────────────────
  *
- * A radial highlight at the top over a violet→indigo body: lit from within
- * rather than coloured all over, which is the difference between glass and
- * plastic. Alphas are high (.82–.9) so the wallpaper sits behind the content
- * instead of competing with it, and the blur keeps it glass rather than paint.
+ * ⚠ THIS OBJECT IS THE ONE THAT DECIDES. It is spread LAST over the bubble's
+ * own style, so whatever `ConversationView` sets for a sent bubble is discarded
+ * for a Voicey. A previous pass retuned `SENT_BUBBLE` there and nothing visibly
+ * changed, because this was overriding all of it. If a Voicey looks wrong, look
+ * here FIRST — this is where its colour actually lives.
+ *
+ * A dark venue with intelligent lighting, not purple paint. The purple is the
+ * lighting design; the surface is black glass. Those are different aesthetics,
+ * and the old body — a saturated violet at .88 — was firmly the second one.
+ *
+ * Alphas stay high (.90–.94) so the wallpaper sits behind the content instead
+ * of competing with it, and the blur keeps it glass rather than paint.
  *
  * The inset top hairline is a highlight, not a bevel — one pixel of light at
  * the top edge, no bottom shadow, nothing skeuomorphic.
+ *
+ * ── WHAT NOW CARRIES DIRECTION ───────────────────────────────────────
+ *
+ * Sent no longer wins on saturation, so the warning above matters MORE, not
+ * less. Sent is now the DARKER of the two and carries the magenta edge and the
+ * violet bloom; received stays neutral and slightly lighter with a plain white
+ * hairline. Direction reads from lighting rather than from hue — which is the
+ * thing to check first if the two ever stop being tellable apart.
  */
 export const KIND_MATERIAL = {
   voice: {
     sent: {
       background:
-        'radial-gradient(120% 85% at 50% -10%, rgba(167,110,255,.34) 0%, rgba(167,110,255,0) 62%),' +
-        'linear-gradient(158deg, rgba(74,44,146,.88) 0%, rgba(41,24,84,.92) 100%)',
-      border: '1px solid rgba(168,124,255,.30)',
-      boxShadow: 'inset 0 1px 0 rgba(255,255,255,.11), 0 10px 26px -18px rgba(0,0,0,.95)',
+        // 1 · a violet bloom behind the glass, .34 → .10. It should look like
+        //     something lit BEHIND the surface, not like tinted glass.
+        'radial-gradient(120% 85% at 50% -10%, rgba(167,110,255,.10) 0%, rgba(167,110,255,0) 62%) padding-box,' +
+        // 2 · the body. Was rgba(74,44,146) — thirty points of spread between
+        //     red and blue, i.e. the purple WAS the material. Six points now:
+        //     roughly 90% black, 8% charcoal, 2% purple.
+        'linear-gradient(158deg, rgba(22,20,28,.90) 0%, rgba(12,11,16,.94) 100%) padding-box,' +
+        // 3 · MAGENTA EDGE LIGHTING. A gradient border, not a flat one: a
+        //     uniform coloured outline is a drawn line, while an edge that
+        //     catches at one corner and dies away is light landing on a surface.
+        'linear-gradient(150deg, rgba(255,79,216,.42) 0%, rgba(191,95,255,.15) 44%, rgba(255,255,255,.04) 100%) border-box',
+      border: '1px solid transparent',
+      boxShadow: 'inset 0 1px 0 rgba(255,255,255,.07), 0 10px 26px -18px rgba(0,0,0,.95)',
       backdropFilter: 'blur(14px)',
     },
     received: {

@@ -118,7 +118,10 @@ function HandMessage({ message }) {
       // announce nothing at all — the mark carries no text.
       role="img"
       aria-label="Yes"
-      style={{ display: 'inline-flex', color: 'var(--text)' }}
+      // Shared with the composer's Hand and the bubble reaction — see
+      // `--yp-hand-ink`. Was `--text`, which made the mark brighter here than
+      // on the bar right below it.
+      style={{ display: 'inline-flex', color: 'var(--yp-hand-ink)' }}
     >
       <HandIcon size={HAND_BASE_PX * scale} />
     </span>
