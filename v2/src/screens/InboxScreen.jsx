@@ -41,6 +41,31 @@ const CONTEXT_LABEL = {
   venue:       'VENUE',
 };
 
+/**
+ * One colour per CONTEXT — never per profile.
+ *
+ * An earlier version tinted this with the other participant's profile accent,
+ * which made the same BOOKING cyan beside an artist and green beside a venue.
+ * Keyed on the context instead, a booking looks like a booking everywhere,
+ * which is the only way the colour can carry meaning.
+ *
+ * Roughly ordered by how far along the workflow is: an application is an ask,
+ * an invitation is an offer, a booking is settled. Event and venue are
+ * subject-matter rather than a stage, so they take the remaining brand hues.
+ *
+ * ⚠ These hexes also carry status/identity meanings elsewhere in YesPleez
+ * (see the brand-pass collision table). That is tolerable HERE because the
+ * label sits beside its own word — the text says which meaning is intended,
+ * so the colour reinforces rather than has to disambiguate on its own.
+ */
+const CONTEXT_COLOR = {
+  application: '#00E5FF',  // cyan — an ask, in flight
+  invitation:  '#BF5FFF',  // purple — an offer extended
+  booking:     '#00E5A0',  // green — settled
+  event:       '#FF2D78',  // pink
+  venue:       '#FFB830',  // gold
+};
+
 function relativeTime(iso) {
   if (!iso) return '';
   const then = new Date(iso).getTime();
@@ -339,15 +364,15 @@ export default function InboxScreen() {
                         stack together on the trailing edge instead of pushing
                         the name around. The context sits under the time
                         because recency is what the eye scans for. */}
-                    <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2, lineHeight: 1.2 }}>
-                      <span style={{ fontSize: 11, color: c.unread > 0 ? '#D9A6FF' : 'rgba(255,255,255,.35)' }}>
-                        {relativeTime(c.last_message_at)}
-                      </span>
+                    <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3, lineHeight: 1.15 }}>
                       {c.context_type !== 'direct' && (
-                        <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 10, letterSpacing: 1.2, color: 'rgba(255,255,255,.38)' }}>
+                        <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 13, letterSpacing: 1.4, color: CONTEXT_COLOR[c.context_type] ?? 'rgba(255,255,255,.55)' }}>
                           {CONTEXT_LABEL[c.context_type] ?? String(c.context_type).toUpperCase()}
                         </span>
                       )}
+                      <span style={{ fontSize: 11, color: c.unread > 0 ? '#D9A6FF' : 'rgba(255,255,255,.35)' }}>
+                        {relativeTime(c.last_message_at)}
+                      </span>
                     </div>
                   </div>
                   {/* WHICH IDENTITY THIS THREAD IS FROM. Three conversations
