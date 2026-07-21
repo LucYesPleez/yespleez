@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, Fragment } from 'react';
 import { supabase } from '../lib/supabase';
 import { useSession } from '../App';
 import {
@@ -33,6 +33,42 @@ import { PROFILE_TYPES } from '../lib/profileTypes';
  * dispatches on a `kind` so those land as new branches rather than a rewrite —
  * but only `text` exists today. Nothing here fakes the others.
  */
+/**
+ * Messages from one sender within this window are treated as a single burst:
+ * tightened together, and stamped once at the end.
+ *
+ * Five minutes is long enough to group a rapid exchange and short enough that
+ * a reply an hour later still reads as a new turn.
+ */
+const GROUP_WINDOW_MS = 5 * 60 * 1000;
+
+const dayKey = iso => new Date(iso).toDateString();
+const withinWindow = (a, b) => (new Date(b) - new Date(a)) < GROUP_WINDOW_MS;
+
+/** Centred day marker. Quiet — it orients, it does not announce. */
+function DaySeparator({ iso }) {
+  const d     = new Date(iso);
+  const today = new Date();
+  const yest  = new Date(); yest.setDate(today.getDate() - 1);
+
+  const label = dayKey(iso) === dayKey(today) ? 'Today'
+    : dayKey(iso) === dayKey(yest)           ? 'Yesterday'
+    : d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
+
+  return (
+    <div style={{ display: 'flex', justifyContent: 'center', margin: '18px 0 14px' }}>
+      <span style={{
+        fontSize: 10.5, letterSpacing: .6, color: 'rgba(255,255,255,.38)',
+        background: 'rgba(255,255,255,.05)',
+        border: '1px solid rgba(255,255,255,.06)',
+        borderRadius: 999, padding: '4px 11px',
+      }}>
+        {label}
+      </span>
+    </div>
+  );
+}
+
 /**
  * Header icon button. One definition so Back, Call and Overflow are the same
  * weight and size — mismatched icon buttons are the fastest way to make a
@@ -407,9 +443,42 @@ export default function ConversationView({ conversationId, compact = false, onMi
           </div>
         )}
 
-        {!loading && messages.map(m => (
-          <MessageBubble key={m.id} message={m} isMine={mine.has(m.from_profile_id)} />
-        ))}
+        {!loading && messages.map((m, i) => {
+          const prev = messages[i - 1];
+          const next = messages[i + 1];
+          const day  = dayKey(m.created_at);
+
+          // A new day gets a separator. Without one a thread spanning weeks
+          // reads as a single undifferentiated column.
+          const newDay = !prev || dayKey(prev.created_at) !== day;
+
+          // Consecutive messages from the same sender inside GROUP_WINDOW are
+          // one burst, not separate exchanges. Grouping is what turns a list
+          // back into a conversation.
+          const sameAsPrev = !newDay && prev
+            && prev.from_profile_id === m.from_profile_id
+            && withinWindow(prev.created_at, m.created_at);
+
+          const sameAsNext = next
+            && dayKey(next.created_at) === day
+            && next.from_profile_id === m.from_profile_id
+            && withinWindow(m.created_at, next.created_at);
+
+          return (
+            <Fragment key={m.id}>
+              {newDay && <DaySeparator iso={m.created_at} />}
+              <MessageBubble
+                message={m}
+                isMine={mine.has(m.from_profile_id)}
+                grouped={Boolean(sameAsPrev)}
+                // One timestamp per burst, on the last message. Six messages
+                // in a minute previously stamped six identical times down the
+                // edge — noise that told the reader nothing.
+                showTime={!sameAsNext}
+              />
+            </Fragment>
+          );
+        })}
       </div>
 
       {/* Arrives only when a message lands while the reader is scrolled up.
@@ -428,7 +497,15 @@ export default function ConversationView({ conversationId, compact = false, onMi
         <div role="alert" style={{ color: 'var(--neon)', fontSize: 12, padding: '4px 16px' }}>{error}</div>
       )}
 
-      <form onSubmit={onSend} style={{ display: 'flex', gap: 10, padding: '14px 16px 18px', borderTop: '1px solid rgba(255,255,255,.06)', flexShrink: 0 }}>
+      {/* No borderTop. M2 removed the header's hard rule because it read as a
+          bolted-on toolbar; the identical line was still here, so the surface
+          was continuous at the top and abruptly segmented at the bottom.
+          Separation is now an upward wash — the mirror of the header's. */}
+      <form onSubmit={onSend} style={{
+        display: 'flex', alignItems: 'center', gap: 9,
+        padding: '12px 16px 16px', flexShrink: 0,
+        background: 'linear-gradient(0deg, rgba(255,255,255,.035) 0%, rgba(255,255,255,0) 100%)',
+      }}>
         <input
           ref={inputRef}
           value={draft}
@@ -439,13 +516,16 @@ export default function ConversationView({ conversationId, compact = false, onMi
           disabled={!senderProfile || sending}
           placeholder={senderProfile ? 'Type a message…' : 'You cannot write in this conversation'}
           aria-label="Message"
-          style={{ flex: 1, background: 'rgba(255,255,255,.045)', border: '1px solid rgba(255,255,255,.09)', borderRadius: 999, padding: '14px 18px', color: 'var(--text)', fontSize: 14.5, outline: 'none' }}
+          // 13px padding puts the field at 46px, matching the send button
+          // exactly — they were 46 and 48, which is the kind of 2px mismatch
+          // you feel as imbalance without being able to name it.
+          style={{ flex: 1, minWidth: 0, height: 46, boxSizing: 'border-box', background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.10)', borderRadius: 999, padding: '0 18px', color: 'var(--text)', fontSize: 14.5, outline: 'none' }}
         />
         <button
           type="submit"
           disabled={!senderProfile || sending || !draft.trim()}
           aria-label="Send"
-          style={{ border: 'none', borderRadius: 999, width: 48, height: 48, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: senderProfile && draft.trim() ? 'pointer' : 'not-allowed', background: senderProfile && draft.trim() ? 'linear-gradient(135deg, #00E5FF, #BF5FFF)' : 'rgba(255,255,255,.07)', color: senderProfile && draft.trim() ? '#0a0a0f' : 'rgba(255,255,255,.3)', boxShadow: senderProfile && draft.trim() ? '0 8px 22px -8px rgba(191,95,255,.75)' : 'none', transition: 'background .25s ease, box-shadow .25s ease' }}
+          style={{ border: 'none', borderRadius: 999, width: 46, height: 46, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: senderProfile && draft.trim() ? 'pointer' : 'not-allowed', background: senderProfile && draft.trim() ? 'linear-gradient(135deg, #00E5FF, #BF5FFF)' : 'rgba(255,255,255,.07)', color: senderProfile && draft.trim() ? '#0a0a0f' : 'rgba(255,255,255,.3)', boxShadow: senderProfile && draft.trim() ? '0 8px 22px -8px rgba(191,95,255,.75)' : 'none', transition: 'background .25s ease, box-shadow .25s ease' }}
         >
           {sending
             ? '…'
@@ -465,23 +545,40 @@ export default function ConversationView({ conversationId, compact = false, onMi
  * YesPleez cards land as branches rather than a rewrite. Only `text` exists —
  * the others are declared, not built, and nothing here pretends otherwise.
  */
-function MessageBubble({ message, isMine }) {
+function MessageBubble({ message, isMine, grouped = false, showTime = true }) {
   const kind = message.kind ?? 'text';
 
+  // The tail corner belongs to the LAST bubble of a burst. Mid-burst bubbles
+  // keep square-ish inner corners so a run reads as one block.
+  const tail = showTime ? 6 : 20;
+
   return (
-    <div style={{ display: 'flex', justifyContent: isMine ? 'flex-end' : 'flex-start', marginBottom: 14 }}>
-      {/* Sent messages carry the canonical YesPleez cyan→purple gradient
-          rather than a flat purple. Held at low alpha over the charcoal
-          surface so it reads as tinted glass — restrained, not neon. Received
-          messages stay near-black so the gradient is what the eye follows. */}
+    <div style={{
+      display: 'flex',
+      justifyContent: isMine ? 'flex-end' : 'flex-start',
+      // 3px inside a burst, 14px between turns. The gap is what separates
+      // "one person talking" from "two people exchanging".
+      marginBottom: showTime ? 14 : 3,
+      marginTop: grouped ? 0 : 2,
+    }}>
+      {/* Sent messages carry the canonical cyan→purple gradient, held at low
+          alpha so it reads as tinted glass rather than neon.
+
+          RECEIVED were rgba(255,255,255,.035) — all but invisible on this
+          surface, which left the other participant quieter than you in their
+          own conversation. Lifted to .085 with a .12 border: legible and
+          clearly present, still nowhere near bright, and still visibly the
+          calmer of the two so the gradient keeps the lead. */}
       <div style={{
         maxWidth: '76%',
-        borderRadius: isMine ? '20px 20px 6px 20px' : '20px 20px 20px 6px',
-        padding: '13px 17px',
-        border: isMine ? '1px solid rgba(191,95,255,.34)' : '1px solid rgba(255,255,255,.07)',
+        borderRadius: isMine
+          ? `20px 20px ${tail}px 20px`
+          : `20px 20px 20px ${tail}px`,
+        padding: '12px 16px',
+        border: isMine ? '1px solid rgba(191,95,255,.34)' : '1px solid rgba(255,255,255,.12)',
         background: isMine
           ? 'linear-gradient(135deg, rgba(0,229,255,.20) 0%, rgba(191,95,255,.40) 100%)'
-          : 'rgba(255,255,255,.035)',
+          : 'rgba(255,255,255,.085)',
         boxShadow: isMine ? '0 6px 22px -10px rgba(191,95,255,.6)' : 'none',
       }}>
         {kind === 'text' ? (
@@ -495,9 +592,12 @@ function MessageBubble({ message, isMine }) {
             Unsupported message type — update the app to view this.
           </div>
         )}
-        <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 4, textAlign: 'right' }}>
-          {message.created_at ? new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
-        </div>
+        {/* One timestamp per burst, on its last message. */}
+        {showTime && message.created_at && (
+          <div style={{ fontSize: 10, color: isMine ? 'rgba(255,255,255,.5)' : 'rgba(255,255,255,.38)', marginTop: 5, textAlign: 'right' }}>
+            {new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+          </div>
+        )}
       </div>
     </div>
   );

@@ -245,7 +245,11 @@ export default function InboxScreen() {
                   ? { id: other.profiles.id, name: other.profiles.name, type: other.profiles.type }
                   : null,
               })}
-              style={{ display: 'block', width: '100%', textAlign: 'left', cursor: 'pointer', textDecoration: 'none', border: '1px solid var(--border)', borderRadius: 14, padding: '14px 16px', marginBottom: 10, background: c.unread > 0 ? 'rgba(255,255,255,.04)' : 'transparent', opacity: c.isArchived ? 0.55 : 1 }}
+              // Parity with the conversation surface: 18px radius and the same
+              // rgba(255,255,255,.09) border language, rather than the older
+              // 14px / var(--border) pairing. An unread row is lifted slightly
+              // instead of being a different colour — weight, not hue.
+              style={{ display: 'block', width: '100%', textAlign: 'left', cursor: 'pointer', textDecoration: 'none', border: `1px solid rgba(255,255,255,${c.unread > 0 ? '.13' : '.08'})`, borderRadius: 18, padding: '15px 16px', marginBottom: 11, background: c.unread > 0 ? 'rgba(255,255,255,.055)' : 'rgba(255,255,255,.022)', opacity: c.isArchived ? 0.55 : 1 }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 11, letterSpacing: 1.5, color: accent }}>
