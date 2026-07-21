@@ -840,18 +840,33 @@ function MessageBubble({ message, isMine, grouped = false, endsBurst = true, spe
             aria-label="You said Yes to this"
             style={{
               position: 'absolute',
-              bottom: -9,
-              [isMine ? 'left' : 'right']: -6,
-              width: 26, height: 26, borderRadius: 999,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              background: '#15151d',
-              border: '1px solid rgba(255,255,255,.14)',
+              // Hangs mostly BELOW the bubble rather than across it. The
+              // timestamp is now permanently at the bubble's bottom-right, so a
+              // reaction centred on that corner would sit on top of the time.
+              // At -16 with a 27px mark it reaches ~11px into the bubble —
+              // under the text, not over it.
+              bottom: -16,
+              // The INNER edge: toward the middle of the thread. On a received
+              // message the outer edge is where the avatar lives, and on a sent
+              // one it is the screen edge.
+              [isMine ? 'left' : 'right']: -8,
+              display: 'flex',
               color: 'var(--text)',
+              // FREE FLOATING — no chip, no circle, no border. The mark sits on
+              // the thread exactly as the standalone acknowledgement does: this
+              // app's language is that the mark needs no container, and a badge
+              // would have made the reaction the one place it wore one.
+              //
+              // drop-shadow, not box-shadow: the element is a masked rectangle,
+              // so box-shadow would draw the shadow of a SQUARE around a hand.
+              // filter follows the mask's alpha, so the shadow is hand-shaped —
+              // which is what separates it from the bubble it overhangs.
+              filter: 'drop-shadow(0 1px 3px rgba(0,0,0,.75))',
               animation: 'ypYes .32s cubic-bezier(.2,1.5,.4,1)',
               pointerEvents: 'none',
             }}
           >
-            <HandIcon size={22} />
+            <HandIcon size={27} />
           </span>
         )}
       </div>
