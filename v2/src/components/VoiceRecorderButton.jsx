@@ -89,6 +89,7 @@ export default function VoiceRecorderButton({ onRecorded, disabled = false, onNo
   const abortRef   = useRef(false);   // press ended before getUserMedia resolved
   const pointerRef = useRef({ id: null, el: null });
   const tickRef    = useRef(null);
+  const lockedAtRef = useRef(0);    // guards the click that ends the lock gesture
   const rafRef     = useRef(null);
   const frameRef   = useRef({ dx: 0, dy: 0 });
 
@@ -305,6 +306,7 @@ export default function VoiceRecorderButton({ onRecorded, disabled = false, onNo
 
   function lock() {
     settledRef.current = true;      // the gesture is spent; nothing else may fire
+    lockedAtRef.current = Date.now();
 
     // Hand the pointer back immediately, or the Send and Cancel buttons cannot
     // be pressed — capture would keep routing every event to the mic button.
@@ -318,6 +320,23 @@ export default function VoiceRecorderButton({ onRecorded, disabled = false, onNo
     rafRef.current = null;
     resetVisuals();
     setPhaseBoth('locked');
+  }
+
+  /**
+   * Send, when locked — but not on the click that ENDED the lock gesture.
+   *
+   * `lock()` releases pointer capture so Cancel becomes pressable, which means
+   * the subsequent pointerup goes to whatever is under the finger. Release
+   * above the button and it targets the form; drift back down over the button
+   * first and it targets the button, synthesising a click that would send the
+   * instant the user locked — without them ever pressing Send.
+   *
+   * A short deadline after locking distinguishes "the gesture finishing" from
+   * "a deliberate press", which nothing in the click event itself can.
+   */
+  function onPrimaryClick() {
+    if (Date.now() - lockedAtRef.current < 350) return;
+    void finish();
   }
 
   function onPointerUp() {
@@ -382,18 +401,18 @@ export default function VoiceRecorderButton({ onRecorded, disabled = false, onNo
               )}
 
               {phase === 'locked' ? (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 'auto' }}>
+                // CANCEL ONLY. Send is the primary button — see the comment on
+                // `finish` there. Two Sends would be two answers to the same
+                // question, and the one in here is the one that can be squeezed.
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 'auto', flexShrink: 0 }}>
+                  <span style={{ fontSize: 11.5, color: 'var(--muted)', whiteSpace: 'nowrap' }}>
+                    Locked
+                  </span>
                   <button
                     type="button" onClick={() => void abandon()} aria-label="Discard recording"
                     style={ghostButton}
                   >
                     Cancel
-                  </button>
-                  <button
-                    type="button" onClick={() => void finish()} aria-label="Send voice message"
-                    style={{ ...ghostButton, border: 'none', background: 'linear-gradient(135deg, #00E5FF, #BF5FFF)', color: '#0a0a0f', fontWeight: 700 }}
-                  >
-                    Send
                   </button>
                 </div>
               ) : (
@@ -431,19 +450,43 @@ export default function VoiceRecorderButton({ onRecorded, disabled = false, onNo
         </div>
       )}
 
+      {/* THE PRIMARY BUTTON, AND WHY IT SENDS WHEN LOCKED.
+ *
+ * It used to show a padlock and do nothing. That made `locked` a state whose
+ * completion path lived only in the bar to the left — present, but competing
+ * for horizontal space — while the one control that can never be squeezed, is
+ * always under the thumb, and sits exactly where Send lives for text, was
+ * inert. Pressing the obvious thing and getting nothing reads as "there is no
+ * way to send", which is how this was reported.
+ *
+ * So locked makes this Send. The completion path is now structurally
+ * guaranteed rather than dependent on layout: this button is 46px, flexShrink 0
+ * and always rendered, so no width, no timer string and no translation can take
+ * it away.
+ *
+ * Pointer handlers stay bound in every phase — they no-op unless idle — because
+ * removing and re-adding them across a state change is how a pointer sequence
+ * gets orphaned mid-gesture. */}
       <button
         ref={buttonRef}
         type="button"
         disabled={disabled || phase === 'uploading'}
+        onClick={phase === 'locked' ? onPrimaryClick : undefined}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerCancel}
         onLostPointerCapture={onLostPointerCapture}
         onContextMenu={e => e.preventDefault()}   // suppresses the iOS hold callout
+        // Every phase names itself. The last branch used to catch `uploading`
+        // and `sent` too, so the button announced "Hold to record" while it was
+        // busy sending and refusing presses — a label describing an action that
+        // would not happen.
         aria-label={
-          phase === 'locked'   ? 'Recording locked — use Send or Cancel'
+          phase === 'locked'    ? 'Send voice message'
           : phase === 'recording' ? 'Recording — release to send, slide left to cancel, slide up to lock'
+          : phase === 'uploading' ? 'Sending voice message'
+          : phase === 'sent'      ? 'Voice message sent'
           : 'Hold to record a voice message'
         }
         style={{
@@ -462,8 +505,10 @@ export default function VoiceRecorderButton({ onRecorded, disabled = false, onNo
         }}
       >
         {phase === 'locked' ? (
-          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round">
-            <rect x="4" y="11" width="16" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" />
+          // The same paper plane the text composer sends with — locked
+          // recording finishes the way every other message does.
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M22 2 11 13" /><path d="M22 2 15 22l-4-9-9-4 20-7z" />
           </svg>
         ) : (
           <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round">

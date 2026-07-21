@@ -27,10 +27,11 @@ icon in the omnibox) after every single exit below. It must go out **every time*
 | 1.2 | Release after ~2s | `Sending…` then `Sent`, then back to the plain mic |
 | 1.3 | Tap the mic (under 400 ms) | Nothing sends · notice reads **"Hold to record"** |
 | 1.4 | Hold, slide **left** past ~80 px | Cancels immediately · nothing sends · no error |
-| 1.5 | Hold, slide **up** past ~56 px | Locks · button becomes a padlock |
-| 1.6 | Once locked, **release the finger** | **Recording continues** · timer keeps counting |
-| 1.7 | Locked → press **Send** | Sends normally |
-| 1.8 | Locked → press **Cancel** | Discards · nothing sends |
+| 1.5 | Hold, slide **up** past ~56 px | Locks · **the main button becomes Send (paper plane)** · bar reads "Locked · Cancel" |
+| 1.6 | Once locked, **release the finger** | **Recording continues** · timer keeps counting · nothing sends |
+| 1.7 | Locked → press the **main Send button** | Sends normally |
+| 1.8 | Locked → press **Cancel** in the bar | Discards · nothing sends |
+| 1.9 | Lock, then drift the finger back over the button before releasing | **Does not send.** Locking and sending are separate acts |
 
 ## 2 · Gesture discipline
 
@@ -94,6 +95,20 @@ and a notification stealing focus must not destroy a recording in progress.
 ---
 
 ## Already verified (agent side)
+
+- **The full state diagram, driven end to end in a real browser** against the real component
+  mounted at drawer width, with a real microphone:
+
+  | Path | Result |
+  |---|---|
+  | Idle → Recording → Sent | sends once · returns to idle |
+  | Idle → Recording → Cancelled | sends nothing · returns to idle |
+  | Idle → Recording → Locked → Sent | Send present · sends once · returns to idle |
+  | Idle → Recording → Locked → Cancelled | sends nothing · returns to idle |
+
+  Also confirmed: after locking, `pointerup` does **not** send, and the recording keeps
+  running (observed to 0:04 with the finger released).
+
 
 - Gesture arithmetic — 14 unit tests plus a run in the real browser engine: circular dead
   zone, axis commitment final, ties resolve to lock (never the destructive one), progress
