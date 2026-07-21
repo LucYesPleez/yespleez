@@ -138,12 +138,19 @@ const CHAT_BG_RATIO = 1162 / 2093;
  * How fast the wallpaper travels relative to the messages.
  *
  * 1 moves it with the content, which reads as the image being part of the
- * thread. 0.5 is parallax — it drifts at half rate, so the messages appear to
- * slide over something sitting further back, which is the point.
+ * thread. Lower is parallax — it drifts behind, so the messages appear to slide
+ * over something sitting further back, and the lower the number the further
+ * back it sits. 0 pins it outright, which is the same as no effect.
  *
- * 0 would pin it outright, and is the same as no effect at all.
+ * 0.35: half rate, then 30% slower again (0.5 × 0.7).
+ *
+ * The cost of going slower is reveal distance — at 0.35 the image needs roughly
+ * 1300px of scrolling to expose its top, against 460px at full rate. Most
+ * threads will only ever show the lower part of it. That is the trade being
+ * made deliberately: depth in exchange for how much of the picture is ever
+ * seen.
  */
-const CHAT_BG_PARALLAX = 0.5;
+const CHAT_BG_PARALLAX = 0.35;
 
 const ghostBtn = {
   width: 34, height: 34, flexShrink: 0, borderRadius: 999,
