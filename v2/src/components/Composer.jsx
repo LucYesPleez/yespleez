@@ -73,7 +73,15 @@ export default function Composer({
     <form onSubmit={submit} style={{
       display: 'flex', alignItems: 'center', gap: 9,
       padding: '12px 16px 16px', flexShrink: 0,
-      background: 'linear-gradient(0deg, rgba(255,255,255,.035) 0%, rgba(255,255,255,0) 100%)',
+      // Translucent, not solid, so the wallpaper bleeds through the bar rather
+      // than being cut off by a hard edge at the bottom of the thread.
+      //
+      // Darkened enough to keep the input and its placeholder legible over the
+      // bright half of the image — the composer is the one surface that must
+      // stay readable regardless of what is behind it.
+      background: 'linear-gradient(0deg, rgba(0,0,0,.62) 0%, rgba(0,0,0,.34) 100%)',
+      backdropFilter: 'blur(12px)',
+      WebkitBackdropFilter: 'blur(12px)',
     }}>
       {/* ── LEADING ─────────────────────────────────────────────────
           Discard while locked; nothing otherwise.

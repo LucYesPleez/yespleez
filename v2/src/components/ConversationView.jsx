@@ -88,6 +88,25 @@ function ThreadMarker({ label }) {
  * weight and size — mismatched icon buttons are the fastest way to make a
  * premium header look assembled rather than designed.
  */
+/**
+ * BUBBLE FILLS OVER THE WALLPAPER.
+ *
+ * Both are translucent so the image reads through them — that is the point of
+ * having a wallpaper at all.
+ *
+ * ⚠ THE SENT FILL REPLACES THE BRAND GRADIENT, as specified. It is worth
+ * knowing what that costs: the cyan→purple gradient was the only thing
+ * distinguishing sent from received at a glance, and both are now dark
+ * translucent panels differing by about 10% alpha. On a flat background that
+ * reads; over a photograph with this much texture, two near-identical
+ * translucent panels are much harder to tell apart than they are on a mockup.
+ *
+ * Swapping the one constant below back to the gradient is the whole change:
+ *   linear-gradient(135deg, rgba(0,229,255,.20) 0%, rgba(191,95,255,.40) 100%)
+ */
+const SENT_BUBBLE     = 'rgba(0,0,0,.55)';
+const RECEIVED_BUBBLE = 'rgba(255,255,255,.10)';
+
 const ghostBtn = {
   width: 34, height: 34, flexShrink: 0, borderRadius: 999,
   display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -597,7 +616,24 @@ export default function ConversationView({ conversationId, compact = false, onMi
         ref={scrollRef}
         onScroll={onScroll}
         className="yp-noscrollbar"
-        style={{ flex: 1, overflowY: 'auto', padding: '22px 18px 8px', minHeight: 0 }}
+        style={{
+          flex: 1, overflowY: 'auto', padding: '22px 18px 8px', minHeight: 0,
+          // THE WALLPAPER.
+          //
+          // On the SCROLL CONTAINER, with attachment left at its default
+          // `scroll` — which on a scrollable element means the image is fixed
+          // to the element and messages travel over it. `local` would scroll
+          // the image away with the content; `fixed` would pin it to the
+          // browser viewport, so inside the drawer it would align to the window
+          // rather than to the thread.
+          backgroundImage: "url('/chat-bg.webp')",
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          backgroundRepeat: 'no-repeat',
+          // Under the image, so a slow load or a failed fetch shows the app's
+          // own surface rather than a white flash in a dark thread.
+          backgroundColor: 'var(--dark)',
+        }}
       >
         {loading && (
           <div style={{ textAlign: 'center', color: 'rgba(255,255,255,.35)', fontFamily: "'Bebas Neue',sans-serif", fontSize: 13, letterSpacing: 2, padding: '32px 0' }}>
@@ -789,9 +825,7 @@ function MessageBubble({ message, isMine, grouped = false, endsBurst = true, spe
           : `20px 20px 20px ${tail}px`,
         padding: '12px 16px',
         border: isMine ? '1px solid rgba(191,95,255,.34)' : '1px solid rgba(255,255,255,.12)',
-        background: isMine
-          ? 'linear-gradient(135deg, rgba(0,229,255,.20) 0%, rgba(191,95,255,.40) 100%)'
-          : 'rgba(255,255,255,.085)',
+        background: isMine ? SENT_BUBBLE : RECEIVED_BUBBLE,
         // No glow. A halo on every sent message is decoration repeated dozens
         // of times down a thread — the gradient already distinguishes it, and
         // the glow was competing with the text sitting on top of it.
