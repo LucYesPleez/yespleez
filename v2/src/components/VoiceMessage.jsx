@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useRef, useEffect, useMemo, useCallback, memo } from 'react';
 import { signedUrlFor, formatDuration } from '../lib/voiceNotes';
 import { toDisplayPeaks } from '../lib/voicePeaks';
 import { timeOf } from '../lib/clock';
@@ -82,12 +82,50 @@ function barColour(i, count, progress) {
   });
 }
 
+/**
+ * THE BARS, AND NOTHING THAT CHANGES WHILE THEY PLAY.
+ *
+ * Memoised on the heights alone, so the readout ticking four times a second
+ * cannot re-render 36 nodes with it.
+ *
+ * Crucially the spans carry NO background in their style object. React only
+ * manages properties it sets, so leaving colour out means the frame loop's
+ * direct writes survive every re-render. Had it been declared here, React would
+ * re-apply a stale colour on each readout tick and visibly fight the playhead.
+ */
+const Waveform = memo(function Waveform({ bars, settle, register }) {
+  return (
+    <div
+      className={settle ? 'yp-wave-settle' : undefined}
+      style={{ display: 'flex', alignItems: 'center', gap: 2, height: WAVE_HEIGHT }}
+      aria-hidden="true"
+    >
+      {bars.map((v, i) => (
+        <span
+          key={i}
+          ref={el => register(i, el)}
+          style={{
+            flex: 1,
+            // Floor at 2px: a near-silent bucket must still read as a bar, or a
+            // pause in speech looks like a gap in the file.
+            height: Math.max(2, v * WAVE_HEIGHT),
+            borderRadius: 999,
+          }}
+        />
+      ))}
+    </div>
+  );
+});
+
 export default function VoiceMessage({ message }) {
   const path       = message?.payload?.path ?? null;
   const storedMs   = Number(message?.payload?.duration_ms ?? 0);
   const peaks      = message?.payload?.peaks ?? null;
 
   const audioRef   = useRef(null);
+  // The frame loop writes fills here directly; React owns everything else
+  // about these nodes.
+  const barsRef    = useRef([]);
   const [url,      setUrl]      = useState(null);
   const [loading,  setLoading]  = useState(false);
   const [error,    setError]    = useState(null);
@@ -98,6 +136,16 @@ export default function VoiceMessage({ message }) {
   // play triangle, because replay is play, and the brief rules out adding
   // icons. A screen reader still hears the difference.
   const [finished, setFinished] = useState(false);
+
+  const registerBar = useCallback((i, el) => { barsRef.current[i] = el; }, []);
+
+  /** Paint every bar for a given progress. One function, two callers. */
+  const paintBars = useCallback(p => {
+    const nodes = barsRef.current;
+    for (let i = 0; i < nodes.length; i++) {
+      if (nodes[i]) nodes[i].style.backgroundColor = barColour(i, nodes.length, p);
+    }
+  }, []);
 
   // Computed once per payload, not per frame. The playhead re-renders this
   // component every frame while playing, and re-deriving 36 bars each time
@@ -122,15 +170,49 @@ export default function VoiceMessage({ message }) {
    */
   useEffect(() => {
     if (!playing) return undefined;
+
+    // Reduced motion: no frame loop at all. `timeupdate` still drives the
+    // readout roughly four times a second, so progress is still shown — it
+    // simply steps instead of gliding. A continuous 60fps repaint IS the
+    // "unnecessary continuous animation" the preference exists to switch off.
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return undefined;
+
     let frame;
     const tick = () => {
       const el = audioRef.current;
-      if (el && !el.paused) setPosition(el.currentTime);
+      if (el && !el.paused && el.duration > 0) {
+        // WRITTEN STRAIGHT TO THE DOM, NOT THROUGH STATE.
+        //
+        // setPosition here re-rendered the whole component every frame, which
+        // meant recomputing and re-diffing 36 bars sixty times a second to move
+        // one colour boundary. The bars never change shape while playing — only
+        // their fill — so the frame loop touches exactly that and nothing else.
+        //
+        // The readout keeps its own path (timeupdate, ~4/s), which is ample for
+        // a m:ss display and costs four renders a second instead of sixty.
+        paintBars(Math.min(1, el.currentTime / el.duration));
+      }
       frame = requestAnimationFrame(tick);
     };
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
-  }, [playing]);
+  }, [playing, paintBars]);
+
+  /**
+   * The bars' resting colour, painted from state rather than declared in JSX.
+   *
+   * Runs on mount, on pause, on reset, and roughly four times a second while
+   * playing — where the frame loop has already written a fresher value, so this
+   * is harmless redundancy rather than a fight. Both callers write the same
+   * property through the same function.
+   *
+   * It also IS the progress indicator under reduced motion, where the frame
+   * loop never starts: the leading edge steps four times a second instead of
+   * gliding, which is exactly the trade that preference asks for.
+   */
+  useEffect(() => {
+    paintBars(duration > 0 ? Math.min(1, position / duration) : 0);
+  }, [position, duration, bars, paintBars]);
 
   async function ensureUrl() {
     if (url) return url;
@@ -167,9 +249,19 @@ export default function VoiceMessage({ message }) {
     if (el.src !== src) el.src = src;
     try {
       await el.play();
-    } catch {
-      // Autoplay policy, a decode failure, or an expired url. All present the
-      // same way to the person pressing the button.
+    } catch (err) {
+      // AbortError IS NOT A FAILURE. `play()` rejects with it whenever the load
+      // is interrupted — pausing while it buffers, pressing play twice, or the
+      // element being torn down. All of those are the user doing something
+      // ordinary, and surfacing "Cannot play this right now" for them tells
+      // people the audio is broken when they simply changed their mind.
+      //
+      // Found while instrumenting playback: pausing 1.4s into a load put that
+      // error on screen for a file that was completely intact.
+      if (err?.name === 'AbortError') return;
+
+      // What remains is real: autoplay policy, a decode failure, an expired
+      // url. Those present the same way to the person pressing the button.
       setError('Cannot play this right now');
     }
   }
@@ -257,24 +349,7 @@ export default function VoiceMessage({ message }) {
             be retrofitted without re-downloading every one), so the plain bar
             is a permanent state rather than a loading one. */}
         {bars ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 2, height: WAVE_HEIGHT }} aria-hidden="true">
-            {bars.map((v, i) => (
-              <span
-                key={i}
-                style={{
-                  flex: 1,
-                  // Floor at 2px: a near-silent bucket must still read as a bar,
-                  // or a pause in speech looks like a gap in the file.
-                  height: Math.max(2, v * WAVE_HEIGHT),
-                  borderRadius: 999,
-                  background: barColour(i, bars.length, progress),
-                  // No transition. The playhead already moves every frame, and a
-                  // per-bar ease on top of that smears the leading edge into a
-                  // gradient that lags the audio.
-                }}
-              />
-            ))}
-          </div>
+          <Waveform bars={bars} settle={!playing} register={registerBar} />
         ) : (
           <div style={{ height: 3, borderRadius: 999, background: REST_CSS, overflow: 'hidden' }}>
             <div style={{ width: `${progress * 100}%`, height: '100%', background: PLAYED_CSS, borderRadius: 999 }} />
@@ -341,7 +416,10 @@ export default function VoiceMessage({ message }) {
         onEnded={() => { setPlaying(false); setPosition(0); setFinished(true); }}
         // Keeps the readout honest while PAUSED and on seek; the frame loop
         // above owns it during playback.
-        onTimeUpdate={e => { if (e.currentTarget.paused) setPosition(e.currentTarget.currentTime); }}
+        // Drives the DURATION READOUT only. The waveform is painted by the
+        // frame loop above, which needs no state — so this fires at its own
+        // lazy rate without the bars caring.
+        onTimeUpdate={e => setPosition(e.currentTarget.currentTime)}
         onLoadedMetadata={e => {
           // The file's own duration beats the recorded one. See header.
           const real = e.currentTarget.duration;

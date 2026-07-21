@@ -942,6 +942,7 @@ function MessageBubble({ message, isMine, grouped = false, endsBurst = true, spe
           side, its avatar, its place in the order and its timestamp, because
           it is still a message in every respect except how it looks. */}
       <div
+        className={shape?.className}
         // DOUBLE-TAP TO YES. React's onDoubleClick covers mouse and touch, and
         // needs no disambiguation delay because single tap does nothing now —
         // the timestamp gave up that gesture in M9h.3 precisely so this one

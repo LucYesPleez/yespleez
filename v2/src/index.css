@@ -237,6 +237,55 @@ input, textarea, select {
   }
 }
 
+/* ONE EASING, THREE SPEEDS (M9p).
+
+   Every Voicey transition draws from these. Before, each surface had picked its
+   own curve and duration — .16s here, .17s there, .2s somewhere else — which is
+   invisible in isolation and reads as "slightly off" when two of them fire
+   together. Shared tokens are how consistency stops depending on remembering.
+
+   The curve is a soft overshoot-free ease-out: quick to leave, slow to arrive,
+   which is what makes a control feel responsive rather than animated. */
+:root {
+  --yp-ease:      cubic-bezier(.2, .8, .3, 1);
+  --yp-fast:      .14s;   /* press — must feel immediate */
+  --yp-medium:    .2s;    /* hover, lighting */
+  --yp-settle:    .38s;   /* returning to rest after playback */
+}
+
+/* THE VOICEY BUBBLE (M9p).
+
+   A whole-component hover, distinct from the play button's. It lifts the
+   surface light very slightly — no movement, no scale — because the bubble is
+   also the double-tap target for a Yes, and a bubble that moves under the
+   cursor makes that gesture feel unstable.
+
+   Press feedback is a light dip rather than a transform for the same reason. */
+.yp-voice-bubble {
+  transition: box-shadow var(--yp-medium) var(--yp-ease),
+              border-color var(--yp-medium) var(--yp-ease);
+}
+@media (hover: hover) {
+  .yp-voice-bubble:hover {
+    border-color: rgba(190,150,255,.42);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.16),
+                0 12px 30px -18px rgba(0,0,0,.95);
+  }
+}
+.yp-voice-bubble:active {
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.06),
+              inset 0 2px 10px rgba(0,0,0,.28);
+  transition-duration: var(--yp-fast);
+}
+
+/* Bars ease back to rest when playback stops, and NEVER while it runs — a
+   transition during playback smears the leading edge and makes the colour lag
+   the audio. Applied only when paused, which is exactly when a snap would be
+   the abrupt change worth softening. */
+.yp-wave-settle span {
+  transition: background-color var(--yp-settle) var(--yp-ease);
+}
+
 /* THE VOICEY PLAY CONTROL (M9n).
 
    Hover and press live here rather than in React state: `:hover` costs no
@@ -249,10 +298,10 @@ input, textarea, select {
    physical rather than animated. */
 .yp-voice-play {
   transition:
-    transform .16s cubic-bezier(.2,.8,.3,1),
-    background .22s ease,
-    border-color .22s ease,
-    box-shadow .22s ease;
+    transform var(--yp-fast) var(--yp-ease),
+    background var(--yp-medium) var(--yp-ease),
+    border-color var(--yp-medium) var(--yp-ease),
+    box-shadow var(--yp-medium) var(--yp-ease);
 }
 .yp-voice-play:hover:not(:disabled) {
   transform: scale(1.05);
@@ -270,14 +319,17 @@ input, textarea, select {
 .yp-voice-glyph {
   position: absolute;
   display: flex;
-  transition: opacity .17s ease, transform .17s cubic-bezier(.2,.8,.3,1);
+  transition: opacity var(--yp-medium) var(--yp-ease),
+              transform var(--yp-medium) var(--yp-ease);
 }
 
 /* Motion is decoration on a control whose job is to start audio. Removing it
    must not remove the control. */
 @media (prefers-reduced-motion: reduce) {
   .yp-voice-play,
-  .yp-voice-glyph { transition: none; }
+  .yp-voice-glyph,
+  .yp-voice-bubble,
+  .yp-wave-settle span { transition: none; }
   .yp-voice-play:hover:not(:disabled),
   .yp-voice-play:active:not(:disabled) { transform: none; }
 }

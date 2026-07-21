@@ -107,6 +107,11 @@ export const KIND_SHAPE = {
     // point is that it is one object. So the renderer draws both on one line:
     // length on the left, clock on the right.
     ownsTimestamp: true,
+    // Hover and press states live in CSS. They cannot be inline — there is no
+    // inline `:hover` — and putting them in React state would re-render the
+    // component on mouse movement, which for this kind means competing with
+    // the playhead.
+    className: 'yp-voice-bubble',
   },
 };
 
