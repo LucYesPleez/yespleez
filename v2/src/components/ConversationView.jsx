@@ -626,7 +626,7 @@ export default function ConversationView({ conversationId, compact = false, onMi
           // the image away with the content; `fixed` would pin it to the
           // browser viewport, so inside the drawer it would align to the window
           // rather than to the thread.
-          backgroundImage: "url('/chat-bg.webp')",
+          backgroundImage: "url('/chat-bg.png')",
           backgroundSize: 'cover',
           backgroundPosition: 'center',
           backgroundRepeat: 'no-repeat',
