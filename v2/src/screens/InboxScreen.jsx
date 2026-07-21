@@ -274,43 +274,31 @@ export default function InboxScreen() {
               // rgba(255,255,255,.09) border language, rather than the older
               // 14px / var(--border) pairing. An unread row is lifted slightly
               // instead of being a different colour — weight, not hue.
-              // Unread carries a gradient-tinted border and a soft glow; read
-              // rows stay flat. The glow is the ONE place decoration earns its
-              // place — it marks the handful of rows that need attention,
-              // rather than being repeated on everything.
+              // A LIST, not a stack of cards. Boxing every conversation made
+              // eight rows read as eight objects; a hairline divider separates
+              // them without drawing eight rectangles, and the page gets much
+              // denser for free.
               style={{
                 display: 'block', width: '100%', textAlign: 'left', cursor: 'pointer', textDecoration: 'none',
-                border: `1px solid ${c.unread > 0 ? 'rgba(191,95,255,.62)' : 'rgba(255,255,255,.08)'}`,
-                borderRadius: 18, padding: '15px 16px', marginBottom: 11,
-                background: c.unread > 0 ? 'rgba(191,95,255,.10)' : 'rgba(255,255,255,.022)',
-                // Two shadows: a tight ring that reads as the edge glowing,
-                // and a wider bloom for spill. The previous single shadow used
-                // a -6px spread, which pulled it so far inside the border that
-                // it was invisible against the dark surface.
-                boxShadow: c.unread > 0
-                  ? '0 0 0 1px rgba(191,95,255,.28), 0 0 26px rgba(191,95,255,.35)'
-                  : 'none',
+                border: 'none',
+                borderBottom: '1px solid rgba(255,255,255,.055)',
+                borderRadius: 10,
+                padding: '13px 12px',
+                marginBottom: 0,
+                background: c.unread > 0 ? 'rgba(191,95,255,.055)' : 'transparent',
+                // Glow kept but pulled back ~40% (.35 → .21) and the ring
+                // dropped: with no border to sit on, a tight ring read as an
+                // outline. What is left is a soft bloom behind the row.
+                boxShadow: c.unread > 0 ? '0 0 18px rgba(191,95,255,.21)' : 'none',
                 opacity: c.isArchived ? 0.55 : 1,
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 11, letterSpacing: 1.5, color: accent }}>
-                  {CONTEXT_LABEL[c.context_type] ?? c.context_type.toUpperCase()}
-                </div>
-                {c.subject_state && (
-                  <div style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1 }}>
-                    {c.subject_state}
-                  </div>
-                )}
-                {c.isArchived && (
-                  <div style={{ fontSize: 10, color: 'var(--muted)', letterSpacing: 1 }}>ARCHIVED</div>
-                )}
-                <div style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--muted)' }}>
-                  {relativeTime(c.last_message_at)}
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 10 }}>
+              {/* ONE band. The context label and timestamp used to sit in a
+                  second row above the avatar, which is what made every entry
+                  two-storey. Time now rides beside the name, and the context
+                  label moves down next to the identity where it costs no
+                  height. */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 <span style={{ width: 46, height: 46, borderRadius: 999, flexShrink: 0, padding: 2, background: `linear-gradient(135deg, ${accent}, ${PROFILE_TYPES[other?.profiles?.type]?.accent2 ?? '#00E5FF'})`, display: 'flex' }}>
                   <span style={{ width: '100%', height: '100%', borderRadius: 999, overflow: 'hidden', background: '#0d0d10', display: 'flex', alignItems: 'center', justifyContent: 'center', color: accent, fontFamily: "'Bebas Neue',sans-serif", fontSize: 17 }}>
                     {(other?.profiles?.avatar_thumb || other?.profiles?.avatar || PROFILE_TYPES[other?.profiles?.type]?.defaultImage)
@@ -320,8 +308,13 @@ export default function InboxScreen() {
                 </span>
 
                 <div style={{ minWidth: 0, flex: 1 }}>
-                  <div style={{ color: 'var(--text)', fontSize: 16, fontWeight: c.unread > 0 ? 700 : 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {other?.profiles?.name ?? 'Unknown'}
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                    <div style={{ minWidth: 0, flex: 1, color: 'var(--text)', fontSize: 16, fontWeight: c.unread > 0 ? 700 : 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {other?.profiles?.name ?? 'Unknown'}
+                    </div>
+                    <div style={{ flexShrink: 0, fontSize: 11, color: c.unread > 0 ? '#D9A6FF' : 'rgba(255,255,255,.35)' }}>
+                      {relativeTime(c.last_message_at)}
+                    </div>
                   </div>
                   {/* WHICH IDENTITY THIS THREAD IS FROM. Three conversations
                       with the same artist are otherwise three identical rows. */}
@@ -337,16 +330,26 @@ export default function InboxScreen() {
                     </div>
                   )}
 
-                  {c.asProfile && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 5 }}>
-                      <span style={{ fontSize: 9.5, letterSpacing: 1, color: 'rgba(255,255,255,.35)', fontFamily: "'Bebas Neue',sans-serif" }}>
-                        YOU ARE
-                      </span>
-                      <span style={{ fontSize: 12, color: '#D9A6FF', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {c.asProfile.name}
-                      </span>
-                    </div>
-                  )}
+                  {/* Context and sending identity share the third line —
+                      both are orienting detail, and stacking them cost a whole
+                      row each. Identity stays because a second conversation
+                      with the same person is otherwise indistinguishable. */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 3, minWidth: 0 }}>
+                    <span style={{ flexShrink: 0, fontFamily: "'Bebas Neue',sans-serif", fontSize: 9.5, letterSpacing: 1.2, color: accent }}>
+                      {CONTEXT_LABEL[c.context_type] ?? String(c.context_type).toUpperCase()}
+                    </span>
+                    {c.asProfile && (
+                      <>
+                        <span style={{ flexShrink: 0, width: 2, height: 2, borderRadius: 999, background: 'rgba(255,255,255,.25)' }} />
+                        <span style={{ minWidth: 0, fontSize: 11.5, color: 'rgba(255,255,255,.42)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          as <span style={{ color: '#D9A6FF', fontWeight: 600 }}>{c.asProfile.name}</span>
+                        </span>
+                      </>
+                    )}
+                    {c.isArchived && (
+                      <span style={{ flexShrink: 0, fontSize: 9.5, letterSpacing: 1, color: 'rgba(255,255,255,.3)' }}>ARCHIVED</span>
+                    )}
+                  </div>
                 </div>
                 {c.unread > 0 && (
                   <div aria-label={`${c.unread} unread`} style={{ marginLeft: 'auto', minWidth: 20, height: 20, borderRadius: 999, background: 'var(--neon)', color: '#000', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 6px' }}>
