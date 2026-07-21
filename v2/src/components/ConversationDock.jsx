@@ -378,18 +378,17 @@ function ConversationTab({ state, onOpen, onDismiss }) {
           {name}
         </span>
 
-        {hasDraft && unread === 0 && (
+        {/* No unread badge. The gradient border already says "something is
+            waiting", and a red dot on top of it is the same message twice —
+            on the element whose whole brief is to be barely noticed. The
+            exact count lives on the inbox card and the nav badge, which is
+            where a number is actually useful. */}
+        {hasDraft && (
           <span
             aria-label="Draft saved"
             title="Draft saved"
             style={{ width: 5, height: 5, borderRadius: 999, flexShrink: 0, background: 'linear-gradient(135deg, #00E5FF, #BF5FFF)' }}
           />
-        )}
-
-        {unread > 0 && (
-          <span aria-label={`${unread} unread`} style={{ minWidth: 15, height: 15, borderRadius: 999, background: '#FF3B30', color: '#fff', fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px', flexShrink: 0 }}>
-            {unread > 9 ? '9+' : unread}
-          </span>
         )}
       </button>
 
