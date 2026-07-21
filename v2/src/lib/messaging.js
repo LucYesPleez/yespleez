@@ -49,9 +49,20 @@ import { supabase } from './supabase';
 const CONVERSATION_COLUMNS =
   'id, context_type, context_id, subject_state, status, created_at, last_message_at';
 
-/** §A3 — attribution and audit are both stored; only attribution is displayed. */
+/**
+ * §A3 — attribution and audit are both stored; only attribution is displayed.
+ *
+ * `kind` and `payload` (M9a) are NOT optional here. The renderer registry
+ * dispatches on `kind`, and a select that omits it delivers `undefined` to
+ * every message — so the dispatch resolves to text through its fallback and
+ * looks perfectly healthy while being incapable of routing anywhere else.
+ *
+ * That is exactly the failure M9a was written to end, one layer further down:
+ * the column existed for hours while this line still did not ask for it.
+ * `messaging.columns.test.js` fails if either name is dropped again.
+ */
 const MESSAGE_COLUMNS =
-  'id, conversation_id, from_profile_id, from_user_id, body, created_at';
+  'id, conversation_id, from_profile_id, from_user_id, body, kind, payload, created_at';
 
 /**
  * Open (or re-open) the conversation for a workflow act.

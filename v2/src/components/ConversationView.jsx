@@ -326,7 +326,10 @@ export default function ConversationView({ conversationId, compact = false, onMi
     setMessages(prev => [...prev, message]);
     onDraftChange('');
     setSending(false);
-    patch(conversationId, { lastPreview: { text: message.body, kind: 'text' } }, true);
+    // The kind comes from the row, not from a literal. This said kind: 'text'
+    // while `messages` had no kind column — true by accident, and it would have
+    // stayed 'text' for a voice note and been wrong the moment one existed.
+    patch(conversationId, { lastPreview: { text: message.body, kind: message.kind } }, true);
     await markConversationRead(conversationId);
   }
 

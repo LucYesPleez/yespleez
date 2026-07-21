@@ -105,6 +105,23 @@ const RENDERERS = {
  * given. An unrenderable message is still a message the participant sent.
  */
 export function renderMessage(message) {
+  // ?? 'text' is now a REAL fallback for exactly one case: a client that has
+  // not refetched since M9a. Since M9a's column is NOT NULL with a default,
+  // every row in the database has a kind — so an undefined one reaching here
+  // means the SELECT did not ask for it, which is invisible on screen because
+  // it renders as text and looks perfectly correct.
+  //
+  // That is precisely how the dispatch stayed fiction: it never failed, it
+  // just never routed. So say something rather than degrade silently.
+  if (import.meta.env?.DEV && message && message.kind === undefined) {
+    console.warn(
+      '[messageKinds] message %s arrived with no `kind`. Every row has one since M9a, ' +
+      'so the read path dropped it — check MESSAGE_COLUMNS in lib/messaging.js. ' +
+      'This renders as text and will look correct.',
+      message.id ?? '(no id)',
+    );
+  }
+
   const kind = message?.kind ?? 'text';
   const renderer = RENDERERS[kind];
   return renderer ? renderer(message) : renderFallback(message, kind);

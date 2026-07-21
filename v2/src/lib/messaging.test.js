@@ -267,3 +267,39 @@ test('both badge surfaces use the database counting rule, not a local count', as
     ['conversation_unread_count', 'total_unread_count']);
   assert.equal(queries.length, 0, '5.6: one counting rule — no surface counts for itself');
 });
+
+// ── M9a · the read path must actually ASK for the kind ──────────────
+//
+// The renderer registry dispatches on `message.kind`. If the select omits it,
+// every message arrives with kind undefined, resolves to text through the
+// registry's fallback, and looks entirely healthy — a dispatch that cannot
+// route anywhere else. That is what shipped: the column went live while
+// MESSAGE_COLUMNS still did not name it.
+//
+// Asserted on BOTH paths that produce a message. Testing only listMessages
+// would leave the message you just sent kindless until a refetch, which is the
+// harder bug to see because it fixes itself on reload.
+
+test('listing messages asks the database for kind and payload', async () => {
+  await listMessages(CONV);
+  const cols = queries.at(-1).cols;
+  assert.match(cols, /\bkind\b/,    'without kind, every message renders as text through the fallback');
+  assert.match(cols, /\bpayload\b/, 'without payload, no kind can carry its own data');
+});
+
+test('a sent message comes back with its kind and payload', async () => {
+  await sendMessage({ conversationId: CONV, fromProfileId: PROFILE, body: 'hello' });
+  const cols = queries.at(-1).cols;
+  assert.match(cols, /\bkind\b/,    'the sender renders what they just sent — it needs a kind too');
+  assert.match(cols, /\bpayload\b/);
+});
+
+test('the kind on a sent message comes from the row, not a client literal', async () => {
+  // The insert deliberately omits kind so Postgres applies its default. The
+  // point is that nothing on the client SETS it to 'text' — a literal here
+  // would survive into a voice note and be silently wrong.
+  await sendMessage({ conversationId: CONV, fromProfileId: PROFILE, body: 'hello' });
+  const row = inserted.at(-1).row;
+  assert.equal(row.kind, undefined,
+    'sendMessage must not hardcode a kind; the column defaults to text (M9a)');
+});
