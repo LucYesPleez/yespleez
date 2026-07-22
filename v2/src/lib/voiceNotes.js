@@ -57,6 +57,46 @@ export function formatDuration(seconds) {
 }
 
 /**
+ * ══ §6.1 AMENDMENT — iOS TAKES APPLE'S SPEECH PROCESSING (2026-07-22) ══
+ *
+ * `C20` below is unchanged for every other platform and its reasoning still
+ * holds there. On iOS it is now measured to be actively harmful, and the
+ * evidence is in the `C21` readback rather than in anyone's ears:
+ *
+ *   · iPhone 14 Pro and a Galaxy recorded the same words seconds apart. Both
+ *     produced Opus, 48 kHz, 32 kbps. IDENTICAL settings, and the iPhone note
+ *     was rated 1/5 against the Galaxy's 5/5 — quiet, muffled, and worse than
+ *     WhatsApp from the same handset.
+ *   · So the fault was never the codec, the container, the bitrate, the sample
+ *     rate, or the WebAudio downmix — each was ruled out by measurement, not by
+ *     argument. What differs is the analogue capture path.
+ *   · The readback also shows `auto_gain: null` and `noise_suppression: null`
+ *     on iOS while `echo_cancellation: false` comes back populated. Safari
+ *     SUPPORTS the echo constraint and IGNORES the other two — so `C20` was
+ *     only ever half-applied there, and `echoCancellation` is the switch that
+ *     actually moves capture off Apple's voice-processing unit.
+ *
+ * ── WHY THE ANSWER IS TO STOP OPTING OUT, NOT TO COMPENSATE ──────────
+ *
+ * The alternative considered was hand-rolled gain: keep the raw path and lift
+ * the level ourselves. Rejected. It has to survive whispers, shouting, and
+ * every microphone in the wild without pumping or clipping, which is a decade
+ * of tuning that Apple has already done and we would be guessing at.
+ *
+ * ── WHAT §6.1 WAS PROTECTING, AND WHY IT SURVIVES ────────────────────
+ *
+ * §6.1 protects venue ambience: these users are in rooms where the room is
+ * sometimes the point. That is real, and it is now understood to be a SEPARATE
+ * FEATURE — a "record the room" mode someone deliberately chooses — rather than
+ * something to defend by degrading every message. The actual traffic is "I'll
+ * take the 9:30 slot" and "running ten minutes late": those are voice
+ * COMMUNICATIONS, and the promoter needs the words, not the crowd.
+ *
+ * ⚠ This does NOT license enabling DSP anywhere else. Android and desktop keep
+ * `C20` exactly as ratified, because there the raw path measures well.
+ */
+
+/**
  * THE CAPTURE PROFILE — `C20`, and the single largest quality decision here.
  *
  * `getUserMedia` defaults every one of these to TRUE, and those defaults are
@@ -109,6 +149,25 @@ const EXACT_CAPTURE_CONSTRAINTS = {
 };
 
 /**
+ * iOS. §6.1 AMENDMENT — see the block above `C20`.
+ *
+ * ⚠ THE POINT IS THE OMISSION. There is no `echoCancellation: true` here, and
+ * adding one would be a different decision: naming the constraint asks for SOME
+ * configuration that satisfies it, while asking for nothing takes the
+ * platform's own tuned default — which is what iMessage and WhatsApp
+ * effectively get, and the thing actually being copied.
+ *
+ * `channelCount` and `sampleRate` stay. They are §6.3 and §6.2 respectively,
+ * not `C20`, and neither touches the processing path.
+ *
+ * Exported so the rule is testable without a device or a fake navigator.
+ */
+export const IOS_CAPTURE_CONSTRAINTS = {
+  channelCount: 1,
+  sampleRate:   48000,
+};
+
+/**
  * Open the microphone on the ratified profile, demanding it first.
  *
  * Falls back to the advisory form ONLY on OverconstrainedError — a device that
@@ -120,6 +179,10 @@ const EXACT_CAPTURE_CONSTRAINTS = {
  * indistinguishable from a compliant one.
  */
 async function openMicrophone() {
+  if (isIOS()) {
+    return await navigator.mediaDevices.getUserMedia({ audio: IOS_CAPTURE_CONSTRAINTS });
+  }
+
   try {
     return await navigator.mediaDevices.getUserMedia({ audio: EXACT_CAPTURE_CONSTRAINTS });
   } catch (err) {
@@ -199,14 +262,21 @@ function forceMono(stream) {
 }
 
 /**
- * §6.2 — Opus VBR 32–48 kbps at 48 kHz mono. Bottom of the ratified range:
- * speech at 48 kHz mono Opus is transparent well below the top of it, and the
- * saving is paid by every listener on every playback.
+ * §6.2 — Opus VBR 32–48 kbps at 48 kHz mono. TOP of the ratified range.
+ *
+ * Was 32000, the bottom, on the reasoning that speech is transparent well below
+ * the top and the saving is paid by every listener. Moved to the top 2026-07-22
+ * after a real-device comparison: an owner rated a 32 kbps Galaxy note 5/5 and
+ * the iPhone equivalent 1/5, and while the gap was the capture path rather than
+ * the bitrate, "transparent" was a claim nobody had actually listened to. At
+ * these lengths the difference is a few kilobytes a note.
+ *
+ * No amendment needed — 48 was always inside the ratified range.
  *
  * Ignored by browsers that will not honour it, which is why the NEGOTIATED
  * values are read back and persisted rather than assumed (`C21`).
  */
-const TARGET_BITS_PER_SECOND = 32000;
+const TARGET_BITS_PER_SECOND = 48000;
 
 /**
  * ⚠ 32 kbps IS AN OPUS NUMBER, AND ONLY AN OPUS NUMBER.
@@ -229,7 +299,7 @@ const TARGET_BITS_PER_SECOND = 32000;
  * `audio/mp4;codecs=mp4a.40.2` must resolve the same as `audio/mp4`.
  */
 const BITS_PER_SECOND_BY_TYPE = {
-  'audio/mp4':  64000,   // AAC-LC — Safari, iOS and macOS
+  'audio/mp4':  64000,   // AAC-LC — needs more than Opus for the same bar
   'audio/mpeg': 64000,   // MP3, if a browser ever offers it
 };
 

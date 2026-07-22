@@ -174,8 +174,8 @@ test('⚠ AAC gets a higher bitrate than Opus for the same quality bar', async (
   // recording worked and sounded bad, on hardware whose mic is not the problem.
   const { bitrateFor } = await import('./voiceNotes.js');
 
-  assert.equal(bitrateFor('audio/webm;codecs=opus'), 32000);
-  assert.equal(bitrateFor('audio/ogg;codecs=opus'),  32000);
+  assert.equal(bitrateFor('audio/webm;codecs=opus'), 48000);
+  assert.equal(bitrateFor('audio/ogg;codecs=opus'),  48000);
   assert.equal(bitrateFor('audio/mp4'),              64000);
   assert.equal(bitrateFor('audio/mpeg'),             64000);
 });
@@ -190,8 +190,8 @@ test('the codec is matched on the BASE type, so parameters cannot defeat it', as
 
 test('an unknown codec falls back to the ratified Opus rate', async () => {
   const { bitrateFor } = await import('./voiceNotes.js');
-  assert.equal(bitrateFor('audio/flac'), 32000);
-  assert.equal(bitrateFor(undefined),    32000);
+  assert.equal(bitrateFor('audio/flac'), 48000);
+  assert.equal(bitrateFor(undefined),    48000);
 });
 
 /* ── the iOS capture rule ───────────────────────────────────────────── */
@@ -220,4 +220,38 @@ test('no navigator is not iOS, and does not throw', async () => {
   const { isIOS } = await import('./voiceNotes.js');
   assert.equal(isIOS(null), false);
   assert.equal(isIOS({}), false);
+});
+
+/* ── §6.1 amendment: iOS asks for nothing about DSP ─────────────────── */
+
+test('⚠ iOS requests NO dsp constraints, so Apple picks its own speech path', async () => {
+  // The point is the OMISSION. Naming `echoCancellation: true` would be us
+  // choosing a configuration; asking for nothing takes the platform's own tuned
+  // default, which is what iMessage and WhatsApp effectively get and the thing
+  // actually being copied.
+  //
+  // Measured 2026-07-22: with `echoCancellation: false` — the one DSP
+  // constraint Safari honours — an iPhone 14 Pro rated 1/5 against a Galaxy's
+  // 5/5 on identical codec, bitrate and sample rate.
+  const { IOS_CAPTURE_CONSTRAINTS } = await import('./voiceNotes.js');
+
+  assert.equal('echoCancellation' in IOS_CAPTURE_CONSTRAINTS, false, 'naming it at all is what broke iOS');
+  assert.equal('noiseSuppression' in IOS_CAPTURE_CONSTRAINTS, false);
+  assert.equal('autoGainControl'  in IOS_CAPTURE_CONSTRAINTS, false);
+
+  // §6.3 and §6.2 are NOT C20 and do not touch the processing path.
+  assert.equal(IOS_CAPTURE_CONSTRAINTS.channelCount, 1);
+  assert.equal(IOS_CAPTURE_CONSTRAINTS.sampleRate,   48000);
+});
+
+test('⚠ every OTHER platform keeps C20 exactly as ratified', async () => {
+  // The amendment is iOS-only. A change that quietly enabled DSP on Android
+  // would undo the single largest quality decision in this file, on the
+  // platform where the raw path measures WELL.
+  const src = await import('node:fs').then(fs => fs.readFileSync('src/lib/voiceNotes.js', 'utf8'));
+  const exact = src.slice(src.indexOf('const EXACT_CAPTURE_CONSTRAINTS'), src.indexOf('const EXACT_CAPTURE_CONSTRAINTS') + 320);
+
+  assert.match(exact, /echoCancellation: { exact: false }/);
+  assert.match(exact, /noiseSuppression: { exact: false }/);
+  assert.match(exact, /autoGainControl:  { exact: false }/);
 });
