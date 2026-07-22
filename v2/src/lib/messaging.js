@@ -347,6 +347,39 @@ export function receiptChannelName(conversationId) {
 }
 
 /**
+ * Announce a receipt for a conversation this client has no open channel to.
+ *
+ * The thread's own channel only exists while `ConversationView` has it open.
+ * Delivery, though, happens wherever the app is — a message arriving while the
+ * recipient is on Discover is every bit as delivered, and the sender should see
+ * it. So this opens a channel just long enough to say so.
+ *
+ * Transient on purpose. Holding a live channel for every conversation a user
+ * has would be a socket per thread to carry an event that fires a few times a
+ * day; a few hundred bytes on arrival is the cheaper trade.
+ *
+ * Fire-and-forget. The durable record is the row the caller already wrote, so a
+ * failed announcement costs the sender a delay, never correctness.
+ */
+export function announceDelivered(conversationId) {
+  if (!conversationId) return;
+  const channel = supabase.channel(receiptChannelName(conversationId), {
+    config: { broadcast: { self: false } },
+  });
+  channel.subscribe(status => {
+    if (status !== 'SUBSCRIBED') return;
+    channel.send({
+      type: 'broadcast',
+      event: 'receipt',
+      payload: { delivered: new Date().toISOString() },
+    });
+    // Let the frame settle before tearing down, or the send can be dropped
+    // with the socket it was written to.
+    setTimeout(() => supabase.removeChannel(channel), 400);
+  });
+}
+
+/**
  * ⚠ THE ACKNOWLEDGEMENT. Call this ONLY when this device genuinely has the
  * message — never on send, never on notify, never on a guess.
  *

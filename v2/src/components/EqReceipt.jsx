@@ -21,27 +21,38 @@ import { RECEIPT, litBars } from '../lib/receiptState';
  * There is no looping animation anywhere in this component or its CSS. That is
  * a constraint, not an omission.
  *
- * ── ANIMATION FIRES ON TRANSITION, NEVER ON MOUNT ────────────────────
+ * ── THE OPENING CASCADE IS A KEEPER, NOT A BUG ───────────────────────
  *
- * ⚠ THE SUBTLE ONE. Opening a thread mounts a receipt for every message in it,
- * all of them long since read. Animating on mount would set the whole history
- * oscillating at once every time you opened a conversation — which is both
- * absurd and exactly the "live meter" impression the design forbids.
+ * Opening a thread ripples the flourish down every read message in it, and the
+ * owner wants that (2026-07-22). It is worth understanding WHY it happens,
+ * because it looks like something that ought to be prevented.
  *
- * So the first render of any receipt paints its final state silently, and only
- * a change AFTER that animates. `prev` starting as the current state is what
- * encodes that.
+ * Receipts render before the watermarks are fetched, so every one mounts as
+ * `sent` and flips to its true rung a moment later when the data lands. That
+ * flip is a genuine state change, so the flourish fires — once, per message,
+ * all at roughly the same instant.
+ *
+ * ⚠ IT THEREFORE DEPENDS ON THE FETCH LANDING AFTER FIRST PAINT. Cache the
+ * watermarks, or resolve them before the thread renders, and the cascade
+ * silently disappears — the receipts would simply mount correct, and mounting
+ * correct never animates. If that ever happens and the effect is missed, this
+ * is where it went.
+ *
+ * `prev` still starts as the current state, so a receipt that mounts already
+ * settled paints silently. That guard is what keeps the flourish tied to
+ * CHANGE rather than to existence — the cascade is a change arriving late, not
+ * an animation on mount.
  */
 
 /**
- * Bar heights, tallest first.
+ * Bar heights, as fractions of the CYAN bar — the tallest.
  *
- * Uneven on purpose — an even ramp reads as a progress bar wearing bars, and a
- * console silhouette is what makes this recognisable at a glance. The
- * PROGRESSION is carried by how many bars are lit and by their colour, not by
- * the outline, so the shape is free to be a mark rather than a measurement.
+ * Owner's proportions: grey is half the cyan, pink two thirds. That puts the
+ * peak in the middle, which is what stops it reading as a progress bar wearing
+ * bars; a console silhouette is a shape, not a measurement. The PROGRESSION is
+ * carried by how many bars are lit and by their colour.
  */
-const HEIGHTS = [1, 0.64, 0.84];
+const HEIGHTS = [0.5, 1, 0.667];
 
 /**
  * The resting height of a bar that has not lit yet.
@@ -50,15 +61,34 @@ const HEIGHTS = [1, 0.64, 0.84];
  * at the first lit step, which made `sent` and `waiting` identical in
  * silhouette — the ladder became colour-only, and at 11px that is invisible.
  */
-const REST = 0.26;
+const REST = 0.22;
 
 /** Unlit. Present, so the glyph always shows what has NOT happened yet. */
-const DIM = 'rgba(255,255,255,.20)';
+const DIM = 'rgba(255,255,255,.16)';
 
-const GREY = '#9CA3AF';
-const CYAN = '#22D3EE';
-const PINK = '#EC4899';
-const FAIL = '#FF3B5C';
+/**
+ * ── RESTING COLOURS ARE DIMMED. THE FLOURISH IS NOT ──────────────────
+ *
+ * At full strength this mark was pulling the eye down the whole thread. It sits
+ * beside every message you have ever sent, so it is the single most-repeated
+ * element in the app — and a status glyph that competes with the message is
+ * doing the opposite of its job.
+ *
+ * So the resting state runs at REST_ALPHA and the read flourish plays at full.
+ * The moment something happens is allowed to be bright; the record of it having
+ * happened is not.
+ *
+ * Alpha rather than darker hexes, so the same three colours stay recognisably
+ * themselves and there is only one number to turn.
+ */
+const REST_ALPHA = 0.62;
+
+const GREY = '156,163,175';   // #9CA3AF
+const CYAN = '34,211,238';    // #22D3EE
+const PINK = '236,72,153';    // #EC4899
+const FAIL = '255,59,92';
+
+const rgba = (c, a) => `rgba(${c},${a})`;
 
 /**
  * The lit colours for each rung.
@@ -68,18 +98,48 @@ const FAIL = '#FF3B5C';
  * live bars brighten together; read is the resolved end state, and there the
  * three bars settle into the grey → cyan → pink gradient that is the mark.
  */
-const PALETTE = {
-  [RECEIPT.SENT]:      [GREY, DIM,  DIM],
-  [RECEIPT.DELIVERED]: [CYAN, CYAN, DIM],
-  [RECEIPT.SEEN]:      [GREY, CYAN, PINK],
-  [RECEIPT.WAITING]:   [DIM,  DIM,  DIM],
-  [RECEIPT.FAILED]:    [FAIL, FAIL, FAIL],
-};
+function palette(state, alpha) {
+  const g = rgba(GREY, alpha), c = rgba(CYAN, alpha), p = rgba(PINK, alpha);
+  switch (state) {
+    case RECEIPT.SENT:      return [g, DIM, DIM];
+    case RECEIPT.DELIVERED: return [c, c,   DIM];
+    case RECEIPT.SEEN:      return [g, c,   p];
+    // Failure is the one state allowed to be loud at rest. It is the only rung
+    // that asks the sender to DO something.
+    case RECEIPT.FAILED:    return [rgba(FAIL, 1), rgba(FAIL, 1), rgba(FAIL, 1)];
+    default:                return [DIM, DIM, DIM];
+  }
+}
 
-/** Matches the CSS: 3 oscillations at .3s. Cleared after, so it cannot repeat. */
-const PULSE_MS = 900;
+/**
+ * THE BARS BOUNCE OUT OF TIME WITH EACH OTHER.
+ *
+ * A left-to-right stagger reads as a progress sweep — the same gesture the
+ * rungs already make, said twice. Giving each bar its own duration AND its own
+ * offset makes them drift apart instead: they start together-ish, fall out of
+ * phase, and land at different moments, which is what a console looks like when
+ * three channels are moving independently.
+ *
+ * Deliberately not neat multiples. Durations that divide into each other would
+ * re-synchronise every few cycles and the effect would collapse back into a
+ * pulse. These share no common factor over three iterations.
+ */
+const BOUNCE = [
+  { duration: 0.29, delay: 0.00 },
+  { duration: 0.37, delay: 0.09 },
+  { duration: 0.32, delay: 0.04 },
+];
 
-export default function EqReceipt({ state, size = 12 }) {
+/**
+ * Long enough for the SLOWEST bar to finish its three iterations.
+ *
+ * ⚠ MUST EXCEED max(delay + duration × 3), which is 0.09 + 1.11 = 1.20s. React
+ * strips the class at this point, so a shorter value would guillotine the last
+ * bar mid-bounce and leave it visibly snapping back.
+ */
+const PULSE_MS = 1300;
+
+export default function EqReceipt({ state, size = 8 }) {
   const prev = useRef(state);
   const [pulsing, setPulsing] = useState(false);
 
@@ -99,7 +159,8 @@ export default function EqReceipt({ state, size = 12 }) {
 
   const lit    = litBars(state);
   const failed = state === RECEIPT.FAILED;
-  const colours = PALETTE[state] ?? PALETTE[RECEIPT.WAITING];
+  // Full strength only while the flourish plays; dimmed the rest of the time.
+  const colours = palette(state, pulsing ? 1 : REST_ALPHA);
 
   const label =
     failed ? 'Not sent'
@@ -124,11 +185,15 @@ export default function EqReceipt({ state, size = 12 }) {
             key={i}
             style={{
               height: `${(on || failed ? h : REST) * 100}%`,
-              width: Math.max(2, size * 0.18),
+              width: Math.max(1.75, size * 0.22),
               background: on || failed ? colours[i] : DIM,
-              // Staggered so a rung arrives as a sweep rather than a snap.
+              // The RUNG arriving still sweeps left to right — that reads as
+              // progress, which is what it is.
               transitionDelay: `${i * 70}ms`,
-              animationDelay: `${i * 60}ms`,
+              // The BOUNCE deliberately does not. Each bar keeps its own tempo
+              // so the three drift apart instead of marching.
+              animationDuration: `${BOUNCE[i].duration}s`,
+              animationDelay: `${BOUNCE[i].delay}s`,
             }}
           />
         );

@@ -74,6 +74,13 @@ export default function InboxScreen() {
   const location = useLocation();
   const [rows, setRows]       = useState([]);
   const [loading, setLoading] = useState(true);
+  /**
+   * Bumped when a message arrives for a conversation this list has never
+   * seen, which re-runs the loader below. The nav badge and this list have to
+   * agree about what exists — a badge counting a conversation with no row is
+   * the worst of both: it says something happened and gives no way to find it.
+   */
+  const [reloadKey, setReloadKey] = useState(0);
 
   /**
    * DEF-1 — the list stays LIVE while the dock is open.
@@ -105,9 +112,19 @@ export default function InboxScreen() {
       }, async ({ new: row }) => {
         const cid = row.conversation_id;
 
-        // Only conversations already on screen. A message in a brand-new
-        // conversation arrives with its own row on next mount; inventing a
-        // placeholder here would mean guessing participants we have not read.
+        // ⚠ A message in a conversation this list has never seen used to be
+        // DROPPED, on the reasoning that inventing a placeholder row would mean
+        // guessing participants we had not read.
+        //
+        // That reasoning was right and the conclusion was wrong. The first
+        // message from someone new bumped the nav badge and changed nothing on
+        // screen — "apparently a new message, but I cannot see who it is from",
+        // and the only way to find it was to navigate away and back.
+        //
+        // Refetching is not guessing. It costs one round trip on an event that
+        // fires when a stranger opens a conversation with you, and it is
+        // self-limiting: once the row exists the conversation is `known` and
+        // this path is not taken again.
         let known = false;
         setRows(prev => {
           known = prev.some(c => c.id === cid);
@@ -126,7 +143,13 @@ export default function InboxScreen() {
             .sort((a, b) => (Number(a.isArchived) - Number(b.isArchived))
               || (new Date(b.last_message_at ?? 0) - new Date(a.last_message_at ?? 0)));
         });
-        if (!known) return;
+        if (!known) {
+          // Reload the whole list, which reads the participants properly rather
+          // than inventing them. Batched by React, so a burst of messages in
+          // several new conversations costs one refetch, not one each.
+          setReloadKey(k => k + 1);
+          return;
+        }
 
         const { count } = await unreadCount(cid);
         setRows(prev => prev.map(c => (c.id === cid ? { ...c, unread: count } : c)));
@@ -229,7 +252,7 @@ export default function InboxScreen() {
     })();
 
     return () => { cancelled.current = true; };
-  }, [session]);
+  }, [session, reloadKey]);
 
   return (
     <div style={{ paddingTop: 72, paddingBottom: 90, minHeight: '100dvh', background: 'var(--bg)', boxSizing: 'border-box' }}>

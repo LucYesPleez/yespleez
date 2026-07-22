@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { useConversationUi } from '../lib/conversationUi';
 import { useSession } from '../App';
 import { supabase } from '../lib/supabase';
-import { unreadCount } from '../lib/messaging';
+import { unreadCount, markConversationDelivered, announceDelivered } from '../lib/messaging';
 import ConversationView from './ConversationView';
 
 /**
@@ -118,11 +118,38 @@ export default function ConversationDock() {
       }, async ({ new: row }) => {
         const cid = row.conversation_id;
         if (row.from_user_id === session.user.id) return;   // your own message
-        if (cid === openId) return;                          // you are reading it
-        if (!minimised.includes(cid)) return;                // not a docked tab
 
+        // ⚠ ACKNOWLEDGE DELIVERY FIRST, AND UNCONDITIONALLY.
+        //
+        // This dock is mounted for the whole app, so this handler is the only
+        // place that hears a message no matter what screen the recipient is on.
+        // A message arriving while they are on Discover is every bit as
+        // delivered as one arriving in an open thread.
+        //
+        // Everything below used to sit behind `minimised.includes(cid)`, which
+        // meant a message to any conversation that was not a docked tab was
+        // dropped entirely — no ack, no unread, nothing. That single guard was
+        // why "Delivered" never appeared: the recipient's device only ever
+        // acknowledged when they OPENED the thread, which is the same instant
+        // it was read, so the sender jumped straight from one bar to three.
+        markConversationDelivered(cid);
+        announceDelivered(cid);
+
+        // The open conversation manages its own read state and unread count.
+        if (cid === openId) return;
+
+        // ⚠ NOT limited to docked tabs any more either. The nav badge and the
+        // inbox both need to hear about a conversation the user has never
+        // minimised — otherwise the only thing that would notice is the 60s
+        // poll, which is exactly the "slow, and I could not tell which chat"
+        // symptom.
         const { count } = await unreadCount(cid);
-        patch(cid, { unread: count }, true);                 // notify — repaints tabs
+        patch(cid, { unread: count }, true);
+
+        // The badge listens to `notifications` inserts, which arrive via a
+        // second trigger and a second subscription. This says it directly, so
+        // the count moves with the message rather than after it.
+        window.dispatchEvent(new CustomEvent('yp:message-received', { detail: { conversationId: cid } }));
       })
       .subscribe();
 

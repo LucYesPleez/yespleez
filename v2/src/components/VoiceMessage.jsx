@@ -4,6 +4,7 @@ import { toDisplayPeaks } from '../lib/voicePeaks';
 import { timeOf } from '../lib/clock';
 import { claimPlayback, releasePlayback } from '../lib/voicePlayback';
 import { playedAt } from '../lib/waveColour';
+import EqReceipt from './EqReceipt';
 
 /**
  * THE `voice` RENDERER — the inside of a bubble, and nothing else.
@@ -147,7 +148,7 @@ const Waveform = memo(function Waveform({ bars, settle, register }) {
   );
 });
 
-export default function VoiceMessage({ message }) {
+export default function VoiceMessage({ message, receipt = null }) {
   const path       = message?.payload?.path ?? null;
   const storedMs   = Number(message?.payload?.duration_ms ?? 0);
   const peaks      = message?.payload?.peaks ?? null;
@@ -448,6 +449,7 @@ export default function VoiceMessage({ message }) {
           {message?.created_at && (
             <span style={{
               flexShrink: 0,
+              display: 'flex', alignItems: 'center', gap: 5,
               fontSize: 10,
               lineHeight: 1,
               letterSpacing: '.02em',
@@ -456,6 +458,11 @@ export default function VoiceMessage({ message }) {
               userSelect: 'none',
             }}>
               {timeOf(message.created_at)}
+              {/* A Voicey claims its own timestamp line, so the bubble never
+                  draws the row the receipt normally sits in. Without this it
+                  would be the only kind in the app with no status glyph —
+                  which is exactly what shipped, and what the owner spotted. */}
+              <EqReceipt state={receipt} />
             </span>
           )}
         </div>

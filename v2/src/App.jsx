@@ -130,11 +130,21 @@ function Shell({ session, isGuest, onSignOut }) {
     const onRead = () => fetchMessages();
     window.addEventListener('yp:messages-read', onRead);
 
+    // The mirror of the above, for messages ARRIVING. The badge's own
+    // subscription watches `notifications`, which is written by a second
+    // trigger on a second table and reaches this client on a second socket —
+    // so it lags the message it describes, and lags badly on a phone waking a
+    // backgrounded connection. ConversationDock hears the message itself and
+    // says so directly, which is the shortest path there is.
+    const onReceived = () => fetchMessages();
+    window.addEventListener('yp:message-received', onReceived);
+
     // Fallback poll every 60s
     pollRef.current = setInterval(() => { fetchUnread(); fetchMessages(); }, 60000);
     return () => {
       supabase.removeChannel(channel);
       window.removeEventListener('yp:messages-read', onRead);
+      window.removeEventListener('yp:message-received', onReceived);
       clearInterval(pollRef.current);
     };
   }, [session]);

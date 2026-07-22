@@ -414,17 +414,24 @@ input, textarea, select {
 }
 
 /* ⚠ THE READ FLOURISH — AND IT MUST STOP.
-   Three iterations at .3s is ~0.9s, then it is over. `iteration-count` is the
-   entire safety mechanism: an `infinite` here would turn every read message in
-   a thread into a live audio meter, which is the one impression this design
-   exists to avoid. React also strips the class after PULSE_MS, so the animation
-   cannot restart on a re-render. Two locks, deliberately. */
+   Three iterations, then it is over. `iteration-count` is the entire safety
+   mechanism: an `infinite` here would turn every read message in a thread into
+   a live audio meter, which is the one impression this design exists to avoid.
+   React also strips the class after PULSE_MS, so the animation cannot restart
+   on a re-render. Two locks, deliberately.
+
+   DURATION AND DELAY ARE SET PER BAR, INLINE, so the three bounce out of time
+   with one another rather than sweeping left to right. Do not add a duration
+   here — it would apply to all three and re-synchronise them, which is exactly
+   the effect the inline values exist to break. */
 @keyframes ypEqPulse {
   0%, 100% { transform: scaleY(1); }
   50%      { transform: scaleY(.58); }
 }
 .yp-eq-pulse span {
-  animation: ypEqPulse .3s var(--yp-ease) 3;
+  animation-name: ypEqPulse;
+  animation-timing-function: var(--yp-ease);
+  animation-iteration-count: 3;
 }
 
 /* The rise is feedback, and feedback that cannot be seen is not feedback — so

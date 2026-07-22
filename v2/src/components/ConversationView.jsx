@@ -1301,7 +1301,7 @@ function MessageBubble({ message, isMine, grouped = false, endsBurst = true, spe
         {/* The bubble owns the CONTAINER — alignment, tail, spacing — and knows
             nothing about kinds. Content comes from the registry, so a new kind
             is a renderer there and no change here. */}
-        {renderMessage(message)}
+        {renderMessage(message, { receipt })}
 
         {/* ALWAYS VISIBLE, never on tap.
 
@@ -1361,10 +1361,20 @@ function MessageBubble({ message, isMine, grouped = false, endsBurst = true, spe
               // At -16 with a 27px mark it reaches ~11px into the bubble —
               // under the text, not over it.
               bottom: -16,
-              // The INNER edge: toward the middle of the thread. On a received
-              // message the outer edge is where the avatar lives, and on a sent
-              // one it is the screen edge.
-              [isMine ? 'left' : 'right']: -8,
+              // ⚠ ALWAYS THE LEFT, both directions. This used to be the INNER
+              // edge — left when sent, right when received — which read well
+              // until the bottom-right corner acquired permanent tenants.
+              //
+              // The timestamp lives there now, and since M10a the EQ receipt
+              // sits beside it. A reaction on the right landed on both. Voiceys
+              // are worse again: they draw their own clock on their own line, so
+              // the collision moved with them.
+              //
+              // The left corner has nothing in it in either direction, so one
+              // rule covers every kind and every direction — and a Yes always
+              // appears in the same place, which is easier to read down a thread
+              // than a mark that switches sides with the speaker.
+              left: -8,
               display: 'flex',
               color: 'var(--yp-hand-ink)',   // shared with the composer's Hand
               // FREE FLOATING — no chip, no circle, no border. The mark sits on

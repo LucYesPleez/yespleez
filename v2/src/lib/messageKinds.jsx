@@ -86,7 +86,12 @@ function renderFallback(message, kind) {
  */
 const RENDERERS = {
   text:  renderText,
-  voice: message => <VoiceMessage message={message} />,
+  // `extras` carries what the BUBBLE knows and the kind cannot: whether the
+  // message is the reader's own, and its receipt. A Voicey claims its own
+  // timestamp line (KIND_SHAPE.ownsTimestamp), so the bubble never draws the
+  // row the glyph normally sits in — without this it would be the one kind in
+  // the app with no receipt.
+  voice: (message, extras) => <VoiceMessage message={message} receipt={extras?.receipt} />,
   // The Hand: YesPleez's universal acknowledgement. A BARE kind — see
   // BARE_KINDS — so MessageBubble draws no container around this and the mark
   // stands alone in the thread.
@@ -143,7 +148,7 @@ const HAND_BASE_PX = 58;
  * Never throws and never returns null — a thread must render whatever it is
  * given. An unrenderable message is still a message the participant sent.
  */
-export function renderMessage(message) {
+export function renderMessage(message, extras) {
   // ?? 'text' is now a REAL fallback for exactly one case: a client that has
   // not refetched since M9a. Since M9a's column is NOT NULL with a default,
   // every row in the database has a kind — so an undefined one reaching here
@@ -163,7 +168,7 @@ export function renderMessage(message) {
 
   const kind = message?.kind ?? 'text';
   const renderer = RENDERERS[kind];
-  return renderer ? renderer(message) : renderFallback(message, kind);
+  return renderer ? renderer(message, extras) : renderFallback(message, kind);
 }
 
 /** True when this build can render the kind properly, rather than falling back. */
