@@ -1,6 +1,21 @@
 # Handover — YesPleez Messaging, 2026-07-22
 
-## Start here: `D6` — can an iPhone play an Android voice note?
+## `D6` — RESOLVED 2026-07-22. **An iPhone plays an Android voice note.**
+
+Tested on real hardware, both directions, over a Cloudflare tunnel: an Android-recorded
+`audio/webm;codecs=opus` note plays in iOS Safari, and the owner reports it sounds "really
+good". `PREFERRED_MIME_TYPES` therefore stays as it is — **do not reorder it**, and do not
+move `audio/mp4` up. The concern that Safari refuses WebM in `<audio>` is now measured and
+false on current iOS, not assumed either way.
+
+⚠ What the same test DID find, and is still open: **iOS-recorded notes sound bad**, in both
+directions and worse than WhatsApp's equivalent. That is a RECORDING-side fault on Safari,
+not a codec-compatibility one — playback of the same file is fine on the device that made
+it. See "iOS recording quality" below.
+
+The original entry follows, for the reasoning.
+
+## ~~Start here: `D6` — can an iPhone play an Android voice note?~~ (resolved, above)
 
 This is the highest-risk open item and it is **untested**. Voiceys record as
 `audio/webm;codecs=opus` (see `PREFERRED_MIME_TYPES` in `v2/src/lib/voiceNotes.js`,
@@ -76,6 +91,39 @@ receipts with true delivery acknowledgements, all verified live across two real 
   must impersonate with `SET LOCAL request.jwt.claims` or they pass vacuously.
 - **Deployment is parked.** `yespleez.pages.dev` serves the legacy HTML prototype, not this
   app. Verify against localhost.
+
+## iOS recording quality — OPEN
+
+Measured 2026-07-22 on an iPhone 14 Pro. Android → iOS sounds good. **iOS → Android sounds
+bad, and worse than a WhatsApp voice note recorded on the same handset.** Playback is
+symmetrical and Android-recorded audio is fine on both, so the fault is in what Safari's
+`MediaRecorder` is producing, not in the format or the player.
+
+Two fixes are already in (`21efdd8`) and their effect has not yet been isolated:
+
+- the `AudioContext` in `forceMono` was never resumed, and on iOS starts suspended — so
+  until that commit the whole iOS record path ran through a graph that was not processing;
+- `audioBitsPerSecond` was 32000 for every codec. That is an Opus number; Safari records
+  AAC-LC, where it is audibly poor. AAC and MP3 now request 64000.
+
+**The tell for whether a device has the fix: the live waveform moves while recording.** It
+is driven by an analyser on the same context, so a still meter means a suspended context
+means the fix is not loaded on that device.
+
+Remaining hypotheses if the fault survives both, roughly in order:
+
+1. **Safari ignores `audioBitsPerSecond`.** It is advisory and Safari has historically not
+   honoured it. `C21` already stores the NEGOTIATED value in `payload.capture.bitrate` —
+   read it off a real iOS note before theorising further. `context_state` is stored beside
+   it for the same reason.
+2. **The WebAudio downmix is degrading the signal on Safari.**
+   `MediaStreamAudioDestinationNode` is a known weak spot there. Worth testing by skipping
+   `forceMono` on iOS and recording the microphone stream directly — iOS generally reports
+   a mono track anyway, so §6.3's guarantee costs little to give up on that platform.
+   WhatsApp does not route through WebAudio at all.
+3. **`C20`'s disabled DSP interacts badly with iOS.** With `autoGainControl: false` iOS can
+   hand back a very quiet, thin capture. ⚠ Flipping any of those is a change to ratified
+   architecture (§6.1), not a tuning decision — surface it, do not just try it.
 
 ## Manual verification required
 
