@@ -49,7 +49,7 @@ export function isPending(message) {
  * after switching profiles would send as the wrong identity — quietly, and in a
  * product where attribution is the whole of §A3.
  */
-export function makePending({ body, kind, fromProfileId, retry, now = new Date().toISOString() } = {}) {
+export function makePending({ body, kind, fromProfileId, retry, payload, now = new Date().toISOString() } = {}) {
   return {
     id: `${PENDING_PREFIX}${crypto.randomUUID()}`,
     body,
@@ -58,7 +58,27 @@ export function makePending({ body, kind, fromProfileId, retry, now = new Date()
     created_at: now,
     pendingState: 'waiting',
     retry,
+    // Spread so an absent payload stays ABSENT rather than becoming an empty
+    // object. Renderers test `payload?.path` and friends; a `{}` answers those
+    // identically to no key, but it also makes "does this kind carry a payload"
+    // unanswerable for anything that asks the question directly.
+    ...(payload !== undefined && { payload }),
   };
+}
+
+/**
+ * Release a pending message's object url.
+ *
+ * An object url pins the entire recording in memory until it is revoked — a
+ * three-minute Voicey is megabytes, and a conversation where several sends
+ * failed and were retried would accumulate every one of them for the life of
+ * the tab. Called when the placeholder is replaced or discarded, never while it
+ * is still on screen: a failed Voicey the user has not dealt with yet must stay
+ * playable, which is the point of keeping it at all.
+ */
+export function revokePendingUrl(message) {
+  const url = message?.payload?.localUrl;
+  if (url) URL.revokeObjectURL(url);
 }
 
 /** Put a pending message at the end of the thread. */

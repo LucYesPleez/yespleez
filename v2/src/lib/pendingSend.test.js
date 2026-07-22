@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   makePending, appendPending, settlePending, failPending, dropPending,
-  isPending, PENDING_PREFIX,
+  isPending, revokePendingUrl, PENDING_PREFIX,
 } from './pendingSend.js';
 import { receiptFor, RECEIPT } from './receiptState.js';
 
@@ -102,6 +102,54 @@ test('a failed message outranks the watermarks', () => {
     isMine: true, createdAt: failed.created_at, pendingState: failed.pendingState,
     seenWatermark: '2026-07-22T11:00:00.000Z',
   }), RECEIPT.FAILED);
+});
+
+/* ── the recording a pending Voicey is carrying ────────────────────── */
+
+test('a message with no payload does not gain an empty one', () => {
+  // Renderers ask `payload?.path`. A `{}` answers that the same as no key, but
+  // it makes "does this kind carry a payload at all" unanswerable.
+  assert.equal('payload' in makePending({ body: 'hi' }), false);
+});
+
+test('a pending Voicey carries a playable url and its length', () => {
+  const p = makePending({
+    body: 'Voice message', kind: 'voice',
+    payload: { localUrl: 'blob:fake', duration_ms: 4200 },
+  });
+  assert.equal(p.payload.localUrl, 'blob:fake');
+  assert.equal(p.payload.duration_ms, 4200);
+});
+
+test('⚠ a failed Voicey keeps the recording, so it can be played back and retried', () => {
+  // This is the loss the whole voice half exists to prevent: audio the user
+  // cannot re-perform, discarded on a failed upload with no way back.
+  const blob = { size: 1024 };
+  const p = makePending({
+    body: 'Voice message', kind: 'voice',
+    retry: { type: 'voice', blob, durationMs: 4200 },
+    payload: { localUrl: 'blob:fake', duration_ms: 4200 },
+  });
+  const [failed] = failPending([p], p.id, 'network');
+
+  assert.equal(failed.pendingState, RECEIPT.FAILED);
+  assert.equal(failed.retry.blob, blob);          // the audio survived
+  assert.equal(failed.payload.localUrl, 'blob:fake');   // and is still playable
+});
+
+test('revoking releases a pending url exactly once, and tolerates its absence', () => {
+  const revoked = [];
+  const real = globalThis.URL.revokeObjectURL;
+  globalThis.URL.revokeObjectURL = u => revoked.push(u);
+  try {
+    revokePendingUrl({ payload: { localUrl: 'blob:one' } });
+    revokePendingUrl({ payload: {} });        // a text message
+    revokePendingUrl({});                     // no payload at all
+    revokePendingUrl(undefined);              // nothing
+  } finally {
+    globalThis.URL.revokeObjectURL = real;
+  }
+  assert.deepEqual(revoked, ['blob:one']);
 });
 
 /* ── dropping ──────────────────────────────────────────────────────── */

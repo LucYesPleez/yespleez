@@ -150,6 +150,11 @@ const Waveform = memo(function Waveform({ bars, settle, register }) {
 
 export default function VoiceMessage({ message, receipt = null }) {
   const path       = message?.payload?.path ?? null;
+  // Set only while a recording is in flight or has failed to send. `path` is
+  // the stored object; this is the blob it was made from, still local. They are
+  // never both meaningful — once the upload lands the message is replaced by
+  // the server's row, which has a path and no url.
+  const localUrl   = message?.payload?.localUrl ?? null;
   const storedMs   = Number(message?.payload?.duration_ms ?? 0);
   const peaks      = message?.payload?.peaks ?? null;
 
@@ -251,6 +256,12 @@ export default function VoiceMessage({ message, receipt = null }) {
 
   async function ensureUrl() {
     if (url) return url;
+    // A note that has not been uploaded yet plays from the recording still in
+    // memory. There is no path to sign — the object exists nowhere but this
+    // tab — so this returns BEFORE the storage call rather than falling through
+    // to it and failing. This is what lets a failed Voicey be listened back to
+    // before deciding whether to retry it.
+    if (localUrl) return localUrl;
     setLoading(true);
     setError(null);
     const { url: signed, error: signError } = await signedUrlFor(path);
@@ -305,7 +316,7 @@ export default function VoiceMessage({ message, receipt = null }) {
     }
   }
 
-  if (!path) {
+  if (!path && !localUrl) {
     // A voice message whose payload lost its path. body is still legible —
     // M9a guarantees it — so show that rather than an empty bubble.
     return (

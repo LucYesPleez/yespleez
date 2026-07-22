@@ -6,7 +6,7 @@ import {
   sendMessage, markConversationRead,
   markConversationDelivered, conversationReceipts, receiptChannelName,
 } from '../lib/messaging';
-import { sendVoiceNote } from '../lib/voiceNotes';
+import { sendVoiceNote, VOICE_FALLBACK_BODY } from '../lib/voiceNotes';
 import { sendHand, HAND_BODY } from '../lib/hands';
 import { listHands, toggleHand } from '../lib/messageState';
 import Composer, { COMPOSER_HEIGHT } from './Composer';
@@ -16,7 +16,7 @@ import { renderMessage, isBareKind, shapeFor, materialFor } from '../lib/message
 import HandIcon from './HandIcon';
 import EqReceipt from './EqReceipt';
 import { receiptFor, RECEIPT } from '../lib/receiptState';
-import { makePending, appendPending, settlePending, failPending } from '../lib/pendingSend';
+import { makePending, appendPending, settlePending, failPending, revokePendingUrl } from '../lib/pendingSend';
 import { timeOf } from '../lib/clock';
 
 /**
@@ -711,8 +711,8 @@ export default function ConversationView({ conversationId, compact = false, onMi
    * that thunk again later. See `pendingSend.js` for why a stored closure would
    * be an attribution bug.
    */
-  async function trySend({ attempt, retry, body, kind }) {
-    const pending = makePending({ body, kind, fromProfileId: senderProfile, retry });
+  async function trySend({ attempt, retry, body, kind, payload }) {
+    const pending = makePending({ body, kind, fromProfileId: senderProfile, retry, payload });
     setMessages(prev => appendPending(prev, pending));
     setSending(true);
     setError(null);
@@ -728,6 +728,11 @@ export default function ConversationView({ conversationId, compact = false, onMi
       return { ok: false, error: sendError };
     }
 
+    // The server's row has a storage path now, so the local copy is dead
+    // weight. Revoked HERE and not on failure: a failed Voicey has to stay
+    // playable, because deciding whether to retry it usually means listening
+    // back to what you actually said.
+    revokePendingUrl(pending);
     await afterSend(message, pending.id);
     return { ok: true, message };
   }
@@ -774,6 +779,29 @@ export default function ConversationView({ conversationId, compact = false, onMi
     if (!retry) return;
 
     setMessages(prev => prev.filter(m => m.id !== message.id));
+
+    if (retry.type === 'voice') {
+      // A FRESH object url, and the old one released. Reusing it would tie the
+      // new placeholder's lifetime to the old one's — settling the retry would
+      // revoke a url the discarded message still referenced, and any second
+      // retry after that would render a bubble pointing at a revoked blob.
+      revokePendingUrl(message);
+      await trySend({
+        body: VOICE_FALLBACK_BODY, kind: 'voice', retry,
+        payload: {
+          localUrl: URL.createObjectURL(retry.blob),
+          duration_ms: Math.max(0, Math.round(retry.durationMs ?? 0)),
+        },
+        attempt: () => sendVoiceNote({
+          conversationId,
+          fromProfileId: senderProfile,
+          blob:       retry.blob,
+          durationMs: retry.durationMs,
+          capture:    retry.capture,
+        }),
+      });
+      return;
+    }
 
     if (retry.type === 'hand') {
       await trySend({
@@ -861,29 +889,36 @@ export default function ConversationView({ conversationId, compact = false, onMi
    */
   async function onRecordedVoice({ blob, durationMs, capture }) {
     if (!senderProfile || sending) return;
-    setSending(true);
-    setError(null);
 
-    const { message, error: sendError } = await sendVoiceNote({
-      conversationId,
-      fromProfileId: senderProfile,
-      blob,
-      durationMs,
-      capture,   // `C21` — what the device actually negotiated, not what we asked for
+    const { ok, error: sendError } = await trySend({
+      body: VOICE_FALLBACK_BODY,
+      kind: 'voice',
+      // ⚠ THE RECORDING IS KEPT. This is the whole change: a failed Voicey used
+      // to be discarded here, and audio the user cannot re-perform — the one
+      // thing in this app that is genuinely unrecoverable — was gone with no
+      // way back. The blob is held in the placeholder until it either uploads
+      // or the user gives up on it.
+      retry: { type: 'voice', blob, durationMs, capture },
+      // A local url so the pending bubble is a real, playable Voicey rather
+      // than a grey placeholder. `duration_ms` comes from the recorder so the
+      // length is right immediately; `peaks` are absent because they are
+      // computed inside sendVoiceNote, and a waveform that appears a moment
+      // late is a far smaller cost than blocking the append on it.
+      payload: { localUrl: URL.createObjectURL(blob), duration_ms: Math.max(0, Math.round(durationMs ?? 0)) },
+      attempt: () => sendVoiceNote({
+        conversationId,
+        fromProfileId: senderProfile,
+        blob,
+        durationMs,
+        capture,   // `C21` — what the device actually negotiated, not what we asked for
+      }),
     });
 
-    if (sendError) {
-      // Upload and insert failures arrive here identically, and should: the
-      // sender only cares that it did not send.
-      setError(sendError.message ?? 'Could not send that recording.');
-      setSending(false);
-      // Thrown, not returned: the recorder awaits this to decide between its
-      // `sent` and `idle` states, and a silent return would show "Sent" for a
-      // message that never left.
-      throw sendError;
-    }
-
-    await afterSend(message);
+    // Still thrown, and for the original reason: the recorder awaits this to
+    // choose between its `sent` and `idle` states, and a silent return would
+    // show "Sent" for a message that never left. What has changed is that the
+    // recording no longer dies with it — it is on screen, playable, retryable.
+    if (!ok) throw sendError;
   }
 
   const title       = others.map(o => o.profiles?.name).filter(Boolean).join(', ') || 'Conversation';
