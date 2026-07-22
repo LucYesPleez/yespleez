@@ -5,8 +5,9 @@ failed-send recovery as open; both are now closed on real hardware.
 
 ## State
 
-Branch `v2-react`. **16 commits unpushed** (6 from before today). Tree clean.
+Branch `v2-react`. **18 commits unpushed** (6 predate today). Tree clean.
 **190 tests pass**, build and lint clean. Migrations M9a–M10b applied and verified.
+No migration was needed for anything below — today was entirely client-side.
 
 Messaging works end to end on real devices across two real accounts: text, Voiceys, the
 Hand, EQ receipts with true delivery acknowledgements, and failed-send recovery.
