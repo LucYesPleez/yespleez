@@ -746,6 +746,24 @@ input, textarea, select {
   from { opacity: 0; transform: translateX(-6px); }
   to   { opacity: 1; transform: translateX(0); }
 }
+/* ── THE VOICE PLAYER'S FOOTPRINT ───────────────────────────────────
+   A deliberate minimum so the player reads as a component rather than as a
+   control sized to whatever it happens to contain.
+
+   ⚠ IN THE STYLESHEET, NOT ON THE ELEMENT. This was `minWidth: 252` inline and
+   the waveform pushed straight out through the side of the bubble on a Galaxy:
+   the bubble is capped at 76% of the thread width, which on a narrow handset is
+   under 252px, and an inline minimum cannot be told to yield. */
+.yp-voice-player { min-width: 252px; }
+
+@media (max-width: 640px) {
+  /* The bubble's 76% cap wins on a phone. The player gives up its minimum and
+     fills whatever the bubble actually offers — the waveform's bars are
+     `flex: 1` over a zero basis, so they simply get finer rather than
+     overflowing. The footprint was a look, and the bubble is a boundary. */
+  .yp-voice-player { min-width: 0; width: 100%; }
+}
+
 .yp-live-wave { animation: ypLiveIn var(--yp-medium) var(--yp-ease); }
 
 /* The microphone must still ARRIVE at the other end — the position is the

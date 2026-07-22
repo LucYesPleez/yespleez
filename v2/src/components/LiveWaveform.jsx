@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { alignRight } from '../lib/liveWaveform';
+import { alignRight, barHeight } from '../lib/liveWaveform';
 
 /**
  * THE LIVE RECORDING WAVEFORM, rolling right to left across the composer's field.
@@ -36,7 +36,35 @@ const BAR_COUNT = 42;
 /** ~17 samples a second. Faster looks frantic; slower stops feeling live. */
 const SAMPLE_MS = 58;
 
-const HEIGHT = 22;
+/**
+ * 22 → 34. The meter was legible in principle and invisible in practice.
+ *
+ * Vertical only, so it is safe inline: the composer's capsule has no fixed
+ * height and its controls are already 44–46px, so the taller row costs no
+ * layout. The horizontal dimension is the one that must stay in the stylesheet.
+ */
+const HEIGHT = 34;
+
+/**
+ * ⚠ THE METER IS PERCEPTUAL, NOT LINEAR — and this is why it was invisible.
+ *
+ * `level()` is RMS already multiplied by 2.2 at the source, but speech RMS sits
+ * around .1 to .25, so a normal speaking voice arrived here as .22 to .55. On
+ * the old 22px row that drew bars 5 to 12 pixels tall: present, technically
+ * correct, and reported as "barely shows" on a real handset.
+ *
+ * The whole top half of the meter was reserved for shouting. A power curve
+ * spends the height where voices actually live — .22 becomes .41, .55 becomes
+ * .69 — while a shout still reaches the top, because 1 maps to 1 whatever the
+ * exponent.
+ *
+ * ⚠ RAISING THE SOURCE GAIN INSTEAD WOULD BE WRONG. `level()` also has to stay
+ * honest about loudness, and multiplying it further would clip every ordinary
+ * voice to a flat maximum — the meter would stop responding at exactly the
+ * point it is meant to be most informative. The curve is a DISPLAY decision and
+ * belongs on the display side.
+ */
+const CURVE = 0.6;
 
 export default function LiveWaveform({ getLevel }) {
   const rowRef = useRef(null);
@@ -68,7 +96,7 @@ export default function LiveWaveform({ getLevel }) {
         } else {
           // Floor at 2px so a quiet moment still reads as a bar rather than a
           // gap, matching how the stored waveform treats silence.
-          node.style.height = `${Math.max(2, v * HEIGHT)}px`;
+          node.style.height = `${barHeight(v, HEIGHT, CURVE)}px`;
           node.style.opacity = '1';
         }
       }

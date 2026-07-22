@@ -333,7 +333,14 @@ export default function VoiceMessage({ message, receipt = null }) {
     // the smallest thing it can contain reads as a control someone dropped into
     // a message; a consistent, deliberate footprint reads as a component. The
     // container's own padding and min-height (KIND_SHAPE.voice) do the rest.
-    <div style={{ display: 'flex', alignItems: 'center', gap: 15, minWidth: 252 }}>
+    //
+    // ⚠ THE MIN-WIDTH LIVES IN index.css, NOT HERE. It was `minWidth: 252`
+    // inline, which beat the phone breakpoint and pushed the waveform out
+    // through the side of the bubble on a Galaxy — the bubble is capped at 76%
+    // of the thread, which on a narrow handset is less than 252px, and an
+    // inline minimum cannot be told to yield. Reported 2026-07-22. This is the
+    // fourth change caught by that rule; see the handover.
+    <div className="yp-voice-player" style={{ display: 'flex', alignItems: 'center', gap: 15 }}>
       {/* THE ANCHOR. 32 → 44, which is also the first size that is a genuine
           touch target rather than one you aim at. Everything else in the
           component steps down from here — button, then waveform, then the
