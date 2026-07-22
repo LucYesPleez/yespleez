@@ -855,7 +855,7 @@ input, textarea, select {
   position: relative;
   display: flex;
   min-width: 0;
-  max-width: var(--yp-frame-max, 76%);
+  max-width: 76%;
   /* Room for the badge, reserved on EVERY message — not only handed ones, or
      the thread would reflow under the reader's thumb at the moment they react. */
   margin-left: var(--yp-yes-gutter);

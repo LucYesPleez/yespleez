@@ -318,13 +318,14 @@ test('⚠ a bar is a fixed slice of TIME, so a short note draws a short wave', a
   // 107ms in a three-second note and 1.07s in a thirty-second one. Same picture
   // width, wildly different amounts of speech — which is what made a short
   // Voicey look artificially wide.
-  const { barsForDuration, DISPLAY_BARS, MS_PER_BAR } = await import('./voicePeaks.js');
+  const { barsForDuration, DISPLAY_BARS, GROWTH_MS } = await import('./voicePeaks.js');
 
   assert.ok(barsForDuration(3000) < DISPLAY_BARS, 'a 3s note must not fill the player');
-  assert.equal(barsForDuration(DISPLAY_BARS * MS_PER_BAR), DISPLAY_BARS, 'and 7s must exactly fill it');
+  assert.equal(barsForDuration(GROWTH_MS), DISPLAY_BARS, 'the growth phase must end exactly at the full width');
 
-  // Proportional in between: twice the audio, twice the bars.
-  assert.equal(barsForDuration(2000) * 2, barsForDuration(4000));
+  // Proportional through the growth phase: twice the audio, twice the bars.
+  // Measured above the floor, since below it every note draws MIN_DISPLAY_BARS.
+  assert.equal(barsForDuration(8000) * 2, barsForDuration(16000));
 });
 
 test('a long note fills the width and never exceeds it', async () => {
@@ -374,6 +375,39 @@ test('⚠ a full-length wave fits the NARROWEST screen, not the widest', async (
   // two-thirds cap leaves ~133px of wave there — far tighter than desktop — and
   // an earlier version of this test checked desktop, passed, and shipped a wave
   // that overflowed a phone by 62px.
-  assert.ok(full <= 133, `a full wave is ${full}px and a 360px phone offers ~133px`);
-  assert.ok(full > 110, `a full wave is only ${full}px — it should very nearly fill that`);
+  // 76% of a 360px screen's 328px content box, less 87px of chrome (34 bubble
+  // padding + 5 player inset + 36 play button + 12 gap) = 162px of wave.
+  assert.ok(full <= 162, `a full wave is ${full}px and a 360px phone offers 162px`);
+  assert.ok(full > 140, `a full wave is only ${full}px — it should very nearly fill that`);
+});
+
+test('⚠ growth then compression, like a text bubble', async () => {
+  // The two phases the layout is built around. GROWTH: the wave gets longer and
+  // density never changes, so duration is legible without reading the clock.
+  // COMPRESSION: past the ceiling the bar count is clamped and further audio is
+  // fitted into the same bars — same width, denser wave.
+  const { barsForDuration, DISPLAY_BARS, GROWTH_MS, MS_PER_BAR } = await import('./voicePeaks.js');
+
+  // Growth — each of these must be visibly different from the next.
+  const eight = barsForDuration(8000);
+  const eighteen = barsForDuration(18_000);
+  assert.ok(eight < eighteen, 'an 8s note must be shorter than an 18s one');
+  assert.ok(eighteen < DISPLAY_BARS, 'an 18s note must not have hit the ceiling yet');
+
+  // Compression — everything past the threshold is the SAME width.
+  assert.equal(barsForDuration(GROWTH_MS), DISPLAY_BARS);
+  assert.equal(barsForDuration(45_000), DISPLAY_BARS, '45s: full width, mild compression');
+  assert.equal(barsForDuration(180_000), DISPLAY_BARS, '3min: full width, heavier compression');
+  assert.equal(barsForDuration(360_000), DISPLAY_BARS, '6min: same width, denser again');
+
+  // The threshold is derived, so the two constants cannot disagree about where
+  // growth stops.
+  assert.equal(DISPLAY_BARS * MS_PER_BAR, GROWTH_MS);
+});
+
+test('the growth phase is long enough to be worth having', async () => {
+  // If the ceiling arrives too early most real notes are compressed and the
+  // bubble stops carrying length at all — which is what a 5.5s threshold did.
+  const { GROWTH_MS } = await import('./voicePeaks.js');
+  assert.ok(GROWTH_MS >= 15_000, `growth ends at ${GROWTH_MS}ms — too early to read as duration`);
 });

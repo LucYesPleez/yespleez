@@ -126,19 +126,15 @@ export function canReceiveHand(kind) {
 export const KIND_SHAPE = {
   voice: {
     /**
-     * Two thirds of the thread, against the 76% every other kind may reach.
+     * ⚠ NO maxWidth HERE, DELIBERATELY. A Voicey takes the frame's 76% like
+     * every other kind — the point is that it behaves like a text bubble: short
+     * ones are physically short, long ones grow, and the ceiling they grow into
+     * is the same ceiling text grows into.
      *
-     * A Voicey no longer stretches its wave to fill whatever width it is given —
-     * bars are a fixed slice of time, so a short note draws a short wave. That
-     * makes a full-width bubble the wrong container: past this the player is
-     * mostly empty space for anything but a long recording.
-     *
-     * ⚠ This narrows the bubble RELATIVE TO A TEXT BUBBLE, which reverses part
-     * of an earlier decision (voiceys were set to match text-bubble width on
-     * phones). Owner's call, 2026-07-22, and it follows from the wave no longer
-     * being stretched to justify the width.
+     * It was 66.67% for one round. That narrowed a Voicey relative to a text
+     * bubble, which is the opposite of the consistency being asked for, and it
+     * also cost the growth phase a third of its range.
      */
-    maxWidth: '66.67%',
     radius: 24,              // 20 → 24, softer and more deliberate
     padding: '15px 17px',    // 12/16 → more room around the player
     minHeight: 76,           // gives it presence next to a one-line text bubble

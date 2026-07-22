@@ -1422,14 +1422,7 @@ function MessageBubble({ message, isMine, grouped = false, endsBurst = true, spe
 
           A NEW KIND NEEDS NO POSITIONING CODE. It is rendered inside the frame
           like every other kind and the badge already knows where to go. */}
-      <div
-        className="yp-msg-frame"
-        // The width cap is the FRAME's, and a kind may narrow it — see
-        // KIND_SHAPE.maxWidth. Set as a custom property rather than max-width
-        // directly so index.css keeps ownership of the rule and a breakpoint
-        // could still reach it.
-        style={shape?.maxWidth ? { '--yp-frame-max': shape.maxWidth } : undefined}
-      >
+      <div className="yp-msg-frame">
       <div
         className={shape?.className}
         // DOUBLE-TAP TO YES. React's onDoubleClick covers mouse and touch, and

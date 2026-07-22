@@ -224,7 +224,7 @@ export function peaksFromChannel(samples) {
  * nothing stored changes and this can be retuned freely — unlike PEAK_COUNT,
  * which is written into every v1 row ever created.
  */
-export const DISPLAY_BARS = 22;
+export const DISPLAY_BARS = 32;
 
 /**
  * How much audio one drawn bar represents.
@@ -239,11 +239,28 @@ export const DISPLAY_BARS = 22;
  * fills the player. That is the same principle v2 applied to storage, finally
  * applied to the drawing as well.
  *
- * 250ms × 22 bars = 5.5 seconds to fill the width. Past that a note does still
- * compress — the player has a fixed width and something has to give — but the
- * compression now starts where it is least noticeable rather than at one second.
+ * ── TWO PHASES, LIKE A TEXT BUBBLE ──────────────────────────────────
+ *
+ * GROWTH, 0 to GROWTH_MS: the bubble gets longer with the recording and the
+ * density never changes. This is the phase that makes duration legible without
+ * reading the clock — an 8-second note is visibly shorter than an 18-second one.
+ *
+ * COMPRESSION, past GROWTH_MS: the bubble stops at the same 76% ceiling a text
+ * bubble grows into, and further audio is fitted into the same bars. A 45-second
+ * note compresses mildly, three minutes more heavily, six minutes more again —
+ * same width, denser wave. Nothing has to switch modes for that to happen: the
+ * bar count is simply clamped, and the downsample does the rest.
+ *
+ * ⚠ THERE IS NO TRANSITION TO ANIMATE, and it was suggested. A sent Voicey is
+ * rendered once at its final density — the growth-to-compression change happens
+ * BETWEEN notes, not within one, so there is no moment where a user watches a
+ * wave resample. That idea belongs to the live recording meter, which is a
+ * different component.
  */
-export const MS_PER_BAR = 250;
+export const GROWTH_MS = 20_000;
+
+/** Derived, so the two can never disagree about when the bubble stops growing. */
+export const MS_PER_BAR = GROWTH_MS / DISPLAY_BARS;
 
 /**
  * Fewer than this and the wave stops reading as a wave.

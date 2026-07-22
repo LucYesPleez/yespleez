@@ -78,12 +78,14 @@ test('every message renders inside the frame, whatever its kind', () => {
   // The frame carries the width cap, not the bubble — that is what makes its box
   // the message's outer box for every kind rather than a per-kind measurement.
   //
-  // A kind may NARROW it through `--yp-frame-max` (voice takes two thirds), but
-  // the rule and its default stay here: the cap is still one declaration on one
-  // element, not something each kind sets for itself.
+  // ⚠ ONE CAP, NO PER-KIND OVERRIDE. Voice briefly took two thirds through a
+  // `--yp-frame-max` custom property; that made a Voicey narrower than a text
+  // bubble, which is the opposite of the consistency being aimed at, and it cost
+  // the growth phase a third of its range. Every kind grows into the same
+  // ceiling now.
   const frame = css.slice(css.indexOf('.yp-msg-frame'), css.indexOf('.yp-msg-frame') + 400);
-  assert.ok(/max-width:\s*var\(--yp-frame-max,\s*76%\)/.test(frame),
-    'the frame must own the width cap, with 76% as the default every kind gets');
+  assert.ok(/max-width:\s*76%/.test(frame), 'the frame must own the width cap');
+  assert.equal(/--yp-frame-max/.test(css), false, 'a per-kind width override is back');
 });
 
 test('⚠ the shift is paid for by the inset', () => {

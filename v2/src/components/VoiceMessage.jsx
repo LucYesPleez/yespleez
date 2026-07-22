@@ -39,12 +39,20 @@ const WAVE_HEIGHT = 27;
 /**
  * Bar width and the gap after it.
  *
- * FIXED, because a note now draws a number of bars proportional to its LENGTH.
- * 4.5 + 1.5 puts 22 bars in 130.5px. THE BINDING CONSTRAINT IS A 360px HANDSET:
- * the two-thirds cap leaves ~133px of wave there, which is far tighter than the
- * desktop player. 28 bars at 5.5px needed 194.5px and overflowed by 62px.
+ * FIXED, because a note draws a number of bars proportional to its LENGTH.
+ *
+ * ⚠ THE BINDING CONSTRAINT IS A 360px HANDSET, not the desktop player, and this
+ * has now caught me twice. Wave width there is the frame's 76% of a 328px
+ * content box, less 87px of chrome — 34 bubble padding, 5 player inset, 36 play
+ * button, 12 gap — which leaves 162px. Desktop has far more, so anything sized
+ * against it overflows a phone silently.
+ *
+ * 3.5 + 1.5 puts 32 bars in 158.5px, inside that 162. The width is the smallest
+ * that still reads as audio: 3.2px is the measured floor below which varying
+ * heights stop being visible, and 2.44px was reported as "compressed" on a real
+ * Galaxy.
  */
-const BAR_W = 4.5;
+const BAR_W = 3.5;
 const BAR_GAP = 1.5;
 
 /**
