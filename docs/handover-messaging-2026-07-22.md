@@ -1,0 +1,80 @@
+# Handover — YesPleez Messaging, 2026-07-22
+
+## Start here: `D6` — can an iPhone play an Android voice note?
+
+This is the highest-risk open item and it is **untested**. Voiceys record as
+`audio/webm;codecs=opus` (see `PREFERRED_MIME_TYPES` in `v2/src/lib/voiceNotes.js`,
+which falls back through ogg → mp4 → mpeg). Safari on iOS has historically refused
+WebM in `<audio>`.
+
+If it fails, a voice-first messenger is silently broken between platforms — and you
+won't hear about it from users, you'll hear "I never got your voice note", months later.
+
+**How to test it properly:** record a Voicey on an Android phone, then play it on a
+real iPhone. Not a simulator, not desktop Safari. Both devices need the app over
+HTTPS — the mic is invisible on the LAN address (see below).
+
+**If it fails**, the fix is to reorder `PREFERRED_MIME_TYPES` so `audio/mp4` wins on
+the recording side. Do it before there's a corpus of recordings.
+
+## How to run it on a phone
+
+The mic does not appear over `http://192.168.1.239:5173` — phones block microphone
+access on insecure origins, so `canRecordVoice()` returns false and the composer
+correctly hides the control. **This is not a bug; do not "fix" it in code.**
+
+```
+npx cloudflared tunnel --url http://localhost:5173
+```
+
+Run it in **Command Prompt, not PowerShell** (execution policy blocks `npx.ps1`).
+Open the printed `*.trycloudflare.com` address on the phone. `vite.config.js` already
+allows those hosts. A tunnel is a different origin, so you'll land on the sign-in screen.
+
+## State
+
+Branch `v2-react`, 6 commits unpushed, tree clean. 168 tests pass, build and lint clean.
+Migrations M9a–M10b all applied and verified.
+
+Messaging is feature-complete enough to test end to end: text, Voiceys, the Hand, EQ
+receipts with true delivery acknowledgements, all verified live across two real accounts today.
+
+## The remaining blockers, in order
+
+1. **`D6`** — above. Untested, existential for a voice-first product.
+2. **Failed-send recovery.** The red `failed` rung of the EQ glyph is built, tested and
+   rendered, but nothing sets it. `sendMessage` throws and the message vanishes. Needs no
+   migration. This is the piece that protects a lost booking enquiry.
+3. **SEC-1** — `notifications` accepts unrestricted INSERT from any authenticated user.
+   Documented deployment prerequisite; messaging adds `new_message` rows to that surface.
+4. **`expire_held_notifications()` is never called**, so N4 is inert.
+
+## Constraints that will bite if you don't know them
+
+- **Never open `conversation_read_state` for reading.** Receipts come from
+  `conversation_receipts(uuid)`, one aggregate row. This amends Identity §2.5 while keeping
+  its actual concern — the sender learns *when*, never *who*, so a shared profile doesn't
+  expose one colleague to the other party. A policy can't do this; a policy grants rows.
+- **Receipts use Broadcast, not `postgres_changes`.** Forced: row-change events respect RLS
+  and the sender cannot read the recipient's row, so a table subscription delivers nothing.
+  Don't reintroduce the 15s poll that was removed.
+- **`ConversationDock` is mounted on every screen** and is the only thing that hears a
+  message wherever the user is. Delivery acks live there. A guard limiting it to docked tabs
+  is what broke Delivered for two releases.
+- **The EQ glyph must never loop.** It sits inches from voice notes that genuinely animate.
+  Two locks: `animation-iteration-count: 3`, and React strips the class after 1300ms.
+- **Inline styles beat media queries.** Anything a phone breakpoint needs to override must
+  live in `index.css`, not on the element. This has caught three separate changes.
+- **`KIND_MATERIAL` overrides the bubble.** If a Voicey looks wrong, look in
+  `lib/messageKindList.js` first — it's spread last and silently wins.
+- **Migrations are applied by hand by the owner, in the SQL editor.** Never suggest
+  `supabase db push`. The editor has no JWT, so `auth.uid()` is `NULL` — verification blocks
+  must impersonate with `SET LOCAL request.jwt.claims` or they pass vacuously.
+- **Deployment is parked.** `yespleez.pages.dev` serves the legacy HTML prototype, not this
+  app. Verify against localhost.
+
+## Testing caveat
+
+`94a88288` owns most profiles. Messaging between two profiles you both own will never show
+Delivered or Read — both exclude your own user id, correctly. A genuine second account is
+required, and the owner now has one.

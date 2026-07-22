@@ -7,7 +7,7 @@ import {
   markConversationDelivered, conversationReceipts, receiptChannelName,
 } from '../lib/messaging';
 import { sendVoiceNote } from '../lib/voiceNotes';
-import { sendHand } from '../lib/hands';
+import { sendHand, HAND_BODY } from '../lib/hands';
 import { listHands, toggleHand } from '../lib/messageState';
 import Composer, { COMPOSER_HEIGHT } from './Composer';
 import { useConversationUi } from '../lib/conversationUi';
@@ -15,7 +15,8 @@ import { PROFILE_TYPES } from '../lib/profileTypes';
 import { renderMessage, isBareKind, shapeFor, materialFor } from '../lib/messageKinds';
 import HandIcon from './HandIcon';
 import EqReceipt from './EqReceipt';
-import { receiptFor } from '../lib/receiptState';
+import { receiptFor, RECEIPT } from '../lib/receiptState';
+import { makePending, appendPending, settlePending, failPending } from '../lib/pendingSend';
 import { timeOf } from '../lib/clock';
 
 /**
@@ -686,33 +687,106 @@ export default function ConversationView({ conversationId, compact = false, onMi
    * kind: 'text' while `messages` had no kind column at all — true by accident,
    * and wrong the moment any other kind existed.
    */
-  async function afterSend(message) {
-    setMessages(prev => [...prev, message]);
+  async function afterSend(message, pendingId = null) {
+    setMessages(prev => (pendingId
+      ? settlePending(prev, pendingId, message)
+      : [...prev, message]));
     setSending(false);
     patch(conversationId, { lastPreview: { text: message.body, kind: message.kind } }, true);
     await markConversationRead(conversationId);
   }
 
-  async function onSend(e) {
-    e.preventDefault();
-    if (!draft.trim() || !senderProfile || sending) return;
+  /**
+   * Send anything that can be retried, with the message on screen throughout.
+   *
+   * The placeholder goes in BEFORE the await and stays there whatever happens:
+   * it becomes the real row on success, and turns red on failure. What it never
+   * does is disappear. The old path appended only after the insert returned, so
+   * a failed send left the thread untouched and the only evidence was a line of
+   * text above the composer — which is indistinguishable, at a glance, from
+   * having sent successfully and scrolled.
+   *
+   * `attempt` is a thunk rather than the arguments, because text and the Hand
+   * reach different functions; `retry` beside it is the DATA needed to build
+   * that thunk again later. See `pendingSend.js` for why a stored closure would
+   * be an attribution bug.
+   */
+  async function trySend({ attempt, retry, body, kind }) {
+    const pending = makePending({ body, kind, fromProfileId: senderProfile, retry });
+    setMessages(prev => appendPending(prev, pending));
     setSending(true);
     setError(null);
 
-    const { message, error: sendError } = await sendMessage({
-      conversationId,
-      fromProfileId: senderProfile,   // ATTRIBUTION only; the human comes from the session
-      body:          draft,
-    });
+    const { message, error: sendError } = await attempt();
 
     if (sendError) {
-      setError(sendError.message ?? 'Could not send.');
+      // No `setError` banner. The message itself is now carrying the failure,
+      // and saying it twice would put a permanent red line above the composer
+      // for a message the user can already see and act on.
+      setMessages(prev => failPending(prev, pending.id, sendError.message ?? null));
       setSending(false);
+      return { ok: false, error: sendError };
+    }
+
+    await afterSend(message, pending.id);
+    return { ok: true, message };
+  }
+
+  async function onSend(e) {
+    e.preventDefault();
+    if (!draft.trim() || !senderProfile || sending) return;
+
+    const body = draft;
+    // Cleared BEFORE the await, not after a successful insert. The draft's job
+    // is done the moment the message is on screen; leaving it in the field
+    // would show the same sentence twice for the length of the round trip, and
+    // a second Enter would send it twice.
+    onDraftChange('');
+
+    await trySend({
+      body,
+      retry:   { type: 'text', body },
+      attempt: () => sendMessage({
+        conversationId,
+        fromProfileId: senderProfile,   // ATTRIBUTION only; the human comes from the session
+        body,
+      }),
+    });
+  }
+
+  /**
+   * Send a failed message again.
+   *
+   * The old placeholder is replaced by a NEW one rather than revived in place,
+   * so a second failure is a fresh `waiting → failed` transition. Mutating the
+   * existing one back to `waiting` would leave `EqReceipt`'s `prev` ref equal to
+   * the state it lands on, and the glyph would sit silently on red without ever
+   * showing the retry was attempted.
+   *
+   * ⚠ The acting profile is re-read HERE, at retry time, from `senderProfile`.
+   * §2.1 fixes the sending identity for the life of a conversation so it should
+   * not have moved — but reading it now rather than from the stored attempt is
+   * what makes that a guarantee rather than an assumption.
+   */
+  async function onRetry(message) {
+    if (!senderProfile || sending) return;
+    const retry = message?.retry;
+    if (!retry) return;
+
+    setMessages(prev => prev.filter(m => m.id !== message.id));
+
+    if (retry.type === 'hand') {
+      await trySend({
+        body: message.body, kind: message.kind, retry,
+        attempt: () => sendHand({ conversationId, fromProfileId: senderProfile }),
+      });
       return;
     }
 
-    onDraftChange('');
-    await afterSend(message);
+    await trySend({
+      body: retry.body, retry,
+      attempt: () => sendMessage({ conversationId, fromProfileId: senderProfile, body: retry.body }),
+    });
   }
 
   /**
@@ -768,21 +842,13 @@ export default function ConversationView({ conversationId, compact = false, onMi
 
   async function onSendHand() {
     if (!senderProfile || sending) return;
-    setSending(true);
-    setError(null);
 
-    const { message, error: sendError } = await sendHand({
-      conversationId,
-      fromProfileId: senderProfile,
+    await trySend({
+      body:    HAND_BODY,
+      kind:    'hand',
+      retry:   { type: 'hand' },
+      attempt: () => sendHand({ conversationId, fromProfileId: senderProfile }),
     });
-
-    if (sendError) {
-      setError(sendError.message ?? 'Could not send.');
-      setSending(false);
-      return;
-    }
-
-    await afterSend(message);
   }
 
   /**
@@ -1120,6 +1186,7 @@ export default function ConversationView({ conversationId, compact = false, onMi
                 speaker={profilesById[m.from_profile_id]}
                 handed={(handsByMessage.get(m.id) ?? []).includes(senderProfile)}
                 onToggleHand={() => onToggleHand(m.id)}
+                onRetry={() => onRetry(m)}
                 seenWatermark={seenWatermark}
                 deliveredWatermark={deliveredWatermark}
               />
@@ -1175,7 +1242,7 @@ export default function ConversationView({ conversationId, compact = false, onMi
  * YesPleez cards land as branches rather than a rewrite. Only `text` exists —
  * the others are declared, not built, and nothing here pretends otherwise.
  */
-function MessageBubble({ message, isMine, grouped = false, endsBurst = true, speaker, handed = false, onToggleHand, seenWatermark = null, deliveredWatermark = null }) {
+function MessageBubble({ message, isMine, grouped = false, endsBurst = true, speaker, handed = false, onToggleHand, onRetry, seenWatermark = null, deliveredWatermark = null }) {
 
   // Null for anything received — receiptFor enforces that, and it is the rule
   // that keeps the §2.5 amendment narrow: a receipt on a message you received
@@ -1341,6 +1408,27 @@ function MessageBubble({ message, isMine, grouped = false, endsBurst = true, spe
             {timeOf(message.created_at)}
             <EqReceipt state={receipt} />
           </div>
+        )}
+
+        {/* THE ONLY RUNG THAT ASKS FOR SOMETHING.
+            Sent, delivered and read are a record; failed is a request. So it is
+            the one receipt state that gets words and a tap target — the glyph
+            alone says "something is wrong" without saying what to do, and at
+            8px it is far too small to be the control.
+
+            Inside the bubble, not a toast: the whole point is that the failure
+            stays attached to the message it belongs to. A thread with two failed
+            sends needs two retries, and a banner above the composer can only
+            ever describe one of them. */}
+        {receipt === RECEIPT.FAILED && (
+          <button
+            type="button"
+            onClick={onRetry}
+            className="yp-msg-retry"
+            title={message.failReason ?? undefined}
+          >
+            Not sent — tap to retry
+          </button>
         )}
 
         {/* THE YES, WHERE INSTAGRAM PUTS THE HEART.

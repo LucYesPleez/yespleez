@@ -442,6 +442,37 @@ input, textarea, select {
   .yp-eq-pulse span { animation: none; }
 }
 
+/* ── RETRY, ON THE MESSAGE THAT FAILED ──────────────────────────────
+   Loud enough to be found and quiet enough not to shout, because it appears
+   inside a bubble the user already wrote. It is a full-width row rather than a
+   floated link so the tap target spans the bubble — this is reached with a
+   thumb, usually while something has already gone wrong.
+
+   In the stylesheet, not inline, so the phone block can reach it. Every inline
+   value here would silently beat a media query, which is how three earlier
+   changes were lost. */
+.yp-msg-retry {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+  padding: 6px 8px;
+  border: 1px solid rgba(255, 59, 92, .38);
+  border-radius: 8px;
+  background: rgba(255, 59, 92, .12);
+  color: #FF8A9E;
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: .01em;
+  text-align: center;
+  cursor: pointer;
+  /* No transition on background: this button appears at the same instant the
+     glyph turns red, and two things animating at once reads as an error state
+     that is still developing rather than one waiting for an answer. */
+}
+.yp-msg-retry:hover { background: rgba(255, 59, 92, .2); }
+.yp-msg-retry:active { transform: translateY(1px); }
+
 /* ── THE CONVERSATION HEADER ────────────────────────────────────────
    These values ARE the desktop layout, moved out of inline styles so the phone
    block below can override them. An inline style beats a stylesheet, so
