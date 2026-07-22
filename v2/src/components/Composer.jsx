@@ -467,7 +467,7 @@ function AttachMenu({ onClose, onPickImage, onPickFile }) {
     onPickFile && {
       key: 'file', label: 'Upload file', accept: FILE_ACCEPT,
       note: 'PDF, DOC, XLS, ZIP',
-      onPick: file => onPickFile(file, { hd: false }),
+      onPick: file => onPickFile(file),
       icon: (
         <><path d="M14 2H6.5A1.5 1.5 0 0 0 5 3.5v17A1.5 1.5 0 0 0 6.5 22h11a1.5 1.5 0 0 0 1.5-1.5V7z" /><path d="M14 2v5h5" /></>
       ),
@@ -503,7 +503,10 @@ function AttachMenu({ onClose, onPickImage, onPickFile }) {
       // `AUDIO_ACCEPT`, so nothing tries to match it and no picker filters on
       // it. Do not "fix" it.
       note: 'WAV, AIFF, FLAC, CHZ',
-      onPick: file => onPickFile(file, { hd: true }),
+      // No hd flag: the chip is derived from the FILE in messageFiles.js, so an
+      // MP3 through this row is honestly chipless and a WAV through the plain
+      // file row still earns it. The row only chooses the PICKER.
+      onPick: file => onPickFile(file),
       icon: (
         <><path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" /></>
       ),

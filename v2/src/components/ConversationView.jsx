@@ -8,7 +8,7 @@ import {
 } from '../lib/messaging';
 import { sendVoiceNote, VOICE_FALLBACK_BODY } from '../lib/voiceNotes';
 import { sendImage, sendOriginalOnly, prepareImage, IMAGE_FALLBACK_BODY } from '../lib/messageImages';
-import { sendFile, bodyForFile, safeName, MAX_BYTES, formatBytes } from '../lib/messageFiles';
+import { sendFile, bodyForFile, safeName, isLosslessAudio, MAX_BYTES, formatBytes } from '../lib/messageFiles';
 import { computeWave } from '../lib/voiceWave';
 import { sendHand, HAND_BODY } from '../lib/hands';
 import { listHands, toggleHand } from '../lib/messageState';
@@ -863,8 +863,8 @@ export default function ConversationView({ conversationId, compact = false, onMi
       // to re-prepare — a document has no local representation to keep alive.
       await trySend({
         body: bodyForFile(retry.file.name), kind: 'file', retry,
-        payload: { name: safeName(retry.file.name), bytes: retry.file.size, mime: retry.file.type || null, ...(retry.hd && { hd: true }) },
-        attempt: () => sendFile({ conversationId, fromProfileId: senderProfile, file: retry.file, hd: retry.hd }),
+        payload: { name: safeName(retry.file.name), bytes: retry.file.size, mime: retry.file.type || null, ...(isLosslessAudio(retry.file.name, retry.file.type) && { hd: true }) },
+        attempt: () => sendFile({ conversationId, fromProfileId: senderProfile, file: retry.file }),
       });
       return;
     }
@@ -1113,8 +1113,14 @@ export default function ConversationView({ conversationId, compact = false, onMi
    * fails identically on every retry, so it must never become a retryable
    * message.
    */
-  async function onPickFile(file, { hd = false } = {}) {
+  async function onPickFile(file) {
     if (!senderProfile || sending || !file) return;
+
+    // ⚠ THE CHIP FOLLOWS THE FILE, NOT THE ROW. Derived here for the optimistic
+    // placeholder and derived again in `sendFile` for the real row, from the
+    // same function — so the bubble cannot flash a chip the settled message
+    // then takes away.
+    const hd = isLosslessAudio(file.name, file.type);
 
     if (file.size > MAX_BYTES) {
       setError(`That file is ${formatBytes(file.size)}. The limit is ${formatBytes(MAX_BYTES)}.`);
@@ -1124,12 +1130,12 @@ export default function ConversationView({ conversationId, compact = false, onMi
     await trySend({
       body: bodyForFile(file.name),
       kind: 'file',
-      retry: { type: 'file', file, hd },
+      retry: { type: 'file', file },
       // No `localUrl`: unlike a photo there is nothing to show before it lands.
       // The row renders from name and size alone, both known immediately, so
       // the placeholder is already the finished shape.
       payload: { name: safeName(file.name), bytes: file.size, mime: file.type || null, ...(hd && { hd: true }) },
-      attempt: () => sendFile({ conversationId, fromProfileId: senderProfile, file, hd }),
+      attempt: () => sendFile({ conversationId, fromProfileId: senderProfile, file }),
     });
   }
 

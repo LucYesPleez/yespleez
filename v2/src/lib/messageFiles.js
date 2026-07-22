@@ -78,6 +78,49 @@ export function safeName(name) {
   return flat.length > 120 ? `${flat.slice(0, 110)}…${flat.slice(-6)}` : flat;
 }
 
+/**
+ * Is this file ACTUALLY lossless audio?
+ *
+ * ⚠ THE HD CHIP IS A VERIFIED CLAIM, NOT A CHOICE. It used to be set by which
+ * menu row the sender tapped, which meant an MP3 sent through "Upload HD audio"
+ * wore the chip while being lossy — a quality mark that certified nothing. Now
+ * the chip follows the FILE: a WAV is HD whichever row it came through, and an
+ * MP3 never is, whatever the sender pressed.
+ *
+ * Extension first, mime as backup — browsers report audio types inconsistently
+ * (a .wav may arrive as audio/wav, audio/x-wav or nothing at all), but the
+ * extension is what the producer's export dialog wrote and is the more honest
+ * signal here.
+ *
+ * ALAC (.m4a) is deliberately absent: the same extension carries lossy AAC far
+ * more often than lossless ALAC, and the container does not say which without
+ * parsing it. A chip that is right most of the time is a chip that lies some of
+ * the time — so m4a never gets one.
+ */
+const LOSSLESS_EXTENSIONS = new Set(['wav', 'aiff', 'aif', 'flac']);
+const LOSSLESS_MIMES = new Set([
+  'audio/wav', 'audio/x-wav', 'audio/wave', 'audio/vnd.wave',
+  'audio/flac', 'audio/x-flac',
+  'audio/aiff', 'audio/x-aiff',
+]);
+
+export function isLosslessAudio(name, mime) {
+  const ext = /\.([A-Za-z0-9]{1,8})$/.exec(String(name || ''))?.[1]?.toLowerCase();
+  if (ext && LOSSLESS_EXTENSIONS.has(ext)) return true;
+  return LOSSLESS_MIMES.has(String(mime || '').toLowerCase());
+}
+
+/**
+ * The format token a person reads — "WAV", "PDF", "ZIP". From the extension,
+ * because that is what their own file manager shows them.
+ */
+export function formatToken(name, mime) {
+  const ext = /\.([A-Za-z0-9]{1,8})$/.exec(String(name || ''))?.[1];
+  if (ext) return ext.toUpperCase();
+  const sub = String(mime || '').split('/')[1];
+  return sub ? sub.replace(/[^a-z0-9]/gi, '').toUpperCase().slice(0, 8) : '';
+}
+
 /** The extension, for the storage path only. Never trusted for type. */
 function extensionFor(name, mime) {
   const m = /\.([A-Za-z0-9]{1,8})$/.exec(String(name || ''));
@@ -129,6 +172,44 @@ export async function uploadMessageFile({ conversationId, file } = {}) {
 }
 
 /**
+ * Can the browser PLAY this file inline?
+ *
+ * ⚠ AIFF IS DELIBERATELY ABSENT. Chrome and Android cannot decode it at all —
+ * it plays only in Safari — and a play button that works for the sender's
+ * iPhone and silently fails on the recipient's Pixel is worse than a download
+ * card that works for both. WAV, FLAC and MP3 decode everywhere that runs this
+ * app; AIFF stays download-only until that stops being true.
+ */
+const PLAYABLE_EXTENSIONS = new Set(['wav', 'flac', 'mp3', 'm4a', 'ogg']);
+const PLAYABLE_MIMES = new Set([
+  'audio/wav', 'audio/x-wav', 'audio/wave', 'audio/vnd.wave',
+  'audio/flac', 'audio/x-flac', 'audio/mpeg', 'audio/mp3',
+  'audio/mp4', 'audio/x-m4a', 'audio/aac', 'audio/ogg',
+]);
+
+export function isPlayableAudio(name, mime) {
+  const ext = /\.([A-Za-z0-9]{1,8})$/.exec(String(name || ''))?.[1]?.toLowerCase();
+  if (ext) return PLAYABLE_EXTENSIONS.has(ext);
+  return PLAYABLE_MIMES.has(String(mime || '').toLowerCase());
+}
+
+/**
+ * A url for LISTENING, as opposed to downloading.
+ *
+ * ⚠ NO `download` OPTION, AND THAT IS THE ENTIRE DIFFERENCE from
+ * `downloadUrlFor`. The attachment header tells the browser to SAVE the file;
+ * an `<audio>` element pointed at such a url refuses to stream it. Playback
+ * needs the bytes served plain — the browser then range-requests its way
+ * through the file, so a 30MB WAV starts sounding long before it has arrived.
+ */
+export async function playbackUrlFor(path, expiresIn = SIGNED_URL_TTL_SECONDS) {
+  if (!path) return { url: null, error: { message: 'playbackUrlFor: path is required' } };
+
+  const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(path, expiresIn);
+  return error ? { url: null, error } : { url: data?.signedUrl ?? null, error: null };
+}
+
+/**
  * A download url for a stored file.
  *
  * RLS decides here, not the caller: a non-participant's request fails at the
@@ -158,9 +239,15 @@ export async function downloadUrlFor(path, name, expiresIn = SIGNED_URL_TTL_SECO
  * attachment that cannot be opened is worse than one that was never sent — the
  * sender believes it went.
  */
-export async function sendFile({ conversationId, fromProfileId, file, hd = false } = {}) {
+export async function sendFile({ conversationId, fromProfileId, file } = {}) {
   const { path, error: uploadError } = await uploadMessageFile({ conversationId, file });
   if (uploadError) return { message: null, error: uploadError };
+
+  // ⚠ DERIVED, NEVER ACCEPTED. `sendFile` used to take an `hd` argument set by
+  // which menu row was tapped, and an MP3 through "Upload HD audio" wore the
+  // chip while being lossy. The chip is a claim about the FILE, so the file is
+  // the only thing consulted — a WAV is HD through any row, an MP3 through none.
+  const hd = isLosslessAudio(file.name, file.type);
 
   return sendMessage({
     conversationId,

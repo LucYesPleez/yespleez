@@ -43,7 +43,7 @@ mock.module('./supabase', {
 
 const {
   uploadMessageFile, downloadUrlFor, sendFile,
-  safeName, bodyForFile, formatBytes, MAX_BYTES,
+  safeName, bodyForFile, formatBytes, formatToken, isLosslessAudio, MAX_BYTES,
 } = await import('./messageFiles.js');
 
 beforeEach(() => {
@@ -216,7 +216,6 @@ test('an HD audio file is marked, so the bubble can say how it was sent', async 
   await sendFile({
     conversationId: CONV, fromProfileId: PROFILE,
     file: fakeFile({ name: 'master.wav', type: 'audio/wav', size: 31_000_000 }),
-    hd: true,
   });
 
   assert.equal(inserted[0].row.payload.hd, true);
@@ -232,7 +231,6 @@ test('⚠ HD audio does NOT expire — only image originals are temporary', asyn
   await sendFile({
     conversationId: CONV, fromProfileId: PROFILE,
     file: fakeFile({ name: 'master.wav', type: 'audio/wav' }),
-    hd: true,
   });
 
   const { payload } = inserted[0].row;
@@ -257,4 +255,73 @@ test('the stored extension survives for audio, so a bucket listing stays readabl
     conversationId: CONV, file: fakeFile({ name: 'master.wav', type: 'audio/wav' }),
   });
   assert.ok(uploads[0].path.endsWith('.wav'));
+});
+
+// ── THE CHIP IS A VERIFIED CLAIM ──────────────────────────────────────
+//
+// It used to follow which menu row was tapped, so an MP3 through "Upload HD
+// audio" wore the chip while being lossy. Now the FILE decides.
+
+test('⚠ an MP3 never gets the chip, whichever row it came through', async () => {
+  await sendFile({
+    conversationId: CONV, fromProfileId: PROFILE,
+    file: fakeFile({ name: 'bounce.mp3', type: 'audio/mpeg' }),
+  });
+
+  assert.equal(inserted[0].row.payload.hd, undefined,
+    'a chip on lossy audio certifies nothing');
+});
+
+test('⚠ a WAV through the ORDINARY file row still earns the chip', async () => {
+  // The row chooses the picker; the file earns the mark.
+  await sendFile({
+    conversationId: CONV, fromProfileId: PROFILE,
+    file: fakeFile({ name: 'master.wav', type: 'audio/wav' }),
+  });
+
+  assert.equal(inserted[0].row.payload.hd, true);
+});
+
+test('every lossless format is recognised, by extension alone if need be', () => {
+  // Browsers routinely report no mime for these.
+  assert.ok(isLosslessAudio('master.wav', ''));
+  assert.ok(isLosslessAudio('take3.aiff', ''));
+  assert.ok(isLosslessAudio('take3.aif', ''));
+  assert.ok(isLosslessAudio('album.flac', ''));
+  assert.ok(isLosslessAudio('noext', 'audio/x-wav'), 'mime rescues a missing extension');
+});
+
+test('⚠ m4a is NEVER lossless here — the container hides whether it is ALAC or AAC', () => {
+  assert.equal(isLosslessAudio('song.m4a', 'audio/mp4'), false,
+    'a chip that is right most of the time is a chip that lies some of the time');
+});
+
+test('the metadata line has a format token for anything with a name', () => {
+  assert.equal(formatToken('master.wav', ''), 'WAV');
+  assert.equal(formatToken('rider.pdf', ''), 'PDF');
+  assert.equal(formatToken('noext', 'application/zip'), 'ZIP');
+  assert.equal(formatToken('', ''), '');
+});
+
+// ── PLAYBACK vs DOWNLOAD: TWO URLS WITH ONE DIFFERENCE ────────────────
+
+const { playbackUrlFor, isPlayableAudio: playable } = await import('./messageFiles.js');
+
+test('⚠ the playback url has NO attachment header — an <audio> element refuses one', async () => {
+  await playbackUrlFor(`${CONV}/abc.wav`);
+
+  assert.equal(signs[0].bucket, 'message-files');
+  assert.equal(signs[0].opts, undefined,
+    'the download disposition is exactly what stops streaming from working');
+});
+
+test('WAV, FLAC and MP3 play inline; AIFF does not', () => {
+  assert.ok(playable('master.wav', ''));
+  assert.ok(playable('album.flac', ''));
+  assert.ok(playable('bounce.mp3', ''));
+  // Chrome and Android cannot decode AIFF at all. A play button that works on
+  // the sender's iPhone and silently fails on the recipient's Pixel is worse
+  // than a download card that works for both.
+  assert.equal(playable('take.aiff', ''), false);
+  assert.equal(playable('rider.pdf', 'application/pdf'), false);
 });
