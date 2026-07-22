@@ -189,35 +189,17 @@ test('unrenderable peaks draw nothing, so the caller falls back', async () => {
 
 /* ── one bar count, both players ───────────────────────────────────── */
 
-test('⚠ the drawn bars clear the comb on BOTH players', async () => {
-  // The count is chosen in PIXELS PER BAR, which is what decides whether a wave
-  // reads as audio. 56 bars at under 2px was tried during M9f and failed — thin
-  // enough that varying heights stopped being visible, which is the real reason
-  // the waveform once looked uniform.
-  //
-  // ⚠ THE WIDTHS ARE A RANGE, NOT A NUMBER, and this test says so because an
-  // earlier version did not: it asserted against a single 164px wave, and that
-  // width moved the same day when the bubble was widened and the play button
-  // shrank — leaving the test passing against geometry that no longer existed.
-  //
-  // phone   = bubble at 76% of 412, less padding, button and gap
-  // desktop = the player min-width of 252, less the inset, button and gap
-  const WAVES = { phone: 207, desktop: 199 };
-  const GAP = 1.5;
-  const perBar = (n, px) => (px - (n - 1) * GAP) / n;
+test('⚠ a bar is wide enough to read as audio', () => {
+  // Bars are a FIXED width now — they no longer divide the container — so the
+  // question is simply whether that width is legible. 56 bars at under 2px was
+  // tried during M9f and failed: thin enough that varying heights stopped being
+  // visible, which is the real reason the waveform once looked uniform.
+  const view = readFileSync(new URL('../components/VoiceMessage.jsx', import.meta.url), 'utf8');
+  const w = Number(view.match(/const BAR_W\s*=\s*([\d.]+)/)?.[1]);
 
-  const { DISPLAY_BARS } = await import('./voicePeaks.js');
-
-  for (const [player, px] of Object.entries(WAVES)) {
-    const w = perBar(DISPLAY_BARS, px);
-    assert.ok(w > 3.2, `${player}: bars must clear the comb, got ${w.toFixed(1)}px`);
-    assert.ok(w < 6.5, `${player}: bars must not go absurd, got ${w.toFixed(1)}px`);
-  }
-
-  // The two players must not drift apart in character — the owner asked for
-  // desktop to match the phone, and one count is how that is guaranteed.
-  const spread = Math.abs(perBar(DISPLAY_BARS, WAVES.phone) - perBar(DISPLAY_BARS, WAVES.desktop));
-  assert.ok(spread < 0.75, `phone and desktop bars differ by ${spread.toFixed(2)}px`);
+  assert.ok(Number.isFinite(w), 'BAR_W is missing');
+  assert.ok(w >= 3.2, `bars at ${w}px read as a comb, not as audio`);
+  assert.ok(w <= 7, `bars at ${w}px are blocky`);
 });
 
 test('⚠ no viewport split in the bar count', async () => {
@@ -327,4 +309,71 @@ test('⚠ the buckets stay in TIME order', () => {
   const peaks = peaksFromChannel(speechWithSlam());
   const ascending = peaks.every((v, i) => i === 0 || v >= peaks[i - 1]);
   assert.equal(ascending, false, 'a monotonic ramp means the buckets were sorted in place');
+});
+
+/* ── a short note is not stretched ──────────────────────────────────── */
+
+test('⚠ a bar is a fixed slice of TIME, so a short note draws a short wave', async () => {
+  // Every note used to draw DISPLAY_BARS whatever its length, so a bar meant
+  // 107ms in a three-second note and 1.07s in a thirty-second one. Same picture
+  // width, wildly different amounts of speech — which is what made a short
+  // Voicey look artificially wide.
+  const { barsForDuration, DISPLAY_BARS, MS_PER_BAR } = await import('./voicePeaks.js');
+
+  assert.ok(barsForDuration(3000) < DISPLAY_BARS, 'a 3s note must not fill the player');
+  assert.equal(barsForDuration(DISPLAY_BARS * MS_PER_BAR), DISPLAY_BARS, 'and 7s must exactly fill it');
+
+  // Proportional in between: twice the audio, twice the bars.
+  assert.equal(barsForDuration(2000) * 2, barsForDuration(4000));
+});
+
+test('a long note fills the width and never exceeds it', async () => {
+  // Past the full width a note DOES still compress — the player has a fixed
+  // width and something has to give. The point is that compression now starts
+  // at seven seconds rather than at one.
+  const { barsForDuration, DISPLAY_BARS } = await import('./voicePeaks.js');
+  assert.equal(barsForDuration(30_000), DISPLAY_BARS);
+  assert.equal(barsForDuration(600_000), DISPLAY_BARS);
+});
+
+test('⚠ a very short note is stretched rather than drawn as four bars', async () => {
+  // Deliberate: below the floor a wave stops reading as a wave and starts
+  // reading as a rendering failure. "Not quite to scale" beats "looks broken".
+  const { barsForDuration, MIN_DISPLAY_BARS } = await import('./voicePeaks.js');
+  assert.equal(barsForDuration(200), MIN_DISPLAY_BARS);
+  assert.equal(barsForDuration(1), MIN_DISPLAY_BARS);
+});
+
+test('an unknown duration draws the full width rather than guessing', async () => {
+  // A payload with no duration_ms predates that field. Drawing it short would
+  // assert a length nothing measured.
+  const { barsForDuration, DISPLAY_BARS } = await import('./voicePeaks.js');
+  for (const bad of [undefined, null, 0, -5, NaN, 'seven']) {
+    assert.equal(barsForDuration(bad), DISPLAY_BARS, `${bad} should fall back to the full count`);
+  }
+});
+
+test('⚠ bars must be a fixed width, or fewer of them just get fatter', async () => {
+  // The whole mechanism depends on it. While bars were `flex: 1` they shared
+  // whatever width existed, so drawing fewer would have filled the player
+  // anyway and a short note would have looked exactly as long as a long one.
+  const view = readFileSync(new URL('../components/VoiceMessage.jsx', import.meta.url), 'utf8');
+  assert.match(view, /width:\s*BAR_W/, 'bars must take a fixed width');
+  assert.match(view, /flex:\s*'none'/, 'a flexing bar cannot represent a fixed slice of time');
+  assert.match(view, /justifyContent:\s*'flex-start'/, 'the wave must end, not spread');
+});
+
+test('⚠ a full-length wave fits the NARROWEST screen, not the widest', async () => {
+  const view = readFileSync(new URL('../components/VoiceMessage.jsx', import.meta.url), 'utf8');
+  const { DISPLAY_BARS } = await import('./voicePeaks.js');
+  const w = Number(view.match(/const BAR_W\s*=\s*([\d.]+)/)?.[1]);
+  const gap = Number(view.match(/const BAR_GAP\s*=\s*([\d.]+)/)?.[1]);
+
+  const full = DISPLAY_BARS * w + (DISPLAY_BARS - 1) * gap;
+  // ⚠ THE BINDING CONSTRAINT IS A 360px HANDSET, not the desktop player. The
+  // two-thirds cap leaves ~133px of wave there — far tighter than desktop — and
+  // an earlier version of this test checked desktop, passed, and shipped a wave
+  // that overflowed a phone by 62px.
+  assert.ok(full <= 133, `a full wave is ${full}px and a 360px phone offers ~133px`);
+  assert.ok(full > 110, `a full wave is only ${full}px — it should very nearly fill that`);
 });

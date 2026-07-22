@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useMemo, useCallback, memo } from 'react';
 import { signedUrlFor, formatDuration } from '../lib/voiceNotes';
-import { toDisplayPeaks, DISPLAY_BARS } from '../lib/voicePeaks';
+import { toDisplayPeaks, barsForDuration } from '../lib/voicePeaks';
 import { decodeWave, toDisplayWave } from '../lib/voiceWave';
 import { timeOf } from '../lib/clock';
 import { claimPlayback, releasePlayback } from '../lib/voicePlayback';
@@ -35,6 +35,17 @@ import EqReceipt from './EqReceipt';
  */
 /** Taller than the old 22, so the peaks have somewhere to go. */
 const WAVE_HEIGHT = 27;
+
+/**
+ * Bar width and the gap after it.
+ *
+ * FIXED, because a note now draws a number of bars proportional to its LENGTH.
+ * 4.5 + 1.5 puts 22 bars in 130.5px. THE BINDING CONSTRAINT IS A 360px HANDSET:
+ * the two-thirds cap leaves ~133px of wave there, which is far tighter than the
+ * desktop player. 28 bars at 5.5px needed 194.5px and overflowed by 62px.
+ */
+const BAR_W = 4.5;
+const BAR_GAP = 1.5;
 
 /**
  * THE WAVEFORM CARRIES THE COLOUR (M9u).
@@ -129,7 +140,13 @@ const Waveform = memo(function Waveform({ bars, settle, register }) {
       // gap 2 → 1.5: at 42 bars the gaps would otherwise eat the width the
       // extra bars were added to use, and the wave would end up thinner in
       // ink rather than finer in detail.
-      style={{ display: 'flex', alignItems: 'center', gap: 1.5, height: WAVE_HEIGHT }}
+      // ⚠ flex-start, NOT stretch. A short note draws fewer bars, and the wave
+      // must simply END rather than spreading itself over the width — spreading
+      // is the stretch this exists to remove.
+      style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'flex-start',
+        gap: BAR_GAP, height: WAVE_HEIGHT,
+      }}
       aria-hidden="true"
     >
       {bars.map((v, i) => (
@@ -137,7 +154,12 @@ const Waveform = memo(function Waveform({ bars, settle, register }) {
           key={i}
           ref={el => register(i, el)}
           style={{
-            flex: 1,
+            // ⚠ FIXED WIDTH, NEVER flex. While bars were `flex: 1` they shared
+            // whatever width existed, so drawing fewer of them just made each
+            // one fatter and the wave still filled the player — the note would
+            // have looked the same length however short it was.
+            width: BAR_W,
+            flex: 'none',
             // Floor at 2px: a near-silent bucket must still read as a bar, or a
             // pause in speech looks like a gap in the file.
             height: Math.max(2, v * WAVE_HEIGHT),
@@ -196,7 +218,12 @@ export default function VoiceMessage({ message, receipt = null }) {
   // produced the "compressed" report. The 640px threshold is the same one
   // `index.css` uses for the player's min-width, so the two cannot disagree
   // about what a phone is.
-  const barCount = DISPLAY_BARS;
+  // ⚠ FROM THE NOTE'S LENGTH, not a constant. A bar is a fixed slice of time,
+  // so a three-second note draws a short wave and a seven-second one fills the
+  // player. Uses the STORED duration rather than the audio element's, because
+  // this has to be right before anything has been downloaded — and the element
+  // has no duration until someone presses play.
+  const barCount = barsForDuration(storedMs);
 
   /**
    * ⚠ TWO FORMATS, AND BOTH ARE PERMANENT.

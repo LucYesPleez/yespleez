@@ -755,7 +755,14 @@ input, textarea, select {
    the bubble is capped at 76% of the thread width, which on a narrow handset is
    under 252px, and an inline minimum cannot be told to yield. */
 .yp-voice-player {
-  min-width: 252px;
+  /* ⚠ NO MINIMUM. There was one — 252px, so the player read as a component
+     rather than as a control sized to its contents — and it is incompatible
+     with a wave that represents duration. A three-second note would have been
+     padded out to the same footprint as a thirty-second one, which is the
+     stretch this change exists to remove, just moved from the bars to the box.
+
+     The player is content-sized now and `KIND_SHAPE.voice.maxWidth` caps it at
+     two thirds of the thread. */
   /* Clears the Yes badge's reach at the bubble's bottom-left. See
      --yp-yes-inset — the badge comes in 17px, past this bubble's 17px padding. */
   padding-left: var(--yp-yes-inset);
@@ -848,7 +855,7 @@ input, textarea, select {
   position: relative;
   display: flex;
   min-width: 0;
-  max-width: 76%;
+  max-width: var(--yp-frame-max, 76%);
   /* Room for the badge, reserved on EVERY message — not only handed ones, or
      the thread would reflow under the reader's thumb at the moment they react. */
   margin-left: var(--yp-yes-gutter);
@@ -896,27 +903,17 @@ input, textarea, select {
   border-radius: inherit;
 }
 
-@media (max-width: 640px) {
-  /* The bubble's 76% cap wins on a phone. The player gives up its minimum and
-     fills whatever the bubble actually offers — the waveform's bars are
-     `flex: 1` over a zero basis, so they simply get finer rather than
-     overflowing. The footprint was a look, and the bubble is a boundary. */
-  .yp-voice-player { min-width: 0; width: 100%; }
+/* ⚠ THE PHONE BLOCK THAT USED TO LIVE HERE IS GONE, and both halves of it
+   with reasons worth keeping.
 
-  /* ⚠ PHONES ONLY, AND ONLY BECAUSE THE OWNER ASKED FOR IT — desktop is
-     explicitly fine as it is (2026-07-22).
+    made the player fill the bubble, and
+    made the bubble match a full text bubble.
+   Together they guaranteed every Voicey was the same width whatever it
+   contained — which was exactly right while the wave stretched to fill, and is
+   exactly wrong now that a bar represents a fixed slice of time.
 
-     A Voicey now takes the SAME width as a full text bubble instead of sizing
-     itself to its contents. `width: 100%` against the same `max-width: 76%` the
-     text bubbles hit means both land on exactly one number, so a thread reads as
-     one column of messages rather than as bubbles of three different widths
-     depending on what is inside them.
-
-     Applies to BOTH directions. Received bubbles sit 34px further in — avatar
-     plus gap — which is already true of text and is what keeps the two sides
-     distinguishable without giving them different widths. */
-  .yp-voice-bubble { width: 100%; }
-}
+   A Voicey is content-sized on every viewport now, capped at two thirds by
+   KIND_SHAPE.voice.maxWidth. A short note is a short bubble. */
 
 .yp-live-wave { animation: ypLiveIn var(--yp-medium) var(--yp-ease); }
 

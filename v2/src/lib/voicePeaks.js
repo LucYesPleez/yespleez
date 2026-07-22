@@ -224,7 +224,49 @@ export function peaksFromChannel(samples) {
  * nothing stored changes and this can be retuned freely — unlike PEAK_COUNT,
  * which is written into every v1 row ever created.
  */
-export const DISPLAY_BARS = 28;
+export const DISPLAY_BARS = 22;
+
+/**
+ * How much audio one drawn bar represents.
+ *
+ * ⚠ A SHORT NOTE IS NOT STRETCHED TO FILL THE PLAYER. Every note used to draw
+ * DISPLAY_BARS whatever its length, so a bar meant 107ms in a three-second note
+ * and 1.07s in a thirty-second one — the same picture width for wildly different
+ * amounts of speech, which is what made a short Voicey look artificially wide.
+ *
+ * Bars are a fixed width and a fixed slice of time, so the wave simply STOPS
+ * when the audio does. A three-second note is a short wave; a seven-second one
+ * fills the player. That is the same principle v2 applied to storage, finally
+ * applied to the drawing as well.
+ *
+ * 250ms × 22 bars = 5.5 seconds to fill the width. Past that a note does still
+ * compress — the player has a fixed width and something has to give — but the
+ * compression now starts where it is least noticeable rather than at one second.
+ */
+export const MS_PER_BAR = 250;
+
+/**
+ * Fewer than this and the wave stops reading as a wave.
+ *
+ * A one-second note would otherwise draw four bars, which looks like a rendering
+ * failure rather than a short recording. Below the floor a note is drawn slightly
+ * stretched — accepted deliberately, because "too short to be a picture" is a
+ * worse failure than "not quite to scale".
+ */
+export const MIN_DISPLAY_BARS = 8;
+
+/**
+ * How many bars this note draws.
+ *
+ * Falls back to the full count when the duration is unknown, which is the honest
+ * default: a payload with no `duration_ms` predates that field, and drawing it
+ * short would assert a length nothing measured.
+ */
+export function barsForDuration(durationMs) {
+  const ms = Number(durationMs);
+  if (!Number.isFinite(ms) || ms <= 0) return DISPLAY_BARS;
+  return Math.max(MIN_DISPLAY_BARS, Math.min(DISPLAY_BARS, Math.round(ms / MS_PER_BAR)));
+}
 
 /**
  * Contrast curve applied to the drawn heights.
