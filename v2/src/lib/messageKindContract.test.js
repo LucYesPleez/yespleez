@@ -113,3 +113,47 @@ test('the registry still re-exports the list the app imports', () => {
   assert.match(src, /export\s*\{[^}]*\bLABELS\b[^}]*\}\s*from\s*'\.\/messageKindList'/,
     'messageKinds.jsx must re-export LABELS from messageKindList');
 });
+
+/* ── the standalone Hand owns its own clock ─────────────────────────── */
+
+test('⚠ the Hand kind draws its own timestamp', async () => {
+  // Not a style preference. This kind has no bubble, so a timestamp drawn BELOW
+  // the mark makes the message's bottom edge the clock rather than the mark —
+  // and the Yes badge, which anchors to the frame's bottom-left corner for every
+  // kind, then lands on top of the time. Measured at 3.3px of overlap,
+  // identically at 412px and 900px: not a phone or platform fault.
+  //
+  // With this true, `HandMessage` draws the clock beside the mark and the
+  // frame's bottom edge is the mark again — restoring the badge's normal 6px
+  // relationship with no special case anywhere.
+  const { KIND_SHAPE, isBareKind } = await import('./messageKindList.js');
+
+  assert.equal(KIND_SHAPE.hand?.ownsTimestamp, true,
+    'the thread would draw the clock under the mark and the badge would sit on it');
+
+  // Still bare: geometry only. It must not have acquired a bubble.
+  assert.equal(isBareKind('hand'), true, 'the Hand must stay a bare kind');
+  assert.equal(KIND_SHAPE.hand.padding, undefined, 'a bare kind must not take padding');
+  assert.equal(KIND_SHAPE.hand.minHeight, undefined, 'a bare kind must not take a height floor');
+});
+
+test('a kind that owns its timestamp must actually render one', async () => {
+  // ownsTimestamp tells the thread to stand down. A kind that claims it and then
+  // draws nothing leaves that message with no time at all — a silent loss, since
+  // nothing errors and the bubble simply looks slightly bare.
+  const { KIND_SHAPE } = await import('./messageKindList.js');
+
+  // Renderers do not all live in one file — voice has its own component.
+  const SOURCE = {
+    hand:  './messageKinds.jsx',
+    voice: '../components/VoiceMessage.jsx',
+  };
+
+  for (const [kind, shape] of Object.entries(KIND_SHAPE)) {
+    if (!shape.ownsTimestamp) continue;
+    const path = SOURCE[kind];
+    assert.ok(path, `${kind} claims ownsTimestamp but this test does not know where it renders`);
+    const src = readFileSync(new URL(path, import.meta.url), 'utf8');
+    assert.ok(/timeOf\(/.test(src), `${kind} claims ownsTimestamp but its renderer draws no clock`);
+  }
+});

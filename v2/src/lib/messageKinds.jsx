@@ -40,6 +40,8 @@ export { KINDS, LABELS, isKind, isBareKind, BARE_KINDS, shapeFor, KIND_SHAPE, ma
 import { KINDS, LABELS, handScale, HAND_SCALE_MIN } from './messageKindList';
 import VoiceMessage from '../components/VoiceMessage';
 import HandIcon from '../components/HandIcon';
+import EqReceipt from '../components/EqReceipt';
+import { timeOf } from './clock';
 
 /** Text is the only kind with a renderer today. Everything else falls back. */
 function renderText(message) {
@@ -95,7 +97,7 @@ const RENDERERS = {
   // The Hand: YesPleez's universal acknowledgement. A BARE kind — see
   // BARE_KINDS — so MessageBubble draws no container around this and the mark
   // stands alone in the thread.
-  hand:  message => <HandMessage message={message} />,
+  hand:  (message, extras) => <HandMessage message={message} receipt={extras?.receipt} />,
 };
 
 /**
@@ -113,22 +115,66 @@ const RENDERERS = {
  * Size comes from `payload.scale`, defaulting to 1. Press-and-hold sizing is
  * not built, but nothing here needs to change when it is.
  */
-function HandMessage({ message }) {
+function HandMessage({ message, receipt = null }) {
   const scale = handScale(message?.payload?.scale ?? HAND_SCALE_MIN);
 
   return (
-    <span
-      // Presentational, so the accessible name comes from `body` via the
-      // thread rather than from the mark. Without this a screen reader would
-      // announce nothing at all — the mark carries no text.
-      role="img"
-      aria-label="Yes"
-      // Shared with the composer's Hand and the bubble reaction — see
-      // `--yp-hand-ink`. Was `--text`, which made the mark brighter here than
-      // on the bar right below it.
-      style={{ display: 'inline-flex', color: 'var(--yp-hand-ink)' }}
-    >
-      <HandIcon size={HAND_BASE_PX * scale} />
+    // ⚠ THE CLOCK SITS BESIDE THE MARK, NOT UNDER IT, AND THAT IS STRUCTURAL.
+    //
+    // This kind has no bubble. Left to the thread's default the timestamp
+    // rendered BELOW the mark, which made the message's bottom edge the clock —
+    // and the Yes badge, which anchors to the frame's bottom-left corner like it
+    // does for every kind, landed 12px on top of the time. Measured identically
+    // at 412px and 900px, so it was never a phone or a platform problem.
+    //
+    // Putting the clock alongside makes the frame's bottom edge the MARK again,
+    // which is what every other kind already gives the badge. The fix is in this
+    // kind's own content layout, where it belongs — the badge's anchor is
+    // untouched and stays the same single rule for everything.
+    //
+    // `KIND_SHAPE.hand.ownsTimestamp` is what stops the thread drawing it a
+    // second time, the same arrangement `voice` uses for the same reason.
+    // ⚠ `vertical-align: bottom` is load-bearing. An inline-level box sits on
+    // the text baseline, so the line box keeps ~5px of descender space beneath
+    // it — which becomes part of the frame, putting the frame's bottom edge
+    // below the mark and taking the badge down with it. The whole point of this
+    // layout is that the frame's bottom edge IS the mark.
+    <span style={{ display: 'inline-flex', alignItems: 'flex-end', gap: 7, verticalAlign: 'bottom' }}>
+      <span
+        // Presentational, so the accessible name comes from `body` via the
+        // thread rather than from the mark. Without this a screen reader would
+        // announce nothing at all — the mark carries no text.
+        role="img"
+        aria-label="Yes"
+        // Shared with the composer's Hand and the bubble reaction — see
+        // `--yp-hand-ink`. Was `--text`, which made the mark brighter here than
+        // on the bar right below it.
+        style={{ display: 'inline-flex', color: 'var(--yp-hand-ink)' }}
+      >
+        <HandIcon size={HAND_BASE_PX * scale} />
+      </span>
+
+      {message?.created_at && (
+        // Sits on the mark's baseline rather than centred on it: an
+        // acknowledgement is tall and mostly empty at the bottom, and a
+        // vertically centred clock reads as floating in the middle of it.
+        //
+        // The bottom padding lifts it clear of the mark's own descender so the
+        // two do not appear to touch.
+        <span style={{
+          display: 'inline-flex', alignItems: 'center', gap: 5,
+          paddingBottom: 4,
+          fontSize: 10, lineHeight: 1,
+          color: 'rgba(255,255,255,.42)',
+          fontVariantNumeric: 'tabular-nums',
+          letterSpacing: '.02em',
+          userSelect: 'none',
+          whiteSpace: 'nowrap',
+        }}>
+          {timeOf(message.created_at)}
+          <EqReceipt state={receipt} />
+        </span>
+      )}
     </span>
   );
 }
