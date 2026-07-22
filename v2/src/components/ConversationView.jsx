@@ -13,7 +13,7 @@ import { listHands, toggleHand } from '../lib/messageState';
 import Composer, { COMPOSER_HEIGHT } from './Composer';
 import { useConversationUi } from '../lib/conversationUi';
 import { PROFILE_TYPES } from '../lib/profileTypes';
-import { renderMessage, isBareKind, shapeFor, materialFor } from '../lib/messageKinds';
+import { renderMessage, isBareKind, canReceiveHand, shapeFor, materialFor } from '../lib/messageKinds';
 import HandIcon from './HandIcon';
 import EqReceipt from './EqReceipt';
 import { receiptFor, RECEIPT } from '../lib/receiptState';
@@ -1341,6 +1341,11 @@ function MessageBubble({ message, isMine, grouped = false, endsBurst = true, spe
   // bubble is a fact about the kind, and this component deliberately knows
   // nothing else about kinds.
   const bare = isBareKind(message.kind);
+  // A Hand IS a Yes, so it cannot be given one — see `UNHANDABLE_KINDS`. Asked
+  // as a rule about the KIND rather than handled at the call site, so a future
+  // kind inherits the gesture by default and only an acknowledgement has to opt
+  // out of it.
+  const handable = canReceiveHand(message.kind);
   // Geometry only — the fill and border stay the bubble's, so a Voicey still
   // reads as belonging to whoever sent it.
   const shape = shapeFor(message.kind);
@@ -1424,9 +1429,11 @@ function MessageBubble({ message, isMine, grouped = false, endsBurst = true, spe
         // needs no disambiguation delay because single tap does nothing now —
         // the timestamp gave up that gesture in M9h.3 precisely so this one
         // could be instant.
-        onDoubleClick={onToggleHand}
+        onDoubleClick={handable ? onToggleHand : undefined}
         // Suppresses the text selection a double-tap otherwise makes, which
-        // would flash a highlight across the message every time.
+        // would flash a highlight across the message every time. Still wanted on
+        // an unhandable kind: the double-tap does nothing, but it would still
+        // select.
         onMouseDown={e => { if (e.detail > 1) e.preventDefault(); }}
         style={bare ? {
           minWidth: 0, position: 'relative',
@@ -1547,7 +1554,10 @@ function MessageBubble({ message, isMine, grouped = false, endsBurst = true, spe
           row and the frame — so a message does not change size when it gains
           one, and the thread does not jump under the reader's thumb at the
           moment they react. */}
-      {handed && (
+      {/* `handable` as well as `handed`: rows handed before the gesture was
+          withdrawn still carry the state, and drawing it would put the badge
+          back on the one kind whose layout cannot hold it. */}
+      {handed && handable && (
         <span role="img" aria-label="You said Yes to this" className="yp-yes-badge">
           <HandIcon size={YES_SIZE} />
         </span>

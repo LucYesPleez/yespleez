@@ -36,7 +36,7 @@
  * MUST stay in step with the CHECK in `20260721000000_m9a_message_kinds.sql`
  * — the database is the authority, this is the client's copy of the same list.
  */
-export { KINDS, LABELS, isKind, isBareKind, BARE_KINDS, shapeFor, KIND_SHAPE, materialFor, KIND_MATERIAL } from './messageKindList';
+export { KINDS, LABELS, isKind, isBareKind, BARE_KINDS, canReceiveHand, UNHANDABLE_KINDS, shapeFor, KIND_SHAPE, materialFor, KIND_MATERIAL } from './messageKindList';
 import { KINDS, LABELS, handScale, HAND_SCALE_MIN } from './messageKindList';
 import VoiceMessage from '../components/VoiceMessage';
 import HandIcon from '../components/HandIcon';

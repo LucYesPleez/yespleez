@@ -113,3 +113,40 @@ test('the registry still re-exports the list the app imports', () => {
   assert.match(src, /export\s*\{[^}]*\bLABELS\b[^}]*\}\s*from\s*'\.\/messageKindList'/,
     'messageKinds.jsx must re-export LABELS from messageKindList');
 });
+
+/* ── a Hand cannot be given a Yes ───────────────────────────────────── */
+
+test('⚠ the Hand kind cannot receive a Yes', async () => {
+  // A Hand IS a Yes; a Yes about a Yes has no meaning in the product. It also
+  // removes the layout case that had the badge landing on this kind's timestamp,
+  // rather than positioning around it.
+  const { canReceiveHand } = await import('./messageKindList.js');
+  assert.equal(canReceiveHand('hand'), false);
+});
+
+test('every other kind CAN, including ones not built yet', async () => {
+  // ⚠ ALLOW BY DEFAULT. The gesture must be inherited, not enumerated — a
+  // deny-list that had to name each new kind would silently withhold the
+  // double-tap from image, video and everything after them.
+  const { canReceiveHand, KINDS } = await import('./messageKindList.js');
+
+  for (const kind of KINDS) {
+    if (kind === 'hand') continue;
+    assert.equal(canReceiveHand(kind), true, `'${kind}' should be handable`);
+  }
+  assert.equal(canReceiveHand('a-kind-invented-next-year'), true,
+    'an unknown future kind must inherit the gesture');
+});
+
+test('the thread both refuses the gesture AND hides an existing badge', async () => {
+  // Two separate things. Refusing the double-tap stops new ones; hiding the
+  // badge matters because rows handed BEFORE the gesture was withdrawn still
+  // carry the state, and drawing one would put the badge back on the very kind
+  // whose layout cannot hold it.
+  const view = readFileSync(fileURLToPath(new URL('../components/ConversationView.jsx', import.meta.url)), 'utf8');
+
+  assert.match(view, /onDoubleClick=\{handable \? onToggleHand : undefined\}/,
+    'the gesture must be gated on the kind');
+  assert.match(view, /\{handed && handable && \(/,
+    'an existing Yes on an unhandable kind must not render');
+});

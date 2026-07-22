@@ -77,6 +77,34 @@ export function isBareKind(kind) {
 }
 
 /**
+ * KINDS THAT CANNOT BE GIVEN A YES.
+ *
+ * A Hand IS a Yes. Double-tapping one to say Yes to it is a Yes about a Yes,
+ * which the product has no meaning for — the ratified rule is that a
+ * CONVERSATION Hand is a message and a MESSAGE Hand is metadata, and this would
+ * be metadata about a message that is itself only that gesture.
+ *
+ * ── IT ALSO REMOVES A LAYOUT PROBLEM RATHER THAN HIDING ONE ──────────
+ *
+ * Because this kind has no bubble, its timestamp sat below the mark and made the
+ * message's bottom edge the clock — so the Yes badge, anchored to the frame's
+ * bottom-left corner as it is for every kind, landed on the time. That was fixed
+ * once by moving the clock beside the mark, and the owner reverted it: they did
+ * not want the Hand message redrawn. Refusing the gesture removes the case
+ * instead of positioning around it, and leaves the badge contract untouched.
+ *
+ * ⚠ AN ALLOW-BY-DEFAULT LIST. A kind not named here CAN be handed, so image,
+ * video, file, location and every future kind inherit the gesture without
+ * touching this. Only a kind that is itself an acknowledgement belongs here.
+ */
+export const UNHANDABLE_KINDS = new Set(['hand']);
+
+/** True when a message of this kind can be given a Yes by double-tapping it. */
+export function canReceiveHand(kind) {
+  return !UNHANDABLE_KINDS.has(kind);
+}
+
+/**
  * CONTAINER GEOMETRY FOR KINDS THAT ARE NOT PLAIN BUBBLES.
  *
  * `BARE_KINDS` answered "chrome or no chrome". This answers the question one
