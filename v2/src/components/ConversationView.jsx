@@ -3,16 +3,18 @@ import { supabase } from '../lib/supabase';
 import { useSession } from '../App';
 import {
   listMessages, listParticipants, actableProfileIds,
-  sendMessage, markConversationRead,
+  sendMessage, markConversationRead, conversationSeenWatermark,
 } from '../lib/messaging';
 import { sendVoiceNote } from '../lib/voiceNotes';
 import { sendHand } from '../lib/hands';
 import { listHands, toggleHand } from '../lib/messageState';
-import Composer from './Composer';
+import Composer, { COMPOSER_HEIGHT } from './Composer';
 import { useConversationUi } from '../lib/conversationUi';
 import { PROFILE_TYPES } from '../lib/profileTypes';
 import { renderMessage, isBareKind, shapeFor, materialFor } from '../lib/messageKinds';
 import HandIcon from './HandIcon';
+import EqReceipt from './EqReceipt';
+import { receiptFor } from '../lib/receiptState';
 import { timeOf } from '../lib/clock';
 
 /**
@@ -209,16 +211,31 @@ const CHAT_BG_PARALLAX = 0.175;
  * How far the message list extends DOWN behind the composer.
  *
  * The wallpaper is painted on the scroll container, so this is what stops the
- * image ending in a straight line where the composer starts. 88px is the
- * composer's own height — capsule (60) plus its 14px of padding top and bottom
- * — so the picture runs the full way under it and only stops at the drawer's
- * bottom edge.
+ * image ending in a straight line where the composer starts — the picture runs
+ * the full way under the bar instead.
  *
- * If the composer's height ever changes, this changes with it. Too small
- * reopens a sliver of the old edge; too large only wastes scroll distance, so
- * err high rather than low.
+ * ⚠ IMPORTED, NOT WRITTEN DOWN. It was the literal 88 until the composer was
+ * resized to Messenger's weight and became 62; a copied number would have left
+ * the image resting in the wrong place with nothing to point at. The composer
+ * computes its own height from the parts that make it, and this follows.
  */
-const COMPOSER_BLEED = 88;
+/**
+ * ⚠ A FUNCTION, NOT A CONSTANT, AND THAT IS NOT STYLE.
+ *
+ * `const COMPOSER_BLEED = COMPOSER_HEIGHT` at module scope threw
+ * "COMPOSER_HEIGHT is not defined" and blanked the screen in dev. This module
+ * sits in a circular import — ConversationView → App → screens →
+ * ConversationView — so it can be evaluated before Composer has finished, and
+ * reading an imported binding at TOP LEVEL hits the temporal dead zone.
+ *
+ * The production build did NOT catch it: the bundler hoists and orders modules
+ * differently, so `npm run build` passed while the dev server was broken.
+ *
+ * Deferring the read to call time fixes it, because by the time anything calls
+ * this every module has finished evaluating. Do not turn it back into a
+ * top-level constant.
+ */
+const composerBleed = () => COMPOSER_HEIGHT;
 
 /**
  * HOW FAR THE WALLPAPER CAN DRIFT — and therefore how much image is needed.
@@ -280,6 +297,13 @@ export default function ConversationView({ conversationId, compact = false, onMi
   // MY handed message ids would be simpler, but would make "did anyone say
   // yes" unanswerable when group threads arrive (`DA1`).
   const [handsByMessage, setHandsByMessage] = useState(new Map());
+  /**
+   * Latest moment any OTHER participant read this thread — the EQ receipt's
+   * top rung. ONE timestamp for the whole conversation, not a flag per message:
+   * see `conversationSeenWatermark`, where the reason is the §2.5 amendment
+   * rather than an optimisation.
+   */
+  const [seenWatermark, setSeenWatermark] = useState(null);
   const scrollRef = useRef(null);
   const inputRef  = useRef(null);
   const atBottomRef = useRef(true);
@@ -366,6 +390,12 @@ export default function ConversationView({ conversationId, compact = false, onMi
       const { byMessage } = await listHands(rows.map(r => r.id));
       if (!cancelled.current) setHandsByMessage(byMessage);
 
+      // The OTHER side's watermark, for receipts. Same placement as the hands
+      // above and for the same reason: a receipt is decoration on a message
+      // that is already readable, so it must never block the thread.
+      const { seenAt } = await conversationSeenWatermark(conversationId);
+      if (!cancelled.current) setSeenWatermark(seenAt);
+
       // `C11` — this human's watermark. Monotonic in the database.
       await markConversationRead(conversationId);
       patch(conversationId, { unread: 0 }, true);
@@ -434,6 +464,46 @@ export default function ConversationView({ conversationId, compact = false, onMi
   }, [messages.length, conversationId, getState]);
 
   /**
+   * KEEP THE SEEN WATERMARK FRESH WHILE THE THREAD IS OPEN.
+   *
+   * ⚠ A POLL, AND IT HAS TO BE. Advancing read state is an UPDATE, and both
+   * realtime subscriptions in this app are INSERT-only — so the other side
+   * opening your message emits nothing this client can hear. Without this,
+   * "seen" would only ever reflect the instant you opened the conversation and
+   * would then sit frozen while you watched it.
+   *
+   * Kept cheap deliberately: one aggregate call, only while a conversation is
+   * actually on screen, and suspended the moment the tab is hidden. A receipt
+   * is not worth waking a backgrounded phone for.
+   *
+   * The honest alternative is realtime UPDATE handling on read state, which the
+   * unsend design already needs (D9/D12). When that lands, this poll should go
+   * — it is a stopgap, not the design.
+   */
+  useEffect(() => {
+    if (!conversationId) return undefined;
+
+    let stop = false;
+    async function refresh() {
+      if (stop || document.visibilityState !== 'visible') return;
+      const { seenAt } = await conversationSeenWatermark(conversationId);
+      // Monotonic: never let a late or failed response walk the watermark
+      // BACKWARDS and un-see a message the sender has already been shown.
+      if (!stop && seenAt) {
+        setSeenWatermark(prev => (!prev || Date.parse(seenAt) > Date.parse(prev) ? seenAt : prev));
+      }
+    }
+
+    const id = setInterval(refresh, 15000);
+    document.addEventListener('visibilitychange', refresh);
+    return () => {
+      stop = true;
+      clearInterval(id);
+      document.removeEventListener('visibilitychange', refresh);
+    };
+  }, [conversationId]);
+
+  /**
    * THE WALLPAPER TRACKS THE SCROLL, THEN PINS.
    *
    * At the bottom of the thread the image's bottom sits on the window's bottom.
@@ -461,7 +531,7 @@ export default function ConversationView({ conversationId, compact = false, onMi
     // last stretch hidden behind an opaque bar. Stopping half way up means far
     // more of the photograph lands where it can actually be seen, and the point
     // where it ends is behind the composer rather than out in the open.
-    const restBottom = el.clientHeight - COMPOSER_BLEED / 2;
+    const restBottom = el.clientHeight - composerBleed() / 2;
 
     // ── HOW TALL THE IMAGE HAS TO BE ────────────────────────────────
     //
@@ -886,8 +956,8 @@ export default function ConversationView({ conversationId, compact = false, onMi
           // last message still comes to rest above the composer rather than
           // underneath it. Margin moves the box; padding protects what is in
           // it — they are not cancelling each other out.
-          marginBottom: -COMPOSER_BLEED,
-          padding: `22px 18px ${COMPOSER_BLEED + 8}px`,
+          marginBottom: -composerBleed(),
+          padding: `22px 18px ${composerBleed() + 8}px`,
           // THE MESSAGE LIST OWNS VERTICAL SCROLLING, AND KEEPS IT.
           //
           // `contain` stops the scroll CHAINING outward when the thread reaches
@@ -996,6 +1066,7 @@ export default function ConversationView({ conversationId, compact = false, onMi
                 speaker={profilesById[m.from_profile_id]}
                 handed={(handsByMessage.get(m.id) ?? []).includes(senderProfile)}
                 onToggleHand={() => onToggleHand(m.id)}
+                seenWatermark={seenWatermark}
               />
             </Fragment>
           );
@@ -1049,7 +1120,17 @@ export default function ConversationView({ conversationId, compact = false, onMi
  * YesPleez cards land as branches rather than a rewrite. Only `text` exists —
  * the others are declared, not built, and nothing here pretends otherwise.
  */
-function MessageBubble({ message, isMine, grouped = false, endsBurst = true, speaker, handed = false, onToggleHand }) {
+function MessageBubble({ message, isMine, grouped = false, endsBurst = true, speaker, handed = false, onToggleHand, seenWatermark = null }) {
+
+  // Null for anything received — receiptFor enforces that, and it is the rule
+  // that keeps the §2.5 amendment narrow: a receipt on a message you received
+  // would report your own reading, or a colleague's, back into the thread.
+  const receipt = receiptFor({
+    isMine,
+    createdAt: message.created_at,
+    pendingState: message.pendingState,
+    seenWatermark,
+  });
 
   // Avatar on RECEIVED messages only — you know who you are. Rendered once per
   // burst, on the last message, so a run of five gets one avatar rather than
@@ -1196,8 +1277,13 @@ function MessageBubble({ message, isMine, grouped = false, endsBurst = true, spe
             // Cannot be selected or dragged — it sits inside the double-tap
             // target and a text selection would swallow the second tap.
             userSelect: 'none',
+            // The receipt sits with the clock rather than on its own line —
+            // both answer "what happened to this message", and stacking them
+            // would give a one-word status its own row in every bubble.
+            display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 5,
           }}>
             {timeOf(message.created_at)}
+            <EqReceipt state={receipt} />
           </div>
         )}
 

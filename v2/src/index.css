@@ -386,6 +386,40 @@ input, textarea, select {
   animation: ypDockFade .28s ease-out;
 }
 
+/* ═══ THE EQ RECEIPT (M10a) ═══════════════════════════════════════════
+
+   Three bars that rise as a message travels. A progress indicator SHAPED like
+   an equaliser — never an audio meter.
+
+   ⚠ IT MUST COME TO REST. This mark sits within a few pixels of voice notes
+   that genuinely do animate while playing, so anything here that keeps moving
+   would be read as recording or playback. Each bar transitions once, on
+   arrival, and then stops. There is deliberately no keyframe animation in this
+   block — a @keyframes rule would loop, and looping is the failure. */
+.yp-eq {
+  display: inline-flex;
+  align-items: flex-end;
+  flex-shrink: 0;
+  line-height: 0;
+  vertical-align: middle;
+}
+.yp-eq span {
+  display: block;
+  border-radius: 999px;
+  /* Height and colour only. Both settle inside ~300ms including the stagger. */
+  transition: height .22s var(--yp-ease), background-color .22s var(--yp-ease);
+}
+
+/* Failure is carried by COLOUR, not by height — a failed send that lit bars
+   would read as progress. All three stay at the resting height in red. */
+.yp-eq-failed span { transition-delay: 0ms !important; }
+
+/* The rise is feedback, and feedback that cannot be seen is not feedback —
+   so the bars still ARRIVE at their state here, they simply arrive instantly. */
+@media (prefers-reduced-motion: reduce) {
+  .yp-eq span { transition: none; }
+}
+
 /* ── THE CONVERSATION HEADER ────────────────────────────────────────
    These values ARE the desktop layout, moved out of inline styles so the phone
    block below can override them. An inline style beats a stylesheet, so
@@ -640,12 +674,15 @@ input, textarea, select {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 2.5px;
+  /* 6 bars at 2.5px with 2px between them is 27px, inside the 30px the
+     microphone vacates. At the old 3px/2.5px it came to 30.5 and the outer bars
+     clipped against the pill's rounded end. */
+  gap: 2px;
   pointer-events: none;
   transition: transform var(--yp-medium) var(--yp-ease);
 }
 .yp-pill-bars span {
-  width: 3px;
+  width: 2.5px;
   border-radius: 999px;
   transition: background-color var(--yp-medium) var(--yp-ease);
 }

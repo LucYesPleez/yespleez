@@ -297,6 +297,35 @@ export async function unreadCount(conversationId) {
 }
 
 /**
+ * The latest moment ANY OTHER participant read this conversation, or null.
+ *
+ * Drives the EQ receipt's top rung: every message you sent at or before this
+ * instant has been seen.
+ *
+ * ── ONE TIMESTAMP, NOT A LIST, AND THAT IS THE POINT ─────────────────
+ *
+ * M10a amends §2.5 to allow receipts at all — but it exposes an AGGREGATE
+ * rather than opening `conversation_read_state`, which stays as locked as M8d
+ * left it. §2.5's objection was never that the sender must not know; it was
+ * that a raw table read would reveal WHICH human inside a shared profile opened
+ * a booking negotiation, and when. This answers the sender's question and
+ * nothing else.
+ *
+ * So on a multi-owner profile, ANY owner's reading marks it seen and the sender
+ * cannot tell them apart. Intended, not a gap.
+ *
+ * Never throws: a receipt is an embellishment on a message that has already
+ * been delivered, and it must not be able to break a thread from rendering.
+ */
+export async function conversationSeenWatermark(conversationId) {
+  if (!conversationId) return { seenAt: null, error: null };
+  const { data, error } = await supabase.rpc('conversation_seen_watermark', {
+    p_conversation_id: conversationId,
+  });
+  return { seenAt: error ? null : (data ?? null), error: error ?? null };
+}
+
+/**
  * Participants of one or more conversations, with the profile fields a list
  * needs to render.
  *

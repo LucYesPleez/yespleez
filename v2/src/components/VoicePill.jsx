@@ -18,7 +18,7 @@
  * have promised a click it could not honour — the padlock defect. The pill is
  * the opposite case. Pressing it is the ENTIRE interaction, so the whole pill
  * is one button and the microphone inside it is decoration that moves. That
- * also makes the target 84px wide instead of 46.
+ * also makes the target 66px wide instead of 36.
  *
  * ── POSITION IS THE STATE ────────────────────────────────────────────
  *
@@ -28,8 +28,15 @@
  * who cannot distinguish violet from cyan.
  */
 
-/** Every control in the composer row. The pill's height, and the mic's. */
-const SIZE = 46;
+/**
+ * Every control in the composer row. The pill's height, and the mic's.
+ *
+ * ⚠ MUST MATCH `CONTROL` in Composer. The capsule sizes its other three slots
+ * from that number, and a pill even a pixel taller would break the row's flush
+ * top and bottom — which is the whole thing that makes the composer read as one
+ * object rather than four adjacent ones.
+ */
+const SIZE = 36;
 
 /**
  * How far the microphone travels.
@@ -40,7 +47,7 @@ const SIZE = 46;
  * intent, and the slide only has to show which end you are at. Anything longer
  * makes starting a recording feel like it took effort.
  */
-const TRAVEL = 38;
+const TRAVEL = 30;
 
 const WIDTH = SIZE + TRAVEL;
 
@@ -133,7 +140,7 @@ export default function VoicePill({ recording = false, disabled = false, onToggl
           boxShadow: recording ? 'none' : '0 4px 14px -8px rgba(0,0,0,.9)',
         }}
       >
-        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round">
           <rect x="9" y="2" width="6" height="11" rx="3" />
           <path d="M5 10a7 7 0 0 0 14 0" /><path d="M12 17v5" />
         </svg>

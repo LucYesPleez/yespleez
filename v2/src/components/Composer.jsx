@@ -77,11 +77,35 @@ const SCRIM_TOP    = 'rgba(11,11,15,.34)';
 const SCRIM_BOTTOM = 'rgba(11,11,15,.94)';
 const SCRIM_CLEAR  = 'rgba(11,11,15,0)';
 
-/** Every control in the capsule. One number governs the whole row. */
-const CONTROL = 46;
+/**
+ * Every control in the capsule. One number governs the whole row.
+ *
+ * 46 → 36, to sit at the weight Messenger's composer does. At 46 with 6px of
+ * inset the bar stood 88px tall, which is a lot of screen for a row you are not
+ * using most of the time — and it was pushing the conversation up.
+ *
+ * ⚠ 36 IS THE FLOOR. Below this the microphone and Send stop being comfortable
+ * touch targets on a phone, and this row is where every message is sent from.
+ * The capsule around them adds its own padding, so the PRESSABLE area is a
+ * little larger than the glyph suggests.
+ */
+const CONTROL = 36;
 
 /** Breathing room between the glass and the controls inside it. */
-const INSET = 6;
+const INSET = 5;
+
+/**
+ * The bar's own padding above and below the capsule.
+ *
+ * ⚠ CHANGING THIS CHANGES THE COMPOSER'S HEIGHT, and `COMPOSER_BLEED` in
+ * ConversationView is that height — it is how far the wallpaper runs on behind
+ * this bar and where the image's bottom comes to rest. The two must move
+ * together or the picture stops in the wrong place.
+ */
+const PAD = 8;
+
+/** What ConversationView must bleed the message list by. Capsule + padding. */
+export const COMPOSER_HEIGHT = CONTROL + INSET * 2 + 2 + PAD * 2;
 
 export default function Composer({
   draft,
@@ -127,7 +151,7 @@ export default function Composer({
     <form
       onSubmit={submit}
       style={{
-        padding: '14px', flexShrink: 0,
+        padding: `${PAD}px 12px`, flexShrink: 0,
         position: 'relative',   // anchors the fade above
         background: `linear-gradient(180deg, ${SCRIM_TOP} 0%, ${SCRIM_BOTTOM} 100%)`,
       }}
@@ -193,11 +217,11 @@ export default function Composer({
           style={{ width: CONTROL, height: CONTROL }}
         >
           {rec.active ? (
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round">
               <path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="M6 6l1 14h10l1-14" />
             </svg>
           ) : (
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
               <path d="M12 5v14" /><path d="M5 12h14" />
             </svg>
           )}
@@ -275,14 +299,14 @@ export default function Composer({
           style={{ width: CONTROL, height: CONTROL }}
         >
           {busy ? '…' : trailingIsSend ? (
-            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M22 2 11 13" /><path d="M22 2 15 22l-4-9-9-4 20-7z" />
             </svg>
           ) : (
             // 38 in a 46px button, larger than it looks: the artwork is uncropped
             // so its own padding is inside the box, and `contain` fits the whole
             // image rather than the mark. ~33px of actual ink.
-            <HandIcon size={38} />
+            <HandIcon size={30} />
           )}
         </button>
       </div>
