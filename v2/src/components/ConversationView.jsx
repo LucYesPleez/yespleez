@@ -8,11 +8,12 @@ import {
 } from '../lib/messaging';
 import { sendVoiceNote, VOICE_FALLBACK_BODY } from '../lib/voiceNotes';
 import { sendImage, sendOriginalOnly, prepareImage, IMAGE_FALLBACK_BODY } from '../lib/messageImages';
-import { sendFile, bodyForFile, safeName, isLosslessAudio, MAX_BYTES, formatBytes } from '../lib/messageFiles';
+import { sendFile, bodyForFile, safeName, isLosslessAudio, isPlayableAudio, WAVE_CEILING_BYTES, MAX_BYTES, formatBytes } from '../lib/messageFiles';
 import { computeWave } from '../lib/voiceWave';
 import { sendHand, HAND_BODY } from '../lib/hands';
 import { listHands, toggleHand } from '../lib/messageState';
 import Composer, { COMPOSER_HEIGHT } from './Composer';
+import AudioSendSheet from './AudioSendSheet';
 import { useConversationUi } from '../lib/conversationUi';
 import { PROFILE_TYPES } from '../lib/profileTypes';
 import { renderMessage, isBareKind, canReceiveHand, shapeFor, materialFor } from '../lib/messageKinds';
@@ -308,6 +309,9 @@ export default function ConversationView({ conversationId, compact = false, onMi
   const [error, setError]          = useState(null);
   const [loading, setLoading]      = useState(true);
   const [pendingNew, setPendingNew] = useState(0);
+  // An audio file waiting on its send sheet (M12). Holds the File and whether
+  // it qualified for the HD chip, so the sheet can describe what is being sent.
+  const [pendingAudio, setPendingAudio] = useState(null);
   // profile_id -> profile, so a received bubble can show its speaker. Keyed by
   // the ATTRIBUTION id (from_profile_id), never the human — §A3.
   const [profilesById, setProfilesById] = useState({});
@@ -863,8 +867,8 @@ export default function ConversationView({ conversationId, compact = false, onMi
       // to re-prepare — a document has no local representation to keep alive.
       await trySend({
         body: bodyForFile(retry.file.name), kind: 'file', retry,
-        payload: { name: safeName(retry.file.name), bytes: retry.file.size, mime: retry.file.type || null, ...(isLosslessAudio(retry.file.name, retry.file.type) && { hd: true }) },
-        attempt: () => sendFile({ conversationId, fromProfileId: senderProfile, file: retry.file }),
+        payload: { name: safeName(retry.file.name), bytes: retry.file.size, mime: retry.file.type || null, ...(isLosslessAudio(retry.file.name, retry.file.type) && { hd: true }), ...(retry.downloadable === false && { downloadable: false }), ...(retry.wave && { wave: retry.wave }) },
+        attempt: () => sendFile({ conversationId, fromProfileId: senderProfile, file: retry.file, downloadable: retry.downloadable !== false, wave: retry.wave ?? null }),
       });
       return;
     }
@@ -1122,22 +1126,62 @@ export default function ConversationView({ conversationId, compact = false, onMi
     // then takes away.
     const hd = isLosslessAudio(file.name, file.type);
 
+    // ⚠ CHECKED BEFORE ANYTHING ELSE, INCLUDING BEFORE THE SHEET. A file over
+    // the limit fails identically on every retry, so it must never reach
+    // `trySend` and become a red retryable bubble — and there is no point
+    // asking someone how to share a file that cannot be sent.
     if (file.size > MAX_BYTES) {
       setError(`That file is ${formatBytes(file.size)}. The limit is ${formatBytes(MAX_BYTES)}.`);
       return;
     }
 
+    // Audio gets a confirm step; documents do not. The asymmetry is deliberate:
+    // sending a master is a rare, considered act with a decision attached
+    // (may they keep it?), while sending a PDF is frequent and has none. The
+    // photo path proved that charging every send a tap to serve a minority is
+    // the wrong trade.
+    if (isPlayableAudio(file.name, file.type)) {
+      setPendingAudio({ file, hd });
+      return;
+    }
+
+    await dispatchFile(file, { downloadable: true, wave: null });
+  }
+
+  /**
+   * The audio sheet confirmed — or a document, which never asked.
+   *
+   * ⚠ PEAKS ARE COMPUTED HERE, ONCE, ON THE SENDER'S DEVICE. The recipient must
+   * never decode 30MB to draw a picture, so the waveform travels in the payload
+   * exactly as a Voicey's does. Above `WAVE_CEILING_BYTES` it is skipped
+   * entirely — `decodeAudioData` holds the whole file as 32-bit float PCM, and
+   * a phone killed mid-send is a worse outcome than a card with no waveform.
+   */
+  async function dispatchFile(file, { downloadable, wave: precomputed }) {
+    let wave = precomputed;
+
+    if (wave === null && isPlayableAudio(file.name, file.type) && file.size <= WAVE_CEILING_BYTES) {
+      // Degrades to no waveform rather than no message: `computeWave` already
+      // returns null on a format this browser cannot decode.
+      wave = await computeWave(file);
+    }
+
     await trySend({
       body: bodyForFile(file.name),
       kind: 'file',
-      retry: { type: 'file', file },
-      // No `localUrl`: unlike a photo there is nothing to show before it lands.
-      // The row renders from name and size alone, both known immediately, so
-      // the placeholder is already the finished shape.
-      payload: { name: safeName(file.name), bytes: file.size, mime: file.type || null, ...(hd && { hd: true }) },
-      attempt: () => sendFile({ conversationId, fromProfileId: senderProfile, file }),
+      retry: { type: 'file', file, downloadable, wave },
+      payload: {
+        name: safeName(file.name), bytes: file.size, mime: file.type || null,
+        ...(isLosslessAudio(file.name, file.type) && { hd: true }),
+        ...(downloadable === false && { downloadable: false }),
+        ...(wave && { wave }),
+      },
+      attempt: () => sendFile({
+        conversationId, fromProfileId: senderProfile, file, downloadable, wave,
+      }),
     });
   }
+
 
   const title       = others.map(o => o.profiles?.name).filter(Boolean).join(', ') || 'Conversation';
   const otherHead   = others[0]?.profiles ?? null;
@@ -1478,6 +1522,19 @@ export default function ConversationView({ conversationId, compact = false, onMi
           renders the field, the mic or the send button, and no longer holds a
           positioning context for anything to overlay — which is what the old
           `inset: 0 62px 0 0` depended on. */}
+      {pendingAudio && (
+        <AudioSendSheet
+          file={pendingAudio.file}
+          hd={pendingAudio.hd}
+          onCancel={() => setPendingAudio(null)}
+          onSend={({ downloadable }) => {
+            const { file } = pendingAudio;
+            setPendingAudio(null);
+            void dispatchFile(file, { downloadable, wave: null });
+          }}
+        />
+      )}
+
       <Composer
         draft={draft}
         onDraftChange={onDraftChange}

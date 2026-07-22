@@ -43,7 +43,7 @@ mock.module('./supabase', {
 
 const {
   uploadMessageFile, downloadUrlFor, sendFile,
-  safeName, bodyForFile, formatBytes, formatToken, isLosslessAudio, MAX_BYTES,
+  safeName, bodyForFile, formatBytes, formatToken, isLosslessAudio, MAX_BYTES, WAVE_CEILING_BYTES,
 } = await import('./messageFiles.js');
 
 beforeEach(() => {
@@ -324,4 +324,59 @@ test('WAV, FLAC and MP3 play inline; AIFF does not', () => {
   // than a download card that works for both.
   assert.equal(playable('take.aiff', ''), false);
   assert.equal(playable('rider.pdf', 'application/pdf'), false);
+});
+
+// ── SENDER-CONTROLLED DOWNLOAD, AND THE WAVEFORM ──────────────────────
+
+test('⚠ downloadable is ABSENT when allowed — only a refusal is stored', async () => {
+  await sendFile({ conversationId: CONV, fromProfileId: PROFILE, file: fakeFile() });
+
+  assert.equal(inserted[0].row.payload.downloadable, undefined,
+    'every file sent before this existed must stay downloadable, not silently lock');
+});
+
+test('a refusal is recorded so the recipient hides the affordance', async () => {
+  await sendFile({
+    conversationId: CONV, fromProfileId: PROFILE,
+    file: fakeFile({ name: 'master.wav', type: 'audio/wav' }),
+    downloadable: false,
+  });
+
+  assert.equal(inserted[0].row.payload.downloadable, false);
+});
+
+test('⚠ refusing download changes NOTHING about how the file is stored', async () => {
+  // It is a courtesy, not a control: the bytes sit in the same bucket, readable
+  // by every participant, because that is what makes playback work.
+  await sendFile({
+    conversationId: CONV, fromProfileId: PROFILE,
+    file: fakeFile({ name: 'master.wav', type: 'audio/wav' }),
+    downloadable: false,
+  });
+
+  assert.equal(uploads[0].bucket, 'message-files');
+  assert.equal(uploads[0].opts.upsert, false);
+});
+
+test('peaks travel in the payload, so a recipient never decodes 30MB to draw one', async () => {
+  const wave = { v: 2, peaks: [0.1, 0.9, 0.4] };
+  await sendFile({
+    conversationId: CONV, fromProfileId: PROFILE,
+    file: fakeFile({ name: 'master.wav', type: 'audio/wav' }), wave,
+  });
+
+  assert.deepEqual(inserted[0].row.payload.wave, wave);
+});
+
+test('no wave is carried when none was computed', async () => {
+  await sendFile({ conversationId: CONV, fromProfileId: PROFILE, file: fakeFile() });
+  assert.equal(inserted[0].row.payload.wave, undefined);
+});
+
+test('⚠ the decode ceiling sits well under the upload limit', () => {
+  // Above it, a file still sends and simply has no waveform. If the two were
+  // equal, every sendable file would be decoded and the largest would kill the
+  // tab mid-send.
+  assert.ok(WAVE_CEILING_BYTES < MAX_BYTES,
+    'a file can be sendable without being safe to decode on a phone');
 });

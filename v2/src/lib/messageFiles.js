@@ -234,12 +234,47 @@ export async function downloadUrlFor(path, name, expiresIn = SIGNED_URL_TTL_SECO
 /**
  * Upload → send, as one message.
  *
+ * ── ⚠ `downloadable: false` IS A COURTESY, NOT A CONTROL ─────────────
+ *
+ * It removes the download affordance and states the sender's intent. It does
+ * NOT prevent the recipient from obtaining the file, and nothing in this
+ * codebase could make it do so today:
+ *
+ *   · the bytes are in a bucket every participant may read — that is what makes
+ *     playback work at all, and the read policy cannot distinguish "for
+ *     listening" from "for keeping";
+ *   · playing an audio file streams the ENTIRE file to the recipient's device,
+ *     so by the time they have heard it they already have it.
+ *
+ * Real enforcement would require serving a separate, lower-quality preview
+ * asset and never releasing the master — which is transcoding, and transcoding
+ * is frozen until the post-launch Media System milestone.
+ *
+ * So it is honest as "please don't", and dishonest as "you can't". Any UI built
+ * on it must not promise the second. The same reasoning as a padlock on a
+ * control that does nothing: the flag is fine, a claim of protection is not.
+ *
  * Upload FIRST, insert second, as every sibling does. The reverse would put a
  * row in the thread pointing at a document that might never arrive, and an
  * attachment that cannot be opened is worse than one that was never sent — the
  * sender believes it went.
  */
-export async function sendFile({ conversationId, fromProfileId, file } = {}) {
+/**
+ * The largest file we will decode to draw a waveform.
+ *
+ * ⚠ THIS CEILING IS A CRASH GUARD, NOT A PREFERENCE. `decodeAudioData`
+ * expands compressed or 16-bit audio into 32-bit float PCM held entirely in
+ * memory — a 30MB WAV becomes roughly 60MB decoded, on top of the ArrayBuffer
+ * it was read from. Past this point a mid-range phone starts killing the tab,
+ * and it does so during a send, which is the worst possible moment.
+ *
+ * Above the ceiling the file sends perfectly and simply has no waveform. The
+ * renderer already treats a missing wave as ordinary, so nothing degrades
+ * except the decoration.
+ */
+export const WAVE_CEILING_BYTES = 24 * 1024 * 1024;
+
+export async function sendFile({ conversationId, fromProfileId, file, downloadable = true, wave = null } = {}) {
   const { path, error: uploadError } = await uploadMessageFile({ conversationId, file });
   if (uploadError) return { message: null, error: uploadError };
 
@@ -259,6 +294,13 @@ export async function sendFile({ conversationId, fromProfileId, file } = {}) {
       name:  safeName(file.name),
       mime:  file.type || 'application/octet-stream',
       bytes: file.size,
+      // ⚠ A COURTESY, NOT A CONTROL. See `sendFile`'s header. Absent when true,
+      // so only the deliberate case costs bytes on every read.
+      ...(downloadable === false && { downloadable: false }),
+      // Peaks computed once at send time, exactly as a Voicey's are computed
+      // once at record time — the recipient never decodes 30MB to draw a
+      // picture, and a file too large to decode simply has no wave.
+      ...(wave && { wave }),
       // ⚠ A LABEL, NOT A MECHANISM. Unlike an image's `original`, this changes
       // nothing about how the file is stored, gated or expired — a document and
       // an HD audio master take the identical path through this module. It

@@ -56,9 +56,19 @@ export default function FileMessage({ message }) {
   const [asking,  setAsking]  = useState(false);
   const [playing, setPlaying] = useState(false);
   const [loading, setLoading] = useState(false);
+  // 0–1. Drives which waveform bars are lit; the boundary is the playhead.
+  const [progress, setProgress] = useState(0);
 
   const audioRef = useRef(null);
   const urlRef   = useRef(null);
+
+  // Peaks frozen at send time. Absent for documents, and for audio too large to
+  // have been decoded safely on the sender's phone — see WAVE_CEILING_BYTES.
+  const bars = message?.payload?.wave?.peaks ?? [];
+
+  // ⚠ ABSENT MEANS ALLOWED. Only a deliberate refusal is stored, so every file
+  // sent before this existed stays downloadable rather than silently locking.
+  const canDownload = message?.payload?.downloadable !== false;
 
   // The element outliving its component would keep sounding into a thread that
   // no longer shows it playing.
@@ -108,14 +118,6 @@ export default function FileMessage({ message }) {
     setBusy(false);
     if (signError || !url) { setError('Unavailable'); return; }
     window.location.href = url;
-  }
-
-  function onRowTap(e) {
-    // The bubble is double-tapped to give a Yes; a single deliberate action on
-    // the row opens the confirm rather than moving bytes.
-    e.stopPropagation();
-    if (!path || busy) return;
-    setAsking(true);
   }
 
   const pending = isPending(message);
@@ -179,17 +181,7 @@ export default function FileMessage({ message }) {
           </span>
         )}
 
-        <button
-          type="button"
-          onClick={onRowTap}
-          disabled={pending || busy}
-          aria-label={pending ? `Sending ${name}` : `Download ${name}`}
-          style={{
-            flex: 1, minWidth: 0, padding: 0, border: 'none',
-            background: 'transparent', color: 'inherit', textAlign: 'left',
-            cursor: pending || busy ? 'default' : 'pointer',
-          }}
-        >
+        <span style={{ flex: 1, minWidth: 0 }}>
           {/* ⚠ ONE LINE, ALWAYS. A long filename is attacker-controlled text in
               the recipient's thread — `safeName` caps its length, and this stops
               what remains from wrapping into a bubble several lines tall. */}
@@ -201,39 +193,110 @@ export default function FileMessage({ message }) {
           </span>
           <span style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3, fontSize: 11.5, color: 'var(--muted)' }}>
             {hd && <span className="yp-hd-chip">HD</span>}
-            <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <span style={{ flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {/* "WAV · 31.2 MB" answers "is this the master or the bounce"
                   without opening anything. */}
               {error ? error : busy ? 'Preparing…' : pending ? 'Sending…' : meta}
             </span>
-          </span>
-        </button>
 
-        {!pending && !busy && !error && (
-          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, color: 'var(--muted)' }}>
-            <path d="M12 3v12" /><path d="m7 12 5 5 5-5" /><path d="M5 21h14" />
-          </svg>
+            {/* THE WAVEFORM FILLS WHAT IS LEFT of the metadata line rather than
+                claiming a row of its own — the card stays one object, and on a
+                narrow screen the wave simply has less room instead of pushing
+                the size off the edge. It is absent for anything with no peaks:
+                a document, or a file too large to have been decoded at send. */}
+            {bars.length > 0 && (
+              <span
+                aria-hidden="true"
+                style={{
+                  flex: 1, minWidth: 0, height: 16, marginLeft: 2,
+                  display: 'flex', alignItems: 'center', gap: 1.5,
+                  overflow: 'hidden',
+                }}
+              >
+                {bars.map((peak, i) => {
+                  // Played bars are lit, coming bars are not. The boundary IS
+                  // the playhead — a separate progress line over a waveform is
+                  // two things saying one thing.
+                  const played = progress > 0 && (i / bars.length) <= progress;
+                  return (
+                    <span
+                      key={i}
+                      style={{
+                        flex: '1 1 0', minWidth: 1,
+                        height: `${Math.max(12, Math.round(peak * 100))}%`,
+                        borderRadius: 1,
+                        background: played ? '#D9BFFF' : 'rgba(255,255,255,.22)',
+                      }}
+                    />
+                  );
+                })}
+              </span>
+            )}
+          </span>
+        </span>
+
+        {/* ⚠ THE ARROW IS THE DOWNLOAD BUTTON. The whole row used to be, which
+            meant a tap anywhere — including on the waveform someone was aiming
+            at — began a 30MB transfer. Downloading is now the one control that
+            looks like downloading. */}
+        {!pending && canDownload && (
+          <span style={{ position: 'relative', flexShrink: 0 }}>
+            <button
+              type="button"
+              onClick={e => { e.stopPropagation(); if (!busy) setAsking(v => !v); }}
+              disabled={busy}
+              aria-label={`Download ${name}`}
+              aria-expanded={asking}
+              style={{
+                width: 30, height: 30, borderRadius: 999, padding: 0,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                border: '1px solid rgba(255,255,255,.10)',
+                background: asking ? 'rgba(255,255,255,.10)' : 'transparent',
+                color: 'var(--muted)', cursor: busy ? 'default' : 'pointer',
+              }}
+            >
+              <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 3v12" /><path d="m7 12 5 5 5-5" /><path d="M5 21h14" />
+              </svg>
+            </button>
+
+            {asking && (
+              <DownloadPopover
+                name={name}
+                meta={meta}
+                hd={hd}
+                onConfirm={confirmDownload}
+                onClose={() => setAsking(false)}
+              />
+            )}
+          </span>
+        )}
+
+        {/* The sender asked that this not be kept. The affordance goes; the
+            file is still playable, which is the whole point of sending it. */}
+        {!pending && !canDownload && (
+          <span
+            title="The sender shared this for listening only"
+            aria-label="Download not offered"
+            style={{ flexShrink: 0, display: 'flex', color: 'rgba(255,255,255,.20)' }}
+          >
+            <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="4" y="10.5" width="16" height="10" rx="2" /><path d="M8 10.5V7a4 4 0 0 1 8 0" />
+            </svg>
+          </span>
         )}
 
         {/* Mounted always so play() targets a stable element; src is set lazily. */}
         <audio
           ref={audioRef}
+          onTimeUpdate={e => { const d = e.currentTarget.duration; if (d > 0) setProgress(e.currentTarget.currentTime / d); }}
           onPlay={() => setPlaying(true)}
           onPause={() => setPlaying(false)}
-          onEnded={() => setPlaying(false)}
+          onEnded={() => { setPlaying(false); setProgress(0); }}
           style={{ display: 'none' }}
         />
       </div>
 
-      {asking && (
-        <DownloadSheet
-          name={name}
-          meta={meta}
-          hd={hd}
-          onConfirm={confirmDownload}
-          onCancel={() => setAsking(false)}
-        />
-      )}
     </>
   );
 }
@@ -241,97 +304,64 @@ export default function FileMessage({ message }) {
 /**
  * "Do you want this file?" — asked BEFORE 30MB moves to a phone.
  *
- * ⚠ THE COMPRESSED OPTION IS DIMMED, NOT MISSING. A 320 MP3 of a master cannot
- * be made today: browsers do not encode MP3/AAC, there is no server transcode,
- * and shipping a WASM encoder is a real dependency decision nobody has made.
- * Showing it dimmed says "this exists and is coming", which is true, and holds
- * the layout for the day it does — the same treatment the premium duration row
- * was given.
+ * ⚠ A POPOVER, NOT A SHEET. This was a full-screen bottom sheet, which is the
+ * right weight for a decision that changes something and far too much for one
+ * that fetches a file you are already looking at. It now opens beside the arrow
+ * that summoned it, so the message stays visible and the answer is one tap
+ * away in either direction.
+ *
+ * ⚠ THE COMPRESSED OPTION IS DIMMED, NOT MISSING. A 320 of a master cannot be
+ * made today: browsers do not encode MP3/AAC, there is no server transcode, and
+ * a WASM encoder is a dependency decision nobody has taken. Dimmed says "coming",
+ * which is true, and holds the layout for the day it arrives.
  */
-function DownloadSheet({ name, meta, hd, onConfirm, onCancel }) {
+function DownloadPopover({ name, meta, hd, onConfirm, onClose }) {
   useEffect(() => {
-    const onKey = e => { if (e.key === 'Escape') onCancel(); };
+    const onKey  = e => { if (e.key === 'Escape') onClose(); };
+    // Capture, so this closes before the arrow's own onClick can reopen it on
+    // the very press meant to dismiss.
+    const onDown = e => { if (!e.target.closest?.('[data-yp-dl]')) onClose(); };
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onCancel]);
+    window.addEventListener('pointerdown', onDown, true);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('pointerdown', onDown, true);
+    };
+  }, [onClose]);
 
   return (
-    /* ⚠ THE BOTTOM NAV IS SACRED — stops at var(--yp-nav-height), never inset:0. */
     <div
+      data-yp-dl
       role="dialog"
-      aria-modal="true"
       aria-label={`Download ${name}`}
-      onClick={onCancel}
+      onClick={e => e.stopPropagation()}
       style={{
-        position: 'fixed', top: 0, left: 0, right: 0,
-        bottom: 'var(--yp-nav-height)',
-        background: 'rgba(6,6,10,.78)',
-        backdropFilter: 'blur(8px)',
-        zIndex: 70,
-        display: 'flex', flexDirection: 'column', justifyContent: 'flex-end',
+        position: 'absolute', right: 0, bottom: 'calc(100% + 8px)',
+        width: 208, padding: 8, borderRadius: 14, zIndex: 40,
+        background: 'linear-gradient(180deg, rgba(28,26,36,.98) 0%, rgba(18,17,24,.99) 100%)',
+        border: '1px solid rgba(255,255,255,.13)',
+        boxShadow: '0 16px 40px -16px rgba(0,0,0,.95)',
+        backdropFilter: 'blur(20px)',
+        textAlign: 'left',
       }}
     >
-      <div
-        onClick={e => e.stopPropagation()}
-        style={{
-          background: 'linear-gradient(180deg, rgba(26,24,33,.98) 0%, rgba(16,15,21,.99) 100%)',
-          borderTop: '1px solid rgba(255,255,255,.12)',
-          borderRadius: '20px 20px 0 0',
-          padding: 16,
-          boxShadow: '0 -18px 48px -20px rgba(0,0,0,.95)',
-        }}
-      >
-        <div style={{ fontSize: 14.5, marginBottom: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {name}
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, color: 'var(--muted)', marginBottom: 13 }}>
+      <div style={{ padding: '2px 4px 8px', borderBottom: '1px solid rgba(255,255,255,.07)', marginBottom: 6 }}>
+        <div style={{ fontSize: 12.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 3, fontSize: 10.5, color: 'var(--muted)' }}>
           {hd && <span className="yp-hd-chip">HD</span>}
           <span>{meta}</span>
         </div>
-
-        <button
-          type="button"
-          onClick={onConfirm}
-          style={{
-            width: '100%', padding: '12px 14px', borderRadius: 13, border: 'none',
-            background: 'linear-gradient(135deg, #00E5FF, #BF5FFF)',
-            color: '#0a0a0f', fontSize: 14, fontWeight: 600,
-            fontFamily: 'inherit', cursor: 'pointer', marginBottom: 8,
-          }}
-        >
-          {hd ? 'Download lossless' : 'Download'}
-        </button>
-
-        {hd && (
-          <button
-            type="button"
-            disabled
-            title="Compressed download coming soon"
-            style={{
-              width: '100%', padding: '12px 14px', borderRadius: 13,
-              border: '1px solid rgba(255,255,255,.10)',
-              background: 'rgba(255,255,255,.04)',
-              color: 'rgba(255,255,255,.34)', fontSize: 14,
-              fontFamily: 'inherit', cursor: 'not-allowed', marginBottom: 8,
-            }}
-          >
-            MP3 320 — coming soon
-          </button>
-        )}
-
-        <button
-          type="button"
-          onClick={onCancel}
-          style={{
-            width: '100%', padding: '11px 14px', borderRadius: 13,
-            border: '1px solid rgba(255,255,255,.12)',
-            background: 'transparent', color: 'var(--muted)',
-            fontSize: 13.5, fontFamily: 'inherit', cursor: 'pointer',
-          }}
-        >
-          Cancel
-        </button>
       </div>
+
+      <button type="button" onClick={onConfirm} className="yp-attach-row" style={{ width: '100%', fontSize: 13, border: 'none', background: 'transparent', color: 'var(--text)', fontFamily: 'inherit' }}>
+        {hd ? 'Download lossless' : 'Download'}
+      </button>
+
+      {hd && (
+        <button type="button" disabled title="Compressed download coming soon" className="yp-attach-row" style={{ width: '100%', fontSize: 13, border: 'none', background: 'transparent', color: 'rgba(255,255,255,.30)', fontFamily: 'inherit', cursor: 'not-allowed' }}>
+          MP3 320 — soon
+        </button>
+      )}
     </div>
   );
 }
