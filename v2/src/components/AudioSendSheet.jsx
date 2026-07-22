@@ -29,30 +29,19 @@ export default function AudioSendSheet({ file, hd, onSend, onCancel }) {
   }
 
   return (
-    /* ⚠ THE BOTTOM NAV IS SACRED — stops at var(--yp-nav-height), never inset:0. */
+    /* ⚠ APP-SCOPED, NOT VIEWPORT-SCOPED. See `.yp-modal` — a fixed panel
+       spanning left:0/right:0 is as wide as the DESKTOP, not as wide as the
+       app column it belongs to. The bottom nav stays visible and undimmed. */
     <div
       role="dialog"
       aria-modal="true"
       aria-label="Send audio"
       onClick={() => { if (!sending) onCancel(); }}
-      style={{
-        position: 'fixed', top: 0, left: 0, right: 0,
-        bottom: 'var(--yp-nav-height)',
-        background: 'rgba(6,6,10,.82)',
-        backdropFilter: 'blur(10px)',
-        zIndex: 70,
-        display: 'flex', flexDirection: 'column', justifyContent: 'flex-end',
-      }}
+      className="yp-modal"
     >
       <div
         onClick={e => e.stopPropagation()}
-        style={{
-          background: 'linear-gradient(180deg, rgba(26,24,33,.98) 0%, rgba(16,15,21,.99) 100%)',
-          borderTop: '1px solid rgba(255,255,255,.12)',
-          borderRadius: '20px 20px 0 0',
-          padding: 16,
-          boxShadow: '0 -18px 48px -20px rgba(0,0,0,.95)',
-        }}
+        className="yp-modal-card"
       >
         <div style={{ fontSize: 14.5, marginBottom: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {file?.name}

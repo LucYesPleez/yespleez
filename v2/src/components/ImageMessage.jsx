@@ -266,12 +266,16 @@ export default function ImageMessage({ message }) {
           aria-modal="true"
           aria-label="Photo"
           style={{
+            // ⚠ App-scoped: `left:0/right:0` fixed is DESKTOP-wide, not app-wide.
+            // The viewer keeps a heavier dim than a dialog because a photograph
+            // wants the surrounding surface gone.
             position: 'fixed', top: 0, left: 0, right: 0,
             bottom: 'var(--yp-nav-height)',
             background: 'rgba(6,6,10,.94)',
             backdropFilter: 'blur(8px)',
             zIndex: 60,
             display: 'flex', flexDirection: 'column',
+            maxWidth: 'var(--yp-app-max, 680px)', margin: '0 auto',
           }}
         >
           {/* ⚠ PINCH IS THE BROWSER'S, NOT OURS. `touch-action: pinch-zoom` on a
