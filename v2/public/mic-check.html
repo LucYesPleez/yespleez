@@ -1,0 +1,255 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>YesPleez — mic check</title>
+
+<!--
+  A DIAGNOSTIC, NOT A FEATURE. Deliberately a static page in `public/` rather
+  than a route: it must open on a phone with no sign-in, share nothing with the
+  app's state, and be deletable in one command when it has served its purpose.
+
+  It opens the microphone with `{ audio: true }` — EXACTLY what
+  IOS_CAPTURE_CONSTRAINTS is after the §6.1 amendment — so what it measures is
+  the real capture path, not an approximation of it.
+
+  WHAT IT ANSWERS, and why each number is here:
+
+    · peak dBFS      — is anything CLIPPING? 0 dBFS is the ceiling. Above about
+                       -1 the waveform is being squared off. Below about -20 the
+                       recording is simply quiet, which is where iOS started.
+    · speech RMS     — how loud the voice actually is, averaged.
+    · noise floor    — the quietest stretch found. THIS IS THE HISS.
+    · SNR            — speech minus floor. The only number that matters for
+                       "does it sound hissy": a flat gain change cannot move it,
+                       which is why turning everything down 10% would not help.
+    · band levels    — WHERE the floor's energy sits. If it is concentrated in
+                       the top bands, a high shelf would remove most of it for
+                       almost no cost to intelligibility. If it is flat across
+                       the spectrum, filtering would dull the voice for little
+                       gain and the answer is a gate or nothing.
+-->
+
+<style>
+  :root { color-scheme: dark; }
+  body {
+    margin: 0; padding: 20px 16px 48px;
+    background: #0b0b0e; color: #f4f4f5;
+    font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    -webkit-text-size-adjust: 100%;
+  }
+  h1 { font-size: 19px; margin: 0 0 4px; letter-spacing: -.02em; }
+  .sub { color: #a1a1aa; font-size: 13px; margin: 0 0 20px; }
+  button {
+    display: block; width: 100%; padding: 16px; margin: 0 0 18px;
+    font: inherit; font-weight: 650; color: #000;
+    background: linear-gradient(135deg, #00E5FF, #BF5FFF);
+    border: 0; border-radius: 12px; cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  button[disabled] { opacity: .5; }
+  #status { min-height: 22px; color: #a1a1aa; font-size: 13px; margin-bottom: 14px; }
+  #status.live { color: #00E5FF; font-weight: 600; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+  td { padding: 7px 0; border-bottom: 1px solid #27272a; vertical-align: baseline; }
+  td:first-child { color: #a1a1aa; font-size: 13px; }
+  td:last-child { text-align: right; font-variant-numeric: tabular-nums; font-weight: 650; }
+  .verdict { padding: 12px 14px; border-radius: 10px; margin-bottom: 20px; font-size: 14px; }
+  .ok   { background: rgba(0,229,160,.12);  border: 1px solid rgba(0,229,160,.35); }
+  .warn { background: rgba(255,180,0,.12);  border: 1px solid rgba(255,180,0,.35); }
+  .bad  { background: rgba(255,59,92,.12);  border: 1px solid rgba(255,59,92,.35); }
+  .bar { height: 9px; border-radius: 99px; background: #27272a; overflow: hidden; }
+  .bar span { display: block; height: 100%; background: linear-gradient(90deg,#00E5FF,#BF5FFF); }
+  h2 { font-size: 13px; color: #a1a1aa; font-weight: 600; margin: 0 0 10px; text-transform: uppercase; letter-spacing: .06em; }
+  pre { background: #18181b; padding: 12px; border-radius: 8px; font-size: 11px; overflow-x: auto; color: #d4d4d8; }
+</style>
+
+<h1>Mic check</h1>
+<p class="sub">Tap record, then <strong>speak for 3 seconds and go silent for 3</strong>. Run it on each phone and compare.</p>
+
+<button id="go">Record 6 seconds</button>
+<div id="status">Ready.</div>
+<div id="out" hidden>
+  <div id="verdict" class="verdict"></div>
+  <table id="numbers"></table>
+  <h2>Where the noise sits</h2>
+  <div id="bands"></div>
+  <h2>What the device negotiated</h2>
+  <pre id="settings"></pre>
+</div>
+
+<script>
+const SECONDS = 6, FPS = 60;
+const $ = id => document.getElementById(id);
+
+// 20*log10 — amplitude to dBFS. Floored so digital silence prints as -100
+// rather than -Infinity, which would break the arithmetic below.
+const dB = a => a <= 1e-5 ? -100 : Math.max(-100, 20 * Math.log10(a));
+const fmt = v => (v > 0 ? '+' : '') + v.toFixed(1) + ' dB';
+
+$('go').onclick = async () => {
+  const btn = $('go'), status = $('status');
+  btn.disabled = true; $('out').hidden = true;
+
+  let stream;
+  try {
+    // ⚠ IDENTICAL to IOS_CAPTURE_CONSTRAINTS. If this ever diverges the page is
+    // measuring something the app does not do, which is worse than not measuring.
+    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch (err) {
+    // localhost is a secure context too, so the HTTPS hint must not fire there —
+    // it would send someone chasing a tunnel when the real answer is that they
+    // declined the permission prompt.
+    const secure = location.protocol === 'https:' || ['localhost', '127.0.0.1'].includes(location.hostname);
+    status.textContent = 'Microphone refused: ' + err.name +
+      (secure ? '' : ' — this page must be served over HTTPS');
+    btn.disabled = false;
+    return;
+  }
+
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  if (ctx.state === 'suspended') await ctx.resume();   // iOS starts suspended
+
+  const analyser = ctx.createAnalyser();
+  analyser.fftSize = 2048;
+  analyser.smoothingTimeConstant = 0;   // raw frames; smoothing would hide the floor
+  ctx.createMediaStreamSource(stream).connect(analyser);
+
+  const time = new Float32Array(analyser.fftSize);
+  const freq = new Float32Array(analyser.frequencyBinCount);
+  const frames = [];
+  let peak = 0;
+
+  // ⚠ setInterval, NOT requestAnimationFrame. rAF is throttled or stopped
+  // entirely whenever the tab is not foregrounded — a dimmed phone screen is
+  // enough — and this loop would then hang forever at "Recording…". Sampling
+  // levels needs a steady clock, not frame sync, so rAF bought nothing and cost
+  // the one failure mode that matters on the device this is built for.
+  await new Promise(done => {
+    const startedAt = performance.now();
+    const timer = setInterval(() => {
+      const elapsed = (performance.now() - startedAt) / 1000;
+      if (elapsed >= SECONDS) { clearInterval(timer); return done(); }
+
+      analyser.getFloatTimeDomainData(time);
+      analyser.getFloatFrequencyData(freq);
+
+      let sum = 0;
+      for (let i = 0; i < time.length; i++) {
+        const s = time[i];
+        sum += s * s;
+        if (Math.abs(s) > peak) peak = Math.abs(s);
+      }
+      frames.push({ rms: Math.sqrt(sum / time.length), spectrum: freq.slice() });
+
+      status.textContent = `Recording… ${(SECONDS - elapsed).toFixed(1)}s`;
+      status.className = 'live';
+    }, 1000 / FPS);
+  });
+
+  stream.getTracks().forEach(t => t.stop());
+  const settings = stream.getAudioTracks()[0]?.getSettings?.() ?? {};
+  ctx.close();
+
+  status.textContent = 'Done.'; status.className = ''; btn.disabled = false;
+
+  // Loudest and quietest by RMS. The quiet frames ARE the noise floor — no
+  // threshold to pick, and it works whether the room is silent or not.
+  const sorted = [...frames].sort((a, b) => a.rms - b.rms);
+  const quiet  = sorted.slice(0, Math.max(1, Math.floor(sorted.length * 0.15)));
+  const loud   = sorted.slice(-Math.max(1, Math.floor(sorted.length * 0.15)));
+  const mean   = xs => xs.reduce((t, f) => t + f.rms, 0) / xs.length;
+
+  const peakDb  = dB(peak);
+  const speechDb = dB(mean(loud));
+  const floorDb  = dB(mean(quiet));
+  const snr      = speechDb - floorDb;
+
+  $('numbers').innerHTML = [
+    ['Peak', fmt(peakDb) + 'FS'],
+    ['Speech (loudest 15%)', fmt(speechDb) + 'FS'],
+    ['Noise floor (quietest 15%)', fmt(floorDb) + 'FS'],
+    ['<strong>Signal-to-noise</strong>', '<strong>' + snr.toFixed(1) + ' dB</strong>'],
+  ].map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join('');
+
+  // Octave-ish bands. Averaged over the QUIET frames only: this is a picture of
+  // the hiss, not of the voice.
+  const nyquist = ctx.sampleRate / 2;
+  const BANDS = [[20,125],[125,250],[250,500],[500,1000],[1000,2000],[2000,4000],[4000,8000],[8000,nyquist]];
+  const bandDb = BANDS.map(([lo, hi]) => {
+    const a = Math.floor(lo / nyquist * freq.length);
+    const b = Math.min(freq.length, Math.ceil(hi / nyquist * freq.length));
+    let total = 0, n = 0;
+    // ⚠ CLAMP. getFloatFrequencyData returns -Infinity for a truly silent bin,
+    // and one of those poisons the average, then Math.max/min, then the bar
+    // widths — the whole panel renders "-InfinitydB". Caught by feeding the
+    // page a silent stream.
+    for (const f of quiet) for (let i = a; i < b; i++) { total += Math.max(-100, f.spectrum[i]); n++; }
+    return n ? total / n : -100;
+  });
+
+  const top = Math.max(...bandDb), bottom = Math.min(...bandDb);
+  $('bands').innerHTML = BANDS.map(([lo, hi], i) => {
+    const label = hi >= 1000 ? `${(lo/1000).toFixed(lo<1000?1:0)}–${(hi/1000).toFixed(0)}k` : `${lo}–${hi}`;
+    const pct = Math.max(2, ((bandDb[i] - bottom) / Math.max(1, top - bottom)) * 100);
+    return `<div style="display:flex;align-items:center;gap:10px;margin-bottom:7px">
+      <span style="width:74px;font-size:11px;color:#a1a1aa;font-variant-numeric:tabular-nums">${label}Hz</span>
+      <span class="bar" style="flex:1"><span style="width:${pct}%"></span></span>
+      <span style="width:56px;text-align:right;font-size:11px;font-variant-numeric:tabular-nums">${bandDb[i].toFixed(0)}dB</span>
+    </div>`;
+  }).join('');
+
+  // The high bands relative to the rest — the number that decides whether a
+  // high shelf is worth building.
+  const highs = (bandDb[6] + bandDb[7]) / 2;
+  const mids  = (bandDb[3] + bandDb[4]) / 2;
+
+  const v = $('verdict');
+  // ⚠ NO SIGNAL IS NOT A DIAGNOSIS. Below -60 dBFS peak nothing was captured —
+  // a muted mic, a device that granted permission and delivered nothing, or a
+  // suspended context. Every number below would be arithmetic on silence, and
+  // an earlier version cheerfully reported "poor signal-to-noise, the noise is
+  // broadband" from a stream containing nothing at all. Refusing to answer is
+  // the only honest output here.
+  if (peakDb < -60) {
+    v.className = 'verdict bad';
+    v.innerHTML = '<strong>No signal.</strong> Nothing reached the microphone — check it is not muted, and that you spoke during the six seconds. The numbers below are meaningless.';
+  } else if (peakDb > -1) {
+    v.className = 'verdict bad';
+    v.innerHTML = '<strong>Clipping.</strong> The signal is hitting the ceiling and distorting. This is a too-loud problem, not a hiss problem.';
+  } else if (snr < 20) {
+    v.className = 'verdict bad';
+    v.innerHTML = `<strong>Poor signal-to-noise (${snr.toFixed(0)} dB).</strong> The floor is close to the voice — this is what "hissy" sounds like. Under 20 dB is audibly noisy; 30+ is clean.`;
+  } else if (snr < 30) {
+    v.className = 'verdict warn';
+    v.innerHTML = `<strong>Borderline (${snr.toFixed(0)} dB).</strong> Usable, some hiss audible in the gaps.`;
+  } else {
+    v.className = 'verdict ok';
+    v.innerHTML = `<strong>Clean (${snr.toFixed(0)} dB).</strong> The floor is well below the voice.`;
+  }
+
+  // ⚠ A SHAPE CLAIM NEEDS A SHAPE. When every band sits within a few dB of the
+  // others there is no weighting to report, and saying "weighted high" from a
+  // flat -100 across the spectrum is the same confident-nonsense failure as
+  // diagnosing silence. Caught by feeding the page a pure tone, where the bands
+  // outside 1 kHz are all at the clamp.
+  const spread = top - bottom;
+
+  if (peakDb < -60) {
+    // Nothing further to say — the spectrum is silence.
+  } else if (spread < 3) {
+    v.innerHTML += '<br><br>The noise is evenly spread across the spectrum, so no filter shape stands out. Recording closer is the move.';
+  } else if (highs > mids - 6) {
+    v.innerHTML += '<br><br><strong>The noise is weighted high.</strong> A high-frequency shelf would remove much of it without touching speech clarity.';
+  } else {
+    v.innerHTML += '<br><br><strong>The noise is broadband.</strong> Filtering the top end would dull the voice for little gain — a gate, or recording closer, is the better move.';
+  }
+
+  $('settings').textContent = JSON.stringify({
+    sampleRate: ctx.sampleRate,
+    track: settings,
+    ua: navigator.userAgent,
+  }, null, 2);
+
+  $('out').hidden = false;
+};
+</script>
