@@ -96,26 +96,6 @@ export function isBareKind(kind) {
  * read as speech, and a voice note is not speech — it is an object.
  */
 export const KIND_SHAPE = {
-  /**
-   * The standalone Hand. Geometry only — it is still a BARE kind, so
-   * MessageBubble draws no container, no background and no border around it.
-   *
-   * ⚠ ownsTimestamp EXISTS HERE FOR A LAYOUT REASON, not a stylistic one. With
-   * the thread drawing the clock, it landed BELOW the mark — and because this
-   * kind has no bubble, that made the message's bottom edge the clock rather
-   * than the mark. The Yes badge anchors to the frame's bottom-left corner for
-   * every kind, so on a handed Hand it sat 12px on top of the time. Measured
-   * identically at 412px and at 900px: not a phone problem and not a platform
-   * problem, which is why it is fixed here rather than behind a breakpoint or a
-   * UA check.
-   *
-   * `HandMessage` now draws the clock BESIDE the mark, so the frame's bottom
-   * edge is the mark again and the badge needs no special case.
-   */
-  hand: {
-    ownsTimestamp: true,
-  },
-
   voice: {
     radius: 24,              // 20 → 24, softer and more deliberate
     padding: '15px 17px',    // 12/16 → more room around the player
