@@ -29,8 +29,33 @@ import {
  * the image decoded and then shove the whole conversation down.
  */
 
-/** How wide a photo is allowed to draw, in the frame it is given. */
-const MAX_H = 320;
+/**
+ * THE THUMBNAIL'S HEIGHT IN THE THREAD. Every photo draws at this height, and
+ * its width follows from its own aspect ratio.
+ *
+ * ── ⚠ THIS IS A LAYOUT FIX, NOT A SIZE PREFERENCE ────────────────────
+ *
+ * The bubble used to be `width: 100%` with an `aspectRatio`, and it JUMPED
+ * every time a thread was reopened. `.yp-msg-frame` shrink-wraps — it is a flex
+ * item with `max-width: 76%` — and a percentage width inside a shrink-to-fit
+ * container resolves against the container's own content width, which is
+ * nothing until the image has decoded. So each photo rendered collapsed, then
+ * snapped to its natural size as it loaded, shoving everything below it.
+ * Reserving the aspect ratio could not help: the box had no width to apply a
+ * ratio to.
+ *
+ * Deriving PIXEL dimensions from the payload's stored size removes the
+ * dependency entirely. The box is correct before the network is touched, so a
+ * reopened conversation lays out once and never moves.
+ *
+ * 190 is chosen to sit comfortably under `MAX_W` for ordinary phone photos, so
+ * a portrait shot and a landscape shot occupy visibly different, honest shapes
+ * rather than being cropped to a uniform tile.
+ */
+const THUMB_H = 190;
+
+/** Never wider than a bubble may be on the narrowest handset in scope. */
+const MAX_W = 240;
 
 /**
  * How long a press has to last to mean "open this".
@@ -160,7 +185,13 @@ export default function ImageMessage({ message }) {
     );
   }
 
-  const ratio = width > 0 && height > 0 ? `${width} / ${height}` : '4 / 3';
+  // ⚠ PIXELS, COMPUTED FROM THE PAYLOAD — never a percentage, and never derived
+  // from the loaded image. See THUMB_H. A photo whose payload carried no
+  // dimensions falls back to 4:3, which is a stable wrong shape rather than an
+  // unstable right one.
+  const aspect = width > 0 && height > 0 ? width / height : 4 / 3;
+  const thumbW = Math.min(MAX_W, Math.round(THUMB_H * aspect));
+  const thumbH = Math.round(thumbW / aspect);
   const spent = original ? hasExpired(original) : false;
 
   return (
@@ -187,10 +218,12 @@ export default function ImageMessage({ message }) {
         disabled={!url || Boolean(error)}
         style={{
           position: 'relative',
-          display: 'block', width: '100%', padding: 0, border: 'none',
+          display: 'block', padding: 0, border: 'none',
           background: 'rgba(255,255,255,.04)',
           borderRadius: 16, overflow: 'hidden',
-          aspectRatio: ratio, maxHeight: MAX_H,
+          // Fixed, known before any network call. This is what stops the thread
+          // reflowing when a conversation is reopened.
+          width: thumbW, height: thumbH, flexShrink: 0,
           cursor: url && !error ? 'zoom-in' : 'default',
           userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none',
           touchAction: 'pan-y',
