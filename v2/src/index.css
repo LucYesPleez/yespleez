@@ -791,8 +791,16 @@ input, textarea, select {
    ⚠ RECEIVED KEEPS -8 DELIBERATELY. Its bubble is preceded by a 26px avatar and
    an 8px gap, and the mark hangs below into exactly that corner — pushing it
    further left would put it on top of the avatar instead of the clock, which is
-   trading one collision for another. */
-.yp-yes-mark--mine { left: -18px; }
+   trading one collision for another.
+
+   ⚠ PHONE ONLY. At -18 on desktop the owner called it "way too far" — the mark
+   reads as detached from the bubble rather than hanging off its corner. Desktop
+   keeps -8 and has never been reported clipping there, so the shift is scoped to
+   the viewport that needs it. If the clip ever does appear on a narrow desktop
+   window, widen this query rather than moving the base value. */
+@media (max-width: 640px) {
+  .yp-yes-mark--mine { left: -18px; }
+}
 
 /* ── THE PLAY BUTTON'S TAP TARGET ───────────────────────────────────
    The disc is 36px to match the composer's mic (`SIZE` in VoicePill, `CONTROL`
