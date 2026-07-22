@@ -148,3 +148,46 @@ test('⚠ resume waits on readiness, never on a timer', () => {
   assert.ok(!/setTimeout/.test(providers),
     'a timer-driven resume is too slow on a bad connection and dead air on a good one');
 });
+
+// ── DEMO MIX PROVIDER MODEL ───────────────────────────────────────────
+
+const registrySrc = code(readFileSync(new URL('./demoMixProviders.js', import.meta.url), 'utf8'));
+
+test('⚠ MiniPlayer builds no embed urls and no adapters of its own', () => {
+  const mp = code(miniPlayer);
+  // ⚠ SCOPED TO WHAT ACTUALLY MOVED. The SoundCloud widget API script is still
+  // loaded here — that is attachment, covered by the known-gap test below, and
+  // asserting against it would be claiming a guarantee this work did not
+  // deliver. What DID move is embed-url construction and adapter creation.
+  for (const leak of ['auto_play=true', 'widget/iframe', 'soundcloudAdapter', 'mixcloudAdapter']) {
+    assert.ok(!mp.includes(leak),
+      `MiniPlayer constructs ${leak} — that belongs to the provider registry`);
+  }
+  assert.match(mp, /providerFor\(/, 'it resolves a provider rather than testing the url itself');
+});
+
+test('the registry is the single place a provider is declared', () => {
+  for (const id of ['soundcloud', 'mixcloud', 'upload']) {
+    assert.ok(registrySrc.includes(`'${id}'`), `${id} must be registered`);
+  }
+});
+
+/**
+ * ⚠ KNOWN GAP, DELIBERATELY RECORDED RATHER THAN HIDDEN.
+ *
+ * Embed-url construction and adapter creation have moved to the registry, so a
+ * new provider no longer touches those. ATTACHMENT has not: the SoundCloud
+ * widget binding, the Mixcloud postMessage listener and the per-provider oEmbed
+ * endpoint still live in MiniPlayer behind `isSC` / `isMC`.
+ *
+ * So the amendment's promise — "adding a provider requires no changes to
+ * MiniPlayer" — is NOT yet fully true, and this test asserts the CURRENT state
+ * so nobody mistakes partial progress for a finished guarantee. When attachment
+ * moves into the provider interface, this test should start failing and be
+ * replaced by its opposite.
+ */
+test('⚠ attachment logic is STILL provider-specific — the guarantee is incomplete', () => {
+  const mp = code(miniPlayer);
+  assert.ok(mp.includes('isSC') || mp.includes('isMC'),
+    'if this now fails, attachment has been moved into the providers — delete this test and assert the opposite');
+});

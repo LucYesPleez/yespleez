@@ -1,18 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { claimAudio, releaseAudio, forgetAudio } from '../lib/mediaSession';
-import { createResumableSource, soundcloudAdapter, mixcloudAdapter } from '../lib/mediaProviders';
-
-function getSCEmbedUrl(url) {
-  return `https://w.soundcloud.com/player/?url=${encodeURIComponent(url)}&color=%2300e5ff&auto_play=true&hide_related=true&show_comments=false&show_user=false&show_reposts=false&show_teaser=false`;
-}
-
-function getMCEmbedUrl(url) {
-  const feed = url.replace('https://www.mixcloud.com', '');
-  return `https://www.mixcloud.com/widget/iframe/?hide_cover=1&mini=1&autoplay=1&feed=${encodeURIComponent(feed)}`;
-}
-
-function isSoundCloud(url) { return url && url.includes('soundcloud.com'); }
-function isMixcloud(url)   { return url && url.includes('mixcloud.com'); }
+import { createResumableSource } from '../lib/mediaProviders';
+import { providerFor } from '../lib/demoMixProviders';
 
 const WAVE_BARS = [
   { anim: 'yp-bar1', dur: '0.7s',  delay: '0s'    },
@@ -67,9 +56,15 @@ export default function MiniPlayer({ url, artistName, hasNext, onClose, onFinish
   const positionRef = useRef(0);
   const sessionRef  = useRef(null);
 
-  const isSC     = isSoundCloud(url);
-  const isMC     = isMixcloud(url);
-  const embedUrl = isSC ? getSCEmbedUrl(url) : isMC ? getMCEmbedUrl(url) : null;
+  /**
+   * ⚠ THE ONLY PLACE THIS COMPONENT ASKS ANYTHING ABOUT PROVIDERS, and it asks
+   * the registry rather than the url. Adding Spotify or a direct upload must
+   * not require editing this file — see `demoMixProviders`.
+   */
+  const provider = providerFor(url);
+  const embedUrl = provider ? provider.embedUrl(url) : null;
+  const isSC     = provider?.id === 'soundcloud';
+  const isMC     = provider?.id === 'mixcloud';
 
   // oEmbed metadata
   useEffect(() => {
@@ -114,10 +109,10 @@ export default function MiniPlayer({ url, artistName, hasNext, onClose, onFinish
   useEffect(() => {
     if (!isMC || !frameRef.current) return;
     const frame = frameRef.current;
-    const source = registerSource(mixcloudAdapter({
-      media: url,
-      post: msg => frame.contentWindow?.postMessage(JSON.stringify(msg), 'https://www.mixcloud.com'),
-      getPosition: () => positionRef.current,
+    // The provider builds its own adapter; this component supplies only the
+    // element and the observed position, and never learns what is done with them.
+    const source = registerSource(provider.createAdapter({
+      el: frame, url, getPosition: () => positionRef.current,
     }));
     claimAudio(source);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -129,7 +124,7 @@ export default function MiniPlayer({ url, artistName, hasNext, onClose, onFinish
     loadSCApi().then(SC => {
       const widget = SC.Widget(frameRef.current);
       widgetRef.current = widget;
-      const source = registerSource(soundcloudAdapter(widget, { media: url }));
+      const source = registerSource(provider.createAdapter({ widget, el: frameRef.current, url }));
       // Playing is what CLAIMS audio. Bound to the widget's own event rather
       // than to our button, so a play started from inside the embed arbitrates
       // exactly as one started from ours.
