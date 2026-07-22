@@ -754,7 +754,17 @@ input, textarea, select {
    the waveform pushed straight out through the side of the bubble on a Galaxy:
    the bubble is capped at 76% of the thread width, which on a narrow handset is
    under 252px, and an inline minimum cannot be told to yield. */
-.yp-voice-player { min-width: 252px; }
+.yp-voice-player {
+  min-width: 252px;
+  /* Clears the Yes badge's reach at the bubble's bottom-left. Zero on phones,
+     where the badge does not come in that far. See --yp-yes-inset. */
+  padding-left: var(--yp-yes-inset);
+}
+
+/* The clock-and-receipt row, for the same reason. On a SHORT message the bubble
+   shrinks to fit this row, so the row's left edge sits at the padding edge —
+   exactly where the badge reaches. */
+.yp-msg-meta { padding-left: var(--yp-yes-inset); }
 
 /* ══ THE MESSAGE FRAME — ONE LAYOUT CONTRACT FOR EVERY KIND ══════════
 
@@ -804,6 +814,41 @@ input, textarea, select {
   --yp-yes-drop: 6px;
   /* What the frame must reserve to its left so the badge has somewhere to go. */
   --yp-yes-gutter: calc(var(--yp-yes-size) - var(--yp-yes-overlap));
+
+  /* ── THE ONE THING THAT DIFFERS BY VIEWPORT ────────────────────────
+     Phones sit at 0: the badge hangs the full gutter to the left of the frame.
+     Desktop nudges it right (below), because at the same offset on a wide
+     viewport the badge reads as detached from the bubble rather than pinned to
+     it — the owner's "way too far on desktop".
+
+     ⚠ A SHIFT, NOT A DIFFERENT OVERLAP. The frame reserves `--yp-yes-gutter`
+     either way, so the badge still has its own space and can still never reach
+     the avatar. Only where it sits inside that reserved space changes.
+
+     One variable with two values. If this ever becomes two rules, or starts
+     varying by direction or by kind, the contract has been broken. */
+  --yp-yes-shift: 0px;
+
+  /* ── WHAT THE SHIFT COSTS, PAID BACK ──────────────────────────────
+     The badge reaches `overlap + shift` into the frame. At a 12px shift that is
+     17px, which is past the tightest bubble padding (16px) — so on desktop the
+     badge would clip the clock by 1px and touch a Voicey's play button exactly.
+     Measured, not assumed.
+
+     Rather than detach the badge or shrink the shift, the two things that live
+     at the bubble's bottom-left move out of its way by this much. Owner's
+     instruction: move those elements, do not detach the Hand.
+
+     Derived, not hand-tuned: it is whatever the badge's reach exceeds the
+     tightest padding by, plus 4px of air. Change the shift and this follows. */
+  --yp-yes-inset: 0px;
+}
+
+@media (min-width: 641px) {
+  :root {
+    --yp-yes-shift: 12px;
+    --yp-yes-inset: 5px;
+  }
 }
 
 .yp-msg-frame {
@@ -819,8 +864,9 @@ input, textarea, select {
 .yp-yes-badge {
   position: absolute;
   /* ONE anchor: the frame's bottom-left corner, overlapping inward by exactly
-     --yp-yes-overlap on both axes. No per-kind and no per-direction values. */
-  left: calc(-1 * var(--yp-yes-gutter));
+     --yp-yes-overlap on both axes, plus the viewport shift. No per-kind and no
+     per-direction values. */
+  left: calc(var(--yp-yes-shift) - var(--yp-yes-gutter));
   bottom: calc(-1 * var(--yp-yes-drop));
   width: var(--yp-yes-size);
   height: var(--yp-yes-size);

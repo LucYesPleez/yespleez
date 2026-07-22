@@ -80,3 +80,35 @@ test('every message renders inside the frame, whatever its kind', () => {
   const frame = css.slice(css.indexOf('.yp-msg-frame'), css.indexOf('.yp-msg-frame') + 400);
   assert.ok(/max-width:\s*76%/.test(frame), 'the frame must own the width cap');
 });
+
+test('⚠ the desktop shift is paid for by the inset', () => {
+  // The badge reaches `overlap + shift` into the frame. Past the tightest bubble
+  // padding it starts clipping the clock and touching a Voicey's play button —
+  // measured at a 12px shift: clock -1px, play 0px. The two elements that live
+  // at the bubble's bottom-left move out of the way by --yp-yes-inset instead of
+  // the badge being detached, which is the owner's stated preference.
+  //
+  // If the shift is ever raised without raising the inset, those collisions come
+  // straight back, and they come back only on desktop and only on SHORT
+  // messages — the combination least likely to be noticed in testing.
+  const TIGHTEST_PADDING = 16;   // KIND_SHAPE's default '12px 16px'
+  const AIR = 4;
+
+  const desktop = css.slice(css.indexOf('@media (min-width: 641px)'));
+  const shift = Number(desktop.match(/--yp-yes-shift:\s*(\d+)px/)?.[1]);
+  const inset = Number(desktop.match(/--yp-yes-inset:\s*(\d+)px/)?.[1]);
+  assert.ok(Number.isFinite(shift) && Number.isFinite(inset), 'desktop must set both shift and inset');
+
+  const reach = cssVar('overlap') + shift;
+  const needed = Math.max(0, reach - TIGHTEST_PADDING + AIR);
+  assert.ok(inset >= needed,
+    `a ${shift}px shift reaches ${reach}px and needs an inset of at least ${needed}px, found ${inset}px`);
+});
+
+test('phones pay nothing for a shift they do not have', () => {
+  // The base values are the phone values — mobile-first, so a handset never
+  // inherits desktop's compensation for an offset it was never given.
+  const base = css.slice(0, css.indexOf('@media (min-width: 641px)'));
+  assert.match(base, /--yp-yes-shift:\s*0px/);
+  assert.match(base, /--yp-yes-inset:\s*0px/);
+});

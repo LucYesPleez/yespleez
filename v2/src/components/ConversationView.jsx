@@ -1483,7 +1483,7 @@ function MessageBubble({ message, isMine, grouped = false, endsBurst = true, spe
             The Voicey does, so its length and its clock share one line instead
             of stacking two timings on top of each other. */}
         {message.created_at && !shape?.ownsTimestamp && (
-          <div style={{
+          <div className="yp-msg-meta" style={{
             fontSize: 10,
             lineHeight: 1,
             color: isMine ? 'rgba(255,255,255,.55)' : 'rgba(255,255,255,.42)',
