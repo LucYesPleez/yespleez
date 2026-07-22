@@ -207,10 +207,15 @@ test('⚠ the compact count clears the bar-width floor on EVERY phone', async ()
 
   const { DISPLAY_BARS, DISPLAY_BARS_COMPACT } = await import('./voicePeaks.js');
 
+  // ⚠ THE UPPER BOUND IS 6.5, NOT 5.5, AND THAT IS DELIBERATE. 5.5 was my own
+  // "blocky" threshold, set hours before the owner asked for bars 20% wider —
+  // which lands at 5.95px and would have failed on my taste rather than on any
+  // measured fault. The floor is a real constraint (bars under ~3px read as a
+  // comb, measured twice); the ceiling is only a guard against absurdity.
   for (const [device, px] of Object.entries(WAVES)) {
     const compact = perBar(DISPLAY_BARS_COMPACT, px);
     assert.ok(compact > 3.2, `${device}px: bars must clear the comb, got ${compact.toFixed(1)}px`);
-    assert.ok(compact < 5.5, `${device}px: bars must not go blocky, got ${compact.toFixed(1)}px`);
+    assert.ok(compact < 6.5, `${device}px: bars must not go absurd, got ${compact.toFixed(1)}px`);
   }
 
   // The narrow phone is the one that justifies the constant existing at all:

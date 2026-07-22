@@ -160,30 +160,36 @@ export const DISPLAY_BARS = 42;
  * reported it as "compressed" on a Galaxy, which is that floor being crossed
  * rather than a new fault.
  *
- * ── WHY 32 AND NOT 28 ────────────────────────────────────────────────
- *
- * 28 was chosen against a 164px wave. That number then MOVED: the Voicey bubble
- * was widened to match a text bubble and the play button shrank 44 → 36, which
- * together handed the wave ~207px on a 412px handset. 28 bars there draws 5.9px
- * — blocky, and visibly a different animal from the desktop wave's ~3.4px.
+ * ── THE COUNT IS A BAR WIDTH IN DISGUISE ─────────────────────────────
  *
  * The constraint is a RANGE, not a single width, because handsets are not one
  * size. Across the two that matter:
  *
  *              360px phone (~167px wave)   412px phone (~207px wave)
- *   42 bars    2.5px  ← still too thin     3.5px
+ *   42 bars    2.5px  ← too thin           3.5px
  *   32 bars    3.8px                       5.0px
- *   28 bars    4.5px                       5.9px  ← blocky
+ *   28 bars    4.5px                       5.9px
  *
- * 32 clears the floor on the narrow phone and stays close to the desktop's
- * character on the wide one. 42 is still wrong at 360px, which is why this
- * constant survives the widening rather than being deleted with it.
+ * 42 is still ~2.5px at 360px, which is why this constant exists at all rather
+ * than being deleted once the bubble was widened.
+ *
+ * ── 32 → 28: OWNER'S CALL, 2026-07-22 ────────────────────────────────
+ *
+ * "I want them to show as wider waveforms, not more bars… just increase by 20%."
+ * Fewer bars over a fixed width IS wider bars — the gap is already at 1.5px and
+ * taking it lower would fuse the wave into a block — so this is the lever, and
+ * 28 is the count that lands nearest the asked-for 20%: 5.02 → 5.95px, +19%.
+ *
+ * ⚠ I had called 5.9px "blocky" and chosen 32 over it hours earlier. That was my
+ * aesthetic judgement and the owner's overrides it; the note is here so the
+ * number does not get "corrected" back by someone reading the old reasoning.
+ * The test's upper bound moved with it for the same reason.
  *
  * ⚠ DISPLAY ONLY. Both counts are downsampled from the same frozen PEAK_COUNT,
  * so nothing stored changes and a note drawn at 28 bars on a phone is the same
  * note drawn at 42 on a desktop.
  */
-export const DISPLAY_BARS_COMPACT = 32;
+export const DISPLAY_BARS_COMPACT = 28;
 
 /**
  * Contrast curve applied to the drawn heights.
