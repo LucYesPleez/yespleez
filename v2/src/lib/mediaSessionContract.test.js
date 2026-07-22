@@ -212,3 +212,37 @@ test('⚠ every provider owns its own attachment', async () => {
       `${p.id} must implement attach — otherwise the player would special-case it`);
   }
 });
+
+// ── THE WAVEFORM READS WHAT THE PRODUCER ACTUALLY WRITES ──────────────
+
+test('⚠ FileMessage decodes the v2 wave envelope, not a v1 peaks array', async () => {
+  // THE BUG THIS CATCHES, which shipped and rendered nothing:
+  // `computeWave` returns {v, ms, d} with base64-packed amplitudes. FileMessage
+  // read `payload.wave.peaks` — a v1 key absent from that envelope — so `bars`
+  // was permanently empty. Nothing threw. The row simply looked like a feature
+  // that had never been built.
+  const src = code(readFileSync(new URL('../components/FileMessage.jsx', import.meta.url), 'utf8'));
+
+  assert.ok(!/wave\?\.peaks|wave\.peaks/.test(src),
+    'reading .peaks off a v2 envelope silently yields no waveform');
+  assert.match(src, /decodeWave\(/, 'it must decode the stored envelope');
+  assert.match(src, /toDisplayWave\(/, 'and downsample it the same way VoiceMessage does');
+});
+
+test('⚠ both players share ONE decoder for the stored format', async () => {
+  // Two decoders would be two things to keep in step with the payload format,
+  // and the second would drift silently — exactly as this one did.
+  const file  = code(readFileSync(new URL('../components/FileMessage.jsx', import.meta.url), 'utf8'));
+  const voice = code(readFileSync(new URL('../components/VoiceMessage.jsx', import.meta.url), 'utf8'));
+
+  for (const [name, src] of [['FileMessage', file], ['VoiceMessage', voice]]) {
+    assert.match(src, /from '\.\.\/lib\/voiceWave'/, `${name} must use the shared decoder`);
+  }
+});
+
+test('the decoder rejects a v1 payload rather than half-rendering it', async () => {
+  const { decodeWave } = await import('./voiceWave.js');
+  assert.equal(decodeWave({ peaks: [0.2, 0.9] }), null, 'a v1 shape is not a v2 envelope');
+  assert.equal(decodeWave(null), null);
+  assert.equal(decodeWave({ v: 2, d: '', ms: 100 }), null, 'empty data is not renderable');
+});

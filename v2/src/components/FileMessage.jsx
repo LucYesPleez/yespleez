@@ -1,9 +1,10 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import {
   downloadUrlFor, playbackUrlFor, isPlayableAudio,
   formatBytes, formatToken,
 } from '../lib/messageFiles';
 import { claimAudio, finishAudio, releaseAudio, SHORT } from '../lib/mediaSession';
+import { decodeWave, toDisplayWave } from '../lib/voiceWave';
 
 /**
  * A DOCUMENT IN THE THREAD (M12) — and, when it is audio, a PLAYER.
@@ -34,6 +35,15 @@ import { claimAudio, finishAudio, releaseAudio, SHORT } from '../lib/mediaSessio
  * A row is complete before any network call. Signing on mount would mean one
  * storage request per attachment every time the thread is scrolled past.
  */
+
+/**
+ * How many bars the row draws.
+ *
+ * Fewer than a Voicey's, because this waveform shares its line with the format
+ * and size rather than owning a row: at more than this the bars are sub-pixel
+ * on a 360px handset and read as noise.
+ */
+const WAVE_BARS = 28;
 
 /** Set only while a send is in flight or has failed — there is no path yet. */
 function isPending(message) {
@@ -73,9 +83,23 @@ export default function FileMessage({ message }) {
   }
   const urlRef   = useRef(null);
 
-  // Peaks frozen at send time. Absent for documents, and for audio too large to
-  // have been decoded safely on the sender's phone — see WAVE_CEILING_BYTES.
-  const bars = message?.payload?.wave?.peaks ?? [];
+  /**
+   * Peaks frozen at send time. Absent for documents, and for audio too large to
+   * have been decoded safely on the sender's phone — see WAVE_CEILING_BYTES.
+   *
+   * ⚠ THE STORED WAVE IS A v2 ENVELOPE — {v, ms, d} with base64-packed
+   * amplitudes — NOT a `peaks` array. An earlier version of this line read
+   * `wave.peaks`, a v1 key that does not exist on what `computeWave` produces,
+   * so `bars` was permanently empty and the waveform silently never rendered.
+   * Nothing threw; the row simply looked like it had no waveform feature.
+   *
+   * Decoded through the SAME functions VoiceMessage uses, deliberately: a
+   * second decoder would be a second thing to keep in step with the format.
+   */
+  const bars = useMemo(() => {
+    const decoded = decodeWave(message?.payload?.wave);
+    return decoded ? toDisplayWave(decoded, WAVE_BARS) : [];
+  }, [message?.payload?.wave]);
 
   // ⚠ ABSENT MEANS ALLOWED. Only a deliberate refusal is stored, so every file
   // sent before this existed stays downloadable rather than silently locking.
