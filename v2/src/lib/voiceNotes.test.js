@@ -240,14 +240,16 @@ test('⚠ iOS requests NO dsp constraints, so Apple picks its own speech path', 
   // and neither bought anything (iOS reports mono already, and Opus stores
   // 48 kHz regardless of what the microphone track says).
   //
-  // `noiseSuppression` is the ONE named constraint, added deliberately to chase
-  // the remaining hiss and expected to be ignored — see the header. Everything
-  // that actually broke iOS must stay unnamed.
-  assert.equal(IOS_CAPTURE_CONSTRAINTS.echoCancellation, undefined,
-    'naming this is what broke iOS in the first place');
-  assert.equal(IOS_CAPTURE_CONSTRAINTS.autoGainControl, undefined);
-  assert.equal(IOS_CAPTURE_CONSTRAINTS.channelCount, undefined, 'a channel hint is describing the capture again');
-  assert.equal(IOS_CAPTURE_CONSTRAINTS.sampleRate, undefined, 'a rate hint can decline the voice-processing unit');
+  // ⚠ TOTAL. Not an object with the DSP keys left out — `true`, every
+  // constraint surrendered.
+  //
+  // `noiseSuppression: true` was tried here on 2026-07-22 and reverted the same
+  // day: a fresh iOS note came back `noise_suppression: null` with the
+  // constraint explicitly requested, proving Safari ignores it. The same note
+  // showed `echo_cancellation: true`, so Apple's NR was already on — there was
+  // never a second switch to throw. Do not add it back.
+  assert.equal(IOS_CAPTURE_CONSTRAINTS, true,
+    'any object here is us describing the capture again, which is what kept making it worse');
 });
 
 test('⚠ every OTHER platform keeps C20 exactly as ratified', async () => {
