@@ -548,6 +548,59 @@ export function formatRemaining(expiresAt, now = Date.now()) {
   return `${Math.max(1, mins)}m`;                      // never shows "0m"
 }
 
+/**
+ * Raw extensions worth naming by their maker.
+ *
+ * ⚠ THE EXTENSION IS THE ONLY RELIABLE SIGNAL HERE. Browsers report camera raw
+ * as `application/octet-stream` or as nothing at all, so the mime type cannot
+ * answer this. That is also why the upload path lists these explicitly.
+ */
+const RAW_EXTENSIONS = {
+  nef: 'Nikon', nrw: 'Nikon',
+  cr2: 'Canon', cr3: 'Canon', crw: 'Canon',
+  arw: 'Sony',  srf: 'Sony',  sr2: 'Sony',
+  raf: 'Fujifilm',
+  orf: 'OM System',
+  rw2: 'Panasonic',
+  pef: 'Pentax',
+  x3f: 'Sigma',
+  dng: 'DNG',
+  raw: null,
+};
+
+/**
+ * What the recipient is about to download, in one line.
+ *
+ * ⚠ DIMENSIONS ARE PREFERRED, AND THEIR ABSENCE IS NOT A GAP TO FILL WITH A
+ * GUESS. When a preview came out of a raw file we deliberately do not know the
+ * sensor's resolution — the embedded JPEG's size is the camera's choice and is
+ * routinely a quarter of it. Printing that number would tell someone
+ * `1920 × 1280` about a file that is actually `8256 × 5504`, which is worse
+ * than saying nothing: it is a specific, checkable, wrong claim about the one
+ * thing they cannot see for themselves.
+ *
+ * So the fallback describes the KIND instead — "Camera RAW (.NEF)" — which is
+ * both true and more useful to a photographer than a pixel count would be.
+ */
+export function describeOriginal(original, name = '') {
+  if (original?.width && original?.height) return `${original.width} × ${original.height}`;
+
+  const ext = /\.([A-Za-z0-9]{1,8})$/.exec(name || original?.path || '')?.[1]?.toLowerCase();
+  if (!ext) return 'Original file';
+
+  if (ext in RAW_EXTENSIONS) {
+    const maker = RAW_EXTENSIONS[ext];
+    // The maker's name earns its place: a photographer reads "Canon RAW" as
+    // "this opens in my software", where "RAW" alone leaves the question open.
+    return maker && maker !== 'DNG'
+      ? `${maker} RAW (.${ext.toUpperCase()})`
+      : `Camera RAW (.${ext.toUpperCase()})`;
+  }
+
+  if (ext === 'tif' || ext === 'tiff') return 'TIFF';
+  return ext.toUpperCase();
+}
+
 /** Bytes as a person reads them. */
 export function formatBytes(bytes) {
   const n = Number(bytes) || 0;

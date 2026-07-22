@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import {
   signedUrlFor, downloadOriginalUrl,
-  hasExpired, formatRemaining, formatBytes,
+  hasExpired, formatRemaining, formatBytes, describeOriginal,
 } from '../lib/messageImages';
 
 /**
@@ -267,7 +267,7 @@ export default function ImageMessage({ message }) {
             />
           </div>
 
-          {original && <OriginalPanel original={original} />}
+          {original && <OriginalPanel original={original} name={message?.payload?.name || message?.body} />}
 
           <button
             type="button"
@@ -379,7 +379,7 @@ function OriginalCard({ message, original, pendingName = null }) {
               : busy    ? 'Preparing…'
               : pending ? 'Uploading…'
               : spent   ? 'Expired'
-              : [bytes ? formatBytes(bytes) : null, remaining ? `${remaining} left` : null]
+              : [describeOriginal(original, name), bytes ? formatBytes(bytes) : null, remaining ? `${remaining} left` : null]
                   .filter(Boolean).join('   ·   ')}
           </span>
         </span>
@@ -405,7 +405,7 @@ function OriginalCard({ message, original, pendingName = null }) {
  *
  * That separation is why this can be plain rendering with no guards in it.
  */
-function OriginalPanel({ original }) {
+function OriginalPanel({ original, name = '' }) {
   const [, setTick]   = useState(0);
   const [busy, setBusy]   = useState(false);
   const [error, setError] = useState(null);
@@ -457,7 +457,11 @@ function OriginalPanel({ original }) {
         {spent
           ? 'The optimised version is still available above.'
           : [
-              original.width && original.height ? `${original.width} × ${original.height}` : null,
+              // Dimensions where they are known; the FILE TYPE where they are
+              // not. A raw file's true resolution is unknown to us by design —
+              // see `describeOriginal` — and "Nikon RAW (.NEF)" tells a
+              // photographer more than a pixel count would anyway.
+              describeOriginal(original, name),
               original.bytes ? formatBytes(original.bytes) : null,
             ].filter(Boolean).join('   ·   ')}
       </div>

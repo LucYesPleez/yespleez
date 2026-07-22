@@ -360,7 +360,7 @@ test('the countdown reads naturally and never shows a dead zero', () => {
 // No browser decodes a camera raw. That is the HD case at its purest, not a
 // failure of it — so the original is stored and the bubble draws a card.
 
-const { sendOriginalOnly } = await import('./messageImages.js');
+const { sendOriginalOnly, describeOriginal } = await import('./messageImages.js');
 
 const rawFile = (over = {}) => ({
   name: 'DSC_0001.NEF', type: 'application/octet-stream', size: 28_000_000, ...over,
@@ -428,4 +428,44 @@ test('a failed upload sends no message at all', async () => {
   assert.equal(message, null);
   assert.ok(error);
   assert.equal(inserted.length, 0);
+});
+
+// ── DESCRIBING WHAT IS BEING DOWNLOADED ───────────────────────────────
+
+
+test('real dimensions win when we actually know them', () => {
+  assert.equal(describeOriginal({ width: 4032, height: 3024 }, 'x.jpg'), '4032 × 3024');
+});
+
+test('⚠ a raw file is described by TYPE, never by an invented resolution', () => {
+  // The embedded preview may be 1920×1280 while the file is 8256×5504. A
+  // specific, checkable, wrong number is worse than no number.
+  assert.equal(describeOriginal({ width: null, height: null }, 'DSC_0001.NEF'), 'Nikon RAW (.NEF)');
+  assert.equal(describeOriginal({}, 'IMG_1234.CR3'), 'Canon RAW (.CR3)');
+  assert.equal(describeOriginal({}, 'A7R00123.ARW'), 'Sony RAW (.ARW)');
+  assert.equal(describeOriginal({}, 'DSCF8899.RAF'), 'Fujifilm RAW (.RAF)');
+  assert.equal(describeOriginal({}, 'P1000123.RW2'), 'Panasonic RAW (.RW2)');
+  assert.equal(describeOriginal({}, 'PA150001.ORF'), 'OM System RAW (.ORF)');
+});
+
+test('DNG is not attributed to a maker — anyone can write one', () => {
+  assert.equal(describeOriginal({}, 'shot.dng'), 'Camera RAW (.DNG)');
+});
+
+test('other types still say something true', () => {
+  assert.equal(describeOriginal({}, 'scan.tiff'), 'TIFF');
+  assert.equal(describeOriginal({}, 'poster.png'), 'PNG');
+});
+
+test('it falls back to the stored path when no name is carried', () => {
+  assert.equal(describeOriginal({ path: 'conv-id/abc.nef' }), 'Nikon RAW (.NEF)');
+});
+
+test('it never renders empty, whatever it is given', () => {
+  assert.equal(describeOriginal({}, ''), 'Original file');
+  assert.equal(describeOriginal(null), 'Original file');
+});
+
+test('a zero dimension is treated as unknown, not printed as 0', () => {
+  assert.equal(describeOriginal({ width: 0, height: 0 }, 'x.NEF'), 'Nikon RAW (.NEF)');
 });
