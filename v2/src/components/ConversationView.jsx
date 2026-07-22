@@ -1345,6 +1345,25 @@ function MessageBubble({ message, isMine, grouped = false, endsBurst = true, spe
       alignItems: 'flex-end',
       gap: 8,
       justifyContent: isMine ? 'flex-end' : 'flex-start',
+      // ⚠ A YES MARK MUST NEVER BE COVERED BY THE MESSAGE BELOW IT.
+      //
+      // The mark hangs off the bubble's bottom corner, into the space the NEXT
+      // message occupies. Painting is tree order, so that next message drew over
+      // it — most visibly a Voicey, because `KIND_MATERIAL.voice` carries
+      // `backdropFilter: blur(14px)` and a backdrop-filter creates a stacking
+      // context: the bubble becomes a self-contained layer that composites over
+      // whatever it overlaps. Reported 2026-07-22.
+      //
+      // ⚠ RAISED ON THE ROW, NOT ON THE MARK. A z-index on the mark alone fixes
+      // the common case and fails the one that matters: when the handed message
+      // is ITSELF a Voicey, the mark sits inside that bubble's own stacking
+      // context and cannot be lifted out of it by any value. The row is the
+      // outermost thing that is unambiguously a sibling of the next message.
+      //
+      // Costs nothing when nothing is handed — `position: relative` with
+      // `z-index: auto` changes no paint order at all.
+      position: 'relative',
+      ...(handed && { zIndex: 2 }),
       // 3px inside a burst, 14px between turns. The gap is what separates
       // "one person talking" from "two people exchanging".
       marginBottom: endsBurst ? 14 : 3,
