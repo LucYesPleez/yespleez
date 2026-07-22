@@ -42,9 +42,13 @@ receipts with true delivery acknowledgements, all verified live across two real 
 ## The remaining blockers, in order
 
 1. **`D6`** — above. Untested, existential for a voice-first product.
-2. **Failed-send recovery.** The red `failed` rung of the EQ glyph is built, tested and
-   rendered, but nothing sets it. `sendMessage` throws and the message vanishes. Needs no
-   migration. This is the piece that protects a lost booking enquiry.
+2. ~~**Failed-send recovery.**~~ **DONE 2026-07-22** (`3f01fe0`, `2867798`). Text, the Hand
+   and Voiceys all append optimistically and stay on the failed rung with a retry control;
+   a failed Voicey keeps its recording and can be played back before retrying. Two caveats
+   remain: nothing is persisted, so a **refresh still loses a pending send** (the durable
+   outbox is the follow-up), and if the insert succeeds but its response never arrives you
+   can briefly see both the real message and a red placeholder. **Not yet verified by eye —
+   see below.**
 3. **SEC-1** — `notifications` accepts unrestricted INSERT from any authenticated user.
    Documented deployment prerequisite; messaging adds `new_message` rows to that surface.
 4. **`expire_held_notifications()` is never called**, so N4 is inert.
@@ -72,6 +76,21 @@ receipts with true delivery acknowledgements, all verified live across two real 
   must impersonate with `SET LOCAL request.jwt.claims` or they pass vacuously.
 - **Deployment is parked.** `yespleez.pages.dev` serves the legacy HTML prototype, not this
   app. Verify against localhost.
+
+## Manual verification required
+
+Failed-send recovery is committed, tested and building, but **nobody has watched it
+happen**. Messaging is behind auth, so it cannot be verified from a tool session. To check
+it, open a conversation, turn off wifi, and send:
+
+- a text message → should appear immediately, then turn red with "Not sent — tap to retry"
+- a Hand → same
+- a Voicey → same, and **the play button should still work** on the red bubble
+
+Then turn wifi back on and tap retry on each. Each should send and settle to the normal
+grey/cyan glyph. Watch for the message appearing **twice** after a retry — that would mean
+the realtime echo is not being deduped, which is the one race the unit tests cover but the
+real client has the final say on.
 
 ## Testing caveat
 
