@@ -147,6 +147,30 @@ export function peaksFromChannel(samples) {
 export const DISPLAY_BARS = 42;
 
 /**
+ * The same wave on a phone, where there is far less width to spend.
+ *
+ * ── WHY A SECOND COUNT AT ALL ────────────────────────────────────────
+ *
+ * The comment above reasons in PIXELS PER BAR, and that is the quantity that
+ * actually matters: 42 bars was chosen against the player's ~193px, giving
+ * ~2.6px each, and it notes that 56 bars at under 2px had already failed.
+ *
+ * On a phone the bubble is capped at 76% of the thread, so the wave gets roughly
+ * 164px — and 42 bars there is ~2.4px, straight into the range that was already
+ * measured as too thin. The owner reported it as "compressed" on a Galaxy, which
+ * is that floor being crossed rather than a new problem.
+ *
+ * 28 bars over the same 164px is ~4.4px each, comfortably clear of it. The wave
+ * is coarser, and coarser is the correct trade: at this size the choice is
+ * between reading as audio and reading as a smudge.
+ *
+ * ⚠ DISPLAY ONLY. Both counts are downsampled from the same frozen PEAK_COUNT,
+ * so nothing stored changes and a note drawn at 28 bars on a phone is the same
+ * note drawn at 42 on a desktop.
+ */
+export const DISPLAY_BARS_COMPACT = 28;
+
+/**
  * Contrast curve applied to the drawn heights.
  *
  * Stored peaks are RMS, which is the right measure for a summary and a slightly

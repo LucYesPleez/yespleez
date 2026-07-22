@@ -185,3 +185,34 @@ test('unrenderable peaks draw nothing, so the caller falls back', async () => {
   assert.equal(toDisplayPeaks([1, 2, 3]), null, 'wrong length is not drawable');
   assert.equal(toDisplayPeaks(new Array(PEAK_COUNT).fill(NaN)), null);
 });
+
+/* ── the phone's coarser wave ───────────────────────────────────────── */
+
+test('⚠ the compact count draws a wider bar than the fault it fixes', async () => {
+  // The count is chosen in PIXELS PER BAR, which is the quantity that actually
+  // decides whether a wave reads as audio. 42 bars in a phone bubble's ~164px
+  // is ~2.4px — inside the range already measured as too thin when 56 bars
+  // failed. Reported as "compressed" on a Galaxy.
+  const { DISPLAY_BARS, DISPLAY_BARS_COMPACT } = await import('./voicePeaks.js');
+
+  const WAVE_PX = 164, GAP = 1.5;
+  const perBar = n => (WAVE_PX - (n - 1) * GAP) / n;
+
+  assert.ok(perBar(DISPLAY_BARS) < 2.6, 'the desktop count is what was too thin here');
+  assert.ok(perBar(DISPLAY_BARS_COMPACT) > 4, `compact bars must clear 4px, got ${perBar(DISPLAY_BARS_COMPACT).toFixed(1)}`);
+  assert.ok(DISPLAY_BARS_COMPACT < DISPLAY_BARS, 'compact means FEWER bars');
+});
+
+test('both counts downsample the same frozen payload, and neither invents detail', async () => {
+  // Nothing stored changes. A note drawn at 28 bars on a phone is the same note
+  // drawn at 42 on a desktop.
+  const { DISPLAY_BARS, DISPLAY_BARS_COMPACT, PEAK_COUNT, PEAK_MAX, toDisplayPeaks } = await import('./voicePeaks.js');
+  const peaks = Array.from({ length: PEAK_COUNT }, (_, i) => (i % PEAK_MAX));
+
+  for (const n of [DISPLAY_BARS, DISPLAY_BARS_COMPACT]) {
+    const drawn = toDisplayPeaks(peaks, n);
+    assert.equal(drawn.length, n);
+    assert.ok(n <= PEAK_COUNT, 'drawing more bars than were stored would be inventing detail');
+    assert.ok(drawn.every(v => v >= 0 && v <= 1), 'heights stay 0..1 whatever the count');
+  }
+});
