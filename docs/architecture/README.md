@@ -15,6 +15,7 @@ The **canonical, frozen** architecture of YesPleez, and the source of truth cite
 | **`messaging-availability-v1.0.md`** | **CANONICAL** — Messaging Availability Constitution v1.0, ratified + frozen 21 Jul 2026. Governed by `communication-v1.0`. **Authored in Markdown, so this file is authoritative.** |
 | **`conversation-workspace-v1.0.md`** | **CANONICAL — amended by v1.1.** Conversation Workspace v1.0, ratified + frozen 22 Jul 2026. The ⋮ menu, conversation indexes, and the three layers above the message stream. Governed by `communication-v1.0` and `messaging-availability-v1.0`. **Authored in Markdown, so this file is authoritative.** |
 | **`conversation-workspace-v1.1.md`** | **CANONICAL** — Conversation Workspace v1.1, ratified + frozen 22 Jul 2026. Amends v1.0: messaging availability is exposed as a *Messaging* screen, never a "Block" action. Read WITH v1.0, which remains in force except where amended. **Authored in Markdown, so this file is authoritative.** |
+| **`demo-mix-providers-v1.0.md`** | **CANONICAL** — Demo Mix Provider Architecture v1.0, ratified + frozen 22 Jul 2026. Playback arbitration (SHORT/LONG), the provider interface and registry, and the three-layer split. **Authored in Markdown, so this file is authoritative.** |
 | `architecture-v1.0.md` | Reading copy. Not authoritative. |
 | `identity-v1.1.md` | Reading copy. Not authoritative. |
 | `identity-v1.2.md` | Reading copy. Not authoritative. |

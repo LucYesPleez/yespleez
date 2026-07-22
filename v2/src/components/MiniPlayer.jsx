@@ -3,6 +3,28 @@ import { claimAudio, releaseAudio, forgetAudio } from '../lib/mediaSession';
 import { createResumableSource } from '../lib/mediaProviders';
 import { providerFor } from '../lib/demoMixProviders';
 
+/**
+ * THE MINI PLAYER — orchestration and presentation. Nothing else.
+ *
+ * ── ⚠ IT MUST NEVER ASK WHICH PROVIDER THIS IS ───────────────────────
+ *
+ * No `isSoundCloud`, no `isMixcloud`, no `isSpotify`. This component resolves a
+ * provider and attaches it; everything after that — widgets, third-party
+ * scripts, event bindings, metadata endpoints, position tracking, readiness —
+ * belongs to the provider implementation.
+ *
+ * That is the whole architectural guarantee: adding a Demo Mix provider is
+ * implementing the interface and registering it. If a new provider requires
+ * editing THIS FILE, the abstraction has sprung a leak and the leak is the
+ * defect. A contract test enforces it.
+ *
+ * ── THE MEDIA SESSION SEAM ───────────────────────────────────────────
+ *
+ * This is the application's LONG source. It knows nothing about Voiceys, audio
+ * messages or interruption policy — it exposes the ability to be paused and
+ * resumed, and the Media Session Manager decides when.
+ */
+
 const WAVE_BARS = [
   { anim: 'yp-bar1', dur: '0.7s',  delay: '0s'    },
   { anim: 'yp-bar2', dur: '0.5s',  delay: '0.1s'  },
@@ -17,18 +39,8 @@ const WAVE_CSS = `
   @keyframes yp-bar4 { 0%,100%{height:10px} 50%{height:4px}  }
 `;
 
-// Load SC Widget API script once
-function loadSCApi() {
-  return new Promise((resolve) => {
-    if (window.SC) { resolve(window.SC); return; }
-    const existing = document.querySelector('script[src*="soundcloud.com/player/api"]');
-    if (existing) { existing.addEventListener('load', () => resolve(window.SC)); return; }
-    const s = document.createElement('script');
-    s.src = 'https://w.soundcloud.com/player/api.js';
-    s.onload = () => resolve(window.SC);
-    document.head.appendChild(s);
-  });
-}
+/** How long the progress bar takes to fill. Presentation only. */
+const CLIP_MS = 90 * 1000;
 
 export default function MiniPlayer({ url, artistName, hasNext, onClose, onFinish, onNext }) {
   const [trackTitle, setTrackTitle] = useState('');
@@ -36,155 +48,105 @@ export default function MiniPlayer({ url, artistName, hasNext, onClose, onFinish
   const [progress,   setProgress]   = useState(0);
   const [minimised,  setMinimised]  = useState(false);
   const [playing,    setPlaying]    = useState(true);
-  const frameRef  = useRef(null);
-  const widgetRef = useRef(null); // SC Widget instance
-  const timerRef  = useRef(null);
-  const startRef  = useRef(Date.now());
-  const CLIP_MS   = 90 * 1000;
+  // Set once the rendered element exists and, for an iframe, has loaded.
+  // Attachment waits on this because a provider is given the element to bind to.
+  const [surfaceReady, setSurfaceReady] = useState(false);
 
-  /**
-   * ── THE MEDIA SESSION SEAM ─────────────────────────────────────────
-   *
-   * This component is the application's LONG source. It knows nothing about
-   * Voiceys, audio messages, or interruption policy — it exposes the ability to
-   * be paused and resumed, and the Media Session Manager decides when.
-   *
-   * ⚠ MIXCLOUD'S POSITION MUST BE OBSERVED. Its widget answers no queries, so
-   * the latest progress event is kept here and handed to the adapter. Without
-   * it a Mixcloud set could only ever resume from the beginning.
-   */
-  const positionRef = useRef(0);
-  const sessionRef  = useRef(null);
+  const elRef      = useRef(null);
+  const sessionRef = useRef(null);
+  const startRef   = useRef(Date.now());
 
-  /**
-   * ⚠ THE ONLY PLACE THIS COMPONENT ASKS ANYTHING ABOUT PROVIDERS, and it asks
-   * the registry rather than the url. Adding Spotify or a direct upload must
-   * not require editing this file — see `demoMixProviders`.
-   */
+  // The single question this component asks about providers.
   const provider = providerFor(url);
   const embedUrl = provider ? provider.embedUrl(url) : null;
-  const isSC     = provider?.id === 'soundcloud';
-  const isMC     = provider?.id === 'mixcloud';
-
-  // oEmbed metadata
-  useEffect(() => {
-    if (!url) return;
-    const oembedUrl = isSC
-      ? `https://soundcloud.com/oembed?format=json&url=${encodeURIComponent(url)}`
-      : `https://www.mixcloud.com/oembed/?format=json&url=${encodeURIComponent(url)}`;
-    fetch(oembedUrl)
-      .then(r => r.ok ? r.json() : null)
-      .then(d => {
-        if (d?.title)         setTrackTitle(d.title);
-        if (d?.thumbnail_url) setThumb(d.thumbnail_url);
-      })
-      .catch(() => {});
-  }, [url]);
 
   /**
-   * Register with the manager, replacing any previous registration.
+   * Attach the provider, register the source, and tear both down together.
    *
-   * ⚠ REBUILT WHEN THE URL CHANGES. The old source points at a widget for a
-   * track that is no longer loaded; resuming it would seek the NEW track to the
-   * OLD one's position.
+   * ⚠ RE-RUNS ON URL CHANGE, AND `forgetAudio` IS WHY. The outgoing provider's
+   * element is about to be replaced, so a PARKED reference to it would later
+   * resume a widget that no longer exists — see `mediaSession.forgetAudio`.
+   * `releaseAudio` would be wrong here: it deliberately preserves the parked
+   * source, which is right for a manual pause and wrong for a teardown.
    */
-  function registerSource(adapter) {
-    // ⚠ forget, not release: the previous provider is being replaced, so a
-    // PARKED reference to it would later resume a widget that no longer exists.
-    if (sessionRef.current) forgetAudio(sessionRef.current);
-    sessionRef.current = createResumableSource(adapter);
-    return sessionRef.current;
-  }
-
-  // A source is only useful while this component exists. Leaving a registration
-  // behind would let the manager pause a widget that is gone.
-  useEffect(() => () => {
-    if (sessionRef.current) forgetAudio(sessionRef.current);
-    sessionRef.current = null;
-  }, []);
-
-  // Mixcloud has no ready event to bind, so it registers as soon as the url is
-  // known; SoundCloud registers when its widget binds. Both end up holding a
-  // source built by the same factory.
   useEffect(() => {
-    if (!isMC || !frameRef.current) return;
-    const frame = frameRef.current;
-    // The provider builds its own adapter; this component supplies only the
-    // element and the observed position, and never learns what is done with them.
-    const source = registerSource(provider.createAdapter({
-      el: frame, url, getPosition: () => positionRef.current,
-    }));
-    claimAudio(source);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isMC, url]);
+    if (!provider || !surfaceReady || !elRef.current) return;
 
-  // Init SC Widget API after iframe loads
-  function onIframeLoad() {
-    if (!isSC || !frameRef.current) return;
-    loadSCApi().then(SC => {
-      const widget = SC.Widget(frameRef.current);
-      widgetRef.current = widget;
-      const source = registerSource(provider.createAdapter({ widget, el: frameRef.current, url }));
-      // Playing is what CLAIMS audio. Bound to the widget's own event rather
-      // than to our button, so a play started from inside the embed arbitrates
-      // exactly as one started from ours.
-      widget.bind(SC.Widget.Events.PLAY,   () => { claimAudio(source); setPlaying(p => p   ? p : true); });
-      widget.bind(SC.Widget.Events.PAUSE,  () => setPlaying(p => !p  ? p : false));
-      widget.bind(SC.Widget.Events.FINISH, () => { setPlaying(p => !p ? p : false); onFinish?.(); });
+    const attached = provider.attach({
+      el: elRef.current,
+      url,
+      on: {
+        // ⚠ CLAIMS ON THE PROVIDER'S OWN PLAY EVENT, not on our button. Every
+        // embed has a play control inside its iframe; without this, audio
+        // started there would never take the session and a Voicey would not
+        // interrupt it.
+        play: () => {
+          setPlaying(true);
+          if (sessionRef.current) claimAudio(sessionRef.current);
+        },
+        pause: () => setPlaying(false),
+        finish: () => { setPlaying(false); onFinish?.(); },
+        metadata: ({ title, thumbnail }) => {
+          if (title)     setTrackTitle(title);
+          if (thumbnail) setThumb(thumbnail);
+        },
+      },
     });
-  }
 
-  // Mixcloud: postMessage listener
+    sessionRef.current = createResumableSource(attached.adapter);
+    claimAudio(sessionRef.current);
+
+    return () => {
+      attached.detach();
+      if (sessionRef.current) forgetAudio(sessionRef.current);
+      sessionRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [provider?.id, url, surfaceReady]);
+
+  // A new address means a new surface: the element must re-announce itself
+  // before the next provider is attached to it.
   useEffect(() => {
-    if (!isMC) return;
-    function onMessage(e) {
-      if (!e.data) return;
-      try {
-        const data = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
-        // Progress events are the only way to learn a Mixcloud position.
-        if (typeof data.position === 'number') positionRef.current = data.position * 1000;
-        if (data.method === 'play')  setPlaying(true);
-        if (data.method === 'pause') setPlaying(false);
-      } catch {}
-    }
-    window.addEventListener('message', onMessage);
-    return () => window.removeEventListener('message', onMessage);
-  }, [isMC]);
+    setSurfaceReady(provider?.surface === 'audio');
+    setTrackTitle('');
+    setThumb('');
+  }, [url, provider?.surface]);
 
-  // Progress timer — driven by SC widget position, not local state
+  // Progress bar. Presentation only — it is a clip timer, not a playhead.
   const playingRef = useRef(true);
   useEffect(() => { playingRef.current = playing; }, [playing]);
 
   useEffect(() => {
     startRef.current = Date.now();
-    timerRef.current = setInterval(() => {
+    const id = setInterval(() => {
       if (!playingRef.current) return;
-      const elapsed = Date.now() - startRef.current;
-      setProgress(Math.min(elapsed / CLIP_MS * 100, 100));
+      setProgress(Math.min((Date.now() - startRef.current) / CLIP_MS * 100, 100));
     }, 500);
-    return () => clearInterval(timerRef.current);
+    return () => clearInterval(id);
   }, [url]);
 
   function togglePlay() {
     const next = !playing;
     setPlaying(next);
-    // Starting playback takes audio from whatever held it; pausing gives it up
-    // without resuming anything, which is what releaseAudio means.
-    if (sessionRef.current) {
-      if (next) claimAudio(sessionRef.current);
-      else releaseAudio(sessionRef.current);
-    }
-    if (isSC && widgetRef.current) {
-      next ? widgetRef.current.play() : widgetRef.current.pause();
-    } else if (isMC && frameRef.current) {
-      frameRef.current.contentWindow.postMessage(
-        JSON.stringify({ method: next ? 'play' : 'pause' }),
-        'https://www.mixcloud.com'
-      );
+    const source = sessionRef.current;
+    if (!source) return;
+
+    if (next) {
+      claimAudio(source);
+      source.resume();
+    } else {
+      // Release, never finish: a LONG source interrupts nothing, and pausing it
+      // is a request for silence rather than a handover.
+      source.pause();
+      releaseAudio(source);
     }
   }
 
   if (!embedUrl) return null;
+
+  const surfaceStyle = minimised
+    ? { position: 'absolute', opacity: 0, pointerEvents: 'none', width: 1, height: 1 }
+    : {};
 
   return (
     <div style={{ background: 'var(--card)', borderTop: '1px solid var(--neon2)' }}>
@@ -257,18 +219,32 @@ export default function MiniPlayer({ url, artistName, hasNext, onClose, onFinish
         </button>
       </div>
 
-      {/* Full iframe — hidden when minimised, audio still plays */}
-      <iframe
-        ref={frameRef}
-        src={embedUrl}
-        width="100%"
-        height={isSC ? 120 : 60}
-        frameBorder="0"
-        allow="autoplay; encrypted-media"
-        onLoad={onIframeLoad}
-        style={{ display: 'block', ...(minimised ? { position: 'absolute', opacity: 0, pointerEvents: 'none', width: 1, height: 1 } : {}) }}
-        title="Mini Player"
-      />
+      {/* ⚠ THE SURFACE IS CHOSEN BY A VALUE, NOT A BRANCH ON PROVIDER IDENTITY.
+          A provider declares what it needs rendered; this renders it. A future
+          provider wanting a third surface adds one case here and nothing
+          anywhere else. */}
+      {provider.surface === 'audio' ? (
+        <audio
+          ref={elRef}
+          src={embedUrl}
+          autoPlay
+          controls={!minimised}
+          onLoadedMetadata={() => setSurfaceReady(true)}
+          style={{ display: 'block', width: '100%', ...surfaceStyle }}
+        />
+      ) : (
+        <iframe
+          ref={elRef}
+          src={embedUrl}
+          width="100%"
+          height={120}
+          frameBorder="0"
+          allow="autoplay; encrypted-media"
+          onLoad={() => setSurfaceReady(true)}
+          style={{ display: 'block', ...surfaceStyle }}
+          title="Mini Player"
+        />
+      )}
     </div>
   );
 }

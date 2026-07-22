@@ -173,21 +173,42 @@ test('the registry is the single place a provider is declared', () => {
 });
 
 /**
- * ⚠ KNOWN GAP, DELIBERATELY RECORDED RATHER THAN HIDDEN.
+ * ⚠ THE ARCHITECTURAL GUARANTEE, ENFORCED.
  *
- * Embed-url construction and adapter creation have moved to the registry, so a
- * new provider no longer touches those. ATTACHMENT has not: the SoundCloud
- * widget binding, the Mixcloud postMessage listener and the per-provider oEmbed
- * endpoint still live in MiniPlayer behind `isSC` / `isMC`.
+ * Adding a Demo Mix provider must require implementing the interface and
+ * registering it — nothing else. This test is what makes that a rule rather
+ * than an intention: the moment provider identity reappears in the player, it
+ * fails.
  *
- * So the amendment's promise — "adding a provider requires no changes to
- * MiniPlayer" — is NOT yet fully true, and this test asserts the CURRENT state
- * so nobody mistakes partial progress for a finished guarantee. When attachment
- * moves into the provider interface, this test should start failing and be
- * replaced by its opposite.
+ * It replaces an earlier test asserting the OPPOSITE — that attachment was
+ * still provider-specific — which existed so partial progress could not be
+ * mistaken for a finished guarantee. That gap is now closed.
  */
-test('⚠ attachment logic is STILL provider-specific — the guarantee is incomplete', () => {
+test('⚠ MiniPlayer never asks which provider it is holding', () => {
   const mp = code(miniPlayer);
-  assert.ok(mp.includes('isSC') || mp.includes('isMC'),
-    'if this now fails, attachment has been moved into the providers — delete this test and assert the opposite');
+  const leaks = [
+    'isSoundCloud', 'isMixcloud', 'isSC', 'isMC',
+    'soundcloud', 'mixcloud', 'spotify',
+    'oembed', 'SC.Widget', 'postMessage',
+  ];
+  for (const leak of leaks) {
+    assert.ok(!mp.includes(leak),
+      `MiniPlayer references ${leak} — adding a provider would require editing it`);
+  }
+});
+
+test('MiniPlayer resolves and attaches, and does nothing provider-specific after', () => {
+  const mp = code(miniPlayer);
+  assert.match(mp, /providerFor\(/,      'resolves');
+  assert.match(mp, /provider\.attach\(/, 'attaches');
+  assert.match(mp, /provider\.embedUrl\(/, 'asks the provider for its src');
+  assert.match(mp, /provider\.surface/,  'renders the surface it is told to');
+});
+
+test('⚠ every provider owns its own attachment', async () => {
+  const { PROVIDERS } = await import('./demoMixProviders.js');
+  for (const p of PROVIDERS) {
+    assert.equal(typeof p.attach, 'function',
+      `${p.id} must implement attach — otherwise the player would special-case it`);
+  }
 });

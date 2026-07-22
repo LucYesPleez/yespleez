@@ -5,6 +5,9 @@ import { PROVIDERS, providerFor, providerById } from './demoMixProviders.js';
 import { createResumableSource } from './mediaProviders.js';
 import { LONG } from './mediaSession.js';
 
+/** The callback bag every provider is handed. Nothing here asserts on it. */
+const noopOn = { play() {}, pause() {}, finish() {}, metadata() {} };
+
 /**
  * A Demo Mix is a logical media type. These prove the registry can resolve one
  * without anybody asking which platform it came from.
@@ -46,7 +49,9 @@ test('⚠ every provider implements the whole interface', () => {
     assert.equal(typeof p.label, 'string', `${p.id}: label`);
     assert.equal(typeof p.matches, 'function', `${p.id}: matches`);
     assert.equal(typeof p.embedUrl, 'function', `${p.id}: embedUrl`);
-    assert.equal(typeof p.createAdapter, 'function', `${p.id}: createAdapter`);
+    // `attach` replaced `createAdapter`: a provider now owns its own widget
+    // creation, listeners, metadata and readiness, not just its primitives.
+    assert.equal(typeof p.attach, 'function', `${p.id}: attach`);
     assert.ok(['iframe', 'audio'].includes(p.surface), `${p.id}: surface must be renderable`);
   }
 });
@@ -76,9 +81,8 @@ test('⚠ a direct upload composes into a LONG source like any other', async () 
   el.currentTime = 61.5;
 
   const provider = providerFor('https://storage.example/mix.mp3');
-  const source = createResumableSource(
-    provider.createAdapter({ el, url: 'https://storage.example/mix.mp3' })
-  );
+  const { adapter } = provider.attach({ el, url: 'https://storage.example/mix.mp3', on: noopOn });
+  const source = createResumableSource(adapter);
 
   assert.equal(source.kind, LONG);
 
@@ -106,7 +110,8 @@ test('⚠ an upload waits for metadata before seeking', async () => {
   };
 
   const provider = providerFor('https://storage.example/mix.mp3');
-  const source = createResumableSource(provider.createAdapter({ el, url: 'x' }));
+  const { adapter } = provider.attach({ el, url: 'x', on: noopOn });
+  const source = createResumableSource(adapter);
 
   source.pause();
   source.parkedState().positionMs = 30_000;
