@@ -139,6 +139,19 @@ const RECEIVED_BUBBLE = 'rgba(255,255,255,.085)';
 
 /** Transparent, so the border-box gradient above shows through as the edge. */
 const SENT_BORDER   = '1px solid transparent';
+
+/**
+ * THE YES BADGE'S GEOMETRY. Everything else about it lives in `index.css` under
+ * `.yp-msg-frame` / `.yp-yes-badge`; these two exist because JS also needs them.
+ *
+ * ⚠ THEY MUST EQUAL `--yp-yes-size` AND `--yp-yes-drop`. The badge is drawn by a
+ * React component that takes a pixel size, and the row reserves the drop as
+ * inline padding — neither can read a custom property. `yesBadgeGeometry.test.js`
+ * asserts the two definitions still agree, because a silent drift here reappears
+ * as the badge overlapping the next message, which is the fault this replaced.
+ */
+const YES_SIZE = 27;
+const YES_DROP = 6;
 /**
  * A single lit pixel along the top edge. Not a glow: a glow around every sent
  * message is decoration repeated dozens of times down a thread, and that is
@@ -1345,28 +1358,25 @@ function MessageBubble({ message, isMine, grouped = false, endsBurst = true, spe
       alignItems: 'flex-end',
       gap: 8,
       justifyContent: isMine ? 'flex-end' : 'flex-start',
-      // ⚠ A YES MARK MUST NEVER BE COVERED BY THE MESSAGE BELOW IT.
+      // ⚠ THE ROW RESERVES THE BADGE'S DROP, ALWAYS.
       //
-      // The mark hangs off the bubble's bottom corner, into the space the NEXT
-      // message occupies. Painting is tree order, so that next message drew over
-      // it — most visibly a Voicey, because `KIND_MATERIAL.voice` carries
-      // `backdropFilter: blur(14px)` and a backdrop-filter creates a stacking
-      // context: the bubble becomes a self-contained layer that composites over
-      // whatever it overlaps. Reported 2026-07-22.
+      // The Yes badge dips `--yp-yes-drop` below the message frame. That space
+      // is reserved here as padding rather than being allowed to overhang, which
+      // is what makes the badge structurally incapable of touching the message
+      // below it — no z-index between rows, and no dependence on whether a
+      // neighbour happens to be a Voicey with a backdrop-filter.
       //
-      // ⚠ RAISED ON THE ROW, NOT ON THE MARK. A z-index on the mark alone fixes
-      // the common case and fails the one that matters: when the handed message
-      // is ITSELF a Voicey, the mark sits inside that bubble's own stacking
-      // context and cannot be lifted out of it by any value. The row is the
-      // outermost thing that is unambiguously a sibling of the next message.
-      //
-      // Costs nothing when nothing is handed — `position: relative` with
-      // `z-index: auto` changes no paint order at all.
-      position: 'relative',
-      ...(handed && { zIndex: 2 }),
+      // Reserved on EVERY row, not only handed ones, and taken back out of the
+      // margin so the thread's rhythm is unchanged. Reserving it conditionally
+      // would reflow the thread under the reader's thumb at the moment they
+      // react, which is the one instant it must not move.
+      paddingBottom: YES_DROP,
       // 3px inside a burst, 14px between turns. The gap is what separates
       // "one person talking" from "two people exchanging".
-      marginBottom: endsBurst ? 14 : 3,
+      //
+      // The reserved drop above is subtracted from it rather than added to it,
+      // so those two numbers still describe the spacing you actually see.
+      marginBottom: Math.max(0, (endsBurst ? 14 : 3) - YES_DROP),
       marginTop: grouped ? 0 : 2,
     }}>
       {!isMine && (
@@ -1396,6 +1406,18 @@ function MessageBubble({ message, isMine, grouped = false, endsBurst = true, spe
           this" — no background, no border, no padding, no tail. It keeps its
           side, its avatar, its place in the order and its timestamp, because
           it is still a message in every respect except how it looks. */}
+      {/* ══ THE MESSAGE FRAME — the canonical anchor ══════════════════
+          Every kind renders inside this, and the Yes badge is positioned
+          against IT rather than against the bubble. The bubble is not one
+          shape — KIND_SHAPE gives text, voice and bare Hands different padding,
+          different minimums and, for bare, no box at all — so anchoring to the
+          bubble meant inheriting each kind's geometry. The frame shrink-wraps
+          whatever it holds and carries the max-width, so its box is the
+          message's outer box by definition.
+
+          A NEW KIND NEEDS NO POSITIONING CODE. It is rendered inside the frame
+          like every other kind and the badge already knows where to go. */}
+      <div className="yp-msg-frame">
       <div
         className={shape?.className}
         // DOUBLE-TAP TO YES. React's onDoubleClick covers mouse and touch, and
@@ -1407,14 +1429,14 @@ function MessageBubble({ message, isMine, grouped = false, endsBurst = true, spe
         // would flash a highlight across the message every time.
         onMouseDown={e => { if (e.detail > 1) e.preventDefault(); }}
         style={bare ? {
-          maxWidth: '76%', position: 'relative',
+          minWidth: 0, position: 'relative',
           // The mark supplies its own presence; padding here would only push
           // the timestamp away from it.
           padding: 0,
           background: 'none',
           border: 'none',
         } : {
-        maxWidth: '76%', position: 'relative',
+        minWidth: 0, position: 'relative',
         borderRadius: isMine
           ? `${radius}px ${radius}px ${corner}px ${radius}px`
           : `${radius}px ${radius}px ${radius}px ${corner}px`,
@@ -1506,63 +1528,31 @@ function MessageBubble({ message, isMine, grouped = false, endsBurst = true, spe
           </button>
         )}
 
-        {/* THE YES, WHERE INSTAGRAM PUTS THE HEART.
-            Overhangs the bubble's bottom corner so it reads as attached to the
-            message rather than as part of what was said. Negative margins keep
-            it out of the layout entirely, so a message does not change height
-            when it gains one — otherwise the thread would jump under the
-            reader's thumb at the moment they react. */}
-        {handed && (
-          <span
-            role="img"
-            aria-label="You said Yes to this"
-            className={`yp-yes-mark${isMine ? ' yp-yes-mark--mine' : ''}`}
-            style={{
-              position: 'absolute',
-              // Hangs mostly BELOW the bubble rather than across it. The
-              // timestamp is now permanently at the bubble's bottom-right, so a
-              // reaction centred on that corner would sit on top of the time.
-              // At -16 with a 27px mark it reaches ~11px into the bubble —
-              // under the text, not over it.
-              // ⚠ ALWAYS THE LEFT, both directions. This used to be the INNER
-              // edge — left when sent, right when received — which read well
-              // until the bottom-right corner acquired permanent tenants.
-              //
-              // The timestamp lives there now, and since M10a the EQ receipt
-              // sits beside it. A reaction on the right landed on both. Voiceys
-              // are worse again: they draw their own clock on their own line, so
-              // the collision moved with them.
-              //
-              // The left corner has nothing in it in either direction, so one
-              // rule covers every kind and every direction — and a Yes always
-              // appears in the same place, which is easier to read down a thread
-              // than a mark that switches sides with the speaker.
-              //
-              // ⚠ THE OFFSET ITSELF IS IN index.css (`.yp-yes-mark`), because it
-              // differs by direction and had to be measurable. On a SENT bubble
-              // the EQ receipt sits beside the clock, which pushes the clock
-              // ~7px further left than on a received one — far enough that the
-              // mark clipped it on short messages. Reported 2026-07-22.
-              display: 'flex',
-              color: 'var(--yp-hand-ink)',   // shared with the composer's Hand
-              // FREE FLOATING — no chip, no circle, no border. The mark sits on
-              // the thread exactly as the standalone acknowledgement does: this
-              // app's language is that the mark needs no container, and a badge
-              // would have made the reaction the one place it wore one.
-              //
-              // drop-shadow, not box-shadow: the element is a masked rectangle,
-              // so box-shadow would draw the shadow of a SQUARE around a hand.
-              // filter follows the mask's alpha, so the shadow is hand-shaped —
-              // which is what separates it from the bubble it overhangs.
-              filter: 'drop-shadow(0 1px 3px rgba(0,0,0,.75))',
-              animation: 'ypYes .32s cubic-bezier(.2,1.5,.4,1)',
-              pointerEvents: 'none',
-            }}
-          >
-            <HandIcon size={27} />
-          </span>
-        )}
-      </div>
+      </div>{/* bubble */}
+
+      {/* THE YES, WHERE INSTAGRAM PUTS THE HEART.
+
+          A BADGE PINNED TO THE FRAME, not a mark floating near the message.
+          It is a sibling of the bubble inside the frame and is anchored to the
+          FRAME, so its placement is identical for text, voice, a bare Hand and
+          every kind not yet written — none of which contain a single line of
+          positioning code for it.
+
+          Every offset lives in index.css as one set of custom properties. The
+          overlap is 5px on both axes, which is narrower than any kind's
+          padding, so the badge cannot reach text, the clock, the EQ receipt or
+          a Voicey's play button whatever that kind chooses for its box.
+
+          Out of flow, and the space it needs is reserved unconditionally by the
+          row and the frame — so a message does not change size when it gains
+          one, and the thread does not jump under the reader's thumb at the
+          moment they react. */}
+      {handed && (
+        <span role="img" aria-label="You said Yes to this" className="yp-yes-badge">
+          <HandIcon size={YES_SIZE} />
+        </span>
+      )}
+      </div>{/* frame */}
     </div>
   );
 }

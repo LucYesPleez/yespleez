@@ -756,50 +756,88 @@ input, textarea, select {
    under 252px, and an inline minimum cannot be told to yield. */
 .yp-voice-player { min-width: 252px; }
 
-/* ── THE YES MARK'S CORNER ──────────────────────────────────────────
-   Hangs off the bubble's bottom-LEFT in both directions — the bottom-right has
-   permanent tenants (the clock, and since M10a the EQ receipt), and one rule for
-   every kind and direction is easier to read down a thread than a mark that
-   switches sides with the speaker.
+/* ══ THE MESSAGE FRAME — ONE LAYOUT CONTRACT FOR EVERY KIND ══════════
 
-   `bottom: -16` with a 27px mark reaches ~11px up into the bubble: under the
-   text, not over it. Out of flow entirely, so a message does not change size
-   when it gains one — the thread must not jump under the reader's thumb at the
-   moment they react. */
-.yp-yes-mark {
-  bottom: -16px;
-  left: -8px;
+   Every message in the thread renders its bubble inside a frame, whatever the
+   kind. The frame is the ANCHOR: the Yes badge is positioned against it and
+   against nothing else, so a new message type inherits the behaviour by being
+   rendered at all rather than by declaring any positioning of its own.
+
+   ── WHY THE FRAME AND NOT THE BUBBLE ────────────────────────────────
+
+   The badge used to anchor to the bubble, and the bubble is not one shape. It
+   is assembled per kind from KIND_SHAPE — text is 12/16 padding sized to its
+   text, a Voicey is 15/17 with a 76px floor, a bare Hand has no padding, no
+   background and no border at all. Anchoring to that meant inheriting every
+   kind's geometry decisions, and the badge landed somewhere different for each.
+
+   The frame is identical for all of them. It shrink-wraps whatever it contains
+   and carries the max-width, so its box is the message's outer box by
+   definition — semantic, not a measurement of any particular kind's rendering.
+
+   ── THE GUTTER IS RESERVED, NOT DECORATIVE ──────────────────────────
+
+   The badge dips --yp-yes-drop below the frame. The row reserves exactly that
+   much padding underneath, taken back out of the row's margin so the thread's
+   rhythm is unchanged. That reservation is the whole reason the badge can no
+   longer be covered by the message below: it never leaves its own row, so
+   nothing about a neighbour's paint order can reach it. No z-index between
+   rows, no dependence on a Voicey's backdrop-filter.
+
+   ── THE LEFT GUTTER IS RESERVED TOO ─────────────────────────────────
+
+   The badge hangs LEFT of the frame in both directions. On a received message
+   that space belongs to the avatar, so the frame reserves it with a margin —
+   the same margin in both directions, which is what keeps this ONE rule rather
+   than two. Sent messages simply have the space to give.
+*/
+
+:root {
+  /* The badge's own size. Matches HandIcon's size prop in ConversationView. */
+  --yp-yes-size: 27px;
+  /* How far the badge intrudes INTO the frame. Owner: 4-6px — a badge pinned to
+     the corner, not an icon sitting beside it. The overlap is only this wide, so
+     it falls inside the bubble's own padding and can never reach text, the clock
+     or a Voicey's play button, whatever the kind's padding happens to be. */
+  --yp-yes-overlap: 5px;
+  /* How far the badge drops below the frame. The row reserves exactly this. */
+  --yp-yes-drop: 6px;
+  /* What the frame must reserve to its left so the badge has somewhere to go. */
+  --yp-yes-gutter: calc(var(--yp-yes-size) - var(--yp-yes-overlap));
 }
 
-/* ⚠ SENT BUBBLES NEED MORE CLEARANCE, and the reason is the EQ receipt.
-   Its bottom row is `clock + gap + glyph` where a received bubble's is just the
-   clock, so the clock starts ~7px further left. On a SHORT message the bubble
-   shrinks to fit that row and the clock lands at 13px from the left edge, while
-   the mark reached 19px — clipping it. Measured on a 412px handset,
-   reported 2026-07-22.
+.yp-msg-frame {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  max-width: 76%;
+  /* Room for the badge, reserved on EVERY message — not only handed ones, or
+     the thread would reflow under the reader's thumb at the moment they react. */
+  margin-left: var(--yp-yes-gutter);
+}
 
-   -18 puts the mark's right edge at 9px against the clock's 13px floor — 4px of
-   air rather than the 2px that -16 gave, which cleared but read as touching.
-
-   ⚠ THAT 13px FLOOR IS THE BUBBLE'S OWN LEFT PADDING, not a font measurement.
-   On a short message the bubble shrinks to fit the timestamp row, so the row
-   fills the content box and the clock starts exactly at the padding edge — which
-   means this clearance does NOT depend on how Android renders "07:03". Change
-   the bubble's horizontal padding and this needs revisiting; change the font and
-   it does not.
-
-   ⚠ RECEIVED KEEPS -8 DELIBERATELY. Its bubble is preceded by a 26px avatar and
-   an 8px gap, and the mark hangs below into exactly that corner — pushing it
-   further left would put it on top of the avatar instead of the clock, which is
-   trading one collision for another.
-
-   ⚠ PHONE ONLY. At -18 on desktop the owner called it "way too far" — the mark
-   reads as detached from the bubble rather than hanging off its corner. Desktop
-   keeps -8 and has never been reported clipping there, so the shift is scoped to
-   the viewport that needs it. If the clip ever does appear on a narrow desktop
-   window, widen this query rather than moving the base value. */
-@media (max-width: 640px) {
-  .yp-yes-mark--mine { left: -18px; }
+.yp-yes-badge {
+  position: absolute;
+  /* ONE anchor: the frame's bottom-left corner, overlapping inward by exactly
+     --yp-yes-overlap on both axes. No per-kind and no per-direction values. */
+  left: calc(-1 * var(--yp-yes-gutter));
+  bottom: calc(-1 * var(--yp-yes-drop));
+  width: var(--yp-yes-size);
+  height: var(--yp-yes-size);
+  display: flex;
+  color: var(--yp-hand-ink);
+  pointer-events: none;
+  /* drop-shadow, not box-shadow: the element is a masked rectangle, so
+     box-shadow would draw the shadow of a SQUARE around a hand. filter follows
+     the mask's alpha, so the shadow is hand-shaped. */
+  filter: drop-shadow(0 1px 3px rgba(0,0,0,.75));
+  animation: ypYes .32s cubic-bezier(.2,1.5,.4,1);
+  /* ⚠ ONE z-index, and it settles a SIBLING order inside this frame only.
+     The badge and the bubble are siblings here, so this cannot be defeated by
+     any kind's stacking context and cannot be influenced by another row. It is
+     needed because a Voicey's backdrop-filter makes its bubble a stacking
+     context, which would otherwise paint over the 5px the badge overlaps. */
+  z-index: 1;
 }
 
 /* ── THE PLAY BUTTON'S TAP TARGET ───────────────────────────────────
