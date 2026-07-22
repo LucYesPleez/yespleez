@@ -39,6 +39,8 @@
 export { KINDS, LABELS, isKind, isBareKind, BARE_KINDS, canReceiveHand, UNHANDABLE_KINDS, shapeFor, KIND_SHAPE, materialFor, KIND_MATERIAL } from './messageKindList';
 import { KINDS, LABELS, handScale, HAND_SCALE_MIN } from './messageKindList';
 import VoiceMessage from '../components/VoiceMessage';
+import ImageMessage from '../components/ImageMessage';
+import FileMessage from '../components/FileMessage';
 import HandIcon from '../components/HandIcon';
 
 /** Text is the only kind with a renderer today. Everything else falls back. */
@@ -76,9 +78,10 @@ function renderFallback(message, kind) {
 
 
 /**
- * kind → renderer. text and voice are implemented; the rest resolve to the
- * fallback until they have one. Registered deliberately rather than left
- * absent, so this file is the complete picture of what exists and what does not.
+ * kind → renderer. text, voice, hand and image are implemented; the rest
+ * resolve to the fallback until they have one. Registered deliberately rather
+ * than left absent, so this file is the complete picture of what exists and
+ * what does not.
  *
  * Voice was the first kind added after this registry existed, and it cost one
  * import and one line here. That was the entire point of building the registry
@@ -96,6 +99,14 @@ const RENDERERS = {
   // BARE_KINDS — so MessageBubble draws no container around this and the mark
   // stands alone in the thread.
   hand:  message => <HandMessage message={message} />,
+  // M11. Takes no `extras`: unlike a Voicey it does NOT claim its own timestamp
+  // line, so the bubble draws the usual clock and receipt row beneath the
+  // picture. A photo has no duration to put there, which was the whole reason
+  // voice needed the line to itself.
+  image: message => <ImageMessage message={message} />,
+  // M12. A row, not a preview — rendering someone else's document inside the
+  // thread is the one thing this kind must not do. See `FileMessage`.
+  file:  message => <FileMessage message={message} />,
 };
 
 /**

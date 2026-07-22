@@ -7,6 +7,8 @@ import {
   markConversationDelivered, conversationReceipts, receiptChannelName,
 } from '../lib/messaging';
 import { sendVoiceNote, VOICE_FALLBACK_BODY } from '../lib/voiceNotes';
+import { sendImage, sendOriginalOnly, prepareImage, IMAGE_FALLBACK_BODY } from '../lib/messageImages';
+import { sendFile, bodyForFile, safeName, MAX_BYTES, formatBytes } from '../lib/messageFiles';
 import { computeWave } from '../lib/voiceWave';
 import { sendHand, HAND_BODY } from '../lib/hands';
 import { listHands, toggleHand } from '../lib/messageState';
@@ -819,6 +821,54 @@ export default function ConversationView({ conversationId, compact = false, onMi
       return;
     }
 
+    if (retry.type === 'image-original') {
+      await trySend({
+        body: retry.file.name || IMAGE_FALLBACK_BODY, kind: 'image', retry,
+        payload: { name: retry.file.name, pendingBytes: retry.file.size },
+        attempt: () => sendOriginalOnly({
+          conversationId, fromProfileId: senderProfile, file: retry.file,
+        }),
+      });
+      return;
+    }
+
+    if (retry.type === 'image') {
+      // A FRESH object url, and the old one released — the same reasoning as
+      // voice above. Reusing it would tie the new placeholder's lifetime to the
+      // discarded one's, and settling the retry would revoke a url a second
+      // retry still needed.
+      revokePendingUrl(message);
+      await trySend({
+        body: IMAGE_FALLBACK_BODY, kind: 'image', retry,
+        payload: {
+          localUrl: URL.createObjectURL(retry.image.blob),
+          width:    retry.image.width,
+          height:   retry.image.height,
+        },
+        attempt: () => sendImage({
+          conversationId,
+          fromProfileId: senderProfile,
+          image: retry.image,   // prepared once at pick time; a retry never re-encodes
+          // ⚠ CARRIED THROUGH THE RETRY. Without these a failed HD send would
+          // quietly come back as an ordinary photo, and the sender would have
+          // no way to know the original they asked to keep was not kept.
+          preserveOriginal: retry.preserveOriginal,
+        }),
+      });
+      return;
+    }
+
+    if (retry.type === 'file') {
+      // The original File is re-uploaded. No object url to revoke and nothing
+      // to re-prepare — a document has no local representation to keep alive.
+      await trySend({
+        body: bodyForFile(retry.file.name), kind: 'file', retry,
+        payload: { name: safeName(retry.file.name), bytes: retry.file.size, mime: retry.file.type || null, ...(retry.hd && { hd: true }) },
+        attempt: () => sendFile({ conversationId, fromProfileId: senderProfile, file: retry.file, hd: retry.hd }),
+      });
+      return;
+    }
+
     if (retry.type === 'hand') {
       await trySend({
         body: message.body, kind: message.kind, retry,
@@ -953,6 +1003,134 @@ export default function ConversationView({ conversationId, compact = false, onMi
     // show "Sent" for a message that never left. What has changed is that the
     // recording no longer dies with it — it is on screen, playable, retryable.
     if (!ok) throw sendError;
+  }
+
+  /**
+   * A photo, from the camera or the library (M11).
+   *
+   * The same shape as `onRecordedVoice`, and for the same reason: prepare the
+   * heavy artefact BEFORE the placeholder so the pending bubble is the real
+   * picture at the real aspect ratio, then hand the identical prepared image to
+   * every attempt so a retry never re-encodes.
+   *
+   * ⚠ PREPARATION CAN FAIL, AND THAT IS NOT A SEND FAILURE. An undecodable
+   * file — a HEIC straight off an iPhone is the realistic case — must surface
+   * as a notice and leave the thread untouched. Routing it through `trySend`
+   * would put a red retryable bubble in the conversation for a file that will
+   * fail identically every time it is retried.
+   */
+  /**
+   * A photo, from the camera or either of the two image rows.
+   *
+   * ⚠ THE HD DECISION ARRIVES WITH THE FILE, not after it. It is made by which
+   * menu row was tapped, so there is nothing to confirm and the photo sends
+   * immediately — the same as it did before M13. A confirmation step existed
+   * briefly and was removed: it charged every ordinary photo an extra tap to
+   * serve the few that want an original kept.
+   *
+   * The window is `DEFAULT_WINDOW` (72h) because the row that chose HD is the
+   * only place a duration could have been picked, and putting four durations in
+   * the menu would make the common choice harder to hit than the rare one.
+   */
+  async function onPickImage(file, { preserveOriginal = false } = {}) {
+    if (!senderProfile || sending) return;
+
+    const { image, error: prepError, undecodable } = await prepareImage(file);
+
+    // ⚠ A RAW OR TIFF IS THE POINT OF HD, NOT A FAILURE OF IT. No browser can
+    // decode either, so there is no optimised copy and no thumbnail — but the
+    // original is exactly what a photographer meant to send. It goes up on its
+    // own and the bubble draws a card instead of a picture.
+    //
+    // Only when preservation was asked for. An ordinary image send has nothing
+    // left to show and nothing to store, so it still reports the problem.
+    if (undecodable && preserveOriginal) {
+      await sendUndecodableOriginal(file);
+      return;
+    }
+    if (prepError) { setError(prepError.message); return; }
+
+    // A local url so the pending bubble is the actual photo rather than a grey
+    // box, with the dimensions measured during preparation — so the picture
+    // looks identical before and after it lands and settling is invisible.
+    const localUrl = URL.createObjectURL(image.blob);
+
+    await trySend({
+      body: IMAGE_FALLBACK_BODY,
+      kind: 'image',
+      // The PREPARED image is kept, not the original File. A retry re-uploads
+      // the same bytes rather than decoding, rotating and re-encoding the
+      // photograph again for an identical result — and it carries the
+      // preservation choice, so retrying an HD send is still an HD send.
+      retry: { type: 'image', image, preserveOriginal },
+      payload: { localUrl, width: image.width, height: image.height },
+      attempt: () => sendImage({
+        conversationId,
+        fromProfileId: senderProfile,
+        image,
+        preserveOriginal,
+        // No `window` argument: `sendImage` defaults to DEFAULT_WINDOW, and
+        // passing undefined here rather than a literal keeps the default in one
+        // place instead of two that can drift.
+      }),
+    });
+  }
+
+  /**
+   * A RAW, a TIFF — an original with nothing viewable to go with it.
+   *
+   * The placeholder carries the filename and size rather than a picture,
+   * because that is also what the settled message will show: there is no local
+   * preview to make, so nothing changes shape when it lands.
+   */
+  async function sendUndecodableOriginal(file) {
+    await trySend({
+      body: file.name || IMAGE_FALLBACK_BODY,
+      kind: 'image',
+      retry: { type: 'image-original', file },
+      // No `localUrl` and no dimensions: an undecodable file has neither, and
+      // inventing a box for it would reserve space for a picture that never
+      // arrives.
+      payload: { name: file.name, pendingBytes: file.size },
+      attempt: () => sendOriginalOnly({
+        conversationId,
+        fromProfileId: senderProfile,
+        file,
+      }),
+    });
+  }
+
+  /**
+   * A document (M12).
+   *
+   * Simpler than a photo, because there is nothing to prepare: the bytes the
+   * user picked are the bytes that get stored. So there is no expensive step to
+   * do before the placeholder, and the File itself is what a retry re-uploads.
+   *
+   * ⚠ THE SIZE IS CHECKED HERE AS WELL AS IN THE LIB AND THE BUCKET. Not
+   * belt-and-braces: this is the only one of the three that can refuse a 40 MB
+   * file WITHOUT first putting a red bubble in the thread. A file over the limit
+   * fails identically on every retry, so it must never become a retryable
+   * message.
+   */
+  async function onPickFile(file, { hd = false } = {}) {
+    if (!senderProfile || sending || !file) return;
+
+    if (file.size > MAX_BYTES) {
+      setError(`That file is ${formatBytes(file.size)}. The limit is ${formatBytes(MAX_BYTES)}.`);
+      return;
+    }
+
+    await trySend({
+      body: bodyForFile(file.name),
+      kind: 'file',
+      retry: { type: 'file', file, hd },
+      // No `localUrl`: unlike a photo there is nothing to show before it lands.
+      // The row renders from name and size alone, both known immediately, so
+      // the placeholder is already the finished shape.
+      payload: { name: safeName(file.name), bytes: file.size, mime: file.type || null, ...(hd && { hd: true }) },
+      attempt: () => sendFile({ conversationId, fromProfileId: senderProfile, file, hd }),
+    });
   }
 
   const title       = others.map(o => o.profiles?.name).filter(Boolean).join(', ') || 'Conversation';
@@ -1096,11 +1274,16 @@ export default function ConversationView({ conversationId, compact = false, onMi
             so these are visibly disabled rather than wired to nothing — the
             same treatment QR and Info were given. A dead control that looks
             live is worse than one that admits it is not ready. */}
-        <button type="button" disabled aria-label="Call — not available yet" title="Calling is not available yet" style={{ ...ghostBtn, opacity: .32, cursor: 'not-allowed' }}>
-          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z" />
-          </svg>
-        </button>
+        {/* ⛔ THE CALL BUTTON IS GONE, NOT DISABLED (2026-07-22, owner).
+
+            A disabled control is a PROMISE — it says "this is coming" and holds
+            its place for it. Calling is not designed: it does not appear in
+            `communication-v1.0.md` at all, there is no call model, no signalling,
+            and no decision on which profile a call would be placed as. Showing
+            it in the header advertised something nobody has specified.
+
+            Restoring it costs nothing — this row is a flex line of ghost
+            buttons, so putting one back is putting one back. */}
 
         <button type="button" disabled aria-label="More — not available yet" title="No conversation actions yet" style={{ ...ghostBtn, opacity: .32, cursor: 'not-allowed' }}>
           <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor">
@@ -1294,6 +1477,8 @@ export default function ConversationView({ conversationId, compact = false, onMi
         onDraftChange={onDraftChange}
         onSubmit={onSend}
         onRecorded={onRecordedVoice}
+        onPickImage={onPickImage}
+        onPickFile={onPickFile}
         onSendHand={onSendHand}
         onNotice={setError}
         sending={sending}

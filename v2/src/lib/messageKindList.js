@@ -151,6 +151,41 @@ export const KIND_SHAPE = {
     // the playhead.
     className: 'yp-voice-bubble',
   },
+
+  /**
+   * A photo (M11). Almost no chrome: the picture is the message, and a wide
+   * mount around it reads as a frame someone put the photo in.
+   *
+   * ⚠ NOT `padding: 0`. 4px keeps the bubble's own edge visible as a hairline
+   * around the picture, which is what still ties it to its sender — at zero the
+   * photo becomes a bare rectangle and the sent/received material stops being
+   * readable at all. It is the smallest padding that leaves the material doing
+   * its job.
+   *
+   * `ownsTimestamp` is deliberately ABSENT, unlike voice. A Voicey claims the
+   * line because it already draws a duration there and two timings stacked
+   * would contradict each other. A photo draws no time of its own, so the
+   * bubble's ordinary clock-and-receipt row is exactly right.
+   */
+  image: {
+    radius: 20,
+    padding: 4,
+    tail: false,
+  },
+
+  /**
+   * A document (M12). Keeps the tail and ordinary bubble corners — unlike a
+   * photo or a Voicey it IS a thing someone said, and it sits in the thread as
+   * a message rather than as an object.
+   *
+   * Padding is tightened to 5 because the row inside already draws its own
+   * inset around the icon and name; the bubble's usual 12/16 on top of that
+   * left the attachment floating in the middle of a much larger box.
+   */
+  file: {
+    radius: 18,
+    padding: 5,
+  },
 };
 
 /** Geometry overrides for this kind, or null for a standard bubble. */

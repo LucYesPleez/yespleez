@@ -641,6 +641,207 @@ input, textarea, select {
   color: rgba(255,255,255,.32);
 }
 
+/* ═══ THE HD CHIP (M13) ═══════════════════════════════════════════════
+
+   A preserved original exists. It has to read as a CERTIFICATION — the little
+   metallic plate on the back of good hardware — rather than as a button or a
+   status pill, because it is neither: nothing happens when you look at it, it
+   is a claim about quality.
+
+   ── HOW THE METAL IS MADE ────────────────────────────────────────────
+
+   Four things, and all four are needed. Any one alone reads as "yellow".
+
+     1 · a NON-LINEAR gradient. Real metal does not ramp evenly from dark to
+         light: it has a bright band where the surface turns through the light.
+         The stops bunch around 42-58% to put that band just above centre.
+     2 · a BEVEL, as two inset shadows — white along the top edge, brown along
+         the bottom. This is what makes it sit proud of the surface rather than
+         being painted on it.
+     3 · BLACK lettering. Gold text on gold is illegible; black on champagne is
+         what the real plates do, and it is what makes it read as stamped.
+     4 · a hairline border darker than the fill, so the chip has an EDGE. Without
+         it the gradient dissolves into whatever is behind it.
+
+   ⚠ IT MUST STAY SMALL. Sized to the timestamp beside it — this is a footnote
+   on the message, not a feature of it. Growing it is the fastest way to make a
+   premium mark look like an advertisement. */
+.yp-hd-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  padding: 0 6px;
+  height: 15px;
+  border-radius: 999px;
+  /* Champagne, not yellow-gold: it has to sit on a dark violet UI without
+     shouting, and yellow at this size reads as a warning badge. */
+  background: linear-gradient(
+    168deg,
+    #6E5A32 0%,
+    #C9A961 22%,
+    #F5E6BE 46%,     /* the light band, just above centre */
+    #E8D5A0 58%,
+    #A88746 82%,
+    #6E5A32 100%
+  );
+  border: 1px solid rgba(72,56,26,.62);
+  box-shadow:
+    inset 0 1px 0 rgba(255,252,240,.72),     /* top bevel — the lit edge */
+    inset 0 -1px 0 rgba(78,58,24,.55),       /* bottom bevel — the shadowed one */
+    0 1px 2px rgba(0,0,0,.45);               /* the chip's own drop, barely there */
+  color: #14100A;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .09em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+}
+
+/* Sitting ON a photo rather than in a text row: the picture behind it is
+   arbitrary, so the chip needs its own separation from it. */
+.yp-hd-chip-onphoto {
+  box-shadow:
+    inset 0 1px 0 rgba(255,252,240,.72),
+    inset 0 -1px 0 rgba(78,58,24,.55),
+    0 1px 3px rgba(0,0,0,.75),
+    0 0 0 1px rgba(0,0,0,.28);
+}
+
+/* Expired: the original is gone, and the chip says so by losing its metal.
+   Kept rather than removed so the message still records that an HD version
+   once existed — the photo did not change, its availability did. */
+.yp-hd-chip-spent {
+  background: rgba(255,255,255,.09);
+  border-color: rgba(255,255,255,.14);
+  box-shadow: none;
+  color: rgba(255,255,255,.42);
+}
+
+/* A PHOTO'S BOX BEFORE THE PIXELS LAND (M11).
+
+   The box is already the picture's exact aspect ratio — the payload carries the
+   dimensions — so this only has to say "coming", never reserve space. Opacity
+   only: the element is sized by its parent, and animating anything geometric
+   here would move a box the thread has already laid out around. */
+.yp-img-loading {
+  background: rgba(255,255,255,.05);
+  animation: ypImgWait 1.5s ease-in-out infinite;
+}
+@keyframes ypImgWait {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: .45; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .yp-img-loading { animation: none; }
+}
+
+/* THE CAMERA — A MARK, AND NOTHING ELSE.
+
+   No fill, no border, no ring, no shadow. It went through the capsule's glass
+   (a second capsule beside the capsule) and the play button's smoked disc (a
+   second play button beside the thread) before landing here. Both failed the
+   same way: the row already has one surface, and the camera is not on it.
+
+   THE COLOUR IS A TINTED WHITE, NOT THE BRAND PURPLE — and that is a decision,
+   not a default. It was `#BF5FFF` while the mark was small and needed the
+   pigment to hold its position. At 32 it does not: the drawing itself is now
+   the largest single glyph in the row, and a saturated purple camera at that
+   size competes with Send, which is the ONE control here that should ever be
+   loud. Same reasoning that makes the Hand a ring instead of a fill.
+
+   So it keeps a violet cast — enough to belong to the palette — with the
+   saturation taken out, and sits below the live controls in weight. Brand
+   colour in this row means "this is the act", and the camera is not the act.
+
+   ⚠ THE TAP TARGET IS NOT THE MARK. The `<button>` keeps its full 40px box; only
+   the paint is gone. Do not shrink the element to the glyph — on a phone that
+   trades a comfortable target for a purely visual tidy-up.
+
+   ⚠ IT IS A `<label>`, NOT A `<button>` — a file picker only opens from a real
+   gesture on an `<input type="file">`. So `.yp-ctl`'s button assumptions are
+   restated here rather than inherited, and `:disabled` does not apply to a
+   label: the unavailable state is the explicit `.yp-ctl-camera-off` below. */
+.yp-ctl-camera {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  position: relative;         /* anchors the visually-hidden file input */
+  /* Violet-cast white. The hue is the brand's; the saturation is not. */
+  color: rgba(223,211,255,.66);
+}
+
+/* Unavailable — while a recording is open, or in a thread that cannot be
+   written to. Dimmed rather than removed: the camera keeps its place in the
+   row, so nothing shifts sideways when it comes back. */
+.yp-ctl-camera-off {
+  color: rgba(255,255,255,.22);
+}
+
+/* THE ATTACH MENU (M12) — what the + opens.
+
+   The composer's capsule material, at a firmer alpha. It is a panel rather than
+   a control, so it has to be readable over whatever photograph the wallpaper is
+   showing, where the capsule's .09 would leave text sitting on the image. */
+.yp-attach-menu {
+  background:
+    linear-gradient(180deg, rgba(28,26,36,.96) 0%, rgba(18,17,24,.97) 100%);
+  border: 1px solid rgba(255,255,255,.13);
+  backdrop-filter: blur(22px) saturate(140%);
+  -webkit-backdrop-filter: blur(22px) saturate(140%);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.09),
+    0 18px 44px -18px rgba(0,0,0,.95);
+  animation: ypAttachIn .16s var(--yp-ease);
+}
+
+/* A row is a <label> wrapping a hidden input — a file picker only opens from a
+   real gesture on the input, never from script. Same construction as the
+   camera. */
+.yp-attach-row {
+  position: relative;              /* anchors the visually-hidden input */
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  font-size: 14px;
+  color: var(--text);
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+@media (hover: hover) {
+  .yp-attach-row:hover { background: rgba(255,255,255,.07); }
+}
+.yp-attach-row:active { background: rgba(255,255,255,.11); }
+
+/* Rises out of the + rather than fading in place, so it reads as coming FROM
+   the control that opened it. */
+@keyframes ypAttachIn {
+  from { opacity: 0; transform: translateY(6px) scale(.97); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* The + while its menu is open: THE MARK GOES CYAN, and nothing else moves.
+
+   ⚠ NO BACKGROUND AND NO BORDER HERE, DELIBERATELY. Lighting the whole button
+   made the open state read as a second surface appearing in a row that already
+   has one — and inside the capsule, a filled control competes with Send, which
+   is the only thing in this composer that should ever be solid.
+
+   Cyan because it is the composer's own open/live accent: the same value the
+   capsule's edge takes while recording. The glyph alone carries it, so the
+   state is unmistakable and the row's geometry is untouched. */
+.yp-ctl-attach-on {
+  color: #00E5FF;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .yp-attach-menu { animation: none; }
+}
+
 .yp-ctl-danger {
   background: rgba(255,59,92,.12);
   border-color: rgba(255,59,92,.35);

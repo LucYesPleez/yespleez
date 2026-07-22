@@ -1,0 +1,483 @@
+import { useState, useEffect, useRef } from 'react';
+import {
+  signedUrlFor, downloadOriginalUrl,
+  hasExpired, formatRemaining, formatBytes,
+} from '../lib/messageImages';
+
+/**
+ * A PHOTO IN THE THREAD (M11, extended by M13).
+ *
+ * Built on `VoiceMessage`'s model, because a photo has the same two-source
+ * problem: a sent one lives in a private bucket and needs a signed url, and one
+ * still in flight — or one that failed — exists only as a blob in this tab.
+ *
+ * ── THREE SIZES, AND EACH IS USED IN EXACTLY ONE PLACE ───────────────
+ *
+ *   thumbnail (720)  the bubble. Small, because a bubble is at most 76% of a
+ *                    phone and never needs more.
+ *   optimised (2560) the full-screen viewer, and the bubble's FALLBACK for any
+ *                    photo sent before M13 — those have no thumbnail and never
+ *                    will, exactly as a pre-v2 Voicey keeps its old waveform.
+ *   original         never displayed. Download only, and only while its window
+ *                    is open.
+ *
+ * ── THE BOX IS RESERVED BEFORE THE PIXELS ARRIVE ─────────────────────
+ *
+ * `width` and `height` are stored in the payload at send time, so this renders
+ * at the correct aspect ratio immediately and the picture fades into a box that
+ * was already the right shape. Without them the bubble would be zero-high until
+ * the image decoded and then shove the whole conversation down.
+ */
+
+/** How wide a photo is allowed to draw, in the frame it is given. */
+const MAX_H = 320;
+
+/**
+ * How long a press has to last to mean "open this".
+ *
+ * ⚠ THIS NUMBER IS WHAT KEEPS TWO GESTURES APART. The bubble gives a Yes on
+ * double-tap, and a double-tap is two presses of maybe 80ms each — an order of
+ * magnitude under this, so the hold timer is cancelled by the first release and
+ * the two can never be confused.
+ */
+const HOLD_MS = 450;
+
+/** How far a finger may drift and still count as a press, not a scroll. */
+const HOLD_SLOP_PX = 10;
+
+/**
+ * How often the countdown redraws.
+ *
+ * 30s, not 1s. The window is measured in days and the smallest unit ever shown
+ * is a minute, so a per-second tick would re-render every open viewer sixty
+ * times for each visible change.
+ */
+const TICK_MS = 30_000;
+
+export default function ImageMessage({ message }) {
+  const path     = message?.payload?.path ?? null;
+  const localUrl = message?.payload?.localUrl ?? null;
+  const width    = Number(message?.payload?.width  ?? 0);
+  const height   = Number(message?.payload?.height ?? 0);
+  const original = message?.payload?.original ?? null;
+
+  // ⚠ FALLS BACK TO THE OPTIMISED PATH, PERMANENTLY. Photos sent before M13
+  // carry no thumbnail and cannot acquire one — variants are produced once, at
+  // send time. This branch is the permanent shape of the code.
+  const thumbPath = message?.payload?.thumb_path ?? path;
+
+  const [url,     setUrl]     = useState(localUrl);   // the bubble's picture
+  const [fullUrl, setFullUrl] = useState(localUrl);   // the viewer's
+  const [error,   setError]   = useState(null);
+  const [open,    setOpen]    = useState(false);
+
+  const holdRef = useRef({ timer: null, x: 0, y: 0 });
+
+  function cancelHold() {
+    clearTimeout(holdRef.current.timer);
+    holdRef.current.timer = null;
+  }
+
+  function startHold(e) {
+    if (!url || error) return;
+    // Secondary buttons and multi-touch are not a press. Two fingers on a photo
+    // is someone starting a pinch, and beginning a hold under it would open the
+    // viewer out from under the gesture.
+    if (e.button > 0 || e.pointerType === 'touch' && !e.isPrimary) return;
+
+    holdRef.current.x = e.clientX;
+    holdRef.current.y = e.clientY;
+    cancelHold();
+    holdRef.current.timer = setTimeout(() => setOpen(true), HOLD_MS);
+  }
+
+  // A finger that travels is scrolling the thread, not pressing the photo.
+  function maybeCancelOnMove(e) {
+    if (!holdRef.current.timer) return;
+    if (Math.abs(e.clientX - holdRef.current.x) > HOLD_SLOP_PX
+     || Math.abs(e.clientY - holdRef.current.y) > HOLD_SLOP_PX) cancelHold();
+  }
+
+  useEffect(() => cancelHold, []);
+
+  // The bubble's picture: the thumbnail where one exists.
+  useEffect(() => {
+    if (localUrl) { setUrl(localUrl); return; }
+    if (!thumbPath) return;
+
+    let cancelled = false;
+    (async () => {
+      const { url: signed, error: signError } = await signedUrlFor(thumbPath);
+      if (cancelled) return;
+      if (signError || !signed) { setError('Photo unavailable'); return; }
+      setUrl(signed);
+    })();
+    return () => { cancelled = true; };
+  }, [thumbPath, localUrl]);
+
+  // The viewer's picture, signed only when the viewer is opened. Signing the
+  // 2560 on mount would mean a storage request per photo scrolled past, for a
+  // url that expires in an hour and is usually never used.
+  useEffect(() => {
+    if (!open || fullUrl || !path) return;
+
+    let cancelled = false;
+    (async () => {
+      const { url: signed } = await signedUrlFor(path);
+      if (!cancelled && signed) setFullUrl(signed);
+    })();
+    return () => { cancelled = true; };
+  }, [open, fullUrl, path]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = e => { if (e.key === 'Escape') setOpen(false); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open]);
+
+  // ⚠ NO PICTURE, AND NOTHING IS WRONG. A RAW or a TIFF cannot be decoded by
+  // any browser, so no optimised copy or thumbnail was ever made — but the
+  // original is there, and it is the whole reason the photograph was sent.
+  // Checked BEFORE the unavailable branch below, or the most deliberate HD send
+  // in the app would report itself as broken.
+  if (!path && !localUrl && original) {
+    return <OriginalCard message={message} original={original} />;
+  }
+
+  if (!path && !localUrl) {
+    // Still in flight: an undecodable original draws its card from the pending
+    // payload, so the message does not flicker through an error state on its
+    // way to existing.
+    const pendingName = message?.payload?.name;
+    if (pendingName) {
+      return <OriginalCard message={message} original={null} pendingName={pendingName} />;
+    }
+    return (
+      <div style={{ color: 'var(--muted)', fontSize: 13, fontStyle: 'italic' }}>
+        {message?.body || 'Photo'} — unavailable
+      </div>
+    );
+  }
+
+  const ratio = width > 0 && height > 0 ? `${width} / ${height}` : '4 / 3';
+  const spent = original ? hasExpired(original) : false;
+
+  return (
+    <>
+      {/* ⚠ NO onClick, AND NO stopPropagation. BOTH ARE DELIBERATE.
+          The bubble gives a Yes on double-tap. Tap-to-open broke that twice
+          over: the first tap put the viewer over the photo before the second
+          could land, and stopping propagation kept the double-tap from reaching
+          the bubble at all. Taps belong to the Yes; opening is a HOLD. */}
+      <button
+        type="button"
+        onPointerDown={startHold}
+        onPointerMove={maybeCancelOnMove}
+        onPointerUp={cancelHold}
+        onPointerCancel={cancelHold}
+        onPointerLeave={cancelHold}
+        onKeyDown={e => {
+          if (e.key !== 'Enter' && e.key !== ' ') return;
+          e.preventDefault();
+          if (url && !error) setOpen(true);
+        }}
+        onContextMenu={e => e.preventDefault()}
+        aria-label={error ? 'Photo unavailable' : 'Photo — hold to enlarge'}
+        disabled={!url || Boolean(error)}
+        style={{
+          position: 'relative',
+          display: 'block', width: '100%', padding: 0, border: 'none',
+          background: 'rgba(255,255,255,.04)',
+          borderRadius: 16, overflow: 'hidden',
+          aspectRatio: ratio, maxHeight: MAX_H,
+          cursor: url && !error ? 'zoom-in' : 'default',
+          userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none',
+          touchAction: 'pan-y',
+        }}
+      >
+        {error ? (
+          <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%', color: 'var(--muted)', fontSize: 12.5, fontStyle: 'italic' }}>
+            {error}
+          </span>
+        ) : url ? (
+          <img
+            src={url}
+            alt={message?.body || 'Photo'}
+            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+            onError={() => setError('Photo unavailable')}
+          />
+        ) : (
+          <span className="yp-img-loading" style={{ display: 'block', width: '100%', height: '100%' }} />
+        )}
+
+        {/* The chip, on the photo. Bottom-RIGHT: bottom-left is the Yes badge's
+            corner, and the two must never contend for the same spot. */}
+        {original && !spent && !error && (
+          <span
+            className="yp-hd-chip yp-hd-chip-onphoto"
+            style={{ position: 'absolute', right: 7, bottom: 7 }}
+            aria-label="Original available in higher quality"
+          >
+            HD
+          </span>
+        )}
+      </button>
+
+      {open && (
+        /* ⚠ THE BOTTOM NAV IS SACRED. This stops at `--yp-nav-height` rather
+           than using `inset: 0`. A photo viewer is exactly the kind of overlay
+           that reaches for full-screen by reflex — it must not. */
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Photo"
+          style={{
+            position: 'fixed', top: 0, left: 0, right: 0,
+            bottom: 'var(--yp-nav-height)',
+            background: 'rgba(6,6,10,.94)',
+            backdropFilter: 'blur(8px)',
+            zIndex: 60,
+            display: 'flex', flexDirection: 'column',
+          }}
+        >
+          {/* ⚠ PINCH IS THE BROWSER'S, NOT OURS. `touch-action: pinch-zoom` on a
+              scrolling box hands the gesture to the engine — real momentum,
+              real bounds, real two-finger panning for nothing.
+
+              ⚠ IT IS ALSO WHY THE BACKDROP DOES NOT CLOSE ON TAP: a tap-to-close
+              listener fires when a pinch ends slightly off the photo, shutting
+              the viewer mid-gesture. Closing is the ✕, plus Escape. */}
+          <div
+            style={{
+              flex: 1, minHeight: 0,
+              overflow: 'auto',
+              touchAction: 'pinch-zoom',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              padding: 16, boxSizing: 'border-box',
+            }}
+          >
+            <img
+              src={fullUrl || url}
+              alt={message?.body || 'Photo'}
+              // `contain` HERE, unlike the bubble: this box is the screen's
+              // shape, not the picture's, so the whole photo has to fit inside
+              // it before any zooming begins.
+              style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: 8 }}
+            />
+          </div>
+
+          {original && <OriginalPanel original={original} />}
+
+          <button
+            type="button"
+            onClick={() => setOpen(false)}
+            aria-label="Close photo"
+            style={{
+              position: 'absolute', top: 12, right: 12,
+              width: 40, height: 40, borderRadius: 999,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: 'rgba(20,20,28,.72)',
+              border: '1px solid rgba(255,255,255,.14)',
+              backdropFilter: 'blur(10px)',
+              color: 'rgba(255,255,255,.86)', cursor: 'pointer', padding: 0,
+            }}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <path d="M18 6 6 18" /><path d="m6 6 12 12" />
+            </svg>
+          </button>
+        </div>
+      )}
+    </>
+  );
+}
+
+/**
+ * A PHOTOGRAPH WITH NO VIEWABLE VERSION — a RAW, a TIFF.
+ *
+ * Deliberately shaped like `FileMessage` rather than like a broken photo: what
+ * the recipient has is a file to download, so it should look like one. The
+ * difference from an ordinary attachment is the countdown — this one goes away.
+ *
+ * ⚠ IT DOES NOT PRETEND TO A PREVIEW. No placeholder frame, no grey rectangle
+ * standing in for a picture. Nothing was lost, so nothing should look missing.
+ */
+function OriginalCard({ message, original, pendingName = null }) {
+  const [, setTick]       = useState(0);
+  const [busy,  setBusy]  = useState(false);
+  const [error, setError] = useState(null);
+
+  const name      = message?.payload?.name || message?.body || 'Original';
+  const bytes     = original?.bytes ?? message?.payload?.pendingBytes ?? 0;
+  const spent     = original ? hasExpired(original) : false;
+  const remaining = original ? formatRemaining(original.expires_at) : null;
+  const pending   = !original;
+
+  useEffect(() => {
+    if (pending || spent) return;
+    const id = setInterval(() => setTick(t => t + 1), TICK_MS);
+    return () => clearInterval(id);
+  }, [pending, spent]);
+
+  async function download(e) {
+    e.stopPropagation();
+    if (pending || spent || busy) return;
+    setBusy(true);
+    setError(null);
+    const { url, error: dlError } = await downloadOriginalUrl(original);
+    setBusy(false);
+    if (dlError || !url) { setError(dlError?.message || 'Unavailable'); return; }
+    window.location.href = url;
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={download}
+      disabled={pending || spent || busy}
+      aria-label={spent ? `${name} — expired` : `Download ${name}`}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 11,
+        width: '100%', minWidth: 0,
+        padding: '10px 12px', border: 'none', borderRadius: 14,
+        background: 'rgba(255,255,255,.05)',
+        color: 'var(--text)', textAlign: 'left',
+        cursor: pending || spent || busy ? 'default' : 'pointer',
+        opacity: pending ? .6 : 1,
+      }}
+    >
+      {/* An aperture, not a document: this IS a photograph, it simply has no
+          form a browser can show. */}
+      <span
+        aria-hidden="true"
+        style={{
+          flexShrink: 0, width: 34, height: 34, borderRadius: 10,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: spent ? 'rgba(255,255,255,.06)' : 'rgba(201,169,97,.14)',
+          border: `1px solid ${spent ? 'rgba(255,255,255,.12)' : 'rgba(201,169,97,.30)'}`,
+          color: spent ? 'rgba(255,255,255,.34)' : '#E8D5A0',
+        }}
+      >
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="9" />
+          <path d="M12 3v8M20.5 8.5 13 12M18 19l-5-7M6 19l6-7M3.5 8.5 12 12" />
+        </svg>
+      </span>
+
+      <span style={{ minWidth: 0, flex: 1 }}>
+        <span style={{
+          display: 'block', fontSize: 14, lineHeight: 1.35,
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        }}>
+          {pendingName || name}
+        </span>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3, fontSize: 11.5, color: 'var(--muted)' }}>
+          <span className={`yp-hd-chip${spent ? ' yp-hd-chip-spent' : ''}`}>HD</span>
+          <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {error ? error
+              : busy    ? 'Preparing…'
+              : pending ? 'Uploading…'
+              : spent   ? 'Expired'
+              : [bytes ? formatBytes(bytes) : null, remaining ? `${remaining} left` : null]
+                  .filter(Boolean).join('   ·   ')}
+          </span>
+        </span>
+      </span>
+
+      {!pending && !spent && !busy && !error && (
+        <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, color: 'var(--muted)' }}>
+          <path d="M12 3v12" /><path d="m7 12 5 5 5-5" /><path d="M5 21h14" />
+        </svg>
+      )}
+    </button>
+  );
+}
+
+/**
+ * WHAT IS AVAILABLE, AND FOR HOW MUCH LONGER.
+ *
+ * ⚠ THIS PANEL DESCRIBES; IT DOES NOT DECIDE. The countdown is drawn from
+ * `expires_at` copied onto the message payload, which a determined client could
+ * edit — and editing it would change these words and nothing else. What
+ * actually ends the window is M13's storage policy joining `message_originals`,
+ * so a doctored countdown reading "2d left" still cannot obtain a url.
+ *
+ * That separation is why this can be plain rendering with no guards in it.
+ */
+function OriginalPanel({ original }) {
+  const [, setTick]   = useState(0);
+  const [busy, setBusy]   = useState(false);
+  const [error, setError] = useState(null);
+
+  const spent     = hasExpired(original);
+  const remaining = formatRemaining(original.expires_at);
+
+  // Re-render so the countdown moves. Stopped once the window has closed —
+  // there is nothing left to count, and an interval per expired photo in a long
+  // thread is a timer that never stops for a number that never changes.
+  useEffect(() => {
+    if (spent) return;
+    const id = setInterval(() => setTick(t => t + 1), TICK_MS);
+    return () => clearInterval(id);
+  }, [spent]);
+
+  async function download() {
+    setBusy(true);
+    setError(null);
+    const { url, error: dlError } = await downloadOriginalUrl(original);
+    setBusy(false);
+    if (dlError || !url) { setError(dlError?.message || 'Unavailable'); return; }
+    window.location.href = url;
+  }
+
+  return (
+    <div
+      style={{
+        flexShrink: 0,
+        padding: '12px 16px 14px',
+        borderTop: '1px solid rgba(255,255,255,.09)',
+        background: 'rgba(12,12,17,.72)',
+        backdropFilter: 'blur(12px)',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 7 }}>
+        <span className={`yp-hd-chip${spent ? ' yp-hd-chip-spent' : ''}`}>HD</span>
+        <span style={{ fontSize: 13, color: spent ? 'var(--muted)' : 'var(--text)' }}>
+          {spent ? 'Original expired' : 'Original available'}
+        </span>
+        {!spent && remaining && (
+          <span style={{ marginLeft: 'auto', fontSize: 11.5, color: 'var(--muted)', fontVariantNumeric: 'tabular-nums' }}>
+            {remaining} left
+          </span>
+        )}
+      </div>
+
+      <div style={{ fontSize: 11.5, color: 'var(--muted)', marginBottom: spent ? 0 : 10 }}>
+        {spent
+          ? 'The optimised version is still available above.'
+          : [
+              original.width && original.height ? `${original.width} × ${original.height}` : null,
+              original.bytes ? formatBytes(original.bytes) : null,
+            ].filter(Boolean).join('   ·   ')}
+      </div>
+
+      {!spent && (
+        <button
+          type="button"
+          onClick={download}
+          disabled={busy}
+          style={{
+            width: '100%', padding: '10px 14px', borderRadius: 12,
+            border: '1px solid rgba(255,255,255,.14)',
+            background: 'rgba(255,255,255,.07)',
+            color: 'var(--text)', fontSize: 13.5, fontFamily: 'inherit',
+            cursor: busy ? 'default' : 'pointer',
+          }}
+        >
+          {busy ? 'Preparing…' : error || 'Download original'}
+        </button>
+      )}
+    </div>
+  );
+}
