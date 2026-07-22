@@ -156,6 +156,28 @@ async function openMicrophone() {
  * recording in stereo is far better than no recording, and `C21`'s readback
  * records which one happened.
  */
+/**
+ * Is this an iOS device — including an iPad pretending to be a Mac?
+ *
+ * ⚠ A UA SNIFF, AND IT SHOULD BE READ AS ONE. Nothing else identifies the fault
+ * it guards: iOS's voice-processing microphone path is not exposed as a
+ * capability, produces no error, and reports the same track settings as a good
+ * capture. There is nothing to feature-detect, so the alternative to sniffing is
+ * not a cleaner check — it is shipping degraded audio to every iPhone.
+ *
+ * iPadOS 13+ reports a desktop Mac UA, so `MacIntel` WITH touch points is the
+ * only reliable tell for an iPad; a real Mac has no touch and must not match,
+ * because Safari on macOS does not have this fault.
+ *
+ * Exported so the platform rule is testable without a device.
+ */
+export function isIOS(nav = typeof navigator !== 'undefined' ? navigator : null) {
+  if (!nav) return false;
+  const ua = String(nav.userAgent ?? '');
+  if (/iPad|iPhone|iPod/.test(ua)) return true;
+  return nav.platform === 'MacIntel' && (nav.maxTouchPoints ?? 0) > 1;
+}
+
 function forceMono(stream) {
   const Ctx = typeof window !== 'undefined' && (window.AudioContext ?? window.webkitAudioContext);
   if (!Ctx) return { stream, context: null, downmixed: false };
@@ -344,8 +366,41 @@ export async function startRecording() {
    * a downmix that did not survive.
    */
   const contextRunning = !mixContext || mixContext.state === 'running';
-  const safeStream     = contextRunning ? recordStream : stream;
-  const reallyDownmixed = downmixed && contextRunning;
+
+  /**
+   * ⚠ ON iOS, DO NOT RECORD THROUGH THE WEBAUDIO GRAPH.
+   *
+   * Measured on an iPhone 14 Pro, 2026-07-22, against a Galaxy recording of the
+   * same words: the iOS note is quiet and muffled, and worse than a WhatsApp
+   * note from the same handset. The Android note through the identical code path
+   * sounds excellent, and both files play back correctly on both devices — so
+   * this is Safari's CAPTURE, not the codec, the container or the player.
+   *
+   * "Quiet and muffled" is the signature of iOS's voice-processing microphone
+   * path — the narrow-band, gain-managed mode intended for calls. Routing
+   * capture through `MediaStreamAudioDestinationNode` is a known way to land in
+   * it, and a native app like WhatsApp does not because it sets its own audio
+   * session. A bitrate fault sounds different: watery or metallic, never quiet.
+   *
+   * So iOS records the microphone's own stream, untouched. The cost is §6.3's
+   * mono GUARANTEE on that platform — but iOS reports a mono track to begin
+   * with, so what is given up is insurance against a case iOS does not present,
+   * paid for in the quality of every note. `C21`'s readback reports
+   * `downmixed: false` honestly rather than claiming a downmix that was skipped.
+   *
+   * ── THE ANALYSER DELIBERATELY STAYS ─────────────────────────────────
+   *
+   * The context is still created and still resumed, so the live meter survives
+   * — and this is what makes the change a TEST rather than a guess. If the
+   * audio improves, the destination node was the fault. If it does not, merely
+   * HAVING a context is enough to flip the audio session, the meter cannot
+   * coexist with good audio on iOS, and that is a real trade to put to the
+   * owner rather than one to make quietly here.
+   */
+  const bypassGraph = isIOS();
+
+  const safeStream      = (contextRunning && !bypassGraph) ? recordStream : stream;
+  const reallyDownmixed = downmixed && contextRunning && !bypassGraph;
 
   /**
    * LIVE LEVEL, for the recording waveform in the composer.

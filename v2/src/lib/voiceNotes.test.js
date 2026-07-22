@@ -193,3 +193,31 @@ test('an unknown codec falls back to the ratified Opus rate', async () => {
   assert.equal(bitrateFor('audio/flac'), 32000);
   assert.equal(bitrateFor(undefined),    32000);
 });
+
+/* ── the iOS capture rule ───────────────────────────────────────────── */
+
+const IPHONE = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1';
+const MAC    = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15';
+const ANDROID = 'Mozilla/5.0 (Linux; Android 14; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126 Mobile Safari/537.36';
+
+test('iPhone and iPad are iOS; Android and a real Mac are not', async () => {
+  const { isIOS } = await import('./voiceNotes.js');
+
+  assert.equal(isIOS({ userAgent: IPHONE, platform: 'iPhone', maxTouchPoints: 5 }), true);
+  assert.equal(isIOS({ userAgent: ANDROID, platform: 'Linux armv8l', maxTouchPoints: 5 }), false);
+
+  // ⚠ iPadOS 13+ reports a desktop Mac UA. Touch points are the only tell.
+  assert.equal(isIOS({ userAgent: MAC, platform: 'MacIntel', maxTouchPoints: 5 }), true, 'an iPad must be caught');
+
+  // ⚠ And a REAL Mac must not match — Safari on macOS does not have this fault,
+  // so matching it would give desktop users the degraded-insurance path for no
+  // reason at all.
+  assert.equal(isIOS({ userAgent: MAC, platform: 'MacIntel', maxTouchPoints: 0 }), false, 'a real Mac must not be caught');
+});
+
+test('no navigator is not iOS, and does not throw', async () => {
+  // node:test imports this module with no DOM at all.
+  const { isIOS } = await import('./voiceNotes.js');
+  assert.equal(isIOS(null), false);
+  assert.equal(isIOS({}), false);
+});
