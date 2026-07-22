@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
+import { claimAudio, releaseAudio } from '../lib/mediaSession';
+import { createResumableSource, soundcloudAdapter, mixcloudAdapter } from '../lib/mediaProviders';
 
 function getSCEmbedUrl(url) {
   return `https://w.soundcloud.com/player/?url=${encodeURIComponent(url)}&color=%2300e5ff&auto_play=true&hide_related=true&show_comments=false&show_user=false&show_reposts=false&show_teaser=false`;
@@ -51,6 +53,20 @@ export default function MiniPlayer({ url, artistName, hasNext, onClose, onFinish
   const startRef  = useRef(Date.now());
   const CLIP_MS   = 90 * 1000;
 
+  /**
+   * ── THE MEDIA SESSION SEAM ─────────────────────────────────────────
+   *
+   * This component is the application's LONG source. It knows nothing about
+   * Voiceys, audio messages, or interruption policy — it exposes the ability to
+   * be paused and resumed, and the Media Session Manager decides when.
+   *
+   * ⚠ MIXCLOUD'S POSITION MUST BE OBSERVED. Its widget answers no queries, so
+   * the latest progress event is kept here and handed to the adapter. Without
+   * it a Mixcloud set could only ever resume from the beginning.
+   */
+  const positionRef = useRef(0);
+  const sessionRef  = useRef(null);
+
   const isSC     = isSoundCloud(url);
   const isMC     = isMixcloud(url);
   const embedUrl = isSC ? getSCEmbedUrl(url) : isMC ? getMCEmbedUrl(url) : null;
@@ -70,13 +86,52 @@ export default function MiniPlayer({ url, artistName, hasNext, onClose, onFinish
       .catch(() => {});
   }, [url]);
 
+  /**
+   * Register with the manager, replacing any previous registration.
+   *
+   * ⚠ REBUILT WHEN THE URL CHANGES. The old source points at a widget for a
+   * track that is no longer loaded; resuming it would seek the NEW track to the
+   * OLD one's position.
+   */
+  function registerSource(adapter) {
+    if (sessionRef.current) releaseAudio(sessionRef.current);
+    sessionRef.current = createResumableSource(adapter);
+    return sessionRef.current;
+  }
+
+  // A source is only useful while this component exists. Leaving a registration
+  // behind would let the manager pause a widget that is gone.
+  useEffect(() => () => {
+    if (sessionRef.current) releaseAudio(sessionRef.current);
+    sessionRef.current = null;
+  }, []);
+
+  // Mixcloud has no ready event to bind, so it registers as soon as the url is
+  // known; SoundCloud registers when its widget binds. Both end up holding a
+  // source built by the same factory.
+  useEffect(() => {
+    if (!isMC || !frameRef.current) return;
+    const frame = frameRef.current;
+    const source = registerSource(mixcloudAdapter({
+      media: url,
+      post: msg => frame.contentWindow?.postMessage(JSON.stringify(msg), 'https://www.mixcloud.com'),
+      getPosition: () => positionRef.current,
+    }));
+    claimAudio(source);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isMC, url]);
+
   // Init SC Widget API after iframe loads
   function onIframeLoad() {
     if (!isSC || !frameRef.current) return;
     loadSCApi().then(SC => {
       const widget = SC.Widget(frameRef.current);
       widgetRef.current = widget;
-      widget.bind(SC.Widget.Events.PLAY,   () => setPlaying(p => p   ? p : true));
+      const source = registerSource(soundcloudAdapter(widget, { media: url }));
+      // Playing is what CLAIMS audio. Bound to the widget's own event rather
+      // than to our button, so a play started from inside the embed arbitrates
+      // exactly as one started from ours.
+      widget.bind(SC.Widget.Events.PLAY,   () => { claimAudio(source); setPlaying(p => p   ? p : true); });
       widget.bind(SC.Widget.Events.PAUSE,  () => setPlaying(p => !p  ? p : false));
       widget.bind(SC.Widget.Events.FINISH, () => { setPlaying(p => !p ? p : false); onFinish?.(); });
     });
@@ -89,6 +144,8 @@ export default function MiniPlayer({ url, artistName, hasNext, onClose, onFinish
       if (!e.data) return;
       try {
         const data = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
+        // Progress events are the only way to learn a Mixcloud position.
+        if (typeof data.position === 'number') positionRef.current = data.position * 1000;
         if (data.method === 'play')  setPlaying(true);
         if (data.method === 'pause') setPlaying(false);
       } catch {}
@@ -114,6 +171,12 @@ export default function MiniPlayer({ url, artistName, hasNext, onClose, onFinish
   function togglePlay() {
     const next = !playing;
     setPlaying(next);
+    // Starting playback takes audio from whatever held it; pausing gives it up
+    // without resuming anything, which is what releaseAudio means.
+    if (sessionRef.current) {
+      if (next) claimAudio(sessionRef.current);
+      else releaseAudio(sessionRef.current);
+    }
     if (isSC && widgetRef.current) {
       next ? widgetRef.current.play() : widgetRef.current.pause();
     } else if (isMC && frameRef.current) {
