@@ -3,7 +3,7 @@ import {
   downloadUrlFor, playbackUrlFor, isPlayableAudio,
   formatBytes, formatToken,
 } from '../lib/messageFiles';
-import { claimPlayback, releasePlayback } from '../lib/voicePlayback';
+import { claimAudio, finishAudio, releaseAudio, SHORT } from '../lib/mediaSession';
 
 /**
  * A DOCUMENT IN THE THREAD (M12) — and, when it is audio, a PLAYER.
@@ -60,6 +60,17 @@ export default function FileMessage({ message }) {
   const [progress, setProgress] = useState(0);
 
   const audioRef = useRef(null);
+  // One stable object for this component's lifetime — see VoiceMessage. An
+  // uploaded track is SHORT for the same reason a Voicey is: it arrived in a
+  // conversation, so hearing it is communication rather than a listening
+  // session, and whatever it interrupted should come back afterwards.
+  const sessionRef = useRef(null);
+  if (!sessionRef.current) {
+    sessionRef.current = {
+      kind: SHORT,
+      pause: () => { try { audioRef.current?.pause(); } catch { /* gone from the DOM */ } },
+    };
+  }
   const urlRef   = useRef(null);
 
   // Peaks frozen at send time. Absent for documents, and for audio too large to
@@ -74,7 +85,7 @@ export default function FileMessage({ message }) {
   // no longer shows it playing.
   useEffect(() => () => {
     const el = audioRef.current;
-    if (el) { el.pause(); releasePlayback(el); }
+    if (el) { el.pause(); releaseAudio(sessionRef.current); }
   }, []);
 
   async function togglePlay(e) {
@@ -98,7 +109,7 @@ export default function FileMessage({ message }) {
 
     // Silences any other audio first — a Voicey and a master both claim through
     // the same registry, so the two can never sound at once.
-    claimPlayback(el);
+    claimAudio(sessionRef.current);
 
     try {
       await el.play();
@@ -291,8 +302,11 @@ export default function FileMessage({ message }) {
           ref={audioRef}
           onTimeUpdate={e => { const d = e.currentTarget.duration; if (d > 0) setProgress(e.currentTarget.currentTime / d); }}
           onPlay={() => setPlaying(true)}
-          onPause={() => setPlaying(false)}
-          onEnded={() => { setPlaying(false); setProgress(0); }}
+          // ⚠ Guarded on `ended` — see VoiceMessage. Releasing on a natural
+          // finish would clear the claim before finishAudio could resume what
+          // this track interrupted.
+          onPause={e => { if (!e.currentTarget.ended) releaseAudio(sessionRef.current); setPlaying(false); }}
+          onEnded={() => { finishAudio(sessionRef.current); setPlaying(false); setProgress(0); }}
           style={{ display: 'none' }}
         />
       </div>

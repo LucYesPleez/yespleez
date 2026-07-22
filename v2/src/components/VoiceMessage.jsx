@@ -3,7 +3,7 @@ import { signedUrlFor, formatDuration } from '../lib/voiceNotes';
 import { toDisplayPeaks, barsForDuration } from '../lib/voicePeaks';
 import { decodeWave, toDisplayWave } from '../lib/voiceWave';
 import { timeOf } from '../lib/clock';
-import { claimPlayback, releasePlayback } from '../lib/voicePlayback';
+import { claimAudio, finishAudio, releaseAudio, SHORT } from '../lib/mediaSession';
 import { playedAt } from '../lib/waveColour';
 import EqReceipt from './EqReceipt';
 
@@ -192,6 +192,17 @@ export default function VoiceMessage({ message, receipt = null }) {
   const wave       = message?.payload?.wave ?? null;
 
   const audioRef   = useRef(null);
+  // ⚠ ONE STABLE OBJECT FOR THE LIFETIME OF THIS COMPONENT. The manager holds
+  // this reference to decide what to pause and what to resume; a new object per
+  // render would make every claim look like a different source and break the
+  // guards that stop a stale release clearing a newer claim.
+  const sessionRef = useRef(null);
+  if (!sessionRef.current) {
+    sessionRef.current = {
+      kind: SHORT,   // a Voicey INTERRUPTS; it is never resumed after something else
+      pause: () => { try { audioRef.current?.pause(); } catch { /* gone from the DOM */ } },
+    };
+  }
   // The frame loop writes fills here directly; React owns everything else
   // about these nodes.
   const barsRef    = useRef([]);
@@ -261,7 +272,7 @@ export default function VoiceMessage({ message, receipt = null }) {
   useEffect(() => () => {
     const el = audioRef.current;
     el?.pause();
-    releasePlayback(el);
+    releaseAudio(sessionRef.current);
   }, []);
 
   /**
@@ -362,7 +373,7 @@ export default function VoiceMessage({ message, receipt = null }) {
     if (el.src !== src) el.src = src;
     // Silences any other note first. Before play(), not after — after would
     // let both sound for a frame.
-    claimPlayback(el);
+    claimAudio(sessionRef.current);
 
     try {
       await el.play();
@@ -568,8 +579,14 @@ export default function VoiceMessage({ message, receipt = null }) {
         ref={audioRef}
         preload="none"
         onPlay={() => setPlaying(true)}
-        onPause={e => { releasePlayback(e.currentTarget); setPlaying(false); }}
-        onEnded={e => { releasePlayback(e.currentTarget); setPlaying(false); setPosition(0); setFinished(true); }}
+        // ⚠ GUARDED ON `ended`. Some browsers fire pause alongside a natural
+        // finish; releasing here first would clear the claim and the parked
+        // long-form source would never be resumed. A genuine manual pause is
+        // the only case that reaches releaseAudio, which is correct: silence
+        // was the request, so nothing comes back.
+        onPause={e => { if (!e.currentTarget.ended) releaseAudio(sessionRef.current); setPlaying(false); }}
+        // Completion — this is what resumes whatever this Voicey interrupted.
+        onEnded={() => { finishAudio(sessionRef.current); setPlaying(false); setPosition(0); setFinished(true); }}
         // Keeps the readout honest while PAUSED and on seek; the frame loop
         // above owns it during playback.
         // Drives the DURATION READOUT only. The waveform is painted by the
