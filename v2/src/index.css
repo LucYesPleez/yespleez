@@ -756,12 +756,43 @@ input, textarea, select {
    under 252px, and an inline minimum cannot be told to yield. */
 .yp-voice-player { min-width: 252px; }
 
+/* ── THE PLAY BUTTON'S TAP TARGET ───────────────────────────────────
+   The disc is 36px to match the composer's mic (`SIZE` in VoicePill, `CONTROL`
+   in Composer). The TARGET stays 44 — the size originally chosen here as the
+   first that is genuinely hittable rather than aimed at, which did not stop
+   being true when the disc shrank.
+
+   The composer's controls get away with 36 because they sit in a capsule with
+   5px of inset around them; this one sits in a bubble with no such margin, and
+   is the only interactive thing in it. A pseudo-element rather than padding, so
+   the ring geometry is untouched. */
+.yp-voice-play::before {
+  content: '';
+  position: absolute;
+  inset: -4px;              /* 36 + 8 = 44 */
+  border-radius: inherit;
+}
+
 @media (max-width: 640px) {
   /* The bubble's 76% cap wins on a phone. The player gives up its minimum and
      fills whatever the bubble actually offers — the waveform's bars are
      `flex: 1` over a zero basis, so they simply get finer rather than
      overflowing. The footprint was a look, and the bubble is a boundary. */
   .yp-voice-player { min-width: 0; width: 100%; }
+
+  /* ⚠ PHONES ONLY, AND ONLY BECAUSE THE OWNER ASKED FOR IT — desktop is
+     explicitly fine as it is (2026-07-22).
+
+     A Voicey now takes the SAME width as a full text bubble instead of sizing
+     itself to its contents. `width: 100%` against the same `max-width: 76%` the
+     text bubbles hit means both land on exactly one number, so a thread reads as
+     one column of messages rather than as bubbles of three different widths
+     depending on what is inside them.
+
+     Applies to BOTH directions. Received bubbles sit 34px further in — avatar
+     plus gap — which is already true of text and is what keeps the two sides
+     distinguishable without giving them different widths. */
+  .yp-voice-bubble { width: 100%; }
 }
 
 .yp-live-wave { animation: ypLiveIn var(--yp-medium) var(--yp-ease); }

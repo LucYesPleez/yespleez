@@ -188,23 +188,38 @@ test('unrenderable peaks draw nothing, so the caller falls back', async () => {
 
 /* ── the phone's coarser wave ───────────────────────────────────────── */
 
-test('⚠ the compact count draws a wider bar than the fault it fixes', async () => {
-  // The count is chosen in PIXELS PER BAR, which is the quantity that actually
-  // decides whether a wave reads as audio. 42 bars in a phone bubble's ~164px
-  // is ~2.4px — inside the range already measured as too thin when 56 bars
-  // failed. Reported as "compressed" on a Galaxy.
+test('⚠ the compact count clears the bar-width floor on EVERY phone', async () => {
+  // The count is chosen in PIXELS PER BAR, which is what decides whether a wave
+  // reads as audio. 42 bars in a phone bubble was ~2.4px — inside the range
+  // already measured as too thin when 56 bars failed. Reported as compressed.
+  //
+  // ⚠ THE WIDTH IS A RANGE, NOT A NUMBER, and this test says so because an
+  // earlier version did not. It asserted against a single 164px wave, and that
+  // width MOVED the same day — the bubble was widened to match a text bubble and
+  // the play button shrank 44 to 36 — leaving the test passing against geometry
+  // that no longer existed.
+  //
+  // Wave width = bubble(76% of viewport - 32px padding) - 34 bubble padding
+  //              - 36 button - 12 gap
+  const WAVES = { 360: 167, 412: 207 };
+  const GAP = 1.5;
+  const perBar = (n, px) => (px - (n - 1) * GAP) / n;
+
   const { DISPLAY_BARS, DISPLAY_BARS_COMPACT } = await import('./voicePeaks.js');
 
-  const WAVE_PX = 164, GAP = 1.5;
-  const perBar = n => (WAVE_PX - (n - 1) * GAP) / n;
+  for (const [device, px] of Object.entries(WAVES)) {
+    const compact = perBar(DISPLAY_BARS_COMPACT, px);
+    assert.ok(compact > 3.2, `${device}px: bars must clear the comb, got ${compact.toFixed(1)}px`);
+    assert.ok(compact < 5.5, `${device}px: bars must not go blocky, got ${compact.toFixed(1)}px`);
+  }
 
-  assert.ok(perBar(DISPLAY_BARS) < 2.6, 'the desktop count is what was too thin here');
-  assert.ok(perBar(DISPLAY_BARS_COMPACT) > 4, `compact bars must clear 4px, got ${perBar(DISPLAY_BARS_COMPACT).toFixed(1)}`);
+  // The narrow phone is the one that justifies the constant existing at all:
+  // after the widening, 42 bars is fine at 412px and still too thin at 360px.
+  assert.ok(perBar(DISPLAY_BARS, 167) < 2.6, 'if 42 ever fits a 360px phone, this constant can go');
   assert.ok(DISPLAY_BARS_COMPACT < DISPLAY_BARS, 'compact means FEWER bars');
 });
-
 test('both counts downsample the same frozen payload, and neither invents detail', async () => {
-  // Nothing stored changes. A note drawn at 28 bars on a phone is the same note
+  // Nothing stored changes. A note drawn at 32 bars on a phone is the same note
   // drawn at 42 on a desktop.
   const { DISPLAY_BARS, DISPLAY_BARS_COMPACT, PEAK_COUNT, PEAK_MAX, toDisplayPeaks } = await import('./voicePeaks.js');
   const peaks = Array.from({ length: PEAK_COUNT }, (_, i) => (i % PEAK_MAX));

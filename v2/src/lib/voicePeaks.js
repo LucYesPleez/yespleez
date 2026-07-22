@@ -155,20 +155,35 @@ export const DISPLAY_BARS = 42;
  * actually matters: 42 bars was chosen against the player's ~193px, giving
  * ~2.6px each, and it notes that 56 bars at under 2px had already failed.
  *
- * On a phone the bubble is capped at 76% of the thread, so the wave gets roughly
- * 164px — and 42 bars there is ~2.4px, straight into the range that was already
- * measured as too thin. The owner reported it as "compressed" on a Galaxy, which
- * is that floor being crossed rather than a new problem.
+ * On a phone the bubble is capped at 76% of the thread, and 42 bars there was
+ * ~2.4px — straight into the range already measured as too thin. The owner
+ * reported it as "compressed" on a Galaxy, which is that floor being crossed
+ * rather than a new fault.
  *
- * 28 bars over the same 164px is ~4.4px each, comfortably clear of it. The wave
- * is coarser, and coarser is the correct trade: at this size the choice is
- * between reading as audio and reading as a smudge.
+ * ── WHY 32 AND NOT 28 ────────────────────────────────────────────────
+ *
+ * 28 was chosen against a 164px wave. That number then MOVED: the Voicey bubble
+ * was widened to match a text bubble and the play button shrank 44 → 36, which
+ * together handed the wave ~207px on a 412px handset. 28 bars there draws 5.9px
+ * — blocky, and visibly a different animal from the desktop wave's ~3.4px.
+ *
+ * The constraint is a RANGE, not a single width, because handsets are not one
+ * size. Across the two that matter:
+ *
+ *              360px phone (~167px wave)   412px phone (~207px wave)
+ *   42 bars    2.5px  ← still too thin     3.5px
+ *   32 bars    3.8px                       5.0px
+ *   28 bars    4.5px                       5.9px  ← blocky
+ *
+ * 32 clears the floor on the narrow phone and stays close to the desktop's
+ * character on the wide one. 42 is still wrong at 360px, which is why this
+ * constant survives the widening rather than being deleted with it.
  *
  * ⚠ DISPLAY ONLY. Both counts are downsampled from the same frozen PEAK_COUNT,
  * so nothing stored changes and a note drawn at 28 bars on a phone is the same
  * note drawn at 42 on a desktop.
  */
-export const DISPLAY_BARS_COMPACT = 28;
+export const DISPLAY_BARS_COMPACT = 32;
 
 /**
  * Contrast curve applied to the drawn heights.

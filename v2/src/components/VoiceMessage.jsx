@@ -379,12 +379,21 @@ export default function VoiceMessage({ message, receipt = null }) {
     // of the thread, which on a narrow handset is less than 252px, and an
     // inline minimum cannot be told to yield. Reported 2026-07-22. This is the
     // fourth change caught by that rule; see the handover.
-    <div className="yp-voice-player" style={{ display: 'flex', alignItems: 'center', gap: 15 }}>
-      {/* THE ANCHOR. 32 → 44, which is also the first size that is a genuine
-          touch target rather than one you aim at. Everything else in the
-          component steps down from here — button, then waveform, then the
-          duration line — so the eye starts in one place and travels left to
-          right. */}
+    <div className="yp-voice-player" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+      {/* THE ANCHOR. 32 → 44 → 36, which is the composer's control size:
+          `SIZE` in VoicePill and `CONTROL` in Composer, the two constants that
+          are already required to match each other. The mic you record with and
+          the button you play back with are now the same object at the same
+          size, which is the relationship the owner asked for.
+
+          ⚠ 36 IS THE DISC, NOT THE TAP TARGET. 44 was chosen here as the first
+          size that is a genuine touch target rather than one you aim at, and
+          that reasoning does not stop being true because the disc got smaller.
+          The HIT AREA STAYS 44 via `.yp-voice-play::before` in index.css — the
+          composer's controls can be 36 because they sit in a capsule with 5px
+          of inset around them, and a bubble gives this one no such margin.
+
+          The 8px it gives up goes to the waveform, not to the gap. */}
       <button
         type="button"
         className="yp-voice-play"
@@ -397,7 +406,7 @@ export default function VoiceMessage({ message, receipt = null }) {
           : 'Play voice message'
         }
         style={{
-          width: 44, height: 44, flexShrink: 0, borderRadius: 999,
+          width: 36, height: 36, flexShrink: 0, borderRadius: 999,
           position: 'relative',
           boxSizing: 'border-box',
           // SMOKED BLACK WITH A GRADIENT RING (M9u).
@@ -438,7 +447,7 @@ export default function VoiceMessage({ message, receipt = null }) {
           opacity: playing ? 0 : 1,
           transform: playing ? 'scale(.7)' : 'scale(1)',
         }}>
-          <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"
                style={{ marginLeft: 2 }}>
             <path d="M8 5.2v13.6a1 1 0 0 0 1.53.85l10.7-6.8a1 1 0 0 0 0-1.7L9.53 4.35A1 1 0 0 0 8 5.2z" />
           </svg>
@@ -447,7 +456,7 @@ export default function VoiceMessage({ message, receipt = null }) {
           opacity: playing ? 1 : 0,
           transform: playing ? 'scale(1)' : 'scale(.7)',
         }}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
             <rect x="6" y="4.5" width="4.4" height="15" rx="1.6" />
             <rect x="13.6" y="4.5" width="4.4" height="15" rx="1.6" />
           </svg>
