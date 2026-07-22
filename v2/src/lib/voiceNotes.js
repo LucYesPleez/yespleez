@@ -1,6 +1,6 @@
 import { supabase } from './supabase';
 import { sendMessage } from './messaging';
-import { computePeaks } from './voicePeaks';
+import { computeWave } from './voiceWave';
 
 /**
  * VOICE NOTES — recording, storage and playback URLs.
@@ -699,7 +699,7 @@ export async function signedUrlFor(path, expiresIn = SIGNED_URL_TTL_SECONDS) {
  * broken player is worse than one that was never sent — the sender believes it
  * went.
  */
-export async function sendVoiceNote({ conversationId, fromProfileId, blob, durationMs, capture, peaks: precomputed } = {}) {
+export async function sendVoiceNote({ conversationId, fromProfileId, blob, durationMs, capture, wave: precomputed } = {}) {
   // §6.6's pipeline order: record → compute peaks → upload → message.
   //
   // Peaks are computed BEFORE the upload, not after, so a peak failure costs
@@ -710,7 +710,7 @@ export async function sendVoiceNote({ conversationId, fromProfileId, blob, durat
   // before this is ever called — a placeholder without peaks renders a collapsed
   // waveform, which is what an iPhone 14 Pro showed on 2026-07-22 — and decoding
   // the same blob twice to draw the same picture is pure waste.
-  const peaks = precomputed ?? await computePeaks(blob);
+  const wave = precomputed ?? await computeWave(blob);
 
   const { path, error: uploadError } = await uploadVoiceNote({ conversationId, blob });
   if (uploadError) return { message: null, error: uploadError };
@@ -728,7 +728,7 @@ export async function sendVoiceNote({ conversationId, fromProfileId, blob, durat
       // be computed, so `peaks` is absent rather than null: the renderer's test
       // is "can I draw this", and a key holding null answers that identically
       // to no key at all while costing bytes on every read.
-      ...(peaks && { peaks }),
+      ...(wave && { wave }),
       // `C21` — what the device actually produced. Answers support-matrix
       // questions from the data instead of from assumptions about a browser.
       ...(capture && { capture }),

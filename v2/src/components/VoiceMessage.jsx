@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useMemo, useCallback, memo } from 'react';
 import { signedUrlFor, formatDuration } from '../lib/voiceNotes';
 import { toDisplayPeaks, DISPLAY_BARS, DISPLAY_BARS_COMPACT } from '../lib/voicePeaks';
+import { decodeWave, toDisplayWave } from '../lib/voiceWave';
 import { timeOf } from '../lib/clock';
 import { claimPlayback, releasePlayback } from '../lib/voicePlayback';
 import { playedAt } from '../lib/waveColour';
@@ -185,6 +186,8 @@ export default function VoiceMessage({ message, receipt = null }) {
   const localUrl   = message?.payload?.localUrl ?? null;
   const storedMs   = Number(message?.payload?.duration_ms ?? 0);
   const peaks      = message?.payload?.peaks ?? null;
+  // v2 envelope. See the branch in  — both formats are permanent.
+  const wave       = message?.payload?.wave ?? null;
 
   const audioRef   = useRef(null);
   // The frame loop writes fills here directly; React owns everything else
@@ -222,10 +225,29 @@ export default function VoiceMessage({ message, receipt = null }) {
   // `index.css` uses for the player's min-width, so the two cannot disagree
   // about what a phone is.
   const compact = useCompactWave();
-  const bars = useMemo(
-    () => toDisplayPeaks(peaks, compact ? DISPLAY_BARS_COMPACT : DISPLAY_BARS),
-    [peaks, compact],
-  );
+  const barCount = compact ? DISPLAY_BARS_COMPACT : DISPLAY_BARS;
+
+  /**
+   * ⚠ TWO FORMATS, AND BOTH ARE PERMANENT.
+   *
+   * `payload.wave` is v2 — an envelope sampled at a fixed rate in TIME, so a bar
+   * means the same 32ms whatever the recording's length. `payload.peaks` is v1 —
+   * 56 RMS buckets regardless of duration, which is why long notes drew flat.
+   *
+   * v1 is NOT deprecated and cannot be. Peaks are computed once at record time
+   * and frozen into the row, so every Voicey recorded before v2 carries only
+   * that and can never be upgraded without re-downloading and rewriting every
+   * message. This branch is the permanent shape of the code, not a migration
+   * window.
+   *
+   * v2 first: a row could carry both if it were ever backfilled, and the better
+   * one should win.
+   */
+  const bars = useMemo(() => {
+    const decoded = decodeWave(wave);
+    if (decoded) return toDisplayWave(decoded, barCount);
+    return toDisplayPeaks(peaks, barCount);
+  }, [wave, peaks, barCount]);
 
   // Pause on unmount. Closing a drawer mid-playback must stop the audio — an
   // element that outlives its bubble keeps playing with nothing on screen to

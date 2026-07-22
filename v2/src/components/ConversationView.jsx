@@ -7,7 +7,7 @@ import {
   markConversationDelivered, conversationReceipts, receiptChannelName,
 } from '../lib/messaging';
 import { sendVoiceNote, VOICE_FALLBACK_BODY } from '../lib/voiceNotes';
-import { computePeaks } from '../lib/voicePeaks';
+import { computeWave } from '../lib/voiceWave';
 import { sendHand, HAND_BODY } from '../lib/hands';
 import { listHands, toggleHand } from '../lib/messageState';
 import Composer, { COMPOSER_HEIGHT } from './Composer';
@@ -805,14 +805,14 @@ export default function ConversationView({ conversationId, compact = false, onMi
         payload: {
           localUrl:    URL.createObjectURL(retry.blob),
           duration_ms: Math.max(0, Math.round(retry.durationMs ?? 0)),
-          ...(retry.peaks && { peaks: retry.peaks }),
+          ...(retry.wave && { wave: retry.wave }),
         },
         attempt: () => sendVoiceNote({
           conversationId,
           fromProfileId: senderProfile,
           blob:       retry.blob,
           durationMs: retry.durationMs,
-          peaks:      retry.peaks,   // computed at record time; a retry never re-decodes
+          wave:       retry.wave,    // computed at record time; a retry never re-decodes
           capture:    retry.capture,
         }),
       });
@@ -915,7 +915,7 @@ export default function ConversationView({ conversationId, compact = false, onMi
     // delay before the bubble appears is a few milliseconds. Degrades to no
     // waveform rather than no message: `computePeaks` already returns null on
     // failure and `sendVoiceNote` omits the key entirely when it does.
-    const peaks = await computePeaks(blob);
+    const wave = await computeWave(blob);
 
     const { ok, error: sendError } = await trySend({
       body: VOICE_FALLBACK_BODY,
@@ -925,7 +925,7 @@ export default function ConversationView({ conversationId, compact = false, onMi
       // thing in this app that is genuinely unrecoverable — was gone with no
       // way back. The blob is held in the placeholder until it either uploads
       // or the user gives up on it.
-      retry: { type: 'voice', blob, durationMs, capture, peaks },
+      retry: { type: 'voice', blob, durationMs, capture, wave },
       // A local url so the pending bubble is a real, playable Voicey rather
       // than a grey placeholder, with the length from the recorder and the
       // waveform computed above — so the note looks exactly the same before and
@@ -936,14 +936,14 @@ export default function ConversationView({ conversationId, compact = false, onMi
         // Omitted entirely when they could not be computed — the renderer's
         // test is "can I draw this", and a key holding null answers that
         // identically while costing bytes on every read.
-        ...(peaks && { peaks }),
+        ...(wave && { wave }),
       },
       attempt: () => sendVoiceNote({
         conversationId,
         fromProfileId: senderProfile,
         blob,
         durationMs,
-        peaks,     // already computed; never decode the same blob twice
+        wave,      // already computed; never decode the same blob twice
         capture,   // `C21` — what the device actually negotiated, not what we asked for
       }),
     });
