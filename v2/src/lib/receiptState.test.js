@@ -90,17 +90,58 @@ test('failed lights nothing — colour carries it, not height', () => {
   assert.equal(litBars(RECEIPT.FAILED), 0);
 });
 
-test('delivered is defined but never returned by receiptFor', () => {
-  // Reserved for when "a real human was notified" becomes knowable. Until then
-  // it would fire at the same instant as `sent` and mean nothing.
+/* ── delivered, real as of M10b ─────────────────────────────────────── */
+
+test('a delivery watermark past the message is delivered', () => {
+  assert.equal(
+    receiptFor({ isMine: true, createdAt: T0, deliveredWatermark: T1 }),
+    RECEIPT.DELIVERED,
+  );
   assert.equal(litBars(RECEIPT.DELIVERED), 2);
-  const reachable = [
-    receiptFor({ isMine: true, createdAt: T0 }),
-    receiptFor({ isMine: true, createdAt: T0, seenWatermark: T1 }),
-    receiptFor({ isMine: true, pendingState: RECEIPT.WAITING }),
-    receiptFor({ isMine: true, pendingState: RECEIPT.FAILED }),
-  ];
-  assert.ok(!reachable.includes(RECEIPT.DELIVERED), 'delivered must not be reachable in v1');
+});
+
+test('⚠ delivered requires an ACK — a stored message alone is only sent', () => {
+  // The whole point of M10b. Without an acknowledgement from the recipient's
+  // client there is no watermark, and the sender must stay on one bar however
+  // long the row has been sitting in the database.
+  assert.equal(receiptFor({ isMine: true, createdAt: T0 }), RECEIPT.SENT);
+  assert.equal(receiptFor({ isMine: true, createdAt: T0, deliveredWatermark: null }), RECEIPT.SENT);
+});
+
+test('a delivery watermark BEFORE the message is still only sent', () => {
+  // They were online earlier, then went offline, then you sent this.
+  assert.equal(
+    receiptFor({ isMine: true, createdAt: T1, deliveredWatermark: T0 }),
+    RECEIPT.SENT,
+  );
+});
+
+test('read outranks delivered', () => {
+  assert.equal(
+    receiptFor({ isMine: true, createdAt: T0, deliveredWatermark: T1, seenWatermark: T1 }),
+    RECEIPT.SEEN,
+  );
+});
+
+test('read implies delivered even if the delivery ack never arrived', () => {
+  // A lost broadcast or an ack that failed must not strand a message that has
+  // demonstrably been READ on a lower rung — you cannot read what you have not
+  // received, and the ladder must never contradict itself.
+  assert.equal(
+    receiptFor({ isMine: true, createdAt: T0, deliveredWatermark: null, seenWatermark: T1 }),
+    RECEIPT.SEEN,
+  );
+});
+
+test('an unparseable delivery watermark falls back to sent', () => {
+  for (const bad of ['not-a-date', '']) {
+    assert.equal(receiptFor({ isMine: true, createdAt: T0, deliveredWatermark: bad }), RECEIPT.SENT, String(bad));
+  }
+});
+
+test('the ladder is ordered: sent < delivered < read', () => {
+  assert.ok(litBars(RECEIPT.SENT) < litBars(RECEIPT.DELIVERED));
+  assert.ok(litBars(RECEIPT.DELIVERED) < litBars(RECEIPT.SEEN));
 });
 
 test('an unknown state lights nothing rather than throwing', () => {

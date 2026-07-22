@@ -3,7 +3,8 @@ import { supabase } from '../lib/supabase';
 import { useSession } from '../App';
 import {
   listMessages, listParticipants, actableProfileIds,
-  sendMessage, markConversationRead, conversationSeenWatermark,
+  sendMessage, markConversationRead,
+  markConversationDelivered, conversationReceipts, receiptChannelName,
 } from '../lib/messaging';
 import { sendVoiceNote } from '../lib/voiceNotes';
 import { sendHand } from '../lib/hands';
@@ -304,6 +305,10 @@ export default function ConversationView({ conversationId, compact = false, onMi
    * rather than an optimisation.
    */
   const [seenWatermark, setSeenWatermark] = useState(null);
+  /** Latest moment the message reached anyone else's DEVICE. See M10b. */
+  const [deliveredWatermark, setDeliveredWatermark] = useState(null);
+  /** The broadcast channel this thread's receipts travel on, while open. */
+  const receiptChannel = useRef(null);
   const scrollRef = useRef(null);
   const inputRef  = useRef(null);
   const atBottomRef = useRef(true);
@@ -390,14 +395,28 @@ export default function ConversationView({ conversationId, compact = false, onMi
       const { byMessage } = await listHands(rows.map(r => r.id));
       if (!cancelled.current) setHandsByMessage(byMessage);
 
-      // The OTHER side's watermark, for receipts. Same placement as the hands
+      // The OTHER side's watermarks, for receipts. Same placement as the hands
       // above and for the same reason: a receipt is decoration on a message
       // that is already readable, so it must never block the thread.
-      const { seenAt } = await conversationSeenWatermark(conversationId);
-      if (!cancelled.current) setSeenWatermark(seenAt);
+      const { deliveredAt, seenAt } = await conversationReceipts(conversationId);
+      if (!cancelled.current) {
+        setDeliveredWatermark(deliveredAt);
+        setSeenWatermark(seenAt);
+      }
+
+      // ⚠ ACKNOWLEDGE ON LOAD, BEFORE marking read.
+      //
+      // This is the reconnect path: messages that arrived while this device was
+      // closed or offline were never acknowledged by any live subscription, and
+      // opening the thread is the first moment they are genuinely HERE. Without
+      // this the sender would jump from one bar to three, skipping the rung
+      // that says the message actually arrived.
+      await markConversationDelivered(conversationId);
+      announceReceipt('delivered');
 
       // `C11` — this human's watermark. Monotonic in the database.
       await markConversationRead(conversationId);
+      announceReceipt('read');
       patch(conversationId, { unread: 0 }, true);
       // DEF-2 — tell the app shell the watermark moved. Advancing read state
       // is a WRITE that emits no realtime event, so the nav badge (which
@@ -436,9 +455,20 @@ export default function ConversationView({ conversationId, compact = false, onMi
 
         const isOwn = row.from_user_id === session.user.id;
         if (!isOwn) {
+          // ⚠ THE ACKNOWLEDGEMENT, at the only moment that honestly counts:
+          // this device now HAS the message. Not when it was stored, not when a
+          // push was queued — the row is in this client's hands.
+          //
+          // Unconditional, and before the read branch below: delivery does not
+          // depend on whether you are scrolled to the bottom, and a message you
+          // have received while reading history is every bit as delivered.
+          markConversationDelivered(conversationId);
+          announceReceipt('delivered');
+
           if (atBottomRef.current) {
             // Reading at the bottom: the watermark should follow.
             markConversationRead(conversationId);
+            announceReceipt('read');
           } else {
             // Scrolled up reading history — do NOT yank them to the bottom.
             // Surface an indicator and let them choose.
@@ -464,42 +494,65 @@ export default function ConversationView({ conversationId, compact = false, onMi
   }, [messages.length, conversationId, getState]);
 
   /**
-   * KEEP THE SEEN WATERMARK FRESH WHILE THE THREAD IS OPEN.
+   * Tell the other side a rung has been reached.
    *
-   * ⚠ A POLL, AND IT HAS TO BE. Advancing read state is an UPDATE, and both
-   * realtime subscriptions in this app are INSERT-only — so the other side
-   * opening your message emits nothing this client can hear. Without this,
-   * "seen" would only ever reflect the instant you opened the conversation and
-   * would then sit frozen while you watched it.
+   * Fire-and-forget: the durable record is the row this client just wrote, and
+   * a failed announcement costs the sender a delay, not correctness — they read
+   * the same fact from the table when they next open the thread.
+   */
+  function announceReceipt(kind) {
+    const at = new Date().toISOString();
+    receiptChannel.current?.send({
+      type: 'broadcast',
+      event: 'receipt',
+      payload: kind === 'read' ? { read: at, delivered: at } : { delivered: at },
+    });
+  }
+
+  /**
+   * RECEIPTS TRAVEL ON A BROADCAST CHANNEL. There is no poll.
    *
-   * Kept cheap deliberately: one aggregate call, only while a conversation is
-   * actually on screen, and suspended the moment the tab is hidden. A receipt
-   * is not worth waking a backgrounded phone for.
+   * An earlier version polled this every 15 seconds, because read state
+   * advances by UPDATE and both message subscriptions here are INSERT-only —
+   * so nothing told this client that the other side had just opened a message.
    *
-   * The honest alternative is realtime UPDATE handling on read state, which the
-   * unsend design already needs (D9/D12). When that lands, this poll should go
-   * — it is a stopgap, not the design.
+   * ⚠ A TABLE SUBSCRIPTION CANNOT SOLVE IT EITHER, which is the part worth
+   * understanding before anyone "improves" this. `postgres_changes` respects
+   * RLS, and the sender is forbidden from reading the recipient's read-state
+   * row — M8d's wall, which M10a deliberately left standing. Subscribing to
+   * that table would deliver the sender precisely nothing.
+   *
+   * Broadcast goes client to client and never touches that row, so it sidesteps
+   * the problem rather than working around it. The database stays the source of
+   * truth — read once on open, above — and the wire only carries liveness.
+   *
+   * Missing a broadcast is harmless by design: it is picked up from
+   * `conversationReceipts` the next time the thread opens.
    */
   useEffect(() => {
     if (!conversationId) return undefined;
 
-    let stop = false;
-    async function refresh() {
-      if (stop || document.visibilityState !== 'visible') return;
-      const { seenAt } = await conversationSeenWatermark(conversationId);
-      // Monotonic: never let a late or failed response walk the watermark
-      // BACKWARDS and un-see a message the sender has already been shown.
-      if (!stop && seenAt) {
-        setSeenWatermark(prev => (!prev || Date.parse(seenAt) > Date.parse(prev) ? seenAt : prev));
-      }
-    }
+    const channel = supabase.channel(receiptChannelName(conversationId), {
+      config: { broadcast: { self: false } },
+    });
 
-    const id = setInterval(refresh, 15000);
-    document.addEventListener('visibilitychange', refresh);
+    channel.on('broadcast', { event: 'receipt' }, ({ payload }) => {
+      // Monotonic on the way in. A delayed or duplicated announcement must
+      // never walk a watermark BACKWARDS and un-deliver a message the sender
+      // has already been shown — the same guarantee the database gives, applied
+      // again here because the wire can reorder.
+      const advance = setter => value => setter(prev =>
+        !prev || (value && Date.parse(value) > Date.parse(prev)) ? (value ?? prev) : prev);
+      if (payload?.delivered) advance(setDeliveredWatermark)(payload.delivered);
+      if (payload?.read)      advance(setSeenWatermark)(payload.read);
+    });
+
+    channel.subscribe();
+    receiptChannel.current = channel;
+
     return () => {
-      stop = true;
-      clearInterval(id);
-      document.removeEventListener('visibilitychange', refresh);
+      receiptChannel.current = null;
+      supabase.removeChannel(channel);
     };
   }, [conversationId]);
 
@@ -600,6 +653,7 @@ export default function ConversationView({ conversationId, compact = false, onMi
     if (atBottom && pendingNew > 0) {
       setPendingNew(0);
       markConversationRead(conversationId);
+      announceReceipt('read');
       patch(conversationId, { unread: 0 }, true);
     }
   }
@@ -1067,6 +1121,7 @@ export default function ConversationView({ conversationId, compact = false, onMi
                 handed={(handsByMessage.get(m.id) ?? []).includes(senderProfile)}
                 onToggleHand={() => onToggleHand(m.id)}
                 seenWatermark={seenWatermark}
+                deliveredWatermark={deliveredWatermark}
               />
             </Fragment>
           );
@@ -1120,7 +1175,7 @@ export default function ConversationView({ conversationId, compact = false, onMi
  * YesPleez cards land as branches rather than a rewrite. Only `text` exists —
  * the others are declared, not built, and nothing here pretends otherwise.
  */
-function MessageBubble({ message, isMine, grouped = false, endsBurst = true, speaker, handed = false, onToggleHand, seenWatermark = null }) {
+function MessageBubble({ message, isMine, grouped = false, endsBurst = true, speaker, handed = false, onToggleHand, seenWatermark = null, deliveredWatermark = null }) {
 
   // Null for anything received — receiptFor enforces that, and it is the rule
   // that keeps the §2.5 amendment narrow: a receipt on a message you received
@@ -1129,6 +1184,7 @@ function MessageBubble({ message, isMine, grouped = false, endsBurst = true, spe
     isMine,
     createdAt: message.created_at,
     pendingState: message.pendingState,
+    deliveredWatermark,
     seenWatermark,
   });
 

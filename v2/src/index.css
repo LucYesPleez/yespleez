@@ -405,19 +405,34 @@ input, textarea, select {
 }
 .yp-eq span {
   display: block;
-  border-radius: 999px;
+  /* Slightly rounded, not pill-shaped. At 12px a full radius turns a 2px bar
+     into a lozenge and the console reference disappears. */
+  border-radius: 1.5px;
+  transform-origin: bottom;
   /* Height and colour only. Both settle inside ~300ms including the stagger. */
   transition: height .22s var(--yp-ease), background-color .22s var(--yp-ease);
 }
 
-/* Failure is carried by COLOUR, not by height — a failed send that lit bars
-   would read as progress. All three stay at the resting height in red. */
-.yp-eq-failed span { transition-delay: 0ms !important; }
+/* ⚠ THE READ FLOURISH — AND IT MUST STOP.
+   Three iterations at .3s is ~0.9s, then it is over. `iteration-count` is the
+   entire safety mechanism: an `infinite` here would turn every read message in
+   a thread into a live audio meter, which is the one impression this design
+   exists to avoid. React also strips the class after PULSE_MS, so the animation
+   cannot restart on a re-render. Two locks, deliberately. */
+@keyframes ypEqPulse {
+  0%, 100% { transform: scaleY(1); }
+  50%      { transform: scaleY(.58); }
+}
+.yp-eq-pulse span {
+  animation: ypEqPulse .3s var(--yp-ease) 3;
+}
 
-/* The rise is feedback, and feedback that cannot be seen is not feedback —
-   so the bars still ARRIVE at their state here, they simply arrive instantly. */
+/* The rise is feedback, and feedback that cannot be seen is not feedback — so
+   the bars still ARRIVE at their state here, they simply arrive instantly. The
+   flourish is pure decoration and goes entirely. */
 @media (prefers-reduced-motion: reduce) {
   .yp-eq span { transition: none; }
+  .yp-eq-pulse span { animation: none; }
 }
 
 /* ── THE CONVERSATION HEADER ────────────────────────────────────────

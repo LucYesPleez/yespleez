@@ -326,6 +326,74 @@ export async function conversationSeenWatermark(conversationId) {
 }
 
 /**
+ * The realtime channel a conversation's receipts travel on.
+ *
+ * ⚠ BROADCAST, NOT `postgres_changes`, AND THAT IS FORCED. Row-change events
+ * respect RLS, and the sender CANNOT read the recipient's read-state row —
+ * that wall is M8d's and M10a deliberately left it standing. A table
+ * subscription would therefore deliver the sender nothing at all.
+ *
+ * Broadcast is client-to-client, so it sidesteps the read entirely: the
+ * recipient announces "I have it", the sender hears it directly. The database
+ * row is still written and is still the source of truth on load — the
+ * broadcast only saves the sender from asking.
+ *
+ * Ephemeral by nature: a sender who is offline misses the announcement and
+ * picks it up from `conversationReceipts` next time the thread opens. That is
+ * the correct division — durable state in the table, liveness on the wire.
+ */
+export function receiptChannelName(conversationId) {
+  return `receipts:${conversationId}`;
+}
+
+/**
+ * ⚠ THE ACKNOWLEDGEMENT. Call this ONLY when this device genuinely has the
+ * message — never on send, never on notify, never on a guess.
+ *
+ * "Delivered" is the one receipt that is easy to fake and worthless once faked.
+ * Storing a row, queueing a push, or a notification being accepted all happen
+ * without the recipient's device ever seeing anything; a sender who is told
+ * "delivered" on any of those has been told something untrue at the exact
+ * moment they are deciding whether to chase a reply.
+ *
+ * Idempotent in the database (GREATEST), so a replay, a reconnect or three
+ * devices acknowledging at once cannot produce inconsistent state — and this
+ * client is free to call it whenever it is unsure rather than tracking whether
+ * it already has.
+ */
+export async function markConversationDelivered(conversationId) {
+  if (!conversationId) return { deliveredAt: null, error: null };
+  const { data, error } = await supabase.rpc('mark_conversation_delivered', {
+    p_conversation_id: conversationId,
+  });
+  return { deliveredAt: error ? null : (data ?? null), error: error ?? null };
+}
+
+/**
+ * Both watermarks for everyone OTHER than the caller, in one round trip.
+ *
+ * Supersedes `conversationSeenWatermark`. Same aggregate discipline: the sender
+ * learns WHEN their message arrived and was read, never WHO on a shared profile
+ * did either — which is the §2.5 line that M10a amended without erasing.
+ *
+ * Never throws. A receipt is an embellishment on a message that has already
+ * been delivered, and it must not be able to stop a thread rendering.
+ */
+export async function conversationReceipts(conversationId) {
+  if (!conversationId) return { deliveredAt: null, seenAt: null, error: null };
+  const { data, error } = await supabase.rpc('conversation_receipts', {
+    p_conversation_id: conversationId,
+  });
+  // A TABLE-returning function arrives as an array of rows.
+  const row = Array.isArray(data) ? data[0] : data;
+  return {
+    deliveredAt: error ? null : (row?.delivered_at ?? null),
+    seenAt:      error ? null : (row?.seen_at ?? null),
+    error: error ?? null,
+  };
+}
+
+/**
  * Participants of one or more conversations, with the profile fields a list
  * needs to render.
  *

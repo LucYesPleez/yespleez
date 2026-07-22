@@ -1,99 +1,134 @@
+import { useEffect, useRef, useState } from 'react';
 import { RECEIPT, litBars } from '../lib/receiptState';
 
 /**
- * THE EQ RECEIPT — three bars that rise as a message travels.
+ * THE STATUS GLYPH — YesPleez's answer to the double tick.
  *
- *   ▁▁▁  waiting      ▃▁▁  sent      ▃▅▇  seen      ▁▁▁  failed (red)
+ *   ▇▁▁  sent        ▇▇▁  delivered      ▇▇▇  read
+ *   grey             cyan  cyan           grey · cyan · pink
  *
- * ── WHY AN EQUALISER AND NOT A TICK ──────────────────────────────────
+ * ── A GLYPH THAT BORROWS FROM AUDIO, NOT AN AUDIO METER ──────────────
  *
- * Ticks are WhatsApp's. This app is for DJs, bands, venues and festivals, and
- * an EQ bar already carries meaning here because of Voiceys — so the receipt
- * belongs to the scene rather than being borrowed from another messenger.
+ * The distinction is the entire design, and getting it wrong is the one way
+ * this fails. A miniature VU meter next to a voice note reads as playback —
+ * and this app puts those within a few pixels of each other. So:
  *
- * ⚠ IT IS A PROGRESS INDICATOR SHAPED LIKE AN EQ, NOT AN AUDIO METER.
+ *   · bars are EQUAL WIDTH with fixed, deliberately uneven heights, which
+ *     evokes a console without imitating a signal;
+ *   · nothing moves except when the state actually CHANGES;
+ *   · the read animation runs a fixed number of times and stops dead.
  *
- * That distinction is the whole risk. Anything that keeps moving next to a
- * voice note reads as recording or playback — this app has BOTH within a few
- * pixels of this mark. So each bar animates once, briefly, on arrival and then
- * stops dead. A resting receipt is completely static.
+ * There is no looping animation anywhere in this component or its CSS. That is
+ * a constraint, not an omission.
  *
- * Bars rise LEFT TO RIGHT and never fall, so the shape alone tells you how far
- * it got, at a glance and without colour. Colour is reinforcement, not the
- * signal — which also means it survives being seen by someone who cannot
- * separate violet from magenta.
+ * ── ANIMATION FIRES ON TRANSITION, NEVER ON MOUNT ────────────────────
+ *
+ * ⚠ THE SUBTLE ONE. Opening a thread mounts a receipt for every message in it,
+ * all of them long since read. Animating on mount would set the whole history
+ * oscillating at once every time you opened a conversation — which is both
+ * absurd and exactly the "live meter" impression the design forbids.
+ *
+ * So the first render of any receipt paints its final state silently, and only
+ * a change AFTER that animates. `prev` starting as the current state is what
+ * encodes that.
  */
 
-/** LIT heights as a fraction of the mark's height, shortest first. */
-const STEPS = [0.44, 0.7, 1];
+/**
+ * Bar heights, tallest first.
+ *
+ * Uneven on purpose — an even ramp reads as a progress bar wearing bars, and a
+ * console silhouette is what makes this recognisable at a glance. The
+ * PROGRESSION is carried by how many bars are lit and by their colour, not by
+ * the outline, so the shape is free to be a mark rather than a measurement.
+ */
+const HEIGHTS = [1, 0.64, 0.84];
 
 /**
  * The resting height of a bar that has not lit yet.
  *
- * ⚠ IT MUST BE SHORTER THAN STEPS[0], and that is not cosmetic. This started as
- * `STEPS[0]`, which meant the first bar was the same height lit or unlit — so
- * `sent` and `waiting` were identical in silhouette and told apart only by
- * colour. The whole point of an EQ ladder is that its SHAPE carries the state:
- *
- *   ▁▁▁  waiting      ▃▁▁  sent      ▃▅▇  seen
- *
- * Caught by measuring the rendered heights, not by looking — at 11px the
- * difference between "all three flat" and "one of them slightly less flat" is
- * invisible in a screenshot and obvious in the numbers.
+ * Must stay well below the shortest lit height. An earlier version rested them
+ * at the first lit step, which made `sent` and `waiting` identical in
+ * silhouette — the ladder became colour-only, and at 11px that is invisible.
  */
 const REST = 0.26;
 
-/** Unlit bars stay drawn. The ladder should show what has NOT happened yet. */
-const DIM = 'rgba(255,255,255,.22)';
+/** Unlit. Present, so the glyph always shows what has NOT happened yet. */
+const DIM = 'rgba(255,255,255,.20)';
+
+const GREY = '#9CA3AF';
+const CYAN = '#22D3EE';
+const PINK = '#EC4899';
+const FAIL = '#FF3B5C';
 
 /**
- * Lit colours, brightening along the ladder.
+ * The lit colours for each rung.
  *
- * Cyan → violet → magenta, the same three stops the Voicey waveform runs
- * through, so the two marks read as the same family rather than as two
- * unrelated gradients that both happen to be brand-coloured.
+ * Note `delivered` turns the FIRST bar cyan and `read` returns it to grey. That
+ * is deliberate in the owner's spec: delivered is a moment of arrival, so both
+ * live bars brighten together; read is the resolved end state, and there the
+ * three bars settle into the grey → cyan → pink gradient that is the mark.
  */
-const LIT = ['#00E5FF', '#A855F7', '#FF4FD8'];
+const PALETTE = {
+  [RECEIPT.SENT]:      [GREY, DIM,  DIM],
+  [RECEIPT.DELIVERED]: [CYAN, CYAN, DIM],
+  [RECEIPT.SEEN]:      [GREY, CYAN, PINK],
+  [RECEIPT.WAITING]:   [DIM,  DIM,  DIM],
+  [RECEIPT.FAILED]:    [FAIL, FAIL, FAIL],
+};
 
-const FAILED = '#FF3B5C';
+/** Matches the CSS: 3 oscillations at .3s. Cleared after, so it cannot repeat. */
+const PULSE_MS = 900;
 
-export default function EqReceipt({ state, size = 11 }) {
+export default function EqReceipt({ state, size = 12 }) {
+  const prev = useRef(state);
+  const [pulsing, setPulsing] = useState(false);
+
+  useEffect(() => {
+    const changed = prev.current !== state;
+    prev.current = state;
+    // Only READ gets the flourish. Sent and delivered are a bar rising into
+    // place — a whole-glyph animation on every hop would make an ordinary
+    // exchange feel busy, and this mark repeats down the entire thread.
+    if (!changed || state !== RECEIPT.SEEN) return undefined;
+    setPulsing(true);
+    const t = setTimeout(() => setPulsing(false), PULSE_MS);
+    return () => clearTimeout(t);
+  }, [state]);
+
   if (!state) return null;
 
-  const failed = state === RECEIPT.FAILED;
   const lit    = litBars(state);
+  const failed = state === RECEIPT.FAILED;
+  const colours = PALETTE[state] ?? PALETTE[RECEIPT.WAITING];
 
   const label =
     failed ? 'Not sent'
-    : state === RECEIPT.WAITING ? 'Sending'
-    : state === RECEIPT.SEEN    ? 'Seen'
+    : state === RECEIPT.WAITING   ? 'Sending'
+    : state === RECEIPT.DELIVERED ? 'Delivered'
+    : state === RECEIPT.SEEN      ? 'Read'
     : 'Sent';
 
   return (
     <span
-      // The state is announced, never inferred from the drawing. A screen
-      // reader gets the word; the bars are decoration to it.
+      // The word is announced; the bars are decoration to a screen reader.
       role="img"
       aria-label={label}
       title={label}
-      className={`yp-eq${failed ? ' yp-eq-failed' : ''}`}
-      style={{ height: size, gap: Math.max(1.5, size * 0.17) }}
+      className={`yp-eq${pulsing ? ' yp-eq-pulse' : ''}`}
+      style={{ height: size, gap: Math.max(1.5, size * 0.16) }}
     >
-      {STEPS.map((step, i) => {
+      {HEIGHTS.map((h, i) => {
         const on = !failed && i < lit;
         return (
           <span
             key={i}
             style={{
-              // Unlit bars sit at REST, well below even the first step, so an
-              // unfinished ladder reads as flat and each rung visibly rises.
-              height: `${(on ? step : REST) * 100}%`,
-              width: Math.max(2, size * 0.2),
-              background: failed ? FAILED : on ? LIT[i] : DIM,
-              // Staggered so the bars arrive as a run rather than together —
-              // 90ms apart is enough to read as a sweep and short enough that
-              // the whole thing has settled within a third of a second.
-              transitionDelay: `${i * 90}ms`,
+              height: `${(on || failed ? h : REST) * 100}%`,
+              width: Math.max(2, size * 0.18),
+              background: on || failed ? colours[i] : DIM,
+              // Staggered so a rung arrives as a sweep rather than a snap.
+              transitionDelay: `${i * 70}ms`,
+              animationDelay: `${i * 60}ms`,
             }}
           />
         );

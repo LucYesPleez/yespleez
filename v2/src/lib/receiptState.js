@@ -9,22 +9,19 @@
  *   ▃▅▇   seen      another participant's read watermark has passed it
  *   ▁▁▁   failed    the send threw; red, and retryable
  *
- * ── WHY `delivered` IS DEFINED BUT NEVER RETURNED ────────────────────
+ * ── `delivered` IS NOW REAL (M10b) ───────────────────────────────────
  *
- * Because there is nothing honest for it to mean yet. A message row exists the
- * instant it is sent, so "delivered" would be the same event as "sent" wearing
- * a second name — a bar that always lit at the same moment as the one before
- * it, which is a decoration pretending to be information.
+ * It was defined-but-unreachable for two releases, deliberately, because
+ * nothing honest backed it: a row exists the instant it is sent, so lighting a
+ * second bar then would have been decoration pretending to be information.
  *
- * There IS a real distinction waiting to be built: M8e writes a notification
- * row per human who can act as the recipient profile, and for an UNCLAIMED
- * profile it writes a single HELD row addressed to nobody. So "delivered" can
- * one day mean "a real person was actually notified", and its absence can mean
- * "this went to a profile no one has claimed yet" — which matters enormously
- * for artist invites. It needs read access to the recipient's notification rows,
- * which does not exist. Named now so the ladder has a shape; not faked.
+ * It now means what it says. The RECIPIENT'S CLIENT acknowledges on actually
+ * receiving a message, and that acknowledgement — nothing else — moves the
+ * watermark. Storing the row does not. Queueing a push does not. A notification
+ * being accepted does not. If the recipient's phone is off, the sender stays on
+ * one bar, which is the truth.
  *
- * ── SEEN IS A WATERMARK COMPARISON, NOT A FLAG ───────────────────────
+ * ── BOTH RUNGS ARE WATERMARK COMPARISONS, NOT FLAGS ──────────────────
  *
  * The server returns ONE timestamp per conversation — the latest moment any
  * other participant read it — rather than a per-message boolean. Every message
@@ -58,7 +55,7 @@ export const LIT_BARS = {
  * @param {string}  [p.seenWatermark] latest read moment among OTHER participants
  * @returns {string|null} a RECEIPT value, or null when no receipt should show
  */
-export function receiptFor({ isMine, createdAt, pendingState, seenWatermark } = {}) {
+export function receiptFor({ isMine, createdAt, pendingState, deliveredWatermark, seenWatermark } = {}) {
   // ⚠ RECEIPTS ARE FOR THE SENDER ONLY. Drawing one on a message you received
   // would be telling you whether YOU have read it, which you self-evidently
   // know — and on a shared profile it would quietly report your colleague's
@@ -73,14 +70,28 @@ export function receiptFor({ isMine, createdAt, pendingState, seenWatermark } = 
   if (!createdAt) return RECEIPT.SENT;
 
   const sentAt = Date.parse(createdAt);
-  const seenAt = seenWatermark ? Date.parse(seenWatermark) : NaN;
-  if (!Number.isFinite(sentAt) || !Number.isFinite(seenAt)) return RECEIPT.SENT;
+  if (!Number.isFinite(sentAt)) return RECEIPT.SENT;
 
-  // `<=` not `<`: a watermark set in the same millisecond as the message means
-  // the reader was already looking at the thread when it landed. Strict `<`
-  // would leave that message stuck on `sent` forever, because nothing later
-  // will move the watermark backwards onto it.
-  return sentAt <= seenAt ? RECEIPT.SEEN : RECEIPT.SENT;
+  // `<=` not `<` on both: a watermark set in the same millisecond as the
+  // message means the recipient was already there when it landed. Strict `<`
+  // would strand that message a rung down forever, because nothing later moves
+  // a watermark backwards onto it.
+  if (passed(sentAt, seenWatermark))      return RECEIPT.SEEN;
+  if (passed(sentAt, deliveredWatermark)) return RECEIPT.DELIVERED;
+  return RECEIPT.SENT;
+}
+
+/**
+ * Has `mark` reached `sentAt`?
+ *
+ * Anything unparseable is NO. A malformed timestamp claiming a rung would tell
+ * the sender something untrue about another person — under-reporting is
+ * recoverable, over-reporting is not.
+ */
+function passed(sentAt, mark) {
+  if (!mark) return false;
+  const at = Date.parse(mark);
+  return Number.isFinite(at) && sentAt <= at;
 }
 
 /** Lit bars for a state, or 0 for anything unrecognised. */
