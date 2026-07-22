@@ -41,7 +41,7 @@ Known gaps, both deliberate:
 - If an insert succeeds but its response never arrives, you can briefly see both the real
   message and a red placeholder. Errs toward showing too much rather than losing something.
 
-## iOS recording quality — MOSTLY CLOSED, one loose end
+## iOS recording quality — CLOSED
 
 Started at 1/5 against a Galaxy's 5/5 — quiet and muffled, worse than WhatsApp on the same
 handset. Now "definitely better" with some hiss remaining.
@@ -71,15 +71,25 @@ without new data:
 Also raised Opus 32 → 48 kbps, the top of §6.2's ratified range rather than the bottom. No
 amendment needed; 48 was always permitted.
 
-### The loose end: `82c62b4` is a measurement, not a fix
+### The loose end — CLOSED (`82c62b4` tried it, `4f2a4df` reverted it)
 
-`noiseSuppression: true` was added to the iOS constraints to chase the remaining hiss. **It
-is expected not to work**, and the readback says why: `noise_suppression` and `auto_gain`
-come back `null` on iOS while `echo_cancellation` comes back populated — the signature of a
-user agent silently ignoring what it cannot do. Apple's noise reduction is also already on,
-bundled with the voice-processing unit.
+`noiseSuppression: true` was requested on iOS to chase the residual hiss, committed
+explicitly as a measurement, and reverted the same day. **A fresh iOS note captured with the
+constraint requested still came back `noise_suppression: null`.** Safari ignores it, and
+ignores `autoGainControl` too. ⚠ **Do not re-add either — this was tried and measured, not
+overlooked.**
 
-**Resolve it by looking, not by reasoning.** After a fresh iOS note:
+The same rows are the proof the amendment worked. `echo_cancellation` went `false` → `true`
+between 04:45 and 05:01, exactly where the change deployed, and that is the recording rated
+"definitely better" against 1/5 before it. `bitrate` reads `48000`. Apple's voice-processing
+unit is on and its noise reduction rides along with it — there was never a second switch.
+
+The residual hiss is gain doing its job, not absent NR: a quiet room turned up is a louder
+quiet room and its noise floor becomes audible. **Nothing reachable from `getUserMedia`
+changes that.** The honest remaining moves are recording closer to the phone, or native
+microphone access via a wrapper (Capacitor) — neither of them a settings change.
+
+The query that settles questions like this, for reuse:
 
 ```sql
 select
@@ -94,13 +104,9 @@ order by m.created_at desc
 limit 4;
 ```
 
-- `"noise_suppression": true` → Safari honours it; keep the line.
-- `"noise_suppression": null` → ignored; **revert `IOS_CAPTURE_CONSTRAINTS` to `true`**
-  rather than leave it implying a control we do not have.
-
-If the hiss survives, it is a raised noise floor from gain rather than anything settable —
-the honest remaining moves are recording closer to the phone, or a native wrapper
-(Capacitor) for real microphone access. Not a settings problem at that point.
+⚠ Read it by platform: **iOS rows are the ones with `auto_gain: null`** (Safari does not
+report what it does not implement); Chrome/Android reports `false`. That is how the two
+handsets were told apart throughout this investigation.
 
 ## Remaining blockers
 
