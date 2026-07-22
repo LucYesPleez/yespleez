@@ -756,8 +756,8 @@ input, textarea, select {
    under 252px, and an inline minimum cannot be told to yield. */
 .yp-voice-player {
   min-width: 252px;
-  /* Clears the Yes badge's reach at the bubble's bottom-left. Zero on phones,
-     where the badge does not come in that far. See --yp-yes-inset. */
+  /* Clears the Yes badge's reach at the bubble's bottom-left. See
+     --yp-yes-inset — the badge comes in 17px, past this bubble's 17px padding. */
   padding-left: var(--yp-yes-inset);
 }
 
@@ -815,19 +815,19 @@ input, textarea, select {
   /* What the frame must reserve to its left so the badge has somewhere to go. */
   --yp-yes-gutter: calc(var(--yp-yes-size) - var(--yp-yes-overlap));
 
-  /* ── THE ONE THING THAT DIFFERS BY VIEWPORT ────────────────────────
-     Phones sit at 0: the badge hangs the full gutter to the left of the frame.
-     Desktop nudges it right (below), because at the same offset on a wide
-     viewport the badge reads as detached from the bubble rather than pinned to
-     it — the owner's "way too far on desktop".
+  /* ── NOTHING ABOUT THE BADGE VARIES BY VIEWPORT ANY MORE ───────────
+     This was 0 on phones and 12px on desktop for one round. The owner called
+     desktop perfect and asked phones to match it, so there is now ONE value and
+     no media query — the badge sits identically on every screen, as it does for
+     every kind and every direction.
 
      ⚠ A SHIFT, NOT A DIFFERENT OVERLAP. The frame reserves `--yp-yes-gutter`
-     either way, so the badge still has its own space and can still never reach
-     the avatar. Only where it sits inside that reserved space changes.
+     regardless, so the badge always has its own space and can never reach the
+     avatar. Only where it sits inside that reserved space changes.
 
-     One variable with two values. If this ever becomes two rules, or starts
-     varying by direction or by kind, the contract has been broken. */
-  --yp-yes-shift: 0px;
+     If a viewport override ever comes back here, check it is genuinely a
+     different NEED and not a value that could just be this one. */
+  --yp-yes-shift: 12px;
 
   /* ── WHAT THE SHIFT COSTS, PAID BACK ──────────────────────────────
      The badge reaches `overlap + shift` into the frame. At a 12px shift that is
@@ -841,14 +841,7 @@ input, textarea, select {
 
      Derived, not hand-tuned: it is whatever the badge's reach exceeds the
      tightest padding by, plus 4px of air. Change the shift and this follows. */
-  --yp-yes-inset: 0px;
-}
-
-@media (min-width: 641px) {
-  :root {
-    --yp-yes-shift: 12px;
-    --yp-yes-inset: 5px;
-  }
+  --yp-yes-inset: 5px;
 }
 
 .yp-msg-frame {
