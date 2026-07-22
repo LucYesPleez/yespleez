@@ -756,6 +756,44 @@ input, textarea, select {
    under 252px, and an inline minimum cannot be told to yield. */
 .yp-voice-player { min-width: 252px; }
 
+/* ── THE YES MARK'S CORNER ──────────────────────────────────────────
+   Hangs off the bubble's bottom-LEFT in both directions — the bottom-right has
+   permanent tenants (the clock, and since M10a the EQ receipt), and one rule for
+   every kind and direction is easier to read down a thread than a mark that
+   switches sides with the speaker.
+
+   `bottom: -16` with a 27px mark reaches ~11px up into the bubble: under the
+   text, not over it. Out of flow entirely, so a message does not change size
+   when it gains one — the thread must not jump under the reader's thumb at the
+   moment they react. */
+.yp-yes-mark {
+  bottom: -16px;
+  left: -8px;
+}
+
+/* ⚠ SENT BUBBLES NEED MORE CLEARANCE, and the reason is the EQ receipt.
+   Its bottom row is `clock + gap + glyph` where a received bubble's is just the
+   clock, so the clock starts ~7px further left. On a SHORT message the bubble
+   shrinks to fit that row and the clock lands at 13px from the left edge, while
+   the mark reached 19px — clipping it. Measured on a 412px handset,
+   reported 2026-07-22.
+
+   -18 puts the mark's right edge at 9px against the clock's 13px floor — 4px of
+   air rather than the 2px that -16 gave, which cleared but read as touching.
+
+   ⚠ THAT 13px FLOOR IS THE BUBBLE'S OWN LEFT PADDING, not a font measurement.
+   On a short message the bubble shrinks to fit the timestamp row, so the row
+   fills the content box and the clock starts exactly at the padding edge — which
+   means this clearance does NOT depend on how Android renders "07:03". Change
+   the bubble's horizontal padding and this needs revisiting; change the font and
+   it does not.
+
+   ⚠ RECEIVED KEEPS -8 DELIBERATELY. Its bubble is preceded by a 26px avatar and
+   an 8px gap, and the mark hangs below into exactly that corner — pushing it
+   further left would put it on top of the avatar instead of the clock, which is
+   trading one collision for another. */
+.yp-yes-mark--mine { left: -18px; }
+
 /* ── THE PLAY BUTTON'S TAP TARGET ───────────────────────────────────
    The disc is 36px to match the composer's mic (`SIZE` in VoicePill, `CONTROL`
    in Composer). The TARGET stays 44 — the size originally chosen here as the

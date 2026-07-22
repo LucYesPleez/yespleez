@@ -1497,6 +1497,7 @@ function MessageBubble({ message, isMine, grouped = false, endsBurst = true, spe
           <span
             role="img"
             aria-label="You said Yes to this"
+            className={`yp-yes-mark${isMine ? ' yp-yes-mark--mine' : ''}`}
             style={{
               position: 'absolute',
               // Hangs mostly BELOW the bubble rather than across it. The
@@ -1504,7 +1505,6 @@ function MessageBubble({ message, isMine, grouped = false, endsBurst = true, spe
               // reaction centred on that corner would sit on top of the time.
               // At -16 with a 27px mark it reaches ~11px into the bubble —
               // under the text, not over it.
-              bottom: -16,
               // ⚠ ALWAYS THE LEFT, both directions. This used to be the INNER
               // edge — left when sent, right when received — which read well
               // until the bottom-right corner acquired permanent tenants.
@@ -1518,7 +1518,12 @@ function MessageBubble({ message, isMine, grouped = false, endsBurst = true, spe
               // rule covers every kind and every direction — and a Yes always
               // appears in the same place, which is easier to read down a thread
               // than a mark that switches sides with the speaker.
-              left: -8,
+              //
+              // ⚠ THE OFFSET ITSELF IS IN index.css (`.yp-yes-mark`), because it
+              // differs by direction and had to be measurable. On a SENT bubble
+              // the EQ receipt sits beside the clock, which pushes the clock
+              // ~7px further left than on a received one — far enough that the
+              // mark clipped it on short messages. Reported 2026-07-22.
               display: 'flex',
               color: 'var(--yp-hand-ink)',   // shared with the composer's Hand
               // FREE FLOATING — no chip, no circle, no border. The mark sits on
