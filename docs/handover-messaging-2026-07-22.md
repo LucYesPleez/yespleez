@@ -87,8 +87,26 @@ unit is on and its noise reduction rides along with it — there was never a sec
 
 The residual hiss is gain doing its job, not absent NR: a quiet room turned up is a louder
 quiet room and its noise floor becomes audible. **Nothing reachable from `getUserMedia`
-changes that.** The honest remaining moves are recording closer to the phone, or native
-microphone access via a wrapper (Capacitor) — neither of them a settings change.
+changes that.**
+
+### ⛔ OWNER DECISION 2026-07-22: STOP HERE. The capture is finished.
+
+The iOS microphone is left exactly as it is. **Do not add EQ, a high shelf, a noise gate, a
+gain stage, or any other processing to the capture or playback path.** The residual hiss is
+accepted as the cost of a browser microphone, and the quality question is deferred to a
+native build if one ever happens.
+
+This closes a line of work, it is not a pause. Proposals to "just try a filter" are
+re-opening a decision, and the reasoning they need to beat is in the §6.1 amendment block in
+`voiceNotes.js`: hand-rolled processing has to survive whispers, shouting and every
+microphone in the wild without pumping, and Apple has already done that work. Two things
+were tried and measured here — a WebAudio bypass and an explicit noise-suppression request —
+and both are documented as dead ends rather than untried ideas.
+
+`v2/public/mic-check.html` is the analyser built for this investigation. It is kept because
+it will be the fastest way to compare a native build against the browser one, but it is a
+**diagnostic and must be deleted before any public launch** — it is an unauthenticated page
+that opens the microphone.
 
 The query that settles questions like this, for reuse:
 
