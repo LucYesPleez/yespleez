@@ -7,6 +7,7 @@ import {
   markConversationDelivered, conversationReceipts, receiptChannelName,
 } from '../lib/messaging';
 import { sendVoiceNote, VOICE_FALLBACK_BODY } from '../lib/voiceNotes';
+import { computePeaks } from '../lib/voicePeaks';
 import { sendHand, HAND_BODY } from '../lib/hands';
 import { listHands, toggleHand } from '../lib/messageState';
 import Composer, { COMPOSER_HEIGHT } from './Composer';
@@ -789,14 +790,16 @@ export default function ConversationView({ conversationId, compact = false, onMi
       await trySend({
         body: VOICE_FALLBACK_BODY, kind: 'voice', retry,
         payload: {
-          localUrl: URL.createObjectURL(retry.blob),
+          localUrl:    URL.createObjectURL(retry.blob),
           duration_ms: Math.max(0, Math.round(retry.durationMs ?? 0)),
+          ...(retry.peaks && { peaks: retry.peaks }),
         },
         attempt: () => sendVoiceNote({
           conversationId,
           fromProfileId: senderProfile,
           blob:       retry.blob,
           durationMs: retry.durationMs,
+          peaks:      retry.peaks,   // computed at record time; a retry never re-decodes
           capture:    retry.capture,
         }),
       });
@@ -890,6 +893,17 @@ export default function ConversationView({ conversationId, compact = false, onMi
   async function onRecordedVoice({ blob, durationMs, capture }) {
     if (!senderProfile || sending) return;
 
+    // Computed BEFORE the placeholder, and handed to both it and the upload.
+    // Without them `toDisplayPeaks` returns null and the pending bubble draws a
+    // collapsed waveform that pops into shape when the real row lands — which
+    // reads as the recording having been damaged and then repaired.
+    //
+    // It is a decode of a blob already in memory, not a network call, so the
+    // delay before the bubble appears is a few milliseconds. Degrades to no
+    // waveform rather than no message: `computePeaks` already returns null on
+    // failure and `sendVoiceNote` omits the key entirely when it does.
+    const peaks = await computePeaks(blob);
+
     const { ok, error: sendError } = await trySend({
       body: VOICE_FALLBACK_BODY,
       kind: 'voice',
@@ -898,18 +912,25 @@ export default function ConversationView({ conversationId, compact = false, onMi
       // thing in this app that is genuinely unrecoverable — was gone with no
       // way back. The blob is held in the placeholder until it either uploads
       // or the user gives up on it.
-      retry: { type: 'voice', blob, durationMs, capture },
+      retry: { type: 'voice', blob, durationMs, capture, peaks },
       // A local url so the pending bubble is a real, playable Voicey rather
-      // than a grey placeholder. `duration_ms` comes from the recorder so the
-      // length is right immediately; `peaks` are absent because they are
-      // computed inside sendVoiceNote, and a waveform that appears a moment
-      // late is a far smaller cost than blocking the append on it.
-      payload: { localUrl: URL.createObjectURL(blob), duration_ms: Math.max(0, Math.round(durationMs ?? 0)) },
+      // than a grey placeholder, with the length from the recorder and the
+      // waveform computed above — so the note looks exactly the same before and
+      // after it lands, and settling is invisible rather than a visible repair.
+      payload: {
+        localUrl:    URL.createObjectURL(blob),
+        duration_ms: Math.max(0, Math.round(durationMs ?? 0)),
+        // Omitted entirely when they could not be computed — the renderer's
+        // test is "can I draw this", and a key holding null answers that
+        // identically while costing bytes on every read.
+        ...(peaks && { peaks }),
+      },
       attempt: () => sendVoiceNote({
         conversationId,
         fromProfileId: senderProfile,
         blob,
         durationMs,
+        peaks,     // already computed; never decode the same blob twice
         capture,   // `C21` — what the device actually negotiated, not what we asked for
       }),
     });

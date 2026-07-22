@@ -164,3 +164,32 @@ test('durations pad the seconds and never go negative', async () => {
   assert.equal(formatDuration(NaN),  '0:00', 'audio duration is NaN until metadata loads');
   assert.equal(formatDuration(undefined), '0:00');
 });
+
+/* ── §6.2's bitrate is per CODEC, not one constant ──────────────────── */
+
+test('⚠ AAC gets a higher bitrate than Opus for the same quality bar', async () => {
+  // 32 kbps was ratified against Opus, where 48 kHz mono speech is near
+  // transparent. Safari cannot record Opus — it produces AAC-LC — and AAC at
+  // 32 kbps mono is audibly poor. Reported from an iPhone 14 Pro 2026-07-22:
+  // recording worked and sounded bad, on hardware whose mic is not the problem.
+  const { bitrateFor } = await import('./voiceNotes.js');
+
+  assert.equal(bitrateFor('audio/webm;codecs=opus'), 32000);
+  assert.equal(bitrateFor('audio/ogg;codecs=opus'),  32000);
+  assert.equal(bitrateFor('audio/mp4'),              64000);
+  assert.equal(bitrateFor('audio/mpeg'),             64000);
+});
+
+test('the codec is matched on the BASE type, so parameters cannot defeat it', async () => {
+  // Safari negotiates 'audio/mp4;codecs=mp4a.40.2'. Keying on the full string
+  // would miss it and silently hand AAC the Opus rate — which is precisely the
+  // bug, restored.
+  const { bitrateFor } = await import('./voiceNotes.js');
+  assert.equal(bitrateFor('audio/mp4;codecs=mp4a.40.2'), 64000);
+});
+
+test('an unknown codec falls back to the ratified Opus rate', async () => {
+  const { bitrateFor } = await import('./voiceNotes.js');
+  assert.equal(bitrateFor('audio/flac'), 32000);
+  assert.equal(bitrateFor(undefined),    32000);
+});

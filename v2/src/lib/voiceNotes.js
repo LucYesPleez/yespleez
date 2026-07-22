@@ -187,6 +187,36 @@ function forceMono(stream) {
 const TARGET_BITS_PER_SECOND = 32000;
 
 /**
+ * ⚠ 32 kbps IS AN OPUS NUMBER, AND ONLY AN OPUS NUMBER.
+ *
+ * §6.2 ratified it against Opus, where 48 kHz mono speech at 32 kbps is very
+ * close to transparent. Safari cannot record Opus — it produces AAC-LC in MP4 —
+ * and AAC-LC at 32 kbps mono is audibly poor: swimmy, with a metallic edge on
+ * sibilants. Applying one number to both codecs was reading the constant as
+ * "the quality we agreed on" when it is really "the rate at which THAT codec
+ * reaches it".
+ *
+ * Found on an iPhone 14 Pro, 2026-07-22: recording worked and sounded bad, on
+ * hardware whose microphone is not the problem.
+ *
+ * 64 kbps is the equivalent operating point for AAC-LC mono speech. It is still
+ * well under half of what an uncompressed note would cost, and it is paid only
+ * by devices that cannot give us Opus in the first place.
+ *
+ * Keyed on the BASE type, because the negotiated string carries parameters and
+ * `audio/mp4;codecs=mp4a.40.2` must resolve the same as `audio/mp4`.
+ */
+const BITS_PER_SECOND_BY_TYPE = {
+  'audio/mp4':  64000,   // AAC-LC — Safari, iOS and macOS
+  'audio/mpeg': 64000,   // MP3, if a browser ever offers it
+};
+
+/** The rate this codec needs to hit §6.2's quality bar, not a single constant. */
+export function bitrateFor(mimeType) {
+  return BITS_PER_SECOND_BY_TYPE[baseMimeType(mimeType)] ?? TARGET_BITS_PER_SECOND;
+}
+
+/**
  * Preferred capture format, best first.
  *
  * `C21` — record natively, store the source, never transcode. Every re-encode
@@ -271,6 +301,53 @@ export async function startRecording() {
   const { stream: recordStream, context: mixContext, downmixed } = forceMono(stream);
 
   /**
+   * ⚠ AN AUDIOCONTEXT DOES NOT NECESSARILY START RUNNING.
+   *
+   * On iOS Safari a new context begins SUSPENDED, and a suspended context does
+   * not process its graph. Everything below hangs off this one: the mono
+   * destination that MediaRecorder is about to record, and the analyser that
+   * drives the live waveform. So a context left suspended costs the meter AND
+   * degrades the audio — two symptoms, one cause, and neither of them looks
+   * like "the AudioContext never started".
+   *
+   * Reported from an iPhone 14 Pro, 2026-07-22: microphone appeared, recording
+   * functioned, no waveform while recording, and the result sounded poor.
+   *
+   * Chromium resumes on its own once a gesture has occurred, which is exactly
+   * why this survived every desktop and Android test. `startRecording` is
+   * always reached from a tap, so the gesture requirement is already satisfied
+   * — the resume simply has to be ASKED for.
+   *
+   * Awaited before `recorder.start()`, deliberately. Starting into a context
+   * that has not finished resuming records the beginning of the note through a
+   * graph that is not running yet, which clips the first word — the failure
+   * mode most likely to be blamed on the user for talking too early.
+   */
+  if (mixContext?.state === 'suspended') {
+    // Never fatal. A recording through the original stream is worth far more
+    // than no recording, and `C21`'s readback records what actually happened.
+    try { await mixContext.resume(); } catch { /* fall through to the check below */ }
+  }
+
+  /**
+   * ⚠ IF THE GRAPH IS STILL NOT RUNNING, DO NOT RECORD THROUGH IT.
+   *
+   * `forceMono` is an optimisation — it guarantees §6.3's mono rather than
+   * hoping for it. A suspended context turns that optimisation into SILENCE,
+   * because `dest.stream` carries whatever the graph produced and a stopped
+   * graph produces nothing. Stereo audio is a cost; a silent voice note is a
+   * lost message, and the sender has no way to tell the difference until
+   * someone tells them the note was empty.
+   *
+   * So the fallback is the microphone's own stream, unprocessed. `downmixed`
+   * goes false with it, which keeps `C21`'s readback honest instead of claiming
+   * a downmix that did not survive.
+   */
+  const contextRunning = !mixContext || mixContext.state === 'running';
+  const safeStream     = contextRunning ? recordStream : stream;
+  const reallyDownmixed = downmixed && contextRunning;
+
+  /**
    * LIVE LEVEL, for the recording waveform in the composer.
    *
    * Taps the AudioContext the downmix already created rather than opening a
@@ -298,9 +375,9 @@ export async function startRecording() {
     }
   }
 
-  const recorder = new MediaRecorder(recordStream, {
+  const recorder = new MediaRecorder(safeStream, {
     mimeType,
-    audioBitsPerSecond: TARGET_BITS_PER_SECOND,
+    audioBitsPerSecond: bitrateFor(mimeType),
   });
   const chunks = [];
   recorder.addEventListener('dataavailable', e => {
@@ -377,9 +454,11 @@ export async function startRecording() {
             // What was RECORDED, which after a downmix is not what the device
             // reported. `source_channels` keeps the device's own answer so a
             // support-matrix question can still be asked of the data.
-            channels:        downmixed ? 1 : (settings.channelCount ?? null),
+            channels:        reallyDownmixed ? 1 : (settings.channelCount ?? null),
             source_channels: settings.channelCount ?? null,
-            downmixed,
+            downmixed: reallyDownmixed,
+            // `D6` diagnostics: which of the two iOS faults, if either, was hit.
+            context_state: mixContext?.state ?? null,
             dsp: {
               echo_cancellation: settings.echoCancellation ?? null,
               noise_suppression: settings.noiseSuppression ?? null,
@@ -465,14 +544,18 @@ export async function signedUrlFor(path, expiresIn = SIGNED_URL_TTL_SECONDS) {
  * broken player is worse than one that was never sent — the sender believes it
  * went.
  */
-export async function sendVoiceNote({ conversationId, fromProfileId, blob, durationMs, capture } = {}) {
+export async function sendVoiceNote({ conversationId, fromProfileId, blob, durationMs, capture, peaks: precomputed } = {}) {
   // §6.6's pipeline order: record → compute peaks → upload → message.
   //
   // Peaks are computed BEFORE the upload, not after, so a peak failure costs
   // nothing: at this point no object exists and no row exists, so degrading to
   // a note without a waveform is free. Computing after the upload would mean a
   // decorative step could fail with an orphan already written.
-  const peaks = await computePeaks(blob);
+  // Accepts peaks the caller already computed. The optimistic bubble needs them
+  // before this is ever called — a placeholder without peaks renders a collapsed
+  // waveform, which is what an iPhone 14 Pro showed on 2026-07-22 — and decoding
+  // the same blob twice to draw the same picture is pure waste.
+  const peaks = precomputed ?? await computePeaks(blob);
 
   const { path, error: uploadError } = await uploadVoiceNote({ conversationId, blob });
   if (uploadError) return { message: null, error: uploadError };
