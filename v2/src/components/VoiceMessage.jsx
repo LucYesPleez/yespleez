@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useMemo, useCallback, memo } from 'react';
 import { signedUrlFor, formatDuration } from '../lib/voiceNotes';
-import { toDisplayPeaks, DISPLAY_BARS, DISPLAY_BARS_COMPACT } from '../lib/voicePeaks';
+import { toDisplayPeaks, DISPLAY_BARS } from '../lib/voicePeaks';
 import { decodeWave, toDisplayWave } from '../lib/voiceWave';
 import { timeOf } from '../lib/clock';
 import { claimPlayback, releasePlayback } from '../lib/voicePlayback';
@@ -149,34 +149,6 @@ const Waveform = memo(function Waveform({ bars, settle, register }) {
   );
 });
 
-/** Matches `index.css`'s phone block, so the two cannot disagree. */
-const COMPACT_QUERY = '(max-width: 640px)';
-
-/**
- * Is this a phone-width viewport?
- *
- * Subscribed rather than read once: a desktop window dragged narrow, or a phone
- * turned on its side, must redraw the wave at the other count. Reading it a
- * single time on mount would leave a rotated phone showing 42 bars in 164px —
- * the exact fault this is fixing, reachable by turning the device.
- */
-function useCompactWave() {
-  const [compact, setCompact] = useState(
-    () => typeof window !== 'undefined' && window.matchMedia?.(COMPACT_QUERY).matches,
-  );
-
-  useEffect(() => {
-    const mq = window.matchMedia?.(COMPACT_QUERY);
-    if (!mq) return undefined;
-    const onChange = e => setCompact(e.matches);
-    setCompact(mq.matches);   // in case it changed between render and effect
-    mq.addEventListener('change', onChange);
-    return () => mq.removeEventListener('change', onChange);
-  }, []);
-
-  return compact;
-}
-
 export default function VoiceMessage({ message, receipt = null }) {
   const path       = message?.payload?.path ?? null;
   // Set only while a recording is in flight or has failed to send. `path` is
@@ -224,8 +196,7 @@ export default function VoiceMessage({ message, receipt = null }) {
   // produced the "compressed" report. The 640px threshold is the same one
   // `index.css` uses for the player's min-width, so the two cannot disagree
   // about what a phone is.
-  const compact = useCompactWave();
-  const barCount = compact ? DISPLAY_BARS_COMPACT : DISPLAY_BARS;
+  const barCount = DISPLAY_BARS;
 
   /**
    * ⚠ TWO FORMATS, AND BOTH ARE PERMANENT.

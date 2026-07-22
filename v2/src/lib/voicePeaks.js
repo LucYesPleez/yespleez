@@ -198,70 +198,33 @@ export function peaksFromChannel(samples) {
 /**
  * BARS ACTUALLY DRAWN, which is not the same as bars stored.
  *
- * PEAK_COUNT is 56 because that is what makes a good stored summary. Drawing 56
- * bars inside a ~190px player leaves each one under two pixels wide, and a row
- * of two-pixel bars reads as a comb rather than as audio — which is the real
- * reason the waveform looked uniform. The heights varied; they were just too
- * thin to see varying.
+ * The stored envelope is far finer than this — v2 samples every ~32ms, so a
+ * seven-second note holds ~220 buckets. This is the reduction to what the player
+ * has room for, and  takes the MAX of each group so an isolated
+ * spike survives the trip rather than being averaged out of it.
  *
- * 36 bars at ~3px with a 2px gap fills the same space and looks like something
- * recorded. This is a DISPLAY choice and changes no stored data, so it can be
- * retuned freely — unlike PEAK_COUNT, which is frozen into every payload ever
- * written.
+ * ── ONE COUNT, EVERY VIEWPORT ────────────────────────────────────────
  *
- * ── 36 → 42 (M9u) ────────────────────────────────────────────────────
+ * This was 42 on desktop and 28 on phones for one day, and the split is gone —
+ * the owner asked for desktop to match the phone, which they had approved.
  *
- * Finer, for a more organic read. Held well short of the comb: at the player's
- * ~193px this is about 2.6px a bar against 3.05 at 36, where 56 gave under 2
- * and failed. The lesson from that failure is the constraint here — "thinner"
- * has a floor, and it is nearer than it looks.
+ * The number is chosen in PIXELS PER BAR, which is what decides whether a wave
+ * reads as audio or as a comb. Measured across the two players:
+ *
+ *              wave width    42 bars    28 bars
+ *   phone         207px       3.5px      5.9px
+ *   desktop       199px       3.3px      5.7px
+ *
+ * 56 bars at under 2px was tried during M9f and failed outright — thin enough
+ * that varying heights stopped being visible, which is the real reason the
+ * waveform once looked uniform. 28 puts both players at 5.7-5.9px, so a Voicey
+ * has the same character on a phone and a laptop.
+ *
+ * ⚠ DISPLAY ONLY. Both formats are downsampled to this from a frozen payload, so
+ * nothing stored changes and this can be retuned freely — unlike PEAK_COUNT,
+ * which is written into every v1 row ever created.
  */
-export const DISPLAY_BARS = 42;
-
-/**
- * The same wave on a phone, where there is far less width to spend.
- *
- * ── WHY A SECOND COUNT AT ALL ────────────────────────────────────────
- *
- * The comment above reasons in PIXELS PER BAR, and that is the quantity that
- * actually matters: 42 bars was chosen against the player's ~193px, giving
- * ~2.6px each, and it notes that 56 bars at under 2px had already failed.
- *
- * On a phone the bubble is capped at 76% of the thread, and 42 bars there was
- * ~2.4px — straight into the range already measured as too thin. The owner
- * reported it as "compressed" on a Galaxy, which is that floor being crossed
- * rather than a new fault.
- *
- * ── THE COUNT IS A BAR WIDTH IN DISGUISE ─────────────────────────────
- *
- * The constraint is a RANGE, not a single width, because handsets are not one
- * size. Across the two that matter:
- *
- *              360px phone (~167px wave)   412px phone (~207px wave)
- *   42 bars    2.5px  ← too thin           3.5px
- *   32 bars    3.8px                       5.0px
- *   28 bars    4.5px                       5.9px
- *
- * 42 is still ~2.5px at 360px, which is why this constant exists at all rather
- * than being deleted once the bubble was widened.
- *
- * ── 32 → 28: OWNER'S CALL, 2026-07-22 ────────────────────────────────
- *
- * "I want them to show as wider waveforms, not more bars… just increase by 20%."
- * Fewer bars over a fixed width IS wider bars — the gap is already at 1.5px and
- * taking it lower would fuse the wave into a block — so this is the lever, and
- * 28 is the count that lands nearest the asked-for 20%: 5.02 → 5.95px, +19%.
- *
- * ⚠ I had called 5.9px "blocky" and chosen 32 over it hours earlier. That was my
- * aesthetic judgement and the owner's overrides it; the note is here so the
- * number does not get "corrected" back by someone reading the old reasoning.
- * The test's upper bound moved with it for the same reason.
- *
- * ⚠ DISPLAY ONLY. Both counts are downsampled from the same frozen PEAK_COUNT,
- * so nothing stored changes and a note drawn at 28 bars on a phone is the same
- * note drawn at 42 on a desktop.
- */
-export const DISPLAY_BARS_COMPACT = 28;
+export const DISPLAY_BARS = 28;
 
 /**
  * Contrast curve applied to the drawn heights.

@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 
 import {
   peaksFromChannel, isRenderablePeaks, computePeaks,
@@ -186,55 +187,65 @@ test('unrenderable peaks draw nothing, so the caller falls back', async () => {
   assert.equal(toDisplayPeaks(new Array(PEAK_COUNT).fill(NaN)), null);
 });
 
-/* ── the phone's coarser wave ───────────────────────────────────────── */
+/* ── one bar count, both players ───────────────────────────────────── */
 
-test('⚠ the compact count clears the bar-width floor on EVERY phone', async () => {
+test('⚠ the drawn bars clear the comb on BOTH players', async () => {
   // The count is chosen in PIXELS PER BAR, which is what decides whether a wave
-  // reads as audio. 42 bars in a phone bubble was ~2.4px — inside the range
-  // already measured as too thin when 56 bars failed. Reported as compressed.
+  // reads as audio. 56 bars at under 2px was tried during M9f and failed — thin
+  // enough that varying heights stopped being visible, which is the real reason
+  // the waveform once looked uniform.
   //
-  // ⚠ THE WIDTH IS A RANGE, NOT A NUMBER, and this test says so because an
-  // earlier version did not. It asserted against a single 164px wave, and that
-  // width MOVED the same day — the bubble was widened to match a text bubble and
-  // the play button shrank 44 to 36 — leaving the test passing against geometry
-  // that no longer existed.
+  // ⚠ THE WIDTHS ARE A RANGE, NOT A NUMBER, and this test says so because an
+  // earlier version did not: it asserted against a single 164px wave, and that
+  // width moved the same day when the bubble was widened and the play button
+  // shrank — leaving the test passing against geometry that no longer existed.
   //
-  // Wave width = bubble(76% of viewport - 32px padding) - 34 bubble padding
-  //              - 36 button - 12 gap
-  const WAVES = { 360: 167, 412: 207 };
+  // phone   = bubble at 76% of 412, less padding, button and gap
+  // desktop = the player min-width of 252, less the inset, button and gap
+  const WAVES = { phone: 207, desktop: 199 };
   const GAP = 1.5;
   const perBar = (n, px) => (px - (n - 1) * GAP) / n;
 
-  const { DISPLAY_BARS, DISPLAY_BARS_COMPACT } = await import('./voicePeaks.js');
+  const { DISPLAY_BARS } = await import('./voicePeaks.js');
 
-  // ⚠ THE UPPER BOUND IS 6.5, NOT 5.5, AND THAT IS DELIBERATE. 5.5 was my own
-  // "blocky" threshold, set hours before the owner asked for bars 20% wider —
-  // which lands at 5.95px and would have failed on my taste rather than on any
-  // measured fault. The floor is a real constraint (bars under ~3px read as a
-  // comb, measured twice); the ceiling is only a guard against absurdity.
-  for (const [device, px] of Object.entries(WAVES)) {
-    const compact = perBar(DISPLAY_BARS_COMPACT, px);
-    assert.ok(compact > 3.2, `${device}px: bars must clear the comb, got ${compact.toFixed(1)}px`);
-    assert.ok(compact < 6.5, `${device}px: bars must not go absurd, got ${compact.toFixed(1)}px`);
+  for (const [player, px] of Object.entries(WAVES)) {
+    const w = perBar(DISPLAY_BARS, px);
+    assert.ok(w > 3.2, `${player}: bars must clear the comb, got ${w.toFixed(1)}px`);
+    assert.ok(w < 6.5, `${player}: bars must not go absurd, got ${w.toFixed(1)}px`);
   }
 
-  // The narrow phone is the one that justifies the constant existing at all:
-  // after the widening, 42 bars is fine at 412px and still too thin at 360px.
-  assert.ok(perBar(DISPLAY_BARS, 167) < 2.6, 'if 42 ever fits a 360px phone, this constant can go');
-  assert.ok(DISPLAY_BARS_COMPACT < DISPLAY_BARS, 'compact means FEWER bars');
+  // The two players must not drift apart in character — the owner asked for
+  // desktop to match the phone, and one count is how that is guaranteed.
+  const spread = Math.abs(perBar(DISPLAY_BARS, WAVES.phone) - perBar(DISPLAY_BARS, WAVES.desktop));
+  assert.ok(spread < 0.75, `phone and desktop bars differ by ${spread.toFixed(2)}px`);
 });
-test('both counts downsample the same frozen payload, and neither invents detail', async () => {
-  // Nothing stored changes. A note drawn at 32 bars on a phone is the same note
-  // drawn at 42 on a desktop.
-  const { DISPLAY_BARS, DISPLAY_BARS_COMPACT, PEAK_COUNT, PEAK_MAX, toDisplayPeaks } = await import('./voicePeaks.js');
+
+test('⚠ no viewport split in the bar count', async () => {
+  // It was 42 on desktop and 28 on phones for a day. A second constant coming
+  // back means a Voicey has started looking like a different component
+  // depending on the screen it is read on.
+  const src = readFileSync(new URL('./voicePeaks.js', import.meta.url), 'utf8');
+  assert.equal(/DISPLAY_BARS_COMPACT/.test(src), false, 'the viewport split is back');
+
+  // ⚠ WIDTH queries only. The player legitimately asks for
+  // `prefers-reduced-motion`, and an earlier version of this test banned
+  // matchMedia outright — which would have forced someone to delete an
+  // accessibility check to make a bar-count test pass.
+  const view = readFileSync(new URL('../components/VoiceMessage.jsx', import.meta.url), 'utf8');
+  assert.equal(/matchMedia\?\.\(['"`]\(max-width|matchMedia\(['"`]\(max-width/.test(view), false,
+    'the player is choosing a bar count by viewport again');
+});
+
+test('the drawn count never invents detail it was not given', async () => {
+  // Both formats downsample to this from a frozen payload. Drawing MORE bars
+  // than were stored would be interpolation presented as measurement.
+  const { DISPLAY_BARS, PEAK_COUNT, PEAK_MAX, toDisplayPeaks } = await import('./voicePeaks.js');
   const peaks = Array.from({ length: PEAK_COUNT }, (_, i) => (i % PEAK_MAX));
 
-  for (const n of [DISPLAY_BARS, DISPLAY_BARS_COMPACT]) {
-    const drawn = toDisplayPeaks(peaks, n);
-    assert.equal(drawn.length, n);
-    assert.ok(n <= PEAK_COUNT, 'drawing more bars than were stored would be inventing detail');
-    assert.ok(drawn.every(v => v >= 0 && v <= 1), 'heights stay 0..1 whatever the count');
-  }
+  const drawn = toDisplayPeaks(peaks, DISPLAY_BARS);
+  assert.equal(drawn.length, DISPLAY_BARS);
+  assert.ok(DISPLAY_BARS <= PEAK_COUNT, 'drawing more bars than v1 stored is interpolation');
+  assert.ok(drawn.every(v => v >= 0 && v <= 1));
 });
 
 /* ── consistent dynamics, outliers clipped ──────────────────────────── */
