@@ -1,24 +1,19 @@
 /**
- * WHERE EACH SAMPLE IS DRAWN.
+ * THE LIVE METER'S MATHS.
  *
  * Extracted from `LiveWaveform` for the same reason the recorder's transition
  * table was: a component cannot be exercised by this project's test setup, and
- * an off-by-one here fails silently — the waveform still animates, it is just
- * showing the wrong instant in the wrong place, which nobody would spot by
- * looking at it.
+ * an off-by-one here fails silently — the meter still animates, it is just
+ * showing the wrong thing, which nobody would spot by looking at it.
+ *
+ * `alignRight` used to live here and is gone. It right-aligned a growing history
+ * into a fixed row of bars, which is how the meter worked when it STEPPED:
+ * values hopped one position left every sample while the bars stayed put. The
+ * strip translates now, so the DOM does the aligning — the oldest bar element is
+ * recycled to the end and the row slides. There is no history array to align any
+ * more.
  */
 
-/**
- * Lay a growing history of levels into a fixed row of bars, RIGHT-ALIGNED.
- *
- * The newest sample is always the last bar. Older samples run backwards from
- * there, and any slots left over sit empty on the LEFT, so the field fills from
- * the right and the live edge never moves.
- *
- * @param {number[]} history  oldest first, newest last
- * @param {number} barCount   how many bars the row has
- * @returns {(number|undefined)[]} length `barCount`; `undefined` means "no bar"
- */
 /**
  * How tall one bar is drawn, in px.
  *
@@ -47,18 +42,21 @@ export function barHeight(level, height, curve = 0.6) {
   return Math.max(2, Math.pow(v, curve) * height);
 }
 
-export function alignRight(history, barCount) {
-  const src = Array.isArray(history) ? history : [];
-  const out = new Array(Math.max(0, barCount));
-
-  // A history longer than the row means the oldest samples have scrolled off.
-  // Taking the TAIL rather than the head is what makes the row a moving window
-  // instead of a frozen picture of the first few seconds.
-  const visible = src.length > barCount ? src.slice(src.length - barCount) : src;
-  const offset = out.length - visible.length;
-
-  for (let i = 0; i < out.length; i++) {
-    out[i] = i < offset ? undefined : visible[i - offset];
-  }
-  return out;
+/**
+ * How many bar elements a strip of this width needs.
+ *
+ * The strip SCROLLS: bars are a fixed width and the whole row translates, so
+ * the element count follows the container rather than the other way round. Two
+ * spare — one leaving on the left and one entering on the right — so there is
+ * never a gap at either edge mid-slide.
+ *
+ * ⚠ FIXED WIDTH IS WHAT MAKES SCROLLING POSSIBLE AT ALL. While bars were
+ * `flex: 1` they shared whatever space existed, so the pitch changed with the
+ * container and a translate could not be expressed in pixels that stayed
+ * correct. That is also why the old meter could never slide: it had no stable
+ * distance to slide BY.
+ */
+export function barCapacity(width, pitch) {
+  if (!(width > 0) || !(pitch > 0)) return 0;
+  return Math.ceil(width / pitch) + 2;
 }

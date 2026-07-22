@@ -918,7 +918,82 @@ input, textarea, select {
   .yp-voice-bubble { width: 100%; }
 }
 
-.yp-live-wave { animation: ypLiveIn var(--yp-medium) var(--yp-ease); }
+/* ══ THE LIVE RECORDING STRIP ═══════════════════════════════════════
+
+   A window onto a row that is wider than it, translating leftward. The row is
+   never rebuilt and never resets — see LiveWaveform.jsx for why the transform is
+   written twice per sample.
+
+   ⚠ THE BAR WIDTH LIVES HERE AND IN JS, AND THEY MUST AGREE. The component
+   translates by exactly one pitch per sample; if this width and its `BAR_W`
+   drift, the strip slides by the wrong distance every tick and the motion
+   visibly stutters. `liveWaveGeometry.test.js` holds them together. */
+.yp-live-wave {
+  position: relative;
+  overflow: hidden;
+  animation: ypLiveIn var(--yp-medium) var(--yp-ease);
+
+  /* OLDER AUDIO FADES OUT to the left rather than being cut off by the clip
+     edge. A hard edge reads as the strip ending; a fade reads as it continuing
+     past the window, which is what it is doing. Masked rather than overlaid so
+     it works against the composer's glass whatever is behind it. */
+  -webkit-mask-image: linear-gradient(to right, transparent 0%, #000 18%, #000 100%);
+          mask-image: linear-gradient(to right, transparent 0%, #000 18%, #000 100%);
+}
+
+.yp-live-strip {
+  display: flex;
+  align-items: center;
+  /* Bars are laid out right-to-left so the newest sits hard against the right
+     edge — the recording cursor never moves, and a strip that has not filled
+     the window yet grows from the right rather than the left. */
+  flex-direction: row-reverse;
+  position: absolute;
+  right: 0;
+  top: 0;
+  /* Promotes the strip to its own layer so each tick composites instead of
+     repainting the composer behind it. */
+  will-change: transform;
+  transform: translate3d(0, 0, 0);
+}
+
+.yp-live-bar {
+  width: 3px;            /* ⚠ MUST EQUAL BAR_W in LiveWaveform.jsx */
+  flex: none;            /* never flex — the pitch has to be a fixed distance */
+  border-radius: 999px;
+  background: linear-gradient(180deg, #D8B4FE 0%, #A855F7 100%);
+  /* The height still eases, so a single loud sample arrives as a rise rather
+     than a snap. Shorter than one sample so it always settles before the next. */
+  transition: height 40ms linear;
+}
+
+/* THE LIVE EDGE. A soft bloom where the newest audio enters, so the eye has
+   somewhere to rest and the right edge reads as "now" rather than as the end of
+   a picture. Purely decorative and non-interactive, sized in em of nothing — it
+   is pinned to the edge the cursor occupies. */
+.yp-live-wave::after {
+  content: '';
+  position: absolute;
+  top: -6px;
+  bottom: -6px;
+  right: -10px;
+  width: 26px;
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse at right center,
+    rgba(216, 180, 254, .38) 0%,
+    rgba(168, 85, 247, .18) 45%,
+    transparent 75%
+  );
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* The strip stops travelling — the component skips the transform entirely —
+     so the bars must not ease either, or the meter reads as lagging behind the
+     voice rather than as deliberately still. */
+  .yp-live-bar { transition: none; }
+  .yp-live-wave::after { display: none; }
+}
 
 /* The microphone must still ARRIVE at the other end — the position is the
    state, and removing the transition removes the animation, not the travel. */
