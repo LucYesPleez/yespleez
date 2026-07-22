@@ -137,6 +137,34 @@ export function releaseAudio(source) {
   // and forgetting it here would make that impossible.
 }
 
+/**
+ * This source no longer EXISTS — its provider is gone, not merely paused.
+ *
+ * ⚠ THE DIFFERENCE FROM `releaseAudio` IS WHETHER `parked` SURVIVES, and it
+ * matters. `releaseAudio` keeps the parked source on purpose: pausing a Voicey
+ * should not discard the mix underneath it. But when a provider is DESTROYED —
+ * the MiniPlayer unmounts, or its url changes from a SoundCloud track to a
+ * Mixcloud one — a parked reference to it is a reference to a widget that is
+ * no longer on the page.
+ *
+ * Without this, the sequence
+ *
+ *     play a SoundCloud mix → play a Voicey (mix parks)
+ *       → switch to Mixcloud → the Voicey ends
+ *
+ * resumes the SoundCloud source: `seekTo` and `play` are called on a widget
+ * whose iframe has been replaced. Best case nothing happens and the resume is
+ * silently lost; worst case two providers are driven at once.
+ *
+ * Found by reasoning through provider switching rather than by hearing it — it
+ * needs the interruption and the switch to overlap, which is easy to miss by
+ * hand and impossible to see in a test that only ever has one provider.
+ */
+export function forgetAudio(source) {
+  if (current === source) current = null;
+  if (parked === source) parked = null;
+}
+
 /** Forget everything. Tests, and teardown. */
 export function resetAudio() {
   current = null;

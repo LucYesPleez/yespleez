@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { claimAudio, releaseAudio } from '../lib/mediaSession';
+import { claimAudio, releaseAudio, forgetAudio } from '../lib/mediaSession';
 import { createResumableSource, soundcloudAdapter, mixcloudAdapter } from '../lib/mediaProviders';
 
 function getSCEmbedUrl(url) {
@@ -94,7 +94,9 @@ export default function MiniPlayer({ url, artistName, hasNext, onClose, onFinish
    * OLD one's position.
    */
   function registerSource(adapter) {
-    if (sessionRef.current) releaseAudio(sessionRef.current);
+    // ⚠ forget, not release: the previous provider is being replaced, so a
+    // PARKED reference to it would later resume a widget that no longer exists.
+    if (sessionRef.current) forgetAudio(sessionRef.current);
     sessionRef.current = createResumableSource(adapter);
     return sessionRef.current;
   }
@@ -102,7 +104,7 @@ export default function MiniPlayer({ url, artistName, hasNext, onClose, onFinish
   // A source is only useful while this component exists. Leaving a registration
   // behind would let the manager pause a widget that is gone.
   useEffect(() => () => {
-    if (sessionRef.current) releaseAudio(sessionRef.current);
+    if (sessionRef.current) forgetAudio(sessionRef.current);
     sessionRef.current = null;
   }, []);
 

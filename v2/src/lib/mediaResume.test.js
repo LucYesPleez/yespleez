@@ -1,7 +1,7 @@
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { claimAudio, finishAudio, releaseAudio, resetAudio, SHORT } from './mediaSession.js';
+import { claimAudio, finishAudio, releaseAudio, forgetAudio, resetAudio, parkedAudio, SHORT } from './mediaSession.js';
 import { createResumableSource } from './mediaProviders.js';
 
 beforeEach(resetAudio);
@@ -194,4 +194,59 @@ test('resume is idempotent — a second call does nothing', async () => {
   await source.resume();
 
   assert.equal(p.played, 1, 'the parked state is consumed, not repeated');
+});
+
+// ── SCENARIO 5 · SWITCHING PROVIDERS WHILE A MIX IS PARKED ────────────
+//
+// The failure this guards is invisible unless an interruption and a provider
+// switch overlap: the manager holds a parked reference to a widget that has
+// since been replaced, and resuming drives a dead iframe.
+
+test('⚠ 5 · switching provider while parked does NOT resume the dead one', async () => {
+  const { p: sc, source: scSource } = fakeProvider({ position: 60_000 });
+  const voicey = shortSource();
+
+  claimAudio(scSource);
+  claimAudio(voicey);                 // SoundCloud parks
+
+  forgetAudio(scSource);              // the url changed to a Mixcloud track
+
+  await finishAudio(voicey);
+  await new Promise(r => setTimeout(r, 0));
+
+  assert.equal(sc.played, 0, 'a replaced widget must never be driven');
+  assert.deepEqual(sc.seeks, [], 'and must never be seeked');
+});
+
+test('the NEW provider is unaffected by the old one being forgotten', async () => {
+  const { source: scSource } = fakeProvider({ position: 60_000 });
+  const { p: mc, source: mcSource } = fakeProvider({ position: 5_000 });
+
+  claimAudio(scSource);
+  forgetAudio(scSource);
+  claimAudio(mcSource);               // Mixcloud takes over
+
+  const voicey = shortSource();
+  claimAudio(voicey);
+  await finishAudio(voicey);
+  await new Promise(r => setTimeout(r, 0));
+
+  assert.equal(mc.played, 1, 'the live provider still resumes normally');
+  assert.deepEqual(mc.seeks, [5_000]);
+});
+
+test('⚠ forgetAudio and releaseAudio differ ONLY in whether parked survives', async () => {
+  // releaseAudio is a manual pause — the mix underneath must be kept, so the
+  // listener can still bring it back by hand. Conflating the two would discard
+  // it on every Voicey pause.
+  const { source } = fakeProvider({ position: 1_000 });
+  const voicey = shortSource();
+
+  claimAudio(source);
+  claimAudio(voicey);
+  releaseAudio(voicey);
+  assert.equal(parkedAudio(), source, 'a manual pause keeps the mix parked');
+
+  forgetAudio(source);
+  assert.equal(parkedAudio(), null, 'a destroyed provider is dropped entirely');
 });
