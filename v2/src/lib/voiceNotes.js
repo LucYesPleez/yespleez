@@ -174,9 +174,34 @@ const EXACT_CAPTURE_CONSTRAINTS = {
  * The lesson of this whole investigation, twice over: every time we described
  * the capture we wanted, iOS gave us something worse than if we had not asked.
  *
+ * ── THE ONE NAMED CONSTRAINT, AND WHY IT IS PROBABLY A NO-OP ─────────
+ *
+ * `noiseSuppression: true` is here at the owner's instruction, to chase the
+ * remaining hiss. It is a deliberate exception to everything above and it is
+ * expected NOT to work, for two reasons that the readback already gives:
+ *
+ *   · Safari does not appear to support the constraint. `C21` reports
+ *     `noise_suppression: null` and `auto_gain: null` on iOS while
+ *     `echo_cancellation` comes back populated — the signature of a user agent
+ *     silently ignoring what it cannot do.
+ *   · Noise suppression is almost certainly ON ALREADY. `echoCancellation` is
+ *     the master switch for Apple's voice-processing unit and NR and AGC come
+ *     bundled with it; letting it default is what turned the bundle on, and is
+ *     why the note improved at all. There is no separate switch left.
+ *
+ * So the likely cause of the hiss is not absent NR. It is the gain doing its
+ * job: a quiet room turned up is a louder quiet room, and its noise floor
+ * becomes audible. Apple's NR is already working against that.
+ *
+ * ⚠ THIS CHANGE IS THEREFORE A MEASUREMENT. Re-run the `capture` query after a
+ * fresh iOS note: if `noise_suppression` comes back `true`, Safari honours the
+ * constraint and this was worth doing. If it is still `null`, the constraint is
+ * ignored, the hypothesis is dead, and this line should be reverted to `true`
+ * rather than left as decoration implying a control we do not have.
+ *
  * Exported so the rule is testable without a device or a fake navigator.
  */
-export const IOS_CAPTURE_CONSTRAINTS = true;
+export const IOS_CAPTURE_CONSTRAINTS = { noiseSuppression: true };
 
 /**
  * Open the microphone on the ratified profile, demanding it first.

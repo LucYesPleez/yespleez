@@ -235,13 +235,19 @@ test('⚠ iOS requests NO dsp constraints, so Apple picks its own speech path', 
   // 5/5 on identical codec, bitrate and sample rate.
   const { IOS_CAPTURE_CONSTRAINTS } = await import('./voiceNotes.js');
 
-  // ⚠ TOTAL. Not an object with the DSP keys left out — `true`, every
-  // constraint surrendered. The rate and channel hints were dropped in the
-  // second pass after "better, but a bit hissy": a rate hint can force iOS to
-  // resample or decline its voice-processing unit, and neither hint bought
-  // anything (iOS reports mono already, and Opus stores 48 kHz regardless).
-  assert.equal(IOS_CAPTURE_CONSTRAINTS, true,
-    'any object here is us describing the capture again, which is what kept making it worse');
+  // The rate and channel hints were dropped after "better, but a bit hissy": a
+  // rate hint can force iOS to resample or decline its voice-processing unit,
+  // and neither bought anything (iOS reports mono already, and Opus stores
+  // 48 kHz regardless of what the microphone track says).
+  //
+  // `noiseSuppression` is the ONE named constraint, added deliberately to chase
+  // the remaining hiss and expected to be ignored — see the header. Everything
+  // that actually broke iOS must stay unnamed.
+  assert.equal(IOS_CAPTURE_CONSTRAINTS.echoCancellation, undefined,
+    'naming this is what broke iOS in the first place');
+  assert.equal(IOS_CAPTURE_CONSTRAINTS.autoGainControl, undefined);
+  assert.equal(IOS_CAPTURE_CONSTRAINTS.channelCount, undefined, 'a channel hint is describing the capture again');
+  assert.equal(IOS_CAPTURE_CONSTRAINTS.sampleRate, undefined, 'a rate hint can decline the voice-processing unit');
 });
 
 test('⚠ every OTHER platform keeps C20 exactly as ratified', async () => {
