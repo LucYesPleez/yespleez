@@ -236,3 +236,84 @@ test('both counts downsample the same frozen payload, and neither invents detail
     assert.ok(drawn.every(v => v >= 0 && v <= 1), 'heights stay 0..1 whatever the count');
   }
 });
+
+/* ── consistent dynamics, outliers clipped ──────────────────────────── */
+
+/** A note of ordinary speech with one loud transient in it. */
+function speechWithSlam(slamAt = 34, slam = 0.9) {
+  const per = 200;
+  const out = new Float32Array(PEAK_COUNT * per);
+  for (let i = 0; i < PEAK_COUNT; i++) {
+    const level = i === slamAt ? slam : 0.05 + 0.13 * Math.abs(Math.sin(i * 0.7));
+    for (let j = 0; j < per; j++) out[i * per + j] = level * (j % 2 ? 1 : -1);
+  }
+  return out;
+}
+
+test('⚠ ONE loud moment must not flatten the rest of the note', () => {
+  // The reported fault: normalising to the loudest bucket let a door slam set
+  // the scale for every word, collapsing speech toward the 2px floor. The owner
+  // saw it as "most of the chat looks like nothing".
+  const peaks = peaksFromChannel(speechWithSlam());
+  const median = peaks.slice().sort((a, b) => a - b)[Math.floor(peaks.length / 2)];
+
+  assert.ok(median > PEAK_MAX * 0.25,
+    `ordinary speech must occupy real height, got ${median}/${PEAK_MAX}`);
+});
+
+test('the outlier CLIPS rather than compressing everything below it', () => {
+  // The owner's words: "if there's a massive peak it just gets clipped".
+  const peaks = peaksFromChannel(speechWithSlam());
+  assert.equal(Math.max(...peaks), PEAK_MAX, 'the loud bucket still reaches full height');
+  assert.ok(peaks.every(v => v <= PEAK_MAX), 'and nothing may exceed the stored range');
+});
+
+test('a louder slam does not change how the speech is drawn', () => {
+  // This is what "consistent dynamics" means: the same words render the same
+  // way whether or not something loud happened elsewhere in the recording.
+  const quiet = peaksFromChannel(speechWithSlam(34, 0.5));
+  const loud  = peaksFromChannel(speechWithSlam(34, 3.0));
+  const speechOnly = a => a.filter((_, i) => i !== 34);
+
+  assert.deepEqual(speechOnly(quiet), speechOnly(loud),
+    'a bigger transient must not redraw the words around it');
+});
+
+test('a quiet recording is still drawn, not flattened', () => {
+  // C20 keeps gain control OFF on Android, so absolute level swings with the
+  // room. This is why the scale is a percentile and not a fixed reference.
+  const per = 200;
+  const samples = new Float32Array(PEAK_COUNT * per);
+  for (let i = 0; i < PEAK_COUNT; i++) {
+    const level = 0.004 + 0.006 * Math.abs(Math.sin(i * 0.7));   // very quiet
+    for (let j = 0; j < per; j++) samples[i * per + j] = level * (j % 2 ? 1 : -1);
+  }
+  const peaks = peaksFromChannel(samples);
+  const median = peaks.slice().sort((a, b) => a - b)[Math.floor(peaks.length / 2)];
+  assert.ok(median > PEAK_MAX * 0.25, `a quiet note must still read as speech, got ${median}`);
+});
+
+test('⚠ a mostly-silent note does not become a solid block', () => {
+  // The 90th percentile can land inside the silence, driving the reference to
+  // near zero and clipping the speech flat. REFERENCE_FLOOR guards this.
+  const per = 200;
+  const samples = new Float32Array(PEAK_COUNT * per);
+  for (let i = 0; i < PEAK_COUNT; i++) {
+    const level = i > PEAK_COUNT - 6 ? 0.2 : 0.0005;   // silent, then a few words
+    for (let j = 0; j < per; j++) samples[i * per + j] = level * (j % 2 ? 1 : -1);
+  }
+  const peaks = peaksFromChannel(samples);
+  assert.ok(peaks.filter(v => v >= PEAK_MAX).length < PEAK_COUNT / 2,
+    'most of a mostly-silent note must not clip to full height');
+  assert.ok(peaks.slice(0, 10).every(v => v < PEAK_MAX * 0.3),
+    'and the silence must still read as silence');
+});
+
+test('⚠ the buckets stay in TIME order', () => {
+  // The reference is a percentile, so a sort is involved. Sorting `rms` in place
+  // rather than a copy would draw the note as a smooth ascending ramp — which
+  // looks plausible enough to ship unnoticed.
+  const peaks = peaksFromChannel(speechWithSlam());
+  const ascending = peaks.every((v, i) => i === 0 || v >= peaks[i - 1]);
+  assert.equal(ascending, false, 'a monotonic ramp means the buckets were sorted in place');
+});

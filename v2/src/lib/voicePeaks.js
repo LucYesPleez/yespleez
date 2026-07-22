@@ -83,14 +83,74 @@ export async function computePeaks(blob, ContextClass) {
  * as a flat wall with occasional spikes; RMS follows perceived loudness, so
  * speech looks like speech.
  *
- * Then normalises against the loudest bucket. Without `C20`'s auto gain control
- * the absolute level varies enormously between a quiet room and a loud venue,
- * and an un-normalised waveform would render a quiet recording as a flat line —
- * punishing exactly the recordings the DSP decision was made to protect.
+ * ── NORMALISED TO A PERCENTILE, NOT TO THE LOUDEST BUCKET ────────────
+ *
+ * It used to divide by the maximum, which meant ONE moment set the scale for the
+ * whole note. A door slam, a laugh, a bump on the mic — and every word in the
+ * recording was drawn as a fraction of that, collapsing toward the 2px floor.
+ * The owner reported it as "most of the chat looks like nothing" (2026-07-22),
+ * and asked for consistent dynamics with the outlier simply clipped.
+ *
+ * So the reference is the 90th percentile of the buckets. Ordinary speech then
+ * fills the wave at roughly the same height in every note — which is what makes
+ * two Voiceys comparable at a glance — and anything above the reference CLIPS at
+ * PEAK_MAX rather than dragging the rest down. Clipping loses only the fact that
+ * one bucket was louder than another already-loud bucket, which is not
+ * information anybody reads off a 6px-wide bar.
+ *
+ * ⚠ WHY NOT AN ABSOLUTE FIXED SCALE. That was the more literal reading of the
+ * request and it would break Android. §6.1's amendment gave iOS Apple's gain
+ * control, but `C20` still deliberately disables it everywhere else, so absolute
+ * level there swings with the room — and a fixed scale renders a quiet recording
+ * as a flat line, which is the exact fault the old normalisation existed to
+ * prevent. A percentile keeps that protection: it still adapts to the note's own
+ * level, it just stops one sample defining it.
+ *
+ * ⚠ THE FLOOR MATTERS. On a note that is mostly silence the 90th percentile can
+ * land inside the silence, making the reference near-zero and clipping the
+ * speech into a solid block. `REFERENCE_FLOOR` keeps the reference at a sensible
+ * fraction of the maximum, so the worst case degrades to something close to the
+ * old behaviour instead of to a rectangle.
+ *
+ * ⚠ THIS CHANGES NEW RECORDINGS ONLY. Peaks are computed once at record time and
+ * frozen into the payload, so every existing Voicey keeps the waveform it was
+ * stored with. Nothing here retrofits them, and there is no marker distinguishing
+ * the two encodings — a note simply looks like whatever build recorded it.
  *
  * Exported for tests: this is pure and deterministic, while `computePeaks` is
  * neither.
  */
+
+/**
+ * Full height is the MEDIAN OF THE LOUDEST FEW BUCKETS.
+ *
+ * Read as: "how loud is this note when someone is actually talking". Everything
+ * is drawn against that, and anything above it clips.
+ *
+ * ── WHY A MEDIAN OF A FEW, AND NOT SOMETHING SIMPLER ─────────────────
+ *
+ * Three candidates were tried and two are wrong in ways worth recording, since
+ * both look correct until a specific note breaks them:
+ *
+ *   · THE MAXIMUM — the original. One door slam sets the scale for every word.
+ *     This is the reported fault.
+ *   · A PERCENTILE FLOORED AT A FRACTION OF THE MAXIMUM — my first attempt.
+ *     The floor puts the maximum back into the answer, so a LOUDER slam raises
+ *     the floor and silently redraws the speech around it. Caught by a test
+ *     asserting the same words render the same way whatever else is in the note.
+ *   · A PERCENTILE ALONE — correct for ordinary speech, but on a note that is
+ *     mostly silence the 90th percentile lands INSIDE the silence, the reference
+ *     goes to near zero, and the whole wave clips into a solid block.
+ *
+ * Taking the median of the loudest `TOP_FRACTION` survives all three. The slam
+ * is one member of that set and a median ignores it. On a sparse note the set is
+ * dominated by the few loud buckets, so the reference lands on speech rather
+ * than on the silence around it.
+ */
+const TOP_FRACTION = 0.09;      // 5 of 56 buckets
+
+/** Never fewer than this, or the "median of a few" is a median of one. */
+const TOP_MIN = 3;
 export function peaksFromChannel(samples) {
   if (!samples?.length) return null;
 
@@ -111,7 +171,19 @@ export function peaksFromChannel(samples) {
   // plain progress bar, which is honest about there being nothing to draw.
   if (!(loudest > 0)) return null;
 
-  return rms.map(v => Math.round((v / loudest) * PEAK_MAX));
+  // ⚠ SORTED ON A COPY. `rms` is positional — sorting it in place would draw the
+  // note's buckets in ascending order, a smooth ramp that looks plausible enough
+  // to ship unnoticed.
+  const sorted = [...rms].sort((a, b) => a - b);
+  const top = sorted.slice(-Math.max(TOP_MIN, Math.round(sorted.length * TOP_FRACTION)));
+  const mid = Math.floor(top.length / 2);
+  const reference = top.length % 2
+    ? top[mid]
+    : (top[mid - 1] + top[mid]) / 2;
+
+  // `reference` comes from a set whose largest member is `loudest`, so it can
+  // only be zero if the loudest bucket is — which returned null above.
+  return rms.map(v => Math.min(PEAK_MAX, Math.round((v / reference) * PEAK_MAX)));
 }
 
 /**
