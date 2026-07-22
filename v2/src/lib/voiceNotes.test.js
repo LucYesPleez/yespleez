@@ -235,13 +235,13 @@ test('⚠ iOS requests NO dsp constraints, so Apple picks its own speech path', 
   // 5/5 on identical codec, bitrate and sample rate.
   const { IOS_CAPTURE_CONSTRAINTS } = await import('./voiceNotes.js');
 
-  assert.equal('echoCancellation' in IOS_CAPTURE_CONSTRAINTS, false, 'naming it at all is what broke iOS');
-  assert.equal('noiseSuppression' in IOS_CAPTURE_CONSTRAINTS, false);
-  assert.equal('autoGainControl'  in IOS_CAPTURE_CONSTRAINTS, false);
-
-  // §6.3 and §6.2 are NOT C20 and do not touch the processing path.
-  assert.equal(IOS_CAPTURE_CONSTRAINTS.channelCount, 1);
-  assert.equal(IOS_CAPTURE_CONSTRAINTS.sampleRate,   48000);
+  // ⚠ TOTAL. Not an object with the DSP keys left out — `true`, every
+  // constraint surrendered. The rate and channel hints were dropped in the
+  // second pass after "better, but a bit hissy": a rate hint can force iOS to
+  // resample or decline its voice-processing unit, and neither hint bought
+  // anything (iOS reports mono already, and Opus stores 48 kHz regardless).
+  assert.equal(IOS_CAPTURE_CONSTRAINTS, true,
+    'any object here is us describing the capture again, which is what kept making it worse');
 });
 
 test('⚠ every OTHER platform keeps C20 exactly as ratified', async () => {

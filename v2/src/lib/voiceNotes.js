@@ -151,21 +151,32 @@ const EXACT_CAPTURE_CONSTRAINTS = {
 /**
  * iOS. §6.1 AMENDMENT — see the block above `C20`.
  *
- * ⚠ THE POINT IS THE OMISSION. There is no `echoCancellation: true` here, and
- * adding one would be a different decision: naming the constraint asks for SOME
- * configuration that satisfies it, while asking for nothing takes the
- * platform's own tuned default — which is what iMessage and WhatsApp
- * effectively get, and the thing actually being copied.
+ * ⚠ THE POINT IS THE OMISSION, AND IT IS NOW TOTAL. Literally `true` — every
+ * constraint surrendered, the platform's own default taken whole. Naming a
+ * constraint asks for SOME configuration that satisfies it; naming nothing is
+ * the only way to ask for the one Apple tuned, which is what iMessage and
+ * WhatsApp effectively get and the thing actually being copied.
  *
- * `channelCount` and `sampleRate` stay. They are §6.3 and §6.2 respectively,
- * not `C20`, and neither touches the processing path.
+ * ── WHY §6.3 AND §6.2's HINTS WENT TOO ───────────────────────────────
+ *
+ * `channelCount: 1` and `sampleRate: 48000` survived the first pass on the
+ * grounds that they are not `C20` and do not touch the processing path. That
+ * was reasoning, not measurement, and the owner's next listen said "better, but
+ * starting to get a bit hissy" — better because Apple's processing was finally
+ * on, hissy because something was still not the plain path.
+ *
+ * A rate hint is a plausible culprit: iOS's voice-processing unit runs at its
+ * own rate, so asking for 48 kHz can force a resample or decline the unit
+ * outright. Neither hint bought anything real — iOS reports mono already, and
+ * Opus is defined at 48 kHz and resamples whatever it is handed, so the stored
+ * file is 48 kHz regardless of what the microphone track says.
+ *
+ * The lesson of this whole investigation, twice over: every time we described
+ * the capture we wanted, iOS gave us something worse than if we had not asked.
  *
  * Exported so the rule is testable without a device or a fake navigator.
  */
-export const IOS_CAPTURE_CONSTRAINTS = {
-  channelCount: 1,
-  sampleRate:   48000,
-};
+export const IOS_CAPTURE_CONSTRAINTS = true;
 
 /**
  * Open the microphone on the ratified profile, demanding it first.
