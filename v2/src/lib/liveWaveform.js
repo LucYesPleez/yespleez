@@ -9,17 +9,6 @@
  */
 
 /**
- * Lay a growing history of levels into a fixed row of bars, RIGHT-ALIGNED.
- *
- * The newest sample is always the last bar. Older samples run backwards from
- * there, and any slots left over sit empty on the LEFT, so the field fills from
- * the right and the live edge never moves.
- *
- * @param {number[]} history  oldest first, newest last
- * @param {number} barCount   how many bars the row has
- * @returns {(number|undefined)[]} length `barCount`; `undefined` means "no bar"
- */
-/**
  * How tall one bar is drawn, in px.
  *
  * ⚠ PERCEPTUAL, NOT LINEAR, and that is the whole point of the function.
@@ -47,6 +36,17 @@ export function barHeight(level, height, curve = 0.6) {
   return Math.max(2, Math.pow(v, curve) * height);
 }
 
+/**
+ * Lay a growing history of levels into a fixed row of bars, RIGHT-ALIGNED.
+ *
+ * The newest sample is always the last bar. Older samples run backwards from
+ * there, and any slots left over sit empty on the LEFT, so the field fills from
+ * the right and the live edge never moves.
+ *
+ * @param {number[]} history  oldest first, newest last
+ * @param {number} barCount   how many bars the row has
+ * @returns {(number|undefined)[]} length `barCount`; `undefined` means "no bar"
+ */
 export function alignRight(history, barCount) {
   const src = Array.isArray(history) ? history : [];
   const out = new Array(Math.max(0, barCount));
