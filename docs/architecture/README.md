@@ -13,7 +13,8 @@ The **canonical, frozen** architecture of YesPleez, and the source of truth cite
 | **`identity-v1.3.html`** | **CANONICAL** — Identity Architecture v1.3 (Amendment), ratified + frozen 18 Jul 2026 |
 | **`communication-v1.0.md`** | **CANONICAL** — Communication Architecture v1.0, ratified + frozen 20 Jul 2026. **Authored in Markdown, so this file is authoritative** — see "Which artifact is authoritative" below. |
 | **`messaging-availability-v1.0.md`** | **CANONICAL** — Messaging Availability Constitution v1.0, ratified + frozen 21 Jul 2026. Governed by `communication-v1.0`. **Authored in Markdown, so this file is authoritative.** |
-| **`conversation-workspace-v1.0.md`** | **CANONICAL** — Conversation Workspace v1.0, ratified + frozen 22 Jul 2026. The ⋮ menu, conversation indexes, and the three layers above the message stream. Governed by `communication-v1.0` and `messaging-availability-v1.0`. **Authored in Markdown, so this file is authoritative.** |
+| **`conversation-workspace-v1.0.md`** | **CANONICAL — amended by v1.1.** Conversation Workspace v1.0, ratified + frozen 22 Jul 2026. The ⋮ menu, conversation indexes, and the three layers above the message stream. Governed by `communication-v1.0` and `messaging-availability-v1.0`. **Authored in Markdown, so this file is authoritative.** |
+| **`conversation-workspace-v1.1.md`** | **CANONICAL** — Conversation Workspace v1.1, ratified + frozen 22 Jul 2026. Amends v1.0: messaging availability is exposed as a *Messaging* screen, never a "Block" action. Read WITH v1.0, which remains in force except where amended. **Authored in Markdown, so this file is authoritative.** |
 | `architecture-v1.0.md` | Reading copy. Not authoritative. |
 | `identity-v1.1.md` | Reading copy. Not authoritative. |
 | `identity-v1.2.md` | Reading copy. Not authoritative. |
