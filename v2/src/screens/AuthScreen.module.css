@@ -3,6 +3,14 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  /* dvh fallback, deliberately in this order: vh first so an engine that
+     doesn't understand — or unreliably recomputes — dvh still gets a real
+     height instead of falling through to nothing. Meta's in-app browser
+     (Messenger/Instagram/Facebook) has a long-documented history of buggy
+     dvh recalculation while its own top chrome bar animates in/out — the
+     exact situation dvh exists to handle, and exactly where it misbehaves. */
+  min-height: 100vh;
+  height: 100vh;
   min-height: 100dvh;
   height: 100dvh;
   padding: 40px 24px 24px;
@@ -83,6 +91,13 @@
 .tab, .tabActive {
   flex: 1;
   padding: 10px;
+  /* Explicit floor, not left to content. A <button>'s intrinsic height
+     otherwise comes entirely from the UA's default line-height for the
+     text, which is exactly the kind of value that varies across WebKit
+     forks — and this is a flex row with no height of its own on .tabs, so
+     nothing else stops it collapsing if that computation goes wrong. */
+  min-height: 20px;
+  line-height: 20px;
   background: transparent;
   border: none;
   color: var(--muted);
