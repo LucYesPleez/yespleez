@@ -844,6 +844,26 @@ input, textarea, select {
   .yp-modal { animation: none; }
 }
 
+/* "JUMP TO CHAT" — the flash that says "this one" after a scroll landed.
+
+   ⚠ ONE SHOT, NEVER A LOOP. Same rule as the EQ glyph a few blocks up: this
+   sits beside messages that genuinely do animate (a live Voicey, a recording
+   meter), so anything here that kept pulsing would read as "this message is
+   doing something" rather than "you were brought here". React removes the
+   class after the timeout in JumpHighlight below; there is no @keyframes with
+   an infinite iteration count anywhere in this rule for that reason. */
+.yp-jump-flash {
+  animation: ypJumpFlash 1.1s ease-out;
+  border-radius: 18px;
+}
+@keyframes ypJumpFlash {
+  0%   { box-shadow: 0 0 0 6px rgba(0,229,255,.28); }
+  100% { box-shadow: 0 0 0 6px rgba(0,229,255,0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .yp-jump-flash { animation: none; }
+}
+
 /* THE ATTACH MENU (M12) — what the + opens.
 
    The composer's capsule material, at a firmer alpha. It is a panel rather than

@@ -14,6 +14,7 @@ import { sendHand, HAND_BODY } from '../lib/hands';
 import { listHands, toggleHand } from '../lib/messageState';
 import Composer, { COMPOSER_HEIGHT } from './Composer';
 import AudioSendSheet from './AudioSendSheet';
+import ConversationIndexPanel from './ConversationIndexPanel';
 import { useConversationUi } from '../lib/conversationUi';
 import { PROFILE_TYPES } from '../lib/profileTypes';
 import { renderMessage, isBareKind, canReceiveHand, shapeFor, materialFor } from '../lib/messageKinds';
@@ -331,6 +332,16 @@ export default function ConversationView({ conversationId, compact = false, onMi
   /** The broadcast channel this thread's receipts travel on, while open. */
   const receiptChannel = useRef(null);
   const scrollRef = useRef(null);
+  // Which message "Jump to Chat" most recently landed on — drives the one-shot
+  // flash. Null almost always; only a handful of bubbles ever need to know.
+  const [highlightId, setHighlightId] = useState(null);
+  const highlightTimerRef = useRef(null);
+  useEffect(() => () => clearTimeout(highlightTimerRef.current), []);
+
+  // The ⋮ menu (conversation-workspace-v1.1 §1), and which index screen — if
+  // any — is currently open over the thread.
+  const [menuOpen, setMenuOpen]   = useState(false);
+  const [indexMode, setIndexMode] = useState(null);   // null | 'search'|'media'|'files'|'links'
   const inputRef  = useRef(null);
   const atBottomRef = useRef(true);
 
@@ -687,6 +698,52 @@ export default function ConversationView({ conversationId, compact = false, onMi
     setPendingNew(0);
     markConversationRead(conversationId);
     patch(conversationId, { unread: 0 }, true);
+  }
+
+  /**
+   * JUMP TO CHAT (conversation-workspace-v1.0 §6, W23/W24) — the primary
+   * action from every index: Media, Files, Links, Search. Navigates to the
+   * message IN PLACE rather than downloading or opening by default, because
+   * the surrounding conversation is frequently the information someone
+   * actually needed.
+   *
+   * ⚠ THE MESSAGE MUST LAND VISIBLY IDENTIFIED (W24), not just scrolled to —
+   * a bubble arriving centre-screen among a dozen identical-looking bubbles
+   * does not tell the reader which one they were sent to find. `highlightId`
+   * drives a one-shot flash (`.yp-jump-flash`) that answers exactly that.
+   *
+   * Looked up by `[data-message-id]` rather than by index into `messages`,
+   * so it keeps working even if the array is re-sorted or re-fetched between
+   * opening an index and tapping an entry in it.
+   */
+  function jumpToMessage(id) {
+    const container = scrollRef.current;
+    const el = container?.querySelector(`[data-message-id="${id}"]`);
+    if (!el) return;   // the message scrolled out of a since-cleared thread, or never existed
+
+    // ⚠ FOUND BY TESTING LIVE, NOT BY READING: without this, jumping to an
+    // older message while the reader was already scrolled to the bottom got
+    // silently overridden back to the bottom on the very next render. The
+    // effect a few lines up that keeps a reader "at the bottom" while new
+    // messages arrive reads exactly this ref — `jumpToLatest` already sets it
+    // TRUE on arrival; a deliberate jump to an arbitrary older message is the
+    // same kind of event in the other direction; the follow-effect and this
+    // function are describing the same fact and must agree.
+    atBottomRef.current = false;
+
+    // ⚠ INSTANT, NOT SMOOTH. A smooth scroll's duration scales with distance —
+    // on a long thread it can outlast the flash below, so the highlight would
+    // finish before the message has actually arrived on screen, violating W24
+    // ("must land visibly identified") for exactly the jumps this feature
+    // exists to make easy. Landing instantly and flashing from there removes
+    // the race rather than tuning around it.
+    el.scrollIntoView({ block: 'center', behavior: 'auto' });
+    setHighlightId(id);
+    // 1100ms matches the CSS animation's own duration — cleared by TIMEOUT,
+    // never by the animation's own `animationend`, because prefers-reduced-
+    // motion strips the animation but must still remove the class.
+    clearTimeout(highlightTimerRef.current);
+    highlightTimerRef.current = setTimeout(() => setHighlightId(null), 1100);
   }
 
   function onDraftChange(value) {
@@ -1335,12 +1392,85 @@ export default function ConversationView({ conversationId, compact = false, onMi
             Restoring it costs nothing — this row is a flex line of ghost
             buttons, so putting one back is putting one back. */}
 
-        <button type="button" disabled aria-label="More — not available yet" title="No conversation actions yet" style={{ ...ghostBtn, opacity: .32, cursor: 'not-allowed' }}>
-          <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor">
-            <circle cx="5" cy="12" r="1.7" /><circle cx="12" cy="12" r="1.7" /><circle cx="19" cy="12" r="1.7" />
-          </svg>
-        </button>
+        {/* ⋮ — THE CONVERSATION WORKSPACE (conversation-workspace-v1.1 §1).
+            "The control centre for the current conversation" — navigation,
+            never functionality: every item opens a screen or does one
+            unambiguous thing, nothing expands inline. */}
+        <span style={{ position: 'relative' }}>
+          <button
+            type="button"
+            onClick={() => setMenuOpen(o => !o)}
+            aria-haspopup="menu" aria-expanded={menuOpen}
+            aria-label="Conversation menu"
+            style={{ ...ghostBtn, color: menuOpen ? 'rgba(255,255,255,.9)' : ghostBtn.color }}
+          >
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor">
+              <circle cx="5" cy="12" r="1.7" /><circle cx="12" cy="12" r="1.7" /><circle cx="19" cy="12" r="1.7" />
+            </svg>
+          </button>
+
+          {menuOpen && (
+            <>
+              <div onClick={() => setMenuOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 1 }} />
+              <div
+                role="menu" aria-label="Conversation menu"
+                className="yp-modal-card"
+                style={{
+                  position: 'absolute', top: 'calc(100% + 8px)', right: 0, zIndex: 2,
+                  width: 208, padding: 6, textAlign: 'left',
+                }}
+              >
+                {['search', 'media', 'files', 'links'].map(m => (
+                  <button
+                    key={m}
+                    type="button"
+                    role="menuitem"
+                    onClick={() => { setMenuOpen(false); setIndexMode(m); }}
+                    className="yp-attach-row"
+                    style={{ width: '100%', border: 'none', background: 'transparent', color: 'var(--text)', fontFamily: 'inherit', fontSize: 14 }}
+                  >
+                    {{ search: 'Search', media: 'Media', files: 'Files', links: 'Links' }[m]}
+                  </button>
+                ))}
+
+                <div style={{ height: 1, background: 'rgba(255,255,255,.08)', margin: '5px 4px' }} />
+
+                {/* ⚠ DISABLED, NOT REMOVED — following the established
+                    convention (see the attach `+` before M11/M12 shipped): a
+                    ratified design EXISTS for each of these, unlike Call,
+                    which was removed because no design existed at all.
+                    Messaging is blocked on Q1 (per-conversation state's
+                    profile-vs-user key); Conversation Theme's underlying
+                    system is unspecified beyond this entry point; Report is
+                    deferred (DA2/D17). The menu reserves their position. */}
+                <button type="button" disabled title="Coming soon" className="yp-attach-row" style={{ width: '100%', border: 'none', background: 'transparent', color: 'rgba(255,255,255,.30)', fontFamily: 'inherit', fontSize: 14, cursor: 'not-allowed', display: 'flex', justifyContent: 'space-between' }}>
+                  <span>Messaging</span><span>›</span>
+                </button>
+                <button type="button" disabled title="Coming soon" className="yp-attach-row" style={{ width: '100%', border: 'none', background: 'transparent', color: 'rgba(255,255,255,.30)', fontFamily: 'inherit', fontSize: 14, cursor: 'not-allowed' }}>
+                  Conversation Theme
+                </button>
+
+                <div style={{ height: 1, background: 'rgba(255,255,255,.08)', margin: '5px 4px' }} />
+
+                <button type="button" disabled title="Coming soon" className="yp-attach-row" style={{ width: '100%', border: 'none', background: 'transparent', color: 'rgba(255,255,255,.30)', fontFamily: 'inherit', fontSize: 14, cursor: 'not-allowed' }}>
+                  Report User
+                </button>
+              </div>
+            </>
+          )}
+        </span>
       </div>
+
+      {indexMode && (
+        <ConversationIndexPanel
+          mode={indexMode}
+          messages={messages}
+          mine={mine}
+          profilesById={profilesById}
+          onJump={jumpToMessage}
+          onClose={() => setIndexMode(null)}
+        />
+      )}
 
       {/* The privacy strip lived here — a padlock and "Private — only you and
           the participants can see these messages." Removed by owner decision.
@@ -1491,6 +1621,7 @@ export default function ConversationView({ conversationId, compact = false, onMi
                 onRetry={() => onRetry(m)}
                 seenWatermark={seenWatermark}
                 deliveredWatermark={deliveredWatermark}
+                highlighted={highlightId === m.id}
               />
             </Fragment>
           );
@@ -1559,7 +1690,7 @@ export default function ConversationView({ conversationId, compact = false, onMi
  * YesPleez cards land as branches rather than a rewrite. Only `text` exists —
  * the others are declared, not built, and nothing here pretends otherwise.
  */
-function MessageBubble({ message, isMine, grouped = false, endsBurst = true, speaker, handed = false, onToggleHand, onRetry, seenWatermark = null, deliveredWatermark = null }) {
+function MessageBubble({ message, isMine, grouped = false, endsBurst = true, speaker, handed = false, onToggleHand, onRetry, seenWatermark = null, deliveredWatermark = null, highlighted = false }) {
 
   // Null for anything received — receiptFor enforces that, and it is the rule
   // that keeps the §2.5 amendment narrow: a receipt on a message you received
@@ -1606,7 +1737,17 @@ function MessageBubble({ message, isMine, grouped = false, endsBurst = true, spe
   const material = materialFor(message.kind, isMine);
 
   return (
-    <div style={{
+    <div
+      // ⚠ THE ANCHOR "JUMP TO CHAT" NEEDS. Media/Files/Links/Search all
+      // resolve to a message that already exists in this thread — per W2,
+      // they are views, never stores — and the only way to land on one is to
+      // find it in the DOM by this id. `listMessages` loads a conversation's
+      // full history with no pagination (see the audit in
+      // conversation-workspace-v1.0 §12.7), so every message is already here
+      // to be found; nothing needs to be paged in first.
+      data-message-id={message.id}
+      className={highlighted ? 'yp-jump-flash' : undefined}
+      style={{
       display: 'flex',
       alignItems: 'flex-end',
       gap: 8,
