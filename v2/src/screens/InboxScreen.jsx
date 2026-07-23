@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSession } from '../App';
 import { supabase } from '../lib/supabase';
 import { useConversationUi } from '../lib/conversationUi';
+import HandIcon from '../components/HandIcon';
 import {
   listConversations, listParticipants, actableProfileIds, unreadCount, latestMessages,
 } from '../lib/messaging';
@@ -64,7 +65,7 @@ async function fetchInboxRows() {
       // though the other person said it, which is actively misleading when
       // you are waiting on a reply.
       preview: last
-        ? { text: last.body, mine: mine.has(last.from_profile_id) }
+        ? { text: last.body, mine: mine.has(last.from_profile_id), kind: last.kind }
         : null,
     };
   });
@@ -208,7 +209,7 @@ export default function InboxScreen() {
                   // would update the timestamp and leave a stale preview.
                   // `mine` keys on the human here because the profile set is
                   // not in scope in this handler; it agrees in every real case.
-                  preview: { text: row.body, mine: row.from_user_id === userId } }
+                  preview: { text: row.body, mine: row.from_user_id === userId, kind: row.kind } }
               : c)
             // Re-sort on every insert so ordering is correct immediately
             // rather than at the next load. Archived still sinks (UX-4).
@@ -393,7 +394,15 @@ export default function InboxScreen() {
                       {c.preview?.mine && (
                         <span style={{ color: 'rgba(255,255,255,.34)' }}>You: </span>
                       )}
-                      {c.preview?.text ?? ''}
+                      {/* No word, deliberately — the mark is meant to be read
+                          on its own rather than always introduced by name.
+                          `aria-label` still gives screen readers something,
+                          it's just not painted on screen. */}
+                      {c.preview?.kind === 'hand' ? (
+                        <span role="img" aria-label="Yes" style={{ display: 'inline-flex', verticalAlign: 'middle' }}>
+                          <HandIcon size={14} />
+                        </span>
+                      ) : (c.preview?.text ?? '')}
                     </div>
                     <span style={{ flexShrink: 0, fontSize: 11, color: c.unread > 0 ? '#D9A6FF' : 'rgba(255,255,255,.35)' }}>
                       {relativeTime(c.last_message_at)}

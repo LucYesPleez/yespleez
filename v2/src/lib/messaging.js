@@ -109,7 +109,7 @@ export async function latestMessages(conversationIds) {
 
   const { data, error } = await supabase
     .from('messages')
-    .select('conversation_id, body, created_at, from_profile_id')
+    .select('conversation_id, body, created_at, from_profile_id, kind')
     .in('conversation_id', ids)
     .order('created_at', { ascending: false })
     .limit(400);
