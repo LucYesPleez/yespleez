@@ -844,6 +844,16 @@ input, textarea, select {
   .yp-modal { animation: none; }
 }
 
+/* Boot splash echo — ported verbatim from the legacy prototype's timing.
+   One shot, triggered by SplashScreen.jsx adding .go partway through the
+   fade-in; never loops. */
+@keyframes ypSplashEcho {
+  0%   { transform: scale(1);    opacity: 0.55; filter: brightness(1.6) blur(0px); }
+  60%  { transform: scale(1.07); opacity: 0.2;  filter: brightness(1.2) blur(2px); }
+  100% { transform: scale(1.12); opacity: 0;    filter: brightness(1)   blur(4px); }
+}
+.yp-splash-echo.go { animation: ypSplashEcho 0.5s ease-out forwards; }
+
 /* "JUMP TO CHAT" — the flash that says "this one" after a scroll landed.
 
    ⚠ ONE SHOT, NEVER A LOOP. Same rule as the EQ glyph a few blocks up: this
