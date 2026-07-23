@@ -47,6 +47,36 @@ export function barHeight(level, height, curve = 0.6) {
  * @param {number} barCount   how many bars the row has
  * @returns {(number|undefined)[]} length `barCount`; `undefined` means "no bar"
  */
+/**
+ * The played-back analogue of `alignRight`: a trailing window of a
+ * FULL-RESOLUTION, already-known waveform, ending exactly at the current
+ * playhead — used to make a stored recording scroll the same way a live one
+ * fills, instead of showing one static picture of the whole track.
+ *
+ * ⚠ SEPARATED FROM THE COMPONENT SPECIFICALLY SO THE FRACTION MATH HAS A TEST.
+ * `fraction` (currentTime / duration) is provided by the caller rather than
+ * computed here, because computing it needs a live `<audio>` element and this
+ * function must not.
+ *
+ * @param {Uint8Array} bytes     the full decoded envelope, 0..255 per sample
+ * @param {number} fraction      0..1, how far through playback
+ * @param {number} barCount      how many bars the row draws
+ * @param {number} max           the byte scale — WAVE_MAX in voiceWave.js
+ * @returns {(number|undefined)[]} length `barCount`, values 0..1
+ */
+export function scrollWindow(bytes, fraction, barCount, max) {
+  if (!bytes?.length) return new Array(Math.max(0, barCount)).fill(undefined);
+
+  const f = Math.max(0, Math.min(1, Number(fraction) || 0));
+  // At least 1: a fraction of exactly 0 must still show the very first sample,
+  // not an empty row pretending nothing has played yet.
+  const upTo = Math.max(1, Math.round(f * bytes.length));
+
+  const history = new Array(upTo);
+  for (let i = 0; i < upTo; i++) history[i] = bytes[i] / max;
+  return alignRight(history, barCount);
+}
+
 export function alignRight(history, barCount) {
   const src = Array.isArray(history) ? history : [];
   const out = new Array(Math.max(0, barCount));

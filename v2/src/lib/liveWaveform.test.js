@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { alignRight, barHeight } from './liveWaveform.js';
+import { alignRight, barHeight, scrollWindow } from './liveWaveform.js';
 
 const U = undefined;
 
@@ -105,4 +105,41 @@ test('louder always draws taller', () => {
     assert.ok(h >= prev, `height went backwards at ${v.toFixed(2)}`);
     prev = h;
   }
+});
+
+// ── scrollWindow — the played-back analogue of alignRight ─────────────
+
+test('⚠ at fraction 0, the FIRST sample still shows — never an empty row', () => {
+  const bytes = new Uint8Array([255, 128, 64]);
+  const row = scrollWindow(bytes, 0, 3, 255);
+  assert.equal(row.at(-1), 1, 'a fraction of exactly 0 has still "played" one sample');
+});
+
+test('at fraction 1, the trailing window ends at the LAST sample', () => {
+  const bytes = new Uint8Array([0, 0, 0, 255]);
+  const row = scrollWindow(bytes, 1, 4, 255);
+  assert.equal(row.at(-1), 1, 'the newest visible sample is always the playhead');
+});
+
+test('⚠ midway through a long track, the window shows what is AROUND the playhead, not the whole track', () => {
+  // 100 samples, half loud half quiet, playhead at the midpoint.
+  const bytes = new Uint8Array(100);
+  bytes.fill(255, 0, 50);
+  bytes.fill(0, 50, 100);
+  const row = scrollWindow(bytes, 0.5, 10, 255);
+  // The trailing window ends right at the boundary, so it is entirely from the
+  // LOUD half — this is what makes it read as "now", not as an overview.
+  assert.ok(row.every(v => v === 1), `expected an all-loud window, got ${row}`);
+});
+
+test('a fraction is clamped rather than trusted', () => {
+  const bytes = new Uint8Array([100, 200]);
+  assert.doesNotThrow(() => scrollWindow(bytes, -1, 4, 255));
+  assert.doesNotThrow(() => scrollWindow(bytes, 5, 4, 255));
+  assert.equal(scrollWindow(bytes, 5, 4, 255).at(-1), 200 / 255);
+});
+
+test('no wave data yields an empty row, not a throw', () => {
+  assert.deepEqual(scrollWindow(null, 0.5, 4, 255), [U, U, U, U]);
+  assert.deepEqual(scrollWindow(new Uint8Array(0), 0.5, 4, 255), [U, U, U, U]);
 });

@@ -4,7 +4,8 @@ import {
   formatBytes, formatToken,
 } from '../lib/messageFiles';
 import { claimAudio, finishAudio, releaseAudio, SHORT } from '../lib/mediaSession';
-import { decodeWave, toDisplayWave } from '../lib/voiceWave';
+import { decodeWave, WAVE_MAX } from '../lib/voiceWave';
+import { scrollWindow, barHeight } from '../lib/liveWaveform';
 
 /**
  * A DOCUMENT IN THE THREAD (M12) — and, when it is audio, a PLAYER.
@@ -45,6 +46,9 @@ import { decodeWave, toDisplayWave } from '../lib/voiceWave';
  */
 const WAVE_BARS = 28;
 
+/** Redraw cadence while playing. Matches the recording meter's own rate. */
+const SAMPLE_MS = 58;
+
 /** Set only while a send is in flight or has failed — there is no path yet. */
 function isPending(message) {
   return !message?.payload?.path;
@@ -66,8 +70,6 @@ export default function FileMessage({ message }) {
   const [asking,  setAsking]  = useState(false);
   const [playing, setPlaying] = useState(false);
   const [loading, setLoading] = useState(false);
-  // 0–1. Drives which waveform bars are lit; the boundary is the playhead.
-  const [progress, setProgress] = useState(0);
 
   const audioRef = useRef(null);
   // One stable object for this component's lifetime — see VoiceMessage. An
@@ -82,24 +84,75 @@ export default function FileMessage({ message }) {
     };
   }
   const urlRef   = useRef(null);
+  const barsRef  = useRef([]);
+  const waveTimerRef = useRef(null);
 
   /**
-   * Peaks frozen at send time. Absent for documents, and for audio too large to
-   * have been decoded safely on the sender's phone — see WAVE_CEILING_BYTES.
+   * Peaks frozen at send time, at FULL resolution — never downsampled to
+   * `WAVE_BARS`. This waveform does not show the whole track at once; it shows
+   * a trailing window ending at the playhead, exactly like the recording meter
+   * shows a trailing window ending at "now". Downsampling first would throw
+   * away the detail the scroll exists to reveal as playback advances.
+   *
+   * Absent for documents, and for audio too large to have been decoded safely
+   * on the sender's phone — see WAVE_CEILING_BYTES.
    *
    * ⚠ THE STORED WAVE IS A v2 ENVELOPE — {v, ms, d} with base64-packed
-   * amplitudes — NOT a `peaks` array. An earlier version of this line read
-   * `wave.peaks`, a v1 key that does not exist on what `computeWave` produces,
-   * so `bars` was permanently empty and the waveform silently never rendered.
-   * Nothing threw; the row simply looked like it had no waveform feature.
-   *
-   * Decoded through the SAME functions VoiceMessage uses, deliberately: a
-   * second decoder would be a second thing to keep in step with the format.
+   * amplitudes. Decoded through the SAME function VoiceMessage uses,
+   * deliberately: a second decoder would be a second thing to keep in step
+   * with the format — which is exactly how this waveform went silently missing
+   * once already, reading a `peaks` key that v2 never wrote.
    */
-  const bars = useMemo(() => {
-    const decoded = decodeWave(message?.payload?.wave);
-    return decoded ? toDisplayWave(decoded, WAVE_BARS) : [];
-  }, [message?.payload?.wave]);
+  const waveBytes = useMemo(() => decodeWave(message?.payload?.wave), [message?.payload?.wave]);
+  const hasWave = Boolean(waveBytes?.length);
+
+  /**
+   * ── HIDDEN UNTIL PLAYING, THEN A REAL SCROLL ─────────────────────────
+   *
+   * Static, it competed with the filename/size for the one line this row owns.
+   * Playing, it earns that space: a right-aligned trailing window of the
+   * TRACK'S OWN recorded loudness, ending at the current playhead — the same
+   * shape and the same utilities (`alignRight`, `barHeight`) as the composer's
+   * live recording meter, so a played-back master visually rhymes with a
+   * Voicey being spoken.
+   *
+   * ⚠ WRITTEN DIRECTLY TO THE DOM, NOT THROUGH REACT STATE — same reasoning as
+   * `LiveWaveform`. This samples up to ~17 times a second; doing that through
+   * `setState` would re-render the bubble, the row, and everything below it in
+   * the thread that many times a second for as long as anything plays.
+   *
+   * The window is real audio data at every instant, never a decorative loop —
+   * this codebase treats a waveform that would look identical whether or not
+   * anything was actually happening as worse than no waveform at all.
+   */
+  useEffect(() => {
+    clearInterval(waveTimerRef.current);
+    if (!playing || !hasWave) return undefined;
+
+    waveTimerRef.current = setInterval(() => {
+      const el = audioRef.current;
+      if (!el || !Number.isFinite(el.duration) || el.duration <= 0) return;
+
+      const fraction = el.currentTime / el.duration;
+      const windowed = scrollWindow(waveBytes, fraction, WAVE_BARS, WAVE_MAX);
+
+      const nodes = barsRef.current;
+      for (let i = 0; i < nodes.length; i++) {
+        const node = nodes[i];
+        if (!node) continue;
+        const v = windowed[i];
+        if (v === undefined) {
+          node.style.height = '0px';
+          node.style.opacity = '0';
+        } else {
+          node.style.height = `${barHeight(v, 16, 0.6)}px`;
+          node.style.opacity = '1';
+        }
+      }
+    }, SAMPLE_MS);
+
+    return () => clearInterval(waveTimerRef.current);
+  }, [playing, hasWave, waveBytes]);
 
   // ⚠ ABSENT MEANS ALLOWED. Only a deliberate refusal is stored, so every file
   // sent before this existed stays downloadable rather than silently locking.
@@ -110,6 +163,7 @@ export default function FileMessage({ message }) {
   useEffect(() => () => {
     const el = audioRef.current;
     if (el) { el.pause(); releaseAudio(sessionRef.current); }
+    clearInterval(waveTimerRef.current);
   }, []);
 
   async function togglePlay(e) {
@@ -237,9 +291,14 @@ export default function FileMessage({ message }) {
             {/* THE WAVEFORM FILLS WHAT IS LEFT of the metadata line rather than
                 claiming a row of its own — the card stays one object, and on a
                 narrow screen the wave simply has less room instead of pushing
-                the size off the edge. It is absent for anything with no peaks:
-                a document, or a file too large to have been decoded at send. */}
-            {bars.length > 0 && (
+                the size off the edge.
+
+                ⚠ MOUNTED ONLY WHILE PLAYING. Static, it competed with the
+                filename and size for one line; while playing it earns the
+                space by showing something the size in bytes cannot. Absent for
+                anything with no peaks: a document, or a file too large to have
+                been decoded at send. */}
+            {playing && hasWave && (
               <span
                 aria-hidden="true"
                 style={{
@@ -248,23 +307,19 @@ export default function FileMessage({ message }) {
                   overflow: 'hidden',
                 }}
               >
-                {bars.map((peak, i) => {
-                  // Played bars are lit, coming bars are not. The boundary IS
-                  // the playhead — a separate progress line over a waveform is
-                  // two things saying one thing.
-                  const played = progress > 0 && (i / bars.length) <= progress;
-                  return (
-                    <span
-                      key={i}
-                      style={{
-                        flex: '1 1 0', minWidth: 1,
-                        height: `${Math.max(12, Math.round(peak * 100))}%`,
-                        borderRadius: 1,
-                        background: played ? '#D9BFFF' : 'rgba(255,255,255,.22)',
-                      }}
-                    />
-                  );
-                })}
+                {Array.from({ length: WAVE_BARS }, (_, i) => (
+                  <span
+                    key={i}
+                    ref={el => { barsRef.current[i] = el; }}
+                    style={{
+                      flex: '1 1 0', minWidth: 1,
+                      height: 0, opacity: 0,
+                      borderRadius: 1,
+                      background: 'linear-gradient(180deg, #D8B4FE 0%, #A855F7 100%)',
+                      transition: 'height .06s linear',
+                    }}
+                  />
+                ))}
               </span>
             )}
           </span>
@@ -324,13 +379,12 @@ export default function FileMessage({ message }) {
         {/* Mounted always so play() targets a stable element; src is set lazily. */}
         <audio
           ref={audioRef}
-          onTimeUpdate={e => { const d = e.currentTarget.duration; if (d > 0) setProgress(e.currentTarget.currentTime / d); }}
           onPlay={() => setPlaying(true)}
           // ⚠ Guarded on `ended` — see VoiceMessage. Releasing on a natural
           // finish would clear the claim before finishAudio could resume what
           // this track interrupted.
           onPause={e => { if (!e.currentTarget.ended) releaseAudio(sessionRef.current); setPlaying(false); }}
-          onEnded={() => { finishAudio(sessionRef.current); setPlaying(false); setProgress(0); }}
+          onEnded={() => { finishAudio(sessionRef.current); setPlaying(false); }}
           style={{ display: 'none' }}
         />
       </div>

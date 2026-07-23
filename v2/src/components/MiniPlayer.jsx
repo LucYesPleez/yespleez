@@ -145,7 +145,7 @@ export default function MiniPlayer({ url, artistName, hasNext, onClose, onFinish
   useEffect(() => {
     touchedRef.current = false;
     setMinimised(false);
-    const t = setTimeout(() => { if (!touchedRef.current) setMinimised(true); }, 4500);
+    const t = setTimeout(() => { if (!touchedRef.current) setMinimised(true); }, 5000);
     return () => clearTimeout(t);
   }, [url]);
 

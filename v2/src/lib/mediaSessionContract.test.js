@@ -233,7 +233,12 @@ test('⚠ FileMessage decodes the v2 wave envelope, not a v1 peaks array', async
   assert.ok(!/wave\?\.peaks|wave\.peaks/.test(src),
     'reading .peaks off a v2 envelope silently yields no waveform');
   assert.match(src, /decodeWave\(/, 'it must decode the stored envelope');
-  assert.match(src, /toDisplayWave\(/, 'and downsample it the same way VoiceMessage does');
+  // ⚠ NOT toDisplayWave — the audio card scrolls a real-time trailing window
+  // of the FULL-resolution bytes (alignRight/barHeight, the recording meter's
+  // own utilities) rather than showing one static downsampled picture of the
+  // whole track. Downsampling first would throw away the detail the scroll
+  // exists to reveal.
+  assert.match(src, /scrollWindow\(/, 'it must window the full-resolution bytes, not a static downsample');
 });
 
 test('⚠ both players share ONE decoder for the stored format', async () => {
