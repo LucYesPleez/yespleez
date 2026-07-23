@@ -80,6 +80,17 @@
 /* Tabs — pill container with border */
 .tabs {
   display: flex;
+  /* ⚠ THE REAL BUG, not the dvh/button fixes below (kept, but they weren't
+     it). A flex item with `overflow` other than visible gets an automatic
+     MINIMUM size of 0 instead of its content size — the same trap as the
+     conversation ⋮ menu earlier this session. .tabs is a flex child of
+     .screen (a flex column) and has overflow:hidden; if Messenger's
+     persistent top+bottom chrome leaves less real height than 100vh/dvh
+     reports, .tabs — uniquely eligible to shrink toward zero because of its
+     own overflow:hidden — absorbs the squeeze and clips its own text away,
+     while sibling text elements (no overflow set) don't shrink at all.
+     flex-shrink:0 removes it from that shrink pool entirely. */
+  flex-shrink: 0;
   width: 100%;
   background: var(--card2);
   border: 1px solid var(--border);
