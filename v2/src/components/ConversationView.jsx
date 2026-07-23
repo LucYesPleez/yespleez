@@ -345,6 +345,29 @@ export default function ConversationView({ conversationId, compact = false, onMi
   const inputRef  = useRef(null);
   const atBottomRef = useRef(true);
 
+  // The ⋮ menu's own drag-to-shrink handle. `menuHeight` null means "natural
+  // height, no cap" — the common case, since the menu is short. Set only once
+  // the owner drags the handle, and dropped back to null on every fresh open
+  // so a shrunk menu doesn't stay shrunk forever.
+  const menuCardRef = useRef(null);
+  const [menuHeight, setMenuHeight] = useState(null);
+  const menuResizeRef = useRef(null); // { startY, startHeight, natural }
+
+  function onMenuResizeDown(e) {
+    e.stopPropagation();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    const natural = menuCardRef.current?.getBoundingClientRect().height ?? 0;
+    menuResizeRef.current = { startY: e.clientY, startHeight: menuHeight ?? natural, natural };
+  }
+  function onMenuResizeMove(e) {
+    const drag = menuResizeRef.current;
+    if (!drag) return;
+    const next = drag.startHeight + (e.clientY - drag.startY);
+    setMenuHeight(Math.min(drag.natural, Math.max(120, next)));
+  }
+  function onMenuResizeUp() { menuResizeRef.current = null; }
+  useEffect(() => { if (menuOpen) setMenuHeight(null); }, [menuOpen]);
+
   // Restore the draft when the drawer swaps to a different conversation.
   useEffect(() => {
     setDraft(getState(conversationId).draft || '');
@@ -1413,11 +1436,27 @@ export default function ConversationView({ conversationId, compact = false, onMi
             <>
               <div onClick={() => setMenuOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 1 }} />
               <div
-                role="menu" aria-label="Conversation menu"
                 className="yp-modal-card"
                 style={{
                   position: 'absolute', top: 'calc(100% + 8px)', right: 0, zIndex: 2,
-                  width: 208, padding: 6, textAlign: 'left',
+                  width: 208, padding: 0, textAlign: 'left',
+                  // ⚠ The class's own `max-height: 100%` is a trap here: this
+                  // wrapper's positioned ancestor is a flex item in the header
+                  // row, which stretches it to the ROW's height (~34px) —
+                  // so 100% resolved to 34px and clipped the whole menu to a
+                  // sliver. Cancel both the class's max-height and overflow;
+                  // the inner list below owns its own bounded scrolling.
+                  maxHeight: 'none', overflow: 'visible',
+                }}
+              >
+              <div
+                ref={menuCardRef}
+                role="menu" aria-label="Conversation menu"
+                className="yp-noscrollbar"
+                style={{
+                  overflowY: 'auto', padding: 6,
+                  height: menuHeight != null ? menuHeight : 'auto',
+                  maxHeight: menuHeight != null ? undefined : 'min(60vh, 380px)',
                 }}
               >
                 {['search', 'media', 'files', 'links'].map(m => (
@@ -1455,6 +1494,25 @@ export default function ConversationView({ conversationId, compact = false, onMi
                 <button type="button" disabled title="Coming soon" className="yp-attach-row" style={{ width: '100%', border: 'none', background: 'transparent', color: 'rgba(255,255,255,.30)', fontFamily: 'inherit', fontSize: 14, cursor: 'not-allowed' }}>
                   Report User
                 </button>
+              </div>
+
+              {/* Drag-to-shrink handle — lives OUTSIDE the scrolling list
+                  above, so it never scrolls away and never fights the list's
+                  own touch/wheel scrolling. Pointer capture means the drag
+                  keeps tracking even once the cursor leaves this thin strip. */}
+              <div
+                onPointerDown={onMenuResizeDown}
+                onPointerMove={onMenuResizeMove}
+                onPointerUp={onMenuResizeUp}
+                onPointerCancel={onMenuResizeUp}
+                aria-hidden="true"
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  height: 14, cursor: 'row-resize', touchAction: 'none',
+                }}
+              >
+                <span style={{ width: 32, height: 4, borderRadius: 999, background: 'rgba(255,255,255,.22)' }} />
+              </div>
               </div>
             </>
           )}
