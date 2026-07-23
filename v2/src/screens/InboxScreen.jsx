@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSession } from '../App';
 import { supabase } from '../lib/supabase';
 import { useConversationUi } from '../lib/conversationUi';
@@ -7,6 +8,71 @@ import {
   listConversations, listParticipants, actableProfileIds, unreadCount, latestMessages,
 } from '../lib/messaging';
 import { PROFILE_TYPES } from '../lib/profileTypes';
+
+const inboxKey = userId => ['inbox', userId];
+
+/**
+ * The fetch waterfall this screen has always run: conversations →
+ * participants → which are mine → one unread count per conversation →
+ * latest message per conversation → decorate. Unchanged logic, just no
+ * longer re-run from a cold `useState([])` on every mount — `useQuery`
+ * below serves cached data immediately and revalidates in the background.
+ */
+async function fetchInboxRows() {
+  const { conversations } = await listConversations();
+  const ids = conversations.map(c => c.id);
+
+  const { participants } = await listParticipants(ids);
+
+  // §A4 — ask, never compute. One rpc per DISTINCT profile, not per row.
+  const { mine } = await actableProfileIds(participants.map(p => p.profile_id));
+
+  // §5.6 — the database counts; this screen only displays.
+  const counts = await Promise.all(
+    ids.map(id => unreadCount(id).then(r => [id, r.count])),
+  );
+  const countBy = Object.fromEntries(counts);
+
+  const { byConversation: latest } = await latestMessages(ids);
+
+  const decorated = conversations.map(c => {
+    const mates = participants.filter(p => p.conversation_id === c.id);
+    // §2.2 — a conversation is a relationship; show the OTHER party.
+    // Which of MY profiles is in this thread. Without it, three
+    // conversations with the same artist render as three identical rows.
+    // When BOTH participants are yours the thread is really note-keeping,
+    // so Personal is treated as "you" and the industry profile as the
+    // recipient. Deterministic, unlike "whichever row came back first" —
+    // and it means the same thread never renders swapped between loads.
+    const asRow = mates.find(p => mine.has(p.profile_id) && p.profiles?.type === 'punter')
+               ?? mates.find(p => mine.has(p.profile_id));
+    const asProfile = asRow?.profiles ?? null;
+
+    // The other party is "everyone except the profile I am sending as" —
+    // NOT "everyone I cannot act as". A user can legitimately message
+    // between two of their OWN profiles (Personal → Dusky Waters), and the
+    // ownership-based version returns an empty set for those, rendering
+    // the row as "Unknown".
+    const others = mates.filter(p => p.profile_id !== asRow?.profile_id);
+    // Archived is per-participant, so it is MY participant row that decides.
+    const isArchived = mates.some(p => mine.has(p.profile_id) && p.archived_at);
+    const last = latest[c.id];
+    return {
+      ...c, others, asProfile, isArchived,
+      unread: countBy[c.id] ?? 0,
+      // "You:" when the last word was yours — otherwise a preview reads as
+      // though the other person said it, which is actively misleading when
+      // you are waiting on a reply.
+      preview: last
+        ? { text: last.body, mine: mine.has(last.from_profile_id) }
+        : null,
+    };
+  });
+
+  // Archived sinks, but is never removed — and its unread still counts.
+  decorated.sort((a, b) => Number(a.isArchived) - Number(b.isArchived));
+  return decorated;
+}
 
 /**
  * INBOX — the conversation list.
@@ -72,15 +138,19 @@ export default function InboxScreen() {
   const { session } = useSession();
   const { open: openConversation, openId } = useConversationUi();
   const location = useLocation();
-  const [rows, setRows]       = useState([]);
-  const [loading, setLoading] = useState(true);
-  /**
-   * Bumped when a message arrives for a conversation this list has never
-   * seen, which re-runs the loader below. The nav badge and this list have to
-   * agree about what exists — a badge counting a conversation with no row is
-   * the worst of both: it says something happened and gives no way to find it.
-   */
-  const [reloadKey, setReloadKey] = useState(0);
+  const queryClient = useQueryClient();
+  const userId = session?.user?.id;
+
+  // Cache-first, revalidate-in-background — this is the fix for the mount
+  // cost. `staleTime`/`gcTime` come from the QueryClient default in App.jsx
+  // (3min/10min), so navigating away and back renders the list instantly
+  // from cache while a fresh fetch runs quietly behind it, instead of
+  // blanking to LOADING… every single time.
+  const { data: rows = [], isLoading: loading } = useQuery({
+    queryKey: inboxKey(userId),
+    queryFn: fetchInboxRows,
+    enabled: !!userId,
+  });
 
   /**
    * DEF-1 — the list stays LIVE while the dock is open.
@@ -103,7 +173,8 @@ export default function InboxScreen() {
    * disagree. One targeted RPC is cheaper than being wrong.
    */
   useEffect(() => {
-    if (!session) return undefined;
+    if (!userId) return undefined;
+    const key = inboxKey(userId);
 
     const channel = supabase
       .channel('inbox-live')
@@ -126,17 +197,18 @@ export default function InboxScreen() {
         // self-limiting: once the row exists the conversation is `known` and
         // this path is not taken again.
         let known = false;
-        setRows(prev => {
-          known = prev.some(c => c.id === cid);
-          if (!known) return prev;
-          return prev
+        queryClient.setQueryData(key, prev => {
+          const list = prev ?? [];
+          known = list.some(c => c.id === cid);
+          if (!known) return list;
+          return list
             .map(c => c.id === cid
               ? { ...c, last_message_at: row.created_at,
                   // Same shape the initial load writes, or a live message
                   // would update the timestamp and leave a stale preview.
                   // `mine` keys on the human here because the profile set is
                   // not in scope in this handler; it agrees in every real case.
-                  preview: { text: row.body, mine: row.from_user_id === session.user.id } }
+                  preview: { text: row.body, mine: row.from_user_id === userId } }
               : c)
             // Re-sort on every insert so ordering is correct immediately
             // rather than at the next load. Archived still sinks (UX-4).
@@ -144,20 +216,22 @@ export default function InboxScreen() {
               || (new Date(b.last_message_at ?? 0) - new Date(a.last_message_at ?? 0)));
         });
         if (!known) {
-          // Reload the whole list, which reads the participants properly rather
-          // than inventing them. Batched by React, so a burst of messages in
-          // several new conversations costs one refetch, not one each.
-          setReloadKey(k => k + 1);
+          // Refetch, which reads the participants properly rather than
+          // inventing them. Old rows stay on screen while it runs — this is
+          // the same stale-while-revalidate path a remount uses, not a
+          // blocking reload.
+          queryClient.invalidateQueries({ queryKey: key });
           return;
         }
 
         const { count } = await unreadCount(cid);
-        setRows(prev => prev.map(c => (c.id === cid ? { ...c, unread: count } : c)));
+        queryClient.setQueryData(key, prev =>
+          (prev ?? []).map(c => (c.id === cid ? { ...c, unread: count } : c)));
       })
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [session]);
+  }, [userId, queryClient]);
 
   /**
    * The other half of DEF-1: opening a conversation clears its unread here too.
@@ -171,9 +245,10 @@ export default function InboxScreen() {
    * so the two cannot disagree about a conversation the user is looking at.
    */
   useEffect(() => {
-    if (!openId) return;
-    setRows(prev => prev.map(c => (c.id === openId ? { ...c, unread: 0 } : c)));
-  }, [openId]);
+    if (!openId || !userId) return;
+    queryClient.setQueryData(inboxKey(userId), prev =>
+      (prev ?? []).map(c => (c.id === openId ? { ...c, unread: 0 } : c)));
+  }, [openId, userId, queryClient]);
 
   // A deep link (/messages/:id, e.g. from a notification) redirects here and
   // carries the id as navigation state. Opening it once the route has settled
@@ -183,76 +258,6 @@ export default function InboxScreen() {
     const wanted = location.state?.openConversation;
     if (wanted) openConversation(wanted);
   }, [location.state, openConversation]);
-
-  useEffect(() => {
-    if (!session) { setLoading(false); return; }
-    const cancelled = { current: false };
-
-    (async () => {
-      const { conversations } = await listConversations();
-      if (cancelled.current) return;
-
-      const ids = conversations.map(c => c.id);
-      const { participants } = await listParticipants(ids);
-      if (cancelled.current) return;
-
-      // §A4 — ask, never compute. One rpc per DISTINCT profile, not per row.
-      const { mine } = await actableProfileIds(participants.map(p => p.profile_id));
-      if (cancelled.current) return;
-
-      // §5.6 — the database counts; this screen only displays.
-      const counts = await Promise.all(
-        ids.map(id => unreadCount(id).then(r => [id, r.count])),
-      );
-      if (cancelled.current) return;
-      const countBy = Object.fromEntries(counts);
-
-      const { byConversation: latest } = await latestMessages(ids);
-      if (cancelled.current) return;
-
-      const decorated = conversations.map(c => {
-        const mates = participants.filter(p => p.conversation_id === c.id);
-        // §2.2 — a conversation is a relationship; show the OTHER party.
-        // Which of MY profiles is in this thread. Without it, three
-        // conversations with the same artist render as three identical rows.
-        // When BOTH participants are yours the thread is really note-keeping,
-        // so Personal is treated as "you" and the industry profile as the
-        // recipient. Deterministic, unlike "whichever row came back first" —
-        // and it means the same thread never renders swapped between loads.
-        const asRow = mates.find(p => mine.has(p.profile_id) && p.profiles?.type === 'punter')
-                   ?? mates.find(p => mine.has(p.profile_id));
-        const asProfile = asRow?.profiles ?? null;
-
-        // The other party is "everyone except the profile I am sending as" —
-        // NOT "everyone I cannot act as". A user can legitimately message
-        // between two of their OWN profiles (Personal → Dusky Waters), and the
-        // ownership-based version returns an empty set for those, rendering
-        // the row as "Unknown".
-        const others = mates.filter(p => p.profile_id !== asRow?.profile_id);
-        // Archived is per-participant, so it is MY participant row that decides.
-        const isArchived = mates.some(p => mine.has(p.profile_id) && p.archived_at);
-        const last = latest[c.id];
-        return {
-          ...c, others, asProfile, isArchived,
-          unread: countBy[c.id] ?? 0,
-          // "You:" when the last word was yours — otherwise a preview reads as
-          // though the other person said it, which is actively misleading when
-          // you are waiting on a reply.
-          preview: last
-            ? { text: last.body, mine: mine.has(last.from_profile_id) }
-            : null,
-        };
-      });
-
-      // Archived sinks, but is never removed — and its unread still counts.
-      decorated.sort((a, b) => Number(a.isArchived) - Number(b.isArchived));
-
-      setRows(decorated);
-      setLoading(false);
-    })();
-
-    return () => { cancelled.current = true; };
-  }, [session, reloadKey]);
 
   return (
     <div style={{ paddingTop: 72, paddingBottom: 90, minHeight: '100dvh', background: 'var(--bg)', boxSizing: 'border-box' }}>

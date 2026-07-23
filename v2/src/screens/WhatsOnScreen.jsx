@@ -244,8 +244,14 @@ export default function WhatsOnScreen() {
     dragRef.current.dragging = false;
   }
 
-  // Always load upcoming 14 days for the 3-section layout
-  const { events: realEvents, loading } = useEvents(todayIso, dateStr(14));
+  // ⚠ No upper date bound here, deliberately. This used to be capped at 14
+  // days ("for the 3-section layout"), but the calendar strip and THIS MONTH
+  // tab both let you browse further out than that — a hard cutoff meant an
+  // event dated day 15+ was invisible everywhere on this screen (calendar,
+  // featured, all of it), not just missing from Coming Up. The `.limit(200)`
+  // inside useEvents is the real safety net; Coming Up gets its OWN 14-day
+  // cap below so its "Next 2 weeks" label stays true regardless.
+  const { events: realEvents, loading } = useEvents(todayIso, null);
   const events = useMemo(() => [...realEvents, ...getDemoEvents(realEvents)], [realEvents]);
 
   const eventDaySet = useMemo(() => {
@@ -278,7 +284,10 @@ export default function WhatsOnScreen() {
   const weekendEvents  = useMemo(() => events.filter(ev => weekendDates.has(ev.config?.date) && ev.config?.date !== todayIso && matchesCategory(ev, category)), [events, weekendDates, todayIso, category]);
   const comingUpEvents = useMemo(() => events.filter(ev => {
     const d = ev.config?.date;
-    return d && d !== todayIso && !weekendDates.has(d) && matchesCategory(ev, category);
+    // "Next 2 weeks" per its own label — was previously true for free because
+    // `events` itself was capped at 14 days. Now that the cap moved to only
+    // this section, it has to enforce its own upper bound.
+    return d && d !== todayIso && d <= dateStr(14) && !weekendDates.has(d) && matchesCategory(ev, category);
   }).sort((a, b) => (a.config?.date || '').localeCompare(b.config?.date || '')), [events, weekendDates, todayIso, category]);
 
   // Weekend date range label
