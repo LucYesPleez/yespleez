@@ -48,6 +48,7 @@ import ArtistProfileScreen from './screens/ArtistProfileScreen';
 import BandProfileScreen from './screens/BandProfileScreen';
 import StandupProfileScreen from './screens/StandupProfileScreen';
 import VenueProfileScreen from './screens/VenueProfileScreen';
+import BetaFeedbackScreen from './screens/BetaFeedbackScreen';
 
 export const SessionCtx = createContext(null);
 export function useSession() { return useContext(SessionCtx); }
@@ -187,6 +188,7 @@ function Shell({ session, isGuest, onSignOut }) {
         <Route path="/messages"               element={<InboxScreen />} />
         <Route path="/messages/:id"           element={<ConversationScreen />} />
         <Route path="/access-required"        element={<AccessRequiredScreen />} />
+        <Route path="/beta-feedback"          element={<BetaFeedbackScreen />} />
         <Route path="/industry/artist"   element={<ArtistDashboard />} />
         <Route path="/industry/venue"    element={<VenueDashboard />} />
         <Route path="/industry/venue/setup"  element={<VenueProfileScreen />} />

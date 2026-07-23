@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import s from './GlobalHeader.module.css';
 import NotifPanel from './NotifPanel';
 import ShareSheet from './ShareSheet';
+import BetaWelcomePopup from './BetaWelcomePopup';
 import { useCurrentShareTarget, pageFallback } from '../lib/shareTarget';
 
 const INFO = {
@@ -37,6 +38,10 @@ const INFO = {
   '/industry/venue': {
     title: 'VENUE DASHBOARD',
     body: `<p>Your venue profile and hosted events.</p><ul><li><strong>Edit your venue profile</strong> to keep your details and contact info up to date.</li><li><strong>Upcoming events</strong> at your venue appear automatically.</li></ul>`
+  },
+  '/beta-feedback': {
+    title: 'BETA FEEDBACK',
+    body: `<p>Bugs, ideas, love or questions — straight to Lucious.</p><ul><li>Every submission is <strong>personally reviewed</strong>.</li><li>Attach a <strong>screenshot or screen recording</strong> if it helps explain what happened.</li></ul>`
   },
 };
 
@@ -99,6 +104,15 @@ export default function GlobalHeader({ onMarkRead, unreadCount = 0 }) {
 
         <div className={s.ypTag}>YESPLEEZ</div>
 
+        <button
+          type="button"
+          className={s.betaTag}
+          onClick={() => navigate('/beta-feedback')}
+          aria-label="Give beta feedback"
+        >
+          BETA
+        </button>
+
         {/* Standard top bar order: Back · logo · Share · Info · bell. */}
         <div className={s.actions} style={{ position: 'relative' }}>
           <button className={s.iconBtn} onClick={handleShare} aria-label="Share">
@@ -159,6 +173,8 @@ export default function GlobalHeader({ onMarkRead, unreadCount = 0 }) {
           <button className={s.infoClose} onClick={() => setInfoOpen(false)}>CLOSE</button>
         </div>
       </div>
+
+      <BetaWelcomePopup />
     </>
   );
 }

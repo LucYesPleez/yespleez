@@ -1,0 +1,234 @@
+.screen {
+  width: min(100%, 680px);
+  margin: 0 auto;
+  padding: 54px 16px 80px;
+  box-sizing: border-box;
+  min-height: 100vh;
+}
+
+/* Welcome / success — centred copy, same shape as ProfileEditScreen's form
+   but text-centred and without field chrome. */
+.intro {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding-top: 10px;
+}
+
+/* ⚠ Deliberately NOT Bebas Neue. That font has no real lowercase glyphs —
+   "Skitz!" renders as "SKITZ!" — which reads as shouting and kills the
+   casual, conversational tone this copy is written in. Bebas is fine (and
+   used elsewhere in this file) for short structural labels, wrong for actual
+   sentences someone is meant to read as a voice. */
+.introHeading {
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 700;
+  font-size: 26px;
+  letter-spacing: -0.4px;
+  margin: 0 0 16px;
+  color: var(--text);
+}
+
+.introBody {
+  max-width: 340px;
+  margin: 0 0 14px;
+  color: var(--text);
+  font-size: 14.5px;
+  line-height: 1.5;
+}
+
+.emphasis {
+  max-width: 340px;
+  margin: 0 0 16px;
+  font-weight: 700;
+  font-size: 15px;
+  background: linear-gradient(135deg, #55bbcf, #8c55e5 72%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.signature {
+  margin: 6px 0 26px;
+  color: var(--text);
+  font-size: 14.5px;
+  line-height: 1.5;
+}
+
+.reference {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  width: min(100%, 260px);
+  margin: 0 0 18px;
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--card2);
+  color: #b08aff;
+  font-size: 13px;
+  font-weight: 650;
+}
+.reference b { color: var(--text); font-size: 18px; line-height: 1; }
+
+/* Form phases */
+.progressCue {
+  margin: 0 0 20px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: .02em;
+}
+
+.field { margin-bottom: 26px; }
+
+.stepLabel {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 13px;
+  letter-spacing: 1.5px;
+  color: var(--text);
+  margin: 0 0 12px;
+}
+
+.required { color: #e78a94; }
+.hint { color: var(--muted); font-size: 11px; font-weight: 400; letter-spacing: 0; }
+
+.error {
+  margin-top: 8px;
+  color: #e78a94;
+  font-size: 13px;
+}
+
+.typeGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 9px;
+}
+
+.type, .typeSelected {
+  padding: 12px 8px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  color: var(--text);
+  background: var(--card2);
+  font-size: 14px;
+  font-weight: 650;
+  cursor: pointer;
+  font-family: 'DM Sans', sans-serif;
+}
+.typeSelected {
+  border-color: #7d72db;
+  background: linear-gradient(135deg, #00E5FF, #BF5FFF);
+  color: #0a0a0f;
+}
+
+.select, .textarea {
+  display: block;
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  outline: 0;
+  background: var(--card2);
+  color: var(--text);
+  box-sizing: border-box;
+  font-size: 14px;
+}
+.select { height: 47px; padding: 0 12px; }
+.textarea { min-height: 120px; padding: 12px; resize: vertical; font-family: 'DM Sans', sans-serif; line-height: 1.5; }
+.select:focus, .textarea:focus { border-color: rgba(255,255,255,.3); }
+
+.count {
+  margin-top: -21px;
+  padding-right: 9px;
+  text-align: right;
+  color: var(--muted);
+  font-size: 11px;
+  pointer-events: none;
+}
+
+.severity { display: grid; gap: 9px; }
+.severity label {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  cursor: pointer;
+  color: var(--text);
+  font-size: 14px;
+}
+.severity input { accent-color: #823aff; width: 18px; height: 18px; margin: 0; }
+.dot { width: 9px; height: 9px; border-radius: 50%; opacity: .85; flex-shrink: 0; }
+
+.attachmentsCopy {
+  max-width: 330px;
+  margin: 0 0 22px;
+  color: var(--text);
+  font-size: 14px;
+}
+
+.attachActions { display: grid; gap: 10px; margin-bottom: 15px; }
+
+.secondaryBtn {
+  min-height: 76px;
+  padding: 0 18px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: var(--card2);
+  color: var(--text);
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  text-align: left;
+  font-family: 'DM Sans', sans-serif;
+}
+.secondaryBtn small {
+  display: block;
+  margin: 3px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.fileList { display: grid; gap: 9px; margin: 15px 0; }
+.file {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--card2);
+}
+.fileIcon {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border-radius: 7px;
+  background: #282331;
+}
+.fileName {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  color: var(--text);
+}
+.remove { border: 0; background: transparent; color: var(--text); cursor: pointer; font-size: 19px; }
+
+.primaryBtn {
+  width: 100%;
+  min-height: 52px;
+  border: 0;
+  border-radius: 13px;
+  background: linear-gradient(135deg, #00E5FF, #BF5FFF);
+  color: #0a0a0f;
+  font-weight: 700;
+  font-size: 15px;
+  cursor: pointer;
+  margin-top: 6px;
+  font-family: 'DM Sans', sans-serif;
+}
+.primaryBtn:disabled { cursor: not-allowed; opacity: .6; }
