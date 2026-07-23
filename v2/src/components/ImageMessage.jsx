@@ -255,30 +255,6 @@ export default function ImageMessage({ message }) {
             HD
           </span>
         )}
-
-        {/* ⚠ HD ONLY. An ordinary photo needs no caption — it is the thing it
-            shows. An HD original is different: the picture on screen may be an
-            EMBEDDED PREVIEW (see M13/RAW), and what is actually downloadable is
-            a specific file with its own type and size. Naming that without a
-            hold-to-open saves the one question this bubble cannot answer by
-            being looked at. TOP-left, deliberately: bottom-right already holds
-            the HD chip, and bottom-left is the Yes badge's corner. */}
-        {original && !error && (
-          <span
-            aria-hidden="true"
-            style={{
-              position: 'absolute', left: 7, top: 7,
-              padding: '3px 7px', borderRadius: 999,
-              background: 'rgba(10,9,13,.68)', backdropFilter: 'blur(6px)',
-              fontSize: 10, lineHeight: 1.3, color: 'rgba(255,255,255,.82)',
-              maxWidth: 'calc(100% - 14px)', overflow: 'hidden',
-              textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-            }}
-          >
-            {[describeOriginal(original, message?.payload?.name), formatBytes(original.bytes)]
-              .filter(Boolean).join(' · ')}
-          </span>
-        )}
       </button>
 
       {open && (

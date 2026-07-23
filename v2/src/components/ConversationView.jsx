@@ -7,7 +7,7 @@ import {
   markConversationDelivered, conversationReceipts, receiptChannelName,
 } from '../lib/messaging';
 import { sendVoiceNote, VOICE_FALLBACK_BODY } from '../lib/voiceNotes';
-import { sendImage, sendOriginalOnly, prepareImage, IMAGE_FALLBACK_BODY } from '../lib/messageImages';
+import { sendImage, sendOriginalOnly, prepareImage, IMAGE_FALLBACK_BODY, describeOriginal, formatBytes as formatImageBytes } from '../lib/messageImages';
 import { sendFile, bodyForFile, safeName, isLosslessAudio, isPlayableAudio, WAVE_CEILING_BYTES, MAX_BYTES, formatBytes } from '../lib/messageFiles';
 import { computeWave } from '../lib/voiceWave';
 import { sendHand, HAND_BODY } from '../lib/hands';
@@ -1737,30 +1737,77 @@ function MessageBubble({ message, isMine, grouped = false, endsBurst = true, spe
             A kind may claim the clock for itself — see KIND_SHAPE.ownsTimestamp.
             The Voicey does, so its length and its clock share one line instead
             of stacking two timings on top of each other. */}
-        {message.created_at && !shape?.ownsTimestamp && (
-          <div className="yp-msg-meta" style={{
-            fontSize: 10,
-            lineHeight: 1,
-            color: isMine ? 'rgba(255,255,255,.55)' : 'rgba(255,255,255,.42)',
-            marginTop: 5,
-            textAlign: 'right',
-            // Tabular so the right edge of the clock lines up down the whole
-            // thread — proportional digits make each message's timestamp end a
-            // pixel or two apart, which reads as sloppy without being nameable.
-            fontVariantNumeric: 'tabular-nums',
-            letterSpacing: '.02em',
-            // Cannot be selected or dragged — it sits inside the double-tap
-            // target and a text selection would swallow the second tap.
-            userSelect: 'none',
-            // The receipt sits with the clock rather than on its own line —
-            // both answer "what happened to this message", and stacking them
-            // would give a one-word status its own row in every bubble.
-            display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 5,
-          }}>
-            {timeOf(message.created_at)}
-            <EqReceipt state={receipt} />
-          </div>
-        )}
+        {message.created_at && !shape?.ownsTimestamp && (() => {
+          // ⚠ AN HD IMAGE PUTS ITS FILE TYPE AND SIZE ON THIS SAME LINE, TO THE
+          // LEFT OF THE CLOCK — computed HERE rather than inside ImageMessage,
+          // because this row already renders uniformly below every non-owning
+          // kind (image included) and reaches every branch ImageMessage can
+          // take for free: an ordinary photo (no `original`, nothing shown), a
+          // decodable HD photo, AND a RAW/TIFF sent with no viewable preview at
+          // all — that last one carries `payload.original` too, so it gets the
+          // caption without ImageMessage needing a third render path to draw it.
+          //
+          // The alternative — drawing this inside ImageMessage by giving the
+          // 'image' kind `ownsTimestamp: true` — would mean EVERY one of its
+          // render branches (the plain photo, the RAW card, the pending
+          // placeholder, the "unavailable" fallback) has to grow its own clock
+          // row or silently lose its timestamp. That is a real trap this
+          // codebase has hit once already for Voiceys — see the comment on
+          // `EqReceipt` above — and reaching for the row that already exists
+          // avoids reintroducing it for a fourth kind.
+          const original = message.kind === 'image' ? message.payload?.original : null;
+          const caption = original
+            ? [describeOriginal(original, message.payload?.name), formatImageBytes(original.bytes)]
+                .filter(Boolean).join(' · ')
+            : null;
+
+          return (
+            <div className="yp-msg-meta" style={{
+              marginTop: 5,
+              display: 'flex', alignItems: 'baseline',
+              // space-between only when there is something to put on the left —
+              // an ordinary message keeps the exact layout it has today.
+              justifyContent: caption ? 'space-between' : 'flex-end',
+              gap: 10,
+            }}>
+              {caption && (
+                // SAME FONT AND COLOUR AS THE AUDIO FILE CARD'S METADATA LINE —
+                // "WAV · 31.2 MB" — so the two read as one convention for
+                // describing an attachment's real file, not two different ones.
+                <span style={{
+                  minWidth: 0, flex: 1, overflow: 'hidden',
+                  textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                  fontSize: 11.5, color: 'var(--muted)',
+                }}>
+                  {caption}
+                </span>
+              )}
+              <span style={{
+                flexShrink: 0,
+                fontSize: 10,
+                lineHeight: 1,
+                color: isMine ? 'rgba(255,255,255,.55)' : 'rgba(255,255,255,.42)',
+                // Tabular so the right edge of the clock lines up down the whole
+                // thread — proportional digits make each message's timestamp
+                // end a pixel or two apart, which reads as sloppy without being
+                // nameable.
+                fontVariantNumeric: 'tabular-nums',
+                letterSpacing: '.02em',
+                // Cannot be selected or dragged — it sits inside the double-tap
+                // target and a text selection would swallow the second tap.
+                userSelect: 'none',
+                // The receipt sits with the clock rather than on its own line —
+                // both answer "what happened to this message", and stacking
+                // them would give a one-word status its own row in every
+                // bubble.
+                display: 'flex', alignItems: 'center', gap: 5,
+              }}>
+                {timeOf(message.created_at)}
+                <EqReceipt state={receipt} />
+              </span>
+            </div>
+          );
+        })()}
 
         {/* THE ONLY RUNG THAT ASKS FOR SOMETHING.
             Sent, delivered and read are a record; failed is a request. So it is
