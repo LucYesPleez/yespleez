@@ -59,6 +59,48 @@ export function createResumableSource(adapter) {
   let state = null;
 
   /**
+   * ── THE INTERRUPTION FADE ────────────────────────────────────────────
+   *
+   * When a Voicey takes audio, the mix should DUCK out over a couple of
+   * hundred milliseconds rather than snap to silence — a hard cut mid-track is
+   * jarring, and the natural sound is a quick fade like a phone call ducking
+   * music.
+   *
+   * ⚠ THIS ONLY APPLIES TO INTERRUPTION, NOT TO MANUAL PAUSE. The manager calls
+   * `pause()`/`resume()` here; a user tapping the player's own pause goes
+   * straight to `adapter.pause()` and stops instantly, which is what "stop"
+   * should feel like. So the fade lives in exactly the two methods the manager
+   * drives.
+   *
+   * ⚠ VOLUME MECHANICS ARE THE PROVIDER'S. `setVolume(0..1)` differs per
+   * provider (a widget's 0–100 vs a media element's 0–1), so each adapter owns
+   * it and this factory only decides WHEN to ramp. A provider without
+   * `setVolume` simply cuts, which is the old behaviour — nothing breaks, it is
+   * only less smooth.
+   *
+   * A generation token supersedes an in-flight fade: interrupt, then resume
+   * before the duck completes, and the stale ramp must not fight the new one.
+   */
+  const FADE_MS = 240;
+  let fadeToken = 0;
+
+  // Returns true only if the ramp finished WITHOUT a newer fade superseding it.
+  // The caller uses that to decide whether its terminal action (pause, reset)
+  // still applies — a resume that interrupts a park's fade must cancel the
+  // pause that fade was about to perform.
+  async function ramp(from, to) {
+    if (typeof adapter.setVolume !== 'function') return false;
+    const mine = ++fadeToken;
+    const steps = 6;
+    for (let i = 1; i <= steps; i++) {
+      if (mine !== fadeToken) return false;        // a newer op took over
+      adapter.setVolume(from + (to - from) * (i / steps));
+      await new Promise(r => setTimeout(r, FADE_MS / steps));
+    }
+    return mine === fadeToken;
+  }
+
+  /**
    * Everything needed to put playback back exactly where it was.
    *
    * `provider` and `media` are recorded even though nothing reads them yet:
@@ -89,7 +131,12 @@ export function createResumableSource(adapter) {
     if (Number.isFinite(saved.positionMs) && saved.positionMs > 0) {
       seekTo(saved.positionMs);
     }
+    // Come back UP, mirroring the duck: start silent, play, fade in. The seek
+    // and the start therefore happen under cover of silence, so a provider that
+    // blips at the seam is not heard doing it.
+    if (typeof adapter.setVolume === 'function') adapter.setVolume(0);
     play();
+    ramp(0, 1);
   }
 
   return {
@@ -100,7 +147,22 @@ export function createResumableSource(adapter) {
       // Captured BEFORE pausing: a provider that resets its playhead on pause
       // would otherwise be recorded at zero, and resume would restart the set.
       const captured = captureState();
-      pause();
+
+      // ⚠ DUCK, THEN STOP. Fade the volume down and pause at the bottom, rather
+      // than cutting mid-track. Fire-and-forget: the manager's arbitration is
+      // synchronous and must not wait on a 240ms ramp, and the interrupting
+      // Voicey starts immediately — a brief natural overlap as the mix ducks
+      // under it. A provider without setVolume falls straight through to pause.
+      if (typeof adapter.setVolume === 'function') {
+        ramp(1, 0).then(finished => {
+          // If a resume started mid-duck, IT owns fadeToken now and is ramping
+          // back up — pausing here would stop audio the newer op just started.
+          if (finished) { pause(); adapter.setVolume(1); }
+        });
+      } else {
+        pause();
+      }
+
       // Async captures settle into `state` without blocking the pause itself —
       // stopping the sound must never wait on a widget callback.
       if (captured && typeof captured.then === 'function') {
@@ -139,6 +201,9 @@ export function soundcloudAdapter(widget, { media } = {}) {
     pause: () => widget.pause(),
     play:  () => widget.play(),
     seekTo: ms => widget.seekTo(ms),
+    // 0..1, converted to the widget's 0..100 by the shim that owns the real
+    // widget — the interface here stays uniform across providers.
+    setVolume: v => widget.setVolume?.(v),
     getPosition: () => new Promise(resolve => {
       try { widget.getPosition(ms => resolve(Number(ms) || 0)); }
       catch { resolve(0); }

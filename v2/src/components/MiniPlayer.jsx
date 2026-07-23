@@ -47,13 +47,27 @@ export default function MiniPlayer({ url, artistName, hasNext, onClose, onFinish
   const [thumb,      setThumb]      = useState('');
   const [progress,   setProgress]   = useState(0);
   const [minimised,  setMinimised]  = useState(false);
-  const [playing,    setPlaying]    = useState(true);
+  /**
+   * ⚠ STARTS FALSE — TRUTH, NOT ASSUMPTION.
+   *
+   * This was `true`, on the assumption the embed's `autoplay=1` would start
+   * playback. Browsers block autoplay without a prior user gesture, so the
+   * widget sat SILENT while the bars animated and the icon showed pause: the
+   * player claimed to be playing when it was not, until you pressed
+   * SoundCloud's own button. `false` here, driven to `true` only by the
+   * provider's real PLAY event, makes the UI report what is actually happening.
+   */
+  const [playing,    setPlaying]    = useState(false);
   // Set once the rendered element exists and, for an iframe, has loaded.
   // Attachment waits on this because a provider is given the element to bind to.
   const [surfaceReady, setSurfaceReady] = useState(false);
 
   const elRef      = useRef(null);
   const sessionRef = useRef(null);
+  // The raw provider primitives. The play/pause BUTTON drives these directly;
+  // the resumable `source` is only for the manager's park/resume. They are
+  // different verbs — "play this" vs "un-park what was interrupted".
+  const adapterRef = useRef(null);
   const startRef   = useRef(Date.now());
 
   // The single question this component asks about providers.
@@ -93,13 +107,20 @@ export default function MiniPlayer({ url, artistName, hasNext, onClose, onFinish
       },
     });
 
+    adapterRef.current = attached.adapter;
     sessionRef.current = createResumableSource(attached.adapter);
-    claimAudio(sessionRef.current);
+
+    // ⚠ NO EAGER claimAudio. Claiming here asserted this source held audio
+    // before anything had played — the session-level twin of the `playing:true`
+    // lie. The claim now happens in `on.play`, when the provider REPORTS it has
+    // started, whether that came from autoplay succeeding or the user pressing
+    // play. A source that never actually plays never takes the session.
 
     return () => {
       attached.detach();
       if (sessionRef.current) forgetAudio(sessionRef.current);
       sessionRef.current = null;
+      adapterRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [provider?.id, url, surfaceReady]);
@@ -112,8 +133,24 @@ export default function MiniPlayer({ url, artistName, hasNext, onClose, onFinish
     setThumb('');
   }, [url, provider?.surface]);
 
+  /**
+   * Show the full player briefly, then tuck it away.
+   *
+   * A demo mix should announce itself — you see what is playing and who it is —
+   * and then get out of the conversation's way. It stays expanded ~4.5s and
+   * self-minimises, UNLESS you have already touched the minimise control, in
+   * which case your choice stands and the timer does not fight it.
+   */
+  const touchedRef = useRef(false);
+  useEffect(() => {
+    touchedRef.current = false;
+    setMinimised(false);
+    const t = setTimeout(() => { if (!touchedRef.current) setMinimised(true); }, 4500);
+    return () => clearTimeout(t);
+  }, [url]);
+
   // Progress bar. Presentation only — it is a clip timer, not a playhead.
-  const playingRef = useRef(true);
+  const playingRef = useRef(false);
   useEffect(() => { playingRef.current = playing; }, [playing]);
 
   useEffect(() => {
@@ -126,19 +163,24 @@ export default function MiniPlayer({ url, artistName, hasNext, onClose, onFinish
   }, [url]);
 
   function togglePlay() {
-    const next = !playing;
-    setPlaying(next);
-    const source = sessionRef.current;
-    if (!source) return;
+    const source  = sessionRef.current;
+    const adapter = adapterRef.current;
+    if (!source || !adapter) return;
 
-    if (next) {
-      claimAudio(source);
-      source.resume();
-    } else {
-      // Release, never finish: a LONG source interrupts nothing, and pausing it
-      // is a request for silence rather than a handover.
-      source.pause();
+    // ⚠ DRIVES THE PROVIDER DIRECTLY, and does NOT set `playing` optimistically.
+    // The provider's own PLAY/PAUSE event sets it — so the icon and the bars
+    // can only ever show what is truly happening. `adapter.play()`, not
+    // `source.resume()`: resume un-parks an interruption and does nothing when
+    // nothing was parked, which is why the old play button appeared dead until
+    // SoundCloud's internal control was used.
+    if (playing) {
+      adapter.pause();
+      // Release without resuming: a LONG source interrupts nothing, and a
+      // manual pause is a request for silence, not a handover.
       releaseAudio(source);
+    } else {
+      claimAudio(source);   // silence anything else first
+      adapter.play();
     }
   }
 
@@ -206,7 +248,7 @@ export default function MiniPlayer({ url, artistName, hasNext, onClose, onFinish
         </button>
 
         {/* Minimise toggle */}
-        <button onClick={() => setMinimised(v => !v)} title={minimised ? 'Expand' : 'Minimise'} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', padding: '0 4px', flexShrink: 0, display: 'flex', alignItems: 'center' }}>
+        <button onClick={() => { touchedRef.current = true; setMinimised(v => !v); }} title={minimised ? 'Expand' : 'Minimise'} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', padding: '0 4px', flexShrink: 0, display: 'flex', alignItems: 'center' }}>
           {minimised
             ? <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="12,5 22,19 2,19"/></svg>
             : <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="12,19 2,5 22,5"/></svg>

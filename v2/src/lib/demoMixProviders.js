@@ -126,6 +126,9 @@ export const PROVIDERS = [
         // promise, so a widget that does not exist yet would leave that promise
         // pending forever and the parked state would never settle.
         getPosition: cb => (widget ? widget.getPosition(cb) : cb(0)),
+        // 0..1 in, 0..100 to the real widget. The unit conversion belongs here,
+        // beside the only code that knows SoundCloud's scale.
+        setVolume: v => widget?.setVolume(Math.round(Math.max(0, Math.min(1, v)) * 100)),
       }, { media: url });
 
       return {
@@ -183,15 +186,27 @@ export const PROVIDERS = [
     id: 'upload',
     label: 'YesPleez',
     /**
-     * ⚠ THE CATCH-ALL, AND A FIRST-CLASS ONE. Anything not claimed above is a
-     * file we serve ourselves. This provider is the simplest of the three,
-     * which is the clearest evidence the abstraction sits at the right
-     * altitude: a media element already satisfies the interface, so the
-     * platform integrations are the complicated ones rather than the baseline.
+     * ⚠ A FIRST-CLASS PROVIDER, BUT NOT A CATCH-ALL ANY MORE.
      *
-     * ⚠ ORDER MATTERS. `matches` accepts anything, so this must stay LAST.
+     * It plays a direct audio FILE — a YesPleez upload, or any plain audio
+     * resource an `<audio>` element can actually decode. It deliberately does
+     * NOT match a link to a page it cannot play.
+     *
+     * ⚠ THIS IS WHY AN UNSUPPORTED LINK RENDERS NOTHING. A Spotify, Bandcamp,
+     * YouTube or Apple Music url is an HTML page, not an audio file; feeding one
+     * to `<audio src>` produced a broken, silent player. Now such a link matches
+     * NO provider, `providerFor` returns null, and MiniPlayer renders nothing —
+     * which is the honest result until those providers are implemented. A demo
+     * mix we cannot play is better shown as absent than as broken.
+     *
+     * The test is by extension or by our own storage host, because that is what
+     * distinguishes "an audio file" from "a web page about audio".
      */
-    matches: url => Boolean(url),
+    matches: url => Boolean(url) && (
+      /\.(mp3|wav|flac|m4a|aac|ogg|oga|opus|aiff?)(\?|#|$)/i.test(url)
+      || /supabase\.co\/storage\//.test(url)
+      || /\/message-files\//.test(url)
+    ),
     surface: 'audio',
     embedUrl: url => url,
 
@@ -213,6 +228,9 @@ export const PROVIDERS = [
           // in the adapter — the only place that knows the unit differs.
           getPosition: () => (el ? Math.round(el.currentTime * 1000) : 0),
           seekTo: ms => { if (el) el.currentTime = ms / 1000; },
+          // A media element's volume is already 0..1 — the interface's native
+          // scale, so no conversion.
+          setVolume: v => { if (el) el.volume = Math.max(0, Math.min(1, v)); },
           // Setting currentTime on an element without metadata is silently
           // discarded, which would resume from the beginning rather than not at
           // all.

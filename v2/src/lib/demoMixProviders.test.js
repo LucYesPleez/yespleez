@@ -21,11 +21,30 @@ test('a Mixcloud address resolves to the Mixcloud provider', () => {
   assert.equal(providerFor('https://www.mixcloud.com/artist/show/').id, 'mixcloud');
 });
 
-test('⚠ anything else is a YesPleez upload — a PEER, not a fallback', () => {
+test('⚠ a direct audio FILE is a YesPleez upload — a PEER, not a fallback', () => {
   // An artist who uses no third-party platform is not a degraded case.
   const p = providerFor('https://storage.example/conv/abc.mp3');
   assert.equal(p.id, 'upload');
   assert.equal(p.surface, 'audio');
+});
+
+test('⚠ an unsupported LINK matches nothing, so nothing renders', () => {
+  // A Spotify/Bandcamp/YouTube url is a page, not an audio file. It used to
+  // fall through to the upload provider and produce a broken silent <audio>.
+  // Now it resolves to null and MiniPlayer draws nothing — honest until those
+  // providers exist.
+  for (const link of [
+    'https://open.spotify.com/track/abc',
+    'https://artist.bandcamp.com/track/song',
+    'https://www.youtube.com/watch?v=abc',
+    'https://music.apple.com/us/album/x/123',
+  ]) {
+    assert.equal(providerFor(link), null, `${link} must not resolve to a player`);
+  }
+});
+
+test('a YesPleez storage url is an upload even without an extension', () => {
+  assert.equal(providerFor('https://doqz.supabase.co/storage/v1/object/sign/message-files/x').id, 'upload');
 });
 
 test('no url resolves to nothing rather than guessing', () => {
@@ -56,12 +75,11 @@ test('⚠ every provider implements the whole interface', () => {
   }
 });
 
-test('⚠ the catch-all provider is LAST, or it would swallow the others', () => {
-  // `upload.matches` accepts ANY url — that is what makes it the catch-all, so
-  // asserting it does not match a platform address would be asserting the
-  // opposite of the design. ORDER is the protection, so order is what is
-  // tested: the named providers are asked first, and resolution proves it.
-  assert.equal(PROVIDERS[PROVIDERS.length - 1].id, 'upload', 'the broad test must be asked last');
+test('⚠ upload is asked LAST, so a platform url is never mistaken for a file', () => {
+  // Upload no longer matches everything, but a SoundCloud CDN could still end
+  // in a matchable extension, so order still matters: the named providers must
+  // be consulted first.
+  assert.equal(PROVIDERS[PROVIDERS.length - 1].id, 'upload', 'upload must be asked last');
   assert.equal(providerFor('https://soundcloud.com/a/b').id, 'soundcloud',
     'a platform url must never fall through to upload');
   assert.equal(providerFor('https://www.mixcloud.com/a/b/').id, 'mixcloud');

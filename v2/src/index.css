@@ -373,7 +373,12 @@ input, textarea, select {
   top: calc(var(--yp-header-height, 56px) + 20px);
   left: 0;
   right: 0;
-  bottom: var(--yp-nav-height, 64px);
+  /* ⚠ --yp-safe-bottom, NOT --yp-nav-height. When the mini player is up it sits
+     ABOVE the nav, and a drawer that stopped at the nav hid its own composer
+     behind the player — the exact "message area is invisible" bug. `--yp-safe-
+     bottom` is nav + player height and collapses back to just the nav when no
+     player is present, so this is correct in both states with no branch. */
+  bottom: var(--yp-safe-bottom, var(--yp-nav-height, 64px));
   z-index: 160;
   display: flex;
   align-items: flex-end;

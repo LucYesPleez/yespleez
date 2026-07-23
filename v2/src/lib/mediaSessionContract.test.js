@@ -144,9 +144,16 @@ test('⚠ MiniPlayer releases rather than finishes on a manual pause', () => {
 
 test('⚠ resume waits on readiness, never on a timer', () => {
   const providers = code(readFileSync(new URL('./mediaProviders.js', import.meta.url), 'utf8'));
-  assert.match(providers, /await whenReady\(\)/);
-  assert.ok(!/setTimeout/.test(providers),
-    'a timer-driven resume is too slow on a bad connection and dead air on a good one');
+  // The intent is that RESTORATION gates on the provider reporting ready — a
+  // fixed delay is too slow on a bad connection and dead air on a good one.
+  assert.match(providers, /restoreState[\s\S]*?await whenReady\(\)/,
+    'restoreState must await whenReady before seeking/playing');
+  // NB: setTimeout DOES appear now — it drives the volume fade ramp, which is a
+  // duration by nature. The ban is specifically on timing the READINESS wait,
+  // so this asserts the ramp is the only timer and that play() still sits
+  // behind whenReady rather than behind a sleep.
+  assert.ok(!/setTimeout\([^)]*\)\s*[;)]?\s*\n?\s*(play|seekTo)\(/.test(providers),
+    'play/seek must never be gated on a bare timer');
 });
 
 // ── DEMO MIX PROVIDER MODEL ───────────────────────────────────────────

@@ -250,3 +250,72 @@ test('⚠ forgetAudio and releaseAudio differ ONLY in whether parked survives', 
   forgetAudio(source);
   assert.equal(parkedAudio(), null, 'a destroyed provider is dropped entirely');
 });
+
+// ── THE INTERRUPTION FADE ─────────────────────────────────────────────
+
+function fadeProvider() {
+  const vol = [];
+  const src = createResumableSource({
+    id: 'fadey', position: 10_000,
+    pause: () => {}, play: () => {},
+    getPosition: () => 10_000, seekTo: () => {},
+    setVolume: v => vol.push(+v.toFixed(3)),
+  });
+  return { vol, src };
+}
+
+test('⚠ parking DUCKS the volume down rather than snapping to silence', async () => {
+  const { vol, src } = fadeProvider();
+  src.pause();
+  await new Promise(r => setTimeout(r, 350));   // let the ramp finish
+
+  // The sequence is duck-to-zero, THEN pause, THEN reset to 1 — so the trailing
+  // value is 1, in readiness for the next independent play. The duck itself is
+  // everything before that reset.
+  const duck = vol.slice(0, -1);
+  assert.ok(duck.length >= 5, 'a fade is several steps, not one jump');
+  assert.ok(duck[0] > duck[duck.length - 1], 'volume descends');
+  assert.equal(duck[duck.length - 1], 0, 'and reaches silence before pausing');
+  assert.equal(vol[vol.length - 1], 1, 'then resets to full for the next independent play');
+});
+
+test('resuming fades back UP from silence', async () => {
+  const { vol, src } = fadeProvider();
+  src.pause();
+  await new Promise(r => setTimeout(r, 350));
+  vol.length = 0;
+
+  await src.resume();
+  await new Promise(r => setTimeout(r, 350));
+
+  assert.equal(vol[0], 0, 'starts silent so the seek is inaudible');
+  assert.equal(vol[vol.length - 1], 1, 'and climbs back to full');
+});
+
+test('a provider with no setVolume simply cuts — nothing breaks', () => {
+  const src = createResumableSource({
+    id: 'plain', pause: () => {}, play: () => {},
+    getPosition: () => 0, seekTo: () => {},
+  });
+  src.pause();          // must not throw despite no setVolume
+  assert.equal(src.parkedState()?.provider, 'plain');
+});
+
+test('⚠ a resume that interrupts a duck must not be paused by the stale fade', async () => {
+  const calls = [];
+  const src = createResumableSource({
+    id: 'racey', position: 5_000,
+    pause: () => calls.push('pause'), play: () => calls.push('play'),
+    getPosition: () => 5_000, seekTo: () => calls.push('seek'),
+    setVolume: () => {},
+  });
+
+  src.pause();                          // starts a duck-then-pause
+  await new Promise(r => setTimeout(r, 40));   // mid-ramp
+  await src.resume();                   // supersedes it — must cancel the pause
+  await new Promise(r => setTimeout(r, 350));  // let the superseded ramp finish
+
+  assert.ok(calls.includes('play'), 'resume must have played');
+  assert.equal(calls.filter(c => c === 'pause').length, 0,
+    'the stale duck must not pause what the newer resume just started');
+});
