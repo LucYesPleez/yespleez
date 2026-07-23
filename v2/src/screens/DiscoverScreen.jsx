@@ -318,7 +318,7 @@ export default function DiscoverScreen() {
               {isDefault && events.length > 0 && (
                 <>
                   <div className={s.sectionRow} style={{ marginTop: profiles.length ? 20 : 0 }}>
-                    <div className={s.sectionHead}>UPCOMING EVENTS</div>
+                    <div className={s.sectionHead}>RECENTLY ADDED EVENTS</div>
                     <div className={s.gradientLine} />
                   </div>
                   <div style={{ display:'flex', flexDirection:'column', gap:6, ...(visibleEventsCount < events.length ? { maskImage:'linear-gradient(to bottom, black 75%, transparent 100%)', WebkitMaskImage:'linear-gradient(to bottom, black 75%, transparent 100%)' } : {}) }}>

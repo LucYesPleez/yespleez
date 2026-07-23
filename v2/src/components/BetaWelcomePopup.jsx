@@ -27,11 +27,16 @@ export default function BetaWelcomePopup() {
 
   if (!open) return null;
 
-  const brandline = {
-    margin: '0 0 16px', fontWeight: 700, fontSize: 15,
+  const gradientText = {
+    fontWeight: 700,
     background: 'linear-gradient(135deg,#55bbcf,#8c55e5 72%)',
     WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent',
   };
+  // Only "YesPleez" itself is the big brand mark — bigger than the "Here we
+  // go!" heading (24px). "The Scene / In Your Hands" is a normal-size white
+  // subline underneath it, not part of the gradient treatment.
+  const brandName = { ...gradientText, margin: '0 0 2px', fontSize: 34, lineHeight: 1.1 };
+  const emphasis = { ...gradientText, margin: '0 0 16px', fontSize: 15 };
 
   return (
     <div className="yp-modal" onClick={dismiss}>
@@ -45,11 +50,14 @@ export default function BetaWelcomePopup() {
         <p style={{ margin: '0 0 16px', color: 'var(--text)', fontSize: 14.5, lineHeight: 1.5 }}>
           Built for tying the scene together, welcome to my latest special interest..
         </p>
-        <p style={brandline}>YesPleez<br />The Scene<br />In Your Hands</p>
+        <p style={brandName}>YesPleez</p>
+        <p style={{ margin: '0 0 16px', color: '#fff', fontSize: 14.5, lineHeight: 1.4 }}>
+          The Scene<br />In Your Hands
+        </p>
         <p style={{ margin: '0 0 16px', color: 'var(--text)', fontSize: 14.5, lineHeight: 1.5 }}>
           I’ve chosen you as one of my handful of original beta testers because I respect your opinion, your insight and most of all, your taste you stylish mofo's.
         </p>
-        <p style={{ ...brandline, marginBottom: 22 }}>
+        <p style={{ ...emphasis, marginBottom: 22 }}>
           Hit the Beta Feedback button at the top of the screen and get at me!
         </p>
         <button
