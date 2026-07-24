@@ -36,6 +36,18 @@
 --   Q7 5.4  recorded verification basis → decision_note on the request row
 --   Q7 5.5  (P6, pending expiry) is POLICY, deferred with the policy doc —
 --           created_at is recorded so any future window can be enforced
+--
+-- ── ⚠ ONE PROFILE PER (user_id, type) SHAPES THIS FEATURE ────────────
+--
+-- profiles enforces UNIQUE (user_id, type): an account owns at most one
+-- profile of each type. The MOST COMMON claim is therefore a collision — an
+-- act that already made its own artist profile, claiming the importer-made
+-- duplicate. That is not a fresh attach, it is a MERGE, which is out of scope.
+-- approve_profile_claim() refuses it with a legible error rather than a raw
+-- constraint violation (§4). Submission is NOT yet blocked for this case, so a
+-- doomed claim can still be created and will sit pending until a reviewer
+-- rejects it — an accepted limitation until merge (or a submission-time
+-- pre-check) exists. See the handover notes.
 -- ============================================================
 
 
@@ -173,6 +185,7 @@ LANGUAGE plpgsql
 AS $approve$
 DECLARE
   req public.profile_claim_requests%ROWTYPE;
+  target_type text;
 BEGIN
   SELECT * INTO req FROM public.profile_claim_requests
    WHERE id = p_request_id FOR UPDATE;
@@ -186,11 +199,33 @@ BEGIN
 
   -- The profile must still be unowned. If it is not, this claim lost a race
   -- — surface that rather than silently reattributing (N3 fires only on
-  -- NULL → NOT NULL, so a silent overwrite would also skip delivery).
-  PERFORM 1 FROM public.profiles
+  -- NULL → NOT NULL, so a silent overwrite would also skip delivery). Capture
+  -- its type here for the one-per-type guard below.
+  SELECT type INTO target_type FROM public.profiles
    WHERE id = req.profile_id AND user_id IS NULL FOR UPDATE;
   IF NOT FOUND THEN
     RAISE EXCEPTION 'approve_profile_claim: profile % already has an owner', req.profile_id;
+  END IF;
+
+  -- ⚠ ONE PROFILE PER (user_id, type) — the constraint profiles_user_type_unique.
+  --
+  -- If the claimant ALREADY OWNS a profile of this type, the attach below
+  -- would fail with a raw 23505 that means nothing to a reviewer. And this is
+  -- not a fresh claim: it is a DUPLICATE of a profile they already own — the
+  -- exact thing the Gig Importer produces when it scrapes an act that already
+  -- has a self-made profile. Resolving it means MERGING the two (folding the
+  -- duplicate's events and data into the existing profile), which is not
+  -- built. So refuse legibly, with a message that names the real situation,
+  -- rather than letting the constraint throw. A wrongful silent attach is not
+  -- even possible — the constraint would stop it — but a cryptic one is, and
+  -- this turns it into a sentence.
+  IF EXISTS (
+    SELECT 1 FROM public.profiles owned
+     WHERE owned.user_id = req.user_id AND owned.type = target_type
+  ) THEN
+    RAISE EXCEPTION
+      'approve_profile_claim: account % already owns a % profile — this is a DUPLICATE to merge, not a fresh claim (merge is not built yet)',
+      req.user_id, target_type;
   END IF;
 
   -- THE ATTACH (§07 stage E). This UPDATE is the canonical claim.completed
@@ -312,25 +347,41 @@ END $v2$;
 --      cleans up completely. Uses a real user id (FK) but a profile created
 --      and deleted inside this block, so no live profile is touched and the
 --      N3 trigger fires against a profile with no held notifications.
+--
+-- ⚠ THE HAPPY PATH USES A (user, type) PAIR THE USER DOES NOT ALREADY OWN.
+-- profiles enforces UNIQUE (user_id, type). The first draft of this block
+-- grabbed the first owning user and a hardcoded 'artist' type — and nearly
+-- every user already owns an artist profile, so approve hit the constraint.
+-- That was not a test bug hiding a good feature; it was the test surfacing
+-- the real one-per-type collision. The happy path now picks a free type; the
+-- collision case is proven separately below.
 DO $v3$
 DECLARE
-  test_user uuid;
+  free_user uuid; free_type text;
   test_profile uuid;
   r1 bigint; r2 bigint;
   st text; ps text; owner uuid; via text; ca timestamptz;
 BEGIN
-  SELECT user_id INTO test_user FROM public.profiles WHERE user_id IS NOT NULL LIMIT 1;
-  IF test_user IS NULL THEN
-    RAISE EXCEPTION 'V3 FAILED: no user available to test with';
+  -- A user who owns something (so they are a real claim target) paired with a
+  -- profile type they do NOT yet own — the only combination approve can attach.
+  SELECT p.user_id, t.type INTO free_user, free_type
+  FROM (SELECT DISTINCT user_id FROM public.profiles WHERE user_id IS NOT NULL) p
+  CROSS JOIN (VALUES ('artist'),('venue'),('host'),('band'),('standup')) t(type)
+  WHERE NOT EXISTS (
+    SELECT 1 FROM public.profiles x WHERE x.user_id = p.user_id AND x.type = t.type
+  )
+  LIMIT 1;
+  IF free_user IS NULL THEN
+    RAISE EXCEPTION 'V3 FAILED: no (user, free type) pair available to test the attach';
   END IF;
 
   INSERT INTO public.profiles (type, name, claim_status)
-  VALUES ('artist', 'ZZ C1 VERIFICATION THROWAWAY', 'unclaimed')
+  VALUES (free_type, 'ZZ C1 VERIFICATION THROWAWAY', 'unclaimed')
   RETURNING id INTO test_profile;
 
   -- submit → trigger sets pending
   INSERT INTO public.profile_claim_requests (profile_id, user_id, relationship, evidence)
-  VALUES (test_profile, test_user, 'owner', 'verification run')
+  VALUES (test_profile, free_user, 'owner', 'verification run')
   RETURNING id INTO r1;
   SELECT claim_status INTO ps FROM public.profiles WHERE id = test_profile;
   IF ps <> 'pending' THEN
@@ -340,7 +391,7 @@ BEGIN
   -- duplicate pending must be refused by the partial unique index
   BEGIN
     INSERT INTO public.profile_claim_requests (profile_id, user_id, relationship, evidence)
-    VALUES (test_profile, test_user, 'owner', 'duplicate');
+    VALUES (test_profile, free_user, 'owner', 'duplicate');
     RAISE EXCEPTION 'V3 FAILED: a second pending claim by the same user was ACCEPTED';
   EXCEPTION WHEN unique_violation THEN
     NULL; -- intended
@@ -356,13 +407,13 @@ BEGIN
 
   -- resubmit (allowed — the pending index is partial) → approve → attached
   INSERT INTO public.profile_claim_requests (profile_id, user_id, relationship, evidence)
-  VALUES (test_profile, test_user, 'owner', 'verification run 2')
+  VALUES (test_profile, free_user, 'owner', 'verification run 2')
   RETURNING id INTO r2;
   PERFORM public.approve_profile_claim(r2);
 
   SELECT user_id, claim_status, claimed_via, claimed_at INTO owner, ps, via, ca
   FROM public.profiles WHERE id = test_profile;
-  IF owner IS DISTINCT FROM test_user OR ps <> 'claimed' OR via <> 'in_app_claim' OR ca IS NULL THEN
+  IF owner IS DISTINCT FROM free_user OR ps <> 'claimed' OR via <> 'in_app_claim' OR ca IS NULL THEN
     RAISE EXCEPTION 'V3 FAILED: approve did not attach correctly (owner %, status %, via %, at %)', owner, ps, via, ca;
   END IF;
   SELECT status INTO st FROM public.profile_claim_requests WHERE id = r2;
@@ -387,12 +438,59 @@ BEGIN
   RAISE NOTICE 'V3 PASSED: submit → pending → reject → unclaimed → approve → attached, cleaned up';
 END $v3$;
 
--- V4 · nothing from verification survives.
+-- V3b · THE ONE-PER-TYPE COLLISION, PROVEN. A claimant who already owns a
+--       profile of the target's type must be refused by approve's guard with
+--       a LEGIBLE error (P0001 / raise_exception) — never a raw 23505, and
+--       never a silent attach. This is the most common real claim: an act
+--       claiming the importer-made duplicate of a profile they already have.
+--
+-- The whole block runs inside an exception frame, so the throwaway it creates
+-- rolls back to the savepoint when the expected error is caught — no cleanup
+-- needed, and no debris even on the pass path. Catches ONLY raise_exception:
+-- if the guard were missing, the raw unique_violation (23505) would NOT match,
+-- the block would fail, and V3b would report the guard is gone.
+DO $v3b$
+DECLARE
+  own_user uuid; own_type text;
+  dup_profile uuid; rc bigint;
+BEGIN
+  -- A user paired with a type they DO already own.
+  SELECT user_id, type INTO own_user, own_type
+  FROM public.profiles WHERE user_id IS NOT NULL AND type <> 'punter' LIMIT 1;
+  IF own_user IS NULL THEN
+    RAISE NOTICE 'V3b SKIPPED: no owned non-punter profile to collide against';
+    RETURN;
+  END IF;
+
+  BEGIN
+    INSERT INTO public.profiles (type, name, claim_status)
+    VALUES (own_type, 'ZZ C1 COLLISION THROWAWAY', 'unclaimed')
+    RETURNING id INTO dup_profile;
+
+    INSERT INTO public.profile_claim_requests (profile_id, user_id, relationship, evidence)
+    VALUES (dup_profile, own_user, 'owner', 'collision run')
+    RETURNING id INTO rc;
+
+    PERFORM public.approve_profile_claim(rc);   -- must raise the guard
+    RAISE EXCEPTION 'V3b FAILED: approve attached a % to an account that already owns one', own_type;
+  EXCEPTION
+    WHEN raise_exception THEN
+      -- The guard fired (or the line above did). Distinguish: the guard's
+      -- message names "already owns"; the "FAILED" line does not.
+      IF SQLERRM LIKE '%already owns%' THEN
+        RAISE NOTICE 'V3b PASSED: a claim by an account that already owns that type is refused legibly';
+      ELSE
+        RAISE;   -- re-raise the "FAILED" line — approve did NOT guard
+      END IF;
+  END;
+END $v3b$;
+
+-- V4 · nothing from verification survives (either throwaway, from V3 or V3b).
 DO $v4$
 DECLARE n bigint;
 BEGIN
-  SELECT count(*) INTO n FROM public.profiles WHERE name = 'ZZ C1 VERIFICATION THROWAWAY';
-  IF n <> 0 THEN RAISE EXCEPTION 'V4 FAILED: throwaway profile still exists'; END IF;
+  SELECT count(*) INTO n FROM public.profiles WHERE name LIKE 'ZZ C1 %THROWAWAY';
+  IF n <> 0 THEN RAISE EXCEPTION 'V4 FAILED: % throwaway profile(s) still exist', n; END IF;
   SELECT count(*) INTO n FROM public.profile_claim_requests;
   RAISE NOTICE 'V4 PASSED: no test debris; % real claim request(s) in the table', n;
 END $v4$;
