@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { startRecording, canRecordVoice } from '../lib/voiceNotes';
-import { decideToggle, decideSend, isTooShort } from '../lib/voiceMachine';
+import { decideToggle, decideSend, decideInterrupt, isTooShort } from '../lib/voiceMachine';
 
 /**
  * THE RECORDING STATE MACHINE, WITHOUT ANY UI.
@@ -104,7 +104,9 @@ export function useVoiceRecorder({ onRecorded, onNotice, disabled = false } = {}
     tickRef.current = null;
 
     if (!handle) return null;
-    if (mode === 'cancel') { handle.cancel(); return null; }
+    if (mode === 'cancel')  { handle.cancel(); return null; }
+    // 'salvage' never rejects — it returns whatever an interruption left behind.
+    if (mode === 'salvage') { try { return await handle.salvage(); } catch { return null; } }
     try { return await handle.stop(); } catch { return null; }
   }, []);
 
@@ -150,8 +152,8 @@ export function useVoiceRecorder({ onRecorded, onNotice, disabled = false } = {}
    * Returns the parked result so `send` can stop-and-send in one act without
    * routing through a `pending` render the user would see flash past.
    */
-  const park = useCallback(async () => {
-    const result = await teardown('keep');
+  const park = useCallback(async (mode = 'keep') => {
+    const result = await teardown(mode);
 
     if (isTooShort(result)) {
       if (result) onNotice?.(TOO_SHORT_NOTICE);
@@ -166,6 +168,25 @@ export function useVoiceRecorder({ onRecorded, onNotice, disabled = false } = {}
     setPhaseBoth('pending');
     return result;
   }, [teardown, onNotice, setPhaseBoth]);
+
+  /**
+   * An interruption ended the capture — a call, the mic taken, headphones
+   * pulled, the OS suspending audio. Salvage what was recorded and PARK it.
+   *
+   * ⚠ THE CONSTITUTIONAL RULE (decideInterrupt): a recording in progress is
+   * never lost to anything but explicit Delete. This fires from voiceNotes when
+   * the audio pipeline breaks; it turns that break into a draft the user can
+   * send, replay or delete — the same three choices a clean stop gives them.
+   *
+   * Guards on phase: an interruption arriving while already parked, idle or
+   * uploading has nothing to do. The pipeline events fire at most once per
+   * recording, but a late one must still be inert.
+   */
+  const onInterrupt = useCallback(async () => {
+    if (decideInterrupt({ phase: phaseRef.current }) !== 'park') return;
+    const parked = await park('salvage');
+    if (parked) onNotice?.('Recording saved — you were interrupted');
+  }, [park, onNotice]);
 
   /**
    * Send — from either state that can hold audio.
@@ -209,7 +230,11 @@ export function useVoiceRecorder({ onRecorded, onNotice, disabled = false } = {}
 
     let handle;
     try {
-      handle = await startRecording();
+      // onInterrupt fires when the audio pipeline breaks mid-recording. It is
+      // registered here, at the source, because the recorder, its stream and
+      // its AudioContext all live inside startRecording — the only place their
+      // failure events can be heard.
+      handle = await startRecording({ onInterrupt: () => void onInterrupt() });
     } catch (err) {
       startingRef.current = false;
       onNotice?.(
@@ -246,7 +271,7 @@ export function useVoiceRecorder({ onRecorded, onNotice, disabled = false } = {}
       setElapsed(ms);
       if (ms >= MAX_DURATION_MS) void send();
     }, 100);
-  }, [disabled, supported, onNotice, teardown, send, setPhaseBoth]);
+  }, [disabled, supported, onNotice, teardown, send, setPhaseBoth, onInterrupt]);
 
   /**
    * THE TOGGLE. Slide right-to-left to record, left-to-right to stop.

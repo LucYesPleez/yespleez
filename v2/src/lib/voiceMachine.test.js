@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   decideToggle,
   decideSend,
+  decideInterrupt,
   isTooShort,
   MIN_DURATION_MS,
 } from './voiceMachine.js';
@@ -80,6 +81,37 @@ test('send does nothing when there is no audio', () => {
 
 test('send is ignored mid-upload, so a double press cannot send twice', () => {
   assert.equal(decideSend({ phase: 'uploading' }), 'ignore');
+});
+
+/* ── INTERRUPTION ────────────────────────────────────────────────── */
+
+test('⚠ an interruption while recording PARKS — the recording is never lost', () => {
+  // THE CONSTITUTIONAL RULE. Your friend's phone call landed here: recording,
+  // interrupted, and under the old code the note vanished. Parking turns the
+  // interruption into a draft — the same three choices (send/replay/delete) a
+  // clean stop gives. If this ever returns 'ignore' for 'recording', a call
+  // silently destroys a recording again.
+  assert.equal(decideInterrupt({ phase: 'recording' }), 'park');
+});
+
+test('an interruption while already parked does nothing — the draft is already safe', () => {
+  assert.equal(decideInterrupt({ phase: 'pending' }), 'ignore');
+});
+
+test('an interruption is inert once idle or past the point of no return', () => {
+  // idle: nothing to save. uploading/sent: the audio has already left, and a
+  // late pipeline event (the mic finally releasing after we stopped) must not
+  // resurrect a phase.
+  for (const phase of ['idle', 'uploading', 'sent', undefined]) {
+    assert.equal(decideInterrupt({ phase }), 'ignore', String(phase));
+  }
+});
+
+test('an unknown phase is not treated as recording', () => {
+  // Only the one phase that holds live capture may park. Anything unrecognised
+  // must not trigger a salvage of a recorder that is not there.
+  assert.equal(decideInterrupt({ phase: 'something-new' }), 'ignore');
+  assert.equal(decideInterrupt({}), 'ignore');
 });
 
 /* ── TOO SHORT ───────────────────────────────────────────────────── */

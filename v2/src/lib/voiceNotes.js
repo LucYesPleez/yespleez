@@ -399,7 +399,23 @@ export function baseMimeType(mimeType) {
  * cancel() stop the tracks — a recorder that only releases on the happy path
  * leaves the browser's recording indicator lit after the user let go.
  */
-export async function startRecording() {
+/**
+ * How often MediaRecorder flushes a chunk while recording.
+ *
+ * ⚠ WITHOUT A TIMESLICE, `chunks` STAYS EMPTY UNTIL stop(). All the audio sits
+ * buffered inside MediaRecorder, retrievable only by stopping cleanly — so an
+ * interruption that kills the recorder before we react takes the whole
+ * recording with it. A one-second timeslice means the chunks array always
+ * holds everything except at most the final second, which is what makes
+ * interruption salvage possible at all.
+ *
+ * This is NOT a capture-constraint change — it does not touch getUserMedia, the
+ * codec, the bitrate or the iOS-sensitive DSP settings. It only changes how
+ * often the same audio is handed back. Safe on every platform.
+ */
+const TIMESLICE_MS = 1000;
+
+export async function startRecording({ onInterrupt } = {}) {
   const mimeType = pickMimeType();
   if (!mimeType) {
     throw new Error('This browser cannot record audio in a supported format');
@@ -538,10 +554,54 @@ export async function startRecording() {
   recorder.addEventListener('dataavailable', e => {
     if (e.data?.size > 0) chunks.push(e.data);
   });
-  recorder.start();
+  recorder.start(TIMESLICE_MS);
 
   const startedAt = Date.now();
   let released = false;
+
+  /**
+   * ⚠ TRUE WHILE WE ARE STOPPING ON PURPOSE.
+   *
+   * release() stops the microphone track, and stopping a track fires its
+   * `ended` event — which is one of the very signals we watch for an
+   * interruption. Without this flag, every clean stop would look like a phone
+   * call and try to park a note we already parked. Set before any intentional
+   * teardown, checked by the interruption watchers.
+   */
+  let settling = false;
+  let notified = false;
+
+  /**
+   * The audio pipeline broke while recording — a call, another app taking the
+   * mic, headphones pulled, the OS suspending the context. Fires the caller's
+   * handler exactly once, and never for a stop we asked for.
+   *
+   * It does NOT tear anything down itself. The hook decides what an
+   * interruption means (park, per decideInterrupt) and drives the salvage; this
+   * only reports that the pipeline can no longer be trusted.
+   */
+  function flagInterrupt(reason) {
+    if (settling || released || notified) return;
+    notified = true;
+    try { onInterrupt?.(reason); } catch { /* a reporter must not throw into the audio path */ }
+  }
+
+  // The three ways a live capture dies without the user asking.
+  recorder.addEventListener('error', () => flagInterrupt('recorder-error'));
+  stream.getAudioTracks().forEach(track => {
+    // `ended` — the mic was taken away for good (device unplugged, revoked).
+    // `mute` — a transient seizure (an incoming call on iOS mutes the track).
+    // Either way the audio from here on is silence or gone, so the note is
+    // finished; a recording with a hole in it is not worth continuing.
+    track.addEventListener('ended', () => flagInterrupt('track-ended'));
+    track.addEventListener('mute',  () => flagInterrupt('track-muted'));
+  });
+  // iOS drives an interruption through the AudioContext: a call suspends it,
+  // and Safari also exposes a non-standard 'interrupted' state.
+  mixContext?.addEventListener?.('statechange', () => {
+    const st = mixContext.state;
+    if (st === 'suspended' || st === 'interrupted') flagInterrupt('context-' + st);
+  });
 
 
   /**
@@ -555,10 +615,38 @@ export async function startRecording() {
    */
   function release() {
     if (released) return;
+    settling = true;   // stopping our own tracks fires `ended`; not an interruption
     released = true;
     stream.getTracks().forEach(t => t.stop());
     if (downmixed) recordStream.getTracks().forEach(t => t.stop());
     mixContext?.close?.().catch(() => { /* already closed */ });
+  }
+
+  /**
+   * Build the result object from whatever chunks exist. Shared by the clean
+   * stop() and the interruption salvage(), so a salvaged note carries exactly
+   * the same shape and `capture` diagnostics as one that ended normally.
+   */
+  function assembleResult() {
+    const blob = new Blob(chunks, { type: baseMimeType(recorder.mimeType || mimeType) });
+    return {
+      blob,
+      durationMs: Date.now() - startedAt,
+      capture: {
+        mime:        recorder.mimeType || mimeType,
+        bitrate:     recorder.audioBitsPerSecond ?? null,
+        sample_rate: settings.sampleRate ?? null,
+        channels:        reallyDownmixed ? 1 : (settings.channelCount ?? null),
+        source_channels: settings.channelCount ?? null,
+        downmixed: reallyDownmixed,
+        context_state: mixContext?.state ?? null,
+        dsp: {
+          echo_cancellation: settings.echoCancellation ?? null,
+          noise_suppression: settings.noiseSuppression ?? null,
+          auto_gain:         settings.autoGainControl ?? null,
+        },
+      },
+    };
   }
 
   return {
@@ -588,6 +676,7 @@ export async function startRecording() {
 
     /** Finish and return the audio. Resolves after the recorder flushes. */
     stop: () => new Promise((resolve, reject) => {
+      settling = true;   // a stop we asked for, so the `ended` it causes is not an interruption
       if (recorder.state === 'inactive') {
         release();
         reject(new Error('Recording already stopped'));
@@ -595,39 +684,44 @@ export async function startRecording() {
       }
       recorder.addEventListener('stop', () => {
         release();
-        // Blob type from the recorder, not from `mimeType` — they can differ,
-        // and the blob's own type is what actually gets uploaded.
-        const blob = new Blob(chunks, { type: baseMimeType(recorder.mimeType || mimeType) });
-        resolve({
-          blob,
-          durationMs: Date.now() - startedAt,
-          // What was negotiated, for the payload. See `C21` above.
-          capture: {
-            mime:        recorder.mimeType || mimeType,
-            bitrate:     recorder.audioBitsPerSecond ?? null,
-            sample_rate: settings.sampleRate ?? null,
-            // What was RECORDED, which after a downmix is not what the device
-            // reported. `source_channels` keeps the device's own answer so a
-            // support-matrix question can still be asked of the data.
-            channels:        reallyDownmixed ? 1 : (settings.channelCount ?? null),
-            source_channels: settings.channelCount ?? null,
-            downmixed: reallyDownmixed,
-            // `D6` diagnostics: which of the two iOS faults, if either, was hit.
-            context_state: mixContext?.state ?? null,
-            dsp: {
-              echo_cancellation: settings.echoCancellation ?? null,
-              noise_suppression: settings.noiseSuppression ?? null,
-              auto_gain:         settings.autoGainControl ?? null,
-            },
-          },
-        });
+        resolve(assembleResult());
       }, { once: true });
       recorder.addEventListener('error', e => { release(); reject(e.error ?? e); }, { once: true });
       recorder.stop();
     }),
 
+    /**
+     * SALVAGE a recording an interruption ended. Like stop(), but it never
+     * rejects and never assumes the recorder is still healthy.
+     *
+     * A phone call may leave the recorder wedged, errored, or already inactive.
+     * stop() rejects in those cases and the audio is lost — which is exactly the
+     * failure this exists to prevent. salvage() instead returns whatever the
+     * chunks array holds (everything but at most the final timeslice, thanks to
+     * TIMESLICE_MS), flushing one last chunk first if the recorder can still
+     * manage it. Returns null only when nothing was captured at all.
+     */
+    salvage: () => new Promise(resolve => {
+      settling = true;
+      const finish = () => {
+        release();
+        resolve(chunks.length ? assembleResult() : null);
+      };
+      if (recorder.state === 'inactive') { finish(); return; }
+      // Best effort to flush the final partial chunk. If the recorder is too
+      // broken to fire either event, the timeout falls back to what we already
+      // have rather than hanging on a note that will never resolve.
+      let done = false;
+      const once = () => { if (done) return; done = true; finish(); };
+      recorder.addEventListener('stop', once, { once: true });
+      recorder.addEventListener('error', once, { once: true });
+      setTimeout(once, 250);
+      try { recorder.stop(); } catch { once(); }
+    }),
+
     /** Abandon it. Releases the microphone and keeps nothing. */
     cancel: () => {
+      settling = true;
       if (recorder.state !== 'inactive') recorder.stop();
       release();
       chunks.length = 0;

@@ -65,6 +65,29 @@ export function decideSend({ phase } = {}) {
 }
 
 /**
+ * What an INTERRUPTION means right now — a phone call, the mic being taken by
+ * another app, headphones pulled, the audio context suspended by the OS.
+ *
+ * @param {object} p
+ * @param {string} p.phase  idle · recording · pending · uploading · sent
+ * @returns {'park'|'ignore'}
+ *
+ * ⚠ THE CONSTITUTIONAL RULE: a recording in progress is PARKED, never lost.
+ * The interruption stopped the audio pipeline; the audio captured up to that
+ * moment still exists and belongs to the user. Parking it makes it a draft
+ * they can send, delete, or re-record — the same three choices a clean stop
+ * gives them. The ONLY things that may destroy a recording are an explicit
+ * Delete and a cancel gesture before it completes; an incoming call is
+ * neither.
+ *
+ * Anything not actively recording is ignored: a parked note is already safe,
+ * and an upload in flight is past the point an interruption can touch.
+ */
+export function decideInterrupt({ phase } = {}) {
+  return phase === 'recording' ? 'park' : 'ignore';
+}
+
+/**
  * Is this recording too short to be meant?
  *
  * A missing or malformed result counts as too short: something that cannot be
