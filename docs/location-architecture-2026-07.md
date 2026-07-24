@@ -203,6 +203,40 @@ unlocated results in a labelled "location unknown" group rather than dropping th
 
 ---
 
+## 4.8 · RATIFIED 2026-07-25
+
+The owner ratified §4.1–4.7: **retain event-owned location**, venue wins by precedence, and
+**Option 2 for coverage** — unplaceable results stay visible under a clearly labelled
+"Location unavailable" heading rather than being excluded. Stated reason: *never pretend a
+location is known when it isn't.* The Bellingen data gaps are data-quality tasks, not
+architectural blockers.
+
+**Implemented in `8d252db` and the Discovery 2.1 follow-up:**
+
+| Control | Before | After |
+|---|---|---|
+| Discover · Date | decorative | filters events by `config.date` |
+| Discover · Radius | decorative | real; slider position 0 now reads **"Any distance"** rather than a 0km filter nobody asked for |
+| Discover · Near Me | decorative | real, origin = the stored `_userPostcode` (shared with My Scene); says so when unset instead of silently doing nothing |
+| Discover · `radius` state | dead | removed |
+| What's On · Postcode | decorative | real, via venue resolution; accepts a town name, not just 4 digits |
+| What's On · Radius | decorative | real |
+| What's On · category chips | every chip lit on `ALL` | only the selected chip |
+| My Scene · "View all" | **ReferenceError** | fixed |
+
+**Verified live, both surfaces.** Sydney + 10km on Discover returned 0 nearby and surfaced
+*"Beyond Jazz Weekender — Multiple Venues"* under Location unavailable — the venue-independent
+event that motivated §4.1, demonstrating the rule that produced it. What's On reported
+`{region:"2000", radius_km:50, results:0}` with *"16 events have no venue location set."*
+
+⚠ **A bug in the analytics was caught by live verification, not by tests.** The reported
+`results` was `runSearch`'s raw total while the screen showed the filtered set, so a row read
+`{radius_km:50, results:38}` — asserting fifty kilometres returned thirty-eight results. Fixed
+by making `applyLocalFilters()` the single source for both the render and the count. Any future
+filter added to one must go through it, or the number silently stops describing the screen.
+
+---
+
 ## 5 · Proposed sequence
 
 1. **`lib/geo.js`** — extract `haversineKm`, `postcodeCoords`, `profileCoords`; add `eventCoords()`

@@ -523,15 +523,25 @@ let lastFilterSignature = null;
  * wanted it to. Sanitising at the caller would put that guarantee in seven
  * places instead of one.
  *
- * ── `_intent` PROPS ──────────────────────────────────────────────────
+ * ── `_intent` PROPS, AND THE MIGRATION OFF THEM ──────────────────────
  *
- * `dateIntent`, `nearMeIntent` and `regionIntent` are filters the UI collects
- * but does not currently apply to any query (see the A3 migration for the
- * full list). They are recorded because the ASK is real demand and is just as
- * unbackfillable as the rest — but under distinct names, because writing them
- * as ordinary facets would make the row assert that `results` was filtered by
- * something that never touched it. When those filters start working, move the
- * value to the plain key rather than redefining this one.
+ * An `*_intent` prop means: THE USER ASKED FOR THIS AND IT DID NOT SHAPE
+ * `results`. A plain key means it did. The split exists because writing an
+ * unapplied filter as an ordinary facet would make the row assert something
+ * false — `{date:'weekend', results:12}` reads as "12 events matched the
+ * weekend" when nothing filtered by date at all.
+ *
+ * ⚠ WHEN A FILTER BECOMES FUNCTIONAL, MOVE THE VALUE TO THE PLAIN KEY AND
+ * STOP WRITING THE `_intent` ONE. Never redefine an existing key — a prop
+ * that silently changes meaning halfway through its history is worse than
+ * either of the things it meant, because no query can tell the halves apart.
+ *
+ * Discovery 2.1 (2026-07-25) made date, Near Me and radius real on Discover,
+ * so those now arrive as `date`, `near_me` and `radius_km`. Their `_intent`
+ * forms are STILL WRITTEN, but only in the cases where the filter genuinely
+ * could not be applied — Near Me with no stored postcode, or a radius with no
+ * resolvable origin. Same rule, same honesty: the plain key appears only when
+ * the filter actually ran.
  *
  * @param {object} o
  * @param {string} o.surface      one of SURFACES
@@ -541,6 +551,7 @@ let lastFilterSignature = null;
  */
 export function trackFiltered({
   surface, query, type, genre, category, state, location,
+  date, nearMe, radiusKm,
   dateIntent, nearMeIntent, regionIntent, results,
 } = {}) {
   try {
@@ -574,6 +585,13 @@ export function trackFiltered({
       else props.region_unresolved = true;
     }
 
+    // APPLIED — these shaped `results`.
+    if (facet(date))          props.date      = facet(date);
+    if (nearMe)               props.near_me   = true;
+    if (Number.isFinite(radiusKm) && radiusKm > 0) props.radius_km = radiusKm;
+
+    // INTENT — asked for, but could not be applied. Mutually exclusive with
+    // the plain key above: a caller must never send both for one facet.
     if (facet(dateIntent))    props.date_intent    = facet(dateIntent);
     if (facet(regionIntent))  props.region_intent  = normaliseRegion(regionIntent) || 'unresolved';
     if (nearMeIntent)         props.near_me_intent = true;
@@ -585,6 +603,7 @@ export function trackFiltered({
     // real demand under noise.
     const expressedSomething = props.has_query || props.type || props.genre
       || props.category || props.state || props.region || props.region_unresolved
+      || props.date || props.near_me || props.radius_km
       || props.date_intent || props.region_intent || props.near_me_intent;
     if (!expressedSomething) return;
 

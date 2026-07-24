@@ -12,6 +12,10 @@ import { resolveLocationToPostcodes, suggestLocations } from '../lib/auLocations
 import { BAND_GENRES, SHARED_PERFORMANCE_TAGS, ROLE_TAGS } from '../lib/profileTaxonomy';
 import { STATE_OPTIONS } from '../lib/auLocations';
 import { trackFiltered } from '../lib/analytics';
+import {
+  RADIUS_STEPS, eventCoords, profileCoords, postcodeCoords, withinRadius,
+} from '../lib/geo';
+import { today, dateStr, weekendRange } from '../lib/dates';
 
 // Venue-first, matching the shared canonical role order (PROFILE_TYPE_ORDER
 // in profileTypes.js). 'event' isn't a profile role, so it stays last.
@@ -36,7 +40,90 @@ const GENRE_BY_TYPE = {
   event:   ['Techno','House','Drum & Bass','Trance','Rock','Blues','Jazz','Hip-Hop','Comedy','Arts & Culture','Multi Genre'],
 };
 
-const RADIUS_STEPS = [0, 5, 10, 20, 50, 100, 250, 500];
+/**
+ * DATE AND DISTANCE, APPLIED — the single source for both the screen and the
+ * analytics count.
+ *
+ * ⚠ IT HAS TO BE ONE FUNCTION. The count reported to analytics must be the
+ * number the user actually saw. When the render filtered and the analytics
+ * reported `runSearch`'s raw total, a row read
+ * `{radius_km: 50, results: 38}` while the screen showed a handful — the row
+ * asserting that fifty kilometres returned thirty-eight results, which is
+ * exactly the kind of plausible-and-wrong number this whole split exists to
+ * prevent. Caught live, not by a test.
+ *
+ * Returns the survivors AND the unplaceable separately: a record with no
+ * location is not far away, its distance is unknown, and the caller shows it
+ * under its own heading rather than dropping it.
+ */
+function applyLocalFilters(rows, { dateFilter, radiusKm, originCoords, originPostcode }) {
+  const dated = rows.filter(r => r._kind !== 'event' || matchesDate(r, dateFilter));
+  if (!radiusKm) return { items: dated, unplaceable: [] };
+
+  const near = [], unknown = [];
+  for (const r of dated) {
+    const coords = itemCoords(r);
+    if (!coords) { unknown.push(r); continue; }
+    if (withinRadius(originCoords, coords, radiusKm, originPostcode, itemPostcode(r))) near.push(r);
+  }
+  return { items: near, unplaceable: unknown };
+}
+
+/**
+ * The postcode a typed location means, for use as a distance ORIGIN.
+ *
+ * Prefix matching is right for the search box (it narrows results while you
+ * type) and wrong for an origin, where a half-typed word would silently place
+ * the user in whichever suburb happens to sort first. So: a 4-digit postcode
+ * passes through, a name must resolve, and anything ambiguous resolves to the
+ * lowest matching code rather than an arbitrary one.
+ */
+function originFromText(input) {
+  const t = String(input ?? '').trim();
+  if (!t) return '';
+  if (/^\d{4}$/.test(t)) return t;
+  const codes = resolveLocationToPostcodes(t);
+  return codes.length ? [...codes].sort()[0] : '';
+}
+
+/**
+ * WHERE A RESULT IS — profiles and events answered by the same function.
+ *
+ * A profile carries its own location; an event borrows its venue's, falling
+ * back to its own only when it has no venue (see geo.eventCoords). Keeping
+ * both behind one call is what stops the two kinds drifting apart as filters
+ * are added.
+ */
+function itemCoords(item) {
+  return item._kind === 'event'
+    ? eventCoords(item, item.venue)
+    : profileCoords(item);
+}
+
+/** The postcode a result should be compared against for the radius-0 step. */
+function itemPostcode(item) {
+  if (item._kind !== 'event') return item.postcode;
+  return item.venue_profile_id ? item.venue?.postcode : item.postcode;
+}
+
+/**
+ * Does this event fall inside the chosen date window?
+ *
+ * Profiles have no date, so they are never date-filtered — see the note where
+ * this is applied.
+ */
+function matchesDate(item, dateFilter) {
+  if (!dateFilter) return true;
+  const d = item.config?.date;
+  if (!d) return false;                 // an undated event cannot match a date ask
+  if (dateFilter === 'weekend') {
+    const { from, to } = weekendRange();
+    return d >= from && d <= to;
+  }
+  if (dateFilter === '7days')  return d >= today() && d <= dateStr(7);
+  if (dateFilter === '30days') return d >= today() && d <= dateStr(30);
+  return true;
+}
 
 
 async function fetchDefault() {
@@ -45,13 +132,21 @@ async function fetchDefault() {
       // M5: id included — cards navigate by the canonical profile.id, which is
       // what makes unclaimed profiles (user_id NULL) navigable at all. The
       // is_live filter hides only explicit false; NULL passes.
-      .select('id, user_id, name, type, avatar, location, state, sound, genre_string, bio, updated_at')
+      // postcode/suburb/lat/lng are selected so the radius filter has something
+      // to place a profile with — without them every record is unplaceable and
+      // a distance filter empties the screen.
+      .select('id, user_id, name, type, avatar, location, suburb, state, postcode, lat, lng, sound, genre_string, bio, updated_at')
       .in('type', ['artist','host','band','standup','venue'])
       .or('is_live.is.null,is_live.neq.false')
       .order('updated_at', { ascending: false })
       .limit(20),
     supabase.from('events')
-      .select('id, name, config, created_at')
+      // The embedded venue is how an event gets a location at all: the venue
+      // owns it (docs/location-architecture-2026-07.md §4). `postcode`/`lat`
+      // on the event itself are the venue-INDEPENDENT fallback — doofs,
+      // showgrounds, multi-venue festivals — and are only read when there is
+      // no venue link.
+      .select('id, name, config, created_at, venue_profile_id, postcode, lat, lng, venue:venue_profile_id(postcode, state, lat, lng)')
       .eq('status', 'live')
       .or('is_public.eq.true,is_public.is.null')
       .order('created_at', { ascending: false })
@@ -70,7 +165,6 @@ export default function DiscoverScreen() {
   const [genre,    setGenre]    = useState('');
   const [state,    setState]    = useState('');
   const [postcode, setPostcode] = useState('');
-  const [radius,   setRadius]   = useState('');
   const [searchResults, setSearchResults] = useState(null);
   const [searching,     setSearching]     = useState(false);
   const [visibleCount,       setVisibleCount]       = useState(3);
@@ -87,6 +181,35 @@ export default function DiscoverScreen() {
   const radiusKm = RADIUS_STEPS[radiusIdx];
   const genreOptions = GENRE_BY_TYPE[type] || [...new Set(Object.values(GENRE_BY_TYPE).flat())].sort();
   const locationSuggestions = suggestLocations(postcode);
+
+  /**
+   * NEAR ME = the postcode the user already told us, NOT the GPS.
+   *
+   * Deliberate and ratified: no permission prompt, no battery drain, no
+   * continuous tracking, and a result the user can predict. `_userPostcode` is
+   * the same key My Scene's radius filter reads and writes, so the two screens
+   * agree about where "here" is instead of each keeping their own idea.
+   */
+  const storedPostcode = (() => {
+    try { return localStorage.getItem('_userPostcode') || ''; } catch { return ''; }
+  })();
+
+  // Typed location wins when present; Near Me falls back to the stored one.
+  const originPostcode = nearMe ? storedPostcode : originFromText(postcode);
+  const originCoords   = postcodeCoords(originPostcode);
+
+  // ⚠ THE SLIDER'S FIRST STOP MEANS "ANY DISTANCE", NOT "0 KM".
+  //
+  // Everything here resolves to a postcode CENTROID, so a literal 0km test
+  // would match only records sharing the exact same centroid — and 0 is also
+  // the slider's default position, so treating it as a filter would silently
+  // narrow every location search the moment someone typed a town. The radius
+  // is therefore additive: it does nothing until the user moves it.
+  const radiusActive = radiusIdx > 0 && originPostcode ? radiusKm : null;
+
+  // Near Me with no stored postcode is a genuine dead end — say so rather than
+  // quietly returning an unfiltered list that looks like it worked.
+  const nearMeUnset = nearMe && !storedPostcode;
 
   const isFiltered = !!(query || type || genre || state || postcode || nearMe || dateFilter);
   const activeFilterCount = [type, genre, state, postcode || nearMe, dateFilter].filter(Boolean).length;
@@ -110,7 +233,7 @@ export default function DiscoverScreen() {
     if (t !== 'event') {
       let profileQ = supabase.from('profiles')
         // M5: id included; is_live hides only explicit false (see fetchDefault)
-        .select('id, user_id, name, type, avatar, location, state, sound, genre_string, bio, venue_type, updated_at')
+        .select('id, user_id, name, type, avatar, location, suburb, state, postcode, lat, lng, sound, genre_string, bio, venue_type, updated_at')
         .in('type', t ? [t] : ['artist','host','band','standup','venue'])
         .or('is_live.is.null,is_live.neq.false')
         .order('updated_at', { ascending: false })
@@ -128,7 +251,8 @@ export default function DiscoverScreen() {
 
     if (!t || t === 'event') {
       let evQ = supabase.from('events')
-        .select('id, name, config, created_at')
+        // venue embedded for distance — see the note in fetchDefault
+        .select('id, name, config, created_at, venue_profile_id, postcode, lat, lng, venue:venue_profile_id(postcode, state, lat, lng)')
         .eq('status', 'live')
         .or('is_public.eq.true,is_public.is.null')
         .order('created_at', { ascending: false })
@@ -142,10 +266,10 @@ export default function DiscoverScreen() {
     if (g) all = all.filter(r => r._kind !== 'profile' || (r.genre_string || '').toLowerCase().includes(g.toLowerCase()));
     setSearchResults(all);
     setSearching(false);
-    // Returned so the caller can record how many results the ask produced —
-    // the count is the whole point of a demand signal ("techno in Coffs:
-    // one event"), and it exists only here.
-    return all.length;
+    // The ROWS, not a count. The caller must run the same local filters the
+    // screen runs before reporting a number, or the demand signal claims a
+    // result set nobody saw — see applyLocalFilters.
+    return all;
   }, []);
 
   // Debounce search when filters are active
@@ -163,20 +287,52 @@ export default function DiscoverScreen() {
     if (!isFiltered) { setSearchResults(null); return; }
     if (debounce.current) clearTimeout(debounce.current);
     debounce.current = setTimeout(async () => {
-      const results = await runSearch(query, type, genre, state, postcode);
+      const rows = await runSearch(query, type, genre, state, postcode);
+      // The same pipeline the screen renders, so the reported count is the
+      // number the user actually saw.
+      const { items: shown } = applyLocalFilters(rows, {
+        dateFilter, radiusKm: radiusActive, originCoords, originPostcode,
+      });
+      // Discovery 2.1 · date/Near Me/radius now genuinely filter, so they are
+      // reported as APPLIED. The `_intent` forms survive for exactly the cases
+      // where the filter could not run — Near Me with no stored postcode, and
+      // a date the user asked for while nothing was placeable. Sending both
+      // forms for one facet is forbidden; each line below picks one.
       trackFiltered({
         surface: 'discover',
         query, type, genre, state, location: postcode,
-        dateIntent: dateFilter, nearMeIntent: nearMe,
-        results,
+        date:     dateFilter || undefined,
+        nearMe:   nearMe && !nearMeUnset,
+        radiusKm: radiusActive ?? undefined,
+        nearMeIntent: nearMeUnset,
+        results: shown.length,
       });
     }, 300);
     return () => clearTimeout(debounce.current);
-  }, [query, type, genre, state, postcode, dateFilter, nearMe, isFiltered, runSearch]);
+  }, [query, type, genre, state, postcode, dateFilter, nearMe, radiusActive,
+      originCoords, originPostcode, nearMeUnset, isFiltered, runSearch]);
 
   const loading  = isFiltered ? searching : defaultLoading;
-  const items    = isFiltered ? (searchResults || []) : defaultItems;
+  const rawItems = isFiltered ? (searchResults || []) : defaultItems;
   const isDefault = !isFiltered;
+
+  /**
+   * DATE AND DISTANCE, APPLIED CLIENT-SIDE — and the unplaceable kept.
+   *
+   * ⚠ AN UNPLACEABLE RESULT IS SHOWN, NOT DROPPED. Only 21 of 53 profiles
+   * carry a postcode today, so a radius filter that silently discarded the
+   * rest would hide most of the catalogue and read as "nothing on" rather than
+   * "we don't know where these are". They are separated into their own
+   * labelled section instead — the app never pretends to know a location it
+   * does not have, and the gap stays visible to whoever can fix the data.
+   *
+   * Date applies to EVENTS ONLY. A profile has no date, so date-filtering one
+   * would mean inventing a rule ("is this DJ available?") that no data
+   * supports — a different feature, and one the availability calendar owns.
+   */
+  const { items, unplaceable } = applyLocalFilters(rawItems, {
+    dateFilter, radiusKm: radiusActive, originCoords, originPostcode,
+  });
 
   const profiles = items.filter(r => r._kind === 'profile');
   const events   = items.filter(r => r._kind === 'event');
@@ -233,10 +389,24 @@ export default function DiscoverScreen() {
                   {locationSuggestions.map(l => <option key={l} value={l} />)}
                 </datalist>
               </div>
+              {/* The dead end, named. Near Me needs a postcode we have never
+                  been given, and silence here would look like a broken filter. */}
+              {nearMeUnset && (
+                <p className={s.hint} style={{ margin: '6px 0 0' }}>
+                  Add your postcode in My Scene to use Near me.
+                </p>
+              )}
               <div className={s.radiusRow}>
                 <span className={s.radiusLabel}>RADIUS</span>
-                <span className={s.radiusValue}>{radiusKm} km</span>
+                {/* 0 is the slider's resting position, so it must read as "off",
+                    not as a 0km filter nobody asked for. */}
+                <span className={s.radiusValue}>{radiusKm === 0 ? 'Any distance' : `${radiusKm} km`}</span>
               </div>
+              {radiusIdx > 0 && !originPostcode && (
+                <p className={s.hint} style={{ margin: '6px 0 0' }}>
+                  Enter a town or postcode to filter by distance.
+                </p>
+              )}
               <input type="range" className={s.slider} min="0" max="7" step="1" value={radiusIdx} onChange={e => setRadiusIdx(+e.target.value)} style={{ '--pct': `${radiusIdx / 7 * 100}%` }} />
               <div className={s.radiusTicks}>
                 {RADIUS_STEPS.map((v, i) => (
@@ -313,7 +483,7 @@ export default function DiscoverScreen() {
 
             {/* Footer */}
             <div className={s.sheetActions}>
-              <button className={s.sheetClear} onClick={() => { setType(''); setGenre(''); setState(''); setPostcode(''); setRadius(''); setNearMe(false); setDateFilter(''); setRadiusIdx(0); }}>Reset all</button>
+              <button className={s.sheetClear} onClick={() => { setType(''); setGenre(''); setState(''); setPostcode(''); setNearMe(false); setDateFilter(''); setRadiusIdx(0); }}>Reset all</button>
               <button className={s.sheetDone} onClick={() => setFiltersOpen(false)}>
                 <span className={s.sheetDoneLabel}>{activeFilterCount > 0 ? `Apply filters (${activeFilterCount})` : 'Apply filters'}</span>
               </button>
@@ -368,6 +538,32 @@ export default function DiscoverScreen() {
                   <button className={s.viewMore} style={{ opacity: visibleCount < items.length ? 1 : 0, pointerEvents: visibleCount < items.length ? 'auto' : 'none' }} onClick={() => setVisibleCount(v => v + 10)}>
                     <span className={s.viewMoreText}>VIEW MORE</span>
                   </button>
+                </>
+              )}
+
+              {/* ⚠ SHOWN, NOT HIDDEN.
+                  These matched every other filter but carry no location, so
+                  the distance test could not be applied to them. Dropping them
+                  would be the app claiming they are far away — which it does
+                  not know. Saying so keeps the result honest and makes the
+                  missing data visible to whoever can fill it in. */}
+              {!isDefault && unplaceable.length > 0 && (
+                <>
+                  <div className={s.sectionRow} style={{ marginTop: 20 }}>
+                    <div className={s.sectionHead}>LOCATION UNAVAILABLE</div>
+                    <div className={s.gradientLine} />
+                  </div>
+                  <p className={s.hint} style={{ margin: '0 0 8px' }}>
+                    {unplaceable.length} {unplaceable.length === 1 ? 'result has' : 'results have'} no
+                    location set, so {unplaceable.length === 1 ? 'it' : 'they'} can’t be matched to your distance filter.
+                  </p>
+                  <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+                    {unplaceable.slice(0, 10).map(r =>
+                      r._kind === 'event'
+                        ? <EventCard key={r.id} event={r} />
+                        : <ProfileCard key={r.id ?? r.user_id} item={r} />
+                    )}
+                  </div>
                 </>
               )}
             </>

@@ -1,10 +1,12 @@
-import { useState, useMemo, useRef, useEffect } from 'react';
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { SkeletonRow, SkeletonEventCard } from '../components/Skeleton';
 import { useNavigate } from 'react-router-dom';
 import { useEvents } from '../lib/useEvents';
 import { supabase } from '../lib/supabase';
 import { getPersonalProfileId } from '../lib/actingProfile';
 import { track, EVENTS, trackFiltered } from '../lib/analytics';
+import { eventCoords, postcodeCoords, withinRadius } from '../lib/geo';
+import { resolveLocationToPostcodes } from '../lib/auLocations';
 import { useSession } from '../App';
 import { today, dateStr, weekendRange, formatDisplayDate } from '../lib/dates';
 import { getDemoEvents } from '../lib/demoEvents';
@@ -281,16 +283,63 @@ export default function WhatsOnScreen() {
     return dates;
   }, [wr]);
 
+  /**
+   * DISTANCE FILTERING — via the venue, and never by discarding the unknown.
+   *
+   * The origin is a postcode the user typed (or resolved from a town name).
+   * The radius select only bites once there is an origin; until then it is
+   * inert, so the screen behaves exactly as it did before anyone touches it.
+   */
+  const originPostcode = useMemo(() => {
+    const t = String(postcode || '').trim();
+    if (/^\d{4}$/.test(t)) return t;
+    const codes = resolveLocationToPostcodes(t);
+    return codes.length ? [...codes].sort()[0] : '';
+  }, [postcode]);
+  const originCoords = useMemo(() => postcodeCoords(originPostcode), [originPostcode]);
+  const radiusKm     = originPostcode ? Number(radius) : null;
+
+  /**
+   * ⚠ THREE OUTCOMES, NOT TWO: near / far / UNKNOWN.
+   *
+   * An event whose venue has no postcode is not far away — its distance is
+   * simply unknown, and treating unknown as "exclude" would have hidden 21 of
+   * 30 live events on the day this shipped. They are collected separately and
+   * rendered under their own heading, so the screen never implies a location
+   * it does not have.
+   */
+  const inRange = useCallback((ev) => {
+    if (!radiusKm || !originCoords) return 'near';        // no radius = everything is "near"
+    const c = eventCoords(ev, ev.venue);
+    if (!c) return 'unknown';
+    const pc = ev.venue_profile_id ? ev.venue?.postcode : ev.postcode;
+    return withinRadius(originCoords, c, radiusKm, originPostcode, pc) ? 'near' : 'far';
+  }, [radiusKm, originCoords, originPostcode]);
+
+  const passes = useCallback(
+    (ev) => matchesCategory(ev, category) && inRange(ev) === 'near',
+    [category, inRange],
+  );
+
   const featuredEvent  = useMemo(() => events.find(ev => ev.config?.featured) || null, [events]);
-  const tonightEvents  = useMemo(() => events.filter(ev => ev.config?.date === todayIso && matchesCategory(ev, category)), [events, todayIso, category]);
-  const weekendEvents  = useMemo(() => events.filter(ev => weekendDates.has(ev.config?.date) && ev.config?.date !== todayIso && matchesCategory(ev, category)), [events, weekendDates, todayIso, category]);
+  const tonightEvents  = useMemo(() => events.filter(ev => ev.config?.date === todayIso && passes(ev)), [events, todayIso, passes]);
+  const weekendEvents  = useMemo(() => events.filter(ev => weekendDates.has(ev.config?.date) && ev.config?.date !== todayIso && passes(ev)), [events, weekendDates, todayIso, passes]);
   const comingUpEvents = useMemo(() => events.filter(ev => {
     const d = ev.config?.date;
     // "Next 2 weeks" per its own label — was previously true for free because
     // `events` itself was capped at 14 days. Now that the cap moved to only
     // this section, it has to enforce its own upper bound.
-    return d && d !== todayIso && d <= dateStr(14) && !weekendDates.has(d) && matchesCategory(ev, category);
-  }).sort((a, b) => (a.config?.date || '').localeCompare(b.config?.date || '')), [events, weekendDates, todayIso, category]);
+    return d && d !== todayIso && d <= dateStr(14) && !weekendDates.has(d) && passes(ev);
+  }).sort((a, b) => (a.config?.date || '').localeCompare(b.config?.date || '')), [events, weekendDates, todayIso, passes]);
+
+  /** Upcoming events that match the category but cannot be placed. */
+  const unplaceableEvents = useMemo(() => {
+    if (!radiusKm || !originCoords) return [];
+    return events.filter(ev => {
+      const d = ev.config?.date;
+      return d && d >= todayIso && matchesCategory(ev, category) && inRange(ev) === 'unknown';
+    }).sort((a, b) => (a.config?.date || '').localeCompare(b.config?.date || ''));
+  }, [events, todayIso, category, radiusKm, originCoords, inRange]);
 
   // A3 · DEMAND, from the highest-traffic surface in the app.
   //
@@ -305,21 +354,26 @@ export default function WhatsOnScreen() {
   // report "techno in Coffs: 5 events" where there is one real one, which
   // silently destroys the exact signal this table exists to produce.
   //
-  // postcode/radius are recorded as INTENT: this screen filters on category
-  // alone, so they shape nothing behind `results`. See the A3 migration.
+  // Discovery 2.1 · postcode and radius now genuinely filter this screen, so
+  // the region is reported as APPLIED (`location`) rather than `regionIntent`.
+  // A typed location that resolves to nothing still cannot filter, so that one
+  // case keeps the intent form — the rule is unchanged, only which branch a
+  // given input lands in.
   useEffect(() => {
     if (loading) return;                   // a count taken mid-fetch is a lie
     const t = setTimeout(() => {
-      const real = realEvents.filter(ev => matchesCategory(ev, category));
+      const real = realEvents.filter(ev => matchesCategory(ev, category) && inRange(ev) === 'near');
       trackFiltered({
         surface: 'whats_on',
         category: category === 'ALL' ? null : category,
-        regionIntent: postcode,
+        ...(originPostcode
+          ? { location: originPostcode, radiusKm: radiusKm || undefined }
+          : { regionIntent: postcode }),
         results: real.length,
       });
     }, 400);
     return () => clearTimeout(t);
-  }, [category, postcode, loading, realEvents]);
+  }, [category, postcode, originPostcode, radiusKm, loading, realEvents, inRange]);
 
   // Weekend date range label
   const weekendLabel = useMemo(() => {
@@ -402,13 +456,18 @@ export default function WhatsOnScreen() {
             <input className={s.postcodeInput} type="text" inputMode="numeric" maxLength={4}
               placeholder="📍 Town/City" value={postcode} onChange={e => setPostcode(e.target.value)} autoComplete="off" />
           </div>
-          {postcode.length === 4 && (
+          {/* Shown once the typed text resolves to somewhere real — a town
+              name works as well as a 4-digit postcode. */}
+          {!!originPostcode && (
             <select className={s.radiusSelect} value={radius} onChange={e => setRadius(e.target.value)}>
               {['0','5','25','50','100','200'].map(r => <option key={r} value={r}>{r} km</option>)}
             </select>
           )}
           {CATEGORIES.map(cat => (
-            <button key={cat} className={(category === cat || category === 'ALL') ? s.chipActive : s.chip} onClick={() => setCategory(cat)}>{cat}</button>
+            // Only the selected chip is active. The old `|| category === 'ALL'`
+            // lit every chip on the default view, so the screen opened looking
+            // like all five categories were selected at once.
+            <button key={cat} className={category === cat ? s.chipActive : s.chip} onClick={() => setCategory(cat)}>{cat}</button>
           ))}
         </div>
       </div>
@@ -541,6 +600,30 @@ export default function WhatsOnScreen() {
                 <button className={s.viewAll}>View all ›</button>
               </div>
               {comingUpEvents.slice(0, 200).map(ev => (
+                <ComingUpRow key={ev.id} event={ev} onClick={() => openEvent(ev)} />
+              ))}
+            </div>
+          )}
+
+          {/* ⚠ LOCATION UNAVAILABLE — shown, never silently dropped.
+              These match the category and are upcoming, but their venue has no
+              postcode, so the distance filter has nothing to test. Excluding
+              them would be the app asserting they are far away, which it does
+              not know. On the day this shipped that would have hidden 21 of 30
+              live events and read as an empty scene. */}
+          {unplaceableEvents.length > 0 && (
+            <div className={s.sectionBlock}>
+              <div className={s.sectionRow}>
+                <span className={s.sectionTitle}>LOCATION UNAVAILABLE</span>
+                <span className={s.sectionSub}>DISTANCE UNKNOWN</span>
+                <div className={s.gradientLine} />
+              </div>
+              <p className={s.empty} style={{ textAlign: 'left', margin: '0 0 8px' }}>
+                {unplaceableEvents.length === 1
+                  ? 'This event has no venue location set, so we can’t tell how far away it is.'
+                  : `${unplaceableEvents.length} events have no venue location set, so we can’t tell how far away they are.`}
+              </p>
+              {unplaceableEvents.slice(0, 50).map(ev => (
                 <ComingUpRow key={ev.id} event={ev} onClick={() => openEvent(ev)} />
               ))}
             </div>

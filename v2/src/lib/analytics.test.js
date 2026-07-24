@@ -544,3 +544,67 @@ test('recording demand never throws', () => {
   assert.doesNotThrow(() => trackFiltered({ surface: 'discover', genre: 'Techno' }));
   assert.doesNotThrow(() => trackFiltered());
 });
+
+// ── 8 · DISCOVERY 2.1 · THE intent → applied MIGRATION ───────────────
+//
+// The A3 contract: a plain key means the facet SHAPED `results`; an `*_intent`
+// key means the user asked and it did not. Discovery 2.1 made date, Near Me
+// and radius real, so they moved sides. These tests pin the rule itself, not
+// just the current answer — the failure mode is a prop quietly changing
+// meaning halfway through its history, which no later query can untangle.
+
+test('a functional date filter is recorded as APPLIED, not as intent', () => {
+  trackFiltered({ surface: 'discover', date: 'weekend', results: 4 });
+
+  const p = pings().at(-1).props;
+  assert.equal(p.date, 'weekend');
+  assert.equal(p.date_intent, undefined,
+    'date filters for real now; writing both keys would double-count the ask ' +
+    'and make the applied/intent split meaningless');
+});
+
+test('Near Me with no stored postcode stays INTENT — it could not run', () => {
+  // The filter is functional in general but inapplicable for this user, which
+  // is exactly the case the intent form still exists for.
+  trackFiltered({ surface: 'discover', nearMeIntent: true, results: 12 });
+
+  const p = pings().at(-1).props;
+  assert.equal(p.near_me_intent, true);
+  assert.equal(p.near_me, undefined,
+    'recording it as applied would assert that 12 results were near the user, ' +
+    'when nothing was filtered at all');
+});
+
+test('a radius only counts as applied when it is actually a radius', () => {
+  // 0 is the slider's resting position and means "any distance". Recording it
+  // would report a distance filter nobody switched on.
+  trackFiltered({ surface: 'discover', genre: 'Techno', radiusKm: 0, results: 3 });
+  assert.equal(pings().at(-1).props.radius_km, undefined);
+
+  trackFiltered({ surface: 'discover', genre: 'Techno', radiusKm: 50, results: 2 });
+  assert.equal(pings().at(-1).props.radius_km, 50);
+});
+
+test('a resolvable location on What\'s On is applied; an unresolvable one is intent', () => {
+  trackFiltered({ surface: 'whats_on', category: 'DJ', location: '2454', radiusKm: 50, results: 9 });
+  const applied = pings().at(-1).props;
+  assert.equal(applied.region, '2454');
+  assert.equal(applied.radius_km, 50);
+  assert.equal(applied.region_intent, undefined);
+
+  trackFiltered({ surface: 'whats_on', category: 'DJ', regionIntent: 'nowhere-at-all', results: 9 });
+  const intent = pings().at(-1).props;
+  assert.equal(intent.region_intent, 'unresolved');
+  assert.equal(intent.region, undefined);
+});
+
+test('⚠ PRIVACY: the applied path still never sends raw location text', () => {
+  // The migration moved which KEY is written; it must not have opened a new
+  // route for free text to reach the row.
+  trackFiltered({ surface: 'whats_on', location: "Jenny's back paddock", radiusKm: 20, results: 0 });
+
+  const sent = JSON.stringify(pings().at(-1)).toLowerCase();
+  assert.equal(sent.includes('jenny'), false, 'raw location text leaked through the applied path');
+  assert.equal(sent.includes('paddock'), false);
+  assert.equal(pings().at(-1).props.region_unresolved, true);
+});
