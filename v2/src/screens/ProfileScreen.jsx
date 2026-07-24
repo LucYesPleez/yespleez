@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { getPersonalProfileId } from '../lib/actingProfile';
 import { writeNotification } from '../lib/writeNotification';
+import { track, EVENTS } from '../lib/analytics';
 import { useSession, usePlayer } from '../App';
 import EventCard from '../components/EventCard';
 import { getEventBadges, resolveCategoryBadge, OPEN_MIC_BADGE } from '../lib/eventBadges';
@@ -443,6 +444,13 @@ export default function ProfileScreen() {
       setFollowed(false);
       return;   // no optimistic success, and no notification for a follow that did not happen
     }
+    // A1 · one event per row actually written, not one per click. This path
+    // can follow on behalf of several accounts at once, and emitting a single
+    // event with a count would make COUNT(*) disagree with the follows table
+    // for exactly the multi-id case. Every result here is a success — the
+    // failure branch above already returned.
+    results.forEach(() => track(EVENTS.FOLLOWED, { entity_type: profile.type }));
+
     // Bust the My Scene cache so the new follow appears immediately
     queryClient.invalidateQueries({ queryKey: ['myScene'] });
     // Notify the profile owner that someone followed them

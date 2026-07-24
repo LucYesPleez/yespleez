@@ -29,13 +29,23 @@ const { KINDS, LABELS } = await import('./messageKindList.js');
 
 beforeEach(() => { inserted = []; });
 
+/**
+ * The last row written to `messages`.
+ *
+ * Was `inserted.at(-1)`, which silently meant "whatever was written last".
+ * A1 added an analytics insert after every successful send, so that stopped
+ * being the message — the assertion had drifted from what it was trying to
+ * say. Naming the table is what it always meant.
+ */
+const lastMessage = () => inserted.filter(i => i.table === 'messages').at(-1);
+
 test('a Hand is an ordinary message with kind hand', async () => {
   // "A conversation Hand is a MESSAGE" — the ratified rule. It goes through the
   // normal send path with no special handling, which is the whole claim M9a
   // made about adding kinds.
   await sendHand({ conversationId: CONV, fromProfileId: PROFILE });
 
-  const { table, row } = inserted.at(-1);
+  const { table, row } = lastMessage();
   assert.equal(table, 'messages');
   assert.equal(row.kind, 'hand');
   assert.equal(row.conversation_id, CONV);
@@ -47,7 +57,7 @@ test('a Hand carries no payload', async () => {
   // Nothing to carry: the mark IS the message. A payload here would be a place
   // for meaning to leak out of the kind and into unvalidated jsonb.
   await sendHand({ conversationId: CONV, fromProfileId: PROFILE });
-  assert.equal(inserted.at(-1).row.payload, undefined);
+  assert.equal(lastMessage().row.payload, undefined);
 });
 
 test('the body says Yes, because three surfaces only read text', async () => {
@@ -55,7 +65,7 @@ test('the body says Yes, because three surfaces only read text', async () => {
   // notification and a screen reader can render nothing else — and 'Yes' means
   // a client too old to know this kind still shows exactly what was meant.
   await sendHand({ conversationId: CONV, fromProfileId: PROFILE });
-  assert.equal(inserted.at(-1).row.body, 'Yes');
+  assert.equal(lastMessage().row.body, 'Yes');
   assert.equal(HAND_BODY, 'Yes');
   assert.ok(HAND_BODY.trim().length > 0, 'a blank body would violate messages_body_not_blank');
 });
@@ -119,7 +129,7 @@ test('a tap sends no scale at all', async () => {
   // holding the default answers the renderer identically to no key, and costs
   // bytes on every read of every message forever.
   await sendHand({ conversationId: CONV, fromProfileId: PROFILE });
-  assert.equal(inserted.at(-1).row.payload, undefined);
+  assert.equal(lastMessage().row.payload, undefined);
 });
 
 // ── container geometry per kind ─────────────────────────────────────

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { track, EVENTS } from '../lib/analytics';
 
 /**
  * SHARE SHEET — the generic presentation of whatever the current screen
@@ -35,6 +36,14 @@ export default function ShareSheet({ target, onClose }) {
         text:  target.preview || undefined,
         url:   target.url,
       });
+      // A1 · after the await, so a CANCELLED share is not counted as one. The
+      // catch below is the cancel path — tracking before this line would count
+      // every opened-then-dismissed share sheet as a share.
+      //
+      // The resource TYPE only. Never target.url or target.title: a private
+      // link is a capability, and putting one in an analytics row copies it
+      // somewhere with different access rules than the thing it opens.
+      track(EVENTS.SHARED, { resource: target.type ?? null, method: 'native' });
       onClose?.();
     } catch {
       // A cancelled share sheet rejects. That is not an error worth surfacing.
@@ -45,6 +54,7 @@ export default function ShareSheet({ target, onClose }) {
     try {
       await navigator.clipboard.writeText(target.url);
       setCopied(true);
+      track(EVENTS.SHARED, { resource: target.type ?? null, method: 'copy_link' });
       setTimeout(() => setCopied(false), 1800);
     } catch {
       setCopied(false);

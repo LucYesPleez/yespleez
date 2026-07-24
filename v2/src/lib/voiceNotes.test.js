@@ -53,6 +53,15 @@ beforeEach(() => {
   uploadResult = { error: null };
 });
 
+/**
+ * The last row written to `messages`.
+ *
+ * Was `inserted.at(-1)`, i.e. "whatever was written last". A1 made a
+ * successful send also write an analytics row, so last stopped meaning the
+ * message. Naming the table is what these assertions always meant.
+ */
+const lastMessage = () => inserted.filter(i => i.table === 'messages').at(-1);
+
 /** Node has no Blob-from-recorder; size and type are all this code reads. */
 function fakeBlob(type = 'audio/webm', size = 2048) {
   return { size, type };
@@ -101,7 +110,7 @@ test('the stored payload holds a path and no url', async () => {
   // would play on the day it was sent and be broken by morning.
   await sendVoiceNote({ conversationId: CONV, fromProfileId: PROFILE, blob: fakeBlob(), durationMs: 4200 });
 
-  const { payload } = inserted.at(-1).row;
+  const { payload } = lastMessage().row;
   assert.ok(payload.path, 'payload must carry the storage path');
   assert.equal(payload.duration_ms, 4200);
 
@@ -122,7 +131,7 @@ test('a playback url is minted on demand and expires', async () => {
 test('a voice note sends through the normal message path with kind voice', async () => {
   await sendVoiceNote({ conversationId: CONV, fromProfileId: PROFILE, blob: fakeBlob(), durationMs: 1000 });
 
-  const { table, row } = inserted.at(-1);
+  const { table, row } = lastMessage();
   assert.equal(table, 'messages');
   assert.equal(row.kind, 'voice');
   assert.equal(row.from_profile_id, PROFILE);
@@ -134,7 +143,7 @@ test('a voice note carries legible fallback text', async () => {
   // notification and a screen reader only ever see text. An empty body is
   // silent in all three.
   await sendVoiceNote({ conversationId: CONV, fromProfileId: PROFILE, blob: fakeBlob(), durationMs: 1000 });
-  assert.equal(inserted.at(-1).row.body, VOICE_FALLBACK_BODY);
+  assert.equal(lastMessage().row.body, VOICE_FALLBACK_BODY);
   assert.ok(VOICE_FALLBACK_BODY.trim().length > 0);
 });
 

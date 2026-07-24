@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { getPersonalProfileId, getPerformerProfiles } from '../lib/actingProfile';
 import { writeNotification, writeNotifications } from '../lib/writeNotification';
+import { track, EVENTS } from '../lib/analytics';
 import { useSession, usePlayer } from '../App';
 import { formatDateRange } from '../lib/dates';
 import { useShareTarget, shareUrl } from '../lib/shareTarget';
@@ -276,7 +277,7 @@ export default function EventScreen() {
       // personal act, so it comes from the Personal profile (§A6/§A9).
       const fromProfileId = await getPersonalProfileId(session.user.id);
       const { error } = await supabase.from('follows').insert({ user_id: session.user.id, from_profile_id: fromProfileId, entity_id: id, entity_type: 'event', entity_name: event.name });
-      if (!error) { likedEvents.add(id); setLiked(true); }
+      if (!error) { likedEvents.add(id); setLiked(true); track(EVENTS.FOLLOWED, { entity_type: 'event' }); }
       else console.error('follow error:', error.message, error.code, error.details, error.hint);
     }
     setLikedBusy(false);
@@ -1031,7 +1032,11 @@ export default function EventScreen() {
                 CANCEL
               </button>
               <button onClick={async () => {
-                await supabase.from('events').update({ status: 'live' }).eq('id', id);
+                const { error } = await supabase.from('events').update({ status: 'live' }).eq('id', id);
+                // A1 · the OTHER way an event gets published — a draft taken
+                // live later. Without this the published count would only ever
+                // include events that went live straight off the create form.
+                if (!error) track(EVENTS.PUBLISHED_EVENT, { from: 'draft' });
                 queryClient.invalidateQueries({ queryKey: ['event', id] });
                 setGoLiveConfirm(false);
               }}
@@ -1230,7 +1235,14 @@ function ApplyButton({ eventId, userId, ownerProfile }) {
       note,
     });
     setLoading(false);
-    if (!error) { setStatus('pending'); setOpen(false); }
+    if (!error) {
+      setStatus('pending'); setOpen(false);
+      // A1 · a genuine application. Accepting a slot OFFER (ArtistDashboard,
+      // notifActions) also inserts into `applications`, but that is the host
+      // asking and the artist agreeing — a different act, deliberately not
+      // counted here.
+      track(EVENTS.APPLIED, { has_note: !!(note && note.trim()) });
+    }
   }
 
   return (
@@ -1546,6 +1558,7 @@ function SlotCard({ slot, claim, onFill, onEdit, onRemove, onPin, isHost, isSort
                       // two columns — never conflate them.
                       const fromProfileId = await getPersonalProfileId(session.user.id);
                       await supabase.from('follows').insert({ user_id: session.user.id, from_profile_id: fromProfileId, entity_id: claim.user_id, entity_type: 'artist', entity_name: claim.name, target_profile_id: targetProfileId });
+                      track(EVENTS.FOLLOWED, { entity_type: 'artist' });
                       setFollowed(true);
                     }
                     setFollowBusy(false);

@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { isKind } from './messageKindList';
+import { track, EVENTS } from './analytics';
 
 /**
  * The one place messages are sent and read.
@@ -233,6 +234,23 @@ export async function sendMessage({ conversationId, fromProfileId, body, kind, p
     .single();
 
   // No notification write here. notify_new_message already fanned out. See header.
+
+  // A1 · instrumented HERE and nowhere else, because this is the one insert
+  // every kind passes through — voice notes, photos, files and Hands all call
+  // sendMessage rather than writing their own row. Tracking at the four
+  // composer call sites instead would miss whichever one is added next.
+  //
+  // Only on success: a failed send is not a sent message, and counting the
+  // attempt would make the messaging graph disagree with the messages table.
+  if (!error) {
+    track(kind === 'voice' ? EVENTS.SENT_VOICEY : EVENTS.SENT_MESSAGE, {
+      // The kind, never the body — rule 3. `kind` is undefined for plain text
+      // (the column default applies), so it is normalised here rather than
+      // recorded as a hole in the data.
+      kind: kind ?? 'text',
+    });
+  }
+
   return { message: error ? null : data, error: error ?? null };
 }
 

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { track, EVENTS } from '../lib/analytics';
 import s from './AuthScreen.module.css';
 
 export default function AuthScreen({ onGuest }) {
@@ -31,6 +32,13 @@ export default function AuthScreen({ onGuest }) {
       } else {
         const { error } = await supabase.auth.signUp({ email, password, options: { data: { name } } });
         if (error) throw error;
+        // A1 · signed_up only, never signed_in. Returning visits are already
+        // counted by opened_app; a second event on every sign-in would make
+        // "new users" and "sessions" measure the same thing.
+        //
+        // No email, no name — rule 3. This row says an account was created on
+        // this device, which is the entire question.
+        track(EVENTS.SIGNED_UP);
       }
     } catch (err) {
       setError(err.message);

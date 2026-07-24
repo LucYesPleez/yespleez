@@ -7,6 +7,7 @@ import ImageUploadButton from '../components/ImageUploadButton';
 import { getEventBadges, CATEGORY_BADGES, CATEGORY_CHOICES, OPEN_MIC_BADGE, sameCategory } from '../lib/eventBadges';
 import { getOwnerProfiles } from '../lib/actingProfile';
 import { PROFILE_TYPES } from '../lib/profileTypes';
+import { track, EVENTS } from '../lib/analytics';
 
 const CAL_DAYS = ['Su','Mo','Tu','We','Th','Fr','Sa'];
 const CAL_MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -445,6 +446,14 @@ export default function CreateEventScreen() {
     }).select('id').single();
     setSaving(false);
     if (err) { setError(err.message); return; }
+
+    // A1 · two separate facts, not one. Creating is the effort; going live is
+    // the outcome, and an event saved as a draft has not been published. They
+    // coincide here only when the host used "go live" on the create form —
+    // a draft published later fires PUBLISHED_EVENT from EventScreen instead.
+    track(EVENTS.CREATED_EVENT, { go_live: !!goLive });
+    if (goLive) track(EVENTS.PUBLISHED_EVENT, { from: 'create' });
+
     navigate(`/event/${data.id}`, { replace:true });
   }
 

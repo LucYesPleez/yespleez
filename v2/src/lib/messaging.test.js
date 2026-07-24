@@ -85,6 +85,18 @@ beforeEach(() => {
   rpcAnswer = 'rpc-result';
 });
 
+/**
+ * Rows and queries for `messages` specifically.
+ *
+ * These were `inserted.at(-1)` / `queries.at(-1)`, i.e. "whatever happened
+ * last". A1 made a successful send also write an analytics row, so last
+ * stopped meaning the message. Filtering by table says what these
+ * assertions were always about, and keeps them true for whatever else ends
+ * up hanging off a send.
+ */
+const messageRows = () => inserted.filter(i => i.table === 'messages');
+const lastMessageQuery = () => queries.filter(q => q.table === 'messages').at(-1);
+
 // ── §A3 · the audit identity is the session's, never the caller's ──
 
 test('the human on a message is the session user, not anything the caller passed', async () => {
@@ -98,10 +110,9 @@ test('the human on a message is the session user, not anything the caller passed
     from_user_id:   OTHER,
   });
 
-  assert.equal(inserted.length, 1);
-  assert.equal(inserted[0].table, 'messages');
-  assert.equal(inserted[0].row.from_user_id, USER, 'audit identity must come from the session');
-  assert.equal(inserted[0].row.from_profile_id, PROFILE, 'attribution is the caller\'s choice');
+  assert.equal(messageRows().length, 1);
+  assert.equal(messageRows()[0].row.from_user_id, USER, 'audit identity must come from the session');
+  assert.equal(messageRows()[0].row.from_profile_id, PROFILE, 'attribution is the caller\'s choice');
 });
 
 test('sending refuses when there is no authenticated user', async () => {
@@ -289,7 +300,7 @@ test('listing messages asks the database for kind and payload', async () => {
 
 test('a sent message comes back with its kind and payload', async () => {
   await sendMessage({ conversationId: CONV, fromProfileId: PROFILE, body: 'hello' });
-  const cols = queries.at(-1).cols;
+  const cols = lastMessageQuery().cols;
   assert.match(cols, /\bkind\b/,    'the sender renders what they just sent — it needs a kind too');
   assert.match(cols, /\bpayload\b/);
 });
@@ -299,7 +310,7 @@ test('the kind on a sent message comes from the row, not a client literal', asyn
   // point is that nothing on the client SETS it to 'text' — a literal here
   // would survive into a voice note and be silently wrong.
   await sendMessage({ conversationId: CONV, fromProfileId: PROFILE, body: 'hello' });
-  const row = inserted.at(-1).row;
+  const row = messageRows().at(-1).row;
   assert.equal(row.kind, undefined,
     'sendMessage must not hardcode a kind; the column defaults to text (M9a)');
 });

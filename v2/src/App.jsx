@@ -3,6 +3,7 @@ import { HashRouter, Routes, Route, useLocation, useNavigate } from 'react-route
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { supabase } from './lib/supabase';
 import { clearActingProfileCache } from './lib/actingProfile';
+import { initAnalytics, setAnalyticsUser } from './lib/analytics';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -283,8 +284,20 @@ export default function App() {
     });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, s) => {
       setSession(s);
+      setAnalyticsUser(s?.user?.id ?? null);
       if (s) setIsGuest(false);
     });
+
+    // A1 · started here rather than in main.jsx so it begins exactly once per
+    // app instance and can resolve the session first. It is idempotent, which
+    // it has to be: StrictMode runs this effect twice in dev, and without the
+    // guard every developer session would double every open.
+    //
+    // Deliberately NOT awaited and NOT gated on `session` — a signed-out
+    // visitor browsing as a guest is precisely the "browser only" population
+    // this measures, so waiting for a session would make them invisible.
+    initAnalytics();
+
     return () => subscription.unsubscribe();
   }, []);
 

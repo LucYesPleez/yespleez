@@ -1,9 +1,21 @@
+import { readFileSync } from 'node:fs'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+
+// Stamped onto every analytics row so a metric can be read per release —
+// "did installs drop after the last build" is unanswerable without it.
+// Read from package.json rather than hand-maintained here, so bumping the
+// version in one place is the whole job. Read with fs rather than imported:
+// a JSON import needs an assertion and behaves differently across the Node
+// versions this config runs under, and this cannot be allowed to fail.
+const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8'))
 
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
+  define: {
+    __APP_VERSION__: JSON.stringify(pkg.version),
+  },
   server: {
     host: true,
     // DEV ONLY — lets a phone reach this server through an HTTPS tunnel.
