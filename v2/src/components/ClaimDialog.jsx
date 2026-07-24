@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react';
 import s from './ClaimDialog.module.css';
-import { PROFILE_TYPES } from '../lib/profileTypes';
-import { CLAIM_RELATIONSHIPS, submitClaimRequest, fetchMyClaimRequest } from '../lib/profileClaimRequest';
-import { ownsProfileOfType } from '../lib/actingProfile';
+import { profileIdentity } from '../lib/profileTypes';
+import { CLAIM_RELATIONSHIPS, submitClaimRequest, fetchMyClaimRequest, checkClaimEligibility, CLAIM_BLOCKED } from '../lib/profileClaimRequest';
 
 const CLAIMS_EMAIL       = 'claims@yespleez.com';
 const YESPLEEZ_IG_HANDLE = 'yespleez_pres';
@@ -37,25 +36,25 @@ export default function ClaimDialog({ open, onClose, profile, session, onSubmitt
   const [phase, setPhase]               = useState('form');   // form | sending | done
   const [error, setError]               = useState('');
   const [existing, setExisting]         = useState(undefined); // undefined = loading, null = none, obj = claim
-  const [ownsType, setOwnsType]         = useState(null);      // null = loading, bool
+  const [eligibility, setEligibility]   = useState(null);      // null = loading, else {eligible, reason?, ownedProfile?}
 
   const signedIn = Boolean(session?.user?.id);
 
   // On open, resolve two things before deciding what to show, so the form
-  // never flashes for a case that can only be refused:
-  //   - do I already have a claim under review here? (show that)
-  //   - do I already own a profile of this type? (a duplicate to merge —
-  //     the one-per-type constraint means this claim could never be approved)
+  // never appears for a claim that could not succeed:
+  //   - do I already have a claim under review here? (show that instead)
+  //   - is this profile claimable by me at all? (an account holds one profile
+  //     per type, so a second of the same type is a duplicate, not a claim)
   useEffect(() => {
     if (!open || !profile?.id || !signedIn) return;
     let alive = true;
     setExisting(undefined);
-    setOwnsType(null);
+    setEligibility(null);
     fetchMyClaimRequest(profile.id).then(({ request }) => {
       if (alive) setExisting(request);
     });
-    ownsProfileOfType(session.user.id, profile.type).then((owns) => {
-      if (alive) setOwnsType(owns);
+    checkClaimEligibility({ userId: session.user.id, profileType: profile.type }).then((e) => {
+      if (alive) setEligibility(e);
     });
     return () => { alive = false; };
   }, [open, profile?.id, profile?.type, signedIn, session?.user?.id]);
@@ -63,7 +62,13 @@ export default function ClaimDialog({ open, onClose, profile, session, onSubmitt
   if (!open || !profile) return null;
 
   const profileUrl = window.location.href;
-  const typeLabel  = PROFILE_TYPES[profile.type]?.label || profile.type || 'Artist';
+  // ⚠ Labels are display tokens: ALL CAPS with punctuation — artist is
+  // "DJ / PROD.", standup is "COMEDY / POETRY". Render AS-IS; lower-casing
+  // produced "a dj / prod. profile", which reads like a typo.
+  // profileIdentity() is the canonical accessor — it never guesses a type.
+  // The old `|| 'Artist'` fallback here labelled an unknown profile as an
+  // artist in the claim email, which is exactly the 10F anti-pattern.
+  const typeLabel  = profileIdentity(profile.type).label;
   const userEmail  = session?.user?.email || '[your YesPleez account email]';
 
   const subject = `Profile Claim Request – ${profile.name}`;
@@ -103,11 +108,12 @@ export default function ClaimDialog({ open, onClose, profile, session, onSubmitt
 
   const pendingAlready = existing && existing.status === 'pending' && phase !== 'done';
   // Signed in but the two on-open lookups have not both resolved yet. Hold the
-  // form back until they do, so someone who already owns this type never sees
-  // a form they cannot use.
-  const checkingPrecheck = signedIn && phase !== 'done' && (existing === undefined || ownsType === null);
+  // form back until they do, so a claim that cannot succeed never gets a form.
+  const checkingPrecheck = signedIn && phase !== 'done' && (existing === undefined || eligibility === null);
+  const blockedOwnsType  = eligibility && !eligibility.eligible
+    && eligibility.reason === CLAIM_BLOCKED.OWNS_TYPE && phase !== 'done';
 
-  const typeLabelLower = (PROFILE_TYPES[profile.type]?.label || profile.type || 'profile').toLowerCase();
+  const ownedName = eligibility?.ownedProfile?.name;
 
   // The account-free routes (§09: claiming is never the price of control over
   // your own listing). Shared by the form and the already-own-this-type panel —
@@ -202,15 +208,18 @@ export default function ClaimDialog({ open, onClose, profile, session, onSubmitt
           </div>
         ) : checkingPrecheck ? (
           <p className={s.body} style={{ textAlign: 'center', padding: '24px 0' }}>Checking…</p>
-        ) : ownsType ? (
+        ) : blockedOwnsType ? (
           <>
             <div className={s.doneBox}>
               <div className={s.doneMark}>🔀</div>
-              <p className={s.doneTitle}>You already have a {typeLabelLower} profile</p>
+              <p className={s.doneTitle}>You already own a {typeLabel} profile</p>
               <p className={s.body}>
-                This looks like a duplicate of the {typeLabelLower} profile you already own.
-                We don&apos;t merge profiles automatically yet — message us and we&apos;ll
-                combine this one into yours, so you keep a single {typeLabelLower} identity.
+                {ownedName
+                  ? <>This one looks like a duplicate of <strong>{ownedName}</strong>, which you already own.</>
+                  : <>This one looks like a duplicate of the profile you already own.</>}
+                {' '}Combining duplicate profiles isn&apos;t available yet, so it can&apos;t be
+                claimed at the moment. Nothing is wrong with your account — you keep everything
+                on your existing profile.
               </p>
             </div>
             {altRoutes}

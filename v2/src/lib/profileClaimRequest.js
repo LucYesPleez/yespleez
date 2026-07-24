@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import { ownsProfileOfType } from './actingProfile';
+import { getOwnedProfileOfType } from './actingProfile';
 
 /**
  * PROFILE CLAIM REQUESTS — the one place a claim is submitted (§07 stage C).
@@ -49,6 +49,48 @@ export const CLAIM_RELATIONSHIPS = [
 const RELATIONSHIP_VALUES = CLAIM_RELATIONSHIPS.map(r => r.value);
 
 /**
+ * Why a claim is unavailable. One constant per reason so the UI switches on a
+ * value rather than string-matching a sentence.
+ */
+export const CLAIM_BLOCKED = Object.freeze({
+  /** The account already holds a profile of this type — this one is a duplicate. */
+  OWNS_TYPE: 'owns_type',
+});
+
+/**
+ * ★ THE EXTENSION POINT FOR PROFILE MERGE ★
+ *
+ * The single place that decides whether an account may claim a profile.
+ * Both the dialog (on open, to choose what to show) and submitClaimRequest
+ * (as the gate before any write) call this, so there is exactly one
+ * definition of "claimable" and they cannot drift.
+ *
+ * ── HOW MERGE REPLACES THIS WITHOUT A REFACTOR ───────────────────────
+ *
+ * When Profile Merge ships, this function keeps its signature and its return
+ * shape and simply gains a field — `{ eligible: false, reason: OWNS_TYPE,
+ * ownedProfile, mergeAvailable: true }`. ClaimDialog already branches on
+ * `reason` and already has `ownedProfile` in hand, so it swaps its
+ * explanation panel for a "Merge into <name>" action. submitClaimRequest
+ * needs no change at all: a merge is not a claim and will not travel through
+ * it. Nothing else in the app asks this question, by design.
+ *
+ * @param {object} opts
+ * @param {string} opts.userId
+ * @param {string} [opts.profileType] target's type; omitted ⇒ cannot judge, allow
+ * @returns {Promise<{eligible: boolean, reason?: string, ownedProfile?: object}>}
+ */
+export async function checkClaimEligibility({ userId, profileType } = {}) {
+  if (!userId || !profileType) return { eligible: true };
+
+  const owned = await getOwnedProfileOfType(userId, profileType);
+  if (owned) {
+    return { eligible: false, reason: CLAIM_BLOCKED.OWNS_TYPE, ownedProfile: owned };
+  }
+  return { eligible: true };
+}
+
+/**
  * Submit a claim for an unclaimed profile.
  *
  * Mirrors the database's own refusals client-side so each reads as a
@@ -84,21 +126,21 @@ export async function submitClaimRequest({ profileId, profileType, relationship,
     return { request: null, error: { message: 'You need a YesPleez account to claim a profile.' } };
   }
 
-  // ⚠ THE ONE-PER-TYPE PRE-CHECK (authoritative client gate).
+  // ⚠ THE GATE — no impossible claim may become a row.
   //
-  // profiles enforces UNIQUE (user_id, type), so a claim by an account that
-  // already owns this type can NEVER be approved — it is a duplicate to merge
-  // (not built). Refuse it here rather than create a claim that would flip the
-  // profile to a public "under review" state and then only ever be rejected.
-  //
-  // The dialog also checks this on open and never shows the form in this case;
-  // this is the backstop for a race (they made a profile of this type between
-  // opening the dialog and submitting) and for any other caller. The DATABASE
-  // guard is the final authority — this is a legibility layer in front of it.
-  if (profileType && await ownsProfileOfType(auth.user.id, profileType)) {
+  // The dialog already checks this on open and never shows the form when a
+  // claim is unavailable; this is the backstop for a race (they created a
+  // profile of this type between opening the dialog and submitting) and for
+  // any future caller. Same decision function, so the two cannot disagree.
+  const eligibility = await checkClaimEligibility({ userId: auth.user.id, profileType });
+  if (!eligibility.eligible) {
     return {
       request: null,
-      error: { message: 'You already have a profile of this type, so this can’t be claimed as a new one — it looks like a duplicate. Message us and we’ll merge them.' },
+      error: {
+        message: 'This profile can’t be claimed — it looks like a duplicate of one you already have.',
+        reason: eligibility.reason,
+        ownedProfile: eligibility.ownedProfile,
+      },
     };
   }
 

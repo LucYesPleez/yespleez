@@ -68,7 +68,8 @@ mock.module('./supabase', {
   },
 });
 
-const { submitClaimRequest, fetchMyClaimRequest, CLAIM_RELATIONSHIPS } =
+const { submitClaimRequest, fetchMyClaimRequest, CLAIM_RELATIONSHIPS,
+        checkClaimEligibility, CLAIM_BLOCKED } =
   await import('./profileClaimRequest.js');
 
 beforeEach(() => {
@@ -96,28 +97,49 @@ test('a submission writes profile_claim_requests and nothing else', async () => 
 });
 
 test('a claim is blocked when the account already owns that type (no doomed row)', async () => {
-  // profiles enforces UNIQUE (user_id, type); such a claim could never be
-  // approved, so it must not be created and flip the profile to public
-  // "under review" only to be rejected. The DB guard is the final backstop;
-  // this is the legible gate in front of it.
-  ownsRows = [{ id: 'existing-artist' }];
+  // An account holds one profile per type, so such a claim could never be
+  // approved. It must not be created and flip the profile to a public
+  // "under review" that only ever ends in rejection. The database guard is
+  // the final backstop; this is the legible gate in front of it.
+  ownsRows = [{ id: 'existing-artist', type: 'artist', name: 'Lucious' }];
   const { request, error } = await submitClaimRequest({
     profileId: PROFILE, profileType: 'artist', relationship: 'owner', evidence: 'https://example.com',
   });
   assert.equal(request, null);
-  assert.match(error.message, /already have a profile of this type|duplicate/i);
-  assert.equal(inserted.length, 0, 'no claim row may be created for a claim that can never be approved');
+  assert.match(error.message, /duplicate/i);
+  assert.equal(error.reason, CLAIM_BLOCKED.OWNS_TYPE, 'the UI branches on reason, not on the sentence');
+  assert.equal(inserted.length, 0, 'no claim row may be created for a claim that can never succeed');
 });
 
-test('the pre-check is skipped when profileType is not supplied (DB still backstops)', async () => {
-  // Older callers may omit profileType; the gate is best-effort and must not
-  // silently fail closed. It proceeds to insert; the database guard remains.
-  ownsRows = [{ id: 'existing-artist' }];   // would block IF the type were known
+test('the gate is skipped when profileType is not supplied (DB still backstops)', async () => {
+  // A caller may omit profileType; the gate is best-effort and must not fail
+  // closed. It proceeds to insert; the database guard remains authoritative.
+  ownsRows = [{ id: 'existing-artist', type: 'artist', name: 'Lucious' }];
   const { request, error } = await submitClaimRequest({
     profileId: PROFILE, relationship: 'owner', evidence: 'proof',
   });
   assert.equal(error, null);
   assert.equal(request.id, 42);
+});
+
+/* ---- the merge extension point ---- */
+
+test('eligibility names the reason and hands back the owned profile', async () => {
+  // The shape a future Profile Merge feature consumes: it needs the row to
+  // merge INTO, and the UI branches on `reason` rather than parsing prose.
+  ownsRows = [{ id: 'existing-artist', type: 'artist', name: 'Lucious' }];
+  const e = await checkClaimEligibility({ userId: USER, profileType: 'artist' });
+  assert.equal(e.eligible, false);
+  assert.equal(e.reason, CLAIM_BLOCKED.OWNS_TYPE);
+  assert.equal(e.ownedProfile.name, 'Lucious', 'the message names the profile they already have');
+  assert.ok(e.ownedProfile.id, 'merge will need this row as its target');
+});
+
+test('eligibility allows the claim when no profile of that type is owned', async () => {
+  ownsRows = [];
+  const e = await checkClaimEligibility({ userId: USER, profileType: 'venue' });
+  assert.equal(e.eligible, true);
+  assert.equal(e.reason, undefined);
 });
 
 test('the claimant is the session user, never a parameter', async () => {

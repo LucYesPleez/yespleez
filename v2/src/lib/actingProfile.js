@@ -199,14 +199,19 @@ export async function resolveOwnerProfileId(userId, type) {
 }
 
 /**
- * Does this account already own a profile of exactly `type`?
+ * The profile this account already owns of exactly `type`, or null.
  *
- * The claim pre-check (§07 C). profiles enforces `profiles_user_type_unique
- * (user_id, type)`, so a claim by someone who already owns that type can
- * never be approved — approve_profile_claim() refuses it, because it is a
- * DUPLICATE to merge, not a fresh attach, and merge is not built. Answering
- * this before submission turns that dead end into a clear message instead of
- * a claim that sits publicly "under review" until a reviewer rejects it.
+ * The claim pre-check (§07 C). A single account owns at most one profile of
+ * each type, so a claim against a type they already hold can never complete —
+ * the imported profile is a DUPLICATE of one they own, and resolving it means
+ * merging, which is not built. Answering this before submission turns a dead
+ * end into a clear message instead of a claim that sits publicly "under
+ * review" until a reviewer rejects it.
+ *
+ * Returns the ROW, not a boolean, deliberately: the message can then name the
+ * profile the user already has ("a duplicate of Lucious"), and a future merge
+ * feature needs exactly this row as its merge target. Callers wanting a
+ * yes/no just check for null.
  *
  * ── EXACT MATCH, NOT getOwnerProfiles ────────────────────────────────
  *
@@ -217,29 +222,30 @@ export async function resolveOwnerProfileId(userId, type) {
  *
  * ── FAILS OPEN ───────────────────────────────────────────────────────
  *
- * A lookup blip returns false (not owned), so a transient error never blocks
- * a legitimate claim. The real backstops are downstream and cannot be raced:
- * approve_profile_claim()'s guard and the unique constraint itself. The worst
- * case of a false negative is a doomed claim that a reviewer rejects — exactly
- * the pre-check-less behaviour, no worse.
+ * A lookup blip returns null (nothing owned), so a transient error never
+ * blocks a legitimate claim. The backstops downstream cannot be raced:
+ * approve_profile_claim() refuses the attach, and the database's own
+ * uniqueness rule refuses it under that. The worst case of a false negative
+ * is a doomed claim a reviewer rejects — exactly the pre-check-less
+ * behaviour, no worse.
  *
  * @param {string} userId
  * @param {string} type  a profile type — 'artist' | 'venue' | 'host' | …
- * @returns {Promise<boolean>}
+ * @returns {Promise<{id: string, type: string, name: string}|null>}
  */
-export async function ownsProfileOfType(userId, type) {
-  if (!userId || !type) return false;
+export async function getOwnedProfileOfType(userId, type) {
+  if (!userId || !type) return null;
   const { data, error } = await supabase
     .from('profiles')
-    .select('id')
+    .select('id, type, name')
     .eq('user_id', userId)
     .eq('type', type)
     .limit(1);
   if (error) {
-    console.error('[actingProfile] ownsProfileOfType lookup failed', error);
-    return false;   // fail open — see header
+    console.error('[actingProfile] getOwnedProfileOfType lookup failed', error);
+    return null;   // fail open — see header
   }
-  return (data?.length ?? 0) > 0;
+  return data?.[0] ?? null;
 }
 
 /** Call on sign-out — a cached id must not leak across sessions. */
