@@ -198,6 +198,50 @@ export async function resolveOwnerProfileId(userId, type) {
   return { ambiguous: profiles };
 }
 
+/**
+ * Does this account already own a profile of exactly `type`?
+ *
+ * The claim pre-check (§07 C). profiles enforces `profiles_user_type_unique
+ * (user_id, type)`, so a claim by someone who already owns that type can
+ * never be approved — approve_profile_claim() refuses it, because it is a
+ * DUPLICATE to merge, not a fresh attach, and merge is not built. Answering
+ * this before submission turns that dead end into a clear message instead of
+ * a claim that sits publicly "under review" until a reviewer rejects it.
+ *
+ * ── EXACT MATCH, NOT getOwnerProfiles ────────────────────────────────
+ *
+ * getOwnerProfiles falls back to ALL owner-eligible types when handed a type
+ * it does not recognise — right for "what could this user act as", wrong
+ * here, where the question is about ONE specific type and a fallback would
+ * silently answer a different question.
+ *
+ * ── FAILS OPEN ───────────────────────────────────────────────────────
+ *
+ * A lookup blip returns false (not owned), so a transient error never blocks
+ * a legitimate claim. The real backstops are downstream and cannot be raced:
+ * approve_profile_claim()'s guard and the unique constraint itself. The worst
+ * case of a false negative is a doomed claim that a reviewer rejects — exactly
+ * the pre-check-less behaviour, no worse.
+ *
+ * @param {string} userId
+ * @param {string} type  a profile type — 'artist' | 'venue' | 'host' | …
+ * @returns {Promise<boolean>}
+ */
+export async function ownsProfileOfType(userId, type) {
+  if (!userId || !type) return false;
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('type', type)
+    .limit(1);
+  if (error) {
+    console.error('[actingProfile] ownsProfileOfType lookup failed', error);
+    return false;   // fail open — see header
+  }
+  return (data?.length ?? 0) > 0;
+}
+
 /** Call on sign-out — a cached id must not leak across sessions. */
 export function clearActingProfileCache() {
   personalCache.clear();

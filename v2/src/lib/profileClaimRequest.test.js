@@ -34,6 +34,9 @@ let inserted = [];
 let queries = [];
 let sessionUser = { id: USER, email: 'me@example.com' };
 let insertError = null;
+// What a `profiles` SELECT resolves to — drives ownsProfileOfType. Default:
+// the account owns nothing, so the pre-check never blocks.
+let ownsRows = [];
 
 mock.module('./supabase', {
   exports: {
@@ -54,7 +57,9 @@ mock.module('./supabase', {
           single: async () => (insertError
             ? { data: null, error: insertError }
             : { data: { id: 42, status: 'pending', created_at: '2026-07-24' }, error: null }),
-          then(resolve) { resolve({ data: [], error: null }); },
+          // ownsProfileOfType awaits a `profiles` select; every other awaited
+          // query (fetchMyClaimRequest) is on profile_claim_requests.
+          then(resolve) { resolve({ data: table === 'profiles' ? ownsRows : [], error: null }); },
         };
         queries.push(q);
         return q;
@@ -71,6 +76,7 @@ beforeEach(() => {
   queries = [];
   sessionUser = { id: USER, email: 'me@example.com' };
   insertError = null;
+  ownsRows = [];
 });
 
 /* ---- 1 · submission never touches profiles ---- */
@@ -87,6 +93,31 @@ test('a submission writes profile_claim_requests and nothing else', async () => 
   assert.equal(profileWrites.length, 0,
     'submission must never write profiles — completion is approve_profile_claim(), ' +
     'reviewer-only, where the N3 held-notification trigger fires');
+});
+
+test('a claim is blocked when the account already owns that type (no doomed row)', async () => {
+  // profiles enforces UNIQUE (user_id, type); such a claim could never be
+  // approved, so it must not be created and flip the profile to public
+  // "under review" only to be rejected. The DB guard is the final backstop;
+  // this is the legible gate in front of it.
+  ownsRows = [{ id: 'existing-artist' }];
+  const { request, error } = await submitClaimRequest({
+    profileId: PROFILE, profileType: 'artist', relationship: 'owner', evidence: 'https://example.com',
+  });
+  assert.equal(request, null);
+  assert.match(error.message, /already have a profile of this type|duplicate/i);
+  assert.equal(inserted.length, 0, 'no claim row may be created for a claim that can never be approved');
+});
+
+test('the pre-check is skipped when profileType is not supplied (DB still backstops)', async () => {
+  // Older callers may omit profileType; the gate is best-effort and must not
+  // silently fail closed. It proceeds to insert; the database guard remains.
+  ownsRows = [{ id: 'existing-artist' }];   // would block IF the type were known
+  const { request, error } = await submitClaimRequest({
+    profileId: PROFILE, relationship: 'owner', evidence: 'proof',
+  });
+  assert.equal(error, null);
+  assert.equal(request.id, 42);
 });
 
 test('the claimant is the session user, never a parameter', async () => {

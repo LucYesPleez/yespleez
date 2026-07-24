@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { ownsProfileOfType } from './actingProfile';
 
 /**
  * PROFILE CLAIM REQUESTS — the one place a claim is submitted (§07 stage C).
@@ -58,11 +59,13 @@ const RELATIONSHIP_VALUES = CLAIM_RELATIONSHIPS.map(r => r.value);
  *
  * @param {object} opts
  * @param {string} opts.profileId     the unclaimed profile being claimed
+ * @param {string} [opts.profileType] the target's type — enables the one-per-type
+ *                                    pre-check; omit only if unknown (DB still backstops)
  * @param {string} opts.relationship  one of CLAIM_RELATIONSHIPS values
  * @param {string} opts.evidence      links / handles proving ownership
  * @returns {Promise<{request: object|null, error: {message: string}|null}>}
  */
-export async function submitClaimRequest({ profileId, relationship, evidence } = {}) {
+export async function submitClaimRequest({ profileId, profileType, relationship, evidence } = {}) {
   if (!profileId) {
     return { request: null, error: { message: 'submitClaimRequest: profileId is required' } };
   }
@@ -79,6 +82,24 @@ export async function submitClaimRequest({ profileId, relationship, evidence } =
   const { data: auth, error: authError } = await supabase.auth.getUser();
   if (authError || !auth?.user?.id) {
     return { request: null, error: { message: 'You need a YesPleez account to claim a profile.' } };
+  }
+
+  // ⚠ THE ONE-PER-TYPE PRE-CHECK (authoritative client gate).
+  //
+  // profiles enforces UNIQUE (user_id, type), so a claim by an account that
+  // already owns this type can NEVER be approved — it is a duplicate to merge
+  // (not built). Refuse it here rather than create a claim that would flip the
+  // profile to a public "under review" state and then only ever be rejected.
+  //
+  // The dialog also checks this on open and never shows the form in this case;
+  // this is the backstop for a race (they made a profile of this type between
+  // opening the dialog and submitting) and for any other caller. The DATABASE
+  // guard is the final authority — this is a legibility layer in front of it.
+  if (profileType && await ownsProfileOfType(auth.user.id, profileType)) {
+    return {
+      request: null,
+      error: { message: 'You already have a profile of this type, so this can’t be claimed as a new one — it looks like a duplicate. Message us and we’ll merge them.' },
+    };
   }
 
   const { data, error } = await supabase

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import s from './ClaimDialog.module.css';
 import { PROFILE_TYPES } from '../lib/profileTypes';
 import { CLAIM_RELATIONSHIPS, submitClaimRequest, fetchMyClaimRequest } from '../lib/profileClaimRequest';
+import { ownsProfileOfType } from '../lib/actingProfile';
 
 const CLAIMS_EMAIL       = 'claims@yespleez.com';
 const YESPLEEZ_IG_HANDLE = 'yespleez_pres';
@@ -35,20 +36,29 @@ export default function ClaimDialog({ open, onClose, profile, session, onSubmitt
   const [evidence, setEvidence]         = useState('');
   const [phase, setPhase]               = useState('form');   // form | sending | done
   const [error, setError]               = useState('');
-  const [existing, setExisting]         = useState(null);     // my prior request, if any
+  const [existing, setExisting]         = useState(undefined); // undefined = loading, null = none, obj = claim
+  const [ownsType, setOwnsType]         = useState(null);      // null = loading, bool
 
   const signedIn = Boolean(session?.user?.id);
 
-  // A visitor who already has a claim under review should see that fact, not
-  // an empty form inviting a duplicate the database would refuse anyway.
+  // On open, resolve two things before deciding what to show, so the form
+  // never flashes for a case that can only be refused:
+  //   - do I already have a claim under review here? (show that)
+  //   - do I already own a profile of this type? (a duplicate to merge —
+  //     the one-per-type constraint means this claim could never be approved)
   useEffect(() => {
     if (!open || !profile?.id || !signedIn) return;
     let alive = true;
+    setExisting(undefined);
+    setOwnsType(null);
     fetchMyClaimRequest(profile.id).then(({ request }) => {
       if (alive) setExisting(request);
     });
+    ownsProfileOfType(session.user.id, profile.type).then((owns) => {
+      if (alive) setOwnsType(owns);
+    });
     return () => { alive = false; };
-  }, [open, profile?.id, signedIn]);
+  }, [open, profile?.id, profile?.type, signedIn, session?.user?.id]);
 
   if (!open || !profile) return null;
 
@@ -77,7 +87,7 @@ export default function ClaimDialog({ open, onClose, profile, session, onSubmitt
     setError('');
     setPhase('sending');
     const { request, error: err } = await submitClaimRequest({
-      profileId: profile.id, relationship, evidence,
+      profileId: profile.id, profileType: profile.type, relationship, evidence,
     });
     if (err) {
       setPhase('form');
@@ -92,6 +102,71 @@ export default function ClaimDialog({ open, onClose, profile, session, onSubmitt
   }
 
   const pendingAlready = existing && existing.status === 'pending' && phase !== 'done';
+  // Signed in but the two on-open lookups have not both resolved yet. Hold the
+  // form back until they do, so someone who already owns this type never sees
+  // a form they cannot use.
+  const checkingPrecheck = signedIn && phase !== 'done' && (existing === undefined || ownsType === null);
+
+  const typeLabelLower = (PROFILE_TYPES[profile.type]?.label || profile.type || 'profile').toLowerCase();
+
+  // The account-free routes (§09: claiming is never the price of control over
+  // your own listing). Shared by the form and the already-own-this-type panel —
+  // the latter uses them as the "message us to merge" path.
+  const altRoutes = (
+    <>
+      <p className={s.altHeading}>Prefer to contact us directly?</p>
+      <div className={s.options}>
+        <a href={YESPLEEZ_INSTAGRAM} target="_blank" rel="noopener noreferrer" className={`${s.option} ${s.optionInstagram}`} onClick={onClose}>
+          <div className={s.optionIcon}>
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <rect width="20" height="20" x="2" y="2" rx="5" ry="5"/>
+              <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/>
+              <line x1="17.5" x2="17.51" y1="6.5" y2="6.5"/>
+            </svg>
+          </div>
+          <div className={s.optionContent}>
+            <div className={s.optionTitle}>DM us on Instagram</div>
+            <div className={s.optionDesc}>
+              Message <span className={s.igHighlight}>@{YESPLEEZ_IG_HANDLE}</span> with your profile link and evidence of ownership.
+            </div>
+          </div>
+          <div className={s.optionArrow}>›</div>
+        </a>
+
+        <a href={mailtoUrl} className={s.option} onClick={onClose}>
+          <div className={s.optionIcon}>
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="2" y="4" width="20" height="16" rx="2"/><path d="m2 7 10 7 10-7"/>
+            </svg>
+          </div>
+          <div className={s.optionContent}>
+            <div className={s.optionTitle}>Email us</div>
+            <div className={s.optionDesc}>
+              Opens your email app with a pre-filled template for{' '}
+              <span className={s.emailHighlight}>{CLAIMS_EMAIL}</span>
+            </div>
+          </div>
+          <div className={s.optionArrow}>›</div>
+        </a>
+      </div>
+
+      {/* Fallback for the silent-mailto case — a machine with no mail
+          handler does nothing at all on the link above. */}
+      <button
+        type="button"
+        className={s.copyRow}
+        onClick={async () => {
+          try {
+            await navigator.clipboard.writeText(CLAIMS_EMAIL);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+          } catch { /* clipboard blocked — the address is on screen regardless */ }
+        }}
+      >
+        {copied ? 'Address copied' : `Email app didn't open? Copy ${CLAIMS_EMAIL}`}
+      </button>
+    </>
+  );
 
   return (
     <div className={s.backdrop} onClick={onClose}>
@@ -125,6 +200,21 @@ export default function ClaimDialog({ open, onClose, profile, session, onSubmitt
             </p>
             <button type="button" className={s.submitBtn} onClick={onClose}>OK</button>
           </div>
+        ) : checkingPrecheck ? (
+          <p className={s.body} style={{ textAlign: 'center', padding: '24px 0' }}>Checking…</p>
+        ) : ownsType ? (
+          <>
+            <div className={s.doneBox}>
+              <div className={s.doneMark}>🔀</div>
+              <p className={s.doneTitle}>You already have a {typeLabelLower} profile</p>
+              <p className={s.body}>
+                This looks like a duplicate of the {typeLabelLower} profile you already own.
+                We don&apos;t merge profiles automatically yet — message us and we&apos;ll
+                combine this one into yours, so you keep a single {typeLabelLower} identity.
+              </p>
+            </div>
+            {altRoutes}
+          </>
         ) : (
           <>
             <p className={s.body}>
@@ -172,59 +262,7 @@ export default function ClaimDialog({ open, onClose, profile, session, onSubmitt
               </p>
             )}
 
-            {/* Account-free routes — §09: claiming is never the price of control
-                over your own listing. Quietly styled so the form stays primary. */}
-            <p className={s.altHeading}>Prefer to contact us directly?</p>
-            <div className={s.options}>
-              <a href={YESPLEEZ_INSTAGRAM} target="_blank" rel="noopener noreferrer" className={`${s.option} ${s.optionInstagram}`} onClick={onClose}>
-                <div className={s.optionIcon}>
-                  <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                    <rect width="20" height="20" x="2" y="2" rx="5" ry="5"/>
-                    <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/>
-                    <line x1="17.5" x2="17.51" y1="6.5" y2="6.5"/>
-                  </svg>
-                </div>
-                <div className={s.optionContent}>
-                  <div className={s.optionTitle}>DM us on Instagram</div>
-                  <div className={s.optionDesc}>
-                    Message <span className={s.igHighlight}>@{YESPLEEZ_IG_HANDLE}</span> with your profile link and evidence of ownership.
-                  </div>
-                </div>
-                <div className={s.optionArrow}>›</div>
-              </a>
-
-              <a href={mailtoUrl} className={s.option} onClick={onClose}>
-                <div className={s.optionIcon}>
-                  <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="2" y="4" width="20" height="16" rx="2"/><path d="m2 7 10 7 10-7"/>
-                  </svg>
-                </div>
-                <div className={s.optionContent}>
-                  <div className={s.optionTitle}>Email us</div>
-                  <div className={s.optionDesc}>
-                    Opens your email app with a pre-filled template for{' '}
-                    <span className={s.emailHighlight}>{CLAIMS_EMAIL}</span>
-                  </div>
-                </div>
-                <div className={s.optionArrow}>›</div>
-              </a>
-            </div>
-
-            {/* Fallback for the silent-mailto case — a machine with no mail
-                handler does nothing at all on the link above. */}
-            <button
-              type="button"
-              className={s.copyRow}
-              onClick={async () => {
-                try {
-                  await navigator.clipboard.writeText(CLAIMS_EMAIL);
-                  setCopied(true);
-                  setTimeout(() => setCopied(false), 2000);
-                } catch { /* clipboard blocked — the address is on screen regardless */ }
-              }}
-            >
-              {copied ? 'Address copied' : `Email app didn't open? Copy ${CLAIMS_EMAIL}`}
-            </button>
+            {altRoutes}
           </>
         )}
 
