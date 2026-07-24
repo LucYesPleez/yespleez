@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { supabase } from './lib/supabase';
 import { clearActingProfileCache } from './lib/actingProfile';
 import { initAnalytics, setAnalyticsUser, trackScreenView } from './lib/analytics';
+import { startMessaging } from './lib/messagingReliability';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -308,6 +309,11 @@ export default function App() {
     // visitor browsing as a guest is precisely the "browser only" population
     // this measures, so waiting for a session would make them invisible.
     initAnalytics();
+
+    // Outbox runtime: register the per-kind uploaders, deliver anything a
+    // previous session left queued or failed, and flush again whenever
+    // reception returns. Idempotent for the same StrictMode reason as above.
+    startMessaging();
 
     return () => subscription.unsubscribe();
   }, []);
