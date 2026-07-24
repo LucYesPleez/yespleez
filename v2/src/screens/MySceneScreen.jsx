@@ -10,7 +10,7 @@ import ProfileCard from '../components/ProfileCard';
 import { SkeletonRow, SkeletonEventCard } from '../components/Skeleton';
 import s from './MySceneScreen.module.css';
 import { useDragScroll } from '../hooks/useDragScroll';
-import AU_POSTCODES from '../lib/postcodes';
+import { haversineKm, profileCoords, postcodeCoords, isKnownPostcode } from '../lib/geo';
 import PastEventsSearch, { filterPastEvents } from '../components/PastEventsSearch';
 import { PROFILE_TYPES, PROFILE_TYPE_ORDER } from '../lib/profileTypes';
 import UnclaimedBadge from '../components/UnclaimedBadge';
@@ -101,27 +101,10 @@ export default function MySceneScreen({ isGuest, onSignOut }) {
   const [pastEventSearch, setPastEventSearch] = useState('');
   const upcomingRef = useRef(null);
 
-  function haversineKm(lat1, lng1, lat2, lng2) {
-    const R = 6371, toRad = x => x * Math.PI / 180;
-    const dLat = toRad(lat2 - lat1), dLng = toRad(lng2 - lng1);
-    const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng/2)**2;
-    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  }
-
-  function profileCoords(p) {
-    if (p.lat && p.lng) return { lat: p.lat, lng: p.lng };
-    if (p.postcode) {
-      const c = AU_POSTCODES[String(p.postcode)];
-      return c ? { lat: c[0], lng: c[1] } : null;
-    }
-    return null;
-  }
-
-  function postcodeCoords(pc) {
-    if (!pc) return null;
-    const c = AU_POSTCODES[String(pc)];
-    return c ? { lat: c[0], lng: c[1] } : null;
-  }
+  // Distance helpers now live in lib/geo.js — this screen held the app's only
+  // working implementation and Discover/What's On need the same one. Behaviour
+  // is unchanged; geo.js additionally refuses NZ/International postcodes,
+  // which AU_POSTCODES would otherwise answer with an Australian point.
   const discoverDrag   = useDragScroll('myscene-discover-strip');
   const stripDrag      = useDragScroll('myscene-date-strip');
   const stripRef       = stripDrag.ref;
@@ -161,7 +144,10 @@ export default function MySceneScreen({ isGuest, onSignOut }) {
       // Step 2: parallel fetches — date-windowed events (indexed, ~50 rows)
       const threeMonthsAgo = new Date(Date.now() - 90  * 86400000).toISOString().slice(0, 10);
       const sixMonthsAhead = new Date(Date.now() + 180 * 86400000).toISOString().slice(0, 10);
-      const followCols = 'id,user_id,name,type,location,suburb,postcode,lat,lng,sound,updated_at';
+      // `state` is selected so geo.js can refuse NZ/International postcodes —
+      // without it the guard has nothing to test and AU_POSTCODES happily
+      // answers "Wellington 6011" with Perth.
+      const followCols = 'id,user_id,name,type,location,suburb,postcode,state,lat,lng,sound,updated_at';
       const [evRes, profFollowRes, legacyFollowRes, claimEvRes] = await Promise.all([
         supabase.from('events').select('id,name,config,host_id,created_at').gte('config->>date', threeMonthsAgo).lte('config->>date', sixMonthsAhead).order('config->>date', { ascending: true }).limit(150),
         followedPids.length
@@ -1019,7 +1005,7 @@ export default function MySceneScreen({ isGuest, onSignOut }) {
                     const tabCount = followTab === 'updates' ? updatedFollows.length : filteredFollows.length;
                     const hasMore = followShowAll || tabCount > 3;
                     return (
-                      <span className={hasMore ? s.seeAll : s.seeAllMuted} onClick={() => hasMore && (setFollowShowAll(v => !v), setFollowSearch(''), setFollowLocFilter(null))}>
+                      <span className={hasMore ? s.seeAll : s.seeAllMuted} onClick={() => hasMore && (setFollowShowAll(v => !v), setFollowSearch(''))}>
                         {followShowAll ? 'View less' : 'View all >'}
                       </span>
                     );
@@ -1125,7 +1111,7 @@ export default function MySceneScreen({ isGuest, onSignOut }) {
                       <div style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap', marginBottom:12 }}>
                         <input
                           value={userPostcode}
-                          onChange={e => { const v = e.target.value.replace(/\D/g,'').slice(0,4); setUserPostcode(v); localStorage.setItem('_userPostcode', v); setFollowRadius(v.length === 4 && !!AU_POSTCODES[v] ? 0 : null); }}
+                          onChange={e => { const v = e.target.value.replace(/\D/g,'').slice(0,4); setUserPostcode(v); localStorage.setItem('_userPostcode', v); setFollowRadius(v.length === 4 && isKnownPostcode(v) ? 0 : null); }}
                           placeholder="Postcode"
                           maxLength={4}
                           style={{ width:80, background:'rgba(0,229,255,.06)', border:`1px solid ${postcodeValid ? 'rgba(0,229,255,.6)' : userPostcode.length===4 ? 'rgba(255,45,120,.5)' : 'rgba(0,229,255,.25)'}`, borderRadius:10, padding:'7px 12px', color:'#fff', fontFamily:"'DM Sans',sans-serif", fontSize:13, outline:'none', caretColor:'#fff' }}
