@@ -31,8 +31,14 @@ import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const HERE      = dirname(fileURLToPath(import.meta.url));
-const MIGRATION = join(HERE, '../../../supabase/migrations/20260724000001_a1_usage_events.sql');
+const HERE = dirname(fileURLToPath(import.meta.url));
+const MIGRATIONS = join(HERE, '../../../supabase/migrations');
+
+// A1 created the table (display_mode / platform allow-lists live there).
+// A2 REPLACED the name allow-list, so the authoritative list of event names
+// is A2's — reading A1 for it would pass while missing every A2 event.
+const A1 = join(MIGRATIONS, '20260724000001_a1_usage_events.sql');
+const A2 = join(MIGRATIONS, '20260724000005_a2_sessions_and_screens.sql');
 
 const PROFILE = '11111111-1111-1111-1111-111111111111';
 const CONV    = '33333333-3333-3333-3333-333333333333';
@@ -78,6 +84,7 @@ mock.module('./supabase', {
 const {
   track, EVENTS, DISPLAY_MODES, PLATFORMS,
   displayMode, platform, newUuid, deviceId,
+  sessionId, normaliseScreenPath, trackScreenView, trackError,
   __resetAnalyticsForTests,
 } = await import('./analytics.js');
 const { sendMessage } = await import('./messaging.js');
@@ -93,11 +100,11 @@ beforeEach(() => {
 /** The usage_events rows written, ignoring everything else. */
 const pings = () => inserted.filter(i => i.table === 'usage_events').map(i => i.row);
 
-/** Pull the quoted literals out of one `CHECK (<col> IN ( … ))` in the migration. */
-function checkValues(column) {
-  const sql   = readFileSync(MIGRATION, 'utf8');
+/** Pull the quoted literals out of one `CHECK (<col> IN ( … ))` in a migration. */
+function checkValues(column, file) {
+  const sql   = readFileSync(file, 'utf8');
   const start = sql.indexOf(`CHECK (${column} IN (`);
-  assert.notEqual(start, -1, `no CHECK (${column} IN (…)) found in the A1 migration`);
+  assert.notEqual(start, -1, `no CHECK (${column} IN (…)) found in ${file}`);
   const end = sql.indexOf('))', start);
   assert.notEqual(end, -1, `unterminated CHECK for ${column}`);
   return [...sql.slice(start, end).matchAll(/'([a-z_-]+)'/g)].map(m => m[1]);
@@ -109,20 +116,20 @@ function checkValues(column) {
 // at runtime: Postgres rejects the row, track() ignores the rejection by
 // design, and the chart reads zero while the app looks perfectly healthy.
 
-test('every event name the client can send is accepted by the A1 CHECK', () => {
-  const allowed = checkValues('name');
+test('every event name the client can send is accepted by the A2 CHECK', () => {
+  const allowed = checkValues('name', A2);
   for (const name of Object.values(EVENTS)) {
     assert.ok(
       allowed.includes(name),
-      `EVENTS has '${name}' but the CHECK in the A1 migration does not. ` +
+      `EVENTS has '${name}' but the CHECK in the A2 migration does not. ` +
       'Every row carrying it will be rejected and the metric will read zero ' +
       'forever. Add it to the migration and apply it.',
     );
   }
 });
 
-test('the A1 CHECK lists no event name the client cannot send', () => {
-  const allowed = checkValues('name');
+test('the A2 CHECK lists no event name the client cannot send', () => {
+  const allowed = checkValues('name', A2);
   const known   = Object.values(EVENTS);
   for (const name of allowed) {
     assert.ok(
@@ -134,7 +141,7 @@ test('the A1 CHECK lists no event name the client cannot send', () => {
 });
 
 test('every display_mode the client can produce is accepted by the A1 CHECK', () => {
-  const allowed = checkValues('display_mode');
+  const allowed = checkValues('display_mode', A1);
   assert.deepEqual(
     [...DISPLAY_MODES].sort(), [...allowed].sort(),
     'DISPLAY_MODES and the migration CHECK must agree exactly — a mode this ' +
@@ -144,7 +151,7 @@ test('every display_mode the client can produce is accepted by the A1 CHECK', ()
 });
 
 test('every platform the client can produce is accepted by the A1 CHECK', () => {
-  const allowed = checkValues('platform');
+  const allowed = checkValues('platform', A1);
   assert.deepEqual([...PLATFORMS].sort(), [...allowed].sort());
 });
 
@@ -278,4 +285,100 @@ test('a FAILED send records nothing', async () => {
 test('a send refused before the network records nothing', async () => {
   await sendMessage({ conversationId: CONV, fromProfileId: PROFILE, body: '   ' });
   assert.equal(pings().length, 0);
+});
+
+/* ══════════════════════════════════════════════════════════════════════
+   A2 · SESSIONS, SCREENS, DURATION, ERRORS
+
+   These carry the behaviour analytics in docs/analytics-vision-2026-07.md.
+   Two of them are privacy controls rather than correctness checks, and are
+   marked as such — a regression there is not a wrong number, it is a table
+   of who looked at whom.
+   ══════════════════════════════════════════════════════════════════════ */
+
+test('every event carries a session_id, so a journey can be reconstructed', () => {
+  track(EVENTS.OPENED_APP);
+  track(EVENTS.FOLLOWED, { entity_type: 'venue' });
+
+  const rows = pings();
+  assert.equal(rows.length, 2);
+  assert.ok(rows[0].session_id, 'session_id is what groups events into a visit');
+  assert.equal(rows[0].session_id, rows[1].session_id,
+    'events in one visit must share a session id, or no journey can be rebuilt');
+});
+
+test('a session id is a uuid and is stable while the visit continues', () => {
+  const first = sessionId();
+  assert.match(first, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+  assert.equal(sessionId(), first, 'the id must not change between events');
+});
+
+/* ---- the privacy control ---- */
+
+test('⚠ PRIVACY: ids are stripped from screen paths before they are sent', () => {
+  // A raw path names the exact profile, event or conversation someone looked
+  // at. Storing those IS the named browsing history the ratified privacy rule
+  // forbids. This runs in the client so an un-normalised path never leaves
+  // the device — if this regresses, the leak is already in the database.
+  assert.equal(normaliseScreenPath('/profile/9d4ad715-8838-405d-8b58-7d88045ab27b'), '/profile/:id');
+  assert.equal(normaliseScreenPath('/event/1238c417-4365-4728-90e5-1a768ad63a69/applications'),
+    '/event/:id/applications');
+  assert.equal(normaliseScreenPath('/messages/42'), '/messages/:id', 'numeric ids too');
+  assert.equal(normaliseScreenPath('/discover?q=techno'), '/discover',
+    'a query string can carry typed text and is never recorded');
+  assert.equal(normaliseScreenPath('/'), '/');
+  assert.equal(normaliseScreenPath(''), '/');
+  assert.equal(normaliseScreenPath(undefined), '/');
+});
+
+test('⚠ PRIVACY: a tracked screen view sends the shape, never the id', () => {
+  trackScreenView('/profile/9d4ad715-8838-405d-8b58-7d88045ab27b');
+
+  const row = pings()[0];
+  assert.equal(row.name, EVENTS.SCREEN_VIEW);
+  assert.equal(row.props.path, '/profile/:id');
+  assert.ok(!JSON.stringify(row).includes('9d4ad715'),
+    'no fragment of the raw id may survive anywhere in the row');
+});
+
+/* ---- screen views ---- */
+
+test('a repeated screen is not counted twice in a row', () => {
+  // StrictMode double-invokes effects and routers re-settle on a path. Without
+  // the guard, "most viewed screen" ranks screens by React re-renders.
+  trackScreenView('/discover');
+  trackScreenView('/discover');
+  assert.equal(pings().length, 1);
+});
+
+test('returning to a screen IS a new view', () => {
+  trackScreenView('/discover');
+  trackScreenView('/event/abc');
+  trackScreenView('/discover');
+  assert.deepEqual(pings().map(r => r.props.path), ['/discover', '/event/abc', '/discover']);
+});
+
+/* ---- errors ---- */
+
+test('an error is reported with its type, a bounded message, and the screen', () => {
+  const err = new TypeError('Cannot read properties of undefined');
+  trackError(err, '/event/1238c417-4365-4728-90e5-1a768ad63a69');
+
+  const row = pings()[0];
+  assert.equal(row.name, EVENTS.ERROR);
+  assert.equal(row.props.name, 'TypeError');
+  assert.match(row.props.message, /Cannot read properties/);
+  assert.equal(row.props.screen, '/event/:id', 'the crash screen is normalised too');
+});
+
+test('an error message is truncated, so it cannot become a data dump', () => {
+  trackError(new Error('x'.repeat(1000)), '/discover');
+  assert.ok(pings()[0].props.message.length <= 200);
+});
+
+test('reporting an error never throws — the crash handler must not crash', () => {
+  // A failure here would replace a recoverable error screen with a blank page.
+  explode = true;
+  assert.doesNotThrow(() => trackError(new Error('boom'), '/discover'));
+  assert.doesNotThrow(() => trackError(null, null));
 });

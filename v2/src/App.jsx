@@ -3,7 +3,7 @@ import { HashRouter, Routes, Route, useLocation, useNavigate } from 'react-route
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { supabase } from './lib/supabase';
 import { clearActingProfileCache } from './lib/actingProfile';
-import { initAnalytics, setAnalyticsUser } from './lib/analytics';
+import { initAnalytics, setAnalyticsUser, trackScreenView } from './lib/analytics';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -76,6 +76,17 @@ function Shell({ session, isGuest, onSignOut }) {
   const [messagesBadge, setMessagesBadge] = useState(0);
   const pollRef = useRef(null);
   const activeTab = tabFromPath(location.pathname);
+
+  // A2 · screen views. Mounted here rather than per-screen because every
+  // route already passes through this component, and one call site cannot
+  // drift out of sync with a screen that forgot to add its own.
+  //
+  // The path is normalised inside trackScreenView ('/profile/:id'), so no
+  // profile or event id ever reaches the analytics table. Runs for guests
+  // too — how signed-out visitors browse is half the funnel.
+  useEffect(() => {
+    trackScreenView(location.pathname);
+  }, [location.pathname]);
 
   useEffect(() => {
     if (!session) return;

@@ -63,6 +63,10 @@ export const EVENTS = Object.freeze({
   SENT_VOICEY:              'sent_voicey',
   FOLLOWED:                 'followed',
   SHARED:                   'shared',
+  // A2 — the shape of a visit, not just its acts.
+  SCREEN_VIEW:              'screen_view',
+  SESSION_END:              'session_end',
+  ERROR:                    'error',
 });
 
 /**
@@ -84,6 +88,8 @@ const QUERYABLE_MODES = ['standalone', 'fullscreen', 'minimal-ui', 'browser'];
 
 const DEVICE_KEY    = 'yp_device_id';
 const INSTALLED_KEY = 'yp_installed_seen';
+const SESSION_KEY   = 'yp_session_id';
+const SESSION_AT    = 'yp_session_started';
 
 /** Build-time app version, injected by vite.config.js. Null under `node --test`. */
 const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : null;
@@ -100,6 +106,21 @@ function readStore(key) {
 }
 function writeStore(key, value) {
   try { window.localStorage.setItem(key, value); return true; } catch { return false; }
+}
+
+/**
+ * sessionStorage, same defensive shape as above.
+ *
+ * A session belongs to a TAB, not to a device — which is exactly what
+ * sessionStorage models: it survives a reload (a refresh is not a new visit)
+ * and dies with the tab. localStorage would leak one "session" across every
+ * tab open at once; memory alone would start a new session on every refresh.
+ */
+function readSession(key) {
+  try { return window.sessionStorage.getItem(key); } catch { return null; }
+}
+function writeSession(key, value) {
+  try { window.sessionStorage.setItem(key, value); return true; } catch { return false; }
 }
 
 /**
@@ -158,6 +179,78 @@ export function deviceId() {
   if (!memoryDeviceId) memoryDeviceId = newUuid();
   writeStore(DEVICE_KEY, memoryDeviceId);
   return memoryDeviceId;
+}
+
+let memorySessionId = null;
+let memorySessionAt = 0;
+
+/**
+ * THE CURRENT VISIT'S ID.
+ *
+ * Groups events into a journey — "Discover → event → follow → close" — which
+ * is what every behaviour question needs and what no amount of per-event data
+ * can reconstruct afterwards. It identifies a VISIT and never a person: two
+ * sessions from the same device are deliberately not joinable here, and
+ * nothing about the id encodes who anyone is.
+ *
+ * Minted lazily so a page that records nothing never creates one.
+ */
+export function sessionId() {
+  const stored = readSession(SESSION_KEY);
+  if (stored) return stored;
+  if (!memorySessionId) memorySessionId = newUuid();
+  writeSession(SESSION_KEY, memorySessionId);
+  writeSession(SESSION_AT, String(sessionStartedAt()));
+  return memorySessionId;
+}
+
+/** When the current session began, as epoch ms. */
+function sessionStartedAt() {
+  const stored = Number(readSession(SESSION_AT));
+  if (Number.isFinite(stored) && stored > 0) return stored;
+  if (!memorySessionAt) memorySessionAt = Date.now();
+  return memorySessionAt;
+}
+
+/**
+ * Begin a new session.
+ *
+ * Called when the app resumes after the idle window — the SAME threshold that
+ * decides a new `opened_app`, deliberately, so "session" means one thing
+ * across the whole table. If the two ever diverge, a session could contain
+ * two opens (or an open could span two sessions) and every funnel built on
+ * either becomes untrustworthy.
+ */
+function startNewSession() {
+  memorySessionId = newUuid();
+  memorySessionAt = Date.now();
+  writeSession(SESSION_KEY, memorySessionId);
+  writeSession(SESSION_AT, String(memorySessionAt));
+  lastScreenPath = null;   // the first screen of a new visit is not a repeat
+  return memorySessionId;
+}
+
+/**
+ * A route reduced to its SHAPE: '/profile/9d4ad715-…' becomes '/profile/:id'.
+ *
+ * ⚠ THIS IS THE PRIVACY CONTROL, NOT TIDINESS. A raw path names the exact
+ * profile, event or conversation someone looked at; a table of those is the
+ * named browsing history the ratified privacy rule forbids
+ * (docs/analytics-vision-2026-07.md §8). Normalising in the CLIENT means an
+ * un-normalised path never leaves the device — there is nothing to strip
+ * later and nothing to leak in between.
+ *
+ * It is also what makes the data usable: without it every profile view is its
+ * own unique "screen" and no screen can be counted.
+ */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export function normaliseScreenPath(pathname) {
+  const segs = String(pathname ?? '/')
+    .split('?')[0]                       // a query string is never recorded
+    .split('/')
+    .filter(Boolean)
+    .map(seg => (UUID_RE.test(seg) || /^\d+$/.test(seg)) ? ':id' : seg);
+  return '/' + segs.join('/');
 }
 
 /**
@@ -266,6 +359,7 @@ export function track(name, props = {}) {
 
     const row = {
       device_id:    deviceId(),
+      session_id:   sessionId(),
       user_id:      currentUserId,
       name,
       display_mode: displayMode(),
@@ -287,6 +381,86 @@ export function track(name, props = {}) {
   } catch {
     // Detection or storage threw. Nothing to do and nothing worth telling
     // the user — rule 1.
+  }
+}
+
+let lastScreenPath = null;
+
+/**
+ * Record a screen view. Called on every route change.
+ *
+ * ── DEDUPED, BECAUSE REACT WILL CALL THIS TWICE ──────────────────────
+ *
+ * StrictMode double-invokes effects in development, and a router can settle
+ * on the same path more than once. Without this guard the most-viewed-screen
+ * table would rank screens by how often React re-rendered them, which is a
+ * confident and completely fictional answer. Consecutive repeats only — a
+ * genuine A → B → A really is three views.
+ *
+ * @param {string} pathname raw route; normalised here before it is sent
+ */
+export function trackScreenView(pathname) {
+  try {
+    const path = normaliseScreenPath(pathname);
+    if (path === lastScreenPath) return;
+    lastScreenPath = path;
+    track(EVENTS.SCREEN_VIEW, { path });
+  } catch { /* rule 1 */ }
+}
+
+/**
+ * Record how long this visit has lasted, at the moment of leaving.
+ *
+ * ⚠ EMITS ON EVERY BACKGROUNDING, NOT ONCE AT THE END — and the duration is
+ * always measured FROM THE START OF THE SESSION, never since the last emit.
+ *
+ * There is often no "end" to wait for: a mobile browser can discard a tab
+ * without firing anything further, so a single row written at a true end
+ * would simply be missing for most real sessions. Writing a cumulative figure
+ * each time the app is backgrounded means the LAST row to survive is still
+ * correct, whatever else was lost.
+ *
+ * The reader therefore takes MAX(duration_s) per session_id. SUM would
+ * multiply every session by how often the user switched apps — a number that
+ * looks plausible and is wildly wrong. This is documented in the A2 migration
+ * as well, because it is the one place this data invites a wrong query.
+ */
+function trackSessionEnd() {
+  try {
+    const seconds = Math.round((Date.now() - sessionStartedAt()) / 1000);
+    if (seconds < 1) return;              // a bounce is not a duration
+    track(EVENTS.SESSION_END, { duration_s: seconds });
+  } catch { /* rule 1 */ }
+}
+
+/**
+ * Report a crash. Called by ErrorBoundary.
+ *
+ * ⚠ `message` IS THE ONE PIECE OF FREE TEXT THIS MODULE SENDS, and it is
+ * permitted because an error message is written by the code, not typed by the
+ * user — rule 3 exists to keep out what PEOPLE write. It is truncated anyway,
+ * because a message can interpolate values and a bounded field cannot become
+ * an accidental data dump.
+ *
+ * Without this, a crash is invisible: the user sees "something went wrong",
+ * closes the app, and nothing anywhere records that it happened.
+ */
+export function trackError(error, screenPath) {
+  try {
+    track(EVENTS.ERROR, {
+      name:    String(error?.name || 'Error').slice(0, 60),
+      message: String(error?.message || '').slice(0, 200),
+      screen:  normaliseScreenPath(screenPath ?? currentHashPath()),
+    });
+  } catch { /* rule 1 — an error while reporting an error must stay silent */ }
+}
+
+/** The app is a HashRouter, so the route lives after the '#'. */
+function currentHashPath() {
+  try {
+    return (window.location.hash || '').replace(/^#/, '') || '/';
+  } catch {
+    return '/';
   }
 }
 
@@ -385,10 +559,24 @@ export async function initAnalytics() {
 
   try {
     document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState !== 'visible') return;
+      if (document.visibilityState !== 'visible') {
+        // Leaving. Record the length so far — there may be no later chance.
+        trackSessionEnd();
+        return;
+      }
       if (Date.now() - lastOpenAt < IDLE_WINDOW_MS) return;
+      // Back after the idle window: a genuinely new visit, so a new session
+      // id as well. Minted BEFORE the open ping so that ping belongs to the
+      // session it starts rather than to the one that just ended.
+      startNewSession();
       pingOpen('resume');
     });
+
+    // pagehide catches the closes visibilitychange misses — notably iOS
+    // Safari discarding a tab, and bfcache navigations. Both fire in the
+    // ordinary close path, and the duplicate is harmless because the reader
+    // takes MAX(duration_s) per session.
+    window.addEventListener('pagehide', trackSessionEnd);
   } catch { /* rule 1 */ }
 }
 
@@ -398,4 +586,7 @@ export function __resetAnalyticsForTests() {
   lastOpenAt = 0;
   currentUserId = null;
   memoryDeviceId = null;
+  memorySessionId = null;
+  memorySessionAt = 0;
+  lastScreenPath = null;
 }

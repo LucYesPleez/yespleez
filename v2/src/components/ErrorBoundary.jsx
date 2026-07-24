@@ -1,4 +1,5 @@
 import { Component } from 'react';
+import { trackError } from '../lib/analytics';
 
 export default class ErrorBoundary extends Component {
   constructor(props) {
@@ -12,6 +13,15 @@ export default class ErrorBoundary extends Component {
 
   componentDidCatch(error, info) {
     console.error('[YesPleez]', error, info);
+
+    // A2 · a crash nobody reports is the quietest way to lose a user: they
+    // see "something went wrong", close the app, and no record of it exists
+    // anywhere. This is the only place the app learns it broke in the wild.
+    //
+    // trackError never throws (analytics rule 1), which matters more here
+    // than anywhere else — a failure inside the crash handler would replace
+    // a recoverable error screen with a blank page.
+    trackError(error);
   }
 
   render() {
