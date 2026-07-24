@@ -1,18 +1,32 @@
 {
+  "id": "/",
   "name": "YesPleez",
   "short_name": "YesPleez",
   "description": "The scene in your hands",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#0a0a0f",
   "theme_color": "#0a0a0f",
   "orientation": "portrait",
   "icons": [
     {
-      "src": "/apple-touch-icon.png",
+      "src": "/icon-192.png",
       "type": "image/png",
-      "sizes": "any",
-      "purpose": "any maskable"
+      "sizes": "192x192",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-maskable-512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "maskable"
     }
   ]
 }
