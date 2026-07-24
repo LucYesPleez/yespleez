@@ -5,6 +5,7 @@ import { decodeWave, toDisplayWave } from '../lib/voiceWave';
 import { timeOf } from '../lib/clock';
 import { claimAudio, finishAudio, releaseAudio, SHORT } from '../lib/mediaSession';
 import { playedAt } from '../lib/waveColour';
+import { fractionFromPointer, seekTarget, stepFraction, ARROW_STEP } from '../lib/voiceScrub';
 import EqReceipt from './EqReceipt';
 
 /**
@@ -206,6 +207,9 @@ export default function VoiceMessage({ message, receipt = null }) {
   // The frame loop writes fills here directly; React owns everything else
   // about these nodes.
   const barsRef    = useRef([]);
+  // The scrub surface (for its bounding rect) and the drag's own bookkeeping.
+  const surfaceRef   = useRef(null);
+  const scrubbingRef = useRef(false);   // a drag is in progress — the frame loop yields the paint
   const [url,      setUrl]      = useState(null);
   const [loading,  setLoading]  = useState(false);
   const [error,    setError]    = useState(null);
@@ -298,7 +302,10 @@ export default function VoiceMessage({ message, receipt = null }) {
     let frame;
     const tick = () => {
       const el = audioRef.current;
-      if (el && !el.paused && el.duration > 0) {
+      // While a drag owns the playhead the scrub handlers paint; the loop keeps
+      // spinning so it takes back over the instant the finger lifts, but it must
+      // not fight the finger for the same bars in between.
+      if (!scrubbingRef.current && el && !el.paused && el.duration > 0) {
         // WRITTEN STRAIGHT TO THE DOM, NOT THROUGH STATE.
         //
         // setPosition here re-rendered the whole component every frame, which
@@ -353,6 +360,98 @@ export default function VoiceMessage({ message, receipt = null }) {
     }
     setUrl(signed);
     return signed;
+  }
+
+  /**
+   * SCRUBBING — drag the playhead anywhere on the waveform.
+   *
+   * The visual is the same paintBars() the frame loop uses, so a scrubbed
+   * position and a played one are drawn by one function and can never disagree.
+   * currentTime is set live while the audio is loaded (the common case — you
+   * scrub during or after playing), so scrubbing WHILE playing follows the
+   * finger audibly. Before the first play there is no element duration yet, so
+   * the drag moves the playhead visually and commitSeek loads-then-seeks on
+   * release.
+   */
+  function currentDuration() {
+    const d = audioRef.current?.duration;
+    return Number.isFinite(d) && d > 0 ? d : (storedMs / 1000);
+  }
+
+  /** Paint + readout for a fraction, and seek live if the audio is loaded. */
+  function scrubTo(fraction) {
+    const el = audioRef.current;
+    const t = seekTarget(fraction, currentDuration());
+    if (el && Number.isFinite(el.duration) && el.duration > 0) el.currentTime = t;
+    paintBars(fraction);
+    setPosition(t);
+  }
+
+  /** Land the drag: ensure the audio is loaded, seek, and resume if it was playing. */
+  async function commitSeek(fraction, resume) {
+    const el = audioRef.current;
+    if (!el) return;
+
+    if (Number.isFinite(el.duration) && el.duration > 0) {
+      el.currentTime = seekTarget(fraction, el.duration);
+      if (resume && el.paused) { claimAudio(sessionRef.current); try { await el.play(); } catch { /* AbortError etc. */ } }
+      return;
+    }
+
+    // Never played: load, then seek once the length is known.
+    const src = await ensureUrl();
+    if (!src) return;
+    if (el.src !== src) el.src = src;
+    const applyOnce = () => {
+      el.currentTime = seekTarget(fraction, el.duration || (storedMs / 1000));
+      if (resume) { claimAudio(sessionRef.current); el.play().catch(() => { /* policy/decode */ }); }
+    };
+    if (el.readyState >= 1) applyOnce();
+    else el.addEventListener('loadedmetadata', applyOnce, { once: true });
+  }
+
+  function onScrubDown(e) {
+    e.stopPropagation();                       // the bubble is a button (tap-to-reveal)
+    scrubbingRef.current = true;
+    setFinished(false);
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* older engines */ }
+    scrubTo(fractionFromPointer(e.clientX, surfaceRef.current?.getBoundingClientRect()));
+  }
+
+  function onScrubMove(e) {
+    if (!scrubbingRef.current) return;
+    scrubTo(fractionFromPointer(e.clientX, surfaceRef.current?.getBoundingClientRect()));
+  }
+
+  async function onScrubUp(e) {
+    if (!scrubbingRef.current) return;
+    scrubbingRef.current = false;
+    try { e.currentTarget.releasePointerCapture(e.pointerId); } catch { /* already released */ }
+    const frac = fractionFromPointer(e.clientX, surfaceRef.current?.getBoundingClientRect());
+    await commitSeek(frac, playing);
+  }
+
+  /** Double-tap the waveform → back to the start, WhatsApp-style. */
+  function onScrubDoubleClick(e) {
+    e.stopPropagation();
+    void commitSeek(0, playing);
+    paintBars(0);
+    setPosition(0);
+    setFinished(false);
+  }
+
+  function onScrubKey(e) {
+    let frac = null;
+    if (e.key === 'ArrowRight')     frac = stepFraction(progress, ARROW_STEP);
+    else if (e.key === 'ArrowLeft') frac = stepFraction(progress, -ARROW_STEP);
+    else if (e.key === 'Home')      frac = 0;
+    else if (e.key === 'End')       frac = 1;
+    else return;
+    e.preventDefault();
+    e.stopPropagation();
+    void commitSeek(frac, playing);
+    paintBars(frac);
+    setPosition(seekTarget(frac, currentDuration()));
   }
 
   async function toggle(e) {
@@ -509,13 +608,36 @@ export default function VoiceMessage({ message, receipt = null }) {
             Notes recorded before M9f have no peaks and never will (they cannot
             be retrofitted without re-downloading every one), so the plain bar
             is a permanent state rather than a loading one. */}
-        {bars ? (
-          <Waveform bars={bars} settle={!playing} register={registerBar} />
-        ) : (
-          <div style={{ height: 3, borderRadius: 999, background: REST_CSS, overflow: 'hidden' }}>
-            <div style={{ width: `${progress * 100}%`, height: '100%', background: PLAYED_CSS, borderRadius: 999 }} />
-          </div>
-        )}
+        {/* THE SCRUB SURFACE. A slider by role now, not decoration — so it
+            carries the pointer/keyboard seek and its own a11y. The vertical
+            padding enlarges the touch target without moving anything (the
+            negative margin gives the space back to layout). `touchAction:none`
+            stops the browser claiming the drag as a scroll gesture — without it
+            a horizontal scrub on a touch screen would fight the thread. */}
+        <div
+          ref={surfaceRef}
+          role="slider"
+          tabIndex={0}
+          aria-label="Seek voice message"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={Math.round(progress * 100)}
+          onPointerDown={onScrubDown}
+          onPointerMove={onScrubMove}
+          onPointerUp={onScrubUp}
+          onPointerCancel={onScrubUp}
+          onDoubleClick={onScrubDoubleClick}
+          onKeyDown={onScrubKey}
+          style={{ cursor: 'pointer', touchAction: 'none', outline: 'none', padding: '5px 0', margin: '-5px 0' }}
+        >
+          {bars ? (
+            <Waveform bars={bars} settle={!playing} register={registerBar} />
+          ) : (
+            <div style={{ height: 3, borderRadius: 999, background: REST_CSS, overflow: 'hidden' }}>
+              <div style={{ width: `${progress * 100}%`, height: '100%', background: PLAYED_CSS, borderRadius: 999 }} />
+            </div>
+          )}
+        </div>
         {/* LENGTH LEFT, CLOCK RIGHT, ONE LINE.
             The bubble stands down from drawing the timestamp for this kind
             (KIND_SHAPE.ownsTimestamp) — otherwise the clock landed on a second
