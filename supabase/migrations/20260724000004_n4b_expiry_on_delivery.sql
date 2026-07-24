@@ -266,14 +266,19 @@ COMMENT ON FUNCTION public.deliver_held_notifications(uuid, uuid) IS
 
 DO $v1$
 DECLARE
+  -- ⚠ ID TYPES ARE NOT UNIFORM IN THIS SCHEMA. Audited against live data
+  -- rather than assumed, because two migrations in a row have now failed on
+  -- exactly this:
+  --   profiles.id, events.id, notifications.id, profiles.user_id → uuid
+  --   venue_enquiries.id, profile_claim_requests.id              → bigint
   test_user    uuid;
   test_profile uuid;
   past_event   uuid;
   future_event uuid;
-  n_follow     bigint;
-  n_stale      bigint;
-  n_future     bigint;
-  n_delivered  bigint;
+  n_follow     uuid;      -- notifications.id is uuid, not bigint
+  n_stale      uuid;
+  n_future     uuid;
+  n_delivered  uuid;
   delivered_ct integer;
   swept        integer;
   c            record;
