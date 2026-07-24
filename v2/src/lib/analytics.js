@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { SUBURB_MAP } from './auLocations';
 
 /**
  * PRODUCT ANALYTICS — the one place a usage event is recorded.
@@ -67,7 +68,16 @@ export const EVENTS = Object.freeze({
   SCREEN_VIEW:              'screen_view',
   SESSION_END:              'session_end',
   ERROR:                    'error',
+  // A3 — what people ASK the scene for. The demand half of Scene Pulse.
+  FILTERED:                 'filtered',
 });
+
+/**
+ * The surfaces where demand gets expressed. A closed vocabulary, like
+ * DISPLAY_MODES — a typo here would silently split one surface's numbers in
+ * two, and both halves would look plausible.
+ */
+export const SURFACES = Object.freeze(['whats_on', 'discover']);
 
 /**
  * Every value displayMode() and platform() can return.
@@ -251,6 +261,43 @@ export function normaliseScreenPath(pathname) {
     .filter(Boolean)
     .map(seg => (UUID_RE.test(seg) || /^\d+$/.test(seg)) ? ':id' : seg);
   return '/' + segs.join('/');
+}
+
+/**
+ * A typed location reduced to a POSTCODE FROM A CLOSED VOCABULARY, or null.
+ *
+ * ⚠ THIS IS THE SECOND PRIVACY CONTROL, and it works the same way as
+ * normaliseScreenPath: the raw string never leaves the device. Both location
+ * inputs in this app are free text ("City, suburb or postcode"), so whatever
+ * someone types — a street, a venue, a person's name, a mistake — would
+ * otherwise be posted verbatim to an analytics table. Resolving against
+ * SUBURB_MAP means only a value the app already knew can ever be sent.
+ *
+ * Postcode granularity is the INTENT, not a compromise: the Scene Pulse
+ * example in the vision doc is town-level ("demand for techno in Coffs"). It
+ * is a facet the user typed into a filter, not device geolocation — which
+ * stays forbidden.
+ *
+ * Resolution is deliberately EXACT-MATCH ONLY, unlike the search path's
+ * resolveLocationToPostcodes(), which also does prefix matching. Prefix
+ * matching is right for "show me results while I type"; it is wrong here,
+ * because "co" would resolve to hundreds of unrelated suburbs and pin a
+ * confident region onto a half-typed word. An unresolved input is recorded as
+ * a flag, never a guess — see trackFiltered.
+ *
+ * Multi-postcode suburbs collapse to their LOWEST code, which is arbitrary
+ * but deterministic; the alternative, whichever key enumerated first, would
+ * make the same input land in different regions across builds.
+ */
+export function normaliseRegion(input) {
+  try {
+    const t = String(input ?? '').trim().toLowerCase();
+    if (!t) return null;
+    if (/^\d{4}$/.test(t)) return t;            // already a postcode
+    const codes = SUBURB_MAP[t];                // EXACT match only
+    if (Array.isArray(codes) && codes.length) return [...codes].sort()[0];
+  } catch { /* rule 1 */ }
+  return null;                                  // never the raw text
 }
 
 /**
@@ -455,6 +502,105 @@ export function trackError(error, screenPath) {
   } catch { /* rule 1 — an error while reporting an error must stay silent */ }
 }
 
+let lastFilterSignature = null;
+
+/**
+ * Record an expression of DEMAND — the half of Scene Pulse that cannot be
+ * reconstructed later.
+ *
+ * Supply is always countable after the fact; it is the events table. Demand
+ * is not: nobody can work out next year that eleven people looked for techno
+ * in Coffs this week. That asymmetry is the whole reason this ships before
+ * the deploy rather than after.
+ *
+ * ── THIS FUNCTION TAKES RAW VALUES ON PURPOSE ────────────────────────
+ *
+ * Callers hand over the actual `query` string and the actual typed location,
+ * and NEITHER is ever sent. The query becomes `has_query: true`; the location
+ * is resolved against a closed vocabulary or dropped. The API is shaped this
+ * way so that a screen CANNOT leak by forgetting to sanitise — there is no
+ * parameter through which raw text could reach the row even if a call site
+ * wanted it to. Sanitising at the caller would put that guarantee in seven
+ * places instead of one.
+ *
+ * ── `_intent` PROPS ──────────────────────────────────────────────────
+ *
+ * `dateIntent`, `nearMeIntent` and `regionIntent` are filters the UI collects
+ * but does not currently apply to any query (see the A3 migration for the
+ * full list). They are recorded because the ASK is real demand and is just as
+ * unbackfillable as the rest — but under distinct names, because writing them
+ * as ordinary facets would make the row assert that `results` was filtered by
+ * something that never touched it. When those filters start working, move the
+ * value to the plain key rather than redefining this one.
+ *
+ * @param {object} o
+ * @param {string} o.surface      one of SURFACES
+ * @param {string} [o.query]      RAW search text — becomes has_query, never sent
+ * @param {string} [o.location]   RAW typed location — normalised or dropped
+ * @param {number} [o.results]    how many results the user was shown
+ */
+export function trackFiltered({
+  surface, query, type, genre, category, state, location,
+  dateIntent, nearMeIntent, regionIntent, results,
+} = {}) {
+  try {
+    if (!SURFACES.includes(surface)) {
+      if (import.meta.env?.DEV) console.warn('[analytics] unknown filter surface, not sent:', surface);
+      return;
+    }
+
+    // Facets come from closed lists in the screens (TYPE_OPTIONS, CATEGORIES,
+    // STATE_OPTIONS, GENRE_BY_TYPE), so they are already safe. The length cap
+    // is a backstop against a future refactor routing free text through one of
+    // them by accident — a silent leak is worth one cheap guard.
+    const facet = v => {
+      const s = typeof v === 'string' ? v.trim() : '';
+      return s && s.length <= 64 ? s : null;
+    };
+
+    const props = { surface };
+
+    // The search box: THAT it was used, never what it said.
+    if (typeof query === 'string' && query.trim()) props.has_query = true;
+
+    const applied = { type: facet(type), genre: facet(genre), category: facet(category), state: facet(state) };
+    for (const [k, v] of Object.entries(applied)) if (v) props[k] = v;
+
+    if (typeof location === 'string' && location.trim()) {
+      const region = normaliseRegion(location);
+      // A location the app could not resolve is a gap in SUBURB_MAP worth
+      // knowing about — but the flag is all that is recorded, never the text.
+      if (region) props.region = region;
+      else props.region_unresolved = true;
+    }
+
+    if (facet(dateIntent))    props.date_intent    = facet(dateIntent);
+    if (facet(regionIntent))  props.region_intent  = normaliseRegion(regionIntent) || 'unresolved';
+    if (nearMeIntent)         props.near_me_intent = true;
+
+    if (Number.isFinite(results)) props.results = results;
+
+    // A filter row with no facet at all is the unfiltered default view, which
+    // every visitor sees without asking for anything. Recording it would bury
+    // real demand under noise.
+    const expressedSomething = props.has_query || props.type || props.genre
+      || props.category || props.state || props.region || props.region_unresolved
+      || props.date_intent || props.region_intent || props.near_me_intent;
+    if (!expressedSomething) return;
+
+    // Consecutive-duplicate guard, same reasoning as trackScreenView: a
+    // remount or a StrictMode double-invoke would otherwise inflate demand for
+    // whatever was on screen at the time. `results` is excluded from the
+    // signature — the same ask returning a different count is still one ask.
+    const { results: _ignored, ...signatureProps } = props;
+    const signature = JSON.stringify(signatureProps);
+    if (signature === lastFilterSignature) return;
+    lastFilterSignature = signature;
+
+    track(EVENTS.FILTERED, props);
+  } catch { /* rule 1 */ }
+}
+
 /** The app is a HashRouter, so the route lives after the '#'. */
 function currentHashPath() {
   try {
@@ -589,4 +735,5 @@ export function __resetAnalyticsForTests() {
   memorySessionId = null;
   memorySessionAt = 0;
   lastScreenPath = null;
+  lastFilterSignature = null;
 }

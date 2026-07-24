@@ -27,18 +27,35 @@
  */
 import { test, beforeEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const MIGRATIONS = join(HERE, '../../../supabase/migrations');
 
-// A1 created the table (display_mode / platform allow-lists live there).
-// A2 REPLACED the name allow-list, so the authoritative list of event names
-// is A2's — reading A1 for it would pass while missing every A2 event.
-const A1 = join(MIGRATIONS, '20260724000001_a1_usage_events.sql');
-const A2 = join(MIGRATIONS, '20260724000005_a2_sessions_and_screens.sql');
+/**
+ * The migration that CURRENTLY defines a column's allow-list.
+ *
+ * ⚠ RESOLVED BY SCANNING, NOT HARDCODED, AND THAT IS THE POINT. A1 created
+ * every allow-list; A2 replaced the one for `name`; A3 replaced it again. Each
+ * time, a test pinned to the old file keeps passing while silently checking a
+ * constraint the database no longer has — which is the precise failure this
+ * whole contract exists to prevent, reproduced inside its own test.
+ *
+ * Filenames are timestamp-prefixed, so lexicographic order is chronological
+ * and the LAST file redefining a column is the live definition.
+ */
+function migrationDefining(column) {
+  const needle = `CHECK (${column} IN (`;
+  const hits = readdirSync(MIGRATIONS)
+    .filter(f => f.endsWith('.sql'))
+    .sort()
+    .filter(f => readFileSync(join(MIGRATIONS, f), 'utf8').includes(needle));
+
+  assert.ok(hits.length, `no migration defines CHECK (${column} IN (…))`);
+  return join(MIGRATIONS, hits.at(-1));
+}
 
 const PROFILE = '11111111-1111-1111-1111-111111111111';
 const CONV    = '33333333-3333-3333-3333-333333333333';
@@ -85,6 +102,7 @@ const {
   track, EVENTS, DISPLAY_MODES, PLATFORMS,
   displayMode, platform, newUuid, deviceId,
   sessionId, normaliseScreenPath, trackScreenView, trackError,
+  trackFiltered, normaliseRegion, SURFACES,
   __resetAnalyticsForTests,
 } = await import('./analytics.js');
 const { sendMessage } = await import('./messaging.js');
@@ -100,8 +118,9 @@ beforeEach(() => {
 /** The usage_events rows written, ignoring everything else. */
 const pings = () => inserted.filter(i => i.table === 'usage_events').map(i => i.row);
 
-/** Pull the quoted literals out of one `CHECK (<col> IN ( … ))` in a migration. */
-function checkValues(column, file) {
+/** Pull the quoted literals out of the LIVE `CHECK (<col> IN ( … ))`. */
+function checkValues(column) {
+  const file  = migrationDefining(column);
   const sql   = readFileSync(file, 'utf8');
   const start = sql.indexOf(`CHECK (${column} IN (`);
   assert.notEqual(start, -1, `no CHECK (${column} IN (…)) found in ${file}`);
@@ -116,20 +135,20 @@ function checkValues(column, file) {
 // at runtime: Postgres rejects the row, track() ignores the rejection by
 // design, and the chart reads zero while the app looks perfectly healthy.
 
-test('every event name the client can send is accepted by the A2 CHECK', () => {
-  const allowed = checkValues('name', A2);
+test('every event name the client can send is accepted by the live CHECK', () => {
+  const allowed = checkValues('name');
   for (const name of Object.values(EVENTS)) {
     assert.ok(
       allowed.includes(name),
-      `EVENTS has '${name}' but the CHECK in the A2 migration does not. ` +
-      'Every row carrying it will be rejected and the metric will read zero ' +
-      'forever. Add it to the migration and apply it.',
+      `EVENTS has '${name}' but the newest migration defining the name ` +
+      'allow-list does not. Every row carrying it will be rejected and the ' +
+      'metric will read zero forever. Add it to a migration and apply it.',
     );
   }
 });
 
-test('the A2 CHECK lists no event name the client cannot send', () => {
-  const allowed = checkValues('name', A2);
+test('the live CHECK lists no event name the client cannot send', () => {
+  const allowed = checkValues('name');
   const known   = Object.values(EVENTS);
   for (const name of allowed) {
     assert.ok(
@@ -141,7 +160,7 @@ test('the A2 CHECK lists no event name the client cannot send', () => {
 });
 
 test('every display_mode the client can produce is accepted by the A1 CHECK', () => {
-  const allowed = checkValues('display_mode', A1);
+  const allowed = checkValues('display_mode');
   assert.deepEqual(
     [...DISPLAY_MODES].sort(), [...allowed].sort(),
     'DISPLAY_MODES and the migration CHECK must agree exactly — a mode this ' +
@@ -151,8 +170,21 @@ test('every display_mode the client can produce is accepted by the A1 CHECK', ()
 });
 
 test('every platform the client can produce is accepted by the A1 CHECK', () => {
-  const allowed = checkValues('platform', A1);
+  const allowed = checkValues('platform');
   assert.deepEqual([...PLATFORMS].sort(), [...allowed].sort());
+});
+
+test('the name allow-list is read from the NEWEST migration that redefines it', () => {
+  // Guards the scanner itself. If this ever resolves back to A1 or A2, the
+  // contract tests above would be checking a constraint the database has not
+  // had since A3 — passing while proving nothing.
+  const file = migrationDefining('name');
+  assert.ok(
+    file.endsWith('20260725000000_a3_demand_signals.sql'),
+    `expected the live name allow-list to come from A3, got ${file}. If a ` +
+    'later migration redefines it, update this expectation — but do not ' +
+    'pin the contract tests to a fixed file.',
+  );
 });
 
 // ── 2 · THE `.select()` TRAP ─────────────────────────────────────────
@@ -381,4 +413,134 @@ test('reporting an error never throws — the crash handler must not crash', () 
   explode = true;
   assert.doesNotThrow(() => trackError(new Error('boom'), '/discover'));
   assert.doesNotThrow(() => trackError(null, null));
+});
+
+// ── 7 · A3 · DEMAND SIGNALS ──────────────────────────────────────────
+//
+// Two of these are PRIVACY CONTROLS, not correctness checks. A regression in
+// them is not a wrong number that someone eventually notices on a dashboard —
+// it is free text people typed being posted to a table, silently, on every
+// keystroke. They are marked ⚠ for that reason.
+
+test('⚠ PRIVACY: the typed search query is NEVER sent, only that one existed', () => {
+  trackFiltered({
+    surface: 'discover',
+    query: 'my ex girlfriends band',
+    genre: 'Techno',
+    results: 3,
+  });
+
+  const row = pings().at(-1);
+  assert.equal(row.name, EVENTS.FILTERED);
+  assert.equal(row.props.has_query, true, 'the fact of a search is the signal');
+
+  const sent = JSON.stringify(row);
+  for (const fragment of ['girlfriend', 'my ex', 'band']) {
+    assert.equal(
+      sent.toLowerCase().includes(fragment), false,
+      `'${fragment}' reached the payload. A search box is where people type ` +
+      'things they would not post; vision doc §8 puts typed search text in ' +
+      'the Never list. Send has_query, never the text.',
+    );
+  }
+});
+
+test('⚠ PRIVACY: an unresolvable location is flagged, never sent as text', () => {
+  trackFiltered({ surface: 'discover', location: "42 Nowhere St, Jenny's place", results: 0 });
+
+  const row = pings().at(-1);
+  assert.equal(row.props.region_unresolved, true);
+  assert.equal(row.props.region, undefined, 'nothing may be guessed from an unresolved input');
+
+  const sent = JSON.stringify(row).toLowerCase();
+  for (const fragment of ['nowhere', 'jenny', '42 ']) {
+    assert.equal(sent.includes(fragment), false,
+      `'${fragment}' leaked — the location box is free text and must be ` +
+      'resolved against a closed vocabulary or dropped entirely');
+  }
+});
+
+test('a known suburb resolves to its postcode, and a postcode passes through', () => {
+  // Coffs is the vision doc's own worked example; Bellingen is the first
+  // venue client. Both must land as regions Scene Pulse can group by.
+  assert.equal(normaliseRegion('Coffs Harbour'), '2450');
+  assert.equal(normaliseRegion('  bellingen '), '2454');
+  assert.equal(normaliseRegion('2450'), '2450');
+});
+
+test('a half-typed location resolves to nothing rather than a confident guess', () => {
+  // The search path does prefix matching, which is right while typing and
+  // wrong here: 'co' would pin a region onto an unfinished word and Scene
+  // Pulse would report demand in a town nobody named.
+  assert.equal(normaliseRegion('co'), null);
+  assert.equal(normaliseRegion(''), null);
+  assert.equal(normaliseRegion(null), null);
+});
+
+test('an unknown surface is dropped before it reaches the network', () => {
+  assert.equal(SURFACES.includes('sidebar'), false, 'fixture must be a non-member');
+  trackFiltered({ surface: 'sidebar', genre: 'Techno' });
+  assert.equal(pings().length, 0,
+    'a surface typo would split one surface\'s numbers in two, both plausible');
+});
+
+test('both surfaces the app actually uses are members of SURFACES', () => {
+  // The screens pass string literals ('discover', 'whats_on'). If either is
+  // renamed here without the call site following, trackFiltered silently
+  // drops every demand row from that screen — no error, just a surface that
+  // stops appearing in Scene Pulse.
+  for (const surface of ['discover', 'whats_on']) {
+    trackFiltered({ surface, genre: 'Techno' });
+  }
+  assert.deepEqual(pings().map(p => p.props.surface), ['discover', 'whats_on']);
+});
+
+test('the unfiltered default view records nothing', () => {
+  trackFiltered({ surface: 'whats_on', category: null, results: 40 });
+  assert.equal(pings().length, 0,
+    'every visitor sees the default view without asking for anything; ' +
+    'recording it would bury real demand under noise');
+});
+
+test('filters the UI collects but never applies are recorded as intent', () => {
+  // dateFilter/nearMe shape nothing behind `results`. Recorded under distinct
+  // keys so a reader cannot mistake them for applied filters, but recorded —
+  // the ask is real demand and is exactly as unbackfillable as the rest.
+  trackFiltered({
+    surface: 'discover', genre: 'Techno',
+    dateIntent: 'weekend', nearMeIntent: true, results: 5,
+  });
+
+  const p = pings().at(-1).props;
+  assert.equal(p.date_intent, 'weekend');
+  assert.equal(p.near_me_intent, true);
+  assert.equal(p.date, undefined,
+    'writing the plain key would assert that results was filtered by date, ' +
+    'which nothing does — see the A3 migration');
+  assert.equal(p.genre, 'Techno', 'genre IS applied, so it keeps the plain key');
+});
+
+test('the same ask twice in a row is one demand signal, not two', () => {
+  trackFiltered({ surface: 'discover', genre: 'Techno', results: 3 });
+  trackFiltered({ surface: 'discover', genre: 'Techno', results: 3 });
+  assert.equal(pings().length, 1,
+    'a remount or StrictMode double-invoke would otherwise inflate demand ' +
+    'for whatever happened to be on screen');
+
+  trackFiltered({ surface: 'discover', genre: 'House', results: 1 });
+  assert.equal(pings().length, 2, 'a genuinely different ask still records');
+});
+
+test('a changed result count alone does not re-record the same ask', () => {
+  trackFiltered({ surface: 'discover', genre: 'Techno', results: 3 });
+  trackFiltered({ surface: 'discover', genre: 'Techno', results: 9 });
+  assert.equal(pings().length, 1,
+    'the same ask returning a different count is still one ask — results is ' +
+    'deliberately outside the dedup signature');
+});
+
+test('recording demand never throws', () => {
+  explode = true;
+  assert.doesNotThrow(() => trackFiltered({ surface: 'discover', genre: 'Techno' }));
+  assert.doesNotThrow(() => trackFiltered());
 });

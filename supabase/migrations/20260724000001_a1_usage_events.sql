@@ -1,7 +1,11 @@
 -- ============================================================
 -- A1 · USAGE EVENTS — the analytics ingest table
 --
--- ⚠ NOT APPLIED. Run this by hand in the SQL editor.
+-- ✅ APPLIED 2026-07-24 and verified live (insert 201, anon read 42501).
+--    ⚠ The `name` CHECK here was REPLACED by A2
+--    (20260724000005_a2_sessions_and_screens.sql) — the live allow-list is
+--    `usage_events_name_check` and includes screen_view/session_end/error.
+--    This file's list is the A1-era history, not current truth.
 --
 -- ⚠ "EVENT" HERE MEANS AN ANALYTICS EVENT, NOT A GIG. `public.events` is
 -- the gig table and is unrelated to this one. A row here records that

@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useEvents } from '../lib/useEvents';
 import { supabase } from '../lib/supabase';
 import { getPersonalProfileId } from '../lib/actingProfile';
-import { track, EVENTS } from '../lib/analytics';
+import { track, EVENTS, trackFiltered } from '../lib/analytics';
 import { useSession } from '../App';
 import { today, dateStr, weekendRange, formatDisplayDate } from '../lib/dates';
 import { getDemoEvents } from '../lib/demoEvents';
@@ -291,6 +291,35 @@ export default function WhatsOnScreen() {
     // this section, it has to enforce its own upper bound.
     return d && d !== todayIso && d <= dateStr(14) && !weekendDates.has(d) && matchesCategory(ev, category);
   }).sort((a, b) => (a.config?.date || '').localeCompare(b.config?.date || '')), [events, weekendDates, todayIso, category]);
+
+  // A3 · DEMAND, from the highest-traffic surface in the app.
+  //
+  // Debounced because the postcode box fires per keystroke; the category chips
+  // are instant but share the timer so a chip tap plus a typed postcode record
+  // as ONE ask rather than two.
+  //
+  // ⚠ THE COUNT DELIBERATELY EXCLUDES DEMO EVENTS. `events` is realEvents plus
+  // getDemoEvents(), which is right for the UI — an empty scene should not look
+  // dead — and wrong for this. Scene Pulse compares demand against SUPPLY to
+  // decide what to import, and a demo event is not supply. Counting them would
+  // report "techno in Coffs: 5 events" where there is one real one, which
+  // silently destroys the exact signal this table exists to produce.
+  //
+  // postcode/radius are recorded as INTENT: this screen filters on category
+  // alone, so they shape nothing behind `results`. See the A3 migration.
+  useEffect(() => {
+    if (loading) return;                   // a count taken mid-fetch is a lie
+    const t = setTimeout(() => {
+      const real = realEvents.filter(ev => matchesCategory(ev, category));
+      trackFiltered({
+        surface: 'whats_on',
+        category: category === 'ALL' ? null : category,
+        regionIntent: postcode,
+        results: real.length,
+      });
+    }, 400);
+    return () => clearTimeout(t);
+  }, [category, postcode, loading, realEvents]);
 
   // Weekend date range label
   const weekendLabel = useMemo(() => {

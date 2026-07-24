@@ -11,6 +11,7 @@ import s from './DiscoverScreen.module.css';
 import { resolveLocationToPostcodes, suggestLocations } from '../lib/auLocations';
 import { BAND_GENRES, SHARED_PERFORMANCE_TAGS, ROLE_TAGS } from '../lib/profileTaxonomy';
 import { STATE_OPTIONS } from '../lib/auLocations';
+import { trackFiltered } from '../lib/analytics';
 
 // Venue-first, matching the shared canonical role order (PROFILE_TYPE_ORDER
 // in profileTypes.js). 'event' isn't a profile role, so it stays last.
@@ -141,15 +142,37 @@ export default function DiscoverScreen() {
     if (g) all = all.filter(r => r._kind !== 'profile' || (r.genre_string || '').toLowerCase().includes(g.toLowerCase()));
     setSearchResults(all);
     setSearching(false);
+    // Returned so the caller can record how many results the ask produced —
+    // the count is the whole point of a demand signal ("techno in Coffs:
+    // one event"), and it exists only here.
+    return all.length;
   }, []);
 
   // Debounce search when filters are active
+  //
+  // A3 · this is also the ONE place demand is recorded on this screen. It sits
+  // here rather than inside runSearch because the intent-only filters
+  // (dateFilter, nearMe) never reach runSearch — they are collected by the UI
+  // and applied to nothing — so only this scope sees the complete ask. The
+  // debounce means one row per settled input, not one per keystroke.
+  //
+  // The raw `query` and `postcode` are handed over deliberately: trackFiltered
+  // derives has_query and a closed-vocabulary region from them and sends
+  // neither string. See the note on its API.
   useEffect(() => {
     if (!isFiltered) { setSearchResults(null); return; }
     if (debounce.current) clearTimeout(debounce.current);
-    debounce.current = setTimeout(() => runSearch(query, type, genre, state, postcode), 300);
+    debounce.current = setTimeout(async () => {
+      const results = await runSearch(query, type, genre, state, postcode);
+      trackFiltered({
+        surface: 'discover',
+        query, type, genre, state, location: postcode,
+        dateIntent: dateFilter, nearMeIntent: nearMe,
+        results,
+      });
+    }, 300);
     return () => clearTimeout(debounce.current);
-  }, [query, type, genre, state, postcode, isFiltered, runSearch]);
+  }, [query, type, genre, state, postcode, dateFilter, nearMe, isFiltered, runSearch]);
 
   const loading  = isFiltered ? searching : defaultLoading;
   const items    = isFiltered ? (searchResults || []) : defaultItems;

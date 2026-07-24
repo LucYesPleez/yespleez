@@ -2,7 +2,8 @@
 -- A2 · SESSIONS, SCREEN VIEWS, DURATION AND ERRORS
 -- Requires: 20260724000001_a1_usage_events.sql
 --
--- ⚠ NOT APPLIED. Run this by hand in the SQL editor.
+-- ✅ APPLIED 2026-07-24, verified: the name CHECK is now
+--    `usage_events_name_check` and session_id exists as a nullable uuid.
 -- ============================================================
 --
 -- ── WHY THIS SHIPS BEFORE THE DEPLOY, NOT AFTER ─────────────────
