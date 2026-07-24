@@ -56,6 +56,46 @@
 -- ============================================================
 
 
+-- ── 0 · A SECOND CAST THAT CANNOT ABORT THE RUN ────────────────
+--
+-- ⚠ THIS FIXES A LATENT BUG IN THE APPLIED N4 SWEEP.
+--
+-- N4's enquiry branch compares `ve.id = (n.data->>'enquiry_id')::uuid`, but
+-- venue_enquiries.id is a BIGINT. That is a type error, and it shipped:
+-- plpgsql function bodies are only syntax-checked at creation, so
+-- expire_held_notifications() was created happily and would have raised
+--
+--     operator does not exist: bigint = uuid
+--
+-- the first time it swept with an availability_request held row present —
+-- aborting the entire run for every profile. It has never fired only because
+-- nothing ever called the sweep. Rewriting the predicate in LANGUAGE sql
+-- surfaced it immediately, because that IS type-checked at creation.
+--
+-- Same reasoning as safe_date: a bare ::bigint would raise on any non-numeric
+-- value (a uuid string written by an older client, say) and abort the run.
+-- Unparseable ⇒ NULL ⇒ the row never expires, which is N4's safe direction.
+CREATE OR REPLACE FUNCTION public.safe_bigint(txt text)
+RETURNS bigint
+LANGUAGE plpgsql
+IMMUTABLE
+AS $safeint$
+BEGIN
+  IF txt IS NULL OR btrim(txt) = '' THEN
+    RETURN NULL;
+  END IF;
+  RETURN txt::bigint;
+EXCEPTION WHEN others THEN
+  RETURN NULL;              -- unparseable ⇒ unknown enquiry ⇒ never expires
+END;
+$safeint$;
+
+COMMENT ON FUNCTION public.safe_bigint(text) IS
+  'Parse text to bigint, returning NULL instead of raising. Companion to '
+  'safe_date: notification payloads are free-form JSONB, and a bad id must '
+  'mean "cannot expire this", never "abort the run".';
+
+
 -- ── 1 · THE PREDICATE — the single definition of "stale" ────────
 --
 -- STABLE, not IMMUTABLE: it reads other tables and depends on current_date.
@@ -78,11 +118,13 @@ AS $stale$
                AND public.event_end_date((p_data->>'event_id')::uuid) IS NOT NULL
                AND public.event_end_date((p_data->>'event_id')::uuid) < current_date)
          OR
-            -- enquiry-bound: the requested date has passed
+            -- enquiry-bound: the requested date has passed.
+            -- ⚠ venue_enquiries.id is BIGINT, not uuid — see §0.
             (p.policy = 'enquiry'
+               AND public.safe_bigint(p_data->>'enquiry_id') IS NOT NULL
                AND EXISTS (
                      SELECT 1 FROM public.venue_enquiries ve
-                      WHERE ve.id = (p_data->>'enquiry_id')::uuid
+                      WHERE ve.id = public.safe_bigint(p_data->>'enquiry_id')
                         AND public.safe_date(ve.date_requested::text) IS NOT NULL
                         AND public.safe_date(ve.date_requested::text) < current_date))
            )
@@ -235,6 +277,9 @@ DECLARE
   delivered_ct integer;
   swept        integer;
   c            record;
+  enq_id       bigint;
+  enq_date     date;
+  expected     boolean;
 BEGIN
   SELECT user_id INTO test_user FROM public.profiles WHERE user_id IS NOT NULL LIMIT 1;
   IF test_user IS NULL THEN
@@ -332,6 +377,30 @@ BEGIN
     RAISE EXCEPTION 'V4 FAILED: a second delivery delivered something';
   END IF;
   RAISE NOTICE 'V4 PASSED: re-delivery is a no-op';
+
+  -- ── V4b · THE ENQUIRY BRANCH — the bug this migration found ──
+  -- N4 compared a BIGINT id against a ::uuid cast. Any evaluation of this
+  -- branch raised and aborted the whole sweep. These calls must simply
+  -- return, and must agree with the enquiry's own date.
+  SELECT id, date_requested INTO enq_id, enq_date
+    FROM public.venue_enquiries ORDER BY id LIMIT 1;
+
+  IF enq_id IS NOT NULL THEN
+    expected := (public.safe_date(enq_date::text) IS NOT NULL
+                 AND public.safe_date(enq_date::text) < current_date);
+    IF public.held_notification_is_stale(
+         'availability_request', jsonb_build_object('enquiry_id', enq_id)) <> expected THEN
+      RAISE EXCEPTION 'V4b FAILED: enquiry branch disagreed with the enquiry date (expected %)', expected;
+    END IF;
+  END IF;
+
+  -- A non-numeric id (an older client could have written a uuid) and an id
+  -- with no matching row must both be retained, not raise.
+  IF public.held_notification_is_stale('availability_request', jsonb_build_object('enquiry_id', 'not-a-number'))
+     OR public.held_notification_is_stale('availability_request', jsonb_build_object('enquiry_id', '999999999')) THEN
+    RAISE EXCEPTION 'V4b FAILED: an unresolvable enquiry id was treated as stale';
+  END IF;
+  RAISE NOTICE 'V4b PASSED: enquiry branch evaluates without raising (the bigint/uuid bug is fixed)';
 
   -- ── cleanup ──
   DELETE FROM public.notifications WHERE to_profile_id = test_profile;
