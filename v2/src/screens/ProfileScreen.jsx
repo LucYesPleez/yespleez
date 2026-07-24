@@ -1144,6 +1144,10 @@ export default function ProfileScreen() {
         onClose={() => setClaimOpen(false)}
         profile={profile}
         session={session}
+        // Submission just flipped the row's claim_status to 'pending' via the
+        // database trigger — refetch so the underline link becomes "Claim
+        // under review" (Q7 5.2) without a reload.
+        onSubmitted={() => queryClient.invalidateQueries({ queryKey: ['profile', id] })}
       />
 
       {inviteOpen && venueCtx && (

@@ -77,14 +77,24 @@ test('no app code completes a claim by writing profiles.user_id', () => {
   );
 });
 
-test('the claim path is still the manual review route', () => {
-  // Pairs with the assertion above: it passes trivially if ClaimDialog were
-  // deleted or rewritten, so confirm the manual route is what actually ships.
+test('the dialog submits a REQUEST and keeps the account-free route', () => {
+  // C1 (Phase 4) moved submission in-app: ClaimDialog persists a
+  // profile_claim_requests row and a trigger sets the public pending state.
+  // COMPLETION did not move — approve_profile_claim() is reviewer-only, with
+  // EXECUTE revoked from the app's roles, so the invariant above still holds
+  // and the N3 INVOKER-rights note stays parked.
   const dialog = readFileSync(join(SRC, 'components/ClaimDialog.jsx'), 'utf8');
 
-  assert.match(dialog, /claims@yespleez\.com/, 'the claim route should still be manual review');
+  assert.match(dialog, /submitClaimRequest/,
+    'the primary claim route is the in-app submission (lib/profileClaimRequest.js)');
+
+  // §09 (Ethics, ratified): "claiming is never the price of control over your
+  // own listing" — an account-free contact route must survive the in-app form.
+  assert.match(dialog, /claims@yespleez\.com/,
+    'the account-free manual route must remain alongside the form (§09)');
+
   assert.ok(
     !/\.from\(\s*['"]profiles['"]\s*\)[\s\S]{0,200}\.update\(/.test(dialog),
-    'ClaimDialog must not complete a claim directly',
+    'ClaimDialog must never complete a claim directly',
   );
 });

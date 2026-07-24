@@ -143,6 +143,112 @@
   line-height: 1.5;
 }
 
+/* ── In-app claim form (§07 stage C) ─────────────────────────────── */
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.fieldLabel {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 13px;
+  letter-spacing: 1.5px;
+  color: rgba(255, 255, 255, 0.55);
+  margin-top: 6px;
+}
+
+.select,
+.textarea {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 11px;
+  color: var(--text, #f0f0f0);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  padding: 12px 13px;
+  /* Native controls render light on dark themes without this. */
+  color-scheme: dark;
+}
+.select:focus,
+.textarea:focus {
+  outline: none;
+  border-color: rgba(0, 229, 255, 0.45);
+}
+
+.textarea {
+  resize: vertical;
+  min-height: 96px;
+  line-height: 1.55;
+}
+
+.submitBtn {
+  margin-top: 10px;
+  padding: 13px 0;
+  width: 100%;
+  border: none;
+  border-radius: 12px;
+  background: linear-gradient(90deg, #ff2d78, #00e5ff);
+  color: #0a0a14;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 16px;
+  letter-spacing: 2px;
+  cursor: pointer;
+}
+.submitBtn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.errorMsg {
+  font-size: 12.5px;
+  color: #ff4d6a;
+  line-height: 1.5;
+  margin: 2px 0 0;
+}
+
+.signInNote {
+  font-size: 13px;
+  color: var(--muted, #8a8a96);
+  line-height: 1.65;
+  margin-bottom: 20px;
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+}
+
+/* The account-free routes, demoted beneath the form: same components,
+   quieter introduction. */
+.altHeading {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.3);
+  margin: 4px 0 10px;
+}
+
+/* Submitted / already-pending states */
+.doneBox {
+  text-align: center;
+  padding: 6px 4px 2px;
+}
+.doneMark {
+  font-size: 34px;
+  margin-bottom: 8px;
+}
+.doneTitle {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 19px;
+  letter-spacing: 1.5px;
+  color: #fff;
+  margin-bottom: 8px;
+}
+
 /* Fallback affordance for the silent-mailto case — deliberately quiet, sitting
    between the options and the footer at the same weight as .footer so it reads
    as a hint rather than a third action competing with Instagram and Email. */
