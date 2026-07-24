@@ -142,7 +142,7 @@ RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
-AS $$
+AS $fn$
 BEGIN
   UPDATE public.profiles
      SET claim_status = 'pending'
@@ -150,7 +150,7 @@ BEGIN
      AND user_id IS NULL;
   RETURN NEW;
 END;
-$$;
+$fn$;
 
 DROP TRIGGER IF EXISTS trg_claim_request_pending ON public.profile_claim_requests;
 CREATE TRIGGER trg_claim_request_pending
@@ -170,7 +170,7 @@ CREATE TRIGGER trg_claim_request_pending
 CREATE OR REPLACE FUNCTION public.approve_profile_claim(p_request_id bigint)
 RETURNS void
 LANGUAGE plpgsql
-AS $$
+AS $approve$
 DECLARE
   req public.profile_claim_requests%ROWTYPE;
 BEGIN
@@ -213,12 +213,12 @@ BEGIN
          decision_note = 'Profile was claimed by another account.'
    WHERE profile_id = req.profile_id AND status = 'pending' AND id <> req.id;
 END;
-$$;
+$approve$;
 
 CREATE OR REPLACE FUNCTION public.reject_profile_claim(p_request_id bigint, p_note text DEFAULT NULL)
 RETURNS void
 LANGUAGE plpgsql
-AS $$
+AS $reject$
 DECLARE
   req public.profile_claim_requests%ROWTYPE;
   remaining integer;
@@ -248,7 +248,7 @@ BEGIN
      WHERE id = req.profile_id AND user_id IS NULL;
   END IF;
 END;
-$$;
+$reject$;
 
 -- The enforcement that makes the header's promise true.
 REVOKE EXECUTE ON FUNCTION public.approve_profile_claim(bigint)          FROM PUBLIC, anon, authenticated;
@@ -268,7 +268,7 @@ COMMENT ON FUNCTION public.reject_profile_claim(bigint, text) IS
 -- ============================================================
 
 -- V1 · table, RLS, exactly the two intended policies.
-DO $$
+DO $v1$
 DECLARE n int;
 BEGIN
   IF to_regclass('public.profile_claim_requests') IS NULL THEN
@@ -285,11 +285,11 @@ BEGIN
      AND cmd IN ('UPDATE', 'DELETE');
   IF n <> 0 THEN RAISE EXCEPTION 'V1 FAILED: a claimant could alter a submitted claim'; END IF;
   RAISE NOTICE 'V1 PASSED';
-END $$;
+END $v1$;
 
 -- V2 · grants: authenticated may insert+select only; anon nothing; the
 --      decision functions are NOT callable by app roles.
-DO $$
+DO $v2$
 BEGIN
   IF NOT has_table_privilege('authenticated', 'public.profile_claim_requests', 'INSERT')
      OR NOT has_table_privilege('authenticated', 'public.profile_claim_requests', 'SELECT') THEN
@@ -305,14 +305,14 @@ BEGIN
     RAISE EXCEPTION 'V2 FAILED: an app role can complete a claim — the core invariant is broken';
   END IF;
   RAISE NOTICE 'V2 PASSED: app submits, reviewers decide';
-END $$;
+END $v2$;
 
 -- V3 · END-TO-END ON A THROWAWAY PROFILE. Exercises submit → pending →
 --      reject → unclaimed, then submit → approve → owned + N3 fired, then
 --      cleans up completely. Uses a real user id (FK) but a profile created
 --      and deleted inside this block, so no live profile is touched and the
 --      N3 trigger fires against a profile with no held notifications.
-DO $$
+DO $v3$
 DECLARE
   test_user uuid;
   test_profile uuid;
@@ -385,14 +385,14 @@ BEGIN
   END IF;
 
   RAISE NOTICE 'V3 PASSED: submit → pending → reject → unclaimed → approve → attached, cleaned up';
-END $$;
+END $v3$;
 
 -- V4 · nothing from verification survives.
-DO $$
+DO $v4$
 DECLARE n bigint;
 BEGIN
   SELECT count(*) INTO n FROM public.profiles WHERE name = 'ZZ C1 VERIFICATION THROWAWAY';
   IF n <> 0 THEN RAISE EXCEPTION 'V4 FAILED: throwaway profile still exists'; END IF;
   SELECT count(*) INTO n FROM public.profile_claim_requests;
   RAISE NOTICE 'V4 PASSED: no test debris; % real claim request(s) in the table', n;
-END $$;
+END $v4$;
