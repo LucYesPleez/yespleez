@@ -6,6 +6,7 @@ import { timeOf } from '../lib/clock';
 import { claimAudio, finishAudio, releaseAudio, SHORT } from '../lib/mediaSession';
 import { playedAt } from '../lib/waveColour';
 import { fractionFromPointer, seekTarget, stepFraction, ARROW_STEP } from '../lib/voiceScrub';
+import { nextSpeed, formatSpeed, loadSpeed, saveSpeed } from '../lib/playbackSpeed';
 import EqReceipt from './EqReceipt';
 
 /**
@@ -220,8 +221,37 @@ export default function VoiceMessage({ message, receipt = null }) {
   // play triangle, because replay is play, and the brief rules out adding
   // icons. A screen reader still hears the difference.
   const [finished, setFinished] = useState(false);
+  // Remembered across notes and reloads — a listening pace, not a per-note choice.
+  const [speed,    setSpeed]    = useState(loadSpeed);
 
   const registerBar = useCallback((i, el) => { barsRef.current[i] = el; }, []);
+
+  /**
+   * Apply the playback rate, and KEEP THE PITCH.
+   *
+   * Without preservesPitch a sped-up voice chipmunks and a slowed one drones —
+   * the browser resamples by default. `preservesPitch` is standard now;
+   * `webkitPreservesPitch` covers older Safari. Runs on mount, on every speed
+   * change, and after the element loads (which can reset the rate on some
+   * engines), so the three cannot fall out of step.
+   */
+  const applySpeed = useCallback(s => {
+    const el = audioRef.current;
+    if (!el) return;
+    el.preservesPitch = true;
+    el.webkitPreservesPitch = true;
+    el.playbackRate = s;
+  }, []);
+
+  useEffect(() => { applySpeed(speed); }, [speed, applySpeed]);
+
+  function cycleSpeed(e) {
+    e.stopPropagation();
+    const s = nextSpeed(speed);
+    setSpeed(s);
+    saveSpeed(s);
+    applySpeed(s);   // immediate, so a mid-playback tap changes pace at once
+  }
 
   /** Paint every bar for a given progress. One function, two callers. */
   const paintBars = useCallback(p => {
@@ -645,24 +675,50 @@ export default function VoiceMessage({ message, receipt = null }) {
             component whose whole point is that it is one object. */}
         <div style={{
           marginTop: 6,
-          display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10,
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
         }}>
-          {/* SECONDARY — the duration. Readable at a glance and clearly below
-              the waveform: heavier than the timestamp, lighter than the wave.
+          {/* Duration and speed are one group on the LEFT; the clock stays on
+              the right. Grouping them keeps the pill next to the length it
+              modifies instead of floating in the middle of the row. */}
+          <span style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+            {/* SECONDARY — the duration. Heavier than the timestamp, lighter
+                than the wave. TABULAR FIGURES so the counting readout does not
+                shuffle left and right as the seconds tick. */}
+            <span style={{
+              fontSize: 11.5,
+              fontWeight: 500,
+              lineHeight: 1,
+              letterSpacing: '.01em',
+              fontVariantNumeric: 'tabular-nums',
+              color: error ? 'var(--neon)' : 'rgba(255,255,255,.74)',
+            }}>
+              {error ?? formatDuration(playing || position > 0 ? position : duration)}
+            </span>
 
-              TABULAR FIGURES. This counts up during playback, and proportional
-              digits are different widths — a '1' is narrower than a '0', so the
-              readout shifts left and right as the seconds tick. Tabular locks
-              every digit to one width and the number stays still. */}
-          <span style={{
-            fontSize: 11.5,
-            fontWeight: 500,
-            lineHeight: 1,
-            letterSpacing: '.01em',
-            fontVariantNumeric: 'tabular-nums',
-            color: error ? 'var(--neon)' : 'rgba(255,255,255,.74)',
-          }}>
-            {error ?? formatDuration(playing || position > 0 ? position : duration)}
+            {/* SPEED — 1× / 1.5× / 2×, tap to cycle. Part of the player's own
+                controls, not the message chrome. Quiet at 1× (transparent), lit
+                faintly once changed, so it never out-shouts the waveform. */}
+            <button
+              type="button"
+              onClick={cycleSpeed}
+              aria-label={`Playback speed ${formatSpeed(speed)}, tap to change`}
+              style={{
+                flexShrink: 0,
+                padding: '2px 7px',
+                borderRadius: 999,
+                border: '1px solid rgba(255,255,255,.16)',
+                background: speed === 1 ? 'transparent' : 'rgba(191,95,255,.16)',
+                color: speed === 1 ? 'rgba(255,255,255,.52)' : 'rgba(240,220,255,.92)',
+                fontSize: 10.5,
+                fontWeight: 600,
+                lineHeight: 1,
+                letterSpacing: '.01em',
+                fontVariantNumeric: 'tabular-nums',
+                cursor: 'pointer',
+              }}
+            >
+              {formatSpeed(speed)}
+            </button>
           </span>
 
           {/* TERTIARY — the clock. Deliberately quieter and smaller than the
@@ -719,6 +775,9 @@ export default function VoiceMessage({ message, receipt = null }) {
           // The file's own duration beats the recorded one. See header.
           const real = e.currentTarget.duration;
           if (Number.isFinite(real) && real > 0) setDuration(real);
+          // Loading a src resets playbackRate on some engines — reassert it so
+          // the first press honours the remembered pace.
+          applySpeed(speed);
         }}
         onError={() => setError('Cannot play this right now')}
       />
