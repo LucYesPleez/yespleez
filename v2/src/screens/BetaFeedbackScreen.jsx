@@ -181,7 +181,7 @@ function WelcomePhase({ onContinue }) {
       </p>
       <p className={s.introBody}>Also, if you find something dope, tell me that too!</p>
       <p className={s.signature}>Chz!<br />Lucious</p>
-      <button type="button" className={s.primaryBtn} onClick={onContinue}>
+      <button type="button" className={`${s.primaryBtn} ${s.welcomeBtn}`} onClick={onContinue}>
         Rad. Let's do it
       </button>
     </div>

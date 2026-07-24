@@ -232,3 +232,11 @@
   font-family: 'DM Sans', sans-serif;
 }
 .primaryBtn:disabled { cursor: not-allowed; opacity: .6; }
+
+/* Welcome-phase CTA only — sized to its text instead of the full-width
+   primaryBtn used by the later steps, so it doesn't dominate the screen. */
+.welcomeBtn {
+  width: auto;
+  min-height: 40px;
+  padding: 10px 28px;
+}
