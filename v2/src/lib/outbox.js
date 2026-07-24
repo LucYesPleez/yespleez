@@ -22,7 +22,7 @@
 
 import { indexedDbStore } from './outboxStore';
 import {
-  decideTransition, needsUpload, isAbandoned, SENT, DRAFT, DRAFT_TTL_MS,
+  decideTransition, needsUpload, isAbandoned, SENT, DRAFT, QUEUED, DRAFT_TTL_MS,
 } from './outboxMachine';
 
 /** Timestamp seam — overridable in tests so ageing is deterministic. */
@@ -32,6 +32,27 @@ export function __setOutboxClock(fn) { clock = fn || (() => Date.now()); }
 /** Id seam — overridable so a test can assert a stable id. */
 let makeId = () => (globalThis.crypto?.randomUUID?.() ?? `ob_${clock()}_${Math.random().toString(16).slice(2)}`);
 export function __setOutboxIdFactory(fn) { makeId = fn; }
+
+/* ── CHANGE NOTIFICATION ─────────────────────────────────────────── */
+//
+// IndexedDB has no change events, so the UI cannot observe the outbox the way
+// it observes a query. These two tiny buses close that gap:
+//
+//   subscribeOutbox    fires on ANY mutation — the thread re-reads its entries
+//                      (queued/uploading/failed bubbles) and repaints their state
+//   subscribeDelivered fires when an uploader confirms a row — the thread adds
+//                      the real message at once, rather than waiting on the
+//                      realtime echo, whose timing against the insert response is
+//                      not guaranteed (the race pendingSend used to reconcile)
+
+const changeListeners    = new Set();
+const deliveredListeners = new Set();
+
+export function subscribeOutbox(fn)    { changeListeners.add(fn);    return () => changeListeners.delete(fn); }
+export function subscribeDelivered(fn) { deliveredListeners.add(fn); return () => deliveredListeners.delete(fn); }
+
+function emitChange()               { for (const fn of changeListeners)    { try { fn(); } catch { /* a listener must not break the outbox */ } } }
+function emitDelivered(cid, row)    { for (const fn of deliveredListeners) { try { fn(cid, row); } catch { /* ditto */ } } }
 
 /* ── THE UPLOADER REGISTRY ───────────────────────────────────────── */
 
@@ -77,12 +98,18 @@ export async function saveDraft({ conversationId, kind, payload }, s = outboxSto
     payload,
   };
   await s.put(entry);
+  emitChange();
   return entry;
 }
 
 /** The conversation's draft for auto-restore, or null. */
 export function restoreDraft(conversationId, s = outboxStore()) {
   return s.getDraft(conversationId);
+}
+
+/** Every live outbox entry for a conversation — the in-flight bubbles to render. */
+export function entriesFor(conversationId, s = outboxStore()) {
+  return s.byConversation(conversationId);
 }
 
 /**
@@ -92,7 +119,26 @@ export function restoreDraft(conversationId, s = outboxStore()) {
  */
 export async function deleteDraft(conversationId, s = outboxStore()) {
   const draft = await s.getDraft(conversationId);
-  if (draft) await s.remove(draft.id);
+  if (draft) { await s.remove(draft.id); emitChange(); }
+}
+
+/**
+ * Queue a new message for sending — the ONE entry point every outbound message
+ * uses, online or off. The composer's text field (or a parked Voicey) IS the
+ * draft; this is the Send. It creates the entry already `queued` — durable from
+ * this line — and kicks a flush. Offline, the flush no-ops and the entry waits;
+ * there is no separate online path, which is the whole point.
+ */
+export async function queueMessage({ conversationId, kind, payload }, s = outboxStore()) {
+  const now = clock();
+  const entry = {
+    id: makeId(), conversationId, kind, state: QUEUED,
+    createdAt: now, updatedAt: now, payload,
+  };
+  await s.put(entry);
+  emitChange();
+  await flush(s);
+  return entry;
 }
 
 /* ── SENDING ─────────────────────────────────────────────────────── */
@@ -107,9 +153,10 @@ async function transition(id, event, s) {
   if (!entry) return null;
   const next = decideTransition(entry.state, event);
   if (next === null) return entry;          // inert — never a silent drop
-  if (next === SENT || next === 'deleted') { await s.remove(id); return null; }
+  if (next === SENT || next === 'deleted') { await s.remove(id); emitChange(); return null; }
   const updated = { ...entry, state: next, updatedAt: clock() };
   await s.put(updated);
+  emitChange();
   return updated;
 }
 
@@ -172,7 +219,11 @@ export async function flush(s = outboxStore()) {
       if (!claimed) continue;
 
       try {
-        await uploader(claimed);
+        const row = await uploader(claimed);
+        // Hand the confirmed row to the thread BEFORE removing the entry, so the
+        // real message is on screen the instant the send lands rather than
+        // waiting on the realtime echo (whose timing is not guaranteed).
+        if (row) emitDelivered(entry.conversationId, row);
         await transition(entry.id, 'upload-ok', s);   // confirmed → removed
       } catch {
         await transition(entry.id, 'upload-fail', s);  // kept for retry
@@ -197,6 +248,7 @@ export async function pruneAbandoned(s = outboxStore(), ttl = DRAFT_TTL_MS) {
   for (const d of drafts) {
     if (isAbandoned(d, now, ttl)) { await s.remove(d.id); swept++; }
   }
+  if (swept) emitChange();
   return swept;
 }
 

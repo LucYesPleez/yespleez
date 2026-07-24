@@ -22,7 +22,35 @@ import HandIcon from './HandIcon';
 import EqReceipt from './EqReceipt';
 import { receiptFor, RECEIPT } from '../lib/receiptState';
 import { makePending, appendPending, settlePending, failPending, revokePendingUrl } from '../lib/pendingSend';
+import { queueMessage, entriesFor, subscribeOutbox, subscribeDelivered, retry as outboxRetry } from '../lib/outbox';
 import { timeOf } from '../lib/clock';
+
+/**
+ * An Outbox entry, shaped as a message the thread can render.
+ *
+ * It reuses the existing optimistic-bubble rendering rather than inventing a
+ * new one: `pendingState` drives the same waiting/failed glyphs pendingSend
+ * used, so a queued send looks exactly like the send-in-flight bubbles the
+ * thread has always shown — only now the Outbox, not this component, owns it.
+ * `outboxId`/`outboxState` let the retry and (future) delete controls act on
+ * the real entry.
+ */
+function outboxBubble(entry) {
+  const p = entry.payload || {};
+  const isVoice = entry.kind === 'voice';
+  return {
+    id:              `outbox:${entry.id}`,
+    outboxId:        entry.id,
+    outboxState:     entry.state,
+    kind:            entry.kind,
+    body:            isVoice ? 'Voice message' : (p.body ?? ''),
+    from_profile_id: p.fromProfileId,
+    created_at:      new Date(entry.createdAt).toISOString(),
+    // queued/uploading read as 'waiting'; failed shows red with Retry.
+    pendingState:    entry.state === 'failed' ? 'failed' : 'waiting',
+    ...(isVoice && p.localUrl ? { payload: { localUrl: p.localUrl, duration_ms: p.durationMs, ...(p.wave && { wave: p.wave }) } } : {}),
+  };
+}
 
 /**
  * ONE conversation, rendered identically in the DRAWER and in the FULL PAGE.
@@ -297,6 +325,10 @@ export default function ConversationView({ conversationId, compact = false, onMi
   const { getState, patch } = useConversationUi();
 
   const [messages, setMessages]    = useState([]);
+  // The Outbox's in-flight entries for THIS conversation — queued / uploading /
+  // failed sends. They render as the optimistic bubbles at the end of the
+  // thread; the Outbox, not this component, owns their persistence and retry.
+  const [outbox, setOutbox]        = useState([]);
   const [mine, setMine]            = useState(new Set());
   const [senderProfile, setSender] = useState(null);
   // The FULL sending profile, not just its id — the header must state which
@@ -535,6 +567,28 @@ export default function ConversationView({ conversationId, compact = false, onMi
 
     return () => { supabase.removeChannel(channel); };
   }, [session, conversationId]);
+
+  /**
+   * THE OUTBOX, WATCHED. Every send now lives here first (queued → uploading →
+   * failed → gone-on-delivery), so the thread reads its in-flight entries and
+   * repaints on any change. `subscribeDelivered` adds the confirmed row the
+   * instant an upload lands, ahead of the realtime echo, so a sent message
+   * never blinks out between the outbox entry being removed and the echo
+   * arriving. The realtime handler dedupes by id, so an early add here and a
+   * later echo cannot double it.
+   */
+  useEffect(() => {
+    if (!conversationId) return undefined;
+    let live = true;
+    const refresh = () => { entriesFor(conversationId).then(rows => { if (live) setOutbox(rows.filter(r => r.state !== 'draft')); }); };
+    refresh();
+    const offChange = subscribeOutbox(refresh);
+    const offDelivered = subscribeDelivered((cid, row) => {
+      if (cid !== conversationId || !row) return;
+      setMessages(prev => (prev.some(m => m.id === row.id) ? prev : [...prev, row]));
+    });
+    return () => { live = false; offChange(); offDelivered(); };
+  }, [conversationId]);
 
   // Restore saved scroll on open; afterwards only follow new messages if the
   // reader is already at the bottom. Forcing scroll while someone reads older
@@ -842,20 +896,20 @@ export default function ConversationView({ conversationId, compact = false, onMi
     if (!draft.trim() || !senderProfile || sending) return;
 
     const body = draft;
-    // Cleared BEFORE the await, not after a successful insert. The draft's job
-    // is done the moment the message is on screen; leaving it in the field
-    // would show the same sentence twice for the length of the round trip, and
-    // a second Enter would send it twice.
+    // Cleared BEFORE the await. The field's job is done the moment the message
+    // is on screen as a queued bubble; leaving it would show the sentence twice
+    // and a second Enter would send it twice.
     onDraftChange('');
 
-    await trySend({
-      body,
-      retry:   { type: 'text', body },
-      attempt: () => sendMessage({
-        conversationId,
-        fromProfileId: senderProfile,   // ATTRIBUTION only; the human comes from the session
-        body,
-      }),
+    // ⚠ STRAIGHT INTO THE OUTBOX — the one path, online or off, no bypass.
+    // queueMessage persists the entry as `queued` (durable from that line),
+    // shows it as a bubble at once, and flushes. Online it delivers in the same
+    // tick; offline it simply waits for the reconnect sweep. This component no
+    // longer sends anything itself — the Outbox is the authority.
+    await queueMessage({
+      conversationId,
+      kind: 'text',
+      payload: { body, fromProfileId: senderProfile },   // attribution travels on the entry
     });
   }
 
@@ -875,6 +929,12 @@ export default function ConversationView({ conversationId, compact = false, onMi
    */
   async function onRetry(message) {
     if (!senderProfile || sending) return;
+
+    // An Outbox bubble retries through the Outbox — it already holds the
+    // payload durably, so retry is just "queue it again and flush", the same
+    // act the reconnect sweep performs. No local rebuild of the attempt.
+    if (message?.outboxId) { await outboxRetry(message.outboxId); return; }
+
     const retry = message?.retry;
     if (!retry) return;
 
@@ -1285,6 +1345,12 @@ export default function ConversationView({ conversationId, compact = false, onMi
    */
   const presence = null;
 
+  // The thread is the delivered rows PLUS the Outbox's in-flight entries,
+  // rendered as bubbles at the end. An entry disappears from here the instant
+  // its upload confirms — `subscribeDelivered` has already put the real row in
+  // `messages` by then, so the swap is seamless rather than a flash of nothing.
+  const thread = outbox.length ? [...messages, ...outbox.map(outboxBubble)] : messages;
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
 
@@ -1632,9 +1698,9 @@ export default function ConversationView({ conversationId, compact = false, onMi
           </div>
         )}
 
-        {!loading && messages.map((m, i) => {
-          const prev = messages[i - 1];
-          const next = messages[i + 1];
+        {!loading && thread.map((m, i) => {
+          const prev = thread[i - 1];
+          const next = thread[i + 1];
           const day  = dayKey(m.created_at);
 
           // A new day gets a marker. Without one a thread spanning weeks
