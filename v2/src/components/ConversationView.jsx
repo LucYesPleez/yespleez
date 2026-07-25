@@ -35,7 +35,7 @@ import { timeOf } from '../lib/clock';
  * `outboxId`/`outboxState` let the retry and (future) delete controls act on
  * the real entry.
  */
-function outboxBubble(entry) {
+function outboxBubble(entry, localUrl = null) {
   const p = entry.payload || {};
   const isVoice = entry.kind === 'voice';
   return {
@@ -48,7 +48,9 @@ function outboxBubble(entry) {
     created_at:      new Date(entry.createdAt).toISOString(),
     // queued/uploading read as 'waiting'; failed shows red with Retry.
     pendingState:    entry.state === 'failed' ? 'failed' : 'waiting',
-    ...(isVoice && p.localUrl ? { payload: { localUrl: p.localUrl, duration_ms: p.durationMs, ...(p.wave && { wave: p.wave }) } } : {}),
+    // A queued Voicey renders as a real, playable note from the runtime url the
+    // thread minted from its blob — identical to how it looks once delivered.
+    ...(isVoice && localUrl ? { payload: { localUrl, duration_ms: p.durationMs, ...(p.wave && { wave: p.wave }) } } : {}),
   };
 }
 
@@ -329,6 +331,8 @@ export default function ConversationView({ conversationId, compact = false, onMi
   // failed sends. They render as the optimistic bubbles at the end of the
   // thread; the Outbox, not this component, owns their persistence and retry.
   const [outbox, setOutbox]        = useState([]);
+  // entryId → object url for queued Voiceys, so a waiting note is playable.
+  const voiceUrls = useRef(new Map());
   const [mine, setMine]            = useState(new Set());
   const [senderProfile, setSender] = useState(null);
   // The FULL sending profile, not just its id — the header must state which
@@ -580,14 +584,37 @@ export default function ConversationView({ conversationId, compact = false, onMi
   useEffect(() => {
     if (!conversationId) return undefined;
     let live = true;
-    const refresh = () => { entriesFor(conversationId).then(rows => { if (live) setOutbox(rows.filter(r => r.state !== 'draft')); }); };
+    const refresh = () => {
+      entriesFor(conversationId).then(rows => {
+        if (!live) return;
+        const entries = rows.filter(r => r.state !== 'draft');
+        // A queued Voicey must be playable while it waits, but an object url is a
+        // runtime thing — it cannot be stored in IndexedDB and does not survive a
+        // reload. So it is minted HERE from the durable blob (segments[0]) the
+        // first time an entry appears, cached by entry id, and revoked when the
+        // entry is gone. This is also what makes a Voicey queued in a previous
+        // session playable again after reopening the app.
+        const urls = voiceUrls.current;
+        const seen = new Set();
+        for (const e of entries) {
+          const blob = e.kind === 'voice' ? e.payload?.segments?.[0] : null;
+          if (blob) { seen.add(e.id); if (!urls.has(e.id)) urls.set(e.id, URL.createObjectURL(blob)); }
+        }
+        for (const [id, url] of urls) { if (!seen.has(id)) { URL.revokeObjectURL(url); urls.delete(id); } }
+        setOutbox(entries);
+      });
+    };
     refresh();
     const offChange = subscribeOutbox(refresh);
     const offDelivered = subscribeDelivered((cid, row) => {
       if (cid !== conversationId || !row) return;
       setMessages(prev => (prev.some(m => m.id === row.id) ? prev : [...prev, row]));
     });
-    return () => { live = false; offChange(); offDelivered(); };
+    return () => {
+      live = false; offChange(); offDelivered();
+      for (const [, url] of voiceUrls.current) URL.revokeObjectURL(url);
+      voiceUrls.current.clear();
+    };
   }, [conversationId]);
 
   // Restore saved scroll on open; afterwards only follow new messages if the
@@ -1098,55 +1125,30 @@ export default function ConversationView({ conversationId, compact = false, onMi
    * not a second send path that has to be kept in step with this one.
    */
   async function onRecordedVoice({ blob, durationMs, capture }) {
-    if (!senderProfile || sending) return;
+    if (!senderProfile) return;
 
-    // Computed BEFORE the placeholder, and handed to both it and the upload.
-    // Without them `toDisplayPeaks` returns null and the pending bubble draws a
-    // collapsed waveform that pops into shape when the real row lands — which
-    // reads as the recording having been damaged and then repaired.
-    //
-    // It is a decode of a blob already in memory, not a network call, so the
-    // delay before the bubble appears is a few milliseconds. Degrades to no
-    // waveform rather than no message: `computePeaks` already returns null on
-    // failure and `sendVoiceNote` omits the key entirely when it does.
+    // The waveform is computed once here, from a blob already in memory, and
+    // stored on the entry — so the queued bubble and the delivered row draw the
+    // identical picture and the send is invisible rather than a visible repair.
+    // Degrades to no waveform rather than no message.
     const wave = await computeWave(blob);
 
-    const { ok, error: sendError } = await trySend({
-      body: VOICE_FALLBACK_BODY,
+    // ⚠ STRAIGHT INTO THE OUTBOX — no Voicey-specific send path any more, the
+    // same lifecycle as text. The blob is stored as `segments[0]` (a list from
+    // day one, so Resume Recording is a later addition, not a rewrite); it is
+    // durable the instant queueMessage persists it, so the recording can no
+    // longer be lost whatever the network does. The uploader (registered in
+    // outboxUploaders) sends it; retry, offline and reconnect are identical to
+    // text because it IS the text path. The queued bubble stays playable from a
+    // runtime object url the thread mints from segments[0] (see the outbox
+    // subscription) — nothing about the note changes when it lands.
+    await queueMessage({
+      conversationId,
       kind: 'voice',
-      // ⚠ THE RECORDING IS KEPT. This is the whole change: a failed Voicey used
-      // to be discarded here, and audio the user cannot re-perform — the one
-      // thing in this app that is genuinely unrecoverable — was gone with no
-      // way back. The blob is held in the placeholder until it either uploads
-      // or the user gives up on it.
-      retry: { type: 'voice', blob, durationMs, capture, wave },
-      // A local url so the pending bubble is a real, playable Voicey rather
-      // than a grey placeholder, with the length from the recorder and the
-      // waveform computed above — so the note looks exactly the same before and
-      // after it lands, and settling is invisible rather than a visible repair.
-      payload: {
-        localUrl:    URL.createObjectURL(blob),
-        duration_ms: Math.max(0, Math.round(durationMs ?? 0)),
-        // Omitted entirely when they could not be computed — the renderer's
-        // test is "can I draw this", and a key holding null answers that
-        // identically while costing bytes on every read.
-        ...(wave && { wave }),
-      },
-      attempt: () => sendVoiceNote({
-        conversationId,
-        fromProfileId: senderProfile,
-        blob,
-        durationMs,
-        wave,      // already computed; never decode the same blob twice
-        capture,   // `C21` — what the device actually negotiated, not what we asked for
-      }),
+      payload: { segments: [blob], durationMs, wave, capture, fromProfileId: senderProfile },
     });
-
-    // Still thrown, and for the original reason: the recorder awaits this to
-    // choose between its `sent` and `idle` states, and a silent return would
-    // show "Sent" for a message that never left. What has changed is that the
-    // recording no longer dies with it — it is on screen, playable, retryable.
-    if (!ok) throw sendError;
+    // No throw: the Voicey is safely in the Outbox. The recorder shows 'sent'
+    // and returns to idle; delivery and any retry happen in the Outbox now.
   }
 
   /**
@@ -1349,7 +1351,9 @@ export default function ConversationView({ conversationId, compact = false, onMi
   // rendered as bubbles at the end. An entry disappears from here the instant
   // its upload confirms — `subscribeDelivered` has already put the real row in
   // `messages` by then, so the swap is seamless rather than a flash of nothing.
-  const thread = outbox.length ? [...messages, ...outbox.map(outboxBubble)] : messages;
+  const thread = outbox.length
+    ? [...messages, ...outbox.map(e => outboxBubble(e, voiceUrls.current.get(e.id)))]
+    : messages;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
