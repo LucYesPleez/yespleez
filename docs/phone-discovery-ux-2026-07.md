@@ -1,5 +1,10 @@
-# Phone Number Discovery — UX Design v1.1
-**2026-07-26 · Design complete, nothing built · Companion mockups: `phone-discovery-mockups-2026-07.html`**
+# Phone Number Discovery — UX Design v1.2
+**2026-07-26 · 🟢 CLEARED TO BUILD — no blockers · Companion mockups: `phone-discovery-mockups-2026-07.html`**
+
+> **v1.2 — privacy model RATIFIED (owner, 2026-07-26).** k-anonymity hash prefixes for
+> interactive lookup + HMAC-with-pepper for stored contact codes. Naive full-hash bulk upload is
+> rejected and closed. Both owner decisions are now settled and this milestone has no remaining
+> blockers.
 
 > **v1.1 — NO SMS (owner decision, 2026-07-26).** The phone number is a pure identifier running
 > on the existing data system; YesPleez sends no text messages for any purpose. There is no
@@ -23,7 +28,7 @@ an API can't be derived from it, it doesn't ship.
 
 | Concept | What it is | Who controls it | Default |
 |---|---|---|---|
-| **Your number on file** | A lookup key you add to your account. **Not a credential, not verified, never sent to** | You, optional, removable | Not set |
+| **Your number on file** | A lookup key you add to your account. **Not a credential, not verified, never texted to** | You, optional, removable | Not set |
 | **Discoverability** | Whether *others* can find *you* by that key | You, per-account | Set by the first-run prompt |
 | **Contact sync** | Whether *you* upload scrambled codes to find *them* | You, revocable, deletable | Off until asked for |
 
@@ -91,7 +96,12 @@ it never becomes one.
 later wants the number to *mean* something (recovery, trust signals, payments), verification
 becomes non-optional and this section is where that conversation restarts.
 
-### The privacy architecture (engineering contract the copy depends on)
+### ✅ The privacy architecture — RATIFIED 2026-07-26 (owner)
+
+**This is now the model, not a recommendation.** The owner chose k-anonymity over naive hashed
+bulk upload; the alternatives are closed and should not be re-proposed. It is the engineering
+contract every piece of copy below depends on — weaken either mechanism and the copy becomes
+a lie rather than a simplification.
 
 Two mechanisms, two threats — do not merge them:
 
@@ -106,9 +116,13 @@ Two mechanisms, two threats — do not merge them:
    match edge derived from them.
 
 The user-facing word for all of this is **"scrambled codes"** — one term, used everywhere,
-never "hashes" in UI copy. The copy below is truthful under this architecture and remains
-truthful if the owner later chooses naive full-hash upload (it would just be *less* true than
-it could be — flag before downgrading).
+never "hashes" in UI copy.
+
+⚠ **Do not "simplify" either mechanism during implementation.** Sending a full hash instead of
+a prefix, or dropping the pepper because "it's already hashed", each look like tidy-ups in a
+diff and each silently converts this into the model that was rejected. Neither failure is
+visible in any test — the feature works identically. The prefix width and the pepper are
+load-bearing; if one has to change, that is a design conversation, not a refactor.
 
 **Recorded tension (T1):** "People in my contacts" cannot be evaluated with prefixes alone —
 it requires the stored peppered codes. A user who picks that option without sync on is
@@ -727,14 +741,18 @@ The primer copy is identical everywhere; it simply becomes more literally true h
 
 ### Dependencies & open questions
 
+> **🟢 NO BLOCKERS REMAIN. This milestone is cleared to build (2026-07-26).** Both owner
+> decisions are closed — see 1 and 2 below. Q1 and Q2 are open *questions*, not gates; each
+> has a stated default that is safe to build against.
+
 1. ~~**SMS provider**~~ — **RESOLVED 2026-07-26: there is none, and never will be.** The number
    is a lookup key on the existing data system; no telephony, no verification screen, no cost.
-   See §0's no-SMS block and the five mitigations that replace verification. This unblocks the
-   milestone.
-2. **Privacy model ratification** (owner decision, pending — previously deferred): this
-   design *assumes and recommends* §0's two-mechanism architecture. The screens survive a
-   downgrade to naive full-hash upload, but the copy's strength and T1's resolution come from
-   the recommended model. Re-raise before build, per standing note.
+   See §0's no-SMS block and the five mitigations that replace verification.
+2. ~~**Privacy model ratification**~~ — **RESOLVED 2026-07-26: k-anonymity, ratified by the
+   owner.** §0's two-mechanism architecture is the model: hash prefixes for interactive lookup,
+   HMAC-with-pepper for stored codes. Naive full-hash bulk upload is **rejected and closed** —
+   do not re-propose it, and do not let it back in through an implementation "simplification"
+   (see the warning in §0).
 3. **Q1:** does messaging a discovered stranger (discoverable = Everyone) open a plain
    conversation or a message-request state? This design assumes plain (discoverability *is*
    the consent); revisit when message-requests exist as a concept.
