@@ -5,6 +5,7 @@ import { supabase } from './lib/supabase';
 import { clearActingProfileCache } from './lib/actingProfile';
 import { initAnalytics, setAnalyticsUser, trackScreenView } from './lib/analytics';
 import { startMessaging } from './lib/messagingReliability';
+import { preloadUiSounds, playMessageArrive, armAudioUnlock } from './lib/uiSound';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -150,7 +151,14 @@ function Shell({ session, isGuest, onSignOut }) {
     // so it lags the message it describes, and lags badly on a phone waking a
     // backgrounded connection. ConversationDock hears the message itself and
     // says so directly, which is the shortest path there is.
-    const onReceived = () => fetchMessages();
+    const onReceived = () => {
+      fetchMessages();
+      // The arrival sound, for the case the OS cannot cover: the app is open,
+      // so no push notification is shown and nothing else would make a sound.
+      // See playMessageArrive on why this is not — and cannot be — the sound
+      // an OS notification makes.
+      playMessageArrive();
+    };
     window.addEventListener('yp:message-received', onReceived);
 
     // Fallback poll every 60s
@@ -340,6 +348,16 @@ export default function App() {
     // previous session left queued or failed, and flush again whenever
     // reception returns. Idempotent for the same StrictMode reason as above.
     startMessaging();
+
+    // Decode the reaction tick before anyone can trigger it. Without this the
+    // FIRST reaction of a session waits on a fetch and lands silently — the
+    // one instance where the sound matters most, because it is what tells a
+    // user the interaction has a sound at all. Fire-and-forget; a failure
+    // means no tick, never a broken app.
+    preloadUiSounds();
+    // iOS will not play audio from a context that was never unlocked inside a
+    // real gesture — see armAudioUnlock. Costs nothing on desktop.
+    armAudioUnlock();
 
     return () => subscription.unsubscribe();
   }, []);

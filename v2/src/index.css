@@ -1190,7 +1190,9 @@ input, textarea, select {
      box-shadow would draw the shadow of a SQUARE around a hand. filter follows
      the mask's alpha, so the shadow is hand-shaped. */
   filter: drop-shadow(0 1px 3px rgba(0,0,0,.75));
-  animation: ypYes .32s cubic-bezier(.2,1.5,.4,1);
+  /* The landing — shared by the acknowledgement and every reaction, so both
+     arrive with the same weight. See @keyframes ypReactionLand. */
+  animation: ypReactionLand 180ms both;
   /* ⚠ ONE z-index, and it settles a SIBLING order inside this frame only.
      The badge and the bubble are siblings here, so this cannot be defeated by
      any kind's stacking context and cannot be influenced by another row. It is
@@ -1208,6 +1210,43 @@ input, textarea, select {
    The two are mutually exclusive (see messageState.js), so they can never
    occupy this slot at the same time. If that rule is ever relaxed, this is
    the position that would have to resolve the collision. */
+/* ── THE LANDING ────────────────────────────────────────────────────
+   A reaction does not appear, it ARRIVES. It spawns above its resting
+   place, falls under something like gravity, and squashes as it settles —
+   which is what makes it read as a physical object locking onto the side
+   of the bubble rather than as a state change.
+
+   ⚠ THE FALL ACCELERATES AND THE SETTLE DECELERATES. The per-keyframe
+   timing functions are the whole effect: one uniform ease over the entire
+   animation reads as a slide, not a drop. Gravity speeds up.
+
+   ⚠ NOT A BOUNCE. The overshoot is a SQUASH — 1.06 wide on impact, 0.96
+   under load, back to 1. It never leaves the surface a second time. A
+   spring that bounces reads as cartoonish and, at this size, as a glitch.
+
+   ~180ms total: long enough to be seen as motion, short enough that a
+   second reaction never queues behind the first. */
+@keyframes ypReactionLand {
+  0% {
+    transform: translateY(-78px) scale(1.06);
+    opacity: 0;
+    /* the fall — accelerating */
+    animation-timing-function: cubic-bezier(.45, 0, .85, .45);
+  }
+  55% {
+    transform: translateY(0) scale(1.06);
+    opacity: 1;
+    /* impact into squash — abrupt, because contact is abrupt */
+    animation-timing-function: cubic-bezier(.3, 0, .2, 1);
+  }
+  74% {
+    transform: translateY(0) scale(.96);
+    /* settle — decelerating */
+    animation-timing-function: cubic-bezier(.2, .6, .3, 1);
+  }
+  100% { transform: translateY(0) scale(1); }
+}
+
 .yp-reaction-badge {
   position: absolute;
   left: calc(var(--yp-yes-shift) - var(--yp-yes-gutter));
@@ -1226,7 +1265,9 @@ input, textarea, select {
   /* Tappable, unlike the Yes badge — tapping reopens the bar so a reaction
      can be changed without hunting for the long press again. */
   cursor: pointer;
-  animation: ypYes .32s cubic-bezier(.2,1.5,.4,1);
+  /* The landing — shared by the acknowledgement and every reaction, so both
+     arrive with the same weight. See @keyframes ypReactionLand. */
+  animation: ypReactionLand 180ms both;
   /* Same reasoning as the Yes badge: a Voicey's backdrop-filter makes its
      bubble a stacking context, which would otherwise paint over the overlap. */
   z-index: 1;

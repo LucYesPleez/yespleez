@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import s from './NotificationPreferences.module.css';
+import {
+  messageSoundsEnabled, setMessageSoundsEnabled, preloadUiSounds, playReactionLand,
+} from '../lib/uiSound';
 
 // NP1 · the preferences panel.
 //
@@ -77,6 +80,7 @@ export default function NotificationPreferences({ session }) {
   // a row means enabled, so this map starts empty and stays sparse — matching
   // the database's own convention rather than materialising a row per user.
   const [disabled, setDisabled] = useState(() => new Set());
+  const [soundsOn, setSoundsOn] = useState(() => messageSoundsEnabled());
   const [loading, setLoading]   = useState(true);
   const [error,   setError]     = useState('');
 
@@ -126,6 +130,42 @@ export default function NotificationPreferences({ session }) {
 
   return (
     <div className={s.panel}>
+      {/* MESSAGE SOUNDS — device-level, not a notification category.
+          It governs the tick a reaction makes as it lands, which is UI
+          feedback rather than a delivery preference, so it is stored on the
+          device like every other Studio-style setting rather than in
+          notification_preferences. That also makes it work signed-out and
+          per-device, which is what a sound setting should be.
+
+          ⚠ There is NO web API for a phone's silent switch, on any platform.
+          On iOS the hardware mute silences Web Audio anyway, enforced by the
+          OS; on Android and desktop this switch is the only control. */}
+      <div className={s.row}>
+        <div className={s.rowText}>
+          <div className={s.label}>MESSAGE SOUNDS</div>
+          <div className={s.desc}>
+            A short tick when a reaction lands. Silenced automatically by your
+            phone&rsquo;s mute switch on iPhone.
+          </div>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={soundsOn}
+          aria-label="Message sounds"
+          className={`${s.switch}${soundsOn ? ` ${s.switchOn}` : ''}`}
+          onClick={() => {
+            const next = !soundsOn;
+            setSoundsOn(next);
+            setMessageSoundsEnabled(next);
+            // Play as confirmation when switching ON — the fastest way to
+            // answer "how loud is it?" is to hear it.
+            if (next) { preloadUiSounds(); setTimeout(playReactionLand, 60); }
+          }}
+        >
+          <span className={s.knob} />
+        </button>
+      </div>
       {CATEGORIES.map(c => {
         const on = !disabled.has(c.key);
         return (

@@ -289,9 +289,34 @@ export default function ImageMessage({ message }) {
             bottom: 'var(--yp-nav-height)',
             background: 'rgba(6,6,10,.94)',
             backdropFilter: 'blur(8px)',
-            zIndex: 60,
+            // ⚠ ABOVE THE GLOBAL HEADER, WHICH IS z-index 199.
+            //
+            // This was 60, so the header painted straight over an enlarged
+            // photo: its logo, BETA chip and icon row sat on top of the image,
+            // and its controls read as a second, competing close button. It
+            // looked correct on a phone only because the header is not fixed
+            // there — which is why the bug appeared to be desktop-only rather
+            // than a layering mistake that was always present.
+            //
+            // The viewer is the frontmost surface in the app while it is open;
+            // the ONE thing it still must not cover is the bottom nav, which
+            // `bottom` above already guarantees.
+            zIndex: 250,
             display: 'flex', flexDirection: 'column',
-            maxWidth: 'var(--yp-app-max, 680px)', margin: '0 auto',
+            // ⚠ THE VIEWER IS THE ONE SURFACE THAT IS NOT APP-SCOPED.
+            //
+            // It was capped at `--yp-app-max` (680px) and centred, like every
+            // other overlay. On a phone that IS the full width, so it looked
+            // correct — and on a 1920px desktop the "enlarged" photo opened
+            // into a 680px column barely wider than the bubble it came from.
+            // Measured: left 613, width 680, on a 1920 viewport.
+            //
+            // A photo viewer exists to make the photo as large as the screen
+            // allows; constraining it to the app column defeats the only thing
+            // it does. Every OTHER overlay stays app-scoped — this is the
+            // deliberate exception, not a licence to widen the rest.
+            //
+            // The bottom nav is still sacred: `bottom` above keeps it clear.
           }}
         >
           {/* ⚠ PINCH IS THE BROWSER'S, NOT OURS. `touch-action: pinch-zoom` on a

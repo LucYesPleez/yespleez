@@ -11,6 +11,7 @@ import { safeName, isLosslessAudio, isPlayableAudio, WAVE_CEILING_BYTES, MAX_BYT
 import { computeWave } from '../lib/voiceWave';
 import { listMessageState, toggleHand, toggleReaction } from '../lib/messageState';
 import { decideReactionTap, summariseReactions } from '../lib/reactions';
+import { playReactionLand } from '../lib/uiSound';
 import MessageActionSheet from './MessageActionSheet';
 import Composer, { COMPOSER_HEIGHT } from './Composer';
 import AudioSendSheet from './AudioSendSheet';
@@ -1043,6 +1044,13 @@ export default function ConversationView({ conversationId, compact = false, onMi
       ? withoutMine
       : [...withoutMine, { profile_id: senderProfile, reaction }];
 
+    // Fired with the OPTIMISTIC update, not after the write — the tick has to
+    // coincide with the finger, and a round trip would land it a beat late,
+    // which reads as the app lagging rather than as feedback. Nothing is
+    // awaited: a silent failure must never delay or block the reaction.
+    // Removing a reaction is silent; only an arrival makes a sound.
+    if (action === 'set') playReactionLand();
+
     setReactionsByMessage(prev => {
       const next = new Map(prev);
       if (after.length) next.set(messageId, after); else next.delete(messageId);
@@ -1070,6 +1078,10 @@ export default function ConversationView({ conversationId, compact = false, onMi
     const after = wasHanded
       ? before.filter(id => id !== senderProfile)
       : [...before, senderProfile];
+
+    // The acknowledgement lands with the same weight as a reaction — same
+    // animation, same tick. Taking one back is silent, like clearing one.
+    if (!wasHanded) playReactionLand();
 
     setHandsByMessage(prev => {
       const next = new Map(prev);
@@ -2286,6 +2298,16 @@ function MessageBubble({ message, isMine, grouped = false, endsBurst = true, spe
           hunting for the long press again. */}
       {reactionSummary.counts.length > 0 && (
         <span
+          // ⚠ THE KEY IS WHAT MAKES A REPLACEMENT LAND RATHER THAN POP.
+          //
+          // A CSS animation runs on mount and never again. Swapping one
+          // reaction for another only changes this element's CONTENTS, so
+          // React reuses the node and the new emoji would appear instantly in
+          // place — the exact "popping" the landing exists to remove.
+          //
+          // Keying on the reactions themselves forces a remount whenever they
+          // change, so the replacement drops in like the first one did.
+          key={reactionSummary.counts.map(c => `${c.key}:${c.count}`).join(',')}
           className="yp-reaction-badge"
           role="button"
           tabIndex={0}
