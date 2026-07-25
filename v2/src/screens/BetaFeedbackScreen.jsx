@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useSession } from '../App';
 import HandIcon from '../components/HandIcon';
+import VoiceDiagnosticsPanel from '../components/VoiceDiagnosticsPanel';
 import s from './BetaFeedbackScreen.module.css';
 
 // First-ever open of THIS screen shows the "Skitz!" welcome once, in this
@@ -152,6 +153,18 @@ export default function BetaFeedbackScreen() {
       {phase === 'success' && (
         <SuccessPhase feedbackId={feedbackId} onHome={() => navigate('/')} />
       )}
+
+      {/* ⚠ OUTSIDE the phase blocks, deliberately. It first sat inside
+          `welcome`, which live verification proved invisible: the welcome
+          screen is shown ONCE (WELCOME_SEEN_KEY), so anyone who had already
+          opened this page — the owner included — would land on `details` and
+          never see the panel at all.
+
+          Here because this screen is one tap from the global header on every
+          route, and a phone-call scenario cannot be run while navigating.
+          Collapsed by default; hidden on `success` so it cannot intrude on
+          the thank-you. See VoiceDiagnosticsPanel. */}
+      {phase !== 'success' && <VoiceDiagnosticsPanel />}
 
       {/* One hidden input serves both Screenshot and Recording — the accept
           attribute is set immediately before each click. */}

@@ -35,6 +35,15 @@ export default defineConfig({
     // the protection for ANY host, and this file ships in the repo.
     allowedHosts: ['.trycloudflare.com', '.loca.lt'],
   },
+  preview: {
+    // `vite preview` does NOT inherit `server.allowedHosts` — it is a
+    // separate config block, so the same tunnel-domain allowance has to be
+    // repeated here. Needed for real-device testing of anything that only
+    // exists in a production build (the service worker, push notifications)
+    // since those cannot be exercised under `vite dev` at all.
+    host: true,
+    allowedHosts: ['.trycloudflare.com', '.loca.lt'],
+  },
   resolve: {
     dedupe: ['react', 'react-dom'],
   },

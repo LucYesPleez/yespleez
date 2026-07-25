@@ -1,6 +1,7 @@
 import { supabase } from './supabase';
 import { sendMessage } from './messaging';
 import { computeCombinedWave } from './voiceWave';
+import { logVoiceSignal, observePageLifecycle, startHeartbeat } from './voiceDiagnostics';
 
 /**
  * VOICE NOTES — recording, storage and playback URLs.
@@ -581,27 +582,129 @@ export async function startRecording({ onInterrupt } = {}) {
    * only reports that the pipeline can no longer be trusted.
    */
   function flagInterrupt(reason) {
+    logVoiceSignal('interrupt', 'flagInterrupt', { reason, settling, released, notified, ...captureState() });
     if (settling || released || notified) return;
     notified = true;
     try { onInterrupt?.(reason); } catch { /* a reporter must not throw into the audio path */ }
   }
 
+  /**
+   * ⚠ OBSERVATION ONLY — added 2026-07-25 to answer why a real phone call on
+   * iOS did not trip any of the watchers below. Every listener in this block
+   * writes a diagnostic line and returns; none of them decides anything, and
+   * none may ever be given a `flagInterrupt` call. The watchers that DO decide
+   * are unchanged and sit immediately after. See lib/voiceDiagnostics.js.
+   */
+  function captureState() {
+    let trackState = null;
+    try {
+      const [t] = stream.getAudioTracks();
+      if (t) trackState = { readyState: t.readyState, muted: t.muted, enabled: t.enabled };
+    } catch { /* track gone */ }
+    return {
+      elapsedMs: Date.now() - startedAt,
+      recorderState: (() => { try { return recorder.state; } catch { return null; } })(),
+      contextState: mixContext?.state ?? null,
+      track: trackState,
+    };
+  }
+
+  logVoiceSignal('recorder', 'started', captureState());
+
+  try {
+    recorder.addEventListener('start',  () => logVoiceSignal('recorder', 'start',  captureState()));
+    recorder.addEventListener('pause',  () => logVoiceSignal('recorder', 'pause',  captureState()));
+    recorder.addEventListener('resume', () => logVoiceSignal('recorder', 'resume', captureState()));
+    recorder.addEventListener('stop',   () => logVoiceSignal('recorder', 'stop',   captureState()));
+    // `dataavailable` proves capture is still ALIVE. Its ABSENCE across a call
+    // is the strongest evidence available that the pipeline died silently —
+    // TIMESLICE_MS means it should tick steadily while genuinely recording.
+    recorder.addEventListener('dataavailable', (e) => logVoiceSignal('recorder', 'dataavailable', { size: e?.data?.size ?? null, ...captureState() }));
+    stream.getAudioTracks().forEach((track) => {
+      track.addEventListener('unmute', () => logVoiceSignal('track', 'unmute', captureState()));
+    });
+    mixContext?.addEventListener?.('statechange', () => logVoiceSignal('context', 'statechange', captureState()));
+  } catch { /* diagnostics must never break capture */ }
+
   // The three ways a live capture dies without the user asking.
-  recorder.addEventListener('error', () => flagInterrupt('recorder-error'));
+  recorder.addEventListener('error', (e) => {
+    logVoiceSignal('recorder', 'error', { name: e?.error?.name ?? null, ...captureState() });
+    flagInterrupt('recorder-error');
+  });
   stream.getAudioTracks().forEach(track => {
     // `ended` — the mic was taken away for good (device unplugged, revoked).
     // `mute` — a transient seizure (an incoming call on iOS mutes the track).
     // Either way the audio from here on is silence or gone, so the note is
     // finished; a recording with a hole in it is not worth continuing.
-    track.addEventListener('ended', () => flagInterrupt('track-ended'));
-    track.addEventListener('mute',  () => flagInterrupt('track-muted'));
+    //
+    // ⚠ `mute` IS THE ONE THAT ACTUALLY CATCHES A PHONE CALL ON iOS.
+    //
+    // Measured over four real incoming calls (iPhone, iOS 26.5.2, installed
+    // PWA, 2026-07-25): `mute` fired on 3 of 3 interruptions that reached the
+    // watchers, every time as the FIRST signal, and every time with the track
+    // still readyState 'live'. `ended` never fired for a call at all — the
+    // track is seized, not destroyed. Anything that watches only `ended`
+    // therefore misses phone calls completely.
+    track.addEventListener('ended', () => { logVoiceSignal('track', 'ended', captureState()); flagInterrupt('track-ended'); });
+    track.addEventListener('mute',  () => { logVoiceSignal('track', 'mute',  captureState()); flagInterrupt('track-muted'); });
   });
-  // iOS drives an interruption through the AudioContext: a call suspends it,
-  // and Safari also exposes a non-standard 'interrupted' state.
+  // ⚠ THE AudioContext WATCHER IS A BACKSTOP, NOT THE PRIMARY SIGNAL —
+  // DO NOT DELETE IT, AND DO NOT RELY ON IT ALONE.
+  //
+  // Same four calls: the context reported 'interrupted' on ONE of three, and
+  // on the other two it sat at 'running' straight through the seizure and
+  // only changed when release() closed it ourselves. It is genuinely
+  // non-deterministic on iOS.
+  //
+  // So it stays (it is free, and it is the only signal for a context the OS
+  // suspends without touching the track), but a future "simplification" that
+  // drops the track `mute` watcher above and keeps this one would break
+  // interruption recovery on iPhone two times in three — while looking
+  // correct in code review and passing every test in this repo, because none
+  // of this can be reproduced without real hardware and a real caller.
   mixContext?.addEventListener?.('statechange', () => {
     const st = mixContext.state;
     if (st === 'suspended' || st === 'interrupted') flagInterrupt('context-' + st);
   });
+
+  // Page lifecycle for the life of this recording — the half of the picture
+  // the audio graph cannot show. Detached in release().
+  const stopObservingPage = observePageLifecycle(captureState);
+
+  /**
+   * One heartbeat sample. Short keys because this is written once a second
+   * and read as a column-aligned timeline, not as JSON.
+   *
+   * Every value here answers a different "where did it break?":
+   *   vis     — did the OS background us
+   *   ctx     — did the AudioContext get suspended/interrupted (the iOS tell)
+   *   rec     — does MediaRecorder still believe it is recording
+   *   trk     — is the microphone track still live
+   *   muted   — has the OS seized the mic WITHOUT ending the track
+   *   enabled — did anything disable it in software
+   *   focus   — is the document focused
+   *   act     — is there still a valid user activation (gates audio on iOS)
+   */
+  function heartbeatSample() {
+    let trk = null, muted = null, enabled = null;
+    try {
+      const [t] = stream.getAudioTracks();
+      if (t) { trk = t.readyState; muted = t.muted; enabled = t.enabled; }
+    } catch { /* track gone — nulls are the answer */ }
+    return {
+      vis: typeof document !== 'undefined' ? document.visibilityState : null,
+      ctx: mixContext?.state ?? null,
+      rec: (() => { try { return recorder.state; } catch { return null; } })(),
+      trk, muted, enabled,
+      focus: (() => { try { return document.hasFocus(); } catch { return null; } })(),
+      // Safari has not shipped userActivation; undefined is itself worth
+      // recording rather than papering over with a false.
+      act: (() => { try { return navigator.userActivation?.isActive ?? null; } catch { return null; } })(),
+      perf: Math.round(performance.now()),
+    };
+  }
+
+  const stopHeartbeat = startHeartbeat(heartbeatSample, 1000);
 
 
   /**
@@ -615,6 +718,9 @@ export async function startRecording({ onInterrupt } = {}) {
    */
   function release() {
     if (released) return;
+    logVoiceSignal('recorder', 'release', captureState());
+    try { stopHeartbeat(); } catch { /* ignore */ }
+    try { stopObservingPage(); } catch { /* ignore */ }
     settling = true;   // stopping our own tracks fires `ended`; not an interruption
     released = true;
     stream.getTracks().forEach(t => t.stop());
