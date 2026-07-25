@@ -555,7 +555,22 @@ export default function ConversationView({ conversationId, compact = false, onMi
       // refreshes on notification inserts or a 60s poll) would otherwise show
       // a stale count until the poll caught up. A window event rather than a
       // prop chain because the badge lives ABOVE this provider in the tree.
-      window.dispatchEvent(new CustomEvent('yp:messages-read'));
+      window.dispatchEvent(new CustomEvent('yp:messages-read', { detail: { conversationId } }));
+
+      // MP·5 — a push notification for this conversation may still be sitting
+      // in the OS notification tray from before it was read. Reading the
+      // conversation in-app should retire it, the same way opening a chat app
+      // clears its own banners; otherwise the tray keeps showing "1 new
+      // message" for something already seen. Best-effort: unsupported in
+      // some browsers, and there may be no push subscription at all.
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistration().then((registration) => {
+          if (!registration?.getNotifications) return;
+          registration.getNotifications({ tag: `conversation-${conversationId}` })
+            .then(list => list.forEach(n => n.close()))
+            .catch(() => {});
+        }).catch(() => {});
+      }
     })();
 
     return () => { cancelled.current = true; };

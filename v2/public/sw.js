@@ -202,3 +202,98 @@ self.addEventListener('fetch', (event) => {
 
   event.respondWith(staleWhileRevalidate(request));
 });
+
+/**
+ * MP3 · PUSH NOTIFICATIONS.
+ *
+ * A third job, added after the two above — same file, same worker, but this
+ * pair of listeners has nothing to do with caching and must not be allowed
+ * to grow into it. If you're touching fetch/install/activate for a push
+ * reason, stop; the boundary is deliberate.
+ *
+ * ⚠ THE PAYLOAD CONTRACT — never plaintext message content. ─────────────
+ *
+ * The push service (and the OS notification tray it renders through) is
+ * outside this app's trust boundary. MP4's sending function must never put
+ * a message's text into the push payload, and this handler must never be
+ * changed to expect it there. What IS safe to carry: a conversation id (a
+ * routing token, not a secret), a sender's display name, and a message
+ * KIND (text/voice/image/file/hand — for picking a sound, not for showing
+ * content). This is also what keeps push compatible with libsignal once
+ * encryption lands: the server sending the push will not possess the
+ * plaintext to leak even if it wanted to.
+ *
+ * A later "show the real message text in the preview" feature (the
+ * Always/When-unlocked/Never setting on the roadmap) has to be satisfied
+ * WITHOUT changing this contract — e.g. the client already caches recent
+ * message text locally and looks it up by conversationId when building the
+ * notification, or a future end-to-end-encrypted payload is decrypted
+ * here. Sending the plaintext through the push service is not an option.
+ */
+self.addEventListener('push', (event) => {
+  if (!event.data) return;
+
+  let payload;
+  try { payload = event.data.json(); } catch { return; }
+
+  const { conversationId, senderName, kind, badgeCount } = payload || {};
+  if (!conversationId) return; // no routing token, nothing to show or open
+
+  const title = senderName ? senderName : 'New message';
+  const body  = kind === 'voice' ? 'Sent a voice note'
+              : kind === 'image' ? 'Sent a photo'
+              : kind === 'file'  ? 'Sent a file'
+              : kind === 'hand'  ? 'Sent a message'
+              : 'Sent a message';
+
+  event.waitUntil(Promise.all([
+    self.registration.showNotification(title, {
+      body,
+      icon: '/icon-192.png',
+      // Same conversation collapses to one notification instead of stacking
+      // one per message — a burst of five texts reads as one alert, not five.
+      tag: `conversation-${conversationId}`,
+      renotify: true,
+    }),
+    // MP·5b — the ONLY place the OS icon badge is ever set from a push,
+    // since this is the only code that still runs when the app is fully
+    // closed. `navigator` is a valid global in a service worker (it is a
+    // WorkerNavigator, not a Window one, but the Badging API is defined on
+    // both). `badgeCount` is null rather than 0 when the server-side lookup
+    // failed — treat null as "leave the badge alone", NOT as "clear it";
+    // clearing on an unrelated failure would hide a real unread badge.
+    (typeof badgeCount === 'number' && 'setAppBadge' in navigator)
+      ? (badgeCount > 0 ? navigator.setAppBadge(badgeCount) : navigator.clearAppBadge()).catch(() => {})
+      : Promise.resolve(),
+  ]));
+});
+
+/**
+ * ⚠ OWNER DECISION (2026-07-25): tapping a notification opens the app's
+ * landing page, NEVER the conversation directly. Tried the deep-link
+ * version first; the owner's explicit preference after seeing it in
+ * practice: "I want to look and see is it the bell or the messages that
+ * have the notification, in which case I'll decide if I even want to open
+ * that message." A glance-then-decide step, not a jump straight into the
+ * thread. Do not reintroduce a conversation URL here without checking back
+ * — this was tested behavior, not an oversight.
+ */
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const url = '/';
+
+  event.waitUntil((async () => {
+    const allClients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    // Focus an existing tab rather than opening a duplicate — same idiom as
+    // any native app, and it keeps the Outbox/realtime state that tab
+    // already holds instead of a fresh reload racing to catch up.
+    for (const client of allClients) {
+      if ('focus' in client) {
+        await client.focus();
+        if ('navigate' in client) await client.navigate(url).catch(() => {});
+        return;
+      }
+    }
+    await self.clients.openWindow(url);
+  })());
+});

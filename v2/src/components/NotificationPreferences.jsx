@@ -28,14 +28,21 @@ import s from './NotificationPreferences.module.css';
 // a switch that does not exist and concluding the app had lost their setting.
 // Showing them with "always on" answers the question before it is asked.
 //
-// ── messages IS ABSENT ON PURPOSE ───────────────────────────────────────
+// ── messages WAS ABSENT ON PURPOSE, UNTIL MESSAGING SHIPPED ─────────────
 //
-// The category exists in the database, ready for when messaging ships. It is
-// omitted here because in-app messaging does not exist yet, so no notification
-// of that type is ever written — a switch for it would be a control over
-// nothing. Add it to CATEGORIES when messaging lands.
+// The category has existed in notification_expiry_policy since NP1, held
+// back from this list only because in-app messaging did not exist yet —
+// a switch controlling nothing. Messaging (M8e's notify_new_message
+// trigger) has since shipped and MP4 now routes it to push too, so the
+// switch is added here (2026-07-25). No database change needed: the row
+// was always there waiting for a label.
 
 const CATEGORIES = [
+  {
+    key: 'messages',
+    label: 'MESSAGES',
+    desc: 'New messages in your conversations.',
+  },
   {
     key: 'bookings',
     label: 'BOOKINGS',

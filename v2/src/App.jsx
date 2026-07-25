@@ -155,13 +155,39 @@ function Shell({ session, isGuest, onSignOut }) {
 
     // Fallback poll every 60s
     pollRef.current = setInterval(() => { fetchUnread(); fetchMessages(); }, 60000);
+
+    // MP·5 — mobile browsers throttle/suspend both the realtime socket and
+    // this setInterval while the tab is backgrounded, and reopening a PWA
+    // from the home screen icon typically RESUMES the same suspended page
+    // rather than reloading it — so nothing above re-runs on its own.
+    // Result without this: the OS app-icon badge (sourced from this same
+    // state) can sit on a stale number for minutes after messages actually
+    // arrived, even though the in-app Messages screen shows the true count
+    // (it fetches fresh on its own mount). Forcing a refetch the instant
+    // the tab becomes visible again is what keeps the OS badge honest.
+    const onVisible = () => { if (document.visibilityState === 'visible') { fetchUnread(); fetchMessages(); } };
+    document.addEventListener('visibilitychange', onVisible);
+
     return () => {
       supabase.removeChannel(channel);
       window.removeEventListener('yp:messages-read', onRead);
       window.removeEventListener('yp:message-received', onReceived);
+      document.removeEventListener('visibilitychange', onVisible);
       clearInterval(pollRef.current);
     };
   }, [session]);
+
+  // MP·5 — the OS app-icon badge, sourced from the SAME two counts every
+  // other surface already agrees on (unreadCount: the bell, messagesBadge:
+  // §5.6's one counting rule for messages). No independent tally is taken
+  // here — a second badge implementation is exactly how a badge and the
+  // in-app UI drift apart and start disagreeing with each other.
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !('setAppBadge' in navigator)) return;
+    const total = unreadCount + messagesBadge;
+    if (total > 0) navigator.setAppBadge(total).catch(() => {});
+    else navigator.clearAppBadge().catch(() => {});
+  }, [unreadCount, messagesBadge]);
 
   function handleTabPress(tabId) {
     if (tabId === 'industry') {

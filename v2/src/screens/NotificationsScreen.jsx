@@ -4,6 +4,7 @@ import { useSession } from '../App';
 import { getNotifMeta, cleanMessage } from '../lib/notifMeta';
 import { acceptSlotOffer, declineSlotOffer, acceptInvite, declineInvite } from '../lib/notifActions';
 import NotificationPreferences from '../components/NotificationPreferences';
+import PushNotificationToggle from '../components/PushNotificationToggle';
 import {
   conversationNotificationTypes, KNOWN_CONVERSATION_TYPES,
 } from '../lib/conversationNotifications';
@@ -87,7 +88,12 @@ export default function NotificationsScreen() {
           </button>
         </div>
 
-        {prefsOpen && <NotificationPreferences session={session} />}
+        {prefsOpen && (
+          <>
+            <PushNotificationToggle session={session} />
+            <NotificationPreferences session={session} />
+          </>
+        )}
 
         {loading && (
           <div style={{ textAlign: 'center', color: 'rgba(255,255,255,.35)', fontFamily: "'Bebas Neue',sans-serif", fontSize: 14, letterSpacing: 2, padding: '48px 0' }}>
