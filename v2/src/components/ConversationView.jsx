@@ -22,7 +22,7 @@ import HandIcon from './HandIcon';
 import EqReceipt from './EqReceipt';
 import { receiptFor, RECEIPT } from '../lib/receiptState';
 import { makePending, appendPending, settlePending, failPending, revokePendingUrl } from '../lib/pendingSend';
-import { queueMessage, entriesFor, subscribeOutbox, subscribeDelivered, retry as outboxRetry } from '../lib/outbox';
+import { queueMessage, entriesFor, subscribeOutbox, subscribeDelivered, retry as outboxRetry, saveDraft, restoreDraft, deleteDraft } from '../lib/outbox';
 import { timeOf } from '../lib/clock';
 
 /**
@@ -333,6 +333,10 @@ export default function ConversationView({ conversationId, compact = false, onMi
   const [outbox, setOutbox]        = useState([]);
   // entryId → object url for queued Voiceys, so a waiting note is playable.
   const voiceUrls = useRef(new Map());
+  // A parked Voicey recovered from a previous session — shown in a banner with
+  // Send / Delete until the user decides. null when there is nothing to recover.
+  const [recoveredDraft, setRecoveredDraft] = useState(null);
+  const recoveredUrl = useRef(null);
   const [mine, setMine]            = useState(new Set());
   const [senderProfile, setSender] = useState(null);
   // The FULL sending profile, not just its id — the header must state which
@@ -614,6 +618,27 @@ export default function ConversationView({ conversationId, compact = false, onMi
       live = false; offChange(); offDelivered();
       for (const [, url] of voiceUrls.current) URL.revokeObjectURL(url);
       voiceUrls.current.clear();
+    };
+  }, [conversationId]);
+
+  /**
+   * RECOVER A PARKED VOICEY on open. If a draft survived from a previous
+   * session — a reload, a crash, a call the user never came back from — bring
+   * it back and announce it, rather than letting durable content sit invisible
+   * in storage. A playable object url is minted from the stored blob (the same
+   * reason queued Voiceys need one), and revoked when the banner is dismissed.
+   */
+  useEffect(() => {
+    if (!conversationId) return undefined;
+    let live = true;
+    restoreDraft(conversationId).then(d => {
+      if (!live || !d || d.kind !== 'voice' || !d.payload?.segments?.[0]) return;
+      recoveredUrl.current = URL.createObjectURL(d.payload.segments[0]);
+      setRecoveredDraft(d);
+    });
+    return () => {
+      live = false;
+      if (recoveredUrl.current) { URL.revokeObjectURL(recoveredUrl.current); recoveredUrl.current = null; }
     };
   }, [conversationId]);
 
@@ -1147,8 +1172,46 @@ export default function ConversationView({ conversationId, compact = false, onMi
       kind: 'voice',
       payload: { segments: [blob], durationMs, wave, capture, fromProfileId: senderProfile },
     });
+    // Sending clears any draft that was persisted for this note — it is now a
+    // queued message, not a draft.
+    await deleteDraft(conversationId);
     // No throw: the Voicey is safely in the Outbox. The recorder shows 'sent'
     // and returns to idle; delivery and any retry happen in the Outbox now.
+  }
+
+  /**
+   * A Voicey was parked — the user toggled the mic off, or a call interrupted
+   * them. Persist it as this conversation's draft so it survives a reload, a
+   * crash, or the app being closed. Continuous: every park overwrites the one
+   * draft. The wave is computed here so a recovered draft draws its real
+   * waveform without a re-decode.
+   */
+  async function onParkVoice({ blob, durationMs, capture }) {
+    if (!senderProfile) return;
+    const wave = await computeWave(blob);
+    await saveDraft({
+      conversationId,
+      kind: 'voice',
+      payload: { segments: [blob], durationMs, wave, capture, fromProfileId: senderProfile },
+    });
+  }
+
+  /** The user discarded the recording — drop its draft too. */
+  function onDiscardVoice() { void deleteDraft(conversationId); }
+
+  /** Restore a recovered draft into the Outbox as a queued send. */
+  async function sendRecoveredDraft() {
+    const d = recoveredDraft;
+    if (!d) return;
+    setRecoveredDraft(null);
+    await queueMessage({ conversationId, kind: 'voice', payload: d.payload });
+    await deleteDraft(conversationId);
+  }
+
+  /** Throw the recovered draft away — an explicit, permitted destroy. */
+  async function discardRecoveredDraft() {
+    setRecoveredDraft(null);
+    await deleteDraft(conversationId);
   }
 
   /**
@@ -1794,11 +1857,22 @@ export default function ConversationView({ conversationId, compact = false, onMi
         />
       )}
 
+      {recoveredDraft && (
+        <RecoveredDraftBanner
+          url={recoveredUrl.current}
+          durationMs={recoveredDraft.payload?.durationMs}
+          onSend={sendRecoveredDraft}
+          onDiscard={discardRecoveredDraft}
+        />
+      )}
+
       <Composer
         draft={draft}
         onDraftChange={onDraftChange}
         onSubmit={onSend}
         onRecorded={onRecordedVoice}
+        onPark={onParkVoice}
+        onDiscard={onDiscardVoice}
         onPickImage={onPickImage}
         onPickFile={onPickFile}
         onSendHand={onSendHand}
@@ -1818,6 +1892,39 @@ export default function ConversationView({ conversationId, compact = false, onMi
  * YesPleez cards land as branches rather than a rewrite. Only `text` exists —
  * the others are declared, not built, and nothing here pretends otherwise.
  */
+/**
+ * "RECOVERED DRAFT" — a parked Voicey that survived a reload, a crash, or a
+ * call the user never returned from. Durable content must be announced, not
+ * silently restored, so the user knows their recording is safe and chooses its
+ * fate: Send it, or delete it. Those are the only two exits — the same rule
+ * that governs a live parked note.
+ */
+function RecoveredDraftBanner({ url, durationMs, onSend, onDiscard }) {
+  const secs = Math.max(0, Math.round((durationMs ?? 0) / 1000));
+  const mmss = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 10,
+      margin: '0 12px 8px', padding: '10px 12px', borderRadius: 12,
+      background: 'rgba(191,95,255,.10)', border: '1px solid rgba(191,95,255,.28)',
+    }}>
+      <span style={{ fontSize: 12, fontWeight: 600, color: 'rgba(240,220,255,.92)', whiteSpace: 'nowrap' }}>
+        Recovered draft
+      </span>
+      {url && <audio src={url} controls preload="metadata" style={{ height: 30, flex: 1, minWidth: 0 }} />}
+      <span style={{ fontSize: 11, color: 'rgba(255,255,255,.55)', fontVariantNumeric: 'tabular-nums' }}>{mmss}</span>
+      <button type="button" onClick={onDiscard} aria-label="Delete recovered draft"
+        style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,.5)', cursor: 'pointer', fontSize: 12, padding: '4px 6px' }}>
+        Delete
+      </button>
+      <button type="button" onClick={onSend} aria-label="Send recovered draft"
+        style={{ background: 'rgba(191,95,255,.9)', border: 'none', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600, padding: '5px 12px', borderRadius: 999 }}>
+        Send
+      </button>
+    </div>
+  );
+}
+
 function MessageBubble({ message, isMine, grouped = false, endsBurst = true, speaker, handed = false, onToggleHand, onRetry, seenWatermark = null, deliveredWatermark = null, highlighted = false }) {
 
   // Null for anything received — receiptFor enforces that, and it is the rule

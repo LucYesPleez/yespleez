@@ -65,7 +65,7 @@ export const WARN_REMAINING_MS = 15 * 1000;
 /** How long `sent` shows before returning to idle. */
 const SENT_DWELL_MS = 900;
 
-export function useVoiceRecorder({ onRecorded, onNotice, disabled = false } = {}) {
+export function useVoiceRecorder({ onRecorded, onNotice, onPark, onDiscard, disabled = false } = {}) {
   const [phase,   setPhase]   = useState('idle');
   const [elapsed, setElapsed] = useState(0);
 
@@ -129,7 +129,11 @@ export function useVoiceRecorder({ onRecorded, onNotice, disabled = false } = {}
     pendingRef.current = null;
     setElapsed(0);
     setPhaseBoth('idle');
-  }, [teardown, setPhaseBoth]);
+    // Discard is one of the few acts allowed to destroy a recording — so it must
+    // also clear any draft that was persisted for it, or the note the user threw
+    // away would reappear on the next visit.
+    try { onDiscard?.(); } catch { /* clearing a draft must not break discard */ }
+  }, [teardown, setPhaseBoth, onDiscard]);
 
   /** Upload a finished result and show it through to its end. */
   const upload = useCallback(async result => {
@@ -166,8 +170,13 @@ export function useVoiceRecorder({ onRecorded, onNotice, disabled = false } = {}
     pendingRef.current = result;
     setElapsed(result.durationMs);
     setPhaseBoth('pending');
+    // A parked note is durable user content the moment it exists (whether the
+    // user toggled off or a call interrupted them). onPark persists it as a
+    // draft so it survives a reload, a crash, or closing the app — the composer
+    // owns that, not this hook.
+    try { onPark?.(result); } catch { /* persistence must not break the recorder */ }
     return result;
-  }, [teardown, onNotice, setPhaseBoth]);
+  }, [teardown, onNotice, setPhaseBoth, onPark]);
 
   /**
    * An interruption ended the capture — a call, the mic taken, headphones

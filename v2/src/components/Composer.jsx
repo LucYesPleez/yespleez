@@ -143,6 +143,8 @@ export default function Composer({
   onDraftChange,
   onSubmit,
   onRecorded,
+  onPark,
+  onDiscard,
   onSendHand,
   onNotice,
   sending = false,
@@ -158,7 +160,7 @@ export default function Composer({
   // menu offers only the rows its handlers exist for.
   onPickFile,
 }) {
-  const rec = useVoiceRecorder({ onRecorded, onNotice, disabled: !canWrite || sending });
+  const rec = useVoiceRecorder({ onRecorded, onNotice, onPark, onDiscard, disabled: !canWrite || sending });
 
   const hasText = Boolean(draft.trim());
   const busy    = rec.busy;
