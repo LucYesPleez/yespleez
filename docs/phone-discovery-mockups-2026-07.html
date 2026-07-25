@@ -222,6 +222,12 @@
 <p class="sub">Twelve frames, built from the app's real tokens — DM Sans / Bebas Neue, the neon pair, GlowPill,
 composer glass, card-not-sheet modals, and the sacred bottom nav on every screen. Full spec:
 <b>phone-discovery-ux-2026-07.md</b>. The circled 🤟 stands in for the Hand mark.</p>
+<p class="sub" style="border-left:2px solid var(--neon);padding-left:12px;margin-top:-22px">
+<b style="color:var(--text)">NO SMS, ANYWHERE</b> (owner, 2026-07-26) — no verification texts, no invitation texts, no cost.
+The number is a lookup key on the existing data system, not a credential. Verification is replaced by five free
+mitigations; the one you can see is the <b style="color:var(--text)">corroboration line</b> in frame 5.
+The rule that keeps it safe: <b style="color:var(--text)">a number claim confers nothing — it is a way to be found,
+never a way to be trusted.</b></p>
 
 <div class="grid">
 
@@ -245,10 +251,13 @@ composer glass, card-not-sheet modals, and the sacred bottom nav on every screen
         </div>
         <div class="bebas" style="font-size:25px;text-align:center;margin-bottom:9px">YOUR SCENE IS ALREADY HERE</div>
         <p style="font-size:13.5px;line-height:1.55;text-align:center;color:var(--text)">
-          Let friends who already have your number find you on YesPleez.
-          Your number itself is <b>never shown to anyone</b> — not to friends,
-          not on your profile, not ever.</p>
-        <div class="btn btn-grad" style="margin-top:16px">LET FRIENDS FIND ME</div>
+          Add your number so friends who already have it can find you.
+          It's only ever used to match you — <b>never shown to anyone,
+          never texted</b>, and you can remove it whenever you like.</p>
+        <div class="capsule" style="margin-top:14px;height:44px">
+          <span class="cc">+61 <s>▾</s></span><input placeholder="Your mobile number">
+        </div>
+        <div class="btn btn-grad" style="margin-top:12px">LET FRIENDS FIND ME</div>
         <div class="btn btn-ghost" style="margin-top:9px;font-family:'DM Sans',sans-serif;font-size:13px;letter-spacing:.2px">Not now</div>
         <p class="micro" style="margin-top:11px">Change anytime · Settings → Privacy → Phone Number</p>
       </div>
@@ -258,9 +267,10 @@ composer glass, card-not-sheet modals, and the sacred bottom nav on every screen
       <a class="on"><span class="dot badge"></span>MESSAGES</a><a><span class="dot"></span>INDUSTRY</a>
     </div>
   </div>
-  <figcaption><b>1 · FIRST-TIME DISCOVERABILITY PROMPT</b>
-    <ul><li>One time, over a working inbox — never a gate. Card, not sheet; nav stays clear.</li>
-        <li>"Not now" = Nobody, recorded, never re-asked. Rings pulse 3× then come to rest.</li></ul>
+  <figcaption><b>1 · FIRST-TIME PROMPT + NUMBER ENTRY</b>
+    <ul><li>No SMS anywhere, so there's no verification screen — the card that explains why is the card that takes the number.</li>
+        <li>"Never texted" earns its place in the body copy: it's a real differentiator and it's true.</li>
+        <li>"Not now" = Nobody, no number stored, never re-asked. Rings pulse 3× then come to rest.</li></ul>
   </figcaption>
 </figure>
 
@@ -372,11 +382,11 @@ composer glass, card-not-sheet modals, and the sacred bottom nav on every screen
       <div class="banner"><s>✓</s> SYNCED — 5 FRIENDS FOUND</div>
       <div class="seclabel" style="margin-top:10px">FROM YOUR CONTACTS</div>
       <div class="prow"><div class="av photo1">JD</div><div class="pmain"><div class="pname">Jess Deluxe</div>
-        <div class="pmeta"><span class="glow-pill">DJ / PROD.</span><span>· in your contacts</span></div></div><span class="msgbtn">MESSAGE</span></div>
+        <div class="pmeta"><span class="glow-pill">DJ / PROD.</span><span>· saved as Jess</span></div></div><span class="msgbtn">MESSAGE</span></div>
       <div class="prow"><div class="av photo2">TR</div><div class="pmain"><div class="pname">The Roundhouse</div>
-        <div class="pmeta"><span class="glow-pill">VENUE</span><span>· in your contacts</span></div></div><span class="msgbtn">MESSAGE</span></div>
-      <div class="prow"><div class="av">SK</div><div class="pmain"><div class="pname">Sam K</div>
-        <div class="pmeta"><span>On YesPleez · in your contacts</span></div></div><span class="msgbtn">MESSAGE</span></div>
+        <div class="pmeta"><span class="glow-pill">VENUE</span><span>· saved as Roundhouse</span></div></div><span class="msgbtn">MESSAGE</span></div>
+      <div class="prow"><div class="av">MX</div><div class="pmain"><div class="pname">Mallory X</div>
+        <div class="pmeta"><span>On YesPleez · saved as Bob</span></div></div><span class="msgbtn">MESSAGE</span></div>
       <p style="font-size:10.5px;color:var(--muted);padding:5px 4px 0">Synced today · Settings → Privacy → Contacts</p>
       <div class="seclabel">INVITE</div>
       <div class="prow" style="padding-top:6px"><div class="av" style="background:var(--card2);border:1px solid var(--border);color:var(--muted)">M</div>
@@ -384,7 +394,7 @@ composer glass, card-not-sheet modals, and the sacred bottom nav on every screen
         <div class="pmeta">Not on YesPleez yet</div></div><span class="invbtn">INVITE</span></div>
       <div class="seclabel">RECENTLY JOINED</div>
       <div class="prow"><div class="av photo3">LN</div><div class="pmain"><div class="pname">Lena Nova</div>
-        <div class="pmeta">Joined this week · in your contacts</div></div><span class="msgbtn">MESSAGE</span></div>
+        <div class="pmeta">Joined this week · saved as Lena</div></div><span class="msgbtn">MESSAGE</span></div>
     </div>
     <div class="nav">
       <a><span class="dot"></span>MY SCENE</a><a><span class="dot"></span>WHAT'S ON</a><a><span class="dot"></span>DISCOVER</a>
@@ -392,8 +402,12 @@ composer glass, card-not-sheet modals, and the sacred bottom nav on every screen
     </div>
   </div>
   <figcaption><b>5 · SYNCED — MATCHES, INVITES, RECENTLY JOINED</b>
-    <ul><li>Rows land with the reaction physics (24px fall, 40ms stagger) — things that matter arrive.</li>
-        <li>Display identity is canonical; the phonebook name never labels a member. No number anywhere.</li></ul>
+    <ul><li>⭐ <b>The corroboration line replaces SMS verification.</b> Every match shows the account's name AND
+        the name you saved that number under. Row 1–2 agree and fade into the background; row 3 is what a
+        squatted number looks like — "Mallory X · saved as Bob".</li>
+        <li>The phonebook name is rendered on-device and never uploaded. Muted, never red: most mismatches are
+        just nicknames, and crying wolf would train people to ignore the real one.</li>
+        <li>Rows land with the reaction physics (24px fall, 40ms stagger) — things that matter arrive.</li></ul>
   </figcaption>
 </figure>
 
@@ -466,10 +480,12 @@ composer glass, card-not-sheet modals, and the sacred bottom nav on every screen
     <div class="content">
       <div class="crumb">Settings → Privacy</div>
       <div class="ptitle" style="margin-top:2px">PHONE NUMBER</div>
-      <div class="card" style="display:flex;align-items:center;gap:10px">
-        <div style="flex:1"><div style="font-size:14px;font-weight:600;letter-spacing:1px">••• ••• 789</div>
-          <div style="font-size:11px;color:var(--muted);margin-top:3px">Verified · never shown to anyone</div></div>
-        <span style="font-size:15px;opacity:.6">👁</span>
+      <div class="card" style="padding:4px 14px">
+        <div class="srow"><div style="flex:1"><div style="font-size:14px;font-weight:600;letter-spacing:1px">••• ••• 789</div>
+          <div class="sl2">Never shown to anyone · never texted</div></div>
+          <span style="font-size:15px;opacity:.6;margin-left:auto">👁</span></div>
+        <div class="srow"><div class="sl1" style="font-size:13.5px">Change number</div><span style="margin-left:auto;opacity:.5">›</span></div>
+        <div class="srow"><div class="sl1" style="font-size:13.5px;color:var(--muted)">Remove my number</div></div>
       </div>
       <div class="seclabel">FIND ME BY PHONE NUMBER</div>
       <div class="opt sel"><span class="radio on"></span><span><b>Everyone</b>
@@ -488,7 +504,9 @@ composer glass, card-not-sheet modals, and the sacred bottom nav on every screen
     </div>
   </div>
   <figcaption><b>8 · SETTINGS → PRIVACY → PHONE NUMBER</b>
-    <ul><li>Own number masked by default; eye reveals 5s. Radios apply instantly — no save button.</li>
+    <ul><li><b>No "Verified" tick — the number isn't verified, and a badge claiming otherwise would be the most
+        damaging line in the product.</b> Change is rate-limited to once per 30 days; Remove deletes the key outright.</li>
+        <li>Own number masked by default; eye reveals 5s. Radios apply instantly — no save button.</li>
         <li>Toast docks above the nav (--yp-safe-bottom). Selected row wears the GlowPill-on wash.</li></ul>
   </figcaption>
 </figure>
@@ -507,7 +525,7 @@ composer glass, card-not-sheet modals, and the sacred bottom nav on every screen
         <div class="srow"><div><div class="sl1">Last synced</div>
           <div class="sl2">Today, 2:14 pm · 212 codes</div></div></div>
         <div class="srow"><div><div class="sl1">Contacts access</div>
-          <div class="sl2" style="color:var(--green)">Allowed ✓</div></div></div>
+          <div class="sl2" style="color:var(--green)">Allowed</div></div></div>
         <div class="srow"><div class="sl1">Sync now</div><span style="margin-left:auto;opacity:.6">↻</span></div>
       </div>
       <div class="danger" style="margin-top:14px">

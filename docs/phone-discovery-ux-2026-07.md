@@ -1,5 +1,11 @@
-# Phone Number Discovery — UX Design v1.0
+# Phone Number Discovery — UX Design v1.1
 **2026-07-26 · Design complete, nothing built · Companion mockups: `phone-discovery-mockups-2026-07.html`**
+
+> **v1.1 — NO SMS (owner decision, 2026-07-26).** The phone number is a pure identifier running
+> on the existing data system; YesPleez sends no text messages for any purpose. There is no
+> verification step and no telephony cost. Verification is replaced by the five mitigations in
+> §0, governed by one rule: **a number claim confers nothing — it is a way to be found, never a
+> way to be trusted.** The invitation half of the design was already SMS-free and is unchanged.
 
 The complete user experience for finding people on YesPleez Messenger by phone number: first
 discovery through ongoing privacy management. Written for direct implementation.
@@ -17,13 +23,73 @@ an API can't be derived from it, it doesn't ship.
 
 | Concept | What it is | Who controls it | Default |
 |---|---|---|---|
-| **Verification** | Your number proves the account is real (SMS OTP at signup) | Required | — |
-| **Discoverability** | Whether *others* can find *you* by your number | You, per-account | Set by the first-run prompt |
+| **Your number on file** | A lookup key you add to your account. **Not a credential, not verified, never sent to** | You, optional, removable | Not set |
+| **Discoverability** | Whether *others* can find *you* by that key | You, per-account | Set by the first-run prompt |
 | **Contact sync** | Whether *you* upload scrambled codes to find *them* | You, revocable, deletable | Off until asked for |
 
-These never collapse into one switch. Verifying does not make you discoverable. Being
+These never collapse into one switch. Adding your number does not make you discoverable. Being
 discoverable does not sync your contacts. Syncing your contacts does not change who can find
 you. Every settings screen restates the boundary it sits inside.
+
+### ⛔ NO SMS. ANYWHERE. EVER. (owner decision, 2026-07-26)
+
+**YesPleez sends no text messages** — not for verification, not for invitations, not for
+recovery. The phone number is purely an identifier and runs entirely on the data system the
+rest of the app already uses. No telephony provider, no per-message cost, no carrier
+relationship, no Spam Act 2003 surface.
+
+This has one consequence that must be designed around rather than wished away, and the rest of
+this section is that design.
+
+### The number is a lookup key, not a credential
+
+**Identity is already solved upstream.** An account is authenticated by the existing Supabase
+auth before it ever reaches this feature. The phone number is not being asked to prove who
+someone is — the session already knows. It is only a *key other people can look you up by*.
+
+So the threat is not impersonation of an account. It is **squatting a key**: someone entering a
+number they do not own, so that the owner's friends find *them* instead.
+
+| Sounds like a risk | Actually |
+|---|---|
+| "Anyone can claim any account" | No — accounts are auth-protected and untouched by this |
+| "Anyone can claim any number" | **Yes.** This is the real exposure, and it is bounded below |
+| "Numbers could leak" | No — never displayed, never in a URL, never in an event (§0 architecture unchanged) |
+
+### The five mitigations — all free, all on the existing data system
+
+1. **Uniqueness, first claim wins.** One account per number, enforced by a unique constraint on
+   the stored key. A squatter must know the number *and* get there first.
+2. **A claim is not instantly findable.** A newly added number becomes discoverable after
+   **24 hours**. Costs an attacker patience and removes every drive-by; costs a real user
+   nothing they will notice, because they added their number to be found *later*.
+3. **Changes are rate-limited and logged.** One number per account, changeable at most once per
+   **30 days**, every change written to an audit row. This is what stops the real damage —
+   cycling a single account through many numbers to harvest the contact graph.
+4. **⭐ Phonebook-name corroboration, client-side.** The strongest signal available, and it is
+   free *and* private. After a contact sync the device already knows it saved that number as
+   "Bob"; the matched account says it is "Mallory X". The app shows both — `Mallory X · saved
+   as Bob` — and the mismatch is visible to the only person who can judge it. The server never
+   learns either name. A squatter cannot defeat this without also knowing what every victim's
+   friends nicknamed them.
+5. **Dispute and reclaim through Studio.** The ops platform already has a Claims Queue with
+   `approve/reject_profile_claim()` and a reviewer team — a contested number is the same shape
+   of problem and routes to the same place. A reclaimed number is released from the squatter's
+   account and the squatter cannot re-add it.
+
+### The rule that keeps this safe
+
+> **A number claim confers nothing. It is a way to be found, never a way to be trusted.**
+
+Concretely, and permanently: no "verified" badge anywhere in the product; no account recovery
+through a phone number; no elevated permissions, no auto-trust, no bypass of any existing
+consent; a discovered account is exactly as trusted as one found any other way. The moment a
+number grants something, the lack of verification becomes a hole. It never grants anything, so
+it never becomes one.
+
+**T2 (recorded tension):** this is a deliberate trade — zero cost for a soft key. If YesPleez
+later wants the number to *mean* something (recovery, trust signals, payments), verification
+becomes non-optional and this section is where that conversation restarts.
 
 ### The privacy architecture (engineering contract the copy depends on)
 
@@ -54,16 +120,23 @@ setting silently mean "Nobody".
 ## 1 · The complete user journey
 
 ```
-  SIGNUP                    FIRST ENTRY               INTENT                    ONGOING
+  ACCOUNT EXISTS            FIRST ENTRY               INTENT                    ONGOING
 ┌───────────┐  once  ┌──────────────────────┐  ┌──────────────────┐  ┌──────────────────────┐
-│ Verify    │──────▶ │ Discoverability      │  │ Find People      │  │ Settings → Privacy   │
-│ number    │        │ prompt (one card,    │  │  · search number │  │  · Phone Number      │
-│ (SMS OTP) │        │ one time, over the   │  │  · contacts ──▶ primer ──▶ system picker /  │
-└───────────┘        │ inbox)               │  │  · invite link   │  │    OS dialog         │
+│ Auth'd    │──────▶ │ Discoverability      │  │ Find People      │  │ Settings → Privacy   │
+│ (Supabase)│        │ prompt + inline      │  │  · search number │  │  · Phone Number      │
+│ NO SMS    │        │ number entry, one    │  │  · contacts ──▶ primer ──▶ system picker /  │
+└───────────┘        │ card, over the inbox │  │  · invite link   │  │    OS dialog         │
                      └──────────────────────┘  │  · recently joined │  · Contacts (sync,   │
-                                               └──────────────────┘  │    delete codes)     │
-                                                                     └──────────────────────┘
+                          ↓ 24h cooling        └──────────────────┘  │    delete codes)     │
+                       discoverable                                  └──────────────────────┘
 ```
+
+**Where the number is actually entered.** With no SMS step there is no verification screen, so
+the number has to be collected somewhere — and a standalone "add your number" screen for a
+feature the user hasn't asked for yet is exactly the friction this design avoids. It goes
+**inside the first-run prompt** (§2): the card that explains *why* is the card that takes it.
+One screen, one decision, one field. Users who tap "Not now" are never asked for a number at
+all, which is the correct outcome — an unused key should not be stored.
 
 **The progressive-disclosure spine.** Each stage reveals exactly as much privacy detail as the
 decision in front of the user requires — never more, never earlier:
@@ -104,7 +177,8 @@ undimmed below `--yp-nav-height`, as always.
 | Illustration | 96 px tall. **The Signal Flare:** the Hand mark at centre, two thin pink→cyan gradient rings pulsing outward, three small avatar dots that *land* on the rings (ypReactionLand-derived, 24 px drop, staggered 120 ms). Pulses run 3× then come to rest — everything in YesPleez comes to rest. |
 | Header | Bebas Neue 26 px, `letter-spacing: 1.5px` — `YOUR SCENE IS ALREADY HERE` |
 | Body | DM Sans 14.5 px `--text`, max 3 lines |
-| Primary button | Full-width gradient pill (the `yp-ctl-send` treatment: `linear-gradient(135deg, #00E5FF, #BF5FFF)`, dark text) — Bebas 15 px |
+| **Number field** | The composer-glass capsule (§4's treatment) — country chip + `tel` input. Empty, focused only on tap, never autofocused (a keyboard flying up over a first-run card reads as a demand) |
+| Primary button | Full-width gradient pill (the `yp-ctl-send` treatment: `linear-gradient(135deg, #00E5FF, #BF5FFF)`, dark text) — Bebas 15 px. Disabled until the number parses valid |
 | Secondary | Full-width ghost (transparent, `1px rgba(255,255,255,.16)` border) |
 | Micro-line | 11.5 px `--muted`, centred |
 
@@ -112,19 +186,34 @@ undimmed below `--yp-nav-height`, as always.
 
 > **YOUR SCENE IS ALREADY HERE**
 >
-> Let friends who already have your number find you on YesPleez.
-> Your number itself is never shown to anyone — not to friends, not on your
-> profile, not ever.
+> Add your number so friends who already have it can find you.
+> It's only ever used to match you — never shown to anyone, never
+> texted, and you can remove it whenever you like.
+>
+> `[ +61 ▾ │ Your mobile number ]`
 >
 > **[ LET FRIENDS FIND ME ]**
 > [ Not now ]
 >
 > Change anytime · Settings → Privacy → Phone Number
 
+**Why "never texted" is in the body copy.** Every user has been trained by a decade of apps
+that handing over a number means SMS — a verification code now and marketing later. Saying we
+don't is a genuine differentiator and it costs one clause. It is also simply true, which is
+the only reason it is allowed to be there.
+
 ### Behaviour
 
-- **Let friends find me** → `discoverable = everyone`. Card dismisses with a 150 ms fade; a
-  toast is *not* shown (the button was the confirmation).
+- **Let friends find me** → stores the number as a key, `discoverable = everyone`. Card
+  dismisses with a 150 ms fade; a toast is *not* shown (the button was the confirmation).
+- **Already taken** (unique constraint rejects) → inline under the field, no dialog:
+  `That number is already on an account. If it's yours, get in touch and we'll sort it.`
+  → links to Beta Feedback, which routes into the Studio queue where a human resolves it (§0.5).
+  Deliberately not "someone stole your number" — the overwhelmingly common cause is a second
+  account of the user's own, and the copy shouldn't accuse.
+- **Cooling period is silent.** The user is told they're findable; the 24 h delay is an
+  anti-squatting measure, not a state they need to track. Surfacing it would invite the
+  question "findable *when?*" for a benefit they cannot perceive.
 - **Not now** → `discoverable = nobody`. Same dismissal, zero guilt copy, never re-prompted.
   The Find People screen retains a one-line inline card (§4) for re-enabling.
 - Granularity (the three-way choice) is deliberately *not* offered here — a first-run card
@@ -218,7 +307,8 @@ Info · bell) stays; bottom nav stays (Messages tab active).
 - **RECENTLY JOINED** renders only when sync is on *and* it has rows; there is no "nothing
   recent" placeholder — an empty ambient section is noise. Rows: people whose codes are among
   yours, whose discoverability admits you, who joined in the last 30 days. Meta line:
-  `Joined this week · in your contacts`.
+  `Joined this week · saved as Lena` — the corroboration line (§5) applies here too, since
+  these are contact-derived matches and carry the same squatting risk.
 
 ### FROM YOUR CONTACTS — state table
 
@@ -259,7 +349,31 @@ One row component (`PersonRow`) serves search results, contact matches, and Rece
 |---|---|
 | Avatar | 44 px circle; fallback = initial on `--card2` with a 1 px pink→cyan gradient ring (the `yp-hand-ring` technique) |
 | Display name | DM Sans 15 px / 600, `--text`, single line, ellipsis |
-| Second line | The **primary profile** as a GlowPill (`DJ / PROD.`, `VENUE`, a festival name…). Messenger-only members get the caption `On YesPleez` in `--muted` 12 px — never an empty slot. Contact matches append `· in your contacts` (client-side knowledge only; matching happened on-device). |
+| Second line | The **primary profile** as a GlowPill (`DJ / PROD.`, `VENUE`, a festival name…). Messenger-only members get the caption `On YesPleez` in `--muted` 12 px — never an empty slot. Contact matches append `· saved as Bob` — **the name from the user's own phonebook**, rendered client-side, never uploaded (see below). |
+
+### ⭐ The corroboration line — how an unverified key stays safe
+
+Because numbers are unverified (§0), a contact match must show **both identities**: the
+account's chosen display name *and* the name the user themself saved that number under.
+
+```
+┌────────────────────────────────────────────────┐
+│ (◉)  Mallory X                      [ MESSAGE ]│
+│      DJ / PROD.  ·  saved as Bob               │   ← mismatch is visible
+└────────────────────────────────────────────────┘
+```
+
+When they agree (`Jess Deluxe · saved as Jess`) it reads as confirmation and disappears into
+the background. When they disagree it is the one thing on the row that looks wrong — to the
+only person on earth qualified to judge it, using knowledge only their device has. The server
+never learns the phonebook name; matching already happens on-device, so this is free.
+
+Styling: `--muted` 11.5 px, same weight as the rest of the meta line. **Never** red, never a
+warning icon, never a modal — the overwhelmingly common case is a nickname mismatch
+("saved as Jess Mobile"), and crying wolf on those would train users to ignore the real one.
+It informs; it does not adjudicate.
+
+Search-by-number results carry the same line when the number is in the user's contacts.
 | Action | `MESSAGE` — Bebas 12 px gradient pill, 44 px min tap target. Opens the conversation through the existing messaging surface. |
 
 **What a row may never contain:** a phone number, any fragment of one, or the device
@@ -287,10 +401,11 @@ Same response timing, same copy, same CTA in both cases. `INVITE THEM` → nativ
 
 ## 6 · Screen 5 — Invite flow
 
-**Architectural decision (standing recommendation, restated):** YesPleez never sends SMS to
-non-members. The invite is a **share link the user sends themself** through the native share
-sheet — zero SMS cost, no Spam Act 2003 exposure, and a message from a mate converts where a
-message from a platform gets reported.
+**RATIFIED 2026-07-26** (was a recommendation; the owner's no-SMS decision settles it): YesPleez
+never sends SMS to anyone. The invite is a **share link the user sends themself** through the
+native share sheet — zero cost, no Spam Act 2003 exposure, and a message from a mate converts
+where a message from a platform gets reported. This half of the milestone needed no redesign;
+it was already the answer.
 
 ### Flow
 
@@ -329,7 +444,8 @@ Standard settings list page (GlobalHeader + back). New route: `/settings/privacy
   PHONE NUMBER                        ← Bebas page title
 ┌──────────────────────────────────┐
 │ Your number      ••• ••• 789  👁 │  ← masked; tap the eye to reveal 5s
-│ Verified · never shown to anyone │
+│ Never shown to anyone · Change   │
+│ Remove my number                 │  ← quiet text row, not danger-styled
 └──────────────────────────────────┘
 
   FIND ME BY PHONE NUMBER            ← section label
@@ -360,7 +476,15 @@ Standard settings list page (GlobalHeader + back). New route: `/settings/privacy
 
 - **Own number masked by default** (`••• ••• 789`) — the user knows their number; screenshots
   and shoulder-surfers don't need it. Eye icon reveals for 5 s. Screen-reader label:
-  `Your verified number, ending 789`.
+  `Your number, ending 789`. **No "Verified" tick anywhere** — it isn't verified, and a badge
+  claiming otherwise would be the single most damaging line in the product (§0's rule).
+- **Change** → the same capsule inline, subject to the 30-day rate limit. If blocked:
+  `You can change your number again in 12 days.` Plain, no apology, no support link — the
+  limit is doing its job.
+- **Remove my number** → confirm card: `You won't be findable by number. Your conversations,
+  profiles and everything else stay exactly as they are.` On confirm the key is deleted
+  outright (not soft-deleted — an identifier nobody can use should not be retained), and the
+  number is immediately claimable by whoever legitimately owns it.
 - Radio rows: whole row tappable, `role="radiogroup"`, selection applies **immediately** +
   toast `Privacy updated.` No save button — a privacy switch that waits for "Save" is a
   privacy switch that sometimes silently didn't happen.
@@ -546,8 +670,10 @@ The primer copy is identical everywhere; it simply becomes more literally true h
   sync status = `aria-live="polite"`; the primer and prompt cards = `role="dialog"` with
   `aria-modal`, focus trapped, Escape = secondary action, focus returned to the invoking
   control on close.
-- **Labels:** `Message Jess Deluxe`, `Invite Sam Torres`, `Your verified number, ending 789`,
-  `Reveal your number for five seconds`.
+- **Labels:** `Message Jess Deluxe`, `Invite Sam Torres`, `Your number, ending 789`,
+  `Reveal your number for five seconds`. The corroboration line is part of the row's accessible
+  name, not a visual-only cue: `Mallory X, DJ / PROD., saved in your contacts as Bob` — a
+  screen-reader user must get the mismatch signal too.
 - **Reduced motion:** the house rule verbatim — motion is decoration; state is not. Landings
   and pulses become instant appearances; the EQ progress mark still *arrives* at its state.
   Nothing conveys meaning by animation alone.
@@ -572,6 +698,26 @@ The primer copy is identical everywhere; it simply becomes more literally true h
 | `SettingsPrivacyPhone`, `SettingsPrivacyContacts` (`/settings/privacy/*`) | first Settings-surface screens; establish the settings list-row idiom here |
 | `useContactSync` (state machine) | `idle → priming → picking → hashing → uploading → matching → done(count) / denied / offline` |
 | `InviteShare` | existing ShareSheet / `useShareTarget` resource-share architecture — invite link is a share *resource*, not a screen-specific fork (house rule) |
+| `PhoneKeyCapsule` | shared by the first-run card and Settings → Change; country picker + `tel` input + E.164 parse |
+
+### Data layer — what the five mitigations need (all Postgres, no external service)
+
+- `profile_phone_keys`: `profile_id`, `key_hmac` (peppered, **UNIQUE** → mitigation 1),
+  `created_at`, `discoverable_from` (= `created_at + 24h` → mitigation 2), `visibility`
+  (`everyone` / `contacts` / `nobody`).
+- `profile_phone_key_changes`: append-only audit row per add/change/remove; a
+  `BEFORE INSERT` trigger enforces the 30-day rate limit (→ mitigation 3) so the rule lives in
+  the database and cannot be bypassed by a second client.
+- Lookup RPC returns rows only where `now() >= discoverable_from` and visibility admits the
+  caller. **Never a table read** — same discipline as the read-receipt aggregate: the gate is
+  the function, so there is no policy to get wrong twice.
+- The pepper is a Vault secret, exactly like `push_notify_service_key`. ⚠ **It is a manual
+  per-environment step, and if it is missing every lookup silently matches nothing** — the same
+  trap that bit push notifications. Fail loudly at startup instead.
+- Mitigation 4 (phonebook corroboration) needs **no schema at all** — the name never leaves
+  the device.
+- Mitigation 5 reuses the Studio Claims Queue; contested numbers become a queue item and are
+  resolved through a function, never a direct `UPDATE` (house rule).
 
 ### Analytics (per the ratified privacy rule — the API shape carries no parameter a raw number could travel through)
 
@@ -581,8 +727,10 @@ The primer copy is identical everywhere; it simply becomes more literally true h
 
 ### Dependencies & open questions
 
-1. **SMS provider** (owner decision, pending) — blocks verification, which blocks everything
-   here. Verification-screen UX is deliberately out of this document's scope.
+1. ~~**SMS provider**~~ — **RESOLVED 2026-07-26: there is none, and never will be.** The number
+   is a lookup key on the existing data system; no telephony, no verification screen, no cost.
+   See §0's no-SMS block and the five mitigations that replace verification. This unblocks the
+   milestone.
 2. **Privacy model ratification** (owner decision, pending — previously deferred): this
    design *assumes and recommends* §0's two-mechanism architecture. The screens survive a
    downgrade to naive full-hash upload, but the copy's strength and T1's resolution come from
