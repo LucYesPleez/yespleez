@@ -130,7 +130,37 @@ byConversation(conversationId) · remove(id) · all()
 
 ---
 
-## 7 · What is built vs pending
+## 7 · Status — COMPLETE 2026-07-25
+
+**Every outbound message kind flows through the Outbox, and `pendingSend` is
+removed. There is exactly one outbound pipeline.**
+
+| Kind | Path | Live-verified |
+|---|---|---|
+| text | queueMessage → uploadText | ✓ real composer, offline queue + bubble |
+| voice | queueMessage → uploadVoice | ✓ queued playable bubble; draft restore + banner |
+| image | queueMessage → uploadImage (photo / RAW original) | ✓ runtime, all-kinds pass |
+| file | queueMessage → uploadFile | ✓ runtime, all-kinds pass |
+| hand | queueMessage → uploadHand | ✓ runtime, all-kinds pass |
+
+Verified live in the owner's authed session (Claude in Chrome), with **no
+message sent to a real contact** — a simulated uploader on throwaway conversation
+ids, plus offline-forced sends through the real composer that were deleted before
+reconnect. All passed: every kind delivers; offline queues 5 consecutive mixed
+sends; reconnect delivers the whole queue; a failed send stays failed; retry
+delivers. Draft restoration verified end to end (parked Voicey → Recovered draft
+banner → Send/Delete).
+
+**Removed:** `pendingSend.js` and its tests; `trySend`/`afterSend`; the five
+per-kind retry branches; the `sending` round trip. ConversationView imports no
+send function — it queues, and the Outbox sends.
+
+**Deliberately still open (future, not blocking):** Resume Recording (the segment
+list is ready); a delete-on-failed affordance for stuck sends; migrating the
+optimistic double-tap Hand (message metadata, a different subsystem from the
+conversation Hand).
+
+## 8 · Original build notes (historical)
 
 **Built (this commit):** the kind-agnostic core — the state transition table, the entry
 operations (save/restore/enqueue/markUploading/markFailed/remove), one-draft-per-conversation
