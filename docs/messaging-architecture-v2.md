@@ -1,6 +1,7 @@
 # Messaging Architecture v2
 
-**Status: FROZEN — 25 July 2026.**
+**Status: FROZEN — 25 July 2026, amended 26 July 2026** (§9 rewritten for
+reactions; §12 reactions moved from future to built).
 
 A snapshot of how messaging actually works, not a roadmap and not a plan. It
 describes the system as built and running on that date, so that a reader six
@@ -457,27 +458,112 @@ split is deliberate.
 
 ---
 
-## 9 · Acknowledgement — the "Yes"
+## 9 · Acknowledgement and reactions
 
-*Files: `supabase/migrations/…m9h_hand_kind.sql`, `…m9i_message_participant_state.sql`; `v2/src/lib/hands.js`, `messageState.js`, `components/HandIcon.jsx`.*
+*Files: `supabase/migrations/…m9h_hand_kind.sql`, `…m9i_message_participant_state.sql`, `…mr1_message_reactions.sql`; `v2/src/lib/hands.js`, `messageState.js`, `reactions.js`; `components/HandIcon.jsx`, `ReactionBar.jsx`, `MessageActionSheet.jsx`.*
 
 The ratified rule:
 
 > **A CONVERSATION Hand is a MESSAGE. A MESSAGE Hand is METADATA.**
 
-Two targets, two representations, one gesture vocabulary.
-
 - **Composer Hand → a message.** `kind = 'hand'`, `body = 'Yes'`. Routed
   through the Outbox like every other kind (`uploadHand`).
 - **Double-tap a message → metadata.** `message_participant_state`
   (PK `(message_id, profile_id)`, plus `from_user_id`, `handed_at`).
-  Un-handing **deletes the row** — a row means a Yes; `handed_at` is never
-  nulled. Client: `toggleHand`, `listHands`.
 
-Product copy never says "Hand". The user-facing word is **Yes**.
+### ⚠ The acknowledgement is NOT a reaction
 
-You cannot Yes a Yes (`UNHANDABLE_KINDS`); every other kind is allowed by
-default.
+Owner, 2026-07-25: *"the hand is purely on the command bar. it's not an
+emoji so will not be grouped with them. it also is the one I really want
+people to use more often."*
+
+`reactions.js` therefore contains **no `hand` entry**, and there is a test
+asserting it never gains one. Making the acknowledgement one of N equal
+choices behind a long press is precisely how it gets used less. It keeps its
+own column, its own gesture, and its own place in the UI.
+
+### The seven reactions
+
+A fixed set, declared once in `reactions.js` — the registry owns every
+glyph, its order and its label, so the bar and the badge contain no emoji
+and no list. **Adding one is an entry there plus a value in the `mr1` CHECK.
+No component changes.** There is deliberately no More button and no picker:
+reactions are fast punctuation, not a decision.
+
+Stored as a **stable key** (`'clouds'`), never the glyph — `😶‍🌫️` is three
+codepoints joined by a ZWJ and several others carry variation selectors, so
+storing glyphs means a CHECK that passes or fails depending on which client
+normalised the string.
+
+### ⚠ One badge slot, so they are mutually exclusive
+
+The chosen emoji renders in **exactly the position the Hand occupies** on
+the bubble. Two marks cannot share one slot, so acknowledging clears any
+reaction and reacting clears any acknowledgement.
+
+Enforced at the single write path in `messageState.js` — `handMessage` nulls
+`reaction`, `setReaction` nulls `handed_at`. **The schema permits both; the
+product does not.** Deliberately not a CHECK constraint: it is a
+presentation decision, and the day the badge can hold two marks it should
+change in one file rather than needing a migration.
+
+One active reaction per person per message needs no constraint at all — the
+primary key `(message_id, profile_id)` already enforces it.
+
+### Two bugs the reaction column created
+
+Both fixed, both pinned by tests, both silent failures:
+
+- `unhandMessage` used to **DELETE the row**, which would have taken the
+  reaction with it. It now nulls `handed_at`.
+- `handMessage` used `ON CONFLICT DO NOTHING`, so acknowledging a message
+  you had already reacted to would have done nothing at all.
+
+### Naming
+
+Product copy says neither "Hand" nor "Yes". The **mark is the branding**;
+the word is **Acknowledged**. Two tests guard this.
+
+`HAND_BODY` remains the literal `'Yes'` — that is the stored message *body*,
+already written into every existing acknowledgement and quoted by
+notification rows. Labels are presentation and change freely; stored text
+does not.
+
+### Gestures
+
+| | |
+|---|---|
+| single tap (photo) | enlarge |
+| double tap (any kind) | acknowledge |
+| long press (any kind) | reaction bar + action sheet |
+
+⚠ **They must not overlap, and two handlers is not enough.** Every double tap
+*begins* as a single tap, so opening a photo on the first one put the viewer
+on screen before the second could land. The open waits out a **240ms**
+window; a second tap inside it cancels the open and lets `dblclick` reach the
+bubble. The cost is honest: a photo opens a quarter-second after the tap.
+
+⚠ **The thread never enters native text selection.** No handles, no
+highlight, no caret, no OS copy bubble competing for the same gesture. This
+costs copy-by-drag, which is why **Copy Text** in the action sheet is
+load-bearing rather than a nicety.
+
+The action sheet contains **actions only** and the bar **reactions only** —
+they are never mixed. It ships Copy Text alone; Reply, Forward and
+Unsend/Delete are absent rather than disabled (see §12).
+
+### Feedback
+
+A reaction does not appear, it **arrives**: spawned 78px above its resting
+place, falling in 180ms with an accelerating fall and decelerating settle,
+squashing 1.06 → 0.96 → 1.0. It squashes rather than bounces — it never
+leaves the surface twice. A replacement remounts (keyed on the reactions) so
+it lands rather than pops.
+
+Sound is `lib/uiSound.js`: Web Audio, decoded once at startup, unlocked on
+the first real gesture. **There is no silent-mode API on any platform** — iOS
+silences Web Audio via the hardware switch itself; elsewhere the Message
+Sounds setting is the only control.
 
 **Designed in, not yet driven:** `payload.scale` with `handScale()` and
 `HAND_SCALE_MAX = 3` are stored and rendered, but no press-and-hold gesture
@@ -615,11 +701,13 @@ warnings above: deletion must handle `payload.paths` as an array (§6), and
 there is no scheduler, so expiry will have to be a read gate like
 `message_originals` (§11) rather than a sweep.
 
-**Reactions.** `message_participant_state` is the natural home — it already
-carries `(message_id, profile_id, from_user_id)` and a per-participant row.
-Reactions are the same shape as a Yes with an emoji column. M9i deliberately
-omits `played_at` and `hidden_at` pending a visibility decision on its
-conversation-wide SELECT policy; that decision gates reactions too.
+**Reactions — BUILT 2026-07-26, see §9.** They landed exactly where this
+section predicted: an emoji column on `message_participant_state`, which is
+why it was one `ADD COLUMN` rather than a subsystem. `played_at` and
+`hidden_at` are still deliberately absent, still pending the same visibility
+decision on the conversation-wide SELECT policy — reactions did not need it,
+because a reaction is meant to be seen by the other party exactly as a Yes
+is. Those two are not.
 
 **Multi-profile messenger.** `profile_actors` already returns a *set*, and
 fan-out already delivers one notification per human. The single-owner
