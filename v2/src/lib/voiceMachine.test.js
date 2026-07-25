@@ -21,8 +21,35 @@ test('recording → the toggle parks, it does NOT send', () => {
   assert.equal(decideToggle({ phase: 'recording' }), 'park');
 });
 
-test('pending → the toggle starts over rather than doing nothing', () => {
-  assert.equal(decideToggle({ phase: 'pending' }), 'start');
+test('⚠ pending → the toggle CONTINUES the parked note, it never starts over', () => {
+  // THE DEFECT THIS EXISTS TO PREVENT, found on a real device 2026-07-25.
+  //
+  // This asserted 'start' until a phone call interrupted a real Voicey: the
+  // owner pressed the microphone — the same button they had been using, and
+  // the obvious one on screen — and the parked recording was discarded and
+  // restarted from zero. The note survived the interruption and was destroyed
+  // by the UI.
+  //
+  // Owner's strengthened constitutional rule: "If a parked Voicey exists, no
+  // recording control may implicitly discard it. The user must explicitly
+  // choose Continue, Send, Delete or Discard before a new recording can
+  // begin." A product rule, not a platform workaround — it holds even where
+  // interruption detection never fires.
+  assert.equal(decideToggle({ phase: 'pending' }), 'resume');
+});
+
+test('⚠ NO toggle result may implicitly destroy parked audio', () => {
+  // The rule stated as a property rather than a case, so a future phase that
+  // can hold audio cannot regress it by being added to the wrong branch.
+  // 'start' clears pendingRef and every segment; reaching it from a state that
+  // holds audio is the destruction this forbids.
+  for (const phase of ['pending']) {
+    const action = decideToggle({ phase });
+    assert.notEqual(
+      action, 'start',
+      `${phase} holds user audio — '${action}' must not be the discarding 'start'`,
+    );
+  }
 });
 
 test('the toggle is inert once the audio has left', () => {

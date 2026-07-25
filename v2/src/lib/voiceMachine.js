@@ -28,7 +28,7 @@ export const MIN_DURATION_MS = 400;
  * @param {object} p
  * @param {string} p.phase     idle · recording · pending · uploading · sent
  * @param {boolean} p.starting true inside the getUserMedia gap
- * @returns {'abort-start'|'park'|'start'|'ignore'}
+ * @returns {'abort-start'|'park'|'start'|'resume'|'ignore'}
  *
  * ⚠ `starting` IS CHECKED FIRST, AND THE ORDER IS THE WHOLE POINT.
  *
@@ -41,11 +41,32 @@ export const MIN_DURATION_MS = 400;
 export function decideToggle({ phase, starting = false } = {}) {
   if (starting) return 'abort-start';
   if (phase === 'recording') return 'park';
-  // From `pending`, starting over discards the parked note. The microphone
-  // sitting back at the idle end is the only thing the toggle can honestly mean
-  // there — the alternative is a control that does nothing in one of the three
-  // states it is visible in.
-  if (phase === 'idle' || phase === 'pending') return 'start';
+  // ⚠ `pending` RESUMES. IT MUST NEVER START OVER. ─────────────────────
+  //
+  // This returned 'start' until 2026-07-25, discarding the parked note and
+  // all its segments. The reasoning was that the microphone "sitting back at
+  // the idle end" could not honestly mean anything else. That reasoning was
+  // WRONG, and a real device found it: interrupted mid-Voicey by a phone
+  // call, the owner pressed the microphone — the same button they had just
+  // been using, and the obvious one on screen — and the recording restarted
+  // from zero. The note survived the phone call and was destroyed by the UI.
+  //
+  // OWNER'S STRENGTHENED CONSTITUTIONAL RULE (ratified 2026-07-25):
+  //
+  //   "If a parked Voicey exists, no recording control may implicitly
+  //    discard it. The user must explicitly choose Continue, Send, Delete
+  //    or Discard before a new recording can begin."
+  //
+  // So the toggle now means CONTINUE while a note is parked — the primary
+  // action stays Continue until the parked recording is resolved. Starting a
+  // genuinely new note is still possible and still one press away; it just
+  // goes through Delete first, which is explicit, which is the entire point.
+  //
+  // This is a PRODUCT rule, not a platform workaround. It holds even where
+  // interruption detection never fires: whatever the OS does or fails to do,
+  // no ambiguous button may cost someone a recording.
+  if (phase === 'pending') return 'resume';
+  if (phase === 'idle') return 'start';
   // uploading · sent — the audio has already left. Nothing to toggle.
   return 'ignore';
 }

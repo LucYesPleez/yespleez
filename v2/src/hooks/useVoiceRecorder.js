@@ -373,12 +373,16 @@ export function useVoiceRecorder({ onRecorded, onNotice, onPark, onDiscard, disa
   }, [start]);
 
   /**
-   * THE TOGGLE. Slide right-to-left to record, left-to-right to stop.
+   * THE TOGGLE. Press to record, press again to stop.
    *
-   * From `pending` it starts a NEW recording, discarding the parked one. The
-   * microphone sitting back at the idle end is the only thing it can honestly
-   * mean — the alternative is a toggle that does nothing in one of the three
-   * states it is visible in.
+   * ⚠ FROM `pending` IT CONTINUES THE PARKED NOTE — it does NOT start over.
+   * See decideToggle's note: the toggle used to discard here, and a real
+   * phone-call interruption proved that costs people recordings. Under the
+   * owner's strengthened constitutional rule (2026-07-25) no recording
+   * control may implicitly discard a parked note; only an explicit Delete
+   * may. The toggle therefore CANNOT reach `start` while audio is parked,
+   * and the reset lines below are unreachable for a parked note by
+   * construction rather than by remembering.
    */
   const toggle = useCallback(async () => {
     if (disabled || !supported) return;
@@ -394,9 +398,16 @@ export function useVoiceRecorder({ onRecorded, onNotice, onPark, onDiscard, disa
         await park();
         return;
 
+      // A parked note exists: continue it. Identical to pressing Continue —
+      // ONE path, so the safe behaviour cannot drift between the two controls.
+      case 'resume':
+        await resume();
+        return;
+
       case 'start':
-        // Starting over discards a parked note AND all its segments — this is a
-        // fresh note, not a continuation (that is `resume`).
+        // Reached from `idle` only. Nothing can be parked here (decideToggle
+        // routes `pending` to 'resume'), so these clears are hygiene against a
+        // future phase, never a discard of live user content.
         pendingRef.current  = null;
         segmentsRef.current = [];
         rawEnvsRef.current  = [];
@@ -409,7 +420,7 @@ export function useVoiceRecorder({ onRecorded, onNotice, onPark, onDiscard, disa
       default:
         return;
     }
-  }, [disabled, supported, park, start]);
+  }, [disabled, supported, park, start, resume]);
 
   // Escape discards from any state that holds audio.
   //

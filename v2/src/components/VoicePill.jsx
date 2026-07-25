@@ -83,14 +83,29 @@ const NEUTRAL_FACE = '#15151E';
  */
 const NEUTRAL_BORDER = '1px solid rgba(255,255,255,.22)';
 
-export default function VoicePill({ recording = false, disabled = false, onToggle }) {
+/**
+ * `parked` — a note is waiting in the composer (phase `pending`).
+ *
+ * The button does NOT start a new recording in that state; under the owner's
+ * strengthened constitutional rule (2026-07-25) it continues the parked one,
+ * because a control that implicitly discarded it cost a real recording after a
+ * real phone call. The label has to say so: "Record a voice message" while a
+ * note is parked promises a fresh start and is exactly the misreading that
+ * caused the loss. Visual state stays `recording`-driven — parked is not live,
+ * and the still dot beside it already carries that.
+ */
+export default function VoicePill({ recording = false, parked = false, disabled = false, onToggle }) {
   return (
     <button
       type="button"
       onClick={onToggle}
       disabled={disabled}
       aria-pressed={recording}
-      aria-label={recording ? 'Stop recording' : 'Record a voice message'}
+      aria-label={
+        recording ? 'Stop recording'
+        : parked  ? 'Continue recording'
+        : 'Record a voice message'
+      }
       className={`yp-pill${recording ? ' yp-pill-live' : ''}`}
       style={{ width: WIDTH, height: SIZE }}
     >

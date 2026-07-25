@@ -363,6 +363,10 @@ export default function Composer({
           {rec.supported && (
             <VoicePill
               recording={mode === 'recording'}
+              // While a note is parked the microphone CONTINUES it rather than
+              // starting over — see decideToggle. The label must match, or the
+              // button promises the discard that rule exists to forbid.
+              parked={mode === 'pending'}
               disabled={!canWrite || sending || !pillOpen}
               onToggle={() => void rec.toggle()}
             />
