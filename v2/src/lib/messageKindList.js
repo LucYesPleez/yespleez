@@ -37,10 +37,16 @@ export const LABELS = {
   video:       'Video',
   file:        'File',
   location:    'Location',
-  // The MARK is the Hand; the WORD is Yes. This label is what an inbox
-  // preview, a notification and a screen reader say, so it says what the
-  // gesture means rather than what it looks like.
-  hand:        'Yes',
+  // ⚠ THE UI NEVER SAYS "YES" (owner, 2026-07-26). The mark is the YesPleez
+  // Hand and the word is Acknowledged — one name for the gesture everywhere
+  // it is described, so the product does not use two words for one thing.
+  //
+  // `HAND_BODY` in hands.js is still the literal 'Yes', deliberately: that is
+  // the stored message BODY, already written into every existing hand message
+  // and into notification rows that quote it. Changing it would split history
+  // for a string a user rarely sees, since the mark itself renders. Labels are
+  // presentation and change freely; stored text does not.
+  hand:        'Acknowledged',
   event:       'Event',
   application: 'Application',
   booking:     'Booking',

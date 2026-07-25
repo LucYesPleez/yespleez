@@ -71,11 +71,30 @@ test('the body says Yes, because three surfaces only read text', async () => {
 });
 
 test('the product never says "hand" where a user can read it', async () => {
-  // The mark is the Hand; the word is Yes. If the label or the body ever says
-  // "hand", it has leaked from an internal identifier into copy.
-  assert.equal(LABELS.hand, 'Yes');
+  // The mark is the Hand; the WORD is Acknowledged. If the label or the body
+  // ever says "hand", it has leaked from an internal identifier into copy.
+  //
+  // The word was 'Yes' until 2026-07-26, when the owner renamed the gesture:
+  // the UI must never say "Yes" either. The brand is carried by the MARK —
+  // "Use the YesPleez Hand branding consistently as an acknowledgement
+  // action" — which is why the /hand/i guards below still stand: the icon is
+  // the branding, the word is Acknowledge.
+  assert.equal(LABELS.hand, 'Acknowledged');
   assert.doesNotMatch(HAND_BODY, /hand/i);
   assert.doesNotMatch(LABELS.hand, /hand/i);
+});
+
+test('⚠ the product never says "Yes" for the acknowledgement either', async () => {
+  // Owner, 2026-07-26: "Stop referring to it as Yes." One name for the
+  // gesture everywhere it is described, or the product uses two words for one
+  // thing and neither becomes the name.
+  //
+  // ⚠ HAND_BODY IS DELIBERATELY EXEMPT. It is the stored message BODY, not a
+  // label — already written into every existing hand message and quoted by
+  // notification rows. Changing it would split history for a string a user
+  // rarely sees, because the mark itself renders. Labels are presentation and
+  // change freely; stored text does not.
+  assert.doesNotMatch(LABELS.hand, /\byes\b/i);
 });
 
 test('hand is a registered kind', async () => {

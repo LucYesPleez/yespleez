@@ -399,7 +399,7 @@ export default function InboxScreen() {
                           `aria-label` still gives screen readers something,
                           it's just not painted on screen. */}
                       {c.preview?.kind === 'hand' ? (
-                        <span role="img" aria-label="Yes" style={{ display: 'inline-flex', verticalAlign: 'middle' }}>
+                        <span role="img" aria-label="Acknowledged" style={{ display: 'inline-flex', verticalAlign: 'middle' }}>
                           <HandIcon size={14} />
                         </span>
                       ) : (c.preview?.text ?? '')}

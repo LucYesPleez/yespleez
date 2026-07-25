@@ -57,18 +57,11 @@ const THUMB_H = 190;
 /** Never wider than a bubble may be on the narrowest handset in scope. */
 const MAX_W = 240;
 
-/**
- * How long a press has to last to mean "open this".
- *
- * ⚠ THIS NUMBER IS WHAT KEEPS TWO GESTURES APART. The bubble gives a Yes on
- * double-tap, and a double-tap is two presses of maybe 80ms each — an order of
- * magnitude under this, so the hold timer is cancelled by the first release and
- * the two can never be confused.
- */
-const HOLD_MS = 450;
-
-/** How far a finger may drift and still count as a press, not a scroll. */
-const HOLD_SLOP_PX = 10;
+/* HOLD_MS / HOLD_SLOP_PX lived here while a HOLD opened the photo. Hold now
+   belongs to the message frame's long press (the reaction bar), and opening
+   moved to a single tap — so the disambiguation moved with it, into
+   DOUBLE_TAP_MS below. Removed rather than left dormant: two hold constants
+   that nothing reads are an invitation to wire up a second, competing gesture. */
 
 /**
  * How often the countdown redraws.
@@ -96,34 +89,52 @@ export default function ImageMessage({ message }) {
   const [error,   setError]   = useState(null);
   const [open,    setOpen]    = useState(false);
 
-  const holdRef = useRef({ timer: null, x: 0, y: 0 });
 
-  function cancelHold() {
-    clearTimeout(holdRef.current.timer);
-    holdRef.current.timer = null;
+  /**
+   * ⚠ SINGLE TAP ENLARGES, DOUBLE TAP ACKNOWLEDGES, AND THEY MUST NOT CROSS
+   * OVER (owner, 2026-07-26).
+   *
+   * They cannot simply be two handlers, because every double tap BEGINS as a
+   * single one. Opening on the first tap put the viewer on screen before the
+   * second tap could land, so the second went to the viewer and the
+   * acknowledgement never happened — the exact crossover being ruled out.
+   *
+   * So the open WAITS OUT the double-tap window. A second tap inside it
+   * cancels the pending open and does nothing else, letting the browser's own
+   * `dblclick` reach the bubble, where the acknowledgement already lives.
+   *
+   * The cost is honest and unavoidable: a photo opens ~240ms after the tap
+   * rather than instantly. That delay is what buys an unambiguous double tap;
+   * the only way to remove it is to give up one of the two gestures.
+   */
+  const DOUBLE_TAP_MS = 240;
+  const tapRef = useRef({ timer: null });
+
+  function onTap() {
+    if (tapRef.current.timer) {
+      // Second tap inside the window — this is a double tap. Cancel the open
+      // and get out of the way; the bubble's onDoubleClick does the rest.
+      clearTimeout(tapRef.current.timer);
+      tapRef.current.timer = null;
+      return;
+    }
+    tapRef.current.timer = setTimeout(() => {
+      tapRef.current.timer = null;
+      if (url && !error) setOpen(true);
+    }, DOUBLE_TAP_MS);
   }
 
-  function startHold(e) {
-    if (!url || error) return;
-    // Secondary buttons and multi-touch are not a press. Two fingers on a photo
-    // is someone starting a pinch, and beginning a hold under it would open the
-    // viewer out from under the gesture.
-    if (e.button > 0 || e.pointerType === 'touch' && !e.isPrimary) return;
+  // A pending open must not fire into an unmounted component, and must not
+  // survive the thread scrolling this row away.
+  useEffect(() => () => clearTimeout(tapRef.current.timer), []);
 
-    holdRef.current.x = e.clientX;
-    holdRef.current.y = e.clientY;
-    cancelHold();
-    holdRef.current.timer = setTimeout(() => setOpen(true), HOLD_MS);
+  // A finger that travels is scrolling the thread, not tapping the photo — so
+  // a pending open is abandoned. Without this, a scroll that begins on a photo
+  // opens it a quarter-second later, under a thumb that has moved on.
+  function cancelTapOnMove() {
+    clearTimeout(tapRef.current.timer);
+    tapRef.current.timer = null;
   }
-
-  // A finger that travels is scrolling the thread, not pressing the photo.
-  function maybeCancelOnMove(e) {
-    if (!holdRef.current.timer) return;
-    if (Math.abs(e.clientX - holdRef.current.x) > HOLD_SLOP_PX
-     || Math.abs(e.clientY - holdRef.current.y) > HOLD_SLOP_PX) cancelHold();
-  }
-
-  useEffect(() => cancelHold, []);
 
   // The bubble's picture: the thumbnail where one exists.
   useEffect(() => {
@@ -196,18 +207,23 @@ export default function ImageMessage({ message }) {
 
   return (
     <>
-      {/* ⚠ NO onClick, AND NO stopPropagation. BOTH ARE DELIBERATE.
-          The bubble gives a Yes on double-tap. Tap-to-open broke that twice
-          over: the first tap put the viewer over the photo before the second
-          could land, and stopping propagation kept the double-tap from reaching
-          the bubble at all. Taps belong to the Yes; opening is a HOLD. */}
+      {/* ⚠ SINGLE TAP OPENS THE VIEWER (owner, 2026-07-25). This reverses the
+          previous rule, and the reversal is deliberate — the note that stood
+          here said "taps belong to the Yes; opening is a HOLD", because
+          tap-to-open had broken double-tap-to-Yes twice.
+
+          What changed: HOLD now belongs to the reaction sheet, on every kind.
+          Two gestures cannot both be a hold, so opening had to move to tap,
+          and the double-tap Yes on a PHOTO is the cost. The Yes is still
+          reachable there from the long-press sheet, which is why it is listed
+          as an action rather than left to the double-tap alone.
+
+          No stopPropagation: the hold must still reach the frame, or a photo
+          would be the one kind you cannot react to. */}
       <button
         type="button"
-        onPointerDown={startHold}
-        onPointerMove={maybeCancelOnMove}
-        onPointerUp={cancelHold}
-        onPointerCancel={cancelHold}
-        onPointerLeave={cancelHold}
+        onClick={onTap}
+        onPointerCancel={cancelTapOnMove}
         onKeyDown={e => {
           if (e.key !== 'Enter' && e.key !== ' ') return;
           e.preventDefault();

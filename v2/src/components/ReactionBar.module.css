@@ -1,0 +1,91 @@
+/* THE REACTION BAR.
+ *
+ * Opening must feel like the bar was already there; closing must feel like
+ * nothing happened. So the entrance is a short fade+scale and the exit has
+ * no animation at all — the owner asked for "instantaneous", and a dismiss
+ * animation is the thing that makes a menu feel heavy. */
+
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 8px;
+  border-radius: 999px;
+  background: rgba(24, 24, 34, .96);
+  border: 1px solid rgba(255, 255, 255, .12);
+  /* Sits above the bubble it belongs to and must read as floating over the
+     thread, not as part of it. */
+  box-shadow: 0 12px 34px -10px rgba(0, 0, 0, .85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  animation: bar-in 130ms cubic-bezier(.2, .9, .3, 1) both;
+  /* ⚠ THE BAR ARRIVES UNDER A FINGER THAT IS ALREADY HELD DOWN.
+     Without this the press continues into a text selection across the emoji,
+     so the bar appears already smeared blue and the first tap dismisses the
+     selection instead of choosing a reaction. `touch-callout` additionally
+     suppresses iOS's copy/define bubble, which otherwise fights the sheet. */
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+@keyframes bar-in {
+  from { opacity: 0; transform: scale(.92) translateY(6px); }
+  to   { opacity: 1; transform: scale(1)   translateY(0); }
+}
+
+.btn {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  cursor: pointer;
+  /* Each glyph arrives just behind the one before it — see the inline
+     animationDelay in ReactionBar.jsx. */
+  animation: glyph-in 150ms cubic-bezier(.2, .9, .3, 1) both;
+  transition: background .12s ease;
+}
+
+@keyframes glyph-in {
+  from { opacity: 0; transform: scale(.6); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+.btn:active .glyph {
+  transform: scale(.9);
+}
+
+.glyph {
+  font-size: 26px;
+  line-height: 1;
+  display: block;
+  /* Emoji ignore colour but honour transform, which is what carries every
+     bit of feedback here. */
+  transition: transform .12s cubic-bezier(.2, .9, .3, 1);
+}
+
+/* THE POP: 0.9 → 1.1 → 1.0, as specified. Applied to the currently active
+   reaction so re-opening the bar shows what you already chose, raised. */
+.active {
+  background: rgba(255, 45, 120, .18);
+}
+.active .glyph {
+  animation: pop 260ms cubic-bezier(.34, 1.56, .64, 1) both;
+}
+
+@keyframes pop {
+  0%   { transform: scale(.9); }
+  55%  { transform: scale(1.1); }
+  100% { transform: scale(1); }
+}
+
+/* Respect the setting rather than assuming everyone wants the spring. The
+   bar still appears and still highlights — only the motion is dropped. */
+@media (prefers-reduced-motion: reduce) {
+  .bar, .btn, .active .glyph { animation: none; }
+  .glyph { transition: none; }
+}

@@ -1152,6 +1152,23 @@ input, textarea, select {
   display: flex;
   min-width: 0;
   max-width: 76%;
+  /* ⚠ THE THREAD NEVER ENTERS NATIVE TEXT SELECTION (owner, 2026-07-26).
+     Long press selects the MESSAGE, not the text inside it — so there are no
+     blue handles, no highlight, no caret and no OS copy/define bubble
+     competing with the reaction bar for the same gesture.
+
+     This deliberately costs copy-by-drag. `Copy Text` in the long-press sheet
+     is the replacement, and it is why that action is not optional: removing
+     the native affordance without providing another would simply make text
+     uncopyable.
+
+     `tap-highlight-color` is the Android/iOS grey flash on tap, which is the
+     other half of "feels like the browser" — it has to go too, or the custom
+     interaction is undermined by a default nobody chose. */
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
   /* Room for the badge, reserved on EVERY message — not only handed ones, or
      the thread would reflow under the reader's thumb at the moment they react. */
   margin-left: var(--yp-yes-gutter);
@@ -1180,6 +1197,55 @@ input, textarea, select {
      needed because a Voicey's backdrop-filter makes its bubble a stacking
      context, which would otherwise paint over the 5px the badge overlaps. */
   z-index: 1;
+}
+
+/* ⚠ THE REACTION BADGE SHARES THE YES BADGE'S SLOT, EXACTLY.
+   Owner, 2026-07-25: the chosen emoji sits where the Hand sits. Same anchor,
+   same drop, same reserved space in the row — so a message never changes
+   size or position depending on WHICH mark it carries, and the thread cannot
+   reflow under a thumb at the moment someone reacts.
+
+   The two are mutually exclusive (see messageState.js), so they can never
+   occupy this slot at the same time. If that rule is ever relaxed, this is
+   the position that would have to resolve the collision. */
+.yp-reaction-badge {
+  position: absolute;
+  left: calc(var(--yp-yes-shift) - var(--yp-yes-gutter));
+  bottom: calc(-1 * var(--yp-yes-drop));
+  min-width: var(--yp-yes-size);
+  height: var(--yp-yes-size);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 0 3px;
+  border-radius: 999px;
+  background: rgba(20, 20, 28, .94);
+  border: 1px solid rgba(255, 255, 255, .12);
+  box-shadow: 0 2px 8px -3px rgba(0, 0, 0, .8);
+  /* Tappable, unlike the Yes badge — tapping reopens the bar so a reaction
+     can be changed without hunting for the long press again. */
+  cursor: pointer;
+  animation: ypYes .32s cubic-bezier(.2,1.5,.4,1);
+  /* Same reasoning as the Yes badge: a Voicey's backdrop-filter makes its
+     bubble a stacking context, which would otherwise paint over the overlap. */
+  z-index: 1;
+  /* A long press must not select the glyph. */
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.yp-reaction-badge .glyph {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.yp-reaction-badge .n {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, .78);
 }
 
 /* ── THE PLAY BUTTON'S TAP TARGET ───────────────────────────────────

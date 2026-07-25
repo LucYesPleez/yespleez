@@ -9,7 +9,9 @@ import {
 import { prepareImage, describeOriginal, formatBytes as formatImageBytes } from '../lib/messageImages';
 import { safeName, isLosslessAudio, isPlayableAudio, WAVE_CEILING_BYTES, MAX_BYTES, formatBytes } from '../lib/messageFiles';
 import { computeWave } from '../lib/voiceWave';
-import { listHands, toggleHand } from '../lib/messageState';
+import { listMessageState, toggleHand, toggleReaction } from '../lib/messageState';
+import { decideReactionTap, summariseReactions } from '../lib/reactions';
+import MessageActionSheet from './MessageActionSheet';
 import Composer, { COMPOSER_HEIGHT } from './Composer';
 import AudioSendSheet from './AudioSendSheet';
 import ConversationIndexPanel from './ConversationIndexPanel';
@@ -397,6 +399,15 @@ export default function ConversationView({ conversationId, compact = false, onMi
   // MY handed message ids would be simpler, but would make "did anyone say
   // yes" unanswerable when group threads arrive (`DA1`).
   const [handsByMessage, setHandsByMessage] = useState(new Map());
+  // MR1 — message_id → [{profile_id, reaction}]. Held separately from the
+  // Yes above because they are independent facts: the same person may Yes a
+  // message and react to it, and merging the two maps would force a choice
+  // the data model deliberately does not make.
+  const [reactionsByMessage, setReactionsByMessage] = useState(new Map());
+  // The long-pressed message: { id, rect }. `rect` is measured at press time
+  // and passed to the sheet, which is `position: fixed` — the thread scrolls
+  // and the bar must not travel with it mid-gesture.
+  const [actionSheet, setActionSheet] = useState(null);
   /**
    * Latest moment any OTHER participant read this thread — the EQ receipt's
    * top rung. ONE timestamp for the whole conversation, not a flag per message:
@@ -524,8 +535,14 @@ export default function ConversationView({ conversationId, compact = false, onMi
       // Loaded AFTER the messages are on screen: a reaction is decoration on
       // something already readable, and blocking the thread behind it would
       // trade the important render for the ornamental one.
-      const { byMessage } = await listHands(rows.map(r => r.id));
-      if (!cancelled.current) setHandsByMessage(byMessage);
+      // Both facts in ONE round trip. A second request for reactions would
+      // show them landing after the Yeses, which reads as the thread
+      // twitching rather than as one render settling.
+      const { hands, reactions } = await listMessageState(rows.map(r => r.id));
+      if (!cancelled.current) {
+        setHandsByMessage(hands);
+        setReactionsByMessage(reactions);
+      }
 
       // The OTHER side's watermarks, for receipts. Same placement as the hands
       // above and for the same reason: a receipt is decoration on a message
@@ -1003,6 +1020,48 @@ export default function ConversationView({ conversationId, compact = false, onMi
    * `handed_at` is per PROFILE (§A3 attribution), so the question is "has the
    * profile I am speaking as said yes to this", not "have I".
    */
+  /**
+   * A tap on the reaction bar.
+   *
+   * Optimistic, and rolled back on failure — the same shape as onToggleHand
+   * below, because a reaction must land the instant it is tapped or the bar
+   * feels broken, and a write that fails must not leave a lie on screen.
+   *
+   * ⚠ ONE ACTIVE REACTION PER PERSON. Tapping a different emoji REPLACES the
+   * viewer's existing one rather than adding to it, which is what
+   * `decideReactionTap` decides and what the primary key enforces.
+   */
+  async function onPickReaction(messageId, reaction) {
+    if (!senderProfile) return;
+
+    const before = reactionsByMessage.get(messageId) ?? [];
+    const current = before.find(r => r.profile_id === senderProfile)?.reaction ?? null;
+    const action = decideReactionTap({ current, tapped: reaction });
+
+    const withoutMine = before.filter(r => r.profile_id !== senderProfile);
+    const after = action === 'clear'
+      ? withoutMine
+      : [...withoutMine, { profile_id: senderProfile, reaction }];
+
+    setReactionsByMessage(prev => {
+      const next = new Map(prev);
+      if (after.length) next.set(messageId, after); else next.delete(messageId);
+      return next;
+    });
+
+    const { error: reactError } = await toggleReaction({
+      messageId, profileId: senderProfile, current, reaction,
+    });
+
+    if (reactError) {
+      setReactionsByMessage(prev => {
+        const next = new Map(prev);
+        if (before.length) next.set(messageId, before); else next.delete(messageId);
+        return next;
+      });
+    }
+  }
+
   async function onToggleHand(messageId) {
     if (!senderProfile) return;
 
@@ -1284,8 +1343,53 @@ export default function ConversationView({ conversationId, compact = false, onMi
     ? [...messages, ...outbox.map(e => outboxBubble(e, mediaUrls.current.get(e.id) || []))]
     : messages;
 
+  // What the long-press sheet offers, beneath the reaction bar.
+  //
+  // ⚠ ONLY ACTIONS THAT ACTUALLY WORK APPEAR HERE. Reply and Forward need
+  // schema and flows that do not exist; Delete is refused outright by `D9`
+  // (messages are immutable, with no UPDATE or DELETE policy) and would need
+  // M9i's deliberately-deferred `hidden_at` to become delete-for-me. Shipping
+  // them as dead buttons would be worse than their absence — the same rule
+  // the composer's attach button was held back under.
+  const sheetMessage = actionSheet ? messages.find(m => m.id === actionSheet.id) : null;
+  const sheetActions = [];
+  if (sheetMessage) {
+    // ⚠ ACKNOWLEDGE IS DELIBERATELY NOT HERE (owner, 2026-07-26).
+    //
+    // It briefly was, because single-tap-to-enlarge cost the double-tap on
+    // photos. Removed on instruction: the acknowledgement is a gesture, not a
+    // menu item, and burying it in a list is the opposite of making it the
+    // thing people reach for.
+    //
+    // KNOWN CONSEQUENCE: a PHOTO now has no way to be acknowledged. Its single
+    // tap opens the viewer, so the first tap of a double-tap lands there
+    // instead of on the bubble. Every other kind keeps double-tap. Flagged to
+    // the owner rather than solved here, because the fix is a product choice
+    // (a gesture on the viewer, or a corner affordance) and not a tidy-up.
+    if (typeof sheetMessage.body === 'string' && sheetMessage.body) {
+      sheetActions.push({
+        key: 'copy',
+        label: 'Copy text',
+        icon: '⧉',
+        onSelect: () => { navigator.clipboard?.writeText(sheetMessage.body).catch(() => {}); },
+      });
+    }
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
+
+      {actionSheet && (
+        <MessageActionSheet
+          rect={actionSheet.rect}
+          current={summariseReactions(
+            reactionsByMessage.get(actionSheet.id), senderProfile,
+          ).mine}
+          actions={sheetActions}
+          onPick={key => onPickReaction(actionSheet.id, key)}
+          onClose={() => setActionSheet(null)}
+        />
+      )}
 
       {/* HEADER — rendered in BOTH hosts, so the drawer and the full page
           present the same conversation rather than two different ones.
@@ -1675,6 +1779,9 @@ export default function ConversationView({ conversationId, compact = false, onMi
                 speaker={profilesById[m.from_profile_id]}
                 handed={(handsByMessage.get(m.id) ?? []).includes(senderProfile)}
                 onToggleHand={() => onToggleHand(m.id)}
+                reactions={reactionsByMessage.get(m.id)}
+                viewerProfileId={senderProfile}
+                onLongPress={rect => setActionSheet({ id: m.id, rect })}
                 onRetry={() => onRetry(m)}
                 seenWatermark={seenWatermark}
                 deliveredWatermark={deliveredWatermark}
@@ -1791,7 +1898,15 @@ function RecoveredDraftBanner({ url, durationMs, onSend, onDiscard }) {
   );
 }
 
-function MessageBubble({ message, isMine, grouped = false, endsBurst = true, speaker, handed = false, onToggleHand, onRetry, seenWatermark = null, deliveredWatermark = null, highlighted = false }) {
+function MessageBubble({ message, isMine, grouped = false, endsBurst = true, speaker, handed = false, onToggleHand, onRetry, seenWatermark = null, deliveredWatermark = null, highlighted = false, reactions, viewerProfileId = null, onLongPress }) {
+
+  // The frame is the message's outer box, so it is what the reaction bar
+  // anchors against when the chips reopen it — the same rect a long press
+  // measures.
+  const frameRef = useRef(null);
+
+  // Registry-ordered, so the badge does not reshuffle as counts change.
+  const reactionSummary = summariseReactions(reactions, viewerProfileId);
 
   // Null for anything received — receiptFor enforces that, and it is the rule
   // that keeps the §2.5 amendment narrow: a receipt on a message you received
@@ -1912,7 +2027,7 @@ function MessageBubble({ message, isMine, grouped = false, endsBurst = true, spe
 
           A NEW KIND NEEDS NO POSITIONING CODE. It is rendered inside the frame
           like every other kind and the badge already knows where to go. */}
-      <div className="yp-msg-frame">
+      <div className="yp-msg-frame" ref={frameRef}>
       <div
         className={shape?.className}
         // DOUBLE-TAP TO YES. React's onDoubleClick covers mouse and touch, and
@@ -1925,6 +2040,68 @@ function MessageBubble({ message, isMine, grouped = false, endsBurst = true, spe
         // an unhandable kind: the double-tap does nothing, but it would still
         // select.
         onMouseDown={e => { if (e.detail > 1) e.preventDefault(); }}
+        // ── LONG PRESS → the reaction bar and the actions ──────────────
+        //
+        // Pointer events rather than touch events, so one implementation
+        // covers finger, mouse and pen.
+        //
+        // ⚠ THE MOVE THRESHOLD IS WHAT KEEPS SCROLLING USABLE. Without it,
+        // resting a thumb on a message while starting to scroll opens the
+        // sheet, which makes the thread feel like it is grabbing at you.
+        // 10px is below the distance a deliberate scroll travels in 450ms
+        // and above the drift of a stationary thumb.
+        //
+        // The rect is measured HERE, at press time, because the sheet is
+        // fixed-position and the thread may scroll underneath it.
+        onPointerDown={e => {
+          if (!onLongPress || e.pointerType === 'mouse') return;
+          const startX = e.clientX, startY = e.clientY;
+          const el = e.currentTarget;
+          const fire = () => {
+            el._ypLP = null;
+            // ⚠ The pointerup that ENDS a long press still produces a click,
+            // and on a photo that click would open the viewer behind the
+            // sheet that just opened. Swallowed once, below.
+            el._ypSuppressClick = true;
+            // A held press on text has already begun selecting it by now, so
+            // the sheet would open over a half-highlighted message. Cleared
+            // rather than prevented, because preventing selection outright
+            // would cost ordinary copy-by-drag on desktop.
+            try { window.getSelection()?.removeAllRanges(); } catch { /* unsupported */ }
+            onLongPress(el.getBoundingClientRect());
+          };
+          const timer = setTimeout(fire, 450);
+          el._ypLP = { timer, startX, startY };
+        }}
+        onPointerMove={e => {
+          const lp = e.currentTarget._ypLP;
+          if (!lp) return;
+          if (Math.hypot(e.clientX - lp.startX, e.clientY - lp.startY) > 10) {
+            clearTimeout(lp.timer);
+            e.currentTarget._ypLP = null;
+          }
+        }}
+        onPointerUp={e => {
+          const lp = e.currentTarget._ypLP;
+          if (lp) { clearTimeout(lp.timer); e.currentTarget._ypLP = null; }
+        }}
+        onPointerCancel={e => {
+          const lp = e.currentTarget._ypLP;
+          if (lp) { clearTimeout(lp.timer); e.currentTarget._ypLP = null; }
+        }}
+        // Right-click is the same intent with a mouse, and costs one line.
+        onContextMenu={onLongPress ? (e) => {
+          e.preventDefault();
+          onLongPress(e.currentTarget.getBoundingClientRect());
+        } : undefined}
+        // Swallows exactly one click — the one the long press itself produced.
+        // Capture phase, so it lands before the photo's own onClick.
+        onClickCapture={e => {
+          if (!e.currentTarget._ypSuppressClick) return;
+          e.currentTarget._ypSuppressClick = false;
+          e.stopPropagation();
+          e.preventDefault();
+        }}
         style={bare ? {
           minWidth: 0, position: 'relative',
           // The mark supplies its own presence; padding here would only push
@@ -2095,8 +2272,33 @@ function MessageBubble({ message, isMine, grouped = false, endsBurst = true, spe
           withdrawn still carry the state, and drawing it would put the badge
           back on the one kind whose layout cannot hold it. */}
       {handed && handable && (
-        <span role="img" aria-label="You said Yes to this" className="yp-yes-badge">
+        <span role="img" aria-label="You acknowledged this" className="yp-yes-badge">
           <HandIcon size={YES_SIZE} />
+        </span>
+      )}
+
+      {/* THE REACTION BADGE — the SAME slot as the Yes above.
+          Owner, 2026-07-25: the chosen emoji sits where the Hand sits. The two
+          are mutually exclusive (messageState.js clears one when the other is
+          set), so this and the Yes badge can never draw at once.
+
+          Tapping it reopens the bar, so a reaction can be changed without
+          hunting for the long press again. */}
+      {reactionSummary.counts.length > 0 && (
+        <span
+          className="yp-reaction-badge"
+          role="button"
+          tabIndex={0}
+          aria-label={`${reactionSummary.total} reaction${reactionSummary.total === 1 ? '' : 's'}`}
+          onClick={e => {
+            e.stopPropagation();
+            onLongPress?.(frameRef.current?.getBoundingClientRect());
+          }}
+        >
+          {reactionSummary.counts.map(c => (
+            <span key={c.key} className="glyph" title={c.label}>{c.emoji}</span>
+          ))}
+          {reactionSummary.total > 1 && <span className="n">{reactionSummary.total}</span>}
         </span>
       )}
       </div>{/* frame */}
