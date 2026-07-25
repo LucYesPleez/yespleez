@@ -95,7 +95,11 @@ export default function GlobalHeader({ onMarkRead, unreadCount = 0 }) {
 
   return (
     <>
-      <div className={s.header} ref={headerRef}>
+      {/* `yp-global-header` is a STABLE hook for rules that live outside this
+          module — the CSS-module class is content-hashed (_header_11rgr_1)
+          and changes whenever this file does, so it cannot be targeted from
+          index.css. See the photo-viewer rule there. */}
+      <div className={`${s.header} yp-global-header`} ref={headerRef}>
         <button className={s.backBtn} onClick={handleBack} aria-label="Back">
           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="m15 18-6-6 6-6"/>

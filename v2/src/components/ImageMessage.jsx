@@ -172,6 +172,25 @@ export default function ImageMessage({ message }) {
     return () => window.removeEventListener('keydown', onKey);
   }, [open]);
 
+  /**
+   * Sends the global header BEHIND the viewer while it is open — blurred into
+   * the backdrop and inert. See `body.yp-viewer-open .yp-global-header`.
+   *
+   * A body class rather than a prop: the header sits far above this component
+   * in the tree, and threading state up through every screen between them
+   * would couple two components that otherwise know nothing about each other.
+   *
+   * ⚠ REMOVED IN CLEANUP, NOT ONLY ON CLOSE. A photo can be unmounted while
+   * its viewer is open — the thread re-renders, or the conversation is
+   * closed from underneath it — and a class left behind would leave the
+   * header permanently blurred and unclickable with no way to recover it.
+   */
+  useEffect(() => {
+    if (!open) return;
+    document.body.classList.add('yp-viewer-open');
+    return () => document.body.classList.remove('yp-viewer-open');
+  }, [open]);
+
   // ⚠ NO PICTURE, AND NOTHING IS WRONG. A RAW or a TIFF cannot be decoded by
   // any browser, so no optimised copy or thumbnail was ever made — but the
   // original is there, and it is the whole reason the photograph was sent.
@@ -289,34 +308,9 @@ export default function ImageMessage({ message }) {
             bottom: 'var(--yp-nav-height)',
             background: 'rgba(6,6,10,.94)',
             backdropFilter: 'blur(8px)',
-            // ⚠ ABOVE THE GLOBAL HEADER, WHICH IS z-index 199.
-            //
-            // This was 60, so the header painted straight over an enlarged
-            // photo: its logo, BETA chip and icon row sat on top of the image,
-            // and its controls read as a second, competing close button. It
-            // looked correct on a phone only because the header is not fixed
-            // there — which is why the bug appeared to be desktop-only rather
-            // than a layering mistake that was always present.
-            //
-            // The viewer is the frontmost surface in the app while it is open;
-            // the ONE thing it still must not cover is the bottom nav, which
-            // `bottom` above already guarantees.
-            zIndex: 250,
+            zIndex: 60,
             display: 'flex', flexDirection: 'column',
-            // ⚠ THE VIEWER IS THE ONE SURFACE THAT IS NOT APP-SCOPED.
-            //
-            // It was capped at `--yp-app-max` (680px) and centred, like every
-            // other overlay. On a phone that IS the full width, so it looked
-            // correct — and on a 1920px desktop the "enlarged" photo opened
-            // into a 680px column barely wider than the bubble it came from.
-            // Measured: left 613, width 680, on a 1920 viewport.
-            //
-            // A photo viewer exists to make the photo as large as the screen
-            // allows; constraining it to the app column defeats the only thing
-            // it does. Every OTHER overlay stays app-scoped — this is the
-            // deliberate exception, not a licence to widen the rest.
-            //
-            // The bottom nav is still sacred: `bottom` above keeps it clear.
+            maxWidth: 'var(--yp-app-max, 680px)', margin: '0 auto',
           }}
         >
           {/* ⚠ PINCH IS THE BROWSER'S, NOT OURS. `touch-action: pinch-zoom` on a
@@ -355,10 +349,24 @@ export default function ImageMessage({ message }) {
               position: 'absolute', top: 12, right: 12,
               width: 40, height: 40, borderRadius: 999,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              background: 'rgba(20,20,28,.72)',
-              border: '1px solid rgba(255,255,255,.14)',
-              backdropFilter: 'blur(10px)',
-              color: 'rgba(255,255,255,.86)', cursor: 'pointer', padding: 0,
+              // Bare glyph — no disc, no border, no blur. The viewer's own
+              // dim is what the ✕ reads against, so the chrome around it was
+              // doing nothing except announcing itself over the photograph.
+              //
+              // ⚠ The 40×40 box is KEPT. It is invisible now, but it is the
+              // tap target — shrinking to the glyph would leave an 18px
+              // target, which is under half the ~44px minimum and would be
+              // genuinely hard to hit on a phone.
+              background: 'none',
+              border: 'none',
+              // Full white rather than .86: without a backing disc there is no
+              // contrast to borrow, so the glyph has to hold its own against
+              // whatever part of the photo sits behind it.
+              color: '#fff', cursor: 'pointer', padding: 0,
+              // The one thing kept from the old treatment: a shadow, so the
+              // mark survives a bright or busy corner. drop-shadow follows the
+              // stroke rather than boxing it.
+              filter: 'drop-shadow(0 1px 3px rgba(0,0,0,.9))',
             }}
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">

@@ -1210,6 +1210,32 @@ input, textarea, select {
    The two are mutually exclusive (see messageState.js), so they can never
    occupy this slot at the same time. If that rule is ever relaxed, this is
    the position that would have to resolve the collision. */
+/* ── THE PHOTO VIEWER SENDS THE HEADER BEHIND IT ────────────────────
+   Owner, 2026-07-26. The alternative was raising the viewer above the
+   header, which put a full-bleed photo on a 1920px desktop and read as too
+   much. This keeps the viewer app-scoped and makes the HEADER recede
+   instead: behind the layer, blurred into the backdrop, and inert.
+
+   ⚠ THE HEADER IS `position: fixed; z-index: 199` IN ITS OWN MODULE. A
+   fixed element cannot be put behind a later sibling by source order alone,
+   so the z-index has to be lowered explicitly — below the viewer's 60.
+
+   ⚠ `pointer-events: none` IS NOT COSMETIC. Behind a translucent overlay
+   the share, info and bell icons stay clickable and are half-visible, so a
+   tap meant for the photo can navigate the app out from under it. Removing
+   the blur without removing this would reintroduce that.
+
+   Toggled by a body class rather than a prop, because the header sits far
+   above the viewer in the tree and threading state through every screen
+   between them would couple two unrelated components. */
+body.yp-viewer-open .yp-global-header {
+  z-index: 1;
+  filter: blur(8px);
+  opacity: .5;
+  pointer-events: none;
+  transition: filter .18s ease, opacity .18s ease;
+}
+
 /* ── THE LANDING ────────────────────────────────────────────────────
    A reaction does not appear, it ARRIVES. It spawns above its resting
    place, falls under something like gravity, and squashes as it settles —
