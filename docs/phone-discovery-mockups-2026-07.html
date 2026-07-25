@@ -1,0 +1,629 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>YesPleez · Phone Discovery — UI Mockups</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet">
+<style>
+  /* ══ Real app tokens (v2/src/index.css) ══ */
+  :root{
+    --neon:#ff2d78; --neon2:#00e5ff; --gold:#ffb830;
+    --dark:#0a0a0f; --card:#13131f; --card2:#0f0f1a; --border:#2a2a3d;
+    --text:#e8e8f0; --muted:#7070a0; --green:#00e676; --purple:#b060ff;
+    --ease:cubic-bezier(.2,.8,.3,1);
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  body{background:#060609;color:var(--text);font-family:'DM Sans',-apple-system,sans-serif;
+       -webkit-font-smoothing:antialiased;padding:34px 26px 60px}
+  .bebas{font-family:'Bebas Neue','Arial Narrow',sans-serif;font-weight:400;letter-spacing:1.5px}
+
+  h1{font-family:'Bebas Neue',sans-serif;font-weight:400;font-size:34px;letter-spacing:2px}
+  h1 em{font-style:normal;background:linear-gradient(90deg,var(--neon),var(--neon2));
+        -webkit-background-clip:text;background-clip:text;color:transparent}
+  .sub{color:var(--muted);font-size:13.5px;margin:6px 0 34px;max-width:760px;line-height:1.5}
+
+  .grid{display:flex;flex-wrap:wrap;gap:44px 34px;justify-content:flex-start}
+  figure{width:375px}
+  figcaption{margin-top:13px}
+  figcaption b{font-family:'Bebas Neue',sans-serif;font-weight:400;font-size:16px;
+               letter-spacing:1.4px;color:var(--text)}
+  figcaption ul{margin:7px 0 0 0;padding-left:16px;color:var(--muted);font-size:11.8px;line-height:1.55}
+
+  /* ══ Phone shell ══ */
+  .phone{position:relative;width:375px;height:748px;border-radius:38px;overflow:hidden;
+         background:var(--dark);border:1px solid #23233a;
+         box-shadow:0 30px 80px -30px rgba(0,0,0,.9), inset 0 0 0 1px rgba(255,255,255,.03);
+         display:flex;flex-direction:column}
+  /* ambient gradient — matches body::before in the app */
+  .phone::before{content:'';position:absolute;inset:0;pointer-events:none;z-index:0;
+    background:radial-gradient(ellipse 70% 40% at 50% 0%, rgba(255,45,120,.14) 0%, transparent 65%),
+               radial-gradient(ellipse 40% 30% at 85% 90%, rgba(0,229,255,.08) 0%, transparent 55%)}
+  .status{position:relative;z-index:2;display:flex;justify-content:space-between;align-items:center;
+          padding:12px 24px 4px;font-size:12px;font-weight:600;color:rgba(255,255,255,.75)}
+  .status .batt{display:inline-block;width:20px;height:10px;border:1px solid rgba(255,255,255,.55);
+          border-radius:3px;position:relative;vertical-align:-1px;margin-left:5px}
+  .status .batt::after{content:'';position:absolute;inset:1.5px;right:4px;background:rgba(255,255,255,.75);border-radius:1px}
+
+  /* global header: Back · logo · Share · Info · bell */
+  .ghead{position:relative;z-index:2;display:flex;align-items:center;gap:12px;padding:8px 16px 10px}
+  .ghead .back{width:30px;height:30px;border-radius:999px;display:flex;align-items:center;justify-content:center;
+               color:rgba(255,255,255,.65);font-size:17px}
+  .ghead .logo{flex:1;text-align:center;font-family:'Bebas Neue',sans-serif;font-size:19px;letter-spacing:2.5px}
+  .ghead .logo i{font-style:normal;background:linear-gradient(90deg,var(--neon),var(--neon2));
+                 -webkit-background-clip:text;background-clip:text;color:transparent}
+  .ghead .ic{width:26px;text-align:center;color:rgba(255,255,255,.5);font-size:14px}
+
+  .content{position:relative;z-index:1;flex:1;padding:6px 16px 12px;overflow:hidden;display:flex;flex-direction:column}
+  .ptitle{font-family:'Bebas Neue',sans-serif;font-size:24px;letter-spacing:1.8px;margin:4px 0 12px}
+
+  /* bottom nav — THE NAV IS SACRED, present on every frame */
+  .nav{position:relative;z-index:3;height:67px;flex-shrink:0;display:flex;
+       background:rgba(10,10,16,.97);border-top:1px solid var(--border)}
+  .nav a{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
+         text-decoration:none;color:#585880;font-family:'Bebas Neue',sans-serif;
+         font-size:9.5px;letter-spacing:1.2px}
+  .nav a .dot{width:17px;height:17px;border-radius:6px;border:1.5px solid currentColor;opacity:.85}
+  .nav a.on{color:#fff}
+  .nav a.on .dot{border-color:transparent;background:linear-gradient(135deg,var(--neon),var(--neon2))}
+  .nav a .badge{position:relative}
+  .nav a .badge::after{content:'2';position:absolute;top:-5px;right:-9px;background:var(--neon);color:#fff;
+        font-family:'DM Sans',sans-serif;font-size:8.5px;font-weight:700;min-width:13px;height:13px;
+        border-radius:999px;display:flex;align-items:center;justify-content:center;padding:0 3px}
+
+  /* ══ shared UI pieces ══ */
+  .seclabel{font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:2px;color:var(--muted);margin:16px 2px 8px}
+  .card{background:linear-gradient(180deg,rgba(28,26,36,.85) 0%,rgba(18,17,24,.9) 100%);
+        border:1px solid rgba(255,255,255,.09);border-radius:16px;padding:14px}
+  .btn{display:flex;align-items:center;justify-content:center;border-radius:999px;cursor:pointer;
+       font-family:'Bebas Neue',sans-serif;letter-spacing:1.6px;font-size:14px;height:42px;border:none}
+  .btn-grad{background:linear-gradient(135deg,#00E5FF,#BF5FFF);color:#0a0a0f;
+            box-shadow:0 8px 22px -8px rgba(191,95,255,.55)}
+  .btn-ghost{background:transparent;border:1px solid rgba(255,255,255,.16);color:var(--text)}
+  .btn-sm{height:32px;font-size:12px;padding:0 15px;letter-spacing:1.4px}
+  .micro{font-size:11px;color:var(--muted);text-align:center}
+
+  /* GlowPill — the real recipe */
+  .glow-pill{font-family:'Bebas Neue',sans-serif;font-size:11.5px;letter-spacing:1.5px;line-height:1;
+    display:inline-flex;align-items:center;padding:5px 10px 3px;border-radius:999px;color:#fff;
+    border:1px solid transparent;
+    background-image:
+      linear-gradient(135deg, rgba(255,45,120,.05), rgba(0,229,255,.04)),
+      linear-gradient(rgba(17,19,26,.62), rgba(17,19,26,.62)),
+      linear-gradient(135deg, #dd276a, #00c8df);
+    background-origin:padding-box,padding-box,border-box;
+    background-clip:padding-box,padding-box,border-box;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.14)}
+
+  /* modal over inbox */
+  .scrim{position:absolute;inset:0;bottom:67px;z-index:4;display:flex;align-items:center;justify-content:center;
+         padding:16px;background:rgba(6,6,10,.72);backdrop-filter:blur(8px)}
+  .mcard{width:100%;max-width:330px;border-radius:18px;padding:22px 18px 16px;
+         background:linear-gradient(180deg,rgba(28,26,36,.99) 0%,rgba(18,17,24,1) 100%);
+         border:1px solid rgba(255,255,255,.13);box-shadow:0 24px 60px -20px rgba(0,0,0,.95)}
+
+  /* search capsule — composer glass */
+  .capsule{display:flex;align-items:center;gap:8px;height:46px;padding:0 8px 0 8px;border-radius:999px;
+    background:linear-gradient(180deg,rgba(255,255,255,.09) 0%,rgba(255,255,255,.034) 100%),
+               linear-gradient(118deg,rgba(168,124,255,.11) 0%,rgba(0,229,255,.045) 100%);
+    border:1px solid rgba(255,255,255,.13);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.14),inset 0 -1px 0 rgba(0,0,0,.30),0 14px 36px -16px rgba(0,0,0,.7)}
+  .cc{font-family:'Bebas Neue',sans-serif;font-size:12px;letter-spacing:1px;color:#fff;
+      border:1px solid rgba(255,255,255,.2);border-radius:999px;padding:5px 9px 3px;display:flex;gap:4px;align-items:center}
+  .cc s{text-decoration:none;color:var(--muted);font-size:9px}
+  .capsule input{flex:1;background:none;border:none;outline:none;color:var(--text);font-size:14.5px;font-family:inherit;min-width:0}
+  .capsule input::placeholder{color:rgba(255,255,255,.36)}
+  .gopill{height:32px;padding:0 14px;border-radius:999px;font-family:'Bebas Neue',sans-serif;font-size:12px;
+          letter-spacing:1.4px;display:flex;align-items:center;background:linear-gradient(135deg,#00E5FF,#BF5FFF);color:#0a0a0f}
+  .gopill.off{background:rgba(255,255,255,.07);color:rgba(255,255,255,.3)}
+
+  /* person row */
+  .prow{display:flex;align-items:center;gap:11px;padding:10px 4px}
+  .prow + .prow{border-top:1px solid rgba(255,255,255,.06)}
+  .av{width:44px;height:44px;border-radius:999px;flex-shrink:0;display:flex;align-items:center;justify-content:center;
+      font-family:'Bebas Neue',sans-serif;font-size:18px;color:#fff;
+      background:linear-gradient(#15151E,#15151E) padding-box,linear-gradient(135deg,#00E5FF,#BF5FFF) border-box;
+      border:1.5px solid transparent}
+  .av.photo1{background:linear-gradient(135deg,#5b2a86,#a03f6b);border:none}
+  .av.photo2{background:linear-gradient(135deg,#155e63,#2a2a72);border:none}
+  .av.photo3{background:linear-gradient(135deg,#7a3803,#a0284b);border:none}
+  .pmain{flex:1;min-width:0}
+  .pname{font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .pmeta{margin-top:3px;display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--muted)}
+  .msgbtn{height:32px;padding:0 14px;border-radius:999px;font-family:'Bebas Neue',sans-serif;font-size:12px;
+          letter-spacing:1.5px;display:flex;align-items:center;background:linear-gradient(135deg,#00E5FF,#BF5FFF);
+          color:#0a0a0f;flex-shrink:0}
+  .invbtn{height:30px;padding:0 13px;border-radius:999px;font-family:'Bebas Neue',sans-serif;font-size:11.5px;
+          letter-spacing:1.4px;display:flex;align-items:center;border:1px solid rgba(255,255,255,.2);
+          color:var(--text);background:transparent;flex-shrink:0}
+
+  /* signal-flare illustration */
+  .flare{position:relative;height:104px;display:flex;align-items:center;justify-content:center;margin-bottom:8px}
+  .ring{position:absolute;border-radius:999px;border:1px solid transparent;
+    background:linear-gradient(rgba(18,17,24,0),rgba(18,17,24,0)) padding-box,
+               linear-gradient(135deg,rgba(255,45,120,.55),rgba(0,229,255,.55)) border-box}
+  .r1{width:64px;height:64px} .r2{width:100px;height:100px;opacity:.45}
+  .hand{width:44px;height:44px;border-radius:999px;display:flex;align-items:center;justify-content:center;font-size:20px;
+    background:linear-gradient(#15151E,#15151E) padding-box,linear-gradient(135deg,#00E5FF,#BF5FFF) border-box;
+    border:1.5px solid transparent;z-index:1}
+  .dotav{position:absolute;width:22px;height:22px;border-radius:999px;font-size:9px;display:flex;align-items:center;
+    justify-content:center;font-family:'Bebas Neue',sans-serif;color:#fff;border:1px solid rgba(255,255,255,.25)}
+  .d1{background:#5b2a86;left:26%;top:12%} .d2{background:#155e63;right:24%;top:58%} .d3{background:#a0284b;left:30%;bottom:4%}
+
+  /* primer rows */
+  .fact{display:flex;gap:11px;padding:10px 2px;align-items:flex-start}
+  .fact .fic{width:34px;height:34px;border-radius:11px;background:rgba(255,255,255,.06);flex-shrink:0;
+             display:flex;align-items:center;justify-content:center;font-size:15px}
+  .fact b{display:block;font-size:13.5px;margin-bottom:2px}
+  .fact p{font-size:12px;color:var(--muted);line-height:1.45}
+
+  /* skeleton */
+  .skel{display:flex;align-items:center;gap:11px;padding:10px 4px}
+  .skel .sa{width:44px;height:44px;border-radius:999px;background:rgba(255,255,255,.06);animation:sk 1.5s ease-in-out infinite}
+  .skel .sl{height:11px;border-radius:6px;background:rgba(255,255,255,.06);animation:sk 1.5s ease-in-out infinite}
+  @keyframes sk{0%,100%{opacity:1}50%{opacity:.45}}
+
+  /* eq mark (comes to rest — static here at full rise) */
+  .eq{display:inline-flex;align-items:flex-end;gap:2px;margin-right:7px}
+  .eq i{display:block;width:3px;border-radius:1.5px;background:var(--neon2)}
+
+  /* settings rows */
+  .srow{display:flex;align-items:center;gap:11px;padding:13px 2px}
+  .srow + .srow{border-top:1px solid rgba(255,255,255,.06)}
+  .srow .sl1{font-size:14px;font-weight:500}
+  .srow .sl2{font-size:11.5px;color:var(--muted);margin-top:2px;line-height:1.45}
+  .toggle{width:44px;height:26px;border-radius:999px;background:linear-gradient(135deg,#00E5FF,#BF5FFF);
+          position:relative;flex-shrink:0;margin-left:auto}
+  .toggle::after{content:'';position:absolute;top:3px;right:3px;width:20px;height:20px;border-radius:999px;background:#0a0a0f}
+  .radio{width:20px;height:20px;border-radius:999px;border:2px solid rgba(255,255,255,.25);flex-shrink:0;margin-top:1px}
+  .radio.on{border-color:var(--neon2);position:relative}
+  .radio.on::after{content:'';position:absolute;inset:3px;border-radius:999px;background:linear-gradient(135deg,#00E5FF,#BF5FFF)}
+  .opt{display:flex;gap:12px;padding:13px 2px;align-items:flex-start}
+  .opt + .opt{border-top:1px solid rgba(255,255,255,.06)}
+  .opt.sel{margin:0 -8px;padding:13px 10px;border-radius:14px;border:1px solid rgba(0,229,255,.35);
+    background:linear-gradient(135deg,rgba(255,45,120,.10),rgba(0,229,255,.07))}
+  .opt.sel + .opt{border-top:none}
+  .opt b{font-size:14px;display:block;margin-bottom:2px}
+  .opt p{font-size:11.5px;color:var(--muted);line-height:1.5}
+
+  .danger{border:1px solid rgba(255,59,92,.35);background:rgba(255,59,92,.08);border-radius:16px;padding:14px}
+  .danger b{color:#FF8A9E;font-size:14px}
+  .danger p{font-size:11.5px;color:var(--muted);margin-top:3px;line-height:1.45}
+
+  .toast{position:absolute;left:50%;transform:translateX(-50%);bottom:81px;z-index:5;
+    background:rgba(20,20,28,.97);border:1px solid rgba(255,255,255,.14);border-radius:999px;
+    padding:9px 18px;font-size:12.5px;box-shadow:0 12px 32px -10px rgba(0,0,0,.9);white-space:nowrap}
+  .toast::before{content:'✓';color:var(--green);margin-right:8px;font-weight:700}
+
+  .banner{display:flex;align-items:center;gap:9px;border-radius:13px;padding:10px 13px;margin-bottom:4px;
+    border:1px solid rgba(0,230,118,.3);background:rgba(0,230,118,.07);
+    font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:1.5px}
+  .banner s{text-decoration:none;color:var(--green)}
+
+  .inboxrow{display:flex;gap:11px;align-items:center;padding:11px 2px;opacity:.85}
+  .inboxrow .txt{flex:1;min-width:0}
+  .inboxrow .n{font-size:14px;font-weight:600}
+  .inboxrow .m{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
+  .inboxrow .t{font-size:10.5px;color:var(--muted)}
+  .blurred{filter:blur(5px);opacity:.55}
+
+  .empt{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:0 26px}
+  .empt .eh{font-size:34px;opacity:.4;margin-bottom:12px}
+  .empt b{font-family:'Bebas Neue',sans-serif;font-weight:400;font-size:21px;letter-spacing:2px}
+  .empt p{font-size:12.5px;color:var(--muted);line-height:1.55;margin:8px 0 16px;max-width:250px}
+
+  .note{font-size:10.5px;color:var(--muted);border-left:2px solid var(--border);padding-left:9px;margin-top:10px;line-height:1.5}
+  .crumb{font-size:10.5px;color:var(--muted);letter-spacing:.4px;margin:2px 2px 0}
+</style>
+</head>
+<body>
+
+<h1>PHONE DISCOVERY · <em>YESPLEEZ MESSENGER</em></h1>
+<p class="sub">Twelve frames, built from the app's real tokens — DM Sans / Bebas Neue, the neon pair, GlowPill,
+composer glass, card-not-sheet modals, and the sacred bottom nav on every screen. Full spec:
+<b>phone-discovery-ux-2026-07.md</b>. The circled 🤟 stands in for the Hand mark.</p>
+
+<div class="grid">
+
+<!-- ══ F1 · Discoverability prompt ══ -->
+<figure>
+  <div class="phone">
+    <div class="status"><span>9:41</span><span>5G <span class="batt"></span></span></div>
+    <div class="ghead"><span class="back">‹</span><span class="logo">YES<i>PLEEZ</i></span><span class="ic">⇪</span><span class="ic">ⓘ</span><span class="ic">🔔</span></div>
+    <div class="content blurred">
+      <div class="ptitle">MESSAGES</div>
+      <div class="inboxrow"><div class="av photo1">M</div><div class="txt"><div class="n">Marra</div><div class="m">Voicey · 0:42</div></div><span class="t">2m</span></div>
+      <div class="inboxrow"><div class="av photo2">TJ</div><div class="txt"><div class="n">Tommy Jay</div><div class="m">that lineup is unreal 🔥</div></div><span class="t">1h</span></div>
+      <div class="inboxrow"><div class="av photo3">B</div><div class="txt"><div class="n">Bellingen Brewery</div><div class="m">Sorted for the 14th — see you there</div></div><span class="t">Tue</span></div>
+    </div>
+    <div class="scrim">
+      <div class="mcard">
+        <div class="flare">
+          <span class="ring r1"></span><span class="ring r2"></span>
+          <span class="hand">🤟</span>
+          <span class="dotav d1">J</span><span class="dotav d2">S</span><span class="dotav d3">K</span>
+        </div>
+        <div class="bebas" style="font-size:25px;text-align:center;margin-bottom:9px">YOUR SCENE IS ALREADY HERE</div>
+        <p style="font-size:13.5px;line-height:1.55;text-align:center;color:var(--text)">
+          Let friends who already have your number find you on YesPleez.
+          Your number itself is <b>never shown to anyone</b> — not to friends,
+          not on your profile, not ever.</p>
+        <div class="btn btn-grad" style="margin-top:16px">LET FRIENDS FIND ME</div>
+        <div class="btn btn-ghost" style="margin-top:9px;font-family:'DM Sans',sans-serif;font-size:13px;letter-spacing:.2px">Not now</div>
+        <p class="micro" style="margin-top:11px">Change anytime · Settings → Privacy → Phone Number</p>
+      </div>
+    </div>
+    <div class="nav">
+      <a><span class="dot"></span>MY SCENE</a><a><span class="dot"></span>WHAT'S ON</a><a><span class="dot"></span>DISCOVER</a>
+      <a class="on"><span class="dot badge"></span>MESSAGES</a><a><span class="dot"></span>INDUSTRY</a>
+    </div>
+  </div>
+  <figcaption><b>1 · FIRST-TIME DISCOVERABILITY PROMPT</b>
+    <ul><li>One time, over a working inbox — never a gate. Card, not sheet; nav stays clear.</li>
+        <li>"Not now" = Nobody, recorded, never re-asked. Rings pulse 3× then come to rest.</li></ul>
+  </figcaption>
+</figure>
+
+<!-- ══ F2 · Contacts primer ══ -->
+<figure>
+  <div class="phone">
+    <div class="status"><span>9:41</span><span>5G <span class="batt"></span></span></div>
+    <div class="ghead"><span class="back">‹</span><span class="logo">YES<i>PLEEZ</i></span><span class="ic">⇪</span><span class="ic">ⓘ</span><span class="ic">🔔</span></div>
+    <div class="content blurred"><div class="ptitle">FIND PEOPLE</div>
+      <div class="capsule"><span class="cc">+61 <s>▾</s></span><input placeholder="Search by phone number"><span class="gopill off">SEARCH</span></div>
+    </div>
+    <div class="scrim">
+      <div class="mcard">
+        <div class="bebas" style="font-size:21px;margin-bottom:6px">FIND FRIENDS FROM YOUR CONTACTS</div>
+        <div class="fact"><span class="fic">🔒</span><span><b>Scrambled on your phone</b><p>Your contacts are turned into unreadable codes before anything leaves your device.</p></span></div>
+        <div class="fact"><span class="fic">⛔</span><span><b>Codes only — nothing else</b><p>No names, no emails, no numbers. YesPleez never sees your address book.</p></span></div>
+        <div class="fact"><span class="fic">🗑</span><span><b>Yours to undo</b><p>Delete the uploaded codes any time in Settings → Privacy → Contacts.</p></span></div>
+        <p style="font-size:11.5px;color:var(--muted);margin:8px 2px 0;line-height:1.5">
+          If you'd rather not, you can still search for anyone by their exact number.</p>
+        <div class="btn btn-grad" style="margin-top:15px">CONTINUE</div>
+        <div class="btn btn-ghost" style="margin-top:9px;font-family:'DM Sans',sans-serif;font-size:13px;letter-spacing:.2px">Not now</div>
+      </div>
+    </div>
+    <div class="nav">
+      <a><span class="dot"></span>MY SCENE</a><a><span class="dot"></span>WHAT'S ON</a><a><span class="dot"></span>DISCOVER</a>
+      <a class="on"><span class="dot"></span>MESSAGES</a><a><span class="dot"></span>INDUSTRY</a>
+    </div>
+  </div>
+  <figcaption><b>2 · CONTACTS PERMISSION PRIMER</b>
+    <ul><li>Always precedes any system UI. Three concrete facts, each one line + one sub-line.</li>
+        <li>Our button says CONTINUE — "Allow" belongs to the OS dialog alone.</li></ul>
+  </figcaption>
+</figure>
+
+<!-- ══ F3 · Find People, fresh ══ -->
+<figure>
+  <div class="phone">
+    <div class="status"><span>9:41</span><span>5G <span class="batt"></span></span></div>
+    <div class="ghead"><span class="back">‹</span><span class="logo">YES<i>PLEEZ</i></span><span class="ic">⇪</span><span class="ic">ⓘ</span><span class="ic">🔔</span></div>
+    <div class="content">
+      <div class="ptitle">FIND PEOPLE</div>
+      <div class="capsule"><span class="cc">+61 <s>▾</s></span><input placeholder="Search by phone number"><span class="gopill off">SEARCH</span></div>
+      <div class="seclabel">FROM YOUR CONTACTS</div>
+      <div class="card" style="text-align:center;padding:18px 16px">
+        <div style="font-size:24px;margin-bottom:7px">👥</div>
+        <p style="font-size:12.5px;color:var(--text);line-height:1.5;margin-bottom:4px">See which of your contacts are already here.</p>
+        <p style="font-size:11px;color:var(--muted);margin-bottom:13px">Scrambled codes only — never names or numbers.</p>
+        <div class="btn btn-grad btn-sm" style="display:inline-flex">FIND FRIENDS FROM CONTACTS</div>
+      </div>
+      <div class="seclabel">INVITE</div>
+      <div class="card" style="display:flex;align-items:center;gap:12px">
+        <div style="flex:1"><p style="font-size:12.5px;line-height:1.5">Know someone who'd love it here?</p>
+          <p style="font-size:11px;color:var(--muted);margin-top:2px">Send them your invite link.</p></div>
+        <div class="btn btn-ghost btn-sm" style="display:inline-flex;white-space:nowrap">SEND YOUR LINK</div>
+      </div>
+    </div>
+    <div class="nav">
+      <a><span class="dot"></span>MY SCENE</a><a><span class="dot"></span>WHAT'S ON</a><a><span class="dot"></span>DISCOVER</a>
+      <a class="on"><span class="dot"></span>MESSAGES</a><a><span class="dot"></span>INDUSTRY</a>
+    </div>
+  </div>
+  <figcaption><b>3 · FIND PEOPLE — FIRST VISIT</b>
+    <ul><li>Search capsule = composer glass, the surface that already means "type here". Country chip is a picker.</li>
+        <li>Three sections, ever: contacts, invite, recently joined. Recently Joined absent until it has rows.</li></ul>
+  </figcaption>
+</figure>
+
+<!-- ══ F4 · Syncing ══ -->
+<figure>
+  <div class="phone">
+    <div class="status"><span>9:41</span><span>5G <span class="batt"></span></span></div>
+    <div class="ghead"><span class="back">‹</span><span class="logo">YES<i>PLEEZ</i></span><span class="ic">⇪</span><span class="ic">ⓘ</span><span class="ic">🔔</span></div>
+    <div class="content">
+      <div class="ptitle">FIND PEOPLE</div>
+      <div class="capsule"><span class="cc">+61 <s>▾</s></span><input placeholder="Search by phone number"><span class="gopill off">SEARCH</span></div>
+      <div class="seclabel">FROM YOUR CONTACTS</div>
+      <div style="display:flex;align-items:center;padding:2px 4px 6px">
+        <span class="eq"><i style="height:6px"></i><i style="height:12px"></i><i style="height:9px"></i></span>
+        <span style="font-size:12px;color:var(--muted)">Matching scrambled codes…</span>
+      </div>
+      <div class="skel"><div class="sa"></div><div style="flex:1"><div class="sl" style="width:55%"></div><div class="sl" style="width:32%;margin-top:7px"></div></div></div>
+      <div class="skel"><div class="sa"></div><div style="flex:1"><div class="sl" style="width:44%"></div><div class="sl" style="width:28%;margin-top:7px"></div></div></div>
+      <div class="skel"><div class="sa"></div><div style="flex:1"><div class="sl" style="width:60%"></div><div class="sl" style="width:36%;margin-top:7px"></div></div></div>
+      <div class="seclabel">INVITE</div>
+      <div class="card" style="display:flex;align-items:center;gap:12px">
+        <div style="flex:1"><p style="font-size:12.5px;line-height:1.5">Know someone who'd love it here?</p>
+          <p style="font-size:11px;color:var(--muted);margin-top:2px">Send them your invite link.</p></div>
+        <div class="btn btn-ghost btn-sm" style="display:inline-flex;white-space:nowrap">SEND YOUR LINK</div>
+      </div>
+    </div>
+    <div class="nav">
+      <a><span class="dot"></span>MY SCENE</a><a><span class="dot"></span>WHAT'S ON</a><a><span class="dot"></span>DISCOVER</a>
+      <a class="on"><span class="dot"></span>MESSAGES</a><a><span class="dot"></span>INDUSTRY</a>
+    </div>
+  </div>
+  <figcaption><b>4 · SYNCING</b>
+    <ul><li>Existing Skeleton component; status line is aria-live. The EQ mark rises once and comes to rest.</li>
+        <li>Status copy repeats the privacy word at the working moment: "matching scrambled codes".</li></ul>
+  </figcaption>
+</figure>
+
+<!-- ══ F5 · Results ══ -->
+<figure>
+  <div class="phone">
+    <div class="status"><span>9:41</span><span>5G <span class="batt"></span></span></div>
+    <div class="ghead"><span class="back">‹</span><span class="logo">YES<i>PLEEZ</i></span><span class="ic">⇪</span><span class="ic">ⓘ</span><span class="ic">🔔</span></div>
+    <div class="content">
+      <div class="ptitle">FIND PEOPLE</div>
+      <div class="banner"><s>✓</s> SYNCED — 5 FRIENDS FOUND</div>
+      <div class="seclabel" style="margin-top:10px">FROM YOUR CONTACTS</div>
+      <div class="prow"><div class="av photo1">JD</div><div class="pmain"><div class="pname">Jess Deluxe</div>
+        <div class="pmeta"><span class="glow-pill">DJ / PROD.</span><span>· in your contacts</span></div></div><span class="msgbtn">MESSAGE</span></div>
+      <div class="prow"><div class="av photo2">TR</div><div class="pmain"><div class="pname">The Roundhouse</div>
+        <div class="pmeta"><span class="glow-pill">VENUE</span><span>· in your contacts</span></div></div><span class="msgbtn">MESSAGE</span></div>
+      <div class="prow"><div class="av">SK</div><div class="pmain"><div class="pname">Sam K</div>
+        <div class="pmeta"><span>On YesPleez · in your contacts</span></div></div><span class="msgbtn">MESSAGE</span></div>
+      <p style="font-size:10.5px;color:var(--muted);padding:5px 4px 0">Synced today · Settings → Privacy → Contacts</p>
+      <div class="seclabel">INVITE</div>
+      <div class="prow" style="padding-top:6px"><div class="av" style="background:var(--card2);border:1px solid var(--border);color:var(--muted)">M</div>
+        <div class="pmain"><div class="pname" style="color:var(--muted);font-weight:500">Matty B</div>
+        <div class="pmeta">Not on YesPleez yet</div></div><span class="invbtn">INVITE</span></div>
+      <div class="seclabel">RECENTLY JOINED</div>
+      <div class="prow"><div class="av photo3">LN</div><div class="pmain"><div class="pname">Lena Nova</div>
+        <div class="pmeta">Joined this week · in your contacts</div></div><span class="msgbtn">MESSAGE</span></div>
+    </div>
+    <div class="nav">
+      <a><span class="dot"></span>MY SCENE</a><a><span class="dot"></span>WHAT'S ON</a><a><span class="dot"></span>DISCOVER</a>
+      <a class="on"><span class="dot"></span>MESSAGES</a><a><span class="dot"></span>INDUSTRY</a>
+    </div>
+  </div>
+  <figcaption><b>5 · SYNCED — MATCHES, INVITES, RECENTLY JOINED</b>
+    <ul><li>Rows land with the reaction physics (24px fall, 40ms stagger) — things that matter arrive.</li>
+        <li>Display identity is canonical; the phonebook name never labels a member. No number anywhere.</li></ul>
+  </figcaption>
+</figure>
+
+<!-- ══ F6 · Search match ══ -->
+<figure>
+  <div class="phone">
+    <div class="status"><span>9:41</span><span>5G <span class="batt"></span></span></div>
+    <div class="ghead"><span class="back">‹</span><span class="logo">YES<i>PLEEZ</i></span><span class="ic">⇪</span><span class="ic">ⓘ</span><span class="ic">🔔</span></div>
+    <div class="content">
+      <div class="ptitle">FIND PEOPLE</div>
+      <div class="capsule"><span class="cc">+61 <s>▾</s></span><input value="0412 345 678"><span class="gopill">SEARCH</span></div>
+      <div class="seclabel">RESULT</div>
+      <div class="card">
+        <div class="prow" style="padding:2px 0">
+          <div class="av photo1">MV</div>
+          <div class="pmain"><div class="pname">Mara Void</div>
+            <div class="pmeta"><span class="glow-pill">DJ / PROD.</span></div></div>
+          <span class="msgbtn">MESSAGE</span>
+        </div>
+      </div>
+      <p class="note">The typed number stays in the field — it is never echoed in the result card.
+      One match maximum, by construction. aria-label: "Message Mara Void".</p>
+    </div>
+    <div class="nav">
+      <a><span class="dot"></span>MY SCENE</a><a><span class="dot"></span>WHAT'S ON</a><a><span class="dot"></span>DISCOVER</a>
+      <a class="on"><span class="dot"></span>MESSAGES</a><a><span class="dot"></span>INDUSTRY</a>
+    </div>
+  </div>
+  <figcaption><b>6 · SEARCH — MATCH</b>
+    <ul><li>Explicit search on a valid number only — never lookup-as-you-type (enumeration surface).</li>
+        <li>Row shows exactly: avatar, display name, primary profile, MESSAGE. Nothing else exists to show.</li></ul>
+  </figcaption>
+</figure>
+
+<!-- ══ F7 · Search no match ══ -->
+<figure>
+  <div class="phone">
+    <div class="status"><span>9:41</span><span>5G <span class="batt"></span></span></div>
+    <div class="ghead"><span class="back">‹</span><span class="logo">YES<i>PLEEZ</i></span><span class="ic">⇪</span><span class="ic">ⓘ</span><span class="ic">🔔</span></div>
+    <div class="content">
+      <div class="ptitle">FIND PEOPLE</div>
+      <div class="capsule"><span class="cc">+61 <s>▾</s></span><input value="0499 000 123"><span class="gopill">SEARCH</span></div>
+      <div class="seclabel">RESULT</div>
+      <div class="card" style="text-align:center;padding:20px 18px">
+        <div style="font-size:22px;opacity:.5;margin-bottom:8px">🤟</div>
+        <p style="font-size:12.5px;line-height:1.55;color:var(--text)">No match for that number.</p>
+        <p style="font-size:11.5px;color:var(--muted);line-height:1.55;margin:4px 0 14px">
+          They might not be on YesPleez yet —<br>or they've chosen not to be found.</p>
+        <div class="btn btn-grad btn-sm" style="display:inline-flex">INVITE THEM</div>
+      </div>
+      <p class="note">Not-registered and hidden-by-choice produce byte-identical UI — same copy, same
+      timing, same CTA — so the product can't leak membership. The share message carries the link, never the number.</p>
+    </div>
+    <div class="nav">
+      <a><span class="dot"></span>MY SCENE</a><a><span class="dot"></span>WHAT'S ON</a><a><span class="dot"></span>DISCOVER</a>
+      <a class="on"><span class="dot"></span>MESSAGES</a><a><span class="dot"></span>INDUSTRY</a>
+    </div>
+  </div>
+  <figcaption><b>7 · SEARCH — NO MATCH → INVITE</b>
+    <ul><li>The indistinguishability rule, in copy. INVITE THEM opens the native share sheet.</li>
+        <li>Invites are share links the user sends — the platform never sends SMS.</li></ul>
+  </figcaption>
+</figure>
+
+<!-- ══ F8 · Privacy · Phone Number ══ -->
+<figure>
+  <div class="phone">
+    <div class="status"><span>9:41</span><span>5G <span class="batt"></span></span></div>
+    <div class="ghead"><span class="back">‹</span><span class="logo">YES<i>PLEEZ</i></span><span class="ic">⇪</span><span class="ic">ⓘ</span><span class="ic">🔔</span></div>
+    <div class="content">
+      <div class="crumb">Settings → Privacy</div>
+      <div class="ptitle" style="margin-top:2px">PHONE NUMBER</div>
+      <div class="card" style="display:flex;align-items:center;gap:10px">
+        <div style="flex:1"><div style="font-size:14px;font-weight:600;letter-spacing:1px">••• ••• 789</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:3px">Verified · never shown to anyone</div></div>
+        <span style="font-size:15px;opacity:.6">👁</span>
+      </div>
+      <div class="seclabel">FIND ME BY PHONE NUMBER</div>
+      <div class="opt sel"><span class="radio on"></span><span><b>Everyone</b>
+        <p>Anyone who has your number can find you here. Best for meeting the wider scene.</p></span></div>
+      <div class="opt"><span class="radio"></span><span><b>People in my contacts</b>
+        <p>Only people whose numbers are saved in your phone can find you. Needs contact sync on, so we know who they are.</p></span></div>
+      <div class="opt"><span class="radio"></span><span><b>Nobody</b>
+        <p>No one can find you by number. You can still message and be messaged through profiles and shared links.</p></span></div>
+      <p style="font-size:10.5px;color:var(--muted);line-height:1.55;padding:10px 4px 0">
+        Your number is only ever used to connect you with people — it is never displayed, searchable as text, or shared.</p>
+    </div>
+    <div class="toast">Privacy updated.</div>
+    <div class="nav">
+      <a><span class="dot"></span>MY SCENE</a><a><span class="dot"></span>WHAT'S ON</a><a><span class="dot"></span>DISCOVER</a>
+      <a class="on"><span class="dot"></span>MESSAGES</a><a><span class="dot"></span>INDUSTRY</a>
+    </div>
+  </div>
+  <figcaption><b>8 · SETTINGS → PRIVACY → PHONE NUMBER</b>
+    <ul><li>Own number masked by default; eye reveals 5s. Radios apply instantly — no save button.</li>
+        <li>Toast docks above the nav (--yp-safe-bottom). Selected row wears the GlowPill-on wash.</li></ul>
+  </figcaption>
+</figure>
+
+<!-- ══ F9 · Privacy · Contacts ══ -->
+<figure>
+  <div class="phone">
+    <div class="status"><span>9:41</span><span>5G <span class="batt"></span></span></div>
+    <div class="ghead"><span class="back">‹</span><span class="logo">YES<i>PLEEZ</i></span><span class="ic">⇪</span><span class="ic">ⓘ</span><span class="ic">🔔</span></div>
+    <div class="content">
+      <div class="crumb">Settings → Privacy</div>
+      <div class="ptitle" style="margin-top:2px">CONTACTS</div>
+      <div class="card" style="padding:4px 14px">
+        <div class="srow"><div><div class="sl1">Sync contacts</div>
+          <div class="sl2">Finds friends as they join, by scrambled code only.</div></div><span class="toggle"></span></div>
+        <div class="srow"><div><div class="sl1">Last synced</div>
+          <div class="sl2">Today, 2:14 pm · 212 codes</div></div></div>
+        <div class="srow"><div><div class="sl1">Contacts access</div>
+          <div class="sl2" style="color:var(--green)">Allowed ✓</div></div></div>
+        <div class="srow"><div class="sl1">Sync now</div><span style="margin-left:auto;opacity:.6">↻</span></div>
+      </div>
+      <div class="danger" style="margin-top:14px">
+        <b>🗑 Delete uploaded contact codes</b>
+        <p>Removes every scrambled code from YesPleez servers. Contact matches disappear;
+        conversations you already have stay.</p>
+      </div>
+      <p class="note">"212 codes", never "212 contacts" — the label is the privacy model.
+      Toggling OFF offers, without forcing: "Delete the codes already uploaded too?"</p>
+    </div>
+    <div class="nav">
+      <a><span class="dot"></span>MY SCENE</a><a><span class="dot"></span>WHAT'S ON</a><a><span class="dot"></span>DISCOVER</a>
+      <a class="on"><span class="dot"></span>MESSAGES</a><a><span class="dot"></span>INDUSTRY</a>
+    </div>
+  </div>
+  <figcaption><b>9 · SETTINGS → PRIVACY → CONTACTS</b>
+    <ul><li>Stop and erase are different acts: the toggle stops, the danger row erases — and OFF offers the erase.</li>
+        <li>Deleting codes while "People in my contacts" is on surfaces the effectively-Nobody consequence.</li></ul>
+  </figcaption>
+</figure>
+
+<!-- ══ F10 · Denied ══ -->
+<figure>
+  <div class="phone">
+    <div class="status"><span>9:41</span><span>5G <span class="batt"></span></span></div>
+    <div class="ghead"><span class="back">‹</span><span class="logo">YES<i>PLEEZ</i></span><span class="ic">⇪</span><span class="ic">ⓘ</span><span class="ic">🔔</span></div>
+    <div class="content">
+      <div class="ptitle">FIND PEOPLE</div>
+      <div class="capsule"><span class="cc">+61 <s>▾</s></span><input placeholder="Search by phone number"><span class="gopill off">SEARCH</span></div>
+      <div class="seclabel">FROM YOUR CONTACTS</div>
+      <div class="card" style="text-align:center;padding:18px 16px">
+        <div style="font-size:20px;margin-bottom:7px;opacity:.7">🔕</div>
+        <div class="bebas" style="font-size:16px;margin-bottom:5px">CONTACTS ARE OFF</div>
+        <p style="font-size:12px;color:var(--muted);line-height:1.55;margin-bottom:13px">
+          No problem — you can still search anyone by number,<br>or send your link.</p>
+        <div class="btn btn-ghost btn-sm" style="display:inline-flex">ALLOW IN SETTINGS ›</div>
+      </div>
+      <div class="seclabel">INVITE</div>
+      <div class="card" style="display:flex;align-items:center;gap:12px">
+        <div style="flex:1"><p style="font-size:12.5px;line-height:1.5">Know someone who'd love it here?</p>
+          <p style="font-size:11px;color:var(--muted);margin-top:2px">Send them your invite link.</p></div>
+        <div class="btn btn-ghost btn-sm" style="display:inline-flex;white-space:nowrap">SEND YOUR LINK</div>
+      </div>
+      <p class="note">A denial is a setting, not an error: nothing red, nothing modal, never re-prompted.
+      On Android PWA this button reads CHOOSE CONTACTS — the picker is free to re-ask.</p>
+    </div>
+    <div class="nav">
+      <a><span class="dot"></span>MY SCENE</a><a><span class="dot"></span>WHAT'S ON</a><a><span class="dot"></span>DISCOVER</a>
+      <a class="on"><span class="dot"></span>MESSAGES</a><a><span class="dot"></span>INDUSTRY</a>
+    </div>
+  </div>
+  <figcaption><b>10 · PERMISSION DENIED</b>
+    <ul><li>Answers all three: what happened, what still works, how to change it.</li>
+        <li>Search and invite remain first-class — the denied path is never a dead end.</li></ul>
+  </figcaption>
+</figure>
+
+<!-- ══ F11 · Nobody yet ══ -->
+<figure>
+  <div class="phone">
+    <div class="status"><span>9:41</span><span>5G <span class="batt"></span></span></div>
+    <div class="ghead"><span class="back">‹</span><span class="logo">YES<i>PLEEZ</i></span><span class="ic">⇪</span><span class="ic">ⓘ</span><span class="ic">🔔</span></div>
+    <div class="content">
+      <div class="ptitle">FIND PEOPLE</div>
+      <div class="empt">
+        <div class="eh">🤟</div>
+        <b>FIRST OF YOUR CREW</b>
+        <p>None of your contacts are on YesPleez yet.
+           Someone has to be first — bring them in.</p>
+        <div class="btn btn-grad btn-sm" style="display:inline-flex">SEND YOUR LINK</div>
+      </div>
+    </div>
+    <div class="nav">
+      <a><span class="dot"></span>MY SCENE</a><a><span class="dot"></span>WHAT'S ON</a><a><span class="dot"></span>DISCOVER</a>
+      <a class="on"><span class="dot"></span>MESSAGES</a><a><span class="dot"></span>INDUSTRY</a>
+    </div>
+  </div>
+  <figcaption><b>11 · EMPTY — NOBODY ON YESPLEEZ</b>
+    <ul><li>Zero-failure framing: being early is a role, not a shortage. One CTA, quiet glyph.</li>
+        <li>Same shape serves "no contacts on device" and every other empty (§11 of the spec).</li></ul>
+  </figcaption>
+</figure>
+
+<!-- ══ F12 · Offline ══ -->
+<figure>
+  <div class="phone">
+    <div class="status"><span>9:41</span><span style="opacity:.5">✕ <span class="batt"></span></span></div>
+    <div class="ghead"><span class="back">‹</span><span class="logo">YES<i>PLEEZ</i></span><span class="ic">⇪</span><span class="ic">ⓘ</span><span class="ic">🔔</span></div>
+    <div class="content">
+      <div class="ptitle">FIND PEOPLE</div>
+      <div class="empt" style="flex:0 1 auto;padding-top:26px;padding-bottom:20px">
+        <div class="eh">📡</div>
+        <b>OFF THE GRID</b>
+        <p>Discovery needs a connection. Everything here will be waiting when you're back in range.</p>
+      </div>
+      <div class="seclabel">FROM YOUR CONTACTS</div>
+      <div style="opacity:.55;pointer-events:none">
+        <div class="prow"><div class="av photo1">JD</div><div class="pmain"><div class="pname">Jess Deluxe</div>
+          <div class="pmeta"><span class="glow-pill">DJ / PROD.</span></div></div><span class="invbtn" style="opacity:.5">MESSAGE</span></div>
+        <div class="prow"><div class="av photo2">TR</div><div class="pmain"><div class="pname">The Roundhouse</div>
+          <div class="pmeta"><span class="glow-pill">VENUE</span></div></div><span class="invbtn" style="opacity:.5">MESSAGE</span></div>
+      </div>
+      <p class="note">Stale beats blank: last-loaded matches stay at 55% with actions disabled.
+      The copy sounds like an app that knows where its users actually are.</p>
+    </div>
+    <div class="nav">
+      <a><span class="dot"></span>MY SCENE</a><a><span class="dot"></span>WHAT'S ON</a><a><span class="dot"></span>DISCOVER</a>
+      <a class="on"><span class="dot"></span>MESSAGES</a><a><span class="dot"></span>INDUSTRY</a>
+    </div>
+  </div>
+  <figcaption><b>12 · OFFLINE</b>
+    <ul><li>"Off the grid" — written for a scene whose life happens where there's no signal.</li>
+        <li>No retry-spam CTA; reconnection restores silently.</li></ul>
+  </figcaption>
+</figure>
+
+</div>
+</body>
+</html>
