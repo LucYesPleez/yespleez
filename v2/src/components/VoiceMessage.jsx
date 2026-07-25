@@ -7,6 +7,7 @@ import { claimAudio, finishAudio, releaseAudio, SHORT } from '../lib/mediaSessio
 import { playedAt } from '../lib/waveColour';
 import { fractionFromPointer, seekTarget, stepFraction, ARROW_STEP } from '../lib/voiceScrub';
 import { nextSpeed, formatSpeed, loadSpeed, saveSpeed } from '../lib/playbackSpeed';
+import { concatToObjectUrl } from '../lib/voiceConcat';
 import EqReceipt from './EqReceipt';
 
 /**
@@ -182,16 +183,20 @@ const Waveform = memo(function Waveform({ bars, settle, register }) {
 });
 
 export default function VoiceMessage({ message, receipt = null }) {
-  const path       = message?.payload?.path ?? null;
-  // Set only while a recording is in flight or has failed to send. `path` is
-  // the stored object; this is the blob it was made from, still local. They are
-  // never both meaningful — once the upload lands the message is replaced by
-  // the server's row, which has a path and no url.
-  const localUrl   = message?.payload?.localUrl ?? null;
-  const storedMs   = Number(message?.payload?.duration_ms ?? 0);
-  const peaks      = message?.payload?.peaks ?? null;
+  const pay        = message?.payload ?? {};
+  // ⚠ ONE NOTE, POSSIBLY SEVERAL SEGMENTS (Resume Recording). Storage keeps them
+  // separate and compressed; the player stitches them into one clip on first
+  // play (concatToObjectUrl) so everything below — scrub, speed, waveform,
+  // duration — sees a single seamless source and needs no per-segment logic.
+  // A legacy single note carries `path`/`localUrl`; both shapes normalise here.
+  const paths      = pay.paths?.length ? pay.paths : (pay.path ? [pay.path] : []);
+  // Set only while a recording is queued or has failed to send — the local blobs
+  // it was made from, never both with `paths`.
+  const localUrls  = pay.localUrls?.length ? pay.localUrls : (pay.localUrl ? [pay.localUrl] : []);
+  const storedMs   = Number(pay.duration_ms ?? 0);
+  const peaks      = pay.peaks ?? null;
   // v2 envelope. See the branch in  — both formats are permanent.
-  const wave       = message?.payload?.wave ?? null;
+  const wave       = pay.wave ?? null;
 
   const audioRef   = useRef(null);
   // ⚠ ONE STABLE OBJECT FOR THE LIFETIME OF THIS COMPONENT. The manager holds
@@ -211,6 +216,9 @@ export default function VoiceMessage({ message, receipt = null }) {
   // The scrub surface (for its bounding rect) and the drag's own bookkeeping.
   const surfaceRef   = useRef(null);
   const scrubbingRef = useRef(false);   // a drag is in progress — the frame loop yields the paint
+  // The stitched-segments object url we minted, if any — revoked on unmount so a
+  // multi-segment note does not leak its concatenated clip.
+  const createdUrlRef = useRef(null);
   const [url,      setUrl]      = useState(null);
   const [loading,  setLoading]  = useState(false);
   const [error,    setError]    = useState(null);
@@ -307,6 +315,7 @@ export default function VoiceMessage({ message, receipt = null }) {
     const el = audioRef.current;
     el?.pause();
     releaseAudio(sessionRef.current);
+    if (createdUrlRef.current) { URL.revokeObjectURL(createdUrlRef.current); createdUrlRef.current = null; }
   }, []);
 
   /**
@@ -371,25 +380,43 @@ export default function VoiceMessage({ message, receipt = null }) {
 
   async function ensureUrl() {
     if (url) return url;
-    // A note that has not been uploaded yet plays from the recording still in
-    // memory. There is no path to sign — the object exists nowhere but this
-    // tab — so this returns BEFORE the storage call rather than falling through
-    // to it and failing. This is what lets a failed Voicey be listened back to
-    // before deciding whether to retry it.
-    if (localUrl) return localUrl;
+
+    // A queued or failed note plays from the recording still in memory — no path
+    // to sign, so this returns before any storage call. This is what lets a
+    // failed Voicey be listened back to before deciding whether to retry it.
+    if (localUrls.length) {
+      if (localUrls.length === 1) return localUrls[0];
+      const joined = await concatToObjectUrl(localUrls);
+      if (joined) { createdUrlRef.current = joined; setUrl(joined); return joined; }
+      return localUrls[0];   // stitch failed — at least the first segment plays
+    }
+
+    if (!paths.length) return null;
     setLoading(true);
     setError(null);
-    const { url: signed, error: signError } = await signedUrlFor(path);
-    setLoading(false);
-    if (signError || !signed) {
-      // RLS is what refuses here, so this is a real possibility rather than a
-      // defensive branch: a participant removed from the conversation still
-      // has the message rendered from local state.
-      setError('Cannot play this right now');
-      return null;
+    // Sign every segment in order. A single one is the common path and stays
+    // exactly as it was; several are stitched into one clip so the player sees
+    // one seamless source.
+    const signed = [];
+    for (const p of paths) {
+      const { url: s, error: signError } = await signedUrlFor(p);
+      if (signError || !s) {
+        // RLS refuses here for a participant removed from the conversation — a
+        // real case, not a defensive branch.
+        setLoading(false);
+        setError('Cannot play this right now');
+        return null;
+      }
+      signed.push(s);
     }
-    setUrl(signed);
-    return signed;
+    setLoading(false);
+
+    if (signed.length === 1) { setUrl(signed[0]); return signed[0]; }
+    const joined = await concatToObjectUrl(signed);
+    const final = joined || signed[0];
+    if (joined) createdUrlRef.current = joined;
+    setUrl(final);
+    return final;
   }
 
   /**
@@ -523,7 +550,7 @@ export default function VoiceMessage({ message, receipt = null }) {
     }
   }
 
-  if (!path && !localUrl) {
+  if (!paths.length && !localUrls.length) {
     // A voice message whose payload lost its path. body is still legible —
     // M9a guarantees it — so show that rather than an empty bubble.
     return (

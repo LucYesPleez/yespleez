@@ -60,14 +60,14 @@ async function uploadText(entry) {
  */
 async function uploadVoice(entry) {
   const { conversationId, payload } = entry;
-  const blob = payload.segments?.[0];
-  if (!blob) throw new Error('voice draft has no audio');
+  if (!payload.segments?.length) throw new Error('voice draft has no audio');
   const { message, error } = await sendVoiceNote({
     conversationId,
     fromProfileId: payload.fromProfileId,
-    blob,
+    segments:   payload.segments,  // every recording segment; the recipient sees one note
+    segMs:      payload.segMs,      // per-segment durations, for the player's unified scrubber
     durationMs: payload.durationMs,
-    wave:       payload.wave,      // computed at record time; never re-decoded
+    wave:       payload.wave,       // one continuous waveform, computed at record time
     capture:    payload.capture,
   });
   if (error) throw new Error(error.message || 'voice send failed');

@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { startRecording, canRecordVoice } from '../lib/voiceNotes';
+import { computeCombinedWave } from '../lib/voiceWave';
 import { decideToggle, decideSend, decideInterrupt, isTooShort } from '../lib/voiceMachine';
 
 /**
@@ -73,7 +74,14 @@ export function useVoiceRecorder({ onRecorded, onNotice, onPark, onDiscard, disa
   // callbacks, which see a stale closure otherwise.
   const phaseRef    = useRef('idle');
   const handleRef   = useRef(null);   // the live recorder
-  const pendingRef  = useRef(null);   // a finished recording awaiting send
+  const pendingRef  = useRef(null);   // a finished (combined) recording awaiting send
+  // ⚠ SEGMENTS — the internal storage of one Voicey. Resume Recording appends a
+  // new recording here when the user continues after a pause or a call. The user
+  // never sees "segments"; the composer and the recipient see ONE note. This is
+  // the array of raw {blob,durationMs,capture} results; the combined note is
+  // rebuilt from it (one duration, one waveform) on every park.
+  const segmentsRef = useRef([]);
+  const priorMsRef  = useRef(0);      // total ms of already-parked segments, for the live timer
   const abortRef    = useRef(false);  // toggled off before getUserMedia resolved
   const startingRef = useRef(false);  // inside the getUserMedia gap
   const tickRef     = useRef(null);
@@ -116,6 +124,8 @@ export function useVoiceRecorder({ onRecorded, onNotice, onPark, onDiscard, disa
     handleRef.current?.cancel();
     handleRef.current = null;
     pendingRef.current = null;
+    segmentsRef.current = [];
+    priorMsRef.current = 0;
     clearInterval(tickRef.current);
   }, []);
 
@@ -126,7 +136,9 @@ export function useVoiceRecorder({ onRecorded, onNotice, onPark, onDiscard, disa
     // stop it arriving.
     abortRef.current = true;
     await teardown('cancel');
-    pendingRef.current = null;
+    pendingRef.current  = null;
+    segmentsRef.current = [];
+    priorMsRef.current  = 0;
     setElapsed(0);
     setPhaseBoth('idle');
     // Discard is one of the few acts allowed to destroy a recording — so it must
@@ -156,27 +168,50 @@ export function useVoiceRecorder({ onRecorded, onNotice, onPark, onDiscard, disa
    * Returns the parked result so `send` can stop-and-send in one act without
    * routing through a `pending` render the user would see flash past.
    */
+  /**
+   * Fold a just-finished recording into the note and rebuild the combined
+   * result — ONE note across every segment. The new segment is appended (unless
+   * too short, in which case prior segments are kept and it is dropped), then
+   * the waveform is recomputed continuously across all of them and the duration
+   * summed. Returns null only when nothing valid exists at all.
+   */
+  const buildCombined = useCallback(async (newResult) => {
+    if (newResult && !isTooShort(newResult)) segmentsRef.current.push(newResult);
+    const segs = segmentsRef.current;
+    if (!segs.length) return null;
+
+    const blobs      = segs.map(s => s.blob);
+    const durationMs = segs.reduce((n, s) => n + (s.durationMs || 0), 0);
+    const segMs      = segs.map(s => Math.max(0, Math.round(s.durationMs || 0)));
+    const wave       = await computeCombinedWave(blobs);
+    return { segments: blobs, durationMs, segMs, wave, capture: segs[segs.length - 1].capture };
+  }, []);
+
   const park = useCallback(async (mode = 'keep') => {
     const result = await teardown(mode);
+    const combined = await buildCombined(result);
 
-    if (isTooShort(result)) {
+    if (!combined) {
+      // Nothing long enough to keep — and no prior segments to fall back to.
       if (result) onNotice?.(TOO_SHORT_NOTICE);
-      pendingRef.current = null;
+      segmentsRef.current = [];
+      priorMsRef.current  = 0;
+      pendingRef.current  = null;
       setElapsed(0);
       setPhaseBoth('idle');
       return null;
     }
 
-    pendingRef.current = result;
-    setElapsed(result.durationMs);
+    pendingRef.current = combined;
+    priorMsRef.current = combined.durationMs;   // a later resume counts from here
+    setElapsed(combined.durationMs);
     setPhaseBoth('pending');
-    // A parked note is durable user content the moment it exists (whether the
-    // user toggled off or a call interrupted them). onPark persists it as a
-    // draft so it survives a reload, a crash, or closing the app — the composer
-    // owns that, not this hook.
-    try { onPark?.(result); } catch { /* persistence must not break the recorder */ }
-    return result;
-  }, [teardown, onNotice, setPhaseBoth, onPark]);
+    // A parked note is durable content the moment it exists (toggle-off OR a
+    // call). onPark persists it as a draft — with all its segments — so it
+    // survives a reload, a crash, or the app being closed.
+    try { onPark?.(combined); } catch { /* persistence must not break the recorder */ }
+    return combined;
+  }, [teardown, buildCombined, onNotice, setPhaseBoth, onPark]);
 
   /**
    * An interruption ended the capture — a call, the mic taken, headphones
@@ -208,8 +243,10 @@ export function useVoiceRecorder({ onRecorded, onNotice, onPark, onDiscard, disa
     const action = decideSend({ phase: phaseRef.current });
 
     if (action === 'upload-parked') {
-      const held = pendingRef.current;
+      const held = pendingRef.current;   // already combined across segments
       pendingRef.current = null;
+      segmentsRef.current = [];
+      priorMsRef.current = 0;
       if (!held) { setElapsed(0); setPhaseBoth('idle'); return; }
       await upload(held);
       return;
@@ -217,16 +254,22 @@ export function useVoiceRecorder({ onRecorded, onNotice, onPark, onDiscard, disa
 
     if (action !== 'stop-and-upload') return;
 
+    // Recording → send in one act. Fold the final segment in and send the whole
+    // note (which may be several segments if the user resumed and then sent
+    // without parking).
     const result = await teardown('keep');
-    if (isTooShort(result)) {
+    const combined = await buildCombined(result);
+    segmentsRef.current = [];
+    priorMsRef.current = 0;
+    if (!combined) {
       if (result) onNotice?.(TOO_SHORT_NOTICE);
       setElapsed(0);
       setPhaseBoth('idle');
       return;
     }
 
-    await upload(result);
-  }, [teardown, upload, onNotice, setPhaseBoth]);
+    await upload(combined);
+  }, [teardown, buildCombined, upload, onNotice, setPhaseBoth]);
 
   /** Begin capturing. */
   const start = useCallback(async () => {
@@ -276,11 +319,31 @@ export function useVoiceRecorder({ onRecorded, onNotice, onPark, onDiscard, disa
     setPhaseBoth('recording');
 
     tickRef.current = setInterval(() => {
-      const ms = handleRef.current?.elapsedMs() ?? 0;
+      // ⚠ COUNTS FROM priorMs — the total of segments already recorded. On a
+      // fresh recording that is 0; on a resume it is where the note left off, so
+      // the live timer shows the WHOLE note's length, not just this segment, and
+      // the 6-minute ceiling is measured across the whole note as it should be.
+      const ms = priorMsRef.current + (handleRef.current?.elapsedMs() ?? 0);
       setElapsed(ms);
       if (ms >= MAX_DURATION_MS) void send();
     }, 100);
   }, [disabled, supported, onNotice, teardown, send, setPhaseBoth, onInterrupt]);
+
+  /**
+   * CONTINUE a parked note — record another segment and append it. This is what
+   * makes Resume Recording work: a stopped MediaRecorder cannot resume, so
+   * "continue" records a fresh segment and the note is rebuilt across all of
+   * them (one duration, one waveform). Prior segments stay in segmentsRef; the
+   * live timer counts on from where the note left off. The user never sees
+   * "segments" — to them the same note simply gets longer.
+   */
+  const resume = useCallback(async () => {
+    if (phaseRef.current !== 'pending') return;
+    priorMsRef.current = pendingRef.current?.durationMs ?? 0;
+    pendingRef.current = null;      // rebuilt on the next park; segmentsRef retained
+    phaseRef.current   = 'idle';    // so start()'s idle guard passes
+    await start();
+  }, [start]);
 
   /**
    * THE TOGGLE. Slide right-to-left to record, left-to-right to stop.
@@ -305,8 +368,12 @@ export function useVoiceRecorder({ onRecorded, onNotice, onPark, onDiscard, disa
         return;
 
       case 'start':
-        pendingRef.current = null;      // starting over discards a parked note
-        phaseRef.current   = 'idle';    // so `start`'s idle guard passes
+        // Starting over discards a parked note AND all its segments — this is a
+        // fresh note, not a continuation (that is `resume`).
+        pendingRef.current  = null;
+        segmentsRef.current = [];
+        priorMsRef.current  = 0;
+        phaseRef.current    = 'idle';    // so `start`'s idle guard passes
         await start();
         return;
 
@@ -345,6 +412,7 @@ export function useVoiceRecorder({ onRecorded, onNotice, onPark, onDiscard, disa
     toggle,
     send,
     discard,
+    resume,
 
     /**
      * Current loudness, 0..1, or 0 when nothing is recording.

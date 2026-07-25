@@ -127,6 +127,54 @@ export async function computeWave(blob, ContextClass) {
  * @param {number} sampleRate
  * @returns {{v:number, ms:number, d:string}|null}
  */
+/**
+ * ONE waveform across MANY recording segments.
+ *
+ * Resume Recording stores a Voicey as segments (a call interrupted the first;
+ * the user continued into a second). The recipient must see ONE note with ONE
+ * continuous waveform, so the peaks are computed across the whole thing, not
+ * per segment: every segment is decoded to PCM, the samples are concatenated in
+ * order, and the envelope is built from the join. Because a bucket is a fixed
+ * span of TIME (BUCKET_MS), the concatenation is time-correct and the boundary
+ * between segments is invisible in the drawing — which is the point.
+ *
+ * Degrades to null (a plain bar) rather than failing a send, exactly like
+ * computeWave. A single segment is just computeWave.
+ */
+export async function computeCombinedWave(blobs, ContextClass) {
+  const list = (blobs || []).filter(b => b?.size);
+  if (!list.length) return null;
+  if (list.length === 1) return computeWave(list[0], ContextClass);
+
+  const Ctx = ContextClass
+    ?? (typeof window !== 'undefined' && (window.AudioContext ?? window.webkitAudioContext));
+  if (!Ctx) return null;
+
+  let ctx;
+  try {
+    ctx = new Ctx();
+    const channels = [];
+    let rate = 0;
+    for (const b of list) {
+      const audio = await ctx.decodeAudioData(await b.arrayBuffer());
+      channels.push(audio.getChannelData(0));
+      // Segments come from one mic in one session, so the rate is the same for
+      // all; the first is authoritative and a stray mismatch degrades the wave,
+      // never the note.
+      rate = rate || audio.sampleRate;
+    }
+    const total = channels.reduce((n, c) => n + c.length, 0);
+    const merged = new Float32Array(total);
+    let off = 0;
+    for (const c of channels) { merged.set(c, off); off += c.length; }
+    return waveFromChannel(merged, rate);
+  } catch {
+    return null;
+  } finally {
+    try { await ctx?.close(); } catch { /* already closed */ }
+  }
+}
+
 export function waveFromChannel(samples, sampleRate) {
   if (!samples?.length || !(sampleRate > 0)) return null;
 

@@ -32,25 +32,28 @@ import { timeOf } from '../lib/clock';
  * `outboxId`/`outboxState` let the retry and (future) delete controls act on
  * the real entry.
  */
-/** The blob a queued entry can preview from, or null (files/originals show a card). */
-function previewBlob(entry) {
+/** The blobs a queued entry can preview from — one per voice segment, or the photo. */
+function previewBlobs(entry) {
   const p = entry.payload || {};
-  if (entry.kind === 'voice') return p.segments?.[0] ?? null;
-  if (entry.kind === 'image' && p.subtype === 'image') return p.image?.blob ?? null;
-  return null;
+  if (entry.kind === 'voice') return (p.segments || []).filter(Boolean);
+  if (entry.kind === 'image' && p.subtype === 'image' && p.image?.blob) return [p.image.blob];
+  return [];
 }
 
 /** The renderer-facing payload for a queued entry of any kind. */
-function bubblePayload(entry, localUrl) {
+function bubblePayload(entry, urls) {
   const p = entry.payload || {};
   switch (entry.kind) {
     case 'voice':
-      return localUrl ? { localUrl, duration_ms: p.durationMs, ...(p.wave && { wave: p.wave }) } : undefined;
+      // localUrls plays the segments seamlessly as one note — the same shape the
+      // player uses for a delivered note's `paths`.
+      return urls.length
+        ? { localUrls: urls, duration_ms: p.durationMs, seg_ms: p.segMs, ...(p.wave && { wave: p.wave }) }
+        : undefined;
     case 'image':
-      // Decodable: the actual photo, sized. Original (RAW/TIFF): a card.
       return p.subtype === 'original'
         ? { name: p.name, pendingBytes: p.pendingBytes }
-        : (localUrl ? { localUrl, width: p.width, height: p.height } : undefined);
+        : (urls[0] ? { localUrl: urls[0], width: p.width, height: p.height } : undefined);
     case 'file':
       return {
         name: p.name, bytes: p.bytes, mime: p.mime,
@@ -62,10 +65,10 @@ function bubblePayload(entry, localUrl) {
   }
 }
 
-function outboxBubble(entry, localUrl = null) {
+function outboxBubble(entry, urls = []) {
   const p = entry.payload || {};
   const bodyFor = { voice: 'Voice message', image: p.name || 'Photo', file: p.name || 'File' };
-  const payload = bubblePayload(entry, localUrl);
+  const payload = bubblePayload(entry, urls);
   return {
     id:              `outbox:${entry.id}`,
     outboxId:        entry.id,
@@ -359,8 +362,10 @@ export default function ConversationView({ conversationId, compact = false, onMi
   // failed sends. They render as the optimistic bubbles at the end of the
   // thread; the Outbox, not this component, owns their persistence and retry.
   const [outbox, setOutbox]        = useState([]);
-  // entryId → object url for queued Voiceys, so a waiting note is playable.
-  const voiceUrls = useRef(new Map());
+  // entryId → array of object urls for a queued media message, so it is playable
+  // while it waits. A voice note has one url PER SEGMENT (played seamlessly as
+  // one note); a photo has one. Revoked when the entry leaves the Outbox.
+  const mediaUrls = useRef(new Map());
   // A parked Voicey recovered from a previous session — shown in a banner with
   // Send / Delete until the user decides. null when there is nothing to recover.
   const [recoveredDraft, setRecoveredDraft] = useState(null);
@@ -630,13 +635,13 @@ export default function ConversationView({ conversationId, compact = false, onMi
         // first time an entry appears, cached by entry id, and revoked when the
         // entry is gone. This is also what makes a Voicey queued in a previous
         // session playable again after reopening the app.
-        const urls = voiceUrls.current;
+        const urls = mediaUrls.current;
         const seen = new Set();
         for (const e of entries) {
-          const blob = previewBlob(e);
-          if (blob) { seen.add(e.id); if (!urls.has(e.id)) urls.set(e.id, URL.createObjectURL(blob)); }
+          const blobs = previewBlobs(e);
+          if (blobs.length) { seen.add(e.id); if (!urls.has(e.id)) urls.set(e.id, blobs.map(b => URL.createObjectURL(b))); }
         }
-        for (const [id, url] of urls) { if (!seen.has(id)) { URL.revokeObjectURL(url); urls.delete(id); } }
+        for (const [id, arr] of urls) { if (!seen.has(id)) { arr.forEach(u => URL.revokeObjectURL(u)); urls.delete(id); } }
         setOutbox(entries);
       });
     };
@@ -648,8 +653,8 @@ export default function ConversationView({ conversationId, compact = false, onMi
     });
     return () => {
       live = false; offChange(); offDelivered();
-      for (const [, url] of voiceUrls.current) URL.revokeObjectURL(url);
-      voiceUrls.current.clear();
+      for (const [, arr] of mediaUrls.current) arr.forEach(u => URL.revokeObjectURL(u));
+      mediaUrls.current.clear();
     };
   }, [conversationId]);
 
@@ -1027,50 +1032,40 @@ export default function ConversationView({ conversationId, compact = false, onMi
    * sameness is the point: a voice note is a message with a different kind,
    * not a second send path that has to be kept in step with this one.
    */
-  async function onRecordedVoice({ blob, durationMs, capture }) {
-    if (!senderProfile) return;
+  async function onRecordedVoice({ segments, durationMs, wave, capture, segMs }) {
+    if (!senderProfile || !segments?.length) return;
 
-    // The waveform is computed once here, from a blob already in memory, and
-    // stored on the entry — so the queued bubble and the delivered row draw the
-    // identical picture and the send is invisible rather than a visible repair.
-    // Degrades to no waveform rather than no message.
-    const wave = await computeWave(blob);
-
-    // ⚠ STRAIGHT INTO THE OUTBOX — no Voicey-specific send path any more, the
-    // same lifecycle as text. The blob is stored as `segments[0]` (a list from
-    // day one, so Resume Recording is a later addition, not a rewrite); it is
-    // durable the instant queueMessage persists it, so the recording can no
-    // longer be lost whatever the network does. The uploader (registered in
-    // outboxUploaders) sends it; retry, offline and reconnect are identical to
-    // text because it IS the text path. The queued bubble stays playable from a
-    // runtime object url the thread mints from segments[0] (see the outbox
-    // subscription) — nothing about the note changes when it lands.
+    // ⚠ STRAIGHT INTO THE OUTBOX — the same lifecycle as text. The recorder has
+    // already combined the note across its segments (one duration, one
+    // continuous waveform) and handed the whole thing here, so nothing is
+    // recomputed. The note is durable the instant queueMessage persists it, so
+    // it can no longer be lost whatever the network does; the uploader sends
+    // every segment and the recipient sees one seamless Voicey. The queued
+    // bubble plays from a runtime url the thread mints from the segments.
     await queueMessage({
       conversationId,
       kind: 'voice',
-      payload: { segments: [blob], durationMs, wave, capture, fromProfileId: senderProfile },
+      payload: { segments, durationMs, wave, capture, segMs, fromProfileId: senderProfile },
     });
-    // Sending clears any draft that was persisted for this note — it is now a
-    // queued message, not a draft.
+    // Sending clears any draft persisted for this note — it is a queued message
+    // now, not a draft.
     await deleteDraft(conversationId);
-    // No throw: the Voicey is safely in the Outbox. The recorder shows 'sent'
-    // and returns to idle; delivery and any retry happen in the Outbox now.
+    // No throw: the Voicey is safely in the Outbox.
   }
 
   /**
-   * A Voicey was parked — the user toggled the mic off, or a call interrupted
-   * them. Persist it as this conversation's draft so it survives a reload, a
-   * crash, or the app being closed. Continuous: every park overwrites the one
-   * draft. The wave is computed here so a recovered draft draws its real
-   * waveform without a re-decode.
+   * A Voicey was parked — toggled off, interrupted by a call, or paused between
+   * segments. Persist the WHOLE note (all its segments, one combined waveform)
+   * as this conversation's draft so it survives a reload, a crash, or the app
+   * closing. Every park overwrites the one draft, so a note grown by Continue is
+   * saved at its current length.
    */
-  async function onParkVoice({ blob, durationMs, capture }) {
-    if (!senderProfile) return;
-    const wave = await computeWave(blob);
+  async function onParkVoice({ segments, durationMs, wave, capture, segMs }) {
+    if (!senderProfile || !segments?.length) return;
     await saveDraft({
       conversationId,
       kind: 'voice',
-      payload: { segments: [blob], durationMs, wave, capture, fromProfileId: senderProfile },
+      payload: { segments, durationMs, wave, capture, segMs, fromProfileId: senderProfile },
     });
   }
 
@@ -1271,7 +1266,7 @@ export default function ConversationView({ conversationId, compact = false, onMi
   // its upload confirms — `subscribeDelivered` has already put the real row in
   // `messages` by then, so the swap is seamless rather than a flash of nothing.
   const thread = outbox.length
-    ? [...messages, ...outbox.map(e => outboxBubble(e, voiceUrls.current.get(e.id)))]
+    ? [...messages, ...outbox.map(e => outboxBubble(e, mediaUrls.current.get(e.id) || []))]
     : messages;
 
   return (

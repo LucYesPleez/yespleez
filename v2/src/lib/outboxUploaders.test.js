@@ -72,15 +72,16 @@ test('TEXT is a full Outbox tenant — it sends through the same lifecycle, no b
   assert.deepEqual(await s.all(), [], 'delivered → removed');
 });
 
-test('VOICE sends segments[0] with its record-time wave, and delivers', async () => {
+test('VOICE sends every segment with its record-time wave, and delivers', async () => {
   await saveDraft({ conversationId: 'c', kind: 'voice', payload: {
-    segments: ['the-blob'], durationMs: 4200, wave: 'w', capture: { mime: 'audio/webm' }, fromProfileId: 'p1',
+    segments: ['seg-1', 'seg-2'], segMs: [2000, 2200], durationMs: 4200, wave: 'w', capture: { mime: 'audio/webm' }, fromProfileId: 'p1',
   } }, s);
   await enqueueDraft('c', s);
 
   assert.equal(sentVoiceArgs.length, 1);
-  assert.equal(sentVoiceArgs[0].blob, 'the-blob', 'the single segment is the blob');
-  assert.equal(sentVoiceArgs[0].wave, 'w', 'the stored wave is reused, never re-decoded');
+  assert.deepEqual(sentVoiceArgs[0].segments, ['seg-1', 'seg-2'], 'all segments travel to the uploader, in order');
+  assert.deepEqual(sentVoiceArgs[0].segMs, [2000, 2200], 'per-segment durations ride along for the unified scrubber');
+  assert.equal(sentVoiceArgs[0].wave, 'w', 'the one combined wave is reused, never re-decoded');
   assert.equal(sentVoiceArgs[0].fromProfileId, 'p1', 'attribution travels on the entry');
   assert.deepEqual(await s.all(), []);
 });

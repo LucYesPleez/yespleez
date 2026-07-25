@@ -731,9 +731,25 @@ function VoiceSlot({ rec, phase }) {
         <span style={{ fontSize: 13.5, fontVariantNumeric: 'tabular-nums', color: 'var(--text)', flexShrink: 0 }}>
           {formatDuration(rec.elapsed / 1000)}
         </span>
-        <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--muted)', whiteSpace: 'nowrap', flexShrink: 0 }}>
-          Ready to send
-        </span>
+        {/* CONTINUE — records another segment onto this same note. The user sees
+            the one note simply get longer; "segments" never appears. This is
+            what turns interruption recovery into "pick up where you left off". */}
+        <button
+          type="button"
+          onClick={() => void rec.resume()}
+          aria-label="Continue recording"
+          style={{
+            marginLeft: 'auto', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 5,
+            background: 'rgba(191,95,255,.16)', border: '1px solid rgba(191,95,255,.34)',
+            color: 'rgba(240,220,255,.95)', borderRadius: 999, padding: '4px 10px',
+            fontSize: 12, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap',
+          }}
+        >
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+            <circle cx="12" cy="11" r="4" /><path d="M12 15v3M8 21h8" />
+          </svg>
+          Continue
+        </button>
       </div>
     );
   }

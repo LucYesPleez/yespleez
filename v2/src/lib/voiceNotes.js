@@ -1,6 +1,6 @@
 import { supabase } from './supabase';
 import { sendMessage } from './messaging';
-import { computeWave } from './voiceWave';
+import { computeCombinedWave } from './voiceWave';
 
 /**
  * VOICE NOTES — recording, storage and playback URLs.
@@ -793,21 +793,28 @@ export async function signedUrlFor(path, expiresIn = SIGNED_URL_TTL_SECONDS) {
  * broken player is worse than one that was never sent — the sender believes it
  * went.
  */
-export async function sendVoiceNote({ conversationId, fromProfileId, blob, durationMs, capture, wave: precomputed } = {}) {
-  // §6.6's pipeline order: record → compute peaks → upload → message.
-  //
-  // Peaks are computed BEFORE the upload, not after, so a peak failure costs
-  // nothing: at this point no object exists and no row exists, so degrading to
-  // a note without a waveform is free. Computing after the upload would mean a
-  // decorative step could fail with an orphan already written.
-  // Accepts peaks the caller already computed. The optimistic bubble needs them
-  // before this is ever called — a placeholder without peaks renders a collapsed
-  // waveform, which is what an iPhone 14 Pro showed on 2026-07-22 — and decoding
-  // the same blob twice to draw the same picture is pure waste.
-  const wave = precomputed ?? await computeWave(blob);
+export async function sendVoiceNote({ conversationId, fromProfileId, segments, blob, durationMs, capture, wave: precomputed, segMs } = {}) {
+  // One note, possibly several recording SEGMENTS (Resume Recording). A single
+  // blob is the common case and is treated as one segment; the recipient never
+  // sees the difference.
+  const list = segments?.length ? segments.filter(Boolean) : (blob ? [blob] : []);
+  if (!list.length) return { message: null, error: { message: 'sendVoiceNote: nothing was recorded' } };
 
-  const { path, error: uploadError } = await uploadVoiceNote({ conversationId, blob });
-  if (uploadError) return { message: null, error: uploadError };
+  // The waveform is ONE continuous envelope across every segment, computed once
+  // (by the recorder, usually). Peaks before upload, so a peak failure costs
+  // nothing — no object and no row exist yet, so a note without a waveform is
+  // free.
+  const wave = precomputed ?? await computeCombinedWave(list);
+
+  // ⚠ EACH SEGMENT UPLOADS ON ITS OWN, IN ORDER. If any fails the whole send
+  // fails (earlier successes orphan, the same deliberate trade a single upload
+  // already makes); a partial note must never be delivered.
+  const paths = [];
+  for (const b of list) {
+    const { path, error } = await uploadVoiceNote({ conversationId, blob: b });
+    if (error) return { message: null, error };
+    paths.push(path);
+  }
 
   return sendMessage({
     conversationId,
@@ -815,16 +822,17 @@ export async function sendVoiceNote({ conversationId, fromProfileId, blob, durat
     body: VOICE_FALLBACK_BODY,   // the three text-only surfaces. See header.
     kind: 'voice',
     payload: {
-      path,                                        // stable; the url is derived
+      // ⚠ SINGLE vs MULTI. One segment keeps the legacy `path` shape, so every
+      // note ever sent still plays and the player's common path is unchanged.
+      // Several segments carry `paths` + `seg_ms` (per-segment lengths) — the
+      // internal storage of one note; the player stitches them into one
+      // seamless Voicey and the user never sees "parts".
+      ...(paths.length === 1
+        ? { path: paths[0] }
+        : { paths, seg_ms: (segMs && segMs.length === paths.length) ? segMs : null }),
       duration_ms: Math.max(0, Math.round(durationMs ?? 0)),
-      mime: baseMimeType(blob?.type),
-      // §6.4 — the waveform, computed once. Omitted entirely when it could not
-      // be computed, so `peaks` is absent rather than null: the renderer's test
-      // is "can I draw this", and a key holding null answers that identically
-      // to no key at all while costing bytes on every read.
+      mime: baseMimeType(list[0]?.type),
       ...(wave && { wave }),
-      // `C21` — what the device actually produced. Answers support-matrix
-      // questions from the data instead of from assumptions about a browser.
       ...(capture && { capture }),
     },
   });
