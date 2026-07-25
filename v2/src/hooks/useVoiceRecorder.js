@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { startRecording, canRecordVoice } from '../lib/voiceNotes';
-import { computeCombinedWave } from '../lib/voiceWave';
+import { computeRawEnvelope, combineEnvelopes } from '../lib/voiceWave';
 import { decideToggle, decideSend, decideInterrupt, isTooShort } from '../lib/voiceMachine';
 
 /**
@@ -81,6 +81,11 @@ export function useVoiceRecorder({ onRecorded, onNotice, onPark, onDiscard, disa
   // the array of raw {blob,durationMs,capture} results; the combined note is
   // rebuilt from it (one duration, one waveform) on every park.
   const segmentsRef = useRef([]);
+  // One RAW envelope per segment, computed once when that segment is recorded.
+  // The note's waveform is these concatenated and normalised — so a resume never
+  // re-decodes a segment the user already finished (the "no expensive merge"
+  // rule), and Send stays instant because the wave is already done.
+  const rawEnvsRef  = useRef([]);
   const priorMsRef  = useRef(0);      // total ms of already-parked segments, for the live timer
   const abortRef    = useRef(false);  // toggled off before getUserMedia resolved
   const startingRef = useRef(false);  // inside the getUserMedia gap
@@ -125,6 +130,8 @@ export function useVoiceRecorder({ onRecorded, onNotice, onPark, onDiscard, disa
     handleRef.current = null;
     pendingRef.current = null;
     segmentsRef.current = [];
+    rawEnvsRef.current  = [];
+
     priorMsRef.current = 0;
     clearInterval(tickRef.current);
   }, []);
@@ -138,6 +145,8 @@ export function useVoiceRecorder({ onRecorded, onNotice, onPark, onDiscard, disa
     await teardown('cancel');
     pendingRef.current  = null;
     segmentsRef.current = [];
+    rawEnvsRef.current  = [];
+
     priorMsRef.current  = 0;
     setElapsed(0);
     setPhaseBoth('idle');
@@ -176,14 +185,21 @@ export function useVoiceRecorder({ onRecorded, onNotice, onPark, onDiscard, disa
    * summed. Returns null only when nothing valid exists at all.
    */
   const buildCombined = useCallback(async (newResult) => {
-    if (newResult && !isTooShort(newResult)) segmentsRef.current.push(newResult);
+    if (newResult && !isTooShort(newResult)) {
+      segmentsRef.current.push(newResult);
+      // Decode ONLY the new segment — the earlier ones' envelopes are already
+      // in rawEnvsRef. This is what keeps a resume cheap however long the note.
+      rawEnvsRef.current.push(await computeRawEnvelope(newResult.blob));
+    }
     const segs = segmentsRef.current;
     if (!segs.length) return null;
 
     const blobs      = segs.map(s => s.blob);
     const durationMs = segs.reduce((n, s) => n + (s.durationMs || 0), 0);
     const segMs      = segs.map(s => Math.max(0, Math.round(s.durationMs || 0)));
-    const wave       = await computeCombinedWave(blobs);
+    // Concatenate the per-segment envelopes and normalise once — one continuous
+    // waveform across the whole note, no re-decode.
+    const wave       = combineEnvelopes(rawEnvsRef.current);
     return { segments: blobs, durationMs, segMs, wave, capture: segs[segs.length - 1].capture };
   }, []);
 
@@ -195,6 +211,8 @@ export function useVoiceRecorder({ onRecorded, onNotice, onPark, onDiscard, disa
       // Nothing long enough to keep — and no prior segments to fall back to.
       if (result) onNotice?.(TOO_SHORT_NOTICE);
       segmentsRef.current = [];
+      rawEnvsRef.current  = [];
+
       priorMsRef.current  = 0;
       pendingRef.current  = null;
       setElapsed(0);
@@ -246,6 +264,8 @@ export function useVoiceRecorder({ onRecorded, onNotice, onPark, onDiscard, disa
       const held = pendingRef.current;   // already combined across segments
       pendingRef.current = null;
       segmentsRef.current = [];
+      rawEnvsRef.current  = [];
+
       priorMsRef.current = 0;
       if (!held) { setElapsed(0); setPhaseBoth('idle'); return; }
       await upload(held);
@@ -260,6 +280,8 @@ export function useVoiceRecorder({ onRecorded, onNotice, onPark, onDiscard, disa
     const result = await teardown('keep');
     const combined = await buildCombined(result);
     segmentsRef.current = [];
+    rawEnvsRef.current  = [];
+
     priorMsRef.current = 0;
     if (!combined) {
       if (result) onNotice?.(TOO_SHORT_NOTICE);
@@ -278,7 +300,12 @@ export function useVoiceRecorder({ onRecorded, onNotice, onPark, onDiscard, disa
 
     abortRef.current    = false;
     startingRef.current = true;
-    setElapsed(0);
+    // ⚠ BASELINE TO THE ACCUMULATED DURATION, NOT 0. On a resume the note is
+    // already 2:37 long; the timer must continue from there the instant Continue
+    // is pressed, never flash back to 0:00 — that flash is the one place the
+    // segmented implementation would show through. A fresh recording has
+    // priorMs 0, so this is 0 for it.
+    setElapsed(priorMsRef.current);
 
     let handle;
     try {
@@ -372,6 +399,8 @@ export function useVoiceRecorder({ onRecorded, onNotice, onPark, onDiscard, disa
         // fresh note, not a continuation (that is `resume`).
         pendingRef.current  = null;
         segmentsRef.current = [];
+        rawEnvsRef.current  = [];
+
         priorMsRef.current  = 0;
         phaseRef.current    = 'idle';    // so `start`'s idle guard passes
         await start();

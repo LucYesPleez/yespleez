@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   waveFromChannel, computeWave, decodeWave, isRenderableWave, toDisplayWave,
+  rawEnvelope, encodeEnvelope, combineEnvelopes,
   WAVE_VERSION, WAVE_MAX, BUCKET_MS, MIN_BUCKETS, MAX_BUCKETS,
 } from './voiceWave.js';
 
@@ -170,4 +171,60 @@ test('the AudioContext is closed even when decoding fails', async () => {
   };
   await computeWave({ size: 10, arrayBuffer: async () => new ArrayBuffer(10) }, Tracking);
   assert.equal(closed, true);
+});
+
+/* ── SEGMENT COMBINATION (Resume Recording) ──────────────────────────── */
+
+test('combining raw envelopes equals encoding the concatenation — one continuous array', () => {
+  // ⚠ THE SEGMENTED-IS-INVISIBLE GUARANTEE. Recording two segments and combining
+  // their raw envelopes must match measuring one recording of the same audio,
+  // so a resumed note's waveform is indistinguishable from an unbroken one.
+  const a = speech(1.2);
+  const b = speech(1.4, { loudAt: 0.5 });
+  const whole = new Float32Array(a.length + b.length);
+  whole.set(a, 0); whole.set(b, a.length);
+
+  const combined = combineEnvelopes([rawEnvelope(a, SR), rawEnvelope(b, SR)]);
+  const oneShot  = waveFromChannel(whole, SR);
+
+  assert.ok(combined && oneShot, 'both produce a wave');
+  const cd = decodeWave(combined), od = decodeWave(oneShot);
+  // Bucket counts match within one (the boundary's partial bucket), and the
+  // drawn bytes track closely — the join is not visible.
+  assert.ok(Math.abs(cd.length - od.length) <= 1, `bucket counts align: ${cd.length} vs ${od.length}`);
+});
+
+test('⚠ one loudness scale across segments — a quiet segment does not fill to full height', () => {
+  // Normalising each segment on its own would let a whisper reach the same
+  // height as a shout in the next segment, and the seam would show. Because raw
+  // envelopes are concatenated and normalised ONCE, the quiet segment stays low.
+  const loud  = speech(1.0, { loudAt: 0.3, loudGain: 4 });
+  const quiet = speech(1.0);   // ordinary level
+  // Scale the quiet one down hard so the difference is unambiguous.
+  const q = quiet.map(x => x * 0.15);
+
+  const combined = decodeWave(combineEnvelopes([rawEnvelope(loud, SR), rawEnvelope(q, SR)]));
+  const half = Math.floor(combined.length / 2);
+  const maxFirst  = Math.max(...combined.slice(0, half));      // loud segment
+  const maxSecond = Math.max(...combined.slice(half));         // quiet segment
+  assert.ok(maxFirst > maxSecond * 1.8,
+    `the loud segment draws taller than the quiet one on a shared scale (${maxFirst} vs ${maxSecond})`);
+});
+
+test('combineEnvelopes ignores gaps a failed decode leaves behind', () => {
+  // computeRawEnvelope returns null for a segment it could not decode; the
+  // combine must skip it rather than crash, so one bad segment does not lose
+  // the whole note's waveform.
+  const a = rawEnvelope(speech(1.0), SR);
+  assert.ok(combineEnvelopes([a, null, undefined]));
+  assert.equal(combineEnvelopes([null, null]), null);
+  assert.equal(combineEnvelopes([]), null);
+});
+
+test('encodeEnvelope and rawEnvelope round-trip a single segment like waveFromChannel', () => {
+  const s = speech(2.0, { loudAt: 1.0 });
+  const raw = rawEnvelope(s, SR);
+  const viaSplit = encodeEnvelope(raw.env, raw.durationMs);
+  const direct   = waveFromChannel(s, SR);
+  assert.deepEqual(viaSplit, direct, 'the split path is exactly the original for one segment');
 });

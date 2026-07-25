@@ -175,7 +175,16 @@ export async function computeCombinedWave(blobs, ContextClass) {
   }
 }
 
-export function waveFromChannel(samples, sampleRate) {
+/**
+ * The RAW envelope — one RMS-loudness bucket per BUCKET_MS of audio, BEFORE any
+ * normalisation. Split out from waveFromChannel so segments can be measured one
+ * at a time and combined later: a resumed Voicey computes each segment's raw
+ * envelope ONCE when that segment is recorded, never re-decoding the earlier
+ * ones. Normalisation is deferred to encodeEnvelope so it can run across the
+ * whole note at the end — the loudness scale must be shared by every segment,
+ * or a quiet segment beside a loud one would draw at the wrong height.
+ */
+export function rawEnvelope(samples, sampleRate) {
   if (!samples?.length || !(sampleRate > 0)) return null;
 
   const durationMs = (samples.length / sampleRate) * 1000;
@@ -192,7 +201,6 @@ export function waveFromChannel(samples, sampleRate) {
     const start = b * per;
     const end = start + per;
     let loudest = 0;
-
     // Max over sub-window RMS. The window slides in steps of its own length —
     // overlapping would cost 2x for a difference no bar 6px wide can show.
     for (let w = start; w < end; w += win) {
@@ -205,22 +213,76 @@ export function waveFromChannel(samples, sampleRate) {
     env[b] = loudest;
   }
 
+  return { env, durationMs };
+}
+
+/**
+ * Normalise a raw envelope and encode it to the stored wave. The reference is
+ * the median of the loudest few buckets across the WHOLE envelope, so combining
+ * segments first and encoding once gives one consistent loudness scale.
+ */
+export function encodeEnvelope(env, durationMs) {
+  if (!env?.length) return null;
+
   const reference = referenceLevel(env);
   // Digital silence. null means "no waveform" and the player draws its plain
   // bar, which is honest — a zero array renders as an invisible wave that looks
   // like a bug.
   if (!(reference > 0)) return null;
 
-  const bytes = new Uint8Array(buckets);
-  for (let b = 0; b < buckets; b++) {
+  const bytes = new Uint8Array(env.length);
+  for (let b = 0; b < env.length; b++) {
     bytes[b] = Math.min(WAVE_MAX, Math.round((env[b] / reference) * WAVE_MAX));
   }
 
   return {
     v: WAVE_VERSION,
-    ms: Math.round(durationMs / buckets),
+    ms: Math.round(durationMs / env.length),
     d: toBase64(bytes),
   };
+}
+
+export function waveFromChannel(samples, sampleRate) {
+  const raw = rawEnvelope(samples, sampleRate);
+  return raw ? encodeEnvelope(raw.env, raw.durationMs) : null;
+}
+
+/**
+ * ONE wave from several per-segment raw envelopes — the incremental path.
+ *
+ * ⚠ RAW envelopes are concatenated, THEN normalised once, so every segment
+ * shares the note's loudness scale and the boundary is invisible. Concatenating
+ * already-normalised waves would let each segment reach its own full height,
+ * making the join show. The join has at most one partial bucket (< BUCKET_MS)
+ * of misalignment — sub-perceptible in a 6px bar, and the price of never
+ * re-decoding a segment the user already recorded.
+ */
+export function combineEnvelopes(list) {
+  const valid = (list || []).filter(x => x?.env?.length);
+  if (!valid.length) return null;
+
+  const total = valid.reduce((n, x) => n + x.env.length, 0);
+  const merged = new Float64Array(total);
+  let off = 0, durationMs = 0;
+  for (const x of valid) { merged.set(x.env, off); off += x.env.length; durationMs += (x.durationMs || 0); }
+  return encodeEnvelope(merged, durationMs);
+}
+
+/** Decode one segment blob to its raw envelope. Used once per segment, at record time. */
+export async function computeRawEnvelope(blob, ContextClass) {
+  const Ctx = ContextClass
+    ?? (typeof window !== 'undefined' && (window.AudioContext ?? window.webkitAudioContext));
+  if (!Ctx || !blob?.size) return null;
+  let ctx;
+  try {
+    ctx = new Ctx();
+    const audio = await ctx.decodeAudioData(await blob.arrayBuffer());
+    return rawEnvelope(audio.getChannelData(0), audio.sampleRate);
+  } catch {
+    return null;
+  } finally {
+    try { await ctx?.close(); } catch { /* already closed */ }
+  }
 }
 
 /**
