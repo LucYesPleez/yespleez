@@ -29,6 +29,9 @@
 
 import { sendMessage } from './messaging';
 import { sendVoiceNote } from './voiceNotes';
+import { sendImage, sendOriginalOnly } from './messageImages';
+import { sendFile } from './messageFiles';
+import { sendHand } from './hands';
 import { registerUploader } from './outbox';
 
 /**
@@ -71,6 +74,56 @@ async function uploadVoice(entry) {
   return message;
 }
 
+/**
+ * IMAGE — two shapes under one kind. A decodable photo carries the PREPARED
+ * image (rotated, re-encoded once at pick time) so a retry re-uploads bytes
+ * rather than redoing the work; a RAW/TIFF an no browser can decode carries the
+ * original File and goes up on its own. subtype tells them apart.
+ */
+async function uploadImage(entry) {
+  const p = entry.payload;
+  if (p.subtype === 'original') {
+    const { message, error } = await sendOriginalOnly({
+      conversationId: entry.conversationId, fromProfileId: p.fromProfileId, file: p.file,
+    });
+    if (error) throw new Error(error.message || 'image send failed');
+    return message;
+  }
+  const { message, error } = await sendImage({
+    conversationId: entry.conversationId, fromProfileId: p.fromProfileId,
+    image: p.image, preserveOriginal: p.preserveOriginal,
+  });
+  if (error) throw new Error(error.message || 'image send failed');
+  return message;
+}
+
+/**
+ * FILE — the picked bytes as-is; the waveform, when it is audio, was computed
+ * once at pick time and rides along so the recipient never decodes a 30MB file.
+ */
+async function uploadFile(entry) {
+  const p = entry.payload;
+  const { message, error } = await sendFile({
+    conversationId: entry.conversationId, fromProfileId: p.fromProfileId,
+    file: p.file, downloadable: p.downloadable, wave: p.wave ?? null,
+  });
+  if (error) throw new Error(error.message || 'file send failed');
+  return message;
+}
+
+/**
+ * HAND — the conversation acknowledgement ("Yes"), which is an ordinary message
+ * with its own kind. It routes through the Outbox like everything else, so even
+ * a Yes tapped with no reception queues and delivers on reconnect.
+ */
+async function uploadHand(entry) {
+  const { message, error } = await sendHand({
+    conversationId: entry.conversationId, fromProfileId: entry.payload.fromProfileId,
+  });
+  if (error) throw new Error(error.message || 'hand send failed');
+  return message;
+}
+
 let registered = false;
 
 /** Register every kind's uploader with the Outbox. Idempotent. */
@@ -79,6 +132,9 @@ export function registerMessageUploaders() {
   registered = true;
   registerUploader('text',  uploadText);
   registerUploader('voice', uploadVoice);
+  registerUploader('image', uploadImage);
+  registerUploader('file',  uploadFile);
+  registerUploader('hand',  uploadHand);
 }
 
 /** Test seam. */

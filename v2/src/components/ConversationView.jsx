@@ -3,14 +3,12 @@ import { supabase } from '../lib/supabase';
 import { useSession } from '../App';
 import {
   listMessages, listParticipants, actableProfileIds,
-  sendMessage, markConversationRead,
+  markConversationRead,
   markConversationDelivered, conversationReceipts, receiptChannelName,
 } from '../lib/messaging';
-import { sendVoiceNote, VOICE_FALLBACK_BODY } from '../lib/voiceNotes';
-import { sendImage, sendOriginalOnly, prepareImage, IMAGE_FALLBACK_BODY, describeOriginal, formatBytes as formatImageBytes } from '../lib/messageImages';
-import { sendFile, bodyForFile, safeName, isLosslessAudio, isPlayableAudio, WAVE_CEILING_BYTES, MAX_BYTES, formatBytes } from '../lib/messageFiles';
+import { prepareImage, describeOriginal, formatBytes as formatImageBytes } from '../lib/messageImages';
+import { safeName, isLosslessAudio, isPlayableAudio, WAVE_CEILING_BYTES, MAX_BYTES, formatBytes } from '../lib/messageFiles';
 import { computeWave } from '../lib/voiceWave';
-import { sendHand, HAND_BODY } from '../lib/hands';
 import { listHands, toggleHand } from '../lib/messageState';
 import Composer, { COMPOSER_HEIGHT } from './Composer';
 import AudioSendSheet from './AudioSendSheet';
@@ -21,7 +19,6 @@ import { renderMessage, isBareKind, canReceiveHand, shapeFor, materialFor } from
 import HandIcon from './HandIcon';
 import EqReceipt from './EqReceipt';
 import { receiptFor, RECEIPT } from '../lib/receiptState';
-import { makePending, appendPending, settlePending, failPending, revokePendingUrl } from '../lib/pendingSend';
 import { queueMessage, entriesFor, subscribeOutbox, subscribeDelivered, retry as outboxRetry, saveDraft, restoreDraft, deleteDraft } from '../lib/outbox';
 import { timeOf } from '../lib/clock';
 
@@ -35,22 +32,53 @@ import { timeOf } from '../lib/clock';
  * `outboxId`/`outboxState` let the retry and (future) delete controls act on
  * the real entry.
  */
+/** The blob a queued entry can preview from, or null (files/originals show a card). */
+function previewBlob(entry) {
+  const p = entry.payload || {};
+  if (entry.kind === 'voice') return p.segments?.[0] ?? null;
+  if (entry.kind === 'image' && p.subtype === 'image') return p.image?.blob ?? null;
+  return null;
+}
+
+/** The renderer-facing payload for a queued entry of any kind. */
+function bubblePayload(entry, localUrl) {
+  const p = entry.payload || {};
+  switch (entry.kind) {
+    case 'voice':
+      return localUrl ? { localUrl, duration_ms: p.durationMs, ...(p.wave && { wave: p.wave }) } : undefined;
+    case 'image':
+      // Decodable: the actual photo, sized. Original (RAW/TIFF): a card.
+      return p.subtype === 'original'
+        ? { name: p.name, pendingBytes: p.pendingBytes }
+        : (localUrl ? { localUrl, width: p.width, height: p.height } : undefined);
+    case 'file':
+      return {
+        name: p.name, bytes: p.bytes, mime: p.mime,
+        ...(p.hd && { hd: true }), ...(p.downloadable === false && { downloadable: false }),
+        ...(p.wave && { wave: p.wave }),
+      };
+    default:
+      return undefined;
+  }
+}
+
 function outboxBubble(entry, localUrl = null) {
   const p = entry.payload || {};
-  const isVoice = entry.kind === 'voice';
+  const bodyFor = { voice: 'Voice message', image: p.name || 'Photo', file: p.name || 'File' };
+  const payload = bubblePayload(entry, localUrl);
   return {
     id:              `outbox:${entry.id}`,
     outboxId:        entry.id,
     outboxState:     entry.state,
     kind:            entry.kind,
-    body:            isVoice ? 'Voice message' : (p.body ?? ''),
+    body:            entry.kind === 'text' ? (p.body ?? '') : (bodyFor[entry.kind] ?? ''),
     from_profile_id: p.fromProfileId,
     created_at:      new Date(entry.createdAt).toISOString(),
     // queued/uploading read as 'waiting'; failed shows red with Retry.
     pendingState:    entry.state === 'failed' ? 'failed' : 'waiting',
-    // A queued Voicey renders as a real, playable note from the runtime url the
-    // thread minted from its blob — identical to how it looks once delivered.
-    ...(isVoice && localUrl ? { payload: { localUrl, duration_ms: p.durationMs, ...(p.wave && { wave: p.wave }) } } : {}),
+    // A queued photo/Voicey renders from the runtime url the thread minted from
+    // its blob — identical to how it looks once delivered.
+    ...(payload !== undefined && { payload }),
   };
 }
 
@@ -346,7 +374,11 @@ export default function ConversationView({ conversationId, compact = false, onMi
   const [senderMeta, setSenderMeta] = useState(null);
   const [others, setOthers]        = useState([]);
   const [draft, setDraft]          = useState(() => getState(conversationId).draft || '');
-  const [sending, setSending]      = useState(false);
+  // Sends are instant now — a message is queued in the Outbox and the bubble
+  // appears at once — so there is no "sending" round trip to disable the
+  // composer for. Kept as a constant false so the few guards that read it stay
+  // readable rather than being deleted across the file.
+  const sending = false;
   const [error, setError]          = useState(null);
   const [loading, setLoading]      = useState(true);
   const [pendingNew, setPendingNew] = useState(0);
@@ -601,7 +633,7 @@ export default function ConversationView({ conversationId, compact = false, onMi
         const urls = voiceUrls.current;
         const seen = new Set();
         for (const e of entries) {
-          const blob = e.kind === 'voice' ? e.payload?.segments?.[0] : null;
+          const blob = previewBlob(e);
           if (blob) { seen.add(e.id); if (!urls.has(e.id)) urls.set(e.id, URL.createObjectURL(blob)); }
         }
         for (const [id, url] of urls) { if (!seen.has(id)) { URL.revokeObjectURL(url); urls.delete(id); } }
@@ -893,56 +925,6 @@ export default function ConversationView({ conversationId, compact = false, onMi
    * kind: 'text' while `messages` had no kind column at all — true by accident,
    * and wrong the moment any other kind existed.
    */
-  async function afterSend(message, pendingId = null) {
-    setMessages(prev => (pendingId
-      ? settlePending(prev, pendingId, message)
-      : [...prev, message]));
-    setSending(false);
-    patch(conversationId, { lastPreview: { text: message.body, kind: message.kind } }, true);
-    await markConversationRead(conversationId);
-  }
-
-  /**
-   * Send anything that can be retried, with the message on screen throughout.
-   *
-   * The placeholder goes in BEFORE the await and stays there whatever happens:
-   * it becomes the real row on success, and turns red on failure. What it never
-   * does is disappear. The old path appended only after the insert returned, so
-   * a failed send left the thread untouched and the only evidence was a line of
-   * text above the composer — which is indistinguishable, at a glance, from
-   * having sent successfully and scrolled.
-   *
-   * `attempt` is a thunk rather than the arguments, because text and the Hand
-   * reach different functions; `retry` beside it is the DATA needed to build
-   * that thunk again later. See `pendingSend.js` for why a stored closure would
-   * be an attribution bug.
-   */
-  async function trySend({ attempt, retry, body, kind, payload }) {
-    const pending = makePending({ body, kind, fromProfileId: senderProfile, retry, payload });
-    setMessages(prev => appendPending(prev, pending));
-    setSending(true);
-    setError(null);
-
-    const { message, error: sendError } = await attempt();
-
-    if (sendError) {
-      // No `setError` banner. The message itself is now carrying the failure,
-      // and saying it twice would put a permanent red line above the composer
-      // for a message the user can already see and act on.
-      setMessages(prev => failPending(prev, pending.id, sendError.message ?? null));
-      setSending(false);
-      return { ok: false, error: sendError };
-    }
-
-    // The server's row has a storage path now, so the local copy is dead
-    // weight. Revoked HERE and not on failure: a failed Voicey has to stay
-    // playable, because deciding whether to retry it usually means listening
-    // back to what you actually said.
-    revokePendingUrl(pending);
-    await afterSend(message, pending.id);
-    return { ok: true, message };
-  }
-
   async function onSend(e) {
     e.preventDefault();
     if (!draft.trim() || !senderProfile || sending) return;
@@ -968,115 +950,15 @@ export default function ConversationView({ conversationId, compact = false, onMi
   /**
    * Send a failed message again.
    *
-   * The old placeholder is replaced by a NEW one rather than revived in place,
-   * so a second failure is a fresh `waiting → failed` transition. Mutating the
-   * existing one back to `waiting` would leave `EqReceipt`'s `prev` ref equal to
-   * the state it lands on, and the glyph would sit silently on red without ever
-   * showing the retry was attempted.
-   *
-   * ⚠ The acting profile is re-read HERE, at retry time, from `senderProfile`.
-   * §2.1 fixes the sending identity for the life of a conversation so it should
-   * not have moved — but reading it now rather than from the stored attempt is
-   * what makes that a guarantee rather than an assumption.
+   * Every retryable message is an Outbox entry now, so retry is one line: hand
+   * it back to the Outbox, which re-queues and flushes — the identical act the
+   * reconnect sweep performs. The durable payload is already stored, so there is
+   * nothing to rebuild and no attempt to reconstruct. §2.1 fixes the sending
+   * identity for the life of a conversation, and the entry carried it from the
+   * start, so a retry attributes correctly however long it sat failed.
    */
   async function onRetry(message) {
-    if (!senderProfile || sending) return;
-
-    // An Outbox bubble retries through the Outbox — it already holds the
-    // payload durably, so retry is just "queue it again and flush", the same
-    // act the reconnect sweep performs. No local rebuild of the attempt.
-    if (message?.outboxId) { await outboxRetry(message.outboxId); return; }
-
-    const retry = message?.retry;
-    if (!retry) return;
-
-    setMessages(prev => prev.filter(m => m.id !== message.id));
-
-    if (retry.type === 'voice') {
-      // A FRESH object url, and the old one released. Reusing it would tie the
-      // new placeholder's lifetime to the old one's — settling the retry would
-      // revoke a url the discarded message still referenced, and any second
-      // retry after that would render a bubble pointing at a revoked blob.
-      revokePendingUrl(message);
-      await trySend({
-        body: VOICE_FALLBACK_BODY, kind: 'voice', retry,
-        payload: {
-          localUrl:    URL.createObjectURL(retry.blob),
-          duration_ms: Math.max(0, Math.round(retry.durationMs ?? 0)),
-          ...(retry.wave && { wave: retry.wave }),
-        },
-        attempt: () => sendVoiceNote({
-          conversationId,
-          fromProfileId: senderProfile,
-          blob:       retry.blob,
-          durationMs: retry.durationMs,
-          wave:       retry.wave,    // computed at record time; a retry never re-decodes
-          capture:    retry.capture,
-        }),
-      });
-      return;
-    }
-
-    if (retry.type === 'image-original') {
-      await trySend({
-        body: retry.file.name || IMAGE_FALLBACK_BODY, kind: 'image', retry,
-        payload: { name: retry.file.name, pendingBytes: retry.file.size },
-        attempt: () => sendOriginalOnly({
-          conversationId, fromProfileId: senderProfile, file: retry.file,
-        }),
-      });
-      return;
-    }
-
-    if (retry.type === 'image') {
-      // A FRESH object url, and the old one released — the same reasoning as
-      // voice above. Reusing it would tie the new placeholder's lifetime to the
-      // discarded one's, and settling the retry would revoke a url a second
-      // retry still needed.
-      revokePendingUrl(message);
-      await trySend({
-        body: IMAGE_FALLBACK_BODY, kind: 'image', retry,
-        payload: {
-          localUrl: URL.createObjectURL(retry.image.blob),
-          width:    retry.image.width,
-          height:   retry.image.height,
-        },
-        attempt: () => sendImage({
-          conversationId,
-          fromProfileId: senderProfile,
-          image: retry.image,   // prepared once at pick time; a retry never re-encodes
-          // ⚠ CARRIED THROUGH THE RETRY. Without these a failed HD send would
-          // quietly come back as an ordinary photo, and the sender would have
-          // no way to know the original they asked to keep was not kept.
-          preserveOriginal: retry.preserveOriginal,
-        }),
-      });
-      return;
-    }
-
-    if (retry.type === 'file') {
-      // The original File is re-uploaded. No object url to revoke and nothing
-      // to re-prepare — a document has no local representation to keep alive.
-      await trySend({
-        body: bodyForFile(retry.file.name), kind: 'file', retry,
-        payload: { name: safeName(retry.file.name), bytes: retry.file.size, mime: retry.file.type || null, ...(isLosslessAudio(retry.file.name, retry.file.type) && { hd: true }), ...(retry.downloadable === false && { downloadable: false }), ...(retry.wave && { wave: retry.wave }) },
-        attempt: () => sendFile({ conversationId, fromProfileId: senderProfile, file: retry.file, downloadable: retry.downloadable !== false, wave: retry.wave ?? null }),
-      });
-      return;
-    }
-
-    if (retry.type === 'hand') {
-      await trySend({
-        body: message.body, kind: message.kind, retry,
-        attempt: () => sendHand({ conversationId, fromProfileId: senderProfile }),
-      });
-      return;
-    }
-
-    await trySend({
-      body: retry.body, retry,
-      attempt: () => sendMessage({ conversationId, fromProfileId: senderProfile, body: retry.body }),
-    });
+    if (message?.outboxId) await outboxRetry(message.outboxId);
   }
 
   /**
@@ -1131,14 +1013,10 @@ export default function ConversationView({ conversationId, compact = false, onMi
   }
 
   async function onSendHand() {
-    if (!senderProfile || sending) return;
-
-    await trySend({
-      body:    HAND_BODY,
-      kind:    'hand',
-      retry:   { type: 'hand' },
-      attempt: () => sendHand({ conversationId, fromProfileId: senderProfile }),
-    });
+    if (!senderProfile) return;
+    // Into the Outbox like every other kind — a Yes tapped with no reception
+    // queues and delivers on reconnect, same as text.
+    await queueMessage({ conversationId, kind: 'hand', payload: { fromProfileId: senderProfile } });
   }
 
   /**
@@ -1259,29 +1137,18 @@ export default function ConversationView({ conversationId, compact = false, onMi
     }
     if (prepError) { setError(prepError.message); return; }
 
-    // A local url so the pending bubble is the actual photo rather than a grey
-    // box, with the dimensions measured during preparation — so the picture
-    // looks identical before and after it lands and settling is invisible.
-    const localUrl = URL.createObjectURL(image.blob);
-
-    await trySend({
-      body: IMAGE_FALLBACK_BODY,
+    // Into the Outbox — the prepared image (rotated, re-encoded once) is stored
+    // on the entry, so a retry re-uploads bytes rather than redoing the work,
+    // and the preservation choice rides along. The queued bubble's photo is
+    // minted from image.blob at render time (see the outbox subscription), so it
+    // looks identical before and after it lands.
+    await queueMessage({
+      conversationId,
       kind: 'image',
-      // The PREPARED image is kept, not the original File. A retry re-uploads
-      // the same bytes rather than decoding, rotating and re-encoding the
-      // photograph again for an identical result — and it carries the
-      // preservation choice, so retrying an HD send is still an HD send.
-      retry: { type: 'image', image, preserveOriginal },
-      payload: { localUrl, width: image.width, height: image.height },
-      attempt: () => sendImage({
-        conversationId,
-        fromProfileId: senderProfile,
-        image,
-        preserveOriginal,
-        // No `window` argument: `sendImage` defaults to DEFAULT_WINDOW, and
-        // passing undefined here rather than a literal keeps the default in one
-        // place instead of two that can drift.
-      }),
+      payload: {
+        subtype: 'image', image, preserveOriginal,
+        width: image.width, height: image.height, fromProfileId: senderProfile,
+      },
     });
   }
 
@@ -1293,19 +1160,12 @@ export default function ConversationView({ conversationId, compact = false, onMi
    * preview to make, so nothing changes shape when it lands.
    */
   async function sendUndecodableOriginal(file) {
-    await trySend({
-      body: file.name || IMAGE_FALLBACK_BODY,
+    await queueMessage({
+      conversationId,
       kind: 'image',
-      retry: { type: 'image-original', file },
-      // No `localUrl` and no dimensions: an undecodable file has neither, and
-      // inventing a box for it would reserve space for a picture that never
-      // arrives.
-      payload: { name: file.name, pendingBytes: file.size },
-      attempt: () => sendOriginalOnly({
-        conversationId,
-        fromProfileId: senderProfile,
-        file,
-      }),
+      // subtype 'original' has no preview and no dimensions — the card shows the
+      // name and size, and the uploader sends the file on its own.
+      payload: { subtype: 'original', file, name: file.name, pendingBytes: file.size, fromProfileId: senderProfile },
     });
   }
 
@@ -1371,19 +1231,15 @@ export default function ConversationView({ conversationId, compact = false, onMi
       wave = await computeWave(file);
     }
 
-    await trySend({
-      body: bodyForFile(file.name),
+    await queueMessage({
+      conversationId,
       kind: 'file',
-      retry: { type: 'file', file, downloadable, wave },
       payload: {
+        file, downloadable, wave: wave ?? null, fromProfileId: senderProfile,
         name: safeName(file.name), bytes: file.size, mime: file.type || null,
         ...(isLosslessAudio(file.name, file.type) && { hd: true }),
         ...(downloadable === false && { downloadable: false }),
-        ...(wave && { wave }),
       },
-      attempt: () => sendFile({
-        conversationId, fromProfileId: senderProfile, file, downloadable, wave,
-      }),
     });
   }
 

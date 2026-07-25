@@ -26,6 +26,18 @@ mock.module('./voiceNotes.js', {
     VOICE_FALLBACK_BODY: 'Voice message',
   },
 });
+// Mocked so the test never pulls the real supabase-backed modules for the
+// image/file/hand uploaders — this suite only exercises the text and voice
+// adapters plus the throw-on-error contract they all share.
+mock.module('./messageImages.js', {
+  exports: { sendImage: async () => ({ message: { id: 'img' }, error: null }), sendOriginalOnly: async () => ({ message: { id: 'orig' }, error: null }) },
+});
+mock.module('./messageFiles.js', {
+  exports: { sendFile: async () => ({ message: { id: 'file' }, error: null }) },
+});
+mock.module('./hands.js', {
+  exports: { sendHand: async () => ({ message: { id: 'hand' }, error: null }) },
+});
 
 const { memoryStore } = await import('./outboxStore.js');
 const {
