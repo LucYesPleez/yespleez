@@ -71,13 +71,24 @@ export default function PortraitCard({ profile: p, onClick, width = 150, height 
           aria-hidden="true"
           style={{
             position: 'absolute', inset: 0,
-            backgroundImage: 'url(/hand-logo.png)',
-            backgroundSize: '58%',
-            backgroundRepeat: 'no-repeat',
-            backgroundPosition: 'center 42%',
-            opacity: 0.22,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            // `.yp-hand` fills the mark's ALPHA with currentColor, so this is
+            // the colour the solid hand paints in.
+            color: '#fff',
+            opacity: 0.2,
           }}
-        />
+        >
+          {/* ⚠ THE SOLID MARK, VIA THE MASK — NOT /hand-logo.png.
+              There are two different files both called a hand logo, and
+              `public/hand-logo.png` is the OUTLINE drawing (1122x1402), which
+              is why it read as hollow here. `hand-mark.webp` is the solid
+              artwork, and `.yp-hand` uses its alpha as a stencil filled with
+              currentColor — the same way MessengerAvatar draws its default.
+              See the long note in index.css before changing either.
+
+              70% of the card width: the previous 58%, enlarged by 120%. */}
+          <span className="yp-hand" style={{ width: '70%', height: '70%' }} />
+        </div>
       )}
       {/* gradient overlay */}
       <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom,rgba(0,0,0,.08) 0%,rgba(0,0,0,0) 35%,rgba(0,0,0,.6) 75%,rgba(0,0,0,.88) 100%)' }} />
