@@ -14,6 +14,27 @@ import { isProfileUnclaimed } from '../lib/profileClaim';
  *   width    – card width in px (default 150)
  *   height   – card height in px (default 200)
  */
+/**
+ * THE CARD'S EDGE — the same gradient a sent message bubble wears.
+ *
+ * Lifted verbatim from `SENT_BUBBLE` in ConversationView: magenta at the top
+ * corner, violet through the middle, fading to almost nothing. Two surfaces
+ * that share an edge treatment read as one product rather than two screens
+ * that happen to live in the same app.
+ *
+ * ⚠ TWO BACKGROUNDS, ONE ELEMENT, AND THE BORDER MUST STAY TRANSPARENT.
+ * `border` cannot carry a gradient, so the fill is clipped to the padding box
+ * and the gradient to the border box, showing through the transparent border
+ * as the edge. Give the border a colour and the gradient vanishes behind it.
+ *
+ * ⚠ IF THE BUBBLE'S GRADIENT CHANGES, THIS DOES NOT FOLLOW. They are two
+ * copies of one intention, in two files, with nothing linking them.
+ */
+const CARD_BORDER = '1px solid transparent';
+const CARD_SURFACE =
+  'linear-gradient(135deg,rgba(255,45,120,.4),rgba(157,78,221,.3)) padding-box,'
+  + 'linear-gradient(150deg, rgba(255,79,216,.34) 0%, rgba(191,95,255,.13) 46%, rgba(255,255,255,.04) 100%) border-box';
+
 export default function PortraitCard({ profile: p, onClick, width = 150, height = 200 }) {
   const navigate = useNavigate();
   // 10F: one resolver, no artist sentinel. A row with a missing/unknown type used
@@ -29,7 +50,12 @@ export default function PortraitCard({ profile: p, onClick, width = 150, height 
   const roleLabels = type === 'standup' ? selectedPerformanceRoleLabels(p?.genre_string)
     : type === 'artist' ? selectedArtistRoleLabels(p?.genre_string)
     : [];
-  const pillLabels = roleLabels.length ? roleLabels : [label];
+  // `label` is null for a Personal profile (PUNTER_PROFILE), which is how the
+  // type chip is suppressed — a punter is just a person, and a chip reading
+  // "PROFILE" told the reader nothing they could act on. `.filter(Boolean)`
+  // rather than a branch, so any future identity without a label inherits the
+  // same behaviour instead of rendering an empty pill.
+  const pillLabels = (roleLabels.length ? roleLabels : [label]).filter(Boolean);
   // M5: canonical profile.id URL; legacy user_id URL only as a fallback for
   // callers whose selects don't carry `id` yet (the redirect shim covers it).
   const handleClick = onClick || (() => navigate(p?.id ? profileUrl(p) : `/profile/${p?.user_id}?type=${type}`));
@@ -37,7 +63,7 @@ export default function PortraitCard({ profile: p, onClick, width = 150, height 
   return (
     <div
       onClick={handleClick}
-      style={{ flexShrink: 0, width, height, borderRadius: 14, overflow: 'hidden', cursor: 'pointer', position: 'relative', background: 'linear-gradient(135deg,rgba(255,45,120,.4),rgba(157,78,221,.3))', transition: 'transform .18s' }}
+      style={{ flexShrink: 0, width, height, borderRadius: 14, overflow: 'hidden', cursor: 'pointer', position: 'relative', border: CARD_BORDER, background: CARD_SURFACE, transition: 'transform .18s' }}
       onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-2px)'}
       onMouseLeave={e => e.currentTarget.style.transform = ''}
     >

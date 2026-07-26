@@ -134,7 +134,42 @@ export const UNKNOWN_PROFILE = Object.freeze({
  * @param {string|null|undefined} type
  * @returns {typeof UNKNOWN_PROFILE} the type's tokens, or the neutral fallback
  */
+/**
+ * The Personal / Messenger identity.
+ *
+ * ⚠ DELIBERATELY NOT `UNKNOWN_PROFILE`, and deliberately not in PROFILE_TYPES.
+ *
+ * Punter used to fall through to UNKNOWN_PROFILE, which is the "something
+ * upstream is broken" state — it is meant to look wrong. A punter profile is
+ * not broken; it is a real, complete identity that simply has no industry
+ * role. Folding the two together would either make every Personal profile
+ * look like an error, or make genuine errors look normal. Both are worse than
+ * one small extra constant.
+ *
+ * It stays out of PROFILE_TYPES because that map drives role pickers,
+ * dashboards, application filters and PROFILE_TYPE_ORDER — punter belongs to
+ * none of them (§A9: a Personal profile does not perform).
+ *
+ * `shortLabel: null` is what suppresses the type chip. A Personal profile is
+ * just a person, and labelling them "PROFILE" told the reader nothing.
+ */
+export const PUNTER_PROFILE = Object.freeze({
+  accent:       '#BF5FFF',
+  accent2:      '#00E5FF',
+  rgb:          '191,95,255',
+  accent2Rgb:   '0,229,255',
+  emoji:        '',
+  label:        null,
+  shortLabel:   null,
+  pathPrefix:   null,
+  dashPath:     null,
+  gradient:     'linear-gradient(135deg, #00E5FF, #BF5FFF)',
+  defaultImage: '/defaultpunter.webp',
+});
+
 export function profileIdentity(type) {
   if (!type) return UNKNOWN_PROFILE;
-  return PROFILE_TYPES[String(type).toLowerCase()] || UNKNOWN_PROFILE;
+  const t = String(type).toLowerCase();
+  if (t === 'punter') return PUNTER_PROFILE;
+  return PROFILE_TYPES[t] || UNKNOWN_PROFILE;
 }
