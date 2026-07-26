@@ -6,6 +6,7 @@ import ShareSheet from './ShareSheet';
 import BetaWelcomePopup from './BetaWelcomePopup';
 import { useCurrentShareTarget, pageFallback } from '../lib/shareTarget';
 import { readAuthLog, readAuthIncidents } from '../lib/authDiagnostics';
+import { readForensics } from '../lib/authForensics';
 
 const INFO = {
   '/': {
@@ -248,7 +249,8 @@ const VERDICT_TEXT = {
 function AuthLogReadout() {
   const log       = readAuthLog();
   const incidents = readAuthIncidents();
-  if (!log.length && !incidents.length) return null;
+  const forensics = readForensics();
+  if (!log.length && !incidents.length && !forensics.length) return null;
 
   // The most recent boot verdict is the headline; everything else is context
   // for it. Searching from the end because the log is append-ordered.
@@ -278,6 +280,22 @@ function AuthLogReadout() {
           {e.detail ? ` · ${e.detail}` : ''}{e.n ? ` ×${e.n}` : ''}
         </div>
       ))}
+
+      {/* ⏱ TEMPORARY — the forensic timeline. Shown OLDEST-FIRST, unlike the
+          log above, because this is read as a SEQUENCE: resumed → refreshed →
+          rejected → signed out. Reversing it would hide the causal order,
+          which is the only thing this view is for. Delete with
+          authForensics.js once the cause is known. */}
+      {forensics.length > 0 && (
+        <div style={{ marginTop: 8, paddingTop: 6, borderTop: '1px solid var(--border)' }}>
+          <div style={{ color: 'var(--text)' }}>AUTH TIMELINE (last 14):</div>
+          {forensics.slice(-14).map((e, i) => (
+            <div key={i} style={{ opacity: .75 }}>
+              {e.t.slice(11, 19)} {e.kind}{e.detail ? ` · ${e.detail}` : ''}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

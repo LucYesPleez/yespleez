@@ -35,6 +35,8 @@
  * third would cost another deploy-and-wait cycle to disprove.
  */
 
+import { note, recentExplicitSignOut } from './authForensics';
+
 // Supabase's own key, as GoTrueClient builds it: `sb-<project-ref>-auth-token`,
 // where the ref is the subdomain of the project URL. Derived rather than
 // hardcoded so a project/environment change cannot silently point the canary
@@ -76,7 +78,15 @@ function safeEnvUrl() {
  */
 export function classifyStorage({ hasToken, hasCanary, hasHistory, hasMirror }) {
   if (hasToken && hasCanary)  return 'healthy';
-  if (hasToken && !hasCanary) return 'canary-cleared';
+
+  // ⚠ A MISSING CANARY MEANS NOTHING ON THE FIRST RUN, AND THAT COST US A
+  // READING. The canary cannot predate the code that writes it, so the very
+  // first boot after this shipped found every already-signed-in user holding a
+  // token with no canary and reported 'canary-cleared' — a confident verdict
+  // about an event that never happened, printed as the headline above a log
+  // that contained the real evidence. `hasHistory` is what separates "the
+  // canary vanished" from "the canary was never planted".
+  if (hasToken && !hasCanary) return hasHistory ? 'canary-cleared' : 'first-run';
   if (!hasToken && hasCanary) return 'session-removed';
 
   // Neither the token nor the canary is here. Both were in localStorage, so
@@ -287,7 +297,20 @@ export function armAuthDiagnostics(supabase) {
     const expiresIn = session?.expires_at
       ? `${Math.round((session.expires_at * 1000 - Date.now()) / 1000)}s`
       : null;
+
+    // ⏱ TEMPORARY — attribute the sign-out. GoTrue emits an identical
+    // SIGNED_OUT whether the user pressed the button or a refresh was
+    // rejected, and telling those apart is the first thing worth knowing.
+    // Labelling only; nothing here changes what happens next.
+    if (event === 'SIGNED_OUT') {
+      const origin = recentExplicitSignOut() ? 'EXPLICIT (user pressed sign out)' : 'IMPOSED (not user-initiated)';
+      recordAuthEvent(event, origin);
+      note('SIGNED_OUT', origin);
+      return;
+    }
+
     recordAuthEvent(event, expiresIn ? `expires in ${expiresIn}` : null);
+    note(event, expiresIn ? `expires in ${expiresIn}` : null);
   });
 
   return () => subscription.unsubscribe();

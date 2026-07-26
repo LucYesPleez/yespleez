@@ -44,6 +44,25 @@ test('a token with no canary reads as hand-cleared, never as eviction', () => {
   );
 });
 
+test('⚠ the FIRST boot after this shipped is not a cleared canary', () => {
+  // A real regression, caught in the field. The canary cannot predate the code
+  // that writes it, so every already-signed-in user's first boot on the new
+  // build had a token and no canary — and the panel confidently reported
+  // "cleared by hand?" as the headline above the log holding the actual
+  // evidence. History is what distinguishes vanished from never-planted.
+  assert.equal(
+    classifyStorage({ hasToken: true, hasCanary: false, hasHistory: false, hasMirror: false }),
+    'first-run',
+  );
+
+  // Mutation guard: flipping only hasHistory must change the verdict, or the
+  // assertion above would pass with the whole distinction removed.
+  assert.notEqual(
+    classifyStorage({ hasToken: true, hasCanary: false, hasHistory: false, hasMirror: false }),
+    classifyStorage({ hasToken: true, hasCanary: false, hasHistory: true,  hasMirror: false }),
+  );
+});
+
 // ── EVICTION, AND WHY IT NEEDS A WITNESS OUTSIDE localStorage ────────────
 
 test('⚠ localStorage gone but the COOKIE survived → eviction', () => {

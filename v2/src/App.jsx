@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, createContext, useContext } from 'react';
 import { HashRouter, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { supabase } from './lib/supabase';
+import { markExplicitSignOut } from './lib/authForensics';
 import { clearActingProfileCache } from './lib/actingProfile';
 import { initAnalytics, setAnalyticsUser, trackScreenView } from './lib/analytics';
 import { startMessaging } from './lib/messagingReliability';
@@ -381,6 +382,10 @@ export default function App() {
     sessionStorage.removeItem('yp_guest');
     setIsGuest(false);
     clearActingProfileCache();  // M6: a cached profile id must not outlive its session
+    // ⏱ TEMPORARY — marks this SIGNED_OUT as user-initiated. GoTrue emits the
+    // same event whether the button was pressed or a refresh was rejected, and
+    // this is the app's only signOut call site. Labelling only.
+    markExplicitSignOut();
     supabase.auth.signOut();
   }
 
