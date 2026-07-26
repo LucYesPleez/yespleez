@@ -127,6 +127,12 @@ export async function findByPhone(rawNumbers, iso = DEFAULT_COUNTRY) {
       // `with ordinality` is 1-based.
       const e164 = chunk[row.input_index - 1];
       if (!e164) continue; // defensive: an index we did not send is not ours
+      // `display_name` is the RPC's output column alias, not a column on
+      // `profiles` — that table's column is `name`. The function aliases it.
+      // Getting this backwards is what broke search: an earlier version
+      // selected `pr.display_name`, which does not exist. plpgsql resolves
+      // column references at call time, so it created cleanly, passed every
+      // structural check in the migration, and threw on every lookup.
       matches.push({
         profileId: row.profile_id,
         displayName: row.display_name,
