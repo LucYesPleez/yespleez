@@ -14,14 +14,6 @@ import { isProfileUnclaimed } from '../lib/profileClaim';
  *   width    – card width in px (default 150)
  *   height   – card height in px (default 200)
  */
-/**
- * Softened from .4/.3. This gradient IS the whole card face whenever someone
- * has no photo, and at the old strength a profile without a picture read as a
- * loud magenta tile shouting louder than the cards that actually have one.
- */
-const CARD_GRADIENT =
-  'linear-gradient(135deg,rgba(255,45,120,.18),rgba(157,78,221,.14))';
-
 export default function PortraitCard({ profile: p, onClick, width = 150, height = 200 }) {
   const navigate = useNavigate();
   // 10F: one resolver, no artist sentinel. A row with a missing/unknown type used
@@ -42,54 +34,15 @@ export default function PortraitCard({ profile: p, onClick, width = 150, height 
   // callers whose selects don't carry `id` yet (the redirect shim covers it).
   const handleClick = onClick || (() => navigate(p?.id ? profileUrl(p) : `/profile/${p?.user_id}?type=${type}`));
 
-  // One decision, read twice below. `pt.defaultImage` is deliberately NOT part
-  // of this: a type default is a stock photograph, and treating it as "has a
-  // photo" is what put a stranger's face on people who never uploaded one.
-  const photo = p?.avatar_thumb || p?.avatar || null;
-  const hasPhoto = Boolean(photo);
-
   return (
     <div
       onClick={handleClick}
-      style={{ flexShrink: 0, width, height, borderRadius: 14, overflow: 'hidden', cursor: 'pointer', position: 'relative', background: CARD_GRADIENT, transition: 'transform .18s' }}
+      style={{ flexShrink: 0, width, height, borderRadius: 14, overflow: 'hidden', cursor: 'pointer', position: 'relative', background: 'linear-gradient(135deg,rgba(255,45,120,.4),rgba(157,78,221,.3))', transition: 'transform .18s' }}
       onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-2px)'}
       onMouseLeave={e => e.currentTarget.style.transform = ''}
     >
-      {hasPhoto ? (
-        /* avatar image */
-        <img src={photo} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} loading="lazy" decoding="async" />
-      ) : (
-        /* NO PHOTO — the Hand, not a stock portrait.
-           The type defaults (defaultdj.png, defaultvenueblur.png…) put a
-           photograph of a stranger where a person's face should be, which
-           reads as "this is them" rather than "there is nobody here yet".
-           The mark says the second thing honestly, and it is ours.
-
-           `contain`, centred, and faint: a placeholder must not compete with
-           the cards beside it that carry a real face. */
-        <div
-          aria-hidden="true"
-          style={{
-            position: 'absolute', inset: 0,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            // `.yp-hand` fills the mark's ALPHA with currentColor, so this is
-            // the colour the solid hand paints in.
-            color: '#fff',
-            opacity: 0.2,
-          }}
-        >
-          {/* ⚠ THE SOLID MARK, VIA THE MASK — NOT /hand-logo.png.
-              There are two different files both called a hand logo, and
-              `public/hand-logo.png` is the OUTLINE drawing (1122x1402), which
-              is why it read as hollow here. `hand-mark.webp` is the solid
-              artwork, and `.yp-hand` uses its alpha as a stencil filled with
-              currentColor — the same way MessengerAvatar draws its default.
-              See the long note in index.css before changing either.
-
-              70% of the card width: the previous 58%, enlarged by 120%. */}
-          <span className="yp-hand" style={{ width: '70%', height: '70%' }} />
-        </div>
-      )}
+      {/* avatar image */}
+      <img src={p?.avatar_thumb || p?.avatar || pt.defaultImage} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} loading="lazy" decoding="async" />
       {/* gradient overlay */}
       <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom,rgba(0,0,0,.08) 0%,rgba(0,0,0,0) 35%,rgba(0,0,0,.6) 75%,rgba(0,0,0,.88) 100%)' }} />
       {/* type pill(s) */}
