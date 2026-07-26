@@ -273,14 +273,25 @@ export default function PhoneNumberSettings({ session }) {
         aria-expanded={myOpen}
         style={summaryRow}
       >
-        <span className={s.label} style={{ fontSize: 13 }}>MY PH NUMBER</span>
-        <span style={{ marginLeft: 'auto', fontSize: 14, fontWeight: 600, letterSpacing: 1,
+        {/* Label and number read as one phrase — "my ph number is ••• 829" —
+            so the number sits beside it rather than floating at the far edge.
+            No fontSize override: it inherits `.label`, matching FIND SOMEONE
+            BY NUMBER above it, because they are peers. */}
+        <span className={s.label}>MY PH NUMBER</span>
+        <span style={{ fontSize: 14, fontWeight: 600, letterSpacing: 1,
           color: hasKey ? 'var(--text)' : 'var(--muted)' }}>
           {hasKey ? `••• ••• ${key.last3 ?? '···'}` : 'Not set'}
         </span>
-        <span aria-hidden="true" style={{ color: 'var(--muted)', fontSize: 12,
-          transform: myOpen ? 'rotate(180deg)' : 'none', transition: 'transform .16s var(--yp-ease)' }}>
-          ▾
+
+        {/* The affordance says what it opens. A bare chevron on a row that
+            already shows its value gives no reason to press it. */}
+        <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 5,
+          color: 'var(--muted)', fontFamily: "'Bebas Neue', sans-serif",
+          fontSize: 12, letterSpacing: 1.5 }}>
+          SETTINGS
+          <span aria-hidden="true" style={{ fontSize: 12, display: 'inline-block',
+            transform: myOpen ? 'rotate(180deg)' : 'none',
+            transition: 'transform .16s var(--yp-ease)' }}>▾</span>
         </span>
       </button>
 
