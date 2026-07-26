@@ -248,25 +248,47 @@ const CONTACTS_DB = 'yp_contacts';
 const CONTACTS_DB_VERSION = 1;
 const CONTACTS_STORE = 'names';
 
+const CONTACT_NAME_TIMEOUT_MS = 1200;
+
 function contactNameFor(contactCodeId) {
   if (!contactCodeId || typeof indexedDB === 'undefined') return Promise.resolve(null);
   return new Promise((resolve) => {
+    // ⚠⚠ THIS PROMISE MUST ALWAYS SETTLE, AND THE TIMEOUT IS NOT BELT-AND-
+    // BRACES — IT IS THE POINT.
+    //
+    // A push handler shows its notification AFTER this resolves. If the open
+    // never fires any callback, `await` never returns, showNotification is
+    // never called, and the OS silently discards the push and kills the
+    // worker. The user sees nothing and no error exists anywhere.
+    // `indexedDB.open` has at least two such paths: `onblocked`, which fires
+    // instead of onsuccess when another connection holds the database, and a
+    // suspended-then-resumed worker where the request is simply abandoned.
+    //
+    // Message pushes never touch IndexedDB, which is exactly why they were
+    // unaffected while contact joins produced nothing at all.
+    //
+    // Losing a name costs the nicer string. Losing the notification costs the
+    // feature. Never trade the second for the first.
+    const done = setTimeout(() => resolve(null), CONTACT_NAME_TIMEOUT_MS);
+    const finish = (value) => { clearTimeout(done); resolve(value); };
+
     let req;
     try { req = indexedDB.open(CONTACTS_DB, CONTACTS_DB_VERSION); }
-    catch { resolve(null); return; }
+    catch { finish(null); return; }
 
-    req.onerror = () => resolve(null);
+    req.onerror   = () => finish(null);
+    req.onblocked = () => finish(null);
     req.onsuccess = () => {
       const db = req.result;
       // The app may never have synced on this device, in which case the store
       // does not exist and a transaction against it would throw.
-      if (!db.objectStoreNames.contains(CONTACTS_STORE)) { resolve(null); return; }
+      if (!db.objectStoreNames.contains(CONTACTS_STORE)) { finish(null); return; }
       try {
         const os = db.transaction(CONTACTS_STORE, 'readonly').objectStore(CONTACTS_STORE);
         const get = os.get(String(contactCodeId));
-        get.onsuccess = () => resolve(get.result?.name ?? null);
-        get.onerror   = () => resolve(null);
-      } catch { resolve(null); }
+        get.onsuccess = () => finish(get.result?.name ?? null);
+        get.onerror   = () => finish(null);
+      } catch { finish(null); }
     };
   });
 }
