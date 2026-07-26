@@ -2,19 +2,7 @@ import { useState, useMemo } from 'react';
 import PortraitCard from './PortraitCard';
 import ProfileCard from './ProfileCard';
 import { useDragScroll } from '../hooks/useDragScroll';
-
-/**
- * ⭐ 7.3 cards visible across the rail, on desktop AND phone — same rule as
- * FollowingSection's identical constant (⚠ a COPY, nothing links them). A
- * fixed px width cannot hit that on both: the app column caps at 680px on
- * desktop, a phone is narrower, so a percentage of the rail's own width is
- * what stays correct everywhere with no breakpoint.
- *
- * gap:10px between cards, and 7.3 items have 6.3 gaps: 6.3 × 10px = 63px,
- * subtracted before dividing because CSS `gap` does not shrink a flex-basis
- * percentage on its own.
- */
-const RAIL_CARD_WIDTH = 'calc((100% - 63px) / 7.3)';
+import { useRailCardWidth, useIsDesktop } from '../hooks/useRailCardWidth';
 
 /**
  * YOUR CONTACTS — the people you actually talk to, inside Messenger.
@@ -44,6 +32,11 @@ export default function MessengerContactsSection({ rows = [], onOpen, loading = 
   const [showAll, setShowAll] = useState(false);
   const [search, setSearch] = useState('');
   const drag = useDragScroll();
+  const railCardWidth = useRailCardWidth();
+  // List view (☰), desktop only: two columns side by side. Owner: "cut the
+  // cards in half and have 2 rows beside each other", then "only on desktop"
+  // — a phone stays single-column, where a row is already tight for one.
+  const isDesktop = useIsDesktop();
 
   /**
    * One entry per person, most recently contacted first.
@@ -90,13 +83,17 @@ export default function MessengerContactsSection({ rows = [], onOpen, loading = 
     />
   );
 
-  // The rail gets the fluid width so 7.3 fit regardless of viewport.
+  // The rail gets the fluid width so 7.3 fit regardless of viewport, and on
+  // phone drops to avatar-only — owner: "just show avatars", once the name
+  // and pill were both gone there was no reason to hold the desktop count
+  // down any more (see the note in useRailCardWidth).
   const railCard = ({ profile, conversationId }) => (
     <PortraitCard
       key={profile.id}
       profile={profile}
-      width={RAIL_CARD_WIDTH}
+      width={railCardWidth}
       height="auto"
+      avatarOnly={!isDesktop}
       onClick={() => onOpen?.(conversationId, profile)}
     />
   );
@@ -174,7 +171,12 @@ export default function MessengerContactsSection({ rows = [], onOpen, loading = 
           {contacts.map(railCard)}
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <div style={{
+          display: isDesktop ? 'grid' : 'flex',
+          flexDirection: isDesktop ? undefined : 'column',
+          gridTemplateColumns: isDesktop ? '1fr 1fr' : undefined,
+          gap: 6,
+        }}>
           {contacts.map(({ profile, conversationId }) => (
             <ProfileCard
               key={profile.id}

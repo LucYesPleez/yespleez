@@ -3,24 +3,7 @@ import PortraitCard from './PortraitCard';
 import ProfileCard from './ProfileCard';
 import { PROFILE_TYPE_ORDER, PROFILE_TYPES } from '../lib/profileTypes';
 import { VISIBLE_PERFORMANCE_ROLES, VISIBLE_ARTIST_ROLES } from '../lib/profileTaxonomy';
-
-/**
- * ⭐ 7.3 cards visible across the rail, on desktop AND phone — owner request.
- *
- * A fixed px width cannot do that: the app's own column caps at 680px on
- * desktop (see index.css — "the whole point of the fixed width"), but a phone
- * is narrower than that, so the SAME px count of cards needs a SMALLER card
- * there. A percentage of the rail's own width is what stays correct at any
- * viewport, phone or desktop, with no breakpoint to maintain.
- *
- * The rail's flex `gap` is 10px. `gap` does not shrink a flex-basis
- * percentage automatically, so it has to be subtracted by hand: 7.3 items
- * have 6.3 gaps between them, 6.3 × 10px = 63px.
- *
- * ⚠ A COPY. MessengerContactsSection defines the identical constant for its
- * own rail. Nothing links the two; change one and the cards go out of step.
- */
-const RAIL_CARD_WIDTH = 'calc((100% - 63px) / 7.3)';
+import { useRailCardWidth, useIsPhone } from '../hooks/useRailCardWidth';
 
 // One pill per profile type, except standup and artist — which each split
 // into one pill per role (standup: Comedy / Poetry; artist: DJ / Producer /
@@ -86,6 +69,10 @@ export default function FollowingSection({
   sectionTitle = 'FOLLOWING',
   actions,   // optional: (profile) => jsx — extra action buttons in landscape view
 }) {
+  const railCardWidth = useRailCardWidth();
+  // Same phone treatment as MessengerContactsSection's rail — the two are
+  // built to look and behave alike (see this file's own header comment).
+  const isPhone = useIsPhone();
   const filtered = following.filter(p => {
     if (followFilter === 'ALL') return true;
     const { type, role } = FOLLOW_TYPE_MAP[followFilter] || {};
@@ -192,7 +179,7 @@ export default function FollowingSection({
       ) : followView === 'portrait' ? (
         <div ref={followDrag.ref} onMouseDown={followDrag.onMouseDown} onMouseMove={followDrag.onMouseMove} onMouseUp={followDrag.onMouseUp} onMouseLeave={followDrag.onMouseLeave}
           style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 8, WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', cursor: 'grab', userSelect: 'none' }}>
-          {filtered.map(p => <PortraitCard key={p.user_id} profile={p} width={RAIL_CARD_WIDTH} height="auto" />)}
+          {filtered.map(p => <PortraitCard key={p.user_id} profile={p} width={railCardWidth} height="auto" avatarOnly={isPhone} />)}
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>

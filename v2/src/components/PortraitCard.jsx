@@ -1,20 +1,23 @@
 import { useNavigate } from 'react-router-dom';
 import { profileUrl } from '../lib/profileResolution';
 import { formatLocation } from '../lib/formatLocation';
-import { selectedPerformanceRoleLabels, selectedArtistRoleLabels } from '../lib/profileTaxonomy';
 import { profileIdentity } from '../lib/profileTypes';
-import { getContrastText } from '../lib/color';
 import UnclaimedBadge from './UnclaimedBadge';
 import { isProfileUnclaimed } from '../lib/profileClaim';
 
 /**
  * Props:
- *   profile  – { user_id, name, type, avatar, location, sound }
- *   onClick  – optional click handler (falls back to navigate /profile/:id)
- *   width    – card width: a number (px) or any CSS length, e.g. a calc()
- *              expression for a fluid rail (default 150)
- *   height   – card height, same rules — or 'auto' to let `aspect-ratio`
- *              derive it from width (default 200)
+ *   profile     – { user_id, name, type, avatar, location, sound }
+ *   onClick     – optional click handler (falls back to navigate /profile/:id)
+ *   width       – card width: a number (px) or any CSS length, e.g. a calc()
+ *                 expression for a fluid rail (default 150)
+ *   height      – card height, same rules — or 'auto' to let `aspect-ratio`
+ *                 derive it from width (default 200)
+ *   avatarOnly  – image only: no name, no location, no sound, no unclaimed
+ *                 badge. Owner, for the phone rail: "just show avatars".
+ *                 The darkening overlay goes with it — that gradient exists
+ *                 to keep text legible over a photo, and protects nothing
+ *                 once there is no text left to protect.
  *
  * `aspectRatio: 3/4` is on the outer style unconditionally, matching the
  * 150:200 default exactly — a no-op for any caller passing both dimensions
@@ -49,27 +52,13 @@ const CARD_SURFACE =
   'linear-gradient(135deg,rgba(255,45,120,.4),rgba(157,78,221,.3)) padding-box,'
   + 'linear-gradient(155deg, #1E1B26 0%, #100E15 100%) border-box';
 
-export default function PortraitCard({ profile: p, onClick, width = 150, height = 200 }) {
+export default function PortraitCard({ profile: p, onClick, width = 150, height = 200, avatarOnly = false }) {
   const navigate = useNavigate();
   // 10F: one resolver, no artist sentinel. A row with a missing/unknown type used
   // to render as a cyan "DJ / PROD." with a DJ's placeholder photo; it now renders
   // neutral, which is honest rather than confidently wrong.
   const type = String(p?.type || '').toLowerCase();
   const pt = profileIdentity(type);
-  const label = pt.shortLabel;
-  // Standup: one pill per selected performance role (Comedy/Poetry). Artist:
-  // same concept for DJ/Producer/MC. Data-driven so a future role works
-  // everywhere with no call-site change. Falls back to the generic type
-  // label until roles have been selected.
-  const roleLabels = type === 'standup' ? selectedPerformanceRoleLabels(p?.genre_string)
-    : type === 'artist' ? selectedArtistRoleLabels(p?.genre_string)
-    : [];
-  // `label` is null for a Personal profile (PUNTER_PROFILE), which is how the
-  // type chip is suppressed — a punter is just a person, and a chip reading
-  // "PROFILE" told the reader nothing they could act on. `.filter(Boolean)`
-  // rather than a branch, so any future identity without a label inherits the
-  // same behaviour instead of rendering an empty pill.
-  const pillLabels = (roleLabels.length ? roleLabels : [label]).filter(Boolean);
   // M5: canonical profile.id URL; legacy user_id URL only as a fallback for
   // callers whose selects don't carry `id` yet (the redirect shim covers it).
   const handleClick = onClick || (() => navigate(p?.id ? profileUrl(p) : `/profile/${p?.user_id}?type=${type}`));
@@ -81,37 +70,48 @@ export default function PortraitCard({ profile: p, onClick, width = 150, height 
       onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-2px)'}
       onMouseLeave={e => e.currentTarget.style.transform = ''}
     >
-      {/* avatar image */}
-      <img src={p?.avatar_thumb || p?.avatar || pt.defaultImage} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} loading="lazy" decoding="async" />
-      {/* gradient overlay */}
-      <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom,rgba(0,0,0,.08) 0%,rgba(0,0,0,0) 35%,rgba(0,0,0,.6) 75%,rgba(0,0,0,.88) 100%)' }} />
-      {/* type pill(s) */}
-      <div style={{ position: 'absolute', top: 10, right: 10, display: 'flex', gap: 6 }}>
-        {pillLabels.map((l, i) => (
-          <span key={i} style={{ background: pt.accent, color: getContrastText(pt.accent), filter: 'brightness(.8)', borderRadius: 6, padding: '3px 8px', fontSize: 9, fontWeight: 700, letterSpacing: .8, fontFamily: "'DM Sans',sans-serif" }}>
-            {l}
-          </span>
-        ))}
-      </div>
-      {/* info */}
-      <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: 12 }}>
-        <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 15, letterSpacing: 1, color: '#fff', lineHeight: 1.1 }}>{p?.name}</div>
-        {/* Not in the top-right pill row: at 150px wide, a type pill plus this
-            badge measures ~146px against ~130px of usable width, so it would
-            overflow and be clipped by the card. The bottom block has the room.
-            The wrapper is gated rather than rendered-then-emptied because an
-            empty div's 4px margin collapses with the location row's 3px and
-            shifts every CLAIMED card by 1px. This is the one place a card
-            touches the predicate, and it asks only whether, never how. */}
-        {isProfileUnclaimed(p) && (
-          <div style={{ marginTop: 4 }}><UnclaimedBadge profile={p} /></div>
-        )}
-        {formatLocation(p) && <div style={{ fontSize: 10, color: 'rgba(255,255,255,.55)', marginTop: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{formatLocation(p)}</div>}
-        {/* 10F: was a hardcoded '#00E5FF' — Artist's cyan on EVERY type's card.
-            ProfileCard renders the same field in the row's own accent (ts.col);
-            this one didn't. Now both derive from the resolved type. */}
-        {p?.sound && <div style={{ fontSize: 10, color: pt.accent, marginTop: 5, lineHeight: 1.4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{p.sound}</div>}
-      </div>
+      {/* avatar image. `alt` carries the name only when it is the SOLE
+          identification on the card — with the text block rendered below,
+          alt="" is correct (decorative; the visible name is the label). */}
+      <img
+        src={p?.avatar_thumb || p?.avatar || pt.defaultImage}
+        alt={avatarOnly ? (p?.name || '') : ''}
+        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+        loading="lazy"
+        decoding="async"
+      />
+
+      {avatarOnly ? null : (
+        <>
+          {/* gradient overlay — exists to keep the text below legible over a
+              photo; skipped entirely in avatarOnly, where there is no text
+              left to protect. */}
+          <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom,rgba(0,0,0,.08) 0%,rgba(0,0,0,0) 35%,rgba(0,0,0,.6) 75%,rgba(0,0,0,.88) 100%)' }} />
+          {/* Type pill removed — owner: "taking up too much of the card". The
+              top-right corner is empty now; nothing else claims it. */}
+          {/* info */}
+          <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: 12 }}>
+            <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 15, letterSpacing: 1, color: '#fff', lineHeight: 1.1 }}>{p?.name}</div>
+            {/* ⚠ THE REASON THIS SITS HERE RATHER THAN TOP-RIGHT IS GONE, THE
+                PLACEMENT ISN'T. It used to share the corner with a type pill and
+                lose the width fight; the pill is gone but nothing has reclaimed
+                that space, so leaving this here is still correct, just for a
+                weaker reason now — revisit if the corner gets a new occupant.
+                The wrapper is gated rather than rendered-then-emptied because an
+                empty div's 4px margin collapses with the location row's 3px and
+                shifts every CLAIMED card by 1px. This is the one place a card
+                touches the predicate, and it asks only whether, never how. */}
+            {isProfileUnclaimed(p) && (
+              <div style={{ marginTop: 4 }}><UnclaimedBadge profile={p} /></div>
+            )}
+            {formatLocation(p) && <div style={{ fontSize: 10, color: 'rgba(255,255,255,.55)', marginTop: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{formatLocation(p)}</div>}
+            {/* 10F: was a hardcoded '#00E5FF' — Artist's cyan on EVERY type's card.
+                ProfileCard renders the same field in the row's own accent (ts.col);
+                this one didn't. Now both derive from the resolved type. */}
+            {p?.sound && <div style={{ fontSize: 10, color: pt.accent, marginTop: 5, lineHeight: 1.4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{p.sound}</div>}
+          </div>
+        </>
+      )}
     </div>
   );
 }
