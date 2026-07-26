@@ -145,6 +145,54 @@ test('every country in the picker round-trips its own dial code', () => {
   }
 });
 
+test('THE REGRESSION: formatting must never change what a number MEANS', () => {
+  // This shipped and broke discovery for two real accounts. formatNational
+  // stripped the '+', the composer wrote that back into the field, and toE164
+  // then read an international number as national and prepended the country
+  // code a second time: +61412345678 became +6161412345678. It saved without
+  // error, showed the correct last three digits, and was undiscoverable.
+  //
+  // The pipeline is what must be tested — format THEN normalise — because
+  // either function alone looks perfectly correct.
+  const pipeline = (typed, iso = 'AU') => toE164(formatNational(typed, iso), iso).e164;
+
+  for (const input of [
+    '0412345678',
+    '0412 345 678',
+    '+61412345678',
+    '+61 412 345 678',
+    '0061412345678',
+    '61412345678',       // country code typed without the '+'
+  ]) {
+    assert.equal(pipeline(input), '+61412345678', `pipeline changed the meaning of ${JSON.stringify(input)}`);
+  }
+});
+
+test('formatting is a FIXED POINT — re-formatting cannot drift', () => {
+  // onChange re-formats the already formatted value on every keystroke, so
+  // formatNational is applied to its own output dozens of times per number.
+  // Anything not idempotent corrupts the value as the user types.
+  for (const input of ['0412345678', '+61412345678', '+64215550199']) {
+    let field = '';
+    for (const ch of input) field = formatNational(field + ch, 'AU');
+    assert.equal(
+      toE164(field, 'AU').e164,
+      toE164(input, 'AU').e164,
+      `typing ${JSON.stringify(input)} one character at a time produced a different number`,
+    );
+    assert.equal(formatNational(field, 'AU'), field, 'formatNational is not idempotent');
+  }
+});
+
+test('a foreign number keeps its own country through formatting', () => {
+  // The '+' surviving is what stops an NZ number becoming an Australian one.
+  const field = formatNational('+64 21 555 0199', 'AU');
+  assert.ok(field.startsWith('+'), 'the + was stripped');
+  const r = toE164(field, 'AU');
+  assert.equal(r.e164, '+64215550199');
+  assert.equal(r.iso, 'NZ');
+});
+
 test('display helpers never alter what gets hashed', () => {
   assert.equal(formatNational('0412345678', 'AU'), '0412 345 678');
   assert.equal(formatNational('', 'AU'), '');

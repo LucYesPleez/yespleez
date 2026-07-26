@@ -109,6 +109,20 @@ export function toE164(raw, iso = DEFAULT_COUNTRY) {
   if (!c) return { e164: null, iso: null, reason: 'unknown-country' };
   if (!/^[0-9]+$/.test(withPlus)) return { e164: null, iso: null, reason: 'not-a-number' };
 
+  // ⚠ A BARE COUNTRY CODE, TYPED WITHOUT THE '+'. "61412345678" with Australia
+  // selected is the same number as "+61412345678", but the rule below would
+  // read it as national and produce +6161412345678 — a number that cannot
+  // exist, hashes cleanly, and is undiscoverable forever.
+  //
+  // Only applied to countries that HAVE a trunk prefix, where it is provably
+  // safe: a national number there always begins with the trunk digit, so one
+  // that instead begins with the country's own dial code cannot be national.
+  // Italy and Spain are excluded precisely because that reasoning fails there.
+  if (c.trunk && !withPlus.startsWith(c.trunk) && withPlus.startsWith(c.dial)) {
+    const e164 = `+${withPlus}`;
+    if (E164_RE.test(e164)) return { e164, iso: isoForE164(e164), reason: null };
+  }
+
   // Drop the national trunk prefix. `trunk: null` (Italy, Spain) means the
   // leading digit is part of the number and must survive.
   let national = withPlus;
@@ -158,12 +172,28 @@ export function isValidE164(value) {
  * being subtly wrong about French grouping costs nothing.
  */
 export function formatNational(raw, iso = DEFAULT_COUNTRY) {
-  const d = strip(raw).replace(/^\+/, '');
-  if (!d) return '';
-  if (iso === 'AU' && d.startsWith('04')) {
-    return [d.slice(0, 4), d.slice(4, 7), d.slice(7, 10)].filter(Boolean).join(' ');
+  const s = strip(raw);
+  if (!s) return '';
+
+  // ⚠⚠ THE '+' MUST SURVIVE. This function is not merely cosmetic in practice:
+  // the composer writes its OUTPUT back into the field, so whatever it returns
+  // is what `toE164` later hashes. Discarding the '+' turned "+61412345678"
+  // into "61412345678", which normalised to +6161412345678 — a number that
+  // cannot exist, hashes perfectly happily, saves without error, and shows the
+  // correct last three digits while being undiscoverable forever.
+  //
+  // That shipped, and it is why two real accounts could not find each other
+  // while every diagnostic reported them healthy. A formatter that silently
+  // changes the MEANING of its input is the trap; keep this lossless.
+  if (s.startsWith('+')) {
+    const d = s.slice(1);
+    return `+${d.match(/.{1,3}/g)?.join(' ') ?? ''}`;
   }
-  return d.match(/.{1,3}/g).join(' ');
+
+  if (iso === 'AU' && s.startsWith('04')) {
+    return [s.slice(0, 4), s.slice(4, 7), s.slice(7, 10)].filter(Boolean).join(' ');
+  }
+  return s.match(/.{1,3}/g).join(' ');
 }
 
 /**
