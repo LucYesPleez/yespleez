@@ -33,7 +33,7 @@ const RAW_TYPES = {
     pathPrefix:  'venue_avatars',
     dashPath:    '/industry/venue',
     gradient:    'linear-gradient(135deg, #00E5A0, #00B4D8)',
-    defaultImage:'/defaultvenueblur.png',
+    defaultImage:'/defaultvenueblur.jpg',
   },
   host: {
     accent:      '#FF2D78',
@@ -44,10 +44,13 @@ const RAW_TYPES = {
     pathPrefix:  'host_avatars',
     dashPath:    '/industry/host',
     gradient:    'linear-gradient(90deg, #FF2D78, #00E5FF)',
-    // .png, not .jpg — the refreshed artwork arrived as a PNG at the same
-    // 1654x951 the old .jpg was. Serving PNG bytes under a .jpg name works
-    // (browsers sniff) but leaves a filename that lies about its contents.
-    defaultImage:'/defaultpromoter.png',
+    // ⚠ .jpg AND THE BYTES REALLY ARE JPEG. This one has been both: the
+    // previous artwork arrived as a PNG and was named accordingly. The rule
+    // that survives either way is that the extension must match the contents —
+    // browsers sniff the bytes and render a mislabelled file happily, so a
+    // filename that lies costs nothing today and misleads whoever debugs it
+    // next. Whenever this artwork is replaced, check the format, not the name.
+    defaultImage:'/defaultpromoter.jpg',
   },
   artist: {
     accent:      '#00E5FF',
@@ -58,7 +61,7 @@ const RAW_TYPES = {
     pathPrefix:  'artist_avatars',
     dashPath:    '/industry/artist',
     gradient:    'linear-gradient(90deg, #00E5FF, #FF3399)',
-    defaultImage:'/defaultdj.png',
+    defaultImage:'/defaultdj.jpg',
   },
   band: {
     accent:      '#FFB830',
@@ -69,7 +72,7 @@ const RAW_TYPES = {
     pathPrefix:  'band_avatars',
     dashPath:    '/industry/band',
     gradient:    'linear-gradient(90deg, #FFB830, #FF8C42)',
-    defaultImage:'/defaultband.png',
+    defaultImage:'/defaultband.jpg',
   },
   standup: {
     accent:      '#FF88AA',
@@ -80,7 +83,7 @@ const RAW_TYPES = {
     pathPrefix:  'standup_avatars',
     dashPath:    '/industry/standup',
     gradient:    'linear-gradient(90deg, #FF88AA, #BF5FFF)',
-    defaultImage:'/defaultmic.png',
+    defaultImage:'/defaultmic.jpg',
   },
 };
 
