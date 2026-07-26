@@ -44,7 +44,10 @@ const RAW_TYPES = {
     pathPrefix:  'host_avatars',
     dashPath:    '/industry/host',
     gradient:    'linear-gradient(90deg, #FF2D78, #00E5FF)',
-    defaultImage:'/defaultpromoter.jpg',
+    // .png, not .jpg — the refreshed artwork arrived as a PNG at the same
+    // 1654x951 the old .jpg was. Serving PNG bytes under a .jpg name works
+    // (browsers sniff) but leaves a filename that lies about its contents.
+    defaultImage:'/defaultpromoter.png',
   },
   artist: {
     accent:      '#00E5FF',
