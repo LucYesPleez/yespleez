@@ -290,7 +290,11 @@ export default function InboxScreen() {
       <div style={{ maxWidth: 680, margin: '0 auto', padding: '0 16px' }}>
 
         <div style={{ marginBottom: 24, display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 28, letterSpacing: 3, background: HEADING_GRADIENT, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text', display: 'inline-block' }}>
+          {/* 42px = the app's usual 28px heading + 50%. Deliberately larger
+              than NOTIFICATIONS and the other screen titles — Messages is the
+              one people land on most, and it now shares its row with an avatar
+              and a pill that would otherwise out-weigh it. */}
+          <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 42, letterSpacing: 3, lineHeight: 1, background: HEADING_GRADIENT, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text', display: 'inline-block' }}>
             MESSAGES
           </div>
 
