@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { toE164, DEFAULT_COUNTRY } from './phoneNumber';
+import { rememberNames, clearNames } from './contactNameStore';
 
 /**
  * C1 · Contact sync — the only client surface for the contact-code layer.
@@ -23,41 +24,24 @@ import { toE164, DEFAULT_COUNTRY } from './phoneNumber';
 /** The server's own cap. Bigger address books are chunked, never rejected. */
 const MAX_PER_SYNC = 2000;
 
-const STORE_KEY = 'yp.contactNames.v1';
-
 /**
  * `contact_code_id -> the name this device has that person saved under`.
  *
  * ⭐ THIS EXISTS FOR CONTACT JOIN NOTIFICATIONS, and it is why `sync_contacts`
  * returns an id for EVERY contact rather than only the matches. When someone
- * joins later, the push payload can name their code id and nothing else; the
- * service worker looks the name up here and renders "Sarah from your contacts
+ * joins later, the push payload names their code id and nothing else; the
+ * device looks the name up locally and renders "Sarah from your contacts
  * joined" without the server ever having known the word "Sarah".
  *
  * Kept for contacts that did NOT match, deliberately — those are exactly the
  * people who might join tomorrow.
+ *
+ * ⚠ MOVED TO INDEXEDDB (see contactNameStore.js). It was localStorage, which
+ * worked in the app and could never have worked in the SERVICE WORKER — and
+ * the service worker is what renders a push on a locked phone, which is the
+ * whole point. Do not move it back.
  */
-let store = {
-  read() {
-    try { return JSON.parse(globalThis.localStorage?.getItem(STORE_KEY) ?? '{}'); }
-    catch { return {}; }
-  },
-  write(map) {
-    try { globalThis.localStorage?.setItem(STORE_KEY, JSON.stringify(map)); }
-    catch { /* private mode, quota — matching still works, naming degrades */ }
-  },
-  clear() {
-    try { globalThis.localStorage?.removeItem(STORE_KEY); } catch { /* ignore */ }
-  },
-};
-
-/** Test seam, mirroring `__setOutboxStore`. Not for production use. */
-export function __setContactNameStore(next) { store = next; }
-
-/** What this device knows a contact code id as. Null when unknown. */
-export function localNameFor(contactCodeId) {
-  return store.read()[String(contactCodeId)] ?? null;
-}
+export { nameFor as localNameFor } from './contactNameStore';
 
 /** Whether this browser can offer the device's address book at all. */
 export function isContactPickerSupported() {
@@ -123,7 +107,7 @@ export async function syncContacts(contacts, iso = DEFAULT_COUNTRY) {
   const numbers = [...byNumber.keys()];
   if (numbers.length === 0) return { matches: [], uploaded: 0, error: null };
 
-  const names = store.read();
+  const names = {};
   const matches = [];
 
   for (let i = 0; i < numbers.length; i += MAX_PER_SYNC) {
@@ -156,7 +140,7 @@ export async function syncContacts(contacts, iso = DEFAULT_COUNTRY) {
     }
   }
 
-  store.write(names);
+  await rememberNames(names);
   return { matches, uploaded: numbers.length, error: null };
 }
 
@@ -190,6 +174,6 @@ export async function setContactSync(enabled) {
 export async function deleteContactCodes() {
   const { data, error } = await supabase.rpc('delete_contact_codes');
   if (error) return { deleted: 0, error };
-  store.clear();
+  await clearNames();
   return { deleted: Number(data ?? 0), error: null };
 }

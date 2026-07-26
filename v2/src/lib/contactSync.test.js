@@ -39,22 +39,19 @@ mock.module('./supabase', {
 
 const {
   syncContacts, getContactSync, setContactSync, deleteContactCodes,
-  localNameFor, __setContactNameStore,
+  localNameFor,
 } = await import('./contactSync.js');
+const { __setContactNameMemory } = await import('./contactNameStore.js');
 
-/** In-memory stand-in for localStorage, so the store is inspectable. */
-let saved = {};
 beforeEach(() => {
   rpcCalls = [];
   syncRows = [];
   rpcError = null;
   rpcData = null;
-  saved = {};
-  __setContactNameStore({
-    read: () => ({ ...saved }),
-    write: (m) => { saved = { ...m }; },
-    clear: () => { saved = {}; },
-  });
+  // IndexedDB does not exist under node:test, so the store runs on its
+  // in-memory fallback — the same path a private-browsing session takes,
+  // which makes this a test of the real degraded behaviour rather than a stub.
+  __setContactNameMemory(true);
 });
 
 test('THE PROMISE: no contact name is ever sent to the server', async () => {
@@ -90,8 +87,8 @@ test('a name is remembered for EVERY contact, not just the matches', async () =>
     { number: '0412345678', name: 'Not On Yespleez Yet' },
   ], 'AU');
 
-  assert.equal(localNameFor(11), 'Mads');
-  assert.equal(localNameFor(22), 'Not On Yespleez Yet', 'unmatched contact was forgotten');
+  assert.equal(await localNameFor(11), 'Mads');
+  assert.equal(await localNameFor(22), 'Not On Yespleez Yet', 'unmatched contact was forgotten');
 });
 
 test('savedAs follows the INDEX, not the order of results', async () => {
@@ -174,7 +171,7 @@ test('a failed sync yields no partial matches and remembers nothing', async () =
   const { matches, error } = await syncContacts([{ number: '0474755829', name: 'Mads' }], 'AU');
   assert.deepEqual(matches, []);
   assert.ok(error);
-  assert.deepEqual(saved, {}, 'names were stored despite the sync failing');
+  assert.equal(await localNameFor(11), null, 'names were stored despite the sync failing');
 });
 
 test('deleting codes also clears this device name map', async () => {
@@ -184,12 +181,12 @@ test('deleting codes also clears this device name map', async () => {
     { input_index: 1, contact_code_id: 11, profile_id: null, display_name: null, avatar: null },
   ];
   await syncContacts([{ number: '0474755829', name: 'Mads' }], 'AU');
-  assert.equal(localNameFor(11), 'Mads');
+  assert.equal(await localNameFor(11), 'Mads');
 
   rpcData = 1;
   const { deleted } = await deleteContactCodes();
   assert.equal(deleted, 1);
-  assert.equal(localNameFor(11), null, 'the name map survived a delete');
+  assert.equal(await localNameFor(11), null, 'the name map survived a delete');
 });
 
 test('sync state reads through, with sane defaults', async () => {
