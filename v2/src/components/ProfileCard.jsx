@@ -42,12 +42,20 @@ export default function ProfileCard({ item, badge, badgeColor, actions, onClick 
   // Standup: one pill per selected performance role (Comedy/Poetry), data-
   // driven so a future role works everywhere with no call-site change.
   const roleLabels = type === 'standup' ? selectedPerformanceRoleLabels(item.genre_string) : [];
-  const typeLabels = roleLabels.length ? roleLabels : [ts.label];
+  // `.filter(Boolean)` because ts.label is null for a Personal profile
+  // (PUNTER_PROFILE.shortLabel) — without it this rendered an EMPTY chip, a
+  // small dash-shaped pill with no text, on every punter row. Same bug as
+  // PortraitCard had, missed here until the screenshot showed it.
+  const typeLabels = (roleLabels.length ? roleLabels : [ts.label]).filter(Boolean);
+  // Personal profiles get no edge — their photo already arrives framed, so a
+  // gradient border read as a second frame around the first (PortraitCard
+  // has the same rule).
+  const isPunter = type === 'punter';
 
   return (
     <div
       className={s.card}
-      style={{ '--accent': ts.col, '--accent-rgb': ts.rgb, border: `1.5px solid rgba(${ts.rgb},.6)` }}
+      style={{ '--accent': ts.col, '--accent-rgb': ts.rgb, border: isPunter ? 'none' : `1.5px solid rgba(${ts.rgb},.6)` }}
       onClick={() => {
         // An OPTIONAL override, not a new default. Messenger's contact list
         // reuses this card but must open the CONVERSATION rather than the
