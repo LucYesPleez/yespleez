@@ -84,11 +84,14 @@ export default function NotifPanel({ onClose, onMarkAll }) {
         animation: 'notifFadeIn .18s ease',
       }}
     >
+      {/* ⚠ The purple 3px scrollbar that used to live here is GONE, and must
+          not come back — no scrollbar is visible anywhere on this site (see
+          index.css). It is called out rather than silently deleted because
+          `.yp-notif-list::-webkit-scrollbar` is MORE SPECIFIC than the global
+          `*::-webkit-scrollbar`, so re-adding it here would quietly beat the
+          law rather than fail loudly. */}
       <style>{`
         @keyframes notifFadeIn { from { opacity:0; transform:translateY(-8px) } to { opacity:1; transform:translateY(0) } }
-        .yp-notif-list::-webkit-scrollbar { width: 3px; }
-        .yp-notif-list::-webkit-scrollbar-track { background: transparent; }
-        .yp-notif-list::-webkit-scrollbar-thumb { background: rgba(191,95,255,.25); border-radius: 2px; }
       `}</style>
 
       {/* Header */}

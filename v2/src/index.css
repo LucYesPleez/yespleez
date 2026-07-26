@@ -229,10 +229,47 @@ input, textarea, select {
     color-mix(in srgb, var(--neon2) 16%, transparent));
 }
 
-/* Scrollable surfaces that should not show a scrollbar — the conversation
-   thread in particular. The content still scrolls by wheel, touch, keyboard
-   and programmatic scrollTop; only the visible track is suppressed, so
-   ConversationView's scroll restoration and atBottom maths are unaffected. */
+/* ══════════════════════════════════════════════════════════════════════
+   ⚠ NO SCROLLBAR IS EVER VISIBLE ON THIS SITE. Owner, 2026-07-27: "remove
+   the scroll bar. i never want to see these on the site."
+
+   A LAW, not a utility, because it was already the de-facto rule and kept
+   being re-broken: better than thirty separate surfaces had each hidden
+   their own scrollbar by hand, and a single new scroller that forgot was
+   all it took for one to reappear. Stating it once here means nobody has
+   to remember again, and a new scrollable element inherits the house style
+   instead of the browser's.
+
+   ⚠ ONLY THE TRACK IS SUPPRESSED. Content still scrolls by wheel, touch,
+   keyboard, and programmatic scrollTop — nothing here changes scrolling
+   behaviour, so ConversationView's scroll restoration and atBottom maths
+   are untouched.
+
+   ⚠ IF A SURFACE NEEDS AN AFFORDANCE, DRAW ONE. Hiding the track removes
+   the browser's own "there is more below" signal, so a scroller that could
+   be mistaken for a complete list needs its own cue — the gradient fade on
+   YOUR CONTACTS, the mask on the events lists. Do not solve that by
+   bringing a scrollbar back.
+
+   `scrollbar-gutter: stable` on html/body above is unaffected: it reserves
+   space equal to the scrollbar width, which is now zero, so it costs no
+   dead strip while still doing its job if this rule is ever lifted.
+   ══════════════════════════════════════════════════════════════════════ */
+* {
+  scrollbar-width: none;        /* Firefox */
+  -ms-overflow-style: none;     /* legacy Edge */
+}
+*::-webkit-scrollbar {          /* Chrome, Safari, and every iOS browser */
+  width: 0;
+  height: 0;
+  display: none;
+}
+
+/* Retained for explicitness at call sites, and now a no-op that documents
+   intent rather than doing work. ⚠ It is NOT redundant as a selector: a
+   more specific ::-webkit-scrollbar rule elsewhere would beat the `*` above,
+   which is exactly how NotifPanel's purple track survived a global rule
+   until it was removed. */
 .yp-noscrollbar {
   scrollbar-width: none;        /* Firefox */
   -ms-overflow-style: none;     /* legacy Edge */

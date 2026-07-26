@@ -370,7 +370,8 @@ export default function MessengerContactsSection({ rows = [], onOpen, loading = 
             // Momentum scrolling on iOS; without it a short inner scroller
             // feels stuck compared to the page it sits on.
             WebkitOverflowScrolling: 'touch',
-            scrollbarWidth: 'thin',
+            // No scrollbar here or anywhere — index.css handles it globally.
+            // The gradient below is what says "there is more".
           }}>
             <div style={{
               display: isDesktop ? 'grid' : 'flex',
