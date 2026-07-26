@@ -330,12 +330,29 @@ self.addEventListener('push', (event) => {
   // conversation, and that guard would otherwise drop it silently.
   if (payload?.type === 'contact_joined') {
     event.waitUntil((async () => {
-      const name = await contactNameFor(payload.contactCodeId);
+      // ⚠⚠ THE NAME IS AN ENHANCEMENT. THE NOTIFICATION IS THE PRODUCT.
+      //
+      // Owner, after this shipped broken once: "Never lose a notification
+      // because a friendly name couldn't be resolved." Every failure mode of
+      // the lookup — timeout, blocked database, missing store, absent entry,
+      // an exception from anywhere inside it — collapses to `null` here, and
+      // null simply means the fallback wording. There is deliberately no path
+      // from a naming problem to a missing notification.
+      //
+      // The catch is not decoration: contactNameFor is written not to throw,
+      // but "written not to throw" is a claim about today's code, and the cost
+      // of it being wrong is a silently dropped push — the exact failure that
+      // sent us round this loop once already.
+      let name = null;
+      try { name = await contactNameFor(payload.contactCodeId); }
+      catch { name = null; }
+
       await Promise.all([
         self.registration.showNotification(
-          name ? `${name} joined YesPleez` : 'Someone from your contacts joined',
+          name
+            ? `${name} from your contacts joined YesPleez.`
+            : 'Someone from your contacts joined YesPleez.',
           {
-            body: name ? 'They\'re on YesPleez now' : 'Open Messages to see who',
             icon: '/icon-192.png',
             // Its own tag, so a join never collapses into a conversation's
             // notification and several joins collapse with each other.
