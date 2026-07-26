@@ -3,6 +3,9 @@ import PortraitCard from './PortraitCard';
 import ProfileCard from './ProfileCard';
 import { useDragScroll } from '../hooks/useDragScroll';
 import { useRailCardWidth, useIsDesktop, useIsPhone } from '../hooks/useRailCardWidth';
+import { looksLikeNumber, toE164 } from '../lib/phoneNumber';
+import { findByPhone } from '../lib/phoneKey';
+import MessengerAvatar from './MessengerAvatar';
 
 /**
  * The collapsed LIST view shows a peek, not the whole thing.
@@ -113,12 +116,46 @@ export default function MessengerContactsSection({ rows = [], onOpen, loading = 
     return [...seen.values()];
   }, [rows]);
 
+  // ⚠ ONE FIELD, TWO SEARCHES. Owner: "you should make it you search by name
+  // or number". They are genuinely different operations — name filters the
+  // contacts already on screen, number is an exact lookup against everyone on
+  // YesPleez — so the query is routed rather than blended. See looksLikeNumber
+  // for why the test is INTENT rather than validity.
+  const isNumberQuery = looksLikeNumber(search);
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return contacts;
+    // A number query is not a name filter. Returning the unfiltered list here
+    // would show every contact underneath the number result, which reads as
+    // "these matched" when none of them did.
+    if (looksLikeNumber(search)) return [];
     return contacts.filter(({ profile: p }) =>
       ['name', 'location', 'sound', 'type'].some((k) => p?.[k]?.toLowerCase?.().includes(q)));
   }, [contacts, search]);
+
+  // The number lookup. Debounced, because this one goes to the server on every
+  // keystroke otherwise — and a partial number matches nobody, so those calls
+  // are pure waste.
+  const [numberMatch, setNumberMatch] = useState(null);
+  const [searchingNumber, setSearchingNumber] = useState(false);
+  useEffect(() => {
+    if (!isNumberQuery) { setNumberMatch(null); setSearchingNumber(false); return undefined; }
+    // Only a COMPLETE number can match, so the request waits for one. The
+    // routing above still happened on the first few digits, which is what
+    // keeps the UI honest while the user is still typing.
+    if (!toE164(search).e164) { setNumberMatch(null); setSearchingNumber(false); return undefined; }
+
+    let cancelled = false;
+    setSearchingNumber(true);
+    const t = setTimeout(async () => {
+      const { matches } = await findByPhone([search]);
+      if (cancelled) return;
+      setNumberMatch(matches?.[0] ?? null);
+      setSearchingNumber(false);
+    }, 350);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [search, isNumberQuery]);
 
   // "as it scrolls" — loads the next batch when a sentinel row placed after
   // the current batch enters the viewport, rather than a fixed page/button.
@@ -222,14 +259,23 @@ export default function MessengerContactsSection({ rows = [], onOpen, loading = 
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search your contacts…"
+            placeholder="Search by name or number…"
+            inputMode="text"
             style={{ width: '100%', boxSizing: 'border-box', background: 'rgba(255,255,255,.06)',
               border: '1px solid rgba(255,255,255,.12)', borderRadius: 10, padding: '10px 14px',
               color: '#fff', fontFamily: "'DM Sans',sans-serif", fontSize: 13, marginBottom: 10,
               outline: 'none' }}
           />
+          {isNumberQuery && (
+            <NumberResult
+              searching={searchingNumber}
+              match={numberMatch}
+              complete={!!toE164(search).e164}
+              onOpen={onOpen}
+            />
+          )}
           {filtered.length === 0
-            ? <p style={{ fontSize: 13, color: 'var(--muted)' }}>No results.</p>
+            ? (isNumberQuery ? null : <p style={{ fontSize: 13, color: 'var(--muted)' }}>No results.</p>)
             : <div style={{ display: 'grid',
                 gridTemplateColumns: 'repeat(auto-fill,minmax(150px,1fr))', gap: 10 }}>
                 {filtered.map(card)}
@@ -243,14 +289,23 @@ export default function MessengerContactsSection({ rows = [], onOpen, loading = 
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search your contacts…"
+            placeholder="Search by name or number…"
+            inputMode="text"
             style={{ width: '100%', boxSizing: 'border-box', background: 'rgba(255,255,255,.06)',
               border: '1px solid rgba(255,255,255,.12)', borderRadius: 10, padding: '10px 14px',
               color: '#fff', fontFamily: "'DM Sans',sans-serif", fontSize: 13, marginBottom: 10,
               outline: 'none' }}
           />
+          {isNumberQuery && (
+            <NumberResult
+              searching={searchingNumber}
+              match={numberMatch}
+              complete={!!toE164(search).e164}
+              onOpen={onOpen}
+            />
+          )}
           {filtered.length === 0 ? (
-            <p style={{ fontSize: 13, color: 'var(--muted)' }}>No results.</p>
+            isNumberQuery ? null : <p style={{ fontSize: 13, color: 'var(--muted)' }}>No results.</p>
           ) : (
             <>
               <div style={{
@@ -327,5 +382,68 @@ export default function MessengerContactsSection({ rows = [], onOpen, loading = 
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * The number-search result — the other half of "search by name or number".
+ *
+ * ⚠ EVERY STATE IS NAMED, INCLUDING THE BORING ONES. A number search that
+ * finds nobody must SAY nobody, because the alternative reads as a broken
+ * feature: the contact list has already emptied itself (a number is not a name
+ * filter), so silence here would leave the user staring at a blank screen with
+ * no idea whether it was still working. "Keep typing", "looking", "nobody",
+ * and "here they are" are four different things and each gets its own line.
+ *
+ * ⚠ NO NUMBER IS EVER SHOWN BACK. Not the query, not the match's. Phone
+ * Discovery's model is that a number is a lookup key, never content — echoing
+ * it into the results would put someone's number on screen next to their name,
+ * which is exactly the pairing the whole design avoids creating.
+ */
+function NumberResult({ searching, match, complete, onOpen }) {
+  if (!complete) {
+    return <p style={{ fontSize: 13, color: 'var(--muted)' }}>Keep typing the number…</p>;
+  }
+  if (searching) {
+    return <p style={{ fontSize: 13, color: 'var(--muted)' }}>Looking…</p>;
+  }
+  if (!match) {
+    return (
+      <p style={{ fontSize: 13, color: 'var(--muted)' }}>
+        Nobody here with that number. Invite them from FIND FRIENDS.
+      </p>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => onOpen?.(null, {
+        id: match.profileId,
+        name: match.displayName,
+        type: 'punter',
+        avatar: match.avatar ?? null,
+      })}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 11, width: '100%',
+        background: 'rgba(255,255,255,.04)', border: '1px solid var(--border)',
+        borderRadius: 12, padding: '10px 12px', marginBottom: 10,
+        cursor: 'pointer', textAlign: 'left',
+      }}
+    >
+      <MessengerAvatar src={match.avatar} size={40} />
+      <span style={{ minWidth: 0, flex: 1 }}>
+        <span style={{ display: 'block', fontSize: 14.5, fontWeight: 600, color: 'var(--text)',
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {match.displayName}
+        </span>
+        {/* The corroboration line, same as the sync results: a name the user
+            themselves saved is what makes a squatted number catchable. */}
+        <span style={{ display: 'block', fontSize: 12, color: 'var(--muted)' }}>
+          {match.savedAs ? `saved as ${match.savedAs}` : 'found by number'}
+        </span>
+      </span>
+      <span style={{ color: 'var(--muted)', fontSize: 16 }} aria-hidden="true">›</span>
+    </button>
   );
 }

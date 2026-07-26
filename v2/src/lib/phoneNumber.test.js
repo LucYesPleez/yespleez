@@ -9,6 +9,7 @@ import {
   isValidE164,
   formatDisplay,
   maskE164,
+  looksLikeNumber,
 } from './phoneNumber.js';
 
 /**
@@ -238,4 +239,38 @@ test('the mask never renders a number it was not given', () => {
   assert.equal(maskE164('+61412345678'), '••• ••• 678');
   assert.equal(maskE164('rubbish'), '', 'never render a mask for a non-number');
   assert.equal(maskE164(''), '');
+});
+
+// ── ROUTING ONE SEARCH BOX TO TWO SEARCHES ───────────────────────────────
+// looksLikeNumber decides whether "search people" filters your contacts by
+// name or runs an exact number lookup. It tests INTENT, not validity — see
+// the function's own comment for why that distinction is load-bearing.
+
+test('a partial number still routes to number search', () => {
+  // The case that makes validity the wrong test: someone typing a number
+  // passes through every prefix of it. If these filtered the contact list
+  // instead, the user would watch it sit empty and assume it was broken.
+  for (const partial of ['0412', '0412 345', '+61', '+614127']) {
+    assert.equal(looksLikeNumber(partial), true, partial);
+  }
+});
+
+test('numbers written the way people actually write them are recognised', () => {
+  for (const n of ['0412 345 678', '(02) 9999 0000', '+61 412-345-678', '02.9999.0000']) {
+    assert.equal(looksLikeNumber(n), true, n);
+  }
+});
+
+test('⚠ a name never routes to number search, whatever digits it holds', () => {
+  // The asymmetry that matters: guessing "name" wrongly only filters a list,
+  // but guessing "number" wrongly HIDES the contact being searched for.
+  for (const name of ['Sarah', 'Blink 182', 'DJ 500', 'Federal Hotel', 'a']) {
+    assert.equal(looksLikeNumber(name), false, name);
+  }
+});
+
+test('too few digits is not yet an attempt at a number', () => {
+  for (const q of ['1', '12', '', '   ', '()']) {
+    assert.equal(looksLikeNumber(q), false, JSON.stringify(q));
+  }
 });

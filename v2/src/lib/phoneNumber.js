@@ -164,6 +164,34 @@ export function isValidE164(value) {
 }
 
 /**
+ * Is this query an ATTEMPT at a phone number? For routing one search box to
+ * two different searches — owner: "you should make it you search by name or
+ * number".
+ *
+ * ⚠ THIS IS INTENT, NOT VALIDITY, AND THE DIFFERENCE IS THE WHOLE POINT.
+ * Someone typing a number types it one digit at a time, so "0412" is not a
+ * valid number and never will be on its own — but it is obviously not a name
+ * either. Routing on validity would filter the contact list for "0412", find
+ * nothing, and show an empty list right up until the final digit landed. The
+ * user would conclude number search was broken.
+ *
+ * So: mostly digits, plus the punctuation people actually type in numbers, and
+ * at least three of them. A name cannot reach here — names contain letters,
+ * and any letter disqualifies. That asymmetry is deliberate: a false "this is
+ * a name" merely filters a list, while a false "this is a number" would hide
+ * the contact the user was looking for.
+ */
+export function looksLikeNumber(raw) {
+  const s = String(raw ?? '').trim();
+  if (!s) return false;
+  // A leading + is unambiguous — nobody's name starts with one.
+  if (/^\+/.test(s)) return true;
+  // Otherwise: only digits and number punctuation, and enough digits to mean it.
+  if (!/^[0-9 ()\-.]+$/.test(s)) return false;
+  return (s.match(/[0-9]/g) || []).length >= 3;
+}
+
+/**
  * Render a canonical E.164 number the way its own country writes it.
  *
  *   +61474755829 → 0474 755 829      (Australia)
