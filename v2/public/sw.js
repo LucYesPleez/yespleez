@@ -230,6 +230,61 @@ self.addEventListener('fetch', (event) => {
  * notification, or a future end-to-end-encrypted payload is decrypted
  * here. Sending the plaintext through the push service is not an option.
  */
+/**
+ * `contact_code_id -> the name THIS DEVICE saved that person under`.
+ *
+ * ⚠⚠ THE SECOND READER OF ONE DATABASE, AND NOTHING IN THE BUILD LINKS THEM.
+ * The writer is `src/lib/contactNameStore.js`. This file is served from
+ * `public/` verbatim — it is not bundled, so it cannot import that module and
+ * these constants are a hand-copy. **If DB_NAME, DB_VERSION or STORE change
+ * there, they must change here too**, or every contact-join push silently
+ * loses its name and degrades to "Someone from your contacts".
+ *
+ * Returns null on every failure path rather than throwing: a missing name
+ * costs a nicer string, while a rejection here would lose the notification
+ * entirely.
+ */
+const CONTACTS_DB = 'yp_contacts';
+const CONTACTS_DB_VERSION = 1;
+const CONTACTS_STORE = 'names';
+
+function contactNameFor(contactCodeId) {
+  if (!contactCodeId || typeof indexedDB === 'undefined') return Promise.resolve(null);
+  return new Promise((resolve) => {
+    let req;
+    try { req = indexedDB.open(CONTACTS_DB, CONTACTS_DB_VERSION); }
+    catch { resolve(null); return; }
+
+    req.onerror = () => resolve(null);
+    req.onsuccess = () => {
+      const db = req.result;
+      // The app may never have synced on this device, in which case the store
+      // does not exist and a transaction against it would throw.
+      if (!db.objectStoreNames.contains(CONTACTS_STORE)) { resolve(null); return; }
+      try {
+        const os = db.transaction(CONTACTS_STORE, 'readonly').objectStore(CONTACTS_STORE);
+        const get = os.get(String(contactCodeId));
+        get.onsuccess = () => resolve(get.result?.name ?? null);
+        get.onerror   = () => resolve(null);
+      } catch { resolve(null); }
+    };
+  });
+}
+
+/**
+ * MP·5b — the OS icon badge, set from the only code that still runs when the
+ * app is fully closed.
+ *
+ * ⚠ null MEANS "LEAVE IT ALONE", NOT "CLEAR IT". The server sends null when
+ * its count lookup failed; clearing on an unrelated failure would hide a real
+ * unread badge.
+ */
+function setBadge(badgeCount) {
+  if (typeof badgeCount !== 'number' || !('setAppBadge' in navigator)) return Promise.resolve();
+  return (badgeCount > 0 ? navigator.setAppBadge(badgeCount) : navigator.clearAppBadge())
+    .catch(() => {});
+}
+
 self.addEventListener('push', (event) => {
   if (!event.data) return;
 
@@ -237,6 +292,41 @@ self.addEventListener('push', (event) => {
   try { payload = event.data.json(); } catch { return; }
 
   const { conversationId, senderName, kind, badgeCount } = payload || {};
+
+  // ── CJ2 · A CONTACT JOINED ──────────────────────────────────────────
+  //
+  // ⚠ THE NAME IS RESOLVED HERE, ON THE DEVICE, AND NOWHERE ELSE. The server
+  // sends only `contactCodeId` — an opaque id that means nothing off this
+  // phone — because contact names have never left it and must not start now.
+  // Looking the name up in IndexedDB is the entire reason that map was moved
+  // out of localStorage: a service worker cannot read localStorage, and this
+  // handler is what renders a push on a locked phone. Without this lookup
+  // every notification would read "Someone from your contacts", which is the
+  // one thing the feature exists to avoid.
+  //
+  // Branch BEFORE the conversationId guard below: a contact join has no
+  // conversation, and that guard would otherwise drop it silently.
+  if (payload?.type === 'contact_joined') {
+    event.waitUntil((async () => {
+      const name = await contactNameFor(payload.contactCodeId);
+      await Promise.all([
+        self.registration.showNotification(
+          name ? `${name} joined YesPleez` : 'Someone from your contacts joined',
+          {
+            body: name ? 'They\'re on YesPleez now' : 'Open Messages to see who',
+            icon: '/icon-192.png',
+            // Its own tag, so a join never collapses into a conversation's
+            // notification and several joins collapse with each other.
+            tag: 'contact-joined',
+            renotify: true,
+          },
+        ),
+        setBadge(badgeCount),
+      ]);
+    })());
+    return;
+  }
+
   if (!conversationId) return; // no routing token, nothing to show or open
 
   const title = senderName ? senderName : 'New message';
@@ -255,16 +345,9 @@ self.addEventListener('push', (event) => {
       tag: `conversation-${conversationId}`,
       renotify: true,
     }),
-    // MP·5b — the ONLY place the OS icon badge is ever set from a push,
-    // since this is the only code that still runs when the app is fully
-    // closed. `navigator` is a valid global in a service worker (it is a
-    // WorkerNavigator, not a Window one, but the Badging API is defined on
-    // both). `badgeCount` is null rather than 0 when the server-side lookup
-    // failed — treat null as "leave the badge alone", NOT as "clear it";
-    // clearing on an unrelated failure would hide a real unread badge.
-    (typeof badgeCount === 'number' && 'setAppBadge' in navigator)
-      ? (badgeCount > 0 ? navigator.setAppBadge(badgeCount) : navigator.clearAppBadge()).catch(() => {})
-      : Promise.resolve(),
+    // MP·5b — see setBadge above; shared with the contact-join branch so the
+    // two can never disagree about what a null count means.
+    setBadge(badgeCount),
   ]));
 });
 

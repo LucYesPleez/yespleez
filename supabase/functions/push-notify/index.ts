@@ -78,6 +78,44 @@ async function rest(path: string, init: RequestInit = {}) {
   return res.status === 204 ? null : res.json();
 }
 
+/**
+ * Send one payload to every registered device, pruning the dead ones.
+ *
+ * Extracted when contact joins joined messages in the push scope (CJ2). The
+ * two paths differ ONLY in what they put in the payload; the sending, the
+ * 404/410 pruning and the failure accounting are identical, and duplicating
+ * them is how one copy would quietly stop pruning.
+ */
+async function deliver(subscriptions: any[], payload: string) {
+  let sent = 0;
+  let pruned = 0;
+  const failures: Array<{ endpoint: string; status?: number; message: string }> = [];
+
+  await Promise.all(subscriptions.map(async (sub: any) => {
+    try {
+      await webpush.sendNotification(
+        { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+        payload,
+      );
+      sent++;
+    } catch (err: any) {
+      const status = err?.statusCode;
+      if (status === 404 || status === 410) {
+        // The push service itself says this endpoint will never work again
+        // — not a network blip, a permanent fact about that device.
+        await rest(`push_subscriptions?id=eq.${sub.id}`, { method: 'DELETE' }).catch(() => {});
+        pruned++;
+      } else {
+        failures.push({ endpoint: sub.endpoint, status, message: String(err?.message || err) });
+      }
+    }
+  }));
+
+  if (failures.length) console.error('push-notify: non-fatal send failures', JSON.stringify(failures));
+
+  return { sent, pruned, devices: subscriptions.length };
+}
+
 Deno.serve(async (req) => {
   if (req.method !== 'POST') return new Response('method not allowed', { status: 405 });
 
@@ -111,12 +149,63 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ ok: true, skipped: 'suppressed (NP1) — recipient muted this category' }), { status: 200 });
   }
 
-  // v1 scope (owner-decided): message notifications only. Other types
-  // (bookings, follows, claims…) already flow through the same
-  // notifications table and can be added here later by extending this
-  // switch — NOT by adding a second trigger or a second function.
-  if (record.type !== 'new_message') {
+  // ⚠ CJ2 · SECOND LINE OF DEFENCE, NOT THE PRIMARY ONE. The primary guard is
+  // the `WHEN (new.channel IS DISTINCT FROM 'in_app')` clause on
+  // trg_trigger_push_notify, so this function is normally never invoked for an
+  // in_app row at all. It is repeated here because that clause lives on a
+  // TRIGGER: anyone who drops and recreates trg_trigger_push_notify without
+  // carrying the WHEN across silently turns every "In Messages only" choice
+  // back into a push, and nothing would fail loudly. Two independent places
+  // now have to be wrong before a user's choice is broken.
+  if (record.channel === 'in_app') {
+    return new Response(JSON.stringify({ ok: true, skipped: 'channel in_app — badge only, never push' }), { status: 200 });
+  }
+
+  // Push scope. Extended from message-only (v1) to include contact joins
+  // (CJ2). Other types (bookings, follows, claims…) already flow through the
+  // same notifications table and are added by extending THIS set — never by
+  // adding a second trigger or a second function.
+  const PUSH_TYPES = new Set(['new_message', 'contact_joined']);
+  if (!PUSH_TYPES.has(record.type)) {
     return new Response(JSON.stringify({ ok: true, skipped: `type '${record.type}' not yet in push scope` }), { status: 200 });
+  }
+
+  const subscriptionsFor = (userId: string) =>
+    rest(`push_subscriptions?user_id=eq.${userId}&select=id,endpoint,p256dh,auth`);
+  // The same §5.6 count every other surface uses, called server-side because
+  // the service worker has no access to the live app's state. See the
+  // new_message path below for why null (not 0) is the failure value.
+  const badgeFor = (userId: string) =>
+    rest(`rpc/total_unread_count_for`, { method: 'POST', body: JSON.stringify({ p_user_id: userId }) })
+      .catch(() => null);
+
+  // ── CJ2 · CONTACT JOINED ────────────────────────────────────────────
+  //
+  // ⚠ THE SERVER HAS NO NAME TO SEND AND MUST NEVER BE GIVEN ONE. The row's
+  // own message text is the deliberate fallback ("Someone from your contacts
+  // joined YesPleez") — contact names live only in the recipient's device
+  // IndexedDB and are resolved by sw.js at render time. All that travels here
+  // is `contactCodeId`, an opaque identifier that means nothing off-device.
+  // This is the same constraint that keeps push compatible with libsignal.
+  if (record.type === 'contact_joined') {
+    const contactCodeId = record.data?.contact_code_id ?? null;
+    const [subs, badge] = await Promise.all([
+      subscriptionsFor(record.to_user_id),
+      badgeFor(record.to_user_id),
+    ]);
+    if (!subs?.length) {
+      return new Response(JSON.stringify({ ok: true, skipped: 'recipient has no registered devices' }), { status: 200 });
+    }
+    const joinPayload = JSON.stringify({
+      notificationId: record.id,
+      type: 'contact_joined',
+      contactCodeId,
+      badgeCount: typeof badge === 'number' ? badge : null,
+    });
+    const result = await deliver(subs, joinPayload);
+    return new Response(JSON.stringify({ ok: true, ...result }), {
+      status: 200, headers: { 'Content-Type': 'application/json' },
+    });
   }
 
   const conversationId = record.data?.conversation_id;
@@ -163,33 +252,9 @@ Deno.serve(async (req) => {
     badgeCount: typeof badgeCount === 'number' ? badgeCount : null,
   });
 
-  let sent = 0;
-  let pruned = 0;
-  const failures: Array<{ endpoint: string; status?: number; message: string }> = [];
+  const result = await deliver(subscriptions, payload);
 
-  await Promise.all(subscriptions.map(async (sub: any) => {
-    try {
-      await webpush.sendNotification(
-        { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-        payload,
-      );
-      sent++;
-    } catch (err: any) {
-      const status = err?.statusCode;
-      if (status === 404 || status === 410) {
-        // The push service itself says this endpoint will never work again
-        // — not a network blip, a permanent fact about that device.
-        await rest(`push_subscriptions?id=eq.${sub.id}`, { method: 'DELETE' }).catch(() => {});
-        pruned++;
-      } else {
-        failures.push({ endpoint: sub.endpoint, status, message: String(err?.message || err) });
-      }
-    }
-  }));
-
-  if (failures.length) console.error('push-notify: non-fatal send failures', JSON.stringify(failures));
-
-  return new Response(JSON.stringify({ ok: true, sent, pruned, devices: subscriptions.length }), {
+  return new Response(JSON.stringify({ ok: true, ...result }), {
     status: 200,
     headers: { 'Content-Type': 'application/json' },
   });
