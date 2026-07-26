@@ -167,14 +167,14 @@ export default function FollowingSection({
             return visible.length === 0
               ? <p style={{ fontSize: 13, color: 'var(--muted)' }}>No results.</p>
               : <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(150px,1fr))', gap: 10 }}>
-                  {visible.map(p => <PortraitCard key={p.user_id} profile={p} width={150} height={200} />)}
+                  {visible.map(p => <PortraitCard key={p.user_id} profile={p} width={30} height={40} />)}
                 </div>;
           })()}
         </div>
       ) : followView === 'portrait' ? (
         <div ref={followDrag.ref} onMouseDown={followDrag.onMouseDown} onMouseMove={followDrag.onMouseMove} onMouseUp={followDrag.onMouseUp} onMouseLeave={followDrag.onMouseLeave}
           style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 8, WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', cursor: 'grab', userSelect: 'none' }}>
-          {filtered.map(p => <PortraitCard key={p.user_id} profile={p} width={150} height={200} />)}
+          {filtered.map(p => <PortraitCard key={p.user_id} profile={p} width={30} height={40} />)}
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>

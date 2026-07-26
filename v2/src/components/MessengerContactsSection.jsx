@@ -68,8 +68,8 @@ export default function MessengerContactsSection({ rows = [], onOpen, loading = 
     <PortraitCard
       key={profile.id}
       profile={profile}
-      width={150}
-      height={200}
+      width={30}
+      height={40}
       onClick={() => onOpen?.(conversationId, profile)}
     />
   );
