@@ -208,6 +208,15 @@ export default function GlobalHeader({ onMarkRead, unreadCount = 0 }) {
               moves when someone remembers, the SHA moves every deploy. */}
           <div className={s.buildStamp}>{BUILD_STAMP}</div>
 
+          {/* ⚠ THE WORKER IS A SEPARATE FILE WITH A SEPARATE LIFECYCLE, and
+              the stamp above does not cover it. A phone can report a current
+              bundle while running a service worker from weeks ago — which is
+              exactly what happened twice while debugging a push that never
+              arrived, on two different devices, both of which looked up to
+              date. Asked of the worker itself, so this reports what is
+              INSTALLED, not what the server would serve. */}
+          {infoOpen && <ServiceWorkerStamp />}
+
           {/* Rendered only while the sheet is open. The overlay stays mounted
               and is hidden by class, so an ungated readout would re-read
               localStorage and re-parse the log on every render of the header —
@@ -298,4 +307,52 @@ function AuthLogReadout() {
       )}
     </div>
   );
+}
+
+/**
+ * Which service worker is actually installed on THIS device.
+ *
+ * ⚠ ASKS THE WORKER, rather than fetching /sw.js. Fetching would report what
+ * the SERVER has, which is never the question — the server has been correct
+ * every time this has come up. What matters is the worker the phone is
+ * running, and only the worker can answer that.
+ *
+ * Four outcomes, each meaning something different:
+ *   a build string  – the worker replied; compare it against the source
+ *   "too old to answer" – a worker is controlling the page but has no
+ *                          version listener, i.e. it predates this feature.
+ *                          THE MOST USEFUL RESULT: it names a stale worker
+ *                          without needing to know which one.
+ *   "not controlling"  – registered but not yet in charge; a reload activates it
+ *   "unsupported"      – no service worker API at all
+ */
+function ServiceWorkerStamp() {
+  const [state, setState] = useState('checking…');
+
+  useEffect(() => {
+    let done = false;
+    const finish = (v) => { if (!done) { done = true; setState(v); } };
+
+    if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) {
+      finish('unsupported');
+      return undefined;
+    }
+    const ctrl = navigator.serviceWorker.controller;
+    if (!ctrl) { finish('not controlling this page — reload'); return undefined; }
+
+    const ch = new MessageChannel();
+    ch.port1.onmessage = (e) => {
+      const d = e.data || {};
+      finish(`${d.build || '?'}${d.contactJoinPush ? '' : ' ⚠ no contact-join push'}`);
+    };
+    try { ctrl.postMessage({ type: 'yp:sw-version' }, [ch.port2]); }
+    catch { finish('could not be asked'); }
+
+    // An older worker has no listener for this and will never reply. Silence
+    // IS the answer, so it needs a deadline rather than an indefinite wait.
+    const t = setTimeout(() => finish('⚠ too old to answer — stale worker'), 1500);
+    return () => { done = true; clearTimeout(t); };
+  }, []);
+
+  return <div className={s.buildStamp} style={{ marginTop: 0, paddingTop: 4, borderTop: 'none' }}>sw: {state}</div>;
 }

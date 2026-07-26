@@ -52,6 +52,22 @@
  * something is genuinely stuck: change the value, ship, and every install
  * starts from empty.
  */
+/**
+ * ⚠ BUMP THIS WHENEVER sw.js CHANGES IN A WAY A DEVICE MUST PICK UP.
+ *
+ * The ⓘ build stamp reports the JS BUNDLE, which is a different file with a
+ * different update lifecycle — a phone can show a current bundle while running
+ * a service worker from weeks ago. That gap has now cost two debugging
+ * sessions: an iPhone and an Android both looked "up to date" while running an
+ * old push handler, and there was no way to tell from the device.
+ *
+ * The app asks for this over postMessage and shows it beside the bundle stamp,
+ * so "which worker is actually installed?" is answerable from the phone.
+ * Hand-maintained on purpose: sw.js is served verbatim from public/ and never
+ * passes through Vite, so no build-time value can be injected here.
+ */
+const SW_BUILD = '2026-07-27 · contact-join push';
+
 const CACHE_VERSION = 'v1';
 const SHELL_CACHE   = `yp-shell-${CACHE_VERSION}`;
 const ASSET_CACHE   = `yp-assets-${CACHE_VERSION}`;
@@ -306,6 +322,26 @@ function setBadge(badgeCount) {
   return (badgeCount > 0 ? navigator.setAppBadge(badgeCount) : navigator.clearAppBadge())
     .catch(() => {});
 }
+
+/**
+ * "Which worker am I actually running?" — answered by the worker itself.
+ *
+ * Reports SW_BUILD plus the capabilities that matter for diagnosing a missing
+ * notification. `contactJoinPush` is read from the code path's own existence
+ * rather than asserted separately, so it cannot claim a feature this file does
+ * not have.
+ *
+ * Replies down the MessagePort the caller supplies; a worker with no such
+ * listener simply never answers, which the app treats as "too old to say".
+ */
+self.addEventListener('message', (event) => {
+  if (event.data?.type !== 'yp:sw-version') return;
+  event.ports?.[0]?.postMessage({
+    build: SW_BUILD,
+    cacheVersion: CACHE_VERSION,
+    contactJoinPush: typeof contactNameFor === 'function',
+  });
+});
 
 self.addEventListener('push', (event) => {
   if (!event.data) return;
