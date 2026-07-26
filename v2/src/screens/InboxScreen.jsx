@@ -290,35 +290,45 @@ export default function InboxScreen() {
       <div style={{ maxWidth: 680, margin: '0 auto', padding: '0 16px' }}>
 
         <div style={{ marginBottom: 24, display: 'flex', alignItems: 'center', gap: 12 }}>
-          {/* MI1 · your own Messenger face, and the second way into /me.
-              Tapping it opens the same screen the name in My Scene does. */}
-          <MessengerAvatar
-            src={myAvatar}
-            size={36}
-            onClick={() => navigate('/me')}
-            title="Your Messenger identity"
-          />
           <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 28, letterSpacing: 3, background: HEADING_GRADIENT, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text', display: 'inline-block' }}>
             MESSAGES
           </div>
-          {/* P1 · "find me by number" lives here for the same reason
-              notification preferences live on the notifications screen (NP1):
-              the app has no settings section, and this is where someone comes
-              when they want to be reachable. */}
-          {/* .yp-gpill carries the whole look (see index.css): purple→gold
-              outline borrowed from the Discover title, transparent interior,
-              white text, purple glow on hover. Only the layout position is
-              inline — an inline `background`/`border`/`color` here would beat
-              the stylesheet and silently defeat the class. */}
-          <button
-            type="button"
-            className="yp-gpill"
-            onClick={() => setDiscoveryOpen(o => !o)}
-            aria-expanded={discoveryOpen}
-            style={{ marginLeft: 'auto' }}
-          >
-            {discoveryOpen ? 'DONE' : 'FIND ME'}
-          </button>
+
+          {/* The header's two controls, grouped hard right.
+              ⚠ `marginLeft: auto` belongs to THIS WRAPPER, not to the button.
+              Left on the button it would push only the button right and strand
+              the avatar back beside the title — which is the layout this move
+              replaced. */}
+          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10 }}>
+            {/* P1 · "find me by number" lives here for the same reason
+                notification preferences live on the notifications screen (NP1):
+                the app has no settings section, and this is where someone comes
+                when they want to be reachable.
+
+                .yp-gpill carries the whole look (see index.css): purple→gold
+                outline borrowed from the Discover title, transparent interior,
+                white text, purple glow on hover. No inline background/border/
+                color here — an inline value would beat the stylesheet and
+                silently defeat the class. */}
+            <button
+              type="button"
+              className="yp-gpill"
+              onClick={() => setDiscoveryOpen(o => !o)}
+              aria-expanded={discoveryOpen}
+            >
+              {discoveryOpen ? 'DONE' : 'FIND ME'}
+            </button>
+
+            {/* MI1 · your own Messenger face, and the second way into /me.
+                Outermost right, where an account avatar is expected. 32px to
+                sit level with the pill rather than tower over it. */}
+            <MessengerAvatar
+              src={myAvatar}
+              size={32}
+              onClick={() => navigate('/me')}
+              title="Your Messenger identity"
+            />
+          </div>
         </div>
 
         {discoveryOpen && <PhoneNumberSettings session={session} />}
