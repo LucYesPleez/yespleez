@@ -93,7 +93,28 @@ export default function NotifPanel({ onClose, onMarkAll }) {
 
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px 10px', borderBottom: '1px solid rgba(255,255,255,.07)' }}>
-        <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 16, letterSpacing: 3, color: '#fff' }}>NOTIFICATIONS</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 16, letterSpacing: 3, color: '#fff' }}>NOTIFICATIONS</span>
+          {/* ⚠ THE COG IS THE ONLY WAY TO SETTINGS FROM HERE, AND THAT IS THE
+              POINT. Owner: the footer link is "view all notifications" and
+              nothing else. Two destinations that were previously reached
+              through one link now have one control each — you cannot end up
+              at the list when you wanted preferences. */}
+          <button
+            type="button"
+            onClick={() => { onClose(); navigate('/notifications', { state: { openPrefs: true } }); }}
+            aria-label="Notification settings"
+            title="Notification settings"
+            style={{ background: 'none', border: 'none', padding: 2, cursor: 'pointer', color: 'rgba(255,255,255,.45)', display: 'flex', alignItems: 'center' }}
+            onMouseEnter={e => e.currentTarget.style.color = '#fff'}
+            onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,.45)'}
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="3" />
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+            </svg>
+          </button>
+        </div>
         <button
           onClick={markAllRead}
           style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 12, color: '#FF3399', background: 'none', border: 'none', cursor: 'pointer', padding: 0, opacity: anyUnread ? 1 : 0, pointerEvents: anyUnread ? 'auto' : 'none' }}
@@ -197,7 +218,12 @@ function PanelRow({ notif, userId, onUpdate, isLast }) {
       {/* Body */}
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, marginBottom: 3 }}>
-          <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 10, letterSpacing: 1.5, color: meta.col }}>
+          {/* ⚠ WHITE HEADING, COLOURED ICON — owner, deliberately. The colour
+              coding still does its job from the icon disc on the left; having
+              the label carry it too made every row read as a coloured block
+              and cost the headings their legibility. One carrier of the code
+              per row is enough. */}
+          <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 10, letterSpacing: 1.5, color: '#fff' }}>
             {meta.label}
           </span>
           <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6 }}>

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useSession } from '../App';
 import { getNotifMeta, cleanMessage } from '../lib/notifMeta';
@@ -14,7 +15,16 @@ export default function NotificationsScreen() {
   const [notifs, setNotifs]   = useState([]);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState(false);
-  const [prefsOpen, setPrefsOpen] = useState(false);
+  // Arriving via the cog in NotifPanel opens preferences directly, rather than
+  // landing on the list and making the user find MANAGE. Keyed on the location
+  // object so clicking the cog while ALREADY on this screen still opens them —
+  // `state.openPrefs` alone would be referentially equal and the effect would
+  // not re-run.
+  const location = useLocation();
+  const [prefsOpen, setPrefsOpen] = useState(!!location.state?.openPrefs);
+  useEffect(() => {
+    if (location.state?.openPrefs) setPrefsOpen(true);
+  }, [location]);
   const pollRef = useRef(null);
   // Conversation types are read from the policy table so voice notes, images
   // and attachments join the rule by being categorised, not by someone
@@ -194,7 +204,9 @@ function NotifRow({ notif, userId, onUpdate }) {
       {/* Body */}
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 4 }}>
-          <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 11, letterSpacing: 1.5, color: meta.col }}>
+          {/* White heading, coloured icon — matches NotifPanel; see the note
+              there. The two surfaces show the same rows and must not diverge. */}
+          <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 11, letterSpacing: 1.5, color: '#fff' }}>
             {meta.label}
           </span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
