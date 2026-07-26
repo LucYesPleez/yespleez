@@ -9,6 +9,7 @@ import PhoneNumberSettings from '../components/PhoneNumberSettings';
 import MessengerAvatar from '../components/MessengerAvatar';
 import MessengerContactsSection from '../components/MessengerContactsSection';
 import InviteRows from '../components/InviteRows';
+import { unreadContactJoinCount, markContactJoinsRead } from '../lib/contactJoins';
 import { getPersonalProfileId } from '../lib/actingProfile';
 import {
   listConversations, listParticipants, actableProfileIds, unreadCount, latestMessages,
@@ -158,6 +159,33 @@ export default function InboxScreen() {
   // select rather than adding a second one: it is the same row, already being
   // fetched, and a second query would be a second thing to keep in step.
   const [myProfile, setMyProfile] = useState(null);
+
+  // CJ1 · the count behind the badge on FIND FRIENDS. Owner: the badge goes on
+  // the row where the discovery happened, never on the whole page.
+  const [joinCount, setJoinCount] = useState(0);
+  useEffect(() => {
+    if (!userId) return undefined;
+    let cancelled = false;
+    unreadContactJoinCount(userId).then((n) => { if (!cancelled) setJoinCount(n); });
+    return () => { cancelled = true; };
+  }, [userId]);
+
+  /**
+   * Opening FIND FRIENDS is what clears the badge — not opening the app.
+   * A located badge has to survive until the user looks at the thing it points
+   * at, or it clears for someone who never saw it.
+   *
+   * Cleared optimistically: the count is already zero on screen before the
+   * write lands, because a badge lingering for a round-trip after the user has
+   * plainly acted on it reads as a stuck badge.
+   */
+  function openDiscovery(next) {
+    setDiscoveryOpen(next);
+    if (next && joinCount > 0) {
+      setJoinCount(0);
+      markContactJoinsRead(userId);
+    }
+  }
   useEffect(() => {
     let cancelled = false;
     if (!userId) return undefined;
@@ -344,14 +372,36 @@ export default function InboxScreen() {
                 white text, purple glow on hover. No inline background/border/
                 color here — an inline value would beat the stylesheet and
                 silently defeat the class. */}
-            <button
-              type="button"
-              className="yp-gpill"
-              onClick={() => setDiscoveryOpen(o => !o)}
-              aria-expanded={discoveryOpen}
-            >
-              {discoveryOpen ? 'DONE' : 'FIND FRIENDS'}
-            </button>
+            {/* CJ1 · the badge sits on THIS control and nowhere else — the
+                position is the message. `position: relative` on the wrapper
+                rather than the button because .yp-gpill owns the button's own
+                box entirely, and an inline style here would beat the class. */}
+            <span style={{ position: 'relative', display: 'inline-block' }}>
+              <button
+                type="button"
+                className="yp-gpill"
+                onClick={() => openDiscovery(!discoveryOpen)}
+                aria-expanded={discoveryOpen}
+              >
+                {discoveryOpen ? 'DONE' : 'FIND FRIENDS'}
+              </button>
+              {joinCount > 0 && !discoveryOpen && (
+                <span
+                  aria-label={`${joinCount} new ${joinCount === 1 ? 'contact' : 'contacts'} joined`}
+                  style={{
+                    position: 'absolute', top: -5, right: -5, minWidth: 17, height: 17,
+                    borderRadius: 999, background: '#FF3B5C', color: '#fff',
+                    fontFamily: "'DM Sans', sans-serif", fontSize: 10.5, fontWeight: 700,
+                    display: 'grid', placeItems: 'center', padding: '0 4px',
+                    // Against the page, not the button — the pill is
+                    // transparent, so a bare dot would sit on whatever is behind it.
+                    boxShadow: '0 0 0 2px var(--dark)', pointerEvents: 'none',
+                  }}
+                >
+                  {joinCount > 9 ? '9+' : joinCount}
+                </span>
+              )}
+            </span>
           </div>
         </div>
 
