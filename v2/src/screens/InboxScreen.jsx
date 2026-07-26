@@ -300,6 +300,16 @@ export default function InboxScreen() {
               the avatar back beside the title — which is the layout this move
               replaced. */}
           <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10 }}>
+            {/* MI1 · your own Messenger face, and the second way into /me.
+                Tapping it opens the same screen the name in My Scene does.
+                32px to sit level with the pill rather than tower over it. */}
+            <MessengerAvatar
+              src={myAvatar}
+              size={32}
+              onClick={() => navigate('/me')}
+              title="Your Messenger identity"
+            />
+
             {/* P1 · "find me by number" lives here for the same reason
                 notification preferences live on the notifications screen (NP1):
                 the app has no settings section, and this is where someone comes
@@ -318,16 +328,6 @@ export default function InboxScreen() {
             >
               {discoveryOpen ? 'DONE' : 'FIND ME'}
             </button>
-
-            {/* MI1 · your own Messenger face, and the second way into /me.
-                Outermost right, where an account avatar is expected. 32px to
-                sit level with the pill rather than tower over it. */}
-            <MessengerAvatar
-              src={myAvatar}
-              size={32}
-              onClick={() => navigate('/me')}
-              title="Your Messenger identity"
-            />
           </div>
         </div>
 
