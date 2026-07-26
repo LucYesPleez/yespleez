@@ -6,16 +6,6 @@ import { formatLocation } from '../lib/formatLocation';
 import { selectedPerformanceRoleLabels } from '../lib/profileTaxonomy';
 import UnclaimedBadge from './UnclaimedBadge';
 
-/**
- * Flat magenta, full opacity — the same colour PortraitCard's edge uses
- * (see the note there), on both the card's own border and the small avatar
- * thumbnail. One colour everywhere a card needs an edge, replacing the
- * per-type accent border this used to carry.
- *
- * ⚠ A COPY, same as PortraitCard's. Nothing links the two definitions.
- */
-const CARD_EDGE = 'rgb(255,79,216)';
-
 // Re-exported in { col, rgb, label, emoji } shape — DiscoverScreen and others depend on this export.
 // `label` here is the compact badge/pill form (PROFILE_TYPES.shortLabel) — this
 // component's own `.typeBadge` pill is a tight space, same as PortraitCard's.
@@ -57,11 +47,15 @@ export default function ProfileCard({ item, badge, badgeColor, actions, onClick 
   // small dash-shaped pill with no text, on every punter row. Same bug as
   // PortraitCard had, missed here until the screenshot showed it.
   const typeLabels = (roleLabels.length ? roleLabels : [ts.label]).filter(Boolean);
+  // Personal profiles get no edge — their photo already arrives framed, so a
+  // gradient border read as a second frame around the first (PortraitCard
+  // has the same rule).
+  const isPunter = type === 'punter';
 
   return (
     <div
       className={s.card}
-      style={{ '--accent': ts.col, '--accent-rgb': ts.rgb, border: `1.5px solid ${CARD_EDGE}` }}
+      style={{ '--accent': ts.col, '--accent-rgb': ts.rgb, border: isPunter ? 'none' : `1.5px solid rgba(${ts.rgb},.6)` }}
       onClick={() => {
         // An OPTIONAL override, not a new default. Messenger's contact list
         // reuses this card but must open the CONVERSATION rather than the
@@ -81,7 +75,7 @@ export default function ProfileCard({ item, badge, badgeColor, actions, onClick 
       {/* Content sits above overlay */}
       <div className={s.content}>
         {/* Avatar thumbnail on the left */}
-        <img className={s.avatar} src={img || defaultImg} alt={item.name} style={{ borderColor: CARD_EDGE }} />
+        <img className={s.avatar} src={img || defaultImg} alt={item.name} style={{ borderColor: ts.col }} />
         <div className={s.info}>
           <div className={s.nameRow}>
             <span className={s.name}>{item.name}</span>

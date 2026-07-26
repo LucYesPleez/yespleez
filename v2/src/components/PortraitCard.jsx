@@ -15,29 +15,48 @@ import { isProfileUnclaimed } from '../lib/profileClaim';
  *   height   – card height in px (default 200)
  */
 /**
- * THE CARD'S EDGE — the sent message bubble's magenta, at full strength.
+ * THE CARD'S EDGE — the same gradient a sent message bubble wears.
  *
- * This started as that bubble's own border GRADIENT (magenta fading through
- * violet to almost nothing), which needed the two-background padding-box/
- * border-box trick because `border` cannot carry a gradient. Owner simplified
- * it: no fade, one flat magenta, every card, no per-type exception. A solid
- * colour needs none of that machinery — it is just `border`.
+ * Lifted verbatim from `SENT_BUBBLE` in ConversationView: magenta at the top
+ * corner, violet through the middle, fading to almost nothing. Two surfaces
+ * that share an edge treatment read as one product rather than two screens
+ * that happen to live in the same app.
  *
- * ⚠ THE COLOUR ITSELF IS STILL A COPY. `rgb(255,79,216)` is the magenta stop
- * SENT_BUBBLE's border gradient starts from, taken to full opacity. If that
- * bubble's colour ever changes, this does not follow — nothing links them.
+ * ⚠ TWO BACKGROUNDS, ONE ELEMENT, AND THE BORDER MUST STAY TRANSPARENT.
+ * `border` cannot carry a gradient, so the fill is clipped to the padding box
+ * and the gradient to the border box, showing through the transparent border
+ * as the edge. Give the border a colour and the gradient vanishes behind it.
+ *
+ * ⚠ IF THE BUBBLE'S GRADIENT CHANGES, THIS DOES NOT FOLLOW. They are two
+ * copies of one intention, in two files, with nothing linking them.
  */
-const CARD_BORDER = '1.5px solid rgb(255,79,216)';
-const CARD_FILL = 'linear-gradient(135deg,rgba(255,45,120,.4),rgba(157,78,221,.3))';
+const CARD_BORDER = '1px solid transparent';
+const CARD_SURFACE =
+  'linear-gradient(135deg,rgba(255,45,120,.4),rgba(157,78,221,.3)) padding-box,'
+  + 'linear-gradient(150deg, rgba(255,79,216,.34) 0%, rgba(191,95,255,.13) 46%, rgba(255,255,255,.04) 100%) border-box';
 
-// 30x40 = 20% of the previous 150x200 default, per owner request.
-export default function PortraitCard({ profile: p, onClick, width = 30, height = 40 }) {
+/**
+ * A Personal profile carries NO edge.
+ *
+ * Its artwork already arrives framed, so the gradient border read as a second
+ * frame around the first. The industry types keep theirs — their photographs
+ * run to the bleed and need something to sit against.
+ *
+ * The border-box layer goes with it: with no transparent border for it to
+ * show through, it would paint nothing and only confuse the next reader.
+ */
+const CARD_SURFACE_PLAIN =
+  'linear-gradient(135deg,rgba(255,45,120,.4),rgba(157,78,221,.3))';
+
+export default function PortraitCard({ profile: p, onClick, width = 150, height = 200 }) {
   const navigate = useNavigate();
   // 10F: one resolver, no artist sentinel. A row with a missing/unknown type used
   // to render as a cyan "DJ / PROD." with a DJ's placeholder photo; it now renders
   // neutral, which is honest rather than confidently wrong.
   const type = String(p?.type || '').toLowerCase();
   const pt = profileIdentity(type);
+  // Personal profiles get no edge — see CARD_SURFACE_PLAIN.
+  const isPunter = type === 'punter';
   const label = pt.shortLabel;
   // Standup: one pill per selected performance role (Comedy/Poetry). Artist:
   // same concept for DJ/Producer/MC. Data-driven so a future role works
@@ -59,7 +78,7 @@ export default function PortraitCard({ profile: p, onClick, width = 30, height =
   return (
     <div
       onClick={handleClick}
-      style={{ flexShrink: 0, width, height, borderRadius: 14, overflow: 'hidden', cursor: 'pointer', position: 'relative', border: CARD_BORDER, background: CARD_FILL, transition: 'transform .18s' }}
+      style={{ flexShrink: 0, width, height, borderRadius: 14, overflow: 'hidden', cursor: 'pointer', position: 'relative', border: isPunter ? 'none' : CARD_BORDER, background: isPunter ? CARD_SURFACE_PLAIN : CARD_SURFACE, transition: 'transform .18s' }}
       onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-2px)'}
       onMouseLeave={e => e.currentTarget.style.transform = ''}
     >
