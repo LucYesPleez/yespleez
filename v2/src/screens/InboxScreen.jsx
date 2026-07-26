@@ -307,7 +307,7 @@ export default function InboxScreen() {
               src={myAvatar}
               size={32}
               onClick={() => navigate('/me')}
-              title="Your Messenger identity"
+              title="Your Messenger avatar"
             />
 
             {/* P1 · "find me by number" lives here for the same reason

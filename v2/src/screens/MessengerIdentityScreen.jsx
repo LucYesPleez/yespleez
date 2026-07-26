@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useSession } from '../App';
 import { supabase } from '../lib/supabase';
 import { getPersonalProfileId } from '../lib/actingProfile';
@@ -33,7 +32,6 @@ import MessengerAvatar from '../components/MessengerAvatar';
  */
 export default function MessengerIdentityScreen() {
   const { session } = useSession();
-  const navigate = useNavigate();
   const userId = session?.user?.id;
 
   const [profileId, setProfileId] = useState(null);
@@ -53,7 +51,7 @@ export default function MessengerIdentityScreen() {
       // here means something upstream is wrong, not that the user is unusual.
       const id = await getPersonalProfileId(userId);
       if (cancelled.current) return;
-      if (!id) { setStatus("Couldn't find your Messenger identity."); setLoading(false); return; }
+      if (!id) { setStatus("Couldn't find your Messenger profile."); setLoading(false); return; }
 
       const { data, error } = await supabase
         .from('profiles')
@@ -122,13 +120,15 @@ export default function MessengerIdentityScreen() {
     <div style={page}>
       <div style={{ maxWidth: 680, margin: '0 auto', padding: '0 16px' }}>
 
-        <button type="button" onClick={() => navigate(-1)} style={backStyle}>‹ BACK</button>
+        {/* No page-level back control — GlobalHeader already provides one on
+            every route, and two back affordances on one screen is a choice the
+            user has to make for no reason. */}
 
         <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 28, letterSpacing: 3,
           background: 'linear-gradient(135deg, #00E5FF, #BF5FFF)', WebkitBackgroundClip: 'text',
           WebkitTextFillColor: 'transparent', backgroundClip: 'text', display: 'inline-block',
           marginBottom: 4 }}>
-          MESSENGER IDENTITY
+          MESSENGER AVATAR
         </div>
 
         <div style={{ color: 'var(--muted)', fontSize: 13, lineHeight: 1.5, marginBottom: 20 }}>
@@ -234,15 +234,5 @@ const saveStyle = {
   cursor: 'pointer',
 };
 
-const backStyle = {
-  background: 'none',
-  border: 'none',
-  color: 'var(--muted)',
-  fontFamily: "'Bebas Neue', sans-serif",
-  fontSize: 13,
-  letterSpacing: 1.5,
-  padding: '4px 0',
-  marginBottom: 10,
-  cursor: 'pointer',
-  display: 'block',
-};
+// backStyle removed with the page-level back button — GlobalHeader owns that
+// affordance on every route.
