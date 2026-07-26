@@ -1,10 +1,11 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSession } from '../App';
 import { supabase } from '../lib/supabase';
 import { useConversationUi } from '../lib/conversationUi';
 import HandIcon from '../components/HandIcon';
+import PhoneNumberSettings from '../components/PhoneNumberSettings';
 import {
   listConversations, listParticipants, actableProfileIds, unreadCount, latestMessages,
 } from '../lib/messaging';
@@ -141,6 +142,7 @@ export default function InboxScreen() {
   const location = useLocation();
   const queryClient = useQueryClient();
   const userId = session?.user?.id;
+  const [discoveryOpen, setDiscoveryOpen] = useState(false);
 
   // Cache-first, revalidate-in-background — this is the fix for the mount
   // cost. `staleTime`/`gcTime` come from the QueryClient default in App.jsx
@@ -264,11 +266,25 @@ export default function InboxScreen() {
     <div style={{ paddingTop: 72, paddingBottom: 90, minHeight: '100dvh', background: 'var(--bg)', boxSizing: 'border-box' }}>
       <div style={{ maxWidth: 680, margin: '0 auto', padding: '0 16px' }}>
 
-        <div style={{ marginBottom: 24 }}>
+        <div style={{ marginBottom: 24, display: 'flex', alignItems: 'center', gap: 12 }}>
           <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 28, letterSpacing: 3, background: HEADING_GRADIENT, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text', display: 'inline-block' }}>
             MESSAGES
           </div>
+          {/* P1 · "find me by number" lives here for the same reason
+              notification preferences live on the notifications screen (NP1):
+              the app has no settings section, and this is where someone comes
+              when they want to be reachable. */}
+          <button
+            type="button"
+            onClick={() => setDiscoveryOpen(o => !o)}
+            aria-expanded={discoveryOpen}
+            style={{ marginLeft: 'auto', background: 'none', border: '1px solid var(--border)', borderRadius: 999, color: 'var(--muted)', fontFamily: "'Bebas Neue', sans-serif", fontSize: 12, letterSpacing: 1.5, padding: '5px 12px', cursor: 'pointer' }}
+          >
+            {discoveryOpen ? 'DONE' : 'FIND ME'}
+          </button>
         </div>
+
+        {discoveryOpen && <PhoneNumberSettings session={session} />}
 
         {loading && (
           <div style={{ textAlign: 'center', color: 'rgba(255,255,255,.35)', fontFamily: "'Bebas Neue',sans-serif", fontSize: 14, letterSpacing: 2, padding: '48px 0' }}>

@@ -43,6 +43,40 @@ export async function setPhoneKey(raw, iso = DEFAULT_COUNTRY) {
   return { error: null, reason: null };
 }
 
+/**
+ * Your own key, for the settings panel.
+ *
+ * ⚠ THE NUMBER ITSELF CANNOT BE RETURNED — EVER, BY ANYONE. What is stored is
+ * an HMAC, which is one-way, so the digits genuinely do not exist on the server
+ * to send back. `last3` is kept separately for display precisely because of
+ * that: without it there would be no way to tell a user WHICH number they
+ * registered. This is why the design's "reveal your number" eye was dropped —
+ * we cannot reveal what we do not have.
+ *
+ * @returns {Promise<{key: {hasKey:boolean,last3:string|null,visibility:string|null,
+ *   discoverableFrom:string|null,nextChangeAllowed:string|null}|null, error: object|null}>}
+ */
+export async function myPhoneKey() {
+  const { data, error } = await supabase.rpc('my_phone_key');
+  if (error) return { key: null, error };
+
+  // The RPC returns a single row; PostgREST hands back an array.
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row) return { key: { hasKey: false, last3: null, visibility: null,
+    discoverableFrom: null, nextChangeAllowed: null }, error: null };
+
+  return {
+    key: {
+      hasKey: row.has_key === true,
+      last3: row.last3 ?? null,
+      visibility: row.visibility ?? null,
+      discoverableFrom: row.discoverable_from ?? null,
+      nextChangeAllowed: row.next_change_allowed ?? null,
+    },
+    error: null,
+  };
+}
+
 /** Delete the key outright. Not soft-deleted — see §7. */
 export async function removePhoneKey() {
   const { error } = await supabase.rpc('remove_phone_key');
