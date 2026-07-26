@@ -10,6 +10,7 @@ import { COUNTRIES, DEFAULT_COUNTRY, formatNational, toE164 } from '../lib/phone
 import { sendableProfiles, openDirectConversation } from '../lib/messaging';
 import { useConversationUi } from '../lib/conversationUi';
 import MessageAsSheet from './MessageAsSheet';
+import MessengerAvatar from './MessengerAvatar';
 import s from './NotificationPreferences.module.css';
 
 /**
@@ -355,11 +356,10 @@ export default function PhoneNumberSettings({ session }) {
 
       {result && result.length > 0 && result.map((r) => (
         <div key={r.profileId} style={resultRow}>
-          <img
-            src={r.avatar || '/hand-logo.png'}
-            alt=""
-            style={{ width: 44, height: 44, borderRadius: 999, objectFit: 'cover', flexShrink: 0, background: 'var(--card2, #0f0f1a)' }}
-          />
+          {/* Same component as the identity screen and the Messages header —
+              a search result must show exactly the face its owner set, including
+              the default when they have set none. */}
+          <MessengerAvatar src={r.avatar} size={44} />
           <div style={{ minWidth: 0, flex: 1 }}>
             <div style={{ fontSize: 15, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {r.displayName}

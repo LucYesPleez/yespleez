@@ -46,6 +46,7 @@ import HostDashboard from './screens/HostDashboard';
 import PerformerDashboard from './screens/PerformerDashboard';
 import ProfileScreen from './screens/ProfileScreen';
 import ProfileEditScreen from './screens/ProfileEditScreen';
+import MessengerIdentityScreen from './screens/MessengerIdentityScreen';
 import HostProfileScreen from './screens/HostProfileScreen';
 import ArtistProfileScreen from './screens/ArtistProfileScreen';
 import BandProfileScreen from './screens/BandProfileScreen';
@@ -249,6 +250,9 @@ function Shell({ session, isGuest, onSignOut }) {
         <Route path="/role-select"       element={<RoleSelectorScreen session={session} onSignOut={onSignOut} />} />
         <Route path="/profile/:id"       element={<ProfileScreen />} />
         <Route path="/profile-edit"      element={<ProfileEditScreen />} />
+        {/* The Messenger identity (avatar + display name). Reached from the
+            name in My Scene and the avatar in Messages — both land here. */}
+        <Route path="/me"                element={<MessengerIdentityScreen />} />
       </Routes>
       </ErrorBoundary>
       <BottomNav

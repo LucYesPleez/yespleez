@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSession } from '../App';
 import { supabase } from '../lib/supabase';
 import { useConversationUi } from '../lib/conversationUi';
 import HandIcon from '../components/HandIcon';
 import PhoneNumberSettings from '../components/PhoneNumberSettings';
+import MessengerAvatar from '../components/MessengerAvatar';
+import { getPersonalProfileId } from '../lib/actingProfile';
 import {
   listConversations, listParticipants, actableProfileIds, unreadCount, latestMessages,
 } from '../lib/messaging';
@@ -140,9 +142,30 @@ export default function InboxScreen() {
   const { session } = useSession();
   const { open: openConversation, openId } = useConversationUi();
   const location = useLocation();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const userId = session?.user?.id;
   const [discoveryOpen, setDiscoveryOpen] = useState(false);
+
+  // MI1 · the caller's own Messenger face for the header. Its own tiny query
+  // rather than a field on the inbox query, so a failure here can never stop
+  // conversations loading — an avatar is decoration, the inbox is the screen.
+  const [myAvatar, setMyAvatar] = useState('');
+  useEffect(() => {
+    let cancelled = false;
+    if (!userId) return undefined;
+    (async () => {
+      const id = await getPersonalProfileId(userId);
+      if (!id || cancelled) return;
+      const { data } = await supabase
+        .from('profiles')
+        .select('avatar_thumb, avatar')
+        .eq('id', id)
+        .maybeSingle();
+      if (!cancelled && data) setMyAvatar(data.avatar_thumb || data.avatar || '');
+    })();
+    return () => { cancelled = true; };
+  }, [userId]);
 
   // Cache-first, revalidate-in-background — this is the fix for the mount
   // cost. `staleTime`/`gcTime` come from the QueryClient default in App.jsx
@@ -267,6 +290,14 @@ export default function InboxScreen() {
       <div style={{ maxWidth: 680, margin: '0 auto', padding: '0 16px' }}>
 
         <div style={{ marginBottom: 24, display: 'flex', alignItems: 'center', gap: 12 }}>
+          {/* MI1 · your own Messenger face, and the second way into /me.
+              Tapping it opens the same screen the name in My Scene does. */}
+          <MessengerAvatar
+            src={myAvatar}
+            size={36}
+            onClick={() => navigate('/me')}
+            title="Your Messenger identity"
+          />
           <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 28, letterSpacing: 3, background: HEADING_GRADIENT, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text', display: 'inline-block' }}>
             MESSAGES
           </div>

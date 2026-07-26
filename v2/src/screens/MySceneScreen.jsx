@@ -63,9 +63,8 @@ export default function MySceneScreen({ isGuest, onSignOut }) {
   // Date strip state
   const [viewMonth,  setViewMonth]  = useState(new Date());
   const [selDate,    setSelDate]    = useState(null);
-  const [showEdit,   setShowEdit]   = useState(false);
-  const [editName,   setEditName]   = useState('');
-  const [editSaving, setEditSaving] = useState(false);
+  // showEdit/editName/editSaving removed with the rename sheet (MI1) — the
+  // rename now lives on /me.
 
   // Add personal event sheet
   const [showAddEvent,    setShowAddEvent]    = useState(false);
@@ -478,15 +477,6 @@ export default function MySceneScreen({ isGuest, onSignOut }) {
     queryClient.invalidateQueries({ queryKey: ['myScene', uid] });
   }
 
-  async function saveProfile() {
-    if (!session?.user?.id || !editName.trim()) return;
-    setEditSaving(true);
-    await supabase.from('profiles').upsert({ user_id: session.user.id, type: 'punter', name: editName.trim() }, { onConflict: 'user_id,type' });
-    setProfileName(editName.trim());
-    setShowEdit(false);
-    setEditSaving(false);
-  }
-
   return (
     <div className={s.screen}>
       {/* Header */}
@@ -497,7 +487,10 @@ export default function MySceneScreen({ isGuest, onSignOut }) {
         </div>
         {session && (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
-            <div className={s.profilePill} onClick={() => { setEditName(profileName); setShowEdit(true); }} style={{ cursor: 'pointer' }}>
+            {/* MI1 · opens the Messenger identity screen. This used to open an
+                inline rename sheet; the rename moved to that screen with it, so
+                nothing was lost — see MessengerIdentityScreen. */}
+            <div className={s.profilePill} onClick={() => navigate('/me')} style={{ cursor: 'pointer' }}>
               <div className={s.profileIcon}>
                 <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 1 0-16 0"/>
@@ -594,30 +587,8 @@ export default function MySceneScreen({ isGuest, onSignOut }) {
         </div>
       )}
 
-      {/* Profile edit sheet */}
-      {showEdit && (
-        <>
-          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.6)', zIndex: 600 }} onClick={() => setShowEdit(false)} />
-          <div style={{ position: 'fixed', bottom: 'var(--yp-safe-bottom)', left: '50%', transform: 'translateX(-50%)', width: 'min(100%, 680px)', background: 'var(--card)', borderRadius: '18px 18px 0 0', padding: '20px 20px 24px', zIndex: 601 }}>
-            <div style={{ width: 36, height: 4, background: 'var(--border)', borderRadius: 2, margin: '0 auto 20px' }} />
-            <p style={{ fontFamily: "'Bebas Neue'", fontSize: 18, letterSpacing: 2, color: 'var(--text)', marginBottom: 16 }}>EDIT PROFILE</p>
-            <label style={{ fontSize: 12, color: 'var(--muted)', letterSpacing: 1, fontFamily: "'Bebas Neue'", display: 'block', marginBottom: 6 }}>DISPLAY NAME</label>
-            <input
-              value={editName}
-              onChange={e => setEditName(e.target.value)}
-              placeholder="Your name or username"
-              style={{ width: '100%', background: 'var(--card2)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 14px', color: 'var(--text)', fontSize: 15, outline: 'none', boxSizing: 'border-box', marginBottom: 16 }}
-            />
-            <button
-              onClick={saveProfile}
-              disabled={editSaving || !editName.trim()}
-              style={{ width: '100%', background: '#BF5FFF', color: '#fff', fontFamily: "'Bebas Neue'", fontSize: 16, letterSpacing: 2, padding: 14, borderRadius: 10, opacity: editSaving ? .6 : 1 }}
-            >
-              {editSaving ? 'SAVING…' : 'SAVE'}
-            </button>
-          </div>
-        </>
-      )}
+      {/* The rename sheet that lived here now lives on /me — see the profile
+          pill above. Removed rather than left unreachable. */}
 
       {/* Add personal event sheet */}
       {showAddEvent && (
