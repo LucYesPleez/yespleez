@@ -12,6 +12,7 @@ import { useConversationUi } from '../lib/conversationUi';
 import MessageAsSheet from './MessageAsSheet';
 import MessengerAvatar from './MessengerAvatar';
 import ContactSyncSettings from './ContactSyncSettings';
+import PrivacyInfo from './PrivacyInfo';
 import s from './NotificationPreferences.module.css';
 
 /**
@@ -346,6 +347,7 @@ export default function PhoneNumberSettings({ session }) {
             Add your number so friends who already have it can find you. It's only ever
             used to match you — never shown to anyone, never texted, and you can remove
             it whenever you like.
+            <PrivacyInfo topic="number" />
           </div>
           {/* No `s.switch` here — that class is the toggle's fixed-width knob
               track (~44px) and would squash a text button. */}
@@ -358,6 +360,7 @@ export default function PhoneNumberSettings({ session }) {
         <>
           <div className={s.desc} style={{ marginBottom: 4 }}>
             Never shown to anyone · never texted
+            <PrivacyInfo topic="number" />
           </div>
 
           {pending && (

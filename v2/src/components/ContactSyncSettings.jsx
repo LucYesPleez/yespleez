@@ -4,6 +4,7 @@ import {
   syncContacts, pickContacts, isContactPickerSupported,
 } from '../lib/contactSync';
 import MessengerAvatar from './MessengerAvatar';
+import PrivacyInfo from './PrivacyInfo';
 import s from './NotificationPreferences.module.css';
 
 /**
@@ -27,9 +28,6 @@ export default function ContactSyncSettings({ onMatches }) {
   const [status, setStatus] = useState('');
   const [offerDelete, setOfferDelete] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  // One explainer, reachable from every mention of "scrambled codes" — the
-  // phrase appears in three states and the question is the same in all of them.
-  const [explainOpen, setExplainOpen] = useState(false);
   const [matches, setMatches] = useState(null);
   const cancelled = useRef(false);
 
@@ -115,7 +113,7 @@ export default function ContactSyncSettings({ onMatches }) {
           <div className={s.desc} style={{ marginBottom: 10 }}>
             See which of your contacts are already here. Scrambled codes only —
             never names or numbers.
-            <ScrambledInfo open={explainOpen} onToggle={() => setExplainOpen((o) => !o)} />
+            <PrivacyInfo topic="contacts" />
           </div>
           <button type="button" onClick={() => setPrimerOpen(true)} style={pillStyle}>
             FIND FRIENDS FROM CONTACTS
@@ -127,7 +125,7 @@ export default function ContactSyncSettings({ onMatches }) {
         <div style={primerStyle}>
           <Fact icon="🔒" title="Scrambled on your phone">
             Your contacts are turned into unreadable codes before anything leaves your device.
-            <ScrambledInfo open={explainOpen} onToggle={() => setExplainOpen((o) => !o)} />
+            <PrivacyInfo topic="contacts" />
           </Fact>
           <Fact icon="⛔" title="Codes only — nothing else">
             No names, no emails, no numbers. YesPleez never sees your address book.
@@ -154,7 +152,7 @@ export default function ContactSyncSettings({ onMatches }) {
               <div className={s.label} style={{ fontSize: 14 }}>Sync contacts</div>
               <div className={s.desc}>
                 Finds friends as they join, by scrambled code only.
-                <ScrambledInfo open={explainOpen} onToggle={() => setExplainOpen((o) => !o)} />
+                <PrivacyInfo topic="contacts" />
               </div>
             </div>
             <button
@@ -344,47 +342,6 @@ const dangerStyle = {
   ...ghostStyle, border: '1px solid rgba(255,59,92,.38)',
   background: 'rgba(255,59,92,.12)', color: '#FF8A9E',
 };
-/* A quiet ⓘ that sits INLINE with the sentence it explains, rather than
-   floating at the end of the row — it belongs to the words "scrambled codes",
-   not to the block. 22px keeps it thumbable without shouting. */
-const infoDotStyle = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  width: 16,
-  height: 16,
-  marginLeft: 6,
-  verticalAlign: -2,
-  borderRadius: 999,
-  border: '1px solid rgba(255,255,255,.28)',
-  background: 'none',
-  color: 'var(--muted)',
-  fontFamily: 'Georgia, serif',
-  fontStyle: 'italic',
-  fontSize: 11,
-  lineHeight: 1,
-  cursor: 'pointer',
-  padding: 0,
-};
-
-const explainStyle = {
-  marginTop: 10,
-  padding: 12,
-  borderRadius: 12,
-  border: '1px solid rgba(0,229,255,.22)',
-  background: 'rgba(0,229,255,.04)',
-};
-
-const limitStyle = {
-  marginTop: 10,
-  paddingTop: 10,
-  borderTop: '1px solid rgba(255,255,255,.10)',
-  fontFamily: "'DM Sans', sans-serif",
-  fontSize: 12,
-  lineHeight: 1.45,
-  color: 'var(--muted)',
-};
-
 const primerStyle = {
   padding: 12, borderRadius: 14, border: '1px solid var(--border)',
   background: 'rgba(255,255,255,.03)',
