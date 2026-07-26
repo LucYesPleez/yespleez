@@ -85,8 +85,24 @@ export default function PushNotificationToggle({ session }) {
         setError('Notifications are blocked for this site in your browser settings.');
       } else if (result.reason === 'unsupported') {
         setError("This browser doesn't support push notifications.");
+      } else if (result.reason === 'no-vapid-key') {
+        // ⚠ NOT "try again" — retrying can NEVER succeed. VITE_VAPID_PUBLIC_KEY
+        // is a BUILD-TIME variable read from .env.local, which is gitignored,
+        // so a deploy built anywhere without it ships `undefined` and every
+        // subscription fails identically to a transient error.
+        //
+        // That is exactly what happened: push worked through the local tunnel
+        // and had never once worked on yespleez.com, because Cloudflare Pages
+        // was never given the key. The generic message hid it — the toggle
+        // looked flaky rather than unconfigured, and invited a retry loop.
+        setError('Push notifications are not configured for this build.');
       } else {
-        setError("Couldn't turn that on. Please try again.");
+        // A real failure. Say what it was: a beta tester reporting "it says
+        // try again" tells us nothing, and this is the only place the reason
+        // is ever visible on a phone we cannot open a console on.
+        setError(result.error?.message
+          ? `Couldn't turn that on — ${result.error.message}`
+          : "Couldn't turn that on. Please try again.");
       }
     }
     setBusy(false);
