@@ -11,8 +11,15 @@ import { isProfileUnclaimed } from '../lib/profileClaim';
  * Props:
  *   profile  – { user_id, name, type, avatar, location, sound }
  *   onClick  – optional click handler (falls back to navigate /profile/:id)
- *   width    – card width in px (default 150)
- *   height   – card height in px (default 200)
+ *   width    – card width: a number (px) or any CSS length, e.g. a calc()
+ *              expression for a fluid rail (default 150)
+ *   height   – card height, same rules — or 'auto' to let `aspect-ratio`
+ *              derive it from width (default 200)
+ *
+ * `aspectRatio: 3/4` is on the outer style unconditionally, matching the
+ * 150:200 default exactly — a no-op for any caller passing both dimensions
+ * as fixed lengths, and what makes `height="auto"` correct for a caller
+ * that only knows a fluid WIDTH (the horizontal-scroll rails).
  */
 /**
  * THE CARD'S EDGE — the message bubble's dark violet-to-black.
@@ -70,7 +77,7 @@ export default function PortraitCard({ profile: p, onClick, width = 150, height 
   return (
     <div
       onClick={handleClick}
-      style={{ flexShrink: 0, width, height, borderRadius: 14, overflow: 'hidden', cursor: 'pointer', position: 'relative', border: CARD_BORDER, background: CARD_SURFACE, transition: 'transform .18s' }}
+      style={{ flexShrink: 0, width, height, aspectRatio: '3 / 4', borderRadius: 14, overflow: 'hidden', cursor: 'pointer', position: 'relative', border: CARD_BORDER, background: CARD_SURFACE, transition: 'transform .18s' }}
       onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-2px)'}
       onMouseLeave={e => e.currentTarget.style.transform = ''}
     >

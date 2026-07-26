@@ -4,6 +4,19 @@ import ProfileCard from './ProfileCard';
 import { useDragScroll } from '../hooks/useDragScroll';
 
 /**
+ * ⭐ 7.3 cards visible across the rail, on desktop AND phone — same rule as
+ * FollowingSection's identical constant (⚠ a COPY, nothing links them). A
+ * fixed px width cannot hit that on both: the app column caps at 680px on
+ * desktop, a phone is narrower, so a percentage of the rail's own width is
+ * what stays correct everywhere with no breakpoint.
+ *
+ * gap:10px between cards, and 7.3 items have 6.3 gaps: 6.3 × 10px = 63px,
+ * subtracted before dividing because CSS `gap` does not shrink a flex-basis
+ * percentage on its own.
+ */
+const RAIL_CARD_WIDTH = 'calc((100% - 63px) / 7.3)';
+
+/**
  * YOUR CONTACTS — the people you actually talk to, inside Messenger.
  *
  * ⚠⚠ COMPLETELY SEPARATE FROM FOLLOWS. Owner, 2026-07-26: *"friends in this
@@ -64,12 +77,26 @@ export default function MessengerContactsSection({ rows = [], onOpen, loading = 
 
   if (!loading && contacts.length === 0) return null;
 
+  // The View-all GRID keeps a fixed 150x200 card — `minmax(150px,1fr)` below
+  // is sized for it, and the 7.3-visible rule is specifically about the
+  // horizontal RAIL, not a wrapping grid.
   const card = ({ profile, conversationId }) => (
     <PortraitCard
       key={profile.id}
       profile={profile}
       width={150}
       height={200}
+      onClick={() => onOpen?.(conversationId, profile)}
+    />
+  );
+
+  // The rail gets the fluid width so 7.3 fit regardless of viewport.
+  const railCard = ({ profile, conversationId }) => (
+    <PortraitCard
+      key={profile.id}
+      profile={profile}
+      width={RAIL_CARD_WIDTH}
+      height="auto"
       onClick={() => onOpen?.(conversationId, profile)}
     />
   );
@@ -144,7 +171,7 @@ export default function MessengerContactsSection({ rows = [], onOpen, loading = 
             WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', cursor: 'grab',
             userSelect: 'none' }}
         >
-          {contacts.map(card)}
+          {contacts.map(railCard)}
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>

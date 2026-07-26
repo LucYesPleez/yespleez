@@ -154,9 +154,14 @@ export const UNKNOWN_PROFILE = Object.freeze({
  * just a person, and labelling them "PROFILE" told the reader nothing.
  */
 export const PUNTER_PROFILE = Object.freeze({
-  accent:       '#BF5FFF',
+  // 20% darker than the app's usual brand purple (#BF5FFF / rgb(191,95,255))
+  // per owner request — each channel × 0.8. Scoped to punter's OWN accent
+  // only; #BF5FFF is reused ad-hoc across dozens of unrelated screens
+  // (buttons, headings, other dashboards) and none of them read this
+  // constant, so darkening it here cannot touch any of them.
+  accent:       '#994CCC',
   accent2:      '#00E5FF',
-  rgb:          '191,95,255',
+  rgb:          '153,76,204',
   accent2Rgb:   '0,229,255',
   emoji:        '',
   label:        null,
