@@ -100,11 +100,18 @@ export default function ContactSyncSettings({ onMatches }) {
   return (
     <div>
       {!supported && (
-        // iOS has no Contact Picker. Say so plainly rather than showing a
-        // button that cannot work — and point at what still does.
+        // ⚠ THE CONTACT PICKER IS CHROME-ON-ANDROID ONLY. Not desktop Chrome,
+        // not Safari, and not iOS at all — every iOS browser is WebKit
+        // underneath and WebKit has never implemented it. Measured, not
+        // assumed: `'contacts' in navigator` is false on desktop Chrome.
+        //
+        // The previous copy said "needs the YesPleez app", which implied one
+        // exists. It does not, and promising a product that has not been
+        // written is the kind of small untruth this whole surface avoids.
         <div className={s.desc}>
-          Contact matching needs the YesPleez app, which this browser can't do yet.
-          You can still find people by searching their number above.
+          Contact matching uses your phone's own contact picker, which today only
+          Chrome on Android offers. On iPhone and on desktop, searching by number
+          above does the same job — one person at a time.
         </div>
       )}
 
