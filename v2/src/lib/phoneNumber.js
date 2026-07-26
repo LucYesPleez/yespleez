@@ -164,36 +164,71 @@ export function isValidE164(value) {
 }
 
 /**
- * Group digits for display while typing. Cosmetic only — never hashed.
+ * Render a canonical E.164 number the way its own country writes it.
  *
- * AU mobiles are the case worth getting right because they are the vast
- * majority here: 04XX XXX XXX. Everything else falls back to 3-digit groups,
- * which is wrong in detail for some countries but readable everywhere, and
- * being subtly wrong about French grouping costs nothing.
+ *   +61474755829 → 0474 755 829      (Australia)
+ *   +14155551234 → (415) 555-1234    (United States)
+ *   +447911123456 → 07911 123456     (United Kingdom)
+ *
+ * ⚠ THIS TAKES E.164 AND ONLY E.164 — canonical in, display out, one
+ * direction. It replaced `formatNational`, which took raw user input and
+ * returned a "tidied" string that the composer then wrote back into the field
+ * and hashed. That made a display helper silently load-bearing, and it shipped
+ * a defect: stripping the '+' turned +61412345678 into +6161412345678.
+ *
+ * The shape is the fix. A function that cannot see raw input cannot corrupt
+ * it, so display and normalisation can never disagree again. **Do not add a
+ * raw-input branch here** — if something needs cleaning up, it belongs in
+ * `toE164`, which is the single normaliser every path already goes through.
  */
-export function formatNational(raw, iso = DEFAULT_COUNTRY) {
-  const s = strip(raw);
-  if (!s) return '';
+export function formatDisplay(e164) {
+  if (!isValidE164(e164)) return '';
 
-  // ⚠⚠ THE '+' MUST SURVIVE. This function is not merely cosmetic in practice:
-  // the composer writes its OUTPUT back into the field, so whatever it returns
-  // is what `toE164` later hashes. Discarding the '+' turned "+61412345678"
-  // into "61412345678", which normalised to +6161412345678 — a number that
-  // cannot exist, hashes perfectly happily, saves without error, and shows the
-  // correct last three digits while being undiscoverable forever.
-  //
-  // That shipped, and it is why two real accounts could not find each other
-  // while every diagnostic reported them healthy. A formatter that silently
-  // changes the MEANING of its input is the trap; keep this lossless.
-  if (s.startsWith('+')) {
-    const d = s.slice(1);
-    return `+${d.match(/.{1,3}/g)?.join(' ') ?? ''}`;
+  const iso = isoForE164(e164);
+  const c = iso ? country(iso) : null;
+  // A valid number from outside the picker is shown in its canonical form
+  // rather than guessed at. Better plainly international than wrongly local.
+  if (!c) return e164;
+
+  const nat = e164.slice(1 + c.dial.length);
+
+  switch (c.iso) {
+    case 'AU':
+      // Mobile: 4xx xxx xxx → 0474 755 829
+      if (nat.length === 9 && nat.startsWith('4')) {
+        return `0${nat.slice(0, 3)} ${nat.slice(3, 6)} ${nat.slice(6)}`;
+      }
+      // Landline: Axxxx xxxx → (02) 9876 5432
+      if (nat.length === 9) return `(0${nat[0]}) ${nat.slice(1, 5)} ${nat.slice(5)}`;
+      break;
+
+    case 'US':
+    case 'CA':
+      if (nat.length === 10) return `(${nat.slice(0, 3)}) ${nat.slice(3, 6)}-${nat.slice(6)}`;
+      break;
+
+    case 'GB':
+      // Mobile: 7xxxxxxxxx → 07911 123456
+      if (nat.length === 10 && nat.startsWith('7')) {
+        return `0${nat.slice(0, 4)} ${nat.slice(4)}`;
+      }
+      // Landline: 20 7946 0958 → 020 7946 0958
+      if (nat.length === 10) return `0${nat.slice(0, 2)} ${nat.slice(2, 6)} ${nat.slice(6)}`;
+      break;
+
+    case 'NZ':
+      if (nat.length >= 8) return `0${nat.slice(0, 2)} ${nat.slice(2, 5)} ${nat.slice(5)}`;
+      break;
+
+    default:
+      break;
   }
 
-  if (iso === 'AU' && s.startsWith('04')) {
-    return [s.slice(0, 4), s.slice(4, 7), s.slice(7, 10)].filter(Boolean).join(' ');
-  }
-  return s.match(/.{1,3}/g).join(' ');
+  // Everywhere else: restore the trunk prefix and group in threes. Wrong in
+  // detail for some countries, readable in all of them, and — because this is
+  // display only — wrong grouping costs nothing.
+  const grouped = nat.match(/.{1,3}/g)?.join(' ') ?? nat;
+  return c.trunk ? `${c.trunk}${grouped}` : grouped;
 }
 
 /**

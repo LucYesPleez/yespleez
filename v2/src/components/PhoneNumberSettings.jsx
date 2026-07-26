@@ -6,7 +6,7 @@ import {
   setPhoneVisibility,
   findByPhone,
 } from '../lib/phoneKey';
-import { COUNTRIES, DEFAULT_COUNTRY, formatNational, toE164 } from '../lib/phoneNumber';
+import { COUNTRIES, DEFAULT_COUNTRY, formatDisplay, toE164 } from '../lib/phoneNumber';
 import { sendableProfiles, openDirectConversation } from '../lib/messaging';
 import { useConversationUi } from '../lib/conversationUi';
 import MessageAsSheet from './MessageAsSheet';
@@ -218,7 +218,22 @@ export default function PhoneNumberSettings({ session }) {
           aria-label="Phone number to search for"
           placeholder="Search by phone number"
           value={searchTyped}
-          onChange={(e) => { setSearchTyped(formatNational(e.target.value, searchIso)); setResult(null); }}
+          // ⚠ THE FIELD HOLDS EXACTLY WHAT WAS TYPED. Reformatting on every
+          // keystroke and writing the result back is what let a display helper
+          // change the MEANING of a number. Tidying happens on blur, and only
+          // once the value is unambiguously valid.
+          onChange={(e) => { setSearchTyped(e.target.value); setResult(null); }}
+          // ⚠ THE PICKER MUST FOLLOW THE NUMBER. formatDisplay writes a
+          // LOCAL form, so "+64 21 555 0199" becomes "021 555 0199" — which
+          // re-read against Australia is +61215550199, a different human.
+          // Moving the chip to the detected country is what keeps the tidied
+          // text and the picker describing the same number.
+          onBlur={() => {
+            const { e164, iso: detected } = toE164(searchTyped, searchIso);
+            if (!e164) return;
+            if (detected) setSearchIso(detected);
+            setSearchTyped(formatDisplay(e164));
+          }}
           // Enter searches — this is a search field, and requiring a click on
           // a phone keyboard is a needless extra tap.
           onKeyDown={(e) => { if (e.key === 'Enter' && canSearch) runSearch(); }}
@@ -395,7 +410,16 @@ export default function PhoneNumberSettings({ session }) {
               aria-label="Your mobile number"
               placeholder="Your mobile number"
               value={typed}
-              onChange={(e) => setTyped(formatNational(e.target.value, iso))}
+              // Raw while typing, tidied on blur — see the search field above.
+              onChange={(e) => setTyped(e.target.value)}
+              // Picker follows the number — see the search field above for why
+              // that is correctness, not convenience.
+              onBlur={() => {
+                const { e164, iso: detected } = toE164(typed, iso);
+                if (!e164) return;
+                if (detected) setIso(detected);
+                setTyped(formatDisplay(e164));
+              }}
               style={inputStyle}
             />
           </div>

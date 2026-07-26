@@ -7,7 +7,7 @@ import {
   toE164,
   isoForE164,
   isValidE164,
-  formatNational,
+  formatDisplay,
   maskE164,
 } from './phoneNumber.js';
 
@@ -145,60 +145,97 @@ test('every country in the picker round-trips its own dial code', () => {
   }
 });
 
-test('THE REGRESSION: formatting must never change what a number MEANS', () => {
-  // This shipped and broke discovery for two real accounts. formatNational
-  // stripped the '+', the composer wrote that back into the field, and toE164
-  // then read an international number as national and prepended the country
-  // code a second time: +61412345678 became +6161412345678. It saved without
-  // error, showed the correct last three digits, and was undiscoverable.
-  //
-  // The pipeline is what must be tested — format THEN normalise — because
-  // either function alone looks perfectly correct.
-  const pipeline = (typed, iso = 'AU') => toE164(formatNational(typed, iso), iso).e164;
-
+test('ENTRY IS FORGIVING: every way of writing one number converges', () => {
+  // The owner's list, verbatim. All of these are the same human, and if any
+  // one of them hashes differently that person is undiscoverable to whoever
+  // typed it the other way — silently, with no error anywhere.
   for (const input of [
-    '0412345678',
-    '0412 345 678',
-    '+61412345678',
-    '+61 412 345 678',
-    '0061412345678',
-    '61412345678',       // country code typed without the '+'
+    '0474755829',
+    '474755829',
+    '+61474755829',
+    '61 474 755 829',
+    '+61 474 755 829',
+    '04 7475 5829',
+    '0474-755-829',
+    '(0474) 755 829',
+    '0061474755829',
   ]) {
-    assert.equal(pipeline(input), '+61412345678', `pipeline changed the meaning of ${JSON.stringify(input)}`);
-  }
-});
-
-test('formatting is a FIXED POINT — re-formatting cannot drift', () => {
-  // onChange re-formats the already formatted value on every keystroke, so
-  // formatNational is applied to its own output dozens of times per number.
-  // Anything not idempotent corrupts the value as the user types.
-  for (const input of ['0412345678', '+61412345678', '+64215550199']) {
-    let field = '';
-    for (const ch of input) field = formatNational(field + ch, 'AU');
     assert.equal(
-      toE164(field, 'AU').e164,
       toE164(input, 'AU').e164,
-      `typing ${JSON.stringify(input)} one character at a time produced a different number`,
+      '+61474755829',
+      `${JSON.stringify(input)} did not converge`,
     );
-    assert.equal(formatNational(field, 'AU'), field, 'formatNational is not idempotent');
   }
 });
 
-test('a foreign number keeps its own country through formatting', () => {
-  // The '+' surviving is what stops an NZ number becoming an Australian one.
-  const field = formatNational('+64 21 555 0199', 'AU');
-  assert.ok(field.startsWith('+'), 'the + was stripped');
-  const r = toE164(field, 'AU');
-  assert.equal(r.e164, '+64215550199');
-  assert.equal(r.iso, 'NZ');
+test('THE REGRESSION: display and normalisation cannot disagree', () => {
+  // What shipped: a display helper took RAW INPUT, stripped the '+', and the
+  // composer wrote its output back into the field — so the tidied string was
+  // what got hashed. +61412345678 became +6161412345678: a number that cannot
+  // exist, saved without error, showed the correct last three digits, and was
+  // undiscoverable forever.
+  //
+  // formatDisplay now takes E.164 ONLY, so round-tripping is the property to
+  // hold: normalise → display → normalise must be a fixed point for every
+  // input style, or the field can drift away from what was stored.
+  for (const input of [
+    '0474755829', '474755829', '+61474755829', '61 474 755 829',
+    '04 7475 5829', '0474-755-829', '(0474) 755 829',
+  ]) {
+    const first = toE164(input, 'AU').e164;
+    const shown = formatDisplay(first);
+    const again = toE164(shown, 'AU').e164;
+    assert.equal(again, first, `round trip drifted for ${JSON.stringify(input)}: ${shown}`);
+  }
 });
 
-test('display helpers never alter what gets hashed', () => {
-  assert.equal(formatNational('0412345678', 'AU'), '0412 345 678');
-  assert.equal(formatNational('', 'AU'), '');
+test('⚠ a localised display is only safe when read against ITS OWN country', () => {
+  // Documenting a trap rather than a capability, because getting this wrong
+  // silently searches for a DIFFERENT PERSON.
+  //
+  // formatDisplay writes the LOCAL form: +64215550199 becomes "021 555 0199".
+  // Read back against Australia that is +61215550199 — a real, valid,
+  // completely unrelated number. No error, no warning, just the wrong human.
+  const e164 = toE164('+64 21 555 0199', 'AU').e164;
+  assert.equal(e164, '+64215550199');
+  assert.equal(toE164('+64 21 555 0199', 'AU').iso, 'NZ', 'the country must be reported');
+
+  const shown = formatDisplay(e164);
+
+  // The trap, asserted so it cannot be "fixed" into silence:
+  assert.equal(toE164(shown, 'AU').e164, '+61215550199',
+    'if this ever stops being true, re-check the component blur handler');
+
+  // And the contract the app actually relies on: the picker follows the
+  // number, so the display is always re-read against its own country.
+  assert.equal(toE164(shown, 'NZ').e164, '+64215550199');
+});
+
+test('display is localised per region', () => {
+  assert.equal(formatDisplay('+61474755829'),  '0474 755 829',   'AU mobile');
+  assert.equal(formatDisplay('+61298765432'),  '(02) 9876 5432', 'AU landline');
+  assert.equal(formatDisplay('+14155551234'),  '(415) 555-1234', 'US');
+  assert.equal(formatDisplay('+447911123456'), '07911 123456',   'UK mobile');
+  assert.equal(formatDisplay('+442079460958'), '020 7946 0958',  'UK landline');
+  assert.equal(formatDisplay('+64215550199'),  '021 555 0199',   'NZ');
+});
+
+test('display refuses anything that is not canonical E.164', () => {
+  // The guard that keeps this one-directional. If it ever accepts raw input
+  // again, the shipped defect becomes possible again.
+  for (const bad of ['0474755829', '0474 755 829', '', null, 'rubbish', '+61']) {
+    assert.equal(formatDisplay(bad), '', `formatDisplay accepted ${JSON.stringify(bad)}`);
+  }
+});
+
+test('a valid number outside the picker displays canonically, never guessed', () => {
+  // Iceland is not in COUNTRIES. Showing it as "+3545811234" is honest;
+  // inventing a local grouping for a country we know nothing about is not.
+  assert.equal(formatDisplay('+3545811234'), '+3545811234');
+});
+
+test('the mask never renders a number it was not given', () => {
   assert.equal(maskE164('+61412345678'), '••• ••• 678');
   assert.equal(maskE164('rubbish'), '', 'never render a mask for a non-number');
-  // The formatter is cosmetic: its output must still normalise to the original.
-  const e164 = '+61412345678';
-  assert.equal(toE164(formatNational('0412345678', 'AU'), 'AU').e164, e164);
+  assert.equal(maskE164(''), '');
 });
