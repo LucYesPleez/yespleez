@@ -27,6 +27,9 @@ export default function ContactSyncSettings({ onMatches }) {
   const [status, setStatus] = useState('');
   const [offerDelete, setOfferDelete] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  // One explainer, reachable from every mention of "scrambled codes" — the
+  // phrase appears in three states and the question is the same in all of them.
+  const [explainOpen, setExplainOpen] = useState(false);
   const [matches, setMatches] = useState(null);
   const cancelled = useRef(false);
 
@@ -112,6 +115,7 @@ export default function ContactSyncSettings({ onMatches }) {
           <div className={s.desc} style={{ marginBottom: 10 }}>
             See which of your contacts are already here. Scrambled codes only —
             never names or numbers.
+            <ScrambledInfo open={explainOpen} onToggle={() => setExplainOpen((o) => !o)} />
           </div>
           <button type="button" onClick={() => setPrimerOpen(true)} style={pillStyle}>
             FIND FRIENDS FROM CONTACTS
@@ -123,6 +127,7 @@ export default function ContactSyncSettings({ onMatches }) {
         <div style={primerStyle}>
           <Fact icon="🔒" title="Scrambled on your phone">
             Your contacts are turned into unreadable codes before anything leaves your device.
+            <ScrambledInfo open={explainOpen} onToggle={() => setExplainOpen((o) => !o)} />
           </Fact>
           <Fact icon="⛔" title="Codes only — nothing else">
             No names, no emails, no numbers. YesPleez never sees your address book.
@@ -147,7 +152,10 @@ export default function ContactSyncSettings({ onMatches }) {
           <div className={s.row}>
             <div className={s.rowText}>
               <div className={s.label} style={{ fontSize: 14 }}>Sync contacts</div>
-              <div className={s.desc}>Finds friends as they join, by scrambled code only.</div>
+              <div className={s.desc}>
+                Finds friends as they join, by scrambled code only.
+                <ScrambledInfo open={explainOpen} onToggle={() => setExplainOpen((o) => !o)} />
+              </div>
             </div>
             <button
               type="button"
@@ -239,6 +247,77 @@ export default function ContactSyncSettings({ onMatches }) {
   );
 }
 
+/**
+ * ⓘ next to every mention of "scrambled codes".
+ *
+ * The phrase asks people to take privacy on faith, and this feature only works
+ * if they don't have to. Everything here is checkable against the code, and
+ * the last item is deliberately a LIMITATION rather than a reassurance —
+ * claiming we can see nothing would be false, and one overclaim discredits
+ * the four true statements above it.
+ */
+function ScrambledInfo({ open, onToggle }) {
+  return (
+    <>
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        aria-label="How scrambled codes keep this private"
+        style={infoDotStyle}
+      >
+        i
+      </button>
+
+      {open && (
+        <div style={explainStyle}>
+          <div className={s.label} style={{ fontSize: 13, marginBottom: 8 }}>
+            HOW THIS STAYS PRIVATE
+          </div>
+          <Point title="Scrambled means one-way">
+            Each number becomes a code that cannot be turned back into a number —
+            not by us, not by anyone who ever got hold of it.
+          </Point>
+          <Point title="Only codes are sent">
+            No names, no email addresses, no numbers. Your address book stays on
+            your phone.
+          </Point>
+          <Point title="You choose who's included">
+            Your phone's own picker decides what we receive. We only ever get the
+            contacts you tick.
+          </Point>
+          <Point title="Names never leave this phone">
+            When a match says "saved as Sarah", that name came from your phone.
+            We have never seen it and cannot.
+          </Point>
+          <Point title="You can erase it">
+            Delete codes removes every one of them from our servers, and the
+            matches go with them.
+          </Point>
+
+          {/* The honest limit. Being told what we CAN see is what makes the
+              five statements above worth believing. */}
+          <div style={limitStyle}>
+            <strong style={{ color: 'var(--text)' }}>What we can see:</strong> that
+            two accounts have each other's number saved. That is what makes
+            matching work at all — so we'd rather say it than imply we're blind
+            to it.
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+function Point({ title, children }) {
+  return (
+    <div style={{ marginBottom: 8 }}>
+      <span style={{ display: 'block', fontSize: 12.5, fontWeight: 600 }}>{title}</span>
+      <span className={s.desc}>{children}</span>
+    </div>
+  );
+}
+
 function Fact({ icon, title, children }) {
   return (
     <div style={{ display: 'flex', gap: 10, padding: '8px 0', alignItems: 'flex-start' }}>
@@ -265,6 +344,47 @@ const dangerStyle = {
   ...ghostStyle, border: '1px solid rgba(255,59,92,.38)',
   background: 'rgba(255,59,92,.12)', color: '#FF8A9E',
 };
+/* A quiet ⓘ that sits INLINE with the sentence it explains, rather than
+   floating at the end of the row — it belongs to the words "scrambled codes",
+   not to the block. 22px keeps it thumbable without shouting. */
+const infoDotStyle = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  width: 16,
+  height: 16,
+  marginLeft: 6,
+  verticalAlign: -2,
+  borderRadius: 999,
+  border: '1px solid rgba(255,255,255,.28)',
+  background: 'none',
+  color: 'var(--muted)',
+  fontFamily: 'Georgia, serif',
+  fontStyle: 'italic',
+  fontSize: 11,
+  lineHeight: 1,
+  cursor: 'pointer',
+  padding: 0,
+};
+
+const explainStyle = {
+  marginTop: 10,
+  padding: 12,
+  borderRadius: 12,
+  border: '1px solid rgba(0,229,255,.22)',
+  background: 'rgba(0,229,255,.04)',
+};
+
+const limitStyle = {
+  marginTop: 10,
+  paddingTop: 10,
+  borderTop: '1px solid rgba(255,255,255,.10)',
+  fontFamily: "'DM Sans', sans-serif",
+  fontSize: 12,
+  lineHeight: 1.45,
+  color: 'var(--muted)',
+};
+
 const primerStyle = {
   padding: 12, borderRadius: 14, border: '1px solid var(--border)',
   background: 'rgba(255,255,255,.03)',
