@@ -23,7 +23,7 @@ export const TYPE_STYLES = Object.fromEntries(
  *   badgeColor – colour for badge
  *   actions   – optional JSX rendered below the card (accept/decline buttons etc.)
  */
-export default function ProfileCard({ item, badge, badgeColor, actions }) {
+export default function ProfileCard({ item, badge, badgeColor, actions, onClick }) {
   const navigate = useNavigate();
   if (!item) return null;
   // 10F: one resolver, no artist sentinel. `item.type || 'artist'` then
@@ -49,6 +49,11 @@ export default function ProfileCard({ item, badge, badgeColor, actions }) {
       className={s.card}
       style={{ '--accent': ts.col, '--accent-rgb': ts.rgb, border: `1.5px solid rgba(${ts.rgb},.6)` }}
       onClick={() => {
+        // An OPTIONAL override, not a new default. Messenger's contact list
+        // reuses this card but must open the CONVERSATION rather than the
+        // public profile — that list exists for talking to people. Every
+        // existing caller passes nothing and keeps the navigation below.
+        if (onClick) { onClick(item); return; }
         // M5: canonical profile.id URL; legacy fallback only for callers whose
         // selects don't carry `id` yet (the redirect shim covers it).
         if (item.id) navigate(profileUrl(item));

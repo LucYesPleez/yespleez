@@ -7,6 +7,7 @@ import { useConversationUi } from '../lib/conversationUi';
 import HandIcon from '../components/HandIcon';
 import PhoneNumberSettings from '../components/PhoneNumberSettings';
 import MessengerAvatar from '../components/MessengerAvatar';
+import MessengerContactsSection from '../components/MessengerContactsSection';
 import { getPersonalProfileId } from '../lib/actingProfile';
 import {
   listConversations, listParticipants, actableProfileIds, unreadCount, latestMessages,
@@ -346,6 +347,29 @@ export default function InboxScreen() {
         </div>
 
         {discoveryOpen && <PhoneNumberSettings session={session} />}
+
+        {/* YOUR CONTACTS — the people you talk to, as a scroll rail.
+            ⚠ Fed from `rows`, which InboxScreen has already resolved. Working
+            out which participant is "the other one" is subtle (a conversation
+            can be between two profiles the same human owns), and re-deriving
+            it inside the section is how the two would drift apart.
+            ⚠ SEPARATE FROM FOLLOWS by design — see the component header. */}
+        {!loading && rows.length > 0 && (
+          <MessengerContactsSection
+            rows={rows}
+            loading={loading}
+            onOpen={(conversationId, profile) => openConversation(conversationId, {
+              profile: profile
+                ? {
+                    id: profile.id,
+                    name: profile.name,
+                    type: profile.type,
+                    avatar: profile.avatar_thumb || profile.avatar || null,
+                  }
+                : undefined,
+            })}
+          />
+        )}
 
         {loading && (
           <div style={{ textAlign: 'center', color: 'rgba(255,255,255,.35)', fontFamily: "'Bebas Neue',sans-serif", fontSize: 14, letterSpacing: 2, padding: '48px 0' }}>
