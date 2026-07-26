@@ -8,6 +8,7 @@ import HandIcon from '../components/HandIcon';
 import PhoneNumberSettings from '../components/PhoneNumberSettings';
 import MessengerAvatar from '../components/MessengerAvatar';
 import MessengerContactsSection from '../components/MessengerContactsSection';
+import InviteRows from '../components/InviteRows';
 import { getPersonalProfileId } from '../lib/actingProfile';
 import {
   listConversations, listParticipants, actableProfileIds, unreadCount, latestMessages,
@@ -152,6 +153,11 @@ export default function InboxScreen() {
   // rather than a field on the inbox query, so a failure here can never stop
   // conversations loading — an avatar is decoration, the inbox is the screen.
   const [myAvatar, setMyAvatar] = useState('');
+  // The same query now also carries id/name/type, because Invite Friends
+  // shares a link to THIS profile (see InviteRows). Widening the existing
+  // select rather than adding a second one: it is the same row, already being
+  // fetched, and a second query would be a second thing to keep in step.
+  const [myProfile, setMyProfile] = useState(null);
   useEffect(() => {
     let cancelled = false;
     if (!userId) return undefined;
@@ -160,10 +166,13 @@ export default function InboxScreen() {
       if (!id || cancelled) return;
       const { data } = await supabase
         .from('profiles')
-        .select('avatar_thumb, avatar')
+        .select('id, name, type, avatar_thumb, avatar')
         .eq('id', id)
         .maybeSingle();
-      if (!cancelled && data) setMyAvatar(data.avatar_thumb || data.avatar || '');
+      if (!cancelled && data) {
+        setMyAvatar(data.avatar_thumb || data.avatar || '');
+        setMyProfile(data);
+      }
     })();
     return () => { cancelled = true; };
   }, [userId]);
@@ -346,7 +355,15 @@ export default function InboxScreen() {
           </div>
         </div>
 
-        {discoveryOpen && <PhoneNumberSettings session={session} />}
+        {/* FIND FRIENDS — the sketch's fourth section, in its order:
+            find by number, sync contacts (both inside PhoneNumberSettings),
+            then invite and share. See docs/contacts-page-2026-07.md §1. */}
+        {discoveryOpen && (
+          <>
+            <PhoneNumberSettings session={session} />
+            <InviteRows myProfile={myProfile} />
+          </>
+        )}
 
         {/* YOUR CONTACTS — the people you talk to, as a scroll rail.
             ⚠ Fed from `rows`, which InboxScreen has already resolved. Working
