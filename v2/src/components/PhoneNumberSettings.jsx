@@ -62,6 +62,9 @@ export default function PhoneNumberSettings({ session }) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [confirmRemove, setConfirmRemove] = useState(false);
+  // Collapsed by default: managing your own number is a once-ever act, and it
+  // was occupying the space the repeated action needs.
+  const [myOpen, setMyOpen] = useState(false);
   const cancelled = useRef(false);
 
   // ── Search by number (P2) ───────────────────────────────────────
@@ -187,8 +190,102 @@ export default function PhoneNumberSettings({ session }) {
   const pending = hasKey && key.discoverableFrom && new Date(key.discoverableFrom) > new Date();
 
   return (
-    <div className={s.panel}>
-      <div className={s.label} style={{ marginBottom: 10 }}>FIND ME BY PHONE NUMBER</div>
+    // ⚠ PADDING OVERRIDDEN LOCALLY, not on `.panel`. That class is shared with
+    // NotificationPreferences, and widening it there would silently re-space a
+    // screen this change has nothing to do with.
+    <div className={s.panel} style={{ padding: '18px 18px 20px' }}>
+
+      {/* ══ SEARCH FIRST ══════════════════════════════════════════
+          This is the thing people come here to DO. Managing your own number is
+          a once-or-twice-ever act; looking someone up is the repeated one, so
+          it gets the top of the panel and everything else collapses. */}
+      <div className={s.label} style={{ marginBottom: 10 }}>FIND SOMEONE BY NUMBER</div>
+
+      <div style={fieldRow}>
+        <select
+          aria-label="Country to search in"
+          value={searchIso}
+          onChange={(e) => setSearchIso(e.target.value)}
+          style={selectStyle}
+        >
+          {COUNTRIES.map((c) => (
+            <option key={c.iso} value={c.iso}>{c.iso} +{c.dial}</option>
+          ))}
+        </select>
+        <input
+          type="tel"
+          inputMode="tel"
+          aria-label="Phone number to search for"
+          placeholder="Search by phone number"
+          value={searchTyped}
+          onChange={(e) => { setSearchTyped(formatNational(e.target.value, searchIso)); setResult(null); }}
+          // Enter searches — this is a search field, and requiring a click on
+          // a phone keyboard is a needless extra tap.
+          onKeyDown={(e) => { if (e.key === 'Enter' && canSearch) runSearch(); }}
+          style={inputStyle}
+        />
+      </div>
+
+      <button
+        type="button"
+        onClick={runSearch}
+        disabled={!canSearch}
+        style={{ ...pillStyle, marginTop: 12, opacity: canSearch ? 1 : 0.4,
+          cursor: canSearch ? 'pointer' : 'not-allowed' }}
+      >
+        {searching ? 'SEARCHING…' : 'SEARCH'}
+      </button>
+
+      {result && result.length > 0 && result.map((r) => (
+        <div key={r.profileId} style={resultRow}>
+          {/* Same component as the identity screen and the Messages header —
+              a search result must show exactly the face its owner set, including
+              the default when they have set none. */}
+          <MessengerAvatar src={r.avatar} size={44} />
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ fontSize: 15, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {r.displayName}
+            </div>
+            {/* "On YesPleez" rather than a profile type: this is the Personal
+                profile, and surfacing which of someone's other profiles is
+                "primary" would be a heuristic. Deferred with Find People. */}
+            <span className="glow-pill" style={{ marginTop: 4 }}>ON YESPLEEZ</span>
+          </div>
+          <button type="button" onClick={() => messageProfile(r)} style={pillStyle}>MESSAGE</button>
+        </div>
+      ))}
+
+      {result && result.length === 0 && (
+        // ⚠ IDENTICAL COPY whether the number is unregistered or its owner
+        // chose not to be found. Distinguishing them would leak membership.
+        <div className={s.footnote} style={{ marginTop: 12 }}>
+          No match for that number. They might not be on YesPleez yet — or
+          they've chosen not to be found.
+        </div>
+      )}
+
+      {/* ══ MY OWN NUMBER — collapsed by default ══════════════════
+          Summary row carries the only fact worth seeing at a glance: which
+          number is registered. Everything else is one tap away. */}
+      <button
+        type="button"
+        onClick={() => setMyOpen((o) => !o)}
+        aria-expanded={myOpen}
+        style={summaryRow}
+      >
+        <span className={s.label} style={{ fontSize: 13 }}>MY PH NUMBER</span>
+        <span style={{ marginLeft: 'auto', fontSize: 14, fontWeight: 600, letterSpacing: 1,
+          color: hasKey ? 'var(--text)' : 'var(--muted)' }}>
+          {hasKey ? `••• ••• ${key.last3 ?? '···'}` : 'Not set'}
+        </span>
+        <span aria-hidden="true" style={{ color: 'var(--muted)', fontSize: 12,
+          transform: myOpen ? 'rotate(180deg)' : 'none', transition: 'transform .16s var(--yp-ease)' }}>
+          ▾
+        </span>
+      </button>
+
+      {myOpen && (
+        <div style={{ paddingTop: 4 }}>
 
       {!hasKey && !editing && (
         <>
@@ -206,13 +303,8 @@ export default function PhoneNumberSettings({ session }) {
 
       {hasKey && !editing && (
         <>
-          <div className={s.row}>
-            <div className={s.rowText}>
-              <div style={{ fontSize: 14, fontWeight: 600, letterSpacing: 1 }}>
-                ••• ••• {key.last3 ?? '···'}
-              </div>
-              <div className={s.desc}>Never shown to anyone · never texted</div>
-            </div>
+          <div className={s.desc} style={{ marginBottom: 4 }}>
+            Never shown to anyone · never texted
           </div>
 
           {pending && (
@@ -313,72 +405,6 @@ export default function PhoneNumberSettings({ session }) {
 
       {message && <div className={s.footnote} style={{ marginTop: 10 }} role="status">{message}</div>}
 
-      {/* ── SEARCH BY NUMBER ──────────────────────────────────────
-          Scope is deliberately one field and one result row. No invites, no
-          recently-joined, no contact sync — this exists to prove the lookup
-          works end to end against the real database. */}
-      <div className={s.label} style={{ margin: '22px 0 8px' }}>FIND SOMEONE BY NUMBER</div>
-
-      <div style={fieldRow}>
-        <select
-          aria-label="Country to search in"
-          value={searchIso}
-          onChange={(e) => setSearchIso(e.target.value)}
-          style={selectStyle}
-        >
-          {COUNTRIES.map((c) => (
-            <option key={c.iso} value={c.iso}>{c.iso} +{c.dial}</option>
-          ))}
-        </select>
-        <input
-          type="tel"
-          inputMode="tel"
-          aria-label="Phone number to search for"
-          placeholder="Search by phone number"
-          value={searchTyped}
-          onChange={(e) => { setSearchTyped(formatNational(e.target.value, searchIso)); setResult(null); }}
-          // Enter searches — this is a search field, and requiring a click on
-          // a phone keyboard is a needless extra tap.
-          onKeyDown={(e) => { if (e.key === 'Enter' && canSearch) runSearch(); }}
-          style={inputStyle}
-        />
-      </div>
-
-      <button
-        type="button"
-        onClick={runSearch}
-        disabled={!canSearch}
-        style={{ ...pillStyle, marginTop: 10, opacity: canSearch ? 1 : 0.4,
-          cursor: canSearch ? 'pointer' : 'not-allowed' }}
-      >
-        {searching ? 'SEARCHING…' : 'SEARCH'}
-      </button>
-
-      {result && result.length > 0 && result.map((r) => (
-        <div key={r.profileId} style={resultRow}>
-          {/* Same component as the identity screen and the Messages header —
-              a search result must show exactly the face its owner set, including
-              the default when they have set none. */}
-          <MessengerAvatar src={r.avatar} size={44} />
-          <div style={{ minWidth: 0, flex: 1 }}>
-            <div style={{ fontSize: 15, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {r.displayName}
-            </div>
-            {/* "On YesPleez" rather than a profile type: this is the Personal
-                profile, and surfacing which of someone's other profiles is
-                "primary" would be a heuristic. Deferred with Find People. */}
-            <span className="glow-pill" style={{ marginTop: 4 }}>ON YESPLEEZ</span>
-          </div>
-          <button type="button" onClick={() => messageProfile(r)} style={pillStyle}>MESSAGE</button>
-        </div>
-      ))}
-
-      {result && result.length === 0 && (
-        // ⚠ IDENTICAL COPY whether the number is unregistered or its owner
-        // chose not to be found. Distinguishing them would leak membership.
-        <div className={s.footnote} style={{ marginTop: 10 }}>
-          No match for that number. They might not be on YesPleez yet — or
-          they've chosen not to be found.
         </div>
       )}
 
@@ -444,6 +470,24 @@ const confirmStyle = {
 };
 
 const fieldRow = { display: 'flex', gap: 8, alignItems: 'center', marginTop: 4 };
+
+const summaryRow = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 10,
+  width: '100%',
+  marginTop: 20,
+  padding: '14px 0 6px',
+  background: 'none',
+  // `border: none` first to clear the button's default, THEN the top rule —
+  // reversing these makes the divider disappear, since the shorthand resets
+  // every side including the one just set.
+  border: 'none',
+  borderTop: '1px solid rgba(255,255,255,.08)',
+  color: 'var(--text)',
+  cursor: 'pointer',
+  textAlign: 'left',
+};
 
 const resultRow = {
   display: 'flex', alignItems: 'center', gap: 11, marginTop: 12,
