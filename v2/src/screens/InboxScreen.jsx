@@ -14,7 +14,7 @@ import { getPersonalProfileId } from '../lib/actingProfile';
 import {
   listConversations, listParticipants, actableProfileIds, unreadCount, latestMessages,
 } from '../lib/messaging';
-import { PROFILE_TYPES } from '../lib/profileTypes';
+import { profileIdentity } from '../lib/profileTypes';
 
 const inboxKey = userId => ['inbox', userId];
 
@@ -460,7 +460,20 @@ export default function InboxScreen() {
 
         {!loading && rows.map(c => {
           const other = c.others[0];
-          const accent = PROFILE_TYPES[other?.profiles?.type]?.accent ?? 'var(--muted)';
+          // ⚠ profileIdentity, NOT PROFILE_TYPES[...] — punter is deliberately
+          // absent from that map (see profileTypes.js), so the bare lookup
+          // returned undefined for every Personal identity. That is why Garyy
+          // and Tracy showed a bare initial in this list while their portrait
+          // cards showed artwork: PortraitCard already used the resolver and
+          // this row did not. It also cost them their accent, falling back to
+          // muted grey and a generic cyan.
+          //
+          // This is the exact `PROFILE_TYPES[t] || <guess>` pattern the
+          // resolver was introduced to delete. Three copies lived in this one
+          // row.
+          const pt = profileIdentity(other?.profiles?.type);
+          const accent = pt.accent;
+          const avatarSrc = other?.profiles?.avatar_thumb || other?.profiles?.avatar || pt.defaultImage;
           return (
             <button
               key={c.id}
@@ -510,10 +523,14 @@ export default function InboxScreen() {
                   label moves down next to the identity where it costs no
                   height. */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <span style={{ width: 46, height: 46, borderRadius: 999, flexShrink: 0, padding: 2, background: `linear-gradient(135deg, ${accent}, ${PROFILE_TYPES[other?.profiles?.type]?.accent2 ?? '#00E5FF'})`, display: 'flex' }}>
+                <span style={{ width: 46, height: 46, borderRadius: 999, flexShrink: 0, padding: 2, background: `linear-gradient(135deg, ${accent}, ${pt.accent2})`, display: 'flex' }}>
                   <span style={{ width: '100%', height: '100%', borderRadius: 999, overflow: 'hidden', background: '#0d0d10', display: 'flex', alignItems: 'center', justifyContent: 'center', color: accent, fontFamily: "'Bebas Neue',sans-serif", fontSize: 17 }}>
-                    {(other?.profiles?.avatar_thumb || other?.profiles?.avatar || PROFILE_TYPES[other?.profiles?.type]?.defaultImage)
-                      ? <img src={other?.profiles?.avatar_thumb || other?.profiles?.avatar || PROFILE_TYPES[other?.profiles?.type]?.defaultImage} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    {/* The initial is now only reachable when the resolved
+                        identity has NO defaultImage at all — i.e. an unknown
+                        type. Every real profile type, punter included, has
+                        artwork, so this list matches the portrait rail. */}
+                    {avatarSrc
+                      ? <img src={avatarSrc} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                       : (other?.profiles?.name ?? '?').slice(0, 1).toUpperCase()}
                   </span>
                 </span>
