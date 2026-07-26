@@ -105,7 +105,7 @@ export async function setPhoneVisibility(visibility) {
  * before it escapes this function.
  *
  * @param {string[]} rawNumbers
- * @returns {Promise<{matches: Array<{profileId:string,displayName:string,e164:string}>, error: object|null}>}
+ * @returns {Promise<{matches: Array<{profileId:string,displayName:string,avatar:string|null,e164:string}>, error: object|null}>}
  */
 export async function findByPhone(rawNumbers, iso = DEFAULT_COUNTRY) {
   const wanted = new Map();
@@ -130,6 +130,7 @@ export async function findByPhone(rawNumbers, iso = DEFAULT_COUNTRY) {
       matches.push({
         profileId: row.profile_id,
         displayName: row.display_name,
+        avatar: row.avatar ?? null,
         e164,
       });
     }

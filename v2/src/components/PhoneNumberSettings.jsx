@@ -4,8 +4,12 @@ import {
   setPhoneKey,
   removePhoneKey,
   setPhoneVisibility,
+  findByPhone,
 } from '../lib/phoneKey';
 import { COUNTRIES, DEFAULT_COUNTRY, formatNational, toE164 } from '../lib/phoneNumber';
+import { sendableProfiles, openDirectConversation } from '../lib/messaging';
+import { useConversationUi } from '../lib/conversationUi';
+import MessageAsSheet from './MessageAsSheet';
 import s from './NotificationPreferences.module.css';
 
 /**
@@ -58,6 +62,18 @@ export default function PhoneNumberSettings({ session }) {
   const [message, setMessage] = useState('');
   const [confirmRemove, setConfirmRemove] = useState(false);
   const cancelled = useRef(false);
+
+  // ── Search by number (P2) ───────────────────────────────────────
+  const [searchIso, setSearchIso] = useState(DEFAULT_COUNTRY);
+  const [searchTyped, setSearchTyped] = useState('');
+  const [searching, setSearching] = useState(false);
+  // null = not searched yet, [] = searched and found nobody. The distinction
+  // matters: an empty result needs the "no match" copy, an unsearched state
+  // needs nothing at all.
+  const [result, setResult] = useState(null);
+  const [senderChoices, setSenderChoices] = useState(null);
+  const [pendingTarget, setPendingTarget] = useState(null);
+  const { open: openConversation } = useConversationUi();
 
   useEffect(() => {
     cancelled.current = false;
@@ -116,6 +132,50 @@ export default function PhoneNumberSettings({ session }) {
       return;
     }
     setMessage('Privacy updated.');
+  }
+
+  const searchParsed = toE164(searchTyped, searchIso);
+  const canSearch = Boolean(searchParsed.e164) && !searching;
+
+  async function runSearch() {
+    setSearching(true);
+    setResult(null);
+    const { matches, error } = await findByPhone([searchTyped], searchIso);
+    // A failed lookup is not "no match" — saying "nobody found" when the
+    // request errored would tell the user something untrue about a person.
+    setResult(error ? null : matches);
+    if (error) setMessage("Search failed. Try again.");
+    setSearching(false);
+  }
+
+  /**
+   * MESSAGE — the same path ProfileScreen uses, deliberately.
+   *
+   * `sendableProfiles` then `openDirectConversation`, and when more than one
+   * of the user's profiles could send, MessageAsSheet asks. Inferring a sender
+   * would be a heuristic, and U4 settled that: infer only when there is
+   * exactly one candidate, otherwise ask.
+   */
+  async function messageProfile(target) {
+    if (!session?.user?.id) return;
+    const { profiles } = await sendableProfiles(session.user.id);
+    const options = (profiles ?? []).filter((p) => p.id !== target.profileId);
+    if (options.length === 0) return;
+    if (options.length === 1) return startConversationAs(options[0].id, target);
+    setPendingTarget(target);
+    setSenderChoices(options);
+  }
+
+  async function startConversationAs(fromProfileId, targetArg) {
+    const target = targetArg ?? pendingTarget;
+    setSenderChoices(null);
+    setPendingTarget(null);
+    if (!target) return;
+    const { conversationId, error } = await openDirectConversation(fromProfileId, target.profileId);
+    if (error || !conversationId) { setMessage("Couldn't open that conversation."); return; }
+    openConversation(conversationId, {
+      profile: { id: target.profileId, name: target.displayName, type: 'punter' },
+    });
   }
 
   if (loading) {
@@ -251,6 +311,84 @@ export default function PhoneNumberSettings({ session }) {
       )}
 
       {message && <div className={s.footnote} style={{ marginTop: 10 }} role="status">{message}</div>}
+
+      {/* ── SEARCH BY NUMBER ──────────────────────────────────────
+          Scope is deliberately one field and one result row. No invites, no
+          recently-joined, no contact sync — this exists to prove the lookup
+          works end to end against the real database. */}
+      <div className={s.label} style={{ margin: '22px 0 8px' }}>FIND SOMEONE BY NUMBER</div>
+
+      <div style={fieldRow}>
+        <select
+          aria-label="Country to search in"
+          value={searchIso}
+          onChange={(e) => setSearchIso(e.target.value)}
+          style={selectStyle}
+        >
+          {COUNTRIES.map((c) => (
+            <option key={c.iso} value={c.iso}>{c.iso} +{c.dial}</option>
+          ))}
+        </select>
+        <input
+          type="tel"
+          inputMode="tel"
+          aria-label="Phone number to search for"
+          placeholder="Search by phone number"
+          value={searchTyped}
+          onChange={(e) => { setSearchTyped(formatNational(e.target.value, searchIso)); setResult(null); }}
+          // Enter searches — this is a search field, and requiring a click on
+          // a phone keyboard is a needless extra tap.
+          onKeyDown={(e) => { if (e.key === 'Enter' && canSearch) runSearch(); }}
+          style={inputStyle}
+        />
+      </div>
+
+      <button
+        type="button"
+        onClick={runSearch}
+        disabled={!canSearch}
+        style={{ ...pillStyle, marginTop: 10, opacity: canSearch ? 1 : 0.4,
+          cursor: canSearch ? 'pointer' : 'not-allowed' }}
+      >
+        {searching ? 'SEARCHING…' : 'SEARCH'}
+      </button>
+
+      {result && result.length > 0 && result.map((r) => (
+        <div key={r.profileId} style={resultRow}>
+          <img
+            src={r.avatar || '/hand-logo.png'}
+            alt=""
+            style={{ width: 44, height: 44, borderRadius: 999, objectFit: 'cover', flexShrink: 0, background: 'var(--card2, #0f0f1a)' }}
+          />
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ fontSize: 15, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {r.displayName}
+            </div>
+            {/* "On YesPleez" rather than a profile type: this is the Personal
+                profile, and surfacing which of someone's other profiles is
+                "primary" would be a heuristic. Deferred with Find People. */}
+            <span className="glow-pill" style={{ marginTop: 4 }}>ON YESPLEEZ</span>
+          </div>
+          <button type="button" onClick={() => messageProfile(r)} style={pillStyle}>MESSAGE</button>
+        </div>
+      ))}
+
+      {result && result.length === 0 && (
+        // ⚠ IDENTICAL COPY whether the number is unregistered or its owner
+        // chose not to be found. Distinguishing them would leak membership.
+        <div className={s.footnote} style={{ marginTop: 10 }}>
+          No match for that number. They might not be on YesPleez yet — or
+          they've chosen not to be found.
+        </div>
+      )}
+
+      {senderChoices && (
+        <MessageAsSheet
+          profiles={senderChoices}
+          onConfirm={startConversationAs}
+          onCancel={() => { setSenderChoices(null); setPendingTarget(null); }}
+        />
+      )}
     </div>
   );
 }
@@ -306,6 +444,12 @@ const confirmStyle = {
 };
 
 const fieldRow = { display: 'flex', gap: 8, alignItems: 'center', marginTop: 4 };
+
+const resultRow = {
+  display: 'flex', alignItems: 'center', gap: 11, marginTop: 12,
+  padding: '10px 12px', borderRadius: 14,
+  border: '1px solid var(--border)', background: 'rgba(255,255,255,.03)',
+};
 
 const selectStyle = {
   background: 'var(--card2, #0f0f1a)', color: 'var(--text)',

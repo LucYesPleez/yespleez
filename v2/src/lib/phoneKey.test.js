@@ -102,13 +102,20 @@ test('savedAs follows the INDEX, not the order of results', async () => {
 });
 
 test('no phone number escapes in a returned match', async () => {
-  findRows = [{ input_index: 1, profile_id: 'p-1', display_name: 'Jess Deluxe' }];
+  findRows = [{ input_index: 1, profile_id: 'p-1', display_name: 'Jess Deluxe', avatar: '/a.jpg' }];
   const { matches } = await matchContacts([{ number: '0412 345 678', name: 'Jess' }], 'AU');
 
   const serialised = JSON.stringify(matches);
   assert.ok(!serialised.includes('+61412345678'), 'an E.164 number escaped to the caller');
   assert.ok(!serialised.includes('412345678'), 'a phone number escaped to the caller');
-  assert.deepEqual(Object.keys(matches[0]).sort(), ['displayName', 'profileId', 'savedAs']);
+
+  // An EXACT whitelist, not a subset check. Any field added to a match has to
+  // be added here deliberately, which is what stops a number (or a hash, or a
+  // user_id) arriving one day as an unnoticed extra key.
+  assert.deepEqual(
+    Object.keys(matches[0]).sort(),
+    ['avatar', 'displayName', 'profileId', 'savedAs'],
+  );
 });
 
 test('numbers are normalised and de-duplicated before they are sent', async () => {
