@@ -96,6 +96,22 @@ async function deliver(subscriptions: any[], payload: string) {
       await webpush.sendNotification(
         { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
         payload,
+        // ⚠ URGENCY HIGH, OR ANDROID HOLDS IT UNTIL THE PHONE WAKES.
+        //
+        // web-push defaults to `Urgency: normal`, and FCM is entitled to defer
+        // a normal-priority message while the device is in Doze — releasing it
+        // only when something else wakes the phone, such as the user opening
+        // the app. That is exactly the reported symptom: on Android the
+        // notification "doesn't show until I open the app", while iOS (APNs,
+        // which does not defer this way) delivers immediately.
+        //
+        // The header is a claim about the message, and this one is honest:
+        // every push this function sends results in a visible notification, so
+        // it is user-facing by definition. Sending `high` for something that
+        // did NOT surface to the user would be an abuse of the signal and can
+        // get an origin's pushes throttled — do not copy this onto a silent or
+        // background push.
+        { urgency: 'high' },
       );
       sent++;
     } catch (err: any) {
