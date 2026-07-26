@@ -596,7 +596,7 @@ export default function ProfileScreen() {
               // Default (no photo yet — §09 requires a generic avatar pre-claim).
               // Was `auto 80%`, which sizes by HEIGHT: fine at phone width, but
               // .heroImg is capped at max-width 680px, so on desktop a portrait
-              // placeholder (defaultdj.jpg is 941x1672, ratio 0.56) rendered only
+              // placeholder (defaultdj.jpg, then 941x1672, ratio 0.56) rendered only
               // ~405px wide inside a 680px frame — 137px of dead space each side,
               // which read as a broken image rather than a placeholder.
               // `cover` fills the frame at every width, exactly as a real photo
@@ -605,12 +605,22 @@ export default function ProfileScreen() {
               //
               // Anchored BOTTOM, overriding .heroImg's `center top`. These
               // placeholders put their subject low in the frame — defaultdj.jpg
-              // is silhouette, hands and decks across its bottom ~55%, with the
-              // top 40% only lights and haze. At 680px wide the image renders
-              // 1208px tall in a 917px frame, so `top` cropped 291px off the
-              // foot and threw away the entire subject, leaving a photo of an
-              // empty ceiling. Anchoring to the bottom keeps the figure and
+              // is silhouette, hands and decks across its lower half, with only
+              // lights and haze above. When it was 941x1672 it rendered 1208px
+              // tall in a 917px frame at 680px wide, so `top` cropped 291px off
+              // the foot and threw away the entire subject, leaving a photo of
+              // an empty ceiling. Anchoring to the bottom keeps the figure and
               // decks and discards the haze instead.
+              //
+              // ⚠ THE NUMBERS ABOVE ARE HISTORY, THE ANCHOR IS NOT. That
+              // artwork is now 941x1280 (ratio 0.74) — the owner cropped the
+              // haze off at source — so at 680px it renders ~925px in a 917px
+              // frame and there is only ~8px of vertical overflow left to crop.
+              // Bottom-anchoring costs nothing in that case and remains correct
+              // the moment any future placeholder is tall again. Do not
+              // "simplify" it away on the grounds that today's image barely
+              // overflows; that is an argument about one file, not about the
+              // rule, and it is the exact crop that ate the subject last time.
               //
               // Portrait-only concern: at phone width the frame is narrower than
               // the art, so height fills exactly and there is no vertical crop —
