@@ -5,6 +5,7 @@ import NotifPanel from './NotifPanel';
 import ShareSheet from './ShareSheet';
 import BetaWelcomePopup from './BetaWelcomePopup';
 import { useCurrentShareTarget, pageFallback } from '../lib/shareTarget';
+import { readAuthLog, readAuthIncidents } from '../lib/authDiagnostics';
 
 const INFO = {
   '/': {
@@ -206,11 +207,77 @@ export default function GlobalHeader({ onMarkRead, unreadCount = 0 }) {
               moves when someone remembers, the SHA moves every deploy. */}
           <div className={s.buildStamp}>{BUILD_STAMP}</div>
 
+          {/* Rendered only while the sheet is open. The overlay stays mounted
+              and is hidden by class, so an ungated readout would re-read
+              localStorage and re-parse the log on every render of the header —
+              on every route change, for a panel nobody is looking at. */}
+          {infoOpen && <AuthLogReadout />}
+
           <button className={s.infoClose} onClick={() => setInfoOpen(false)}>CLOSE</button>
         </div>
       </div>
 
       <BetaWelcomePopup />
     </>
+  );
+}
+
+/**
+ * The auth diagnostic readout — WHY the last sign-out happened.
+ *
+ * Sits under the build stamp because it answers the same class of question
+ * ("what state is this app actually in?") and gets read in the same moment:
+ * the owner has just been bounced to a login screen on a phone with no
+ * devtools attached, and this is the only surface that can tell them whether
+ * the session was removed or the storage was wiped. Those two need opposite
+ * fixes — see authDiagnostics.js for how the canary separates them.
+ *
+ * Plain and unstyled on purpose. It is a measurement being read once, not a
+ * feature, and it should be easy to delete once the cause is known.
+ */
+const VERDICT_TEXT = {
+  'healthy':              'signed in, storage intact',
+  'session-removed':      '⚠ SUPABASE REMOVED THE SESSION (app-side — a refresh was rejected)',
+  'storage-evicted':      '⚠ iOS EVICTED localStorage (platform-side — cookie survived)',
+  'storage-partial-wipe': '⚠ localStorage partly cleared (no cookie to confirm)',
+  'canary-cleared':       'canary missing but token present — cleared by hand?',
+  'first-run':            'first run on this device',
+  'unavailable':          'could not read storage',
+};
+
+function AuthLogReadout() {
+  const log       = readAuthLog();
+  const incidents = readAuthIncidents();
+  if (!log.length && !incidents.length) return null;
+
+  // The most recent boot verdict is the headline; everything else is context
+  // for it. Searching from the end because the log is append-ordered.
+  const lastBoot = [...log].reverse().find(e => e.kind === 'boot');
+
+  return (
+    <div className={s.buildStamp} style={{ textAlign: 'left' }}>
+      <div style={{ marginBottom: 6, color: 'var(--text)' }}>
+        AUTH: {VERDICT_TEXT[lastBoot?.detail] || lastBoot?.detail || 'no boot recorded'}
+      </div>
+
+      {/* Incidents first and unconditionally, because this is the answer the
+          sheet is being opened for. They outlive the rolling log below, which
+          ordinary use flushes within a few app opens. */}
+      {incidents.length > 0 && (
+        <div style={{ marginBottom: 6 }}>
+          <div style={{ color: 'var(--text)' }}>INCIDENTS ({incidents.length}):</div>
+          {incidents.slice(-6).reverse().map((e, i) => (
+            <div key={i}>{e.t.slice(0, 16).replace('T', ' ')} · {e.verdict}</div>
+          ))}
+        </div>
+      )}
+
+      {log.slice(-8).reverse().map((e, i) => (
+        <div key={i} style={{ opacity: .7 }}>
+          {e.t.slice(5, 19).replace('T', ' ')} {e.kind}
+          {e.detail ? ` · ${e.detail}` : ''}{e.n ? ` ×${e.n}` : ''}
+        </div>
+      ))}
+    </div>
   );
 }
