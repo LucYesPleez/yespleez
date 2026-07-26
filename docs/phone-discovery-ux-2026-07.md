@@ -17,6 +17,31 @@ discovery through ongoing privacy management. Written for direct implementation.
 
 ---
 
+## Build status — 2026-07-26
+
+**Working end to end:** the data layer (P1/P1a/P1b, applied) and a functional settings panel
+reached from Messages → FIND ME. You can add, change and remove your number, see which one is
+registered, and set who can find you. Owner confirmed it works.
+
+**⚠ WHAT SHIPPED IS PLUMBING, NOT THE DESIGN.** The panel proves the architecture; it is not
+what §2/§4/§7 describe. Deferred deliberately, to be done as ONE polish pass once the remaining
+screens exist — polishing now means polishing twice:
+
+| Designed (§) | Built today | Why deferred |
+|---|---|---|
+| Settings → Privacy → Phone Number, its own screen (§7) | a panel inside Messages behind FIND ME | the app has no settings section; NP1 says put it where people come for it |
+| First-run prompt card + Signal Flare illustration (§2) | none — you open the panel yourself | needs a server-side "asked once" flag; no user-settings table exists yet |
+| Searchable country card, GlowPill chip (§4) | native `<select>` | still a picker, so the house rule holds; just plain |
+| Toast above the nav (§10) | an inline status line | no toast system exists in the app yet |
+| Find People screen — search, invite, recently joined (§4/§5/§6) | not built | next functional slice |
+| Contact sync + corroboration line (§3/§5) | client code written and tested, no UI | needs the contact-code layer |
+
+**Permanently changed, not deferred:** the masked-number reveal eye (§7) is **gone**. The number
+is stored as a one-way HMAC, so there is nothing to reveal — `last3` exists only so the panel can
+say *which* number is registered. The mockup specifies something impossible.
+
+---
+
 ## 0 · The one-sentence privacy rule
 
 > **Your number lets friends find you. Nobody ever sees it.**
