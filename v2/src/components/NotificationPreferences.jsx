@@ -4,6 +4,7 @@ import s from './NotificationPreferences.module.css';
 import {
   messageSoundsEnabled, setMessageSoundsEnabled, preloadUiSounds, playReactionLand,
 } from '../lib/uiSound';
+import { getChannel, setChannel, DEFAULT_CHANNEL } from '../lib/notificationChannels';
 
 // NP1 · the preferences panel.
 //
@@ -192,6 +193,14 @@ export default function NotificationPreferences({ session }) {
         );
       })}
 
+      {/* CJ2 · A CHANNEL, NOT A TOGGLE — and it sits below the categories
+          because it is a second axis over them, not another one of them.
+          Every row above answers "do I want these at all"; this answers "by
+          what route". They stack: muting SOCIAL still suppresses a contact
+          join whatever is chosen here, because a channel is a delivery route
+          and NP1's rule is that preferences govern delivery, never existence. */}
+      <ContactJoinChannel onError={setError} />
+
       {error && <div className={s.error}>{error}</div>}
 
       {/* States what turning something off actually does. "Preferences govern
@@ -204,3 +213,95 @@ export default function NotificationPreferences({ session }) {
     </div>
   );
 }
+
+/**
+ * CJ2 · "When someone in your contacts joins" — three channels, one row.
+ *
+ * ⚠ A SEGMENTED CONTROL, NOT A SWITCH, BECAUSE THERE ARE THREE ANSWERS. The
+ * rows above are binary and use the switch; forcing three states into two
+ * controls (a mute toggle plus a push toggle) would create a fourth,
+ * meaningless combination — "muted but push on" — that the user could reach
+ * and the system would have to arbitrate. Three buttons, three states, no
+ * unreachable or contradictory pairs.
+ *
+ * ⚠ OPTIMISTIC, AND IT REVERTS ON FAILURE. A preference that appears to save
+ * and silently did not is worse than one that visibly fails: the user walks
+ * away believing their phone will stay quiet.
+ */
+const CHANNEL_OPTIONS = [
+  { key: 'push',   label: 'PUSH',        desc: 'Notify me on my phone' },
+  { key: 'in_app', label: 'IN MESSAGES', desc: 'Only a badge in Messages' },
+  { key: 'off',    label: 'OFF',         desc: "Don't tell me" },
+];
+
+function ContactJoinChannel({ onError }) {
+  const [channel, setLocal] = useState(DEFAULT_CHANNEL);
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    getChannel('contact_joined').then(({ channel: c }) => {
+      if (!cancelled) { setLocal(c); setReady(true); }
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  async function choose(next) {
+    if (next === channel) return;
+    const previous = channel;
+    setLocal(next);
+    const { error } = await setChannel('contact_joined', next);
+    if (error) {
+      setLocal(previous);
+      onError?.("Couldn't save that. Please try again.");
+    }
+  }
+
+  if (!ready) return null;
+
+  const current = CHANNEL_OPTIONS.find(o => o.key === channel) ?? CHANNEL_OPTIONS[0];
+
+  return (
+    <div className={s.row} style={{ flexDirection: 'column', alignItems: 'stretch', gap: 10 }}>
+      <div className={s.rowText}>
+        <div className={s.label}>WHEN A CONTACT JOINS</div>
+        {/* The description tracks the SELECTION rather than describing the
+            feature, so the consequence of the current choice is always on
+            screen — the thing a user actually wants confirmed. */}
+        <div className={s.desc}>{current.desc}</div>
+      </div>
+
+      <div role="radiogroup" aria-label="When a contact joins" style={segWrap}>
+        {CHANNEL_OPTIONS.map(o => {
+          const on = o.key === channel;
+          return (
+            <button
+              key={o.key}
+              type="button"
+              role="radio"
+              aria-checked={on}
+              onClick={() => choose(o.key)}
+              style={{
+                ...segBtn,
+                background: on ? 'rgba(0,229,255,.18)' : 'transparent',
+                color: on ? 'var(--neon2)' : 'var(--muted)',
+              }}
+            >
+              {o.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+const segWrap = {
+  display: 'flex', background: 'var(--card2)', borderRadius: 10,
+  border: '1px solid var(--border)', overflow: 'hidden',
+};
+const segBtn = {
+  flex: 1, border: 'none', padding: '9px 6px', cursor: 'pointer',
+  fontFamily: "'Bebas Neue', sans-serif", fontSize: 12, letterSpacing: 1.2,
+  transition: 'background .15s, color .15s',
+};
