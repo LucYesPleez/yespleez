@@ -128,7 +128,7 @@ export default function MessengerIdentityScreen() {
           background: 'linear-gradient(135deg, #00E5FF, #BF5FFF)', WebkitBackgroundClip: 'text',
           WebkitTextFillColor: 'transparent', backgroundClip: 'text', display: 'inline-block',
           marginBottom: 4 }}>
-          MESSENGER AVATAR
+          PROFILE PIC
         </div>
 
         <div style={{ color: 'var(--muted)', fontSize: 13, lineHeight: 1.5, marginBottom: 20 }}>

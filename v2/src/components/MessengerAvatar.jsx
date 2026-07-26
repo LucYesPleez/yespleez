@@ -57,7 +57,7 @@ export default function MessengerAvatar({ src, size = 44, onClick, alt = '', tit
       type="button"
       onClick={onClick}
       title={title}
-      aria-label={title || 'Your Messenger avatar'}
+      aria-label={title || 'Your profile pic'}
       style={{
         padding: 0,
         border: 'none',
