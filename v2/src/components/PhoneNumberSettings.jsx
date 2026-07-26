@@ -61,6 +61,7 @@ export default function PhoneNumberSettings({ session }) {
   const [typed, setTyped] = useState('');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
+  const [confirmTyped, setConfirmTyped] = useState('');
   const [confirmRemove, setConfirmRemove] = useState(false);
   // Collapsed by default: managing your own number is a once-ever act, and it
   // was occupying the space the repeated action needs.
@@ -92,7 +93,27 @@ export default function PhoneNumberSettings({ session }) {
   }, [session]);
 
   const parsed = toE164(typed, iso);
-  const canSave = Boolean(parsed.e164) && !busy;
+  const confirmParsed = toE164(confirmTyped, iso);
+
+  /**
+   * ⚠ COMPARED AS E.164, NEVER AS TYPED TEXT.
+   *
+   * "0474 755 829" and "+61474755829" are the same number, and a confirm step
+   * that demanded identical keystrokes would reject a correct second entry —
+   * training people to copy-paste the first field, which defeats the whole
+   * point of asking twice.
+   *
+   * Comparing canonical values checks the only thing that matters: that both
+   * entries mean the same human.
+   */
+  const confirmMatches =
+    Boolean(parsed.e164) && parsed.e164 === confirmParsed.e164;
+
+  // A mistyped number is not a visible failure — it saves, shows plausible
+  // last-3 digits, and is simply never found by anyone. That is precisely the
+  // class of bug that cost this milestone a session, so it is worth one extra
+  // field to make it self-correcting.
+  const canSave = confirmMatches && !busy;
 
   async function save() {
     setBusy(true);
@@ -107,8 +128,12 @@ export default function PhoneNumberSettings({ session }) {
     setKey(fresh);
     setEditing(false);
     setTyped('');
+    setConfirmTyped('');
     setBusy(false);
     setMessage('Number saved.');
+    // Collapse back to the summary row — the job is done, and leaving the
+    // panel open pushes search off the screen for no reason.
+    setMyOpen(false);
   }
 
   async function remove() {
@@ -322,7 +347,7 @@ export default function PhoneNumberSettings({ session }) {
           </div>
           {/* No `s.switch` here — that class is the toggle's fixed-width knob
               track (~44px) and would squash a text button. */}
-          <button type="button" onClick={() => setEditing(true)}
+          <button type="button" onClick={() => { setTyped(''); setConfirmTyped(''); setEditing(true); }}
             style={pillStyle}>ADD MY NUMBER</button>
         </>
       )}
@@ -343,7 +368,13 @@ export default function PhoneNumberSettings({ session }) {
           )}
 
           <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
-            <button type="button" onClick={() => setEditing(true)} style={ghostStyle}>
+            {/* Both fields cleared on entry — a stale confirm value left over
+                from a previous attempt could pre-satisfy the check. */}
+            <button
+              type="button"
+              onClick={() => { setTyped(''); setConfirmTyped(''); setEditing(true); }}
+              style={ghostStyle}
+            >
               CHANGE
             </button>
             <button type="button" onClick={() => setConfirmRemove(true)} style={ghostStyle}>
@@ -424,12 +455,57 @@ export default function PhoneNumberSettings({ session }) {
             />
           </div>
 
+          {/* The confirm field appears only once the first entry is a real
+              number. Showing it upfront asks people to type twice before they
+              know the first one was even accepted. */}
+          {parsed.e164 && (
+            <div style={{ marginTop: 10 }}>
+              <div className={s.desc} style={{ marginBottom: 6 }}>
+                Enter it once more to be sure — a mistyped number saves fine and
+                then nobody can ever find you.
+              </div>
+              <div style={fieldRow}>
+                {/* No country picker here: the country is already settled by
+                    the first entry, and a second one could disagree with it. */}
+                <input
+                  type="tel"
+                  inputMode="tel"
+                  aria-label="Confirm your mobile number"
+                  placeholder="Confirm your number"
+                  value={confirmTyped}
+                  onChange={(e) => setConfirmTyped(e.target.value)}
+                  onBlur={() => {
+                    const { e164 } = toE164(confirmTyped, iso);
+                    if (e164) setConfirmTyped(formatDisplay(e164));
+                  }}
+                  style={inputStyle}
+                />
+              </div>
+
+              {confirmTyped && !confirmMatches && (
+                <div className={s.footnote} style={{ marginTop: 8, color: '#FF8A9E' }}>
+                  {confirmParsed.e164
+                    ? "Those two don't match."
+                    : explainReason(confirmParsed.reason)}
+                </div>
+              )}
+              {confirmMatches && (
+                <div className={s.footnote} style={{ marginTop: 8, color: 'var(--green)' }}>
+                  Both match.
+                </div>
+              )}
+            </div>
+          )}
+
           <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
             <button type="button" onClick={save} disabled={!canSave} style={{
               ...pillStyle, opacity: canSave ? 1 : 0.4, cursor: canSave ? 'pointer' : 'not-allowed',
             }}>{busy ? 'SAVING…' : 'SAVE'}</button>
-            <button type="button" onClick={() => { setEditing(false); setTyped(''); setMessage(''); }}
-              style={ghostStyle}>CANCEL</button>
+            <button
+              type="button"
+              onClick={() => { setEditing(false); setTyped(''); setConfirmTyped(''); setMessage(''); }}
+              style={ghostStyle}
+            >CANCEL</button>
           </div>
 
           {typed && !parsed.e164 && (
