@@ -293,8 +293,18 @@ export default function InboxScreen() {
           {/* 42px = the app's usual 28px heading + 50%. Deliberately larger
               than NOTIFICATIONS and the other screen titles — Messages is the
               one people land on most, and it now shares its row with an avatar
-              and a pill that would otherwise out-weigh it. */}
-          <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 42, letterSpacing: 3, lineHeight: 1, marginLeft: 20, background: HEADING_GRADIENT, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text', display: 'inline-block' }}>
+              and a pill that would otherwise out-weigh it.
+
+              ⚠ `top: 2.5px` IS AN OPTICAL CORRECTION, NOT A NUDGE. `align-items:
+              center` already levels the BOXES; the title still read high because
+              Bebas Neue's ink does not sit centred in its own line box. Measured
+              at this size: ascent 40, descent 15, and all-caps has zero ink
+              descent, so the ink centre lands 2.5px above the box centre. This
+              puts the letterforms — the thing the eye actually levels against —
+              on the row's centre line.
+
+              Recompute it if the font size changes; the offset scales with it. */}
+          <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 42, letterSpacing: 3, lineHeight: 1, marginLeft: 20, position: 'relative', top: 2.5, background: HEADING_GRADIENT, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text', display: 'inline-block' }}>
             MESSAGES
           </div>
 
@@ -330,7 +340,7 @@ export default function InboxScreen() {
               onClick={() => setDiscoveryOpen(o => !o)}
               aria-expanded={discoveryOpen}
             >
-              {discoveryOpen ? 'DONE' : 'FIND ME'}
+              {discoveryOpen ? 'DONE' : 'FIND FRIENDS'}
             </button>
           </div>
         </div>
