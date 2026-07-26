@@ -3,6 +3,7 @@ import {
   getContactSync, setContactSync, deleteContactCodes,
   syncContacts, pickContacts, isContactPickerSupported,
 } from '../lib/contactSync';
+import { parseVCardFile } from '../lib/vcard';
 import MessengerAvatar from './MessengerAvatar';
 import PrivacyInfo from './PrivacyInfo';
 import s from './NotificationPreferences.module.css';
@@ -55,6 +56,39 @@ export default function ContactSyncSettings({ onMatches }) {
       setBusy(false);
       return;
     }
+    await uploadContacts(contacts);
+  }
+
+  /**
+   * The .vcf path — same destination, different door. See vcard.js for why it
+   * exists at all: the Contact Picker is Chrome-on-Android only, which left
+   * iOS and every desktop with no bulk option.
+   *
+   * The file is parsed in the page and never uploaded; only the scrambled
+   * codes go, exactly as with the picker. The input is reset afterwards so
+   * choosing the same file twice still fires a change event.
+   */
+  async function onFile(e) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+
+    setPrimerOpen(false);
+    setBusy(true);
+    setStatus('');
+    const contacts = await parseVCardFile(file);
+    if (contacts.length === 0) {
+      // Distinguished from a cancelled picker: the user DID choose a file, so
+      // silence would read as a broken button.
+      setStatus('No contacts with phone numbers in that file.');
+      setBusy(false);
+      return;
+    }
+    await uploadContacts(contacts);
+  }
+
+  /** Shared tail of both import paths. */
+  async function uploadContacts(contacts) {
     const { matches: found, uploaded, error } = await syncContacts(contacts);
     if (error) { setStatus('Sync failed. Try again.'); setBusy(false); return; }
 
@@ -105,14 +139,52 @@ export default function ContactSyncSettings({ onMatches }) {
         // underneath and WebKit has never implemented it. Measured, not
         // assumed: `'contacts' in navigator` is false on desktop Chrome.
         //
-        // The previous copy said "needs the YesPleez app", which implied one
-        // exists. It does not, and promising a product that has not been
-        // written is the kind of small untruth this whole surface avoids.
-        <div className={s.desc}>
-          Contact matching uses your phone's own contact picker, which today only
-          Chrome on Android offers. On iPhone and on desktop, searching by number
-          above does the same job — one person at a time.
-        </div>
+        // This used to be a dead end that pointed at one-number-at-a-time
+        // search. A contacts FILE is the route every one of those platforms
+        // does have, so the feature now works everywhere — the door is
+        // different, the privacy model is identical (see vcard.js).
+        <>
+          <div className={s.desc} style={{ marginBottom: 10 }}>
+            Your browser can't open your contacts directly — that's Chrome on
+            Android only. Import a contacts file instead. Scrambled codes only,
+            never names or numbers.
+            <PrivacyInfo topic="contacts" />
+          </div>
+
+          <div className={s.footnote} style={{ marginBottom: 10 }}>
+            {/* Concrete, per-platform, and in the order the owner's own users
+                will need it — iPhone first. A generic "export a .vcf" tells
+                someone who has never heard of vCard nothing at all. */}
+            <strong style={{ color: 'var(--text)' }}>iPhone:</strong> Contacts →
+            pick a contact → Share Contact → Save to Files.{' '}
+            <strong style={{ color: 'var(--text)' }}>Desktop:</strong> export
+            from Google Contacts or Outlook as vCard (.vcf).
+          </div>
+
+          <label style={{ ...pillStyle, display: 'inline-block' }}>
+            {busy ? 'WORKING…' : 'IMPORT CONTACTS FILE'}
+            <input
+              type="file"
+              accept=".vcf,text/vcard,text/x-vcard"
+              onChange={onFile}
+              disabled={busy}
+              style={{ display: 'none' }}
+            />
+          </label>
+
+          {synced && (
+            <div className={s.footnote} style={{ marginTop: 10 }}>
+              Last synced {new Date(state.lastSyncedAt).toLocaleString()} · {count} codes
+            </div>
+          )}
+          {synced && count > 0 && (
+            <div style={{ marginTop: 10 }}>
+              <button type="button" onClick={() => setConfirmDelete(true)} style={dangerStyle}>
+                DELETE CODES
+              </button>
+            </div>
+          )}
+        </>
       )}
 
       {supported && !synced && !primerOpen && (
