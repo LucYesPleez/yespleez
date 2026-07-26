@@ -11,6 +11,7 @@ import { sendableProfiles, openDirectConversation } from '../lib/messaging';
 import { useConversationUi } from '../lib/conversationUi';
 import MessageAsSheet from './MessageAsSheet';
 import MessengerAvatar from './MessengerAvatar';
+import ContactSyncSettings from './ContactSyncSettings';
 import s from './NotificationPreferences.module.css';
 
 /**
@@ -41,10 +42,10 @@ const VISIBILITY = [
   {
     value: 'contacts',
     label: 'People in my contacts',
-    // Honest about T1 rather than letting the setting quietly mean something
-    // else: contact sync does not exist yet, so this genuinely behaves as
-    // Nobody. Saying so is the whole point.
-    desc: 'Needs contact sync, which is not built yet — for now this works the same as Nobody.',
+    // T1 is RESOLVED as of C1 — this option genuinely works now. The old copy
+    // said "not built yet", and leaving it would have been a lie in the other
+    // direction. It still depends on sync, so it still says so.
+    desc: 'Only people whose number you have saved can find you. Needs contact sync on.',
   },
   {
     value: 'nobody',
@@ -66,6 +67,7 @@ export default function PhoneNumberSettings({ session }) {
   // Collapsed by default: managing your own number is a once-ever act, and it
   // was occupying the space the repeated action needs.
   const [myOpen, setMyOpen] = useState(false);
+  const [contactsOpen, setContactsOpen] = useState(false);
   const cancelled = useRef(false);
 
   // ── Search by number (P2) ───────────────────────────────────────
@@ -516,6 +518,32 @@ export default function PhoneNumberSettings({ session }) {
 
       {message && <div className={s.footnote} style={{ marginTop: 10 }} role="status">{message}</div>}
 
+        </div>
+      )}
+
+      {/* ══ CONTACTS — same collapsed idiom as the number above ══════
+          Sync is also a once-or-twice act, so it does not get to push search
+          down the screen either. */}
+      <button
+        type="button"
+        onClick={() => setContactsOpen((o) => !o)}
+        aria-expanded={contactsOpen}
+        style={summaryRow}
+      >
+        <span className={s.label}>MY CONTACTS</span>
+        <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 5,
+          color: 'var(--muted)', fontFamily: "'Bebas Neue', sans-serif",
+          fontSize: 12, letterSpacing: 1.5 }}>
+          SETTINGS
+          <span aria-hidden="true" style={{ fontSize: 12, display: 'inline-block',
+            transform: contactsOpen ? 'rotate(180deg)' : 'none',
+            transition: 'transform .16s var(--yp-ease)' }}>▾</span>
+        </span>
+      </button>
+
+      {contactsOpen && (
+        <div style={{ paddingTop: 8 }}>
+          <ContactSyncSettings />
         </div>
       )}
 
