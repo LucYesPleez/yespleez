@@ -7,6 +7,7 @@ import BetaWelcomePopup from './BetaWelcomePopup';
 import { useCurrentShareTarget, pageFallback } from '../lib/shareTarget';
 import { readAuthLog, readAuthIncidents } from '../lib/authDiagnostics';
 import { readForensics } from '../lib/authForensics';
+import { readPushLog } from '../lib/pushLog';
 
 const INFO = {
   '/': {
@@ -216,6 +217,7 @@ export default function GlobalHeader({ onMarkRead, unreadCount = 0 }) {
               date. Asked of the worker itself, so this reports what is
               INSTALLED, not what the server would serve. */}
           {infoOpen && <ServiceWorkerStamp />}
+          {infoOpen && <PushLogReadout />}
 
           {/* Rendered only while the sheet is open. The overlay stays mounted
               and is hidden by class, so an ungated readout would re-read
@@ -355,4 +357,43 @@ function ServiceWorkerStamp() {
   }, []);
 
   return <div className={s.buildStamp} style={{ marginTop: 0, paddingTop: 4, borderTop: 'none' }}>sw: {state}</div>;
+}
+
+/**
+ * ⏱ TEMPORARY — what the service worker did with each push, on THIS device.
+ *
+ * Oldest first, because it is read as a sequence. The absence of a line is as
+ * informative as its content:
+ *
+ *   nothing at all       the push event never fired — Chrome/FCM never woke
+ *                        the worker. Not our code.
+ *   received, no shown   we were called and did not render.
+ *   shown registered=0   the browser accepted the notification and then
+ *                        registered nothing — the OS discarded it. Measured
+ *                        happening on desktop Chrome, so it is not theoretical.
+ *   shown registered=1   we did our job; anything still missing is OS-side.
+ */
+function PushLogReadout() {
+  const [rows, setRows] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    readPushLog().then(r => { if (!cancelled) setRows(r); });
+    return () => { cancelled = true; };
+  }, []);
+
+  if (rows === null) return null;
+
+  return (
+    <div className={s.buildStamp} style={{ textAlign: 'left' }}>
+      <div style={{ color: 'var(--text)' }}>PUSH LOG ({rows.length}):</div>
+      {rows.length === 0
+        ? <div style={{ opacity: .7 }}>no push has reached this device's worker</div>
+        : rows.slice(-12).map((e, i) => (
+            <div key={i} style={{ opacity: .75 }}>
+              {String(e.t).slice(11, 19)} {e.stage}{e.detail ? ` · ${e.detail}` : ''}
+            </div>
+          ))}
+    </div>
+  );
 }

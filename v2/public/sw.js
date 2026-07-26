@@ -66,7 +66,59 @@
  * Hand-maintained on purpose: sw.js is served verbatim from public/ and never
  * passes through Vite, so no build-time value can be injected here.
  */
-const SW_BUILD = '2026-07-27 · contact-join push';
+const SW_BUILD = '2026-07-27b · push forensics';
+
+/**
+ * ⏱ TEMPORARY — WHAT HAPPENS TO A PUSH ON THIS DEVICE?
+ *
+ * Android shows no notification while iPhone shows one, from the same send.
+ * Established so far: FCM accepted the push for the Android's own endpoint
+ * (sent:4, pruned:0, endpoint fcm.googleapis.com), and the installed worker is
+ * current (this file). So the push reaches Chrome and the right code is
+ * present — yet nothing appears, and three hypotheses have now been wrong.
+ *
+ * A service worker on a phone has no console anyone can read, so it writes its
+ * own account of each push here and the app displays it. This distinguishes
+ * the three remaining possibilities, which look identical from the outside:
+ *
+ *   no 'received' entry   the push event never fired — Chrome/FCM never woke
+ *                         the worker. Not our code at all.
+ *   'received', no 'shown'  we were called and did not render — an exception,
+ *                         or a promise that never settled.
+ *   'shown' but no banner the OS suppressed the notification it was given.
+ *                         Permission, or a notification channel setting.
+ *
+ * Its own database, deliberately: adding a store to yp_contacts would need a
+ * version bump on a database the app also holds open, and a blocked upgrade
+ * could hang the very handler being measured.
+ */
+const PUSH_LOG_DB = 'yp_push_log';
+const PUSH_LOG_STORE = 'events';
+
+function logPush(stage, detail) {
+  try {
+    const req = indexedDB.open(PUSH_LOG_DB, 1);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(PUSH_LOG_STORE)) {
+        db.createObjectStore(PUSH_LOG_STORE, { keyPath: 'id', autoIncrement: true });
+      }
+    };
+    req.onsuccess = () => {
+      try {
+        const db = req.result;
+        const os = db.transaction(PUSH_LOG_STORE, 'readwrite').objectStore(PUSH_LOG_STORE);
+        os.add({ t: new Date().toISOString(), stage, detail: detail ?? null });
+        // Keep it small — this is a rolling window, not an archive.
+        const all = os.getAllKeys();
+        all.onsuccess = () => {
+          const keys = all.result || [];
+          for (const k of keys.slice(0, Math.max(0, keys.length - 40))) os.delete(k);
+        };
+      } catch { /* a diagnostic must never break the push path */ }
+    };
+  } catch { /* same */ }
+}
 
 const CACHE_VERSION = 'v1';
 const SHELL_CACHE   = `yp-shell-${CACHE_VERSION}`;
@@ -344,10 +396,16 @@ self.addEventListener('message', (event) => {
 });
 
 self.addEventListener('push', (event) => {
-  if (!event.data) return;
+  // ⏱ FIRST LINE, BEFORE ANY GUARD. If this entry is missing after a send, the
+  // push event never reached the worker at all and nothing below is implicated.
+  logPush('received', `permission=${self.Notification?.permission ?? 'unknown'}`);
+
+  if (!event.data) { logPush('dropped', 'no event.data'); return; }
 
   let payload;
-  try { payload = event.data.json(); } catch { return; }
+  try { payload = event.data.json(); }
+  catch (e) { logPush('dropped', 'payload not JSON: ' + String(e?.message || e)); return; }
+  logPush('parsed', `type=${payload?.type ?? '(message)'}`);
 
   const { conversationId, senderName, kind, badgeCount } = payload || {};
 
@@ -382,9 +440,10 @@ self.addEventListener('push', (event) => {
       let name = null;
       try { name = await contactNameFor(payload.contactCodeId); }
       catch { name = null; }
+      logPush('name-resolved', name ? 'found' : 'fallback');
 
-      await Promise.all([
-        self.registration.showNotification(
+      try {
+        await self.registration.showNotification(
           name
             ? `${name} from your contacts joined YesPleez.`
             : 'Someone from your contacts joined YesPleez.',
@@ -395,9 +454,19 @@ self.addEventListener('push', (event) => {
             tag: 'contact-joined',
             renotify: true,
           },
-        ),
-        setBadge(badgeCount),
-      ]);
+        );
+        // ⏱ Did the call merely RESOLVE, or is a notification actually
+        // registered? Measured on desktop Chrome that showNotification can
+        // resolve cleanly while the browser registers nothing at all — the OS
+        // had discarded it. "Resolved" and "displayed" are different claims
+        // and only the second one matters, so both are recorded.
+        const live = await self.registration.getNotifications({ tag: 'contact-joined' });
+        logPush('shown', `resolved, registered=${live.length}`);
+      } catch (e) {
+        logPush('show-failed', String(e?.name || '') + ': ' + String(e?.message || e));
+      }
+
+      try { await setBadge(badgeCount); } catch { /* badge is cosmetic */ }
     })());
     return;
   }
