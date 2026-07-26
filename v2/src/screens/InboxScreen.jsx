@@ -294,7 +294,7 @@ export default function InboxScreen() {
               than NOTIFICATIONS and the other screen titles — Messages is the
               one people land on most, and it now shares its row with an avatar
               and a pill that would otherwise out-weigh it. */}
-          <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 42, letterSpacing: 3, lineHeight: 1, background: HEADING_GRADIENT, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text', display: 'inline-block' }}>
+          <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 42, letterSpacing: 3, lineHeight: 1, marginLeft: 20, background: HEADING_GRADIENT, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text', display: 'inline-block' }}>
             MESSAGES
           </div>
 
