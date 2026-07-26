@@ -14,6 +14,7 @@ import { haversineKm, profileCoords, postcodeCoords, isKnownPostcode } from '../
 import PastEventsSearch, { filterPastEvents } from '../components/PastEventsSearch';
 import { PROFILE_TYPES, PROFILE_TYPE_ORDER } from '../lib/profileTypes';
 import UnclaimedBadge from '../components/UnclaimedBadge';
+import MessengerAvatar from '../components/MessengerAvatar';
 
 let _discoverCache = [];
 
@@ -121,7 +122,10 @@ export default function MySceneScreen({ isGuest, onSignOut }) {
         supabase.from('follows').select('entity_id,entity_type,entity_name,created_at,target_profile_id').eq('user_id', uid).order('created_at', { ascending: false }),
         supabase.from('applications').select('event_id,status').eq('artist_id', uid),
         supabase.from('events').select('id,name,config,created_at').eq('host_id', uid).order('created_at', { ascending: false }),
-        supabase.from('profiles').select('name').eq('user_id', uid).eq('type', 'punter').limit(1),
+        // MI1 · avatar comes from the SAME punter row as the name, so the face
+        // in this pill and the face in Messages are one value, not two that
+        // happen to agree.
+        supabase.from('profiles').select('name,avatar_thumb,avatar').eq('user_id', uid).eq('type', 'punter').limit(1),
         supabase.from('lineup_members').select('event_id').eq('artist_id', uid).neq('status', 'removed'),
         supabase.from('personal_events').select('*').eq('user_id', uid),
       ]);
@@ -186,6 +190,7 @@ export default function MySceneScreen({ isGuest, onSignOut }) {
         events:         evRes.data || [],
         myEvents:       myEvRes.data || [],
         punterName:     profRes.data?.[0]?.name || '',
+        punterAvatar:   profRes.data?.[0]?.avatar_thumb || profRes.data?.[0]?.avatar || '',
         personalEvents: peRes.data   || [],
         playingEvents:  claimEvRes.data || [],
         followProfiles: followProfileMap,
@@ -491,11 +496,13 @@ export default function MySceneScreen({ isGuest, onSignOut }) {
                 inline rename sheet; the rename moved to that screen with it, so
                 nothing was lost — see MessengerIdentityScreen. */}
             <div className={s.profilePill} onClick={() => navigate('/me')} style={{ cursor: 'pointer' }}>
-              <div className={s.profileIcon}>
-                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 1 0-16 0"/>
-                </svg>
-              </div>
+              {/* MI1 · THE SAME COMPONENT MESSAGES USES, not a lookalike.
+                  This was a generic person glyph, which meant My Scene and
+                  Messenger showed different things for the same identity — and
+                  no amount of uploading a photo would ever change this one.
+                  Sharing MessengerAvatar is what makes them link: one source
+                  for the image, one default when there isn't one. */}
+              <MessengerAvatar src={data?.punterAvatar} size={26} />
               <span className={s.profileName}>{displayName.toUpperCase()}</span>
             </div>
             <div style={{ fontSize: 11, color: 'var(--muted)', paddingRight: 2 }}>{session.user.email}</div>

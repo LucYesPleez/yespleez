@@ -48,17 +48,8 @@
   flex-shrink: 0;
 }
 
-.profileIcon {
-  width: 26px;
-  height: 26px;
-  border-radius: 8px;
-  background: rgba(191,95,255,.15);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #BF5FFF;
-  flex-shrink: 0;
-}
+/* .profileIcon removed with the generic person glyph (MI1) — the pill now
+   renders MessengerAvatar, which brings its own shape and default. */
 
 .profileName {
   font-family: 'Bebas Neue', sans-serif;
