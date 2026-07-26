@@ -39,6 +39,15 @@ export default function NotificationsScreen() {
       // Excluding them from the bell COUNT but not from this list is what made
       // the feed fill up with "New message" while the bell stayed at zero.
       .not('type', 'in', `(${convTypesRef.current.join(',')})`)
+      // CJ2 — "In Messages only" means only in Messages. The bell is a
+      // different tab, so an in_app row must not appear in this feed.
+      //
+      // ⚠ THIS IS NOT MERELY COSMETIC. Everything this query returns is marked
+      // read a few lines below. Leaving in_app rows in would mean opening the
+      // BELL silently cleared the FIND FRIENDS badge — destroying the one
+      // signal the user chose this channel to receive, on a screen that never
+      // showed it to them.
+      .neq('channel', 'in_app')
       .order('created_at', { ascending: false })
       .limit(60);
     if (cancelled.current) return;

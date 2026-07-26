@@ -113,7 +113,12 @@ function Shell({ session, isGuest, onSignOut }) {
         // Preferences govern delivery, never existence.
         .is('suppressed_at', null)
         .eq('read', false)
-        .not('type', 'in', `(${conversationTypes.join(',')})`);
+        .not('type', 'in', `(${conversationTypes.join(',')})`)
+        // CJ2 — an "In Messages only" notification is badged on FIND FRIENDS
+        // and nowhere else. The bell is a different tab; lighting it would
+        // make the label a lie. Kept in step with NotificationsScreen's feed,
+        // which excludes the same rows for the same reason.
+        .neq('channel', 'in_app');
       setUnreadCount(count || 0);
     }
 
