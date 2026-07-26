@@ -35,6 +35,19 @@ const CARD_SURFACE =
   'linear-gradient(135deg,rgba(255,45,120,.4),rgba(157,78,221,.3)) padding-box,'
   + 'linear-gradient(150deg, rgba(255,79,216,.34) 0%, rgba(191,95,255,.13) 46%, rgba(255,255,255,.04) 100%) border-box';
 
+/**
+ * A Personal profile carries NO edge.
+ *
+ * Its artwork already arrives framed, so the gradient border read as a second
+ * frame around the first. The industry types keep theirs — their photographs
+ * run to the bleed and need something to sit against.
+ *
+ * The border-box layer goes with it: with no transparent border for it to
+ * show through, it would paint nothing and only confuse the next reader.
+ */
+const CARD_SURFACE_PLAIN =
+  'linear-gradient(135deg,rgba(255,45,120,.4),rgba(157,78,221,.3))';
+
 export default function PortraitCard({ profile: p, onClick, width = 150, height = 200 }) {
   const navigate = useNavigate();
   // 10F: one resolver, no artist sentinel. A row with a missing/unknown type used
@@ -42,6 +55,8 @@ export default function PortraitCard({ profile: p, onClick, width = 150, height 
   // neutral, which is honest rather than confidently wrong.
   const type = String(p?.type || '').toLowerCase();
   const pt = profileIdentity(type);
+  // Personal profiles get no edge — see CARD_SURFACE_PLAIN.
+  const isPunter = type === 'punter';
   const label = pt.shortLabel;
   // Standup: one pill per selected performance role (Comedy/Poetry). Artist:
   // same concept for DJ/Producer/MC. Data-driven so a future role works
@@ -63,7 +78,7 @@ export default function PortraitCard({ profile: p, onClick, width = 150, height 
   return (
     <div
       onClick={handleClick}
-      style={{ flexShrink: 0, width, height, borderRadius: 14, overflow: 'hidden', cursor: 'pointer', position: 'relative', border: CARD_BORDER, background: CARD_SURFACE, transition: 'transform .18s' }}
+      style={{ flexShrink: 0, width, height, borderRadius: 14, overflow: 'hidden', cursor: 'pointer', position: 'relative', border: isPunter ? 'none' : CARD_BORDER, background: isPunter ? CARD_SURFACE_PLAIN : CARD_SURFACE, transition: 'transform .18s' }}
       onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-2px)'}
       onMouseLeave={e => e.currentTarget.style.transform = ''}
     >
