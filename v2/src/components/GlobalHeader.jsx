@@ -50,6 +50,28 @@ const FALLBACK = {
   body: `<p>YesPleez connects artists, hosts, and fans on the local scene.</p><ul><li><strong>WHATS HAPPENIN'</strong> — browse all upcoming events.</li><li><strong>DISCOVER</strong> — find artists and events by genre or vibe.</li><li><strong>MY SCENE</strong> — your personalised feed of who and what you follow.</li><li>Sign up as an <strong>Artist</strong> to apply for gigs, or as a <strong>Host</strong> to run events and build your lineup.</li></ul>`
 };
 
+/**
+ * The build stamp: version · commit · build time.
+ *
+ * ⚠ EACH GLOBAL IS GUARDED, the same way analytics.js guards __APP_VERSION__.
+ * Vite's `define` does not apply under node tests, so an unguarded reference
+ * throws the moment anything imports this module in a test.
+ *
+ * THE COMMIT IS THE LOAD-BEARING PART. A version only moves when someone
+ * remembers to bump it, so two different builds routinely share one. The SHA
+ * changes every deploy, which is what makes "am I looking at a stale build?"
+ * answerable — a question that has cost real debugging time twice, most
+ * expensively when a phone served a bundle from before a fix while every
+ * diagnostic read healthy.
+ */
+const BUILD_STAMP = [
+  'v' + (typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '0.0.0'),
+  typeof __BUILD_SHA__ !== 'undefined' ? __BUILD_SHA__ : 'dev',
+  typeof __BUILD_TIME__ !== 'undefined'
+    ? new Date(__BUILD_TIME__).toLocaleString()
+    : 'unbuilt',
+].join(' · ');
+
 export default function GlobalHeader({ onMarkRead, unreadCount = 0 }) {
   const navigate    = useNavigate();
   const location    = useLocation();
@@ -174,6 +196,16 @@ export default function GlobalHeader({ onMarkRead, unreadCount = 0 }) {
             className={s.infoBody}
             dangerouslySetInnerHTML={{ __html: `<h4>${info.title}</h4>${info.body}` }}
           />
+
+          {/* WHICH BUILD AM I LOOKING AT.
+              Here rather than anywhere prettier because this is where someone
+              already goes to ask "what is this?", and because a stale bundle
+              has now cost real debugging time twice — a phone kept serving a
+              build from before a fix while every diagnostic read healthy.
+              The commit is the part that actually settles it: the version only
+              moves when someone remembers, the SHA moves every deploy. */}
+          <div className={s.buildStamp}>{BUILD_STAMP}</div>
+
           <button className={s.infoClose} onClick={() => setInfoOpen(false)}>CLOSE</button>
         </div>
       </div>

@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs'
+import { execSync } from 'node:child_process'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
@@ -10,11 +11,41 @@ import react from '@vitejs/plugin-react'
 // versions this config runs under, and this cannot be allowed to fail.
 const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8'))
 
+/**
+ * WHICH BUILD IS THIS, EXACTLY.
+ *
+ * The version alone cannot answer that: it only changes when someone
+ * remembers to bump it, so two different builds routinely share one. The
+ * COMMIT does change every deploy, which is what makes "am I looking at a
+ * stale build?" answerable — a question that has now wasted real debugging
+ * time more than once, most expensively when a phone kept showing a bundle
+ * from before a fix and every diagnostic looked healthy.
+ *
+ * Cloudflare Pages exposes CF_PAGES_COMMIT_SHA to the build, so production
+ * needs no git. Locally we ask git, and fall back to 'dev' — a dev server has
+ * no commit worth naming, and failing the build over a version string would
+ * be an absurd trade.
+ */
+function buildSha() {
+  const fromPages = process.env.CF_PAGES_COMMIT_SHA
+  if (fromPages) return fromPages.slice(0, 7)
+  try {
+    return execSync('git rev-parse --short HEAD', { stdio: ['ignore', 'pipe', 'ignore'] })
+      .toString().trim() || 'dev'
+  } catch {
+    return 'dev'
+  }
+}
+
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
+    __BUILD_SHA__:   JSON.stringify(buildSha()),
+    // Date of the BUILD, not of the commit — that is what tells you how old
+    // the thing in front of you is.
+    __BUILD_TIME__:  JSON.stringify(new Date().toISOString()),
   },
   server: {
     host: true,

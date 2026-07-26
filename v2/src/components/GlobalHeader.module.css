@@ -124,6 +124,22 @@
   to   { opacity: 1; transform: translateY(0); }
 }
 .infoHandle { display: none; }
+/* The build stamp. Quiet and monospaced — it is a serial number, not copy,
+   and it needs to be read aloud over a phone call without ambiguity. */
+.buildStamp {
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10.5px;
+  letter-spacing: .02em;
+  color: var(--muted);
+  text-align: center;
+  /* Selectable on purpose: the whole point is being able to send it to me. */
+  user-select: text;
+  -webkit-user-select: text;
+}
+
 .infoClose {
   display: block;
   width: 100%;
