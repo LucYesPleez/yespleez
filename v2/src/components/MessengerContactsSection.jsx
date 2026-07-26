@@ -356,20 +356,41 @@ export default function MessengerContactsSection({ rows = [], onOpen, loading = 
         // LIST view, collapsed: a peek at ~3.3 rows, faded rather than cut
         // hard, so the eye reads "more below" instead of "that's everything".
         // Owner: "use gradient to fade the bottom to show theres more."
-        <div style={{ position: 'relative', maxHeight: COLLAPSED_MAX_HEIGHT, overflow: 'hidden' }}>
+        // ⚠ TWO ELEMENTS: A WRAPPER THAT DOES NOT SCROLL, AND A SCROLLER
+        // INSIDE IT. The fade is positioned against the WRAPPER. Put it inside
+        // the scrolling element instead — the obvious single-div version — and
+        // `bottom: 0` resolves against the scrollable CONTENT rather than its
+        // visible box, so the gradient slides up out of view the moment you
+        // scroll and reappears only at the end. It has to stay welded to the
+        // bottom edge of the window you are looking through.
+        <div style={{ position: 'relative' }}>
           <div style={{
-            display: isDesktop ? 'grid' : 'flex',
-            flexDirection: isDesktop ? undefined : 'column',
-            gridTemplateColumns: isDesktop ? '1fr 1fr' : undefined,
-            gap: 6,
+            maxHeight: COLLAPSED_MAX_HEIGHT,
+            overflowY: 'auto',
+            // Momentum scrolling on iOS; without it a short inner scroller
+            // feels stuck compared to the page it sits on.
+            WebkitOverflowScrolling: 'touch',
+            scrollbarWidth: 'thin',
           }}>
-            {contacts.map(({ profile, conversationId }) => (
-              <ProfileCard
-                key={profile.id}
-                item={profile}
-                onClick={() => onOpen?.(conversationId, profile)}
-              />
-            ))}
+            <div style={{
+              display: isDesktop ? 'grid' : 'flex',
+              flexDirection: isDesktop ? undefined : 'column',
+              gridTemplateColumns: isDesktop ? '1fr 1fr' : undefined,
+              gap: 6,
+              // Lets the LAST row scroll clear of the gradient. Without it the
+              // final contact can never be seen unobscured — the fade is
+              // pointer-transparent so it was always clickable, but it looked
+              // permanently half-disabled.
+              paddingBottom: FADE_HEIGHT,
+            }}>
+              {contacts.map(({ profile, conversationId }) => (
+                <ProfileCard
+                  key={profile.id}
+                  item={profile}
+                  onClick={() => onOpen?.(conversationId, profile)}
+                />
+              ))}
+            </div>
           </div>
           {contacts.length > COLLAPSED_ROWS * (isDesktop ? DESKTOP_COLUMNS : 1) && (
             <div
