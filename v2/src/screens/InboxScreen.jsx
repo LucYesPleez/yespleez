@@ -274,11 +274,17 @@ export default function InboxScreen() {
               notification preferences live on the notifications screen (NP1):
               the app has no settings section, and this is where someone comes
               when they want to be reachable. */}
+          {/* .yp-gpill carries the whole look (see index.css): purple→gold
+              outline borrowed from the Discover title, transparent interior,
+              white text, purple glow on hover. Only the layout position is
+              inline — an inline `background`/`border`/`color` here would beat
+              the stylesheet and silently defeat the class. */}
           <button
             type="button"
+            className="yp-gpill"
             onClick={() => setDiscoveryOpen(o => !o)}
             aria-expanded={discoveryOpen}
-            style={{ marginLeft: 'auto', background: 'none', border: '1px solid var(--border)', borderRadius: 999, color: 'var(--muted)', fontFamily: "'Bebas Neue', sans-serif", fontSize: 12, letterSpacing: 1.5, padding: '5px 12px', cursor: 'pointer' }}
+            style={{ marginLeft: 'auto' }}
           >
             {discoveryOpen ? 'DONE' : 'FIND ME'}
           </button>

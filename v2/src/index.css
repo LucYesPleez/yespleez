@@ -114,6 +114,75 @@ input, textarea, select {
   font-family: inherit;
 }
 
+/* ── THE GRADIENT-OUTLINE PILL (.yp-gpill) ─────────────────────────────────
+   An outline in the Discover title's purple→gold, a genuinely transparent
+   interior, and white text.
+
+   ⚠ NOT THE `padding-box / border-box` TRICK USED ELSEWHERE IN THIS FILE.
+   That technique (see .yp-hand-ring) paints an opaque fill clipped to the
+   padding box, which is fine on a control that wants a solid face — but it
+   would occlude the hand watermark and the ambient gradient that sit behind
+   this pill in the page background. "No background" has to mean actually
+   transparent, so the border is drawn by a pseudo-element whose centre is
+   masked out instead.
+
+   The two-layer mask is the standard construction: one layer covering the
+   whole box, one covering only the content box, composited so they cancel and
+   leave just the 1px padding ring.
+
+   Gradient direction matches DiscoverScreen.module.css exactly — same angle,
+   same stops — so the pill and the title it borrows from cannot drift apart. */
+.yp-gpill {
+  position: relative;
+  background: transparent;
+  border: none;
+  border-radius: 999px;
+  color: #fff;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 12px;
+  letter-spacing: 1.5px;
+  /* Bebas sits high in its line box — more padding above than below, the same
+     compensation .glow-pill makes a few rules down. */
+  padding: 6px 12px 4px;
+  cursor: pointer;
+  transition: box-shadow var(--yp-medium) var(--yp-ease),
+              transform .12s var(--yp-ease);
+}
+
+.yp-gpill::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;                 /* the ring's thickness */
+  background: linear-gradient(90deg, #BF5FFF 0%, #ffb830 100%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+          mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;  /* Safari spelling */
+          mask-composite: exclude;
+  pointer-events: none;         /* the ring must never eat the click */
+}
+
+/* Purple, not gold: the glow reads as the brand's own light. Hover only —
+   a permanent glow on a secondary control competes with the page heading. */
+@media (hover: hover) {
+  .yp-gpill:hover { box-shadow: 0 0 18px -3px rgba(191, 95, 255, .8); }
+}
+.yp-gpill:active { transform: scale(.97); }
+
+/* ⚠ WITHOUT MASK SUPPORT THE PSEUDO-ELEMENT PAINTS A SOLID GRADIENT BLOCK
+   OVER THE LABEL — the same failure .yp-hand guards against, and far worse
+   than simply having no gradient. Fall back to a flat purple border. */
+@supports not ((-webkit-mask-composite: xor) or (mask-composite: exclude)) {
+  .yp-gpill::before { display: none; }
+  .yp-gpill { border: 1px solid #BF5FFF; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .yp-gpill { transition: none; }
+  .yp-gpill:active { transform: none; }
+}
+
 /* ── GlowPill ──────────────────────────────────────────────────────────────
    Reusable YesPleez pink→cyan gradient pill/chip. DEFINED for reuse — not
    applied anywhere yet (wire it up on request).
