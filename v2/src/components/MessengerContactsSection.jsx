@@ -179,6 +179,12 @@ export default function MessengerContactsSection({ rows = [], onOpen, loading = 
 
   if (!loading && contacts.length === 0) return null;
 
+  // ⚠ showType={false} ON BOTH RENDERERS, AND ONLY HERE. The type pill was
+  // once removed from PortraitCard itself to satisfy "pills are taking up too
+  // much of the card" — which was about THIS rail, and silently stripped them
+  // from Following and every industry profile as well. Opting out at the call
+  // site keeps the request local to the surface that made it.
+  //
   // The View-all GRID keeps a fixed 150x200 card — `minmax(150px,1fr)` below
   // is sized for it, and the 7.3-visible rule is specifically about the
   // horizontal RAIL, not a wrapping grid.
@@ -188,6 +194,7 @@ export default function MessengerContactsSection({ rows = [], onOpen, loading = 
       profile={profile}
       width={150}
       height={200}
+      showType={false}
       onClick={() => onOpen?.(conversationId, profile)}
     />
   );
@@ -203,6 +210,7 @@ export default function MessengerContactsSection({ rows = [], onOpen, loading = 
       width={railCardWidth}
       height="auto"
       avatarOnly={!isDesktop}
+      showType={false}
       onClick={() => onOpen?.(conversationId, profile)}
     />
   );

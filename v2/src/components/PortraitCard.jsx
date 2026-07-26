@@ -1,7 +1,9 @@
 import { useNavigate } from 'react-router-dom';
 import { profileUrl } from '../lib/profileResolution';
 import { formatLocation } from '../lib/formatLocation';
+import { selectedPerformanceRoleLabels, selectedArtistRoleLabels } from '../lib/profileTaxonomy';
 import { profileIdentity } from '../lib/profileTypes';
+import { getContrastText } from '../lib/color';
 import UnclaimedBadge from './UnclaimedBadge';
 import { isProfileUnclaimed } from '../lib/profileClaim';
 
@@ -52,13 +54,23 @@ const CARD_SURFACE =
   'linear-gradient(135deg,rgba(255,45,120,.4),rgba(157,78,221,.3)) padding-box,'
   + 'linear-gradient(155deg, #1E1B26 0%, #100E15 100%) border-box';
 
-export default function PortraitCard({ profile: p, onClick, width = 150, height = 200, avatarOnly = false }) {
+export default function PortraitCard({ profile: p, onClick, width = 150, height = 200, avatarOnly = false, showType = true }) {
   const navigate = useNavigate();
   // 10F: one resolver, no artist sentinel. A row with a missing/unknown type used
   // to render as a cyan "DJ / PROD." with a DJ's placeholder photo; it now renders
   // neutral, which is honest rather than confidently wrong.
   const type = String(p?.type || '').toLowerCase();
   const pt = profileIdentity(type);
+  const label = pt.shortLabel;
+  const roleLabels = type === 'standup' ? selectedPerformanceRoleLabels(p?.genre_string)
+    : type === 'artist' ? selectedArtistRoleLabels(p?.genre_string)
+    : [];
+  // `label` is null for a Personal profile (PUNTER_PROFILE), which is how the
+  // type chip is suppressed — a punter is just a person, and a chip reading
+  // "PROFILE" told the reader nothing they could act on. `.filter(Boolean)`
+  // rather than a branch, so any future identity without a label inherits the
+  // same behaviour instead of rendering an empty pill.
+  const pillLabels = (roleLabels.length ? roleLabels : [label]).filter(Boolean);
   // M5: canonical profile.id URL; legacy user_id URL only as a fallback for
   // callers whose selects don't carry `id` yet (the redirect shim covers it).
   const handleClick = onClick || (() => navigate(p?.id ? profileUrl(p) : `/profile/${p?.user_id}?type=${type}`));
@@ -87,8 +99,22 @@ export default function PortraitCard({ profile: p, onClick, width = 150, height 
               photo; skipped entirely in avatarOnly, where there is no text
               left to protect. */}
           <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom,rgba(0,0,0,.08) 0%,rgba(0,0,0,0) 35%,rgba(0,0,0,.6) 75%,rgba(0,0,0,.88) 100%)' }} />
-          {/* Type pill removed — owner: "taking up too much of the card". The
-              top-right corner is empty now; nothing else claims it. */}
+          {/* type pill(s) — ⚠ ON BY DEFAULT, AND THAT DEFAULT IS THE FIX.
+              These were deleted outright when the Messenger rail wanted them
+              gone, which silently stripped them from every OTHER surface too:
+              Following, and every industry profile that renders this card. The
+              brief was the Messenger rail alone. Opting OUT (showType={false},
+              passed only by MessengerContactsSection) keeps that request
+              satisfied without any other caller paying for it. */}
+          {showType && pillLabels.length > 0 && (
+            <div style={{ position: 'absolute', top: 10, right: 10, display: 'flex', gap: 6 }}>
+              {pillLabels.map((l, i) => (
+                <span key={i} style={{ background: pt.accent, color: getContrastText(pt.accent), filter: 'brightness(.8)', borderRadius: 6, padding: '3px 8px', fontSize: 9, fontWeight: 700, letterSpacing: .8, fontFamily: "'DM Sans',sans-serif" }}>
+                  {l}
+                </span>
+              ))}
+            </div>
+          )}
           {/* info */}
           <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: 12 }}>
             <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 15, letterSpacing: 1, color: '#fff', lineHeight: 1.1 }}>{p?.name}</div>

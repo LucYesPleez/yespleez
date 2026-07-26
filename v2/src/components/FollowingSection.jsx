@@ -3,7 +3,6 @@ import PortraitCard from './PortraitCard';
 import ProfileCard from './ProfileCard';
 import { PROFILE_TYPE_ORDER, PROFILE_TYPES } from '../lib/profileTypes';
 import { VISIBLE_PERFORMANCE_ROLES, VISIBLE_ARTIST_ROLES } from '../lib/profileTaxonomy';
-import { useRailCardWidth, useIsPhone } from '../hooks/useRailCardWidth';
 
 // One pill per profile type, except standup and artist — which each split
 // into one pill per role (standup: Comedy / Poetry; artist: DJ / Producer /
@@ -69,10 +68,6 @@ export default function FollowingSection({
   sectionTitle = 'FOLLOWING',
   actions,   // optional: (profile) => jsx — extra action buttons in landscape view
 }) {
-  const railCardWidth = useRailCardWidth();
-  // Same phone treatment as MessengerContactsSection's rail — the two are
-  // built to look and behave alike (see this file's own header comment).
-  const isPhone = useIsPhone();
   const filtered = following.filter(p => {
     if (followFilter === 'ALL') return true;
     const { type, role } = FOLLOW_TYPE_MAP[followFilter] || {};
@@ -179,7 +174,13 @@ export default function FollowingSection({
       ) : followView === 'portrait' ? (
         <div ref={followDrag.ref} onMouseDown={followDrag.onMouseDown} onMouseMove={followDrag.onMouseMove} onMouseUp={followDrag.onMouseUp} onMouseLeave={followDrag.onMouseLeave}
           style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 8, WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', cursor: 'grab', userSelect: 'none' }}>
-          {filtered.map(p => <PortraitCard key={p.user_id} profile={p} width={railCardWidth} height="auto" avatarOnly={isPhone} />)}
+          {/* ⚠ 150×200, FIXED — this rail is NOT the Messenger one. It briefly
+              borrowed the Messenger rail's fluid width and avatar-only phone
+              treatment; that was never asked for here and shrank every
+              industry profile's Following list. Do not re-point this at
+              useRailCardWidth: the two rails look alike but answer different
+              questions, and only one of them was being redesigned. */}
+          {filtered.map(p => <PortraitCard key={p.user_id} profile={p} width={150} height={200} />)}
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
