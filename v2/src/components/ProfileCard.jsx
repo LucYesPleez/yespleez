@@ -47,15 +47,11 @@ export default function ProfileCard({ item, badge, badgeColor, actions, onClick 
   // small dash-shaped pill with no text, on every punter row. Same bug as
   // PortraitCard had, missed here until the screenshot showed it.
   const typeLabels = (roleLabels.length ? roleLabels : [ts.label]).filter(Boolean);
-  // Personal profiles get no edge — their photo already arrives framed, so a
-  // gradient border read as a second frame around the first (PortraitCard
-  // has the same rule).
-  const isPunter = type === 'punter';
 
   return (
     <div
       className={s.card}
-      style={{ '--accent': ts.col, '--accent-rgb': ts.rgb, border: isPunter ? 'none' : `1.5px solid rgba(${ts.rgb},.6)` }}
+      style={{ '--accent': ts.col, '--accent-rgb': ts.rgb, border: `1.5px solid rgba(${ts.rgb},.6)` }}
       onClick={() => {
         // An OPTIONAL override, not a new default. Messenger's contact list
         // reuses this card but must open the CONVERSATION rather than the
