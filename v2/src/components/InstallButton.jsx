@@ -19,6 +19,31 @@ function isIOS() {
 }
 
 /**
+ * WHICH iOS BROWSER — because the install steps genuinely differ.
+ *
+ * ⚠ EVERY iOS BROWSER IS SAFARI UNDERNEATH, so the usual "is it Chrome"
+ * checks are useless here: Chrome for iOS still reports Safari and WebKit,
+ * because Apple requires it to use WebKit. What distinguishes them is a
+ * vendor token each adds: CriOS (Chrome), FxiOS (Firefox), EdgiOS (Edge),
+ * OPiOS/OPT (Opera).
+ *
+ * ⚠ SAFARI IS THE DEFAULT, SO IT IS THE FALLBACK. Anything not carrying a
+ * known vendor token is treated as Safari — a browser we have never heard of
+ * is far more likely to use Safari's share-sheet flow (it has no choice about
+ * the engine) than Chrome's ••• menu.
+ *
+ * The two flows are not cosmetic variants:
+ *   Chrome  ••• More  →  Add to Home Screen  →  Add
+ *   Safari  Share ⬆    →  Add to Home Screen  →  Add
+ * Safari has no ••• button at all, so showing Chrome's guide there sends the
+ * user hunting for a control that does not exist.
+ */
+function iosBrowser() {
+  const ua = typeof navigator !== 'undefined' ? (navigator.userAgent || '') : '';
+  return /CriOS|FxiOS|EdgiOS|OPiOS|OPT\//.test(ua) ? 'chrome' : 'safari';
+}
+
+/**
  * ADD TO HOME SCREEN — header entry point, beside BETA.
  *
  * ⚠ HIDDEN ONCE INSTALLED, on both platforms. `isInstalled()` (analytics.js)
@@ -55,7 +80,9 @@ export default function InstallButton() {
   // covers Chromium on desktop without naming it. iOS is gated separately
   // because its screen promises instructions, not an install — a promise
   // Safari can always keep.
-  const platform = ios ? 'ios' : (canInstall ? 'android' : null);
+  const platform = ios
+    ? (iosBrowser() === 'chrome' ? 'ios-chrome' : 'ios-safari')
+    : (canInstall ? 'android' : null);
   if (!platform) return null;
 
   return (

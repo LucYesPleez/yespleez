@@ -3,13 +3,16 @@ import { promptInstall } from '../lib/installPrompt';
 
 /**
  * THE INSTALL SCREEN — the owner's artwork, full screen, sliding down from the
- * top. One component, two platforms, two quite different jobs:
+ * top. One component, THREE platforms, and they are not variants of one thing:
  *
- *   ANDROID  install-android.png. Its painted "Install Web App" pill sits over
- *            a TRANSPARENT hotspot that fires the real PWA install dialog.
- *   iOS      install-ios.png. A four-step guide, and nothing to tap. Safari
- *            exposes no install API at any version, so there is no button to
- *            put behind anything — the picture IS the whole feature.
+ *   android      install-android.png. Its painted "Install Web App" pill sits
+ *                over a TRANSPARENT hotspot firing the real PWA install
+ *                dialog. The only branch with anything to press.
+ *   ios-chrome   install-ios-chrome.png. A four-step guide, nothing to tap —
+ *                no iOS browser exposes an install API, so there is no button
+ *                to put behind anything and the picture IS the feature.
+ *   ios-safari   TEXT, not artwork. The supplied guide depicts Chrome's •••
+ *                menu, which Safari does not have. See the block below.
  *
  * ⚠ THE ARTWORK IS THE UI. Every word and control is baked into the PNG; there
  * is no text layer to restyle. On Android the only interactive element is an
@@ -32,6 +35,7 @@ const ANDROID_HOTSPOT = { left: '17.3%', top: '87.2%', width: '65.4%', height: '
 export default function InstallSheet({ open, onClose, platform }) {
   const [note, setNote] = useState('');
   const isAndroid = platform === 'android';
+  const isIosSafari = platform === 'ios-safari';
 
   // Escape closes, and the page behind must not scroll while a full-screen
   // overlay is up: on a phone that produces a sheet that scrolls the feed
@@ -87,15 +91,57 @@ export default function InstallSheet({ open, onClose, platform }) {
         style={{ position: 'relative', width: 'min(100%, 460px)', lineHeight: 0 }}
       >
         {/* Rendered only while open: at ~1.5MB neither artwork may be part of
-            the app's initial cost, and only one of the two is ever fetched. */}
-        {open && (
+            the app's initial cost, and only one is ever fetched. */}
+        {open && !isIosSafari && (
           <img
-            src={isAndroid ? '/install-android.png' : '/install-ios.png'}
+            src={isAndroid ? '/install-android.png' : '/install-ios-chrome.png'}
             alt={isAndroid
               ? 'Save YesPleez to your phone — install it like a native app'
-              : 'How to add YesPleez to your iPhone home screen: tap More, then Add to Home Screen, then Add'}
+              : 'How to add YesPleez to your home screen in Chrome: tap More, then Add to Home Screen, then Add'}
             style={{ display: 'block', width: '100%', height: 'auto', aspectRatio: ARTWORK_RATIO }}
           />
+        )}
+
+        {/* ⚠ SAFARI GETS TEXT, NOT THE ARTWORK, AND THAT IS NOT A DOWNGRADE —
+            IT IS THE ONLY CORRECT OPTION TODAY.
+            The supplied iOS guide depicts CHROME: its step 2 menu shows New
+            Incognito Tab / Reading List / Recent Tabs / Find in Page, and step
+            1's toolbar has Chrome's extensions puzzle and tab counter. Safari
+            has no ••• More button anywhere, so a Safari user following step 1
+            hunts for a control that does not exist and concludes the app is
+            broken. Showing beautiful wrong instructions is worse than plain
+            right ones.
+            Replace this whole block the moment Safari artwork exists — Safari
+            is the DEFAULT browser on iOS, so this is the majority path, not
+            the edge case. */}
+        {open && isIosSafari && (
+          <div style={{
+            background: '#101018', border: '1px solid var(--border)', borderRadius: 18,
+            padding: '26px 22px', lineHeight: 1.5,
+          }}>
+            <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 24, letterSpacing: 2, color: '#fff', marginBottom: 6 }}>
+              INSTALL YESPLEEZ
+            </div>
+            <div style={{ fontSize: 13.5, color: 'var(--muted)', marginBottom: 18 }}>
+              Add YesPleez to your home screen for quick access anytime — and so
+              notifications can reach you.
+            </div>
+            {[
+              ['1', <>Tap <strong style={{ color: '#fff' }}>Share</strong> in Safari’s toolbar — the square with an arrow pointing up.</>],
+              ['2', <>Scroll down and tap <strong style={{ color: '#fff' }}>Add to Home Screen</strong>.</>],
+              ['3', <>Tap <strong style={{ color: '#fff' }}>Add</strong>. YesPleez is now on your home screen.</>],
+            ].map(([n, text]) => (
+              <div key={n} style={{ display: 'flex', gap: 12, marginBottom: 14, alignItems: 'flex-start' }}>
+                <span style={{
+                  flexShrink: 0, width: 24, height: 24, borderRadius: 999,
+                  border: '1px solid #FF2D78', color: '#FF2D78',
+                  display: 'grid', placeItems: 'center',
+                  fontFamily: "'DM Sans',sans-serif", fontSize: 12, fontWeight: 700,
+                }}>{n}</span>
+                <span style={{ fontSize: 13.5, color: 'var(--text)' }}>{text}</span>
+              </div>
+            ))}
+          </div>
         )}
 
         {/* ⚠ ANDROID ONLY. On iOS there is deliberately NOTHING to press —
