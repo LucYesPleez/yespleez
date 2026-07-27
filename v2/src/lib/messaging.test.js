@@ -37,6 +37,10 @@ let queryResult = { data: [], error: null };
 let sessionUser = { id: USER };
 /** What every rpc resolves to. can_act_as tests flip this. */
 let rpcAnswer = 'rpc-result';
+/** When set, the next insert's .single() reports this error instead of the row. */
+let insertError = null;
+/** What a `.eq('client_id', …).maybeSingle()` recovery read finds. */
+let clientIdLookup = null;
 
 mock.module('./supabase', {
   exports: {
@@ -59,7 +63,14 @@ mock.module('./supabase', {
           eq(col, val) { q.eqs.push([col, val]); return q; },
           in(col, vals) { q.ins.push([col, vals]); return q; },
           order(col, opts) { q.orders.push([col, opts]); return q; },
-          single: async () => ({ data: { id: 'new-message', ...q.insertedRow }, error: null }),
+          single: async () => {
+            if (q.insertedRow && insertError) {
+              const reported = insertError; insertError = null;
+              return { data: null, error: reported };
+            }
+            return { data: { id: 'new-message', ...q.insertedRow }, error: null };
+          },
+          maybeSingle: async () => ({ data: clientIdLookup, error: null }),
           // Thenable so `await supabase.from(...).select(...)` resolves.
           then(resolve) { resolve(queryResult); },
         };
@@ -83,6 +94,8 @@ beforeEach(() => {
   queryResult = { data: [], error: null };
   sessionUser = { id: USER };
   rpcAnswer = 'rpc-result';
+  insertError = null;
+  clientIdLookup = null;
 });
 
 /**
@@ -161,6 +174,81 @@ test('a missing conversation or profile is refused', async () => {
   assert.ok(a.error);
   assert.ok(b.error);
   assert.equal(inserted.length, 0);
+});
+
+// ── IDEMPOTENCY · a retry must not be able to duplicate a message ──
+//
+// ⚠ THE FAILURE THIS GUARDS, observed in the wild: a tester on mobile data sent
+// one Voicey and the recipient received it more than ten times. The insert
+// landed; the response was lost; the Outbox read that as a failure and re-sent
+// on every later flush. `client_id` plus a unique index makes the second write
+// impossible, and THIS is the code that reads the resulting violation as proof
+// the message is already delivered instead of reporting it as another failure.
+
+const DUPLICATE = {
+  code: '23505',
+  message: 'duplicate key value violates unique constraint "messages_client_id_uniq"',
+};
+
+test('the idempotency key is written to client_id, and only when given', async () => {
+  await sendMessage({ conversationId: CONV, fromProfileId: PROFILE, body: 'hi', clientId: 'entry-1' });
+  assert.equal(messageRows().at(-1).row.client_id, 'entry-1');
+
+  await sendMessage({ conversationId: CONV, fromProfileId: PROFILE, body: 'hi' });
+  assert.ok(!('client_id' in messageRows().at(-1).row),
+    'a caller outside the Outbox must reach Postgres without the column, not with a null');
+});
+
+test('⚠ a duplicate key is reported as DELIVERED, not as an error', async () => {
+  insertError    = DUPLICATE;
+  clientIdLookup = { id: 'the-row-that-landed', body: 'hi' };
+
+  const { message, error } = await sendMessage({
+    conversationId: CONV, fromProfileId: PROFILE, body: 'hi', clientId: 'entry-1',
+  });
+
+  assert.equal(error, null,
+    'reporting this as a failure is what put the entry back in the retry loop that sent it 10+ times');
+  assert.equal(message.id, 'the-row-that-landed', 'and the row already in the table is returned');
+
+  const lookup = queries.filter(q => q.eqs.some(([col]) => col === 'client_id')).at(-1);
+  assert.ok(lookup, 'it recovers the row by its client_id');
+  assert.deepEqual(lookup.eqs.at(-1), ['client_id', 'entry-1']);
+});
+
+test('⚠ delivery is confirmed by the CONSTRAINT, even if the row cannot be read back', async () => {
+  insertError    = DUPLICATE;
+  clientIdLookup = null;              // the recovery read finds nothing this time
+
+  const { error } = await sendMessage({
+    conversationId: CONV, fromProfileId: PROFILE, body: 'hi', clientId: 'entry-1',
+  });
+
+  assert.equal(error, null,
+    'the violation already proved the row exists; failing here would resume the loop ' +
+    'and the realtime echo delivers the row anyway');
+});
+
+test('a unique violation on some OTHER constraint is still a failure', async () => {
+  insertError = { code: '23505', message: 'duplicate key value violates unique constraint "messages_pkey"' };
+
+  const { message, error } = await sendMessage({
+    conversationId: CONV, fromProfileId: PROFILE, body: 'hi', clientId: 'entry-1',
+  });
+
+  assert.equal(message, null);
+  assert.ok(error, 'only OUR key proves this message landed — anything else must not be swallowed');
+});
+
+test('without a clientId a duplicate error is left exactly as it was', async () => {
+  insertError = DUPLICATE;
+
+  const { message, error } = await sendMessage({
+    conversationId: CONV, fromProfileId: PROFILE, body: 'hi',
+  });
+
+  assert.equal(message, null);
+  assert.ok(error, 'callers outside the Outbox keep the old behaviour untouched');
 });
 
 // ── C15 · creation goes through the elevated function, never a client insert ──

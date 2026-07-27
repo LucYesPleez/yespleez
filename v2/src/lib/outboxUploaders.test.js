@@ -15,14 +15,42 @@ let sendVoiceResult;
 let sentMessageArgs = [];
 let sentVoiceArgs = [];
 
+/**
+ * A stand-in for the messages table PLUS sendMessage's idempotency contract,
+ * used by the duplicate-delivery tests below. It models exactly two behaviours:
+ * `client_id` is unique, and a send that finds its own key already present
+ * reports the existing row as delivered rather than as an error.
+ *
+ * ⚠ That second half is a CONTRACT, not an assumption — `messaging.test.js`
+ * proves the shipped sendMessage really implements it against a stubbed
+ * Supabase. These tests own the other half: that the uploaders supply a key
+ * which survives a retry, and that the Outbox then clears the entry.
+ */
+let rows = [];
+let dropNextResponse = false;
+
+function fakeInsert(args) {
+  const existing = args.clientId !== undefined && rows.find(r => r.client_id === args.clientId);
+  if (existing) return { message: existing, error: null };   // the duplicate is a delivery
+
+  const row = { id: `row-${rows.length + 1}`, client_id: args.clientId ?? null };
+  rows.push(row);
+  // The bug's exact shape: the write LANDED, and then the response was lost.
+  if (dropNextResponse) {
+    dropNextResponse = false;
+    return { message: null, error: { message: 'network dropped' } };
+  }
+  return { message: row, error: null };
+}
+
 mock.module('./messaging.js', {
   exports: {
-    sendMessage: async (args) => { sentMessageArgs.push(args); return sendMessageResult; },
+    sendMessage: async (args) => { sentMessageArgs.push(args); return sendMessageResult ?? fakeInsert(args); },
   },
 });
 mock.module('./voiceNotes.js', {
   exports: {
-    sendVoiceNote: async (args) => { sentVoiceArgs.push(args); return sendVoiceResult; },
+    sendVoiceNote: async (args) => { sentVoiceArgs.push(args); return sendVoiceResult ?? fakeInsert(args); },
     VOICE_FALLBACK_BODY: 'Voice message',
   },
 });
@@ -41,7 +69,7 @@ mock.module('./hands.js', {
 
 const { memoryStore } = await import('./outboxStore.js');
 const {
-  saveDraft, enqueueDraft, __setOutboxClock, __setOutboxIdFactory, __clearUploaders,
+  saveDraft, enqueueDraft, retry, __setOutboxClock, __setOutboxIdFactory, __clearUploaders,
 } = await import('./outbox.js');
 const { registerMessageUploaders, __resetUploadersRegistered } = await import('./outboxUploaders.js');
 const { FAILED } = await import('./outboxMachine.js');
@@ -59,6 +87,7 @@ beforeEach(() => {
   sentMessageArgs = []; sentVoiceArgs = [];
   sendMessageResult = { message: { id: 'row-1' }, error: null };
   sendVoiceResult   = { message: { id: 'row-2' }, error: null };
+  rows = []; dropNextResponse = false;
   if (typeof navigator === 'undefined') globalThis.navigator = {};
   navigator.onLine = true;
 });
@@ -68,7 +97,7 @@ test('TEXT is a full Outbox tenant — it sends through the same lifecycle, no b
   await enqueueDraft('c', s);
 
   assert.equal(sentMessageArgs.length, 1, 'the text uploader ran');
-  assert.deepEqual(sentMessageArgs[0], { conversationId: 'c', fromProfileId: 'p1', body: 'hi' });
+  assert.deepEqual(sentMessageArgs[0], { conversationId: 'c', fromProfileId: 'p1', body: 'hi', clientId: 'id-1' });
   assert.deepEqual(await s.all(), [], 'delivered → removed');
 });
 
@@ -101,4 +130,59 @@ test('a voice draft with no audio fails rather than sending an empty note', asyn
   await enqueueDraft('c', s);
   assert.equal(sentVoiceArgs.length, 0, 'nothing was sent');
   assert.equal((await s.all())[0].state, FAILED);
+});
+
+/* ── DUPLICATE DELIVERY ──────────────────────────────────────────────
+ *
+ * ⚠ THE FAILURE THESE GUARD, seen in the wild: a tester on mobile data received
+ * the SAME Voicey more than ten times. His insert landed, the response did not
+ * come home, the entry stayed `failed`, and every later flush sent it again.
+ * The cure is that every uploader hands sendMessage a key that survives retries,
+ * so the second write is refused rather than duplicated.
+ */
+
+test('⚠ EVERY kind carries the entry id as its idempotency key', async () => {
+  sendMessageResult = null; sendVoiceResult = null;
+
+  await saveDraft({ conversationId: 'c', kind: 'text', payload: { body: 'hi', fromProfileId: 'p1' } }, s);
+  await enqueueDraft('c', s);
+  await saveDraft({ conversationId: 'c', kind: 'voice', payload: { segments: ['seg'], durationMs: 1, fromProfileId: 'p1' } }, s);
+  await enqueueDraft('c', s);
+
+  assert.equal(sentMessageArgs[0].clientId, 'id-1', 'text sends its entry id');
+  assert.equal(sentVoiceArgs[0].clientId,   'id-2', 'voice sends its entry id');
+});
+
+test('⚠ a lost response does NOT duplicate the message — the retry recovers it', async () => {
+  sendVoiceResult = null;              // use the table stand-in, not a canned answer
+  dropNextResponse = true;             // the insert lands; the reply never arrives
+
+  await saveDraft({ conversationId: 'c', kind: 'voice', payload: {
+    segments: ['seg-1'], durationMs: 29_000, wave: 'w', fromProfileId: 'p1',
+  } }, s);
+  await enqueueDraft('c', s);
+
+  const afterSend = await s.all();
+  assert.equal(afterSend.length, 1, 'the entry is kept — from here it looks like a failure');
+  assert.equal(afterSend[0].state, FAILED);
+  assert.equal(rows.length, 1, 'but the row DID land: the recipient already has it');
+
+  // What the tester did next, over and over.
+  await retry(afterSend[0].id, s);
+  await retry(afterSend[0].id, s);
+
+  assert.equal(rows.length, 1, 'NO SECOND ROW — this is the whole fix');
+  assert.equal(sentVoiceArgs[1].clientId, sentVoiceArgs[0].clientId, 'the key is stable across retries');
+  assert.deepEqual(await s.all(), [], 'and the entry is finally cleared, so the loop ends');
+});
+
+test('two different messages are not mistaken for each other', async () => {
+  sendMessageResult = null;
+  await saveDraft({ conversationId: 'c', kind: 'text', payload: { body: 'one', fromProfileId: 'p1' } }, s);
+  await enqueueDraft('c', s);
+  await saveDraft({ conversationId: 'c', kind: 'text', payload: { body: 'two', fromProfileId: 'p1' } }, s);
+  await enqueueDraft('c', s);
+
+  assert.equal(rows.length, 2, 'distinct messages get distinct keys and both land');
+  assert.deepEqual(await s.all(), []);
 });

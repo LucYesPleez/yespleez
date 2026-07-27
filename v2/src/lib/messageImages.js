@@ -288,6 +288,7 @@ export async function sendImage({
   // and an original that nobody asked for is storage nobody agreed to pay for.
   preserveOriginal = false,
   window: windowKey = DEFAULT_WINDOW,
+  clientId,
 } = {}) {
   let image = prepared;
 
@@ -334,6 +335,7 @@ export async function sendImage({
   const { message, error } = await sendMessage({
     conversationId,
     fromProfileId,
+    clientId,                    // idempotency — a retry re-uses it, so the row cannot double
     body: IMAGE_FALLBACK_BODY,   // the three text-only surfaces. See header.
     kind: 'image',
     payload: {
@@ -393,7 +395,7 @@ export async function sendImage({
  * `original` is present.
  */
 export async function sendOriginalOnly({
-  conversationId, fromProfileId, file, window: windowKey = DEFAULT_WINDOW,
+  conversationId, fromProfileId, file, window: windowKey = DEFAULT_WINDOW, clientId,
 } = {}) {
   if (!file?.size) return { message: null, error: { message: 'sendOriginalOnly: nothing to send' } };
 
@@ -413,6 +415,7 @@ export async function sendOriginalOnly({
   const { message, error } = await sendMessage({
     conversationId,
     fromProfileId,
+    clientId,                    // idempotency — a retry re-uses it, so the row cannot double
     // The FILENAME, not "Photo". This is the only kind of image message whose
     // content the three text-only surfaces cannot describe any other way — the
     // inbox cannot show a thumbnail that does not exist.

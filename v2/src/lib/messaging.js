@@ -67,6 +67,23 @@ const MESSAGE_COLUMNS =
   'id, conversation_id, from_profile_id, from_user_id, body, kind, payload, created_at';
 
 /**
+ * Postgres unique-violation, and the index that carries our idempotency key.
+ * Named rather than inlined because sendMessage must distinguish OUR constraint
+ * from any other unique violation on the table: only this one proves the very
+ * message we are sending is already delivered. See the block in sendMessage.
+ */
+const DUPLICATE_KEY     = '23505';
+const CLIENT_ID_INDEX   = 'messages_client_id_uniq';
+
+function isClientIdDuplicate(error) {
+  if (!error || error.code !== DUPLICATE_KEY) return false;
+  // PostgREST puts the constraint name in `message` and the column in `details`;
+  // either is enough, and matching both keeps this working if that ever flips.
+  const reported = `${error.message ?? ''} ${error.details ?? ''}`;
+  return reported.includes(CLIENT_ID_INDEX) || reported.includes('client_id');
+}
+
+/**
  * Open (or re-open) the conversation for a workflow act.
  *
  * Idempotent per `C15`: calling twice for the same act returns the SAME
@@ -187,9 +204,12 @@ export async function openDirectConversation(fromProfileId, toProfileId) {
  *                              default rather than by a literal here.
  * @param {object} [opts.payload] kind-specific structure. The renderer owns its
  *                              shape; the database validates none of it.
+ * @param {string} [opts.clientId] IDEMPOTENCY KEY — see the block below. The
+ *                              Outbox passes its entry id; nothing else passes
+ *                              anything, and without it behaviour is unchanged.
  * @returns {Promise<{message: object|null, error: object|null}>}
  */
-export async function sendMessage({ conversationId, fromProfileId, body, kind, payload } = {}) {
+export async function sendMessage({ conversationId, fromProfileId, body, kind, payload, clientId } = {}) {
   // Mirror CHECK messages_body_not_blank rather than letting Postgres raise it.
   // A constraint name is not a message a UI can show.
   //
@@ -227,11 +247,48 @@ export async function sendMessage({ conversationId, fromProfileId, body, kind, p
       // the column default applies. Writing `kind: kind ?? 'text'` here would
       // put a client literal on every row, which is the shape of bug that made
       // lastPreview claim 'text' for messages that had no kind at all.
-      ...(kind    !== undefined && { kind }),
-      ...(payload !== undefined && { payload }),
+      ...(kind     !== undefined && { kind }),
+      ...(payload  !== undefined && { payload }),
+      ...(clientId !== undefined && { client_id: clientId }),
     })
     .select(MESSAGE_COLUMNS)
     .single();
+
+  let row     = data;
+  let failure = error;
+
+  /* ── THE SEND IS IDEMPOTENT, AND THIS IS WHERE ─────────────────────
+   *
+   * ⚠ THE BUG THIS EXISTS TO END (a tester received the same Voicey 10+ times):
+   * the line above is ONE statement to us but a WRITE and a READ-BACK to
+   * Postgres. On flaky mobile data the insert lands — the row is written and
+   * notify_new_message has already fanned out to the recipient — and then the
+   * response never comes home. We see `error`, the Outbox marks the entry
+   * failed, and every later flush re-runs this uploader and inserts the message
+   * AGAIN. Nothing deduplicated, so the copies were unbounded: retry was not
+   * safe to repeat, which is the one property an at-least-once delivery system
+   * has to have.
+   *
+   * A unique index on client_id makes the second insert impossible, and its
+   * violation is PROOF the first one landed. So 23505 here is not a failure to
+   * report — it is a delivery to confirm. We read the row back so the thread can
+   * show it immediately; if even that read fails we still report success,
+   * because the constraint has already told us the truth and the realtime echo
+   * will bring the row. Reporting the error instead would put the entry back
+   * into the loop this block exists to break.
+   *
+   * The guard is `clientId` being present, so ONLY Outbox sends can take this
+   * path — every other caller behaves exactly as before.
+   */
+  if (failure && clientId && isClientIdDuplicate(failure)) {
+    const { data: existing } = await supabase
+      .from('messages')
+      .select(MESSAGE_COLUMNS)
+      .eq('client_id', clientId)
+      .maybeSingle();
+    row     = existing ?? null;
+    failure = null;
+  }
 
   // No notification write here. notify_new_message already fanned out. See header.
 
@@ -242,7 +299,11 @@ export async function sendMessage({ conversationId, fromProfileId, body, kind, p
   //
   // Only on success: a failed send is not a sent message, and counting the
   // attempt would make the messaging graph disagree with the messages table.
-  if (!error) {
+  //
+  // A recovered duplicate counts exactly ONCE: the attempt that actually wrote
+  // the row reported an error and never got here, so this is the first and only
+  // time that message is tracked.
+  if (!failure) {
     track(kind === 'voice' ? EVENTS.SENT_VOICEY : EVENTS.SENT_MESSAGE, {
       // The kind, never the body — rule 3. `kind` is undefined for plain text
       // (the column default applies), so it is normalised here rather than
@@ -251,7 +312,7 @@ export async function sendMessage({ conversationId, fromProfileId, body, kind, p
     });
   }
 
-  return { message: error ? null : data, error: error ?? null };
+  return { message: failure ? null : row, error: failure ?? null };
 }
 
 /**

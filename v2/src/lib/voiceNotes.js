@@ -899,7 +899,7 @@ export async function signedUrlFor(path, expiresIn = SIGNED_URL_TTL_SECONDS) {
  * broken player is worse than one that was never sent — the sender believes it
  * went.
  */
-export async function sendVoiceNote({ conversationId, fromProfileId, segments, blob, durationMs, capture, wave: precomputed, segMs } = {}) {
+export async function sendVoiceNote({ conversationId, fromProfileId, segments, blob, durationMs, capture, wave: precomputed, segMs, clientId } = {}) {
   // One note, possibly several recording SEGMENTS (Resume Recording). A single
   // blob is the common case and is treated as one segment; the recipient never
   // sees the difference.
@@ -925,6 +925,7 @@ export async function sendVoiceNote({ conversationId, fromProfileId, segments, b
   return sendMessage({
     conversationId,
     fromProfileId,
+    clientId,                    // idempotency — a retry re-uses it, so the row cannot double
     body: VOICE_FALLBACK_BODY,   // the three text-only surfaces. See header.
     kind: 'voice',
     payload: {

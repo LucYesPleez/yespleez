@@ -274,7 +274,7 @@ export async function downloadUrlFor(path, name, expiresIn = SIGNED_URL_TTL_SECO
  */
 export const WAVE_CEILING_BYTES = 24 * 1024 * 1024;
 
-export async function sendFile({ conversationId, fromProfileId, file, downloadable = true, wave = null } = {}) {
+export async function sendFile({ conversationId, fromProfileId, file, downloadable = true, wave = null, clientId } = {}) {
   const { path, error: uploadError } = await uploadMessageFile({ conversationId, file });
   if (uploadError) return { message: null, error: uploadError };
 
@@ -287,6 +287,7 @@ export async function sendFile({ conversationId, fromProfileId, file, downloadab
   return sendMessage({
     conversationId,
     fromProfileId,
+    clientId,                       // idempotency — a retry re-uses it, so the row cannot double
     body: bodyForFile(file.name),   // the filename. See `bodyForFile`.
     kind: 'file',
     payload: {

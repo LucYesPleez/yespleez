@@ -47,10 +47,11 @@ export const HAND_BODY = 'Yes';
  * payload, no special path. A Hand is the simplest possible message, and the
  * kind registry means it needs no machinery of its own.
  */
-export async function sendHand({ conversationId, fromProfileId } = {}) {
+export async function sendHand({ conversationId, fromProfileId, clientId } = {}) {
   return sendMessage({
     conversationId,
     fromProfileId,
+    clientId,          // idempotency — a retry re-uses it, so the row cannot double
     body: HAND_BODY,
     kind: 'hand',
   });

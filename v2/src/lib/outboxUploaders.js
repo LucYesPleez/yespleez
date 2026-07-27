@@ -25,6 +25,20 @@
  * §2.1 fixes the sending identity for the life of a conversation, so the stored
  * value cannot have drifted; storing it is what makes offline delivery possible
  * at all.
+ *
+ * ── WHY EVERY UPLOADER PASSES `clientId: entry.id` ───────────────────
+ *
+ * ⚠ THIS IS WHAT STOPS A RETRY DUPLICATING A MESSAGE. A send whose insert lands
+ * but whose response is lost looks exactly like a send that failed, so the entry
+ * stays `failed` and the next flush runs the uploader again. Without a key that
+ * second run writes a SECOND row, and a tester on flaky mobile data received the
+ * same Voicey more than ten times.
+ *
+ * The entry id is the right key and needs no new field: it is generated once at
+ * enqueue, is stable across every retry of that entry, and is unique per
+ * message. sendMessage puts it in `client_id`, a unique index makes the second
+ * insert impossible, and the violation is read as proof of delivery. Every kind
+ * passes it, because every kind is retried by the same loop.
  */
 
 import { sendMessage } from './messaging';
@@ -47,6 +61,7 @@ async function uploadText(entry) {
     conversationId,
     fromProfileId: payload.fromProfileId,
     body: payload.body,
+    clientId: entry.id,
   });
   if (error) throw new Error(error.message || 'send failed');
   return message;
@@ -69,6 +84,7 @@ async function uploadVoice(entry) {
     durationMs: payload.durationMs,
     wave:       payload.wave,       // one continuous waveform, computed at record time
     capture:    payload.capture,
+    clientId:   entry.id,
   });
   if (error) throw new Error(error.message || 'voice send failed');
   return message;
@@ -85,6 +101,7 @@ async function uploadImage(entry) {
   if (p.subtype === 'original') {
     const { message, error } = await sendOriginalOnly({
       conversationId: entry.conversationId, fromProfileId: p.fromProfileId, file: p.file,
+      clientId: entry.id,
     });
     if (error) throw new Error(error.message || 'image send failed');
     return message;
@@ -92,6 +109,7 @@ async function uploadImage(entry) {
   const { message, error } = await sendImage({
     conversationId: entry.conversationId, fromProfileId: p.fromProfileId,
     image: p.image, preserveOriginal: p.preserveOriginal,
+    clientId: entry.id,
   });
   if (error) throw new Error(error.message || 'image send failed');
   return message;
@@ -106,6 +124,7 @@ async function uploadFile(entry) {
   const { message, error } = await sendFile({
     conversationId: entry.conversationId, fromProfileId: p.fromProfileId,
     file: p.file, downloadable: p.downloadable, wave: p.wave ?? null,
+    clientId: entry.id,
   });
   if (error) throw new Error(error.message || 'file send failed');
   return message;
@@ -119,6 +138,7 @@ async function uploadFile(entry) {
 async function uploadHand(entry) {
   const { message, error } = await sendHand({
     conversationId: entry.conversationId, fromProfileId: entry.payload.fromProfileId,
+    clientId: entry.id,
   });
   if (error) throw new Error(error.message || 'hand send failed');
   return message;
