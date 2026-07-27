@@ -41,6 +41,30 @@
   border: 1px solid var(--neon);
   padding: 5px 16px;
   border-radius: 2px;
+  white-space: nowrap;
+}
+
+/* ── ONE ROW ON A PHONE, MEASURED NOT GUESSED ────────────────────────────
+   Owner, 2026-07-27: the install button pushed the right-hand icons onto a
+   second line. Measured on the live header at a 360px viewport: 344px of
+   usable width against 324px already spent by back + YESPLEEZ + BETA +
+   3 icons — 20px spare. The install button needs ~44px plus its 12px gap,
+   so it overflowed by ~36px and `flex-wrap` did what it was put there to do.
+
+   ⚠ THE SPACE COMES FROM SPACING, NOT FROM THE ICONS. Shrinking the install
+   button would undo the change the owner just asked for, and trimming
+   iconBtn padding shrinks touch targets that are already only 34px. The two
+   cheap sources are the flex gap and YESPLEEZ's very generous letter-spacing
+   (4px × 8 characters = 32px of pure air) — together about 52px, comfortably
+   more than the 36px needed, with none of it taken from anything tappable.
+
+   Narrow only. At the 680px column there is ample room and the roomier
+   spacing is the intended look. `flex-wrap: wrap` deliberately stays as the
+   last-resort failure mode for anything narrower than this accounts for —
+   wrapping beats clipping, which is the original reasoning and still holds. */
+@media (max-width: 480px) {
+  .header { gap: 6px; }
+  .ypTag  { letter-spacing: 2px; padding: 5px 10px; }
 }
 
 /* Beta-only, temporary — deliberately louder than .ypTag. Same shape/font
