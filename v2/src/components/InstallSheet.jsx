@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { installAvailable, onInstallAvailabilityChange, promptInstall } from '../lib/installPrompt';
+import { promptInstall } from '../lib/installPrompt';
 
 /**
  * THE INSTALL SCREEN — the owner's artwork, full screen, sliding down from the
@@ -23,13 +23,7 @@ const HOTSPOT = { left: '17.3%', top: '87.2%', width: '65.4%', height: '8.3%' };
 const ARTWORK_RATIO = '1024 / 1536';
 
 export default function InstallSheet({ open, onClose }) {
-  const [canInstall, setCanInstall] = useState(installAvailable);
   const [note, setNote] = useState('');
-
-  // Availability can arrive AFTER this mounts — beforeinstallprompt is not
-  // guaranteed to have fired by then — so the sheet subscribes rather than
-  // reading once and trusting it.
-  useEffect(() => onInstallAvailabilityChange(() => setCanInstall(installAvailable())), []);
 
   // Escape closes, and the page behind must not scroll while a full-screen
   // overlay is up: on a phone that produces a sheet that scrolls the feed
@@ -48,18 +42,20 @@ export default function InstallSheet({ open, onClose }) {
 
   useEffect(() => { if (!open) setNote(''); }, [open]);
 
-  const ios = typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent || '');
-
   async function handleInstall() {
     const outcome = await promptInstall();
     if (outcome === 'accepted') { onClose?.(); return; }
     if (outcome === 'dismissed') return;   // they said no; the sheet stays, silently
 
-    // No native dialog available. iOS never has one; elsewhere it usually
-    // means the browser has not decided the app is installable yet.
-    setNote(ios
-      ? 'On iPhone: tap Share in Safari’s toolbar, then Add to Home Screen.'
-      : 'Your browser has not offered an install yet. Try the browser menu ⋮ → Install app.');
+    // ⚠ NO iOS BRANCH HERE, AND THERE SHOULD NOT BE ONE. This screen is
+    // Android-only by the owner's decision — InstallButton does not render
+    // unless a native install dialog is genuinely available, which Safari can
+    // never make true. Separate iOS artwork is coming; it belongs in its own
+    // component, not as a fallback bolted onto this one.
+    //
+    // Reachable only if the deferred event expired between the button
+    // appearing and the tap — rare, but silence there would look broken.
+    setNote('That didn’t open. Try the browser menu ⋮ → Install app.');
   }
 
   return (
@@ -103,7 +99,7 @@ export default function InstallSheet({ open, onClose }) {
         <button
           type="button"
           onClick={handleInstall}
-          aria-label={canInstall ? 'Install YesPleez' : 'How to install YesPleez'}
+          aria-label="Install YesPleez"
           style={{
             position: 'absolute', ...HOTSPOT,
             border: 0, borderRadius: 999, background: 'transparent',

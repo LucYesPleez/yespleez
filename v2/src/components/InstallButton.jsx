@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { isInstalled } from '../lib/analytics';
+import { installAvailable, onInstallAvailabilityChange } from '../lib/installPrompt';
 import InstallSheet from './InstallSheet';
 import s from './GlobalHeader.module.css';
 
@@ -18,10 +19,32 @@ import s from './GlobalHeader.module.css';
  */
 export default function InstallButton() {
   const [open, setOpen] = useState(false);
+  const [canInstall, setCanInstall] = useState(installAvailable);
+
+  // Availability arrives asynchronously — beforeinstallprompt has usually not
+  // fired yet at first render — so this subscribes rather than reading once.
+  useEffect(() => onInstallAvailabilityChange(() => setCanInstall(installAvailable())), []);
 
   // Called during render on purpose — a synchronous media/navigator read, not
   // state, and it must re-evaluate if the app is opened installed.
   if (isInstalled()) return null;
+
+  // ⚠⚠ ANDROID ONLY, AND THIS IS THE GATE THAT SAYS SO. Owner: "i dont want it
+  // on ios. i have a different one for that."
+  //
+  // Keyed on whether a native install dialog is actually available, NOT on
+  // sniffing the user agent. Safari implements no part of beforeinstallprompt
+  // at any version, so iOS is excluded for free — and it is excluded for the
+  // RIGHT reason: the button only exists where tapping it can really install
+  // something. A UA check would also have to guess about iPadOS pretending to
+  // be a Mac, Chrome-on-iOS (which is Safari underneath and equally incapable),
+  // and every future browser.
+  //
+  // The corollary: there is now NO install path on iOS. That is deliberate and
+  // temporary — the owner has separate iOS artwork coming. Until it lands,
+  // iPhone users cannot enable push, because iOS web push requires a
+  // home-screen install. Worth remembering when that design arrives.
+  if (!canInstall) return null;
 
   return (
     <>
