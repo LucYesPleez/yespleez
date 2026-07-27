@@ -5,46 +5,58 @@ import InstallSheet from './InstallSheet';
 import s from './GlobalHeader.module.css';
 
 /**
+ * ⚠ iPadOS REPORTS ITSELF AS A MAC. Since iPadOS 13 the user agent says
+ * "Macintosh", so an /iPad/ test misses every modern iPad. A touch-capable
+ * "Mac" is the standard tell, and it matters here because an iPad that fails
+ * this check gets no install screen at all — Safari never fires
+ * beforeinstallprompt, so it would fall through both branches.
+ */
+function isIOS() {
+  if (typeof navigator === 'undefined') return false;
+  const ua = navigator.userAgent || '';
+  if (/iPad|iPhone|iPod/.test(ua)) return true;
+  return /Macintosh/.test(ua) && (navigator.maxTouchPoints || 0) > 1;
+}
+
+/**
  * ADD TO HOME SCREEN — header entry point, beside BETA.
  *
- * ⚠ HIDDEN ONCE INSTALLED. `isInstalled()` (analytics.js) already knows, via
- * display-mode plus the iOS-only `navigator.standalone`. A permanent
- * invitation to install something you are already running reads as a broken
- * check — and note this is why the owner could not see the button on either
- * of their own phones: both have the app installed. It only shows in a
- * browser tab, which is exactly who it is for.
+ * ⚠ HIDDEN ONCE INSTALLED, on both platforms. `isInstalled()` (analytics.js)
+ * knows via display-mode plus the iOS-only `navigator.standalone`. This is why
+ * the owner could not see the button on either of their own phones: both have
+ * the app installed. It shows in a browser tab, which is exactly who it is for.
  *
- * This is now only the trigger. The screen itself is the owner's supplied
- * artwork — see InstallSheet.
+ * Two platforms, two screens, and they are not variants of one thing:
+ *
+ *   ANDROID  shown only once a native install dialog is genuinely available,
+ *            i.e. beforeinstallprompt has been captured. The artwork's pill
+ *            fires the real thing.
+ *   iOS      shown whenever not installed. Safari has no install API at any
+ *            version, so the screen is a four-step guide with nothing to tap.
+ *            Availability can never become true here, which is exactly why iOS
+ *            needs its own condition rather than sharing Android's.
  */
 export default function InstallButton() {
   const [open, setOpen] = useState(false);
   const [canInstall, setCanInstall] = useState(installAvailable);
 
   // Availability arrives asynchronously — beforeinstallprompt has usually not
-  // fired yet at first render — so this subscribes rather than reading once.
+  // fired at first render — so this subscribes rather than reading once.
   useEffect(() => onInstallAvailabilityChange(() => setCanInstall(installAvailable())), []);
 
   // Called during render on purpose — a synchronous media/navigator read, not
   // state, and it must re-evaluate if the app is opened installed.
   if (isInstalled()) return null;
 
-  // ⚠⚠ ANDROID ONLY, AND THIS IS THE GATE THAT SAYS SO. Owner: "i dont want it
-  // on ios. i have a different one for that."
-  //
-  // Keyed on whether a native install dialog is actually available, NOT on
-  // sniffing the user agent. Safari implements no part of beforeinstallprompt
-  // at any version, so iOS is excluded for free — and it is excluded for the
-  // RIGHT reason: the button only exists where tapping it can really install
-  // something. A UA check would also have to guess about iPadOS pretending to
-  // be a Mac, Chrome-on-iOS (which is Safari underneath and equally incapable),
-  // and every future browser.
-  //
-  // The corollary: there is now NO install path on iOS. That is deliberate and
-  // temporary — the owner has separate iOS artwork coming. Until it lands,
-  // iPhone users cannot enable push, because iOS web push requires a
-  // home-screen install. Worth remembering when that design arrives.
-  if (!canInstall) return null;
+  const ios = isIOS();
+
+  // ⚠ ANDROID IS GATED ON CAPABILITY, NOT ON A USER-AGENT GUESS. The button
+  // appears only where tapping it can really install something, which also
+  // covers Chromium on desktop without naming it. iOS is gated separately
+  // because its screen promises instructions, not an install — a promise
+  // Safari can always keep.
+  const platform = ios ? 'ios' : (canInstall ? 'android' : null);
+  if (!platform) return null;
 
   return (
     <>
@@ -84,7 +96,7 @@ export default function InstallButton() {
           nothing to animate FROM — it would appear instantly in place. It is
           pointer-transparent and renders no image while closed, so it costs
           nothing to leave mounted. */}
-      <InstallSheet open={open} onClose={() => setOpen(false)} />
+      <InstallSheet open={open} onClose={() => setOpen(false)} platform={platform} />
     </>
   );
 }
