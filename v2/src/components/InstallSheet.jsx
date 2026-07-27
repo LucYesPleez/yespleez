@@ -5,19 +5,23 @@ import { promptInstall } from '../lib/installPrompt';
  * THE INSTALL SCREEN — the owner's artwork, full screen, sliding down from the
  * top. One component, THREE platforms, and they are not variants of one thing:
  *
- *   android      install-android.png. Its painted "Install Web App" pill sits
+ *   android      install-android.jpg. Its painted "Install Web App" pill sits
  *                over a TRANSPARENT hotspot firing the real PWA install
- *                dialog. The only branch with anything to press.
- *   ios-chrome   install-ios-chrome.png. A four-step guide, nothing to tap —
- *                no iOS browser exposes an install API, so there is no button
- *                to put behind anything and the picture IS the feature.
- *   ios-safari   TEXT, not artwork. The supplied guide depicts Chrome's •••
- *                menu, which Safari does not have. See the block below.
+ *                dialog. The ONLY branch with anything to press.
+ *   ios-chrome   install-ios-chrome.jpg. Four steps via Chrome's ••• menu.
+ *   ios-safari   install-ios-safari.jpg. Four steps via Safari's Share button.
  *
- * ⚠ THE ARTWORK IS THE UI. Every word and control is baked into the PNG; there
- * is no text layer to restyle. On Android the only interactive element is an
- * invisible rectangle positioned in percentages so it tracks the image at any
- * width.
+ * ⚠ THE TWO iOS GUIDES ARE NOT INTERCHANGEABLE. Safari has no ••• button and
+ * Chrome has no Share button in that position, so showing the wrong one sends
+ * the user hunting for a control that does not exist — and since Safari is the
+ * DEFAULT iOS browser, getting that backwards fails the majority. Neither has
+ * anything to tap: no iOS browser exposes an install API at any version, so
+ * there is no button to put behind anything and the picture IS the feature.
+ *
+ * ⚠ THE ARTWORK IS THE UI. Every word and control is baked into the image;
+ * there is no text layer to restyle. On Android the only interactive element
+ * is an invisible rectangle positioned in percentages so it tracks the image
+ * at any width.
  *
  * ⚠ IF AN ARTWORK IS REPLACED, ITS HOTSPOT MOVES WITH IT. The button is
  * invisible, so a mismatch does not look broken — it silently stops working,
@@ -25,17 +29,38 @@ import { promptInstall } from '../lib/installPrompt';
  * percentage of the image whenever the Android PNG changes.
  */
 
-// Both artworks are 1024x1536. Reserved before the image arrives so a 1.5MB
-// PNG landing does not resize the panel underneath the user.
-const ARTWORK_RATIO = '1024 / 1536';
+/**
+ * ⚠ THE THREE ARTWORKS ARE NOT THE SAME SHAPE, so the ratio is per-platform.
+ * Android is 1024x1536 (0.667); both iOS guides are 1200x1687 (0.711). Reserved
+ * before the image arrives, so the panel does not resize under the user as it
+ * lands — and a single shared ratio would reserve the wrong box for two of the
+ * three, producing exactly the jump this exists to prevent.
+ */
+const ART = {
+  android:      { src: '/install-android.jpg',     ratio: '1024 / 1536' },
+  'ios-chrome': { src: '/install-ios-chrome.jpg',  ratio: '1200 / 1687' },
+  'ios-safari': { src: '/install-ios-safari.jpg',  ratio: '1200 / 1687' },
+};
 
 /** Over the painted "Install Web App" pill. Android artwork only. */
 const ANDROID_HOTSPOT = { left: '17.3%', top: '87.2%', width: '65.4%', height: '8.3%' };
 
+/**
+ * ⚠ THE STEPS EXIST ONLY AS PIXELS, so alt text is not a formality here — it
+ * is the only version of these instructions a screen reader can reach. Each
+ * describes its own artwork's actual flow; Safari's and Chrome's differ, which
+ * is the entire reason there are two.
+ */
+const ALT = {
+  android: 'Save YesPleez to your phone — install it like a native app',
+  'ios-chrome': 'Add YesPleez to your home screen in Chrome: tap the More (•••) button, tap Add to Home Screen, then tap Add',
+  'ios-safari': 'Add YesPleez to your home screen in Safari: tap the Share button, tap Add to Home Screen, then tap Add',
+};
+
 export default function InstallSheet({ open, onClose, platform }) {
   const [note, setNote] = useState('');
   const isAndroid = platform === 'android';
-  const isIosSafari = platform === 'ios-safari';
+  const art = ART[platform] || ART.android;
 
   // Escape closes, and the page behind must not scroll while a full-screen
   // overlay is up: on a phone that produces a sheet that scrolls the feed
@@ -90,58 +115,19 @@ export default function InstallSheet({ open, onClose, platform }) {
         onClick={(e) => e.stopPropagation()}
         style={{ position: 'relative', width: 'min(100%, 460px)', lineHeight: 0 }}
       >
-        {/* Rendered only while open: at ~1.5MB neither artwork may be part of
-            the app's initial cost, and only one is ever fetched. */}
-        {open && !isIosSafari && (
+        {/* One artwork per platform, each already matched to the browser the
+            user is actually in. Rendered only while open and only the one that
+            applies — three guides must never all be fetched, and none of them
+            belongs in the app's initial cost.
+            ⚠ ALT TEXT CARRIES THE STEPS. The instructions exist only as pixels,
+            so without this a screen-reader user gets a decorative image and no
+            way to install at all. */}
+        {open && (
           <img
-            src={isAndroid ? '/install-android.png' : '/install-ios-chrome.png'}
-            alt={isAndroid
-              ? 'Save YesPleez to your phone — install it like a native app'
-              : 'How to add YesPleez to your home screen in Chrome: tap More, then Add to Home Screen, then Add'}
-            style={{ display: 'block', width: '100%', height: 'auto', aspectRatio: ARTWORK_RATIO }}
+            src={art.src}
+            alt={ALT[platform] || 'How to add YesPleez to your home screen'}
+            style={{ display: 'block', width: '100%', height: 'auto', aspectRatio: art.ratio }}
           />
-        )}
-
-        {/* ⚠ SAFARI GETS TEXT, NOT THE ARTWORK, AND THAT IS NOT A DOWNGRADE —
-            IT IS THE ONLY CORRECT OPTION TODAY.
-            The supplied iOS guide depicts CHROME: its step 2 menu shows New
-            Incognito Tab / Reading List / Recent Tabs / Find in Page, and step
-            1's toolbar has Chrome's extensions puzzle and tab counter. Safari
-            has no ••• More button anywhere, so a Safari user following step 1
-            hunts for a control that does not exist and concludes the app is
-            broken. Showing beautiful wrong instructions is worse than plain
-            right ones.
-            Replace this whole block the moment Safari artwork exists — Safari
-            is the DEFAULT browser on iOS, so this is the majority path, not
-            the edge case. */}
-        {open && isIosSafari && (
-          <div style={{
-            background: '#101018', border: '1px solid var(--border)', borderRadius: 18,
-            padding: '26px 22px', lineHeight: 1.5,
-          }}>
-            <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 24, letterSpacing: 2, color: '#fff', marginBottom: 6 }}>
-              INSTALL YESPLEEZ
-            </div>
-            <div style={{ fontSize: 13.5, color: 'var(--muted)', marginBottom: 18 }}>
-              Add YesPleez to your home screen for quick access anytime — and so
-              notifications can reach you.
-            </div>
-            {[
-              ['1', <>Tap <strong style={{ color: '#fff' }}>Share</strong> in Safari’s toolbar — the square with an arrow pointing up.</>],
-              ['2', <>Scroll down and tap <strong style={{ color: '#fff' }}>Add to Home Screen</strong>.</>],
-              ['3', <>Tap <strong style={{ color: '#fff' }}>Add</strong>. YesPleez is now on your home screen.</>],
-            ].map(([n, text]) => (
-              <div key={n} style={{ display: 'flex', gap: 12, marginBottom: 14, alignItems: 'flex-start' }}>
-                <span style={{
-                  flexShrink: 0, width: 24, height: 24, borderRadius: 999,
-                  border: '1px solid #FF2D78', color: '#FF2D78',
-                  display: 'grid', placeItems: 'center',
-                  fontFamily: "'DM Sans',sans-serif", fontSize: 12, fontWeight: 700,
-                }}>{n}</span>
-                <span style={{ fontSize: 13.5, color: 'var(--text)' }}>{text}</span>
-              </div>
-            ))}
-          </div>
         )}
 
         {/* ⚠ ANDROID ONLY. On iOS there is deliberately NOTHING to press —
