@@ -61,9 +61,35 @@ function iosBrowser() {
  *            Availability can never become true here, which is exactly why iOS
  *            needs its own condition rather than sharing Android's.
  */
+/**
+ * ⏱ TEMPORARY — `?install=android` / `ios-chrome` / `ios-safari` forces the
+ * sheet, on any device, whatever is installed.
+ *
+ * ⚠ WITHOUT THIS THERE IS NO WAY TO SEE TWO OF THE THREE SCREENS. Each one is
+ * gated on the platform it serves, which is correct for users and hostile to
+ * review: the owner cannot see the Safari guide from Android, nor the Android
+ * one from an iPhone. Worse, Chrome does not fire beforeinstallprompt when the
+ * app is ALREADY INSTALLED — so on a phone with YesPleez installed the Android
+ * button is unreachable even in a browser tab, and checking it would mean
+ * uninstalling the app first.
+ *
+ * Opt-in by URL only. A user who never types `?install=` cannot reach it, and
+ * it cannot change what any real visitor sees. Delete once the screens are
+ * signed off.
+ */
+function forcedPlatform() {
+  if (typeof window === 'undefined') return null;
+  // HashRouter puts the app's own query after the '#', so both halves of the
+  // URL have to be checked — `?install=` alone misses `/#/messages?install=`.
+  const raw = window.location.search + window.location.hash;
+  const m = /[?&]install=(android|ios-chrome|ios-safari)/.exec(raw);
+  return m ? m[1] : null;
+}
+
 export default function InstallButton() {
   const [open, setOpen] = useState(false);
   const [canInstall, setCanInstall] = useState(installAvailable);
+  const forced = forcedPlatform();
 
   // Availability arrives asynchronously — beforeinstallprompt has usually not
   // fired at first render — so this subscribes rather than reading once.
@@ -71,7 +97,9 @@ export default function InstallButton() {
 
   // Called during render on purpose — a synchronous media/navigator read, not
   // state, and it must re-evaluate if the app is opened installed.
-  if (isInstalled()) return null;
+  // ⏱ The override wins here too: the owner's own phones both have the app
+  // installed, which is exactly why they could not see the button at all.
+  if (isInstalled() && !forced) return null;
 
   const ios = isIOS();
 
@@ -80,9 +108,9 @@ export default function InstallButton() {
   // covers Chromium on desktop without naming it. iOS is gated separately
   // because its screen promises instructions, not an install — a promise
   // Safari can always keep.
-  const platform = ios
+  const platform = forced || (ios
     ? (iosBrowser() === 'chrome' ? 'ios-chrome' : 'ios-safari')
-    : (canInstall ? 'android' : null);
+    : (canInstall ? 'android' : null));
   if (!platform) return null;
 
   return (
