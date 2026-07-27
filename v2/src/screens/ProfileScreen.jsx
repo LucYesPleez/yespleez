@@ -596,7 +596,7 @@ export default function ProfileScreen() {
               // Default (no photo yet — §09 requires a generic avatar pre-claim).
               // Was `auto 80%`, which sizes by HEIGHT: fine at phone width, but
               // .heroImg is capped at max-width 680px, so on desktop a portrait
-              // placeholder (defaultdj.jpg, then 941x1672, ratio 0.56) rendered only
+              // placeholder (defaultdj.webp, then 941x1672, ratio 0.56) rendered only
               // ~405px wide inside a 680px frame — 137px of dead space each side,
               // which read as a broken image rather than a placeholder.
               // `cover` fills the frame at every width, exactly as a real photo
@@ -604,7 +604,7 @@ export default function ProfileScreen() {
               // too.
               //
               // Anchored BOTTOM, overriding .heroImg's `center top`. These
-              // placeholders put their subject low in the frame — defaultdj.jpg
+              // placeholders put their subject low in the frame — defaultdj.webp
               // is silhouette, hands and decks across its lower half, with only
               // lights and haze above. When it was 941x1672 it rendered 1208px
               // tall in a 917px frame at 680px wide, so `top` cropped 291px off
