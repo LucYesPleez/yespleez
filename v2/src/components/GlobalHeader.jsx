@@ -8,6 +8,7 @@ import { useCurrentShareTarget, pageFallback } from '../lib/shareTarget';
 import { readAuthLog, readAuthIncidents } from '../lib/authDiagnostics';
 import { readForensics } from '../lib/authForensics';
 import { readPushLog } from '../lib/pushLog';
+import InstallButton from './InstallButton';
 
 const INFO = {
   '/': {
@@ -141,6 +142,11 @@ export default function GlobalHeader({ onMarkRead, unreadCount = 0 }) {
         >
           BETA
         </button>
+
+        {/* Sits beside BETA rather than in the right-hand icon cluster: that
+            cluster is permanent chrome (share · info · bell), and this is a
+            once-per-device action that removes itself the moment it is done. */}
+        <InstallButton />
 
         {/* Standard top bar order: Back · logo · Share · Info · bell. */}
         <div className={s.actions} style={{ position: 'relative' }}>
