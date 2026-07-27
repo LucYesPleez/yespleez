@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { promptInstall } from '../lib/installPrompt';
 
 /**
@@ -89,7 +90,24 @@ export default function InstallSheet({ open, onClose, platform }) {
     setNote('That didn’t open. Try the browser menu ⋮ → Install app.');
   }
 
-  return (
+  /**
+   * ⚠⚠ PORTALLED TO document.body, AND IT IS NOT OPTIONAL.
+   *
+   * This is rendered from InstallButton, which lives inside GlobalHeader — and
+   * `.header` carries `transform: translateX(-50%)`. A transformed ancestor
+   * becomes the CONTAINING BLOCK for `position: fixed` descendants, so
+   * `inset: 0` stopped resolving against the viewport and resolved against the
+   * header's own box instead. The result: a full-screen overlay clipped to a
+   * thin strip along the top of the page, which is exactly what shipped.
+   *
+   * The header's `z-index: 199` compounds it — nothing inside can paint above
+   * a sibling with a higher one, however large its own z-index.
+   *
+   * Both problems have one fix: leave the header's subtree entirely. Do not
+   * "solve" this by removing the transform — that translateX is what centres
+   * the header column.
+   */
+  return createPortal((
     <div
       role="dialog"
       aria-modal="true"
@@ -173,5 +191,5 @@ export default function InstallSheet({ open, onClose, platform }) {
         </button>
       </div>
     </div>
-  );
+  ), document.body);
 }
