@@ -584,6 +584,46 @@ input, textarea, select {
 .yp-msg-retry:hover { background: rgba(255, 59, 92, .2); }
 .yp-msg-retry:active { transform: translateY(1px); }
 
+/* THE FAILED-SEND FOOTER — a status line and exactly two answers.
+   Retry and Delete only. A failed message is a dead end until the user picks
+   one of them, so the panel offers both at equal weight rather than making
+   Delete a hidden long-press: the whole milestone is about removing dead ends,
+   and an action nobody can find is still a dead end. */
+.yp-msg-failed {
+  margin-top: 6px;
+  padding: 6px 8px;
+  border: 1px solid rgba(255, 59, 92, .38);
+  border-radius: 8px;
+  background: rgba(255, 59, 92, .12);
+}
+.yp-msg-failed-label {
+  display: block;
+  color: #FF8A9E;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: .01em;
+  text-align: center;
+}
+.yp-msg-failed-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+.yp-msg-failed-actions button {
+  flex: 1;
+  padding: 5px 8px;
+  border: 1px solid rgba(255, 59, 92, .38);
+  border-radius: 6px;
+  background: transparent;
+  color: #FF8A9E;
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.yp-msg-failed-actions button:hover { background: rgba(255, 59, 92, .2); }
+.yp-msg-failed-actions button:active { transform: translateY(1px); }
+
 /* ── THE CONVERSATION HEADER ────────────────────────────────────────
    These values ARE the desktop layout, moved out of inline styles so the phone
    block below can override them. An inline style beats a stylesheet, so

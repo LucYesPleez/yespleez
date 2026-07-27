@@ -72,6 +72,29 @@ async function uploadText(entry) {
  * blob and inserts. The blob is `segments[0]`: v1 always has exactly one, and
  * reading the list here (not a bare `.blob`) is what keeps Resume Recording a
  * future addition rather than a rewrite of this function.
+ *
+ * ── ⚠ TODO · KNOWN LIMITATION: A RETRY RE-UPLOADS THE AUDIO ──────────
+ *
+ * Each attempt calls `sendVoiceNote`, which uploads every segment to storage
+ * under a fresh random path BEFORE inserting the row. So a retry writes a second
+ * copy of the same audio, and if that attempt then recovers an already-delivered
+ * row (the idempotency path in `sendMessage`) the message still points at the
+ * FIRST upload — the new object is orphaned. Bounded, not unbounded: the backoff
+ * ladder caps automatic attempts, so the worst case is a handful of stray objects
+ * per genuinely-failing Voicey, and no user-visible symptom.
+ *
+ * DELIBERATELY NOT FIXED HERE. Reusing the earlier upload means persisting the
+ * returned paths back onto the outbox entry between attempts, which would give
+ * uploaders a write path into the store they do not currently have — a change to
+ * the uploader contract, i.e. the send pipeline, which this milestone is scoped
+ * out of.
+ *
+ * CLEANUP REMAINS POSSIBLE LATER WITH NO ARCHITECTURAL CHANGE, because objects
+ * are addressable without them: `uploadVoiceNote` writes to
+ * `<conversationId>/<uuid>.<ext>`, and every path a live message depends on is
+ * in `messages.payload` (`path`, or `paths[]` for a resumed note). An orphan is
+ * therefore exactly "an object in the bucket that no payload references", which a
+ * server-side sweep can compute on its own. Nothing here has to change first.
  */
 async function uploadVoice(entry) {
   const { conversationId, payload } = entry;

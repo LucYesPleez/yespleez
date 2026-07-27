@@ -22,7 +22,8 @@ import { renderMessage, isBareKind, canReceiveHand, shapeFor, materialFor } from
 import HandIcon from './HandIcon';
 import EqReceipt from './EqReceipt';
 import { receiptFor, RECEIPT } from '../lib/receiptState';
-import { queueMessage, entriesFor, subscribeOutbox, subscribeDelivered, retry as outboxRetry, saveDraft, restoreDraft, deleteDraft } from '../lib/outbox';
+import { queueMessage, entriesFor, subscribeOutbox, subscribeDelivered, retry as outboxRetry, remove as outboxRemove, saveDraft, restoreDraft, deleteDraft } from '../lib/outbox';
+import { isExhausted } from '../lib/outboxMachine';
 import { timeOf } from '../lib/clock';
 
 /**
@@ -80,8 +81,12 @@ function outboxBubble(entry, urls = []) {
     body:            entry.kind === 'text' ? (p.body ?? '') : (bodyFor[entry.kind] ?? ''),
     from_profile_id: p.fromProfileId,
     created_at:      new Date(entry.createdAt).toISOString(),
-    // queued/uploading read as 'waiting'; failed shows red with Retry.
+    // queued/uploading read as 'waiting'; failed shows red with Retry + Delete.
     pendingState:    entry.state === 'failed' ? 'failed' : 'waiting',
+    // Derived, never stored — see outboxMachine. Decides whether the footer says
+    // "Retrying…" (rungs left on the backoff ladder) or "Couldn't send" (spent,
+    // and nothing further happens without the user).
+    pendingExhausted: isExhausted(entry),
     // A queued photo/Voicey renders from the runtime url the thread minted from
     // its blob — identical to how it looks once delivered.
     ...(payload !== undefined && { payload }),
@@ -1000,6 +1005,19 @@ export default function ConversationView({ conversationId, compact = false, onMi
   }
 
   /**
+   * Delete a failed send. LOCAL ONLY — this is not an unsend.
+   *
+   * The message never reached the server, so there is nothing to recall and
+   * nobody to tell: it removes the entry from this device and the thread
+   * repaints from `subscribeOutbox` like any other outbox change. Conversation
+   * previews need no help here, because they are built from delivered rows
+   * (`latestMessages`) and a failed entry was never one of them.
+   */
+  async function onDelete(message) {
+    if (message?.outboxId) await outboxRemove(message.outboxId);
+  }
+
+  /**
    * A Hand — YesPleez's universal acknowledgement, sent to the conversation.
    *
    * The ratified rule: a CONVERSATION Hand is a message, a MESSAGE Hand is
@@ -1795,6 +1813,7 @@ export default function ConversationView({ conversationId, compact = false, onMi
                 viewerProfileId={senderProfile}
                 onLongPress={rect => setActionSheet({ id: m.id, rect })}
                 onRetry={() => onRetry(m)}
+                onDelete={() => onDelete(m)}
                 seenWatermark={seenWatermark}
                 deliveredWatermark={deliveredWatermark}
                 highlighted={highlightId === m.id}
@@ -1910,7 +1929,7 @@ function RecoveredDraftBanner({ url, durationMs, onSend, onDiscard }) {
   );
 }
 
-function MessageBubble({ message, isMine, grouped = false, endsBurst = true, speaker, handed = false, onToggleHand, onRetry, seenWatermark = null, deliveredWatermark = null, highlighted = false, reactions, viewerProfileId = null, onLongPress }) {
+function MessageBubble({ message, isMine, grouped = false, endsBurst = true, speaker, handed = false, onToggleHand, onRetry, onDelete, seenWatermark = null, deliveredWatermark = null, highlighted = false, reactions, viewerProfileId = null, onLongPress }) {
 
   // The frame is the message's outer box, so it is what the reaction bar
   // anchors against when the chips reopen it — the same rect a long press
@@ -2251,14 +2270,24 @@ function MessageBubble({ message, isMine, grouped = false, endsBurst = true, spe
             sends needs two retries, and a banner above the composer can only
             ever describe one of them. */}
         {receipt === RECEIPT.FAILED && (
-          <button
-            type="button"
-            onClick={onRetry}
-            className="yp-msg-retry"
-            title={message.failReason ?? undefined}
-          >
-            Not sent — tap to retry
-          </button>
+          <div className="yp-msg-failed" title={message.failReason ?? undefined}>
+            {/* Two labels, because they mean different things to the person
+                waiting. While rungs remain the app is still trying and the
+                honest word is "Retrying"; once the ladder is spent nothing more
+                will happen on its own, and saying so is the whole reason the
+                backoff has an end. */}
+            <span className="yp-msg-failed-label">
+              {message.pendingExhausted ? "Couldn't send" : 'Retrying…'}
+            </span>
+            <div className="yp-msg-failed-actions">
+              <button type="button" onClick={onRetry}>Retry</button>
+              {/* No confirmation, deliberately: this deletes a message that was
+                  never delivered, from this device only. Nothing is unsent and
+                  nobody else ever saw it, so a modal would be asking permission
+                  to undo something that never happened. */}
+              <button type="button" onClick={onDelete}>Delete</button>
+            </div>
+          </div>
         )}
 
       </div>{/* bubble */}

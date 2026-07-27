@@ -13,25 +13,37 @@ import { memoryStore } from './outboxStore.js';
 import {
   saveDraft, restoreDraft, deleteDraft, enqueueDraft, retry, remove,
   flush, pruneAbandoned, registerUploader, __clearUploaders,
-  __setOutboxClock, __setOutboxIdFactory,
+  __setOutboxClock, __setOutboxIdFactory, __setOutboxTimers,
 } from './outbox.js';
-import { QUEUED, FAILED, DRAFT_TTL_MS } from './outboxMachine.js';
+import { QUEUED, FAILED, DRAFT_TTL_MS, RETRY_DELAYS_MS, MAX_ATTEMPTS } from './outboxMachine.js';
 
 const CONV = 'conv-1';
 let s;
 let t;         // controllable clock
 let idSeq;
+/** Every backoff timer the outbox armed this test, as {ms, fire}. */
+let timers;
 
 beforeEach(() => {
   s = memoryStore();
   t = 1_000_000;
   idSeq = 0;
+  timers = [];
   __setOutboxClock(() => t);
   __setOutboxIdFactory(() => `id-${++idSeq}`);
+  // Captured rather than run: the ladder reaches five minutes, and a test that
+  // waited for it would be a test nobody runs.
+  __setOutboxTimers(
+    (fn, ms) => { const h = { ms, fire: fn }; timers.push(h); return h; },
+    (h) => { const i = timers.indexOf(h); if (i >= 0) timers.splice(i, 1); },
+  );
   __clearUploaders();
   if (typeof navigator === 'undefined') globalThis.navigator = {};
   navigator.onLine = true;
 });
+
+/** The timer the outbox is currently waiting on, if any. */
+const pendingTimer = () => timers[timers.length - 1];
 
 const voicePayload = (n = 1) => ({
   segments: Array.from({ length: n }, (_, i) => `blob-${i}`),
@@ -192,4 +204,151 @@ test('⚠ prune never touches a failed entry, however old', async () => {
   const swept = await pruneAbandoned(s);
   assert.equal(swept, 0);
   assert.equal((await s.all())[0].state, FAILED, 'a send the user asked for is never aged out');
+});
+
+/* ── FAILED MESSAGES: A LADDER WITH AN END, AND TWO WAYS OUT ──────────
+ *
+ * ⚠ WHAT THIS REPLACES: every flush re-attempted every failed entry, with no
+ * ceiling and no spacing, so a send that could not succeed was retried forever
+ * on every send, reconnect and app open. The acceptance criterion for this
+ * milestone is the negative one — failed messages must NOT retry forever.
+ */
+
+/** Fail `failTimes` attempts, then succeed. Returns the attempt counter. */
+function flakyUploader(failTimes) {
+  const calls = { n: 0 };
+  registerUploader('voice', async () => {
+    calls.n++;
+    if (calls.n <= failTimes) throw new Error('network down');
+    return { id: `row-${calls.n}` };
+  });
+  return calls;
+}
+
+test('⚠ an automatic retry that SUCCEEDS removes the entry', async () => {
+  // The latent bug this milestone fixed: `upload-start` and `upload-ok` are only
+  // defined on QUEUED, so a failed entry picked up by flush uploaded while still
+  // marked failed and was then never removed. The message was delivered and the
+  // bubble stayed on screen as a failure — being re-sent by every later flush.
+  const calls = flakyUploader(1);
+  await saveDraft({ conversationId: CONV, kind: 'voice', payload: voicePayload() }, s);
+  await enqueueDraft(CONV, s);
+  assert.equal((await s.all())[0].state, FAILED, 'first attempt failed');
+
+  t += RETRY_DELAYS_MS[1];
+  await flush(s);
+
+  assert.equal(calls.n, 2, 'the automatic retry ran');
+  assert.deepEqual(await s.all(), [], 'and delivery CLEARED it — no permanent failed bubble');
+});
+
+test('a failed entry is not retried before its backoff has elapsed', async () => {
+  const calls = flakyUploader(99);
+  await saveDraft({ conversationId: CONV, kind: 'voice', payload: voicePayload() }, s);
+  await enqueueDraft(CONV, s);
+  assert.equal(calls.n, 1);
+
+  await flush(s);                       // same instant — far too early
+  assert.equal(calls.n, 1, 'a flush inside the wait must not attempt anything');
+
+  t += RETRY_DELAYS_MS[1] - 1;
+  await flush(s);
+  assert.equal(calls.n, 1, 'still one millisecond short');
+
+  t += 1;
+  await flush(s);
+  assert.equal(calls.n, 2, 'and goes the moment the rung comes due');
+});
+
+test('⚠ automatic retries STOP after the ladder is spent', async () => {
+  const calls = flakyUploader(99);
+  await saveDraft({ conversationId: CONV, kind: 'voice', payload: voicePayload() }, s);
+  await enqueueDraft(CONV, s);
+
+  // Walk every rung, jumping the clock far enough that only the ceiling can stop us.
+  for (let i = 1; i < MAX_ATTEMPTS + 5; i++) {
+    t += 10 * 60 * 1000;
+    await flush(s);
+  }
+
+  assert.equal(calls.n, MAX_ATTEMPTS,
+    `exactly ${MAX_ATTEMPTS} attempts — the whole point is that this number exists`);
+  const entry = (await s.all())[0];
+  assert.equal(entry.state, FAILED, 'and the message is still here, never discarded');
+  assert.equal(entry.attempts, MAX_ATTEMPTS);
+});
+
+test('an exhausted entry arms no further timer — nothing will wake it but the user', async () => {
+  flakyUploader(99);
+  await saveDraft({ conversationId: CONV, kind: 'voice', payload: voicePayload() }, s);
+  await enqueueDraft(CONV, s);
+  assert.ok(pendingTimer(), 'while rungs remain, a sweep is scheduled');
+
+  for (let i = 1; i < MAX_ATTEMPTS; i++) { t += 10 * 60 * 1000; await flush(s); }
+
+  assert.equal(timers.length, 0, 'spent ladder, no timer — otherwise it is still a loop');
+});
+
+test('the scheduled sweep waits for the SOONEST entry', async () => {
+  flakyUploader(99);
+  await saveDraft({ conversationId: CONV, kind: 'voice', payload: voicePayload() }, s);
+  await enqueueDraft(CONV, s);
+
+  assert.equal(pendingTimer().ms, RETRY_DELAYS_MS[1], 'first rung after the immediate attempt');
+});
+
+test('manual Retry works on an exhausted entry and restarts the ladder', async () => {
+  const calls = flakyUploader(99);
+  await saveDraft({ conversationId: CONV, kind: 'voice', payload: voicePayload() }, s);
+  await enqueueDraft(CONV, s);
+  for (let i = 1; i < MAX_ATTEMPTS; i++) { t += 10 * 60 * 1000; await flush(s); }
+  assert.equal(calls.n, MAX_ATTEMPTS, 'ladder spent');
+
+  await retry((await s.all())[0].id, s);
+
+  assert.equal(calls.n, MAX_ATTEMPTS + 1, 'the user asking is always honoured');
+  const entry = (await s.all())[0];
+  assert.equal(entry.attempts, 1, 'and the schedule starts over from Immediate');
+  assert.ok(pendingTimer(), 'so automatic retries resume');
+});
+
+test('the automatic sweep does NOT reset the ladder — only the user does', async () => {
+  flakyUploader(99);
+  await saveDraft({ conversationId: CONV, kind: 'voice', payload: voicePayload() }, s);
+  await enqueueDraft(CONV, s);
+  t += 10 * 60 * 1000;
+  await flush(s);
+
+  assert.equal((await s.all())[0].attempts, 2,
+    'an automatic attempt advances the ladder; resetting here would loop forever');
+});
+
+test('Delete removes a failed message from this device', async () => {
+  flakyUploader(99);
+  await saveDraft({ conversationId: CONV, kind: 'voice', payload: voicePayload() }, s);
+  await enqueueDraft(CONV, s);
+  const failed = (await s.all())[0];
+  assert.equal(failed.state, FAILED);
+
+  await remove(failed.id, s);
+
+  assert.deepEqual(await s.all(), [], 'the dead-end message is gone');
+  await flush(s);
+  assert.deepEqual(await s.all(), [], 'and stays gone — a deleted send never comes back');
+});
+
+test('the entry id — the idempotency key — survives every retry', async () => {
+  // Retrying must never mint a new identity, or the client_id that makes a
+  // re-send safe at the database would change and duplicate the message.
+  flakyUploader(99);
+  await saveDraft({ conversationId: CONV, kind: 'voice', payload: voicePayload() }, s);
+  await enqueueDraft(CONV, s);
+  const first = (await s.all())[0].id;
+
+  t += 10 * 60 * 1000; await flush(s);
+  await retry(first, s);
+
+  const all = await s.all();
+  assert.equal(all.length, 1, 'one message, not three');
+  assert.equal(all[0].id, first, 'and one identity throughout');
 });

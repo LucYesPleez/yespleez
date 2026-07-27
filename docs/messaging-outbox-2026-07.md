@@ -156,9 +156,46 @@ per-kind retry branches; the `sending` round trip. ConversationView imports no
 send function — it queues, and the Outbox sends.
 
 **Deliberately still open (future, not blocking):** Resume Recording (the segment
-list is ready); a delete-on-failed affordance for stuck sends; migrating the
-optimistic double-tap Hand (message metadata, a different subsystem from the
-conversation Hand).
+list is ready); migrating the optimistic double-tap Hand (message metadata, a
+different subsystem from the conversation Hand).
+
+## 7a · Failed-message handling (2026-07-27)
+
+Failed sends used to be a dead end: retried forever with no ceiling and no
+spacing, and impossible to get rid of. Three changes, no pipeline redesign.
+
+**A backoff ladder with an end.** `RETRY_DELAYS_MS` in `outboxMachine.js` is
+`[0, 5s, 15s, 30s, 1m, 5m]` — the leading zero is the original send. `attempts`
+and `nextAttemptAt` ride on the entry; `isDueForRetry` gates the flush work list,
+and `isExhausted` is **computed**, never a sixth state. Once the ladder is spent
+nothing automatic touches the entry again. A single timer (`scheduleRetrySweep`)
+is armed for the soonest due entry after every flush, because flush is otherwise
+only called on send / reconnect / app open — without it a 5-minute rung would
+fire only by coincidence.
+
+**Two ways out, both the user's.** Retry resets the ladder to Immediate — an
+exhausted entry is one the app gave up on, and a person choosing to try again is
+new information. The automatic sweep deliberately does NOT reset, or it would
+loop forever. Delete is local-only: the message never reached the server, so
+there is nothing to recall. Conversation previews need no special handling —
+they are built from delivered rows (`latestMessages`), which a failed entry never
+was.
+
+**⚠ A latent bug fixed on the way.** `upload-start` and `upload-ok` are only
+defined on QUEUED, so a failed entry picked up by flush used to pass both
+transitions inert: it uploaded while still marked `failed`, and on SUCCESS was
+never removed. The message was delivered and the bubble stayed on screen as a
+failure, re-sent by every later flush — the engine behind the duplicate-delivery
+report. Failed entries now re-enter via `retry`, so automatic and manual retries
+are literally the same sequence.
+
+**Known limitation, documented not fixed:** a voice retry re-uploads its audio,
+orphaning storage objects (bounded by the ladder). Fixing it means persisting
+upload paths back onto the entry — a change to the uploader contract, i.e. the
+pipeline. Cleanup stays possible later with no architectural change: objects live
+at `<conversationId>/<uuid>.<ext>` and every referenced path is in
+`messages.payload`, so an orphan is computable server-side as "an object no
+payload references". See the TODO in `outboxUploaders.js`.
 
 ## 8 · Original build notes (historical)
 

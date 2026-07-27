@@ -22,12 +22,25 @@
 
 import { indexedDbStore } from './outboxStore';
 import {
-  decideTransition, needsUpload, isAbandoned, SENT, DRAFT, QUEUED, DRAFT_TTL_MS,
+  decideTransition, needsUpload, isAbandoned, isDueForRetry, isExhausted,
+  nextAttemptAt, attemptsOf, SENT, DRAFT, QUEUED, FAILED, DRAFT_TTL_MS,
 } from './outboxMachine';
 
 /** Timestamp seam — overridable in tests so ageing is deterministic. */
 let clock = () => Date.now();
 export function __setOutboxClock(fn) { clock = fn || (() => Date.now()); }
+
+/**
+ * Timer seam. The backoff ladder needs something to wake it up — nothing else
+ * would, since flush is otherwise only called on send, reconnect and app open.
+ * Injected so tests drive the schedule instead of waiting five real minutes.
+ */
+let setTimer   = (fn, ms) => setTimeout(fn, ms);
+let clearTimer = (t) => clearTimeout(t);
+export function __setOutboxTimers(set, clear) {
+  setTimer   = set   || ((fn, ms) => setTimeout(fn, ms));
+  clearTimer = clear || ((t) => clearTimeout(t));
+}
 
 /** Id seam — overridable so a test can assert a stable id. */
 let makeId = () => (globalThis.crypto?.randomUUID?.() ?? `ob_${clock()}_${Math.random().toString(16).slice(2)}`);
@@ -148,13 +161,13 @@ export async function queueMessage({ conversationId, kind, payload }, s = outbox
  * Returns the updated entry, or null when the entry was removed (sent/deleted)
  * or the event did not apply.
  */
-async function transition(id, event, s) {
+async function transition(id, event, s, patch) {
   const entry = await s.get(id);
   if (!entry) return null;
   const next = decideTransition(entry.state, event);
   if (next === null) return entry;          // inert — never a silent drop
   if (next === SENT || next === 'deleted') { await s.remove(id); emitChange(); return null; }
-  const updated = { ...entry, state: next, updatedAt: clock() };
+  const updated = { ...entry, ...patch, state: next, updatedAt: clock() };
   await s.put(updated);
   emitChange();
   return updated;
@@ -179,9 +192,17 @@ export async function enqueueDraft(conversationId, s = outboxStore()) {
   return queued;
 }
 
-/** Retry a failed entry — the manual button and the reconnect sweep share this. */
+/**
+ * The user pressed Retry.
+ *
+ * ⚠ THIS RESETS THE BACKOFF LADDER, and the automatic sweep deliberately does
+ * not. An exhausted entry is one the app has given up on; a person choosing to
+ * try again is new information, so it starts from Immediate and earns the full
+ * schedule back. That is also why this is the ONLY way out of exhaustion —
+ * without it "Couldn't send" would be a dead end rather than a decision point.
+ */
 export async function retry(id, s = outboxStore()) {
-  await transition(id, 'retry', s);
+  await transition(id, 'retry', s, { attempts: 0, nextAttemptAt: 0 });
   return flush(s);
 }
 
@@ -193,6 +214,8 @@ export async function remove(id, s = outboxStore()) {
 /* ── THE FLUSH LOOP ──────────────────────────────────────────────── */
 
 let flushing = false;
+/** The single pending backoff timer, or null. See scheduleRetrySweep. */
+let retryTimer = null;
 
 /**
  * Deliver everything waiting on the network. Idempotent and self-guarding, so
@@ -210,10 +233,33 @@ export async function flush(s = outboxStore()) {
   try {
     if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
 
-    const work = [...(await s.byState('queued')), ...(await s.byState('failed'))];
+    const now = clock();
+    // Failed entries are filtered by the backoff ladder; queued ones always go.
+    // An exhausted entry is simply not in this list, which is what "no automatic
+    // retry ever again" means in practice.
+    const work = [
+      ...(await s.byState(QUEUED)),
+      ...(await s.byState(FAILED)).filter(e => isDueForRetry(e, now)),
+    ];
+
     for (const entry of work) {
       const uploader = uploaders.get(entry.kind);
       if (!uploader) continue;              // no way to send this kind yet — keep it
+
+      /**
+       * ⚠ A FAILED ENTRY RE-ENTERS THROUGH THE SAME DOOR AS A MANUAL RETRY.
+       *
+       * This line is a bug fix, not ceremony. `upload-start` is only defined on
+       * QUEUED, so a failed entry used to walk straight past both transitions
+       * inert: it uploaded while still marked `failed`, and then `upload-ok` —
+       * also undefined on `failed` — did NOT remove it. The message was
+       * delivered and the entry stayed on screen as a failure forever, being
+       * re-sent by every subsequent flush. Routing through `retry` first means
+       * automatic and manual retries are now literally the same sequence
+       * (failed → queued → uploading → sent) rather than two paths, one of
+       * which was wrong.
+       */
+      if (entry.state === FAILED && !(await transition(entry.id, 'retry', s))) continue;
 
       const claimed = await transition(entry.id, 'upload-start', s);
       if (!claimed) continue;
@@ -226,12 +272,44 @@ export async function flush(s = outboxStore()) {
         if (row) emitDelivered(entry.conversationId, row);
         await transition(entry.id, 'upload-ok', s);   // confirmed → removed
       } catch {
-        await transition(entry.id, 'upload-fail', s);  // kept for retry
+        // Kept for retry (rule 1), and moved one rung down the ladder. Counting
+        // here rather than at the attempt means a send interrupted by a reload
+        // costs no rung — only a completed, failed attempt does.
+        const attempts = attemptsOf(claimed) + 1;
+        await transition(entry.id, 'upload-fail', s, {
+          attempts,
+          nextAttemptAt: nextAttemptAt(attempts, clock()),
+        });
       }
     }
   } finally {
     flushing = false;
+    // Outside the guard: whatever this pass left behind decides when we wake up.
+    await scheduleRetrySweep(s);
   }
+}
+
+/**
+ * Wake the flush loop when the next backoff rung comes due.
+ *
+ * Nothing else would. flush runs on send, reconnect and app open, so without a
+ * timer a 5-minute rung would only fire if the user happened to do one of those
+ * — which is not a schedule, it is a coincidence. One timer for the whole
+ * outbox, always set to the SOONEST due entry, re-armed after every pass.
+ */
+async function scheduleRetrySweep(s) {
+  if (retryTimer !== null) { clearTimer(retryTimer); retryTimer = null; }
+
+  const waiting = (await s.byState(FAILED)).filter(e => !isExhausted(e));
+  if (!waiting.length) return;              // nothing left that will ever retry itself
+
+  const now = clock();
+  const wait = Math.max(0, Math.min(...waiting.map(e => Number(e.nextAttemptAt ?? 0) - now)));
+
+  retryTimer = setTimer(() => { retryTimer = null; flush(s); }, wait);
+  // Node keeps the process alive for a pending timer; a background retry is not
+  // a reason for a test run or a script to hang.
+  if (typeof retryTimer?.unref === 'function') retryTimer.unref();
 }
 
 /* ── RETENTION ───────────────────────────────────────────────────── */
