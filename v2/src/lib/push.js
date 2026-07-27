@@ -210,7 +210,50 @@ export async function reconcilePushState(userId) {
 
   const inSync = permission === 'granted' && Boolean(subscription);
   if (inSync) {
-    rememberEndpoint(subscription.endpoint); // keep the record current if it ever drifted
+    // ⚠⚠ "IN SYNC" MEANT THE BROWSER AGREED WITH ITSELF, NOT WITH THE SERVER,
+    // AND THAT COST A DAY.
+    //
+    // Chrome rotates a push subscription periodically. When it does, this
+    // branch is still reached — permission granted, a subscription exists —
+    // and the old code called rememberEndpoint() and stopped. That updates
+    // localStorage ONLY. The database kept the dead endpoint indefinitely,
+    // and nothing anywhere noticed.
+    //
+    // Nothing noticed because FCM ACCEPTS pushes for a dead endpoint and
+    // returns success. The send path prunes on 404/410, which never came, so
+    // every diagnostic reported "sent: 4, pruned: 0" while one of those four
+    // went nowhere. Android notifications stopped for two days and the server
+    // insisted they were being delivered. (iOS was unaffected: Apple's
+    // endpoints had not rotated.)
+    //
+    // So the endpoint the SERVER holds is the thing that matters, and the
+    // remembered value is the only local record of what we last told it.
+    // Differing means rotation, and rotation means the server is now wrong.
+    const known = rememberedEndpoint();
+    if (subscription.endpoint !== known) {
+      const json = subscription.toJSON();
+      try {
+        await supabase.from('push_subscriptions').upsert(
+          {
+            user_id: userId,
+            endpoint: json.endpoint,
+            p256dh: json.keys.p256dh,
+            auth: json.keys.auth,
+            user_agent: navigator.userAgent,
+          },
+          { onConflict: 'endpoint' },
+        );
+        // Drop the superseded row. Scoped to THIS endpoint and this user —
+        // never user_id alone, which would unsubscribe every other device.
+        // Left behind, it is not merely untidy: it is an address that keeps
+        // accepting sends and discarding them, i.e. exactly the fault above.
+        if (known) {
+          await supabase.from('push_subscriptions')
+            .delete().eq('user_id', userId).eq('endpoint', known);
+        }
+      } catch { /* best effort; the next reconcile tries again */ }
+    }
+    rememberEndpoint(subscription.endpoint);
     return { subscribed: true, permission };
   }
 

@@ -3,6 +3,7 @@ import { HashRouter, Routes, Route, useLocation, useNavigate } from 'react-route
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { supabase } from './lib/supabase';
 import { markExplicitSignOut } from './lib/authForensics';
+import { reconcilePushState } from './lib/push';
 import { clearActingProfileCache } from './lib/actingProfile';
 import { initAnalytics, setAnalyticsUser, trackScreenView } from './lib/analytics';
 import { startMessaging } from './lib/messagingReliability';
@@ -344,6 +345,7 @@ export default function App() {
       if (s) setIsGuest(false);
     });
 
+
     // A1 · started here rather than in main.jsx so it begins exactly once per
     // app instance and can resolve the session first. It is idempotent, which
     // it has to be: StrictMode runs this effect twice in dev, and without the
@@ -371,6 +373,36 @@ export default function App() {
 
     return () => subscription.unsubscribe();
   }, []);
+
+  /**
+   * ⚠ RECONCILE PUSH ON EVERY LAUNCH, not only when the notifications screen
+   * happens to be opened.
+   *
+   * Chrome rotates push subscriptions on its own schedule. When it does the
+   * stored endpoint dies silently — FCM keeps ACCEPTING sends for it and
+   * returning success, so nothing errors and no diagnostic complains. Android
+   * notifications stopped for two days that way while every log read
+   * "sent: 4, pruned: 0".
+   *
+   * reconcilePushState already knew how to repair this; it was only ever
+   * called from PushNotificationToggle, which lives on a screen nobody opens
+   * unless they already suspect something is wrong. Running it at launch means
+   * a rotation costs one app open instead of however long it takes someone to
+   * notice the silence.
+   *
+   * ⚠ Keyed on the USER ID, not on mount: at mount `session` is still null
+   * while getSession() resolves, so a mount-only version would never fire.
+   * This also covers signing in later in the same page life.
+   *
+   * Safe for anyone who never enabled push — no subscription and no remembered
+   * endpoint means nothing to delete and no network call. Fire-and-forget: a
+   * failure here must never delay or break the app.
+   */
+  useEffect(() => {
+    const uid = session?.user?.id;
+    if (!uid) return;
+    reconcilePushState(uid).catch(() => {});
+  }, [session?.user?.id]);
 
   if (loading) return null;
 
