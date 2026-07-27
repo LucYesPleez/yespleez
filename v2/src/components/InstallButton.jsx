@@ -33,15 +33,24 @@ export default function InstallButton() {
 
   return (
     <>
+      {/* ⚠ DELIBERATELY LARGER THAN THE HEADER'S OTHER ICONS (18px). Share,
+          info and bell are chrome — always present, never the point. This is
+          the install CTA. Owner: "it's going to be used as the button to
+          install the app", and at chrome size it read as one more thing to
+          ignore.
+          ⚠ The stroke thins as it grows (1.7 → 1.5). A 1.7 stroke scaled to
+          26px looks HEAVIER than its neighbours rather than merely bigger,
+          which reads as a different icon set instead of an emphasised one. */}
       <button
         type="button"
         className={s.iconBtn}
         onClick={() => setOpen(true)}
         aria-label="Add YesPleez to your home screen"
         title="Add to home screen"
+        style={{ marginLeft: 2 }}
       >
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-             strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
           {/* Phone outline, interrupted lower-right so the badge sits in a gap
               rather than crossing the stroke — matches the supplied artwork. */}
           <path d="M15.5 10V5.5A3.5 3.5 0 0 0 12 2H6.5A3.5 3.5 0 0 0 3 5.5v13A3.5 3.5 0 0 0 6.5 22H12a3.5 3.5 0 0 0 3.32-2.4" />
