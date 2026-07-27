@@ -2,6 +2,7 @@ import { supabase } from './supabase';
 import { sendMessage } from './messaging';
 import { computeCombinedWave } from './voiceWave';
 import { logVoiceSignal, observePageLifecycle, startHeartbeat } from './voiceDiagnostics';
+import { acquireScreenWakeLock, releaseScreenWakeLock } from './screenWakeLock';
 
 /**
  * VOICE NOTES — recording, storage and playback URLs.
@@ -557,6 +558,17 @@ export async function startRecording({ onInterrupt } = {}) {
   });
   recorder.start(TIMESLICE_MS);
 
+  /**
+   * ⚠ THE SCREEN LOCKING IS AN INTERRUPTION, AND THE COMMONEST ONE.
+   *
+   * iOS mutes microphone capture the instant the display locks, and Auto-Lock
+   * counts from the user's last TOUCH — the tap that started this recording. A
+   * tester on a 30-second Auto-Lock therefore lost every Voicey at 29 seconds
+   * (see screenWakeLock.js for the log). Not awaited: a screen hint must never
+   * sit between the user and their recording, and it cannot throw.
+   */
+  acquireScreenWakeLock();
+
   const startedAt = Date.now();
   let released = false;
 
@@ -721,6 +733,10 @@ export async function startRecording({ onInterrupt } = {}) {
     logVoiceSignal('recorder', 'release', captureState());
     try { stopHeartbeat(); } catch { /* ignore */ }
     try { stopObservingPage(); } catch { /* ignore */ }
+    // Paired with the acquire at recorder.start. Here rather than in stop() so
+    // EVERY exit — clean stop, cancel, park, interruption salvage, unmount —
+    // lets the screen sleep again without its own code path.
+    releaseScreenWakeLock();
     settling = true;   // stopping our own tracks fires `ended`; not an interruption
     released = true;
     stream.getTracks().forEach(t => t.stop());
