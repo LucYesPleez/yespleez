@@ -32,11 +32,14 @@ export default function BetaWelcomePopup() {
     background: 'linear-gradient(135deg,#55bbcf,#8c55e5 72%)',
     WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent',
   };
-  // Only "YesPleez" itself is the big brand mark — bigger than the "Here we
-  // go!" heading (24px). "The Scene / In Your Hands" is a normal-size white
-  // subline underneath it, not part of the gradient treatment.
+  // ⚠ "YesPleez." IS THE HEADING. It opens the card directly under the hand
+  // mark — there is no "Here we go!" above it and no lead-in sentence before
+  // it, both of which the owner cut. It is the only gradient mark up here, so
+  // it carries the weight the old h2 was carrying; do not reintroduce a
+  // heading above it.
   const brandName = { ...gradientText, margin: '0 0 2px', fontSize: 34, lineHeight: 1.1 };
   const emphasis = { ...gradientText, margin: '0 0 16px', fontSize: 15 };
+  const body = { margin: '0 0 16px', color: 'var(--text)', fontSize: 14.5, lineHeight: 1.5 };
 
   return (
     <div className="yp-modal" onClick={dismiss}>
@@ -45,20 +48,39 @@ export default function BetaWelcomePopup() {
         style={{ maxWidth: 360, textAlign: 'center' }}
         onClick={e => e.stopPropagation()}
       >
-        <HandIcon size={90} style={{ margin: '0 0 8px', color: '#fff' }} />
-        <h2 style={{ margin: '0 0 18px', fontSize: 24, letterSpacing: '-0.6px' }}>Here we go!</h2>
-        <p style={{ margin: '0 0 16px', color: 'var(--text)', fontSize: 14.5, lineHeight: 1.5 }}>
-          Built for tying the scene together, welcome to my latest special interest..
+        <HandIcon size={90} style={{ margin: '0 0 18px', color: '#fff' }} />
+
+        <p style={{ ...brandName, marginBottom: 10 }}>YesPleez.</p>
+        <p style={{ margin: '0 0 18px', color: '#fff', fontSize: 14.5, lineHeight: 1.4 }}>
+          The Scene.<br />In Your Hands.
         </p>
-        <p style={brandName}>YesPleez</p>
-        <p style={{ margin: '0 0 16px', color: '#fff', fontSize: 14.5, lineHeight: 1.4 }}>
-          The Scene<br />In Your Hands
+
+        {/* Three promises, one per line, set airier than the prose around
+            them. Run together as a paragraph they read as a list being
+            recited; stacked, each one lands on its own. */}
+        <p style={{ ...body, lineHeight: 1.85, marginBottom: 18 }}>
+          Discover what’s happening.<br />
+          Follow the artists and venues you love.<br />
+          Connect with your local music scene.
         </p>
-        <p style={{ margin: '0 0 16px', color: 'var(--text)', fontSize: 14.5, lineHeight: 1.5 }}>
-          I’ve chosen you as one of my handful of original beta testers because I respect your opinion, your insight and most of all, your taste you stylish mofo's.
+
+        <p style={body}>
+          This is an early beta, and we’re building it with the community, not just for it.
         </p>
-        <p style={{ ...emphasis, marginBottom: 22 }}>
-          Hit the Beta Feedback button at the top of the screen and get at me!
+
+        <p style={emphasis}>
+          Have a sticky beak around and if you find anything that sucks, or shreds, tell us by hitting that green BETA button up top.
+        </p>
+
+        {/* ⚠ THE SIGN-OFF IS QUIETER THAN EVERYTHING ABOVE IT, deliberately.
+            It is a signature, not a line of copy — the card has already made
+            its case by here, and a name set at body weight competes with the
+            call to action directly above rather than closing it. Muted, and
+            the name on its own line the way it is signed. */}
+        <p style={{
+          margin: '0 0 22px', color: 'var(--muted)', fontSize: 13.5, lineHeight: 1.5,
+        }}>
+          Cheers legends!<br />Lucious
         </p>
         <button
           type="button"
@@ -71,7 +93,7 @@ export default function BetaWelcomePopup() {
             fontFamily: 'inherit', cursor: 'pointer',
           }}
         >
-          Chz!
+          Let’s go!
         </button>
       </div>
     </div>
