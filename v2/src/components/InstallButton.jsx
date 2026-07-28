@@ -1,8 +1,16 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
 import { isInstalled } from '../lib/analytics';
 import { installAvailable, onInstallAvailabilityChange } from '../lib/installPrompt';
 import InstallSheet from './InstallSheet';
+import InstallSpotlight from './InstallSpotlight';
+import useBreath from '../hooks/useBreath';
+import {
+  coachDismissed, dismissCoach, resetCoach,
+  BREATH_MS, SPOTLIGHT_INTERVAL_MS, AMBIENT_FIRST_MS, AMBIENT_INTERVAL_MS,
+} from '../lib/installCoach';
 import s from './GlobalHeader.module.css';
+import sp from './InstallSpotlight.module.css';
 
 /**
  * ⚠ iPadOS REPORTS ITSELF AS A MAC. Since iPadOS 13 the user agent says
@@ -86,21 +94,45 @@ function forcedPlatform() {
   return m ? m[1] : null;
 }
 
+/**
+ * ⏱ TEMPORARY, and a sibling of `?install=` above — `?coach=reset` clears the
+ * "already taught" flag so the spotlight can be seen again, and `?coach=off`
+ * suppresses it. The spotlight is a ONCE-PER-DEVICE event by design, which
+ * makes it un-reviewable the moment anyone has seen it: there is otherwise no
+ * way back to it short of clearing site data, which also signs you out.
+ */
+function coachOverride() {
+  if (typeof window === 'undefined') return null;
+  const raw = window.location.search + window.location.hash;
+  const m = /[?&]coach=(reset|off)/.exec(raw);
+  return m ? m[1] : null;
+}
+
 export default function InstallButton() {
   const [open, setOpen] = useState(false);
   const [canInstall, setCanInstall] = useState(installAvailable);
+  const [taught, setTaught] = useState(coachDismissed);
+  const btnRef = useRef(null);
+  const location = useLocation();
   const forced = forcedPlatform();
+  const override = coachOverride();
 
   // Availability arrives asynchronously — beforeinstallprompt has usually not
   // fired at first render — so this subscribes rather than reading once.
   useEffect(() => onInstallAvailabilityChange(() => setCanInstall(installAvailable())), []);
 
+  // ⏱ Runs before the first paint of the overlay so `?coach=reset` shows the
+  // spotlight on THIS load rather than the next one.
+  useEffect(() => {
+    if (override === 'reset') { resetCoach(); setTaught(false); }
+    if (override === 'off') setTaught(true);
+  }, [override]);
+
   // Called during render on purpose — a synchronous media/navigator read, not
   // state, and it must re-evaluate if the app is opened installed.
   // ⏱ The override wins here too: the owner's own phones both have the app
   // installed, which is exactly why they could not see the button at all.
-  if (isInstalled() && !forced) return null;
-
+  const installed = isInstalled() && !forced;
   const ios = isIOS();
 
   // ⚠ ANDROID IS GATED ON CAPABILITY, NOT ON A USER-AGENT GUESS. The button
@@ -108,10 +140,70 @@ export default function InstallButton() {
   // covers Chromium on desktop without naming it. iOS is gated separately
   // because its screen promises instructions, not an install — a promise
   // Safari can always keep.
-  const platform = forced || (ios
+  const platform = installed ? null : (forced || (ios
     ? (iosBrowser() === 'chrome' ? 'ios-chrome' : 'ios-safari')
-    : (canInstall ? 'android' : null));
+    : (canInstall ? 'android' : null)));
+
+  /**
+   * THE SPOTLIGHT IS iOS-ONLY, and that is not an oversight.
+   *
+   * On Android the icon fires a native install dialog the OS itself renders —
+   * one tap, no instructions needed, and Chrome will nag on its own if we do
+   * nothing. On iOS the icon opens a picture of a menu the user has to find
+   * inside Safari, and there is no system prompt anywhere in the flow. iOS is
+   * the only platform where NOT KNOWING WHERE TO TAP is the thing standing
+   * between a user and an installed app, so it is the only one worth dimming
+   * the whole screen for.
+   */
+  const spotlightEligible = !!platform && platform.startsWith('ios');
+  const coaching = spotlightEligible && !taught && !open;
+
+  /**
+   * ONE CLOCK, TWO ACTS — and it lives here because the icon lives here.
+   *
+   * The breath drives three things at once: the icon's own shimmer to full
+   * white, the halo out in the overlay, and (after dismissal) the ambient ring
+   * in the header. They are in three different elements across two components,
+   * so a single flag is the only thing that keeps them one event. Two hooks
+   * would start a frame or two apart and read as a stutter.
+   *
+   *   ACT ONE (coaching)  first breath at 900ms — long enough for the veil to
+   *                       have settled, short enough that the light arrives
+   *                       while the user is still taking the screen in — then
+   *                       every 8s.
+   *   ACT TWO (taught)    4s into every new page, then every 12s. The route is
+   *                       the reset key, so "each new page" means each new
+   *                       page rather than wherever the interval happened to be.
+   *
+   * ⚠ SILENT WHILE THE SHEET IS OPEN. The install guide is full-screen; a
+   * glow pulsing on a header icon behind it is pointing at something the user
+   * cannot see and has already found.
+   */
+  const ambientOnly = !!platform && taught && !open;
+  const lit = useBreath(
+    coaching || ambientOnly,
+    coaching ? 900 : AMBIENT_FIRST_MS,
+    coaching ? SPOTLIGHT_INTERVAL_MS : AMBIENT_INTERVAL_MS,
+    coaching ? 'coach' : location.pathname,
+  );
+
   if (!platform) return null;
+
+  /**
+   * Tapping the icon SPENDS the spotlight, whether or not an install follows.
+   * The lesson has landed at that point — they found the control — and if
+   * they back out of the sheet, re-dimming the entire screen to point at an
+   * icon they just pressed would be nagging, not teaching.
+   */
+  function handleTap() {
+    setOpen(true);
+    if (!taught) { dismissCoach(); setTaught(true); }
+  }
+
+  function handleLater() {
+    dismissCoach();
+    setTaught(true);
+  }
 
   return (
     <>
@@ -125,16 +217,39 @@ export default function InstallButton() {
           which reads as a different icon set instead of an emphasised one. */}
       <button
         type="button"
+        ref={btnRef}
         className={s.iconBtn}
-        onClick={() => setOpen(true)}
+        onClick={handleTap}
         aria-label="Add YesPleez to your home screen"
         aria-haspopup="dialog"
         aria-expanded={open}
         title="Add to home screen"
         style={{ marginLeft: 2 }}
       >
+        {/* ACT TWO ONLY. While the spotlight is up the overlay's own halo is
+            already ringing this icon; a second ring inside the button would
+            double the light on the one thing whose brightness is being
+            carefully controlled. */}
+        {ambientOnly && (
+          <span
+            key={lit ? 'amb-on' : 'amb-off'}
+            className={`${sp.ambient} ${lit ? sp.breathing : ''}`}
+            aria-hidden="true"
+          />
+        )}
+
+        {/* ⚠ THE LIGHTING CLASSES BELONG ON THE <svg>, NOT THE BUTTON — the
+            ring above blends with `screen`, and a `filter` on their shared
+            parent would trap it in the button's own blend group and turn it
+            from light into grey paint. See InstallSpotlight.module.css.
+            The two classes are independent layers: `targetLit` is where the
+            icon RESTS while coaching, `targetBreath` is the rise to full
+            white on each breath, and the animation declares no endpoints so
+            it returns to whichever rest state applies. */}
         <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-             strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+             strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"
+             className={`${coaching ? sp.targetLit : ''} ${lit ? sp.targetBreath : ''}`}
+             style={{ '--breath': `${BREATH_MS}ms` }}>
           {/* Phone outline, interrupted lower-right so the badge sits in a gap
               rather than crossing the stroke — matches the supplied artwork. */}
           <path d="M15.5 10V5.5A3.5 3.5 0 0 0 12 2H6.5A3.5 3.5 0 0 0 3 5.5v13A3.5 3.5 0 0 0 6.5 22H12a3.5 3.5 0 0 0 3.32-2.4" />
@@ -152,6 +267,15 @@ export default function InstallButton() {
           pointer-transparent and renders no image while closed, so it costs
           nothing to leave mounted. */}
       <InstallSheet open={open} onClose={() => setOpen(false)} platform={platform} />
+
+      {/* ⚠ MOUNTED ONLY WHILE COACHING, unlike the sheet above. It has nothing
+          to animate in FROM — it fades the room down around an icon that is
+          already in place — and while mounted it locks body scroll and fences
+          off every control on the page. Left mounted-but-hidden it would be a
+          scroll lock waiting for a stray truthy render. */}
+      {coaching && (
+        <InstallSpotlight open lit={lit} targetRef={btnRef} onDismiss={handleLater} />
+      )}
     </>
   );
 }

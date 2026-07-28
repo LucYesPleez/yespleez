@@ -1,0 +1,396 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   THE INSTALL SPOTLIGHT — a theatre lamp, not an onboarding screen.
+
+   Everything in this file exists to move the user's eye to one 26px icon in
+   the header without moving anything on screen. No zoom, no slide, no bounce.
+   The interface stays exactly where it was; only the LIGHT changes.
+
+   ⚠ THE GEOMETRY IS INJECTED, NOT WRITTEN HERE. The icon's position depends
+   on the header's live layout (it shifts when YESPLEEZ's letter-spacing drops
+   at 480px, and again if the header ever wraps), so it is measured at runtime
+   and published as --sx / --sy / --sr. Hard-coding a position here would put
+   the lamp on empty air the first time the header changes.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.root {
+  position: fixed;
+  inset: 0;
+  z-index: 4800;   /* under InstallSheet (5000): the sheet replaces this */
+  /* ⚠ TRANSPARENT TO TOUCH BY DEFAULT, and this is the whole interaction
+     model. The icon being taught is a REAL button in the header underneath,
+     not a copy — so the layer above it must let taps through, or the one
+     thing we are pointing at would be the one thing that cannot be pressed.
+     The four .blocker strips below re-arm everything except the icon. */
+  pointer-events: none;
+  animation: riseIn .62s cubic-bezier(.22, .9, .3, 1) both;
+}
+
+@keyframes riseIn { from { opacity: 0; } to { opacity: 1; } }
+
+/* ── THE VEIL ──────────────────────────────────────────────────────────────
+   One element carries both the dimming and the blur, because they must share
+   a mask: a separate blur layer would need its own identical mask and the two
+   would drift apart by a pixel at the feathered edge, drawing a visible ring
+   exactly where the effect is supposed to be invisible.
+
+   The mask is an INVERTED radial gradient — transparent at the icon, opaque
+   everywhere else — so the veil erases itself over the spotlight. Feathering
+   happens between the two middle stops; that gradient IS the soft edge, and
+   the reason this reads as a lamp rather than a hole punched in a sheet. */
+.veil {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, .85);
+  backdrop-filter: blur(20px) saturate(.7) brightness(.72);
+  -webkit-backdrop-filter: blur(20px) saturate(.7) brightness(.72);
+
+  --hole: radial-gradient(
+    circle var(--sr, 92px) at var(--sx, 50%) var(--sy, 50%),
+    transparent 0%,
+    transparent 40%,
+    rgba(0, 0, 0, .55) 68%,
+    #000 100%
+  );
+  mask-image: var(--hole);
+  -webkit-mask-image: var(--hole);
+}
+
+/* ── THE CONE ──────────────────────────────────────────────────────────────
+   A stage lamp is visible in the air, not just on what it lights. This is
+   that — a barely-there wedge falling from the icon, capped at 5% white and
+   blurred past the point of having an edge. It is the difference between
+   "a dark screen with a bright spot" and "something is being lit from there".
+
+   ⚠ IF THIS IS EVER VISIBLE AS A SHAPE, IT IS TOO STRONG. It should only be
+   noticeable by its absence. */
+.cone {
+  position: absolute;
+  left: var(--sx, 50%);
+  top: var(--sy, 0px);
+  width: 190px;
+  height: 30vh;
+  transform: translateX(-50%);
+  background: linear-gradient(to bottom, rgba(255, 255, 255, .035), rgba(255, 255, 255, 0) 72%);
+  clip-path: polygon(47% 0%, 53% 0%, 100% 100%, 0% 100%);
+  filter: blur(22px);
+}
+
+/* ── THE HALO ──────────────────────────────────────────────────────────────
+   A RING, not a disc. A filled glow sits in front of the icon and washes it
+   out — the icon is the subject, so the light has to arrive around it. The
+   centre is fully transparent out to 34% and the brightest band lands just
+   outside the icon's own edge.
+
+   `screen` blending makes it behave like light rather than paint: it can only
+   ever add brightness, so it cannot muddy the icon it surrounds. */
+.halo {
+  position: absolute;
+  left: var(--sx, 50%);
+  top: var(--sy, 50%);
+  /* ⚠ 1.6× THE LIT RADIUS, DOWN FROM 1.9×. The ring must finish inside the
+     spotlight's own feather — a halo wider than the circle it sits in glows
+     out across the blurred, darkened header, which is precisely the "that's
+     nuts" the owner was looking at. At 1.6× the element is 93px across, so
+     the brightest band (47% of the gradient) lands ~22px from centre — right
+     on the button's edge — and the light is fully gone by ~35px, less than
+     two thirds of the way to the feather. */
+  width: calc(var(--sr, 58px) * 1.6);
+  height: calc(var(--sr, 58px) * 1.6);
+  margin-left: calc(var(--sr, 58px) * -0.8);
+  margin-top: calc(var(--sr, 58px) * -0.8);
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgba(255, 255, 255, 0) 32%,
+    rgba(255, 255, 255, .34) 47%,
+    rgba(255, 255, 255, .16) 60%,
+    rgba(255, 255, 255, 0) 76%
+  );
+  mix-blend-mode: screen;
+  opacity: 0;
+}
+
+/* ONE BREATH. In slowly, hold nothing, out even more slowly.
+   ⚠ 20% IS THE CEILING, per the brief — and it is a ceiling on the ELEMENT,
+   whose brightest band is already only 34% white, so the light itself peaks
+   far below that. The scale range is 0.9 → 1.08: enough that the eye
+   registers movement in the periphery, far too little to read as an
+   animation if you are looking straight at it. */
+.breathing {
+  animation: breathe var(--breath, 3600ms) cubic-bezier(.33, 0, .25, 1) both;
+}
+
+@keyframes breathe {
+  0%   { opacity: 0;   transform: scale(.90); }
+  34%  { opacity: .20; transform: scale(1.00); }
+  100% { opacity: 0;   transform: scale(1.08); }
+}
+
+/* ── THE PASS-THROUGH ──────────────────────────────────────────────────────
+   Four strips fencing the icon's box. Everything outside them is inert while
+   the coach is up (this is a modal moment), and the box itself is left open
+   so the real header button receives the tap directly.
+
+   ⚠ RECTANGLES, DELIBERATELY, even though the light is a circle. A circular
+   pointer-events hole needs clip-path on a full-screen layer, which forces a
+   repaint of the whole veil on every measurement; the corners it would gain
+   are dark, blurred, and contain nothing tappable anyway. */
+.blocker { position: absolute; pointer-events: auto; }
+
+/* ── THE FLOATING PANEL ────────────────────────────────────────────────────
+   A third down the screen: below the spotlight so it never competes with it,
+   above centre so it does not read as a system dialog.
+
+   ⚠ THE PANEL WENT AWAY ONCE AND CAME BACK, and the round trip is the useful
+   part. The first version was a wide card carrying three lines including an
+   instruction — "I don't like the window" — and what was actually wrong was
+   that a box that size, holding that much, reads as a dialog demanding to be
+   dealt with. The copy is now four words and a way out, so the panel is
+   tuned to it: narrow, tight padding, and shaped by the copy rather than by
+   a grid.
+
+   ⚠ IT MUST LOOK LIKE IT IS FLOATING, WHICH IS ENTIRELY THE SHADOW'S JOB.
+   The veil behind it is already blurred and near-black, so a panel with no
+   shadow sits flush against it and reads as a hole cut in the dim rather
+   than an object above it. The long, soft, offset shadow is what separates
+   the two planes; the inset highlight along the top edge is the panel
+   catching the same light as the icon, and without it glass reads as
+   translucent plastic. */
+.message {
+  position: absolute;
+  top: 33dvh;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(calc(100vw - 56px), 312px);
+  box-sizing: border-box;
+  padding: 26px 24px 10px;
+  text-align: center;
+  border-radius: 26px;
+  /* Deliberately barely tinted. The blur below is doing the work — a heavier
+     fill would make it a slab, and the point is a pane of glass held above
+     the screen, not a second background. */
+  background: rgba(18, 18, 26, .46);
+  backdrop-filter: blur(30px) saturate(1.4);
+  -webkit-backdrop-filter: blur(30px) saturate(1.4);
+  border: 1px solid rgba(255, 255, 255, .1);
+  box-shadow:
+    0 24px 64px rgba(0, 0, 0, .58),
+    0 4px 14px rgba(0, 0, 0, .4),
+    inset 0 1px 0 rgba(255, 255, 255, .12);
+  pointer-events: auto;
+  animation: copyIn .72s cubic-bezier(.22, .9, .3, 1) .18s both;
+}
+
+/* The only movement in the entire overlay, and it happens once: 10px is
+   enough to feel placed rather than switched on. */
+@keyframes copyIn {
+  from { opacity: 0; transform: translate(-50%, 10px); }
+  to   { opacity: 1; transform: translate(-50%, 0); }
+}
+
+.headline {
+  margin: 0;
+  font-family: 'DM Sans', -apple-system, sans-serif;
+  /* ⚠ MEASURED AGAINST THE PANEL, not chosen. "Install the App!" at 35px/700
+     renders 222px wide inside a 264px content box — 42px of slack, so it
+     holds one line on every phone from 360px up, and one line is the whole
+     point. Past ~41px it wraps, and a wrapped four-word headline stops being
+     a headline. If the copy ever changes, re-measure before changing this. */
+  font-size: 35px;
+  font-weight: 700;
+  letter-spacing: -.022em;
+  line-height: 1.14;
+
+  /* ── THE BRAND GRADIENT, AND WHY IT NEEDED A MIDPOINT ───────────────────
+     ⚠ A STRAIGHT #ff2d78 → #00e5ff RAMP IS MUDDY IN THE MIDDLE, and that is
+     the whole reason this did not grab. Interpolating those two in sRGB
+     drags the midtones through a desaturated grey-mauve around #80879a — so
+     the centre of the word, which is exactly where the eye lands, was the
+     dullest part of it. Bigger type alone would only have made the dull part
+     bigger.
+
+     Routing through var(--purple) keeps every stop fully saturated across
+     the whole word, and the lifted pink and cyan at the two ends stop it
+     going dark where it meets the glass. Five stops, no dead zone. */
+  background: linear-gradient(
+    118deg,
+    #ff5c9c 0%,
+    var(--neon) 20%,
+    var(--purple) 50%,
+    var(--neon2) 82%,
+    #7df3ff 100%
+  );
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  color: transparent;
+
+  /* ⚠ NO `text-shadow` ON GRADIENT TEXT, EVER. With the fill transparent the
+     shadow is painted behind glyphs that are not there to hide it, so it
+     shows straight through the letterforms as a grey smear — it reads as a
+     rendering fault, not a shadow. `filter: drop-shadow` is the substitute:
+     it works on the composited result, so it traces the visible gradient
+     rather than the empty glyph box.
+     ⚠ AND THE GLOW IS COLOURED, NOT BLACK. A dark shadow under saturated
+     type deadens it — the two fight. Bleeding the word's own pink and cyan
+     back out into the glass is what makes it read as LIT rather than
+     printed, and it is the same trick the icon's halo is doing 250px above. */
+  filter:
+    drop-shadow(0 0 12px rgba(255, 45, 120, .5))
+    drop-shadow(0 0 26px rgba(0, 229, 255, .34));
+}
+
+.sub {
+  margin: 7px 0 0;
+  font-family: 'DM Sans', -apple-system, sans-serif;
+  font-size: 14.5px;
+  font-weight: 400;
+  line-height: 1.45;
+  color: rgba(255, 255, 255, .62);
+}
+
+/* ⚠ DELIBERATELY INSIGNIFICANT — owner's word. It is the way out, not an
+   option being offered: 12.5px at 30% white, no border, no underline, no
+   hover flourish beyond a small lift. Anything more turns "no thanks" into a
+   choice the user has to weigh, which is how a tutorial starts feeling like
+   an ad. It stays a full-width 44px-tall tap target regardless, because
+   quiet must not mean hard to hit. */
+.later {
+  display: block;
+  /* Bleeds to the panel's edges so the 44px target is real without the
+     padding above it having to grow. */
+  width: calc(100% + 48px);
+  margin: 22px -24px 0;
+  padding: 13px 8px;
+  background: none;
+  border: none;
+  /* The one line in the panel, and it sits BELOW the glass's own top-edge
+     highlight rather than beside the copy — a faint rule separating "what
+     this is" from "how to leave". Any stronger and the way out starts
+     competing with the reason to stay. */
+  border-top: 1px solid rgba(255, 255, 255, .06);
+  border-radius: 0 0 25px 25px;
+  font-family: 'DM Sans', -apple-system, sans-serif;
+  font-size: 12.5px;
+  letter-spacing: .01em;
+  color: rgba(255, 255, 255, .3);
+  cursor: pointer;
+  transition: color .2s ease;
+}
+.later:hover  { color: rgba(255, 255, 255, .55); }
+.later:active { color: rgba(255, 255, 255, .65); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ACT TWO — the icon on its own, after the spotlight has been spent.
+
+   These live on the header button itself (InstallButton), not on the overlay.
+   No veil, no card, no modality: one quiet ring, 4s into each new page and
+   then every 12s. This is all that is left of the ask, and it is meant to be
+   ignorable forever.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.ambient {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 52px;
+  height: 52px;
+  margin: -26px 0 0 -26px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgba(255, 255, 255, 0) 30%,
+    rgba(255, 255, 255, .30) 46%,
+    rgba(255, 255, 255, .13) 60%,
+    rgba(255, 255, 255, 0) 76%
+  );
+  mix-blend-mode: screen;
+  /* ⚠ MUST NOT EAT THE TAP. It is centred on the button and wider than it,
+     so without this the glow itself becomes the hit target's top layer —
+     harmless for a click, fatal for the :active feedback and for anything
+     that later reads event.target. */
+  pointer-events: none;
+  opacity: 0;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   THE ICON ITSELF — the thing the light is actually for.
+
+   ⚠ BOTH OF THESE GO ON THE <svg>, NEVER ON THE BUTTON, and that is a real
+   constraint rather than a preference. `filter` on an element makes it a
+   grouping/stacking context for its descendants, and the ambient ring is a
+   SIBLING inside that same button using `mix-blend-mode: screen`. Filter the
+   button and the ring's blend group collapses to the button's own contents —
+   it would stop screening against the page behind it and turn from light
+   into grey paint. The svg has no blended descendants, so it can carry both
+   safely.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* THE RESTING STATE UNDER THE LAMP. At 82% white it is already unmistakably
+   the subject — every other header control sits at var(--muted), #7070a0 —
+   but it is deliberately NOT at full brightness, because full brightness is
+   where the breath goes. A subject already at 100% has nowhere to shimmer to. */
+.targetLit {
+  color: rgba(255, 255, 255, .82);
+  filter:
+    drop-shadow(0 0 4px rgba(255, 255, 255, .32))
+    drop-shadow(0 0 9px rgba(255, 255, 255, .1));
+  /* The way back down when the spotlight retires: half a second of fade, not
+     a snap to muted the instant the overlay unmounts. */
+  transition: color .5s ease, filter .5s ease;
+}
+
+/* ── THE SHIMMER ───────────────────────────────────────────────────────────
+   The icon rising to full white on the same clock as the halo. One breath
+   in, one breath out, and the two are driven by a single `lit` flag in
+   InstallButton so they cannot drift apart.
+
+   ⚠ ONLY THE MIDDLE FRAME IS DECLARED, ON PURPOSE. With no 0%/100% keyframes
+   the browser supplies them from the element's own computed style, so this
+   ONE animation serves both acts without knowing which it is in: under the
+   spotlight it travels 82% white → full and back, and in ambient it travels
+   var(--muted) → full and back. Writing explicit endpoints would hard-code
+   one resting colour and make the other act snap on its first frame.
+
+   ⚠ 34% MATCHES THE HALO'S PEAK exactly (see @keyframes breathe). Offsetting
+   them even slightly reads as two separate events rather than one light
+   arriving. */
+@keyframes iconShimmer {
+  34% {
+    color: #fff;
+    filter:
+      drop-shadow(0 0 5px rgba(255, 255, 255, .85))
+      drop-shadow(0 0 12px rgba(255, 255, 255, .4));
+  }
+}
+
+/* ⚠ NO `both` FILL, unlike the halo. The animation must hand the icon back to
+   whatever its resting class says when it ends — filling forwards would
+   freeze it at full white after the first breath, and every breath after
+   that would have nothing left to do. */
+.targetBreath {
+  animation: iconShimmer var(--breath, 3600ms) cubic-bezier(.33, 0, .25, 1);
+}
+
+/* ── RESPECT THE SETTING ───────────────────────────────────────────────────
+   The lighting is the feature and it stays; only the motion goes. The halo
+   is pinned at its peak rather than removed, so a user with reduced motion
+   still gets the spotlight, just held instead of breathing. */
+@media (prefers-reduced-motion: reduce) {
+  .root, .message { animation: none; }
+  .message { opacity: 1; transform: translate(-50%, 0); }
+  .breathing { animation: none; opacity: .17; }
+
+  /* The shimmer becomes a step rather than a swell: still full white, still
+     glowing, just arrived at instead of travelled to. Removing it outright
+     would leave the ambient icon indistinguishable from the share and bell
+     icons beside it, and with the halo also held static there would then be
+     nothing at all marking the install control. */
+  .targetBreath {
+    animation: none;
+    color: #fff;
+    filter:
+      drop-shadow(0 0 5px rgba(255, 255, 255, .85))
+      drop-shadow(0 0 12px rgba(255, 255, 255, .4));
+  }
+}
