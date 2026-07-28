@@ -1,6 +1,22 @@
 import { useEffect, useState } from 'react';
 import HandIcon from './HandIcon';
 
+/**
+ * ⏸ PARKED, NOT DELETED — owner, 2026-07-28: "we're going to hide this card
+ * for now."
+ *
+ * The guided tour replaces what this was doing: a welcome popup explains the
+ * app in prose, the tour teaches it by lighting the real interface, and two
+ * things introducing YesPleez on first launch is one too many. The card would
+ * also land on top of the tour's step 1, since both fire on the same screen.
+ *
+ * The copy is kept intact and current — it was rewritten and approved the same
+ * day it was parked, so if any of it is wanted inside the tour it should be
+ * lifted from here rather than reinvented. Flip this to `true` to bring the
+ * card back; delete the file only once the tour has genuinely absorbed it.
+ */
+const ENABLED = false;
+
 const SEEN_KEY = 'yp_beta_welcome_seen';
 // "A short time" in the app. Tune here — this is the only place that decides
 // when the popup fires.
@@ -15,6 +31,10 @@ export default function BetaWelcomePopup() {
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
+    // ⚠ GATED IN THE EFFECT, NOT AT THE TOP OF THE COMPONENT. An early return
+    // before the hook would change the hook order between renders the moment
+    // anyone flips ENABLED at runtime while debugging.
+    if (!ENABLED) return undefined;
     if (localStorage.getItem(SEEN_KEY)) return undefined;
     const timer = setTimeout(() => setOpen(true), DELAY_MS);
     return () => clearTimeout(timer);

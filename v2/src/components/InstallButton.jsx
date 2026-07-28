@@ -9,6 +9,7 @@ import {
   coachDismissed, dismissCoach, resetCoach,
   BREATH_MS, SPOTLIGHT_INTERVAL_MS, AMBIENT_FIRST_MS, AMBIENT_INTERVAL_MS,
 } from '../lib/installCoach';
+import { tourFinished, onTourFinished } from '../lib/tourState';
 import s from './GlobalHeader.module.css';
 import sp from './InstallSpotlight.module.css';
 
@@ -112,6 +113,15 @@ export default function InstallButton() {
   const [open, setOpen] = useState(false);
   const [canInstall, setCanInstall] = useState(installAvailable);
   const [taught, setTaught] = useState(coachDismissed);
+  /**
+   * ⚠ STATE, NOT A BARE `tourFinished()` CALL DURING RENDER. The tour is
+   * finished by a SIBLING component, whose state change does not re-render
+   * this one — so a value read during render goes stale the moment it
+   * matters, and the install coach misses its cue entirely. Subscribing is
+   * what makes the spotlight follow the tour's final card immediately rather
+   * than surfacing later on an unrelated tab press.
+   */
+  const [tourDone, setTourDone] = useState(tourFinished);
   const btnRef = useRef(null);
   const location = useLocation();
   const forced = forcedPlatform();
@@ -120,6 +130,9 @@ export default function InstallButton() {
   // Availability arrives asynchronously — beforeinstallprompt has usually not
   // fired at first render — so this subscribes rather than reading once.
   useEffect(() => onInstallAvailabilityChange(() => setCanInstall(installAvailable())), []);
+
+  // The tour handing over: its last card closes, this one takes the stage.
+  useEffect(() => onTourFinished(() => setTourDone(true)), []);
 
   // ⏱ Runs before the first paint of the overlay so `?coach=reset` shows the
   // spotlight on THIS load rather than the next one.
@@ -156,7 +169,23 @@ export default function InstallButton() {
    * the whole screen for.
    */
   const spotlightEligible = !!platform && platform.startsWith('ios');
-  const coaching = spotlightEligible && !taught && !open;
+
+  /**
+   * ⚠⚠ THE TOUR OUTRANKS THIS, AND THE TWO WOULD OTHERWISE COLLIDE ON FIRST
+   * LAUNCH. Both dim the screen, both light a target, both fire about a
+   * second after the home screen settles — a new iPhone user would get two
+   * overlapping spotlights pointing at two different things.
+   *
+   * The tour wins because it already owns this ground: step 6 is the install
+   * coach mark, conditional on not being installed, which is exactly what
+   * this component does standalone. Once the tour has been completed or
+   * skipped, this takes over as the standing offer for anyone who did not
+   * install during it.
+   *
+   * ⚠ tourFinished() FAILS CLOSED (true) when storage is unreadable, so a
+   * private-mode browser gets this spotlight rather than neither.
+   */
+  const coaching = spotlightEligible && !taught && !open && tourDone;
 
   /**
    * ONE CLOCK, TWO ACTS — and it lives here because the icon lives here.
