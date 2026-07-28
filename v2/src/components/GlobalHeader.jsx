@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
 import s from './GlobalHeader.module.css';
 import NotifPanel from './NotifPanel';
@@ -9,6 +10,12 @@ import { readAuthLog, readAuthIncidents } from '../lib/authDiagnostics';
 import { readForensics } from '../lib/authForensics';
 import { readPushLog } from '../lib/pushLog';
 import InstallButton from './InstallButton';
+import TourOverlay from './TourOverlay';
+import t from './TourOverlay.module.css';
+import {
+  tourFinished, finishTour, announceTourFinished, resetTour, tourOverride,
+  startTour, onTourStart,
+} from '../lib/tourState';
 
 const INFO = {
   '/': {
@@ -134,8 +141,15 @@ export default function GlobalHeader({ onMarkRead, unreadCount = 0 }) {
 
         <div className={s.ypTag}>YESPLEEZ</div>
 
+        {/* ⚠ `data-tour` IS A TOUR ANCHOR, NOT A STYLING HOOK — the guided
+            tour spotlights this button. The CSS-module class beside it is
+            content-hashed and cannot be targeted from outside this file, so
+            the attribute is the only stable handle. Removing it silently
+            disables the step: the engine skips a target it cannot find
+            rather than throwing, so it would go dark with a clean console. */}
         <button
           type="button"
+          data-tour="beta"
           className={s.betaTag}
           onClick={() => navigate('/beta-feedback')}
           aria-label="Give beta feedback"
@@ -206,6 +220,22 @@ export default function GlobalHeader({ onMarkRead, unreadCount = 0 }) {
             dangerouslySetInnerHTML={{ __html: `<h4>${info.title}</h4>${info.body}` }}
           />
 
+          {/* ⚠ THE SECOND ENTRY POINT TO THE TOUR, and the one the skip notice
+              promises. It sits directly under the page's own explanation
+              because that is the moment someone is already asking "what is
+              this?" — and it is the only control in this sheet that DOES
+              something rather than reporting something.
+              Closing the sheet first is not cosmetic: the sheet is a fixed
+              panel at z-index 400 and the tour dims the screen beneath it, so
+              leaving it open would put an undimmed white-on-dark card over
+              step 1's spotlight. */}
+          <button
+            className={s.infoTour}
+            onClick={() => { setInfoOpen(false); startTour(); }}
+          >
+            TAKE THE TOUR
+          </button>
+
           {/* WHICH BUILD AM I LOOKING AT.
               Here rather than anywhere prettier because this is where someone
               already goes to ask "what is this?", and because a stale bundle
@@ -236,8 +266,151 @@ export default function GlobalHeader({ onMarkRead, unreadCount = 0 }) {
       </div>
 
       <BetaWelcomePopup />
+
+      {/* ⚠ MOUNTED HERE BECAUSE THE HEADER IS THE ONE COMPONENT ON EVERY
+          ROUTE, and the tour has to be able to start wherever the user is.
+          It portals to document.body, so being inside the header's
+          transformed subtree costs it nothing — see the note in the file. */}
+      <TourRunner />
     </>
   );
+}
+
+/**
+ * WHEN THE TOUR RUNS — the two entry points, and the flag between them.
+ *
+ * ⚠ THE AUTO-RUN WAITS FOR A SETTLE. Firing on mount lights a screen whose
+ * fonts have not loaded and whose feed has not rendered, so the first thing
+ * the user sees is a lamp correcting itself. A second is enough for the home
+ * screen to be worth looking at, and short enough that it still reads as
+ * part of opening the app.
+ */
+function TourRunner() {
+  const [open, setOpen] = useState(false);
+  const [done, setDone] = useState(tourFinished);
+  const [skipNotice, setSkipNotice] = useState(false);
+  const [startAt, setStartAt] = useState(0);
+  /**
+   * ⚠ A REPLAY IS NOT A FIRST RUN, and three things hang off knowing which is
+   * which. On a replay: the done flag is not written (it is already set, and
+   * a replay must never un-spend it), the skip notice does not appear (they
+   * just came FROM the ⓘ sheet it points at), and the install spotlight is not
+   * re-announced (that handover already happened once).
+   */
+  const [replay, setReplay] = useState(false);
+  const override = tourOverride();
+
+  useEffect(() => {
+    if (override === 'reset') { resetTour(); setDone(false); }
+    if (override === 'off') setDone(true);
+  }, [override]);
+
+  useEffect(() => {
+    if (done) return undefined;
+    const t = setTimeout(() => setOpen(true), 1000);
+    return () => clearTimeout(t);
+  }, [done]);
+
+  // The ⓘ sheet's "TAKE THE TOUR". Opens immediately — there is no settle
+  // delay to wait out, because the app is already on screen and the user just
+  // asked for this rather than having it arrive at them.
+  useEffect(() => onTourStart((at = 0) => {
+    setStartAt(at);
+    setReplay(true);
+    setOpen(true);
+  }), []);
+
+  /**
+   * ⚠ COMPLETING AND SKIPPING ARE THE SAME OUTCOME. The brief: "once completed
+   * or skipped, it is never shown again." A user who skipped has made a
+   * decision, and re-offering it is the exact nagging the design is trying to
+   * avoid. The Help entry point is how they get it back.
+   */
+  /**
+   * ⚠ THE REASON MATTERS HERE AND NOWHERE ELSE. Completing and skipping spend
+   * the tour identically — that part is deliberate — but only a skipper
+   * leaves without having been told the tour still exists. Someone who
+   * reached step 7 has just read it; showing them the same notice turns a
+   * finished tour into one more thing to dismiss.
+   */
+  function close(reason) {
+    setOpen(false);
+
+    // A replay just ends. Nothing is spent, nothing is announced, and no
+    // notice appears telling them where the tour lives — they opened it from
+    // there thirty seconds ago.
+    if (replay) { setReplay(false); return; }
+
+    finishTour();
+    setDone(true);
+    if (reason === 'skipped') {
+      // The handover waits — see announceTourFinished. Two overlays at once
+      // is worse than either alone.
+      setSkipNotice(true);
+      return;
+    }
+    announceTourFinished();
+  }
+
+  return (
+    <>
+      <TourOverlay open={open} startAt={startAt} onClose={close} />
+      {skipNotice && (
+        <TourSkipNotice
+          onClose={() => { setSkipNotice(false); announceTourFinished(); }}
+        />
+      )}
+    </>
+  );
+}
+
+/**
+ * WHERE THE TOUR WENT — shown once, to someone who just skipped it.
+ *
+ * The whole job of this card is to stop "Skip Tour" reading as "destroy the
+ * tour". It names the ⓘ as the permanent home for the walkthroughs and then
+ * gets out of the way; there is deliberately no button offering to start the
+ * tour again, because they declined it one tap ago.
+ *
+ * ⚠ PORTALLED TO document.body FOR THE USUAL REASON — `.header` carries a
+ * transform, which makes it the containing block for any `position: fixed`
+ * child, so `inset: 0` rendered inside it resolves against a 680×54 strip.
+ */
+function TourSkipNotice({ onClose }) {
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onClose?.(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  return createPortal((
+    <div
+      className={t.noticeWrap}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Where to find the tour"
+      onClick={onClose}
+    >
+      <div className={t.notice} onClick={(e) => e.stopPropagation()}>
+        <h2 className={t.noticeTitle}>No worries</h2>
+        <p className={t.noticeBody}>
+          The walkthroughs live under{' '}
+          <svg className={t.noticeGlyph} width="15" height="15" viewBox="0 0 24 24"
+               fill="none" stroke="currentColor" strokeWidth="2"
+               strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" y1="8" x2="12" y2="8.01" />
+            <polyline points="11 12 12 12 12 16" />
+          </svg>{' '}
+          up top — this one, plus a closer look at each kind of profile. Take
+          them whenever you feel like it.
+        </p>
+        <button type="button" className={t.noticeClose} onClick={onClose} autoFocus>
+          Got it
+        </button>
+      </div>
+    </div>
+  ), document.body);
 }
 
 /**

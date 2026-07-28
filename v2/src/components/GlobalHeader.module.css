@@ -164,6 +164,30 @@
   -webkit-user-select: text;
 }
 
+/* TAKE THE TOUR — the only control in the ⓘ sheet that starts something.
+   Filled and purple against CLOSE's outline, because they are not two options
+   of equal weight: one replays the walkthrough, the other dismisses a panel.
+   The gradient is the tour's own accent, so the button looks like the thing
+   it opens. */
+.infoTour {
+  display: block;
+  width: 100%;
+  margin-top: 14px;
+  padding: 10px 8px;
+  border: none;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #7c4dff, var(--purple) 55%, #d07bff);
+  color: #fff;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 13px;
+  letter-spacing: 2px;
+  cursor: pointer;
+  box-shadow: 0 6px 18px rgba(124, 77, 255, .3);
+  transition: box-shadow .18s, filter .18s;
+}
+.infoTour:hover  { box-shadow: 0 8px 22px rgba(124, 77, 255, .45); filter: brightness(1.06); }
+.infoTour:active { filter: brightness(.95); }
+
 .infoClose {
   display: block;
   width: 100%;

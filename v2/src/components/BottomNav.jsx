@@ -45,9 +45,18 @@ export default function BottomNav({ activeTab, onTabPress, messagesBadge = 0 }) 
 
   return (
     <nav ref={navRef} className={s.nav}>
+      {/* ⚠ `data-tour` BELOW IS A TOUR ANCHOR, NOT A STYLING HOOK. The guided
+          tour spotlights four of these tabs (My Scene, Discover, Messages,
+          Industry) and finds them by that attribute — a CSS-module class is
+          content-hashed and cannot be targeted from outside this file, and
+          nth-child would break the moment a tab is added or reordered.
+          Renaming or removing one silently disables its tour step: the engine
+          skips a target it cannot find rather than crashing, so the step
+          would simply go dark with nothing in the console. */}
       {TABS.map(({ id, label, path, Icon }) => (
         <button
           key={id}
+          data-tour={`nav-${id}`}
           className={activeTab === id ? s.tabActive : s.tab}
           onClick={() => handlePress(id, path)}
         >

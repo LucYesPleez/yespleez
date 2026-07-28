@@ -1,0 +1,423 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   THE GUIDED TOUR — coach marks over the live app.
+
+   The interface underneath is REAL and stays exactly where it is. Nothing in
+   this file moves, scales or replaces any part of the app; it only removes
+   light from everything the current step is not about. That is the difference
+   between a tour and a slideshow of screenshots.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.root {
+  position: fixed;
+  inset: 0;
+  z-index: 4600;   /* under the install sheet (5000) and the spotlight (4800) */
+  /* ⚠ OPAQUE TO TOUCH, unlike the install spotlight. That one taught a single
+     control and had to let the tap through to it; this one is driven entirely
+     by its own Next/Skip, so a stray tap on the live app behind would
+     navigate away mid-tour and strand the overlay on the wrong screen. */
+  pointer-events: auto;
+  animation: tourIn .4s ease both;
+}
+
+@keyframes tourIn { from { opacity: 0; } to { opacity: 1; } }
+
+/* ── THE BLUR, IN FOUR STRIPS ──────────────────────────────────────────────
+   ⚠ FOUR RECTS RATHER THAN ONE MASKED LAYER, and it is not laziness.
+   `backdrop-filter` cannot be feathered by a mask on every engine we ship to,
+   and a single clipped layer needs a `path()` with an even-odd hole — arcs,
+   hand-built, recomputed on every measurement. Four strips fence the target
+   exactly (top and bottom run full width, so the corners are covered), cost
+   nothing to compute, and their hard inner edge is invisible because the
+   feathered darkness below is painted ON TOP of it. */
+.blur {
+  position: absolute;
+  backdrop-filter: blur(7px) saturate(.9);
+  -webkit-backdrop-filter: blur(7px) saturate(.9);
+  transition:
+    top var(--move) var(--ease), left var(--move) var(--ease),
+    width var(--move) var(--ease), height var(--move) var(--ease);
+}
+
+/* ── THE SPOTLIGHT ─────────────────────────────────────────────────────────
+   ⚠ THE LIT AREA IS AN EMPTY DIV. It paints nothing itself — the darkness is
+   a single enormous box-shadow SPREADING OUTWARDS from it, so the "hole" is
+   simply where the shadow is not. This is what makes any shape work: rounded
+   corners, a nav tab, a whole viewport, all from the same element.
+
+   ⚠ THE BLUR RADIUS IS THE FEATHER. `0 0 90px 9999px` blurs the shadow's edge
+   over 90px, which lands half inside and half outside the lit rect — the soft
+   theatre falloff the brief asks for. Drop the blur to 0 and you get a hard
+   cutout, which reads as a hole punched in a sheet rather than a lamp.
+
+   The inset white is the "subtle glow" the highlighted area emits: it is
+   light spilling INWARDS from the edge of the lit region, not a border, so it
+   never draws a line around the app's own content. */
+.hole {
+  position: absolute;
+  /* ⚠ THE BLUR RADIUS IS SPLIT ACROSS THE EDGE — roughly half falls inside
+     the lit rect and half outside. At 90px that meant ~45px of the content's
+     own margin being dimmed, which greyed the header the lamp is supposed to
+     be lighting. 64px keeps the falloff unmistakably soft while leaving the
+     lit area actually lit. Raise it and the edges wash out; drop it toward 0
+     and you get a hard cutout, which reads as a hole punched in a sheet
+     rather than a lamp. */
+  box-shadow:
+    0 0 64px 9999px rgba(0, 0, 0, .75),
+    inset 0 0 60px rgba(255, 255, 255, .055),
+    inset 0 0 2px rgba(255, 255, 255, .1);
+  /* THE MOVE BETWEEN TARGETS. Every geometric property transitions together,
+     which is the entire "spotlight smoothly animates between targets" — no
+     keyframes, no per-step choreography, just the engine writing new numbers
+     and CSS carrying the lamp there. */
+  transition:
+    top var(--move) var(--ease), left var(--move) var(--ease),
+    width var(--move) var(--ease), height var(--move) var(--ease),
+    border-radius var(--move) var(--ease);
+  animation: holeIn .4s ease both;
+}
+
+/* 400ms, per the brief. Opacity only — the geometry must NOT animate on
+   entry, or the first lamp appears to fly in from nowhere. */
+@keyframes holeIn { from { opacity: 0; } to { opacity: 1; } }
+
+/* ── THE LIFT ──────────────────────────────────────────────────────────────
+   The second, quieter highlight: "subtly illuminate the personalised content
+   within the page."
+
+   ⚠ IT ADDS LIGHT, IT DOES NOT REMOVE DARKNESS, and that distinction is
+   forced by how the lamp works. The dim is the spotlight's own box-shadow
+   spreading outwards, so a second cutout would cast its own shadow across
+   the first — the page outside both would go twice as dark and neither would
+   read as lit. Painted on top with `screen`, this can only ever brighten, so
+   it composes with the lamp instead of fighting it.
+
+   ⚠ THE BLUR IS THE FEATHER. A solid rect at 5% white has a visible edge even
+   that faint, and an edge is a border — the one thing the brief rules out.
+   Blurring the whole element softens the boundary without touching the
+   middle, which is what makes it read as illumination rather than a panel. */
+.lift {
+  position: absolute;
+  background: rgba(255, 255, 255, .055);
+  mix-blend-mode: screen;
+  filter: blur(20px);
+  pointer-events: none;
+  transition:
+    top var(--move) var(--ease), left var(--move) var(--ease),
+    width var(--move) var(--ease), height var(--move) var(--ease),
+    opacity .4s ease;
+  animation: liftIn .5s ease both;
+}
+
+@keyframes liftIn { from { opacity: 0; } to { opacity: 1; } }
+
+/* ── THE PULSE ─────────────────────────────────────────────────────────────
+   A breath around the lit area, for a step pointing at a control the user is
+   invited to press at any time rather than a place they are being shown.
+
+   ⚠ A SEPARATE ELEMENT, NOT AN EXTRA SHADOW ON THE LAMP. The lamp's
+   box-shadow already carries three layers, one of which IS the darkness of
+   the entire screen; animating one layer means redeclaring all three every
+   frame, and any slip in the 9999px spread flashes the whole page. Kept
+   apart, the breath cannot touch the dim.
+
+   ⚠ `screen` FOR THE SAME REASON AS THE LIFT — it can only add brightness,
+   so it lands on the button as light rather than as a white film over it.
+   The inset spills inwards from the edge, so the glow hugs the control
+   instead of drawing a ring around it. */
+.pulse {
+  position: absolute;
+  mix-blend-mode: screen;
+  pointer-events: none;
+  opacity: 0;
+  box-shadow:
+    inset 0 0 14px rgba(255, 255, 255, .5),
+    0 0 22px rgba(255, 255, 255, .32);
+  transition:
+    top var(--move) var(--ease), left var(--move) var(--ease),
+    width var(--move) var(--ease), height var(--move) var(--ease),
+    border-radius var(--move) var(--ease);
+}
+
+/* One breath: in, peak at 20%, out. Same curve and ceiling as the install
+   coach's halo, so the two never read as different kinds of light. */
+.breathing {
+  animation: tourBreathe var(--breath, 3600ms) cubic-bezier(.33, 0, .25, 1) both;
+}
+
+@keyframes tourBreathe {
+  0%   { opacity: 0;   transform: scale(.97); }
+  34%  { opacity: .20; transform: scale(1); }
+  100% { opacity: 0;   transform: scale(1.03); }
+}
+
+/* ── THE CARD ──────────────────────────────────────────────────────────────
+   Docked to the bottom third, and ⚠ IT CLEARS THE BOTTOM NAV. The nav is
+   never covered or dimmed by anything in this app; `--yp-safe-bottom` is the
+   live measurement of it plus the mini player, so this stays correct when the
+   player appears rather than needing a second rule. */
+.card {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: calc(var(--yp-safe-bottom, 67px) + 16px);
+  max-width: 460px;
+  margin: 0 auto;
+  box-sizing: border-box;
+  /* ⚠ TIGHTER THAN IT LOOKS LIKE IT SHOULD BE, because the card is not the
+     point — the lit interface behind it is. Every pixel this grows is a pixel
+     taken off the spotlight, and step 4 (four paragraphs) pushed it to 48% of
+     a phone screen against a brief asking for the lower third. Spacing was
+     pulled in across the board rather than shrinking the type, so it still
+     reads as premium at a glance; the type sizes are untouched. */
+  padding: 18px 22px 18px;
+  border-radius: 32px;
+  background: rgba(19, 17, 27, .62);
+  backdrop-filter: blur(40px) saturate(1.5);
+  -webkit-backdrop-filter: blur(40px) saturate(1.5);
+  border: 1px solid rgba(255, 255, 255, .1);
+  /* The long shadow separates the card from a backdrop that is already dark
+     and already blurred; without it the glass sits flush and reads as a hole
+     in the dim rather than a pane above it. The inset highlight is the top
+     edge catching the spotlight. */
+  box-shadow:
+    0 30px 80px rgba(0, 0, 0, .62),
+    inset 0 1px 0 rgba(255, 255, 255, .12);
+  animation: cardIn .52s cubic-bezier(.22, .9, .3, 1) .12s both;
+}
+
+/* "Slides upward slightly while fading in" — 14px. Enough to feel placed,
+   far too little to read as a panel flying in. */
+@keyframes cardIn {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── THE TOP ROW ───────────────────────────────────────────────────────────
+   ⚠ SKIP AND THE COUNTER LIVE ON THE CARD, NOT AT THE TOP OF THE SCREEN.
+   Step 1 lights the entire first viewport, so screen-top chrome would sit
+   directly on the lit area — the one place the eye is being sent. On the card
+   they are in the same position on every step regardless of where the lamp
+   is, which is what "consistent navigation throughout" actually requires. */
+.topRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.skip {
+  background: none;
+  border: none;
+  padding: 4px 2px;
+  font-family: 'DM Sans', -apple-system, sans-serif;
+  font-size: 13px;
+  letter-spacing: .01em;
+  color: rgba(255, 255, 255, .38);
+  cursor: pointer;
+  transition: color .2s ease;
+}
+.skip:hover { color: rgba(255, 255, 255, .68); }
+
+/* A serial number, not copy — tabular figures so "1 / 7" and "7 / 7" do not
+   shift the row's right edge as the count climbs. */
+.counter {
+  font-family: 'DM Sans', -apple-system, sans-serif;
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: .04em;
+  color: rgba(255, 255, 255, .32);
+}
+
+/* ⚠ THE CARD DOES NOT RE-ENTER BETWEEN STEPS — ITS CONTENTS CROSSFADE.
+   The panel is a fixed object on screen; re-running the card's own slide-up
+   on every Next would make it flinch away and come back, which reads as a
+   new dialog each time rather than one guide talking. This wrapper is keyed
+   on the step id so React swaps it, and only the words move. */
+.copy { animation: copyIn .34s ease both; }
+
+@keyframes copyIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.title {
+  margin: 0 0 8px;
+  font-family: 'DM Sans', -apple-system, sans-serif;
+  font-size: 25px;
+  font-weight: 700;
+  letter-spacing: -.02em;
+  line-height: 1.18;
+  color: #fff;
+}
+
+.body {
+  margin: 0 0 8px;
+  font-family: 'DM Sans', -apple-system, sans-serif;
+  font-size: 14.5px;
+  line-height: 1.58;
+  color: rgba(255, 255, 255, .6);
+}
+.body:last-of-type { margin-bottom: 16px; }
+
+/* ── THE DOTS ──────────────────────────────────────────────────────────────
+   The purple accent, and the only place colour appears other than the button.
+   The active dot is a PILL rather than a bigger circle: at 6px, size alone is
+   not a legible difference, but a shape change is. */
+.dots {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  margin-bottom: 14px;
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .2);
+  transition: width .34s var(--ease), background .34s ease, box-shadow .34s ease;
+}
+
+.dotOn {
+  width: 18px;
+  background: var(--purple);
+  box-shadow: 0 0 10px rgba(176, 96, 255, .55);
+}
+
+.actions { display: flex; align-items: center; gap: 10px; }
+
+/* ⚠ ABSENT ON STEP 1, not disabled. A greyed-out Previous on the first step
+   is a control the user has to read and dismiss; nothing there is faster. */
+.prev {
+  flex: 0 0 auto;
+  padding: 14px 18px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, .06);
+  border: 1px solid rgba(255, 255, 255, .1);
+  font-family: 'DM Sans', -apple-system, sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, .7);
+  cursor: pointer;
+  transition: background .2s ease, color .2s ease;
+}
+.prev:hover { background: rgba(255, 255, 255, .1); color: #fff; }
+
+.next {
+  flex: 1 1 auto;
+  padding: 14px 20px;
+  border-radius: 16px;
+  border: none;
+  background: linear-gradient(135deg, #7c4dff, var(--purple) 55%, #d07bff);
+  color: #fff;
+  font-family: 'DM Sans', -apple-system, sans-serif;
+  font-size: 15.5px;
+  font-weight: 700;
+  letter-spacing: .005em;
+  cursor: pointer;
+  box-shadow: 0 8px 24px rgba(124, 77, 255, .35);
+  transition: box-shadow .2s ease, filter .2s ease;
+}
+.next:hover  { box-shadow: 0 10px 30px rgba(124, 77, 255, .5); filter: brightness(1.06); }
+.next:active { filter: brightness(.95); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   THE SKIP NOTICE — shown once, only to someone who pressed Skip Tour.
+
+   ⚠ NOT SHOWN ON COMPLETION. Someone who reached the end has just been told
+   everything this says; repeating it turns a finished tour into one more
+   thing to dismiss. Skipping is the only case where the user leaves without
+   knowing the tour still exists.
+
+   ⚠ AND IT IS A NOTICE, NOT A SECOND CHANCE. There is no "actually, take the
+   tour" button. They just declined — offering it again in the same breath is
+   the nagging the whole design avoids, and the ⓘ is genuinely where it lives
+   from now on.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.noticeWrap {
+  position: fixed;
+  inset: 0;
+  z-index: 4700;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, .55);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  animation: tourIn .28s ease both;
+}
+
+/* Same glass, same radius, same shadow as the tour card — this is the same
+   guide finishing its sentence, not a different surface. */
+.notice {
+  width: min(100%, 320px);
+  box-sizing: border-box;
+  padding: 22px 22px 14px;
+  border-radius: 32px;
+  text-align: center;
+  background: rgba(19, 17, 27, .72);
+  backdrop-filter: blur(40px) saturate(1.5);
+  -webkit-backdrop-filter: blur(40px) saturate(1.5);
+  border: 1px solid rgba(255, 255, 255, .1);
+  box-shadow:
+    0 30px 80px rgba(0, 0, 0, .62),
+    inset 0 1px 0 rgba(255, 255, 255, .12);
+  animation: cardIn .5s cubic-bezier(.22, .9, .3, 1) .06s both;
+}
+
+.noticeTitle {
+  margin: 0 0 8px;
+  font-family: 'DM Sans', -apple-system, sans-serif;
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -.015em;
+  color: #fff;
+}
+
+.noticeBody {
+  margin: 0;
+  font-family: 'DM Sans', -apple-system, sans-serif;
+  font-size: 14.5px;
+  line-height: 1.55;
+  color: rgba(255, 255, 255, .62);
+}
+
+/* ⚠ THE ⓘ IS DRAWN, NOT SPELLED. The sentence sends the user to a specific
+   button in the header; naming it "the info button" makes them hunt for a
+   word that is not written anywhere on screen, while the glyph is the thing
+   they will actually be looking for. Purple so it reads as the one live
+   token in the sentence. */
+.noticeGlyph {
+  display: inline-block;
+  vertical-align: -.15em;
+  margin: 0 1px;
+  color: var(--purple);
+}
+
+.noticeClose {
+  display: block;
+  width: 100%;
+  margin-top: 18px;
+  padding: 12px 8px;
+  background: none;
+  border: none;
+  border-top: 1px solid rgba(255, 255, 255, .07);
+  font-family: 'DM Sans', -apple-system, sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, .55);
+  cursor: pointer;
+  transition: color .2s ease;
+}
+.noticeClose:hover { color: #fff; }
+
+/* ── RESPECT THE SETTING ───────────────────────────────────────────────────
+   The lighting IS the tour and it stays; only the travel goes. The lamp still
+   moves between steps — it has to, or the user cannot tell it moved — but it
+   arrives instantly instead of gliding. */
+@media (prefers-reduced-motion: reduce) {
+  .root, .hole, .card { animation: none; }
+  .card { opacity: 1; transform: none; }
+  .hole, .blur, .dot { transition: none; }
+}
