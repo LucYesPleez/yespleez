@@ -71,6 +71,24 @@ export default function PortraitCard({ profile: p, onClick, width = 150, height 
   // rather than a branch, so any future identity without a label inherits the
   // same behaviour instead of rendering an empty pill.
   const pillLabels = (roleLabels.length ? roleLabels : [label]).filter(Boolean);
+  /**
+   * THE TOWN ONLY — no state, no postcode.
+   *
+   * ⚠ TRIMMED AT THIS CALL SITE, NOT IN formatLocation. The shared formatter
+   * still returns the full "Suburb, STATE POSTCODE" and must keep doing so:
+   * an enquiry, an application and a booking invitation are all places where
+   * someone is deciding whether a gig is drivable, and "Bellingen" alone does
+   * not answer that. DashboardProfileCard already trims the same way, for the
+   * same reason.
+   *
+   * Here the full string was never doing that work. Owner, on the Discover
+   * rails: these cards do not need to say state and postcode. The card is
+   * 150px wide and the line is `nowrap` with an ellipsis, so "Bellingen, NSW
+   * 2454" spent the whole row on an administrative detail and then clipped
+   * anyway — while the town, which is the only part anyone browsing a rail
+   * reads, is the part that got cut.
+   */
+  const town = formatLocation({ ...(p || {}), state: undefined, postcode: undefined });
   // M5: canonical profile.id URL; legacy user_id URL only as a fallback for
   // callers whose selects don't carry `id` yet (the redirect shim covers it).
   const handleClick = onClick || (() => navigate(p?.id ? profileUrl(p) : `/profile/${p?.user_id}?type=${type}`));
@@ -130,7 +148,7 @@ export default function PortraitCard({ profile: p, onClick, width = 150, height 
             {isProfileUnclaimed(p) && (
               <div style={{ marginTop: 4 }}><UnclaimedBadge profile={p} /></div>
             )}
-            {formatLocation(p) && <div style={{ fontSize: 10, color: 'rgba(255,255,255,.55)', marginTop: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{formatLocation(p)}</div>}
+            {town && <div style={{ fontSize: 10, color: 'rgba(255,255,255,.55)', marginTop: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{town}</div>}
             {/* 10F: was a hardcoded '#00E5FF' — Artist's cyan on EVERY type's card.
                 ProfileCard renders the same field in the row's own accent (ts.col);
                 this one didn't. Now both derive from the resolved type. */}
