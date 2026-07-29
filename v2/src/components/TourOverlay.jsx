@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { activeSteps, PLANNED_TOTAL } from '../lib/tourSteps';
 import useBreath from '../hooks/useBreath';
+import useLiveScroll from '../hooks/useLiveScroll';
 /**
  * ⚠ THE TOUR IMPORTS A TIMING CONSTANT FROM THE INSTALL COACH, and that is a
  * known seam, not an accident. `BREATH_MS` is how long one breath lasts, and
@@ -70,6 +71,13 @@ export default function TourOverlay({ open, startAt = 0, onClose }) {
     !!(open && step?.pulse && rect),
     PULSE_FIRST_MS, PULSE_EVERY_MS, step?.id,
   );
+
+  // ⚠ DRIVES THE REAL PAGE, NOT ANYTHING THIS COMPONENT RENDERS — see
+  // useLiveScroll's own file. Gated on `open` alone (not on `rect` like the
+  // pulse) so it starts the moment the step is current, rather than waiting
+  // on a spotlight measurement it has nothing to do with.
+  useLiveScroll(!!(open && step?.scrollLive), step?.scrollRails, step?.scrollWaypoints);
+
   // ⚠ COUNTS WHAT WILL RUN, not the array length — a conditional step that is
   // skipped must not leave a gap in "3 / 7". PLANNED_TOTAL is the scaffold
   // while steps 2-7 are still being written; delete it once they exist.
@@ -279,6 +287,34 @@ export default function TourOverlay({ open, startAt = 0, onClose }) {
                 borderRadius: step.liftRadius ?? 26,
               }}
             />
+          )}
+
+          {/* ⚠ SCRIPTED, NOT REAL — see TourDemos.module.css. A step opts in
+              with `Demo`, a component reference, only where the real screen
+              would otherwise sit dim and empty (a guest's My Scene, an empty
+              inbox). Clipped to the lift's own rect so it never draws outside
+              the area already being brightened, and pointer-events: none —
+              inherited from .demoWrap, not set per-demo — keeps it from ever
+              being mistaken for something tappable. */}
+          {/* ⚠ FALLS BACK TO THE SPOTLIGHT RECT WHEN A STEP DECLARES NO
+              `lift`. This used to require `lift`, which silently coupled two
+              unrelated things: a step that wanted its screenshot lit at full
+              brightness (spotlight on the content region) could not drop the
+              `lift` layer without the screenshot disappearing entirely. The
+              demo belongs wherever the step is pointing — which is the lift
+              region when there is one, and the lamp itself when there is
+              not. */}
+          {step.Demo && (liftRect || rect) && (
+            <div
+              className={s.demoWrap}
+              style={{
+                top: (liftRect || rect).top, left: (liftRect || rect).left,
+                width: (liftRect || rect).width, height: (liftRect || rect).height,
+                borderRadius: liftRect ? (step.liftRadius ?? 26) : (step.radius ?? 24),
+              }}
+            >
+              <step.Demo />
+            </div>
           )}
         </>
       )}

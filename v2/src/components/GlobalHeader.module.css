@@ -188,6 +188,66 @@
 .infoTour:hover  { box-shadow: 0 8px 22px rgba(124, 77, 255, .45); filter: brightness(1.06); }
 .infoTour:active { filter: brightness(.95); }
 
+/* INDUSTRY ROLE TOURS — a placeholder for walkthroughs that do not exist yet.
+   ⚠ FLAT AND OUTLINED, NOT A DIMMED COPY OF .infoTour. Reusing the purple
+   gradient at low opacity would read as "this button is temporarily broken";
+   a different, quieter treatment reads as "this is not built yet", which is
+   the truth. Same size and position as the live button above it so the sheet
+   still looks composed, but nothing about it suggests it will respond. */
+.infoTourSoon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: 8px;
+  padding: 10px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: none;
+  color: var(--muted);
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 13px;
+  letter-spacing: 2px;
+  /* ⚠ NOT `not-allowed`. That cursor reads as a refusal — as though the user
+     is being blocked from something they should be able to do. This is simply
+     not here yet, and `default` says that without the accusation. */
+  cursor: default;
+  opacity: .55;
+}
+
+.infoSoonTag {
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, .08);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: rgba(255, 255, 255, .55);
+}
+
+/* DIAGNOSTICS — deliberately the quietest control on the sheet. No border,
+   no fill, no gradient; it should not compete with TAKE THE TOUR or draw the
+   eye at all, since the whole point is that most people opening this sheet
+   never need it. */
+.infoDiagToggle {
+  display: block;
+  width: 100%;
+  margin-top: 14px;
+  padding: 6px 8px;
+  background: none;
+  border: none;
+  color: var(--muted);
+  opacity: .55;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 10.5px;
+  letter-spacing: 2px;
+  cursor: pointer;
+  transition: opacity .15s;
+}
+.infoDiagToggle:hover { opacity: .9; }
+
 .infoClose {
   display: block;
   width: 100%;

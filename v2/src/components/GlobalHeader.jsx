@@ -11,7 +11,8 @@ import { readForensics } from '../lib/authForensics';
 import { readPushLog } from '../lib/pushLog';
 import InstallButton from './InstallButton';
 import TourOverlay from './TourOverlay';
-import t from './TourOverlay.module.css';
+import TourWelcome from './TourWelcome';
+import TourInfoNotice from './TourInfoNotice';
 import {
   tourFinished, finishTour, announceTourFinished, resetTour, tourOverride,
   startTour, onTourStart,
@@ -89,8 +90,14 @@ export default function GlobalHeader({ onMarkRead, unreadCount = 0 }) {
   const [infoOpen,  setInfoOpen]  = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  // ⚠ THE BUILD STAMP, SW STATE, AND BOTH LOGS ARE HIDDEN BY DEFAULT — owner:
+  // "I don't want all that info easily available for everyone to see." They
+  // are diagnostic, not explanatory, and belong behind a second tap from
+  // anyone who is not actively debugging a device. See DiagnosticsReadout.
+  const [diagOpen,  setDiagOpen]  = useState(false);
   const shareTarget = useCurrentShareTarget();
   const headerRef = useRef(null);
+  const infoRef = useRef(null);
 
   // The top bar is permanent chrome, exactly like the bottom nav, so overlays
   // must stop below it rather than running underneath. Published as
@@ -110,6 +117,25 @@ export default function GlobalHeader({ onMarkRead, unreadCount = 0 }) {
   }, []);
 
   const info = INFO[location.pathname] || FALLBACK;
+
+  // ⚠ CLOSE ON OUTSIDE CLICK, NOT ONLY ON THE CLOSE BUTTON — owner: "I don't
+  // want it tied to having to hit close." Matches NotifPanel's own pattern
+  // (a document-level mousedown checking the panel's own ref), so the two
+  // dropdowns in this header behave identically. `mousedown` rather than
+  // `click` so the panel closes before whatever was clicked underneath it
+  // fires its own handler.
+  useEffect(() => {
+    if (!infoOpen) return undefined;
+    function handleClick(e) {
+      if (infoRef.current && !infoRef.current.contains(e.target)) setInfoOpen(false);
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [infoOpen]);
+
+  // Diagnostics never stay expanded across a close/reopen — every time this
+  // sheet is opened fresh, the log readouts are collapsed again by default.
+  useEffect(() => { if (!infoOpen) setDiagOpen(false); }, [infoOpen]);
 
   function handleBack() {
     if (window.history.length > 1) navigate(-1);
@@ -172,7 +198,9 @@ export default function GlobalHeader({ onMarkRead, unreadCount = 0 }) {
             </svg>
           </button>
 
-          <button className={s.iconBtn} onClick={() => setInfoOpen(true)} aria-label="Info">
+          {/* `data-tour` is the tour's anchor for its final step — the one
+              that points here and says "this is where it all lives". */}
+          <button data-tour="info" className={s.iconBtn} onClick={() => setInfoOpen(true)} aria-label="Info">
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="10"/>
               <line x1="12" y1="8" x2="12" y2="8.01"/>
@@ -214,7 +242,7 @@ export default function GlobalHeader({ onMarkRead, unreadCount = 0 }) {
 
       {/* Info sheet */}
       <div className={infoOpen ? s.infoOverlayOpen : s.infoOverlay}>
-        <div className={s.infoSheet}>
+        <div className={s.infoSheet} ref={infoRef}>
           <div
             className={s.infoBody}
             dangerouslySetInnerHTML={{ __html: `<h4>${info.title}</h4>${info.body}` }}
@@ -236,30 +264,35 @@ export default function GlobalHeader({ onMarkRead, unreadCount = 0 }) {
             TAKE THE TOUR
           </button>
 
-          {/* WHICH BUILD AM I LOOKING AT.
-              Here rather than anywhere prettier because this is where someone
-              already goes to ask "what is this?", and because a stale bundle
-              has now cost real debugging time twice — a phone kept serving a
-              build from before a fix while every diagnostic read healthy.
-              The commit is the part that actually settles it: the version only
-              moves when someone remembers, the SHA moves every deploy. */}
-          <div className={s.buildStamp}>{BUILD_STAMP}</div>
+          {/* ⚠ A PLACEHOLDER, AND IT MUST READ AS ONE. Per-role walkthroughs
+              (artist, venue, host, promoter) are planned but do not exist, so
+              this is `disabled` in the DOM — not merely styled to look
+              inactive. A button that only LOOKS dead still takes focus, still
+              announces itself as pressable to a screen reader, and still
+              invites a tap that does nothing. The SOON tag says why it is
+              inert, which is the difference between "coming" and "broken".
+              Delete the `disabled` and the tag together when the tours land. */}
+          <button className={s.infoTourSoon} disabled>
+            INDUSTRY ROLE TOURS
+            <span className={s.infoSoonTag}>SOON</span>
+          </button>
 
-          {/* ⚠ THE WORKER IS A SEPARATE FILE WITH A SEPARATE LIFECYCLE, and
-              the stamp above does not cover it. A phone can report a current
-              bundle while running a service worker from weeks ago — which is
-              exactly what happened twice while debugging a push that never
-              arrived, on two different devices, both of which looked up to
-              date. Asked of the worker itself, so this reports what is
-              INSTALLED, not what the server would serve. */}
-          {infoOpen && <ServiceWorkerStamp />}
-          {infoOpen && <PushLogReadout />}
+          {/* ⚠ EVERYTHING BELOW THIS BUTTON IS DIAGNOSTIC, NOT EXPLANATORY —
+              the build stamp, the service worker's own version, and both
+              logs. Owner: "I don't want all that info easily available for
+              everyone to see." Collapsed by default and reset closed every
+              time this sheet reopens; the person who actually needs it (the
+              owner, mid-debugging-call) taps once for it, and everyone else
+              never sees a wall of build numbers under a page's help text. */}
+          <button
+            type="button"
+            className={s.infoDiagToggle}
+            onClick={() => setDiagOpen(v => !v)}
+          >
+            {diagOpen ? 'HIDE DIAGNOSTICS' : 'DIAGNOSTICS'}
+          </button>
 
-          {/* Rendered only while the sheet is open. The overlay stays mounted
-              and is hidden by class, so an ungated readout would re-read
-              localStorage and re-parse the log on every render of the header —
-              on every route change, for a panel nobody is looking at. */}
-          {infoOpen && <AuthLogReadout />}
+          {diagOpen && <DiagnosticsReadout />}
 
           <button className={s.infoClose} onClick={() => setInfoOpen(false)}>CLOSE</button>
         </div>
@@ -277,18 +310,36 @@ export default function GlobalHeader({ onMarkRead, unreadCount = 0 }) {
 }
 
 /**
- * WHEN THE TOUR RUNS — the two entry points, and the flag between them.
+ * ONBOARDING'S TRAFFIC CONTROL — welcome, tour, and the install handover.
  *
- * ⚠ THE AUTO-RUN WAITS FOR A SETTLE. Firing on mount lights a screen whose
- * fonts have not loaded and whose feed has not rendered, so the first thing
- * the user sees is a lamp correcting itself. A second is enough for the home
- * screen to be worth looking at, and short enough that it still reads as
- * part of opening the app.
+ * ⚠⚠ THE TOUR IS NO LONGER AUTOMATIC. It used to start itself; now a welcome
+ * card asks first, and the tour runs only if invited. That is the difference
+ * between being shown a product and being handed one — and it means the done
+ * flag is spent by ANSWERING the welcome, not by seeing the tour.
+ *
+ * ⚠ THE 1.2s DELAY IS LOAD-BEARING. Arriving the instant the splash clears
+ * means the user never sees the app they are being welcomed into, and the
+ * card reads as one more loading screen. Long enough to register "I'm in",
+ * short enough to still feel like part of opening the app.
+ *
+ * ⚠⚠ THE "WHERE THE TOUR LIVES" CARD ONLY FIRES ON SKIP, AND ONLY BEFORE
+ * STEP 7. It went away once — the reasoning was that the tour's own last step
+ * (tourSteps.js's "info" step) already spotlights the ⓘ and says the same
+ * thing, so a card repeating it after finishing was one message told twice.
+ * That held for completion, but not for skipping: someone who presses "Skip
+ * Tour" at step 2 never reaches step 7, and would leave onboarding having
+ * never once been told the tour still exists. This card exists for exactly
+ * that gap — see `close()`.
+ *
+ * The order on the way out is fixed and matters:
+ *   welcome answered → tour → (info notice, ONLY if skipped early) → install
+ * Never two overlays at once. See announceTourFinished.
  */
 function TourRunner() {
+  const [welcome, setWelcome] = useState(false);
   const [open, setOpen] = useState(false);
   const [done, setDone] = useState(tourFinished);
-  const [skipNotice, setSkipNotice] = useState(false);
+  const [infoNotice, setInfoNotice] = useState(false);
   const [startAt, setStartAt] = useState(0);
   /**
    * ⚠ A REPLAY IS NOT A FIRST RUN, and three things hang off knowing which is
@@ -307,7 +358,7 @@ function TourRunner() {
 
   useEffect(() => {
     if (done) return undefined;
-    const t = setTimeout(() => setOpen(true), 1000);
+    const t = setTimeout(() => setWelcome(true), 1200);
     return () => clearTimeout(t);
   }, [done]);
 
@@ -333,84 +384,107 @@ function TourRunner() {
    * reached step 7 has just read it; showing them the same notice turns a
    * finished tour into one more thing to dismiss.
    */
+  /** The welcome's two answers. Both spend onboarding; only one runs a tour. */
+  function acceptTour() {
+    finishTour();
+    setDone(true);
+    setWelcome(false);
+    setOpen(true);
+  }
+
+  /**
+   * ⚠ NO TOAST HERE, UNLIKE THE OTHER TWO EXITS. The welcome card just told
+   * them the same sentence the toast would — "Guided Tour available any time
+   * from the ⓘ button" now lives under Skip for now — so popping the same
+   * line up again the instant the card closes would be the one thing this
+   * whole redesign was meant to stop: telling the user something twice in a
+   * row.
+   *
+   * ⚠ THE INSTALL HANDOVER STILL WAITS, just on a timer instead of the
+   * toast's lifespan. Announcing on the same tick the card starts closing
+   * would open the install spotlight mid-exit-animation; 450ms is enough for
+   * the card's own fade-and-scale to finish first.
+   */
+  function declineTour() {
+    finishTour();
+    setDone(true);
+    setWelcome(false);
+    setTimeout(announceTourFinished, 450);
+  }
+
+  /**
+   * ⚠ THE REASON IS WHAT DECIDES THE NOTICE, NOT WHETHER THE USER FINISHED.
+   * Completing the tour ends on step 7, which already spotlights the ⓘ —
+   * showing this card next would repeat it. Skipping is the only exit that
+   * can happen BEFORE step 7 ever runs, which is the one case with nothing
+   * else to say where the tour went.
+   */
   function close(reason) {
     setOpen(false);
 
-    // A replay just ends. Nothing is spent, nothing is announced, and no
-    // notice appears telling them where the tour lives — they opened it from
-    // there thirty seconds ago.
+    // A replay just ends. Nothing is spent and nothing announced — they
+    // started it from the ⓘ, moments ago, and re-announcing would open the
+    // install spotlight over someone who came here on purpose to look around.
     if (replay) { setReplay(false); return; }
 
-    finishTour();
-    setDone(true);
-    if (reason === 'skipped') {
-      // The handover waits — see announceTourFinished. Two overlays at once
-      // is worse than either alone.
-      setSkipNotice(true);
-      return;
-    }
+    if (reason === 'skipped') { setInfoNotice(true); return; }
+    announceTourFinished();
+  }
+
+  /**
+   * ⚠ THE INSTALL SPOTLIGHT WAITS FOR THIS TO BE DISMISSED. It dims the whole
+   * screen, at a higher z-index than the notice (4800 over 4750) — firing
+   * together would mean reading a message about the tour through a scrim
+   * about installing.
+   */
+  function infoNoticeDone() {
+    setInfoNotice(false);
     announceTourFinished();
   }
 
   return (
     <>
+      {welcome && <TourWelcome onStart={acceptTour} onSkip={declineTour} />}
       <TourOverlay open={open} startAt={startAt} onClose={close} />
-      {skipNotice && (
-        <TourSkipNotice
-          onClose={() => { setSkipNotice(false); announceTourFinished(); }}
-        />
-      )}
+      <TourInfoNotice open={infoNotice} onClose={infoNoticeDone} />
     </>
   );
 }
 
 /**
- * WHERE THE TOUR WENT — shown once, to someone who just skipped it.
+ * EVERYTHING DIAGNOSTIC, BEHIND ONE MUTED BUTTON.
  *
- * The whole job of this card is to stop "Skip Tour" reading as "destroy the
- * tour". It names the ⓘ as the permanent home for the walkthroughs and then
- * gets out of the way; there is deliberately no button offering to start the
- * tour again, because they declined it one tap ago.
- *
- * ⚠ PORTALLED TO document.body FOR THE USUAL REASON — `.header` carries a
- * transform, which makes it the containing block for any `position: fixed`
- * child, so `inset: 0` rendered inside it resolves against a 680×54 strip.
+ * ⚠ ONLY MOUNTED WHILE `diagOpen` IS TRUE, and that gate is what actually
+ * hides this from casual view — it used to be `infoOpen && …` on each piece
+ * individually, meaning every visitor who opened the ⓘ for the page's own
+ * help text got the build stamp, the service worker's version, and both logs
+ * for free underneath it. Owner: "I don't want all that info easily
+ * available for everyone to see." One parent gate here replaces the four
+ * scattered ones; nothing inside needs its own condition any more.
  */
-function TourSkipNotice({ onClose }) {
-  useEffect(() => {
-    const onKey = (e) => { if (e.key === 'Escape') onClose?.(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+function DiagnosticsReadout() {
+  return (
+    <>
+      {/* WHICH BUILD AM I LOOKING AT.
+          A stale bundle has cost real debugging time twice — a phone kept
+          serving a build from before a fix while every diagnostic read
+          healthy. The commit is the part that actually settles it: the
+          version only moves when someone remembers, the SHA moves every
+          deploy. */}
+      <div className={s.buildStamp}>{BUILD_STAMP}</div>
 
-  return createPortal((
-    <div
-      className={t.noticeWrap}
-      role="dialog"
-      aria-modal="true"
-      aria-label="Where to find the tour"
-      onClick={onClose}
-    >
-      <div className={t.notice} onClick={(e) => e.stopPropagation()}>
-        <h2 className={t.noticeTitle}>No worries</h2>
-        <p className={t.noticeBody}>
-          The walkthroughs live under{' '}
-          <svg className={t.noticeGlyph} width="15" height="15" viewBox="0 0 24 24"
-               fill="none" stroke="currentColor" strokeWidth="2"
-               strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <circle cx="12" cy="12" r="10" />
-            <line x1="12" y1="8" x2="12" y2="8.01" />
-            <polyline points="11 12 12 12 12 16" />
-          </svg>{' '}
-          up top — this one, plus a closer look at each kind of profile. Take
-          them whenever you feel like it.
-        </p>
-        <button type="button" className={t.noticeClose} onClick={onClose} autoFocus>
-          Got it
-        </button>
-      </div>
-    </div>
-  ), document.body);
+      {/* ⚠ THE WORKER IS A SEPARATE FILE WITH A SEPARATE LIFECYCLE, and the
+          stamp above does not cover it. A phone can report a current bundle
+          while running a service worker from weeks ago — which is exactly
+          what happened twice while debugging a push that never arrived, on
+          two different devices, both of which looked up to date. Asked of
+          the worker itself, so this reports what is INSTALLED, not what the
+          server would serve. */}
+      <ServiceWorkerStamp />
+      <PushLogReadout />
+      <AuthLogReadout />
+    </>
+  );
 }
 
 /**

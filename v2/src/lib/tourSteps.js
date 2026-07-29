@@ -23,6 +23,13 @@
  *            means it can never drift from what a real tap does.
  *   target   (ctx) => DOMRect | null — the region to light. Helpers below.
  *   radius   corner radius of the spotlight, px.
+ *   Demo     optional component reference, rendered inside `lift`'s rect,
+ *            clipped and non-interactive. For a screen that is genuinely
+ *            empty for a first-run guest (My Scene with nothing followed, an
+ *            inbox with no conversations) — a scripted loop standing in for
+ *            what the screen looks like once it has something to show. See
+ *            TourDemos.jsx. Never used on a screen that already has real
+ *            content to spotlight.
  *   lift     optional (ctx) => rect — a SECOND, much softer highlight.
  *            ⚠ NOT A SECOND SPOTLIGHT, and it cannot be one. The darkness is
  *            cast by the spotlight's own outward box-shadow, so two cutouts
@@ -46,6 +53,23 @@
  *            being invited to press at ANY time, rather than a place they
  *            are being shown. Costs a little attention; use it sparingly or
  *            it stops meaning anything.
+ *   scrollLive  optional true — auto-scrolls the REAL page (not a
+ *            screenshot) while the step is up, and restores the original
+ *            scroll position the instant the step ends. For a screen that is
+ *            genuinely current for a guest. Never combine with `Demo`: one
+ *            fakes an empty screen, the other shows a real one moving; a
+ *            step is always exactly one of those, never both.
+ *   scrollRails  optional array of `data-tour` selectors — horizontal rails
+ *            (a portrait-card row) dragged through their own scroll,
+ *            independently of whether the page itself has anywhere to go. On
+ *            a short page this is the only motion, and often the point.
+ *            Requires `scrollLive`.
+ *   scrollWaypoints  optional `data-tour` selector matching, in DOM order,
+ *            every element the page should stop at. Stops past the page's
+ *            actual scroll limit are clamped and de-duplicated, so a screen
+ *            with little to scroll degrades to "no vertical motion" rather
+ *            than to a stuttering loop of unreachable targets — see
+ *            useLiveScroll.js. Requires `scrollLive`.
  *   card     'bottom' | 'top' — which end of the screen the card docks to,
  *            so a step lighting the bottom nav can move it out of the way.
  *   when     optional () => boolean. False skips the step entirely — the
@@ -59,6 +83,7 @@
  * install step) must not be counted, or the tour ends at "6 / 7" and looks
  * broken. See `activeSteps()`.
  */
+import { MySceneReelDemo, MessagesChatDemo, IndustryDashboardDemo } from '../components/TourDemos';
 
 /**
  * The app's own content column. The header is `min(100%, 680px)` centred, and
@@ -199,6 +224,20 @@ export const TOUR_STEPS = [
     route: '/',
     target: regionAboveCard,
     radius: 30,
+    // ⚠ THE REAL PAGE, SCROLLING, NOT A SCREENSHOT — owner: "these screens
+    // should scroll as the info that's already there is current." Unlike My
+    // Scene/Messages, a guest's What's On is never empty, so there is
+    // nothing to fake here; useLiveScroll drives the actual window scroll
+    // and restores it the moment the step ends.
+    scrollLive: true,
+    // ⚠ WAYPOINTS, NOT A BLIND SCROLL — owner: "should go from the heading,
+    // to the featured event, then to each sub heading that['s] available at
+    // the time." Every section this can stop at is conditionally rendered
+    // already (no events tonight → no TONIGHT section), and each carries
+    // this shared attribute — see the note in WhatsOnScreen.jsx. Querying it
+    // IS "each sub heading available right now"; nothing here hardcodes
+    // which sections exist.
+    scrollWaypoints: '[data-tour="whatson-section"]',
     // ⚠ NO 'G'. The screen this points at is titled WHATS HAPPENIN' — the
     // dropped g is the brand's voice, not a typo, and a card sitting directly
     // beneath that heading spelling it differently is the one place the
@@ -214,15 +253,24 @@ export const TOUR_STEPS = [
   {
     id: 'my-scene',
     route: '/my-scene',
-    // ⚠ THE TAB, NOT THE PAGE. The lamp lands on the control the user has to
-    // learn to press; the page it opens is handled by `lift` below. 8px of
-    // padding rather than the default 10 — the nav tabs sit close together
-    // and a fatter halo starts touching WHAT'S ON beside it.
-    target: elementsTarget(['[data-tour="nav-my-scene"]'], 8),
-    radius: 16,
-    // "Subtly illuminate the personalised content within the page" — the feed
-    // above the card, lifted rather than cut out. See the note on `lift`.
-    lift: regionAboveCard,
+    // ⚠⚠ THE CONTENT REGION, EXACTLY LIKE WHAT'S ON AND DISCOVER. This used
+    // to light the nav tab and merely `lift` the page, which left the
+    // screenshot sitting under the 75% veil — visibly duller and softer than
+    // the two steps that light real content, and owner: "it's weird that the
+    // uploaded images look different." A `lift` adds light on top of the dim;
+    // it cannot remove it. Only making the content region the actual lamp
+    // gets the same brightness, because it is the same target function.
+    //
+    // The trade is the nav-tab lamp — the same one already accepted for
+    // Discover. The tab is visibly active anyway (the app highlights the
+    // current one), and this step is about what is on the screen.
+    target: regionAboveCard,
+    radius: 30,
+    // ⚠ A GUEST'S REAL MY SCENE IS ONE SIGN-IN PROMPT. Lighting that honestly
+    // would spotlight an empty screen and undercut everything the copy below
+    // just said about a "personalised music calendar". The scrolling reel is
+    // what following actually builds — scripted, not real; see TourDemos.jsx.
+    Demo: MySceneReelDemo,
     title: 'My Scene',
     body: [
       'Make the scene yours.',
@@ -246,9 +294,33 @@ export const TOUR_STEPS = [
   {
     id: 'discover',
     route: '/discover',
-    target: elementsTarget(['[data-tour="nav-discover"]'], 8),
-    radius: 16,
-    lift: regionAboveCard,
+    // ⚠⚠ LIT LIKE WHAT'S ON, NOT LIKE THE OTHER NAV-TAB STEPS — owner:
+    // "I can't see the background. Undim the window to the same opacity of
+    // What's On." This step used to spotlight the nav tab and merely `lift`
+    // the page behind it, which left the real content sitting under the
+    // veil at ~75% dim. A `lift` cannot undo that: it adds light on top of
+    // the dim, it does not remove the dim. Lighting the content region
+    // itself is the only way to get What's On's brightness, because it is
+    // literally the same target function.
+    //
+    // The trade is the nav-tab lamp, and it is worth it here: the tab is
+    // already visibly active (the app highlights the current tab), and this
+    // step's whole point is the artists and events that are actually on
+    // screen — which the user could not see.
+    target: regionAboveCard,
+    radius: 30,
+    // Same reasoning as What's On: Discover is real and current for a guest
+    // too, so it scrolls instead of faking a screenshot — and the same
+    // waypoint treatment: heading → RECENTLY ADDED / ACTIVE → RECENTLY ADDED
+    // EVENTS, whichever of those actually has content right now, per owner:
+    // "do the same for discover."
+    scrollLive: true,
+    scrollWaypoints: '[data-tour="discover-section"]',
+    // The portrait-card rail keeps scrolling through its own cards on the
+    // fraction curve WHILE the page holds at a waypoint — per owner: "show
+    // scrolling thru the portrait cards too." A rail moving gently while the
+    // page itself is paused reads as life, not as two competing motions.
+    scrollRails: ['[data-tour="discover-rail"]'],
     title: 'Discover',
     body: [
       'Meet your local music community.',
@@ -276,9 +348,14 @@ export const TOUR_STEPS = [
   {
     id: 'messages',
     route: '/messages',
-    target: elementsTarget(['[data-tour="nav-messages"]'], 8),
-    radius: 16,
-    lift: regionAboveCard,
+    // Content region, matching every other content step — see the note on
+    // My Scene for why the nav-tab lamp and `lift` were dropped.
+    target: regionAboveCard,
+    radius: 30,
+    // Same reasoning as My Scene: a guest's real inbox correctly says "no
+    // conversations yet", which is honest but not what "everything lives in
+    // one place" is trying to show. Scripted exchange, not a recording.
+    Demo: MessagesChatDemo,
     title: 'Messages',
     /**
      * ⚠ THE THIRD LINE PROMISES PHONE DISCOVERY, which is designed and
@@ -316,9 +393,17 @@ export const TOUR_STEPS = [
   {
     id: 'industry',
     onEnter: clickTarget('[data-tour="nav-industry"]'),
-    target: elementsTarget(['[data-tour="nav-industry"]'], 8),
-    radius: 16,
-    lift: regionAboveCard,
+    // Content region, matching every other content step — see the note on
+    // My Scene for why the nav-tab lamp and `lift` were dropped.
+    target: regionAboveCard,
+    radius: 30,
+    // ⚠ THE ONE STEP WHOSE REAL SCREEN RENDERS BUT RENDERS EMPTY. Unlike My
+    // Scene and Messages (empty for a guest) or What's On and Discover
+    // (always current), /industry/venue loads fine and shows zeroes: it is
+    // the signed-in user's own dashboard, so it cannot be populated for
+    // anyone else. Owner's capture of the real Elbows Rest venue dashboard
+    // stands in — see IndustryDashboardDemo.
+    Demo: IndustryDashboardDemo,
     title: 'Industry',
     body: [
       'Where the music industry gets things done.',
@@ -358,6 +443,34 @@ export const TOUR_STEPS = [
       ['Found a bug?', 'Have an idea?', 'Think something could work better?'],
       'Tap the BETA button any time.',
       'Every piece of feedback helps shape what gets built next.',
+    ],
+    card: 'bottom',
+  },
+
+  /**
+   * THE LAST STEP, AND THE ONE THE WHOLE TOUR DEPENDS ON.
+   *
+   * ⚠ WITHOUT IT, "SKIP TOUR" READS AS "DESTROY THE TOUR". Everything the
+   * user has just been shown is reachable again from one button they have
+   * never had a reason to press — so the tour ends by pressing the eye
+   * against it. The toast says the same thing four seconds later, in words;
+   * this says it in light, while they are still looking.
+   *
+   * ⚠ NO `onEnter`. Step 6 already brought them home and the ⓘ lives in the
+   * global header, so there is nothing to open and nowhere to go.
+   *
+   * Pulses for the same reason step 6 does: it points at a control the user
+   * is invited to press ANY time, not a place they are being shown.
+   */
+  {
+    id: 'info',
+    target: elementsTarget(['[data-tour="info"]'], 10),
+    radius: 14,
+    pulse: true,
+    title: 'Anytime You Like',
+    body: [
+      'Everything you have just seen lives here.',
+      'Tap it for this tour again, plus a closer look at whichever kind of profile you are using.',
     ],
     card: 'bottom',
   },

@@ -110,6 +110,17 @@
 
 @keyframes liftIn { from { opacity: 0; } to { opacity: 1; } }
 
+/* A step's optional scripted demo (see TourDemos.jsx) — clipped to exactly
+   the lift's rect, so it never spills past the area already being
+   brightened, and never tappable. It fades in on the same beat as the lift
+   it sits inside so the two read as one thing arriving, not two. */
+.demoWrap {
+  position: absolute;
+  overflow: hidden;
+  pointer-events: none;
+  animation: liftIn .5s ease both;
+}
+
 /* ── THE PULSE ─────────────────────────────────────────────────────────────
    A breath around the lit area, for a step pointing at a control the user is
    invited to press at any time rather than a place they are being shown.
@@ -157,19 +168,24 @@
    player appears rather than needing a second rule. */
 .card {
   position: absolute;
-  left: 16px;
-  right: 16px;
-  bottom: calc(var(--yp-safe-bottom, 67px) + 16px);
-  max-width: 460px;
+  left: 14px;
+  right: 14px;
+  /* ⚠ LIFTED OFF THE NAV, NOT DOCKED TO IT. Owner: "not hidden down the
+     bottom of the screen." Sitting 16px above the nav put it in the corner of
+     the eye, reading as a system bar rather than as the thing being said —
+     and on a tall phone it was genuinely far from where the spotlight was.
+     6vh scales with the device instead of a constant that is generous on a
+     small phone and mean on a large one.
+
+     ⚠ IT COSTS STEP 1 SOME LIT AREA, and that trade is real: the lit region
+     ends where this card begins, so every pixel of lift and every pixel of
+     growth comes off the spotlight. Kept to the smallest lift that clears the
+     nav visually. */
+  bottom: calc(var(--yp-safe-bottom, 67px) + 6vh);
+  max-width: 520px;
   margin: 0 auto;
   box-sizing: border-box;
-  /* ⚠ TIGHTER THAN IT LOOKS LIKE IT SHOULD BE, because the card is not the
-     point — the lit interface behind it is. Every pixel this grows is a pixel
-     taken off the spotlight, and step 4 (four paragraphs) pushed it to 48% of
-     a phone screen against a brief asking for the lower third. Spacing was
-     pulled in across the board rather than shrinking the type, so it still
-     reads as premium at a glance; the type sizes are untouched. */
-  padding: 18px 22px 18px;
+  padding: 22px 24px 20px;
   border-radius: 32px;
   background: rgba(19, 17, 27, .62);
   backdrop-filter: blur(40px) saturate(1.5);
@@ -241,9 +257,9 @@
 }
 
 .title {
-  margin: 0 0 8px;
+  margin: 0 0 10px;
   font-family: 'DM Sans', -apple-system, sans-serif;
-  font-size: 25px;
+  font-size: 28px;
   font-weight: 700;
   letter-spacing: -.02em;
   line-height: 1.18;
@@ -251,9 +267,9 @@
 }
 
 .body {
-  margin: 0 0 8px;
+  margin: 0 0 9px;
   font-family: 'DM Sans', -apple-system, sans-serif;
-  font-size: 14.5px;
+  font-size: 15.5px;
   line-height: 1.58;
   color: rgba(255, 255, 255, .6);
 }
@@ -291,7 +307,7 @@
    is a control the user has to read and dismiss; nothing there is faster. */
 .prev {
   flex: 0 0 auto;
-  padding: 14px 18px;
+  padding: 16px 18px;
   border-radius: 16px;
   background: rgba(255, 255, 255, .06);
   border: 1px solid rgba(255, 255, 255, .1);
@@ -306,13 +322,13 @@
 
 .next {
   flex: 1 1 auto;
-  padding: 14px 20px;
+  padding: 16px 20px;
   border-radius: 16px;
   border: none;
   background: linear-gradient(135deg, #7c4dff, var(--purple) 55%, #d07bff);
   color: #fff;
   font-family: 'DM Sans', -apple-system, sans-serif;
-  font-size: 15.5px;
+  font-size: 16.5px;
   font-weight: 700;
   letter-spacing: .005em;
   cursor: pointer;
@@ -321,96 +337,6 @@
 }
 .next:hover  { box-shadow: 0 10px 30px rgba(124, 77, 255, .5); filter: brightness(1.06); }
 .next:active { filter: brightness(.95); }
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   THE SKIP NOTICE — shown once, only to someone who pressed Skip Tour.
-
-   ⚠ NOT SHOWN ON COMPLETION. Someone who reached the end has just been told
-   everything this says; repeating it turns a finished tour into one more
-   thing to dismiss. Skipping is the only case where the user leaves without
-   knowing the tour still exists.
-
-   ⚠ AND IT IS A NOTICE, NOT A SECOND CHANCE. There is no "actually, take the
-   tour" button. They just declined — offering it again in the same breath is
-   the nagging the whole design avoids, and the ⓘ is genuinely where it lives
-   from now on.
-   ═══════════════════════════════════════════════════════════════════════════ */
-.noticeWrap {
-  position: fixed;
-  inset: 0;
-  z-index: 4700;
-  display: grid;
-  place-items: center;
-  padding: 24px;
-  background: rgba(0, 0, 0, .55);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  animation: tourIn .28s ease both;
-}
-
-/* Same glass, same radius, same shadow as the tour card — this is the same
-   guide finishing its sentence, not a different surface. */
-.notice {
-  width: min(100%, 320px);
-  box-sizing: border-box;
-  padding: 22px 22px 14px;
-  border-radius: 32px;
-  text-align: center;
-  background: rgba(19, 17, 27, .72);
-  backdrop-filter: blur(40px) saturate(1.5);
-  -webkit-backdrop-filter: blur(40px) saturate(1.5);
-  border: 1px solid rgba(255, 255, 255, .1);
-  box-shadow:
-    0 30px 80px rgba(0, 0, 0, .62),
-    inset 0 1px 0 rgba(255, 255, 255, .12);
-  animation: cardIn .5s cubic-bezier(.22, .9, .3, 1) .06s both;
-}
-
-.noticeTitle {
-  margin: 0 0 8px;
-  font-family: 'DM Sans', -apple-system, sans-serif;
-  font-size: 19px;
-  font-weight: 700;
-  letter-spacing: -.015em;
-  color: #fff;
-}
-
-.noticeBody {
-  margin: 0;
-  font-family: 'DM Sans', -apple-system, sans-serif;
-  font-size: 14.5px;
-  line-height: 1.55;
-  color: rgba(255, 255, 255, .62);
-}
-
-/* ⚠ THE ⓘ IS DRAWN, NOT SPELLED. The sentence sends the user to a specific
-   button in the header; naming it "the info button" makes them hunt for a
-   word that is not written anywhere on screen, while the glyph is the thing
-   they will actually be looking for. Purple so it reads as the one live
-   token in the sentence. */
-.noticeGlyph {
-  display: inline-block;
-  vertical-align: -.15em;
-  margin: 0 1px;
-  color: var(--purple);
-}
-
-.noticeClose {
-  display: block;
-  width: 100%;
-  margin-top: 18px;
-  padding: 12px 8px;
-  background: none;
-  border: none;
-  border-top: 1px solid rgba(255, 255, 255, .07);
-  font-family: 'DM Sans', -apple-system, sans-serif;
-  font-size: 14px;
-  font-weight: 600;
-  color: rgba(255, 255, 255, .55);
-  cursor: pointer;
-  transition: color .2s ease;
-}
-.noticeClose:hover { color: #fff; }
 
 /* ── RESPECT THE SETTING ───────────────────────────────────────────────────
    The lighting IS the tour and it stays; only the travel goes. The lamp still
