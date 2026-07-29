@@ -1,0 +1,247 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   THE WELCOME — the invitation, not the tour.
+
+   ⚠ THIS IS NOT A COACH MARK AND MUST NOT LOOK LIKE ONE. The tour's cards
+   dock to the bottom third and leave a lit interface above them; this one is
+   centred, over an evenly dimmed app, and asks a question. If the two ever
+   converge visually, the user cannot tell "here is the app" from "here is a
+   thing about the app".
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 4900;   /* over the tour (4600) — it is the thing that starts it */
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  box-sizing: border-box;
+  /* 65% and an 18px blur, per the brief: the app must stay clearly
+     recognisable underneath. Dim it further and the welcome stops being an
+     invitation INTO something and becomes a page of its own. */
+  background: rgba(0, 0, 0, .65);
+  backdrop-filter: blur(18px) saturate(.9);
+  -webkit-backdrop-filter: blur(18px) saturate(.9);
+  animation: fadeIn .42s ease both;
+}
+
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+.card {
+  width: min(100%, 380px);
+  max-height: 100%;
+  overflow-y: auto;
+  box-sizing: border-box;
+  padding: 30px 26px 22px;
+  border-radius: 32px;
+  text-align: center;
+  background: rgba(18, 16, 26, .74);
+  backdrop-filter: blur(44px) saturate(1.4);
+  -webkit-backdrop-filter: blur(44px) saturate(1.4);
+  border: 1px solid rgba(255, 255, 255, .11);
+  box-shadow:
+    0 40px 100px rgba(0, 0, 0, .7),
+    inset 0 1px 0 rgba(255, 255, 255, .13);
+  /* NO VISIBLE SCROLLBARS, ANYWHERE — the card can scroll on a short screen,
+     but it must never show a bar doing it. */
+  scrollbar-width: none;
+  animation: cardIn .35s cubic-bezier(.22, .9, .3, 1) .06s both;
+}
+.card::-webkit-scrollbar { display: none; }
+
+/* 98% → 100%, per the brief. Small enough to read as settling rather than
+   zooming — the difference between a card arriving and a card announcing
+   itself. */
+@keyframes cardIn {
+  from { opacity: 0; transform: scale(.98); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+/* ── THE MARK ──────────────────────────────────────────────────────────────
+   ⚠ THE HAND, NEVER A SUBSTITUTE. The artwork IS the brand mark; a lookalike
+   in the first thing a new user ever sees is exactly where that breaks down.
+   HandIcon masks the real PNG's alpha, so the shape is the artwork and only
+   the colour is ours to set. */
+.markWrap {
+  position: relative;
+  display: grid;
+  place-items: center;
+  margin-bottom: 14px;
+}
+
+/* The glow sits BEHIND the mark as its own element rather than as a
+   drop-shadow on it: a shadow traces the hand's outline and reads as an
+   edge, where a soft radial behind it reads as light in the room. */
+.markGlow {
+  position: absolute;
+  width: 200px;
+  height: 200px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgba(255, 255, 255, .16) 0%,
+    rgba(255, 255, 255, .06) 38%,
+    rgba(255, 255, 255, 0) 68%
+  );
+  animation: glowIn .9s ease .2s both;
+  pointer-events: none;
+}
+
+@keyframes glowIn { from { opacity: 0; } to { opacity: 1; } }
+
+.welcomeTo {
+  margin: 0;
+  font-family: 'DM Sans', -apple-system, sans-serif;
+  font-size: 17px;
+  font-weight: 500;
+  letter-spacing: .01em;
+  color: rgba(255, 255, 255, .68);
+}
+
+/* ⚠ NO text-shadow ON GRADIENT TEXT. With the fill transparent, a shadow is
+   painted behind glyphs that are not there to hide it and shows straight
+   through as a grey smear. `filter: drop-shadow` works on the composited
+   result instead — see the install spotlight's headline, same trap. */
+.brand {
+  margin: 2px 0 0;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 52px;
+  line-height: .95;
+  letter-spacing: 3px;
+  background: linear-gradient(112deg, var(--neon) 6%, var(--purple) 52%, #6a7bff 96%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 0 14px rgba(176, 96, 255, .34));
+}
+
+/* A hairline with the brand's pulse in the middle — the one decorative mark
+   on the card, and it earns its place by separating the identity above from
+   the question below. */
+.rule {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 16px 0 14px;
+  color: var(--purple);
+}
+.rule::before,
+.rule::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .16), transparent);
+}
+
+.tagline {
+  margin: 0 0 8px;
+  font-family: 'DM Sans', -apple-system, sans-serif;
+  font-size: 15.5px;
+  font-weight: 600;
+  letter-spacing: .005em;
+  color: #fff;
+}
+
+.body {
+  margin: 0 0 8px;
+  font-family: 'DM Sans', -apple-system, sans-serif;
+  font-size: 14px;
+  line-height: 1.55;
+  color: rgba(255, 255, 255, .58);
+}
+.body:last-of-type { margin-bottom: 0; }
+
+/* The ask, set apart from the prose above it — a quiet inset panel rather
+   than another paragraph, because it is the one thing on the card the user
+   has to answer. */
+.ask {
+  margin: 16px 0 20px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, .04);
+  border: 1px solid rgba(255, 255, 255, .07);
+}
+
+.askText {
+  margin: 0;
+  font-family: 'DM Sans', -apple-system, sans-serif;
+  font-size: 14.5px;
+  font-weight: 600;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, .92);
+}
+
+.askNote {
+  margin: 5px 0 0;
+  font-family: 'DM Sans', -apple-system, sans-serif;
+  font-size: 13px;
+  color: var(--purple);
+}
+
+.start {
+  display: block;
+  width: 100%;
+  padding: 16px 20px;
+  border: none;
+  border-radius: 18px;
+  background: linear-gradient(112deg, var(--neon) 4%, var(--purple) 54%, #6a7bff 98%);
+  color: #fff;
+  font-family: 'DM Sans', -apple-system, sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 10px 30px rgba(176, 96, 255, .38);
+  transition: box-shadow .2s ease, filter .2s ease;
+}
+.start:hover  { box-shadow: 0 12px 36px rgba(176, 96, 255, .5); filter: brightness(1.06); }
+.start:active { filter: brightness(.96); }
+
+/* ⚠ NO BORDER, NO FILL, NO EMPHASIS — the brief is explicit, and it is right:
+   the moment "skip" gets a box it becomes a choice of equal weight, and the
+   card starts negotiating instead of inviting. Still a full-width 44px
+   target, because understated must not mean hard to hit. */
+.skip {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+  padding: 14px 8px;
+  background: none;
+  border: none;
+  font-family: 'DM Sans', -apple-system, sans-serif;
+  font-size: 14px;
+  color: rgba(255, 255, 255, .45);
+  cursor: pointer;
+  transition: color .2s ease;
+}
+.skip:hover { color: rgba(255, 255, 255, .78); }
+
+/* The line moved here from the toast, at the owner's direction — see the
+   note in TourWelcome.jsx. Set apart from the buttons above it with its own
+   rule rather than sitting flush under Skip, so it reads as an aside rather
+   than a third choice competing with Start Tour / Skip for now. */
+.replayNote {
+  margin: 14px 0 0;
+  padding-top: 14px;
+  border-top: 1px solid rgba(255, 255, 255, .07);
+  font-family: 'DM Sans', -apple-system, sans-serif;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, .4);
+}
+
+/* ⚠ AN EXPLICIT COLOUR, NOT `currentColor`. The toast's identical glyph
+   inherits fine because .toast sets a colour directly on the element that
+   wraps it; this note's text sits at 40% white and the glyph needs to read
+   clearly against the card's glass at a size this small, so it is given its
+   own value rather than trusting inheritance through one more layer. */
+.replayGlyph {
+  vertical-align: -.16em;
+  margin: 0 1px;
+  color: rgba(255, 255, 255, .7);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .backdrop, .card, .markGlow { animation: none; }
+  .card { opacity: 1; transform: none; }
+}
