@@ -24,57 +24,53 @@ import { useEffect } from 'react';
  * honest "there is barely anything to scroll here", which is the truth.
  */
 
-/**
- * THE RAIL'S SWIPE RHYTHM — a list of (time, distance) stops, both as
- * fractions, linearly interpolated between. The uneven spacing IS the
- * feel: covering a lot of distance in little time reads as a flick,
- * covering little in comparable time reads as momentum dying off.
- *
- * ⚠ THE OPENING IS SPLIT 60/40, and that is the whole reason this is not
- * one smooth ramp. It used to reach the rail's halfway point in a single
- * unbroken sweep, which on a horizontal card rail reads as a shove rather
- * than a swipe — owner: "the portrait scroll first move is far too long."
- * Now: 0 → 30% of the rail, a beat to settle, then the remaining 20% to
- * land on the same halfway mark. Everything from .15 onwards — the run to
- * the far end, the hold there, the two-stage return — is unchanged.
- *
- * ⚠ ONLY THE RAILS USE THIS. The page's own vertical motion is waypoint
- * based (stop-to-stop on real headings, see below) and never samples a
- * curve at all.
- */
-const CURVE = [
-  [0,    0],
-  [.05,  .30],   // first flick — 60% of the old opening move
-  [.075, .33],   // settle
-  [.11,  .50],   // the other 40%, landing where the old opening ended
-  [.15,  .56],
-  [.26,  1],     // run to the far end
-  [.42,  1],     // hold there
-  [.54,  .42],   // return, in two stages
-  [.6,   .36],
-  [.72,  0],
-  [1,    0],     // hold at the start before repeating
-];
-
-function sampleCurve(progress) {
-  for (let i = 1; i < CURVE.length; i++) {
-    const [t0, d0] = CURVE[i - 1];
-    const [t1, d1] = CURVE[i];
-    if (progress <= t1) {
-      const span = t1 - t0;
-      const local = span > 0 ? (progress - t0) / span : 0;
-      return d0 + (d1 - d0) * local;
-    }
-  }
-  return 0;
-}
+/* ⚠ THE MULTI-STOP RAIL CURVE IS GONE (2026-07-29). It described a flick out
+   to the far end, a hold, and a two-stage return — a demonstration of the
+   rail's whole contents. The rail's job in the tour is now a single short
+   swipe that stays where it lands (see RAIL_SWIPE_PX), so the curve had no
+   caller left. Removed rather than kept, because a documented rhythm the code
+   no longer performs is worse than no comment at all; the history is in git if
+   the flick is ever wanted back. */
 
 function easeInOutCubic(t) {
   return t < .5 ? 4 * t * t * t : 1 - ((-2 * t + 2) ** 3) / 2;
 }
 
-const WAYPOINT_MOVE_MS = 875;
+const WAYPOINT_MOVE_MS = 600;
 const WAYPOINT_HOLD_MS = 1188;
+
+/* ── THE RAIL'S TEACHING GESTURE (owner spec, 2026-07-29) ──────────────────
+   The page stops on Recently Added, waits ~500ms, and the rail takes ONE
+   gentle swipe — two or three cards, slowly, ease-in-out, and it stays where
+   it lands. No bounce, no overshoot, no return. The moment it finishes, the
+   tour continues.
+
+   ⚠ THE POINT IS THE FINGER, NOT THE CONTENTS. "It is a teaching gesture...
+   like a real person lightly dragging the rail." A full-width traverse showed
+   everything in the rail and taught nothing about how to move it; a short
+   deliberate push is legible as a gesture that could be copied. */
+const RAIL_SWIPE_PX     = 220;   // 2–3 cards
+const RAIL_GLIDE_MS     = 900;
+const POST_RAIL_HOLD_MS = 0;     // "continue immediately"
+
+/* ⚠ THE PAGE MOVES FIRST AND THE RAIL MOVES SECOND. They never overlap. The
+   rail used to start on wall-clock time the instant it existed, so it was
+   already sliding while the page was still travelling — which is why the cards
+   always looked "already scrolling" by the time the reader got there.
+
+   ⚠ EVERY STEP PAUSES ON ENTRY, not just the ones that scroll. Owner,
+   2026-07-29: "make every page in the tour pause as tour enters page, then
+   wait 800ms before next action." Nothing on the screen behind the card may
+   move until this has elapsed — the reader needs a moment to register that
+   the page changed before anything starts animating. Mirrored as the
+   scrolling demos' animation-delay in TourDemos.module.css. */
+const ENTRY_PAUSE_MS = 800;
+const RAIL_DWELL_MS  = 500;
+
+/* Clear air above a section heading when the page stops on it, ON TOP of the
+   sticky header's own height. Without it the stop puts the heading's top edge
+   at viewport top, i.e. behind the header. */
+const WAYPOINT_HEADING_GAP_PX = 20;
 // The true top gets longer than an ordinary content stop — it is where the
 // heading itself lives, and where the cycle both starts and ends.
 const WAYPOINT_TOP_HOLD_MS = 1875;
@@ -109,7 +105,13 @@ export default function useLiveScroll(active, rails = [], waypoints, durationMs 
 
     const scroller = document.scrollingElement || document.documentElement;
     const originalScrollTop = scroller.scrollTop;
-    let raf, railRaf, timer, cancelled = false;
+    let raf, railRaf, timer, railTimer, cancelled = false;
+    let startRailGlide = null;
+    // Temporary bottom padding added so sections can rise above the tour card.
+    let padEl = null, originalPadBottom = '';
+    // The rail makes ONE pass, on the first content stop; the page then waits
+    // for it to finish before continuing to the next section.
+    let railTriggered = false, onRailDone = null;
     let railEls = [];
     let originalRailLefts = [];
 
@@ -128,7 +130,15 @@ export default function useLiveScroll(active, rails = [], waypoints, durationMs 
      * actually there, which is correct for both cases: instant when the page
      * is already up, patient when it is still arriving.
      */
-    const deadline = performance.now() + 2000;
+    /* ⚠ 2s WAS TOO TIGHT AND FAILED SILENTLY. Measured on Discover: the route
+       change plus the profile fetch put the rail on screen at ~2.1s, just past
+       the old deadline — so the waiter gave up, the rail was never claimed or
+       driven, and the step ran with the cards sitting perfectly still. Nothing
+       errored; the motion simply never happened.
+
+       Waiting longer costs nothing: this resolves the instant the targets
+       exist, so a fast load is unaffected and only a slow one benefits. */
+    const deadline = performance.now() + 5000;
     // ⚠ EACH WAITER OWNS ITS OWN HANDLE, collected for cleanup. The rails
     // and the page wait independently and can become ready on different
     // frames; sharing one `raf` variable means whichever starts second
@@ -157,10 +167,41 @@ export default function useLiveScroll(active, rails = [], waypoints, durationMs 
         () => {
           railEls = rails.map(sel => document.querySelector(sel)).filter(Boolean);
           originalRailLefts = railEls.map(el => el.scrollLeft);
-          const railStart = performance.now();
+          /* ⚠ CLAIM THE RAIL. useDragScroll's first-visit "bump" is a second,
+             independent writer of the same scrollLeft — measured mid-step, it
+             shoved the cards 46px while the tour was driving them. Marking the
+             element lets that hint stand down while the tour owns the motion;
+             released on cleanup. */
+          railEls.forEach(el => { el.dataset.liveScroll = '1'; });
+          /* ⚠ A TEACHING GESTURE, NOT AN ANIMATION.
+             Owner, 2026-07-29: "This is not an animation for visual effect. It
+             is a teaching gesture... The movement should feel like a real
+             person lightly dragging the rail with their finger."
+
+             So: one short swipe of two or three cards, slow enough to follow,
+             and it STAYS WHERE IT LANDS. No bounce, no overshoot, no return.
+             Once the reader has seen a couple of new cards arrive, the point is
+             made and the tour moves on.
+
+             This replaced a full-width traverse driven by CURVE — out to the
+             far end, a hold, and back again, over seconds. That demonstrated
+             the rail's whole contents; it did not demonstrate that a finger
+             moves it. The distance is now deliberately small.
+
+             `startRailGlide` is called by the page loop once it has arrived and
+             held, or immediately below if this step has no page tour. */
+          let railStart = null;
+          let swipeFrom = [];
+          startRailGlide = () => {
+            if (railStart !== null) return;      // one swipe, not one per hold
+            swipeFrom = railEls.map(el => el.scrollLeft);
+            railStart = performance.now();
+          };
           const tickRails = (now) => {
             if (cancelled) return;
-            const frac = sampleCurve(((now - railStart) % durationMs) / durationMs);
+            if (railStart === null) { railRaf = requestAnimationFrame(tickRails); return; }
+            const t = Math.min(1, (now - railStart) / RAIL_GLIDE_MS);
+            const eased = easeInOutCubic(t);
             /**
              * ⚠⚠ RE-QUERIED EVERY FRAME, NOT CAPTURED ONCE. Discover's rail
              * lives inside `profiles.length > 0`, so the element that exists
@@ -175,12 +216,24 @@ export default function useLiveScroll(active, rails = [], waypoints, durationMs 
              */
             const live = rails.map(sel => document.querySelector(sel)).filter(Boolean);
             if (live.length) railEls = live;
-            for (const el of railEls) {
-              el.scrollLeft = frac * Math.max(0, el.scrollWidth - el.clientWidth);
-            }
-            railRaf = requestAnimationFrame(tickRails);
+            railEls.forEach((el, i) => {
+              const from = swipeFrom[i] ?? 0;
+              // Clamped, so a short rail stops at its end rather than pretending
+              // to travel further than it has.
+              const to = Math.min(from + RAIL_SWIPE_PX, Math.max(0, el.scrollWidth - el.clientWidth));
+              el.scrollLeft = from + (to - from) * eased;
+            });
+            /* It rests where it lands. The tour continues the moment the swipe
+               finishes — the reader has seen new cards arrive, which was the
+               whole point. */
+            if (t < 1) { railRaf = requestAnimationFrame(tickRails); return; }
+            if (onRailDone) { const done = onRailDone; onRailDone = null; done(); }
           };
           railRaf = requestAnimationFrame(tickRails);
+
+          // No page tour on this step, so there is nothing to take turns with:
+          // observe the same entry pause and dwell, then go.
+          if (!waypoints) timer = setTimeout(startRailGlide, ENTRY_PAUSE_MS + RAIL_DWELL_MS);
         },
       );
     }
@@ -189,6 +242,29 @@ export default function useLiveScroll(active, rails = [], waypoints, durationMs 
     if (waypoints) {
       whenReady(() => document.querySelector(waypoints), () => {
         if (cancelled) return;
+
+        /* ⚠ THE CARD COVERS THE BOTTOM OF THE SCREEN, SO THE PAGE NEEDS ROOM
+           TO LIFT CONTENT ABOVE IT.
+           Owner, 2026-07-29: "I don't ever see the events in the window."
+           Measured: Discover's last section heading reached the top fine, but
+           every event under it sat behind the tour card — and the page had
+           already hit the end of its scroll range, so nothing could bring them
+           up. The page simply ends before the card does.
+
+           Adding temporary padding equal to what the card covers gives the
+           scroll somewhere to go. The blank space it creates is exactly the
+           band the card is sitting over, so nobody ever sees it. Removed on
+           cleanup, so the page is left as it was found. */
+        const card = document.querySelector('[data-tour-card]');
+        const cardCover = card
+          ? Math.max(0, window.innerHeight - card.getBoundingClientRect().top)
+          : 0;
+        if (cardCover > 0) {
+          padEl = scroller === document.documentElement ? document.body : scroller;
+          originalPadBottom = padEl.style.paddingBottom;
+          const existing = parseFloat(getComputedStyle(padEl).paddingBottom) || 0;
+          padEl.style.paddingBottom = `${existing + cardCover + WAYPOINT_HEADING_GAP_PX}px`;
+        }
 
         const maxScroll = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
         // Nothing worth touring vertically — leave the page where it is and
@@ -201,10 +277,27 @@ export default function useLiveScroll(active, rails = [], waypoints, durationMs 
         // Clamp, then drop stops that collapsed onto their neighbour — two
         // "different" waypoints that both pin to the page bottom are one
         // stop, and animating between them is a 0px move that burns a beat.
-        const raw = els.map(el => Math.min(
+        /* ⚠ STOP SHORT OF THE HEADING, NOT ON IT.
+           A waypoint's offset puts the element's top edge at viewport top —
+           which is UNDERNEATH the sticky header, so the very heading the stop
+           exists to show (TONIGHT, THIS WEEKEND, COMING UP) arrived clipped or
+           hidden behind it. Owner, 2026-07-29: "the headings aren't matching
+           up... move the page down enough px so the correct headings have a
+           20px buffer above."
+
+           The header measures itself into --yp-header-height (GlobalHeader),
+           so this follows it rather than hard-coding a number that would drift
+           the moment the header changes. Falls back to the same 56px default
+           the rest of the app uses. */
+        const headerH = parseFloat(
+          getComputedStyle(document.documentElement).getPropertyValue('--yp-header-height'),
+        ) || 56;
+        const topGap = headerH + WAYPOINT_HEADING_GAP_PX;
+
+        const raw = els.map(el => Math.max(0, Math.min(
           maxScroll,
-          Math.round(el.getBoundingClientRect().top + scroller.scrollTop),
-        ));
+          Math.round(el.getBoundingClientRect().top + scroller.scrollTop - topGap),
+        )));
         const stops = [0];
         for (const v of raw) {
           if (Math.abs(v - stops[stops.length - 1]) > 24) stops.push(v);
@@ -228,14 +321,39 @@ export default function useLiveScroll(active, rails = [], waypoints, durationMs 
             scroller.scrollTop = from + (to - from) * easeInOutCubic(t);
             if (t < 1) { raf = requestAnimationFrame(step); return; }
 
-            timer = setTimeout(() => {
+            /* ⚠ ARRIVED. */
+
+            const nextHop = () => {
               hop = (hop + 1) % stops.length;
               runHop();
-            }, to === 0 ? WAYPOINT_TOP_HOLD_MS : WAYPOINT_HOLD_MS);
+            };
+
+            /* ⚠ THE PAGE WAITS FOR THE RAIL, IT DOES NOT TALK OVER IT.
+               Owner's order, 2026-07-29: "pause on Recently Added / Active for
+               400ms, then scroll the horizontal portrait cards once, THEN
+               scroll to Recently Added Events."
+
+               The hold used to be a fixed WAYPOINT_HOLD_MS, so the page moved
+               on to the next section on its own schedule — cutting the rail
+               off partway through its pass. Now the first content stop hands
+               control to the rail and only continues once the glide has
+               finished. Every other stop keeps the ordinary hold. */
+            if (to !== 0 && startRailGlide && !railTriggered) {
+              railTriggered = true;
+              railTimer = setTimeout(startRailGlide, RAIL_DWELL_MS);
+              onRailDone = () => { timer = setTimeout(nextHop, POST_RAIL_HOLD_MS); };
+              return;
+            }
+
+            timer = setTimeout(nextHop, to === 0 ? WAYPOINT_TOP_HOLD_MS : WAYPOINT_HOLD_MS);
           };
           raf = requestAnimationFrame(step);
         };
-        runHop();
+        /* THE ENTRY PAUSE. Nothing moves for a beat after the step opens, so
+           the reader registers that the page changed before it starts
+           travelling — otherwise the scroll is already underway before they
+           have looked at it. */
+        timer = setTimeout(runHop, ENTRY_PAUSE_MS);
       });
     }
 
@@ -245,8 +363,10 @@ export default function useLiveScroll(active, rails = [], waypoints, durationMs 
       cancelAnimationFrame(raf);
       cancelAnimationFrame(railRaf);
       clearTimeout(timer);
+      clearTimeout(railTimer);
+      if (padEl) padEl.style.paddingBottom = originalPadBottom;
       scroller.scrollTop = originalScrollTop;
-      railEls.forEach((el, i) => { el.scrollLeft = originalRailLefts[i]; });
+      railEls.forEach((el, i) => { el.scrollLeft = originalRailLefts[i]; delete el.dataset.liveScroll; });
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, railsKey, waypoints, durationMs]);

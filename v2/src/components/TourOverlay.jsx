@@ -321,6 +321,10 @@ export default function TourOverlay({ open, startAt = 0, onClose }) {
 
       <div
         className={s.card}
+        /* Lets useLiveScroll measure how much of the screen this card covers,
+           so a scrolled section can be brought ABOVE it rather than stopping
+           underneath it. */
+        data-tour-card=""
         ref={cardRef}
         style={step.card === 'top'
           ? { top: 'calc(var(--yp-header-height, 54px) + 16px)', bottom: 'auto' }

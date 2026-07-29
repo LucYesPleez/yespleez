@@ -73,9 +73,16 @@
   top: 0; left: 0;
   width: 100%;
   height: auto;
+  /* ⚠ THE DEMO WAITS OUT THE ENTRY PAUSE TOO.
+     Owner, 2026-07-29: "make every page in the tour pause as the tour enters
+     the page, then wait 800ms before the next action." A step that arrives
+     already animating gives the reader nothing to land on — they are reading
+     the card while the screen behind it is already moving. `rise` is the
+     demo appearing and stays immediate; only the SCROLLING waits.
+     0.8s pause + the 0.5s rise it used to wait = 1.3s. */
   animation:
     rise .5s ease both,
-    sceneScroll 10s cubic-bezier(.22, .8, .32, 1) .5s infinite;
+    sceneScroll 10s cubic-bezier(.22, .8, .32, 1) 1.3s infinite;
 }
 
 /* ⚠ THE "QUICK, SLOW, QUICK" FEEL COMES FROM KEYFRAME SPACING, NOT FROM
