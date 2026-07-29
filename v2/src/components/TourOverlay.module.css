@@ -201,6 +201,16 @@
   animation: cardIn .52s cubic-bezier(.22, .9, .3, 1) .12s both;
 }
 
+/* ⚠ ON A PHONE THE CARD DOCKS, ON DESKTOP IT LIFTS.
+   The 6vh lift above answers "not hidden down the bottom of the screen", and
+   on a desktop viewport it costs almost nothing. On a phone the same card is
+   a far larger share of a much shorter screen — owner, 2026-07-29: "the tour
+   window takes up way too much of the page". Lift and padding both come
+   straight off the spotlight, so on the one viewport where the screen is
+   scarce, both are given back.
+
+   It still CLEARS THE NAV — `--yp-safe-bottom` is the live measurement of the
+   nav plus the mini player, and nothing in this app is ever drawn over it. */
 /* "Slides upward slightly while fading in" — 14px. Enough to feel placed,
    far too little to read as a panel flying in. */
 @keyframes cardIn {
@@ -346,4 +356,37 @@
   .root, .hole, .card { animation: none; }
   .card { opacity: 1; transform: none; }
   .hole, .blur, .dot { transition: none; }
+}
+
+/* ⚠ ON A PHONE THE CARD DOCKS, ON DESKTOP IT LIFTS.
+   The 6vh lift on .card answers "not hidden down the bottom of the screen",
+   and on a desktop viewport it costs almost nothing. On a phone the same card
+   is a far larger share of a much shorter screen — owner, 2026-07-29: "the
+   tour window takes up way too much of the page". Lift and padding both come
+   straight off the spotlight, so on the one viewport where height is scarce,
+   both are given back.
+
+   It still CLEARS THE NAV: --yp-safe-bottom is the live measurement of the nav
+   plus the mini player, and nothing in this app is ever drawn over it.
+
+   ⚠ LAST IN THE FILE ON PURPOSE. .title and .body are defined further up at the
+   same specificity, so an earlier media block lost to them — the card resized
+   and the type did not. Source order is the only thing deciding this.
+   Measured on a 375x812 phone: 44% of the screen before, ~31% after. */
+@media (max-width: 640px) {
+  .card {
+    bottom: calc(var(--yp-safe-bottom, 67px) + 10px);
+    left: 10px;
+    right: 10px;
+    padding: 16px 18px 14px;
+    border-radius: 24px;
+  }
+  /* Measured: the copy block was 199px of a 357px card, so the type is what
+     makes it tall. Tightened, not cut — every step still says all of what it
+     said, in less room. */
+  .title { font-size: 23px; line-height: 1.14; margin: 0 0 7px; }
+  .body { font-size: 14.5px; line-height: 1.45; margin: 0 0 7px; }
+  .body:last-of-type { margin-bottom: 11px; }
+  .dots { margin-bottom: 10px; }
+  .prev, .next { padding: 13px 16px; }
 }
