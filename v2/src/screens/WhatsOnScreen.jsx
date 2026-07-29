@@ -546,10 +546,21 @@ export default function WhatsOnScreen() {
       {!loading && !selectedDate && (
         <div className={s.sections}>
 
+          {/* ⚠ EVERY `s.sectionTitle` SPAN BELOW ALSO CARRIES
+              `data-tour="whatson-section"` — the guided tour's What's On step
+              scrolls the real page from waypoint to waypoint (heading →
+              Featured Event → each section that has content right now), and
+              finds those waypoints by querying this one shared attribute
+              rather than hardcoding which sections exist. Each section here
+              is already conditionally rendered on having events, so the
+              query result IS "each sub heading that's available at the
+              time" with no extra logic — add a new section the same way
+              (conditional block, `sectionTitle` span, this attribute) and
+              the tour picks it up with no code change on its side. */}
           {/* FEATURED EVENT */}
           {featuredEvent && (
             <div className={s.sectionBlock}>
-              <div style={{ marginBottom: 12 }}><span className={s.sectionTitle}>FEATURED EVENT</span></div>
+              <div style={{ marginBottom: 12 }}><span data-tour="whatson-section" className={s.sectionTitle}>FEATURED EVENT</span></div>
               <FeaturedEventCard event={featuredEvent} onClick={() => openEvent(featuredEvent)} />
             </div>
           )}
@@ -558,7 +569,7 @@ export default function WhatsOnScreen() {
           {tonightEvents.length > 0 && (
             <div ref={tonightRef} className={s.sectionBlock}>
               <div className={s.sectionRow}>
-                <span className={s.sectionTitle}>TONIGHT</span>
+                <span data-tour="whatson-section" className={s.sectionTitle}>TONIGHT</span>
                 <span className={s.sectionPill}>
                   {new Date(todayIso + 'T12:00:00').toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'long' }).toUpperCase()}
                 </span>
@@ -577,7 +588,7 @@ export default function WhatsOnScreen() {
           {weekendEvents.length > 0 && (
             <div ref={weekendRef} className={s.sectionBlock}>
               <div className={s.sectionRow}>
-                <span className={s.sectionTitle}>THIS WEEKEND</span>
+                <span data-tour="whatson-section" className={s.sectionTitle}>THIS WEEKEND</span>
                 <span className={s.sectionPill}>{weekendLabel}</span>
                 <div className={s.gradientLine} />
                 <button className={s.viewAll}>View all ›</button>
@@ -594,7 +605,7 @@ export default function WhatsOnScreen() {
           {comingUpEvents.length > 0 && (
             <div ref={comingUpRef} className={s.sectionBlock}>
               <div className={s.sectionRow}>
-                <span className={s.sectionTitle}>COMING UP</span>
+                <span data-tour="whatson-section" className={s.sectionTitle}>COMING UP</span>
                 <span className={s.sectionSub}>NEXT TWO WEEKS</span>
                 <div className={s.gradientLine} />
                 <button className={s.viewAll}>View all ›</button>
@@ -614,7 +625,7 @@ export default function WhatsOnScreen() {
           {unplaceableEvents.length > 0 && (
             <div className={s.sectionBlock}>
               <div className={s.sectionRow}>
-                <span className={s.sectionTitle}>LOCATION UNAVAILABLE</span>
+                <span data-tour="whatson-section" className={s.sectionTitle}>LOCATION UNAVAILABLE</span>
                 <span className={s.sectionSub}>DISTANCE UNKNOWN</span>
                 <div className={s.gradientLine} />
               </div>

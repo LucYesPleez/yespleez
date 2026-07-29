@@ -1,0 +1,111 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   THE TOUR'S SCRIPTED DEMOS — real screenshots, scrolling, behind the lift.
+
+   ⚠⚠ TWO THINGS USED TO LIVE HERE INSTEAD, and the history is worth keeping.
+   First a scripted typing-chat / card-reel animation ("the animations are
+   terrible"), then a hand-built CSS mockup of both screens ("use these
+   images instead"). Both were replaced by the owner's own signed-in
+   screenshots (Photoshop exports → WebP, public/tour-demos/*.webp), because
+   an accurate real screen beats either an invented animation or a guessed
+   recreation.
+
+   ⚠ THESE ARE NOT THE REAL APP. No real data, no navigation, no interactive
+   affordance — `pointer-events: none` inherited from the wrapper that
+   renders them (TourOverlay's `.demoWrap`). They exist because a guest's
+   real My Scene and Messages are genuinely empty, and a dim, static-empty
+   screen behind a spotlight reads as broken rather than "yours once you
+   follow things" / "yours once you have conversations".
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ⚠⚠ THE FEATHER MASK LIVES HERE, ON THE FIXED VIEWPORT — NOT ON THE IMAGE
+   THAT SCROLLS INSIDE IT. That distinction is the whole difference between
+   "the visible window has soft edges" (what this does) and "the top 9% of a
+   1400px-tall image is permanently faded" (what putting it on `.shot`
+   actually did, and why the real top of the screenshot — "MY SCENE", "YOUR
+   CONTACTS" — looked washed out the moment the scroll reached it: a
+   percentage mask on the IMAGE is relative to the image's own full height,
+   so on a container many times shorter than the image, that "top 9%" band is
+   taller than the entire visible window). Masking the CONTAINER instead
+   means the fade is a fixed fraction of what's actually on screen, and it
+   reads as the WINDOW softening at its edges — the true top and bottom of
+   the screenshot pass through it fully visible, the way any of the content
+   scrolling past the middle does.
+
+   ⚠ WHY IT'S HERE AT ALL — owner: "I want it to look as native in the app as
+   possible... so it doesn't just look like a plastered image." A screenshot
+   is a flat, fully-lit rectangle; everything else on screen at this moment
+   is dimmed by the tour's veil. A hard-edged rectangle butted against that
+   reads as a sticker dropped on top of the app. Asymmetric on purpose — more
+   fade at the bottom than the top — because that edge sits closer to the
+   card the eye is about to land on next, where a hard line is most
+   noticeable. */
+/**
+ * ⚠⚠ NO MASK ANY MORE — the spotlight's own feather does this job now.
+ *
+ * This used to fade its own top and bottom edges, back when these steps lit
+ * the NAV TAB and the screenshot sat inside a merely-`lift`ed region: there
+ * was no soft edge anywhere near it, so without a mask the image ended in a
+ * hard line and read as pasted on. Those steps now light the content region
+ * itself, exactly like What's On and Discover, so the image is bounded by
+ * the lamp's own 64px feather — the identical edge treatment real content
+ * gets on those pages.
+ *
+ * Keeping the mask on top of that feather was double-fading: the screenshots
+ * came out visibly softer and duller than the live pages, which is the
+ * "uploaded images look different" the owner spotted. One fade, from one
+ * source, for every content step.
+ */
+.screen {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+/* A real screenshot, full width, never cropped sideways — see the note in
+   TourDemos.jsx for why `object-fit: cover` was replaced with this.
+   `--scroll-y` is set by the component once the image and its container have
+   both laid out; it is the exact number of pixels of the image that fall
+   below the visible window, so the animation always travels precisely to the
+   bottom and never over- or under-shoots. */
+.shot {
+  display: block;
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%;
+  height: auto;
+  animation:
+    rise .5s ease both,
+    sceneScroll 10s cubic-bezier(.22, .8, .32, 1) .5s infinite;
+}
+
+/* ⚠ THE "QUICK, SLOW, QUICK" FEEL COMES FROM KEYFRAME SPACING, NOT FROM
+   SWITCHING EASING FUNCTIONS MID-ANIMATION — CSS only allows one timing
+   function per animation, so the illusion of a fast flick, a brief
+   deceleration, then another fast flick is built by how much DISTANCE each
+   keyframe covers relative to how much TIME it's given. A stop that moves
+   50% of the distance in 9% of the duration reads as fast; one that moves
+   only 6% more distance over the next 6% of duration reads as a real
+   momentum-slowing pause — same curve throughout, different apparent speed.
+   Two such flicks on the way down, a beat to actually look at the bottom,
+   then one flick straight back to the top — closer to how a thumb actually
+   scrolls a feed than a single smooth glide. */
+@keyframes sceneScroll {
+  0%   { transform: translateY(0); }
+  9%   { transform: translateY(calc(var(--scroll-y, 0px) * -.5)); }
+  15%  { transform: translateY(calc(var(--scroll-y, 0px) * -.56)); }
+  26%  { transform: translateY(calc(var(--scroll-y, 0px) * -1)); }
+  42%  { transform: translateY(calc(var(--scroll-y, 0px) * -1)); }
+  54%  { transform: translateY(calc(var(--scroll-y, 0px) * -.42)); }
+  60%  { transform: translateY(calc(var(--scroll-y, 0px) * -.36)); }
+  72%  { transform: translateY(0); }
+  100% { transform: translateY(0); }
+}
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shot { animation: none; opacity: 1; }
+}

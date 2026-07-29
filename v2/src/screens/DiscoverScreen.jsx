@@ -497,13 +497,22 @@ export default function DiscoverScreen() {
 
           {!loading && (
             <>
+              {/* ⚠ EVERY `s.sectionHead` DIV BELOW ALSO CARRIES
+                  `data-tour="discover-section"` — same mechanism as
+                  WhatsOnScreen's waypoints: the tour's Discover step scrolls
+                  the real page stop-to-stop through whichever of these are
+                  actually rendered right now, found by querying this shared
+                  attribute rather than hardcoding which sections exist. */}
               {isDefault && profiles.length > 0 && (
                 <>
                   <div className={s.sectionRow}>
-                    <div className={s.sectionHead}>RECENTLY ADDED / ACTIVE</div>
+                    <div data-tour="discover-section" className={s.sectionHead}>RECENTLY ADDED / ACTIVE</div>
                     <div className={s.gradientLine} />
                   </div>
-                  <div className={s.hScroll} ref={profilesDrag.ref} onMouseDown={profilesDrag.onMouseDown} onMouseMove={profilesDrag.onMouseMove} onMouseUp={profilesDrag.onMouseUp} onMouseLeave={profilesDrag.onMouseLeave}>
+                  {/* `data-tour` is the guided tour's anchor for auto-scrolling this
+                      rail during its Discover step — a CSS-module class is
+                      content-hashed and unreachable from outside this file. */}
+                  <div data-tour="discover-rail" className={s.hScroll} ref={profilesDrag.ref} onMouseDown={profilesDrag.onMouseDown} onMouseMove={profilesDrag.onMouseMove} onMouseUp={profilesDrag.onMouseUp} onMouseLeave={profilesDrag.onMouseLeave}>
                     {profiles.map(p => <PortraitCard key={p.id ?? p.user_id} profile={p} />)}
                   </div>
                 </>
@@ -511,7 +520,7 @@ export default function DiscoverScreen() {
               {isDefault && events.length > 0 && (
                 <>
                   <div className={s.sectionRow} style={{ marginTop: profiles.length ? 20 : 0 }}>
-                    <div className={s.sectionHead}>RECENTLY ADDED EVENTS</div>
+                    <div data-tour="discover-section" className={s.sectionHead}>RECENTLY ADDED EVENTS</div>
                     <div className={s.gradientLine} />
                   </div>
                   <div style={{ display:'flex', flexDirection:'column', gap:6, ...(visibleEventsCount < events.length ? { maskImage:'linear-gradient(to bottom, black 75%, transparent 100%)', WebkitMaskImage:'linear-gradient(to bottom, black 75%, transparent 100%)' } : {}) }}>
@@ -550,7 +559,7 @@ export default function DiscoverScreen() {
               {!isDefault && unplaceable.length > 0 && (
                 <>
                   <div className={s.sectionRow} style={{ marginTop: 20 }}>
-                    <div className={s.sectionHead}>LOCATION UNAVAILABLE</div>
+                    <div data-tour="discover-section" className={s.sectionHead}>LOCATION UNAVAILABLE</div>
                     <div className={s.gradientLine} />
                   </div>
                   <p className={s.hint} style={{ margin: '0 0 8px' }}>
