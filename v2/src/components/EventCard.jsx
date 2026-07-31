@@ -54,8 +54,11 @@ function Pill({ label, bg, col }) {
  *   onClick    – click handler
  *   variant    – "card" (default) | "scroll" | "row"
  *   small      – legacy, treated as variant="scroll"
+ *   cornerAction – JSX overlaid bottom-right of the poster (scroll variant
+ *                  only) — the floor's HeartBtn. Clicks inside it must not
+ *                  open the event, so the wrapper stops propagation.
  */
-export default function EventCard({ event, badge: badgeOverride, badgeColor, onClick, variant, small = false, noHover = false }) {
+export default function EventCard({ event, badge: badgeOverride, badgeColor, onClick, variant, small = false, noHover = false, cornerAction = null }) {
   const navigate = useNavigate();
   const cfg    = event?.config || {};
   const poster = event?.poster_url || cfg.poster_thumb || cfg.poster || null;
@@ -89,6 +92,11 @@ export default function EventCard({ event, badge: badgeOverride, badgeColor, onC
           {chip.dayNum && (
             <div style={{ position:'absolute', top:8, right:8 }}>
               <DateBox date={date} size="sm" />
+            </div>
+          )}
+          {cornerAction && (
+            <div style={{ position:'absolute', bottom:8, right:8 }} onClick={e => e.stopPropagation()}>
+              {cornerAction}
             </div>
           )}
         </div>

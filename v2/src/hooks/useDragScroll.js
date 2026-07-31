@@ -7,19 +7,29 @@ const DISCOVERY_MAX_VISITS = 10;
 const DISCOVERY_BUMP_PX    = 46;
 const DISCOVERY_KEY_PREFIX = 'yp_hscroll_visits_';
 
-/* How long the rail takes to travel out and back. `behavior: 'smooth'` covered
-   the 46px in roughly a fifth of a second — fast enough that the cards blurred
-   past and the hint taught nothing. Owner, 2026-07-29: "scroll them at the same
-   speed you do the vertical scroll". This is a comfortable read of that
-   distance, and it is why the animation is hand-rolled rather than delegated. */
-const DISCOVERY_GLIDE_MS = 900;
-const DISCOVERY_HOLD_MS  = 420;   // a beat at the far end, so the eye can land
+/* How long the rail takes to travel out and back, and the beat it holds at the
+   far end so the eye can land.
+
+   Moved twice, opposite directions — the history matters because the reasons
+   conflict and the next person will otherwise re-argue it:
+     ~200ms  original `behavior:'smooth'` — cards blurred past, taught nothing.
+     900ms   owner 2026-07-29 ("same speed you do the vertical scroll") — the
+             cards were readable, but the whole hint took ~3.6s to play out and
+             read as the page being sluggish rather than as a hint.
+     360ms   owner 2026-07-31 ("i want the nudge to be quicker. much quicker")
+             — CURRENT. Fast enough to register as a deliberate flick, slow
+             enough not to be the blur the original was. The dwell below still
+             waits for the reader to arrive; only the MOVEMENT got quicker. */
+const DISCOVERY_GLIDE_MS = 360;
+const DISCOVERY_HOLD_MS  = 180;   // a beat at the far end, so the eye can land
 
 /* How still the page must be before the reader counts as "arrived", and how
    long the hint then waits before it moves. The dwell is the "wait a second" —
    long enough to reach the heading and see what the cards are. */
 const DISCOVERY_SETTLE_MS = 400;
-const DISCOVERY_DWELL_MS  = 1000;
+/* Trimmed with the glide above (was 1000) — with a 360ms flick, a full second
+   of stillness first made the hint feel disconnected from arriving. */
+const DISCOVERY_DWELL_MS  = 600;
 
 /* easeInOutCubic — starts and ends at rest, like a page settling. */
 const ease = t => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
@@ -116,15 +126,18 @@ function armDiscoveryBump(el, discoveryId) {
 const DRAG_SLOP_PX = 5;
 
 /* How far the rail travels per pixel of pointer movement.
-   Was 1.2 — the rail ran AHEAD of the cursor, so cards crossed the screen
-   faster than the hand moved them and were gone before they could be read.
-   Owner, 2026-07-29: "half the speed".
 
-   0.5 means the rail moves half as far as the hand. That deliberately gives up
-   1:1 tracking — a card no longer stays under the cursor — in exchange for
-   being able to actually look at what is going past, which is the entire point
-   of a browsing rail. */
-const DRAG_SPEED = 0.5;
+   History, because this has moved twice and the reasons pull opposite ways:
+     1.2  original — ran AHEAD of the cursor; cards crossed the screen faster
+          than the hand moved them and were gone before they could be read.
+     0.5  owner, 2026-07-29 ("half the speed") — readable, but the rail lagged
+          the hand badly enough that dragging felt heavy.
+     1.0  owner, 2026-07-31 ("put back to 1") — TRUE 1:1 TRACKING. The card
+          stays under the cursor, which is what a hand expects from a surface
+          it is physically pushing. This is the value to keep unless someone
+          asks again; the 0.5 experiment is recorded above so it is not
+          rediscovered as if it were new. */
+const DRAG_SPEED = 1;
 
 export function useDragScroll(discoveryId) {
   const teardownRef = useRef(null);

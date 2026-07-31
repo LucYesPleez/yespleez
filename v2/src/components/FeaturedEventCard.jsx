@@ -6,7 +6,22 @@ function formatShortDate(iso) {
   return d.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long' }).toUpperCase();
 }
 
-export default function FeaturedEventCard({ event, onClick, label = 'FEATURED' }) {
+/**
+ * Props:
+ *   event, onClick
+ *   label        the badge text — in My Scene's Spotlight this is the REASON
+ *                the card earned its place, so it varies per card
+ *   badgeColor   overrides the badge's default violet, letting the reason's
+ *                colour group the KIND of attention (your own involvement vs
+ *                your favourites vs the catalogue's news)
+ *   rail         size for a horizontal scroller instead of filling the column:
+ *                the hero look is kept, the card just stops being the only one
+ *   solo         a rail of ONE — take the full width rather than leaving a
+ *                peek gap for a card that does not exist
+ *   cornerAction JSX pinned top-right (the save heart). Clicks inside must not
+ *                open the event, so the wrapper stops propagation.
+ */
+export default function FeaturedEventCard({ event, onClick, label = 'FEATURED', badgeColor, rail = false, solo = false, cornerAction = null }) {
   const cfg      = event.config || {};
   const poster   = cfg.poster || cfg.posterUrl || '';
   const genreList = (cfg.genres || '').split(',').map(g => g.trim()).filter(Boolean).slice(0, 4);
@@ -14,12 +29,15 @@ export default function FeaturedEventCard({ event, onClick, label = 'FEATURED' }
 
   return (
     <div
-      className={s.card}
+      className={`${s.card}${rail ? ' ' + s.cardRail : ''}${rail && solo ? ' ' + s.cardRailSolo : ''}`}
       onClick={onClick}
       style={poster ? { backgroundImage: `url(${poster})` } : { background: bg }}
     >
       <div className={s.overlay} />
-      <div className={s.badge}>{label}</div>
+      <div className={s.badge} style={badgeColor ? { background: badgeColor } : undefined}>{label}</div>
+      {cornerAction && (
+        <div className={s.corner} onClick={e => e.stopPropagation()}>{cornerAction}</div>
+      )}
       <div className={s.content}>
         <div className={s.date}>{formatShortDate(cfg.date)}</div>
         <div className={s.name}>{event.name}</div>

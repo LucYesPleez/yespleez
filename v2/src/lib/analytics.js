@@ -77,7 +77,7 @@ export const EVENTS = Object.freeze({
  * DISPLAY_MODES — a typo here would silently split one surface's numbers in
  * two, and both halves would look plausible.
  */
-export const SURFACES = Object.freeze(['whats_on', 'discover']);
+export const SURFACES = Object.freeze(['whats_on', 'discover', 'my_scene']);
 
 /**
  * Every value displayMode() and platform() can return.

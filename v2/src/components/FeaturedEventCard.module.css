@@ -17,6 +17,28 @@
   box-shadow: 0 12px 32px rgba(0,0,0,.45);
 }
 
+/* RAIL SIZING — the hero look, in a horizontal scroller.
+   88% leaves a deliberate peek of the next card so the rail reads as
+   scrollable without a scrollbar (there are none anywhere in this app).
+   flex-shrink:0 is what stops five heroes squashing into one row. */
+.cardRail {
+  flex: 0 0 88%;
+  max-width: 560px;
+  scroll-snap-align: start;
+}
+/* A rail of one has nothing to peek at, so it takes the full column. */
+.cardRailSolo {
+  flex-basis: 100%;
+  max-width: none;
+}
+
+.corner {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 2;
+}
+
 .overlay {
   position: absolute;
   inset: 0;

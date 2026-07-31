@@ -484,15 +484,15 @@ test('an unknown surface is dropped before it reaches the network', () => {
     'a surface typo would split one surface\'s numbers in two, both plausible');
 });
 
-test('both surfaces the app actually uses are members of SURFACES', () => {
-  // The screens pass string literals ('discover', 'whats_on'). If either is
-  // renamed here without the call site following, trackFiltered silently
-  // drops every demand row from that screen — no error, just a surface that
-  // stops appearing in Scene Pulse.
-  for (const surface of ['discover', 'whats_on']) {
+test('every surface the app actually uses is a member of SURFACES', () => {
+  // The screens pass string literals ('discover', 'whats_on', 'my_scene').
+  // If any is renamed here without the call site following, trackFiltered
+  // silently drops every demand row from that screen — no error, just a
+  // surface that stops appearing in Scene Pulse.
+  for (const surface of ['discover', 'whats_on', 'my_scene']) {
     trackFiltered({ surface, genre: 'Techno' });
   }
-  assert.deepEqual(pings().map(p => p.props.surface), ['discover', 'whats_on']);
+  assert.deepEqual(pings().map(p => p.props.surface), ['discover', 'whats_on', 'my_scene']);
 });
 
 test('the unfiltered default view records nothing', () => {

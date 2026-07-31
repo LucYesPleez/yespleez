@@ -12,7 +12,9 @@ export function useEvents(fromDate, toDate) {
         // venue owns it, and the event's own postcode/lat/lng are the
         // venue-independent fallback for doofs, showgrounds and multi-venue
         // festivals. Resolution order lives in lib/geo.js eventCoords().
-        .select('id, host_id, name, config, created_at, venue_profile_id, postcode, lat, lng, venue:venue_profile_id(postcode, state, lat, lng)')
+        // owner_profile_id rides along for the scene floor's favourite-first
+        // ordering (follows.target_profile_id ↔ owner/venue profile ids).
+        .select('id, host_id, name, config, created_at, venue_profile_id, owner_profile_id, postcode, lat, lng, venue:venue_profile_id(postcode, state, lat, lng)')
         .order('created_at', { ascending: false })
         .limit(200);
       if (error) throw error;

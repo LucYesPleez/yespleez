@@ -700,68 +700,11 @@
 }
 .weekendScroll::-webkit-scrollbar { display: none; }
 
-.weekendCard {
-  position: relative;
-  flex-shrink: 0;
-  width: 210px;
-  height: 260px;
-  border-radius: 14px;
-  overflow: hidden;
-  background: linear-gradient(135deg, #1a0533 0%, #2d1b69 100%);
-  background-size: cover;
-  background-position: center;
-  cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-  transition: transform .2s, box-shadow .2s;
-}
-.weekendCard:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 12px 28px rgba(0,0,0,.45);
-}
-
-.weekendOverlay {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(to bottom, rgba(10,10,15,.05) 30%, rgba(10,10,15,.85) 100%);
-}
-
-.weekendBadges {
-  position: absolute;
-  top: 10px;
-  left: 10px;
-  display: flex;
-  gap: 4px;
-  flex-wrap: wrap;
-  z-index: 1;
-}
-
-.weekendBadge {
-  font-family: 'DM Sans', sans-serif;
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: .8px;
-  padding: 3px 8px;
-  border-radius: 6px;
-}
-
-.weekendHeart {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  background: rgba(0,0,0,.45);
-  border: none;
-  color: #fff;
-  border-radius: 50%;
-  width: 32px;
-  height: 32px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  backdrop-filter: blur(4px);
-}
+/* The .weekendCard tile and its overlay/badge/heart/text styles were deleted
+   with the local WeekendCard component (2026-07-31). The portrait card is now
+   the shared EventCard "scroll" variant, which brings its own styling — see
+   PortraitEventCard in WhatsOnScreen.jsx. Only .weekendScroll survives here:
+   it is the RAIL these cards sit in, not the card. */
 
 .comingHeart {
   background: none;
@@ -775,54 +718,6 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-}
-
-.weekendContent {
-  position: relative;
-  z-index: 1;
-  padding: 10px;
-}
-
-.weekendName {
-  font-family: 'Bebas Neue', sans-serif;
-  font-size: 16px;
-  letter-spacing: .5px;
-  line-height: 1.1;
-  color: #fff;
-  margin-bottom: 3px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.weekendVenue {
-  font-size: 11px;
-  color: rgba(232,232,240,.6);
-  margin-bottom: 2px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.weekendDate {
-  font-size: 10px;
-  color: rgba(232,232,240,.5);
-  margin-bottom: 4px;
-}
-
-.weekendTags {
-  display: flex;
-  gap: 4px;
-  flex-wrap: wrap;
-}
-
-.weekendTag {
-  background: rgba(255,255,255,.07);
-  border-radius: 6px;
-  font-size: 9px;
-  padding: 2px 7px;
-  color: var(--muted);
-  letter-spacing: .3px;
 }
 
 /* ── Coming Up list rows ── */

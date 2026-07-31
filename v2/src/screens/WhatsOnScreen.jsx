@@ -2,18 +2,16 @@ import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { SkeletonRow, SkeletonEventCard } from '../components/Skeleton';
 import { useNavigate } from 'react-router-dom';
 import { useEvents } from '../lib/useEvents';
-import { supabase } from '../lib/supabase';
-import { getPersonalProfileId } from '../lib/actingProfile';
-import { track, EVENTS, trackFiltered } from '../lib/analytics';
+import { trackFiltered } from '../lib/analytics';
 import { eventCoords, postcodeCoords, withinRadius } from '../lib/geo';
 import { resolveLocationToPostcodes } from '../lib/auLocations';
-import { useSession } from '../App';
 import { today, dateStr, weekendRange, formatDisplayDate } from '../lib/dates';
 import { getDemoEvents } from '../lib/demoEvents';
 import FeaturedEventCard from '../components/FeaturedEventCard';
 import DemoEventNotice from '../components/DemoEventNotice';
+import HeartBtn, { HEART_OVERLAY_STYLE } from '../components/HeartBtn';
+import EventCard from '../components/EventCard';
 import s from './WhatsOnScreen.module.css';
-import { likedEvents } from '../lib/likedEvents';
 import { getEventBadges } from '../lib/eventBadges';
 import { useDragScroll } from '../hooks/useDragScroll';
 
@@ -81,77 +79,32 @@ function formatMedDate(iso) {
 }
 
 // ── Card components ──────────────────────────────────
+// HeartBtn moved to components/HeartBtn.jsx so My Scene's catalogue floor
+// shares the exact save interaction (one glyph, one `follows` row).
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-function HeartBtn({ event, className }) {
-  const { session } = useSession();
-  const [liked, setLiked] = useState(() => likedEvents.has(event.id));
-  const [busy,  setBusy]  = useState(false);
-  const isReal = UUID_RE.test(event.id);
-
-  useEffect(() => {
-    if (!session?.user?.id || !isReal) return;
-    if (likedEvents.has(event.id)) return; // already confirmed this session
-    supabase.from('follows').select('id').eq('user_id', session.user.id).eq('entity_id', event.id).maybeSingle()
-      .then(({ data }) => {
-        if (data) { likedEvents.add(event.id); setLiked(true); }
-      });
-  }, [event.id, session?.user?.id, isReal]);
-
-  async function toggle(e) {
-    e.stopPropagation();
-    if (!session?.user?.id || busy || !isReal) return;
-    setBusy(true);
-    if (liked) {
-      await supabase.from('follows').delete().eq('user_id', session.user.id).eq('entity_id', event.id);
-      likedEvents.delete(event.id); setLiked(false);
-    } else {
-      // M6 (R6.1): stamp attribution at write time — personal act (§A6/§A9).
-      const fromProfileId = await getPersonalProfileId(session.user.id);
-      await supabase.from('follows').insert({ user_id: session.user.id, from_profile_id: fromProfileId, entity_id: event.id, entity_type: 'event', entity_name: event.name });
-      track(EVENTS.FOLLOWED, { entity_type: 'event' });
-      likedEvents.add(event.id); setLiked(true);
-    }
-    setBusy(false);
-  }
-
+/**
+ * THE PORTRAIT EVENT CARD — one design, app-wide.
+ *
+ * This was a local `WeekendCard`: a 210×260 tile with the poster bled to all
+ * four edges and the name, venue and date laid over it under a gradient. My
+ * Scene meanwhile used the shared EventCard's "scroll" variant — poster
+ * confined to a band across the top, text on a solid panel beneath — so the
+ * same event looked like two different products depending on the tab you were
+ * standing in. Owner, 2026-07-31: "make them all look like the one inside my
+ * scene. its a much cleaner card."
+ *
+ * So the local component is gone rather than restyled to match. Two lookalike
+ * cards drift; one shared card cannot. The heart moves into EventCard's
+ * `cornerAction` slot with the same overlay style My Scene uses.
+ */
+function PortraitEventCard({ event, onClick }) {
   return (
-    <button className={className} onClick={toggle} style={liked ? { color: 'var(--neon)', borderColor: 'rgba(255,45,120,.5)' } : {}}>
-      <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill={liked ? 'var(--neon)' : 'none'} stroke={liked ? 'var(--neon)' : 'currentColor'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
-      </svg>
-    </button>
-  );
-}
-
-function WeekendCard({ event, onClick }) {
-  const cfg    = event.config || {};
-  const poster = cfg.poster || cfg.posterUrl || '';
-  const badges = getEventBadges(cfg.genres || '', event.name || '');
-  const genreList = (cfg.genres || '').split(',').map(g => g.trim()).filter(Boolean).slice(0, 2);
-
-  return (
-    <div className={s.weekendCard} onClick={onClick} style={poster ? { backgroundImage: `url(${poster})` } : {}}>
-      <div className={s.weekendOverlay} />
-      <div className={s.weekendBadges}>
-        {badges.map(b => <span key={b.label} className={s.weekendBadge} style={{ background: b.bg, color: b.col }}>{b.label}</span>)}
-      </div>
-      <HeartBtn event={event} className={s.weekendHeart} />
-      <div className={s.weekendContent}>
-        <div className={s.weekendName}>{event.name}</div>
-        {cfg.venue && <div className={s.weekendVenue}>
-        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ verticalAlign: 'middle', marginRight: 3, flexShrink: 0 }}><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg>
-        {cfg.venue}
-      </div>}
-        {cfg.date  && <div className={s.weekendDate}>{new Date(cfg.date + 'T12:00:00').toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' })}</div>}
-        {genreList.length > 0 && (
-          <div className={s.weekendTags}>
-            {genreList.map(g => <span key={g} className={s.weekendTag}>{g}</span>)}
-          </div>
-        )}
-      </div>
-    </div>
+    <EventCard
+      variant="scroll"
+      event={event}
+      onClick={onClick}
+      cornerAction={<HeartBtn event={event} style={HEART_OVERLAY_STYLE} />}
+    />
   );
 }
 
@@ -578,7 +531,7 @@ export default function WhatsOnScreen() {
               </div>
               <div className={s.weekendScroll} ref={weekendDrag1.ref} onMouseDown={weekendDrag1.onMouseDown} onMouseMove={weekendDrag1.onMouseMove} onMouseUp={weekendDrag1.onMouseUp} onMouseLeave={weekendDrag1.onMouseLeave} style={{ cursor:'grab' }}>
                 {tonightEvents.map(ev => (
-                  <WeekendCard key={ev.id} event={ev} onClick={() => openEvent(ev)} />
+                  <PortraitEventCard key={ev.id} event={ev} onClick={() => openEvent(ev)} />
                 ))}
               </div>
             </div>
@@ -595,7 +548,7 @@ export default function WhatsOnScreen() {
               </div>
               <div className={s.weekendScroll} ref={weekendDrag2.ref} onMouseDown={weekendDrag2.onMouseDown} onMouseMove={weekendDrag2.onMouseMove} onMouseUp={weekendDrag2.onMouseUp} onMouseLeave={weekendDrag2.onMouseLeave} style={{ cursor:'grab' }}>
                 {weekendEvents.map(ev => (
-                  <WeekendCard key={ev.id} event={ev} onClick={() => openEvent(ev)} />
+                  <PortraitEventCard key={ev.id} event={ev} onClick={() => openEvent(ev)} />
                 ))}
               </div>
             </div>
