@@ -52,6 +52,19 @@ const TRAVEL = 30;
 const WIDTH = SIZE + TRAVEL;
 
 /**
+ * Invisible tap area added above and below the visible pill.
+ *
+ * The pill LOOKS 36 tall but its weak axis for a thumb is height — 36 against
+ * the ~44 every platform targets. 4px each way takes the pressable box to 44
+ * without the pill growing a pixel: `padding` enlarges the button's border-box
+ * while an equal negative `margin` pulls its LAYOUT footprint back to 36, so
+ * the capsule — which sizes to its tallest child — does not grow. The 4px lives
+ * inside the capsule's 5px INSET, and `.yp-slot-collapse`'s clip-margin lets it
+ * survive that wrapper's clip.
+ */
+const HIT_PAD = 4;
+
+/**
  * Exported because the composer's collapsing slot has to animate to exactly
  * this width. A copied literal there would silently stop matching the moment
  * either SIZE or TRAVEL changed, leaving the slot a few pixels off with nothing
@@ -106,9 +119,19 @@ export default function VoicePill({ recording = false, parked = false, disabled 
         : parked  ? 'Continue recording'
         : 'Record a voice message'
       }
-      className={`yp-pill${recording ? ' yp-pill-live' : ''}`}
-      style={{ width: WIDTH, height: SIZE }}
+      // HIT BOX, not the visual. Transparent; the pill's glass lives on the
+      // inner span. content-box + padding/negative-margin makes the pressable
+      // area SIZE + 2*HIT_PAD (44) while the layout footprint stays SIZE (36) —
+      // see HIT_PAD.
+      className="yp-pill-hit"
+      style={{
+        width: WIDTH,
+        boxSizing: 'content-box',
+        padding: `${HIT_PAD}px 0`,
+        margin: `-${HIT_PAD}px 0`,
+      }}
     >
+      <span className={`yp-pill${recording ? ' yp-pill-live' : ''}`} style={{ width: WIDTH, height: SIZE }}>
       {/* THE PANEL'S OWN GLYPH — not a live meter. It only has to READ as a
           waveform so the control is recognisable at a glance; the live audio is
           drawn across the text field, where there is room for it. */}
@@ -159,6 +182,7 @@ export default function VoicePill({ recording = false, parked = false, disabled 
           <rect x="9" y="2" width="6" height="11" rx="3" />
           <path d="M5 10a7 7 0 0 0 14 0" /><path d="M12 17v5" />
         </svg>
+      </span>
       </span>
     </button>
   );

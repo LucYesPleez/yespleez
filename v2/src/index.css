@@ -441,7 +441,20 @@ input, textarea, select {
   transition: background var(--yp-medium) var(--yp-ease),
               border-color var(--yp-medium) var(--yp-ease);
 }
-.yp-pill:disabled { cursor: not-allowed; opacity: .5; }
+/* The transparent HIT BOX around the pill (VoicePill). Carries the press and
+   the disabled state; the visible .yp-pill glass is its child. Its extra
+   height is invisible tap area — see HIT_PAD — so it wears no fill of its own. */
+.yp-pill-hit {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.yp-pill-hit:disabled { cursor: not-allowed; opacity: .5; }
 
 /* Recording lights the whole panel, not just the microphone. The container is
    the state; the microphone only says where in that state you are. */
@@ -1138,7 +1151,14 @@ input, textarea, select {
 .yp-slot-collapse {
   display: inline-flex;
   align-items: center;
-  overflow: hidden;
+  /* `clip`, not `hidden`, WITH a clip-margin — so the width-collapse still
+     clips the pill (it is opacity:0 by then anyway) while the mic's 4px
+     vertical hit-slop is allowed to poke out top and bottom instead of being
+     shaved off. Matches HIT_PAD in VoicePill. Where the property is
+     unsupported this degrades to a plain clip: the tap area falls back to 36,
+     no worse than before, never broken. */
+  overflow: clip;
+  overflow-clip-margin: 4px;
   flex-shrink: 0;
   /* ⚠ REQUIRED, and not obvious. This span is a flex ITEM of the capsule, and
      a flex item's default `min-width: auto` floors it at its content's
