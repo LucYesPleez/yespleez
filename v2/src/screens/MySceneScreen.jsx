@@ -62,17 +62,11 @@ const SPOTLIGHT_RAIL_GAP = 12;
    metronome. */
 const SPOTLIGHT_AUTOPLAY_MS = 6000;
 
-/** Circular edge control for the Spotlight rail. Deliberately unlike the
- *  card's own magenta CTA arrow: these move the RAIL, that one opens the
- *  EVENT, and they must not read as the same button. */
-const SPOT_ARROW_STYLE = {
-  position: 'absolute', top: '50%', transform: 'translateY(-50%)', zIndex: 3,
-  width: 34, height: 34, borderRadius: '50%',
-  background: 'rgba(10,10,15,.72)', border: '1px solid rgba(255,255,255,.28)',
-  color: '#fff', fontSize: 20, lineHeight: 1, cursor: 'pointer',
-  display: 'flex', alignItems: 'center', justifyContent: 'center',
-  backdropFilter: 'blur(4px)', padding: 0,
-};
+/* ⛔ SPOT_ARROW_STYLE DELETED 2026-08-01 (owner) — the circular ‹ › edge
+   controls on the Spotlight rail are gone, along with the card's own open
+   arrow. Three ways to move the rail remain: drag, the position dots, and
+   autoplay. ⚠ `stepSpotlight` SURVIVES and must not be deleted with them —
+   autoplay calls it every 6s. */
 
 /* Spotlight badge colours, keyed by the rule that fired. The badge text is
  * the explanation; colour only groups the KIND of reason — your own
@@ -1255,14 +1249,6 @@ export default function MySceneScreen({ isGuest, onSignOut }) {
                         />
                       ))}
                     </div>
-                    {spotlightItems.length > 1 && (
-                      <>
-                        <button onClick={() => stepSpotlight(-1)} aria-label="Previous spotlight"
-                          style={{ ...SPOT_ARROW_STYLE, left: 6 }}>‹</button>
-                        <button onClick={() => stepSpotlight(1)} aria-label="Next spotlight"
-                          style={{ ...SPOT_ARROW_STYLE, right: 6 }}>›</button>
-                      </>
-                    )}
                   </div>
                   {/* Position dots — one per card, so the rail announces how
                       much there is before you touch it. Tappable, because on
@@ -1767,24 +1753,19 @@ export default function MySceneScreen({ isGuest, onSignOut }) {
                           ))}
                         </div>
                       ) : (
-                        /* ⚠ THE LIST ROWS CARRY NO HEART, and that is a real
-                           cost, not an oversight. EventCard's default variant
-                           renders a <button>; a HeartBtn inside it would be a
-                           button nested in a button, which is invalid and does
-                           not receive its own clicks — this is exactly why
-                           cornerAction is documented scroll-variant-only.
-                           It matches COMING UP and FOLLOWING, whose list rows
-                           have no heart either, but those are diaries of things
-                           already saved, whereas this is the floor, where
-                           "every card is a save affordance" is the stated rule.
-                           Saving from this view therefore means opening the
-                           event. Portrait stays the default so the cheap save
-                           is what a reader meets first. Raised with the owner. */
+                        /* ✅ The list rows now carry the heart too (owner,
+                           2026-08-01), in the same bottom-right corner the
+                           portrait cards use. EventCard renders it as a sibling
+                           overlay here because this variant is a <button> —
+                           see the note in EventCard.jsx. The floor's rule that
+                           every card is a save affordance now holds in BOTH
+                           views, which it did not when this toggle shipped. */
                         <div style={{ display:'flex', flexDirection:'column', gap:6, marginTop:10, ...(!areaExpanded && floor.aroundYou.items.length >= 4 ? { maxHeight:315, overflowY:'scroll', scrollbarWidth:'none', WebkitOverflowScrolling:'touch', maskImage:'linear-gradient(to bottom, black 75%, transparent 100%)', WebkitMaskImage:'linear-gradient(to bottom, black 75%, transparent 100%)' } : { overflowY:'visible' }) }}>
                           {floor.aroundYou.items.map(ev => (
                             <EventCard key={ev.id} event={ev}
                               badge={cardReason(ev)?.badge} badgeColor={cardReason(ev)?.color}
                               onClick={() => navigate(`/event/${ev.id}`)}
+                              cornerAction={<HeartBtn event={ev} style={HEART_STYLE} onChange={liked => onFloorHeart(ev, liked)} onError={onFloorHeartError} />}
                             />
                           ))}
                         </div>

@@ -54,9 +54,13 @@ function Pill({ label, bg, col }) {
  *   onClick    – click handler
  *   variant    – "card" (default) | "scroll" | "row"
  *   small      – legacy, treated as variant="scroll"
- *   cornerAction – JSX overlaid bottom-right of the poster (scroll variant
- *                  only) — the floor's HeartBtn. Clicks inside it must not
- *                  open the event, so the wrapper stops propagation.
+ *   cornerAction – JSX pinned to the card's BOTTOM-RIGHT CORNER — the floor's
+ *                  HeartBtn. Supported by the scroll variant AND the default
+ *                  card variant (owner, 2026-08-01: the heart belongs in the
+ *                  same corner in both views). Clicks inside must not open the
+ *                  event, so the wrapper stops propagation.
+ *                  ⚠ The default variant is a <button>, so there the heart is
+ *                  rendered as a SIBLING in a relative wrapper, never nested.
  */
 export default function EventCard({ event, badge: badgeOverride, badgeColor, onClick, variant, small = false, noHover = false, cornerAction = null }) {
   const navigate = useNavigate();
@@ -82,7 +86,7 @@ export default function EventCard({ event, badge: badgeOverride, badgeColor, onC
     const chip = fmtChip(date);
     const venueShort = venue.split(',')[0];
     return (
-      <div onClick={handleClick} style={{ flexShrink:0, width:195, borderRadius:16, overflow:'hidden', background:'var(--card2)', border:'1px solid rgba(255,255,255,.08)', cursor:'pointer' }}>
+      <div onClick={handleClick} style={{ flexShrink:0, width:195, borderRadius:16, overflow:'hidden', background:'var(--card2)', border:'1px solid rgba(255,255,255,.08)', cursor:'pointer', position:'relative' }}>
         <div style={{ height:120, background: poster ? `url('${poster}') center/cover no-repeat` : 'linear-gradient(135deg,rgba(255,45,120,.25),rgba(157,78,221,.25))', position:'relative' }}>
           {pills.length > 0 && (
             <div style={{ position:'absolute', top:8, left:8, display:'flex', gap:4, flexWrap:'wrap' }}>
@@ -94,13 +98,20 @@ export default function EventCard({ event, badge: badgeOverride, badgeColor, onC
               <DateBox date={date} size="sm" />
             </div>
           )}
-          {cornerAction && (
-            <div style={{ position:'absolute', bottom:8, right:8 }} onClick={e => e.stopPropagation()}>
-              {cornerAction}
-            </div>
-          )}
         </div>
-        <div style={{ padding:'10px 12px 12px' }}>
+        {/* ⚠ The heart is a child of the CARD, not of the poster band — owner,
+            2026-08-01: "put the heart down the bottom right corner". It used to
+            sit at the poster's bottom-right, which is the card's MIDDLE once
+            the text panel is counted, so it read as floating in the artwork
+            rather than belonging to the card. The card gained position:relative
+            for this; the text panel below reserves room so nothing runs under
+            it. */}
+        {cornerAction && (
+          <div style={{ position:'absolute', bottom:8, right:8, zIndex:2 }} onClick={e => e.stopPropagation()}>
+            {cornerAction}
+          </div>
+        )}
+        <div style={{ padding: cornerAction ? '10px 46px 12px 12px' : '10px 12px 12px' }}>
           <div style={{ fontFamily:"'Bebas Neue'", fontSize:16, letterSpacing:.5, marginBottom:5, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
             {event.name || 'Event'}
           </div>
@@ -154,7 +165,7 @@ export default function EventCard({ event, badge: badgeOverride, badgeColor, onC
   const statusPills = badgeOverride ? [{ label: badgeOverride, bg: badgeColor || '#fff', col: '#fff' }] : [];
   const genrePills  = badgeOverride ? [] : autoBadges;
 
-  return (
+  const cardEl = (
     <button className={`${s.card}${isLive ? ' ' + s.cardLive : ''}${noHover ? ' ' + s.cardNoHover : ''}`} onClick={handleClick}>
       {poster
         ? <img className={s.cardImg} src={poster} alt={event.name} />
@@ -189,11 +200,31 @@ export default function EventCard({ event, badge: badgeOverride, badgeColor, onC
           </div>
         </div>
         {statusPills.length > 0 && (
-          <div className={s.cardRight} style={{ display:'flex', gap:4, flexWrap:'wrap', justifyContent:'flex-end' }}>
+          <div className={s.cardRight} style={{ display:'flex', gap:4, flexWrap:'wrap', justifyContent:'flex-end', paddingRight: cornerAction ? 44 : 12 }}>
             {statusPills.map(p => <Pill key={p.label} {...p} />)}
           </div>
         )}
       </div>
     </button>
+  );
+
+  if (!cornerAction) return cardEl;
+
+  /* ⚠ THE HEART IS A SIBLING OF THE CARD, NOT A CHILD — and it has to be.
+     This variant renders a <button>, so a HeartBtn inside it would be a button
+     nested in a button: invalid HTML, and the inner one never reliably gets
+     its own clicks. That is why cornerAction used to be scroll-variant-only.
+     Wrapping in a relative div puts the heart on top without breaking the
+     card's own button semantics. The wrapper is only introduced WHEN there is
+     a cornerAction, so every other caller's DOM is byte-identical.
+     statusPills above shift left by the heart's width so a SAVED pill and the
+     heart never stack — they share the same corner otherwise. */
+  return (
+    <div style={{ position:'relative' }}>
+      {cardEl}
+      <div style={{ position:'absolute', bottom:10, right:10, zIndex:3 }} onClick={e => e.stopPropagation()}>
+        {cornerAction}
+      </div>
+    </div>
   );
 }
