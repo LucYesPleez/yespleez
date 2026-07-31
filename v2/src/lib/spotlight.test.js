@@ -119,7 +119,7 @@ test('the rail never exceeds the limit however much qualifies', () => {
 
 test('no single rule may fill the rail — otherwise Spotlight is the section below it with a new heading', () => {
   // Five events all owned by the user and all recently announced: without a
-  // cap this is five MY EVENT cards, i.e. YOUR UPCOMING with a new heading.
+  // cap this is five MY EVENT cards, i.e. COMING UP with a new heading.
   const mine = Array.from({ length: 5 }, (_, i) => ev({ date: `2026-01-0${i + 2}` }));
   const { items } = buildSpotlight({
     ...BASE, events: mine, myEventIds: new Set(mine.map(e => e.id)),

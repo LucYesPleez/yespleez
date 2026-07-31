@@ -25,6 +25,43 @@
   flex: 0 0 88%;
   max-width: 560px;
   scroll-snap-align: start;
+  /* ⚠ SHORTER THAN THE SOLO HERO ON PURPOSE (owner, 2026-07-31: "its half a
+     screen"). MEASURED on a 375x812 phone — 694px usable once the app header
+     and the bottom nav are taken out: at .card's 280px the SPOTLIGHT block ran
+     354px, i.e. 51% of everything the reader could see, before a single event
+     row. 210px brings the block to ~284px / ~41%.
+
+     This overrides .card's min-height and ONLY here: What's On's featured hero
+     passes no `rail` prop, so it keeps the full 280px. One card, two jobs —
+     that page shows exactly one hero and can afford the height; this rail
+     shows up to five and sits above the whole scene floor.
+
+     ⛔ 210 is near the floor, and the floor is TEXT, not taste: the content
+     stack (padding + date + a two-line name + venue + genre tags) needs about
+     150px, so much below ~200px there is no poster left to see and it stops
+     being a hero at all. Going shorter than this means redesigning the card —
+     smaller name, or dropping the genre tags — which is a design decision, not
+     a number to tweak here. */
+  min-height: 210px;
+}
+
+/* ⚠ THIS CLAMP IS WHAT MAKES min-height ABOVE MEAN ANYTHING. Measured, after
+   setting the height and finding it changed almost nothing: "Thelma Plum – I
+   Don't Play That Song Anymore Tour" is 3 lines at 102px, which pushed the
+   content stack to 209px and grew the card right back past its min-height —
+   leaving ONE pixel of poster. A hero with no visible image is not a hero, and
+   min-height is a floor, never a ceiling.
+   Clamped to two lines the same card holds at 210px with 35px of poster
+   showing (69px for a short name). It also makes every card in the rail the
+   SAME height, which a horizontal snapping rail needs — 243px next to 210px
+   reads as broken, not as variety.
+   Scoped to .cardRail on purpose: What's On's solo hero keeps its full 280px
+   and its unclamped title, because it has the room and shows only one. */
+.cardRail .name {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 /* A rail of one has nothing to peek at, so it takes the full column. */
 .cardRailSolo {

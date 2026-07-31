@@ -180,6 +180,12 @@ export default function MySceneScreen({ isGuest, onSignOut }) {
   const [pastLimit,       setPastLimit]       = useState(3);
   const [eventsExpanded,  setEventsExpanded]  = useState(false);
   const [pastEventSearch, setPastEventSearch] = useState('');
+  /* YOUR AREA carries the same pair. It defaults to 'portrait' — unlike
+     COMING UP's 'landscape' — because the floor is a BROWSING surface: the
+     poster is the reason you stop on a card, and the rail is what the section
+     has always been. The list is the opt-in density view, not the entry point. */
+  const [areaView,        setAreaView]        = useState('portrait');
+  const [areaExpanded,    setAreaExpanded]    = useState(false);
 
   // Distance helpers now live in lib/geo.js — this screen held the app's only
   // working implementation and Discover/What's On need the same one. Behaviour
@@ -406,7 +412,7 @@ export default function MySceneScreen({ isGuest, onSignOut }) {
   function onFloorHeart(ev, liked) {
     if (liked) {
       setJustSaved(prev => new Set(prev).add(ev.id));
-      showToast('Saved to My Scene — find it under YOUR UPCOMING.');
+      showToast('Saved to My Scene — find it under COMING UP.');
     } else {
       setJustSaved(prev => { const n = new Set(prev); n.delete(ev.id); return n; });
     }
@@ -642,12 +648,15 @@ export default function MySceneScreen({ isGuest, onSignOut }) {
     return () => clearTimeout(t);
   }, [spotIndex, spotPaused, spotlightItems.length, prefersReducedMotion]);
 
-  /* ── YOUR UPCOMING · your diary ───────────────────────────────────────
+  /* ── COMING UP · your diary ───────────────────────────────────────────
    *
    * Every upcoming event you are involved in — playing, hosting or attending
    * — in date order, COMPLETE. Owner, 2026-07-31: "your upcoming needs to
    * stay. that shows you events that are coming up that your playing at,
-   * hosting or attending."
+   * hosting or attending." Renamed YOUR UPCOMING → COMING UP the same day;
+   * the section's job did not change, only its heading. Owner kept the words
+   * ("i like coming up") — the two-line wrap was the complaint, and that is
+   * fixed in CSS on .followTab, not by shortening the label.
    *
    * ⚠ IT IS NO LONGER CAPPED TO 14 DAYS, and that is what makes it a
    * different thing from Spotlight rather than a scruffier copy of it. The
@@ -659,7 +668,7 @@ export default function MySceneScreen({ isGuest, onSignOut }) {
    *   SPOTLIGHT      up to 5 things that earned attention NOW — mixed
    *                  reasons, including events you have NOT committed to
    *                  (favourite venue, just announced, this weekend)
-   *   YOUR UPCOMING  every commitment you have, in order, however far out
+   *   COMING UP      every commitment you have, in order, however far out
    *
    * ⚠ AND IT ABSORBED "SAVED". A hearted event IS an attendance intent —
    * `follows` carries one bit, so saved and attending are the same row until
@@ -906,10 +915,11 @@ export default function MySceneScreen({ isGuest, onSignOut }) {
           <SkeletonEventCard />
           {/* Skeleton mirrors the REAL section list — a placeholder for a
               section that no longer exists promises a layout shift that never
-              arrives. YOUR UPCOMING was removed; SAVED took over its job. */}
+              arrives. It said SAVED, which the loaded page stopped rendering
+              when that tab absorbed the diary and became COMING UP. */}
           <div className={s.v1Section} style={{ marginTop:24 }}>
             <div className={s.v1Head}>
-              <div className={s.sectionHead}>SAVED</div>
+              <div className={s.sectionHead}>COMING UP</div>
               <div className={s.gradientLine} />
             </div>
             <div style={{ marginTop:10 }}>
@@ -1277,7 +1287,7 @@ export default function MySceneScreen({ isGuest, onSignOut }) {
                 </div>
               )}
 
-              {/* YOUR UPCOMING / PAST — tabbed. The tab that used to say
+              {/* COMING UP / PAST — tabbed. The tab that used to say
                   SAVED is this one: a hearted event is an attendance intent,
                   so it belongs in the diary badged ATTENDING rather than in a
                   second list of the same rows under another name. */}
@@ -1289,7 +1299,7 @@ export default function MySceneScreen({ isGuest, onSignOut }) {
                       className={s.followTab + (savedTab === 'saved' ? ' ' + s.followTabActive : '')}
                       onClick={() => { setSavedTab('saved'); setSavedLimit(3); setEventsExpanded(false); }}
                     >
-                      YOUR UPCOMING
+                      COMING UP
                       {upcomingEvents.length > 0 && <span className={s.followCountBadge}>{upcomingEvents.length}</span>}
                     </button>
                     <button
@@ -1394,7 +1404,7 @@ export default function MySceneScreen({ isGuest, onSignOut }) {
                     </button>
                   </div>
                   <div className={s.gradientLine} />
-                  {/* Same control, same place as YOUR UPCOMING's: heading row,
+                  {/* Same control, same place as COMING UP's: heading row,
                       immediately left of View all. Hidden while expanded —
                       the "View all" grid is portrait-only, so a view toggle
                       there would offer a choice that does not exist. */}
@@ -1682,6 +1692,27 @@ export default function MySceneScreen({ isGuest, onSignOut }) {
                 <div className={s.v1Head}>
                   <div className={s.sectionHead}>YOUR AREA</div>
                   <div className={s.gradientLine} />
+                  {/* Same control, same place, same icons as COMING UP and
+                      FOLLOWING carry — three sections, one toggle, so ▦ and ☰
+                      mean exactly one thing across this page. Hidden entirely
+                      when there is nothing to switch between. */}
+                  {originPostcode && floor.aroundYou.items.length > 0 && (
+                    <div style={{ display:'flex', background:'var(--card2)', borderRadius:8, overflow:'hidden', border:'1px solid var(--border)', flexShrink:0 }}>
+                      {[['portrait','▦'],['landscape','☰']].map(([v, icon]) => (
+                        <button key={v} onClick={() => setAreaView(v)}
+                          aria-label={v === 'portrait' ? 'Card view' : 'List view'}
+                          style={{ background: areaView===v ? 'rgba(0,229,255,.18)' : 'none', border:'none', color: areaView===v ? 'var(--neon2)' : 'var(--muted)', padding:'4px 9px', cursor:'pointer', fontSize:12, lineHeight:1, transition:'background .15s, color .15s' }}>{icon}</button>
+                      ))}
+                    </div>
+                  )}
+                  {originPostcode && floor.aroundYou.items.length > 0 && (() => {
+                    // Identical rule to COMING UP's: "View all" lifts the
+                    // LIST's height cap, and the rail has no cap to lift — so
+                    // in portrait the control is muted and inert rather than
+                    // present and lying.
+                    const hasMore = areaView === 'landscape' && floor.aroundYou.items.length >= 4;
+                    return <span className={hasMore ? s.seeAll : s.seeAllMuted} onClick={() => hasMore && setAreaExpanded(v => !v)}>{areaExpanded ? 'View less' : 'View all >'}</span>;
+                  })()}
                 </div>
                 {originPostcode ? (
                   <>
@@ -1725,15 +1756,39 @@ export default function MySceneScreen({ isGuest, onSignOut }) {
                       <div style={{ fontSize:12, color:'var(--muted)', marginTop:4 }}>None matching your genres yet — showing everything nearby.</div>
                     )}
                     {floor.aroundYou.items.length > 0 ? (
-                      <div className={s.hScroll} ref={aroundDrag.ref} onMouseDown={aroundDrag.onMouseDown} onMouseMove={aroundDrag.onMouseMove} onMouseUp={aroundDrag.onMouseUp} onMouseLeave={aroundDrag.onMouseLeave}>
-                        {floor.aroundYou.items.map(ev => (
-                          <EventCard key={ev.id} variant="scroll" event={ev}
-                            badge={cardReason(ev)?.badge} badgeColor={cardReason(ev)?.color}
-                            onClick={() => navigate(`/event/${ev.id}`)}
-                            cornerAction={<HeartBtn event={ev} style={HEART_STYLE} onChange={liked => onFloorHeart(ev, liked)} onError={onFloorHeartError} />}
-                          />
-                        ))}
-                      </div>
+                      areaView === 'portrait' ? (
+                        <div className={s.hScroll} ref={aroundDrag.ref} onMouseDown={aroundDrag.onMouseDown} onMouseMove={aroundDrag.onMouseMove} onMouseUp={aroundDrag.onMouseUp} onMouseLeave={aroundDrag.onMouseLeave}>
+                          {floor.aroundYou.items.map(ev => (
+                            <EventCard key={ev.id} variant="scroll" event={ev}
+                              badge={cardReason(ev)?.badge} badgeColor={cardReason(ev)?.color}
+                              onClick={() => navigate(`/event/${ev.id}`)}
+                              cornerAction={<HeartBtn event={ev} style={HEART_STYLE} onChange={liked => onFloorHeart(ev, liked)} onError={onFloorHeartError} />}
+                            />
+                          ))}
+                        </div>
+                      ) : (
+                        /* ⚠ THE LIST ROWS CARRY NO HEART, and that is a real
+                           cost, not an oversight. EventCard's default variant
+                           renders a <button>; a HeartBtn inside it would be a
+                           button nested in a button, which is invalid and does
+                           not receive its own clicks — this is exactly why
+                           cornerAction is documented scroll-variant-only.
+                           It matches COMING UP and FOLLOWING, whose list rows
+                           have no heart either, but those are diaries of things
+                           already saved, whereas this is the floor, where
+                           "every card is a save affordance" is the stated rule.
+                           Saving from this view therefore means opening the
+                           event. Portrait stays the default so the cheap save
+                           is what a reader meets first. Raised with the owner. */
+                        <div style={{ display:'flex', flexDirection:'column', gap:6, marginTop:10, ...(!areaExpanded && floor.aroundYou.items.length >= 4 ? { maxHeight:315, overflowY:'scroll', scrollbarWidth:'none', WebkitOverflowScrolling:'touch', maskImage:'linear-gradient(to bottom, black 75%, transparent 100%)', WebkitMaskImage:'linear-gradient(to bottom, black 75%, transparent 100%)' } : { overflowY:'visible' }) }}>
+                          {floor.aroundYou.items.map(ev => (
+                            <EventCard key={ev.id} event={ev}
+                              badge={cardReason(ev)?.badge} badgeColor={cardReason(ev)?.color}
+                              onClick={() => navigate(`/event/${ev.id}`)}
+                            />
+                          ))}
+                        </div>
+                      )
                     ) : !floorLoading && (
                       <div className={s.empty}>Nothing announced out there yet — the newest gigs are just below.</div>
                     )}

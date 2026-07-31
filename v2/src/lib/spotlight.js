@@ -35,7 +35,7 @@ import { eventMatchesGenres, favouriteReason } from './sceneFloor';
  * ── THE TWO WAYS THIS RAIL FAILS ─────────────────────────────────────
  *
  *   1. It duplicates the section below it. Five cards from one rule is just
- *      YOUR UPCOMING with a different heading, so every rule carries a CAP and
+ *      UPCOMING with a different heading, so every rule carries a CAP and
  *      the rail is built from a SPREAD of reasons.
  *   2. It pads. The rail is UP TO five, never exactly five — its length is an
  *      honest readout of how well the user has taught their scene, which is

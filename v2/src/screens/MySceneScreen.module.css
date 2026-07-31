@@ -457,6 +457,13 @@
   align-items: center;
   gap: 10px;
   margin-bottom: 4px;
+  /* ⚠ The heading NEVER breaks mid-phrase; the CONTROLS move instead. When the
+     row runs out of width the toggle and View all drop to a second line rather
+     than the section title splitting across two ("COMING / UP"). Costs nothing
+     vertically — measured 57px wrapped vs 58px for the old broken two-line
+     heading — and desktop is untouched at 29px, one line, because the row
+     still fits. Verified no horizontal overflow at 311/327/343/648px. */
+  flex-wrap: wrap;
 }
 
 .v1Sub {
@@ -472,6 +479,11 @@
   cursor: pointer;
   white-space: nowrap;
   flex-shrink: 0;
+  /* Keeps View all against the right edge when .v1Head wraps it onto a second
+     line. A no-op on a row that fits — .gradientLine's flex:1 has already
+     eaten the slack — but without it a wrapped View all orphans to the far
+     left, under the heading. Measured: left 0 without, left 287 with. */
+  margin-left: auto;
   background: linear-gradient(135deg, #00E5FF, #BF5FFF);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -490,23 +502,38 @@
   letter-spacing: 1px;
   white-space: nowrap;
   flex-shrink: 0;
+  margin-left: auto;   /* same reason as .seeAll above */
   color: var(--muted);
   opacity: 0.4;
   cursor: default;
 }
 
 /* ── Follow tabs ── */
+/* ⚠ flex-shrink:0 here and white-space:nowrap below stop "COMING UP" breaking
+   across two lines beside PAST. They are half the fix — see .v1Head's
+   flex-wrap, which is the other half and is NOT optional.
+
+   MEASURED at a 375px phone (343px content column), not guessed: the row needs
+   360px — tabs 215 (COMING UP 120 + gap 20 + PAST 76) + toggle 59 + View all
+   56 + three 10px gaps. It is 17px over. The wrap was the release valve, so
+   removing it WITHOUT giving the row somewhere to go just trades a wrapped
+   heading for a horizontally overflowing one, which is worse.
+   Tightening gaps was tried and rejected: gap 10/6 fits 343px by exactly 0px
+   and is still 27px over at 311px, i.e. it fits one phone by luck.
+   Fixes FOLLOWING/UPDATES too — same classes, same squeeze. */
 .followTabs {
   display: flex;
   gap: 20px;
   margin-bottom: 4px;
   align-items: baseline;
+  flex-shrink: 0;
 }
 
 .followTab {
   display: flex;
   align-items: center;
   gap: 7px;
+  white-space: nowrap;
   background: none;
   border: none;
   font-family: 'Bebas Neue', sans-serif;
