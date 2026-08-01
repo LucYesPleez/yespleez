@@ -14,10 +14,12 @@ function localDateStr(d) {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
 
-// THIS weekend, Friday–Sunday, local timezone (toISOString shifts UTC which breaks AU timezones).
-// When today is Sat or Sun we are already IN the weekend, so anchor to the Friday just gone —
-// not the next one — otherwise "THIS WEEKEND" advertises next weekend. The start is clamped to
-// today so the range never reaches into the past.
+// THIS weekend, always the full Friday–Sunday, local timezone (toISOString shifts UTC which
+// breaks AU timezones). When today is Sat or Sun we are already IN the weekend, so anchor to
+// the Friday just gone — not the next one — otherwise "THIS WEEKEND" advertises next weekend.
+// The range therefore reaches into the past mid-weekend, which is intended: it describes the
+// weekend, not what is left of it. Callers that fetch or list events must exclude past dates
+// themselves. The roll-over to the following weekend happens Monday morning.
 export function weekendRange() {
   const now = new Date();
   const day = now.getDay(); // 0=Sun,1=Mon,...,6=Sat
@@ -25,9 +27,15 @@ export function weekendRange() {
   const daysToFri = day === 6 ? -1 : day === 0 ? -2 : 5 - day;
   const fri = new Date(now); fri.setDate(now.getDate() + daysToFri);
   const sun = new Date(fri); sun.setDate(fri.getDate() + 2);
-  const from = localDateStr(fri);
-  const t = today();
-  return { from: from < t ? t : from, to: localDateStr(sun) };
+  return { from: localDateStr(fri), to: localDateStr(sun) };
+}
+
+// True when today falls inside the current weekend, i.e. it is Fri, Sat or Sun. The What's On
+// heading uses this to say ALSO THIS WEEKEND — TONIGHT already has tonight covered, so the
+// weekend rail is showing what else is on besides it.
+export function inWeekend() {
+  const day = new Date().getDay();
+  return day === 5 || day === 6 || day === 0;
 }
 
 export function formatDisplayDate(dateStr) {

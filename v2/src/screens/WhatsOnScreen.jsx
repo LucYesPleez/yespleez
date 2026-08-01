@@ -5,10 +5,8 @@ import { useEvents } from '../lib/useEvents';
 import { trackFiltered } from '../lib/analytics';
 import { eventCoords, postcodeCoords, withinRadius } from '../lib/geo';
 import { resolveLocationToPostcodes } from '../lib/auLocations';
-import { today, dateStr, weekendRange, formatDisplayDate } from '../lib/dates';
-import { getDemoEvents } from '../lib/demoEvents';
+import { today, dateStr, weekendRange, inWeekend, formatDisplayDate } from '../lib/dates';
 import FeaturedEventCard from '../components/FeaturedEventCard';
-import DemoEventNotice from '../components/DemoEventNotice';
 import HeartBtn from '../components/HeartBtn';
 import { HEART_OVERLAY_STYLE, HEART_BARE_STYLE } from '../components/heartStyles';
 import EventCard from '../components/EventCard';
@@ -158,7 +156,6 @@ export default function WhatsOnScreen() {
   const todayIso = today();
   const [stripMonth,   setStripMonth]   = useState(() => { const d = new Date(todayIso); return { year: d.getFullYear(), month: d.getMonth() }; });
   const [selectedDate, setSelectedDate] = useState(null);
-  const [demoNotice,   setDemoNotice]   = useState(null);
   const stripRef     = useRef(null);
   const dragRef      = useRef({ dragging: false, startX: 0, scrollLeft: 0, moved: false });
   const tonightRef   = useRef(null);
@@ -212,7 +209,9 @@ export default function WhatsOnScreen() {
   // inside useEvents is the real safety net; Coming Up gets its OWN 14-day
   // cap below so its "Next 2 weeks" label stays true regardless.
   const { events: realEvents, loading } = useEvents(todayIso, null);
-  const events = useMemo(() => [...realEvents, ...getDemoEvents(realEvents)], [realEvents]);
+  // REAL EVENTS ONLY. The demo merge that used to pad this screen is gone — a thin scene now
+  // shows as thin. Every card here is a record someone can actually open.
+  const events = realEvents;
 
   const eventDaySet = useMemo(() => {
     const set = new Set();
@@ -279,7 +278,9 @@ export default function WhatsOnScreen() {
 
   const featuredEvent  = useMemo(() => events.find(ev => ev.config?.featured) || null, [events]);
   const tonightEvents  = useMemo(() => events.filter(ev => ev.config?.date === todayIso && passes(ev)), [events, todayIso, passes]);
-  const weekendEvents  = useMemo(() => events.filter(ev => weekendDates.has(ev.config?.date) && ev.config?.date !== todayIso && passes(ev)), [events, weekendDates, todayIso, passes]);
+  // `> todayIso` not `!== todayIso`: mid-weekend the range opens on a Friday that has already
+  // been, so this drops the nights gone as well as tonight (TONIGHT owns tonight).
+  const weekendEvents  = useMemo(() => events.filter(ev => weekendDates.has(ev.config?.date) && ev.config?.date > todayIso && passes(ev)), [events, weekendDates, todayIso, passes]);
   const comingUpEvents = useMemo(() => events.filter(ev => {
     const d = ev.config?.date;
     // "Next 2 weeks" per its own label — was previously true for free because
@@ -303,12 +304,12 @@ export default function WhatsOnScreen() {
   // are instant but share the timer so a chip tap plus a typed postcode record
   // as ONE ask rather than two.
   //
-  // ⚠ THE COUNT DELIBERATELY EXCLUDES DEMO EVENTS. `events` is realEvents plus
-  // getDemoEvents(), which is right for the UI — an empty scene should not look
-  // dead — and wrong for this. Scene Pulse compares demand against SUPPLY to
-  // decide what to import, and a demo event is not supply. Counting them would
-  // report "techno in Coffs: 5 events" where there is one real one, which
-  // silently destroys the exact signal this table exists to produce.
+  // ⚠ THE COUNT MUST STAY ON `realEvents`. Demo events were removed from this screen, so
+  // `events` is real-only today and the distinction is currently moot — but the rule is not.
+  // Scene Pulse compares demand against SUPPLY to decide what to import, and anything
+  // fabricated is not supply. Counting padding would report "techno in Coffs: 5 events" where
+  // there is one real one, silently destroying the exact signal this table exists to produce.
+  // If any synthetic card ever returns to this screen, it does NOT come through here.
   //
   // Discovery 2.1 · postcode and radius now genuinely filter this screen, so
   // the region is reported as APPLIED (`location`) rather than `regionIntent`.
@@ -331,6 +332,10 @@ export default function WhatsOnScreen() {
     return () => clearTimeout(t);
   }, [category, postcode, originPostcode, radiusKm, loading, realEvents, inRange]);
 
+  // Once we are inside the weekend, TONIGHT is already showing tonight — so this rail is what
+  // is on BESIDES it, and says so. Before the weekend it is simply what is coming.
+  const weekendHeading = useMemo(() => (inWeekend() ? 'ALSO THIS WEEKEND' : 'THIS WEEKEND'), []);
+
   // Weekend date range label
   const weekendLabel = useMemo(() => {
     const fri = new Date(wr.from + 'T12:00:00');
@@ -339,11 +344,8 @@ export default function WhatsOnScreen() {
     return `${fmt(fri)} – ${fmt(sun)}`;
   }, [wr]);
 
-  // Demo cards explain themselves in a notice instead of navigating to a
-  // real event page they have no matching record for.
   function openEvent(ev) {
-    if (ev._isDemo) setDemoNotice(ev);
-    else navigate(`/event/${ev.id}`);
+    navigate(`/event/${ev.id}`);
   }
 
   function prevMonth() {
@@ -548,7 +550,7 @@ export default function WhatsOnScreen() {
           {weekendEvents.length > 0 && (
             <div ref={weekendRef} className={s.sectionBlock}>
               <div className={s.sectionRow}>
-                <span data-tour="whatson-section" className={s.sectionTitle}>THIS WEEKEND</span>
+                <span data-tour="whatson-section" className={s.sectionTitle}>{weekendHeading}</span>
                 <span className={s.sectionPill}>{weekendLabel}</span>
                 <div className={s.gradientLine} />
                 <button className={s.viewAll}>View all ›</button>
@@ -606,7 +608,6 @@ export default function WhatsOnScreen() {
         </div>
       )}
 
-      <DemoEventNotice event={demoNotice} onClose={() => setDemoNotice(null)} />
     </div>
   );
 }
