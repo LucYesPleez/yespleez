@@ -16,7 +16,8 @@ import ProfileCard from '../components/ProfileCard';
 import { SkeletonRow, SkeletonEventCard } from '../components/Skeleton';
 import s from './MySceneScreen.module.css';
 import { useDragScroll } from '../hooks/useDragScroll';
-import { haversineKm, profileCoords, postcodeCoords, isKnownPostcode } from '../lib/geo';
+import { haversineKm, profileCoords, postcodeCoords, isKnownPostcode, withinRadius } from '../lib/geo';
+import { buildLocals, LOCALS_TYPES } from '../lib/locals';
 import { useEvents } from '../lib/useEvents';
 import { weekendRange } from '../lib/dates';
 import { trackFiltered } from '../lib/analytics';
@@ -214,6 +215,7 @@ export default function MySceneScreen({ isGuest, onSignOut }) {
   const genreDrag      = useDragScroll('myscene-genre-chips');
   const aroundDrag     = useDragScroll('myscene-around-you');
   const announcedDrag  = useDragScroll('myscene-just-announced');
+  const localsDrag     = useDragScroll('myscene-locals');
   const weekendDrag    = useDragScroll('myscene-this-weekend');
 
   const uid = session?.user?.id;
@@ -517,6 +519,35 @@ export default function MySceneScreen({ isGuest, onSignOut }) {
     originCoords, originPostcode, radiusKm: sceneRadius, genres: sceneGenres,
     excludeEventIds: floorExclude, favProfileIds, favUserIds,
   }), [catalogueEvents, todayStr, wr, newSinceIso, originCoords, originPostcode, sceneRadius, sceneGenres, floorExclude, favProfileIds, favUserIds]);
+
+  /* ── LOCALS — the people and places, rotated daily ──────────────────────
+     Selection lives in lib/locals.js where it is tested; this screen fetches
+     and renders. The candidate pull is deliberately wide and cheap (one page
+     of live profiles, newest activity first) because the ladder, not the
+     query, decides what surfaces. */
+  const [localsPool, setLocalsPool] = useState(EMPTY);
+  useEffect(() => {
+    let alive = true;
+    supabase.from('profiles')
+      .select('id,user_id,name,type,avatar,avatar_thumb,location,suburb,state,postcode,lat,lng,sound,genre_string,venue_type,claim_status,updated_at')
+      .in('type', LOCALS_TYPES)
+      .or('is_live.is.null,is_live.neq.false')
+      .order('updated_at', { ascending: false })
+      .limit(200)
+      .then(({ data }) => { if (alive) setLocalsPool(data || EMPTY); });
+    return () => { alive = false; };
+  }, []);
+
+  const locals = useMemo(() => buildLocals({
+    profiles: localsPool,
+    originCoords,
+    // The user's own profiles all carry their user_id, so one value excludes
+    // every one of them without a second query.
+    excludeIds: uid ? [uid] : [],
+    radiusKm: sceneRadius,
+    isoDate: todayStr,
+    withinRadius,
+  }), [localsPool, originCoords, uid, sceneRadius, todayStr]);
 
   // The curated fallback that used to live here is now the `spotlight` rule in
   // lib/spotlight.js's table — with its own longer horizon, so a quiet
@@ -1840,6 +1871,28 @@ export default function MySceneScreen({ isGuest, onSignOut }) {
                         onClick={() => navigate(`/event/${ev.id}`)}
                         cornerAction={<HeartBtn event={ev} style={HEART_STYLE} onChange={liked => onFloorHeart(ev, liked)} onError={onFloorHeartError} />}
                       />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* LOCALS — the only section here whose noun is a PERSON rather
+                  than an event, and the only one showing people the user has
+                  NOT chosen. That is the reason no existing section carries
+                  (my-scene-philosophy rule 6): Spotlight is forward-looking
+                  events, FOLLOWING is people already chosen, Discover needs
+                  intent. Hides when empty like everything else. */}
+              {locals.items.length > 0 && (
+                <div className={s.v1Section}>
+                  <div className={s.v1Head}>
+                    <div className={s.sectionHead}>LOCALS</div>
+                    <div className={s.gradientLine} />
+                  </div>
+                  <div style={{ fontSize:12, color:'var(--muted)', marginTop:2 }}>Discover your local scene.</div>
+                  <div className={s.hScroll} ref={localsDrag.ref} onMouseDown={localsDrag.onMouseDown} onMouseMove={localsDrag.onMouseMove} onMouseUp={localsDrag.onMouseUp} onMouseLeave={localsDrag.onMouseLeave}>
+                    {locals.items.map(p => (
+                      <PortraitCard key={p.id ?? p.user_id} profile={p}
+                        followAction={<FollowHeartBtn profile={p} />} />
                     ))}
                   </div>
                 </div>
