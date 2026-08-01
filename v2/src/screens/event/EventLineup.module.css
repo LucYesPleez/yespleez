@@ -239,6 +239,11 @@
   background: var(--card2);
 }
 
+/* ⚠ `.card` / `.avatar` / `.monogram` below are NOT what the phone rail
+   renders — it renders PortraitCard, whose width comes from VISIBLE_CARDS in
+   EventLineup.jsx. Sizing the rail from here silently does nothing; change the
+   constant instead. */
+
 /* A missing avatar is a monogram, never a placeholder person — the same rule
    Presented By uses for a missing logo. */
 .monogram {

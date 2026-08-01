@@ -27,6 +27,55 @@
 }
 
 /* STATE chip language (§ 2) — filled, means something is true right now. */
+/* The venue's name, beside the VENUE label in the map window's head row.
+   Same typeface as the heading so the two read as one line, one step down in
+   size and weight so the label still leads and the name follows.
+   ⚠ Truncates rather than wraps: a long venue name pushing the head row onto
+   two lines would shove the whole card down and misalign it against the band
+   beside it. min-width:0 is what lets the ellipsis actually engage in a flex
+   row — without it the span refuses to shrink below its content. */
+.venueTitle {
+  /* Its OWN line, under the VENUE label. No ellipsis and no nowrap any more:
+     those existed to stop a long name breaking the head row it used to share
+     with the label. On its own line a long name may simply wrap, which is
+     better than truncating the one thing the reader came here for.
+     The negative margin pulls it up against the label — the card's own 12px
+     row gap is too much between an eyebrow and the line it introduces. */
+  margin-top: -5px;
+  font-family: 'Bebas Neue', sans-serif;
+  /* LARGER than the 17px "VENUE" label, and in full text colour rather than
+     muted (owner, 2026-08-01: "at least equal").
+     "VENUE" is a category marker; the name is the information. At 15px muted
+     the hierarchy was inverted — the least informative word on the row was the
+     loudest. 19px is one step up: the name leads, the label still reads as its
+     eyebrow, and the row stays one line at 22px so the card does not grow. */
+  font-size: 19px;
+  letter-spacing: 0.06em;
+  color: var(--text);
+}
+
+/* Indented under the name (owner, 2026-08-01), so the address reads as
+   belonging to the venue above it rather than as a third peer line.
+   margin, not padding: the card is a flex COLUMN, so its gap runs vertically
+   and a horizontal margin cannot collide with it. Padding would only inset the
+   text inside a box still starting at the card's left edge — which on a
+   background-less row is invisible. */
+.venueAddress {
+  margin-left: 14px;
+  /* TIGHTER than `.sub`'s 1.5 (owner, 2026-08-01). 1.5 is a reading measure —
+     right for a paragraph of prose, too airy for the stacked lines of an
+     address, where the lines belong to each other and should read as one
+     block. 1.25 closes the gap without the lines touching. */
+  line-height: 1.25;
+}
+
+/* A hairline separator. Same token as every other border on the page, so it
+   reads as the card's own division rather than a new decorative element. */
+.rule {
+  height: 1px;
+  background: var(--border);
+}
+
 .stateChip {
   padding: 3px 9px;
   border-radius: 6px;
@@ -110,7 +159,12 @@
 .map {
   display: block;
   width: 100%;
-  aspect-ratio: 16 / 10;
+  /* HALF the previous height (owner, 2026-08-01). The map is full width now,
+     so height comes entirely from the ratio: 16/10 → 16/5 halves it exactly at
+     any width, rather than a fixed px height that would only be right at one.
+     ⚠ `object-fit: cover` means the tile is CROPPED, not squashed — a letterbox
+     strip of the same map, with the pin still centred. */
+  aspect-ratio: 16 / 5;
   object-fit: cover;
   border-radius: 10px;
   border: 1px solid var(--border);
@@ -351,13 +405,61 @@
    the people behind the event are presented the way the people playing it are.
    `align-items: flex-start` so the bio starts level with the top of the card
    rather than centring against a tall portrait. */
-.presenterPortrait {
+/* PRESENTED BY is dropped on desktop (owner, 2026-08-01) — the card's own
+   HOST / VENUE badge already says it, and the pair of cards below the map
+   reads as a pair without being labelled.
+
+   ⚠ VISUALLY hidden, not `display: none`. This <h2> is the section's heading;
+   removing it from the accessibility tree would leave a landmark with no name
+   and break heading navigation. Clipped to a 1px box instead, so it is still
+   announced and still lands in the document outline. */
+.presenterHead {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* The venue's own card, in its own block. Left-aligned rather than centred so
+   it sits on the same left edge as the host's portrait in the phone pair —
+   the two cards read as a row of two, not as two centred islands. */
+.venueIdentity {
   display: flex;
   align-items: flex-start;
-  gap: 14px;
+}
+
+/* The bio sits UNDER the portrait and inside the card's own width.
+   ⚠ It used to sit BESIDE it, and that quietly broke the evenly-spaced pair:
+   with content-sized tracks the bio stretched this section to 446px against
+   the venue's 186px, consuming all the free space so `space-evenly` had
+   nothing left to distribute — 0px outside, 0px between. Measured, not
+   guessed. Pinning the block to the card width makes both sections the same
+   size, which is what lets the spacing be even at all. */
+.presenterPortrait {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  width: var(--yp-ep-card-w, 124px);
 }
 
 .presenterPortrait > .sub { flex: 1 1 auto; min-width: 0; }
+
+/* ⚠ The BIO IS GONE on a phone (owner, 2026-08-01) — the shared window holds
+   two portraits and nothing else, so the card speaks through its image, name
+   and badge alone. It returns above 1024px, where the card has a column wide
+   enough to carry it beside the portrait.
+
+   This replaces the stack-it-underneath fix from earlier the same day: that
+   existed only to stop the bio spilling out of a ~164px card, and text that
+   no longer renders cannot overflow. */
+@media (max-width: 1023px) {
+  .presenterPortrait > .sub { display: none; }
+}
 
 /* ⚠ The rules below are dead — .presenter / .presenterLogo /
    .presenterMonogram / .presenterName / .presenterRole belonged to the

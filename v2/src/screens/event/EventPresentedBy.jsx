@@ -31,7 +31,14 @@ export default function EventPresentedBy({
 
   return (
     <section className={s.card}>
-      <div className={s.headRow}><h2 className={s.heading}>PRESENTED BY</h2></div>
+      {/* ⚠ The heading is HIDDEN on desktop (owner, 2026-08-01) — the card
+          carries its own HOST/VENUE badge there, so the label was saying twice
+          what the badge already says. It stays on a phone, where the card sits
+          in a narrow column and the section needs naming. Hidden, not removed:
+          it remains in the DOM as the section's accessible name. */}
+      <div className={`${s.headRow} ${s.presenterHead}`}>
+        <h2 className={s.heading}>PRESENTED BY</h2>
+      </div>
 
       {/* PORTRAIT, not the horizontal card — the same component the Lineup
           uses, so the people behind the event are presented the way the people
@@ -44,7 +51,7 @@ export default function EventPresentedBy({
       <div className={s.presenterPortrait}>
         <PortraitCard
           profile={{ type: p.type || 'host', name: p.name, ...(p.profile || {}) }}
-          width={124}
+          width="var(--yp-ep-card-w, 124px)"
           height="auto"
           onClick={onViewProfile || undefined}
         />

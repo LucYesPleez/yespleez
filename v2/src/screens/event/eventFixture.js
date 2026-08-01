@@ -112,8 +112,8 @@ const mapTile = () => {
 };
 
 export const venueCases = {
-  'map':       { name: 'The Federal Hotel', address: '77 Hyde St', locality: 'Bellingen', state: 'NSW', mapUrl: mapTile() },
-  'address':   { name: 'The Federal Hotel', address: '77 Hyde St', locality: 'Bellingen', state: 'NSW' },
+  'map':       { name: 'The Federal Hotel', address: '77 Hyde Street', locality: 'Bellingen', state: 'NSW', mapUrl: mapTile() },
+  'address':   { name: 'The Federal Hotel', address: '77 Hyde Street', locality: 'Bellingen', state: 'NSW' },
   'locality':  { name: 'The Federal Hotel', locality: 'Bellingen', state: 'NSW' },
   'name only': { name: 'The Federal Hotel' },
   // ⚠ coordinates present AND withheld — the leak this must never allow.

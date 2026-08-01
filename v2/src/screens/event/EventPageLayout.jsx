@@ -82,6 +82,7 @@ export default function EventPageLayout({
   description,
   quickActions,
   venue,
+  venueCard,
   presentedBy,
   // Full width, in order, below the band
   lineup,
@@ -126,16 +127,23 @@ export default function EventPageLayout({
           settled separately and must not change just because desktop grouped
           them into columns, which is why each one carries its own `o*` class
           rather than inheriting a position from the column it sits in. */}
+      {/* ── The venue card and the host card ───────────────────────────
+          HALF THE WIDTH EACH, at both breakpoints (owner, 2026-08-01). Two
+          equal tracks, so neither the venue nor the presenter is framed as the
+          more important of the two. */}
+      <div className={s.venueBand}>
+        {venueCard   && <div className={s.oVenueCard}>{venueCard}</div>}
+        {presentedBy && <div className={s.oPresented}>{presentedBy}</div>}
+      </div>
+
+      {/* The map runs FULL WIDTH and sits ABOVE Event Details (owner,
+          2026-08-01) — a wide map is the point of a map, and the reader places
+          the event before reading its particulars. */}
+      {venue && <div className={`${s.fullBand} ${s.oVenue}`}>{venue}</div>}
+
       {/* Event Details runs full width and splits its own rows into two
           columns internally (see EventDetails.module rules). */}
       {eventDetails && <div className={`${s.fullBand} ${s.oDetails}`}>{eventDetails}</div>}
-
-      {/* Venue and Presented By share a row beneath it. */}
-      <Band
-        className={s.oBand2}
-        primary={[['venue', venue && <div className={s.oVenue}>{venue}</div>]]}
-        secondary={[['presentedBy', presentedBy && <div className={s.oPresented}>{presentedBy}</div>]]}
-      />
 
       {gallery            && <div className={`${s.fullBand} ${s.oGallery}`}>{gallery}</div>}
       {relatedEvents      && <div className={`${s.fullBand} ${s.oRelated}`}>{relatedEvents}</div>}

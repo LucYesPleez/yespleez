@@ -4,8 +4,21 @@
 .page {
   --yp-ep-col-primary: 58fr;
   --yp-ep-col-secondary: 42fr;
-  --yp-ep-gap-section: 16px;   /* within a group */
-  --yp-ep-gap-band: 40px;      /* between groups — deliberately larger */
+  /* ONE gap, everywhere on the page (owner, 2026-08-01): 15px between every
+     window, whether the two sit inside a band or the band sits against the
+     next one.
+     ⚠ This retires the deliberate two-tier rhythm — a group used to be 16px
+     internally and 40/56px from the next group, so the reader could see where
+     one idea ended and another began. Spacing no longer signals grouping;
+     only the card edges do. Restoring it means splitting these two again. */
+  --yp-ep-gap-section: 15px;
+  --yp-ep-gap-band: 15px;
+
+  /* The venue / host portrait width. A VARIABLE rather than a number passed to
+     PortraitCard, because the two cards change size between projections and a
+     JS prop cannot hold a media query. PortraitCard takes any CSS length and
+     derives its height from aspect-ratio, so this is the only dimension. */
+  --yp-ep-card-w: 124px;
   /* THE APP'S SPINE. GlobalHeader is `width: min(100%, 680px)` and every other
      screen — WhatsOn, Discover, My Scene — is max-width: 680px. There is no
      desktop widening anywhere in the app, so an event page at 1200px would sit
@@ -23,6 +36,30 @@
   padding: 0 var(--yp-ep-pad);
   box-sizing: border-box;
 }
+
+/* ── SECTION ORDER — ONE ORDER, BOTH PROJECTIONS ─────────────────────
+   Hero · Event+Lineup · Event Details · Venue (map, full width) · the venue
+   and host cards · Poster · Related · Sources.
+
+   Event Details sits ABOVE the venue and the presenter (owner, 2026-08-01):
+   what the night actually is comes before where it is and who is behind it.
+
+   The cards sit BELOW the venue at every width (owner, 2026-08-01), so phone
+   and desktop finally read in the same sequence again and the DOM alone tells
+   you what a reader sees. Both per-breakpoint order blocks are gone.
+
+   ⚠ `order` defaults to 0, so EVERY child needs a value — a section added
+   without an entry here lands at the TOP of the page, above the hero. That is
+   not hypothetical; it is exactly what happened when the second band was
+   first dissolved. */
+.oHero      { order: 1; }
+.oBand      { order: 2; }
+.oDetails   { order: 3; }
+.oVenue     { order: 4; }
+.venueBand  { order: 5; }
+.oGallery   { order: 6; }
+.oRelated   { order: 7; }
+.oSources   { order: 8; }
 
 /* The Hero's own row — full content width, no columns. It is the page's
    banner rather than a cell in a grid, which is what lets a cover image
@@ -45,29 +82,75 @@
    new section added below the band needs an entry here or it lands at the top
    on a phone. */
 @media (max-width: 1023px) {
-  /* The second band dissolves entirely on phone — band, both columns, gone —
-     so Venue / Details / Presented By become direct children of .page and can
-     be ordered individually. Without this they would inherit their desktop
-     column grouping and stack as Details, Venue, Presented By.
-
-     ⚠ `.band.oBand2`, not `.oBand2`. The base `.band { display: flex }` is
-     declared further down this file at equal specificity, so a bare `.oBand2`
-     lost on source order — the band stayed a flex box, its wrappers never
-     became page children, and Venue/Details/Presented By rendered ABOVE the
-     hero at order 0. Doubling the class outranks it regardless of position. */
-  .band.oBand2,
-  .oBand2 > .primary,
-  .oBand2 > .secondary { display: contents; }
-
-  .oHero      { order: 1; }
-  .oBand      { order: 2; }
-  .oVenue     { order: 3; }
-  .oDetails   { order: 4; }
-  .oPresented { order: 5; }
-  .oGallery   { order: 6; }
-  .oRelated   { order: 7; }
-  .oSources   { order: 8; }
+  /* ⚠ Presented By NO LONGER sits below Event Details on a phone.
+     It used to (the note above explains why: practical detail beating
+     promotion on a narrow screen), but the owner paired the venue and host
+     cards side by side on 2026-08-01, and a pair cannot straddle Details. The
+     venue band is ONE atomic child now, so its three blocks share one order
+     slot. Reversing this means unpairing the cards first. */
+  /* ⚠ No window around the pair on phone any more — see .venueBand below,
+     where the chrome is stripped at EVERY width. */
 }
+
+/* ── The venue card · the host card ──────────────────────────────────
+   HALF EACH, at every width (owner, 2026-08-01). Two equal tracks rather than
+   the page's 58/42 split: neither party outranks the other here.
+
+   Top-aligned, so a short card ends where its content ends instead of
+   stretching to match a taller neighbour.
+
+   ⚠ The map is NOT in this band any more. It runs full width above Event
+   Details, which is also what retired the grid-template-areas machinery this
+   band used to carry — nothing changes parent between breakpoints now, so
+   two equal columns serve both projections and R5 needs only the collapse
+   rule below. */
+/* EVENLY SPACED (owner, 2026-08-01).
+   ⚠ `1fr 1fr` + `justify-items: center` is NOT even, and that was the first
+   attempt: centring each card inside its own half gave 20px outside each edge
+   but 55px between them, because each card contributes its own half's slack to
+   the middle. Measured, not guessed.
+   Content-width tracks plus `space-evenly` is what actually divides the free
+   space into three equal parts — outside, between, outside. `gap: 0` because
+   space-evenly IS the gap here; leaving one would add to the middle only and
+   reintroduce the imbalance. */
+.venueBand {
+  display: grid;
+  grid-template-columns: auto auto;
+  justify-content: space-evenly;
+  gap: 0;
+  align-items: start;
+}
+
+/* R5 · a lone survivor takes the full width rather than sitting beside a
+   reserved empty track. Both selectors are needed: `:has()` on the container
+   is the only honest test, since a section that returns null still leaves its
+   wrapper div behind. */
+.venueBand:not(:has(.oVenueCard)),
+.venueBand:not(:has(.oPresented)) { grid-template-columns: auto; }
+
+/* Nothing rendered at all — no band, no gap, no hole. */
+.venueBand:not(:has(section)) { display: none; }
+
+/* ── NO WINDOW · the cards sit DIRECTLY ON THE PAGE ──────────────────
+   Owner, 2026-08-01. Neither the band nor the two sections inside it carry
+   card chrome at any width: the portraits are already self-contained objects
+   with their own edge and their own dark surface, and a panel around them was
+   a second frame around something already framed.
+
+   ⚠ Element selector, deliberately. `.card` lives in EventSections.module — a
+   different CSS module — so its generated class name is not addressable from
+   here. Every section in this band renders a <section>, which makes the tag
+   the one stable handle across the module boundary. */
+.venueBand section {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+
+.oVenue     { min-width: 0; }
+.oVenueCard { min-width: 0; }
+.oPresented { min-width: 0; }
 
 /* The band stacks on mobile and becomes a row on desktop.
    ⚠ The `display: contents` + `order` interleave that briefly lived here is
@@ -95,10 +178,16 @@
    band boundary, not by padding a column out). */
 @media (min-width: 1024px) {
   .page {
-    --yp-ep-gap-section: 20px;
-    --yp-ep-gap-band: 56px;
+    /* ⚠ The gaps do NOT widen on desktop any more — 15px is the page's one
+       gap at every width (owner, 2026-08-01). Only the padding still grows. */
     --yp-ep-pad: 24px;
+
+    /* 50% larger than the phone card (owner, 2026-08-01): 124 × 1.5 = 186. */
+    --yp-ep-card-w: 186px;
   }
+
+  /* ⚠ No order rules here. Both projections share ONE section order now —
+     see the block above .fullBand. */
 
   /* Flex, not grid, and the choice is load-bearing.
      A grid's column tracks exist whether or not anything occupies them, so a
@@ -147,12 +236,8 @@
   .primary:empty,
   .secondary:empty { display: none; }
 
-  /* ⚠ The second band's items sit inside order-carrying wrapper divs, so its
-     columns are never literally `:empty` — a column holding one empty div has
-     a child node and the rule above misses it, reserving 58% of nothing.
-     Every section here renders a <section>, so its absence is the honest test. */
-  .oBand2 > .primary:not(:has(section)),
-  .oBand2 > .secondary:not(:has(section)) { display: none; }
+  /* ⚠ The venue band needs NO desktop rule. Half-and-half is the same at
+     every width now that the map has left it — see the base .venueBand. */
 
   .bandSingle > .primary,
   .bandSingle > .secondary { flex: 1 1 100%; }

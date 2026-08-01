@@ -25,7 +25,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useDragScroll } from '../../hooks/useDragScroll';
 import PortraitCard from '../../components/PortraitCard';
-import { useIsPhone } from '../../hooks/useRailCardWidth';
 import { resolveLineup, sortLineup, BILL, AZ } from './lineupDisplay';
 import s from './EventLineup.module.css';
 
@@ -61,9 +60,11 @@ function ChevronIcon() {
 // the stylesheet overrides the width, so changing this number does not touch
 // the two-column layout.
 //
-// 4.3 rather than 5.5: at phone width 5.5 gave 57px cards, which is small even
-// for an avatar. 4.3 lands near 76px.
-const VISIBLE_CARDS = 4.3;
+// 3.3 (owner, 2026-08-01): three cards and part of a fourth. The history is
+// 5.5 → 4.3 → 3.3, each step trading reach for legibility — 5.5 gave 57px
+// cards and 4.3 gave 72px, both small for a face. 3.3 lands near 95px on a
+// 375px phone, the first size at which an avatar reads as a person.
+const VISIBLE_CARDS = 3.3;
 const GAP_PX = 10;   // must match the rail's own `gap` in the stylesheet
 const CARD_WIDTH = `calc((100% - ${(VISIBLE_CARDS - 1) * GAP_PX}px) / ${VISIBLE_CARDS})`;
 
@@ -93,7 +94,12 @@ export default function EventLineup({
   const railRef = useRef(null);
   const wrapRef = useRef(null);
   const drag = useDragScroll('event-lineup');
-  const avatarOnly = useIsPhone();
+  // ⛔ NOT avatar-only any more (owner, 2026-08-01). Names and towns show at
+  // every width. The old `useIsPhone()` gate was decided when phone cards were
+  // 57–72px, where a name genuinely was unreadable; at VISIBLE_CARDS = 3.3 the
+  // card is ~97px and carries both lines. A bill that will not tell you who is
+  // playing is not a bill.
+  const avatarOnly = false;
 
   const resolved = resolveLineup({ artists, withheld });
 

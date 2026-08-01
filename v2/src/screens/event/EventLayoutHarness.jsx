@@ -13,11 +13,15 @@ import EventIdentity from './EventIdentity';
 import EventSummaryCard from './EventSummaryCard';
 import EventLineup from './EventLineup';
 import EventVenue from './EventVenue';
+import EventVenueCard from './EventVenueCard';
 import EventDetails from './EventDetails';
 import EventPoster from './EventPoster';
 import EventPresentedBy from './EventPresentedBy';
 import EventSources from './EventSources';
-import EventStickyBar from './EventStickyBar';
+// ⛔ EventStickyBar is NOT imported (owner, 2026-08-01). The floating
+// GET TICKETS / SAVE bar is gone: the Decision block already carries both
+// actions, and the floater covered the last section at every scroll position.
+// The component still exists, unused, if it is ever wanted back.
 import {
   heroCases, summaryCases, lineupCases, venueCases,
   detailCases, presenterCases, sourcesCases, posterSample, collectableCases,
@@ -108,6 +112,8 @@ export default function EventLayoutHarness() {
 
         venue={<EventVenue {...venueCases[venue]} onOpenVenue={() => {}} />}
 
+        venueCard={<EventVenueCard {...venueCases[venue]} onOpenVenue={() => {}} />}
+
         eventDetails={<EventDetails rows={detailCases[details]} />}
 
         gallery={
@@ -125,14 +131,6 @@ export default function EventLayoutHarness() {
 
         informationSources={<EventSources {...sourcesCases[sources]} />}
 
-        stickyBar={
-          <EventStickyBar
-            ticketUrl={c.ticketUrl}
-            favourited={fav}
-            onToggleFavourite={() => setFav(v => !v)}
-            onShare={() => {}}
-          />
-        }
       />
     </div>
   );
