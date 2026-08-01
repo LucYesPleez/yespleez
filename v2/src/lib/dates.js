@@ -30,14 +30,6 @@ export function weekendRange() {
   return { from: localDateStr(fri), to: localDateStr(sun) };
 }
 
-// True when today falls inside the current weekend, i.e. it is Fri, Sat or Sun. The What's On
-// heading uses this to say ALSO THIS WEEKEND — TONIGHT already has tonight covered, so the
-// weekend rail is showing what else is on besides it.
-export function inWeekend() {
-  const day = new Date().getDay();
-  return day === 5 || day === 6 || day === 0;
-}
-
 export function formatDisplayDate(dateStr) {
   if (!dateStr) return '';
   const [y, m, d] = dateStr.split('-').map(Number);

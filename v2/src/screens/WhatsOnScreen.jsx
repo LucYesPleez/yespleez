@@ -5,7 +5,7 @@ import { useEvents } from '../lib/useEvents';
 import { trackFiltered } from '../lib/analytics';
 import { eventCoords, postcodeCoords, withinRadius } from '../lib/geo';
 import { resolveLocationToPostcodes } from '../lib/auLocations';
-import { today, dateStr, weekendRange, inWeekend, formatDisplayDate } from '../lib/dates';
+import { today, dateStr, weekendRange, formatDisplayDate } from '../lib/dates';
 import FeaturedEventCard from '../components/FeaturedEventCard';
 import HeartBtn from '../components/HeartBtn';
 import { HEART_OVERLAY_STYLE, HEART_BARE_STYLE } from '../components/heartStyles';
@@ -16,6 +16,10 @@ import { useDragScroll } from '../hooks/useDragScroll';
 
 const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 const DAY_NAMES   = ['S','M','T','W','T','F','S'];
+
+/* How many events COMING UP shows. A COUNT, deliberately — the section used to stop at 14 days
+   however little that caught (owner, 2026-08-02). */
+const COMING_UP_LIMIT = 20;
 
 const DATE_TABS = [
   { id: 'TONIGHT',   label: 'TONIGHT',    sub: "What's on now" },
@@ -281,13 +285,26 @@ export default function WhatsOnScreen() {
   // `> todayIso` not `!== todayIso`: mid-weekend the range opens on a Friday that has already
   // been, so this drops the nights gone as well as tonight (TONIGHT owns tonight).
   const weekendEvents  = useMemo(() => events.filter(ev => weekendDates.has(ev.config?.date) && ev.config?.date > todayIso && passes(ev)), [events, weekendDates, todayIso, passes]);
+  /* ⚠ COUNT-CAPPED, NOT DATE-CAPPED (owner, 2026-08-02). This used to cut at `d <= dateStr(14)`
+     so the list could run dry while events existed just past the fortnight. It now takes the
+     next 20 by date, however far ahead they run, and the 14-day rule is gone entirely. */
   const comingUpEvents = useMemo(() => events.filter(ev => {
     const d = ev.config?.date;
-    // "Next 2 weeks" per its own label — was previously true for free because
-    // `events` itself was capped at 14 days. Now that the cap moved to only
-    // this section, it has to enforce its own upper bound.
-    return d && d !== todayIso && d <= dateStr(14) && !weekendDates.has(d) && passes(ev);
-  }).sort((a, b) => (a.config?.date || '').localeCompare(b.config?.date || '')), [events, weekendDates, todayIso, passes]);
+    return d && d !== todayIso && !weekendDates.has(d) && passes(ev);
+  }).sort((a, b) => (a.config?.date || '').localeCompare(b.config?.date || ''))
+    .slice(0, COMING_UP_LIMIT), [events, weekendDates, todayIso, passes]);
+
+  /* ⚠ THE SUB-LABEL DESCRIBES WHAT IS ACTUALLY IN THE LIST, because the two limits no longer
+     agree. With the 14-day cut removed the section runs until it has COMING_UP_LIMIT events,
+     which on a thin scene reaches months out — the day this shipped it held 19 events ending
+     6 Nov under a label reading NEXT TWO WEEKS. Whichever bound actually bit is the one named:
+     the fortnight while everything falls inside it, the count once it does not. */
+  const comingUpWithinFortnight = useMemo(() => {
+    const last = comingUpEvents[comingUpEvents.length - 1]?.config?.date;
+    return !last || last <= dateStr(14);
+  }, [comingUpEvents]);
+  const comingUpSub    = comingUpWithinFortnight ? 'NEXT TWO WEEKS' : `NEXT ${comingUpEvents.length} EVENTS`;
+  const comingUpTabSub = comingUpWithinFortnight ? 'Next 2 weeks'   : `Next ${comingUpEvents.length} events`;
 
   /** Upcoming events that match the category but cannot be placed. */
   const unplaceableEvents = useMemo(() => {
@@ -332,17 +349,30 @@ export default function WhatsOnScreen() {
     return () => clearTimeout(t);
   }, [category, postcode, originPostcode, radiusKm, loading, realEvents, inRange]);
 
-  // Once we are inside the weekend, TONIGHT is already showing tonight — so this rail is what
-  // is on BESIDES it, and says so. Before the weekend it is simply what is coming.
-  const weekendHeading = useMemo(() => (inWeekend() ? 'ALSO THIS WEEKEND' : 'THIS WEEKEND'), []);
+  /* ONE WORD, AND IT NAMES WHAT IS ACTUALLY IN THE RAIL (owner, 2026-08-02).
+     `weekendEvents` already excludes today, so by Saturday the only thing left in here IS
+     Sunday — calling that "THIS WEEKEND" alongside a TONIGHT rail holding Saturday said the
+     same thing twice. On Sunday the rail is empty and the whole block is hidden by its own
+     `length > 0` guard, so no heading is needed for that case.
+       Mon–Fri -> WEEKEND (Sat + Sun ahead)      Sat -> SUNDAY      Sun -> section hidden
+     Two words also cost the row its only wrap: ALSO THIS WEEKEND measured 133.7px beside a
+     100px pill in 185px of usable space at 320px. WEEKEND is 63.6px. */
+  const isSaturday = useMemo(() => new Date().getDay() === 6, []);
+  const weekendHeading = isSaturday ? 'SUNDAY' : 'WEEKEND';
 
-  // Weekend date range label
+  /* The pill matches the heading. Mon–Fri it carries the full Fri–Sun span (owner, 2026-08-02:
+     the range describes the weekend, not what is left of it). On Saturday the heading already
+     says SUNDAY, so repeating "FRI … – SUN …" underneath would state two different things at
+     once; the pill narrows to that day's date, which is the one thing the heading does not
+     carry. */
   const weekendLabel = useMemo(() => {
     const fri = new Date(wr.from + 'T12:00:00');
     const sun = new Date(fri); sun.setDate(sun.getDate() + 2);
-    const fmt = d => `${d.toLocaleDateString('en-AU', { weekday: 'short' }).toUpperCase()} ${d.getDate()} ${d.toLocaleDateString('en-AU', { month: 'short' }).toUpperCase()}`;
+    const mon = d => d.toLocaleDateString('en-AU', { month: 'short' }).toUpperCase();
+    if (isSaturday) return `${sun.getDate()} ${mon(sun)}`;
+    const fmt = d => `${d.toLocaleDateString('en-AU', { weekday: 'short' }).toUpperCase()} ${d.getDate()} ${mon(d)}`;
     return `${fmt(fri)} – ${fmt(sun)}`;
-  }, [wr]);
+  }, [wr, isSaturday]);
 
   function openEvent(ev) {
     navigate(`/event/${ev.id}`);
@@ -365,13 +395,19 @@ export default function WhatsOnScreen() {
       </div>
 
       <div className={s.dateTabs}>
-        {DATE_TABS.map(({ id, label, sub }) => (
-          <button key={id} className={dateTab === id ? s.dateTabActive : s.dateTab}
-            onClick={() => { setDateTab(id); setSelectedDate(null); if (id === 'ALL') setMonthPickerOpen(true); else scrollToSection(id); }}>
-            <div className={s.dateTabLabel}>{label}</div>
-            {sub && <div className={s.dateTabSub}>{sub}</div>}
-          </button>
-        ))}
+        {DATE_TABS.map(({ id, label, sub }) => {
+          /* This tab scrolls to the COMING UP section, so it must not describe a different
+             window than the heading it lands on — the module-level `sub` is the fortnight
+             wording and only holds while the fortnight is the binding limit. */
+          const subText = id === 'COMING UP' ? comingUpTabSub : sub;
+          return (
+            <button key={id} className={dateTab === id ? s.dateTabActive : s.dateTab}
+              onClick={() => { setDateTab(id); setSelectedDate(null); if (id === 'ALL') setMonthPickerOpen(true); else scrollToSection(id); }}>
+              <div className={s.dateTabLabel}>{label}</div>
+              {subText && <div className={s.dateTabSub}>{subText}</div>}
+            </button>
+          );
+        })}
       </div>
 
       {/* Calendar date strip */}
@@ -568,11 +604,11 @@ export default function WhatsOnScreen() {
             <div ref={comingUpRef} className={s.sectionBlock}>
               <div className={s.sectionRow}>
                 <span data-tour="whatson-section" className={s.sectionTitle}>COMING UP</span>
-                <span className={s.sectionSub}>NEXT TWO WEEKS</span>
+                <span className={s.sectionSub}>{comingUpSub}</span>
                 <div className={s.gradientLine} />
                 <button className={s.viewAll}>View all ›</button>
               </div>
-              {comingUpEvents.slice(0, 200).map(ev => (
+              {comingUpEvents.map(ev => (
                 <ComingUpRow key={ev.id} event={ev} onClick={() => openEvent(ev)} />
               ))}
             </div>
