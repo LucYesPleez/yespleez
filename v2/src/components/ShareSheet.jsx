@@ -79,7 +79,14 @@ export default function ShareSheet({ target, onClose }) {
     >
       <div
         onClick={e => e.stopPropagation()}
-        style={{ width: '100%', maxWidth: 480, background: 'var(--bg)', borderTop: '1px solid var(--border)', borderRadius: '18px 18px 0 0', padding: 20, boxSizing: 'border-box' }}
+        /* ⚠ --card, NOT --bg. This panel is RAISED over a dimmed page, so it
+           must read as a surface above it rather than the page colour repeated
+           — and it was `var(--bg)`, an undefined token, which painted nothing
+           at all and left the sheet see-through (owner, 2026-08-01: "its
+           completely transparent. doesnt make sense"). --bg now exists, but a
+           sheet the same colour as the page behind it is still the wrong
+           answer. */
+        style={{ width: '100%', maxWidth: 480, background: 'var(--card)', borderTop: '1px solid var(--border)', borderRadius: '18px 18px 0 0', padding: 20, boxSizing: 'border-box', boxShadow: '0 -12px 40px rgba(0,0,0,.55)' }}
       >
         <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 18, letterSpacing: 2, color: 'var(--text)', marginBottom: 4 }}>
           SHARE

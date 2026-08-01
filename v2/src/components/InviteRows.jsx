@@ -67,14 +67,14 @@ export default function InviteRows({ myProfile }) {
     <>
       {myUrl && (
         <Row
-          icon="✉"
+          icon={<EnvelopeIcon />}
           label="Invite Friends"
           hint="Share your profile so they land on you"
           onClick={invite}
         />
       )}
       <Row
-        icon="↗"
+        icon={<ShareIcon />}
         label="Share YesPleez"
         hint="Send the app, no profile attached"
         onClick={shareApp}
@@ -82,6 +82,32 @@ export default function InviteRows({ myProfile }) {
 
       {target && <ShareSheet target={target} onClose={() => setTarget(null)} />}
     </>
+  );
+}
+
+/* ⚠ SVG, NOT EMOJI (owner, 2026-08-01). An emoji is a FONT glyph: the OS
+   picks it, so ✉ renders flat grey on Windows, full-colour on iOS and as a
+   different envelope again on Android — it cannot inherit currentColor and it
+   never matches the app's stroke weight. These are drawn at the same 1.8
+   stroke as the rest of the app's icons and take their colour from the row. */
+function EnvelopeIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="2" y="4" width="20" height="16" rx="2" />
+      <path d="m2 7 10 6 10-6" />
+    </svg>
+  );
+}
+
+function ShareIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7" />
+      <path d="M12 16V3" />
+      <path d="m7 8 5-5 5 5" />
+    </svg>
   );
 }
 

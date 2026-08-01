@@ -6,6 +6,15 @@
   --gold:   #ffb830;
   --fire:   #ff6a00;
   --dark:   #0a0a0f;
+  /* ⚠ --bg WAS NEVER DEFINED, and five components already used it — every
+     `background: var(--bg)` silently resolved to nothing and painted NOTHING.
+     Four are full-page wrappers, where body's own --dark showed through and
+     hid the fault completely; the fifth was ShareSheet, a raised panel with
+     no page behind it, which is why the share popup rendered see-through.
+     Defined here as the page surface, which is what all five meant.
+     ⛔ An undefined custom property does not fall back or warn — it just
+     drops the declaration. Grep before inventing a token name. */
+  --bg:     #0a0a0f;
   --card:   #13131f;
   --card2:  #0f0f1a;
   --border: #2a2a3d;

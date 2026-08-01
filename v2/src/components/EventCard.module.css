@@ -71,9 +71,21 @@
   justify-content: center;
 }
 
+/* ⚠ THIS USED TO HARDCODE `padding-left: 56px !important` ON MOBILE,
+   UNCONDITIONALLY. EventCard.jsx already computes the correct left padding
+   per card — `chip.dayNum ? 77 : 12` — because only SOME cards carry a date
+   badge (DateBox.jsx renders nothing at all when the event has no date). An
+   `!important` in the stylesheet beats even that inline style, on every
+   screen under 640px, for every card, badge or not: a badge-less card got
+   needlessly indented, and — the reported bug — a card WITH a badge got
+   squeezed to 56px, when the badge (DateBox size="md", left:12, ~44px
+   min-width + 20px padding + border-box sizing) actually needs closer to 77px
+   just to clear its own right edge. The title ran straight into the date.
+   Nothing here needs to differ by viewport width — DateBox does not change
+   size responsively — so the fix is not a new number, it is deferring to the
+   value EventCard.jsx already computes correctly. */
 @media (max-width: 640px) {
   .cardInfo {
-    padding-left: 56px !important;
     padding-right: 80px;
   }
 }
