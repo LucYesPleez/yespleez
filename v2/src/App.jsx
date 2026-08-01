@@ -328,7 +328,15 @@ function Shell({ session, isGuest, onSignOut }) {
         isGuest={isGuest}
         onSignOut={onSignOut}
       />
-      <ConversationDock />
+      {/* ⚠ BOUNDED, and this is not optional.
+          The dock is mounted ABOVE the router so it survives navigation — which
+          also means an error inside it unmounts the ENTIRE app, router and all.
+          That is not theoretical: it renders as a blank splash with `#root`
+          empty, which reads as "the site is down" rather than "messaging
+          broke". Bounded, a dock failure costs the dock and nothing else. */}
+      <ErrorBoundary>
+        <ConversationDock />
+      </ErrorBoundary>
       </ConversationUiProvider>
       </ShareTargetProvider>
     </PlayerCtx.Provider>
