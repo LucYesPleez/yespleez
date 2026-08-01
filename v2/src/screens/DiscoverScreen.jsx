@@ -108,6 +108,29 @@ function itemPostcode(item) {
 }
 
 /**
+ * MATCHING EVENTS MUST SURVIVE THE INITIAL LIMIT.
+ *
+ * Results arrive profiles-first, then events, and the list renders only the
+ * first `count` of them. So any search matching 3+ profiles pushed EVERY event
+ * behind "View more" — a search for a genre showed venues and bands and looked
+ * like there were no gigs on at all. Reported 2026-08-02.
+ *
+ * Still one mixed list, same order, no sections: this only reserves part of the
+ * opening window for events when both kinds matched, so some are always there.
+ * Once `count` covers everything the split stops mattering and the full list is
+ * returned untouched.
+ */
+function withEventsVisible(items, count) {
+  if (items.length <= count) return items;
+  const events   = items.filter(r => r._kind === 'event');
+  const profiles = items.filter(r => r._kind !== 'event');
+  // Only one kind matched — nothing can crowd anything out.
+  if (!events.length || !profiles.length) return items.slice(0, count);
+  const eventSlots = Math.min(events.length, Math.max(1, Math.floor(count / 2)));
+  return [...profiles.slice(0, count - eventSlots), ...events.slice(0, eventSlots)];
+}
+
+/**
  * Does this event fall inside the chosen date window?
  *
  * Profiles have no date, so they are never date-filtered — see the note where
@@ -542,7 +565,7 @@ export default function DiscoverScreen() {
               {!isDefault && (
                 <>
                   <div style={{ display:'flex', flexDirection:'column', gap:6, ...(visibleCount < items.length ? { maskImage:'linear-gradient(to bottom, black 75%, transparent 100%)', WebkitMaskImage:'linear-gradient(to bottom, black 75%, transparent 100%)' } : {}) }}>
-                    {items.slice(0, visibleCount).map(r =>
+                    {withEventsVisible(items, visibleCount).map(r =>
                       r._kind === 'event'
                         ? <EventCard key={r.id} event={r} />
                         : <ProfileCard key={r.id ?? r.user_id} item={r} followAction={<FollowHeartBtn profile={r} />} />
