@@ -1,0 +1,509 @@
+/* §§ 5, 7–11 + the sticky bar.
+   Spec: docs/event-page-layout-spec.md */
+
+/* ── shared shell ────────────────────────────────────────────────── */
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--card);
+}
+
+.heading {
+  margin: 0;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 17px;
+  letter-spacing: 0.1em;
+  color: var(--text);
+}
+
+.headRow {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+/* STATE chip language (§ 2) — filled, means something is true right now. */
+.stateChip {
+  padding: 3px 9px;
+  border-radius: 6px;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  background: rgba(255, 184, 48, 0.14);
+  color: var(--gold);
+}
+
+.sub    { font-size: 13px; color: var(--muted); line-height: 1.5; }
+.strong { color: var(--text); }
+
+/* ── § 5 · Quick Actions ─────────────────────────────────────────────
+   Utilities. Low emphasis, EVENLY weighted — no primary among them. These are
+   post-decision actions: people share an event after deciding it matters.
+
+   This is the CONTENT of the summary card's third band — EventSummaryCard
+   supplies the border, the fill and the divider above it. The actions carry no
+   border of their own: they used to, which made the row read as three
+   unrelated buttons rather than one grouped utility section. */
+.quickActions {
+  display: flex;
+}
+
+/* Matched to the status row above it — same axis, same type, same padding, so
+   the two rows read as one control surface rather than two.
+   Measured before: the status band stood 38px (10px band padding around 18px
+   of content) while this one stood 71px, because the actions stacked their
+   icon over their label at 11px. Laid out in a row at 14px they come to the
+   same 18px, and the band lands on 38 as well. */
+.quickAction {
+  flex: 1 1 0;
+  min-width: 0;
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;                  /* matches the ticket cell's gap */
+  padding: 0;                /* the band's 10px is the padding, as in the status row */
+  border: none;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 14px;           /* matches GET TICKETS */
+  letter-spacing: 0.09em;
+  /* 18px flat, not a ratio: 1.3 × 14px gave 18.19 against the ticket cell's
+     18.00, which left the two bands a pixel apart. */
+  line-height: 18px;
+  white-space: nowrap;
+  text-decoration: none;
+  transition: color var(--yp-medium, .2s);
+}
+
+/* Colour only on hover. With no padding a background fill would be a thin
+   strip across the text rather than a button. */
+.quickAction:hover { color: var(--text); }
+
+/* The divider, matched to the status row's: a left border on the following
+   sibling rather than a floating pseudo-element. */
+/* The divider is a pseudo-element, NOT a left border with padding.
+   Measured: as padding it consumed 28px of a 109px button, and "ADD TO MY
+   SCENE" at the matched 14px overflowed its cell by 12px. Absolute
+   positioning costs the box nothing, so all three keep their full width and
+   the label fits. */
+.quickAction + .quickAction { position: relative; }
+
+.quickAction + .quickAction::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 16px;
+  width: 1px;
+  background: var(--border);
+}
+
+/* ── § 7 · Venue ─────────────────────────────────────────────────── */
+.map {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  object-fit: cover;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+}
+
+/* A withheld location leads with the notice; the map yields. */
+.withheldBox {
+  padding: 16px;
+  border-radius: 10px;
+  border: 1px dashed var(--border);
+  text-align: center;
+}
+
+.withheldTitle {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 13px;
+  letter-spacing: 0.14em;
+  color: var(--gold);
+}
+
+.linkRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 11px 13px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--text);
+  cursor: pointer;
+  text-decoration: none;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 12.5px;
+  letter-spacing: 0.1em;
+  transition: border-color var(--yp-medium, .2s), background var(--yp-medium, .2s);
+}
+
+.linkRow:hover { border-color: var(--neon2); background: rgba(0, 229, 255, 0.05); }
+
+/* ── § 8 · Event Details ─────────────────────────────────────────────
+   A lookup table, not a narrative — lighter than the Lineup above it. */
+.detailRow {
+  display: flex;
+  gap: 12px;
+  padding: 11px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.055);
+}
+
+.detailRow:first-of-type { border-top: none; padding-top: 2px; }
+
+/* ── Two columns on desktop ──────────────────────────────────────────
+   The section runs full width now, which is too wide for one column of short
+   label/value pairs — the values would sit in a narrow strip with an ocean of
+   space beside them. */
+@media (min-width: 1024px) {
+  .detailGrid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    column-gap: 28px;
+  }
+
+  /* ⚠ `:first-of-type` is not enough once there are two columns: the FIRST
+     ROW OF EACH COLUMN needs its rule removed, and in a two-column grid that
+     is children 1 AND 2. Left alone, the second column opened with a stray
+     divider above its first item. */
+  .detailGrid > .detailRow:nth-child(2) {
+    border-top: none;
+    padding-top: 2px;
+  }
+}
+
+.detailIcon { flex-shrink: 0; margin-top: 1px; color: var(--muted); }
+
+.detailLabel {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 12.5px;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+  margin-bottom: 2px;
+}
+
+.detailValue {
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--text);
+  white-space: pre-line;
+}
+
+/* ── § 9 · Official Event Poster ─────────────────────────────────────
+   The canonical artwork. FITS, never crops — the opposite of the Hero, and the
+   whole reason the two were split. */
+/* Its own aspect, never cropped — but BOUNDED.
+   Measured at full column width the poster came out 745px tall: the tallest
+   element on the page, taller than the Hero (438) and 2.8× the Lineup (263).
+   § 9.3 says its emphasis is moderate and it "must not out-weigh the Lineup",
+   and the entire point of splitting Cover from Poster was that the poster no
+   longer carries the page's visual weight. At full width it carried the most.
+   Bounding the HEIGHT keeps the aspect intact — nothing is cropped, the image
+   is simply not given more room than its job needs, and full resolution is one
+   click away in the viewer. */
+.posterFrame {
+  display: flex;
+  justify-content: center;
+}
+
+.poster {
+  display: block;
+  max-width: 100%;
+  max-height: 430px;
+  width: auto;
+  height: auto;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  cursor: zoom-in;
+  background: var(--card2);
+}
+
+.posterActions { display: flex; gap: 8px; }
+
+/* COLLECT — not a favourite, not a save. No heart, no bookmark, no star:
+   the mark must not be readable as "save this event", and the word does the
+   work the icon deliberately does not. */
+.collect {
+  flex: 1 1 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 11px 14px;
+  border-radius: 11px;
+  cursor: pointer;
+  border: 1px solid var(--purple);
+  background: rgba(176, 96, 255, 0.1);
+  color: var(--purple);
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  transition: background var(--yp-medium, .2s), transform var(--yp-fast, .14s);
+}
+
+.collect:hover  { background: rgba(176, 96, 255, 0.18); }
+.collect:active { transform: scale(0.98); }
+
+.collected {
+  background: var(--purple);
+  color: #12061f;
+}
+
+/* ── Collectables — the official images and stickers under the poster ──
+   A grid rather than a rail: these are a set to browse, not a sequence to
+   scroll, and a rail would hide half of them behind a swipe. */
+.collectables {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+  gap: 8px;
+}
+
+.collectable {
+  position: relative;
+  display: block;
+  aspect-ratio: 1;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: var(--card2);
+  cursor: pointer;
+}
+
+.collectableImg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;   /* a sticker is artwork too — never crop it */
+}
+
+.collectableSave {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 6px 4px;
+  background: rgba(10, 10, 18, 0.82);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  color: var(--text);
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 10px;
+  letter-spacing: 0.11em;
+}
+
+/* ⚠ HOVER IS NOT AVAILABLE ON THE DEVICE MOST PEOPLE ARE ON.
+   The save affordance is revealed on hover for mouse users, and is ALWAYS
+   VISIBLE on touch — gating it purely on :hover would make it invisible on a
+   phone, which is exactly where "save to your phone" is meant to happen. */
+@media (hover: hover) and (pointer: fine) {
+  .collectableSave {
+    opacity: 0;
+    transform: translateY(100%);
+    transition: opacity var(--yp-medium, .2s), transform var(--yp-medium, .2s);
+  }
+
+  .collectable:hover .collectableSave,
+  .collectable:focus-visible .collectableSave {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Full-resolution viewer. The poster is an artefact; being able to see all of
+   it is what makes it one. */
+.viewer {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  background: rgba(0, 0, 0, 0.92);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  cursor: zoom-out;
+}
+
+.viewerImage {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;      /* whole, always */
+  border-radius: 4px;
+}
+
+/* ── § 10 · Presented By ───────────────────────────────────────────
+   Portrait card with the bio alongside it — the same card the Lineup uses, so
+   the people behind the event are presented the way the people playing it are.
+   `align-items: flex-start` so the bio starts level with the top of the card
+   rather than centring against a tall portrait. */
+.presenterPortrait {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.presenterPortrait > .sub { flex: 1 1 auto; min-width: 0; }
+
+/* ⚠ The rules below are dead — .presenter / .presenterLogo /
+   .presenterMonogram / .presenterName / .presenterRole belonged to the
+   hand-built presenter block that PortraitCard replaced. Left in place only
+   because this file is shared; delete on the next pass through. */
+.presenter { display: flex; align-items: center; gap: 12px; }
+
+.presenterLogo {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: var(--card2);
+}
+
+/* A missing logo is a monogram, never a placeholder person. */
+.presenterMonogram {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  background: linear-gradient(150deg, #1b1b2b, #12121d);
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 20px;
+  color: rgba(232, 232, 240, 0.4);
+}
+
+.presenterName {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 17px;
+  letter-spacing: 0.06em;
+  color: var(--text);
+}
+
+.presenterRole { font-size: 12px; color: var(--muted); margin-top: 1px; }
+
+/* ── § 11 · Information Sources ──────────────────────────────────────
+   Lowest emphasis on the page, fully legible when sought. Its PRESENCE is
+   itself information: it says we found this, we did not write it. */
+/* THE PAGE'S LOWEST EMPHASIS, and it has to be visibly so.
+   Every reference card was rendering at identical weight — same heading size,
+   padding, border, background — which is exactly the flatness that made the
+   original concept read as "everything matters equally". Position alone cannot
+   carry the difference when the treatment is pixel-identical.
+   Sources gets its own tier: no fill, a fainter border, a smaller and muted
+   heading. Quieter than its neighbours, still fully legible when sought. */
+/* NO BOX. Not a fill, not a border, not even the faint one it had — the card
+   treatment was already the lightest on the page and it is still a container
+   competing with the real ones above it. Lowest emphasis now means no
+   container at all. */
+.sources {
+  gap: 10px;
+  padding: 0;
+  background: none;
+  border: none;
+  border-radius: 0;
+}
+
+.sources .heading {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+/* Sources sit BESIDE each other, not stacked. They are a set of short labels —
+   stacking gave each one a full row and made three credits look like a list of
+   findings. Wraps when it must. */
+.sources .sourceList {
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  align-items: center;
+}
+
+.sourceList { display: flex; flex-direction: column; gap: 5px; }
+
+.sourceItem {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12.5px;
+  color: rgba(232, 232, 240, 0.7);
+}
+
+.sourceTick { color: var(--green); flex-shrink: 0; }
+
+.sourceFoot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  padding-top: 9px;
+  border-top: 1px solid rgba(255, 255, 255, 0.055);
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+/* ── Sticky Action Bar — MOBILE ONLY ─────────────────────────────── */
+.sticky {
+  display: flex;
+  gap: 9px;
+  padding: 9px;
+  border-radius: 15px;
+  border: 1px solid var(--border);
+  background: rgba(15, 15, 26, 0.93);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+}
+
+.stickyPrimary {
+  flex: 1 1 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 13px;
+  border: none;
+  border-radius: 11px;
+  cursor: pointer;
+  text-decoration: none;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 15px;
+  letter-spacing: 0.11em;
+  color: #0a0a0f;
+  background: linear-gradient(135deg, var(--neon2), var(--purple));
+}
+
+.stickySecondary {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 13px 15px;
+  border-radius: 11px;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: none;
+  color: var(--muted);
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 13px;
+  letter-spacing: 0.11em;
+}
+
+.stickySolo { flex: 1 1 auto; }

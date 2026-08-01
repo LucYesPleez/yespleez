@@ -25,6 +25,7 @@ import WhatsOnScreen from './screens/WhatsOnScreen';
 import DiscoverScreen from './screens/DiscoverScreen';
 import MySceneScreen from './screens/MySceneScreen';
 import EventScreen from './screens/EventScreen';
+import EventLayoutHarness from './screens/event/EventLayoutHarness';
 import CreateEventScreen from './screens/CreateEventScreen';
 import ApplicationsScreen from './screens/ApplicationsScreen';
 import NotificationsScreen from './screens/NotificationsScreen';
@@ -237,6 +238,11 @@ function Shell({ session, isGuest, onSignOut }) {
         <Route path="/discover"  element={<DiscoverScreen />} />
         <Route path="/my-scene"  element={<MySceneScreen isGuest={isGuest} onSignOut={onSignOut} />} />
         <Route path="/event/:id"              element={<EventScreen />} />
+        {/* DEV ONLY — Event Page layout harness. Tree-shaken out of the
+            production bundle by the import.meta.env.DEV guard. */}
+        {import.meta.env.DEV && (
+          <Route path="/dev/event-layout"     element={<EventLayoutHarness />} />
+        )}
         <Route path="/create-event"           element={<CreateEventScreen />} />
         <Route path="/event/:id/applications" element={<ApplicationsScreen />} />
         <Route path="/notifications"          element={<NotificationsScreen />} />

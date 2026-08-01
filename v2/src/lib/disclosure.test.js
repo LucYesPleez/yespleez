@@ -94,7 +94,7 @@ test('the copy parser actually found the copy', () => {
  */
 const REQUIRED_SITES = [
   { file: 'screens/ProfileScreen.jsx',      context: 'follow', note: 'Follow — the one action that reaches an unclaimed profile and holds a notification' },
-  { file: 'screens/EventScreen.jsx',        context: 'apply',  note: 'APPLY TO PLAY — never gated on the owner\'s claim state' },
+  { file: 'screens/event/ApplyButton.jsx', context: 'apply',  note: 'APPLY TO PLAY — never gated on the owner\'s claim state' },
   { file: 'components/FillSlotModal.jsx',   context: 'slot',   note: 'host adds an unclaimed performer to a slot; no invite goes out' },
 ];
 

@@ -1,0 +1,323 @@
+/* § 6 · Lineup
+   Spec: docs/event-page-layout-spec.md § 6 */
+
+.lineup {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* ── Filling the column beside the event info (desktop) ──────────────
+   A GRID here, not the rail — and the reason is geometry. The column is tall
+   and narrow (roughly 257 × 483). Sizing 3:4 cards to fill that height makes
+   each one ~290px wide, wider than the column itself: exactly one card, at the
+   wrong scale. Cards have to wrap to fill a box that shape.
+
+   So: as many portrait cards as fit across, as many rows as fit down, the
+   remainder clipped and reachable through VIEW FULL LINEUP. `min-height: 0` is
+   load-bearing — without it a flex child refuses to shrink below its content
+   and the grid pushes the section past the height it was given. */
+@media (min-width: 1024px) {
+  .lineup { height: 100%; }
+
+  /* ⚠ The GRID scrolls, not this wrapper — and that is the whole reason the
+     wrapper exists. An absolutely-positioned fade inside a scrolling box
+     scrolls away with the content; keeping the scroll one level in leaves this
+     element still, so the fade stays pinned to the bottom edge. */
+  .railWrap {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  /* TWO across. 78px fitted three, but at ~79px wide a card is too small to
+     carry a name — two at ~123 reads properly, and the rows below are now
+     reachable by scrolling rather than needing to be squeezed into view. */
+  /* ⚠ FLEX-WRAP, NOT GRID — and this was hard-won.
+     As a grid with a definite height (100% of the matched column) and `auto`
+     rows, the browser distributed that height across all 15 rows instead of
+     sizing rows to content: `grid-template-rows` computed to 12.65px × 15
+     while the cards drew 164px, so every row stacked on top of the next.
+     Neither `aspect-ratio` nor a padding-ratio fixes it, because both
+     contribute ZERO during intrinsic row sizing — the row is trying to size
+     from the item while the item is trying to size from the row.
+     In flex the item's width is stated outright, so the ratio resolves against
+     something definite and the line height follows. */
+  .railWrap .rail {
+    display: flex;
+    flex-wrap: wrap;
+    align-content: flex-start;
+    align-items: flex-start;
+    gap: 10px;
+    height: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-width: none;          /* no visible scrollbars, anywhere */
+    overscroll-behavior: contain;   /* scrolling the bill must not scroll the page */
+  }
+
+  .railWrap .rail::-webkit-scrollbar { display: none; }
+
+  /* Cards fill their grid cell; height comes from a padding ratio.
+     ⚠ NOT `aspect-ratio`. PortraitCard positions its contents absolutely, so
+     its intrinsic content height is zero and an aspect-derived height never
+     reached the grid's row sizing — rows collapsed to 23px while the cards
+     drew 165px, stacking all fifteen rows on top of each other. A padding
+     percentage is real layout height and the row measures it correctly. */
+  /* TWO across, stated outright — the "2" is the ask, not a fallout of
+     auto-fill, and stating it is what makes the ratio below resolvable.
+
+     The 120px cap is what gets a SECOND row into view. At the full half-width
+     (123.5) a card stands 164.7 tall and two rows plus the gap came to 339 in
+     a 332 box — one row visible, the second permanently cut. 120 gives 160
+     tall, so two rows land at 330 and fit.
+     ⚠ That margin is 2px. The box height comes from the context column beside
+     it, so if the event info grows or shrinks, re-check how many rows survive. */
+  .railWrap .rail > * {
+    flex: 0 0 auto;
+    width: min(calc((100% - 10px) / 2), 120px) !important;
+    height: auto !important;
+    aspect-ratio: auto !important;
+  }
+
+  .railWrap .rail > *::before {
+    content: '';
+    display: block;
+    padding-top: 133.333%;   /* 3:4 portrait */
+  }
+
+  /* The cut-off edge needs to read as "there is more" rather than as a
+     rendering fault. Only while there IS more: a fade that never goes away
+     says the list is endless, and at the bottom of the bill it would be
+     dimming the last artists for no reason. */
+  .moreBelow::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 44px;
+    pointer-events: none;
+    background: linear-gradient(to bottom, rgba(10, 10, 15, 0), var(--dark));
+    transition: opacity var(--yp-medium, .2s);
+  }
+
+  /* The horizontal cues belong to the rail, not the grid. */
+  .railWrap .fade,
+  .railWrap .arrow { display: none; }
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.heading {
+  margin: 0;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 20px;
+  letter-spacing: 0.09em;
+  color: var(--text);
+}
+
+.count {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 13px;
+  letter-spacing: 0.09em;
+  color: var(--muted);
+}
+
+/* ── CONTROL chip language ───────────────────────────────────────────
+   The third of the three chip meanings (§ 2). A control must not look like a
+   genre: it carries an affordance and it responds to hover, because it is a
+   thing you press rather than a thing you read. */
+.sort {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--muted);
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  transition: color var(--yp-medium, .2s), border-color var(--yp-medium, .2s),
+              background var(--yp-medium, .2s);
+}
+
+.sort:hover { color: var(--neon2); border-color: var(--neon2); background: rgba(0, 229, 255, 0.07); }
+.sortOn     { color: var(--neon2); border-color: rgba(0, 229, 255, 0.45); background: rgba(0, 229, 255, 0.1); }
+
+/* ── The rail ────────────────────────────────────────────────────────
+   NO VISIBLE SCROLLBAR, anywhere — the global rule. The "more to the right"
+   cue is a gradient, never a bar. */
+.railWrap {
+  position: relative;
+}
+
+.rail {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 2px;
+}
+
+.rail::-webkit-scrollbar { display: none; }
+
+/* The gradient cue, and nothing else. Only present while there is actually
+   more to the right — a permanent fade would imply content that is not there. */
+.fade {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 56px;
+  pointer-events: none;
+  background: linear-gradient(to right, rgba(10, 10, 15, 0), var(--dark));
+}
+
+/* The arrow is a MOUSE affordance, so it is gated on the pointer rather than on
+   width. A touch user swipes; the button would only sit over the third card and
+   take a slot the bill could have used. On touch the cue is the gradient plus
+   the rail's own first-visit nudge, which is the app's established idiom. */
+.arrow {
+  display: none;
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  transform: translateY(-50%);
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: rgba(19, 19, 31, 0.92);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: var(--text);
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  transition: background var(--yp-medium, .2s), border-color var(--yp-medium, .2s),
+              transform var(--yp-fast, .14s);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .arrow { display: flex; }
+}
+
+.arrow:hover  { border-color: var(--neon2); color: var(--neon2); }
+.arrow:active { transform: translateY(-50%) scale(0.93); }
+
+/* ── Artist card ─────────────────────────────────────────────────────
+   Avatar, name, location. NOTHING ELSE. The reference concept put a star badge
+   on every card carrying no meaning, which is noise in the one section that
+   has to be scannable at a glance. */
+.card {
+  flex: 0 0 auto;
+  width: 112px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  text-decoration: none;
+  color: inherit;
+}
+
+.avatar {
+  width: 112px;
+  height: 112px;
+  border-radius: 12px;
+  object-fit: cover;
+  display: block;
+  background: var(--card2);
+}
+
+/* A missing avatar is a monogram, never a placeholder person — the same rule
+   Presented By uses for a missing logo. */
+.monogram {
+  width: 112px;
+  height: 112px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(150deg, #1b1b2b, #12121d);
+  border: 1px solid var(--border);
+  box-sizing: border-box;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 34px;
+  letter-spacing: 0.04em;
+  color: rgba(232, 232, 240, 0.35);
+}
+
+.name {
+  font-size: 13px;
+  line-height: 1.25;
+  color: var(--text);
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.location {
+  font-size: 11.5px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Full lineup entry ───────────────────────────────────────────────
+   Only when the rail actually overflows. Offering "view all" for a bill that
+   is entirely on screen is a link to what the reader is already looking at. */
+.viewAll {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 11px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--text);
+  cursor: pointer;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 13px;
+  letter-spacing: 0.1em;
+  transition: border-color var(--yp-medium, .2s), background var(--yp-medium, .2s);
+}
+
+.viewAll:hover { border-color: var(--neon2); background: rgba(0, 229, 255, 0.05); }
+
+/* ── R1 · withheld ───────────────────────────────────────────────────
+   Announced, never hidden. An organiser holding their bill back has made a
+   decision, and silence would spend their reveal for them. */
+.withheld {
+  padding: 26px 16px;
+  border-radius: 12px;
+  border: 1px dashed var(--border);
+  text-align: center;
+}
+
+.withheldTitle {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 16px;
+  letter-spacing: 0.16em;
+  color: rgba(232, 232, 240, 0.5);
+}
+
+.withheldNote {
+  margin-top: 5px;
+  font-size: 12.5px;
+  color: var(--muted);
+}

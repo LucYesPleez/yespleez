@@ -1,0 +1,381 @@
+/* Event Summary — Identity · Decision · Description
+   Spec: docs/event-page-layout-spec.md §§ 2–4
+
+   One stylesheet for the three because they are one visual group, and the
+   whole point of splitting the reference concept's single card into three was
+   to control the weight BETWEEN them. That is easier to hold in one file. */
+
+/* ══ § 2 · IDENTITY ══════════════════════════════════════════════════
+   UNCONTAINED — no card, no border, no background. It sits directly on the
+   page so it does not compete with the containers below it. This is the
+   headline; everything else on the page is a container, and a headline inside
+   a box reads as one item among many. */
+.identity {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;          /* was 10 — four stacked gaps add up in a short column */
+  padding: 0;
+}
+
+/* The title and the Favourite share a row — moved here from the Decision block
+   on 2026-08-01 so it sits with the headline rather than with the ticket
+   action. flex-start, not center: on a wrapped three-line title the heart
+   should sit level with the first line, not drift to the vertical middle. */
+.titleRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.title {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: clamp(30px, 4.4vw, 46px);
+  line-height: 1.02;
+  letter-spacing: 0.012em;
+  color: var(--text);
+  overflow-wrap: anywhere;   /* a 60-character title must not widen the column */
+}
+
+.heartBtn {
+  flex: 0 0 auto;
+  margin-top: 3px;           /* optical alignment with the title's cap-height */
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: color var(--yp-medium, .2s), border-color var(--yp-medium, .2s),
+              background var(--yp-medium, .2s), transform var(--yp-fast, .14s);
+}
+
+.heartBtn:hover  { border-color: var(--neon); color: var(--neon); }
+.heartBtn:active { transform: scale(0.92); }
+
+.heartBtnOn {
+  color: var(--neon);
+  border-color: rgba(255, 45, 120, 0.45);
+  background: rgba(255, 45, 120, 0.09);
+}
+
+.meta {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.metaRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--text);
+}
+
+.metaIcon {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--muted);
+}
+
+/* The clock in front of the time. Unlike .metaIcon it sits INSIDE the sentence
+   rather than leading the row, so it aligns to the text baseline instead of
+   the row's top edge. */
+.timeIcon {
+  display: inline-block;
+  vertical-align: -2px;
+  margin-right: 4px;
+  color: var(--muted);
+}
+
+/* An inferred or unconfirmed value, per R1 · unknown. Rendered, but never as
+   fact — it must not look identical to a confirmed one. */
+.qualifier {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* ══ CHIP LANGUAGE ═══════════════════════════════════════════════════
+   Resolving the open question. Three meanings had one appearance; they now
+   have three, and the difference is structural rather than decorative:
+
+     STATE     filled + dot      — something is true right now
+     TAXONOMY  outlined, neutral — what kind of thing this is
+     CONTROL   affordance + hover — something you can press   (§ 6, Lineup)
+
+   A reader should be able to tell which of the three a chip is without
+   reading it. */
+
+/* STATE — filled, carries a dot, colour means something. */
+.statusPill {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 11px 4px 9px;
+  border-radius: 6px;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 12px;
+  letter-spacing: 0.13em;
+  border: none;
+}
+
+.statusDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+
+.statusOnNow {
+  background: var(--green);
+  color: #06120c;
+}
+
+.statusOnNow .statusDot {
+  animation: yp-ev-pulse 2s ease-in-out infinite;
+}
+
+.statusPast {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--muted);
+}
+
+@keyframes yp-ev-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.35; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .statusOnNow .statusDot { animation: none; }
+}
+
+/* TAXONOMY — the SAME pill already used on Featured and Spotlight cards
+   (FeaturedEventCard.module.css `.tag` — Spotlight renders FeaturedEventCard
+   directly, so this is one style, not two coincidentally similar ones). One
+   accent for every genre, not a colour per genre — that still holds: nothing
+   here varies by which genre it is, only by "this is a genre chip". Slightly
+   larger than the card's 10px, since here it stands alone on the page rather
+   than inside a small rail card. */
+.genres {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.genre {
+  padding: 4px 11px;
+  border-radius: 20px;
+  border: 1px solid rgba(0, 229, 255, 0.45);
+  background: rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.85);
+  filter: brightness(0.8);
+  white-space: nowrap;
+}
+
+/* ══ §§ 3–5 · THE SUMMARY CARD ═══════════════════════════════════════
+   ONE card, three divided bands: status → description → utilities. Merged
+   2026-08-01 from three separate cards, to the owner's mockup.
+
+   The card keeps the exact treatment the Decision block already had — same
+   --card fill, --border, 14px radius, 16px band padding — so nothing shifts
+   visually except the joins. Bands divide with a hairline; they do not each
+   carry their own border, or a hover on one would detach its edge from its
+   neighbour's. */
+.summaryCard {
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  overflow: hidden;   /* keeps band edges inside the corner radius */
+}
+
+/* 10px vertical, not 16. Measured: the three bands were spending 96px on
+   padding alone — 20% of the column — and the status band stood 50px tall
+   around 18px of content. Between two bands that is 32px of air plus a
+   divider, which reads as a gap rather than as a join.
+   Horizontal stays roomier than vertical; it is vertical space that was
+   scarce here. */
+.band {
+  padding: 10px 14px;
+}
+
+/* The prose band breathes more than the control bands either side of it.
+   10px is right for a single row of controls and too tight for a paragraph —
+   text needs room above and below it to read as a block rather than as
+   something wedged between two dividers. */
+.descriptionBand {
+  padding-top: 18px;
+  padding-bottom: 18px;
+}
+
+/* The divider between bands. Applied to the band BELOW, so a hidden band takes
+   its divider with it — three bands or one, the card never shows a rule with
+   nothing under it. */
+.band + .band {
+  border-top: 1px solid var(--border);
+}
+
+/* ── Band 1 · status ─────────────────────────────────────────────────
+   Two cells, split by a vertical hairline. Attendance is ambient; the ticket
+   cell is an action and is coloured as one, so the row is not two statistics
+   sitting side by side. */
+.statusRow {
+  display: flex;
+  align-items: center;
+
+  /* Twice the height of the band it would otherwise be. The padding stays at
+     the band's 10px — matched to the actions row — and the extra comes from a
+     min-height, so the two rows still agree on padding while this one carries
+     the weight its content deserves. 76 = 2 × the 38 it measured at. */
+  min-height: 76px;
+}
+
+.statusCell {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;   /* centred in its half, matching the actions row */
+  gap: 8px;
+  line-height: 18px;         /* pinned, so this band and the actions band agree */
+}
+
+/* Padding on BOTH sides, not just the divider side. With 14px only on the
+   left, the content centres inside the remaining space and lands 7px right of
+   the cell's true middle — visibly off against the balanced cell beside it. */
+.statusCell + .statusCell {
+  padding-left: 14px;
+  padding-right: 14px;
+  margin-left: 14px;
+  border-left: 1px solid var(--border);
+}
+
+.ticketCell {
+  color: var(--purple);
+  text-decoration: none;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 14px;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  transition: filter var(--yp-medium, .2s);
+}
+
+.ticketCell:hover { filter: brightness(1.2); }
+
+/* ══ § 3 · DECISION ══════════════════════════════════════════════════
+   Contained. Holds the strongest interactive element on the page. */
+.decision {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--card);
+}
+
+@media (min-width: 1024px) {
+  /* Sticky WITHIN its own column, which is why the desktop sticky bar does not
+     exist: the CTA never scrolls away, and it never takes viewport to stay. */
+  .decisionSticky {
+    position: sticky;
+    top: 84px;
+  }
+}
+
+.actions {
+  display: flex;
+  gap: 10px;
+}
+
+.primary {
+  flex: 1 1 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  padding: 14px 18px;
+  border: none;
+  border-radius: 11px;
+  cursor: pointer;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 16px;
+  letter-spacing: 0.11em;
+  color: #0a0a0f;
+  background: linear-gradient(135deg, var(--neon2), var(--purple));
+  transition: transform var(--yp-fast, .14s) var(--yp-ease, ease),
+              filter var(--yp-medium, .2s) var(--yp-ease, ease);
+  text-decoration: none;
+}
+
+.primary:hover  { filter: brightness(1.08); }
+.primary:active { transform: scale(0.985); }
+
+/* The Favourite's button styling lives with the title now — see .heartBtn
+   above. It moved out of this block on 2026-08-01. */
+
+/* Attendance. SUPPORTING CONTEXT, never a peer tile — the reference concept
+   rendered it at the same weight as the ticket action, which is an emphasis
+   error: one is ambient, the other is the conversion. */
+.attendance {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.attendanceCount {
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* ══ § 4 · DESCRIPTION ═══════════════════════════════════════════════
+   The organiser's voice. Visually distinct from Decision so it does not read
+   as part of the ticket block. */
+.description {
+  padding: 2px 2px 0;
+}
+
+.descriptionText {
+  margin: 0;
+  font-size: 14.5px;
+  line-height: 1.62;
+  color: rgba(232, 232, 240, 0.82);
+  white-space: pre-line;   /* organisers write in lines; respect them */
+}
+
+.clamped {
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.reveal {
+  margin-top: 7px;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 12px;
+  letter-spacing: 0.13em;
+  color: var(--neon2);
+}
+
+.reveal:hover { text-decoration: underline; }

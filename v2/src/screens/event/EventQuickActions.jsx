@@ -1,0 +1,56 @@
+// § 5 · Quick Actions
+//
+// Spec: docs/event-page-layout-spec.md § 5
+//
+// Utilities, evenly weighted, NO PRIMARY among them. These are post-decision
+// actions — people share an event after deciding it matters.
+//
+// This renders the CONTENT of the summary card's third band, not a card of its
+// own: EventSummaryCard supplies the border, the fill and the divider above.
+// Rendering it standalone gives an unbordered row, which is intentional.
+
+import { ShareIcon, SceneIcon, GlobeIcon } from './eventIcons';
+import s from './EventSections.module.css';
+
+export default function EventQuickActions({
+  onShare = null,
+  onAddToScene = null,
+  websiteUrl = null,
+}) {
+  // Share never depends on event data — there is always something to share.
+  const actions = [];
+
+  if (onShare) actions.push({ key: 'share', label: 'SHARE', Icon: ShareIcon, onClick: onShare });
+
+  // "MY SCENE", not "ADD TO MY SCENE" — the long form measured 108px in a
+  // 108px cell, fitting with zero margin, so any font fallback or a narrower
+  // column would have clipped it. The "add" is carried by the icon, which is
+  // already a plus; spelling it in the label too would say it twice.
+  if (onAddToScene) {
+    actions.push({ key: 'scene', label: 'MY SCENE', Icon: SceneIcon, onClick: onAddToScene });
+  }
+
+  // A genuine event or organiser URL only. A discovery provenance URL belongs
+  // in § 11, where it is labelled as a source rather than offered as the
+  // event's own site.
+  if (websiteUrl) actions.push({ key: 'web', label: 'WEBSITE', Icon: GlobeIcon, href: websiteUrl });
+
+  if (!actions.length) return null;
+
+  return (
+    <div className={s.quickActions}>
+      {/* size 15 matches the icons in the status row above. */}
+      {actions.map(({ key, label, Icon, onClick, href }) =>
+        href ? (
+          <a key={key} className={s.quickAction} href={href} target="_blank" rel="noopener noreferrer">
+            <Icon size={15} /> {label}
+          </a>
+        ) : (
+          <button key={key} className={s.quickAction} onClick={onClick}>
+            <Icon size={15} /> {label}
+          </button>
+        )
+      )}
+    </div>
+  );
+}

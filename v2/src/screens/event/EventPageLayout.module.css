@@ -1,0 +1,239 @@
+/* Event Page layout shell — structure only.
+   Spec: docs/event-page-layout-spec.md */
+
+.page {
+  --yp-ep-col-primary: 58fr;
+  --yp-ep-col-secondary: 42fr;
+  --yp-ep-gap-section: 16px;   /* within a group */
+  --yp-ep-gap-band: 40px;      /* between groups — deliberately larger */
+  /* THE APP'S SPINE. GlobalHeader is `width: min(100%, 680px)` and every other
+     screen — WhatsOn, Discover, My Scene — is max-width: 680px. There is no
+     desktop widening anywhere in the app, so an event page at 1200px would sit
+     visibly outside the borders every other screen shares. The Hero spans both
+     columns WITHIN this, rather than the page widening to suit the Hero. */
+  --yp-ep-max: 680px;
+  --yp-ep-pad: 16px;
+
+  display: flex;
+  flex-direction: column;
+  gap: var(--yp-ep-gap-band);
+
+  max-width: var(--yp-ep-max);
+  margin: 0 auto;
+  padding: 0 var(--yp-ep-pad);
+  box-sizing: border-box;
+}
+
+/* The Hero's own row — full content width, no columns. It is the page's
+   banner rather than a cell in a grid, which is what lets a cover image
+   actually read as cinematic. */
+.fullBand {
+  width: 100%;
+}
+
+/* ── PHONE-ONLY section order ─────────────────────────────────────────
+   Presented By drops below Event Details on a phone, sitting between it and
+   the poster: on a narrow screen the practical detail earns its place ahead of
+   who is promoting.
+
+   ⚠ EVERY child needs an order, not just the two being swapped. `order`
+   defaults to 0, so any section left unset would jump ahead of all of them.
+   That is why the hero and the band are listed here too despite not moving.
+
+   ⚠ And note this is the second place where mobile and desktop reading order
+   genuinely differ. The DOM alone no longer tells you what a reader sees — a
+   new section added below the band needs an entry here or it lands at the top
+   on a phone. */
+@media (max-width: 1023px) {
+  /* The second band dissolves entirely on phone — band, both columns, gone —
+     so Venue / Details / Presented By become direct children of .page and can
+     be ordered individually. Without this they would inherit their desktop
+     column grouping and stack as Details, Venue, Presented By.
+
+     ⚠ `.band.oBand2`, not `.oBand2`. The base `.band { display: flex }` is
+     declared further down this file at equal specificity, so a bare `.oBand2`
+     lost on source order — the band stayed a flex box, its wrappers never
+     became page children, and Venue/Details/Presented By rendered ABOVE the
+     hero at order 0. Doubling the class outranks it regardless of position. */
+  .band.oBand2,
+  .oBand2 > .primary,
+  .oBand2 > .secondary { display: contents; }
+
+  .oHero      { order: 1; }
+  .oBand      { order: 2; }
+  .oVenue     { order: 3; }
+  .oDetails   { order: 4; }
+  .oPresented { order: 5; }
+  .oGallery   { order: 6; }
+  .oRelated   { order: 7; }
+  .oSources   { order: 8; }
+}
+
+/* The band stacks on mobile and becomes a row on desktop.
+   ⚠ The `display: contents` + `order` interleave that briefly lived here is
+   GONE, and deliberately: it existed only to lift the Lineup above Venue on a
+   phone. The Lineup now lives IN the band, so stacking primary-then-secondary
+   already puts the bill directly under the event info. DOM order is reading
+   order again at both breakpoints — keep it that way. */
+.band {
+  display: flex;
+  flex-direction: column;
+  gap: var(--yp-ep-gap-section);
+}
+
+.primary,
+.secondary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--yp-ep-gap-section);
+  min-width: 0;   /* children may contain horizontal rails; never widen the page */
+}
+
+/* ── Desktop projection ──────────────────────────────────────────────
+   Two columns. Columns are independent within a band: if one runs short it
+   simply ends — nothing stretches and nothing fills (R5 is satisfied by the
+   band boundary, not by padding a column out). */
+@media (min-width: 1024px) {
+  .page {
+    --yp-ep-gap-section: 20px;
+    --yp-ep-gap-band: 56px;
+    --yp-ep-pad: 24px;
+  }
+
+  /* Flex, not grid, and the choice is load-bearing.
+     A grid's column tracks exist whether or not anything occupies them, so a
+     section that renders nothing still reserves its width — R5's hole, exactly.
+     Flex tracks only what is actually there: hide an empty column and the
+     survivor takes the whole width with no further rule. */
+  .band {
+    display: flex;
+    flex-direction: row;
+    gap: var(--yp-ep-gap-section);
+    align-items: flex-start;   /* default: top-align, shorter column just ends */
+  }
+
+  .primary   { flex: 58 1 0; }
+  .secondary { flex: 42 1 0; }
+
+  /* ── A HEIGHT-MATCHED band ──────────────────────────────────────────
+     The secondary column fills the height the PRIMARY column sets, and must
+     not set any of its own.
+
+     ⚠ `align-items: stretch` alone does not do this. Stretch matches the
+     TALLEST column, so a 30-card lineup simply won the argument and dragged
+     the band to 2652px. Taking the secondary's content out of flow is what
+     makes the direction one-way: absolutely positioned, it contributes zero
+     to the row's height and then fills whatever the primary decided.
+
+     Only valid because this band's secondary holds exactly ONE section. If it
+     ever holds two, they will stack on top of each other. */
+  .bandMatched { align-items: stretch; }
+  .bandMatched > .primary { min-height: 0; }
+
+  .bandMatched > .secondary {
+    position: relative;
+    min-height: 0;
+  }
+
+  .bandMatched > .secondary > * {
+    position: absolute;
+    inset: 0;
+  }
+
+  /* R5 · a column whose sections all declined to render leaves nothing behind.
+     Note this catches the case the JS check cannot: a section component that
+     returns null is still a truthy React element at the call site, so only the
+     DOM knows it rendered nothing. */
+  .primary:empty,
+  .secondary:empty { display: none; }
+
+  /* ⚠ The second band's items sit inside order-carrying wrapper divs, so its
+     columns are never literally `:empty` — a column holding one empty div has
+     a child node and the rule above misses it, reserving 58% of nothing.
+     Every section here renders a <section>, so its absence is the honest test. */
+  .oBand2 > .primary:not(:has(section)),
+  .oBand2 > .secondary:not(:has(section)) { display: none; }
+
+  .bandSingle > .primary,
+  .bandSingle > .secondary { flex: 1 1 100%; }
+}
+
+/* ── Sticky action bar — MOBILE ONLY ─────────────────────────────────
+   Sits ABOVE the bottom nav, never over it. The nav is sacred. */
+.stickyBar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  z-index: 40;
+  box-sizing: border-box;
+
+  /* Clears the nav AND the player. --yp-safe-bottom is nav + player, so it is
+     the only offset that stays correct while a track is playing; the nav height
+     alone would put the bar behind the player.
+     ⚠ It must NOT also appear in the padding — that was the bug: offsetting by
+     the nav and then padding by (nav + player) counted the nav twice and left
+     79px of dead space under the bar. */
+  bottom: var(--yp-safe-bottom, var(--yp-nav-height));
+  padding: 10px var(--yp-ep-pad);
+}
+
+@media (min-width: 1024px) {
+  .stickyBar { display: none; }
+}
+
+/* ══ THE TOP OF THE NAV IS THE BOTTOM OF THE SCREEN ══════════════════
+   Nothing may end up behind the bottom nav, and the nav renders on EVERY
+   route — desktop included. So the reserve is unconditional, not something
+   only the sticky bar turns on.
+
+   ⚠ Both halves of this were wrong before 2026-08-01:
+     · with no sticky bar the page reserved NOTHING, so the last section
+       scrolled under the nav;
+     · with one, it reserved a flat 88px while the bar's top actually sits
+       144px above the viewport bottom (69 nav + 10 pad + 65 bar), leaving
+       ~32px of the last section hidden behind it. Measured, not guessed. */
+.page {
+  padding-bottom: var(--yp-safe-bottom);
+}
+
+/* --yp-safe-bottom already covers the nav and the player; this adds the bar
+   that sits on top of them, plus a gap so the last card does not touch it. */
+.hasStickyBar {
+  padding-bottom: calc(var(--yp-safe-bottom) + 96px);
+}
+
+@media (min-width: 1024px) {
+  /* No sticky bar up here — but the nav is still there, so the reserve stays. */
+  .hasStickyBar { padding-bottom: var(--yp-safe-bottom); }
+}
+
+/* ── Step 1 scaffolding — REMOVE as each section is built ───────────── */
+.slot {
+  border: 1px dashed rgba(255, 255, 255, 0.22);
+  border-radius: 12px;
+  padding: 14px 16px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.slotName {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 13px;
+  letter-spacing: 1.6px;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.slotNote {
+  font-size: 11px;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.38);
+}
+
+.slotOrder {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: rgba(255, 255, 255, 0.28);
+}
