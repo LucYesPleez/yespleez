@@ -7,6 +7,28 @@ import InAppBrowserWarning from './components/InAppBrowserWarning.jsx'
 import { registerServiceWorker } from './lib/registerServiceWorker.js'
 import { armInstallPrompt } from './lib/installPrompt.js'
 
+// TEMP: Remove after ConversationDock crash root cause is confirmed.
+// Tracking commit: 8bf1704
+//
+// Remove together with the matching block in ErrorBoundary.jsx.
+// Added 2026-08-01 to catch the intermittent ConversationDock exception.
+// The ErrorBoundary only sees errors thrown during React's render/commit;
+// anything from an async handler — a realtime callback, a promise rejection —
+// bypasses it entirely and would otherwise leave no trace. Both are recorded
+// to the same sessionStorage key so the order of events is readable.
+if (typeof window !== 'undefined') {
+  const record = (kind, message, stack) => {
+    try {
+      const prior = JSON.parse(sessionStorage.getItem('yp:crashes') || '[]')
+      prior.push({ at: new Date().toISOString(), kind, message, stack, url: window.location.hash })
+      sessionStorage.setItem('yp:crashes', JSON.stringify(prior.slice(-10)))
+    } catch { /* never mask the error being recorded */ }
+  }
+  window.addEventListener('error', e => record('window.error', e?.message, e?.error?.stack))
+  window.addEventListener('unhandledrejection', e =>
+    record('unhandledrejection', e?.reason?.message || String(e?.reason), e?.reason?.stack))
+}
+
 // Outside the React tree on purpose: this is a property of the PAGE, not of
 // any component, and it must also run its dev-cleanup branch on every load
 // regardless of what App decides to render.

@@ -14,6 +14,27 @@ export default class ErrorBoundary extends Component {
   componentDidCatch(error, info) {
     console.error('[YesPleez]', error, info);
 
+    // TEMP: Remove after ConversationDock crash root cause is confirmed.
+    // Tracking commit: 8bf1704
+    //
+    // Added 2026-08-01 to catch the ConversationDock exception, which is
+    // intermittent: it fires on some
+    // loads and not others, so the message has to survive a reload to be
+    // readable at all. sessionStorage rather than a console line because the
+    // console is cleared by the reload that follows the crash.
+    try {
+      const prior = JSON.parse(sessionStorage.getItem('yp:crashes') || '[]');
+      prior.push({
+        at: new Date().toISOString(),
+        message: error?.message || String(error),
+        name: error?.name,
+        stack: error?.stack,
+        componentStack: info?.componentStack,
+        url: window.location.hash,
+      });
+      sessionStorage.setItem('yp:crashes', JSON.stringify(prior.slice(-10)));
+    } catch { /* diagnostics must never mask the crash they record */ }
+
     // A2 · a crash nobody reports is the quietest way to lose a user: they
     // see "something went wrong", close the app, and no record of it exists
     // anywhere. This is the only place the app learns it broke in the wild.
