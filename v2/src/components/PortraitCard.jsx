@@ -54,7 +54,15 @@ const CARD_SURFACE =
   'linear-gradient(135deg,rgba(255,45,120,.4),rgba(157,78,221,.3)) padding-box,'
   + 'linear-gradient(155deg, #1E1B26 0%, #100E15 100%) border-box';
 
-export default function PortraitCard({ profile: p, onClick, width = 150, height = 200, avatarOnly = false, showType = true }) {
+/**
+ * `followAction` — JSX pinned TOP-LEFT (owner, 2026-08-01: the follow heart
+ * goes top-left on portrait cards, bottom-right on horizontal ones). It is an
+ * OPT-IN SLOT, not a built-in: this card also renders messenger contact
+ * pickers, event lineups and your own dashboard rosters, where offering to
+ * follow makes no sense. Callers that are genuinely browsing profiles pass it.
+ * Clicks inside must not open the profile, so the wrapper stops propagation.
+ */
+export default function PortraitCard({ profile: p, onClick, width = 150, height = 200, avatarOnly = false, showType = true, followAction = null }) {
   const navigate = useNavigate();
   // 10F: one resolver, no artist sentinel. A row with a missing/unknown type used
   // to render as a cyan "DJ / PROD." with a DJ's placeholder photo; it now renders
@@ -110,6 +118,13 @@ export default function PortraitCard({ profile: p, onClick, width = 150, height 
         loading="lazy"
         decoding="async"
       />
+
+      {followAction && (
+        <div style={{ position: 'absolute', top: 8, left: 8, zIndex: 3 }}
+          onClick={e => { e.stopPropagation(); }}>
+          {followAction}
+        </div>
+      )}
 
       {avatarOnly ? null : (
         <>

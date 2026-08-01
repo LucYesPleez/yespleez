@@ -28,8 +28,18 @@ const ClockIcon = () => (
   </svg>
 );
 
-// Shared pill style matching WhatsOnScreen
+/* Shared pill style matching WhatsOnScreen.
+ *
+ * ⚠ HALF-OPACITY FILL (owner, 2026-08-01: "make the pill border and background
+ * about 50% opacity"). Done with color-mix, NOT a hex→rgba helper, because the
+ * incoming `bg` is not one format: eventBadges.js mixes hex ('#BF5FFF') with
+ * CSS custom properties ('var(--neon2)'), and a hex parser would silently drop
+ * the latter to transparent.
+ * The border is the same 50% colour. It still reads as an edge rather than
+ * vanishing, because background-clip defaults to border-box — the border sits
+ * OVER the fill, so the two 50% layers composite to ~75% right at the rim. */
 function Pill({ label, bg, col }) {
+  const half = `color-mix(in srgb, ${bg} 50%, transparent)`;
   return (
     <span style={{
       fontFamily: "'DM Sans', sans-serif",
@@ -38,7 +48,9 @@ function Pill({ label, bg, col }) {
       letterSpacing: .8,
       padding: '3px 8px',
       borderRadius: 6,
-      background: bg,
+      background: half,
+      border: `1px solid ${half}`,
+      backdropFilter: 'blur(3px)',
       color: col,
     }}>
       {label}
@@ -199,8 +211,15 @@ export default function EventCard({ event, badge: badgeOverride, badgeColor, onC
             {venue && <span className={s.cardMeta}>{venue}</span>}
           </div>
         </div>
+        {/* ⚠ With a heart present the pill moves to the TOP of the right
+            column instead of staying vertically centred, so the two STACK
+            (pill above, heart below) rather than fighting for the same corner
+            — owner, 2026-08-01: "a heart in the bottom right UNDER the
+            category pill". Centred + a bottom-right heart overlap on a 90px
+            card; shifting the pill sideways instead would pull it off the
+            right edge where it belongs. */}
         {statusPills.length > 0 && (
-          <div className={s.cardRight} style={{ display:'flex', gap:4, flexWrap:'wrap', justifyContent:'flex-end', paddingRight: cornerAction ? 44 : 12 }}>
+          <div className={s.cardRight} style={{ display:'flex', gap:4, flexWrap:'wrap', justifyContent:'flex-end', ...(cornerAction ? { alignSelf:'flex-start' } : null) }}>
             {statusPills.map(p => <Pill key={p.label} {...p} />)}
           </div>
         )}

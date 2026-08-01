@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase';
 import EventCard from '../components/EventCard';
 import ProfileCard, { TYPE_STYLES } from '../components/ProfileCard';
 import PortraitCard from '../components/PortraitCard';
+import FollowHeartBtn from '../components/FollowHeartBtn';
 import { SkeletonRow } from '../components/Skeleton';
 import { useDragScroll } from '../hooks/useDragScroll';
 import s from './DiscoverScreen.module.css';
@@ -513,7 +514,10 @@ export default function DiscoverScreen() {
                       rail during its Discover step — a CSS-module class is
                       content-hashed and unreachable from outside this file. */}
                   <div data-tour="discover-rail" className={s.hScroll} ref={profilesDrag.ref} onMouseDown={profilesDrag.onMouseDown} onMouseMove={profilesDrag.onMouseMove} onMouseUp={profilesDrag.onMouseUp} onMouseLeave={profilesDrag.onMouseLeave}>
-                    {profiles.map(p => <PortraitCard key={p.id ?? p.user_id} profile={p} />)}
+                    {profiles.map(p => (
+                      <PortraitCard key={p.id ?? p.user_id} profile={p}
+                        followAction={<FollowHeartBtn profile={p} />} />
+                    ))}
                   </div>
                 </>
               )}
@@ -541,7 +545,7 @@ export default function DiscoverScreen() {
                     {items.slice(0, visibleCount).map(r =>
                       r._kind === 'event'
                         ? <EventCard key={r.id} event={r} />
-                        : <ProfileCard key={r.id ?? r.user_id} item={r} />
+                        : <ProfileCard key={r.id ?? r.user_id} item={r} followAction={<FollowHeartBtn profile={r} />} />
                     )}
                   </div>
                   <button className={s.viewMore} style={{ opacity: visibleCount < items.length ? 1 : 0, pointerEvents: visibleCount < items.length ? 'auto' : 'none' }} onClick={() => setVisibleCount(v => v + 10)}>
@@ -570,7 +574,7 @@ export default function DiscoverScreen() {
                     {unplaceable.slice(0, 10).map(r =>
                       r._kind === 'event'
                         ? <EventCard key={r.id} event={r} />
-                        : <ProfileCard key={r.id ?? r.user_id} item={r} />
+                        : <ProfileCard key={r.id ?? r.user_id} item={r} followAction={<FollowHeartBtn profile={r} />} />
                     )}
                   </div>
                 </>

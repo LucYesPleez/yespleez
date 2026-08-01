@@ -23,7 +23,7 @@ export const TYPE_STYLES = Object.fromEntries(
  *   badgeColor – colour for badge
  *   actions   – optional JSX rendered below the card (accept/decline buttons etc.)
  */
-export default function ProfileCard({ item, badge, badgeColor, actions, onClick }) {
+export default function ProfileCard({ item, badge, badgeColor, actions, onClick, followAction = null }) {
   const navigate = useNavigate();
   if (!item) return null;
   // 10F: one resolver, no artist sentinel. `item.type || 'artist'` then
@@ -93,6 +93,19 @@ export default function ProfileCard({ item, badge, badgeColor, actions, onClick 
         </div>
         {actions && <div onClick={e => e.stopPropagation()} style={{ flexShrink: 0 }}>{actions}</div>}
       </div>
+
+      {/* BOTTOM-RIGHT, matching where the heart sits on every horizontal event
+          card (owner, 2026-08-01). An OPT-IN slot, not built in: this card also
+          renders messenger contacts, event lineups and dashboard rosters, where
+          offering to follow makes no sense. Kept separate from `actions`, which
+          is an inline row inside the content flow — this floats over the card
+          so it cannot squeeze the name. */}
+      {followAction && (
+        <div style={{ position: 'absolute', bottom: 8, right: 10, zIndex: 3 }}
+          onClick={e => { e.stopPropagation(); }}>
+          {followAction}
+        </div>
+      )}
     </div>
   );
 }

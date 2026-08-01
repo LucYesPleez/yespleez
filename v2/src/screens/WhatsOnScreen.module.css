@@ -706,9 +706,13 @@
    PortraitEventCard in WhatsOnScreen.jsx. Only .weekendScroll survives here:
    it is the RAIL these cards sit in, not the card. */
 
+/* ⚠ NO RING (owner, 2026-08-01) — the border was removed everywhere except the
+   Spotlight and Featured heroes. This one is a list row on a solid panel, not
+   a heart over poster artwork, so the circle was drawing a control that the
+   glyph already draws. */
 .comingHeart {
   background: none;
-  border: 1px solid var(--border);
+  border: none;
   color: var(--muted);
   border-radius: 50%;
   width: 28px;

@@ -5,26 +5,17 @@ import { track, EVENTS } from '../lib/analytics';
 import { likedEvents } from '../lib/likedEvents';
 import { useSession } from '../App';
 
+import { HEART_OVERLAY_STYLE, HEART_BARE_STYLE, HeartGlyph } from './heartStyles';
+
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/**
- * The heart as it sits ON a poster — EventCard's `cornerAction` slot.
- *
- * Exported rather than copied so What's On and My Scene cannot drift into two
- * subtly different save buttons, which is the same problem the two portrait
- * event cards had before they were unified.
- */
-export const HEART_OVERLAY_STYLE = {
-  width: 30, height: 30, borderRadius: '50%',
-  background: 'rgba(0,0,0,.55)',
-  // ⚠ LONGHAND, not the `border` shorthand. The liked state below sets
-  // `borderColor`, and React warns — correctly — that mixing the two for one
-  // property causes styling bugs. It did: the shorthand won, so a saved heart
-  // never showed its pink ring.
-  borderWidth: 1, borderStyle: 'solid', borderColor: 'rgba(255,255,255,.3)',
-  display: 'flex', alignItems: 'center', justifyContent: 'center',
-  color: '#fff', cursor: 'pointer', padding: 0,
-};
+/* ⚠ The styles and the glyph now live in ./heartStyles — that file imports
+   NOTHING that reaches App, which is what stops the cycle
+   App → MySceneScreen → FollowHeartBtn → HeartBtn → App from putting
+   HEART_OVERLAY_STYLE in the temporal dead zone. Re-exported here so existing
+   `from './HeartBtn'` imports keep working, but NEW code importing only the
+   styles should import ./heartStyles directly and stay out of the cycle. */
+export { HEART_OVERLAY_STYLE, HEART_BARE_STYLE, HeartGlyph };
 
 /**
  * THE save-to-scene affordance — one glyph, one relationship.
@@ -107,9 +98,7 @@ export default function HeartBtn({ event, className, style, onChange, onError })
   // border silently overrode the saved-state one.
   return (
     <button className={className} onClick={toggle} style={{ ...style, ...(liked ? { color: 'var(--neon)', borderColor: 'rgba(255,45,120,.5)' } : {}) }}>
-      <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill={liked ? 'var(--neon)' : 'none'} stroke={liked ? 'var(--neon)' : 'currentColor'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
-      </svg>
+      <HeartGlyph filled={liked} />
     </button>
   );
 }

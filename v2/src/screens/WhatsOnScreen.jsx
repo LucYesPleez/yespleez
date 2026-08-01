@@ -9,7 +9,8 @@ import { today, dateStr, weekendRange, formatDisplayDate } from '../lib/dates';
 import { getDemoEvents } from '../lib/demoEvents';
 import FeaturedEventCard from '../components/FeaturedEventCard';
 import DemoEventNotice from '../components/DemoEventNotice';
-import HeartBtn, { HEART_OVERLAY_STYLE } from '../components/HeartBtn';
+import HeartBtn from '../components/HeartBtn';
+import { HEART_OVERLAY_STYLE, HEART_BARE_STYLE } from '../components/heartStyles';
 import EventCard from '../components/EventCard';
 import s from './WhatsOnScreen.module.css';
 import { getEventBadges } from '../lib/eventBadges';
@@ -103,7 +104,9 @@ function PortraitEventCard({ event, onClick }) {
       variant="scroll"
       event={event}
       onClick={onClick}
-      cornerAction={<HeartBtn event={event} style={HEART_OVERLAY_STYLE} />}
+      /* Bare — this is a grid card, not a hero. The ring stays only on the
+         FEATURED hero below, whose heart sits over poster artwork. */
+      cornerAction={<HeartBtn event={event} style={HEART_BARE_STYLE} />}
     />
   );
 }
@@ -514,7 +517,11 @@ export default function WhatsOnScreen() {
           {featuredEvent && (
             <div className={s.sectionBlock}>
               <div style={{ marginBottom: 12 }}><span data-tour="whatson-section" className={s.sectionTitle}>FEATURED EVENT</span></div>
-              <FeaturedEventCard event={featuredEvent} onClick={() => openEvent(featuredEvent)} />
+              {/* The featured hero was the ONE event card in the app you could
+                  not save from — every other card here and on My Scene carries
+                  the heart, and this is the most prominent gig on the page. */}
+              <FeaturedEventCard event={featuredEvent} onClick={() => openEvent(featuredEvent)}
+                cornerAction={<HeartBtn event={featuredEvent} style={HEART_OVERLAY_STYLE} />} />
             </div>
           )}
 

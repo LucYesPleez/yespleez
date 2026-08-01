@@ -5,7 +5,12 @@ import { supabase } from '../lib/supabase';
 import { useSession } from '../App';
 import EventCard from '../components/EventCard';
 import FeaturedEventCard from '../components/FeaturedEventCard';
-import HeartBtn, { HEART_OVERLAY_STYLE } from '../components/HeartBtn';
+import HeartBtn from '../components/HeartBtn';
+// ⚠ styles from ./heartStyles, not ./HeartBtn — this file reads them at MODULE
+// level (SPOTLIGHT_HEART / HEART_STYLE below), which is precisely where the
+// import cycle through App threw "Cannot access before initialization".
+import { HEART_OVERLAY_STYLE, HEART_BARE_STYLE } from '../components/heartStyles';
+import FollowHeartBtn from '../components/FollowHeartBtn';
 import PortraitCard from '../components/PortraitCard';
 import ProfileCard from '../components/ProfileCard';
 import { SkeletonRow, SkeletonEventCard } from '../components/Skeleton';
@@ -86,9 +91,16 @@ const SPOTLIGHT_BADGE_COLORS = {
   spotlight:     '#9D4EDD',
 };
 
+/* ⚠ TWO heart styles on this screen, and which one a card gets is a decision:
+   SPOTLIGHT_HEART keeps the ring because its heart sits over poster artwork of
+   unpredictable brightness; HEART_STYLE (bare) is for every other card here,
+   where the heart landed on a dark panel and the ring was the only thing
+   drawing it. Owner's call, 2026-08-01. */
+const SPOTLIGHT_HEART = HEART_OVERLAY_STYLE;
+
 /* The overlay heart style now lives on HeartBtn (HEART_OVERLAY_STYLE) so
    What's On's cards and these share one definition. */
-const HEART_STYLE = HEART_OVERLAY_STYLE;
+const HEART_STYLE = HEART_BARE_STYLE;
 
 export default function MySceneScreen({ isGuest, onSignOut }) {
   const navigate = useNavigate();
@@ -400,6 +412,14 @@ export default function MySceneScreen({ isGuest, onSignOut }) {
       console.error('[favourite] delete rejected —', `code=${error.code}`, `message=${error.message}`);
       return;
     }
+    queryClient.invalidateQueries({ queryKey: ['myScene', uid] });
+  }
+
+  /* A profile heart on FOLLOWING is almost always an UNfollow — the list is,
+     by definition, people you already follow. Refetch so the row leaves rather
+     than sitting there emptied, which would read as the tap not working. */
+  function onFollowHeart(followed, profile) {
+    if (!followed) showToast(`Unfollowed ${profile?.name || 'that profile'}.`);
     queryClient.invalidateQueries({ queryKey: ['myScene', uid] });
   }
 
@@ -1245,7 +1265,7 @@ export default function MySceneScreen({ isGuest, onSignOut }) {
                           label={badge} badgeColor={SPOTLIGHT_BADGE_COLORS[ruleKey]}
                           rail solo={spotlightItems.length === 1}
                           onClick={() => navigate(`/event/${ev.id}`)}
-                          cornerAction={<HeartBtn event={ev} style={HEART_STYLE} onChange={liked => onFloorHeart(ev, liked)} onError={onFloorHeartError} />}
+                          cornerAction={<HeartBtn event={ev} style={SPOTLIGHT_HEART} onChange={liked => onFloorHeart(ev, liked)} onError={onFloorHeartError} />}
                         />
                       ))}
                     </div>
@@ -1334,13 +1354,15 @@ export default function MySceneScreen({ isGuest, onSignOut }) {
                           onMouseDown={upcomingDrag.onMouseDown} onMouseMove={upcomingDrag.onMouseMove}
                           onMouseUp={upcomingDrag.onMouseUp} onMouseLeave={upcomingDrag.onMouseLeave}>
                           {upcomingEvents.map(({ ev, badge, badgeColor }) => (
-                            <EventCard key={ev.id} variant="scroll" event={ev} badge={badge} badgeColor={badgeColor} onClick={() => navigate(`/event/${ev.id}`)} />
+                            <EventCard key={ev.id} variant="scroll" event={ev} badge={badge} badgeColor={badgeColor} onClick={() => navigate(`/event/${ev.id}`)}
+                              cornerAction={<HeartBtn event={ev} style={HEART_STYLE} />} />
                           ))}
                         </div>
                       ) : (
                         <div style={{ display:'flex', flexDirection:'column', gap:6, marginTop:10, ...(!eventsExpanded && upcomingEvents.length >= 4 ? { maxHeight:315, overflowY:'scroll', scrollbarWidth:'none', WebkitOverflowScrolling:'touch', maskImage:'linear-gradient(to bottom, black 75%, transparent 100%)', WebkitMaskImage:'linear-gradient(to bottom, black 75%, transparent 100%)' } : { overflowY:'visible' }) }}>
                           {upcomingEvents.map(({ ev, badge, badgeColor }) => (
-                            <EventCard key={ev.id} event={ev} badge={badge} badgeColor={badgeColor} onClick={() => navigate(`/event/${ev.id}`)} />
+                            <EventCard key={ev.id} event={ev} badge={badge} badgeColor={badgeColor} onClick={() => navigate(`/event/${ev.id}`)}
+                              cornerAction={<HeartBtn event={ev} style={HEART_STYLE} />} />
                           ))}
                         </div>
                       )}
@@ -1452,14 +1474,16 @@ export default function MySceneScreen({ isGuest, onSignOut }) {
                         <div ref={followingDrag.ref} onMouseDown={followingDrag.onMouseDown} onMouseMove={followingDrag.onMouseMove} onMouseUp={followingDrag.onMouseUp} onMouseLeave={followingDrag.onMouseLeave} style={{ display:'flex', gap:10, overflowX:'auto', paddingBottom:8, WebkitOverflowScrolling:'touch', scrollbarWidth:'none', cursor:'grab' }}>
                           {filteredFollows.map(f => {
                             const p = followProfiles[f.entity_id];
-                            return p ? <PortraitCard key={f.entity_id} profile={{ ...p, avatar: followAvatars[p.user_id] || p.avatar }} /> : null;
+                            return p ? <PortraitCard key={f.entity_id} profile={{ ...p, avatar: followAvatars[p.user_id] || p.avatar }}
+                              followAction={<FollowHeartBtn profile={p} onChange={onFollowHeart} />} /> : null;
                           })}
                         </div>
                       ) : (
                         <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
                           {filteredFollows.map(f => {
                             const p = followProfiles[f.entity_id];
-                            return p ? <ProfileCard key={f.entity_id} item={{ ...p, avatar: followAvatars[p.user_id] || p.avatar }} /> : null;
+                            return p ? <ProfileCard key={f.entity_id} item={{ ...p, avatar: followAvatars[p.user_id] || p.avatar }}
+                              followAction={<FollowHeartBtn profile={p} onChange={onFollowHeart} />} /> : null;
                           })}
                         </div>
                       )}
