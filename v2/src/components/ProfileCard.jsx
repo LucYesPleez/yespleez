@@ -32,6 +32,11 @@ export default function ProfileCard({ item, badge, badgeColor, actions, onClick,
   const type  = String(item.type || '').toLowerCase();
   const pt    = profileIdentity(type);
   const ts    = { col: pt.accent, rgb: pt.rgb, label: pt.shortLabel, emoji: pt.emoji };
+  // The muted, near-black tone carries type identity on this card now that the coloured border
+  // is gone. It is confined to the display-picture treatment and the pill fill — see below for
+  // why the two text elements keep the bright accent.
+  const dim   = pt.muted;
+  const dimRgb = pt.mutedRgb;
   const loc   = formatLocation(item);
   const sound = item.sound || item.genre_string?.split(' · ').slice(0, 3).join(' · ') || '';
   const img   = item.avatar_thumb || item.avatar || null;
@@ -51,7 +56,7 @@ export default function ProfileCard({ item, badge, badgeColor, actions, onClick,
   return (
     <div
       className={s.card}
-      style={{ '--accent': ts.col, '--accent-rgb': ts.rgb, border: `1.5px solid rgba(${ts.rgb},.6)` }}
+      style={{ '--accent': ts.col, '--accent-rgb': ts.rgb }}
       onClick={() => {
         // An OPTIONAL override, not a new default. Messenger's contact list
         // reuses this card but must open the CONVERSATION rather than the
@@ -71,12 +76,19 @@ export default function ProfileCard({ item, badge, badgeColor, actions, onClick,
       {/* Content sits above overlay */}
       <div className={s.content}>
         {/* Avatar thumbnail on the left */}
-        <img className={s.avatar} src={img || defaultImg} alt={item.name} style={{ borderColor: ts.col }} />
+        {/* The DP carries the type: a 2px ring in the muted tone plus a soft outer glow of the
+            same colour. Both are deliberately quiet — at ~25% saturation this reads as a
+            coloured edge, not a highlight. */}
+        <img className={s.avatar} src={img || defaultImg} alt={item.name}
+          style={{ borderWidth: 2, borderColor: dim, boxShadow: `0 0 6px rgba(${dimRgb},.15)` }} />
         <div className={s.info}>
           <div className={s.nameRow}>
             <span className={s.name}>{item.name}</span>
             {typeLabels.map((l, i) => (
-              <span key={i} className={s.typeBadge} style={{ color: ts.col, background: `rgba(${ts.rgb},.15)`, borderColor: `rgba(${ts.rgb},.3)` }}>{l}</span>
+              // The pill MATCHES the ring — muted tone as the fill and edge. Its label keeps the
+              // bright accent: the fill is near-black by design, so dark-on-dark text would be
+              // illegible (the muted pair alone measures ~1.3:1, well under the 4.5:1 floor).
+              <span key={i} className={s.typeBadge} style={{ color: ts.col, background: dim, borderColor: `rgba(${dimRgb},.9)` }}>{l}</span>
             ))}
             {/* Sits after the type badge, same order as ProfileScreen's meta
                 row. .nameRow is already flex with a 7px gap and wraps, so this

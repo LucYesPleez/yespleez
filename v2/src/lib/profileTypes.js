@@ -23,10 +23,17 @@ function hexToRgb(hex) {
 // badges/pills where space is tight. Dashboard heading line-break text is
 // deliberately NOT here — that's UI content each dashboard owns locally, not
 // identity.
+// `muted` is the type's accent taken down to ~20–30% saturation — it should read almost like
+// coloured black, not like the accent dimmed. Owner-specified hexes, 2026-08-02. It exists for
+// surfaces that carry identity WITHOUT shouting it: the landscape ProfileCard uses it for the
+// display-picture ring and glow only, and leaves the rest of the card neutral. Do NOT swap it in
+// for `accent` anywhere text sits directly on a dark background — at these values the contrast
+// is far below readable (see ProfileCard, where the genre line deliberately keeps `accent`).
 const RAW_TYPES = {
   venue: {
     accent:      '#00E5A0',
     accent2:     '#00B4D8',
+    muted:       '#13483A',   // dark emerald
     emoji:       '📍',
     label:       'VENUE',
     shortLabel:  'VENUE',
@@ -38,6 +45,7 @@ const RAW_TYPES = {
   host: {
     accent:      '#FF2D78',
     accent2:     '#00E5FF',
+    muted:       '#521638',   // dark magenta
     emoji:       '🎛️',
     label:       'HOST / PROMOTER',
     shortLabel:  'HOST',
@@ -60,6 +68,7 @@ const RAW_TYPES = {
   artist: {
     accent:      '#00E5FF',
     accent2:     '#FF3399',
+    muted:       '#0E4956',   // dark cyan
     emoji:       '🎧',
     label:       'DJ / PROD.',
     shortLabel:  'DJ / PROD.',
@@ -71,6 +80,7 @@ const RAW_TYPES = {
   band: {
     accent:      '#FFB830',
     accent2:     '#FF8C42',
+    muted:       '#4D3B14',   // dark amber
     emoji:       '🎸',
     label:       'BAND',
     shortLabel:  'BAND',
@@ -82,6 +92,7 @@ const RAW_TYPES = {
   standup: {
     accent:      '#FF88AA',
     accent2:     '#BF5FFF',
+    muted:       '#3E2456',   // dark purple
     emoji:       '🎤',
     label:       'COMEDY / POETRY',
     shortLabel:  'COMEDY',
@@ -95,7 +106,7 @@ const RAW_TYPES = {
 export const PROFILE_TYPES = Object.fromEntries(
   Object.entries(RAW_TYPES).map(([type, t]) => [
     type,
-    { ...t, rgb: hexToRgb(t.accent), accent2Rgb: hexToRgb(t.accent2) },
+    { ...t, rgb: hexToRgb(t.accent), accent2Rgb: hexToRgb(t.accent2), mutedRgb: hexToRgb(t.muted) },
   ])
 );
 
@@ -117,8 +128,12 @@ export const PROFILE_TYPE_ORDER = Object.keys(PROFILE_TYPES);
 export const UNKNOWN_PROFILE = Object.freeze({
   accent:       '#8B90A0',
   accent2:      '#5A5F6E',
+  // Neutral by construction — a broken row must not borrow a real type's identity, and that
+  // holds for the muted tone exactly as it holds for the accent.
+  muted:        '#2A2C33',
   rgb:          '139,144,160',
   accent2Rgb:   '90,95,110',
+  mutedRgb:     '42,44,51',
   emoji:        '',
   label:        'PROFILE',
   shortLabel:   'PROFILE',
@@ -169,8 +184,11 @@ export const PUNTER_PROFILE = Object.freeze({
   // constant, so darkening it here cannot touch any of them.
   accent:       '#994CCC',
   accent2:      '#00E5FF',
+  // Same treatment as the industry types: the punter purple taken to a coloured black.
+  muted:        '#2E1A40',
   rgb:          '153,76,204',
   accent2Rgb:   '0,229,255',
+  mutedRgb:     '46,26,64',
   emoji:        '',
   label:        null,
   shortLabel:   null,

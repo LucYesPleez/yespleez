@@ -60,12 +60,13 @@ const EMPTY = [];
 /** Must match the `gap` on .hScroll — the dot index is derived from it. */
 const SPOTLIGHT_RAIL_GAP = 12;
 
-/* How long a Spotlight card holds before the rail moves on. Long enough to
-   read a poster, a title and a venue without feeling hurried — this is a
-   thing to look at, not a slideshow to sit through. The timer restarts on
-   every movement, so this is "quiet time before it advances", not a
-   metronome. */
-const SPOTLIGHT_AUTOPLAY_MS = 6000;
+/* How long a Spotlight card holds before the rail moves on. Owner's call,
+   2026-08-02: 6000 -> 3000. The earlier value was set to give a poster, title
+   and venue time to land without feeling hurried; the shorter hold trades that
+   for a rail that visibly moves, so more of the five get seen at a glance.
+   The timer restarts on every movement, so this is "quiet time before it
+   advances", not a metronome — a drag or a dot tap buys a fresh 3s. */
+const SPOTLIGHT_AUTOPLAY_MS = 3000;
 
 /* ⛔ SPOT_ARROW_STYLE DELETED 2026-08-01 (owner) — the circular ‹ › edge
    controls on the Spotlight rail are gone, along with the card's own open

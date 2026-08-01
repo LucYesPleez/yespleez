@@ -4,6 +4,10 @@ import { formatDisplayDate } from '../lib/dates';
 import { getEventBadges, resolveCategoryBadge, OPEN_MIC_BADGE } from '../lib/eventBadges';
 import DateBox from './DateBox';
 
+// The landscape card's date box width. Referenced twice — by the box itself and by the text
+// padding that must clear it — so it is a constant, not two numbers that have to agree.
+const DATE_BOX_W = 64;
+
 function fmtChip(dateStr) {
   if (!dateStr) return {};
   const d = new Date(dateStr + 'T12:00:00');
@@ -100,8 +104,12 @@ export default function EventCard({ event, badge: badgeOverride, badgeColor, onC
     return (
       <div onClick={handleClick} style={{ flexShrink:0, width:195, borderRadius:16, overflow:'hidden', background:'var(--card2)', border:'1px solid rgba(255,255,255,.08)', cursor:'pointer', position:'relative' }}>
         <div style={{ height:120, background: poster ? `url('${poster}') center/cover no-repeat` : 'linear-gradient(135deg,rgba(255,45,120,.25),rgba(157,78,221,.25))', position:'relative' }}>
+          {/* ⚠ THE RIGHT BOUND IS LOAD-BEARING. This row had `left:8` and no right edge, so on a
+              195px card two pills ("LIVE MUSIC" + "OPEN MIC") grew straight under the date box
+              at `right:8` and the two touched. Bounding it makes the row wrap instead of
+              colliding; 52px clears the sm DateBox (~40px) with 8px to spare. */}
           {pills.length > 0 && (
-            <div style={{ position:'absolute', top:8, left:8, display:'flex', gap:4, flexWrap:'wrap' }}>
+            <div style={{ position:'absolute', top:8, left:8, right: chip.dayNum ? 52 : 8, display:'flex', gap:4, flexWrap:'wrap' }}>
               {pills.map(p => <Pill key={p.label} {...p} />)}
             </div>
           )}
@@ -189,13 +197,25 @@ export default function EventCard({ event, badge: badgeOverride, badgeColor, onC
           {genrePills.slice(0,1).map(p => <Pill key={p.label} {...p} />)}
         </div>
       )}
+      {/* ⚠ THE BOX IS PINNED TO A FIXED WIDTH ON PURPOSE. `paddingLeft` below has to clear it,
+          and the two numbers were independent: the box was free to grow with its content (a
+          wider month, a fallback font when Bebas Neue has not loaded — which is exactly what a
+          phone does on a cold start) while the padding stayed at 77, so the text ran into the
+          pill. `display:grid` makes the box fill this 64px column instead of sizing to text, so
+          the 12px gap below is now guaranteed rather than coincidental. */}
       {chip.dayNum && (
-        <div style={{ position:'absolute', top:'50%', left:12, transform:'translateY(-50%)', zIndex:2 }}>
+        <div style={{ position:'absolute', top:'50%', left:12, transform:'translateY(-50%)', zIndex:2, width:DATE_BOX_W, display:'grid', overflow:'hidden' }}>
           <DateBox date={date} size="md" />
         </div>
       )}
       <div className={s.cardRow}>
-        <div className={s.cardInfo} style={{ paddingLeft: chip.dayNum ? 77 : 12 }}>
+        <div className={s.cardInfo} style={{
+          paddingLeft: chip.dayNum ? 12 + DATE_BOX_W + 12 : 12,
+          // `.cardRight` is a flex sibling and already holds its own width, so reserving for it
+          // here would count it twice. Only the corner heart needs room, because it is absolute
+          // and therefore invisible to the flex row.
+          paddingRight: statusPills.length > 0 ? 12 : (cornerAction ? 52 : 12),
+        }}>
           {(() => {
             const sep = (event.name || '').match(/ [–\-] /);
             if (sep) {

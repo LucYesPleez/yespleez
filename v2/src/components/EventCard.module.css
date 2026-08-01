@@ -84,11 +84,18 @@
    Nothing here needs to differ by viewport width — DateBox does not change
    size responsively — so the fix is not a new number, it is deferring to the
    value EventCard.jsx already computes correctly. */
-@media (max-width: 640px) {
-  .cardInfo {
-    padding-right: 80px;
-  }
-}
+/* ⚠ AND THE RIGHT SIDE HAD THE SAME DISEASE, fixed 2026-08-02 the same way.
+   This was `@media (max-width:640px){ .cardInfo { padding-right: 80px } }` — a
+   blanket reservation for content on the right. But `.cardRight` is a real
+   flex SIBLING (99px wide when status pills exist), so whenever it rendered
+   the row reserved the space twice: 99px of sibling PLUS 80px of padding for
+   the same thing. On a 390px phone that left 88px of content — about eight
+   characters of a 22px title — and at 320px it left 18px, one letter.
+   The reservation is now computed in EventCard.jsx where it is knowable:
+   nothing when `.cardRight` already holds the space, ~52px when only the
+   absolutely-positioned corner heart is there, 12px otherwise. Exactly the
+   lesson above, applied to the other edge: defer to the value the component
+   computes, do not restate it as a viewport rule. */
 
 .cardName {
   font-family: 'Bebas Neue', sans-serif;
