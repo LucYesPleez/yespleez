@@ -14,14 +14,20 @@ function localDateStr(d) {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
 
-// Next Friday–Sunday using local timezone (toISOString shifts UTC which breaks AU timezones)
+// THIS weekend, Friday–Sunday, local timezone (toISOString shifts UTC which breaks AU timezones).
+// When today is Sat or Sun we are already IN the weekend, so anchor to the Friday just gone —
+// not the next one — otherwise "THIS WEEKEND" advertises next weekend. The start is clamped to
+// today so the range never reaches into the past.
 export function weekendRange() {
   const now = new Date();
   const day = now.getDay(); // 0=Sun,1=Mon,...,6=Sat
-  const daysToFri = (5 - day + 7) % 7; // 0 when today IS Friday
+  // Sat -> -1, Sun -> -2, otherwise forward to the coming Friday (0 when today IS Friday)
+  const daysToFri = day === 6 ? -1 : day === 0 ? -2 : 5 - day;
   const fri = new Date(now); fri.setDate(now.getDate() + daysToFri);
   const sun = new Date(fri); sun.setDate(fri.getDate() + 2);
-  return { from: localDateStr(fri), to: localDateStr(sun) };
+  const from = localDateStr(fri);
+  const t = today();
+  return { from: from < t ? t : from, to: localDateStr(sun) };
 }
 
 export function formatDisplayDate(dateStr) {
