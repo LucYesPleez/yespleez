@@ -4,9 +4,13 @@ import { formatDisplayDate } from '../lib/dates';
 import { getEventBadges, resolveCategoryBadge, OPEN_MIC_BADGE } from '../lib/eventBadges';
 import DateBox from './DateBox';
 
-// The landscape card's date box width. Referenced twice — by the box itself and by the text
-// padding that must clear it — so it is a constant, not two numbers that have to agree.
-const DATE_BOX_W = 64;
+/* The landscape date box's width. Referenced twice — by the box itself and by the text padding
+   that must clear it — so it is a constant, not two numbers that have to agree.
+   ⚠ 44, BECAUSE THAT IS THE BOX'S OWN DESIGN WIDTH (DateBox md: minWidth 44, border-box). This
+   was briefly 64, picked to satisfy the padding maths without checking the shape it produced:
+   at 64×62 the box rendered SQUARE, while every other date pill in the app is a tall rectangle
+   — 44×62 here and 36×48 on the sm/Spotlight cards. Pinning must match the design, not set it. */
+const DATE_BOX_W = 44;
 
 function fmtChip(dateStr) {
   if (!dateStr) return {};
