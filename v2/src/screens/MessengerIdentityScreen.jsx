@@ -282,7 +282,12 @@ export default function MessengerIdentityScreen() {
               {name || 'You'}
             </div>
             <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>
-              This is how you appear to others
+              {/* ⚠ "IN MESSENGER" IS THE POINT OF THE SENTENCE, not decoration.
+                  Without it the line reads as "this is your public face", and a
+                  punter has no way to know the thumbnail goes nowhere else —
+                  which is exactly the kind of unstated scope the privacy copy
+                  rule exists to close. */}
+              This is how you appear to others in Messenger
             </div>
           </div>
         </div>
