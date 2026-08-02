@@ -51,15 +51,20 @@
    ⚠ `order` defaults to 0, so EVERY child needs a value — a section added
    without an entry here lands at the TOP of the page, above the hero. That is
    not hypothetical; it is exactly what happened when the second band was
-   first dissolved. */
+   first dissolved.
+
+   Set times sit directly under the Lineup band — the running order is part of
+   the bill, and reading it before the venue or the particulars is how anyone
+   actually uses it. */
 .oHero      { order: 1; }
 .oBand      { order: 2; }
-.oDetails   { order: 3; }
-.oVenue     { order: 4; }
-.venueBand  { order: 5; }
-.oGallery   { order: 6; }
-.oRelated   { order: 7; }
-.oSources   { order: 8; }
+.oSetTimes  { order: 3; }
+.oDetails   { order: 4; }
+.oVenue     { order: 5; }
+.venueBand  { order: 6; }
+.oGallery   { order: 7; }
+.oRelated   { order: 8; }
+.oSources   { order: 9; }
 
 /* The Hero's own row — full content width, no columns. It is the page's
    banner rather than a cell in a grid, which is what lets a cover image
@@ -67,6 +72,18 @@
 .fullBand {
   width: 100%;
 }
+
+/* ⚠ R5 · A SECTION THAT RENDERED NOTHING MUST NOT COST A GAP.
+   A component returning null is still a truthy React element, so `{details &&
+   <div>...}` renders the wrapper regardless — and .page is a flex column with
+   a 15px gap, which an empty zero-height child still collects. Against the
+   fixtures this never showed, because every section had content; the first
+   real event served two of them (Event Details and Information Sources) and
+   paid 30px of blank page for sections that do not exist.
+
+   `:empty` and not `:has(section)` because these wrappers hold the section
+   directly — the same fix .primary/.secondary already carry below. */
+.fullBand:empty { display: none; }
 
 /* ── PHONE-ONLY section order ─────────────────────────────────────────
    Presented By drops below Event Details on a phone, sitting between it and

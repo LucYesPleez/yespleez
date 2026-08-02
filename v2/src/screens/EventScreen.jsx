@@ -11,7 +11,9 @@ import DemoEventNotice from '../components/DemoEventNotice';
 import { getDemoEventById } from '../lib/demoEvents';
 import { useEventData, EVENT_ID_RE } from './event/useEventData';
 import { useEventLike } from './event/useEventLike';
-import EventPublicView from './event/EventPublicView';
+import EventPage from './event/EventPage';
+import ApplyButton from './event/ApplyButton';
+import DaySlots from './event/DaySlots';
 import EventHostView from './event/EventHostView';
 import s from './EventScreen.module.css';
 
@@ -37,7 +39,9 @@ export default function EventScreen() {
     access:  'public',
   } : null);
 
-  useEventLike({ id, event, userId: session?.user?.id, isRealEvent });
+  // EP-01: the heart is now REACHED. `toggleLike` was written for this and had
+  // no caller — the return value was discarded here and no control rendered it.
+  const like = useEventLike({ id, event, userId: session?.user?.id, isRealEvent });
 
   // Demo ids (e.g. from a bookmarked What's On card) have no Supabase record —
   // explain that instead of the query silently redirecting home. Once real
@@ -68,7 +72,7 @@ export default function EventScreen() {
     claims: d.claims, days: d.days,
     showTimesPublicly: d.showTimesPublicly,
     totalSlots: d.totalSlots, takenSlots: d.takenSlots,
-    ownerProfile: d.ownerProfile, isGuest,
+    ownerProfile: d.ownerProfile, venueProfile: d.venueProfile, isGuest,
   };
 
   if (session?.user?.id === event.host_id) {
@@ -86,5 +90,46 @@ export default function EventScreen() {
     );
   }
 
-  return <EventPublicView {...common} userId={session?.user?.id} />;
+  // EP-01 · /event/:id now serves the redesigned page. The old markup lives on
+  // in EventPublicView, which the host editor still renders — that surface has
+  // its own slot grid and chrome and is a separate job.
+  //
+  // The two features the old public page carried are passed through rather
+  // than lost: APPLY TO PLAY, and set times where the organiser has published
+  // them. `showTimesPublicly` is the organiser's decision and is honoured here
+  // exactly as it was — a bill can be announced with the running order still
+  // under wraps.
+  const canApply = !isGuest && !!event.applications_open && !!session?.user?.id;
+
+  // Mixes attached to confirmed slots, for the set-times player. Lifted from
+  // EventPublicView, where it was computed for exactly this.
+  const allMixSlots = d.days.flatMap(day => (day.slots || [])
+    .filter(sl => d.claims[sl.id]?.mix_link && d.claims[sl.id]?.status === 'confirmed')
+    .map(sl => ({ url: d.claims[sl.id].mix_link, artistName: d.claims[sl.id].name })));
+
+  return (
+    <EventPage
+      event={event}
+      ownerProfile={d.ownerProfile}
+      venueProfile={d.venueProfile}
+      lineupMembers={d.lineupMembers}
+      memberProfiles={d.memberProfiles}
+      favourited={like.liked}
+      onToggleFavourite={like.toggleLike}
+      canFavourite={!!session?.user?.id && !isGuest}
+      applyAction={canApply
+        ? <ApplyButton eventId={id} userId={session.user.id} ownerProfile={d.ownerProfile} />
+        : null}
+      setTimes={d.showTimesPublicly && d.totalSlots > 0
+        ? <DaySlots
+            eventId={id}
+            days={d.days}
+            claims={d.claims}
+            allMixSlots={allMixSlots}
+            isHost={false}
+            editable={false}
+          />
+        : null}
+    />
+  );
 }

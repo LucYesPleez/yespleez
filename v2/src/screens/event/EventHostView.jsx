@@ -17,12 +17,14 @@ import ProfileCard from '../../components/ProfileCard';
 import FillSlotModal from '../../components/FillSlotModal';
 import EventTabBar from '../../components/EventTabBar';
 import EventPublicView from './EventPublicView';
+import EventPage from './EventPage';
+import DaySlots from './DaySlots';
 import SlotEditModal from './SlotEditModal';
 import { EditIcon, InboxIcon, LockIcon, UnlockIcon, CopyIcon, TrashIcon, ManageSection, ManageItem } from './manageMenu';
 import s from '../EventScreen.module.css';
 
 export default function EventHostView({
-  id, event, cfg, session, isGuest, ownerProfile,
+  id, event, cfg, session, isGuest, ownerProfile, venueProfile,
   claims, days, lineupMembers, memberPerfMap, memberProfiles,
   poster, posterFull, genres, isPast,
   showTimesPublicly, totalSlots, takenSlots, lineupPct, isLocked, draftCount,
@@ -461,7 +463,10 @@ export default function EventHostView({
               </div>
             )
             : lineupMembers.map(member => {
-              const prof = member.artist_id ? memberProfiles[member.artist_id] : null;
+              // Keyed by the member row, not by artist_id — an imported member
+              // has a profile and no artist_id, and the old lookup returned
+              // null for every one of them.
+              const prof = memberProfiles[member.id] || null;
               const perf = memberPerfMap[member.id];
               let badge, badgeColor;
               if (!perf)                       { badge = 'ON BILL';   badgeColor = 'rgba(255,255,255,.35)'; }
@@ -470,6 +475,11 @@ export default function EventHostView({
               else if (perf.status === 'accepted') { badge = 'CONFIRMED'; badgeColor = '#00E5A0'; }
               else if (perf.status === 'declined') { badge = 'DECLINED';  badgeColor = '#FF3399'; }
               const cardItem = {
+                // ProfileCard routes on `id` first and falls back to user_id.
+                // An unclaimed imported profile has no user, so without the id
+                // its card is unclickable — the profile exists and cannot be
+                // opened.
+                id:           prof?.id || member.artist_profile_id || null,
                 user_id:      member.artist_id || null,
                 name:         prof?.name         || member.artist_name,
                 type:         prof?.type         || 'artist',
@@ -690,6 +700,36 @@ export default function EventHostView({
       )}
     </>
   );
+
+  // ⚠ PUNTER VIEW MUST BE THE PUNTER'S PAGE (EP-01).
+  //
+  // The banner above says "this is how the event looks to the public". Once
+  // /event/:id started serving the redesigned page, rendering the old markup
+  // here would have made that sentence false — and false in the one place an
+  // organiser goes specifically to check their event before sharing it.
+  //
+  // The editor keeps EventPublicView below: it carries the slot grid, the
+  // chrome injection points and the day editor, and porting that surface is
+  // its own job.
+  if (viewAsPunter) {
+    return (
+      <>
+        <div style={{ maxWidth: 1200, margin: '0 auto', padding: '72px 16px 0' }}>{hostChrome}</div>
+        <EventPage
+          event={event}
+          ownerProfile={ownerProfile}
+          venueProfile={venueProfile}
+          lineupMembers={lineupMembers}
+          memberProfiles={memberProfiles}
+          canFavourite={false}
+          setTimes={showTimesPublicly && totalSlots > 0
+            ? <DaySlots eventId={id} days={effectiveDays} claims={claims} allMixSlots={[]} isHost={false} editable={false} />
+            : null}
+        />
+        {overlays}
+      </>
+    );
+  }
 
   return (
     <EventPublicView

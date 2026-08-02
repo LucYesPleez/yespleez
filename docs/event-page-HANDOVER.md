@@ -9,16 +9,22 @@ Read this first, then `event-page-layout-spec.md` (what the page is) and
 
 ## The one thing to understand before touching anything
 
-**The new event page is not live.** It renders only at `/#/dev/event-layout`,
-against invented fixtures, behind an `import.meta.env.DEV` guard.
+**WIRED 2026-08-02 (EP-01). `/event/:id` now serves the new page** — see
+"EP-01 · the wiring" below. What follows in this section is the state it was
+handed over in, kept because the shape of the problem still explains the code.
 
-`/event/:id` still serves `EventPublicView.jsx`, which is the *old* markup
-carried over from the extraction — poster, header, sync bar, apply button, day
-slots. It imports none of the new sections.
+~~**The new event page is not live.** It renders only at `/#/dev/event-layout`,
+against invented fixtures, behind an `import.meta.env.DEV` guard.~~
+
+`/event/:id` ~~still serves~~ *served* `EventPublicView.jsx`, which is the *old*
+markup carried over from the extraction — poster, header, sync bar, apply
+button, day slots. It imports none of the new sections. **It is still rendered
+by the host editor**, which has its own slot grid and chrome; porting that
+surface is a separate job.
 
 So: every section described in the layout spec exists, is built and is verified,
-and **none of it is connected to a real event**. Wiring it is the next job and
-it is deliberately not started.
+~~and none of it is connected to a real event~~ **and is now fed by real rows
+through `eventViewModel.js`.**
 
 ⚠ The app uses **`HashRouter`**. Routes live after the `#`:
 `http://localhost:PORT/#/dev/event-layout`. A path URL renders the home screen
@@ -48,6 +54,51 @@ collectables → information sources. Phone reorders three sections; desktop doe
 not.
 
 ---
+
+## EP-01 · the wiring (2026-08-02)
+
+```
+useEventData.js      row + owner + VENUE + lineup      the queries
+eventViewModel.js    row → section props               pure, 24 tests
+EventPage.jsx        props → sections                  arrangement + interaction
+EventPageLayout      sections → the page               structure only
+```
+
+`EventScreen` routes non-hosts to `EventPage`. The host still gets
+`EventHostView` — but its **View as Punter** preview now renders `EventPage`
+too, because the banner says "this is how the event looks to the public" and
+that sentence has to stay true.
+
+**Nothing outside `eventViewModel.js` reads `event.config`.** Every legacy
+spelling is listed once, where it can be tested: `date`/`start_date`,
+`endDate`/`end_date`, `ticketLink`/`ticket_url`. Add a field there, not at the
+component.
+
+**Two live features were carried across, not dropped** — 3 events have
+applications open and 2 publish set times. APPLY TO PLAY goes into the
+`quickActions` slot; set times got a **new full-width `setTimes` slot directly
+under the Lineup**, which is where the handover suggested it belonged.
+
+### Three things this found
+
+- **The lineup join was broken for every imported event.** `useEventData`
+  gated the profile fetch on the legacy `artist_id`, which the Gig Importer
+  never writes — it attaches `artist_profile_id` and no user account. 25 of 57
+  `lineup_members` resolved to nothing: names with no avatar, no genre, no
+  tap-through. Fixed in `lineupProfiles.js`, keyed by `lineup_members.id`,
+  9 tests, mutation-checked.
+- **The venue profile was never fetched.** `venue_profile_id` is set on 46 of
+  50 events and holds the only coordinates that exist — `events.lat/lng` are
+  null on all 50.
+- **`.fullBand` had no `:empty` rule.** A null-returning section is still a
+  truthy element, so its wrapper rendered and collected a 15px flex gap. The
+  fixtures never showed it because they always had content; the first real
+  event paid 30px of blank page. Same fix `.primary:empty` already carried.
+
+⚠ The harness at `/#/dev/event-layout` **stays**. It is the only way to put a
+section into a state no live event produces — 30 artists, a withheld venue, six
+detail rows — and those states are still unverified against real data because
+no real event has them.
 
 ## ⭐ The rule that keeps proving itself
 

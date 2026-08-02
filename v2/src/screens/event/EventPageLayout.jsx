@@ -86,6 +86,7 @@ export default function EventPageLayout({
   presentedBy,
   // Full width, in order, below the band
   lineup,
+  setTimes,
   eventDetails,
   gallery,
   relatedEvents,
@@ -117,6 +118,14 @@ export default function EventPageLayout({
         ]}
         secondary={[['lineup', lineup]]}
       />
+
+      {/* SET TIMES — full width, directly under the Lineup band.
+          Its own section rather than a row inside the Lineup, because it has
+          real withheld semantics of its own (`showTimesPublicly`): an
+          organiser can have a full bill announced and the running order still
+          under wraps. Two live events publish set times; before this slot
+          existed the new page would have silently dropped them. */}
+      {setTimes && <div className={`${s.fullBand} ${s.oSetTimes}`}>{setTimes}</div>}
 
       {/* Second two-column band on desktop: Event Details left, Venue and
           Presented By stacked right.

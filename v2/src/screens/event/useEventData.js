@@ -12,6 +12,7 @@
 // when the event exists and a harmless empty when it does not.
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../../lib/supabase';
+import { memberProfileKeys, indexMemberProfiles } from './lineupProfiles';
 
 export const EVENT_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -33,8 +34,19 @@ export function useEventData(id, navigate) {
       // isProfileUnclaimed must be given the real thing, never a synthetic
       // object. Read-only and additive: nothing gates on it, so an event whose
       // owner cannot be resolved behaves exactly as it does today.
+      // EP-01: `bio` and the images joined the select when Presented By began
+      // rendering this row as a card. Still read-only, still nothing gates on
+      // it, so an event whose owner cannot be resolved behaves as before.
       const { data: ownerProfile } = ev.owner_profile_id
-        ? await supabase.from('profiles').select('id, user_id, name, type').eq('id', ev.owner_profile_id).maybeSingle()
+        ? await supabase.from('profiles').select('id, user_id, name, type, bio, avatar, avatar_thumb, location, state').eq('id', ev.owner_profile_id).maybeSingle()
+        : { data: null };
+      // EP-01 · THE VENUE PROFILE, which nothing read before this.
+      // `venue_profile_id` is set on 46 of 50 events, and it is the only place
+      // coordinates actually live — events.lat/lng/postcode are empty on ALL
+      // 50 rows, so a map or a distance built from the event alone has nothing
+      // to work with. The four rows without a link fall back to config.venue.
+      const { data: venueProfile } = ev.venue_profile_id
+        ? await supabase.from('profiles').select('id, user_id, name, type, bio, tagline, avatar, avatar_thumb, location, suburb, state, postcode, lat, lng, accessibility, capacity').eq('id', ev.venue_profile_id).maybeSingle()
         : { data: null };
       const [{ data: membersData }, { data: perfsData }] = await Promise.all([
         supabase.from('lineup_members').select('id, artist_id, artist_profile_id, artist_name, genre, sound, card_pills').eq('event_id', id).neq('status', 'removed'),
@@ -106,30 +118,28 @@ export function useEventData(id, navigate) {
       const memberPerfMap = {};
       (perfsData || []).forEach(p => { memberPerfMap[p.lineup_member_id] = p; });
       // M5.1 (D2): member profiles resolve by artist_profile_id (deterministic
-      // for multi-profile owners), legacy artist_id join for rows without one.
-      // The map stays keyed by artist_id — the renderer's lookup key.
+      // for multi-profile owners), legacy artist_id join only for rows without
+      // one. ⚠ Both the fetch and the key live in lineupProfiles.js and are
+      // tested there — this used to require `artist_id` on both sides, which
+      // silently dropped every profile the Gig Importer attaches. The map is
+      // keyed by lineup_members.id.
       const memberCols = 'id, user_id, name, avatar, avatar_thumb, type, sound, genre_string, location, state';
-      const pidMembers = (membersData || []).filter(m => m.artist_id && m.artist_profile_id);
-      const uidMembers = (membersData || []).filter(m => m.artist_id && !m.artist_profile_id);
-      let memberProfiles = {};
+      const { profileIds, userIds } = memberProfileKeys(membersData);
       const [mPid, mUid] = await Promise.all([
-        pidMembers.length ? supabase.from('profiles').select(memberCols).in('id', pidMembers.map(m => m.artist_profile_id)) : Promise.resolve({ data: [] }),
-        uidMembers.length ? supabase.from('profiles').select(memberCols).in('user_id', uidMembers.map(m => m.artist_id)) : Promise.resolve({ data: [] }),
+        profileIds.length ? supabase.from('profiles').select(memberCols).in('id', profileIds) : Promise.resolve({ data: [] }),
+        userIds.length    ? supabase.from('profiles').select(memberCols).in('user_id', userIds) : Promise.resolve({ data: [] }),
       ]);
       const mProfById = {}; (mPid.data || []).forEach(p => { mProfById[p.id] = p; });
       const mProfByUid = {}; (mUid.data || []).forEach(p => { mProfByUid[p.user_id] = p; });
-      (membersData || []).forEach(m => {
-        if (!m.artist_id) return;
-        const p = m.artist_profile_id ? mProfById[m.artist_profile_id] : mProfByUid[m.artist_id];
-        if (p) memberProfiles[m.artist_id] = p;
-      });
-      return { event: ev, ownerProfile, claims: map, lineupMembers: membersData || [], memberPerfMap, memberProfiles };
+      const memberProfiles = indexMemberProfiles(membersData, mProfById, mProfByUid);
+      return { event: ev, ownerProfile, venueProfile, claims: map, lineupMembers: membersData || [], memberPerfMap, memberProfiles };
     },
     enabled: !!id,
   });
 
   const event          = data?.event          || null;
   const ownerProfile   = data?.ownerProfile   || null;
+  const venueProfile   = data?.venueProfile   || null;
   const claims         = data?.claims         || {};
   const lineupMembers  = data?.lineupMembers  || [];
   const memberPerfMap  = data?.memberPerfMap  || {};
@@ -153,7 +163,7 @@ export function useEventData(id, navigate) {
   const lineupPct  = totalSlots > 0 ? Math.round((takenSlots / totalSlots) * 100) : 0;
 
   return {
-    loading, event, ownerProfile, claims, lineupMembers, memberPerfMap, memberProfiles,
+    loading, event, ownerProfile, venueProfile, claims, lineupMembers, memberPerfMap, memberProfiles,
     cfg, days, poster, posterFull, genres,
     isLocked, draftCount, showTimesPublicly, isPast,
     totalSlots, takenSlots, lineupPct,
