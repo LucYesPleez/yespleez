@@ -21,7 +21,12 @@ export const MAIN_GENRES = [
 // Host genre groups (electronic reuses MAIN_GENRES; bands + spoken word extend it).
 export const HOST_GENRES = {
   'ELECTRONIC':  MAIN_GENRES,
-  'BANDS':       ['Rock', 'Pop', 'Indie', 'Alternative', 'Metal', 'Punk', 'Jazz', 'Blues', 'Soul / RnB', 'Country', 'Folk / Acoustic', 'Reggae', 'Hip-Hop', 'Funk', 'Latin', 'World Music', 'Classic Rock', 'Covers / Top 40', 'Original', 'Multi Genre', 'Other'],
+  // ⚠ 'Singer / Songwriter' added 2026-08-03 (owner) — a solo original act is
+  // its own thing, not a subset of Folk / Acoustic, and the scene has plenty.
+  // APPEND-ONLY LIST: these strings are STORED inside genre_string, so an
+  // existing value must never be renamed or reordered out from under saved
+  // profiles. Must stay identical to studio-taxonomy.js's BANDS list.
+  'BANDS':       ['Rock', 'Pop', 'Indie', 'Alternative', 'Metal', 'Punk', 'Jazz', 'Blues', 'Soul / RnB', 'Country', 'Folk / Acoustic', 'Singer / Songwriter', 'Reggae', 'Hip-Hop', 'Funk', 'Latin', 'World Music', 'Classic Rock', 'Covers / Top 40', 'Original', 'Multi Genre', 'Other'],
   'SPOKEN WORD': ['Stand-up Comedy', 'Storytelling', 'Poetry / Spoken Word', 'Improv', 'Panel Discussion', 'Debate', 'Cabaret', 'Variety / Mixed Bill', 'Quiz / Trivia', 'Lecture / Talk', 'Open Mic', 'Multi Genre', 'Other'],
 };
 
