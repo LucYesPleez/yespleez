@@ -141,6 +141,10 @@ export default function MySceneScreen({ isGuest, onSignOut }) {
   const [followSearch,    setFollowSearch]    = useState('');
   const [followRadius,    setFollowRadius]    = useState(null);
   const [userPostcode,    setUserPostcode]    = useState(() => localStorage.getItem('_userPostcode') || '');
+  /* The FOLLOWING panel's own postcode box — a way to narrow a long follow list
+     to one town, nothing more. It STARTS at home because that is the useful
+     default, but it is never written back: see the note at the input. */
+  const [followPostcode,  setFollowPostcode]  = useState(() => localStorage.getItem('_userPostcode') || '');
   // ── Catalogue-floor prefs (Stage A) ──
   // localStorage is the instant-boot cache; the punter profile row is the
   // cross-device source of truth and wins whenever it has a value.
@@ -1530,12 +1534,12 @@ export default function MySceneScreen({ isGuest, onSignOut }) {
                     : updatedFollows.length > 0 ? updatedFollows : [];
                   const searchLower = followSearch.toLowerCase();
                   const RADII = [5, 10, 20, 50, 100, 250];
-                  const originCoords = postcodeCoords(userPostcode);
+                  const originCoords = postcodeCoords(followPostcode);
                   const visible = allProfiles.filter(p => {
                     if (searchLower && !['name','location','sound','type'].some(k => p[k]?.toLowerCase().includes(searchLower))) return false;
                     if (followRadius !== null && originCoords) {
                       if (followRadius === 0) {
-                        if (String(p.postcode) !== String(userPostcode)) return false;
+                        if (String(p.postcode) !== String(followPostcode)) return false;
                       } else {
                         const pc = profileCoords(p);
                         if (!pc) return false;
@@ -1544,7 +1548,7 @@ export default function MySceneScreen({ isGuest, onSignOut }) {
                     }
                     return true;
                   });
-                  const postcodeValid = userPostcode.length === 4 && !!originCoords;
+                  const postcodeValid = followPostcode.length === 4 && !!originCoords;
                   return (
                     <div style={{ marginTop: 12 }}>
                       {/* Search */}
@@ -1554,14 +1558,20 @@ export default function MySceneScreen({ isGuest, onSignOut }) {
                         placeholder="Search name, location, vibe..."
                         style={{ width:'100%', boxSizing:'border-box', background:'rgba(255,255,255,.06)', border:'1px solid rgba(255,255,255,.12)', borderRadius:10, padding:'10px 14px', color:'#fff', fontFamily:"'DM Sans',sans-serif", fontSize:13, marginBottom:10, outline:'none' }}
                       />
-                      {/* Postcode + radius */}
+                      {/* ⚠ A SEARCH FILTER, NOT YOUR HOME. Owner, 2026-08-03: this box
+                          "is purely for finding acts you follow quickly." It used to write
+                          `_userPostcode` and the punter profile, so narrowing this list to
+                          another town silently MOVED your home — taking YOUR AREA, LOCALS,
+                          the scene floor and every distance with it. It is local state now;
+                          the home locality is set on the Personal profile screen and is the
+                          only thing that decides what "near you" means. */}
                       <div style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap', marginBottom:12 }}>
                         <input
-                          value={userPostcode}
-                          onChange={e => { const v = e.target.value.replace(/\D/g,'').slice(0,4); setUserPostcode(v); localStorage.setItem('_userPostcode', v); setFollowRadius(v.length === 4 && isKnownPostcode(v) ? 0 : null); }}
+                          value={followPostcode}
+                          onChange={e => { const v = e.target.value.replace(/\D/g,'').slice(0,4); setFollowPostcode(v); setFollowRadius(v.length === 4 && isKnownPostcode(v) ? 0 : null); }}
                           placeholder="Postcode"
                           maxLength={4}
-                          style={{ width:80, background:'rgba(0,229,255,.06)', border:`1px solid ${postcodeValid ? 'rgba(0,229,255,.6)' : userPostcode.length===4 ? 'rgba(255,45,120,.5)' : 'rgba(0,229,255,.25)'}`, borderRadius:10, padding:'7px 12px', color:'#fff', fontFamily:"'DM Sans',sans-serif", fontSize:13, outline:'none', caretColor:'#fff' }}
+                          style={{ width:80, background:'rgba(0,229,255,.06)', border:`1px solid ${postcodeValid ? 'rgba(0,229,255,.6)' : followPostcode.length===4 ? 'rgba(255,45,120,.5)' : 'rgba(0,229,255,.25)'}`, borderRadius:10, padding:'7px 12px', color:'#fff', fontFamily:"'DM Sans',sans-serif", fontSize:13, outline:'none', caretColor:'#fff' }}
                         />
                         {postcodeValid && (
                           <button
@@ -1889,6 +1899,20 @@ export default function MySceneScreen({ isGuest, onSignOut }) {
                     <div className={s.gradientLine} />
                   </div>
                   <div style={{ fontSize:12, color:'var(--muted)', marginTop:2 }}>Discover your local scene.</div>
+                  {/* ⚠ THE REACH IS DECLARED. When there are not enough profiles
+                      near you the rail borrows from further afield rather than
+                      running nearly empty — owner, 2026-08-03: "if there's no new
+                      gigs I'd rather it push out into nearby events, but it has to
+                      say that." Without this line the section showed a profile in
+                      Cairns under a heading that says LOCALS. Same wording shape as
+                      YOUR AREA's borrowed-radius line above. */}
+                  {locals.expanded && (
+                    <div style={{ fontSize:12, color:'var(--muted)', marginTop:4 }}>
+                      {locals.localCount === 0
+                        ? 'Nobody nearby yet — showing profiles from further afield.'
+                        : `Only ${locals.localCount} nearby — the rest are from further afield.`}
+                    </div>
+                  )}
                   <div className={s.hScroll} ref={localsDrag.ref} onMouseDown={localsDrag.onMouseDown} onMouseMove={localsDrag.onMouseMove} onMouseUp={localsDrag.onMouseUp} onMouseLeave={localsDrag.onMouseLeave}>
                     {locals.items.map(p => (
                       <PortraitCard key={p.id ?? p.user_id} profile={p}

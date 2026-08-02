@@ -47,7 +47,7 @@ const opts = { originCoords: ORIGIN, radiusKm: 20, withinRadius, isoDate: '2026-
 /* ─── 1. Rotation actually rotates ─────────────────────────────────── */
 
 test('the same day always yields the same faces', () => {
-  const profiles = Array.from({ length: 30 }, (_, i) => placed('p' + i, false));
+  const profiles = Array.from({ length: 30 }, (_, i) => placed('p' + i, true));
   const a = buildLocals({ profiles, ...opts, limit: 10 });
   const b = buildLocals({ profiles, ...opts, limit: 10 });
   assert.deepEqual(a.items.map(x => x.id), b.items.map(x => x.id),
@@ -55,7 +55,7 @@ test('the same day always yields the same faces', () => {
 });
 
 test('the next day yields a DIFFERENT set — the feature itself', () => {
-  const profiles = Array.from({ length: 30 }, (_, i) => placed('p' + i, false));
+  const profiles = Array.from({ length: 30 }, (_, i) => placed('p' + i, true));
   const today    = buildLocals({ profiles, ...opts, isoDate: '2026-08-02', limit: 10 });
   const tomorrow = buildLocals({ profiles, ...opts, isoDate: '2026-08-03', limit: 10 });
   assert.notDeepEqual(today.items.map(x => x.id), tomorrow.items.map(x => x.id));
@@ -64,7 +64,7 @@ test('the next day yields a DIFFERENT set — the feature itself', () => {
 });
 
 test('rotation wraps, so sorting last does not mean never shown', () => {
-  const profiles = Array.from({ length: 25 }, (_, i) => placed('p' + i, false));
+  const profiles = Array.from({ length: 25 }, (_, i) => placed('p' + i, true));
   const seen = new Set();
   // 25 profiles / 10 a day — three days must cover everyone at least once.
   for (const isoDate of ['2026-08-02', '2026-08-03', '2026-08-04']) {
@@ -77,19 +77,21 @@ test('a pool at or under the limit is shown in ladder order, not rotated', () =>
   const profiles = [placed('far', false), placed('near', true)];
   const r = buildLocals({ profiles, ...opts, isoDate: '2026-09-14', limit: 10 });
   assert.deepEqual(r.items.map(x => x.id), ['near', 'far'],
-    'rotating a short pool would only reshuffle the same faces and lose the ladder');
+    'one local cannot fill a ten-card rail, so it reaches further — with the local one still first');
 });
 
 /* ─── 2. The ladder ────────────────────────────────────────────────── */
 
-test('nearby outranks elsewhere, and both outrank unplaceable', () => {
+test('nearby leads, unplaceable follows, and a borrowed far profile comes last', () => {
   const profiles = [
     p('nowhere'),                                    // no lat/lng at all
     placed('elsewhere', false),
     placed('nearby',    true),
   ];
   const r = buildLocals({ profiles, ...opts, limit: 10 });
-  assert.deepEqual(r.items.map(x => x.id), ['nearby', 'elsewhere', 'nowhere']);
+  assert.deepEqual(r.items.map(x => x.id), ['nearby', 'nowhere', 'elsewhere'],
+    'the local scene leads; anything borrowed to fill the rail sits behind it');
+  assert.equal(r.expanded, true, 'and the borrowing is declared, never silent');
 });
 
 test('within a rung, most recently active comes first', () => {
@@ -155,4 +157,63 @@ test('the day index advances by exactly one per calendar day', () => {
 test('a malformed or missing date does not throw or shuffle the pool', () => {
   assert.equal(localsDayIndex(''), 0);
   assert.equal(localsDayIndex(undefined), 0);
+});
+
+/* ─── 5 · IT MAY REACH FURTHER, BUT IT MUST SAY SO ──────────────────
+   The rail showed Daddy Longlegs, who is in Cairns — 1678 km from Bellingen
+   (owner, 2026-08-03). The reach itself was wanted: "if there's no new gigs
+   I'd rather it push out into nearby events, but it has to say that." What
+   was missing was the saying. So these tests pin BOTH halves: local fills the
+   rail alone wherever it can, and any widening is flagged so the section can
+   declare it. A silent widening is the actual defect. */
+
+test('local fills the rail on its own when there is enough of it', () => {
+  const profiles = Array.from({ length: 12 }, (_, i) => placed('near' + i, true))
+    .concat([placed('cairns', false)]);
+  const r = buildLocals({ profiles, ...opts, limit: 10 });
+  assert.equal(r.expanded, false, 'nothing was borrowed, so nothing is claimed');
+  assert.ok(!r.items.some(x => x.id === 'cairns'),
+    'with ten locals available, a profile 1678 km away has no business here');
+});
+
+test('a thin local scene reaches further AND flags that it did', () => {
+  const profiles = [placed('near1', true), placed('near2', true)]
+    .concat(Array.from({ length: 20 }, (_, i) => placed('far' + i, false)));
+  const r = buildLocals({ profiles, ...opts, limit: 10 });
+  assert.equal(r.expanded, true, 'it borrowed, so it must say so');
+  assert.equal(r.localCount, 2, 'and it says how many were actually local');
+  assert.ok(r.items.length > 2, 'the rail is filled rather than left nearly empty');
+});
+
+test('the far cards are identifiable, so the section can mark them', () => {
+  const profiles = [placed('near1', true)]
+    .concat(Array.from({ length: 15 }, (_, i) => placed('far' + i, false)));
+  const r = buildLocals({ profiles, ...opts, limit: 10 });
+  const flagged = r.items.filter(x => r.farIds.has(x.id));
+  assert.ok(flagged.length > 0, 'a disclosure with nothing to point at is decoration');
+  assert.ok(!r.farIds.has('near1'), 'a local card is never marked as distant');
+});
+
+test('locals still lead the rail when it has been widened', () => {
+  const profiles = [placed('near1', true), placed('near2', true)]
+    .concat(Array.from({ length: 20 }, (_, i) => placed('far' + i, false)));
+  const r = buildLocals({ profiles, ...opts, limit: 10 });
+  assert.deepEqual(r.items.slice(0, 2).map(x => x.id), ['near1', 'near2'],
+    'reaching further must not demote the local scene it exists to show');
+});
+
+test('unplaceable profiles count as local, not as a reach', () => {
+  // Only 92 of 109 profiles carry a postcode. Treating the rest as distant
+  // would hide most of a thin catalogue behind a disclosure it has not earned.
+  const profiles = Array.from({ length: 10 }, (_, i) => p('nowhere' + i));
+  const r = buildLocals({ profiles, ...opts, limit: 10 });
+  assert.equal(r.expanded, false, 'unknown is not far, so nothing was borrowed');
+  assert.equal(r.items.length, 10);
+});
+
+test('with no origin set there is no reach to declare', () => {
+  const profiles = [placed('a', true), placed('b', false), p('c')];
+  const r = buildLocals({ profiles, originCoords: null, radiusKm: null, withinRadius, isoDate: '2026-08-02', limit: 10 });
+  assert.equal(r.items.length, 3);
+  assert.equal(r.expanded, false, 'without a location nothing is KNOWN to be distant');
 });

@@ -94,15 +94,56 @@ export function buildLocals({
   active.sort(byRecentlyActive);
   unplaceable.sort(byRecentlyActive);
 
-  const pool = [...nearby, ...active, ...unplaceable];
-  if (pool.length === 0) return { items: [], pool: 0, nearby: 0 };
+  /* ⚠ IT MAY REACH FURTHER, BUT IT MUST SAY SO. The rail showed Daddy
+     Longlegs, who is in Cairns — 1678 km from Bellingen — because "everyone
+     else" was a silent second rung (owner, 2026-08-03). The reach was not the
+     problem; the silence was: "if there's no new gigs I'd rather it push out
+     into nearby events, but it has to say that."
+
+     So local comes first and fills the rail on its own wherever it can. Only
+     when it cannot does the pool widen, and then `expanded` is true and the
+     section says which of its cards are from further afield. The same shape as
+     YOUR AREA's "None within 20 km — showing N within 100 km" line, which is
+     already the house pattern for a borrowed net.
+
+     `unplaceable` sits with the locals rather than in the widened rung:
+     unknown ≠ far, and only 92 of 109 profiles carry a postcode, so treating
+     them as distant would push most of a thin catalogue behind a disclosure
+     it does not deserve. */
+  const local = [...nearby, ...unplaceable];
+  const canPlace = !!(originCoords && radiusKm);
+  const expanded = canPlace && local.length < limit && active.length > 0;
+  const farIds = expanded ? new Set(active.map(p => p.id ?? p.user_id)) : new Set();
+
+  /* ⚠ WHEN IT REACHES FURTHER, THE LOCALS STILL LEAD. Rotating one combined
+     pool would let a borrowed card outrank a local one on some days, which
+     inverts the section's whole purpose. So the local cards are pinned to the
+     front and only the borrowed tail rotates — the rail still changes daily,
+     but never at the expense of showing your own scene first. */
+  if (expanded) {
+    const need = Math.min(limit - local.length, active.length);
+    const start = (localsDayIndex(isoDate) * need) % active.length;
+    const borrowed = [];
+    for (let i = 0; i < need; i++) borrowed.push(active[(start + i) % active.length]);
+    return { items: [...local, ...borrowed], pool: local.length + active.length,
+      nearby: nearby.length, expanded: true, localCount: local.length, farIds };
+  }
+
+  // With no origin nothing is known to be distant, so nothing is being
+  // borrowed and there is nothing to disclose.
+  const pool = canPlace ? local : [...nearby, ...active, ...unplaceable];
+  if (pool.length === 0) return { items: [], pool: 0, nearby: 0, expanded: false, localCount: 0, farIds };
   // Fewer than a full window means rotation would only reshuffle the same
   // faces — show them in ladder order instead, which is the honest ordering.
-  if (pool.length <= limit) return { items: pool, pool: pool.length, nearby: nearby.length };
+  if (pool.length <= limit) {
+    return { items: pool, pool: pool.length, nearby: nearby.length,
+      expanded, localCount: local.length, farIds };
+  }
 
   const start = (localsDayIndex(isoDate) * limit) % pool.length;
   const items = [];
   for (let i = 0; i < limit; i++) items.push(pool[(start + i) % pool.length]);
 
-  return { items, pool: pool.length, nearby: nearby.length };
+  return { items, pool: pool.length, nearby: nearby.length,
+    expanded, localCount: local.length, farIds };
 }

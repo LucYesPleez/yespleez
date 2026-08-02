@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import { useSession } from '../App';
 import { supabase } from '../lib/supabase';
 import { getPersonalProfileId } from '../lib/actingProfile';
+import { resolveLocationToPostcodes, suggestLocations } from '../lib/auLocations';
+import { isKnownPostcode } from '../lib/geo';
 import AvatarUpload from '../components/AvatarUpload';
 import MessengerAvatar from '../components/MessengerAvatar';
 
@@ -40,6 +42,11 @@ export default function MessengerIdentityScreen() {
   const [loading, setLoading] = useState(true);
   const [savingName, setSavingName] = useState(false);
   const [status, setStatus] = useState('');
+  /* HOME LOCALITY. Typed as a town OR a postcode; stored as a postcode, which
+     is the only form the geo dataset can place. See saveLocality below. */
+  const [locality, setLocality] = useState('');
+  const [savingLoc, setSavingLoc] = useState(false);
+  const [locStatus, setLocStatus] = useState('');
   const cancelled = useRef(false);
 
   useEffect(() => {
@@ -55,7 +62,7 @@ export default function MessengerIdentityScreen() {
 
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, name, avatar, avatar_hero, avatar_thumb')
+        .select('id, name, avatar, avatar_hero, avatar_thumb, postcode, suburb')
         .eq('id', id)
         .maybeSingle();
 
@@ -65,6 +72,9 @@ export default function MessengerIdentityScreen() {
       setProfileId(data.id);
       setName(data.name || '');
       setAvatar(data.avatar_thumb || data.avatar_hero || data.avatar || '');
+      // Show the town if we stored one, since that is what the person typed;
+      // the postcode is what the maths uses and is shown back beside it.
+      setLocality(data.suburb || data.postcode || '');
       setLoading(false);
     })();
 
@@ -104,6 +114,59 @@ export default function MessengerIdentityScreen() {
       .upsert({ user_id: userId, type: 'punter', name: name.trim() }, { onConflict: 'user_id,type' });
     setSavingName(false);
     setStatus(error ? "Couldn't save your name." : 'Name saved.');
+  }
+
+  /**
+   * HOME LOCALITY — the one that decides what "near you" means.
+   *
+   * ⚠ THIS OVERRULES THE POSTCODE BOX IN MY SCENE'S FOLLOWING PANEL. Owner,
+   * 2026-08-03: that box "is purely for finding acts you follow quickly", but
+   * both were writing the same value, so a throwaway search filter silently
+   * moved your home town and with it YOUR AREA, LOCALS, the scene floor and
+   * Discover's distances. One field, two unrelated jobs — separated here.
+   *
+   * ⚠ STORED AS A POSTCODE BECAUSE THAT IS THE ONLY FORM THE GEO DATASET CAN
+   * PLACE. A town is what people know, so it is what they type and what is
+   * shown back; `suburb` keeps their words and `postcode` carries the maths.
+   * A town we cannot resolve is REFUSED rather than saved as nothing — a
+   * silently unplaceable home reads as "no gigs near me" forever.
+   */
+  async function saveLocality() {
+    if (!profileId) return;
+    const typed = String(locality || '').trim();
+    if (!typed) return;
+    setSavingLoc(true);
+    setLocStatus('');
+
+    const digits = typed.replace(/\D/g, '');
+    let postcode = '';
+    let suburb = '';
+    if (/^\d{4}$/.test(digits) && isKnownPostcode(digits)) {
+      postcode = digits;
+    } else {
+      const codes = resolveLocationToPostcodes(typed);
+      // One town can span several postcodes; the lowest is deterministic, and
+      // any of them places the same town within a few km.
+      if (codes.length) { postcode = [...codes].sort()[0]; suburb = typed; }
+    }
+
+    if (!postcode) {
+      setSavingLoc(false);
+      const hint = suggestLocations(typed).slice(0, 3).join(', ');
+      setLocStatus(hint ? `Not found. Did you mean ${hint}?` : "We don't know that town or postcode yet.");
+      return;
+    }
+
+    const { error } = await supabase
+      .from('profiles')
+      .update({ postcode, suburb: suburb || null })
+      .eq('id', profileId);
+    setSavingLoc(false);
+    if (error) { setLocStatus("Couldn't save your locality."); return; }
+    // The rest of the app reads this before the network answers, so the two
+    // must move together or My Scene shows the old town until a reload.
+    try { localStorage.setItem('_userPostcode', postcode); } catch { /* private mode */ }
+    setLocStatus(suburb ? `Saved — ${suburb} (${postcode}).` : `Saved — ${postcode}.`);
   }
 
   if (loading) {
@@ -164,6 +227,48 @@ export default function MessengerIdentityScreen() {
           >
             {savingName ? 'SAVING…' : 'SAVE NAME'}
           </button>
+        </div>
+
+        {/* HOME LOCALITY — the field that decides what "near you" means, put
+            where someone actually looks for their own details. It previously
+            existed only inside My Scene → FOLLOWING → View all, so a new user
+            had no way to set it and no hint that it was what was missing. */}
+        <div style={{ marginTop: 24 }}>
+          <label htmlFor="mi-locality" style={labelStyle}>TOWN / POSTCODE</label>
+          <input
+            id="mi-locality"
+            value={locality}
+            onChange={(e) => { setLocality(e.target.value); setLocStatus(''); }}
+            onKeyDown={(e) => { if (e.key === 'Enter') saveLocality(); }}
+            placeholder="e.g. Bellingen or 2454"
+            list="mi-locality-options"
+            autoComplete="off"
+            style={inputStyle}
+          />
+          <datalist id="mi-locality-options">
+            {suggestLocations(locality).slice(0, 8).map(s => <option key={s} value={s} />)}
+          </datalist>
+          <div style={{ color: 'var(--muted)', fontSize: 12, lineHeight: 1.5, marginTop: 6 }}>
+            Set as your home gigs locality.
+          </div>
+          {/* ⚠ A LIMIT, NOT A REASSURANCE (privacy-copy rule). It is also
+              literally true and checkable: there is no geolocation call
+              anywhere in this app — distance is computed from this postcode
+              alone. Do not soften it into a promise about intentions. */}
+          <div style={{ color: 'var(--muted)', fontSize: 12, lineHeight: 1.5, marginTop: 2 }}>
+            This works off the database. We do not track you.
+          </div>
+          <button
+            type="button"
+            onClick={saveLocality}
+            disabled={savingLoc || !locality.trim()}
+            style={{ ...saveStyle, opacity: savingLoc || !locality.trim() ? 0.5 : 1 }}
+          >
+            {savingLoc ? 'SAVING…' : 'SAVE LOCALITY'}
+          </button>
+          {locStatus && (
+            <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 8 }}>{locStatus}</div>
+          )}
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 24,
