@@ -17,9 +17,9 @@ import { useDragScroll } from '../hooks/useDragScroll';
 const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 const DAY_NAMES   = ['S','M','T','W','T','F','S'];
 
-/* How many events COMING UP shows. A COUNT, deliberately — the section used to stop at 14 days
-   however little that caught (owner, 2026-08-02). */
-const COMING_UP_LIMIT = 20;
+/* COMING UP shows 20 rows at a time and grows by 20 on ADD MORE (owner, 2026-08-02). The
+   underlying list is NOT date-capped — the page size is a reading limit, not a scope limit. */
+const COMING_UP_PAGE = 20;
 
 const DATE_TABS = [
   { id: 'TONIGHT',   label: 'TONIGHT',    sub: "What's on now" },
@@ -154,6 +154,9 @@ export default function WhatsOnScreen() {
   const [category,        setCategory]        = useState('ALL');
   const [postcode,        setPostcode]        = useState('');
   const [radius,          setRadius]          = useState('50');
+  /* How many COMING UP rows are on screen. Grows by a page on ADD MORE, and resets whenever the
+     filters change — a fresh filter is a fresh list, so it starts at the top again. */
+  const [comingUpShown,   setComingUpShown]   = useState(COMING_UP_PAGE);
   const [monthPickerOpen, setMonthPickerOpen] = useState(false);
   const [pickerMonth,     setPickerMonth]     = useState(() => new Date(today()).getMonth());
   const [pickerYear,      setPickerYear]      = useState(() => new Date(today()).getFullYear());
@@ -285,26 +288,23 @@ export default function WhatsOnScreen() {
   // `> todayIso` not `!== todayIso`: mid-weekend the range opens on a Friday that has already
   // been, so this drops the nights gone as well as tonight (TONIGHT owns tonight).
   const weekendEvents  = useMemo(() => events.filter(ev => weekendDates.has(ev.config?.date) && ev.config?.date > todayIso && passes(ev)), [events, weekendDates, todayIso, passes]);
-  /* ⚠ COUNT-CAPPED, NOT DATE-CAPPED (owner, 2026-08-02). This used to cut at `d <= dateStr(14)`
-     so the list could run dry while events existed just past the fortnight. It now takes the
-     next 20 by date, however far ahead they run, and the 14-day rule is gone entirely. */
-  const comingUpEvents = useMemo(() => events.filter(ev => {
+  /* ⚠ NOT DATE-CAPPED (owner, 2026-08-02). This used to cut at `d <= dateStr(14)` so the list
+     could run dry while events existed just past the fortnight. The full upcoming list is kept
+     here; only how much of it is ON SCREEN is limited, and ADD MORE lifts that limit. */
+  const comingUpAll = useMemo(() => events.filter(ev => {
     const d = ev.config?.date;
     return d && d !== todayIso && !weekendDates.has(d) && passes(ev);
-  }).sort((a, b) => (a.config?.date || '').localeCompare(b.config?.date || ''))
-    .slice(0, COMING_UP_LIMIT), [events, weekendDates, todayIso, passes]);
+  }).sort((a, b) => (a.config?.date || '').localeCompare(b.config?.date || '')),
+    [events, weekendDates, todayIso, passes]);
 
-  /* ⚠ THE SUB-LABEL DESCRIBES WHAT IS ACTUALLY IN THE LIST, because the two limits no longer
-     agree. With the 14-day cut removed the section runs until it has COMING_UP_LIMIT events,
-     which on a thin scene reaches months out — the day this shipped it held 19 events ending
-     6 Nov under a label reading NEXT TWO WEEKS. Whichever bound actually bit is the one named:
-     the fortnight while everything falls inside it, the count once it does not. */
-  const comingUpWithinFortnight = useMemo(() => {
-    const last = comingUpEvents[comingUpEvents.length - 1]?.config?.date;
-    return !last || last <= dateStr(14);
-  }, [comingUpEvents]);
-  const comingUpSub    = comingUpWithinFortnight ? 'NEXT TWO WEEKS' : `NEXT ${comingUpEvents.length} EVENTS`;
-  const comingUpTabSub = comingUpWithinFortnight ? 'Next 2 weeks'   : `Next ${comingUpEvents.length} events`;
+  useEffect(() => { setComingUpShown(COMING_UP_PAGE); }, [category, postcode, radius, selectedDate]);
+
+  const comingUpEvents = useMemo(() => comingUpAll.slice(0, comingUpShown), [comingUpAll, comingUpShown]);
+  const comingUpHasMore = comingUpAll.length > comingUpEvents.length;
+
+  /* Back to the fortnight wording the section shipped with (owner, 2026-08-02). */
+  const comingUpSub    = 'NEXT TWO WEEKS';
+  const comingUpTabSub = 'Next 2 weeks';
 
   /** Upcoming events that match the category but cannot be placed. */
   const unplaceableEvents = useMemo(() => {
@@ -611,6 +611,16 @@ export default function WhatsOnScreen() {
               {comingUpEvents.map(ev => (
                 <ComingUpRow key={ev.id} event={ev} onClick={() => openEvent(ev)} />
               ))}
+              {/* Only rendered when there is genuinely more to reveal — a button that does
+                  nothing reads as a broken list. */}
+              {comingUpHasMore && (
+                <button
+                  className={s.addMore}
+                  onClick={() => setComingUpShown(n => n + COMING_UP_PAGE)}
+                >
+                  Add more
+                </button>
+              )}
             </div>
           )}
 
