@@ -877,7 +877,14 @@ export default function CreateEventScreen() {
                     is actually chosen. */}
                 <div
                   ref={cropRef}
-                  style={{ width:'100%', maxHeight:320, borderRadius:10, overflow:'hidden', position:'relative',
+                  // ⚠ NO maxHeight. The crop overlay is positioned in
+                  // percentages of THIS box, so the box must be exactly the
+                  // poster's box — a height cap clipped the image and left the
+                  // window computing against a container shorter than the
+                  // picture, putting the crop rectangle somewhere the poster
+                  // was not. Size is limited by WIDTH instead, which the image
+                  // follows proportionally and the percentages survive.
+                  style={{ width:'100%', maxWidth:400, margin:'0 auto', borderRadius:10, overflow:'hidden', position:'relative',
                     background: poster ? 'transparent' : 'rgba(255,255,255,0.05)',
                     border: poster ? 'none' : '2px dashed rgba(255,255,255,0.18)',
                     aspectRatio: poster ? undefined : '4/5',
@@ -905,7 +912,12 @@ export default function CreateEventScreen() {
                         style={{ position:'absolute',
                           left:`${cropGeom.leftPct}%`, top:`${cropGeom.topPct}%`,
                           width:`${cropGeom.wPct}%`, height:`${cropGeom.hPct}%`,
-                          border:'2px solid var(--neon2)', boxSizing:'border-box',
+                          // OUTLINE, not border: a border sits inside the box
+                          // and pushes the window's content in by its width,
+                          // so the poster showing through was offset from the
+                          // poster behind it by exactly 2px on every edge. An
+                          // outline draws outside the box and costs no layout.
+                          outline:'2px solid var(--neon2)',
                           cursor:(cropGeom.canMoveX || cropGeom.canMoveY) ? 'grab' : 'default',
                           boxShadow:'0 0 0 9999px rgba(0,0,0,0)', overflow:'hidden',
                           display:'flex', alignItems:'center', justifyContent:'center' }}>
