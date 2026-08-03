@@ -309,9 +309,18 @@ export function buildEventView({
       // existing event keeps the exact hero it has. Setting one opts that
       // event up to rung 2, which §0.3 says supersedes the poster derivation.
       cover: cfg.cover ? { url: cfg.cover } : null,
-      // Gallery (rung 1, up to five more images) is still unwired — spec'd,
-      // but nothing writes it yet and this change is not the place for it.
-      gallery: [],
+      // Rung 1 — the carousel. Written by the editor's poster-crop tool: an
+      // organiser keeps several bands off one flyer (the title, the dates, the
+      // act) and they become slides. Stored as bare URLs, shaped here into the
+      // {url} heroMedia expects, because the config should stay the simplest
+      // thing that survives a hand-edit.
+      //
+      // Non-strings and blanks are dropped rather than passed on: heroMedia's
+      // `usable` would reject them anyway, but silently — and a slide missing
+      // from a carousel is far harder to notice than one that never loads.
+      gallery: Array.isArray(cfg.gallery)
+        ? cfg.gallery.filter(u => typeof u === 'string' && u.trim()).map(url => ({ url }))
+        : [],
       landscapeArtwork: null,
       poster: poster ? { url: cfg.poster_full || poster } : null,
       // The organiser's chosen band. Absent means no choice has been made, and

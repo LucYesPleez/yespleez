@@ -12,7 +12,12 @@ import { requestableBySection, requirementLabel } from '../lib/requirements';
 // The renderer's own constants — imported rather than restated, so the band
 // the organiser drags here and the band the public Hero draws can never
 // disagree about their shape or their default position.
-import { DEFAULT_CROP_Y, MIN_CROP_COVERAGE } from './event/heroMedia';
+import { DEFAULT_CROP_Y, MIN_CROP_COVERAGE, MAX_SLIDES } from './event/heroMedia';
+import { uploadPosterCrop } from '../lib/uploadImage';
+
+// One Cover plus five, per the spec's cap — derived from MAX_SLIDES rather
+// than written as 5, so the two cannot disagree.
+const MAX_GALLERY = MAX_SLIDES - 1;
 
 const CAL_DAYS = ['Su','Mo','Tu','We','Th','Fr','Sa'];
 const CAL_MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -380,6 +385,11 @@ export default function CreateEventScreen() {
   const [posterCropY, setPosterCropY] = useState(DEFAULT_CROP_Y);
   const [posterDims,  setPosterDims]  = useState(null);   // natural w/h, for the band geometry
   const [cropMode,    setCropMode]    = useState(false);
+  // Bands kept off the poster — the carousel (rung 1). Array of plain URLs:
+  // the config should stay the simplest thing that survives a hand-edit.
+  const [gallery,     setGallery]     = useState([]);
+  const [cropBusy,    setCropBusy]    = useState(false);
+  const [cropError,   setCropError]   = useState('');
   const [fullView,    setFullView]    = useState(false);
   const cropRef   = useRef(null);
   const dragState = useRef(null);
@@ -443,6 +453,7 @@ export default function CreateEventScreen() {
       // default — it does NOT mean 0. Reading it as 0 would silently move
       // every existing event's cover band to the very top of its poster.
       setPosterCropY(typeof c.posterCropY === 'number' ? c.posterCropY : DEFAULT_CROP_Y);
+      setGallery(Array.isArray(c.gallery) ? c.gallery.filter(u => typeof u === 'string' && u.trim()) : []);
       setPosterThumb(c.poster_thumb || '');
       setPosterFull(c.poster_full || '');
       setIsPublic(data.is_public !== false);
@@ -515,6 +526,31 @@ export default function CreateEventScreen() {
     window.addEventListener('touchend', up);
   }
 
+  /* Keep the band that is showing right now as a carousel image. The band
+     stays where it is afterwards — the organiser is usually about to drag to
+     the next thing they want, and resetting it would make them find their
+     place again. */
+  async function keepCrop() {
+    if (!poster || cropBusy || gallery.length >= MAX_GALLERY) return;
+    setCropBusy(true);
+    setCropError('');
+    try {
+      const { url } = await uploadPosterCrop(poster, posterCropY, session?.user?.id, makeId());
+      setGallery(g => [...g, url]);
+      // The carousel only leads with a Cover (heroMedia rung 1 needs one, and
+      // gallery images deliberately do not promote themselves). Without this,
+      // an organiser could keep three crops and see none of them. First crop
+      // fills an empty cover slot; it is visible in the Cover field above and
+      // can be replaced or removed like any other.
+      if (!cover) setCover(url);
+    } catch (err) {
+      console.error('Poster crop failed', err);
+      setCropError('Could not save that crop. Try again.');
+    } finally {
+      setCropBusy(false);
+    }
+  }
+
   function addDay() { setDays(p => [...p, { id:makeId(), name:'', slots:[] }]); }
   function removeDay(id) { setDays(p => p.filter(d => d.id!==id)); }
   function updateDayName(id, name) { setDays(p => p.map(d => d.id===id ? {...d,name} : d)); }
@@ -544,7 +580,7 @@ export default function CreateEventScreen() {
 
     const cfg = {
       name, date:startDate, endDate, venue, genres:genreText, categoryBadge: categoryBadge || null, openMicBadge: openMicBadge || null, ticketLink, bio,
-      cover, cover_thumb:coverThumb,
+      cover, cover_thumb:coverThumb, gallery,
       poster, poster_thumb:posterThumb, poster_full:posterFull,
       // ⭐ THE WRITE THAT WAS MISSING. The editor has had a drag-to-reposition
       // control since it was built and never saved its result anywhere, so the
@@ -845,14 +881,67 @@ export default function CreateEventScreen() {
                     when it is not going to be used at all. */}
                 {poster && cropMode && (
                   <p style={{ fontSize:12, color:'rgba(255,255,255,0.5)', lineHeight:1.5, marginTop:8 }}>
-                    {cover
-                      ? 'You have an Event Cover, so it is used at the top of the page and this band is ignored. Remove the cover to use a slice of the poster instead.'
-                      : bandPct === null
-                        ? 'Add a poster to choose a cover band.'
-                        : bandPct >= 100
-                          ? 'This poster is wider than the cover frame, so all of it shows — there is nothing to position.'
-                          : 'This slice shows as the cover at the top of your event page.'}
+                    {bandPct === null
+                      ? 'This poster is too tall for a landscape crop — the top of the page uses a blurred treatment instead.'
+                      : bandPct >= 100
+                        ? 'This poster is wider than the frame, so all of it shows — there is nothing to position.'
+                        : cover
+                          ? 'Drag to frame a slice, then keep it. The top of the page uses your Event Cover; kept slices join the carousel behind it.'
+                          : 'Drag to frame a slice, then keep it. Your first kept slice becomes the cover at the top of the page.'}
                   </p>
+                )}
+
+                {/* Keep the current band, and everything kept so far. */}
+                {poster && cropMode && bandPct !== null && bandPct < 100 && (
+                  <div style={{ marginTop:10 }}>
+                    <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                      <button type="button" onClick={keepCrop}
+                        disabled={cropBusy || gallery.length >= MAX_GALLERY}
+                        style={{ padding:'9px 16px', borderRadius:8, cursor: (cropBusy || gallery.length >= MAX_GALLERY) ? 'default':'pointer',
+                          fontFamily:"'Bebas Neue'", fontSize:12, letterSpacing:1.5,
+                          background:'rgba(0,229,160,0.12)', border:'1px solid rgba(0,229,160,0.45)', color:'#00E5A0',
+                          opacity:(cropBusy || gallery.length >= MAX_GALLERY) ? .5 : 1 }}>
+                        {cropBusy ? 'SAVING…' : '+ KEEP THIS CROP'}
+                      </button>
+                      <span style={{ fontSize:11, color:'var(--muted)' }}>
+                        {gallery.length}/{MAX_GALLERY} kept
+                      </span>
+                    </div>
+                    {cropError && <p style={{ fontSize:12, color:'#ff5050', marginTop:6 }}>{cropError}</p>}
+                  </div>
+                )}
+
+                {/* The strip. Shown whenever there is anything in it, not only
+                    in crop mode — what you have made should not disappear the
+                    moment you stop making more. */}
+                {gallery.length > 0 && (
+                  <div style={{ marginTop:12 }}>
+                    <p style={{ fontFamily:"'Bebas Neue'", fontSize:11, letterSpacing:2, color:'var(--muted)', margin:'0 0 6px' }}>
+                      CAROUSEL IMAGES
+                    </p>
+                    <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+                      {gallery.map((url, i) => (
+                        <div key={url} style={{ position:'relative', width:104, aspectRatio:'3/2', borderRadius:8, overflow:'hidden', border:'1px solid var(--border)' }}>
+                          <img src={url} alt={`Crop ${i+1}`} style={{ width:'100%', height:'100%', objectFit:'cover', display:'block' }} />
+                          {/* Removing a crop that is also the cover clears the
+                              cover too, rather than leaving the page pointing
+                              at an image no longer in the list. */}
+                          <button type="button"
+                            onClick={() => { setGallery(g => g.filter(u => u !== url)); if (cover === url) { setCover(''); setCoverThumb(''); } }}
+                            aria-label={`Remove crop ${i+1}`}
+                            style={{ position:'absolute', top:4, right:4, width:20, height:20, borderRadius:10, cursor:'pointer',
+                              display:'flex', alignItems:'center', justifyContent:'center', lineHeight:1,
+                              background:'rgba(10,10,20,.8)', border:'1px solid rgba(255,255,255,.25)', color:'#fff', fontSize:12 }}>
+                            ✕
+                          </button>
+                          {cover === url && (
+                            <span style={{ position:'absolute', left:4, bottom:4, fontFamily:"'Bebas Neue'", fontSize:9, letterSpacing:1,
+                              background:'rgba(0,229,255,.9)', color:'#0a0a14', borderRadius:3, padding:'1px 5px' }}>COVER</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 )}
 
                 {/* Action tabs */}

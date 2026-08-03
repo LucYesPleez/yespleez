@@ -86,6 +86,53 @@ export async function uploadCover(canvas, uid, suffix = 'new') {
   return { cover, cover_thumb };
 }
 
+/**
+ * Cut a landscape band out of an already-uploaded poster and store it as a
+ * carousel image.
+ *
+ * The organiser positions one band and keeps it; positions another and keeps
+ * that too — the title, the tour dates, the artwork — so a venue whose only
+ * media is a flyer still ends up with a carousel. Same geometry the public
+ * Hero uses for rungs 4–5, so what is cut is exactly what the band showed.
+ *
+ * ⚠ Reads the poster back over the network into a canvas, which requires the
+ * bucket to serve CORS headers. Supabase public objects do; `crossOrigin` must
+ * still be set BEFORE `src` or the canvas is tainted and toBlob throws
+ * SecurityError. Verified against a real stored poster before this was built.
+ *
+ * @param posterUrl  the stored poster (its own aspect, uncropped)
+ * @param cropY      0–100, the band's position — the same number the Hero uses
+ * @param suffix     unique per crop, so several coexist rather than overwrite
+ */
+export async function uploadPosterCrop(posterUrl, cropY, uid, suffix) {
+  const img = new Image();
+  img.crossOrigin = 'anonymous';
+  await new Promise((res, rej) => {
+    img.onload = res;
+    img.onerror = () => rej(new Error('Could not read the poster back for cropping'));
+    img.src = posterUrl;
+  });
+
+  const HERO_ASPECT = 3 / 2;
+  const bandH = Math.min(img.naturalHeight, Math.round(img.naturalWidth / HERO_ASPECT));
+  // Same arithmetic as object-position: the band travels the LEFTOVER height.
+  const sy = Math.round((img.naturalHeight - bandH) * (cropY / 100));
+
+  const canvas = document.createElement('canvas');
+  canvas.width = 1800;
+  canvas.height = Math.round(1800 / HERO_ASPECT);
+  canvas.getContext('2d').drawImage(
+    img, 0, sy, img.naturalWidth, bandH,
+    0, 0, canvas.width, canvas.height,
+  );
+
+  const [url, thumb] = await Promise.all([
+    uploadCanvas(canvas, 1800, 1200, 'posters', `event_gallery/${uid}/${suffix}/img`,   0.85),
+    uploadCanvas(canvas,  600,  400, 'posters', `event_gallery/${uid}/${suffix}/thumb`, 0.80),
+  ]);
+  return { url, thumb };
+}
+
 // Legacy helper used by VenueProfileScreen (kept for compatibility)
 export { resizeCanvas };
 

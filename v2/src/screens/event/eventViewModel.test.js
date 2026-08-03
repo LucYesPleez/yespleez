@@ -379,3 +379,35 @@ test('an empty-string cover is absent, not a broken image', () => {
   const view = buildEventView({ event: { name: 'X', config: { cover: '', poster: 'https://x.invalid/p.jpg' } } });
   assert.equal(view.hero.cover, null);
 });
+
+// ── Gallery — rung 1, the carousel ───────────────────────────────────
+test('gallery URLs become hero slides, behind the cover', () => {
+  const view = buildEventView({
+    event: { name: 'X', config: {
+      cover: 'https://x.invalid/cover.jpg',
+      gallery: ['https://x.invalid/a.jpg', 'https://x.invalid/b.jpg'],
+      poster: 'https://x.invalid/p.jpg',
+    } },
+  });
+  assert.deepEqual(view.hero.gallery, [
+    { url: 'https://x.invalid/a.jpg' },
+    { url: 'https://x.invalid/b.jpg' },
+  ]);
+  assert.equal(view.poster.url, 'https://x.invalid/p.jpg', '§11 is still the poster, never a crop of it');
+});
+
+test('a junk gallery entry is dropped, not passed to the carousel', () => {
+  // heroMedia's `usable` would reject these anyway — but silently, and a slide
+  // missing from a carousel is much harder to spot than one that never loads.
+  const view = buildEventView({
+    event: { name: 'X', config: { gallery: ['https://x.invalid/a.jpg', '', '   ', null, 42, {}] } },
+  });
+  assert.deepEqual(view.hero.gallery, [{ url: 'https://x.invalid/a.jpg' }]);
+});
+
+test('a missing or non-array gallery is empty, never a crash', () => {
+  for (const gallery of [undefined, null, 'nope', 7]) {
+    const view = buildEventView({ event: { name: 'X', config: { gallery } } });
+    assert.deepEqual(view.hero.gallery, []);
+  }
+});
