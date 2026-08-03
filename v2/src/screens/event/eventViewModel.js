@@ -290,12 +290,27 @@ export function buildEventView({
     name: event.name || '',
 
     hero: {
-      // R1 · the Hero takes what exists and no more. There is no Cover field
-      // in this schema yet, so imported events land on the poster rungs — and
-      // the Poster section still renders the artwork whole further down. The
-      // hero is an ARTEFACT, never an information source: duplication between
-      // what the poster says and what the page says is expected and correct.
-      cover: null,
+      // R1 · the Hero takes what exists and no more. An event with no Cover
+      // lands on the poster rungs — and the Poster section still renders the
+      // artwork whole further down. The hero is an ARTEFACT, never an
+      // information source: duplication between what the poster says and what
+      // the page says is expected and correct.
+      //
+      // ⭐ COVER IS NOW READ (2026-08-04). It was hardcoded `null` — "there is
+      // no Cover field in this schema yet" — which collapsed spec §0 into one
+      // image: `poster` drove the cropped Hero AND the whole-artwork Poster
+      // section, so an event could not have a promo shot at the top and its
+      // real flyer at the bottom. The spec has always separated them ("the
+      // Cover sells the experience, the Poster preserves the artwork"), and
+      // heroMedia's rungs 1–2 were already written for it; only this line was
+      // missing.
+      //
+      // Additive by construction: no event carries `cfg.cover` today, so every
+      // existing event keeps the exact hero it has. Setting one opts that
+      // event up to rung 2, which §0.3 says supersedes the poster derivation.
+      cover: cfg.cover ? { url: cfg.cover } : null,
+      // Gallery (rung 1, up to five more images) is still unwired — spec'd,
+      // but nothing writes it yet and this change is not the place for it.
       gallery: [],
       landscapeArtwork: null,
       poster: poster ? { url: cfg.poster_full || poster } : null,

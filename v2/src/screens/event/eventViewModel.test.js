@@ -343,3 +343,39 @@ test('no owner at all still presents nobody', () => {
   });
   assert.equal(view.presentedBy.presenter, null);
 });
+
+// ── Cover vs Poster — spec §0: two objects, two slots ────────────────
+// "The Cover sells the experience. The Poster preserves the artwork… The
+// Poster never appears in the Hero carousel, and the Cover never appears in
+// the Poster section." `hero.cover` was hardcoded null, which collapsed both
+// into `config.poster` — one image cropped at the top and whole at the bottom,
+// with no way to have a promo shot up top and the real flyer below.
+
+test('a cover feeds the hero and NEVER the poster section', () => {
+  const view = buildEventView({
+    event: {
+      name: 'Thelma Plum',
+      config: { cover: 'https://x.invalid/promo.jpg', poster: 'https://x.invalid/tour-poster.jpg' },
+    },
+  });
+  assert.equal(view.hero.cover.url, 'https://x.invalid/promo.jpg');
+  assert.equal(view.hero.poster.url, 'https://x.invalid/tour-poster.jpg',
+    'the poster stays available to the ladder — a cover supersedes it, it does not erase it');
+  assert.equal(view.poster.url, 'https://x.invalid/tour-poster.jpg',
+    '§11 shows the POSTER, never the cover');
+});
+
+test('no cover leaves every existing event exactly where it was', () => {
+  // The whole safety argument for wiring this: nothing writes cfg.cover today.
+  const view = buildEventView({
+    event: { name: 'Clitoverse', config: { poster: 'https://x.invalid/p.jpg' } },
+  });
+  assert.equal(view.hero.cover, null, 'absent cover must stay null, not become an empty object');
+  assert.equal(view.hero.poster.url, 'https://x.invalid/p.jpg', 'still lands on the poster rungs');
+  assert.equal(view.poster.url, 'https://x.invalid/p.jpg');
+});
+
+test('an empty-string cover is absent, not a broken image', () => {
+  const view = buildEventView({ event: { name: 'X', config: { cover: '', poster: 'https://x.invalid/p.jpg' } } });
+  assert.equal(view.hero.cover, null);
+});
