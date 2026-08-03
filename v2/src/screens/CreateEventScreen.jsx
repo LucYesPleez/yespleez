@@ -761,8 +761,13 @@ export default function CreateEventScreen() {
                     window.addEventListener('touchend', onUp);
                   } : undefined}
                 >
+                  {/* ⚠ `contain`, not `cover`. The poster is stored WHOLE and
+                      § 11 renders it whole, so a preview that cropped it here
+                      would show the organiser a poster they are not going to
+                      get. The frame stays 4:5 as a container; the artwork sits
+                      inside it at its own shape, letterboxed if it differs. */}
                   {poster
-                    ? <img src={poster} alt="poster" style={{ width:'100%', height:'100%', objectFit:'cover', objectPosition:`${posterPos.x}% ${posterPos.y}%`, pointerEvents:'none' }} />
+                    ? <img src={poster} alt="poster" style={{ width:'100%', height:'100%', objectFit:'contain', pointerEvents:'none' }} />
                     : <div style={{ textAlign:'center', color:'rgba(255,255,255,0.4)', fontSize:13 }}><div style={{ fontSize:28, marginBottom:6 }}>+</div><div>Tap to add poster</div></div>
                   }
                   {cropMode && <div style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', pointerEvents:'none' }}><div style={{ background:'rgba(0,229,255,0.15)', border:'1px dashed rgba(0,229,255,0.5)', borderRadius:6, padding:'6px 12px', fontSize:11, fontFamily:"'Bebas Neue'", letterSpacing:2, color:'var(--neon2)' }}>DRAG TO REPOSITION</div></div>}

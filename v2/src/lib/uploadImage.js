@@ -26,14 +26,35 @@ export async function uploadAvatar(canvas, bucket, pathPrefix) {
   return { avatar_hero: hero, avatar_thumb: thumb };
 }
 
-// Upload event poster (three sizes: original full + cropped display + thumb)
-// originalCanvas = pre-crop (shown on event page); canvas = cropped (used in cards/app)
+/**
+ * Upload an event POSTER — three SIZES, one ASPECT: the artwork's own.
+ *
+ * ⚠ NOTHING HERE CROPS, AND NOTHING MAY BE ADDED THAT DOES.
+ *
+ * This used to force the two display renditions to 4:5 (1200×1500 and
+ * 300×375). For any poster that was not already 4:5 — a square tour flyer, a
+ * wide festival banner — that permanently cut the top and bottom off the
+ * stored file, and those are exactly the edges a poster carries its dates,
+ * lineup, ticket source and sponsor marks on. Layout spec §0.1 is explicit:
+ * "The Cover may crop. The Poster may not."
+ *
+ * The crop bought nothing even where it did no harm. Every card renders the
+ * poster with `center/cover` or `object-fit: cover`, so cards crop at DISPLAY
+ * time from whatever they are given; and § 11 fits rather than crops, reading
+ * `poster_full || poster`. A pre-cropped file was destroying information to
+ * duplicate something CSS already does reversibly.
+ *
+ * `poster_full` is kept as a distinct, larger rendition (not dropped as
+ * redundant) because § 11's expand-to-fullscreen viewer wants the detail, and
+ * because every event already in the database references it.
+ */
 export async function uploadPoster(canvas, uid, suffix = 'new', originalCanvas = null) {
-  const orig = originalCanvas || canvas;
+  const src = originalCanvas || canvas;
+  const h = w => Math.round(w * src.height / src.width);   // the artwork's own aspect, always
   const [poster_full, poster, poster_thumb] = await Promise.all([
-    uploadCanvas(orig,   1200, Math.round(1200 * orig.height / orig.width), 'posters', `event_posters/${uid}/${suffix}/original`, 0.88),
-    uploadCanvas(canvas, 1200, 1500, 'posters', `event_posters/${uid}/${suffix}/full`, 0.85),
-    uploadCanvas(canvas,  300,  375, 'posters', `event_posters/${uid}/${suffix}/thumb`, 0.80),
+    uploadCanvas(src, 1600, h(1600), 'posters', `event_posters/${uid}/${suffix}/original`, 0.88),
+    uploadCanvas(src, 1200, h(1200), 'posters', `event_posters/${uid}/${suffix}/full`,     0.85),
+    uploadCanvas(src,  400, h(400),  'posters', `event_posters/${uid}/${suffix}/thumb`,    0.80),
   ]);
   return { poster_full, poster, poster_thumb };
 }

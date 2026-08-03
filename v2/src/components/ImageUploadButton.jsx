@@ -26,9 +26,14 @@ export default function ImageUploadButton({ type = 'avatar', userId, bucket = 'a
   const [canvas, setCanvas]       = useState(null); // corrected canvas waiting to crop
   const originalCanvas            = useRef(null);   // pre-crop original
 
-  // 3:2 for a cover — the Hero's own frame aspect (heroMedia's
-  // `heroFrameAspect`), so what the organiser crops is what the Hero shows.
-  const aspect = type === 'poster' ? 4 / 5 : type === 'cover' ? 3 / 2 : 1;
+  // Only the cropping types need an aspect. 'poster' is absent on purpose —
+  // it never reaches the cropper (see handleFile), and leaving a 4:5 here
+  // would read as "posters are 4:5", which is exactly the belief that cost us
+  // the top and bottom of every non-4:5 poster.
+  //   cover  3:2 — the Hero's own frame aspect (heroMedia's heroFrameAspect),
+  //                so what the organiser crops is what the Hero shows.
+  //   avatar 1:1
+  const aspect = type === 'cover' ? 3 / 2 : 1;
 
   function trigger() {
     fileRef.current?.click();
@@ -43,6 +48,17 @@ export default function ImageUploadButton({ type = 'avatar', userId, bucket = 'a
     try {
       const corrected = await loadCorrectedCanvas(file);
       originalCanvas.current = corrected;
+      // ⚠ A POSTER IS NEVER CROPPED — layout spec §0.1, "The Cover may crop.
+      // The Poster may not." It went through the same 4:5 cropper as
+      // everything else, which cut the top and bottom off any poster that
+      // wasn't already 4:5 — the edges carrying dates, lineup and ticket
+      // source. Cards crop at display time via object-fit, so the framing
+      // step was destroying artwork to duplicate something CSS does
+      // reversibly. Straight to upload, at the artwork's own aspect.
+      if (type === 'poster') {
+        await handleDone(corrected);
+        return;
+      }
       setCanvas(corrected);
       setStatus('cropping');
     } catch (err) {
