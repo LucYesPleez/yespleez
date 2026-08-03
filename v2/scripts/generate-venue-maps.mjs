@@ -103,6 +103,39 @@ const DARK_STYLE = [
   'feature:water|element:geometry|color:0x0e1a2a',
 ];
 
+/**
+ * ⭐ TOWN CENTRES, where the postcode's own centroid is not one.
+ * ---------------------------------------------------------------------------
+ * AU_POSTCODES holds ONE coordinate per postcode, and for a postcode covering
+ * a single town that coordinate is the town. For a postcode covering a town
+ * plus a large rural hinterland it is neither — it is the area's geometric
+ * middle, which can sit tens of kilometres from where anybody lives.
+ *
+ * 2450 is the case that surfaced it: the postcode reaches from Coffs Harbour
+ * on the coast inland past Karangi, Coramba, Nana Glen and up to Clouds Creek,
+ * so its centroid lands ~50km north-west of the city, in the ranges. The map
+ * rendered creek country and no coastline, for a venue whose address says
+ * Coffs Harbour. (Owner, 2026-08-04: "the map for coffs isnt right".)
+ *
+ * This is the concrete form of the standing finding that drawing these maps
+ * from centroids is a dead end. The durable fix is geocoding the venue's own
+ * locality rather than its postcode; until then, a correction here is one line
+ * and costs one regenerate.
+ *
+ * ⚠ ADDING AN ENTRY REQUIRES A REGENERATE OF THAT POSTCODE plus a
+ * VENUE_MAP_VERSION bump, or every browser keeps the old picture.
+ */
+const TOWN_CENTRES = {
+  // Coffs Harbour CBD, not the 2450 centroid at [-30.0977, 152.6583].
+  '2450': [-30.2963, 153.1135],
+};
+
+/** Where to centre this postcode's map: the curated town centre if we have
+ *  one, else the postcode centroid. */
+function centreFor(postcode) {
+  return TOWN_CENTRES[postcode] ?? AU_POSTCODES[postcode];
+}
+
 /** Postcodes that actually have a venue on them. Fetching all 3,174 would be
  *  3,174 calls for 3,172 pictures nobody opens. */
 async function postcodesInUse(db) {
@@ -125,7 +158,7 @@ async function existingFiles(db) {
 }
 
 async function fetchMap(postcode) {
-  const [lat, lng] = AU_POSTCODES[postcode];
+  const [lat, lng] = centreFor(postcode);
   const url = new URL('https://maps.googleapis.com/maps/api/staticmap');
   url.searchParams.set('center', `${lat},${lng}`);
   url.searchParams.set('zoom', String(ZOOM));
@@ -180,7 +213,10 @@ async function main() {
   const have = await existingFiles(db);
   const plan = [];
   for (const pc of wanted) {
-    if (!AU_POSTCODES[pc]) {
+    // centreFor, not AU_POSTCODES directly: a curated TOWN_CENTRES entry is a
+    // perfectly good coordinate, and testing the table it overrides would skip
+    // any postcode that exists only as a correction.
+    if (!centreFor(pc)) {
       // Not a failure: it means the postcode is outside the AU table (an NZ
       // locality, or a typo). Say so and carry on — one odd venue must not
       // stop the other towns being generated.

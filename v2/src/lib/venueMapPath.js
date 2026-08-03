@@ -36,4 +36,4 @@ export function venueMapPath(postcode) {
  * this just extends the function to (postcode, version-at-build-time), still
  * no round trip, still nothing to keep in sync except this one number.
  */
-export const VENUE_MAP_VERSION = 2;
+export const VENUE_MAP_VERSION = 3;
