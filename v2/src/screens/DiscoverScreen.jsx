@@ -150,20 +150,63 @@ function matchesDate(item, dateFilter) {
 }
 
 
+/** How many profiles the RECENTLY ADDED / ACTIVE rail shows. */
+const DEFAULT_RAIL_SIZE = 20;
+
+/**
+ * M5: id included — cards navigate by the canonical profile.id, which is what
+ * makes unclaimed profiles (user_id NULL) navigable at all.
+ * postcode/suburb/lat/lng are selected so the radius filter has something to
+ * place a profile with — without them every record is unplaceable and a
+ * distance filter empties the screen.
+ */
+const PROFILE_COLS =
+  'id, user_id, name, type, avatar, location, suburb, state, postcode, lat, lng, sound, genre_string, bio, updated_at';
+const DISCOVER_TYPES = ['artist', 'host', 'band', 'standup', 'venue'];
+
 async function fetchDefault() {
-  const [profileRes, evRes] = await Promise.all([
+  /**
+   * ⚠ TWO PROFILE QUERIES, NOT ONE ORDER-BY — AND WHY IT HAS TO BE THIS WAY.
+   *
+   * The rail was one query ordered `updated_at DESC`, and Studio-imported
+   * placeholders dominate recency so completely that the newest SIXTY rows
+   * contained zero claimed profiles and zero real photos (measured against
+   * live data, 2026-08-03). Discover opened on four grey UNCLAIMED venues and
+   * read as a directory full of bots.
+   *
+   * Ranking the rows client-side cannot fix that: the 50 claimed profiles and
+   * 18 with photos sit far outside any recency window worth fetching, so
+   * reordering the window only reshuffles placeholders. The registered ones
+   * have to be ASKED FOR, which is what the first query does.
+   *
+   * `registered` = claimed (user_id present) AND using their own picture —
+   * empty and 'N/A' both mean PortraitCard paints the type's default image, so
+   * both are excluded. That is exactly "not a placeholder, not a default pic".
+   *
+   * ⚠ STILL A PREFERENCE, NEVER A FILTER. The second query is unchanged, and
+   * the merge appends it — an unclaimed profile keeps its place further along
+   * the same rail, still labelled UNCLAIMED. Hiding them would strand the
+   * imported catalogue precisely when provoking a claim is the point (N3).
+   */
+  const [registeredRes, recentRes, evRes] = await Promise.all([
     supabase.from('profiles')
-      // M5: id included — cards navigate by the canonical profile.id, which is
-      // what makes unclaimed profiles (user_id NULL) navigable at all. The
-      // is_live filter hides only explicit false; NULL passes.
-      // postcode/suburb/lat/lng are selected so the radius filter has something
-      // to place a profile with — without them every record is unplaceable and
-      // a distance filter empties the screen.
-      .select('id, user_id, name, type, avatar, location, suburb, state, postcode, lat, lng, sound, genre_string, bio, updated_at')
-      .in('type', ['artist','host','band','standup','venue'])
+      .select(PROFILE_COLS)
+      .in('type', DISCOVER_TYPES)
+      .or('is_live.is.null,is_live.neq.false')
+      .not('user_id', 'is', null)
+      .not('avatar', 'is', null)
+      .neq('avatar', '')
+      .neq('avatar', 'N/A')
+      .order('updated_at', { ascending: false })
+      .limit(DEFAULT_RAIL_SIZE),
+    supabase.from('profiles')
+      // The original rail, kept whole: whatever is genuinely newest, claimed
+      // or not. Fills the rail behind the registered ones.
+      .select(PROFILE_COLS)
+      .in('type', DISCOVER_TYPES)
       .or('is_live.is.null,is_live.neq.false')
       .order('updated_at', { ascending: false })
-      .limit(20),
+      .limit(DEFAULT_RAIL_SIZE),
     supabase.from('events')
       // The embedded venue is how an event gets a location at all: the venue
       // owns it (docs/location-architecture-2026-07.md §4). `postcode`/`lat`
@@ -176,9 +219,17 @@ async function fetchDefault() {
       .order('created_at', { ascending: false })
       .limit(8),
   ]);
+  // Registered-with-own-photo first, then the newest of everything else.
+  // Deduped by id: the two queries overlap by design (a registered profile
+  // that IS genuinely recent appears in both), and the Map keeps the first
+  // insertion — which is the registered one, so the preference survives.
+  const merged = new Map();
+  for (const p of [...(registeredRes.data || []), ...(recentRes.data || [])]) {
+    if (!merged.has(p.id)) merged.set(p.id, p);
+  }
   return [
-    ...(profileRes.data || []).map(p => ({ ...p, _kind: 'profile' })),
-    ...(evRes.data     || []).map(e => ({ ...e, _kind: 'event'   })),
+    ...[...merged.values()].slice(0, DEFAULT_RAIL_SIZE).map(p => ({ ...p, _kind: 'profile' })),
+    ...(evRes.data || []).map(e => ({ ...e, _kind: 'event' })),
   ];
 }
 
@@ -358,6 +409,11 @@ export default function DiscoverScreen() {
     dateFilter, radiusKm: radiusActive, originCoords, originPostcode,
   });
 
+  // Order comes from fetchDefault (registered-with-own-photo first) and is
+  // preserved through applyLocalFilters, which filters without reordering.
+  // Search results keep their own relevance order untouched — demoting an
+  // unclaimed venue whose name someone just typed would answer a different
+  // question than the one they asked.
   const profiles = items.filter(r => r._kind === 'profile');
   const events   = items.filter(r => r._kind === 'event');
 
