@@ -38,6 +38,33 @@ export async function uploadPoster(canvas, uid, suffix = 'new', originalCanvas =
   return { poster_full, poster, poster_thumb };
 }
 
+/**
+ * Upload an event COVER — layout spec §0: a different object from the Poster,
+ * with a different job. "The Cover sells the experience. The Poster preserves
+ * the artwork."
+ *
+ * Landscape, and only two renditions rather than the poster's three:
+ *
+ * · No `_full` original. The Poster keeps an uncropped original because § 11
+ *   renders it whole and must never lose the edges the organiser designed
+ *   into it. A Cover is atmosphere — it fills the Hero frame edge to edge and
+ *   is ALLOWED to crop (§0.1), so an uncropped copy would be a file nothing
+ *   ever reads.
+ * · 1800×1200 at 3:2 — the Hero's own frame aspect, so the common case is a
+ *   straight fit with no further cropping at display time.
+ *
+ * Its own storage folder: covers and posters are different objects and mixing
+ * them under `event_posters/` would make "which of these is the artwork?"
+ * unanswerable from the path.
+ */
+export async function uploadCover(canvas, uid, suffix = 'new') {
+  const [cover, cover_thumb] = await Promise.all([
+    uploadCanvas(canvas, 1800, 1200, 'posters', `event_covers/${uid}/${suffix}/cover`, 0.85),
+    uploadCanvas(canvas,  600,  400, 'posters', `event_covers/${uid}/${suffix}/thumb`, 0.80),
+  ]);
+  return { cover, cover_thumb };
+}
+
 // Legacy helper used by VenueProfileScreen (kept for compatibility)
 export { resizeCanvas };
 

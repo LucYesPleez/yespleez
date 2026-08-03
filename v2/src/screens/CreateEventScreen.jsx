@@ -362,6 +362,11 @@ export default function CreateEventScreen() {
   const [openMicBadge, setOpenMicBadge] = useState(false);
   const [ticketLink,  setTicketLink]  = useState('');
   const [bio,         setBio]         = useState('');
+  // Cover — the Hero image. A separate object from the poster (layout spec §0):
+  // it sells the experience and may crop, where the poster preserves artwork
+  // and may not. Uploading one supersedes the poster-derived Hero entirely.
+  const [cover,       setCover]       = useState('');
+  const [coverThumb,  setCoverThumb]  = useState('');
   const [poster,      setPoster]      = useState('');
   const [posterThumb, setPosterThumb] = useState('');
   const [posterFull,  setPosterFull]  = useState('');
@@ -423,6 +428,8 @@ export default function CreateEventScreen() {
       setOpenMicBadge(c.openMicBadge || false);
       setTicketLink(c.ticketLink || '');
       setBio(c.bio || '');
+      setCover(c.cover || '');
+      setCoverThumb(c.cover_thumb || '');
       setPoster(c.poster || '');
       setPosterThumb(c.poster_thumb || '');
       setPosterFull(c.poster_full || '');
@@ -469,7 +476,9 @@ export default function CreateEventScreen() {
     setSaving(true); setError('');
 
     const cfg = {
-      name, date:startDate, endDate, venue, genres:genreText, categoryBadge: categoryBadge || null, openMicBadge: openMicBadge || null, ticketLink, bio, poster, poster_thumb:posterThumb, poster_full:posterFull,
+      name, date:startDate, endDate, venue, genres:genreText, categoryBadge: categoryBadge || null, openMicBadge: openMicBadge || null, ticketLink, bio,
+      cover, cover_thumb:coverThumb,
+      poster, poster_thumb:posterThumb, poster_full:posterFull,
       is_public:isPublic, applications_open:appsOpen,
       days: setTimesNeeded ? days.map(d => ({ name:d.name, slots:d.slots.map(slotToSave) })) : [],
       host_controls_config: { artistsCanRemove, showRankedBackup, showGenrePickers, privateSetTimes, showTimesPublicly },
@@ -650,9 +659,66 @@ export default function CreateEventScreen() {
           <textarea className={s.textarea} value={bio} onChange={e => setBio(e.target.value)} rows={4} placeholder="Tell people what to expect — vibe, artists, anything worth knowing…" />
         </Field>
 
+        {/* ── EVENT COVER (layout spec §0) ──
+            Above the poster deliberately: it is the top of the public page, so
+            it is the first image decision, and its presence changes what the
+            poster is FOR (artwork to keep, rather than the thing being
+            cropped into a Hero). */}
+        <div className={s.field}>
+          <p className={s.fieldLabel}>EVENT COVER (optional)</p>
+          <p className={s.fieldSub}>
+            The big image at the top of your event page · 3:2 landscape.
+            A crowd, the room, the act on stage — it sets the mood and may be cropped.
+          </p>
+          <ImageUploadButton
+            type="cover"
+            userId={session?.user?.id}
+            onUpload={({ cover:c, cover_thumb:t }) => { setCover(c); setCoverThumb(t); }}
+          >
+            {({ trigger, statusBadge }) => (
+              <div style={{ position:'relative' }}>
+                <div
+                  onClick={!cover ? trigger : undefined}
+                  style={{
+                    position:'relative', width:'100%', aspectRatio:'3 / 2',
+                    borderRadius:12, overflow:'hidden',
+                    display:'flex', alignItems:'center', justifyContent:'center',
+                    background: cover ? 'transparent' : 'rgba(255,255,255,0.05)',
+                    border: cover ? 'none' : '2px dashed rgba(255,255,255,0.18)',
+                    cursor: cover ? 'default' : 'pointer',
+                  }}
+                >
+                  {cover
+                    ? <img src={cover} alt="cover" style={{ width:'100%', height:'100%', objectFit:'cover' }} />
+                    : <div style={{ textAlign:'center', color:'rgba(255,255,255,0.4)', fontSize:13 }}>
+                        <div style={{ fontSize:28, marginBottom:6 }}>+</div>
+                        <div>Tap to add a cover</div>
+                      </div>}
+                  {statusBadge}
+                </div>
+                {cover && (
+                  <div style={{ display:'flex', gap:8, marginTop:8 }}>
+                    <button type="button" onClick={trigger}
+                      style={{ flex:1, padding:'8px', borderRadius:8, cursor:'pointer', background:'rgba(255,255,255,0.06)', border:'1px solid var(--border)', color:'var(--text)', fontFamily:"'Bebas Neue'", fontSize:12, letterSpacing:1.5 }}>
+                      REPLACE
+                    </button>
+                    {/* Clearing drops the event back to the poster-derived Hero
+                        (§0.3 rungs 4–6), which is where it was before — not to
+                        no Hero at all. */}
+                    <button type="button" onClick={() => { setCover(''); setCoverThumb(''); }}
+                      style={{ flex:1, padding:'8px', borderRadius:8, cursor:'pointer', background:'rgba(255,80,80,0.08)', border:'1px solid rgba(255,80,80,0.3)', color:'var(--muted)', fontFamily:"'Bebas Neue'", fontSize:12, letterSpacing:1.5 }}>
+                      REMOVE
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </ImageUploadButton>
+        </div>
+
         <div className={s.field}>
           <p className={s.fieldLabel}>EVENT POSTER</p>
-          <p className={s.fieldSub}>Optional — screenshot or photo · 4:5 ratio</p>
+          <p className={s.fieldSub}>Optional — the flyer as it was designed · 4:5 ratio · shown whole at the bottom of the page</p>
           <ImageUploadButton type="poster" userId={session?.user?.id} onUpload={({ poster:p, poster_thumb:t, poster_full:f }) => { setPoster(p); setPosterThumb(t); setPosterFull(f||''); setPosterPos({ x:50, y:50 }); setCropMode(false); }}>
             {({ trigger, statusBadge }) => (
               <div>

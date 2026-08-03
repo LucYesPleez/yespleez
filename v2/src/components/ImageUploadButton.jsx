@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { loadCorrectedCanvas } from '../lib/imageUtils';
-import { uploadAvatar, uploadPoster } from '../lib/uploadImage';
+import { uploadAvatar, uploadPoster, uploadCover } from '../lib/uploadImage';
 import ImageCropperModal from './ImageCropperModal';
 import s from './ImageUploadButton.module.css';
 
@@ -10,11 +10,13 @@ import s from './ImageUploadButton.module.css';
  * file pick → EXIF correct → crop → resize → WebP → Supabase Storage → URL
  *
  * Props:
- *   type       'avatar' | 'poster'
+ *   type       'avatar' | 'poster' | 'cover'
  *   userId     used to build the storage path
  *   bucket     Supabase bucket name (for avatars; posters bucket is fixed)
  *   pathPrefix storage path prefix, e.g. 'artist_avatars'
- *   onUpload   called with { avatar_hero, avatar_thumb } (avatar) or { poster, poster_thumb, poster_full } (poster)
+ *   onUpload   called with { avatar_hero, avatar_thumb } (avatar),
+ *              { poster, poster_thumb, poster_full } (poster),
+ *              or { cover, cover_thumb } (cover)
  *   children   render prop: ({ trigger, status }) => JSX
  *              status: 'idle' | 'loading' | 'cropping' | 'optimising' | 'uploading'
  */
@@ -24,7 +26,9 @@ export default function ImageUploadButton({ type = 'avatar', userId, bucket = 'a
   const [canvas, setCanvas]       = useState(null); // corrected canvas waiting to crop
   const originalCanvas            = useRef(null);   // pre-crop original
 
-  const aspect = type === 'poster' ? 4 / 5 : 1;
+  // 3:2 for a cover — the Hero's own frame aspect (heroMedia's
+  // `heroFrameAspect`), so what the organiser crops is what the Hero shows.
+  const aspect = type === 'poster' ? 4 / 5 : type === 'cover' ? 3 / 2 : 1;
 
   function trigger() {
     fileRef.current?.click();
@@ -59,6 +63,10 @@ export default function ImageUploadButton({ type = 'avatar', userId, bucket = 'a
       let result;
       if (type === 'poster') {
         result = await uploadPoster(croppedCanvas, userId, 'new', originalCanvas.current);
+      } else if (type === 'cover') {
+        // No original passed: a Cover may crop by design (§0.1), so the
+        // pre-crop canvas is not something any surface renders.
+        result = await uploadCover(croppedCanvas, userId, 'new');
       } else {
         result = await uploadAvatar(croppedCanvas, bucket, `${pathPrefix}/${userId}`);
       }
