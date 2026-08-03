@@ -20,7 +20,7 @@ import s from '../EventScreen.module.css';
  * go and fix a gap while it still matters — a checklist revealed on rejection
  * is a post-mortem.
  */
-function RequirementsChecklist({ evaluation }) {
+function RequirementsChecklist({ evaluation, editPath }) {
   const STATE_UI = {
     satisfied: { mark: '✓', color: '#00E5A0' },
     withheld:  { mark: '✓', color: '#00E5A0' },   // declining is an answer (R1)
@@ -42,16 +42,28 @@ function RequirementsChecklist({ evaluation }) {
           <div key={it.key} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '3px 0' }}>
             <span style={{ color: ui.color, fontSize: 12, width: 12, flexShrink: 0 }}>{ui.mark}</span>
             <span style={{ fontSize: 13, color: met ? 'var(--text)' : 'var(--muted)', flex: 1 }}>{requirementLabel(it.key)}</span>
-            {/* Only a blocking gap is named as one. An unsupplied file is
-                stated plainly and left at that — it does not stop the send,
-                so calling it "required" here would be a lie the button
-                immediately contradicts. */}
+            {/* Every unmet requirement is a blocking one now, so NEEDED shows
+                on all of them — the flag stays keyed on `it.blocking` rather
+                than on `!met` alone, because an UNRECOGNISED key (a stale
+                requirement the registry no longer knows) is deliberately
+                non-blocking and must not be labelled as something the
+                applicant can fix. */}
             {!met && it.blocking && (
               <span style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1, color: '#FFD700' }}>NEEDED</span>
             )}
           </div>
         );
       })}
+      {/* Naming the gap is not the same as being able to close it. Without
+          this, an applicant is told "Press Kit NEEDED" and left to already
+          know that press kits live inside the profile editor's Assets
+          section — the one screen they cannot reach from here. */}
+      {editPath && !evaluation.canSubmit && (
+        <a href={`#${editPath}`}
+          style={{ display: 'inline-block', marginTop: 8, fontFamily: "'Bebas Neue'", fontSize: 12, letterSpacing: 1, color: 'var(--neon2)' }}>
+          ADD WHAT&rsquo;S MISSING →
+        </a>
+      )}
     </div>
   );
 }
@@ -272,7 +284,18 @@ export default function ApplyButton({ eventId, userId, ownerProfile }) {
           {evaluating && !evaluation && (
             <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 10 }}>Checking what this host asks for…</p>
           )}
-          {evaluation && <RequirementsChecklist evaluation={evaluation} />}
+          {/* The editor for the profile they are APPLYING AS — resolved from
+              that profile's own type, not the account's, so a comedian
+              switching to their band profile gets the band editor. */}
+          {evaluation && (
+            <RequirementsChecklist
+              evaluation={evaluation}
+              editPath={(() => {
+                const t = performers.find(p => p.id === actingId)?.type;
+                return t ? `/industry/${t}/setup` : null;
+              })()}
+            />
+          )}
           <textarea value={note} onChange={e => setNote(e.target.value)}
             placeholder="Add a note for the host (optional)…" rows={3}
             style={{ width: '100%', background: 'var(--card2)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text)', padding: '10px 12px', fontSize: 13, outline: 'none', resize: 'none', marginBottom: 10 }} />
