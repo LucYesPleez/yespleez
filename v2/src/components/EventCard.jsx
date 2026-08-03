@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import s from './EventCard.module.css';
 import { formatDisplayDate } from '../lib/dates';
-import { getEventBadges, resolveCategoryBadge, OPEN_MIC_BADGE } from '../lib/eventBadges';
+import { eventCategoryBadges } from '../lib/eventBadges';
 import DateBox from './DateBox';
 
 /* The landscape date box's width. Referenced twice — by the box itself and by the text padding
@@ -88,16 +88,12 @@ export default function EventCard({ event, badge: badgeOverride, badgeColor, onC
   const poster = event?.poster_url || cfg.poster_thumb || cfg.poster || null;
   const date   = cfg.date  || '';
   const venue  = cfg.venue || '';
-  const genres = cfg.genres || '';
 
-  const manualBadge = cfg.categoryBadge ? [resolveCategoryBadge(cfg.categoryBadge)] : null;
-  const autoBadges = getEventBadges(genres, event?.name || '');
-  let pills = badgeOverride
+  // An explicit override (a caller forcing a label) still wins over everything;
+  // otherwise the shared precedence applies — see eventCategoryBadges.
+  const pills = badgeOverride
     ? [{ label: badgeOverride, bg: badgeColor || '#fff', col: '#fff' }]
-    : (manualBadge || autoBadges);
-  if (!badgeOverride && cfg.openMicBadge && !pills.find(p => p.label === OPEN_MIC_BADGE.label)) {
-    pills = [...pills, OPEN_MIC_BADGE];
-  }
+    : eventCategoryBadges(cfg, event?.name);
 
   const handleClick = onClick || (() => navigate(`/event/${event.id}`));
 
@@ -187,7 +183,10 @@ export default function EventCard({ event, badge: badgeOverride, badgeColor, onC
   const chip = fmtChip(date);
   // Status badge (override) shown on the right; genre pills shown inline with venue
   const statusPills = badgeOverride ? [{ label: badgeOverride, bg: badgeColor || '#fff', col: '#fff' }] : [];
-  const genrePills  = badgeOverride ? [] : autoBadges;
+  // Was `autoBadges` — auto-detection only, so the card variant dropped a
+  // host's chosen category exactly as the What's On row did. `pills` already
+  // carries the shared precedence (chosen chip first, auto as fallback).
+  const genrePills  = badgeOverride ? [] : pills;
 
   const cardEl = (
     <button className={`${s.card}${isLive ? ' ' + s.cardLive : ''}${noHover ? ' ' + s.cardNoHover : ''}`} onClick={handleClick}>

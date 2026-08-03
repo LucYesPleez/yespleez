@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import { getOwnerProfiles } from './actingProfile';
+import { getProfilesOfType } from './actingProfile';
 
 /**
  * The one place notifications are created.
@@ -112,7 +112,7 @@ const RESOLVABLE_TYPES = ['venue', 'host', 'artist', 'band', 'standup'];
 export async function inferToProfileId(userId, profileType) {
   if (!userId || !profileType || !RESOLVABLE_TYPES.includes(profileType)) return null;
   try {
-    const profiles = await getOwnerProfiles(userId, profileType);
+    const profiles = await getProfilesOfType(userId, profileType);
     // Exactly one, or nothing. No tie-breaking, by rule.
     return profiles && profiles.length === 1 ? profiles[0].id : null;
   } catch {

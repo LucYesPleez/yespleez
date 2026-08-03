@@ -1,12 +1,34 @@
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { formatDisplayDate } from '../lib/dates';
 import { normaliseStatus } from '../lib/enquiryUtils';
+import { completionFor, COMPLETION_COLUMNS, requirementLabel } from '../lib/requirements';
+
+/**
+ * Every `profiles` column this card reads — declared HERE, by the component
+ * that reads them, because two callers batch-fetch applicant profiles and
+ * hand them in (VenueDashboard, HostDashboard) and both were keeping their
+ * own list.
+ *
+ * Both lists were wrong in the same silent way. A column the card reads but
+ * the query never selected arrives as `undefined`: the FEE and EMAIL rows are
+ * dropped by `.filter(([, v]) => v)` and simply never appear, and the
+ * readiness percentage counts the absence as a real gap. Nothing throws and
+ * every number looks plausible.
+ *
+ * The completion half is appended from the engine rather than typed out, so
+ * adding a key to COMPLETION_KEYS cannot leave a fetcher behind. See
+ * COMPLETION_COLUMNS, and the projection test that keeps it honest.
+ */
+export const ENQUIRY_CARD_COLUMNS = [...new Set([
+  'id', 'user_id', 'type', 'avatar', 'avatar_thumb', 'name', 'bio', 'sound',
+  'genre_string', 'location', 'mix_link', 'tagline', 'card_pills',
+  'years', 'fee', 'fee_type', 'contact_email',
+  ...COMPLETION_COLUMNS,
+])];
 import { formatLocation } from '../lib/formatLocation';
-import { socialProfileUrl, socialHandle, ensureHttps } from '../lib/socialLinks';
 import ds from '../screens/DiscoverScreen.module.css';
 import DateBox from './DateBox';
+import EnquiryDossierSheet from './EnquiryDossierSheet';
 import { PROFILE_TYPES } from '../lib/profileTypes';
 
 
@@ -92,12 +114,13 @@ const NEXT_STEPS = {
   },
 };
 
-export default function EnquiryCard({ enq, onRespond, onPlayDemo }) {
-  const navigate = useNavigate();
+export default function EnquiryCard({ enq, viewerProfile, onRespond, onPlayDemo }) {
   const [busy, setBusy]       = useState(false);
   const [profile, setProfile] = useState(enq.profile || null);
   const [expanded, setExpanded] = useState(false);
-  const [bioOpen, setBioOpen] = useState(false);
+  // The dossier — the full, readable view. See EnquiryDossierSheet for why
+  // the depth lives there rather than growing this card.
+  const [sheetOpen, setSheetOpen] = useState(false);
   const expandRef = useRef(null);
 
 
@@ -131,9 +154,56 @@ export default function EnquiryCard({ enq, onRespond, onPlayDemo }) {
   const loc          = formatLocation(p);
   const avatar       = p.avatar || null;
   const allTags      = (p.card_pills || '').split(/[,·]/).map(s => s.trim()).filter(Boolean);
-  const dateLabel    = enq.date_requested ? formatDisplayDate(enq.date_requested) : enq.preferred_date ? formatDisplayDate(enq.preferred_date) : 'Flexible date';
-  const appliedLabel = enq.created_at ? new Date(enq.created_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
   const sound        = p.sound || p.genre_string?.split(/[·,]/).slice(0, 3).join(' · ') || '';
+
+  /**
+   * BOOKING READINESS — computed from the LIVE profile row, never snapshotted
+   * onto the enquiry.
+   *
+   * This card is re-read days after the enquiry was sent and re-rendered on
+   * every status change, and it already re-resolves the applicant profile on
+   * each load. A number frozen at send time would sit inside a read-through
+   * component and drift from the profile it claims to describe. So readiness
+   * always means "as at now", and copies nothing into venue_enquiries — the
+   * enquiry stays nine columns and a pointer.
+   *
+   * `completionFor` returns null for a type with no completion list, and we
+   * pass null while the profile is still resolving. Both hide the badge
+   * rather than rendering 0% — an unknown readiness is not a bad one (R1),
+   * and a hidden row beats a misleading one (R3).
+   */
+  const readiness = profile ? completionFor(p, p.type) : null;
+  // The per-field "not supplied" list is deliberately NOT built here any more.
+  // It told a venue which profile fields an applicant had left blank —
+  // including their emergency contact, which is between the artist and the
+  // platform. A host's business is what they asked for (Requirements) plus one
+  // overall number. The full gap list belongs on the artist's own dashboard as
+  // a to-do, not here as a character reference.
+
+  /**
+   * REQUIREMENTS — the verdict recorded at submission (P5), read as stored.
+   *
+   * NOT recomputed. Readiness above is live because "how complete is this act"
+   * is a question about now; "did they meet what I asked" is a question about
+   * a moment, and re-deriving it would silently rewrite what was submitted the
+   * next time the applicant edits their profile.
+   *
+   * NULL is the ordinary case — a venue date enquiry has no event and so no
+   * requirements, and an event that declared none produces no snapshot. Both
+   * render nothing at all rather than "0/0" (R3).
+   *
+   * ⚠ NO "8/8 then · 7/8 now" COMPARISON YET, DELIBERATELY. A live re-evaluation
+   * needs the applicant's ASSETS, and neither dashboard fetches them — every
+   * asset key would resolve `absent` and the card would report a press kit as
+   * deleted when it is merely unfetched. A wrong second number is worse than
+   * one honest number (R4: broken ≠ sparse). It lands when the dashboards
+   * batch-load assets.
+   */
+  const snap = enq.requirements_snapshot || null;
+  const reqTotal = snap?.total ?? 0;
+  const reqMet   = snap?.satisfied ?? 0;
+  const reqComplete = reqTotal > 0 && reqMet === reqTotal;
+  const reqColor = reqComplete ? '#00E5A0' : '#FFD700';
 
   const declineBtn = (
     <HoverBtn onClick={() => respond('declined')} disabled={busy}
@@ -230,11 +300,51 @@ export default function EnquiryCard({ enq, onRespond, onPlayDemo }) {
             )}
             {loc   && <div className={ds.cardLoc}>{loc}</div>}
             {sound && <div className={ds.cardSound} style={{ color: accent }}>{sound}</div>}
+            {/* Their curated "Your 5 Tags" (card_pills), moved up from the
+                expansion — this is their own final self-description, the same
+                signal a host reads on every other card in the app, and it
+                belongs beside sound rather than a tap away.
+                .spot-tag: the Spotlight rail's own pill (FeaturedEventCard's
+                .tag) over this card's own hero photo, gradient border in
+                place of the rail's solid cyan one — see index.css. */}
+            {allTags.length > 0 && (
+              <div className="spot-tags" style={{ marginTop: 6 }}>
+                {allTags.slice(0, 5).map(g => (
+                  <span key={g} className="spot-tag">{g}</span>
+                ))}
+              </div>
+            )}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, flexShrink: 0 }}>
             <span style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1.5, color: statusColor, border: `1px solid ${statusColor}`, borderRadius: 4, padding: '2px 7px' }}>
               {displayStatus.toUpperCase()}
             </span>
+            {/* Readiness sits on the COLLAPSED card deliberately. Opening the
+                expansion auto-writes 'seen' (below), so a badge hidden in
+                there would force a venue to consume an enquiry before it could
+                rank it — and ranking is the whole use. One number here, the
+                breakdown inside.
+                Deliberately one neutral treatment, not a red/amber/green
+                ladder: this is an incentive to finish a profile, not a grade
+                handed to a venue. */}
+            {readiness && (
+              <span title="How complete this profile is right now"
+                style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1.2, color: 'var(--muted)', border: '1px solid rgba(255,255,255,.14)', borderRadius: 4, padding: '2px 7px' }}>
+                <span style={{ color: accent }}>{Math.round(readiness.pct)}%</span> READY
+              </span>
+            )}
+            {/* Requirements outrank readiness on this row. A host does not
+                triage on "how professionally complete is this person" — they
+                triage on "did they bring what I asked for", and that is the
+                only number here with a yes/no answer. So it carries the
+                colour and readiness stays neutral above it. Absent entirely
+                when nothing was asked. */}
+            {reqTotal > 0 && (
+              <span title={`Met at submission, ${new Date(snap.evaluated_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })}`}
+                style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1.2, color: reqColor, border: `1px solid ${reqColor}`, borderRadius: 4, padding: '2px 7px' }}>
+                {reqComplete ? '✓ ' : ''}{reqMet}/{reqTotal} REQS
+              </span>
+            )}
             {dateRaw && <DateBox date={dateRaw} size="sm" />}
             <HoverProfileBtn expanded={expanded} onClick={() => {
               const next = !expanded;
@@ -262,81 +372,82 @@ export default function EnquiryCard({ enq, onRespond, onPlayDemo }) {
 
       {expanded && profile && (
         <div ref={expandRef} style={{ background: 'var(--card)', border: `1px solid rgba(${accentRgb},.35)`, borderTop: 'none', borderRadius: '0 0 14px 14px', padding: '12px 18px' }}>
-          {/* The applicant's curated "Your 5 Tags" (card_pills) — their final
-              identity, so it gets the signature Glow Pill display. */}
-          {allTags.length > 0 && (
-            <div className="glow-pills" style={{ marginBottom: 8 }}>
-              {allTags.slice(0, 8).map(g => (
-                <span key={g} className="glow-pill">{g}</span>
-              ))}
-            </div>
-          )}
-          {p.bio && (
-            <div style={{ display: 'flex', gap: 8, padding: '7px 0', borderBottom: '1px solid rgba(255,255,255,.05)' }}>
-              <div style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1.5, color: 'var(--muted)', minWidth: 70, paddingTop: 2 }}>ABOUT</div>
-              <div style={{ fontSize: 13, color: 'var(--text)', flex: 1, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', display: 'flex', alignItems: 'baseline', gap: 6 }}>
-                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{p.bio}</span>
-                {p.bio.length > 60 && <span onClick={() => setBioOpen(true)} style={{ color: 'var(--muted)', fontSize: 11, cursor: 'pointer', flexShrink: 0, letterSpacing: .5 }}>see more</span>}
+          {/* The 5 tags now sit on the collapsed card, under sound — this
+              expansion no longer repeats them. */}
+          {/* THEIR MESSAGE, in preview. The full text and a REPLY button live
+              in the dossier sheet; here it is one line so a host scanning the
+              list can see whether they wrote anything worth opening. */}
+          {enq.note && (
+            <div
+              onClick={() => setSheetOpen(true)}
+              style={{ display: 'flex', gap: 8, padding: '7px 0', borderBottom: '1px solid rgba(255,255,255,.05)', cursor: 'pointer' }}>
+              <div style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1.5, color: 'var(--muted)', minWidth: 70, paddingTop: 2 }}>MESSAGE</div>
+              <div style={{ fontSize: 13, color: 'var(--text)', flex: 1, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
+                {enq.note}
               </div>
             </div>
           )}
-          {[
-            ['DATE REQ', dateLabel],
-            ['APPLIED',  appliedLabel || null],
-            ['SOUND',    p.sound],
-            ['EST.',     p.years ? `Est. ${p.years}` : null],
-            ['FEE',      [p.fee ? `$${p.fee}` : null, p.fee_type === 'paid' ? 'Paid' : p.fee_type === 'exposure' ? 'Exposure/door deal' : null].filter(Boolean).join(' — ') || null],
-            ['EMAIL',    p.email || p.contactEmail],
-          ].filter(([, v]) => v).map(([label, value]) => (
-            <div key={label} style={{ display: 'flex', gap: 8, padding: '7px 0', borderBottom: '1px solid rgba(255,255,255,.05)' }}>
-              <div style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1.5, color: 'var(--muted)', minWidth: 70, paddingTop: 2 }}>{label}</div>
-              <div style={{ fontSize: 13, color: 'var(--text)', flex: 1 }}>{value}</div>
-            </div>
-          ))}
-          {(p.mix_link || p.soundcloud || p.mixcloud) && (
-            <div style={{ display: 'flex', gap: 8, padding: '7px 0', borderBottom: '1px solid rgba(255,255,255,.05)' }}>
-              <div style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1.5, color: 'var(--muted)', minWidth: 70, paddingTop: 2 }}>MIX / DEMO</div>
-              <button onClick={() => onPlayDemo?.({ url: ensureHttps(p.mix_link) || socialProfileUrl('soundcloud', p.soundcloud) || socialProfileUrl('mixcloud', p.mixcloud), artistName: name })} style={{ background: 'none', border: 'none', padding: 0, fontSize: 13, color: accent, cursor: 'pointer', textAlign: 'left' }}>Play demo</button>
-            </div>
-          )}
-          {p.instagram && p.instagram !== 'N/A' && (
-            <div style={{ display: 'flex', gap: 8, padding: '7px 0', borderBottom: '1px solid rgba(255,255,255,.05)' }}>
-              <div style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1.5, color: 'var(--muted)', minWidth: 70, paddingTop: 2 }}>INSTAGRAM</div>
-              <a href={socialProfileUrl('instagram', p.instagram)} target="_blank" rel="noopener" style={{ fontSize: 13, color: accent }}>@{socialHandle('instagram', p.instagram)}</a>
-            </div>
-          )}
-          {enq.applicant_user_id && (
-            <div style={{ padding: '10px 0 4px' }}>
-              <button
-                onClick={() => {
-                  // M5: canonical id from the fetched profile row, or the
-                  // enquiry row's applicant_profile_id; legacy URL only as a
-                  // fallback (redirect shim covers it).
-                  const pid = p?.id || enq.applicant_profile_id;
-                  navigate(pid
-                    ? '/profile/' + pid + '?type=' + (enq.applicant_type || 'artist')
-                    : '/profile/' + enq.applicant_user_id + '?type=' + (enq.applicant_type || 'artist'));
-                }}
-                style={{ width: 'fit-content', background: 'rgba(255,51,153,.1)', border: '1px solid rgba(255,51,153,.35)', borderRadius: 8, padding: '4px 10px', fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1.5, color: '#fff', cursor: 'pointer', transition: 'all .15s' }}
-                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,51,153,.22)'; e.currentTarget.style.borderColor = '#FF69B4'; }}
-                onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,51,153,.1)'; e.currentTarget.style.borderColor = 'rgba(255,51,153,.35)'; }}
-              >VIEW FULL PROFILE →</button>
+          {/* Sits under readiness, per the agreed layout: readiness is the
+              general professionalism signal, requirements the actionable one.
+              Rendered from the stored verdict, item by item, so a host can see
+              exactly WHICH thing is missing rather than only a fraction. */}
+          {reqTotal > 0 && (
+            <div style={{ padding: '4px 0 9px', borderBottom: '1px solid rgba(255,255,255,.05)', marginBottom: 2 }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 6 }}>
+                <span style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1.5, color: 'var(--muted)' }}>REQUIREMENTS</span>
+                <span style={{ fontFamily: "'Bebas Neue'", fontSize: 15, letterSpacing: .5, color: reqColor }}>
+                  {reqComplete ? `✓ ${reqMet}/${reqTotal} COMPLETE` : `${reqMet}/${reqTotal}`}
+                </span>
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 14px' }}>
+                {(snap.items || []).map(it => {
+                  // 'withheld' is an answer, not a gap — 'N/A' means asked and
+                  // declined (R1). It reads as met, exactly as the engine
+                  // scored it at submission.
+                  const met = it.state === 'satisfied' || it.state === 'withheld';
+                  return (
+                    <span key={it.key} style={{ fontSize: 11, color: met ? '#00E5A0' : 'var(--muted)' }}>
+                      {met ? '✓' : '○'}&nbsp;{requirementLabel(it.key)}
+                    </span>
+                  );
+                })}
+              </div>
+              <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 7, opacity: .75 }}>
+                {/* Says "as submitted" out loud. Without it a host reads these
+                    ticks as current, and they are not — that is the whole
+                    reason the verdict is stored rather than recomputed. */}
+                As submitted {new Date(snap.evaluated_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })}
+              </div>
             </div>
           )}
+          {/* Everything else — bio, fee, demo, contact, readiness, replying —
+              moved to the dossier sheet. Cramming it in here produced 11px
+              type over a photo, which a host summed up as "tells me nothing
+              helpful and I can't read any of it". This expansion is the
+              triage set only; the sheet is where a decision gets made. */}
+          <div style={{ padding: '10px 0 4px' }}>
+            <button
+              onClick={() => setSheetOpen(true)}
+              style={{ width: '100%', background: `rgba(${accentRgb},.12)`, border: `1px solid rgba(${accentRgb},.45)`, borderRadius: 9, padding: '10px', fontFamily: "'Bebas Neue'", fontSize: 12, letterSpacing: 1.5, color: accent, cursor: 'pointer', transition: 'background .15s' }}
+              onMouseEnter={e => { e.currentTarget.style.background = `rgba(${accentRgb},.22)`; }}
+              onMouseLeave={e => { e.currentTarget.style.background = `rgba(${accentRgb},.12)`; }}
+            >VIEW FULL DETAILS →</button>
+          </div>
           <ActionButtons />
         </div>
       )}
 
-      {bioOpen && p.bio && (
-        <div onClick={() => setBioOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.75)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: 'var(--card)', border: `1px solid rgba(${accentRgb},.4)`, borderRadius: 16, padding: 24, maxWidth: 480, width: '100%', maxHeight: '70vh', overflowY: 'auto' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-              <span style={{ fontFamily: "'Bebas Neue'", fontSize: 16, letterSpacing: 2, color: accent }}>ABOUT {name.toUpperCase()}</span>
-              <button onClick={() => setBioOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--muted)', fontSize: 20, cursor: 'pointer', lineHeight: 1 }}>✕</button>
-            </div>
-            <p style={{ fontSize: 14, color: 'var(--text)', lineHeight: 1.7 }}>{p.bio}</p>
-          </div>
-        </div>
+      {/* The bio "see more" modal is gone with the row that opened it — the
+          sheet shows the bio in full, so a second overlay for one field was
+          a surface with nothing left to do. */}
+      {sheetOpen && (
+        <EnquiryDossierSheet
+          enq={{ ...enq, profile }}
+          viewerProfile={viewerProfile}
+          onClose={() => setSheetOpen(false)}
+          onRespond={onRespond}
+          onPlayDemo={onPlayDemo}
+        />
       )}
     </div>
   );

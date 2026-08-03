@@ -8,6 +8,7 @@ import s from './ArtistProfileScreen.module.css';
 import PostcodePrompt from '../components/PostcodePrompt';
 import { normalizeSocialValue } from '../lib/socialLinks';
 import { PROFILE_TYPES } from '../lib/profileTypes';
+import ProfileAssetsSection from '../components/ProfileAssetsSection';
 
 
 // 'Festival Site' / 'Festivals' intentionally not offered this release — see
@@ -512,6 +513,16 @@ export default function VenueProfileScreen() {
               </div>
             </>
           )}
+        </div>
+
+        {/* PA1 — reusable professional documents. Venue has no fee/emergency
+            block, so the shared ordering reduces to: ABN/GST, assets, socials. */}
+        <div className={s.section}>
+          <ProfileAssetsSection
+            userId={userId} profileType="venue"
+            accent={ACCENT} accent2={ACCENT2} gradientTitle
+            titleClassName={s.sectionTitle} titleStyle={SECTION_TITLE_STYLE}
+          />
         </div>
 
         {/* Socials */}

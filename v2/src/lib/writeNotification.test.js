@@ -36,8 +36,12 @@ mock.module('./supabase', {
 });
 
 // Not exercised by these paths, but part of the module graph.
+// getProfilesOfType — not getOwnerProfiles — is what inferToProfileId calls
+// (2026-08-03: decoupled so a profile-type lookup for artist/band/standup
+// isn't silently rerouted through OWNER_ELIGIBLE_TYPES, which no longer
+// includes them). Mocking the wrong export here would pass by accident.
 mock.module('./actingProfile', {
-  exports: { getOwnerProfiles: async () => [] },
+  exports: { getProfilesOfType: async () => [] },
 });
 
 const { writeNotification, writeNotifications, isHeld } =

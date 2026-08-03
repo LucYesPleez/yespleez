@@ -11,8 +11,10 @@ import ProfileCard from '../components/ProfileCard';
 import { formatLocation } from '../lib/formatLocation';
 import { HOST_CATEGORIES } from '../lib/profileTaxonomy';
 import { PROFILE_TYPES } from '../lib/profileTypes';
+import { completionFor } from '../lib/requirements';
 import FollowingSection, { FOLLOW_FILTER_CONFIGS } from '../components/FollowingSection';
 import EnquiryPanel from '../components/EnquiryPanel';
+import { ENQUIRY_CARD_COLUMNS } from '../components/EnquiryCard';
 import DashboardHeader from '../components/DashboardHeader';
 import DashboardProfileCard from '../components/DashboardProfileCard';
 import NotificationBar from '../components/NotificationBar';
@@ -132,8 +134,12 @@ export default function HostDashboard({ userId: userIdProp }) {
       setAllApps(apps || []);
       const artistIds = [...new Set((apps || []).map(a => a.artist_id).filter(Boolean))];
       if (artistIds.length) {
+        // These rows are handed straight to EnquiryCard as `enq.profile`, so
+        // the card's own column list is the correct one to fetch. The former
+        // 10-column subset made every readiness percentage here too low: an
+        // unselected column reads as an unfilled one.
         const { data: profs } = await supabase.from('profiles')
-          .select('user_id, name, avatar, type, sound, genre_string, location, bio, mix_link, card_pills').in('user_id', artistIds);
+          .select(ENQUIRY_CARD_COLUMNS.join(', ')).in('user_id', artistIds);
         const map = {};
         (profs || []).forEach(p => { map[p.user_id] = p; });
         setAppProfiles(map);
@@ -296,6 +302,10 @@ export default function HostDashboard({ userId: userIdProp }) {
     note: app.note,
     venue_name: null,
     profile: appProfiles[app.artist_id] || null,
+    // P5 · the verdict recorded at submission. NULL for every application to an
+    // event that declared no requirements, and for every row written before
+    // P5 — EnquiryCard renders nothing in that case rather than "0/0".
+    requirements_snapshot: app.requirements_snapshot || null,
   }));
 
   async function handleEnquiryRespond(id, status) {
@@ -324,9 +334,9 @@ export default function HostDashboard({ userId: userIdProp }) {
     return HOST_CATEGORIES.filter(c => parts.has(c.key)).map(c => c.label).join(' · ');
   })();
   const hasProfile = !!profile;
-  const completionPct = !hasProfile ? 0
-    : [profile.name, profile.avatar, profile.location, profile.sound, profile.tagline, profile.genre_string, profile.bio, profile.website]
-        .filter(Boolean).length / 8 * 100;
+  // Shared requirements engine — see lib/requirements.js. Same eight fields as
+  // the closure this replaces; `website` keeps accepting 'N/A' as an answer.
+  const completionPct = completionFor(profile, 'host')?.pct ?? 0;
 
   return (
     <div className={s.screen}>
@@ -364,7 +374,10 @@ export default function HostDashboard({ userId: userIdProp }) {
       />
 
       {/* ── AVAILABILITY ── */}
-      <AvailabilitySection userId={userId} table="artist_availability" accent="#FF2D78" accentRgb="255,45,120" />
+      {/* profileId is the HOST profile. Before this, a host and their own DJ or
+          comedy profile wrote the same account-keyed rows, so marking yourself
+          free as a promoter silently changed your performer availability. */}
+      <AvailabilitySection userId={userId} profileId={profile?.id} table="artist_availability" accent="#FF2D78" accentRgb="255,45,120" />
 
       {/* ── ENQUIRIES ── */}
       <div id="section-enquiries" style={{ marginTop: 40 }}>
@@ -374,7 +387,7 @@ export default function HostDashboard({ userId: userIdProp }) {
         </div>
         {loadingApps
           ? <p className={s.empty}>Loading applications…</p>
-          : <EnquiryPanel enquiries={mappedEnquiries} onRespond={handleEnquiryRespond} />
+          : <EnquiryPanel enquiries={mappedEnquiries} viewerProfile={profile} onRespond={handleEnquiryRespond} />
         }
       </div>
 

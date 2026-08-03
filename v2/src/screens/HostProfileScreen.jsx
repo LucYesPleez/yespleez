@@ -7,6 +7,7 @@ import AvatarUpload from '../components/AvatarUpload';
 import { useProfileForm } from '../hooks/useProfileForm';
 import ProfileFormShell from '../components/ProfileFormShell';
 import SectionBlock from '../components/SectionBlock';
+import ProfileAssetsSection from '../components/ProfileAssetsSection';
 import SocialSection from '../components/SocialSection';
 import { HOST_GENRES, ALL_GENRES, SUBGENRES, HOST_CATEGORIES, VISIBLE_HOST_CATEGORIES } from '../lib/profileTaxonomy';
 import { PROFILE_TYPES } from '../lib/profileTypes';
@@ -361,6 +362,16 @@ export default function HostProfileScreen() {
               </button>
             ))}
           </div>
+        </Section>
+
+        {/* PA1 — reusable professional documents. Host has no fee/ABN/emergency
+            block, so the shared ordering reduces to: assets before contact. */}
+        <Section>
+          <ProfileAssetsSection
+            userId={userId} profileType="host"
+            accent={ACCENT} accent2={ACCENT2}
+            titleClassName={s.sectionTitle} titleStyle={EXPERIMENTAL_HEADING_STYLE}
+          />
         </Section>
 
         {/* CONTACT + SOCIALS */}

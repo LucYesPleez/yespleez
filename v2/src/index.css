@@ -238,6 +238,24 @@ input, textarea, select {
     color-mix(in srgb, var(--neon2) 16%, transparent));
 }
 
+/* ── Spotlight tag ─────────────────────────────────────────────────────────
+   The exact pill from My Scene's Spotlight rail — FeaturedEventCard.module.css
+   .tag / .tags, copied rather than referenced so this component doesn't reach
+   into another screen's CSS module. Keep the two in sync by eye if either
+   changes; there was no third caller to justify factoring this out further. */
+.spot-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.spot-tag {
+  background: rgba(255,255,255,.12);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  border: 1px solid rgba(0,229,255,.45);
+  border-radius: 20px;
+  font-size: 10px;
+  padding: 3px 9px;
+  color: rgba(255,255,255,.85);
+  filter: brightness(.8);
+}
+
 /* ══════════════════════════════════════════════════════════════════════
    ⚠ NO SCROLLBAR IS EVER VISIBLE ON THIS SITE. Owner, 2026-07-27: "remove
    the scroll bar. i never want to see these on the site."

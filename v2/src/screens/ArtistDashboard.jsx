@@ -20,6 +20,7 @@ import OpportunityCard from '../components/OpportunityCard';
 import BookingInvitation from '../components/BookingInvitation';
 import AvailabilitySection from '../components/AvailabilitySection';
 import { PROFILE_TYPES } from '../lib/profileTypes';
+import { completionFor } from '../lib/requirements';
 
 // The artist's opportunity pipeline.
 //
@@ -165,11 +166,44 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
   const { data, isLoading: loading } = useQuery({
     queryKey: ['artistDashboard', userId, cfg.profileType],
     queryFn: async () => {
-      const [profRes, appsRes, gigsRes] = await Promise.all([
-        supabase.from('profiles').select('*').eq('user_id', userId).eq('type', cfg.profileType).maybeSingle(),
-        supabase.from('applications').select('id, status, event_id, created_at').eq('artist_id', userId).order('created_at', { ascending: false }).limit(50),
-        supabase.from('lineup_members').select('event_id').eq('artist_id', userId).neq('status', 'removed'),
-      ]);
+      /**
+       * ⚠ EVERY QUERY BELOW IS KEYED ON THE PROFILE, NOT THE ACCOUNT.
+       *
+       * They were all keyed on `userId` — the human — while only the profile
+       * row itself was scoped by type. One human owns several performer
+       * profiles, so a comedian's dashboard listed their DJ act's bookings,
+       * applications and offers: the heading changed, the data did not. It
+       * was reported as "the poet isn't in these set times but the set times
+       * are on the poet's dashboard", which is exactly what it looks like.
+       *
+       * `cfg.profileType` is authoritative here (PerformerDashboard renders
+       * this screen for band and comedy through a config), and it already
+       * scopes the profile row and completionFor. The profile row's own `id`
+       * is therefore the correct key, so the fetch is now sequenced: profile
+       * first, everything else filtered by it.
+       *
+       * Verified before cutting over: 0 of 6 venue_enquiries and 0 of this
+       * account's applications / lineup_members lack a profile id, so nothing
+       * disappears. 3 applications and 22 lineup_members elsewhere in the
+       * table are still unattributed — they belong to other accounts, are
+       * addressed by the m6c backfill, and are deliberately NOT rescued here
+       * with an `OR artist_id = userId` clause. That clause is the bug: it is
+       * what shows one profile's work on another.
+       */
+      const { data: profileRow } = await supabase.from('profiles')
+        .select('*').eq('user_id', userId).eq('type', cfg.profileType).maybeSingle();
+      const profileId = profileRow?.id ?? null;
+
+      // No profile of this type yet — there is nothing of theirs to list. An
+      // empty result is correct; falling back to the account key here would
+      // reinstate the cross-over for exactly the users most likely to notice.
+      const profRes = { data: profileRow };
+      const [appsRes, gigsRes] = profileId
+        ? await Promise.all([
+            supabase.from('applications').select('id, status, event_id, created_at').eq('from_profile_id', profileId).order('created_at', { ascending: false }).limit(50),
+            supabase.from('lineup_members').select('event_id').eq('artist_profile_id', profileId).neq('status', 'removed'),
+          ])
+        : [{ data: [] }, { data: [] }];
 
       const claimEventIds = [...new Set((gigsRes.data || []).map(c => c.event_id).filter(Boolean))];
       let allGigs = [];
@@ -200,11 +234,15 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
       // `42703: column venue_enquiries.direction does not exist` and this count
       // was always 0. `initiated_by` says the same thing without the
       // viewer-relative riddle the old comment had to explain.
-      const { count: offersCount } = await supabase
-        .from('venue_enquiries')
-        .select('id', { count: 'exact', head: true })
-        .eq('applicant_user_id', userId)
-        .eq('initiated_by', 'venue');
+      // Profile-keyed for the same reason as the two above: `applicant_user_id`
+      // counted every profile's offers on every profile's dashboard.
+      const { count: offersCount } = profileId
+        ? await supabase
+            .from('venue_enquiries')
+            .select('id', { count: 'exact', head: true })
+            .eq('applicant_profile_id', profileId)
+            .eq('initiated_by', 'venue')
+        : { count: 0 };
 
       return { profile: profRes.data, applications, upcomingGigs, pastGigs, offersCount: offersCount || 0 };
     },
@@ -217,16 +255,24 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
   const pastGigs     = data?.pastGigs     || [];
   const offersCount  = data?.offersCount  ?? 0;
 
-  // Load offers lazily when INCOMING tab is first selected
+  // Load offers lazily when INCOMING tab is first selected.
+  // Waits on `profile` — this list is profile-keyed like the count it pairs
+  // with, and reading it before the profile resolves would either fetch
+  // nothing or (as it used to) fetch every profile's offers.
   useEffect(() => {
-    if (enqDirTab !== 'INCOMING' || !userId || offersLoaded.current) return;
-    offersLoaded.current = true;
+    // The guard stores WHICH profile was loaded, not merely that a load
+    // happened. A bare boolean would keep the first profile's offers on screen
+    // after switching to another performer profile of the same account — the
+    // same cross-over this fix removes, reintroduced by a cache.
+    if (enqDirTab !== 'INCOMING' || !profile?.id || offersLoaded.current === profile.id) return;
+    offersLoaded.current = profile.id;
+    setOffers([]);
     setLoadingOffers(true);
     (async () => {
       // Venue-initiated invites only — see the offersCount query above for why
       // the filter matters, and why it is `initiated_by`, not `direction`.
       const { data: rawRows } = await supabase.from('venue_enquiries')
-        .select('*').eq('applicant_user_id', userId).eq('initiated_by', 'venue')
+        .select('*').eq('applicant_profile_id', profile.id).eq('initiated_by', 'venue')
         .order('created_at', { ascending: false }).limit(50);
       // This screen reads the table from the applicant's side, so a
       // venue-initiated row is incoming here.
@@ -248,7 +294,10 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
       }));
       setLoadingOffers(false);
     })();
-  }, [userId]);
+    // Keyed on the PROFILE now, and on the tab that triggers the load. Leaving
+    // `userId` here would not re-run when switching between two performer
+    // profiles of the same account — which is the very case this fix is for.
+  }, [enqDirTab, profile?.id]);
 
   // Load following on mount
   useEffect(() => {
@@ -288,16 +337,25 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
   async function handleOfferRespond(id, status) {
     const offer = offers.find(o => o.id === id);
     if (!offer) return;
+    // M6 (R6.1): the invitation already names the profile that was
+    // invited — applicant_profile_id on venue_enquiries. Use it rather
+    // than re-deriving: the host chose this profile, so any other answer
+    // would attribute the application to someone they did not invite.
+    // Fall back to the seam only for legacy offers that predate that
+    // column being populated.
+    //
+    // ⚠ DECLARED HERE, NOT INSIDE THE `if` BELOW. It was block-scoped to the
+    // accepted-with-event branch and then read again by the notification
+    // further down, outside that block — a ReferenceError that threw before
+    // writeNotification could run and left `updateOffer` unreached, so
+    // accepting an invite appeared to do nothing. `vite build` compiles it
+    // happily; only `oxlint --deny no-undef` sees it.
+    const fromProfileId = status === 'accepted'
+      ? (offer.applicant_profile_id
+          ?? (await resolvePerformerProfileId(userId)).profileId
+          ?? null)
+      : null;
     if (status === 'accepted' && offer.event_id) {
-      // M6 (R6.1): the invitation already names the profile that was
-      // invited — applicant_profile_id on venue_enquiries. Use it rather
-      // than re-deriving: the host chose this profile, so any other answer
-      // would attribute the application to someone they did not invite.
-      // Fall back to the seam only for legacy offers that predate that
-      // column being populated.
-      const fromProfileId = offer.applicant_profile_id
-        ?? (await resolvePerformerProfileId(userId)).profileId
-        ?? null;
       await supabase.from('applications').insert({
         event_id: offer.event_id, artist_id: userId, from_profile_id: fromProfileId, status: 'pending',
       });
@@ -327,20 +385,12 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
   // falling back to the long raw genre_string).
   const genres        = (profile?.card_pills || '')
     .split(/\s*·\s*|,\s*/).map(t => t.trim()).filter(Boolean).slice(0, 5).join(' · ');
-  const completionPct = !hasProfile ? 0 : (() => {
-    const filled = v => !!(v && v !== 'N/A');
-    const done   = v => !!(v === 'N/A' || (v && v.trim && v.trim()));
-    const fields = [
-      filled(profile.name), filled(profile.avatar), filled(profile.location),
-      filled(profile.sound), filled(profile.tagline), filled(profile.bio),
-      filled(profile.genre_string), filled(profile.mix_link), filled(profile.card_pills),
-      filled(profile.fee_type), filled(profile.emergency_name),
-      profile.has_abn !== null && profile.has_abn !== undefined,
-      done(profile.soundcloud), done(profile.mixcloud), done(profile.instagram),
-      done(profile.youtube), done(profile.facebook),
-    ];
-    return fields.filter(Boolean).length / fields.length * 100;
-  })();
+  // Completion comes from the shared requirements engine (lib/requirements.js),
+  // not a local field list. `cfg.profileType` — NOT profile.type — is what this
+  // screen means: PerformerDashboard renders this same component for band and
+  // comedy, and scoring them against the artist list is exactly the bug that
+  // capped a comedian at 76% no matter what they filled in.
+  const completionPct = completionFor(profile, cfg.profileType)?.pct ?? 0;
 
   const filteredApps = applications.filter(a => {
     if (applicantLabel(a.status) !== outStatusTab) return false;
@@ -401,7 +451,12 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
   const gigList = gigTab === 'UPCOMING' ? upcomingGigs : filterPastEvents(pastGigs, pastGigSearch);
 
   const newAppsCount  = applications.filter(a => (a.status || 'pending') === 'pending').length;
-  const pendingOffers = offersLoaded.current
+  // Prefer the loaded rows once they belong to THIS profile; until then the
+  // profile-scoped count. Comparing against `profile.id` rather than testing
+  // the ref for truthiness matters mid-switch: the ref already names the new
+  // profile while `offers` is still empty, which would read as "0 new offers"
+  // instead of falling back to the count.
+  const pendingOffers = offersLoaded.current && offersLoaded.current === profile?.id && !loadingOffers
     ? offers.filter(o => (o.status || '').toLowerCase() === 'new').length
     : offersCount;
   const attentionItems = [
@@ -452,7 +507,7 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
       ]} />
 
       {/* ── AVAILABILITY ── */}
-      <AvailabilitySection userId={userId} table="artist_availability" accent={cfg.accent || '#00E5FF'} accentRgb={cfg.accentRgb || '0,229,255'} />
+      <AvailabilitySection userId={userId} profileId={profile?.id} table="artist_availability" accent={cfg.accent || '#00E5FF'} accentRgb={cfg.accentRgb || '0,229,255'} />
 
       {/* ── ENQUIRIES ── */}
       <div id="section-enquiries" style={{ marginTop: 40 }}>

@@ -5,8 +5,24 @@ import AvailabilityCalendar from './AvailabilityCalendar';
 
 const TODAY = () => new Date().toISOString().split('T')[0];
 
+/**
+ * ⚠ PROFILE-KEYED. `profileId` is required; `userId` is written for RLS and
+ * audit only and must never be read back by.
+ *
+ * This component was keyed on `userId` alone, and `artist_availability` serves
+ * artist, band, standup AND host. One account's profiles therefore shared a
+ * single set of dates: a comedian's calendar was their DJ act's, and a host
+ * marking themselves free moved their DJ profile's availability. Venue
+ * availability has always carried `profile_id`; this is the performer side
+ * catching up.
+ *
+ * If you are tempted to restore a `user_id` fallback for "profiles that have
+ * no dates yet" — don't. An empty calendar for a new profile is the correct
+ * answer; the fallback is the bug.
+ */
 export default function AvailabilitySection({
   userId,
+  profileId,
   table      = 'artist_availability',
   accent     = '#00E5FF',
   accentRgb  = '0,229,255',
@@ -17,21 +33,30 @@ export default function AvailabilitySection({
   const [viewAllHov,   setViewAllHov]   = useState(false);
 
   useEffect(() => {
-    if (!userId) return;
+    // Reset rather than keep the previous profile's dates on screen while the
+    // next set loads — switching acts must not show the wrong calendar even
+    // for a frame.
+    setLocalAvail(null);
+    if (!profileId) return;
     supabase.from(table).select('available_date')
-      .eq('user_id', userId).gte('available_date', TODAY()).order('available_date').limit(60)
+      .eq('profile_id', profileId).gte('available_date', TODAY()).order('available_date').limit(60)
       .then(({ data }) => setLocalAvail((data || []).map(r => r.available_date)));
-  }, [userId, table]);
+  }, [profileId, table]);
 
   async function toggleDate(dateStr) {
-    if (!userId) return;
+    if (!profileId) return;
     const avail    = localAvail ?? [];
     const wasAvail = avail.includes(dateStr);
     setLocalAvail(wasAvail ? avail.filter(d => d !== dateStr) : [...avail, dateStr].sort());
     if (wasAvail) {
-      await supabase.from(table).delete().eq('user_id', userId).eq('available_date', dateStr);
+      await supabase.from(table).delete().eq('profile_id', profileId).eq('available_date', dateStr);
     } else {
-      await supabase.from(table).upsert({ user_id: userId, available_date: dateStr }, { onConflict: 'user_id,available_date' });
+      // user_id still written: RLS keys on it, and it records which account
+      // acted. onConflict matches the new partial unique index.
+      await supabase.from(table).upsert(
+        { user_id: userId, available_date: dateStr, profile_id: profileId },
+        { onConflict: 'profile_id,available_date' },
+      );
     }
   }
 

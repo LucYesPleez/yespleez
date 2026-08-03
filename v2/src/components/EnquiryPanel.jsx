@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import EnquiryCard from './EnquiryCard';
 import { normaliseStatus } from '../lib/enquiryUtils';
 import { STATUS_TAB_COLOR } from '../lib/enquiryUtils';
@@ -31,10 +31,35 @@ function EnqTabBtn({ active, color, rgb, onClick, children }) {
   );
 }
 
-export default function EnquiryPanel({ enquiries = [], onRespond, onPlayDemo }) {
+export default function EnquiryPanel({ enquiries = [], viewerProfile, onRespond, onPlayDemo }) {
   const [dirTab,    setDirTab]    = useState('INCOMING');
   const [statusTab, setStatusTab] = useState('NEW');
   const [search,    setSearch]    = useState('');
+
+  /**
+   * Cards pinned to the tab you are currently looking at.
+   *
+   * Opening a NEW enquiry auto-marks it 'seen' (EnquiryCard does this the
+   * moment MORE INFO is tapped). That re-filtered the list underneath the
+   * user: the card left the NEW tab for SEEN mid-gesture, so the panel you
+   * had just opened vanished and had to be found and reopened somewhere else.
+   * The status change is right; making it rearrange the list while you are
+   * reading is not.
+   *
+   * So a card that transitions to 'seen' stays put until you leave the tab.
+   * The tab COUNTS still move immediately — the badge is the honest record;
+   * this only holds the row in place while it is being read.
+   *
+   * Deliberately 'seen' only. Shortlist / accept / decline are things you
+   * chose, and the card leaving is the feedback that it worked.
+   */
+  const [sticky, setSticky] = useState(() => new Set());
+  useEffect(() => { setSticky(new Set()); }, [dirTab, statusTab]);
+
+  async function handleRespond(id, status) {
+    if (status === 'seen') setSticky(s => new Set(s).add(id));
+    await onRespond?.(id, status);
+  }
 
   const filtered = useMemo(() => {
     return enquiries
@@ -45,10 +70,12 @@ export default function EnquiryPanel({ enquiries = [], onRespond, onPlayDemo }) 
         }
         const dir = (e.direction || 'incoming').toLowerCase();
         if (dir !== dirTab.toLowerCase()) return false;
-        return normaliseStatus(e) === statusTab.toLowerCase();
+        // Pinned rows stay visible in the tab they were opened in, even once
+        // their status no longer matches it.
+        return normaliseStatus(e) === statusTab.toLowerCase() || sticky.has(e.id);
       })
       .filter(e => !search || JSON.stringify(e).toLowerCase().includes(search.toLowerCase()));
-  }, [enquiries, dirTab, statusTab, search]);
+  }, [enquiries, dirTab, statusTab, search, sticky]);
 
   const currentDir = DIR_TABS.find(d => d.key === dirTab);
 
@@ -130,7 +157,7 @@ export default function EnquiryPanel({ enquiries = [], onRespond, onPlayDemo }) 
             No enquiries{search ? ' match your search' : ' here yet'}.
           </p>
         : filtered.map(enq => (
-            <EnquiryCard key={enq.id} enq={enq} onRespond={onRespond} onPlayDemo={onPlayDemo} />
+            <EnquiryCard key={enq.id} enq={enq} viewerProfile={viewerProfile} onRespond={handleRespond} onPlayDemo={onPlayDemo} />
           ))
       }
       </div>

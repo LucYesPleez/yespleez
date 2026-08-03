@@ -1,5 +1,4 @@
 import { supabase } from './supabase';
-import { PROFILE_TYPE_ORDER } from './profileTypes';
 
 /**
  * M6 write cutover — who is acting?
@@ -130,18 +129,21 @@ export async function resolvePerformerProfileId(userId) {
 }
 
 /**
- * Types that can OWN an event (identity v1.3 `O-R4`).
+ * Types that can OWN an event.
  *
- * v1.3 is explicit that an event's owner may be **any profile type** —
- * a venue running its own night, a promoter presenting one, a festival
- * programming its own bill. The only exclusion is Personal: §A9 makes
- * it inalienable and non-commercial, and it does not run events.
+ * ⚠ NARROWED 2026-08-03, OVERRIDING `O-R4`. Identity v1.3 read "an event's
+ * owner may be any profile type" — a DJ or comedian could create and own a
+ * night under their own performer profile. The owner overrode that: only
+ * `venue` and `host` may own an event now. An account holding only a DJ,
+ * band or comedy profile cannot create one at all until it also holds a
+ * host or venue profile.
  *
- * Derived from the profile registry rather than hand-listed, so a new
- * profile type becomes owner-eligible without editing this file —
- * which is precisely the extensibility `O-R4` was chosen for.
+ * Hand-listed rather than derived from the registry on purpose — the old
+ * derivation's whole point was that a new profile type became owner-eligible
+ * for free, which is exactly the behaviour this override removes. A new type
+ * added to `PROFILE_TYPES` must be a deliberate addition here, never silent.
  */
-export const OWNER_ELIGIBLE_TYPES = PROFILE_TYPE_ORDER.filter(t => t !== 'punter');
+export const OWNER_ELIGIBLE_TYPES = ['venue', 'host'];
 
 /**
  * Profiles the user could own an event as, deterministically ordered.
@@ -171,6 +173,41 @@ export async function getOwnerProfiles(userId, type) {
 
   if (error) {
     console.error('[actingProfile] owner profile lookup failed', error);
+    return [];
+  }
+  return data ?? [];
+}
+
+/**
+ * Plain "does this account hold a profile of exactly this type" lookup — NOT
+ * gated by `OWNER_ELIGIBLE_TYPES`. Event-ownership eligibility and profile
+ * existence are different questions; the type this account holds does not
+ * stop being real just because it cannot own an event.
+ *
+ * Exists because `getOwnerProfiles`'s narrowing silently widens to the FULL
+ * owner-eligible set whenever the requested type isn't in it — correct for
+ * that function's own purpose (a stale `?as=` hint should recover to a real
+ * owner rather than return nothing), wrong for anything asking about a
+ * specific type by name. Before `OWNER_ELIGIBLE_TYPES` was narrowed to
+ * venue/host (2026-08-03), every type happened to be owner-eligible, so the
+ * two questions were accidentally the same and nothing needed this
+ * distinction. `writeNotification.inferToProfileId` calls this, never
+ * `getOwnerProfiles`, so a future `inferToProfileId(userId, 'artist')` still
+ * resolves an artist profile instead of silently returning a venue one.
+ */
+export async function getProfilesOfType(userId, type) {
+  if (!userId || !type) return [];
+
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id, type, name')
+    .eq('user_id', userId)
+    .eq('type', type)
+    .order('created_at', { ascending: true })
+    .order('id', { ascending: true });
+
+  if (error) {
+    console.error('[actingProfile] profile-of-type lookup failed', error);
     return [];
   }
   return data ?? [];

@@ -8,6 +8,7 @@ import AvatarUpload from '../components/AvatarUpload';
 import { useProfileForm } from '../hooks/useProfileForm';
 import ProfileFormShell from '../components/ProfileFormShell';
 import SectionBlock from '../components/SectionBlock';
+import ProfileAssetsSection from '../components/ProfileAssetsSection';
 import SocialSection from '../components/SocialSection';
 import { VISIBLE_PERFORMANCE_ROLES, SHARED_PERFORMANCE_TAGS, ROLE_TAGS } from '../lib/profileTaxonomy';
 import { PROFILE_TYPES } from '../lib/profileTypes';
@@ -448,14 +449,8 @@ export default function StandupProfileScreen() {
               </div>
             </Section>
 
-            {/* EMERGENCY CONTACT */}
-            <Section title="EMERGENCY CONTACT">
-              <Field label="NAME"><input className={s.input} value={emergName} onChange={e => setEmergName(e.target.value)} placeholder="Contact name" autoComplete="off" /></Field>
-              <Field label="PHONE"><input className={s.input} value={emergPhone} onChange={e => setEmergPhone(e.target.value)} placeholder="Phone number" type="tel" /></Field>
-              <Field label="RELATIONSHIP"><input className={s.input} value={emergRel} onChange={e => setEmergRel(e.target.value)} placeholder="e.g. Agent, Partner" autoComplete="off" /></Field>
-            </Section>
-
-            {/* ABN / GST */}
+            {/* ABN / GST — directly under SET FEE: both are what you charge and
+                how you invoice it, so they read as one commercial block. */}
             <Section title="ABN / GST">
               <div className={s.feeRow}>
                 <button type="button" className={hasAbn ? s.feeBtnOn : s.feeBtn} onClick={() => { setHasAbn(true); setIsDirty(true); }}>YES I HAVE AN ABN</button>
@@ -472,6 +467,23 @@ export default function StandupProfileScreen() {
                   </div>
                 </>
               )}
+            </Section>
+
+            {/* PA1 — reusable professional documents. Part of the profile, so
+                it lives here rather than on the dashboard. */}
+            <Section>
+              <ProfileAssetsSection
+                userId={userId} profileType="standup"
+                accent={COL} accent2={COL2}
+                titleClassName={s.sectionTitle} titleStyle={{ ...EXPERIMENTAL_HEADING_STYLE, fontSize: 15 }}
+              />
+            </Section>
+
+            {/* EMERGENCY CONTACT */}
+            <Section title="EMERGENCY CONTACT">
+              <Field label="NAME"><input className={s.input} value={emergName} onChange={e => setEmergName(e.target.value)} placeholder="Contact name" autoComplete="off" /></Field>
+              <Field label="PHONE"><input className={s.input} value={emergPhone} onChange={e => setEmergPhone(e.target.value)} placeholder="Phone number" type="tel" /></Field>
+              <Field label="RELATIONSHIP"><input className={s.input} value={emergRel} onChange={e => setEmergRel(e.target.value)} placeholder="e.g. Agent, Partner" autoComplete="off" /></Field>
             </Section>
 
             {/* SOCIALS + LINKS */}

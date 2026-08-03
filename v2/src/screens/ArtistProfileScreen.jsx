@@ -6,6 +6,7 @@ import AvatarUpload from '../components/AvatarUpload';
 import { useProfileForm } from '../hooks/useProfileForm';
 import ProfileFormShell from '../components/ProfileFormShell';
 import SectionBlock from '../components/SectionBlock';
+import ProfileAssetsSection from '../components/ProfileAssetsSection';
 import SocialSection from '../components/SocialSection';
 import { MAIN_GENRES, SUBGENRES, VIBES, VISIBLE_ARTIST_ROLES } from '../lib/profileTaxonomy';
 import { normalizeSocialValue, ensureHttps } from '../lib/socialLinks';
@@ -561,20 +562,8 @@ export default function ArtistProfileScreen() {
               <p className={s.sectionHint} style={{ marginTop: 8 }}>This helps promoters budget their lineups.</p>
             </Section>
 
-            {/* EMERGENCY CONTACT */}
-            <Section title="EMERGENCY CONTACT">
-              <div className={s.row}>
-                <div style={{ flex: 1 }}>
-                  <Field label="NAME"><input className={s.input} value={emergName} onChange={e => setEmergName(e.target.value)} placeholder="Contact name" autoComplete="off" /></Field>
-                </div>
-                <div style={{ flex: 1 }}>
-                  <Field label="PHONE"><input className={s.input} type="tel" value={emergPhone} onChange={e => setEmergPhone(e.target.value)} placeholder="Mobile number" /></Field>
-                </div>
-              </div>
-              <Field label="RELATIONSHIP"><input className={s.input} value={emergRel} onChange={e => setEmergRel(e.target.value)} placeholder="e.g. Partner, Mum" autoComplete="off" /></Field>
-            </Section>
-
-            {/* ABN / GST */}
+            {/* ABN / GST — directly under SET FEE: both are what you charge and
+                how you invoice it, so they read as one commercial block. */}
             <Section title="ABN / GST">
               <div className={s.feeRow}>
                 <button type="button" className={hasAbn === true ? s.feeBtnOn : s.feeBtn} onClick={() => { setHasAbn(true); setIsDirty(true); }}>YES I HAVE AN ABN</button>
@@ -589,6 +578,29 @@ export default function ArtistProfileScreen() {
                   </div>
                 </>
               )}
+            </Section>
+
+            {/* PA1 — reusable professional documents. Part of the profile, so
+                it lives here rather than on the dashboard. */}
+            <Section>
+              <ProfileAssetsSection
+                userId={userId} profileType="artist"
+                accent={ACCENT} accent2={ACCENT2}
+                titleClassName={s.sectionTitle} titleStyle={EXPERIMENTAL_HEADING_STYLE}
+              />
+            </Section>
+
+            {/* EMERGENCY CONTACT */}
+            <Section title="EMERGENCY CONTACT">
+              <div className={s.row}>
+                <div style={{ flex: 1 }}>
+                  <Field label="NAME"><input className={s.input} value={emergName} onChange={e => setEmergName(e.target.value)} placeholder="Contact name" autoComplete="off" /></Field>
+                </div>
+                <div style={{ flex: 1 }}>
+                  <Field label="PHONE"><input className={s.input} type="tel" value={emergPhone} onChange={e => setEmergPhone(e.target.value)} placeholder="Mobile number" /></Field>
+                </div>
+              </div>
+              <Field label="RELATIONSHIP"><input className={s.input} value={emergRel} onChange={e => setEmergRel(e.target.value)} placeholder="e.g. Partner, Mum" autoComplete="off" /></Field>
             </Section>
 
             {/* SOCIALS + LINKS */}
@@ -609,6 +621,7 @@ export default function ArtistProfileScreen() {
                 iconClass={s.socialIcon}
               />
             </Section>
+
 
             {saveErr && <p className={s.error}>{saveErr}</p>}
 

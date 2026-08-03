@@ -19,6 +19,13 @@ import { useDragScroll } from '../hooks/useDragScroll';
 import { resolveProfileId } from '../lib/resolveProfileId';
 import s from './VenueDashboard.module.css';
 import { PROFILE_TYPES } from '../lib/profileTypes';
+import { completionFor } from '../lib/requirements';
+import { ENQUIRY_CARD_COLUMNS } from '../components/EnquiryCard';
+
+// The card declares what it reads; this screen only joins it. Previously a
+// hand-kept subset that omitted `fee`, `fee_type` and `contact_email` —
+// columns the card has always read — so those rows silently never rendered.
+const APPLICANT_COLS = ENQUIRY_CARD_COLUMNS.join(', ');
 
 export default function VenueDashboard({ userId: userIdProp }) {
   const { session } = useSession();
@@ -68,12 +75,11 @@ export default function VenueDashboard({ userId: userIdProp }) {
       // row is incoming here, a venue-initiated one is outgoing. `direction` is
       // derived, never stored — see enquiryUtils.deriveDirection.
       const enqs = withDirection(enqRes.data, 'venue');
-      const applicantCols = 'id, user_id, name, avatar, avatar_thumb, type, bio, sound, genre_string, location, mix_link, tagline, card_pills';
       const pidEnqs = enqs.filter(e => e.applicant_profile_id);
       const uidEnqs = enqs.filter(e => !e.applicant_profile_id && e.applicant_user_id);
       const [pidProfs, uidProfs] = await Promise.all([
-        pidEnqs.length ? supabase.from('profiles').select(applicantCols).in('id', pidEnqs.map(e => e.applicant_profile_id)) : Promise.resolve({ data: [] }),
-        uidEnqs.length ? supabase.from('profiles').select(applicantCols).in('user_id', uidEnqs.map(e => e.applicant_user_id)) : Promise.resolve({ data: [] }),
+        pidEnqs.length ? supabase.from('profiles').select(APPLICANT_COLS).in('id', pidEnqs.map(e => e.applicant_profile_id)) : Promise.resolve({ data: [] }),
+        uidEnqs.length ? supabase.from('profiles').select(APPLICANT_COLS).in('user_id', uidEnqs.map(e => e.applicant_user_id)) : Promise.resolve({ data: [] }),
       ]);
       const applicantById = {}; (pidProfs.data || []).forEach(p => { applicantById[p.id] = p; });
       // Legacy fallback map: key by user_id + type so multi-profile users don't bleed
@@ -190,26 +196,9 @@ export default function VenueDashboard({ userId: userIdProp }) {
   const enquiryCount = allEnquiries.length;
   const availCount   = availability.length;
 
-  const completionPct = !hasProfile ? 0 : (() => {
-    const filled = v => !!(v && v !== 'N/A');
-    const done   = v => !!(v === 'N/A' || (v && String(v).trim()));
-    const fields = [
-      filled(profile.name),
-      filled(profile.avatar),
-      filled(profile.location),
-      filled(profile.state),
-      filled(profile.venue_type),
-      filled(profile.capacity),
-      filled(profile.sound),
-      filled(profile.tagline),
-      filled(profile.bio),
-      filled(profile.genre_string),
-      done(profile.website),
-      done(profile.instagram),
-      done(profile.contact_email),
-    ];
-    return fields.filter(Boolean).length / fields.length * 100;
-  })();
+  // Shared requirements engine — see lib/requirements.js. Same thirteen fields
+  // as the closure this replaces.
+  const completionPct = completionFor(profile, 'venue')?.pct ?? 0;
 
   return (
     <div className={s.screen}>
@@ -272,6 +261,7 @@ export default function VenueDashboard({ userId: userIdProp }) {
         <Section title="ENQUIRIES" action={showAllEnq ? 'View less <' : 'View all >'} onAction={() => setShowAllEnq(v => !v)}>
           <EnquiryPanel
             enquiries={allEnquiries}
+            viewerProfile={profile}
             onRespond={handleEnquiryRespond}
             onPlayDemo={setPlayer}
           />

@@ -14,6 +14,34 @@ import { resolvePerformerProfileId } from './actingProfile';
  * applicable type, or null. Null is a correct answer here, not a gap; see
  * the note in writeNotification.js.
  */
+/**
+ * Which PROFILE was offered this slot.
+ *
+ * The two status updates below narrowed by `artist_id` — the account — so a
+ * person with a DJ act and a band could accept a slot offered to one and flip
+ * the other's application row for the same event. The offer itself is not
+ * ambiguous: a performance names a lineup member, and a lineup member names
+ * the profile the host booked. That is the answer, so ask for it.
+ *
+ * Returns null for a manually-typed lineup entry (`fillManual` writes a name
+ * and no profile) — the caller then keeps the account filter, which is the
+ * pre-identity behaviour and no worse than before.
+ */
+async function offeredProfileId(performanceId) {
+  if (!performanceId) return null;
+  const { data: perf } = await supabase.from('performances')
+    .select('lineup_member_id').eq('id', performanceId).maybeSingle();
+  if (!perf?.lineup_member_id) return null;
+  const { data: member } = await supabase.from('lineup_members')
+    .select('artist_profile_id').eq('id', perf.lineup_member_id).maybeSingle();
+  return member?.artist_profile_id ?? null;
+}
+
+/** Narrow an applications update to one profile when the offer names one. */
+function scopeToApplicant(query, profileId, userId) {
+  return profileId ? query.eq('from_profile_id', profileId) : query.eq('artist_id', userId);
+}
+
 async function hostNoticeIdentities(hostUserId, artistUserId) {
   const [toProfileId, performer] = await Promise.all([
     inferToProfileId(hostUserId, 'host'),
@@ -27,12 +55,10 @@ export async function acceptSlotOffer(data, userId) {
     await supabase.from('performances').update({ status: 'accepted' }).eq('id', data.performance_id);
   }
   if (data.event_id && userId) {
-    await supabase
-      .from('applications')
-      .update({ status: 'confirmed' })
-      .eq('event_id', data.event_id)
-      .eq('artist_id', userId)
-      .in('status', ['offered', 'accepted']);
+    await scopeToApplicant(
+      supabase.from('applications').update({ status: 'confirmed' }).eq('event_id', data.event_id),
+      await offeredProfileId(data.performance_id), userId,
+    ).in('status', ['offered', 'accepted']);
   }
   if (data.host_id) {
     await writeNotification({
@@ -50,12 +76,10 @@ export async function declineSlotOffer(data, userId) {
     await supabase.from('performances').update({ status: 'declined' }).eq('id', data.performance_id);
   }
   if (data.event_id && userId) {
-    await supabase
-      .from('applications')
-      .update({ status: 'tentative' })
-      .eq('event_id', data.event_id)
-      .eq('artist_id', userId)
-      .in('status', ['offered', 'accepted']);
+    await scopeToApplicant(
+      supabase.from('applications').update({ status: 'tentative' }).eq('event_id', data.event_id),
+      await offeredProfileId(data.performance_id), userId,
+    ).in('status', ['offered', 'accepted']);
   }
   if (data.host_id) {
     await writeNotification({

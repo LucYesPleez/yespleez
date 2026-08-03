@@ -11,7 +11,7 @@ import HeartBtn from '../components/HeartBtn';
 import { HEART_OVERLAY_STYLE, HEART_BARE_STYLE } from '../components/heartStyles';
 import EventCard from '../components/EventCard';
 import s from './WhatsOnScreen.module.css';
-import { getEventBadges } from '../lib/eventBadges';
+import { eventCategoryBadges } from '../lib/eventBadges';
 import { useDragScroll } from '../hooks/useDragScroll';
 
 const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -116,7 +116,9 @@ function PortraitEventCard({ event, onClick }) {
 function ComingUpRow({ event, onClick }) {
   const cfg    = event.config || {};
   const poster = cfg.poster || cfg.posterUrl || '';
-  const badges = getEventBadges(cfg.genres || '', event.name || '');
+  // The host's explicit chip beats auto-detection — see eventCategoryBadges.
+  // This row used to call getEventBadges() alone and drop the chosen category.
+  const badges = eventCategoryBadges(cfg, event.name);
   const genreList = (cfg.genres || '').split(',').map(g => g.trim()).filter(Boolean).slice(0, 2);
 
   return (

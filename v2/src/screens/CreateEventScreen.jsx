@@ -8,6 +8,7 @@ import { getEventBadges, CATEGORY_BADGES, CATEGORY_CHOICES, OPEN_MIC_BADGE, same
 import { getOwnerProfiles } from '../lib/actingProfile';
 import { PROFILE_TYPES } from '../lib/profileTypes';
 import { track, EVENTS } from '../lib/analytics';
+import { requestableBySection, requirementLabel } from '../lib/requirements';
 
 const CAL_DAYS = ['Su','Mo','Tu','We','Th','Fr','Sa'];
 const CAL_MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -108,6 +109,77 @@ function Toggle({ label, sub, value, onChange, locked, info }) {
   );
 }
 
+/* ── Requirements checklist ──────────────────────────────────────────────
+ *
+ * Design §5.3: "A checklist. Tick what you need." No builder, no predicates,
+ * no tiers, no engine terminology. The host never sees a requirement key, a
+ * section is only a visual grouping, and the word on screen is Requirements —
+ * `required_items` stays internal.
+ *
+ * The rows come from the engine's registry via requestableBySection(), so this
+ * component cannot offer a key the engine is unable to resolve, and a new
+ * asset type appears here the moment it is added to profileAssets.js.
+ */
+/**
+ * The tick-boxes, in two columns instead of one long vertical list. Same row
+ * (checkbox + label) as before — only the wrapping changed, from a full-width
+ * `<div>` per section to a two-column grid so a 19-item, 5-section checklist
+ * reads as one compact window rather than a page-length scroll.
+ */
+function RequirementChecklist({ selected, onToggle }) {
+  const groups = requestableBySection();
+  return (
+    // .controlsCard itself carries no padding — HOST CONTROLS supplies its
+    // own via .toggleRow. This checklist has no equivalent per-row padding
+    // on its sides, so without this the ASSETS section's last row sat flush
+    // against the gradient border. Padded here rather than on the shared
+    // class, so HOST CONTROLS' rows don't get pushed in from the edge too.
+    <div className={s.controlsCard} style={{ padding: '14px 16px' }}>
+      <p style={{ fontSize:13, color:'rgba(255,255,255,0.55)', lineHeight:1.6, padding:'2px 2px 12px' }}>
+        Tick what you need from applicants. Everything ticked is mandatory.
+        An application can&rsquo;t send until it&rsquo;s met.
+      </p>
+      {groups.map((g, gi) => (
+        <div key={g.section}>
+          {gi > 0 && <div className={s.controlsGroupDivider} />}
+          <p style={{ fontFamily:"'Bebas Neue'", fontSize:11, letterSpacing:2, color:'var(--muted)', margin:'14px 2px 6px' }}>
+            {g.section.toUpperCase()}
+          </p>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', columnGap:8 }}>
+            {g.keys.map(key => {
+              const on = selected.includes(key);
+              return (
+                <button
+                  type="button" key={key} onClick={() => onToggle(key)}
+                  style={{
+                    display:'flex', alignItems:'center', gap:10, width:'100%',
+                    background:'none', border:'none', padding:'8px 2px',
+                    cursor:'pointer', textAlign:'left', minWidth:0,
+                  }}
+                >
+                  <span style={{
+                    width:18, height:18, flexShrink:0, borderRadius:5,
+                    border:`1.5px solid ${on ? '#00E5A0' : 'rgba(255,255,255,0.25)'}`,
+                    background: on ? 'rgba(0,229,160,0.18)' : 'transparent',
+                    color:'#00E5A0', fontSize:12, lineHeight:'15px', textAlign:'center',
+                    transition:'all .15s',
+                  }}>{on ? '✓' : ''}</span>
+                  <span style={{
+                    fontSize:14, color: on ? 'var(--text)' : 'rgba(255,255,255,0.6)',
+                    overflow:'hidden', whiteSpace:'nowrap', textOverflow:'ellipsis',
+                  }}>
+                    {requirementLabel(key)}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 /* ── Section Header ──────────────────────────────────────────────────────── */
 function SectionHeader({ label, onInfo }) {
   return (
@@ -156,9 +228,9 @@ function Field({ label, children, flex }) {
 /* ── Quick Generator ─────────────────────────────────────────────────────── */
 function QuickGenerator({ onGenerate }) {
   const [numDays,   setNumDays]   = useState(1);
-  const [startTime, setStartTime] = useState('16:00');
-  const [endTime,   setEndTime]   = useState('23:30');
-  const [slotLen,   setSlotLen]   = useState(90);
+  const [startTime, setStartTime] = useState('19:00');
+  const [endTime,   setEndTime]   = useState('23:00');
+  const [slotLen,   setSlotLen]   = useState(60);
 
   function handle() {
     const generated = [];
@@ -319,6 +391,10 @@ export default function CreateEventScreen() {
   const [privateSetTimes,    setPrivateSetTimes]    = useState(true);
   const [showTimesPublicly,  setShowTimesPublicly]  = useState(false);
   const [showHostInfo,       setShowHostInfo]       = useState(false);
+  // P4 · requirement keys the host ticked. A real `events` column, NOT part of
+  // `config` — config is the public event page's payload and requirements are
+  // never rendered there.
+  const [requiredItems,      setRequiredItems]      = useState([]);
 
   // Owner resolution. Skipped when editing — an event's owner is set once at
   // creation and changed only by exception (Phase 13 Q6 `T1`, erratum E2), so
@@ -352,6 +428,8 @@ export default function CreateEventScreen() {
       setPosterFull(c.poster_full || '');
       setIsPublic(data.is_public !== false);
       setAppsOpen(data.applications_open !== false);
+      // NULL and '{}' both mean "none declared" — see the P4 migration.
+      setRequiredItems(data.required_items || []);
       const loadedDays = (c.days || []).map(d => ({ id:makeId(), name:d.name||'', slots:(d.slots||[]).map(slotToEdit) }));
       if (loadedDays.length > 0) setDays(loadedDays);
       const hc = c.host_controls_config || {};
@@ -366,12 +444,15 @@ export default function CreateEventScreen() {
   function addDay() { setDays(p => [...p, { id:makeId(), name:'', slots:[] }]); }
   function removeDay(id) { setDays(p => p.filter(d => d.id!==id)); }
   function updateDayName(id, name) { setDays(p => p.map(d => d.id===id ? {...d,name} : d)); }
-  function addSlot(dayId) { setDays(p => p.map(d => d.id!==dayId ? d : {...d, slots:[...d.slots,{id:makeId(),hh:'8',mm:'00',ampm:'PM',dur:90,label:''}]})); }
+  // 1 hr to match the Quick Generator's own default (19:00–23:00 @ 60 min) —
+  // a manually added slot shouldn't default to a different length than the
+  // generated ones sitting next to it.
+  function addSlot(dayId) { setDays(p => p.map(d => d.id!==dayId ? d : {...d, slots:[...d.slots,{id:makeId(),hh:'8',mm:'00',ampm:'PM',dur:60,label:''}]})); }
   function insertSlot(dayId, at) {
     setDays(p => p.map(d => {
       if (d.id!==dayId) return d;
       const slots = [...d.slots];
-      slots.splice(at, 0, {id:makeId(),hh:'8',mm:'00',ampm:'PM',dur:90,label:''});
+      slots.splice(at, 0, {id:makeId(),hh:'8',mm:'00',ampm:'PM',dur:60,label:''});
       return {...d, slots};
     }));
   }
@@ -395,7 +476,7 @@ export default function CreateEventScreen() {
     };
 
     if (editId) {
-      const { error:err } = await supabase.from('events').update({ name, config:cfg, is_public:isPublic, applications_open:appsOpen }).eq('id', editId);
+      const { error:err } = await supabase.from('events').update({ name, config:cfg, is_public:isPublic, applications_open:appsOpen, required_items:requiredItems }).eq('id', editId);
       setSaving(false);
       if (err) { setError(err.message); return; }
       navigate(`/event/${editId}`, { replace:true });
@@ -443,6 +524,7 @@ export default function CreateEventScreen() {
       status: goLive ? 'live' : 'draft',
       is_public:isPublic, applications_open:appsOpen,
       venue_profile_id: venueProfileId,
+      required_items: requiredItems,
     }).select('id').single();
     setSaving(false);
     if (err) { setError(err.message); return; }
@@ -468,6 +550,37 @@ export default function CreateEventScreen() {
       <div className={s.content}>
         <h1 className={s.pageTitle}>{editId ? 'EDIT EVENT' : 'SET UP YOUR EVENT'}</h1>
         {!editId && <p className={s.pageSubtitle}>Fill in the details, generate or build slots manually, then go live</p>}
+
+        {/* ── HOSTING AS (M14b) ── moved above EVENT DETAILS: which of the
+            account's owner-eligible profiles this event belongs to is
+            decided before anything else about the event, not tucked in
+            after slots and posters. Still only rendered when genuinely
+            ambiguous — nothing is pre-selected, since a default here would
+            be a guess wearing a confirmation, and ownership is the one
+            field that must not be guessed (O-R6). Same chip pattern as the
+            apply form. */}
+        {!editId && owners.length > 1 && (
+          <>
+            <SectionHeader label="HOSTING AS" />
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
+              {owners.map(p => {
+                const on = p.id === ownerId;
+                return (
+                  <button key={p.id} type="button" onClick={() => setOwnerId(p.id)}
+                    style={{
+                      padding: '8px 14px', borderRadius: 8, cursor: 'pointer',
+                      fontFamily: "'Bebas Neue'", fontSize: 13, letterSpacing: 1,
+                      border: `1px solid ${on ? 'var(--neon2)' : 'var(--border)'}`,
+                      background: on ? 'rgba(0,229,255,.12)' : 'none',
+                      color: on ? 'var(--neon2)' : 'var(--muted)',
+                    }}>
+                    {p.name || '(unnamed)'} · {PROFILE_TYPES[p.type]?.shortLabel || p.type}
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        )}
 
         {/* ── EVENT DETAILS ── */}
         <SectionHeader label="EVENT DETAILS" />
@@ -652,32 +765,15 @@ export default function CreateEventScreen() {
           </>
         )}
 
-        {/* ── HOSTING AS (M14b) ── only when genuinely ambiguous.
-            Nothing is pre-selected: a default here would be a guess wearing a
-            confirmation, and ownership is the one field that must not be
-            guessed (O-R6). Same chip pattern as the apply form. */}
-        {!editId && owners.length > 1 && (
-          <>
-            <SectionHeader label="HOSTING AS" />
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
-              {owners.map(p => {
-                const on = p.id === ownerId;
-                return (
-                  <button key={p.id} type="button" onClick={() => setOwnerId(p.id)}
-                    style={{
-                      padding: '8px 14px', borderRadius: 8, cursor: 'pointer',
-                      fontFamily: "'Bebas Neue'", fontSize: 13, letterSpacing: 1,
-                      border: `1px solid ${on ? 'var(--neon2)' : 'var(--border)'}`,
-                      background: on ? 'rgba(0,229,255,.12)' : 'none',
-                      color: on ? 'var(--neon2)' : 'var(--muted)',
-                    }}>
-                    {p.name || '(unnamed)'} · {PROFILE_TYPES[p.type]?.shortLabel || p.type}
-                  </button>
-                );
-              })}
-            </div>
-          </>
-        )}
+        {/* ── REQUIREMENTS ──
+            Sits before HOST CONTROLS: what you ask of applicants is part of
+            defining the opportunity, whereas host controls govern how the
+            event runs once people are in it. */}
+        <SectionHeader label="REQUIREMENTS" />
+        <RequirementChecklist
+          selected={requiredItems}
+          onToggle={key => setRequiredItems(p => p.includes(key) ? p.filter(k => k !== key) : [...p, key])}
+        />
 
         {/* ── HOST CONTROLS ── */}
         <SectionHeader label="HOST CONTROLS" onInfo={() => setShowHostInfo(true)} />

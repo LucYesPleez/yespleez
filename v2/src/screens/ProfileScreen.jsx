@@ -7,7 +7,7 @@ import { writeNotification } from '../lib/writeNotification';
 import { track, EVENTS } from '../lib/analytics';
 import { useSession, usePlayer } from '../App';
 import EventCard from '../components/EventCard';
-import { getEventBadges, resolveCategoryBadge, OPEN_MIC_BADGE } from '../lib/eventBadges';
+import { eventCategoryBadges } from '../lib/eventBadges';
 import s from './ProfileScreen.module.css';
 import ClaimDialog from '../components/ClaimDialog';
 import InviteSheet from '../components/InviteSheet';
@@ -250,22 +250,26 @@ export default function ProfileScreen() {
     return () => { cancelled = true; };
   }, [session?.user?.id, profile?.id, profile?.type, isUnclaimed]);
 
-  // 11C.3: load this performer's public availability. Artist/Band/Comedy all
-  // share one account-keyed table (artist_availability, by user_id) — the same
-  // single source of truth the dashboard editor writes to. Read-only here: no
-  // write path, no enquiry change. Cleared for non-performers so stale dates
-  // never leak across a client-side profile→profile navigation (cf. S40).
+  // 11C.3: load THIS PROFILE's public availability, from the same single
+  // source of truth the dashboard editor writes to. Read-only here: no write
+  // path, no enquiry change. Cleared for non-performers so stale dates never
+  // leak across a client-side profile→profile navigation (cf. S40).
+  //
+  // Keyed on `profile.id`, not `profile.user_id`. artist_availability serves
+  // artist, band, standup and host, so reading by account showed one person's
+  // DJ dates on their comedy profile — and a promoter enquiring about a date
+  // the comedian had never offered.
   useEffect(() => {
-    if (!profile?.id || !BOOKABLE_TYPES.includes(profile.type) || !profile.user_id) { setPerfAvailDates(null); return; }
+    if (!profile?.id || !BOOKABLE_TYPES.includes(profile.type)) { setPerfAvailDates(null); return; }
     let cancelled = false;
     (async () => {
       const today = new Date().toISOString().split('T')[0];
       const { data: rows } = await supabase.from('artist_availability')
-        .select('available_date').eq('user_id', profile.user_id).gte('available_date', today).order('available_date');
+        .select('available_date').eq('profile_id', profile.id).gte('available_date', today).order('available_date');
       if (!cancelled) setPerfAvailDates(new Set((rows || []).map(r => r.available_date)));
     })();
     return () => { cancelled = true; };
-  }, [profile?.id, profile?.type, profile?.user_id]);
+  }, [profile?.id, profile?.type]);
 
   async function openEnquiry(dateStr) {
     if (!session?.user?.id) return;
@@ -289,7 +293,7 @@ export default function ProfileScreen() {
     // so the profile ids are direct assignments, not lookups. The enquiry UI only
     // renders for isVenue && !isUnclaimed, so `profile` is a real claimed venue
     // row. M5: identity values derive from the loaded row, never the route param.
-    const { error } = await supabase.from('venue_enquiries').insert({
+    const { data: inserted, error } = await supabase.from('venue_enquiries').insert({
       venue_user_id:        profile.user_id,
       applicant_user_id:    session.user.id,
       applicant_type:       enquiryProf.type,
@@ -302,11 +306,43 @@ export default function ProfileScreen() {
       // incoming/outgoing from this — see enquiryUtils.deriveDirection.
       initiated_by:         'applicant',
       status:               'pending',
-    });
-    setEnquirySending(false);
+    })
+      // Returning the id is safe on this leg: "Profile owner can read their
+      // enquiries" (M4) grants SELECT to EITHER side by profile ownership, so
+      // the applicant can read back the row they just wrote. The id is needed
+      // for the notification's N4 expiry key below.
+      .select('id')
+      .maybeSingle();
     if (error && !error.message?.includes('duplicate') && !error.message?.includes('unique')) {
       console.error('venue_enquiries insert failed:', error.code, error.message, error.details, error.hint);
     }
+    /**
+     * Tell the venue. Until now this was the ONE transition in the enquiry
+     * chain that notified nobody — every response the venue makes writes one
+     * (VenueDashboard.handleEnquiryRespond), but the enquiry that starts the
+     * chain arrived in silence, discoverable only by opening the dashboard.
+     *
+     * `availability_request` rather than a new type: it is already in the N4
+     * registry with policy 'enquiry', which expires a HELD copy once
+     * date_requested has passed — precisely this notice's shelf life. Adding
+     * an unregistered type would produce a notification that never expires,
+     * silently (a type absent from the policy table fails the sweep's join).
+     *
+     * §A7: `about` is the applicant (whose act this is), `to` is the venue.
+     * The enquiry UI renders only for a claimed venue, so to_user_id is always
+     * present here and the row is delivered, never held.
+     */
+    if (inserted?.id) {
+      await writeNotification({
+        toUserId:       profile.user_id ?? null,
+        toProfileId:    profile.id ?? null,
+        aboutProfileId: enquiryProf.id ?? null,
+        type:    'availability_request',
+        message: `${enquiryProf.name} enquired about ${new Date(pickerDate + 'T00:00:00').toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long' })}.`,
+        data:    { enquiry_id: inserted.id, date_requested: pickerDate, venue_name: profile.name || null },
+      });
+    }
+    setEnquirySending(false);
     if (!error || error.message?.includes('duplicate') || error.message?.includes('unique')) {
       setEnquiryProf(null); setPickerDate(null); setEnquiryNote('');
     }
@@ -984,7 +1020,7 @@ export default function ProfileScreen() {
                                 <div style={{ fontFamily: "'Bebas Neue'", fontSize: 22, color: '#fff', lineHeight: 1 }}>{dateNum}</div>
                                 <div style={{ fontFamily: "'Bebas Neue'", fontSize: 11, color: 'rgba(255,255,255,.7)', letterSpacing: .5 }}>{dateMon}</div>
                               </div>}
-                              {(() => { let badges = cfg.categoryBadge ? [resolveCategoryBadge(cfg.categoryBadge)] : getEventBadges(cfg.genres || '', ev.name || ''); if (cfg.openMicBadge && !badges.find(b => b.label === OPEN_MIC_BADGE.label)) { badges = [...badges, OPEN_MIC_BADGE]; } return badges.length > 0 && (
+                              {(() => { const badges = eventCategoryBadges(cfg, ev.name); return badges.length > 0 && (
                                 <div style={{ position: 'absolute', top: 8, left: 8, display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                                   {badges.slice(0,1).map(p => <span key={p.label} style={{ fontFamily: "'DM Sans'", fontSize: 9, fontWeight: 700, letterSpacing: .8, padding: '3px 8px', borderRadius: 6, background: p.bg, color: p.col }}>{p.label}</span>)}
                                 </div>
