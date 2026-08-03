@@ -20,10 +20,14 @@ import { requestableBySection, requirementLabel } from '../lib/requirements';
 // for the fallback path.
 import { DEFAULT_CROP_Y, MAX_SLIDES } from './event/heroMedia';
 import { uploadPosterCrop } from '../lib/uploadImage';
+// Same drag stack the lineup editor uses (DaySlots/SlotCard). Not HTML5 drag:
+// that has no touch support, and this strip has to reorder on a phone.
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { SortableContext, useSortable, horizontalListSortingStrategy, arrayMove } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
-// One Cover plus five, per the spec's cap — derived from MAX_SLIDES rather
-// than written as 5, so the two cannot disagree.
-const MAX_GALLERY = MAX_SLIDES - 1;
+// The editor counts SLIDES, not "a cover plus five" — the cap is MAX_SLIDES
+// directly. The cover/gallery split is a storage detail applied on save.
 
 const CAL_DAYS = ['Su','Mo','Tu','We','Th','Fr','Sa'];
 const CAL_MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -191,6 +195,52 @@ function RequirementChecklist({ selected, onToggle }) {
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+/* ── One carousel slide, draggable ───────────────────────────────────────
+ *
+ * The tile is the drag handle — there is no separate grip, because the whole
+ * point is "pick the picture up and put it where you want it".
+ *
+ * ⚠ The ✕ deliberately does NOT carry the drag listeners. A pointer-down on a
+ * child of a draggable starts a drag, and an 8px activation distance means a
+ * tap that wobbles becomes a drag instead of a delete — so the button stops
+ * the event before dnd-kit ever sees it.
+ */
+function SortableSlide({ url, index, total, onRemove }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: url });
+  const first = index === 0;
+  return (
+    <div ref={setNodeRef}
+      style={{ width:132, transform: CSS.Transform.toString(transform), transition,
+        opacity: isDragging ? 0.4 : 1, zIndex: isDragging ? 2 : 1, position:'relative' }}>
+      <div {...attributes} {...listeners}
+        style={{ position:'relative', width:'100%', aspectRatio:'3/2', borderRadius:9, overflow:'hidden',
+          cursor:'grab', touchAction:'none',
+          border: first ? '2px solid var(--neon2)' : '1px solid var(--border)' }}>
+        <img src={url} alt={`Slide ${index+1}`} draggable={false}
+          style={{ width:'100%', height:'100%', objectFit:'cover', display:'block', pointerEvents:'none' }} />
+        <span style={{ position:'absolute', top:4, left:4, minWidth:17, height:17, borderRadius:9,
+          display:'flex', alignItems:'center', justifyContent:'center',
+          fontFamily:"'Bebas Neue'", fontSize:10, letterSpacing:.5,
+          background: first ? 'var(--neon2)' : 'rgba(10,10,20,.85)',
+          color: first ? '#0a0a14' : '#fff',
+          border: first ? 'none' : '1px solid rgba(255,255,255,.25)' }}>{index+1}</span>
+        {first && (
+          <span style={{ position:'absolute', left:4, bottom:4, fontFamily:"'Bebas Neue'", fontSize:9, letterSpacing:1,
+            background:'var(--neon2)', color:'#0a0a14', borderRadius:3, padding:'1px 5px' }}>SHOWS FIRST</span>
+        )}
+      </div>
+      <button type="button"
+        onPointerDown={e => e.stopPropagation()}
+        onClick={onRemove}
+        aria-label={`Remove slide ${index+1} of ${total}`}
+        style={{ position:'absolute', top:4, right:4, width:20, height:20, borderRadius:10, cursor:'pointer',
+          display:'flex', alignItems:'center', justifyContent:'center', lineHeight:1,
+          background:'rgba(10,10,20,.85)', border:'1px solid rgba(255,255,255,.25)', color:'#fff', fontSize:11 }}>✕</button>
     </div>
   );
 }
@@ -380,8 +430,16 @@ export default function CreateEventScreen() {
   // Cover — the Hero image. A separate object from the poster (layout spec §0):
   // it sells the experience and may crop, where the poster preserves artwork
   // and may not. Uploading one supersedes the poster-derived Hero entirely.
-  const [cover,       setCover]       = useState('');
-  const [coverThumb,  setCoverThumb]  = useState('');
+  /**
+   * THE CAROUSEL, as one ordered list — which is how it reads on the page and
+   * how an organiser thinks about it. Slide 1 is the cover; the rest follow.
+   *
+   * Stored split (cfg.cover + cfg.gallery[]) because that is what heroMedia's
+   * ladder takes, and rung 2 (cover, no gallery) has to stay distinguishable
+   * from rung 1. Splitting on save and rejoining on load keeps that contract
+   * without making the editor talk about two things that are one thing.
+   */
+  const [slides,      setSlides]      = useState([]);
   const [poster,      setPoster]      = useState('');
   const [posterThumb, setPosterThumb] = useState('');
   const [posterFull,  setPosterFull]  = useState('');
@@ -396,9 +454,8 @@ export default function CreateEventScreen() {
   const [cropZoom,    setCropZoom]    = useState(1);
   const [cropX,       setCropX]       = useState(50);
   const [cropMode,    setCropMode]    = useState(false);
-  // Bands kept off the poster — the carousel (rung 1). Array of plain URLs:
-  // the config should stay the simplest thing that survives a hand-edit.
-  const [gallery,     setGallery]     = useState([]);
+  // 8px before a drag starts, so a tap on a tile (or its ✕) is still a tap.
+  const dragSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
   const [cropBusy,    setCropBusy]    = useState(false);
   const [cropError,   setCropError]   = useState('');
   const [fullView,    setFullView]    = useState(false);
@@ -457,14 +514,15 @@ export default function CreateEventScreen() {
       setOpenMicBadge(c.openMicBadge || false);
       setTicketLink(c.ticketLink || '');
       setBio(c.bio || '');
-      setCover(c.cover || '');
-      setCoverThumb(c.cover_thumb || '');
       setPoster(c.poster || '');
       // Absent means no choice was made, and the Hero uses its top-weighted
       // default — it does NOT mean 0. Reading it as 0 would silently move
       // every existing event's cover band to the very top of its poster.
       setPosterCropY(typeof c.posterCropY === 'number' ? c.posterCropY : DEFAULT_CROP_Y);
-      setGallery(Array.isArray(c.gallery) ? c.gallery.filter(u => typeof u === 'string' && u.trim()) : []);
+      // Rejoin the stored split into the one ordered list the editor shows.
+      setSlides([c.cover, ...(Array.isArray(c.gallery) ? c.gallery : [])]
+        .filter(u => typeof u === 'string' && u.trim())
+        .slice(0, MAX_SLIDES));
       setPosterThumb(c.poster_thumb || '');
       setPosterFull(c.poster_full || '');
       setIsPublic(data.is_public !== false);
@@ -564,7 +622,7 @@ export default function CreateEventScreen() {
      afterwards — the organiser is usually about to move to the next thing they
      want, and resetting would make them find their place again. */
   async function keepCrop() {
-    if (!poster || !cropGeom || cropBusy || gallery.length >= MAX_GALLERY) return;
+    if (!poster || !cropGeom || cropBusy || slides.length >= MAX_SLIDES) return;
     setCropBusy(true);
     setCropError('');
     try {
@@ -574,13 +632,10 @@ export default function CreateEventScreen() {
         session?.user?.id,
         makeId(),
       );
-      setGallery(g => [...g, url]);
-      // The carousel only leads with a Cover (heroMedia rung 1 needs one, and
-      // gallery images deliberately do not promote themselves). Without this,
-      // an organiser could keep three crops and see none of them. First crop
-      // fills an empty cover slot; it is visible in the Cover field above and
-      // can be replaced or removed like any other.
-      if (!cover) setCover(url);
+      // Straight onto the end of the carousel line — the same list an
+      // uploaded image joins, so a crop and an upload are the same kind of
+      // thing once they exist and can be reordered against each other.
+      setSlides(s => [...s, url].slice(0, MAX_SLIDES));
     } catch (err) {
       console.error('Poster crop failed', err);
       setCropError('Could not save that crop. Try again.');
@@ -618,7 +673,10 @@ export default function CreateEventScreen() {
 
     const cfg = {
       name, date:startDate, endDate, venue, genres:genreText, categoryBadge: categoryBadge || null, openMicBadge: openMicBadge || null, ticketLink, bio,
-      cover, cover_thumb:coverThumb, gallery,
+      // Split back into what heroMedia's ladder reads. Slide 1 is the cover;
+      // the rest are the gallery. Empty cover keeps every existing event on
+      // the poster-derived rungs exactly as before.
+      cover: slides[0] || '', gallery: slides.slice(1),
       poster, poster_thumb:posterThumb, poster_full:posterFull,
       // ⭐ THE WRITE THAT WAS MISSING. The editor has had a drag-to-reposition
       // control since it was built and never saved its result anywhere, so the
@@ -805,62 +863,66 @@ export default function CreateEventScreen() {
         <Field label="ABOUT THIS EVENT (optional)">
           <textarea className={s.textarea} value={bio} onChange={e => setBio(e.target.value)} rows={4} placeholder="Tell people what to expect — vibe, artists, anything worth knowing…" />
         </Field>
-
-        {/* ── EVENT COVER (layout spec §0) ──
-            Above the poster deliberately: it is the top of the public page, so
-            it is the first image decision, and its presence changes what the
-            poster is FOR (artwork to keep, rather than the thing being
-            cropped into a Hero). */}
+        {/* ── THE CAROUSEL (layout spec §0 / §1) ──
+            One ordered line, because that is what it is on the page. Slide 1
+            leads and is the "cover"; the rest follow in order. Images arrive
+            here two ways — uploaded directly, or cropped out of the poster
+            below — and once here they are the same kind of thing and reorder
+            against each other. */}
         <div className={s.field}>
-          <p className={s.fieldLabel}>EVENT COVER (optional)</p>
+          <p className={s.fieldLabel}>CAROUSEL IMAGES (optional)</p>
           <p className={s.fieldSub}>
-            The big image at the top of your event page · 3:2 landscape.
-            A crowd, the room, the act on stage — it sets the mood and may be cropped.
+            The images at the top of your event page · 3:2 landscape.
+            Slide 1 leads; swipe reveals the rest. Add them here, or crop them out of the poster below.
           </p>
-          <ImageUploadButton
-            type="cover"
-            userId={session?.user?.id}
-            onUpload={({ cover:c, cover_thumb:t }) => { setCover(c); setCoverThumb(t); }}
-          >
-            {({ trigger, statusBadge }) => (
-              <div style={{ position:'relative' }}>
-                <div
-                  onClick={!cover ? trigger : undefined}
-                  style={{
-                    position:'relative', width:'100%', aspectRatio:'3 / 2',
-                    borderRadius:12, overflow:'hidden',
-                    display:'flex', alignItems:'center', justifyContent:'center',
-                    background: cover ? 'transparent' : 'rgba(255,255,255,0.05)',
-                    border: cover ? 'none' : '2px dashed rgba(255,255,255,0.18)',
-                    cursor: cover ? 'default' : 'pointer',
-                  }}
-                >
-                  {cover
-                    ? <img src={cover} alt="cover" style={{ width:'100%', height:'100%', objectFit:'cover' }} />
-                    : <div style={{ textAlign:'center', color:'rgba(255,255,255,0.4)', fontSize:13 }}>
-                        <div style={{ fontSize:28, marginBottom:6 }}>+</div>
-                        <div>Tap to add a cover</div>
-                      </div>}
-                  {statusBadge}
+
+          <div style={{ display:'flex', gap:10, flexWrap:'wrap', alignItems:'flex-start' }}>
+            <DndContext sensors={dragSensors} collisionDetection={closestCenter}
+              onDragEnd={({ active, over }) => {
+                if (!over || active.id === over.id) return;
+                setSlides(s => arrayMove(s, s.indexOf(active.id), s.indexOf(over.id)));
+              }}>
+              {/* The list is keyed by URL, which is unique per upload — so a
+                  slide keeps its identity across a reorder and React does not
+                  reuse the wrong <img> mid-drag. */}
+              <SortableContext items={slides} strategy={horizontalListSortingStrategy}>
+                <div style={{ display:'flex', gap:10, flexWrap:'wrap', alignItems:'flex-start' }}>
+                  {slides.map((url, i) => (
+                    <SortableSlide key={url} url={url} index={i} total={slides.length}
+                      onRemove={() => setSlides(s => s.filter(u => u !== url))} />
+                  ))}
                 </div>
-                {cover && (
-                  <div style={{ display:'flex', gap:8, marginTop:8 }}>
-                    <button type="button" onClick={trigger}
-                      style={{ flex:1, padding:'8px', borderRadius:8, cursor:'pointer', background:'rgba(255,255,255,0.06)', border:'1px solid var(--border)', color:'var(--text)', fontFamily:"'Bebas Neue'", fontSize:12, letterSpacing:1.5 }}>
-                      REPLACE
-                    </button>
-                    {/* Clearing drops the event back to the poster-derived Hero
-                        (§0.3 rungs 4–6), which is where it was before — not to
-                        no Hero at all. */}
-                    <button type="button" onClick={() => { setCover(''); setCoverThumb(''); }}
-                      style={{ flex:1, padding:'8px', borderRadius:8, cursor:'pointer', background:'rgba(255,80,80,0.08)', border:'1px solid rgba(255,80,80,0.3)', color:'var(--muted)', fontFamily:"'Bebas Neue'", fontSize:12, letterSpacing:1.5 }}>
-                      REMOVE
-                    </button>
+              </SortableContext>
+            </DndContext>
+
+            {slides.length < MAX_SLIDES && (
+              <ImageUploadButton
+                type="cover"
+                userId={session?.user?.id}
+                onUpload={({ cover:c }) => setSlides(s => [...s, c].slice(0, MAX_SLIDES))}
+              >
+                {({ trigger, statusBadge }) => (
+                  <div onClick={trigger}
+                    style={{ width:132, aspectRatio:'3/2', borderRadius:9, cursor:'pointer', position:'relative',
+                      background:'rgba(255,255,255,0.05)', border:'2px dashed rgba(255,255,255,0.18)',
+                      display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', color:'rgba(255,255,255,0.4)' }}>
+                    <div style={{ fontSize:24, lineHeight:1 }}>+</div>
+                    <div style={{ fontSize:11, marginTop:4 }}>Upload image</div>
+                    {statusBadge}
                   </div>
                 )}
-              </div>
+              </ImageUploadButton>
             )}
-          </ImageUploadButton>
+          </div>
+
+          <p style={{ fontSize:11, color:'var(--muted)', marginTop:8 }}>
+            {slides.length}/{MAX_SLIDES} ·{' '}
+            {slides.length === 0
+              ? 'With none here, the top of the page falls back to a slice of the poster.'
+              : slides.length === 1
+                ? 'One image shows still; add another to make it a carousel.'
+                : `Swipes through ${slides.length} images.`}
+          </p>
         </div>
 
         <div className={s.field}>
@@ -972,67 +1034,36 @@ export default function CreateEventScreen() {
                   <p style={{ fontSize:12, color:'rgba(255,255,255,0.5)', lineHeight:1.5, marginTop:8 }}>
                     {!cropGeom
                       ? 'Add a poster to start cropping.'
-                      : cover
-                        ? 'Zoom and drag to frame a slice, then keep it. The top of the page uses your Event Cover; kept slices join the carousel behind it.'
-                        : 'Zoom and drag to frame a slice, then keep it. Your first kept slice becomes the cover at the top of the page.'}
-                    {cropGeom && !bandMatchesHero && !cover && gallery.length === 0 && (
+                      : 'Zoom and drag to frame a slice, then keep it — it joins the carousel above.'}
+                    {cropGeom && !bandMatchesHero && slides.length === 0 && (
                       <> <span style={{ color:'#FFD700' }}>Zoomed in, so this framing only applies once you keep it — until then the top of the page uses the full width of the poster.</span></>
                     )}
                   </p>
                 )}
 
-                {/* Keep the current rectangle, and everything kept so far. */}
+                {/* Keep the current rectangle. The kept images themselves live
+                    in the CAROUSEL section above — one list, one place, rather
+                    than a second strip down here that could disagree with it
+                    about order. */}
                 {poster && cropMode && cropGeom && (
                   <div style={{ marginTop:10 }}>
                     <div style={{ display:'flex', alignItems:'center', gap:8 }}>
                       <button type="button" onClick={keepCrop}
-                        disabled={cropBusy || gallery.length >= MAX_GALLERY}
-                        style={{ padding:'9px 16px', borderRadius:8, cursor: (cropBusy || gallery.length >= MAX_GALLERY) ? 'default':'pointer',
+                        disabled={cropBusy || slides.length >= MAX_SLIDES}
+                        style={{ padding:'9px 16px', borderRadius:8, cursor: (cropBusy || slides.length >= MAX_SLIDES) ? 'default':'pointer',
                           fontFamily:"'Bebas Neue'", fontSize:12, letterSpacing:1.5,
                           background:'rgba(0,229,160,0.12)', border:'1px solid rgba(0,229,160,0.45)', color:'#00E5A0',
-                          opacity:(cropBusy || gallery.length >= MAX_GALLERY) ? .5 : 1 }}>
-                        {cropBusy ? 'SAVING…' : '+ KEEP THIS CROP'}
+                          opacity:(cropBusy || slides.length >= MAX_SLIDES) ? .5 : 1 }}>
+                        {cropBusy ? 'SAVING…' : slides.length >= MAX_SLIDES ? 'CAROUSEL FULL' : '+ KEEP THIS CROP → CAROUSEL'}
                       </button>
                       <span style={{ fontSize:11, color:'var(--muted)' }}>
-                        {gallery.length}/{MAX_GALLERY} kept
+                        {slides.length}/{MAX_SLIDES} in carousel
                       </span>
                     </div>
                     {cropError && <p style={{ fontSize:12, color:'#ff5050', marginTop:6 }}>{cropError}</p>}
                   </div>
                 )}
 
-                {/* The strip. Shown whenever there is anything in it, not only
-                    in crop mode — what you have made should not disappear the
-                    moment you stop making more. */}
-                {gallery.length > 0 && (
-                  <div style={{ marginTop:12 }}>
-                    <p style={{ fontFamily:"'Bebas Neue'", fontSize:11, letterSpacing:2, color:'var(--muted)', margin:'0 0 6px' }}>
-                      CAROUSEL IMAGES
-                    </p>
-                    <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
-                      {gallery.map((url, i) => (
-                        <div key={url} style={{ position:'relative', width:104, aspectRatio:'3/2', borderRadius:8, overflow:'hidden', border:'1px solid var(--border)' }}>
-                          <img src={url} alt={`Crop ${i+1}`} style={{ width:'100%', height:'100%', objectFit:'cover', display:'block' }} />
-                          {/* Removing a crop that is also the cover clears the
-                              cover too, rather than leaving the page pointing
-                              at an image no longer in the list. */}
-                          <button type="button"
-                            onClick={() => { setGallery(g => g.filter(u => u !== url)); if (cover === url) { setCover(''); setCoverThumb(''); } }}
-                            aria-label={`Remove crop ${i+1}`}
-                            style={{ position:'absolute', top:4, right:4, width:20, height:20, borderRadius:10, cursor:'pointer',
-                              display:'flex', alignItems:'center', justifyContent:'center', lineHeight:1,
-                              background:'rgba(10,10,20,.8)', border:'1px solid rgba(255,255,255,.25)', color:'#fff', fontSize:12 }}>
-                            ✕
-                          </button>
-                          {cover === url && (
-                            <span style={{ position:'absolute', left:4, bottom:4, fontFamily:"'Bebas Neue'", fontSize:9, letterSpacing:1,
-                              background:'rgba(0,229,255,.9)', color:'#0a0a14', borderRadius:3, padding:'1px 5px' }}>COVER</span>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
 
                 {/* Action tabs */}
                 {poster && (
