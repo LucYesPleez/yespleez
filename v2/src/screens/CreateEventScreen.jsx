@@ -215,7 +215,9 @@ function SortableSlide({ url, index, total, onRemove }) {
   const first = index === 0;
   return (
     <div ref={setNodeRef}
-      style={{ width:132, transform: CSS.Transform.toString(transform), transition,
+      // Must match the empty slot's width exactly, or the six-across strip
+      // reflows as images are added and removed.
+      style={{ width:104, transform: CSS.Transform.toString(transform), transition,
         opacity: isDragging ? 0.4 : 1, zIndex: isDragging ? 2 : 1, position:'relative' }}>
       <div {...attributes} {...listeners}
         style={{ position:'relative', width:'100%', aspectRatio:'3/2', borderRadius:9, overflow:'hidden',
@@ -866,54 +868,67 @@ export default function CreateEventScreen() {
         {/* ── THE CAROUSEL (layout spec §0 / §1) ──
             One ordered line, because that is what it is on the page. Slide 1
             leads and is the "cover"; the rest follow in order. Images arrive
-            here two ways — uploaded directly, or cropped out of the poster
+            here two ways — uploaded into a slot, or cropped out of the poster
             below — and once here they are the same kind of thing and reorder
-            against each other. */}
+            against each other.
+
+            ⚠ ALL SIX SLOTS ARE ALWAYS DRAWN, filled or not. An empty strip
+            that only appears once you have images tells a first-time
+            organiser neither that the feature exists nor how much room is
+            left; six outlines say both without a word of explanation. */}
         <div className={s.field}>
           <p className={s.fieldLabel}>CAROUSEL IMAGES (optional)</p>
           <p className={s.fieldSub}>
             The images at the top of your event page · 3:2 landscape.
-            Slide 1 leads; swipe reveals the rest. Add them here, or crop them out of the poster below.
+            Slide 1 leads; swipe reveals the rest. Drag to reorder.
           </p>
 
-          <div style={{ display:'flex', gap:10, flexWrap:'wrap', alignItems:'flex-start' }}>
-            <DndContext sensors={dragSensors} collisionDetection={closestCenter}
-              onDragEnd={({ active, over }) => {
-                if (!over || active.id === over.id) return;
-                setSlides(s => arrayMove(s, s.indexOf(active.id), s.indexOf(over.id)));
-              }}>
-              {/* The list is keyed by URL, which is unique per upload — so a
-                  slide keeps its identity across a reorder and React does not
-                  reuse the wrong <img> mid-drag. */}
-              <SortableContext items={slides} strategy={horizontalListSortingStrategy}>
-                <div style={{ display:'flex', gap:10, flexWrap:'wrap', alignItems:'flex-start' }}>
-                  {slides.map((url, i) => (
-                    <SortableSlide key={url} url={url} index={i} total={slides.length}
-                      onRemove={() => setSlides(s => s.filter(u => u !== url))} />
-                  ))}
-                </div>
-              </SortableContext>
-            </DndContext>
-
-            {slides.length < MAX_SLIDES && (
-              <ImageUploadButton
-                type="cover"
-                userId={session?.user?.id}
-                onUpload={({ cover:c }) => setSlides(s => [...s, c].slice(0, MAX_SLIDES))}
-              >
-                {({ trigger, statusBadge }) => (
-                  <div onClick={trigger}
-                    style={{ width:132, aspectRatio:'3/2', borderRadius:9, cursor:'pointer', position:'relative',
-                      background:'rgba(255,255,255,0.05)', border:'2px dashed rgba(255,255,255,0.18)',
-                      display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', color:'rgba(255,255,255,0.4)' }}>
-                    <div style={{ fontSize:24, lineHeight:1 }}>+</div>
-                    <div style={{ fontSize:11, marginTop:4 }}>Upload image</div>
-                    {statusBadge}
-                  </div>
-                )}
-              </ImageUploadButton>
-            )}
-          </div>
+          <DndContext sensors={dragSensors} collisionDetection={closestCenter}
+            onDragEnd={({ active, over }) => {
+              if (!over || active.id === over.id) return;
+              setSlides(s => arrayMove(s, s.indexOf(active.id), s.indexOf(over.id)));
+            }}>
+            {/* Keyed by URL, unique per upload — a slide keeps its identity
+                across a reorder, so React cannot reuse the wrong <img>. */}
+            <SortableContext items={slides} strategy={horizontalListSortingStrategy}>
+              <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+                {Array.from({ length: MAX_SLIDES }, (_, i) => {
+                  const url = slides[i];
+                  if (url) {
+                    return (
+                      <SortableSlide key={url} url={url} index={i} total={slides.length}
+                        onRemove={() => setSlides(s => s.filter(u => u !== url))} />
+                    );
+                  }
+                  // The next free slot is where an upload actually lands, so
+                  // it is the one drawn as an invitation; the rest are the
+                  // same control shown quietly, as remaining room.
+                  const isNext = i === slides.length;
+                  return (
+                    <ImageUploadButton key={`slot-${i}`} type="cover" userId={session?.user?.id}
+                      onUpload={({ cover:c }) => setSlides(s => [...s, c].slice(0, MAX_SLIDES))}>
+                      {({ trigger, statusBadge }) => (
+                        <div onClick={trigger}
+                          style={{ width:104, aspectRatio:'3/2', borderRadius:9, cursor:'pointer', position:'relative',
+                            display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
+                            background: isNext ? 'rgba(0,229,255,0.06)' : 'rgba(255,255,255,0.03)',
+                            border: isNext ? '2px dashed rgba(0,229,255,0.45)' : '1px dashed rgba(255,255,255,0.14)',
+                            color: isNext ? 'var(--neon2)' : 'rgba(255,255,255,0.28)' }}>
+                          <div style={{ fontSize:22, lineHeight:1 }}>+</div>
+                          {isNext && <div style={{ fontSize:10, marginTop:3 }}>Add image</div>}
+                          <span style={{ position:'absolute', top:4, left:4, minWidth:16, height:16, borderRadius:8,
+                            display:'flex', alignItems:'center', justifyContent:'center',
+                            fontFamily:"'Bebas Neue'", fontSize:9,
+                            background:'rgba(255,255,255,.06)', color:'rgba(255,255,255,.35)' }}>{i+1}</span>
+                          {statusBadge}
+                        </div>
+                      )}
+                    </ImageUploadButton>
+                  );
+                })}
+              </div>
+            </SortableContext>
+          </DndContext>
 
           <p style={{ fontSize:11, color:'var(--muted)', marginTop:8 }}>
             {slides.length}/{MAX_SLIDES} ·{' '}
