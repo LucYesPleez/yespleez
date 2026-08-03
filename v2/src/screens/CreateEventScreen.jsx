@@ -9,6 +9,10 @@ import { getOwnerProfiles } from '../lib/actingProfile';
 import { PROFILE_TYPES } from '../lib/profileTypes';
 import { track, EVENTS } from '../lib/analytics';
 import { requestableBySection, requirementLabel } from '../lib/requirements';
+// The renderer's own constants — imported rather than restated, so the band
+// the organiser drags here and the band the public Hero draws can never
+// disagree about their shape or their default position.
+import { DEFAULT_CROP_Y, MIN_CROP_COVERAGE } from './event/heroMedia';
 
 const CAL_DAYS = ['Su','Mo','Tu','We','Th','Fr','Sa'];
 const CAL_MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -370,7 +374,11 @@ export default function CreateEventScreen() {
   const [poster,      setPoster]      = useState('');
   const [posterThumb, setPosterThumb] = useState('');
   const [posterFull,  setPosterFull]  = useState('');
-  const [posterPos,   setPosterPos]   = useState({ x: 50, y: 50 });
+  // Which horizontal slice of the poster becomes the Hero when there is no
+  // Cover — spec §0.4. 0–100, the same scale `object-position` uses, so what
+  // is stored here is literally what the public Hero renders with.
+  const [posterCropY, setPosterCropY] = useState(DEFAULT_CROP_Y);
+  const [posterDims,  setPosterDims]  = useState(null);   // natural w/h, for the band geometry
   const [cropMode,    setCropMode]    = useState(false);
   const [fullView,    setFullView]    = useState(false);
   const cropRef   = useRef(null);
@@ -431,6 +439,10 @@ export default function CreateEventScreen() {
       setCover(c.cover || '');
       setCoverThumb(c.cover_thumb || '');
       setPoster(c.poster || '');
+      // Absent means no choice was made, and the Hero uses its top-weighted
+      // default — it does NOT mean 0. Reading it as 0 would silently move
+      // every existing event's cover band to the very top of its poster.
+      setPosterCropY(typeof c.posterCropY === 'number' ? c.posterCropY : DEFAULT_CROP_Y);
       setPosterThumb(c.poster_thumb || '');
       setPosterFull(c.poster_full || '');
       setIsPublic(data.is_public !== false);
@@ -447,6 +459,61 @@ export default function CreateEventScreen() {
       setShowTimesPublicly(hc.showTimesPublicly === true);
     });
   }, [editId]);
+
+  /* ── The cover band over the poster (spec §0.4) ──────────────────────
+     The poster renders at full width, so the band's height is pure geometry:
+     a 3:2 slice of a W-wide poster is W×2/3 tall, which as a percentage of
+     the poster's own displayed height is (2/3)·(naturalW/naturalH)·100. No
+     measurement needed, so it cannot disagree with what the browser lays out.
+
+     null  → no poster yet, or the poster is too tall for a band to represent
+             (MIN_CROP_COVERAGE). heroMedia falls to the blurred treatment for
+             those, so offering a band to drag would promise a cover that is
+             never going to be used.
+     ≥100  → the poster is wider than the cover frame; all of it shows and
+             there is nothing to position. */
+  const bandPct = (() => {
+    if (!poster || !posterDims?.w || !posterDims?.h) return null;
+    const pct = (2 / 3) * (posterDims.w / posterDims.h) * 100;
+    if (pct / 100 < MIN_CROP_COVERAGE) return null;
+    return Math.min(100, pct);
+  })();
+
+  // object-position semantics: at Y%, the point Y% down the IMAGE sits Y% down
+  // the FRAME — so the band's top travels across the leftover height exactly
+  // in proportion. Same arithmetic the browser does for the public Hero.
+  const bandTopPct = bandPct === null ? 0 : (100 - bandPct) * (posterCropY / 100);
+
+  function startBandDrag(e) {
+    if (bandPct === null || bandPct >= 100) return;
+    const touch = e.touches?.[0];
+    if (!touch) e.preventDefault();
+    const rect = cropRef.current.getBoundingClientRect();
+    const startClientY = touch ? touch.clientY : e.clientY;
+    dragState.current = { startClientY, startCropY: posterCropY, h: rect.height };
+
+    const move = ev => {
+      const c = ev.touches?.[0];
+      const y = c ? c.clientY : ev.clientY;
+      const { startClientY: sy, startCropY, h } = dragState.current;
+      // Travel is over the LEFTOVER height, not the whole poster — dragging
+      // the band one band-height down is not a 100% change in crop position.
+      const travel = h * (100 - bandPct) / 100;
+      if (travel <= 0) return;
+      const next = startCropY + ((y - sy) / travel) * 100;
+      setPosterCropY(Math.min(100, Math.max(0, Math.round(next))));
+    };
+    const up = () => {
+      window.removeEventListener('mousemove', move);
+      window.removeEventListener('mouseup', up);
+      window.removeEventListener('touchmove', move);
+      window.removeEventListener('touchend', up);
+    };
+    window.addEventListener('mousemove', move);
+    window.addEventListener('mouseup', up);
+    window.addEventListener('touchmove', move, { passive: true });
+    window.addEventListener('touchend', up);
+  }
 
   function addDay() { setDays(p => [...p, { id:makeId(), name:'', slots:[] }]); }
   function removeDay(id) { setDays(p => p.filter(d => d.id!==id)); }
@@ -479,6 +546,12 @@ export default function CreateEventScreen() {
       name, date:startDate, endDate, venue, genres:genreText, categoryBadge: categoryBadge || null, openMicBadge: openMicBadge || null, ticketLink, bio,
       cover, cover_thumb:coverThumb,
       poster, poster_thumb:posterThumb, poster_full:posterFull,
+      // ⭐ THE WRITE THAT WAS MISSING. The editor has had a drag-to-reposition
+      // control since it was built and never saved its result anywhere, so the
+      // public Hero always used the default band no matter what was chosen.
+      // Only meaningful when there is a poster and no cover; harmless
+      // otherwise, and kept so removing a cover restores the chosen band.
+      posterCropY: poster ? posterCropY : null,
       is_public:isPublic, applications_open:appsOpen,
       days: setTimesNeeded ? days.map(d => ({ name:d.name, slots:d.slots.map(slotToSave) })) : [],
       host_controls_config: { artistsCanRemove, showRankedBackup, showGenrePickers, privateSetTimes, showTimesPublicly },
@@ -718,67 +791,75 @@ export default function CreateEventScreen() {
 
         <div className={s.field}>
           <p className={s.fieldLabel}>EVENT POSTER</p>
-          <p className={s.fieldSub}>Optional — the flyer as it was designed · 4:5 ratio · shown whole at the bottom of the page</p>
-          <ImageUploadButton type="poster" userId={session?.user?.id} onUpload={({ poster:p, poster_thumb:t, poster_full:f }) => { setPoster(p); setPosterThumb(t); setPosterFull(f||''); setPosterPos({ x:50, y:50 }); setCropMode(false); }}>
+          <p className={s.fieldSub}>Optional — the flyer as it was designed · any shape · shown whole at the bottom of the page</p>
+          <ImageUploadButton type="poster" userId={session?.user?.id} onUpload={({ poster:p, poster_thumb:t, poster_full:f }) => { setPoster(p); setPosterThumb(t); setPosterFull(f||''); setPosterCropY(DEFAULT_CROP_Y); setCropMode(false); }}>
             {({ trigger, statusBadge }) => (
               <div>
-                {/* Poster frame */}
+                {/* ── The poster, WHOLE, with the cover band over it (spec §0.4) ──
+                    The old control dragged the image around inside a fixed 4:5
+                    window, which showed a crop of a poster that is not itself
+                    cropped, and saved nothing. This shows the artwork at its own
+                    shape and moves a BAND over it — the band being the thing that
+                    is actually chosen. */}
                 <div
                   ref={cropRef}
-                  style={{ width:'100%', aspectRatio:'4/5', maxHeight:280, borderRadius:10, overflow:'hidden', position:'relative',
+                  style={{ width:'100%', maxHeight:320, borderRadius:10, overflow:'hidden', position:'relative',
                     background: poster ? 'transparent' : 'rgba(255,255,255,0.05)',
-                    border: poster ? (cropMode ? '2px solid var(--neon2)' : 'none') : '2px dashed rgba(255,255,255,0.18)',
+                    border: poster ? 'none' : '2px dashed rgba(255,255,255,0.18)',
+                    aspectRatio: poster ? undefined : '4/5',
                     display:'flex', alignItems:'center', justifyContent:'center',
-                    cursor: cropMode ? 'grab' : (poster ? 'default' : 'pointer'),
-                    userSelect:'none',
+                    cursor: poster ? 'default' : 'pointer', userSelect:'none',
                   }}
                   onClick={!poster ? trigger : undefined}
-                  onMouseDown={cropMode ? e => {
-                    e.preventDefault();
-                    const rect = cropRef.current.getBoundingClientRect();
-                    dragState.current = { startX: e.clientX, startY: e.clientY, startPX: posterPos.x, startPY: posterPos.y, w: rect.width, h: rect.height };
-                    const onMove = mv => {
-                      const dx = ((mv.clientX - dragState.current.startX) / dragState.current.w) * -100;
-                      const dy = ((mv.clientY - dragState.current.startY) / dragState.current.h) * -100;
-                      setPosterPos({ x: Math.min(100,Math.max(0, dragState.current.startPX + dx)), y: Math.min(100,Math.max(0, dragState.current.startPY + dy)) });
-                    };
-                    const onUp = () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
-                    window.addEventListener('mousemove', onMove);
-                    window.addEventListener('mouseup', onUp);
-                  } : undefined}
-                  onTouchStart={cropMode ? e => {
-                    const t = e.touches[0];
-                    const rect = cropRef.current.getBoundingClientRect();
-                    dragState.current = { startX: t.clientX, startY: t.clientY, startPX: posterPos.x, startPY: posterPos.y, w: rect.width, h: rect.height };
-                    const onMove = mv => {
-                      const tc = mv.touches[0];
-                      const dx = ((tc.clientX - dragState.current.startX) / dragState.current.w) * -100;
-                      const dy = ((tc.clientY - dragState.current.startY) / dragState.current.h) * -100;
-                      setPosterPos({ x: Math.min(100,Math.max(0, dragState.current.startPX + dx)), y: Math.min(100,Math.max(0, dragState.current.startPY + dy)) });
-                    };
-                    const onUp = () => { window.removeEventListener('touchmove', onMove); window.removeEventListener('touchend', onUp); };
-                    window.addEventListener('touchmove', onMove, { passive:true });
-                    window.addEventListener('touchend', onUp);
-                  } : undefined}
                 >
-                  {/* ⚠ `contain`, not `cover`. The poster is stored WHOLE and
-                      § 11 renders it whole, so a preview that cropped it here
-                      would show the organiser a poster they are not going to
-                      get. The frame stays 4:5 as a container; the artwork sits
-                      inside it at its own shape, letterboxed if it differs. */}
                   {poster
-                    ? <img src={poster} alt="poster" style={{ width:'100%', height:'100%', objectFit:'contain', pointerEvents:'none' }} />
+                    ? <img src={poster} alt="poster"
+                        onLoad={e => setPosterDims({ w:e.target.naturalWidth, h:e.target.naturalHeight })}
+                        style={{ width:'100%', display:'block', pointerEvents:'none' }} />
                     : <div style={{ textAlign:'center', color:'rgba(255,255,255,0.4)', fontSize:13 }}><div style={{ fontSize:28, marginBottom:6 }}>+</div><div>Tap to add poster</div></div>
                   }
-                  {cropMode && <div style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', pointerEvents:'none' }}><div style={{ background:'rgba(0,229,255,0.15)', border:'1px dashed rgba(0,229,255,0.5)', borderRadius:6, padding:'6px 12px', fontSize:11, fontFamily:"'Bebas Neue'", letterSpacing:2, color:'var(--neon2)' }}>DRAG TO REPOSITION</div></div>}
+
+                  {/* The band. Its HEIGHT is fixed by geometry — a 3:2 slice of a
+                      full-width poster — so only its vertical position is the
+                      organiser's to choose, which is exactly what posterCropY is. */}
+                  {poster && cropMode && bandPct !== null && (
+                    <>
+                      <div style={{ position:'absolute', left:0, right:0, top:0, height:`${bandTopPct}%`, background:'rgba(10,10,20,.72)', pointerEvents:'none' }} />
+                      <div style={{ position:'absolute', left:0, right:0, top:`${bandTopPct + bandPct}%`, bottom:0, background:'rgba(10,10,20,.72)', pointerEvents:'none' }} />
+                      <div
+                        onMouseDown={startBandDrag}
+                        onTouchStart={startBandDrag}
+                        style={{ position:'absolute', left:0, right:0, top:`${bandTopPct}%`, height:`${bandPct}%`,
+                          border:'2px solid var(--neon2)', boxSizing:'border-box', cursor:'grab',
+                          display:'flex', alignItems:'center', justifyContent:'center' }}>
+                        <div style={{ background:'rgba(0,229,255,0.15)', border:'1px dashed rgba(0,229,255,0.5)', borderRadius:6, padding:'6px 12px', fontSize:11, fontFamily:"'Bebas Neue'", letterSpacing:2, color:'var(--neon2)', pointerEvents:'none' }}>
+                          DRAG TO SET THE COVER
+                        </div>
+                      </div>
+                    </>
+                  )}
                   {statusBadge}
                 </div>
+
+                {/* Says what this band IS, and — the part the old UI never did —
+                    when it is not going to be used at all. */}
+                {poster && cropMode && (
+                  <p style={{ fontSize:12, color:'rgba(255,255,255,0.5)', lineHeight:1.5, marginTop:8 }}>
+                    {cover
+                      ? 'You have an Event Cover, so it is used at the top of the page and this band is ignored. Remove the cover to use a slice of the poster instead.'
+                      : bandPct === null
+                        ? 'Add a poster to choose a cover band.'
+                        : bandPct >= 100
+                          ? 'This poster is wider than the cover frame, so all of it shows — there is nothing to position.'
+                          : 'This slice shows as the cover at the top of your event page.'}
+                  </p>
+                )}
 
                 {/* Action tabs */}
                 {poster && (
                   <div className={s.posterTabs}>
                     <button type="button" className={s.posterTab} onClick={() => setFullView(true)}>Full view</button>
-                    <button type="button" className={cropMode ? s.posterTabActive : s.posterTab} onClick={() => setCropMode(m => !m)}>Adjust crop</button>
+                    <button type="button" className={cropMode ? s.posterTabActive : s.posterTab} onClick={() => setCropMode(m => !m)}>Adjust cover</button>
                     <button type="button" className={s.posterTab} onClick={trigger}>Replace</button>
                     <button type="button" className={s.posterTabRemove} onClick={() => { setPoster(''); setPosterThumb(''); setPosterFull(''); setCropMode(false); }}>Remove</button>
                   </div>
