@@ -127,13 +127,51 @@ const DARK_STYLE = [
  */
 const TOWN_CENTRES = {
   // Coffs Harbour CBD, not the 2450 centroid at [-30.0977, 152.6583].
-  '2450': [-30.2963, 153.1135],
+  //
+  // `focusX` — a COASTAL correction, not a general composition change. With
+  // the town dead centre, everything right of it is open ocean: a third of
+  // the picture is flat navy, and the part that says "this is a real place"
+  // is squeezed into the left half. Pushing the town to 2/3 across trades
+  // that empty water for the hinterland behind it.
+  //
+  // ⚠ Deliberately NOT applied to every map. An inland town like Bellingen
+  // (2454) is surrounded by land on all sides and reads correctly centred —
+  // owner, 2026-08-04: "bellingen one sits good on both phone and desktop.
+  // it's just the coffs one". Only add this where the frame is genuinely
+  // lopsided, and check the result rather than assuming.
+  '2450': { at: [-30.2963, 153.1135], focusX: 2 / 3 },
 };
 
-/** Where to centre this postcode's map: the curated town centre if we have
- *  one, else the postcode centroid. */
+/** Google's tile size — the constant behind every zoom/pixel conversion. */
+const TILE_PX = 256;
+
+/**
+ * Where to CENTRE this postcode's map request.
+ *
+ * Usually the place itself. Where an entry declares `focusX`, the request is
+ * offset so the place lands at that fraction across the frame instead of at
+ * the middle: to put a town at 2/3, the camera has to sit 1/6 of a frame-width
+ * west of it.
+ *
+ * The stored coordinate stays the TOWN's real position either way — the
+ * offset is computed at fetch time and never written down, so the table
+ * cannot rot into a set of mystery coordinates nobody can re-derive.
+ */
 function centreFor(postcode) {
-  return TOWN_CENTRES[postcode] ?? AU_POSTCODES[postcode];
+  const override = TOWN_CENTRES[postcode];
+  const at = override?.at ?? (Array.isArray(override) ? override : null) ?? AU_POSTCODES[postcode];
+  if (!at) return null;
+
+  const focusX = override?.focusX ?? 0.5;
+  if (focusX === 0.5) return at;
+
+  const [lat, lng] = at;
+  const widthPx = Number(SIZE.split('x')[0]) || 640;
+  // Longitude degrees per pixel at this zoom. Latitude is left alone: the ask
+  // was horizontal, and a vertical shift would fight the CSS crop, which
+  // already trims top and bottom to reach its aspect ratio.
+  const degPerPx = 360 / (TILE_PX * 2 ** ZOOM);
+  return [lat, lng - (focusX - 0.5) * widthPx * degPerPx];
 }
 
 /** Postcodes that actually have a venue on them. Fetching all 3,174 would be
