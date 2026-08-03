@@ -116,26 +116,34 @@ export default function EventVenue({
             the two is always `display:none`, which also keeps it out of the
             accessibility tree so nothing is announced twice. */}
         <Address lines={lines} className={`${s.venueAddressTile} ${s.narrowOnly}`} />
+
+        {/* ⚠ MOVED INSIDE .venueBody (owner, 2026-08-03: "it needs to come
+            down to the directions button"). The map is now a background layer
+            sized to .venueBody's own height — see .venueTile's `position:
+            absolute; inset` in the stylesheet. That only reaches down to
+            wherever .venueBody actually ends, so GET DIRECTIONS has to be part
+            of that box's normal flow, not a sibling after it, or the map would
+            stop short of the one thing it's meant to reach.
+
+            ⚠ THE SAME DESTINATION AS THE MAP IMAGE (owner, 2026-08-02).
+            This used to be a hardcoded google.com/maps link while the picture
+            above handed off to the device — so the two controls in one section
+            went to different places, and on a phone with Waze or OsmAnd set as
+            default, only one of them respected it.
+            Now both use `navigationUrl`: Android shows the OS chooser, iOS opens
+            Apple Maps, desktop opens the web map.
+
+            No destination, no button — a directions link that opens a map of
+            the wrong town is worse than no link at all. */}
+        {navUrl && (
+          <a className={s.linkRow} href={navUrl} rel="noopener noreferrer">
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+              <RouteIcon size={15} /> GET DIRECTIONS
+            </span>
+            <ChevronIcon />
+          </a>
+        )}
       </div>
-
-      {/* ⚠ THE SAME DESTINATION AS THE MAP IMAGE (owner, 2026-08-02).
-          This used to be a hardcoded google.com/maps link while the picture
-          above handed off to the device — so the two controls in one section
-          went to different places, and on a phone with Waze or OsmAnd set as
-          default, only one of them respected it.
-          Now both use `navigationUrl`: Android shows the OS chooser, iOS opens
-          Apple Maps, desktop opens the web map.
-
-          No destination, no button — a directions link that opens a map of the
-          wrong town is worse than no link at all. */}
-      {navUrl && (
-        <a className={s.linkRow} href={navUrl} rel="noopener noreferrer">
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-            <RouteIcon size={15} /> GET DIRECTIONS
-          </span>
-          <ChevronIcon />
-        </a>
-      )}
 
       {/* ⛔ No "VIEW VENUE" row. The card above IS the way in — a second
           control doing the same thing is the duplicate-click-target problem

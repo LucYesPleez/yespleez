@@ -166,6 +166,14 @@
      strip of the same map, with the pin still centred. */
   aspect-ratio: 16 / 5;
   object-fit: cover;
+  /* ⚠ CENTRE THE CROP (owner, 2026-08-03: "make the map the whole background
+     and centre it"). This is the default for `object-fit`, but stated
+     outright because it is load-bearing rather than incidental: the venue's
+     coordinates are the centre of the generated image (see
+     scripts/generate-venue-maps.mjs), so cropping from the middle is what
+     keeps the venue in frame at every aspect the background box takes. Any
+     other value silently pans away from the place the map is OF. */
+  object-position: center;
   border-radius: 10px;
   border: 1px solid var(--border);
 }
@@ -657,6 +665,23 @@
    answer. Two tiles read as one row: here is the area, here is the place. */
 .venueBody {
   display: block;   /* the address is no longer a column — it leads */
+  /* The positioning root for the absolutely-placed map — see .venueTile's
+     final rule below, where it becomes the section's full background. */
+  position: relative;
+
+  /* ⭐ ONE WIDTH FOR EVERY FLOATING PANEL (owner, 2026-08-03: "make the
+     address border the same as the directions button width"). The venue
+     card, the address and GET DIRECTIONS all read as one stack floating over
+     the map, and a stack only reads as a stack if its edges agree. Declared
+     here rather than repeated at each of the three, so they cannot drift
+     apart — it was already 150 for the card and a coincidental 153 for the
+     button, which is exactly the kind of near-miss this prevents. */
+  --yp-ep-venue-col: 150px;
+
+  /* How far the map's left and bottom edges sit inside the venue body, so
+     the floating panels overhang it — see .venueTile at the end of this
+     file. 15% of the panel column, in one place because both edges use it. */
+  --yp-ep-venue-map-inset: calc(var(--yp-ep-venue-col) * 0.15);
 }
 
 .venueTiles {
@@ -711,50 +736,73 @@
   .narrowOnly { display: block; }
 }
 
-/* Under the map, in a 150px column — tighter than the full-width version and
-   allowed to wrap, because a street address is longer than the tile is wide. */
+/* ⚠ THE ADDRESS'S ONE RULE. There used to be a second `.venueAddressTile`
+   block further down this file overriding font-size/line-height, plus a
+   phone media query re-overriding the font-size back — three rules, one
+   element, last-one-wins. Consolidated here (owner, 2026-08-03: "address can
+   have its own container"). */
 .venueAddressTile {
+  /* ⚠ ABOVE THE MAP, NOT UNDER IT. The map is absolutely positioned across
+     the whole venue body, and an absolutely-positioned element paints above
+     static siblings regardless of DOM order — so the address was being
+     covered by it (owner: "bring the adress text to the front"). Static
+     text cannot win that; it needs its own positioned layer. */
+  position: relative;
+  z-index: 2;
   margin-top: 8px;
-  font-size: 11px;
+  /* Matches GET DIRECTIONS and the card exactly — see --yp-ep-venue-col.
+     `box-sizing: border-box` is inherited from the app's global reset, so
+     this width includes the padding and border below and the three panels'
+     outer edges genuinely align. */
+  width: var(--yp-ep-venue-col, 150px);
+  /* ITS OWN CONTAINER. Sitting directly on a photographic map, unboxed text
+     is illegible wherever a pale road or label runs under it. The panel is
+     the same fill/edge language as .linkRow below it, so the two read as one
+     pair of surfaces over the picture rather than two unrelated treatments. */
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: rgba(10, 10, 20, 0.82);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  font-size: 12px;
   line-height: 1.45;
   overflow-wrap: anywhere;
 }
 
-/* ── § 7 · Venue — desktop column alignment ───────────────────────────
+/* ── § 7 · Venue — column alignment, EVERY WIDTH (owner, 2026-08-03: "make
+   it do this on the phone. increase the map size") ─────────────────────
    The map must END LEVEL with the bottom of the address text under the card
    (owner, 2026-08-02), so the two tiles are stretched to a common height and
-   the map fills whatever that turns out to be.
+   the map fills whatever that turns out to be. Desktop-only until now; the
+   phone-only "stacked, card peeking from behind" alternative that used to
+   live below this stopped working once the maps went dark (see its removal
+   note above) — this is the same underlay treatment desktop already had,
+   extended down to every width instead of being reinvented for phone.
 
    ⚠ This is why LocalityMap uses preserveAspectRatio="xMidYMid slice": the
    map is CROPPED to the height it is given, never squashed. The pin stays
    centred, so cropping top and bottom loses only outer country. Letting the
    SVG scale instead would distort every town's position, which is the one
    thing this map must never do. */
-@media (min-width: 641px) {
-  .venueTiles { align-items: stretch; }
+.venueTiles { align-items: stretch; }
 
-  .venueTiles .venueAside {
-    display: flex;
-    flex-direction: column;
-  }
-
-  /* The map tile is a flex column so the map itself can take the leftover
-     height after nothing else — it is the only child. */
-  .venueTile { display: flex; flex-direction: column; }
-  .venueTile > a,
-  .venueTile > svg { flex: 1 1 auto; min-height: 0; }
-  .venueTile > a { display: flex; }
-  .venueTile svg { height: 100%; }
+.venueTiles .venueAside {
+  display: flex;
+  flex-direction: column;
 }
 
-/* Under the card on desktop, under the map on phone — same block either way. */
-.venueAddressTile {
-  margin-top: 8px;
-  font-size: 12px;
-  line-height: 1.5;
-  overflow-wrap: anywhere;
-}
-@media (max-width: 640px) { .venueAddressTile { font-size: 11px; } }
+/* The map tile is a flex column so the map itself can take the leftover
+   height after nothing else — it is the only child. */
+.venueTile { display: flex; flex-direction: column; }
+.venueTile > a,
+.venueTile > svg { flex: 1 1 auto; min-height: 0; }
+.venueTile > a { display: flex; }
+.venueTile svg { height: 100%; }
+
+/* ⛔ The duplicate `.venueAddressTile` that sat here is GONE, and so is the
+   phone font-size override that existed only to undo it — see the single
+   consolidated rule above. */
 
 /* ⚠ THE CARD SETS THE MAP'S HEIGHT on desktop, because the map stretches to
    match the column beside it. Halving the map therefore means shrinking the
@@ -766,95 +814,112 @@
   .venueTile { flex: 1 1 auto; }
 }
 
-/* ⚠ THE CARD COLUMN SETS THE HEIGHT; THE MAP TAKES IT.
-   The map's natural 4:3 made IT the tallest item, so the row grew to fit the
-   map and the bottoms stopped agreeing. Absolutely positioning the map inside
-   a zero-height tile removes it from the height calculation entirely: the row
-   is exactly as tall as card + address, and the map fills that box and crops
-   (preserveAspectRatio="slice") rather than dictating it. */
-@media (min-width: 641px) {
-  .venueTile { position: relative; flex: 1 1 auto; display: block; }
-  .venueTile > a,
-  .venueTile > svg { position: absolute; inset: 0; }
-  .venueTile > a { display: block; }
-  .venueTile svg { width: 100%; height: 100%; }
-  .venueTiles .venueAside { max-width: 150px; flex: 0 0 150px; }
+/* ⚠ THE CARD COLUMN SETS THE HEIGHT; THE MAP TAKES IT — EVERY WIDTH NOW
+   (owner, 2026-08-03), not just desktop. This is "the underlay thing": the
+   card stays a fixed, compact width and the map fills all the remaining
+   row, cropped to match the card's height, rather than the two splitting
+   the row into equal tracks. On a 375px phone this alone takes the map from
+   a fixed 150×93 to roughly 180×200 — wider AND much taller, because it now
+   answers to the card's height instead of a flat 16:10 strip.
 
-  /* ⚠ THE IMAGE MUST FILL THE ANCHOR, NOT SIZE ITSELF. `.map` carries its own
-     `aspect-ratio: 16/9` (for the phone-stacked layout, where nothing else
-     constrains its height), and that rule was still winning here — an <img>'s
-     own aspect-ratio computes its height from ITS width regardless of an
-     absolutely-positioned parent. At the card's ~450px width that produced
-     253px, overflowing the 209px `inset:0` box by 44px and painting over
-     whatever sat below the section (owner: "going over the buttons").
-     `.venueTile > a` fills the tile; here the <img> is told to fill THAT
-     instead of computing its own height, which is also what makes the map
-     match the card's height rather than dictate a taller one. */
-  .venueTile > a .map {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    aspect-ratio: auto;
-  }
+   The map's natural 4:3 made IT the tallest item before this, so the row
+   grew to fit the map and the bottoms stopped agreeing. Absolutely
+   positioning the map inside a zero-height tile removes it from the height
+   calculation entirely: the row is exactly as tall as card + address, and
+   the map fills that box and crops (preserveAspectRatio="slice") rather
+   than dictating it. */
+.venueTiles .venueAside {
+  max-width: var(--yp-ep-venue-col, 150px);
+  flex: 0 0 var(--yp-ep-venue-col, 150px);
 }
 
-/* ── § 7 · Venue — PHONE: stacked pairing (owner, 2026-08-03) ───────────
-   Replaces the equal-width side-by-side tiles with the map sitting BEHIND
-   the card, 5% bigger on every side, so an even strip of it shows around the
-   card's edges — most visibly below, which is the effect the owner asked
-   for ("come down below it").
+/* ⚠ THE MAP IS THE SECTION'S BACKGROUND (owner, 2026-08-03: "make the map
+   the whole background and centre it. keep the venue card, address and
+   directions button floating"). Positioned against `.venueBody` (see its
+   `position: relative` above) rather than sitting in its own flex track, so
+   it is bounded by neither the tiles row's height nor its width.
 
-   Both boxes are sized off the SAME `--yp-ep-card-w` the card itself already
-   uses (EventVenueCard.jsx / PortraitCard), not a pair of fixed pixel values.
-   That is what "adjust on whatever device" means here: there is no phone
-   width baked in anywhere in this block, so wherever that variable ends up
-   (it already changes at wider breakpoints — see EventPageLayout.module.css)
-   the map stays proportional to the card automatically. */
-@media (max-width: 640px) {
-  /* Both children share the SAME grid cell — the standard way to overlap two
-     boxes without hand-computing pixel offsets for every screen width.
-     `align-items: center` on the shared cell is what makes the peek even on
-     all four sides: the map (the taller of the two) sets the cell's height,
-     and the card centres inside it. */
-  .venueTiles {
-    display: grid;
-    justify-items: center;
-    align-items: center;
-  }
+   Top and right stay flush to the venueBody box. It reaches down through
+   GET DIRECTIONS because that moved inside venueBody for exactly this (see
+   EventVenue.jsx); it used to stop level with the card.
 
-  .venueTiles .venueTile,
-  .venueTiles .venueAside {
-    grid-area: 1 / 1;
-  }
+   ⚠ THE LEFT AND BOTTOM EDGES ARE PULLED IN (owner, 2026-08-03: "bring the
+   map in 15% from the edge of the venue card so they look like theyre
+   floating", then "now up from the bottom 15%"). The panels' left 15% hangs
+   off the map's left edge, and the directions button's lower portion hangs
+   off its bottom, onto the page behind. That overhang is the whole effect:
+   a panel whose edges all sit INSIDE the picture reads as pinned to it,
+   while one that breaks the picture's edge reads as floating above it.
 
-  /* ⚠ PAINT ORDER, NOT JUST STACK ORDER. `order` earlier in this file swaps
-     which one reads first (owner, 2026-08-03: "swap the map and the portrait
-     card end for end") — and CSS `order` also reorders PAINTING inside a
-     grid, so without this the map would paint last and cover the card
-     instead of peeking out from behind it. z-index pins the card on top
-     regardless of `order`, since z-index applies to grid items even at the
-     default `position: static`. */
-  .venueTiles .venueTile   { z-index: 1; }
-  .venueTiles .venueAside  { z-index: 2; }
-
-  /* The map's own box: 105% of the card's width AND height, in the card's
-     own 3:4 shape — not the wide 16:9/16:10 used everywhere else `.map`
-     appears. A landscape strip poking past a portrait card would read as
-     mismatched proportions, not as one picture sitting behind another. */
-  .venueTiles .venueTile {
-    width: calc(var(--yp-ep-card-w, 124px) * 1.05);
-  }
-  .venueTiles .venueTile .map {
-    aspect-ratio: 3 / 4;
-  }
-
-  /* The card keeps its own natural width — the unscaled var — instead of
-     being stretched to fill half the row, which was the old equal-tiles
-     design this replaces. */
-  .venueTiles .venueAside {
-    width: var(--yp-ep-card-w, 124px);
-    max-width: none;
-    flex: none;
-  }
+   ⛔ NOT fixed px, and ⛔ not two separate values. Both edges read the one
+   --yp-ep-venue-map-inset, itself derived from the panel column, so the
+   overhang stays proportional if that column is ever retuned and the two
+   edges cannot drift apart — the same near-miss the shared column width
+   exists to prevent. */
+.venueTile {
+  position: absolute;
+  inset: 0 0 var(--yp-ep-venue-map-inset) var(--yp-ep-venue-map-inset);
 }
+.venueTile > a,
+.venueTile > svg { position: absolute; inset: 0; }
+.venueTile > a { display: block; }
+.venueTile svg { width: 100%; height: 100%; }
+
+/* ⚠ SCOPED TO .venueBody — `.linkRow` is shared with EventPoster.jsx, which
+   sizes its own copy inline. Nothing here may leak to that one.
+
+   SHORT, AND ON TOP OF THE MAP (owner, 2026-08-03: "shorten the directions
+   button and overlay it"). Two changes working together:
+     - `inline-flex` + an explicit width collapse it from a full-width bar to
+       one panel in the floating stack, so it reads as a button sitting on a
+       picture rather than a strip fencing the section off. The width is the
+       shared --yp-ep-venue-col, so it agrees with the card and the address
+       above it; `space-between` from the base rule then puts the label left
+       and the chevron on the right edge, which only works because the width
+       is now fixed rather than content-sized.
+     - `position: relative; z-index: 2` put it ABOVE the map. The map is
+       absolutely positioned across the whole venue body, and a positioned
+       element paints over static siblings whatever the DOM order, so the
+       button was being covered by it. Same fix as .venueAddressTile.
+   The opaque fill matters here: at 2% white over a photographic map the
+   label had roads running through it. */
+.venueBody .linkRow {
+  position: relative;
+  z-index: 2;
+  display: inline-flex;
+  width: var(--yp-ep-venue-col, 150px);
+  margin-top: 10px;
+  background: rgba(10, 10, 20, 0.82);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+/* ⚠ THE IMAGE MUST FILL THE ANCHOR, NOT SIZE ITSELF. `.map` carries its own
+   `aspect-ratio: 16/9` / `16/10` (from the .venueBody rules above, no
+   longer load-bearing now that nothing uses the flat-strip phone layout
+   they were tuned for), and that rule was still winning here — an <img>'s
+   own aspect-ratio computes its height from ITS width regardless of an
+   absolutely-positioned parent. At the card's ~450px width that produced
+   253px, overflowing the 209px `inset:0` box by 44px and painting over
+   whatever sat below the section (owner: "going over the buttons").
+   `.venueTile > a` fills the tile; here the <img> is told to fill THAT
+   instead of computing its own height, which is also what makes the map
+   match the card's height rather than dictate a taller one. */
+.venueTile > a .map {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  aspect-ratio: auto;
+}
+
+/* ⚠ THE PHONE "STACKED, CARD PEEKING FROM BEHIND" TREATMENT IS GONE
+   (2026-08-03). It sat the map behind the card via a shared grid cell, 5%
+   oversized so a few px peeked out on every edge. That reads fine on a light
+   map with a contrasting card; once the maps went dark (same session, later
+   the same day) a dark map behind a dark card came down to a 3-8px sliver
+   that just looked like a misaligned box rather than an intentional layer —
+   owner: "theyre basically stacked on each other". Phone now falls through to
+   the plain side-by-side pairing above (`.venueTiles`, `.venueTile`,
+   `.venueTiles .venueAside`) — unambiguous, and it is what "on phone the map
+   can be the same size as the venue card" already meant before this detour. */
