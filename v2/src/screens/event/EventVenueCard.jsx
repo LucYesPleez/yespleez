@@ -21,6 +21,14 @@ export default function EventVenueCard({
   name, address, locality, state, mapUrl, withheld = false,
   profile = null,
   onOpenVenue = null,
+  // ⚠ `bare` drops this component's OWN card chrome — padding, border,
+  // background (owner, 2026-08-02). Since § 7 took the card inside itself, the
+  // default wrapper drew a second bordered box inside the venue section's box,
+  // and a box inside a box reads as two things when it is one.
+  //
+  // Not removed outright: the dev layout harness still renders this standalone
+  // in the `venueCard` slot, where the chrome is the only thing giving it edges.
+  bare = false,
 }) {
   const v = resolveVenue({ name, address, locality, state, mapUrl, withheld });
 
@@ -28,16 +36,16 @@ export default function EventVenueCard({
   // yields entirely and the Venue section carries the notice on its own.
   if (!v || v.mode === 'withheld' || !v.name) return null;
 
-  return (
-    <section className={s.card}>
-      <div className={s.venueIdentity}>
-        <PortraitCard
-          profile={{ type: 'venue', name: v.name, location: locality, state, ...(profile || {}) }}
-          width="var(--yp-ep-card-w, 124px)"
-          height="auto"
-          onClick={onOpenVenue || undefined}
-        />
-      </div>
-    </section>
+  const identity = (
+    <div className={s.venueIdentity}>
+      <PortraitCard
+        profile={{ type: 'venue', name: v.name, location: locality, state, ...(profile || {}) }}
+        width="var(--yp-ep-card-w, 124px)"
+        height="auto"
+        onClick={onOpenVenue || undefined}
+      />
+    </div>
   );
+
+  return bare ? identity : <section className={s.card}>{identity}</section>;
 }

@@ -16,6 +16,40 @@
 // organiser chose to hide. Withheld is therefore checked FIRST, before anything
 // looks at coordinates at all.
 
+/**
+ * Split a venue's address into the two lines an address is written on
+ * (owner, 2026-08-02):
+ *
+ *     12 Street Ave,
+ *     Town, STATE, postcode
+ *
+ * ⚠ THE STORED `location` IS NOT CONSISTENT. Some rows hold a bare street
+ * ("3/5 Church St"), others a full formatted address that already ends in the
+ * town, state and postcode ("32 Hyde St, Bellingen, NSW, 2454"). Printing
+ * either verbatim and appending the region gives one line or three, and one of
+ * them says Bellingen twice.
+ *
+ * So the street line is whatever comes BEFORE the locality, and the region line
+ * is rebuilt from the structured columns — which are the reliable ones.
+ */
+export function addressLines({ address = '', locality = '', state = '', postcode = '' } = {}) {
+  const region = [locality, state, postcode].map(x => String(x || '').trim()).filter(Boolean).join(', ');
+
+  let street = String(address || '').trim();
+  if (street && locality) {
+    // Cut at the locality wherever it appears, then tidy the trailing comma.
+    const at = street.toLowerCase().indexOf(String(locality).toLowerCase());
+    if (at > 0) street = street.slice(0, at);
+  }
+  street = street.replace(/[\s,]+$/, '').trim();
+
+  // A "street" that is only the town again adds nothing — drop it and let the
+  // region line stand alone rather than printing the same words twice.
+  if (street && region && street.toLowerCase() === String(locality || '').toLowerCase()) street = '';
+
+  return { street: street || null, region: region || null };
+}
+
 export function resolveVenue({
   name = null,
   address = null,
@@ -24,14 +58,31 @@ export function resolveVenue({
   mapUrl = null,
   withheld = false,
 } = {}) {
-  const area = [locality, state].filter(Boolean).join(' ') || null;
+  const rawArea = [locality, state].filter(Boolean).join(' ') || null;
+
+  // ⚠ DO NOT PRINT THE SUBURB TWICE.
+  // A venue's stored `location` is frequently a full formatted address that
+  // already ends in the suburb, state and postcode — Bellingen Memorial Hall's
+  // is "32 Hyde St, Bellingen NSW 2454, Australia, Bellingen, NSW, 2454".
+  // Rendering `area` beneath that produced a third "Bellingen NSW".
+  //
+  // The address line is the more specific of the two, so it wins and the area
+  // line is dropped when it adds nothing. Compared loosely — punctuation and
+  // case vary wildly across geocoded, imported and hand-typed records, and an
+  // exact match would almost never fire.
+  const loose = str => String(str || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  const areaIsRedundant = !!(address && rawArea
+    && [locality, state].filter(Boolean).every(part => loose(address).includes(loose(part))));
+  const area = areaIsRedundant ? null : rawArea;
 
   // R1 · withheld. Checked before coordinates are consulted, deliberately.
+  // ⚠ Uses rawArea, not area: a withheld venue never renders its address, so
+  // the de-duplication above would delete the only locality the reader gets.
   if (withheld) {
-    return (name || area) ? { mode: 'withheld', name, area } : null;
+    return (name || rawArea) ? { mode: 'withheld', name, area: rawArea } : null;
   }
 
-  if (!name && !area && !address && !mapUrl) return null;
+  if (!name && !rawArea && !address && !mapUrl) return null;
 
   // A map needs something to render, not merely coordinates to exist. Until a
   // tile source is chosen the caller passes no mapUrl and this rung is simply

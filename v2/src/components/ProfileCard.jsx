@@ -22,8 +22,18 @@ export const TYPE_STYLES = Object.fromEntries(
  *   badge     – optional label overlay (e.g. "PENDING", "BOOKED")
  *   badgeColor – colour for badge
  *   actions   – optional JSX rendered below the card (accept/decline buttons etc.)
+ *   cover     – ⚠ event page's Presented By ONLY (owner, 2026-08-03), every
+ *               other caller must leave this false/unset. Doubles the card's
+ *               height, drops the small left-hand avatar circle (the same
+ *               picture already fills the card), and switches the overlay to
+ *               a bottom-up fade so the name/badge/location sit over the
+ *               image the way PortraitCard's do, rather than in a row beside
+ *               a thumbnail. A distinct prop rather than a new default: the
+ *               dashboards, Messenger's contact list and every other caller
+ *               are tuned for the compact 72px row and must not change shape
+ *               out from under them.
  */
-export default function ProfileCard({ item, badge, badgeColor, actions, onClick, followAction = null }) {
+export default function ProfileCard({ item, badge, badgeColor, actions, onClick, followAction = null, cover = false }) {
   const navigate = useNavigate();
   if (!item) return null;
   // 10F: one resolver, no artist sentinel. `item.type || 'artist'` then
@@ -55,7 +65,7 @@ export default function ProfileCard({ item, badge, badgeColor, actions, onClick,
 
   return (
     <div
-      className={s.card}
+      className={s.card + (cover ? ' ' + s.cover : '')}
       style={{ '--accent': ts.col, '--accent-rgb': ts.rgb }}
       onClick={() => {
         // An OPTIONAL override, not a new default. Messenger's contact list
@@ -75,7 +85,9 @@ export default function ProfileCard({ item, badge, badgeColor, actions, onClick,
 
       {/* Content sits above overlay */}
       <div className={s.content}>
-        {/* Avatar thumbnail on the left */}
+        {/* Avatar thumbnail. In `cover` mode it sits STACKED ABOVE the name
+            (owner, 2026-08-03) rather than beside it in a row — see
+            `.cover .content` for the column layout that makes that stack. */}
         {/* The DP carries the type: a 2px ring in the muted tone plus a soft outer glow of the
             same colour. Both are deliberately quiet — at ~25% saturation this reads as a
             coloured edge, not a highlight. */}

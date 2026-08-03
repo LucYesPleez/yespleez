@@ -10,6 +10,13 @@
 }
 .card:hover { transform: translateY(-1px); }
 
+/* ⚠ EVENT PAGE'S PRESENTED BY ONLY (owner, 2026-08-03) — every other caller
+   passes no `cover` prop and is untouched by anything below. Twice the
+   compact row's 72px, and the overlay/content rules further down switch from
+   a left-aligned row to bottom-anchored text over the full image, matching
+   how PortraitCard presents the lineup. */
+.cover { min-height: 144px; }
+
 /* Full-bleed background image */
 .bgImg {
   position: absolute;
@@ -41,6 +48,20 @@
   );
 }
 
+/* BOTTOM-UP fade, replacing the row card's left-to-right one — front-loaded
+   past the halfway mark for the same reason the Lineup's own cut-row fade
+   is (see EventLineup.module.css): a gentle linear ramp barely darkens in
+   its first half, and the name/badge/location need to sit on solid ground
+   at the bottom, not a still-mostly-transparent gradient. Fully clear by the
+   top so the picture itself stays visible, the way PortraitCard's does. */
+.cover .bgOverlay {
+  background: linear-gradient(to top,
+    rgba(10,10,20,.95)  0%,
+    rgba(10,10,20,.75)  35%,
+    rgba(10,10,20,.15)  70%,
+    rgba(10,10,20,0)    100%);
+}
+
 /* Content sits above overlay */
 .content {
   position: relative;
@@ -49,6 +70,21 @@
   display: flex;
   align-items: center;
   gap: 14px;
+}
+
+/* Bottom-anchored, not vertically centred — the text sits on the solid part
+   of the fade above, over the card's full-bleed image, the way a name reads
+   on a poster rather than in a list row.
+   COLUMN, not the row layout above (owner, 2026-08-03: "put the avatar back
+   ... stack it above the yespleez") — the avatar sits above the name/badge/
+   location block instead of beside it. */
+.cover .content {
+  position: absolute;
+  inset: auto 0 0 0;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding-bottom: 16px;
 }
 
 .avatar {

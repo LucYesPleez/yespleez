@@ -89,17 +89,25 @@
   /* The cut-off edge needs to read as "there is more" rather than as a
      rendering fault. Only while there IS more: a fade that never goes away
      says the list is endless, and at the bottom of the bill it would be
-     dimming the last artists for no reason. */
-  .moreBelow::after {
-    content: '';
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    height: 44px;
-    pointer-events: none;
-    background: linear-gradient(to bottom, rgba(10, 10, 15, 0), var(--dark));
-    transition: opacity var(--yp-medium, .2s);
+     dimming the last artists for no reason.
+
+     ⚠ A MASK ON THE SCROLLER, NOT A GRADIENT BAND OVER THE COLUMN.
+     This was a painted `::after` strip spanning the wrapper's full width. The
+     last row is rarely full — five artists leave row three with one card and
+     an empty half — and the page sits on a blurred hero image, not on flat
+     `--dark`, so the half of the strip with no card under it was a dark smear
+     over the backdrop (owner, 2026-08-03: "its floating in the air"). Fading
+     to a colour only disappears if that colour is what is actually behind it,
+     which on this page it is not.
+     Masking fades the CARDS to transparent instead, so the cue exists only
+     where there is a card to fade and the backdrop shows through untouched
+     everywhere else. The mask is positioned in the element's own box, so it
+     stays pinned to the bottom edge while the content scrolls beneath it.
+     52px ≈ a third of a card: enough that the clipped row is unmistakably
+     dimmed rather than merely tinted at its last few pixels. */
+  .moreBelow .rail {
+    -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 52px), transparent 100%);
+    mask-image: linear-gradient(to bottom, #000 calc(100% - 52px), transparent 100%);
   }
 
   /* The horizontal cues belong to the rail, not the grid. */

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   buildEventView, buildVenue, buildLineup, buildDetails, buildSources,
   readClock, readGenres, readDate, readEndDate, readTickets, readDateConfidence,
-  relativeTime,
+  relativeTime, buildCollectables,
 } from './eventViewModel.js';
 
 // The real row, trimmed. Every field below exists on event
@@ -252,4 +252,94 @@ test('buildEventView survives an empty call', () => {
   const view = buildEventView();
   assert.equal(view.name, '');
   assert.deepEqual(view.lineup.artists, []);
+});
+
+/* ─── § 11 · Collectables ──────────────────────────────────────────────
+ *
+ * WHY THESE EARN THEIR KEEP. This shelf is public, and the failure modes are
+ * both silent and asymmetric: a duplicate logo just looks sloppy, but the
+ * ORDER and the DEDUPE are what stop a venue that hosts its own night from
+ * appearing twice, and an empty tile is a hole on a page whose whole contract
+ * (R1) says absent is absent. None of it throws.
+ */
+
+const LOGOS = {
+  v1: [{ id: 'l1', url: 'https://cdn/v1.png', file_name: 'venue.png' }],
+  h1: [{ id: 'l2', url: 'https://cdn/h1.png', file_name: 'host.png' }],
+  a1: [{ id: 'l3', url: 'https://cdn/a1.png', file_name: 'act.png' }],
+};
+
+test('collectables run venue, then host, then the bill', () => {
+  const items = buildCollectables({
+    venueProfile: { id: 'v1', name: 'The Brewery' },
+    ownerProfile: { id: 'h1', name: 'Loyal' },
+    lineup: [{ id: 'a1', name: 'Cosmatik' }],
+    logosByProfile: LOGOS,
+  });
+  assert.deepEqual(items.map(i => i.id), ['l1', 'l2', 'l3']);
+  assert.equal(items[0].alt, 'The Brewery logo', 'alt names the owner — it is all that distinguishes one tile');
+  assert.equal(items[0].filename, 'venue.png');
+});
+
+test('a venue hosting its own night is ONE logo, not two', () => {
+  const self = { id: 'v1', name: 'The Brewery' };
+  const items = buildCollectables({
+    venueProfile: self, ownerProfile: self, lineup: [], logosByProfile: LOGOS,
+  });
+  assert.equal(items.length, 1);
+});
+
+test('a profile with no logo contributes nothing — never an empty tile', () => {
+  const items = buildCollectables({
+    venueProfile: { id: 'v1', name: 'V' },
+    ownerProfile: { id: 'NOPE', name: 'No logo' },
+    lineup: [{ id: 'also-none', name: 'X' }],
+    logosByProfile: LOGOS,
+  });
+  assert.deepEqual(items.map(i => i.id), ['l1']);
+});
+
+test('a logo row with no url is dropped rather than rendered broken', () => {
+  const items = buildCollectables({
+    venueProfile: { id: 'v1', name: 'V' },
+    logosByProfile: { v1: [{ id: 'x', url: '' }, { id: 'y', url: 'https://cdn/ok.png' }] },
+  });
+  assert.deepEqual(items.map(i => i.id), ['y']);
+});
+
+test('an event with nobody and nothing yields an empty shelf, not a throw', () => {
+  assert.deepEqual(buildCollectables(), []);
+});
+
+/* ─── One entity, one card ─────────────────────────────────────────── */
+
+test('a venue running its own night is presented ONCE, not twice', () => {
+  // The Bellingen Brewing Co / Tigersnake: owner_profile_id === venue_profile_id.
+  // § 7 already names the venue; "Presented by" the same profile drew the same
+  // portrait a second time and read as two businesses with one name.
+  const self = { id: 'v1', type: 'venue', name: 'The Bellingen Brewing Co' };
+  const view = buildEventView({
+    event: { name: 'Tigersnake', config: { venue: 'The Bellingen Brewing Co' } },
+    ownerProfile: self,
+    venueProfile: self,
+  });
+  assert.equal(view.presentedBy.presenter, null, 'the venue card in § 7 is the survivor');
+});
+
+test('a real promoter at someone else\'s venue still presents', () => {
+  const view = buildEventView({
+    event: { name: 'Clitoverse', config: {} },
+    ownerProfile: { id: 'h1', type: 'host', name: 'Clitoverse' },
+    venueProfile: { id: 'v1', type: 'venue', name: 'The Bellingen Brewing Co' },
+  });
+  assert.equal(view.presentedBy.presenter.name, 'Clitoverse');
+  assert.equal(view.presentedBy.presenter.type, 'host');
+});
+
+test('no owner at all still presents nobody', () => {
+  const view = buildEventView({
+    event: { name: "Neverland '26", config: {} },
+    venueProfile: { id: 'v1', type: 'venue', name: 'Bellingen Memorial Hall' },
+  });
+  assert.equal(view.presentedBy.presenter, null);
 });

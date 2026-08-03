@@ -140,10 +140,16 @@ export default function EventPageLayout({
           HALF THE WIDTH EACH, at both breakpoints (owner, 2026-08-01). Two
           equal tracks, so neither the venue nor the presenter is framed as the
           more important of the two. */}
-      <div className={s.venueBand}>
-        {venueCard   && <div className={s.oVenueCard}>{venueCard}</div>}
-        {presentedBy && <div className={s.oPresented}>{presentedBy}</div>}
-      </div>
+      {/* R5 · no band when there is nothing to put in it. Since the venue card
+          moved into § 7 and § 10 stopped falling back to the venue, an event
+          with no known organiser has neither child — and an empty flex row
+          still spends its gap and margin, which is a hole. */}
+      {(venueCard || presentedBy) && (
+        <div className={s.venueBand}>
+          {venueCard   && <div className={s.oVenueCard}>{venueCard}</div>}
+          {presentedBy && <div className={s.oPresented}>{presentedBy}</div>}
+        </div>
+      )}
 
       {/* The map runs FULL WIDTH and sits ABOVE Event Details (owner,
           2026-08-01) — a wide map is the point of a map, and the reader places

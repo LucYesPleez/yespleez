@@ -68,3 +68,41 @@ test('⚠ with nothing to point at, there is no directions query at all', () => 
   assert.equal(directionsQuery({}), null);
   assert.equal(directionsQuery({ name: null, address: null, area: null }), null);
 });
+
+/* ─── The suburb must not print twice ──────────────────────────────── */
+
+test('a formatted address that already contains the suburb drops the area line', () => {
+  // Bellingen Memorial Hall's real stored location — geocoded, then had the
+  // suburb/state/postcode appended again by whatever wrote it.
+  const v = resolveVenue({
+    name: 'Bellingen Memorial Hall',
+    address: '32 Hyde St, Bellingen NSW 2454, Australia, Bellingen, NSW, 2454',
+    locality: 'Bellingen',
+    state: 'NSW',
+  });
+  assert.equal(v.mode, 'address');
+  assert.equal(v.area, null, 'the address already says Bellingen NSW — do not say it a third time');
+});
+
+test('an address that does NOT contain the suburb keeps the area line', () => {
+  const v = resolveVenue({ name: 'Elbows Rest', address: '12 Church St', locality: 'Thora', state: 'NSW' });
+  assert.equal(v.area, 'Thora NSW', 'a street address alone still needs its town');
+});
+
+test('a withheld venue keeps its locality even when an address exists', () => {
+  // Withheld never renders the address, so de-duplicating against it would
+  // delete the only location the reader is allowed to see.
+  const v = resolveVenue({
+    name: 'Secret Doof',
+    address: 'Somewhere near Bellingen NSW',
+    locality: 'Bellingen', state: 'NSW', withheld: true,
+  });
+  assert.equal(v.mode, 'withheld');
+  assert.equal(v.area, 'Bellingen NSW');
+});
+
+test('a locality-only venue is unaffected by the de-duplication', () => {
+  const v = resolveVenue({ name: 'TBA', locality: 'Bellingen', state: 'NSW' });
+  assert.equal(v.mode, 'locality');
+  assert.equal(v.area, 'Bellingen NSW');
+});

@@ -14,7 +14,7 @@
 // ⚠ NOTHING HERE READS `event.config`. If a field is needed, it is added to
 // the view model with every legacy spelling it has, once, where it can be
 // tested — not reached for a second time here with a different fallback.
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import EventPageLayout from './EventPageLayout';
@@ -29,7 +29,10 @@ import EventPoster from './EventPoster';
 import EventPresentedBy from './EventPresentedBy';
 import EventSources from './EventSources';
 
-import { buildEventView } from './eventViewModel';
+import { buildEventView, buildCollectables } from './eventViewModel';
+import { fetchDistributableLogos } from '../../lib/profileAssetStore';
+import { navigationUrl } from '../../lib/navigateTo';
+import { venueMapImageUrl } from '../../lib/venueMap';
 import { profileUrl } from '../../lib/profileResolution';
 import { shareUrl } from '../../lib/shareTarget';
 
@@ -52,12 +55,39 @@ export default function EventPage({
   const navigate = useNavigate();
   const [collected, setCollected] = useState(false);
 
+  // § 11 — logos for everyone involved. Loaded after the page renders: the
+  // collectables shelf is the LAST section and must never delay the Hero or
+  // the decision block above it.
+  const [logosByProfile, setLogosByProfile] = useState({});
+  const involvedIds = useMemo(() => [
+    venueProfile?.id,
+    ownerProfile?.id,
+    ...Object.values(memberProfiles || {}).map(p => p?.id),
+  ].filter(Boolean).join(','), [venueProfile, ownerProfile, memberProfiles]);
+
+  useEffect(() => {
+    if (!involvedIds) { setLogosByProfile({}); return; }
+    let cancelled = false;
+    fetchDistributableLogos(involvedIds.split(','))
+      .then(m => { if (!cancelled) setLogosByProfile(m); });
+    return () => { cancelled = true; };
+  }, [involvedIds]);
+
   // Rebuilt only when the data behind it changes. `now` is captured per build
   // rather than per render so the status pill and "last checked" cannot
   // disagree with each other mid-page.
   const v = useMemo(
     () => buildEventView({ event, ownerProfile, venueProfile, lineupMembers, memberProfiles }),
     [event, ownerProfile, venueProfile, lineupMembers, memberProfiles],
+  );
+
+  const collectables = useMemo(
+    () => buildCollectables({
+      ownerProfile, venueProfile,
+      lineup: Object.values(memberProfiles || {}).filter(Boolean),
+      logosByProfile,
+    }),
+    [ownerProfile, venueProfile, memberProfiles, logosByProfile],
   );
 
   const openProfile = profile => {
@@ -117,12 +147,32 @@ export default function EventPage({
 
       setTimes={setTimes}
 
-      venue={<EventVenue {...v.venue} />}
-
-      venueCard={
-        <EventVenueCard
+      /* The venue's card now rides INSIDE § 7 rather than in the card band
+         above it (owner, 2026-08-02) — one venue, one place on the page. The
+         `venueCard` slot is left empty so the band collapses to the presenter
+         alone, or disappears entirely on an event with no known organiser. */
+      /* The map image and the navigation target are assembled HERE, not in the
+         view model: one needs the storage client and the other needs
+         `navigator`, and eventViewModel stays pure so it remains testable.
+         Both are null for a withheld location — the view model nulls
+         `profileId` and `coords` rather than trusting this call site. */
+      venue={
+        <EventVenue
           {...v.venue}
-          onOpenVenue={v.venue.profile ? () => openProfile(v.venue.profile) : null}
+          mapUrl={venueMapImageUrl(v.venue.postcode)}
+          navUrl={navigationUrl({
+            lat: v.venue.coords?.lat,
+            lng: v.venue.coords?.lng,
+            label: v.venue.name,
+            address: [v.venue.address, v.venue.locality, v.venue.state].filter(Boolean).join(', '),
+          })}
+          card={
+            <EventVenueCard
+              {...v.venue}
+              bare
+              onOpenVenue={v.venue.profile ? () => openProfile(v.venue.profile) : null}
+            />
+          }
         />
       }
 
@@ -131,8 +181,11 @@ export default function EventPage({
       gallery={
         <EventPoster
           poster={v.poster}
-          /* No collectables model exists yet. Absent, not an empty shelf. */
-          collectables={[]}
+          /* § 11 — the poster plus the logos of the venue, host and every act
+             on the bill. LOGO_PACK is the only world-readable asset type; if
+             the fetch is still in flight or nobody has uploaded one, this is
+             an empty array and the shelf simply does not render. */
+          collectables={collectables}
           collected={collected}
           onToggleCollect={() => setCollected(c => !c)}
         />
@@ -140,12 +193,19 @@ export default function EventPage({
 
       relatedEvents={null}
 
+      /* ⚠ null, not an element that renders null. A React element is TRUTHY
+         even when its component returns null, so passing one unconditionally
+         made the layout's `{(venueCard || presentedBy) && …}` guard always
+         true — the card band rendered as an empty row, spending its gap and
+         margin on nothing (R5). The decision has to be made here, where the
+         data is, not downstream where only an element is visible. */
       presentedBy={
-        <EventPresentedBy
-          presenter={v.presentedBy.presenter}
-          venue={v.presentedBy.venue}
-          onViewProfile={p => openProfile(p?.profile || p)}
-        />
+        v.presentedBy.presenter?.name
+          ? <EventPresentedBy
+              presenter={v.presentedBy.presenter}
+              onViewProfile={p => openProfile(p?.profile || p)}
+            />
+          : null
       }
 
       informationSources={<EventSources {...v.sources} />}

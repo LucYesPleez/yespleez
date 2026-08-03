@@ -20,6 +20,7 @@
 // it passes the uncertainty along rather than flattening it.
 
 import { DEFAULT_CROP_Y } from './heroMedia';
+import { postcodeCoords } from '../../lib/geo';
 
 /* ── config readers ──────────────────────────────────────────────────
    One place per field, listing every spelling it has ever had. New writers
@@ -89,15 +90,34 @@ export function buildVenue({ event = {}, cfg = {}, venueProfile = null } = {}) {
   const locality = first(venueProfile?.suburb, cfg.suburb, venueProfile?.location && null);
   const state    = first(venueProfile?.state, cfg.state);
 
+  // Street coords where the record has them, otherwise the postcode centroid
+  // from AU_POSTCODES — suburb-level, which is the right precision for an
+  // image whose job is "which town". No geocoder, no second key.
+  const postcode = first(venueProfile?.postcode, cfg.postcode, event.postcode);
+  const lat = first(venueProfile?.lat, event.lat);
+  const lng = first(venueProfile?.lng, event.lng);
+  const coords = (lat != null && lng != null) ? { lat, lng } : postcodeCoords(postcode, state);
+
   return {
     name, address, locality, state, withheld,
-    // No tile provider has been chosen, so there is no mapUrl to give. The
-    // ladder falls to the address, which is honest — an empty map frame is
-    // the hole R5 forbids. Coordinates are carried anyway so the day a
-    // provider lands, this is the only line that changes.
+    // ⚠ NO mapUrl AND NO navUrl ARE BUILT HERE, deliberately.
+    // Both need things this module must not touch: the storage client (which
+    // reads env at import time and would break every test that imports this
+    // file) and `navigator` (a browser global). This module stays PURE — it is
+    // the reason the event page is testable at all.
+    //
+    // EventPage assembles both from the fields below. `profileId` is what the
+    // stored map's object path is derived from; `coords` is where navigation
+    // is aimed. A withheld location yields neither, and that decision is made
+    // HERE so a caller cannot forget it.
     mapUrl: null,
-    lat: first(venueProfile?.lat, event.lat),
-    lng: first(venueProfile?.lng, event.lng),
+    profileId: withheld ? null : (venueProfile?.id || null),
+    coords:    withheld ? null : (coords || null),
+    // The locality map is drawn from the POSTCODE — one picture per postcode,
+    // shared by every venue in it. Null when withheld: a secret location does
+    // not get a map of its town either.
+    postcode:  withheld ? null : (postcode || null),
+    lat, lng,
     profile: venueProfile || null,
   };
 }
@@ -192,6 +212,58 @@ export function relativeTime(iso, now = new Date()) {
 }
 
 /* ── the whole page ──────────────────────────────────────────────────── */
+/**
+ * § 11 · The collectables shelf — the official poster plus the logos of the
+ * profiles actually involved in this event: the venue, the host/owner, and
+ * every act on the bill (owner, 2026-08-02).
+ *
+ * `logosByProfile` is `{ [profile_id]: [{id, url, file_name}] }`, fetched by the
+ * caller — see profileAssetStore.fetchDistributableLogos. Only LOGO_PACK is
+ * world-readable; nothing else in profile_assets may reach a public page.
+ *
+ * ── WHY THIS IS A PURE FUNCTION ──────────────────────────────────────
+ * It decides WHICH profiles are involved and in what order, which is the part
+ * worth testing. The fetch is dumb by comparison. Order is deliberate: venue,
+ * then host, then the bill in lineup order — the same top-down reading order
+ * the rest of the page uses.
+ *
+ * A profile is listed ONCE even when it holds two roles (a venue that hosts its
+ * own night is one logo, not two), and a profile with no logo contributes
+ * nothing rather than an empty tile — R1, absent is absent.
+ */
+export function buildCollectables({
+  ownerProfile = null,
+  venueProfile = null,
+  lineup = [],
+  logosByProfile = {},
+} = {}) {
+  const seen = new Set();
+  const out = [];
+
+  const push = (profile) => {
+    const id = profile?.id;
+    if (!id || seen.has(id)) return;
+    seen.add(id);
+    for (const logo of logosByProfile[id] || []) {
+      if (!logo?.url) continue;
+      out.push({
+        id:       logo.id,
+        url:      logo.url,
+        filename: logo.file_name || '',
+        // The alt text names the owner, because that is the only thing that
+        // distinguishes one logo tile from another to a screen reader.
+        alt:      `${profile.name || 'Profile'} logo`,
+      });
+    }
+  };
+
+  push(venueProfile);
+  push(ownerProfile);
+  for (const act of lineup) push(act);
+
+  return out;
+}
+
 export function buildEventView({
   event = {},
   ownerProfile = null,
@@ -260,10 +332,21 @@ export function buildEventView({
     details: buildDetails(cfg),
 
     presentedBy: {
-      // Owner presents where one is known, venue otherwise. Owner linkage
-      // covers 32 of 50 rows and venue linkage 46, so the fallback is the
-      // common path, not a theoretical one.
-      presenter: ownerProfile?.name
+      // The owner presents, where one is known and is not simply the venue
+      // again.
+      //
+      // ⚠ A VENUE THAT RUNS ITS OWN NIGHT IS ONE ENTITY, NOT TWO
+      // (owner, The Bellingen Brewing Co / Tigersnake, 2026-08-02).
+      // `owner_profile_id` frequently equals `venue_profile_id` — a pub
+      // promoting its own gig is the normal case, not an edge one. Presenting
+      // it here as well as in § 7 drew the same portrait twice on one page,
+      // once labelled VENUE and once as the presenter, which reads as two
+      // businesses with the same name rather than one doing both jobs.
+      //
+      // § 7's venue card is the survivor because it is the more specific
+      // claim: it names where the event physically is. "Presented by" adds
+      // nothing when the answer is the venue you just read.
+      presenter: ownerProfile?.name && ownerProfile.id !== venueProfile?.id
         ? {
             name: ownerProfile.name,
             type: ownerProfile.type || 'host',

@@ -141,9 +141,14 @@
 /* R5 · a lone survivor takes the full width rather than sitting beside a
    reserved empty track. Both selectors are needed: `:has()` on the container
    is the only honest test, since a section that returns null still leaves its
-   wrapper div behind. */
+   wrapper div behind.
+   ⚠ `1fr`, not `auto` (2026-08-03). `auto` sizes the track to its content's
+   max-content width — harmless when the lone survivor was a fixed-width
+   portrait, but Presented By's card+bio row now wants real width to wrap
+   its text in. An `auto` track let the bio's un-wrapped line set the track
+   width instead, stretching the row far wider than the column beside it. */
 .venueBand:not(:has(.oVenueCard)),
-.venueBand:not(:has(.oPresented)) { grid-template-columns: auto; }
+.venueBand:not(:has(.oPresented)) { grid-template-columns: 1fr; }
 
 /* Nothing rendered at all — no band, no gap, no hole. */
 .venueBand:not(:has(section)) { display: none; }
