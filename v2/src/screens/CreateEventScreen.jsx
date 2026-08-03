@@ -12,7 +12,13 @@ import { requestableBySection, requirementLabel } from '../lib/requirements';
 // The renderer's own constants — imported rather than restated, so the band
 // the organiser drags here and the band the public Hero draws can never
 // disagree about their shape or their default position.
-import { DEFAULT_CROP_Y, MIN_CROP_COVERAGE, MAX_SLIDES } from './event/heroMedia';
+// MIN_CROP_COVERAGE is deliberately NOT imported. It gates the LIVE CSS band
+// (heroMedia rungs 4–6), which can only ever be a full-width slice — below the
+// threshold a band stops representing the poster and falls through to the blur.
+// The crop tool has no such limit: it zooms, and its output is a baked image
+// rather than an object-position on the original. heroMedia still enforces it
+// for the fallback path.
+import { DEFAULT_CROP_Y, MAX_SLIDES } from './event/heroMedia';
 import { uploadPosterCrop } from '../lib/uploadImage';
 
 // One Cover plus five, per the spec's cap — derived from MAX_SLIDES rather
@@ -383,7 +389,12 @@ export default function CreateEventScreen() {
   // Cover — spec §0.4. 0–100, the same scale `object-position` uses, so what
   // is stored here is literally what the public Hero renders with.
   const [posterCropY, setPosterCropY] = useState(DEFAULT_CROP_Y);
-  const [posterDims,  setPosterDims]  = useState(null);   // natural w/h, for the band geometry
+  const [posterDims,  setPosterDims]  = useState(null);   // natural w/h, for the crop geometry
+  // How many times narrower than the poster the crop window is. 1 = full
+  // width; larger = zoomed in. `cropX` only bites once it is narrower than
+  // the poster — at full width there is nowhere horizontal to go.
+  const [cropZoom,    setCropZoom]    = useState(1);
+  const [cropX,       setCropX]       = useState(50);
   const [cropMode,    setCropMode]    = useState(false);
   // Bands kept off the poster — the carousel (rung 1). Array of plain URLs:
   // the config should stay the simplest thing that survives a hand-edit.
@@ -471,48 +482,71 @@ export default function CreateEventScreen() {
     });
   }, [editId]);
 
-  /* ── The cover band over the poster (spec §0.4) ──────────────────────
-     The poster renders at full width, so the band's height is pure geometry:
-     a 3:2 slice of a W-wide poster is W×2/3 tall, which as a percentage of
-     the poster's own displayed height is (2/3)·(naturalW/naturalH)·100. No
-     measurement needed, so it cannot disagree with what the browser lays out.
+  /* ── The crop rectangle over the poster ─────────────────────────────
+     A 3:2 window the organiser sizes and moves. `cropZoom` is how many times
+     narrower it is than the poster, so 1 is full width and 2 is half — which
+     makes "zoomed in" and "a bigger number" agree, and keeps the arithmetic
+     below a division rather than a special case.
 
-     null  → no poster yet, or the poster is too tall for a band to represent
-             (MIN_CROP_COVERAGE). heroMedia falls to the blurred treatment for
-             those, so offering a band to drag would promise a cover that is
-             never going to be used.
-     ≥100  → the poster is wider than the cover frame; all of it shows and
-             there is nothing to position. */
-  const bandPct = (() => {
+     Percentages of the POSTER's own displayed box, so nothing needs measuring
+     and the overlay cannot drift from what the browser lays out:
+       width  = 100 / zoom
+       height = (2/3)·(w/h)·100 / zoom      ← a 3:2 slice of that width
+     Position travels the LEFTOVER space, exactly like object-position. */
+  const cropGeom = (() => {
     if (!poster || !posterDims?.w || !posterDims?.h) return null;
-    const pct = (2 / 3) * (posterDims.w / posterDims.h) * 100;
-    if (pct / 100 < MIN_CROP_COVERAGE) return null;
-    return Math.min(100, pct);
+    const { w, h } = posterDims;
+    // The rectangle must fit inside the poster. A wide poster cannot hold a
+    // full-width 3:2 slice — it would be taller than the image — so its
+    // minimum zoom is above 1 rather than the crop being refused.
+    const minZoom = Math.max(1, (2 * w) / (3 * h));
+    const maxZoom = 4;
+    const zoom = Math.min(maxZoom, Math.max(minZoom, cropZoom));
+    const wPct = 100 / zoom;
+    const hPct = ((2 / 3) * (w / h) * 100) / zoom;
+    if (hPct > 100.01) return null;            // unreachable after the clamp; guards a bad dim read
+    return {
+      minZoom, maxZoom, zoom, wPct, hPct,
+      leftPct: (100 - wPct) * (cropX / 100),
+      topPct:  (100 - hPct) * (posterCropY / 100),
+      canMoveX: wPct < 99.9,
+      canMoveY: hPct < 99.9,
+    };
   })();
 
-  // object-position semantics: at Y%, the point Y% down the IMAGE sits Y% down
-  // the FRAME — so the band's top travels across the leftover height exactly
-  // in proportion. Same arithmetic the browser does for the public Hero.
-  const bandTopPct = bandPct === null ? 0 : (100 - bandPct) * (posterCropY / 100);
+  // Whether the LIVE hero band (posterCropY driving object-position) still
+  // describes what the organiser sees. It only can at full width — a zoomed
+  // rectangle is not expressible as `object-position` on the original poster,
+  // it has to be baked. Kept crops are baked, so they are unaffected.
+  const bandMatchesHero = !!cropGeom && cropGeom.wPct > 99.9;
 
-  function startBandDrag(e) {
-    if (bandPct === null || bandPct >= 100) return;
+  function startCropDrag(e) {
+    if (!cropGeom) return;
     const touch = e.touches?.[0];
     if (!touch) e.preventDefault();
-    const rect = cropRef.current.getBoundingClientRect();
-    const startClientY = touch ? touch.clientY : e.clientY;
-    dragState.current = { startClientY, startCropY: posterCropY, h: rect.height };
+    const box = cropRef.current.getBoundingClientRect();
+    const t = touch || e;
+    dragState.current = {
+      startX: t.clientX, startY: t.clientY,
+      startCropX: cropX, startCropY: posterCropY,
+      w: box.width, h: box.height,
+    };
 
     const move = ev => {
-      const c = ev.touches?.[0];
-      const y = c ? c.clientY : ev.clientY;
-      const { startClientY: sy, startCropY, h } = dragState.current;
-      // Travel is over the LEFTOVER height, not the whole poster — dragging
-      // the band one band-height down is not a 100% change in crop position.
-      const travel = h * (100 - bandPct) / 100;
-      if (travel <= 0) return;
-      const next = startCropY + ((y - sy) / travel) * 100;
-      setPosterCropY(Math.min(100, Math.max(0, Math.round(next))));
+      const c = ev.touches?.[0] || ev;
+      const d = dragState.current;
+      // Travel is the leftover space, not the whole poster — moving the
+      // rectangle its own width is not a 100% change in position.
+      const travelX = d.w * (100 - cropGeom.wPct) / 100;
+      const travelY = d.h * (100 - cropGeom.hPct) / 100;
+      if (travelX > 0) {
+        const nx = d.startCropX + ((c.clientX - d.startX) / travelX) * 100;
+        setCropX(Math.min(100, Math.max(0, Math.round(nx))));
+      }
+      if (travelY > 0) {
+        const ny = d.startCropY + ((c.clientY - d.startY) / travelY) * 100;
+        setPosterCropY(Math.min(100, Math.max(0, Math.round(ny))));
+      }
     };
     const up = () => {
       window.removeEventListener('mousemove', move);
@@ -526,16 +560,20 @@ export default function CreateEventScreen() {
     window.addEventListener('touchend', up);
   }
 
-  /* Keep the band that is showing right now as a carousel image. The band
-     stays where it is afterwards — the organiser is usually about to drag to
-     the next thing they want, and resetting it would make them find their
-     place again. */
+  /* Keep the rectangle showing right now as a carousel image. It stays put
+     afterwards — the organiser is usually about to move to the next thing they
+     want, and resetting would make them find their place again. */
   async function keepCrop() {
-    if (!poster || cropBusy || gallery.length >= MAX_GALLERY) return;
+    if (!poster || !cropGeom || cropBusy || gallery.length >= MAX_GALLERY) return;
     setCropBusy(true);
     setCropError('');
     try {
-      const { url } = await uploadPosterCrop(poster, posterCropY, session?.user?.id, makeId());
+      const { url } = await uploadPosterCrop(
+        poster,
+        { zoom: cropGeom.zoom, x: cropX, y: posterCropY },
+        session?.user?.id,
+        makeId(),
+      );
       setGallery(g => [...g, url]);
       // The carousel only leads with a Cover (heroMedia rung 1 needs one, and
       // gallery images deliberately do not promote themselves). Without this,
@@ -855,44 +893,84 @@ export default function CreateEventScreen() {
                     : <div style={{ textAlign:'center', color:'rgba(255,255,255,0.4)', fontSize:13 }}><div style={{ fontSize:28, marginBottom:6 }}>+</div><div>Tap to add poster</div></div>
                   }
 
-                  {/* The band. Its HEIGHT is fixed by geometry — a 3:2 slice of a
-                      full-width poster — so only its vertical position is the
-                      organiser's to choose, which is exactly what posterCropY is. */}
-                  {poster && cropMode && bandPct !== null && (
+                  {/* The crop window — a 3:2 rectangle the organiser sizes with
+                      the zoom slider and moves by dragging. Everything outside
+                      it dims, so what is being chosen is what stays lit. */}
+                  {poster && cropMode && cropGeom && (
                     <>
-                      <div style={{ position:'absolute', left:0, right:0, top:0, height:`${bandTopPct}%`, background:'rgba(10,10,20,.72)', pointerEvents:'none' }} />
-                      <div style={{ position:'absolute', left:0, right:0, top:`${bandTopPct + bandPct}%`, bottom:0, background:'rgba(10,10,20,.72)', pointerEvents:'none' }} />
+                      <div style={{ position:'absolute', inset:0, background:'rgba(10,10,20,.72)', pointerEvents:'none' }} />
                       <div
-                        onMouseDown={startBandDrag}
-                        onTouchStart={startBandDrag}
-                        style={{ position:'absolute', left:0, right:0, top:`${bandTopPct}%`, height:`${bandPct}%`,
-                          border:'2px solid var(--neon2)', boxSizing:'border-box', cursor:'grab',
+                        onMouseDown={startCropDrag}
+                        onTouchStart={startCropDrag}
+                        style={{ position:'absolute',
+                          left:`${cropGeom.leftPct}%`, top:`${cropGeom.topPct}%`,
+                          width:`${cropGeom.wPct}%`, height:`${cropGeom.hPct}%`,
+                          border:'2px solid var(--neon2)', boxSizing:'border-box',
+                          cursor:(cropGeom.canMoveX || cropGeom.canMoveY) ? 'grab' : 'default',
+                          boxShadow:'0 0 0 9999px rgba(0,0,0,0)', overflow:'hidden',
                           display:'flex', alignItems:'center', justifyContent:'center' }}>
-                        <div style={{ background:'rgba(0,229,255,0.15)', border:'1px dashed rgba(0,229,255,0.5)', borderRadius:6, padding:'6px 12px', fontSize:11, fontFamily:"'Bebas Neue'", letterSpacing:2, color:'var(--neon2)', pointerEvents:'none' }}>
-                          DRAG TO SET THE COVER
-                        </div>
+                        {/* The rectangle shows the poster UNDIMMED — it is a
+                            window onto the image, not a box drawn over a
+                            uniformly darkened one. Positioned by the same
+                            percentages, at the poster's full size. */}
+                        <img src={poster} alt="" aria-hidden="true"
+                          style={{ position:'absolute',
+                            width:`${100 / (cropGeom.wPct / 100)}%`, maxWidth:'none',
+                            left:`${-cropGeom.leftPct / (cropGeom.wPct / 100)}%`,
+                            top:`${-cropGeom.topPct / (cropGeom.hPct / 100)}%`,
+                            height:`${100 / (cropGeom.hPct / 100)}%`,
+                            pointerEvents:'none' }} />
+                        {(cropGeom.canMoveX || cropGeom.canMoveY) && (
+                          <div style={{ position:'relative', background:'rgba(0,229,255,0.15)', border:'1px dashed rgba(0,229,255,0.5)', borderRadius:6, padding:'6px 12px', fontSize:11, fontFamily:"'Bebas Neue'", letterSpacing:2, color:'var(--neon2)', pointerEvents:'none' }}>
+                            DRAG TO MOVE
+                          </div>
+                        )}
                       </div>
                     </>
                   )}
                   {statusBadge}
                 </div>
 
-                {/* Says what this band IS, and — the part the old UI never did —
-                    when it is not going to be used at all. */}
+                {/* Zoom, then what the rectangle is for. */}
+                {poster && cropMode && cropGeom && (
+                  <div style={{ marginTop:10 }}>
+                    <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                      <span style={{ fontFamily:"'Bebas Neue'", fontSize:11, letterSpacing:2, color:'var(--muted)' }}>ZOOM</span>
+                      <input
+                        type="range" min={cropGeom.minZoom} max={cropGeom.maxZoom} step={0.01}
+                        value={cropGeom.zoom}
+                        onChange={e => setCropZoom(Number(e.target.value))}
+                        style={{ flex:1, accentColor:'var(--neon2)' }}
+                      />
+                      <span style={{ fontSize:11, color:'var(--muted)', minWidth:34, textAlign:'right' }}>
+                        {cropGeom.zoom.toFixed(1)}×
+                      </span>
+                      {/* Back to the whole width in one tap — dragging a slider
+                          back to exactly its minimum is a fiddle. */}
+                      <button type="button" onClick={() => { setCropZoom(cropGeom.minZoom); setCropX(50); }}
+                        style={{ padding:'5px 10px', borderRadius:7, cursor:'pointer', fontFamily:"'Bebas Neue'", fontSize:10, letterSpacing:1.2,
+                          background:'rgba(255,255,255,0.06)', border:'1px solid var(--border)', color:'var(--muted)' }}>
+                        FIT
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 {poster && cropMode && (
                   <p style={{ fontSize:12, color:'rgba(255,255,255,0.5)', lineHeight:1.5, marginTop:8 }}>
-                    {bandPct === null
-                      ? 'This poster is too tall for a landscape crop — the top of the page uses a blurred treatment instead.'
-                      : bandPct >= 100
-                        ? 'This poster is wider than the frame, so all of it shows — there is nothing to position.'
-                        : cover
-                          ? 'Drag to frame a slice, then keep it. The top of the page uses your Event Cover; kept slices join the carousel behind it.'
-                          : 'Drag to frame a slice, then keep it. Your first kept slice becomes the cover at the top of the page.'}
+                    {!cropGeom
+                      ? 'Add a poster to start cropping.'
+                      : cover
+                        ? 'Zoom and drag to frame a slice, then keep it. The top of the page uses your Event Cover; kept slices join the carousel behind it.'
+                        : 'Zoom and drag to frame a slice, then keep it. Your first kept slice becomes the cover at the top of the page.'}
+                    {cropGeom && !bandMatchesHero && !cover && gallery.length === 0 && (
+                      <> <span style={{ color:'#FFD700' }}>Zoomed in, so this framing only applies once you keep it — until then the top of the page uses the full width of the poster.</span></>
+                    )}
                   </p>
                 )}
 
-                {/* Keep the current band, and everything kept so far. */}
-                {poster && cropMode && bandPct !== null && bandPct < 100 && (
+                {/* Keep the current rectangle, and everything kept so far. */}
+                {poster && cropMode && cropGeom && (
                   <div style={{ marginTop:10 }}>
                     <div style={{ display:'flex', alignItems:'center', gap:8 }}>
                       <button type="button" onClick={keepCrop}

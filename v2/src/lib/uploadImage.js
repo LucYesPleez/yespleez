@@ -101,10 +101,14 @@ export async function uploadCover(canvas, uid, suffix = 'new') {
  * SecurityError. Verified against a real stored poster before this was built.
  *
  * @param posterUrl  the stored poster (its own aspect, uncropped)
- * @param cropY      0–100, the band's position — the same number the Hero uses
+ * @param rect       { zoom, x, y } — zoom is how many times narrower than the
+ *                   poster the window is (1 = full width); x and y are 0–100
+ *                   positions across the LEFTOVER space, the same convention
+ *                   `object-position` uses and the same numbers the overlay
+ *                   in the editor is drawn from.
  * @param suffix     unique per crop, so several coexist rather than overwrite
  */
-export async function uploadPosterCrop(posterUrl, cropY, uid, suffix) {
+export async function uploadPosterCrop(posterUrl, rect, uid, suffix) {
   const img = new Image();
   img.crossOrigin = 'anonymous';
   await new Promise((res, rej) => {
@@ -114,15 +118,20 @@ export async function uploadPosterCrop(posterUrl, cropY, uid, suffix) {
   });
 
   const HERO_ASPECT = 3 / 2;
-  const bandH = Math.min(img.naturalHeight, Math.round(img.naturalWidth / HERO_ASPECT));
-  // Same arithmetic as object-position: the band travels the LEFTOVER height.
-  const sy = Math.round((img.naturalHeight - bandH) * (cropY / 100));
+  const { zoom = 1, x = 50, y = 0 } = rect || {};
+  // Clamped here as well as in the editor: this is the function that decides
+  // what pixels are actually read, and a rectangle reaching outside the image
+  // yields transparent edges rather than an error.
+  const sw = Math.min(img.naturalWidth, Math.round(img.naturalWidth / Math.max(1, zoom)));
+  const sh = Math.min(img.naturalHeight, Math.round(sw / HERO_ASPECT));
+  const sx = Math.round((img.naturalWidth  - sw) * (x / 100));
+  const sy = Math.round((img.naturalHeight - sh) * (y / 100));
 
   const canvas = document.createElement('canvas');
   canvas.width = 1800;
   canvas.height = Math.round(1800 / HERO_ASPECT);
   canvas.getContext('2d').drawImage(
-    img, 0, sy, img.naturalWidth, bandH,
+    img, sx, sy, sw, sh,
     0, 0, canvas.width, canvas.height,
   );
 
