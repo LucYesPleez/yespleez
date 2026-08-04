@@ -202,10 +202,10 @@
   padding: 11px 13px;
   border-radius: 10px;
   border: 1px solid var(--border);
-  /* ⚠ OPAQUE, NOT A 2% TINT. This row floats over the venue map, and at 0.02
-     the map read straight through it — Google's own watermark was legible
-     inside the button (owner, 2026-08-04). Matches .venueAddressTile so the
-     address and the button read as one pair of surfaces over the picture. */
+  /* ⚠ THIS RULE IS SHARED WITH EventPoster.jsx, which has no map under it —
+     see the scoped override at `.venueBody .linkRow`, which is the one that
+     wins over the map and the one to change for watermark problems. Left at
+     0.92 deliberately: the poster's row has nothing to hide. */
   background: rgba(10, 10, 20, 0.92);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
@@ -663,6 +663,23 @@
 /* The locality map draws its own frame in the SVG, so it only needs sizing. */
 .localityMap { width: 100%; height: auto; display: block; }
 
+/* ⭐ NO FRAME AROUND THE MAP SECTION (owner, 2026-08-04: "remove the border
+   for the window around the whole map section").
+   A modifier on .card rather than a change to .card itself: every other
+   section on this page — Details, Lineup, Sources — still wants its frame, and
+   this one stopped wanting it the moment the map became the section's own
+   background. A picture already has an edge; drawing a second one 16px outside
+   it framed the frame.
+
+   ⭐ AND NO FILL EITHER (owner, same day: "take away the fill aswell. i just
+   want the map and the 3 floating bits on the left"). With the card's own
+   background gone, the only surface in this section is the map, and the venue
+   card, the address and GET DIRECTIONS read as three tiles floating on it —
+   which is what the opaque fills on those three are FOR. A card colour behind
+   a full-bleed picture was never visible as a colour anyway; it only showed up
+   as the gutter around the picture's edge. */
+.venueCard { border-color: transparent; background: transparent; }
+
 /* ── § 7 · Venue — REPLACES the earlier .venueBody rules ──────────────
    The address runs full width, then the map and the venue card sit SIDE BY
    SIDE as two tiles of equal weight (owner, 2026-08-02: "on phone the map can
@@ -867,7 +884,54 @@
 .venueTile {
   position: absolute;
   inset: 0 0 var(--yp-ep-venue-map-inset) var(--yp-ep-venue-map-inset);
+  /* Owned HERE, not by .map, because the gradient ring below has to round to
+     the same curve and `inherit` is the only way those two cannot drift. */
+  border-radius: 10px;
 }
+
+/* ⭐ THE GRADIENT RING (owner, 2026-08-04: "give the map the gradient
+   border"). Brand pink → cyan, the GlowPill pairing, at the same 135deg the
+   pills use so the map reads as part of the same family.
+
+   ⚠ ON THE TILE, NOT ON THE IMAGE. An <img> is a replaced element and has no
+   ::before/::after to hang a ring on, and the <a> it sits inside is absent
+   whenever there is no navigation URL — a ring that disappeared with the link
+   would be a border that came and went for reasons no one could see. The tile
+   is the one box that is always there and always exactly the map's shape.
+
+   The mask trick is the app's existing pattern, lifted from `.yp-gpill` in
+   index.css rather than reinvented: paint the gradient over the whole box,
+   then punch out everything inside the 1px padding so only the frame is left.
+   `pointer-events: none` keeps the ring from eating the tap that opens the
+   maps app — the whole tile is a link. */
+.venueTile::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;                 /* the ring's thickness */
+  background: linear-gradient(135deg, var(--neon), var(--neon2));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+          mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;  /* Safari spelling */
+          mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* ⚠ WITHOUT MASK SUPPORT THE PSEUDO-ELEMENT PAINTS A SOLID GRADIENT BLOCK
+   OVER THE MAP — the same failure .yp-gpill guards against, and far worse
+   than having no gradient: the picture would be gone entirely. Fall back to a
+   flat pink edge. */
+@supports not ((-webkit-mask-composite: xor) or (mask-composite: exclude)) {
+  .venueTile::after { display: none; }
+  .venueTile { border: 1px solid var(--neon); }
+}
+
+/* The ring replaces the flat grey edge rather than joining it — two borders
+   1px apart read as a rendering fault. Scoped to .venueBody so the base .map
+   rule keeps its own border for any other use. */
+.venueBody .map { border: none; }
+
 .venueTile > a,
 .venueTile > svg { position: absolute; inset: 0; }
 .venueTile > a { display: block; }
@@ -897,10 +961,25 @@
   display: inline-flex;
   width: var(--yp-ep-venue-col, 150px);
   margin-top: 10px;
-  background: rgba(10, 10, 20, 0.92);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
+  /* ⚠ FULLY OPAQUE, AND NO BACKDROP BLUR. 0.92 + blur(6px) was the first
+     attempt (2026-08-04) and the owner reported the same fault again the same
+     day — "i can still see google behind the get directions button". 8% of a
+     photographic map is plenty to read a white wordmark through, and a blur
+     makes a shape softer, never absent; together they produced a pale smudge
+     that looked like a rendering fault.
+     Measured before changing rather than guessed at: the map renders 575x379
+     from a 1280x800 source under `object-fit: cover`, which at that box aspect
+     crops left and right ONLY — so the attribution baked into the image's
+     bottom edge stays in frame and lands at y 1186-1202, inside this row's box
+     at y 1175-1231. Overlap confirmed, so nothing short of alpha 1 clears it.
+     ⚠ See the attribution note in EventVenue.jsx before making this
+     translucent again — hiding Google's mark is a trade, not a free win. */
+  background: rgb(10, 10, 20);
 }
+
+/* Opaque on hover too: a translucent hover state would hand the watermark
+   straight back the moment the pointer landed on the button. */
+.venueBody .linkRow:hover { background: rgb(16, 26, 38); }
 
 /* ⚠ THE IMAGE MUST FILL THE ANCHOR, NOT SIZE ITSELF. `.map` carries its own
    `aspect-ratio: 16/9` / `16/10` (from the .venueBody rules above, no

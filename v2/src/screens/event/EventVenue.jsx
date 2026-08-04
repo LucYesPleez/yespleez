@@ -7,7 +7,7 @@
 // something real to draw — and when a location is withheld, the notice leads
 // and the map yields entirely, even if coordinates exist in the record.
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { resolveVenue, addressLines } from './venueDisplay';
 import { RouteIcon, ChevronIcon, ShareIcon } from './eventIcons';
 import s from './EventSections.module.css';
@@ -66,7 +66,17 @@ export default function EventVenue({
   // an empty second line.
 
   return (
-    <section className={s.card}>
+    /* ⚠ GOOGLE'S ATTRIBUTION IS UNDER THE DIRECTIONS BUTTON, AND IS NOW
+       COVERED. The static map carries "Google" and "Map data ©" baked into its
+       bottom edge, and `object-fit: cover` keeps that edge in frame at this
+       size — measured, not assumed. GET DIRECTIONS sits on top of it, and as
+       of 2026-08-04 that row is fully opaque, so the wordmark is hidden rather
+       than bleeding through. Google's terms require the attribution to stay
+       visible, so this is a trade the owner has been told about and not a
+       detail to silently keep: the durable fixes are to stop the map above the
+       button, or to print our own attribution line in the section. Do not
+       "tidy" this by reintroducing transparency — that was the bug. */
+    <section className={`${s.card} ${s.venueCard}`}>
       {/* ⛔ NO "VENUE" HEADING (owner, 2026-08-03). It labelled a section that,
           once the venue card moved in beside the map, already names itself —
           the card carries the venue's name, photo and locality directly, so a
@@ -181,16 +191,45 @@ export default function EventVenue({
  */
 function VenueMapPreview({ src, href, label, onReady }) {
   const [loaded, setLoaded] = useState(false);
+  const imgRef = useRef(null);
 
-  // Tell the section whether there is a map, so it can drop the tile entirely
-  // rather than leaving a gap the width of a picture that never arrives.
-  useEffect(() => { onReady?.(false); }, [src, onReady]);
+  const settle = useCallback(ok => { setLoaded(ok); onReady?.(ok); }, [onReady]);
+
+  /**
+   * Tell the section whether there is a map, so it can drop the tile entirely
+   * rather than leaving a gap the width of a picture that never arrives.
+   *
+   * ⛔ THIS MUST NOT BLINDLY RESET TO `false`. It used to, and that silently
+   * lost the map on every visit where the image was already CACHED (owner,
+   * 2026-08-04 — the venue card rendering with no map beside it):
+   *
+   *    1. render — the <img> is created with an already-cached src
+   *    2. the browser fires `load` immediately, so React's onLoad runs and
+   *       settles TRUE
+   *    3. *then* this effect runs — effects are deferred past paint — and
+   *       overwrote that with FALSE
+   *
+   * The tell was that the <img> revealed itself (its own `loaded` was true)
+   * while the tile around it stayed `display: none`: two pieces of state that
+   * settle together could only disagree if something reset one of them after
+   * the fact. A cold cache hid the bug completely, which is why it survived
+   * every check that fetched the picture for the first time.
+   *
+   * So: ask the element. `complete && naturalWidth > 0` is the same question
+   * `onLoad` answers, and it is answerable at any time — a decoded image is
+   * still decoded whether or not we were listening when it happened. A missing
+   * or failed image reports `naturalWidth === 0` and correctly settles false.
+   */
+  useEffect(() => {
+    const el = imgRef.current;
+    settle(!!(el && el.complete && el.naturalWidth > 0));
+  }, [src, settle]);
+
   if (!src) return null;
-
-  const settle = ok => { setLoaded(ok); onReady?.(ok); };
 
   const map = (
     <img
+      ref={imgRef}
       className={s.map}
       src={src}
       alt={loaded ? `Map of the area around ${label}` : ''}
