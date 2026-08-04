@@ -58,14 +58,22 @@ export default function EventPresentedBy({
           string is what ProfileCard resolves on. A venue presenting instead
           keeps its own `venue` identity rather than being dressed as a
           promoter. */}
+      {/* ⚠ THE BIO IS NOW INSIDE THE CARD (owner, 2026-08-04), not a sibling
+          paragraph under it. ProfileCard renders `item.bio` as a window in
+          `cover` mode — see the note there. `p.bio` is spread in as part of
+          `p.profile`, and is passed explicitly as well because the view model
+          reads it through its own `bio` field: an owner row missing the
+          spread would otherwise silently lose its bio with nothing to show
+          for it.
+          Why it moved: a card plus a loose paragraph is two things where the
+          reader sees one presenter, and it is what made a second host look
+          expensive. One self-contained block repeats cleanly; a block and a
+          trailing paragraph do not. */}
       <ProfileCard
-        item={{ type: p.type || 'host', name: p.name, ...(p.profile || {}) }}
+        item={{ type: p.type || 'host', name: p.name, ...(p.profile || {}), bio: p.bio || p.profile?.bio || null }}
         onClick={onViewProfile || undefined}
         cover
       />
-      {/* Bio sits UNDER the landscape card — there is no portrait-width column
-          to sit beside any more. */}
-      {p.bio && <div className={s.sub}>{p.bio}</div>}
 
       {/* Action-time disclosure for an unclaimed presenter, supplied by the
           caller so this component never has to know about claim state. */}

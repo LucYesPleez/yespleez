@@ -32,6 +32,9 @@ export const TYPE_STYLES = Object.fromEntries(
  *               dashboards, Messenger's contact list and every other caller
  *               are tuned for the compact 72px row and must not change shape
  *               out from under them.
+ *               ⭐ It ALSO renders `item.bio` as a window inside the card —
+ *               see the note at the render site. Nothing else renders a bio,
+ *               so a compact row handed a profile with one is unchanged.
  */
 export default function ProfileCard({ item, badge, badgeColor, actions, onClick, followAction = null, cover = false }) {
   const navigate = useNavigate();
@@ -63,21 +66,29 @@ export default function ProfileCard({ item, badge, badgeColor, actions, onClick,
   // PortraitCard had, missed here until the screenshot showed it.
   const typeLabels = (roleLabels.length ? roleLabels : [ts.label]).filter(Boolean);
 
+  /**
+   * Where this card goes. Extracted from the click handler so SEE MORE can
+   * reach the SAME destination — a reveal that opened somewhere else, or that
+   * quietly did nothing because it could not see the navigation logic, is the
+   * kind of divergence that only shows up once someone taps it.
+   */
+  const go = () => {
+    // An OPTIONAL override, not a new default. Messenger's contact list
+    // reuses this card but must open the CONVERSATION rather than the
+    // public profile — that list exists for talking to people. Every
+    // existing caller passes nothing and keeps the navigation below.
+    if (onClick) { onClick(item); return; }
+    // M5: canonical profile.id URL; legacy fallback only for callers whose
+    // selects don't carry `id` yet (the redirect shim covers it).
+    if (item.id) navigate(profileUrl(item));
+    else if (item.user_id) navigate(`/profile/${item.user_id}?type=${(item.type || '').toLowerCase()}`);
+  };
+
   return (
     <div
       className={s.card + (cover ? ' ' + s.cover : '')}
       style={{ '--accent': ts.col, '--accent-rgb': ts.rgb }}
-      onClick={() => {
-        // An OPTIONAL override, not a new default. Messenger's contact list
-        // reuses this card but must open the CONVERSATION rather than the
-        // public profile — that list exists for talking to people. Every
-        // existing caller passes nothing and keeps the navigation below.
-        if (onClick) { onClick(item); return; }
-        // M5: canonical profile.id URL; legacy fallback only for callers whose
-        // selects don't carry `id` yet (the redirect shim covers it).
-        if (item.id) navigate(profileUrl(item));
-        else if (item.user_id) navigate(`/profile/${item.user_id}?type=${(item.type || '').toLowerCase()}`);
-      }}
+      onClick={go}
     >
       {/* Background image + overlay — same treatment as EventCard list rows */}
       <img className={s.bgImg} src={img || defaultImg} alt="" />
@@ -117,6 +128,54 @@ export default function ProfileCard({ item, badge, badgeColor, actions, onClick,
         </div>
         {actions && <div onClick={e => e.stopPropagation()} style={{ flexShrink: 0 }}>{actions}</div>}
       </div>
+
+      {/* ⭐ THE BIO, IN A WINDOW ON THE RIGHT (owner, 2026-08-04: "i think the
+          bio can be put into a window inside the card", then "put the text
+          window over to the right ... and the card to go back to the size it
+          was").
+
+          ⚠ A SIBLING OF `.content`, NOT A CHILD. `.content` is the
+          bottom-anchored stack on the LEFT — avatar, name, badge, location.
+          Nested inside it the bio inherited that column and sat under the
+          name, which is what forced the card to grow. Out here the two are
+          independent layers over the same picture, each absolutely positioned,
+          neither able to push the other.
+
+          Same fill/edge/blur as § 7's address panel and GET DIRECTIONS, so a
+          panel resting on a picture reads the same way everywhere in the app
+          rather than being invented once per section.
+
+          ⚠ `cover` only. Every other caller — the dashboards, Messenger's
+          contact list, lineup rosters — is a compact 72px row that a paragraph
+          would wreck, and many are handed profile rows carrying a `bio` field
+          they have never rendered. */}
+      {cover && item.bio && (
+        <div className={s.bioWindow}>
+          <p className={s.bioText}>{item.bio}</p>
+          {/* ⭐ ALWAYS SHOWN (owner, 2026-08-04: "make it always say see more on
+              the end. this is to encourage people to click it to look at their
+              profile").
+              It was previously conditional on the text actually overflowing —
+              measured with a ResizeObserver, since the panel is a percentage
+              of a fluid card and a character threshold would have been wrong
+              at some widths. That whole apparatus is DELETED rather than left
+              computing a value nothing reads: the reveal is now a standing
+              invitation to the profile, not a truncation notice, so there is
+              nothing left to measure.
+              It stays honest either way — the destination genuinely does hold
+              more about the host than four lines can, whether or not the bio
+              itself was cut. */}
+          <button
+            type="button"
+            className={s.bioMore}
+            /* stopPropagation AND go(): without the stop, the card's own
+               handler fires too and the same navigation runs twice. */
+            onClick={e => { e.stopPropagation(); go(); }}
+          >
+            SEE MORE
+          </button>
+        </div>
+      )}
 
       {/* BOTTOM-RIGHT, matching where the heart sits on every horizontal event
           card (owner, 2026-08-01). An OPT-IN slot, not built in: this card also

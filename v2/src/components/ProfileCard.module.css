@@ -7,6 +7,13 @@
   box-sizing: border-box;
   width: 100%;
   min-height: 72px;
+  /* The card's quiet white — the tone its secondary lines share (owner,
+     2026-08-04: "make see more white and the same tone as the town name").
+     A variable rather than the literal repeated per rule: the location line
+     and the bio's SEE MORE are meant to read as the SAME weight of voice, and
+     two copies of `rgba(255,255,255,.55)` would be that only until someone
+     tuned one of them. */
+  --yp-card-meta: rgba(255, 255, 255, .55);
 }
 .card:hover { transform: translateY(-1px); }
 
@@ -87,6 +94,118 @@
   padding-bottom: 16px;
 }
 
+/* ⭐ THE BIO WINDOW — FLOATED RIGHT, AND THE CARD DOES NOT GROW FOR IT
+   (owner, 2026-08-04: "the cards way too big. put the text window over to the
+   right. i want it to fit neatly and the card to go back to the size it was").
+
+   ⛔ An earlier attempt put this in the content flow and let the card stretch
+   to whatever the organiser had written. That is exactly what made it "way
+   too big": bio length is unbounded and card height is a layout decision, so
+   letting one drive the other hands the page's proportions to whoever typed
+   the most. The card is 144px because that is the shape it should be; the bio
+   fits INTO that, or it defers to the profile.
+
+   So: absolutely positioned, out of flow, contributing no height — the same
+   discipline `.cover .content` already follows on the left. The two occupy
+   opposite halves of one band and neither can push the other. */
+.bioWindow {
+  position: absolute;
+  /* ⚠ ANCHORED TO THE BOTTOM, GROWING UPWARD (owner, 2026-08-04: "run the
+     text window from the bottom up instead of top down").
+     `bottom`, not `top`, so the panel's baseline is fixed and extra lines push
+     its top edge up into the empty part of the picture. Anchored at the top it
+     did the opposite — a one-line bio floated high and left a gap beneath it,
+     and a four-line one reached down toward the name.
+     It also puts this panel on the SAME baseline as `.content` on the left,
+     which is bottom-anchored for the same reason. The two now read as one row
+     of panels resting on the image rather than two elements that happen to
+     share a card. */
+  bottom: 12px;
+  right: 12px;
+  z-index: 2;
+  /* Half the card, near enough, with a ceiling so it stays a panel rather
+     than becoming the card on a wide desktop. The left half is the name,
+     badge and location — see `.cover .content`. */
+  width: 46%;
+  max-width: 320px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  /* Same fill, edge and blur as § 7's address panel and GET DIRECTIONS — one
+     treatment for "a panel resting on a picture", matched rather than
+     re-chosen. */
+  background: rgba(10, 10, 20, 0.92);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+/* Four lines is what fits the 144px band with the reveal beneath it: 4 x
+   17.4px of text, plus the button and the panel's own padding, lands ~100px
+   inside the 120px the card's insets leave. Anything past that defers to the
+   profile rather than growing the card. */
+.bioText {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--muted);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  line-clamp: 4;
+  overflow: hidden;
+  /* A pasted URL or a long unbroken word must wrap rather than widen the
+     panel — the same guard § 7's address carries, for the same reason. */
+  overflow-wrap: anywhere;
+}
+
+/* ⚠ RENDERED ONLY WHEN THE TEXT ACTUALLY OVERFLOWS — see the measurement in
+   the component. A permanent "SEE MORE" under a bio that is already complete
+   promises something that is not there, which is the placeholder problem in
+   miniature. */
+.bioMore {
+  display: block;
+  margin-top: 4px;
+  padding: 0;
+  border: none;
+  background: none;
+  /* ⚠ WHITE, NOT THE CYAN ACCENT (owner, 2026-08-04: "make see more white and
+     the same tone as the town name"). Same `--yp-card-meta` the location line
+     uses, so the two secondary lines on this card speak at one volume. The
+     accent colour made it the loudest thing on the card — brighter than the
+     host's own name — which is backwards for a footnote-sized invitation. */
+  color: var(--yp-card-meta);
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+}
+/* Full white on hover — the one moment it should look like a control rather
+   than a caption. */
+.bioMore:hover { color: #fff; text-decoration: underline; }
+
+/* ⚠ ON THE PHONE IT IS SHOWN, NOT HIDDEN (owner, 2026-08-04: "i cant see this
+   text on the phone host card"). An earlier pass hid it below 640px because a
+   46% panel left the name and badge fighting over ~160px. That was the wrong
+   trade: the bio and its SEE MORE are the reason to tap through to the host,
+   and a phone is where most of that tapping happens. Hiding the invitation on
+   the device that most needs it defeats the point of adding it.
+   Narrower and shorter instead of absent — the panel hands width back to the
+   name, and three lines rather than four keeps its top edge clear of the type
+   badge as it grows upward from the bottom. */
+@media (max-width: 640px) {
+  .bioWindow {
+    width: 52%;
+    bottom: 10px;
+    right: 10px;
+    padding: 7px 9px;
+  }
+  .bioText {
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+    font-size: 11.5px;
+  }
+}
+
 .avatar {
   width: 52px;
   height: 52px;
@@ -142,7 +261,7 @@
 
 .loc {
   font-size: 12px;
-  color: rgba(255,255,255,.55);
+  color: var(--yp-card-meta);
   margin-bottom: 3px;
 }
 
