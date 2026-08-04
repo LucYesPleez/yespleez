@@ -7,11 +7,17 @@
 // arrives — and what it offers is "keep this artwork", which is the last thing
 // to offer, after who is behind the event and how we know.
 //
-// It is framed as the event's COLLECTABLES section, not just its poster. The
-// poster is the first and currently only collectable; the heading is already
-// plural so that adding more later is an addition, not a rename. Nothing about
-// a wider collectables feature is designed here — that is deliberately out of
-// scope, and this section simply treats the poster as something collectable.
+// ⚠ THE HEADING IS "OFFICIAL POSTER" (owner, 2026-08-04). It previously read
+// "OFFICIAL POSTER & COLLECTABLES", pluralised in advance so that adding more
+// collectables later would be an addition rather than a rename. That bet did
+// not pay: the poster is still the only collectable, and a heading naming a
+// category with one member in it promises a shelf that isn't there.
+//
+// The section still TREATS the poster as something collectable — COLLECT
+// POSTER, the logo shelf below it, `buildCollectables` — and none of that
+// changed. Only the label did. If a second kind of collectable ever lands,
+// renaming this back is a one-line change and a far smaller cost than the
+// heading having over-promised in the meantime.
 //
 // The canonical artwork. It FITS and is NEVER CROPPED — the exact opposite of
 // the Hero, and the whole reason the two were split. Cropping a poster deletes
@@ -63,7 +69,7 @@ export default function EventPoster({
 
   return (
     <section className={s.card}>
-      <div className={s.headRow}><h2 className={s.heading}>OFFICIAL POSTER &amp; COLLECTABLES</h2></div>
+      <div className={s.headRow}><h2 className={s.heading}>OFFICIAL POSTER</h2></div>
 
       {poster?.url && <>
         <div className={s.posterFrame}>
