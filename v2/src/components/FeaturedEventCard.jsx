@@ -1,5 +1,6 @@
 import s from './FeaturedEventCard.module.css';
 import DateBox from './DateBox';
+import { eventCardImage } from '../lib/eventImage';
 
 /**
  * Props:
@@ -28,7 +29,10 @@ import DateBox from './DateBox';
  */
 export default function FeaturedEventCard({ event, onClick, label = 'FEATURED', badgeColor, rail = false, solo = false, cornerAction = null }) {
   const cfg      = event.config || {};
-  const poster   = cfg.poster || cfg.posterUrl || '';
+  // Cover first, poster as the fallback — see lib/eventImage.js. This card is
+  // the most landscape frame in the app, so it is the one a 3:2 Cover fits
+  // best and a portrait poster suffers in most.
+  const poster   = eventCardImage(event) || '';
   const genreList = (cfg.genres || '').split(',').map(g => g.trim()).filter(Boolean).slice(0, 4);
   const bg = cfg._bg || 'linear-gradient(135deg,#1a0533 0%,#2d1b69 45%,#0d3b2e 100%)';
 

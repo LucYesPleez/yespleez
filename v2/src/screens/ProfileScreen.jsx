@@ -8,6 +8,7 @@ import { track, EVENTS } from '../lib/analytics';
 import { useSession, usePlayer } from '../App';
 import EventCard from '../components/EventCard';
 import { eventCategoryBadges } from '../lib/eventBadges';
+import { eventCardImage } from '../lib/eventImage';
 import s from './ProfileScreen.module.css';
 import ClaimDialog from '../components/ClaimDialog';
 import InviteSheet from '../components/InviteSheet';
@@ -1000,7 +1001,8 @@ export default function ProfileScreen() {
                   ? <div style={{ display: 'flex', gap: 10, overflowX: 'auto', scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch', paddingBottom: 4 }}>
                       {list.map(ev => {
                         const cfg = ev.config || {};
-                        const poster = cfg.poster || cfg.posterUrl || '';
+                        // Cover first, poster as the fallback — lib/eventImage.js.
+                        const poster = eventCardImage(ev) || '';
                         const genreList = (cfg.genres || '').split(',').map(g => g.trim()).filter(Boolean).slice(0, 2);
                         const dateObj = cfg.date ? new Date(cfg.date + 'T12:00:00') : null;
                         const dateStr = dateObj ? dateObj.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' }) : '';

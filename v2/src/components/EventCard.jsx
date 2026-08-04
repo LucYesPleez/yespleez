@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import s from './EventCard.module.css';
 import { formatDisplayDate } from '../lib/dates';
 import { eventCategoryBadges } from '../lib/eventBadges';
+import { eventCardImage } from '../lib/eventImage';
 import DateBox from './DateBox';
 
 /* The landscape date box's width. Referenced twice — by the box itself and by the text padding
@@ -68,7 +69,7 @@ function Pill({ label, bg, col }) {
 
 /**
  * Props:
- *   event      – { id, name, config: { date, venue, genres, poster, time, ampm } }
+ *   event      – { id, name, config: { date, venue, genres, cover, poster, time, ampm } }
  *   badge      – override badge label (e.g. "ATTENDING", "PLAYING", "MY EVENT")
  *   badgeColor – override badge colour
  *   onClick    – click handler
@@ -85,7 +86,10 @@ function Pill({ label, bg, col }) {
 export default function EventCard({ event, badge: badgeOverride, badgeColor, onClick, variant, small = false, noHover = false, cornerAction = null }) {
   const navigate = useNavigate();
   const cfg    = event?.config || {};
-  const poster = event?.poster_url || cfg.poster_thumb || cfg.poster || null;
+  // Cover first, poster as the fallback — see lib/eventImage.js. Still named
+  // `poster` below because that is what the three variants' frames are called;
+  // what it holds is now "this event's picture", whichever kind it is.
+  const poster = eventCardImage(event);
   const date   = cfg.date  || '';
   const venue  = cfg.venue || '';
 
