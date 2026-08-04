@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useSession } from '../App';
 import { getNotifMeta, cleanMessage } from '../lib/notifMeta';
-import { acceptSlotOffer, declineSlotOffer, acceptInvite, declineInvite } from '../lib/notifActions';
+import { acceptSlotOffer, declineSlotOffer, acceptInvite, declineInvite, dismissNotification, markResponded } from '../lib/notifActions';
 import { conversationNotificationTypes } from '../lib/conversationNotifications';
 
 export default function NotifPanel({ onClose, onMarkAll }) {
@@ -27,6 +27,8 @@ export default function NotifPanel({ onClose, onMarkAll }) {
         .eq('to_user_id', session.user.id)
         // NP1: muted categories are recorded but never shown.
         .is('suppressed_at', null)
+        // SEC-6a: dismissed rows are hidden, never deleted.
+        .is('dismissed_at', null)
         // DEF-3 — conversation activity belongs to the MESSAGES badge and
         // nowhere else. This panel is the bell's own dropdown, so a message
         // appearing here is the bell reporting conversation activity by
@@ -54,6 +56,14 @@ export default function NotifPanel({ onClose, onMarkAll }) {
 
   function updateNotif(id, changes) {
     setNotifs(prev => prev.map(n => n.id === id ? { ...n, ...changes } : n));
+  }
+
+  // Drops the row from THIS list only. The record is untouched in the
+  // database — see dismissNotification. Everything reaching this point has
+  // already been marked read by the loader above, so the bell's count does
+  // not move and nothing needs to tell it to.
+  function removeNotif(id) {
+    setNotifs(prev => prev.filter(n => n.id !== id));
   }
 
   async function markAllRead() {
@@ -143,6 +153,7 @@ export default function NotifPanel({ onClose, onMarkAll }) {
             notif={n}
             userId={session?.user?.id}
             onUpdate={updateNotif}
+            onDismiss={removeNotif}
             isLast={i === visible.length - 1 && !hasMore}
           />
         ))}
@@ -170,9 +181,10 @@ export default function NotifPanel({ onClose, onMarkAll }) {
   );
 }
 
-function PanelRow({ notif, userId, onUpdate, isLast }) {
+function PanelRow({ notif, userId, onUpdate, onDismiss, isLast }) {
   const [busy, setBusy]           = useState(false);
   const [responded, setResponded] = useState(!!notif.responded_at);
+  const [dismissing, setDismissing] = useState(false);
   const meta = getNotifMeta(notif.type, notif.message);
   const { Icon } = meta;
   const data = notif.data || {};
@@ -183,6 +195,7 @@ function PanelRow({ notif, userId, onUpdate, isLast }) {
     if (!userId || busy) return;
     setBusy(true);
     await acceptSlotOffer(data, userId);
+    await markResponded(notif.id);
     onUpdate(notif.id, { responded_at: new Date().toISOString() });
     setResponded(true); setBusy(false);
   }
@@ -190,6 +203,7 @@ function PanelRow({ notif, userId, onUpdate, isLast }) {
     if (!userId || busy) return;
     setBusy(true);
     await declineSlotOffer(data, userId);
+    await markResponded(notif.id);
     onUpdate(notif.id, { responded_at: new Date().toISOString() });
     setResponded(true); setBusy(false);
   }
@@ -197,6 +211,7 @@ function PanelRow({ notif, userId, onUpdate, isLast }) {
     if (!userId || busy) return;
     setBusy(true);
     await acceptInvite(data, userId);
+    await markResponded(notif.id);
     onUpdate(notif.id, { responded_at: new Date().toISOString() });
     setResponded(true); setBusy(false);
   }
@@ -204,11 +219,32 @@ function PanelRow({ notif, userId, onUpdate, isLast }) {
     if (!userId || busy) return;
     setBusy(true);
     await declineInvite(data, userId);
+    await markResponded(notif.id);
     onUpdate(notif.id, { responded_at: new Date().toISOString() });
     setResponded(true); setBusy(false);
   }
 
   const actionable = !responded && (notif.type === 'slot_offer' || notif.type === 'event_invite');
+
+  /**
+   * ⚠ AN UNANSWERED OFFER CANNOT BE DISMISSED, and that is not timidity.
+   * This row is the ONLY surface that can accept or decline a slot offer or an
+   * event invite — there is no second place to find it. Hiding one would strand
+   * the offer with no way back, so the control appears once the row is no
+   * longer the thing standing between the user and a decision.
+   */
+  const dismissible = !actionable;
+
+  async function handleDismiss() {
+    if (dismissing) return;
+    setDismissing(true);
+    const { error } = await dismissNotification(notif.id);
+    // Only drop it from view once the row is actually stamped. Removing it
+    // optimistically would show it gone and bring it back on the next load,
+    // which reads as the app losing track rather than the write failing.
+    if (error) { setDismissing(false); return; }
+    onDismiss(notif.id);
+  }
 
   return (
     <div style={{ display: 'flex', gap: 12, padding: '12px 16px', borderBottom: isLast ? 'none' : '1px solid rgba(255,255,255,.05)', background: isUnread ? `rgba(${meta.rgb},.04)` : 'transparent' }}>
@@ -234,6 +270,17 @@ function PanelRow({ notif, userId, onUpdate, isLast }) {
               {getTimeAgo(notif.created_at)}
             </span>
             {isUnread && <div style={{ width: 7, height: 7, borderRadius: '50%', background: meta.col, flexShrink: 0 }} />}
+            {dismissible && (
+              <button
+                onClick={handleDismiss}
+                disabled={dismissing}
+                aria-label="Dismiss notification"
+                title="Dismiss"
+                style={dismissBtn}
+              >
+                {dismissing ? '·' : '✕'}
+              </button>
+            )}
           </div>
         </div>
 
@@ -266,6 +313,18 @@ function PanelRow({ notif, userId, onUpdate, isLast }) {
     </div>
   );
 }
+
+/**
+ * Quiet by default, legible on hover. Dismiss is a housekeeping action sitting
+ * on every readable row, so at full strength it would compete with the message
+ * for attention on a screen whose whole job is the message.
+ */
+const dismissBtn = {
+  flexShrink: 0, width: 18, height: 18, lineHeight: '16px', padding: 0,
+  borderRadius: 4, border: 'none', background: 'none', cursor: 'pointer',
+  color: 'rgba(255,255,255,.28)', fontSize: 11,
+  fontFamily: "'DM Sans',sans-serif",
+};
 
 function actionBtn(col, ghost) {
   return {

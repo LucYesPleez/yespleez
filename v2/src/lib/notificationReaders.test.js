@@ -47,6 +47,19 @@ function sourceFiles(dir) {
  *
  * Bounded at 2000 to fail loudly rather than swallow the file if a semicolon
  * is ever missing.
+ *
+ * ⚠ A SEMICOLON IN A COMMENT INSIDE THE CHAIN TRUNCATES IT. The scan stops at
+ * the first `;` after `.from(`, and does not know prose from code — so a
+ * filter written below an explanatory comment containing a semicolon falls
+ * outside the window and the file is reported as an offender that is in fact
+ * correct. Cost real time once (App.jsx's badge query, SEC-6a).
+ *
+ * Left as-is deliberately: the failure is a FALSE ALARM, never a false pass,
+ * so the invariant it guards is never silently weakened. Teaching this to
+ * parse JavaScript properly would trade a self-announcing annoyance for a
+ * dependency and a new class of bug. If it bites a third time, that is the
+ * moment to reconsider — not before. Until then: no semicolons in prose
+ * between `.from('notifications')` and the last filter.
  */
 function notificationQueries(source) {
   const hits = [];
@@ -109,6 +122,39 @@ test('every notifications READ excludes suppressed rows (NP1)', () => {
     offenders, [],
     'These read notifications without excluding suppressed rows, so muted ' +
     'categories would still appear in the feed (NP1):\n  ' + offenders.join('\n  '),
+  );
+});
+
+test('every notifications READ excludes dismissed rows (SEC-6a)', () => {
+  // Dismissal hides a row; it never deletes one. There is no DELETE policy on
+  // `notifications` and there is not meant to be, so the row a user "removed"
+  // is still sitting in the table, indistinguishable from a live one except
+  // for dismissed_at.
+  //
+  // That makes this filter the ENTIRE feature. A reader that forgets it does
+  // not degrade gracefully — it resurrects something the user deliberately
+  // cleared, and the dismiss button reads as broken rather than the query.
+  // Same emergent-guarantee shape as the two checks above, and the same fix:
+  // assert it against the source rather than trusting everyone to remember.
+  const offenders = [];
+
+  for (const file of sourceFiles(SRC)) {
+    const source = readFileSync(file, 'utf8');
+    for (const { chain } of notificationQueries(source)) {
+      const isRead = /\.select\(/.test(chain);
+      const isWrite = /\.(insert|upsert|update|delete)\(/.test(chain);
+      if (!isRead || isWrite) continue;
+
+      if (!/\.is\(\s*['"]dismissed_at['"]\s*,\s*null\s*\)/.test(chain)) {
+        offenders.push(relative(SRC, file));
+      }
+    }
+  }
+
+  assert.deepEqual(
+    offenders, [],
+    'These read notifications without excluding dismissed rows, so a row the ' +
+    'user cleared would come back (SEC-6a):\n  ' + offenders.join('\n  '),
   );
 });
 

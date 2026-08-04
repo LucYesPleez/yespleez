@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useSession } from '../App';
 import { getNotifMeta, cleanMessage } from '../lib/notifMeta';
-import { acceptSlotOffer, declineSlotOffer, acceptInvite, declineInvite } from '../lib/notifActions';
+import { acceptSlotOffer, declineSlotOffer, acceptInvite, declineInvite, dismissNotification, markResponded } from '../lib/notifActions';
 import NotificationPreferences from '../components/NotificationPreferences';
 import PushNotificationToggle from '../components/PushNotificationToggle';
 import {
@@ -43,6 +43,13 @@ export default function NotificationsScreen() {
       .eq('to_user_id', session.user.id)
       // NP1: muted categories are recorded but never shown.
       .is('suppressed_at', null)
+      // SEC-6a — dismissed rows are hidden, never deleted.
+      //
+      // ⚠ Same trap as the in_app exclusion below: everything this query
+      // returns is marked read a few lines down. A dismissed row left in
+      // would be silently marked read on its way past, so an undismiss would
+      // return it already-read and the unread state would be gone.
+      .is('dismissed_at', null)
       // DEF-3 — conversation activity belongs to the MESSAGES badge and
       // nowhere else. The rows are still WRITTEN (N1's held pile and future
       // push both need them); they are simply not a notification-feed concern.
@@ -82,6 +89,12 @@ export default function NotificationsScreen() {
 
   function updateNotif(id, changes) {
     setNotifs(prev => prev.map(n => n.id === id ? { ...n, ...changes } : n));
+  }
+
+  // Drops the row from THIS list only; the record stays. Matches NotifPanel —
+  // the two surfaces show the same rows and must not diverge.
+  function removeNotif(id) {
+    setNotifs(prev => prev.filter(n => n.id !== id));
   }
 
   const visible = expanded ? notifs : notifs.slice(0, 8);
@@ -129,7 +142,7 @@ export default function NotificationsScreen() {
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {visible.map(n => (
-            <NotifRow key={n.id} notif={n} userId={session?.user?.id} onUpdate={updateNotif} />
+            <NotifRow key={n.id} notif={n} userId={session?.user?.id} onUpdate={updateNotif} onDismiss={removeNotif} />
           ))}
         </div>
 
@@ -146,9 +159,10 @@ export default function NotificationsScreen() {
   );
 }
 
-function NotifRow({ notif, userId, onUpdate }) {
+function NotifRow({ notif, userId, onUpdate, onDismiss }) {
   const [busy, setBusy]           = useState(false);
   const [responded, setResponded] = useState(!!notif.responded_at);
+  const [dismissing, setDismissing] = useState(false);
   const meta = getNotifMeta(notif.type, notif.message);
   const { Icon } = meta;
   const data = notif.data || {};
@@ -159,6 +173,7 @@ function NotifRow({ notif, userId, onUpdate }) {
     if (!userId || busy) return;
     setBusy(true);
     await acceptSlotOffer(data, userId);
+    await markResponded(notif.id);
     onUpdate(notif.id, { responded_at: new Date().toISOString() });
     setResponded(true); setBusy(false);
   }
@@ -166,6 +181,7 @@ function NotifRow({ notif, userId, onUpdate }) {
     if (!userId || busy) return;
     setBusy(true);
     await declineSlotOffer(data, userId);
+    await markResponded(notif.id);
     onUpdate(notif.id, { responded_at: new Date().toISOString() });
     setResponded(true); setBusy(false);
   }
@@ -173,6 +189,7 @@ function NotifRow({ notif, userId, onUpdate }) {
     if (!userId || busy) return;
     setBusy(true);
     await acceptInvite(data, userId);
+    await markResponded(notif.id);
     onUpdate(notif.id, { responded_at: new Date().toISOString() });
     setResponded(true); setBusy(false);
   }
@@ -180,11 +197,24 @@ function NotifRow({ notif, userId, onUpdate }) {
     if (!userId || busy) return;
     setBusy(true);
     await declineInvite(data, userId);
+    await markResponded(notif.id);
     onUpdate(notif.id, { responded_at: new Date().toISOString() });
     setResponded(true); setBusy(false);
   }
 
   const actionable = !responded && (notif.type === 'slot_offer' || notif.type === 'event_invite');
+
+  // An unanswered offer cannot be dismissed — this row is its only surface.
+  // See the fuller note in NotifPanel.
+  const dismissible = !actionable;
+
+  async function handleDismiss() {
+    if (dismissing) return;
+    setDismissing(true);
+    const { error } = await dismissNotification(notif.id);
+    if (error) { setDismissing(false); return; }
+    onDismiss(notif.id);
+  }
 
   return (
     <div style={{
@@ -214,6 +244,22 @@ function NotifRow({ notif, userId, onUpdate }) {
               {getTimeAgo(notif.created_at)}
             </span>
             {isUnread && <div style={{ width: 7, height: 7, borderRadius: '50%', background: meta.col, flexShrink: 0 }} />}
+            {dismissible && (
+              <button
+                onClick={handleDismiss}
+                disabled={dismissing}
+                aria-label="Dismiss notification"
+                title="Dismiss"
+                style={{
+                  flexShrink: 0, width: 20, height: 20, lineHeight: '18px', padding: 0,
+                  borderRadius: 4, border: 'none', background: 'none', cursor: 'pointer',
+                  color: 'rgba(255,255,255,.28)', fontSize: 12,
+                  fontFamily: "'DM Sans',sans-serif",
+                }}
+              >
+                {dismissing ? '·' : '✕'}
+              </button>
+            )}
           </div>
         </div>
 

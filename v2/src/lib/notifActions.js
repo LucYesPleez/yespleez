@@ -3,6 +3,66 @@ import { writeNotification, inferToProfileId } from './writeNotification';
 import { resolvePerformerProfileId } from './actingProfile';
 
 /**
+ * Remove a notification from the recipient's inbox WITHOUT destroying it.
+ *
+ * ⚠ DISMISSAL IS NOT DELETION, and the difference is the point. There is no
+ * DELETE policy on `notifications` and there is not meant to be one — see
+ * migration `20260804000000_sec6a_notification_dismissal.sql`. The row stays;
+ * only its visibility changes, which is the same choice `N1` makes for held
+ * rows and `NP1` makes for muted ones ("a held notification is an asset; a
+ * suppressed one is a deleted fact").
+ *
+ * It matters more since SEC-1: any authenticated user can address a
+ * notification to anyone, so a row may be FORGED, and a forged row is the only
+ * evidence of the attempt. The instinct on seeing a suspicious notification is
+ * to get rid of it, and deletion would spend that evidence to do it.
+ *
+ * Held rows cannot reach here: they carry `to_user_id IS NULL`, the UPDATE
+ * policy keys on `auth.uid() = to_user_id`, and equality never matches NULL.
+ *
+ * @param {string} id
+ * @returns {Promise<{error: Error|null}>}
+ */
+export async function dismissNotification(id) {
+  if (!id) return { error: null };
+  const { error } = await supabase
+    .from('notifications')
+    .update({ dismissed_at: new Date().toISOString() })
+    .eq('id', id);
+  return { error: error ?? null };
+}
+
+/**
+ * Record that an actionable notification has been answered.
+ *
+ * ⚠ THIS USED TO LIVE ONLY IN REACT STATE, and that was a defect rather than a
+ * shortcut. `responded_at` was read back on render (so the row knew how to look
+ * answered) but every write went to `setNotifs` and stopped there. After a
+ * reload the column was still NULL, ACCEPT and DECLINE returned, and tapping
+ * again re-ran the whole action — re-updating `performances` and
+ * `applications` with no record that a response had already happened.
+ *
+ * That made the SEC-1 forgery replayable, which is why this is part of the same
+ * change rather than a later tidy-up.
+ *
+ * Deliberately fire-and-forget at the call site: the underlying accept/decline
+ * has already committed by the time this runs, so failing to stamp the receipt
+ * must not present as the action having failed. The row simply offers its
+ * buttons again, which is exactly today's behaviour.
+ *
+ * @param {string} id
+ * @returns {Promise<{error: Error|null}>}
+ */
+export async function markResponded(id) {
+  if (!id) return { error: null };
+  const { error } = await supabase
+    .from('notifications')
+    .update({ responded_at: new Date().toISOString() })
+    .eq('id', id);
+  return { error: error ?? null };
+}
+
+/**
  * §A7 identities for the four host-directed notices below. All four say
  * "an artist did something to your event", so they share one shape:
  *

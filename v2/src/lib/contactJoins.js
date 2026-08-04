@@ -52,6 +52,8 @@ export async function unreadContactJoinCount(userId) {
     // out of this count.
     .eq('to_user_id', userId)
     .is('suppressed_at', null)
+    // SEC-6a: a dismissed row is kept but never counted.
+    .is('dismissed_at', null)
     .eq('read', false)
     .eq('type', TYPE);
   return error ? 0 : (count || 0);

@@ -115,6 +115,10 @@ function Shell({ session, isGuest, onSignOut }) {
         // NP1: a muted notification is written and kept, but never counted.
         // Preferences govern delivery, never existence.
         .is('suppressed_at', null)
+        // SEC-6a: same reasoning one step further on — a dismissed row is
+        // kept and never counted. The user has already cleared it, and a badge
+        // still claiming otherwise is what "dismiss" exists to stop.
+        .is('dismissed_at', null)
         .eq('read', false)
         .not('type', 'in', `(${conversationTypes.join(',')})`)
         // CJ2 — an "In Messages only" notification is badged on FIND FRIENDS
