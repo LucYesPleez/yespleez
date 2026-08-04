@@ -12,7 +12,39 @@ async function uploadCanvas(canvas, outW, outH, bucket, path, quality) {
   });
   if (error) throw error;
   const { data } = supabase.storage.from(bucket).getPublicUrl(storagePath);
-  return data.publicUrl;
+  /**
+   * ⭐ THE CACHE-BUSTER, AND IT IS WHY "REPLACE" NOW ACTUALLY REPLACES.
+   *
+   * Every path here is a pure function of who and what — `punter_avatars/
+   * <userId>_hero` — and the upload is an upsert, so replacing a picture wrote
+   * new bytes to the SAME url. Nothing downstream could tell that anything had
+   * changed: the profile row was rewritten with a string identical to the one
+   * already in it, the <img> src never changed so React never re-requested it,
+   * and the browser went on showing the copy it already held.
+   *
+   * Reported as "it says photo saved down the bottom, but its not saved when i
+   * go out and back in" (owner, 2026-08-04) — and the save was genuinely fine
+   * every time. Measured at the moment of the report: the storage object was
+   * written at 05:23:15 and the profile row updated at 05:23:16, one second
+   * apart, with Supabase serving `cache-control: no-cache` and a matching
+   * `last-modified`. The bytes on the server were the new photo. Only the URL
+   * was stale, and a URL is the only thing any cache keys on.
+   *
+   * ⚠ HERE, NOT AT THE CALL SITES. avatars, posters and covers all funnel
+   * through this one function, so this fixes the whole class at the choke
+   * point rather than three times over — and a fourth uploader added later
+   * inherits it instead of rediscovering the bug.
+   *
+   * Stamped ONCE, at upload, and stored. Not appended at render: a value that
+   * changed per render would defeat caching entirely and re-download every
+   * avatar on every paint. This changes exactly when the image does.
+   *
+   * Same disease as the venue maps' `?v=VENUE_MAP_VERSION` (see
+   * lib/venueMapPath.js), which needed a hand-bumped constant because a map's
+   * URL is derived and never stored. An uploaded image's URL IS stored, so it
+   * can carry its own version and nobody has to remember to bump anything.
+   */
+  return `${data.publicUrl}?v=${Date.now()}`;
 }
 
 // Upload avatar — two sizes generated from one crop:
