@@ -117,7 +117,45 @@
   .hidden { transform: translateX(-50%) translateY(0); }
 }
 
-.header > * { pointer-events: auto; }
+/* ⭐ THE CONTENTS DISSOLVE AS THE BAR LEAVES (owner, 2026-08-04: "make the
+   content of the banner fade as the frosting comes in").
+
+   ⚠ TIED TO THE HIDE, NOT TO THE FROST. Fading them across the same 0-80px the
+   frosting uses would leave an EMPTY frosted bar sitting there any time the
+   reader scrolls up and stops mid-page — back, share, info and notifications
+   all present in the DOM, all invisible, all still clickable. The controls must
+   be at full strength whenever the bar is on screen and still; the only moment
+   they may fade is the moment the bar is departing.
+
+   ASYMMETRIC ON PURPOSE. Leaving: no delay, 160ms against the transform's
+   220ms, so the contents are gone before the slide finishes and the bar softens
+   out instead of departing at full strength. Returning: a 60ms delay, so the
+   bar arrives first and the contents settle into it — 60 + 160 lands exactly on
+   the transform's 220ms rather than racing it. */
+.header > * {
+  pointer-events: auto;
+  transition: opacity 160ms linear 60ms;
+}
+
+/* ⚠ `.header.hidden > *`, NOT `.hidden > *`. `.backBtn` sets its own
+   `opacity: 1` further down this file — same specificity (0,1,0), later in
+   source order, so it won. The bar left with three of its four children faded
+   and the back arrow riding it out at full strength. Invisible in a
+   screenshot, because by then the whole bar is off-screen; it only shows up
+   mid-transition, or in a measurement. Two classes make this (0,2,0) and put
+   the question beyond source order. */
+.header.hidden > * {
+  opacity: 0;
+  transition: opacity 160ms linear 0ms;
+}
+
+/* ⚠ Under reduced motion the bar never slides, so fading its contents would
+   simply delete the controls in place. The hook already declines to set
+   .hidden in that mode; this is the same belt-and-braces the transform carries
+   for a setting changed mid-session. */
+@media (prefers-reduced-motion: reduce) {
+  .header.hidden > * { opacity: 1; }
+}
 
 .backBtn {
   background: none;
