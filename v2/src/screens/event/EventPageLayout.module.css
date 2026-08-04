@@ -300,6 +300,30 @@
        144px above the viewport bottom (69 nav + 10 pad + 65 bar), leaving
        ~32px of the last section hidden behind it. Measured, not guessed. */
 .page {
+  /* ⭐ ROOM FOR THE TOP BAR (owner, 2026-08-04: "make it so when the events
+     scroll to top theres room above for the top banner to sit neatly above
+     the image").
+     The global header is `position: fixed` at z-index 199, so it takes no
+     layout space and the hero band started at y=0 — the bar sat ON the picture,
+     covering its top 52px, which at scroll-top is the one moment the whole
+     image is meant to be readable. Reserving its height pushes the hero down
+     so the two sit stacked rather than overlapped; scrolling still runs the
+     image up under the bar, which is the behaviour worth keeping.
+
+     ⚠ `--yp-header-height`, not 52px. GlobalHeader measures itself into that
+     variable with a ResizeObserver precisely so nothing has to hardcode a
+     number that goes stale the first time the bar changes — the fallback is
+     only for the frame before the first measurement lands.
+
+     Symmetric with the padding-bottom below, which reserves the nav for the
+     same reason at the other end.
+
+     ⭐ PLUS 8px (owner, 2026-08-04: "give the header 8px space"). Flush was
+     correct but tight — the bar's lower edge and the picture's upper edge met
+     on one line and read as a seam rather than as two separate surfaces. The
+     gap is added to the measured height rather than baked into a single
+     number, so it survives the header changing size. */
+  padding-top: calc(var(--yp-header-height, 52px) + 8px);
   padding-bottom: var(--yp-safe-bottom);
 }
 
