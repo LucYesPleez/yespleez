@@ -458,6 +458,10 @@ export default function CreateEventScreen() {
   const [cropMode,    setCropMode]    = useState(false);
   // 8px before a drag starts, so a tap on a tile (or its ✕) is still a tap.
   const dragSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
+  // Which media job the organiser is doing. The three are genuinely separate
+  // tasks — pick the lead image, build the swipe, keep the artwork — so they
+  // get separate panels rather than one long stack of image controls.
+  const [mediaTab,    setMediaTab]    = useState('cover');
   const [cropBusy,    setCropBusy]    = useState(false);
   const [cropError,   setCropError]   = useState('');
   const [fullView,    setFullView]    = useState(false);
@@ -865,24 +869,81 @@ export default function CreateEventScreen() {
         <Field label="ABOUT THIS EVENT (optional)">
           <textarea className={s.textarea} value={bio} onChange={e => setBio(e.target.value)} rows={4} placeholder="Tell people what to expect — vibe, artists, anything worth knowing…" />
         </Field>
-        {/* ── THE CAROUSEL (layout spec §0 / §1) ──
-            One ordered line, because that is what it is on the page. Slide 1
-            leads and is the "cover"; the rest follow in order. Images arrive
-            here two ways — uploaded into a slot, or cropped out of the poster
-            below — and once here they are the same kind of thing and reorder
-            against each other.
+        {/* ── EVENT MEDIA — three jobs, three panels ──
+            Picking the lead image, building the swipe, and keeping the artwork
+            are separate tasks, so they get separate panels rather than one
+            long stack of image controls.
 
-            ⚠ ALL SIX SLOTS ARE ALWAYS DRAWN, filled or not. An empty strip
-            that only appears once you have images tells a first-time
-            organiser neither that the feature exists nor how much room is
-            left; six outlines say both without a word of explanation. */}
+            ⚠ THE STRIP SITS OUTSIDE THE TABS, always visible. It is the
+            answer to "what have I got and how much room is left", and that
+            question does not stop mattering because you switched to the
+            poster — cropping the poster feeds this strip, so hiding it there
+            would hide the thing being filled. */}
         <div className={s.field}>
-          <p className={s.fieldLabel}>CAROUSEL IMAGES (optional)</p>
-          <p className={s.fieldSub}>
-            The images at the top of your event page · 3:2 landscape.
-            Slide 1 leads; swipe reveals the rest. Drag to reorder.
-          </p>
+          <p className={s.fieldLabel}>EVENT MEDIA</p>
 
+          <div className={s.posterTabs} style={{ marginTop:0, marginBottom:12 }}>
+            {[['cover','COVER IMAGE'], ['poster','EVENT POSTER']].map(([key, label]) => (
+              <button key={key} type="button"
+                className={mediaTab === key ? s.posterTabActive : s.posterTab}
+                onClick={() => setMediaTab(key)}>{label}</button>
+            ))}
+          </div>
+
+          {/* ── COVER IMAGE ── slot 1, shown large because it is the one that
+              carries the top of the page on its own. */}
+          {mediaTab === 'cover' && (
+            <div>
+              <p className={s.fieldSub} style={{ marginTop:0 }}>
+                The big image at the top of your event page · 3:2 landscape.
+                It shows on its own, and leads the carousel if you add more.
+              </p>
+              <ImageUploadButton type="cover" userId={session?.user?.id}
+                onUpload={({ cover:c }) => setSlides(s => (s.length ? [c, ...s.slice(1)] : [c]))}>
+                {({ trigger, statusBadge }) => (
+                  <div>
+                    <div onClick={!slides[0] ? trigger : undefined}
+                      style={{ width:'100%', maxWidth:420, aspectRatio:'3/2', borderRadius:10, overflow:'hidden', position:'relative',
+                        display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
+                        background: slides[0] ? 'transparent' : 'rgba(0,229,255,0.06)',
+                        border: slides[0] ? 'none' : '2px dashed rgba(0,229,255,0.45)',
+                        cursor: slides[0] ? 'default' : 'pointer',
+                        color:'var(--neon2)' }}>
+                      {slides[0]
+                        ? <img src={slides[0]} alt="cover" style={{ width:'100%', height:'100%', objectFit:'cover' }} />
+                        : <><div style={{ fontSize:26, lineHeight:1 }}>+</div><div style={{ fontSize:12, marginTop:4 }}>Add a cover image</div></>}
+                      {statusBadge}
+                    </div>
+                    {slides[0] && (
+                      <div style={{ display:'flex', gap:8, marginTop:8, maxWidth:420 }}>
+                        <button type="button" onClick={trigger}
+                          style={{ flex:1, padding:'8px', borderRadius:8, cursor:'pointer', background:'rgba(255,255,255,0.06)', border:'1px solid var(--border)', color:'var(--text)', fontFamily:"'Bebas Neue'", fontSize:12, letterSpacing:1.5 }}>
+                          REPLACE
+                        </button>
+                        {/* Removing the cover promotes slide 2 — slot 1 IS the
+                            cover, so the list simply loses its head rather
+                            than developing a hole nothing can represent. */}
+                        <button type="button" onClick={() => setSlides(s => s.slice(1))}
+                          style={{ flex:1, padding:'8px', borderRadius:8, cursor:'pointer', background:'rgba(255,80,80,0.08)', border:'1px solid rgba(255,80,80,0.3)', color:'var(--muted)', fontFamily:"'Bebas Neue'", fontSize:12, letterSpacing:1.5 }}>
+                          REMOVE
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </ImageUploadButton>
+            </div>
+          )}
+
+          {/* ── THE STRIP — outside the tabs, always visible ──
+              Six slots whether filled or not: an empty strip that only appears
+              once you have images tells a first-time organiser neither that
+              the feature exists nor how much room is left. Slot 1 is the
+              cover; the rest follow in order. Drag to reorder. */}
+          <div style={{ marginTop:16, paddingTop:14, borderTop:'1px solid rgba(255,255,255,.08)' }}>
+            <p style={{ fontFamily:"'Bebas Neue'", fontSize:11, letterSpacing:2, color:'var(--muted)', margin:'0 0 8px' }}>
+              YOUR IMAGES — SLOT 1 IS THE COVER
+            </p>
           <DndContext sensors={dragSensors} collisionDetection={closestCenter}
             onDragEnd={({ active, over }) => {
               if (!over || active.id === over.id) return;
@@ -938,8 +999,12 @@ export default function CreateEventScreen() {
                 ? 'One image shows still; add another to make it a carousel.'
                 : `Swipes through ${slides.length} images.`}
           </p>
+          </div>
         </div>
 
+        {/* ── EVENT POSTER — its own tab. The artwork you keep, and the
+            source the carousel crops come from. */}
+        {mediaTab === 'poster' && (
         <div className={s.field}>
           <p className={s.fieldLabel}>EVENT POSTER</p>
           <p className={s.fieldSub}>Optional — the flyer as it was designed · any shape · shown whole at the bottom of the page</p>
@@ -1084,7 +1149,7 @@ export default function CreateEventScreen() {
                 {poster && (
                   <div className={s.posterTabs}>
                     <button type="button" className={s.posterTab} onClick={() => setFullView(true)}>Full view</button>
-                    <button type="button" className={cropMode ? s.posterTabActive : s.posterTab} onClick={() => setCropMode(m => !m)}>Adjust cover</button>
+                    <button type="button" className={cropMode ? s.posterTabActive : s.posterTab} onClick={() => setCropMode(m => !m)}>Crop</button>
                     <button type="button" className={s.posterTab} onClick={trigger}>Replace</button>
                     <button type="button" className={s.posterTabRemove} onClick={() => { setPoster(''); setPosterThumb(''); setPosterFull(''); setCropMode(false); }}>Remove</button>
                   </div>
@@ -1093,6 +1158,7 @@ export default function CreateEventScreen() {
             )}
           </ImageUploadButton>
         </div>
+        )}
 
         {/* Full view modal */}
         {fullView && (
