@@ -411,3 +411,53 @@ test('a missing or non-array gallery is empty, never a crash', () => {
     assert.deepEqual(view.hero.gallery, []);
   }
 });
+
+// ── navCoords — a postcode centroid is not a destination ─────────────
+// Reported live: GET DIRECTIONS at The Bellingen Brewing Co opened Kalang.
+// Its profile stored lat/lng -30.4598,152.8403, which IS AU_POSTCODES['2454']
+// — postcode 2454 reaches from Bellingen out past Kalang, so its centroid is
+// bushland. `coords` may be that (it also picks the town picture); `navCoords`
+// must not be.
+
+test('a stored coordinate equal to the postcode centroid is not a destination', () => {
+  const view = buildEventView({
+    event: { name: 'NYE', config: {} },
+    venueProfile: {
+      id: 'v1', type: 'venue', name: 'The Bellingen Brewing Co',
+      location: '3/5 Church St', suburb: 'Bellingen', state: 'NSW', postcode: '2454',
+      lat: -30.4598, lng: 152.8403,          // the 2454 centroid, to the digit
+    },
+  });
+  assert.ok(view.venue.coords, 'coords still exist — the town picture needs them');
+  assert.equal(view.venue.navCoords, null, 'but directions must fall through to the address');
+});
+
+test('a real venue coordinate IS a destination', () => {
+  const view = buildEventView({
+    event: { name: 'NYE', config: {} },
+    venueProfile: {
+      id: 'v1', type: 'venue', name: 'The Bellingen Brewing Co',
+      location: '3/5 Church St', suburb: 'Bellingen', state: 'NSW', postcode: '2454',
+      lat: -30.4531, lng: 152.8987,          // the actual street, not the centroid
+    },
+  });
+  assert.deepEqual(view.venue.navCoords, { lat: -30.4531, lng: 152.8987 });
+});
+
+test('no stored coordinate at all yields no destination coords', () => {
+  // The centroid fallback fills `coords` for the picture; it must never be
+  // promoted into navCoords by that route either.
+  const view = buildEventView({
+    event: { name: 'NYE', config: {} },
+    venueProfile: { id: 'v1', type: 'venue', name: 'X', suburb: 'Bellingen', state: 'NSW', postcode: '2454' },
+  });
+  assert.equal(view.venue.navCoords, null);
+});
+
+test('a withheld venue gives up its navigation coords too', () => {
+  const view = buildEventView({
+    event: { name: 'Secret', config: { location_withheld: true } },
+    venueProfile: { id: 'v1', type: 'venue', name: 'X', suburb: 'Bellingen', state: 'NSW', postcode: '2454', lat: -30.4531, lng: 152.8987 },
+  });
+  assert.equal(view.venue.navCoords, null);
+});

@@ -202,7 +202,13 @@
   padding: 11px 13px;
   border-radius: 10px;
   border: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.02);
+  /* ⚠ OPAQUE, NOT A 2% TINT. This row floats over the venue map, and at 0.02
+     the map read straight through it — Google's own watermark was legible
+     inside the button (owner, 2026-08-04). Matches .venueAddressTile so the
+     address and the button read as one pair of surfaces over the picture. */
+  background: rgba(10, 10, 20, 0.92);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
   color: var(--text);
   cursor: pointer;
   text-decoration: none;
@@ -212,7 +218,9 @@
   transition: border-color var(--yp-medium, .2s), background var(--yp-medium, .2s);
 }
 
-.linkRow:hover { border-color: var(--neon2); background: rgba(0, 229, 255, 0.05); }
+/* Stays opaque on hover — a 5% cyan tint would have put the map back through
+   the button the moment the pointer landed on it. */
+.linkRow:hover { border-color: var(--neon2); background: rgba(16, 26, 38, 0.94); }
 
 /* ── § 8 · Event Details ─────────────────────────────────────────────
    A lookup table, not a narrative — lighter than the Lineup above it. */
@@ -762,7 +770,7 @@
   padding: 8px 10px;
   border-radius: 10px;
   border: 1px solid var(--border);
-  background: rgba(10, 10, 20, 0.82);
+  background: rgba(10, 10, 20, 0.92);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
   font-size: 12px;
@@ -889,7 +897,7 @@
   display: inline-flex;
   width: var(--yp-ep-venue-col, 150px);
   margin-top: 10px;
-  background: rgba(10, 10, 20, 0.82);
+  background: rgba(10, 10, 20, 0.92);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
 }

@@ -161,10 +161,16 @@ export default function EventPage({
           {...v.venue}
           mapUrl={venueMapImageUrl(v.venue.postcode)}
           navUrl={navigationUrl({
-            lat: v.venue.coords?.lat,
-            lng: v.venue.coords?.lng,
+            // navCoords, NOT coords: the latter may be a postcode centroid,
+            // which is fine for choosing the town picture and useless for
+            // directions. See the note in eventViewModel.
+            lat: v.venue.navCoords?.lat,
+            lng: v.venue.navCoords?.lng,
             label: v.venue.name,
-            address: [v.venue.address, v.venue.locality, v.venue.state].filter(Boolean).join(', '),
+            // Postcode included — "3/5 Church St, Bellingen, NSW" alone let a
+            // geocoder pick whichever Church St it fancied.
+            address: [v.venue.address, v.venue.locality, v.venue.state, v.venue.postcode]
+              .filter(Boolean).join(', '),
           })}
           card={
             <EventVenueCard

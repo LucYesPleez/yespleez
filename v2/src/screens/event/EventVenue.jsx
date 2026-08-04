@@ -9,7 +9,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { resolveVenue, addressLines } from './venueDisplay';
-import { RouteIcon, ChevronIcon } from './eventIcons';
+import { RouteIcon, ChevronIcon, ShareIcon } from './eventIcons';
 import s from './EventSections.module.css';
 
 export default function EventVenue({
@@ -23,6 +23,17 @@ export default function EventVenue({
   // some renders and not others — the Rules of Hooks violation React throws on.
   const [mapReady, setMapReadyState] = useState(false);
   const setMapReady = useCallback(ok => setMapReadyState(ok), []);
+
+  // Share the address as plain text. The Web Share sheet where it exists, the
+  // clipboard where it does not — the same pair the event's own SHARE uses, so
+  // a phone offers its apps and a desktop quietly copies.
+  const shareAddress = useCallback(() => {
+    const text = [name, address, [locality, state, postcode].filter(Boolean).join(' ')]
+      .filter(Boolean).join(', ');
+    if (!text) return;
+    if (navigator.share) navigator.share({ text }).catch(() => {});
+    else navigator.clipboard?.writeText(text).catch(() => {});
+  }, [name, address, locality, state, postcode]);
 
   const v = resolveVenue({ name, address, locality, state, mapUrl, withheld });
   if (!v) return null;   // R1 · absent
@@ -105,7 +116,7 @@ export default function EventVenue({
               {/* DESKTOP: stacked under the card, so the column reads
                   place-then-address and the map beside it stretches to match
                   its full height. */}
-              <Address lines={lines} className={`${s.venueAddressTile} ${s.wideOnly}`} />
+              <Address lines={lines} onShare={shareAddress} className={`${s.venueAddressTile} ${s.wideOnly}`} />
             </div>
           )}
         </div>
@@ -115,7 +126,7 @@ export default function EventVenue({
             disappear with it. Same content as the desktop copy above; one of
             the two is always `display:none`, which also keeps it out of the
             accessibility tree so nothing is announced twice. */}
-        <Address lines={lines} className={`${s.venueAddressTile} ${s.narrowOnly}`} />
+        <Address lines={lines} onShare={shareAddress} className={`${s.venueAddressTile} ${s.narrowOnly}`} />
 
         {/* ⚠ MOVED INSIDE .venueBody (owner, 2026-08-03: "it needs to come
             down to the directions button"). The map is now a background layer
@@ -221,12 +232,27 @@ function VenueMapPreview({ src, href, label, onReady }) {
  * line ends when the next one follows, and it disappears with the street when
  * a venue has none (a showground or a doof site with only a locality).
  */
-function Address({ lines, className }) {
+function Address({ lines, className, onShare }) {
   if (!lines?.street && !lines?.region) return null;   // R1 · absent
   return (
     <div className={`${s.sub} ${className || ''}`}>
-      {lines.street && <div>{lines.street}{lines.region ? ',' : ''}</div>}
-      {lines.region && <div>{lines.region}</div>}
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          {lines.street && <div>{lines.street}{lines.region ? ',' : ''}</div>}
+          {lines.region && <div>{lines.region}</div>}
+        </div>
+        {/* Share the ADDRESS, not the event — this is the panel someone taps
+            when they are sending a friend the location. Absent rather than
+            disabled when there is no handler, so the row never shows a control
+            that does nothing. */}
+        {onShare && (
+          <button type="button" onClick={onShare} aria-label="Share this address"
+            style={{ flexShrink: 0, background: 'none', border: 'none', padding: 2, margin: -2,
+              cursor: 'pointer', color: 'var(--muted)', display: 'inline-flex', lineHeight: 0 }}>
+            <ShareIcon size={14} />
+          </button>
+        )}
+      </div>
     </div>
   );
 }

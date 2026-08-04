@@ -96,7 +96,33 @@ export function buildVenue({ event = {}, cfg = {}, venueProfile = null } = {}) {
   const postcode = first(venueProfile?.postcode, cfg.postcode, event.postcode);
   const lat = first(venueProfile?.lat, event.lat);
   const lng = first(venueProfile?.lng, event.lng);
-  const coords = (lat != null && lng != null) ? { lat, lng } : postcodeCoords(postcode, state);
+  const centroid = postcodeCoords(postcode, state);
+  const stored = (lat != null && lng != null) ? { lat, lng } : null;
+  const coords = stored || centroid;
+
+  /**
+   * ⚠ WHERE TO AIM *NAVIGATION*, which is NOT always `coords`.
+   *
+   * `coords` above is deliberately allowed to be a postcode centroid, because
+   * its other job is picking the town picture. Turn-by-turn directions cannot
+   * use that precision: postcode 2454 runs from Bellingen out past Kalang, so
+   * its centroid is bushland several kilometres from any venue in it. Aiming
+   * a directions link there sends someone to a paddock — reported live
+   * (owner, 2026-08-04: "why is this directions button loading up as kalang").
+   *
+   * The venue in that report had the centroid stored on its own profile, so
+   * this is not merely the fallback leaking: a real `lat`/`lng` can itself BE
+   * a centroid. Hence comparing the value rather than trusting its source.
+   *
+   * navigationUrl prefers coordinates over an address on every platform, and
+   * that rule is right — for coordinates that mean something. This decides
+   * whether they do. Null here lets the street address win, which is what a
+   * human would have typed anyway.
+   */
+  const isCentroid = !!(stored && centroid
+    && Math.abs(stored.lat - centroid.lat) < 1e-4
+    && Math.abs(stored.lng - centroid.lng) < 1e-4);
+  const navCoords = (stored && !isCentroid) ? stored : null;
 
   return {
     name, address, locality, state, withheld,
@@ -113,6 +139,8 @@ export function buildVenue({ event = {}, cfg = {}, venueProfile = null } = {}) {
     mapUrl: null,
     profileId: withheld ? null : (venueProfile?.id || null),
     coords:    withheld ? null : (coords || null),
+    // Aim directions here, never at `coords` — see the note above.
+    navCoords: withheld ? null : (navCoords || null),
     // The locality map is drawn from the POSTCODE — one picture per postcode,
     // shared by every venue in it. Null when withheld: a secret location does
     // not get a map of its town either.
