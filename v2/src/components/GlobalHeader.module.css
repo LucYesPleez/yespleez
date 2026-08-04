@@ -2,9 +2,47 @@
   position: fixed;
   top: 0;
   left: 50%;
-  transform: translateX(-50%);
+  /* ⚠ translateX(-50%) IS THE CENTRING, and .hidden below has to restate it.
+     `transform` is one property: a rule that set only translateY would drop
+     the centring and the bar would jump to the right half of the screen as it
+     left. See .hidden. */
+  transform: translateX(-50%) translateY(0);
   width: min(100%, 680px);
-  padding: 16px 8px 0;
+  /* ⚠ 11 + 5, NOT 11 + 0 (owner, 2026-08-04: raise the contents ~4-6px without
+     losing header height). The 5px comes OFF the top and goes straight back ON
+     the bottom, so the vertical padding still totals the original 16 and the
+     box is the same size it always was — the contents simply sit higher inside
+     it. Shrinking the top alone would have taken 5px off the measured height,
+     and `--yp-header-height` is what the event page's padding-top and
+     ShareSheet's `top` are built on: every one of them would have crept up by
+     5px to chase a change that was only ever meant to be inside this box.
+     Horizontal padding and the 12px gap are untouched — icon spacing is not
+     part of this. */
+  padding: 11px 8px 5px;
+
+  /* ── The Facebook-style backdrop (owner, 2026-08-04) ──────────────
+     Transparent at rest so a hero can read edge to edge, thickening to
+     rgba(10,10,16,.95) over the first 80px of scroll. Both values are driven
+     from scroll position by useAutoHideHeader, which writes the two custom
+     properties below; the transitions then smooth the per-frame steps and,
+     more importantly, ease the jump when the page is scrolled programmatically
+     rather than by hand. */
+  background-color: rgba(10, 10, 16, var(--yp-header-bg-a, 0));
+  backdrop-filter: blur(var(--yp-header-blur, 0px));
+  -webkit-backdrop-filter: blur(var(--yp-header-blur, 0px));
+
+  /* ⚠ TRANSFORM IS COMPOSITED; `top` WOULD NOT BE. Animating `top` relayouts a
+     fixed element every frame. The durations and the curve are the owner's
+     spec verbatim. */
+  transition:
+    transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    background-color 180ms linear,
+    backdrop-filter 180ms linear,
+    -webkit-backdrop-filter 180ms linear;
+
+  /* Promote once, up front, so the first hide does not pay for a layer
+     promotion mid-animation. */
+  will-change: transform;
   display: flex;
   align-items: center;
   /* Safety net for the smallest phones now that back + logo + BETA + 3 icons
@@ -17,6 +55,66 @@
   z-index: 199;
   pointer-events: none;
   box-sizing: border-box;
+}
+
+/* ⭐ THE SOFT BOTTOM EDGE (owner, 2026-08-04: "blends into the page content
+   instead of ending with a hard horizontal edge ... it should soften the
+   transition without being noticeable as an effect").
+
+   ⚠ `top: 100%` — it hangs BELOW the header's box rather than inside it. An
+   inset gradient would have eaten 32px of the bar's own background and pulled
+   the icons' backdrop out from under them; this way the header stays solid to
+   its last pixel and the falloff happens in the page's space.
+
+   ⚠ AND IT DOES NOT CHANGE THE MEASURED HEIGHT. An absolutely positioned
+   pseudo-element sits outside the border box, so getBoundingClientRect — and
+   therefore --yp-header-height — is unmoved. Had this been real height, every
+   screen reserving space for the header would have gained 32px of gap.
+
+   OPACITY, NOT A GRADIENT THAT REDRAWS. `background-image` does not
+   interpolate between values in any engine we ship to, so animating the
+   gradient's own alpha would step visibly. Driving a fixed gradient's opacity
+   from the same --yp-header-bg-a the background-color uses, on the same 180ms
+   linear curve, keeps the fade and the bar locked to each other frame for
+   frame — otherwise a fast scroll shows the strip lagging its own header and
+   the seam it exists to hide reappears as a moving line.
+
+   It rides the hide transform with the header, because it is part of the
+   header: the bar and its shadow leave together. */
+.header::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  height: 32px;
+  background: linear-gradient(
+    to bottom,
+    rgba(10, 10, 16, 0.95),
+    rgba(10, 10, 16, 0)
+  );
+  opacity: var(--yp-header-bg-a, 0);
+  transition: opacity 180ms linear;
+  /* Inherited from .header, but stated: this strip lies over live page content
+     and must never intercept a tap meant for it. */
+  pointer-events: none;
+}
+
+/* ⚠ BOTH TRANSFORMS, NOT JUST THE TRANSLATE-Y. See the note on .header: a
+   single-axis rule here would silently discard the centring. -100% is of the
+   header's OWN height, so a wrapped two-line bar still clears itself exactly
+   without anyone maintaining a pixel figure. */
+.hidden {
+  transform: translateX(-50%) translateY(-100%);
+}
+
+/* Someone who has asked the OS for less motion gets the colour change and not
+   the movement. The hook also refuses to set .hidden under that setting — this
+   is the belt to its braces, so a stale class from a setting changed mid-session
+   still cannot slide the bar. */
+@media (prefers-reduced-motion: reduce) {
+  .header { transition: background-color 180ms linear, backdrop-filter 180ms linear; }
+  .hidden { transform: translateX(-50%) translateY(0); }
 }
 
 .header > * { pointer-events: auto; }

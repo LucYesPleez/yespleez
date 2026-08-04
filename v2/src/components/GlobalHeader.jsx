@@ -6,6 +6,7 @@ import NotifPanel from './NotifPanel';
 import ShareSheet from './ShareSheet';
 import BetaWelcomePopup from './BetaWelcomePopup';
 import { useCurrentShareTarget, pageFallback } from '../lib/shareTarget';
+import useAutoHideHeader from '../hooks/useAutoHideHeader';
 import { readAuthLog, readAuthIncidents } from '../lib/authDiagnostics';
 import { readForensics } from '../lib/authForensics';
 import { readPushLog } from '../lib/pushLog';
@@ -115,6 +116,21 @@ export default function GlobalHeader({ onMarkRead, unreadCount = 0 }) {
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
+
+  /**
+   * ⭐ AUTO-HIDE, APP-WIDE (owner, 2026-08-04). Mounted once above the router
+   * in App.jsx, so every screen inherits it without opting in — a screen that
+   * needs the bar pinned calls `useAlwaysVisibleHeader()` instead.
+   *
+   * ⚠ The height published above is measured with getBoundingClientRect, which
+   * is UNAFFECTED by the hide: a transform does not change layout geometry, so
+   * `--yp-header-height` keeps reporting the real reserved height even while
+   * the bar is off-screen. Anything reserving space for it — the event page's
+   * padding-top, ShareSheet's `top` — therefore does not move when it hides,
+   * which is the "no layout shift" requirement holding by construction rather
+   * than by care.
+   */
+  useAutoHideHeader(headerRef, s.hidden);
 
   const info = INFO[location.pathname] || FALLBACK;
 
