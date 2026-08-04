@@ -27,14 +27,31 @@ import s from './EventSections.module.css';
 
 export default function EventPresentedBy({
   presenter = null,
+  coHosts = [],
   onViewProfile = null,
+  onViewCoHost = null,
   unclaimedNotice = null,
 }) {
   // A real presenter, or nothing. See the header on why the venue no longer
   // stands in — it duplicated § 9's card.
   const p = presenter?.name ? { ...presenter, type: presenter.type || 'host' } : null;
 
-  if (!p) return null;   // R1 · absent
+  /**
+   * ⭐ CO-HOSTS AT EQUAL SIZE (owner, 2026-08-04). Same card, same width, same
+   * bio window — a night presented by two promoters looks like a night
+   * presented by two promoters. Only the MAIN host can edit, and that
+   * difference is enforced in `event_hosts`'s policies rather than expressed
+   * by making anyone's card smaller.
+   *
+   * Deduping already happened in the view model, so this list is safe to render
+   * as-is; guarding again here would just be a second place to keep in sync.
+   */
+  const billed = (coHosts || []).filter(c => c?.name);
+
+  // R1 · absent. ⚠ A co-host with no main host still bills: the owner may be
+  // unknown (17 events carry no owner at all) while the co-host is a fact
+  // somebody recorded. Returning null on `!p` alone would silently drop them.
+  if (!p && !billed.length) return null;
 
   return (
     <section className={s.card}>
@@ -69,11 +86,26 @@ export default function EventPresentedBy({
           reader sees one presenter, and it is what made a second host look
           expensive. One self-contained block repeats cleanly; a block and a
           trailing paragraph do not. */}
-      <ProfileCard
-        item={{ type: p.type || 'host', name: p.name, ...(p.profile || {}), bio: p.bio || p.profile?.bio || null }}
-        onClick={onViewProfile || undefined}
-        cover
-      />
+      {p && (
+        <ProfileCard
+          item={{ type: p.type || 'host', name: p.name, ...(p.profile || {}), bio: p.bio || p.profile?.bio || null }}
+          onClick={onViewProfile || undefined}
+          cover
+        />
+      )}
+
+      {/* Stacked, not a row: each card is full width and carries its own bio
+          window, so side-by-side would halve both and cost the bio the space
+          that made it worth moving inside the card. The section's own 12px
+          flex gap separates them. */}
+      {billed.map(c => (
+        <ProfileCard
+          key={c.profile?.id || c.name}
+          item={{ type: c.type || 'host', name: c.name, ...(c.profile || {}), bio: c.bio || c.profile?.bio || null }}
+          onClick={onViewCoHost ? () => onViewCoHost(c) : undefined}
+          cover
+        />
+      ))}
 
       {/* Action-time disclosure for an unclaimed presenter, supplied by the
           caller so this component never has to know about claim state. */}

@@ -111,6 +111,7 @@ export default function EventScreen() {
     <EventPage
       event={event}
       ownerProfile={d.ownerProfile}
+      coHostProfiles={d.coHostProfiles}
       venueProfile={d.venueProfile}
       lineupMembers={d.lineupMembers}
       memberProfiles={d.memberProfiles}

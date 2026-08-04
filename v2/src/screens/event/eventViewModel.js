@@ -296,6 +296,9 @@ export function buildEventView({
   event = {},
   ownerProfile = null,
   venueProfile = null,
+  // Defaults to empty, so every existing caller and every test that predates
+  // co-hosts keeps its exact current output rather than needing updating.
+  coHostProfiles = [],
   lineupMembers = [],
   memberProfiles = {},
   now = new Date(),
@@ -406,6 +409,34 @@ export function buildEventView({
             profile: ownerProfile,
           }
         : null,
+
+      /**
+       * ⭐ CO-HOSTS — EQUAL BILLING, UNEQUAL AUTHORITY (owner, 2026-08-04:
+       * "have one main host, then the other looks like they have equal
+       * representation, but only the main host can edit").
+       *
+       * They render as the same card at the same size as the presenter above,
+       * because that is what co-presenting a night looks like to a reader. The
+       * distinction the owner drew is about who may CHANGE the event, and that
+       * lives entirely in `owner_profile_id` and the `event_hosts` policies —
+       * not in how large anyone's picture is. Attribution is not authorization
+       * (Identity Architecture v1.0), and this is the clearest case of it on
+       * the page: the two hosts look identical and can do different things.
+       *
+       * ⚠ Deduped against the presenter AND the venue. `useEventData` already
+       * drops a row naming the owner, but a co-host that is ALSO the venue
+       * would draw the same portrait § 7 just drew — the exact duplication
+       * that got the venue fallback deleted from this section. Both guards
+       * live here so the component never has to know.
+       */
+      coHosts: (coHostProfiles || [])
+        .filter(p => p?.name && p.id !== ownerProfile?.id && p.id !== venueProfile?.id)
+        .map(p => ({
+          name: p.name,
+          type: p.type || 'host',
+          bio:  p.bio || null,
+          profile: p,
+        })),
       venue: venue.name && !venue.withheld
         ? { name: venue.name, bio: venueProfile?.bio || null, profile: venueProfile }
         : null,

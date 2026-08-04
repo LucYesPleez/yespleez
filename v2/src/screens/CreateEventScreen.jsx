@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { useSession } from '../App';
 import s from './CreateEventScreen.module.css';
 import ImageUploadButton from '../components/ImageUploadButton';
+import CoHostPicker from '../components/CoHostPicker';
 import { getEventBadges, CATEGORY_BADGES, CATEGORY_CHOICES, OPEN_MIC_BADGE, sameCategory } from '../lib/eventBadges';
 import { getOwnerProfiles } from '../lib/actingProfile';
 import { PROFILE_TYPES } from '../lib/profileTypes';
@@ -478,6 +479,11 @@ export default function CreateEventScreen() {
   // case, never a permission: can_act_as re-checks whatever is written (R2).
   const [owners,  setOwners]  = useState([]);
   const [ownerId, setOwnerId] = useState(null);
+  // Co-hosts: full profile rows, so the chips can show a name and a type
+  // without a second lookup. On an existing event CoHostPicker writes straight
+  // to `event_hosts`; while creating one there is no event_id yet, so this
+  // buffers the choice and the rows are written right after the insert.
+  const [coHosts, setCoHosts] = useState([]);
 
   // Host controls
   const [isPublic,           setIsPublic]           = useState(true);
@@ -505,6 +511,36 @@ export default function CreateEventScreen() {
       setOwnerId(list.length === 1 ? list[0].id : null);
     });
   }, [editId, session?.user?.id, searchParams]);
+
+  /**
+   * Existing co-hosts, when editing.
+   *
+   * ⚠ SEPARATE FROM THE EVENT LOAD BELOW, and ordered by `position`. The chips
+   * have to show what is actually stored before the host can sensibly add or
+   * remove one — a picker that opened empty on an event that already had
+   * co-hosts would invite someone to re-add a row the PK then rejects.
+   * `ownerId` is also set here: the edit path deliberately never restamps the
+   * owner (see the resolution effect above), so without this the picker would
+   * not know which profile to keep out of its own results.
+   */
+  useEffect(() => {
+    if (!editId) return;
+    let cancelled = false;
+    (async () => {
+      const { data: ev } = await supabase.from('events').select('owner_profile_id').eq('id', editId).maybeSingle();
+      if (!cancelled && ev?.owner_profile_id) setOwnerId(ev.owner_profile_id);
+      const { data: rows } = await supabase.from('event_hosts')
+        .select('profile_id, position').eq('event_id', editId).order('position');
+      const ids = (rows || []).map(r => r.profile_id).filter(Boolean);
+      if (!ids.length) return;
+      const { data: profs } = await supabase.from('profiles')
+        .select('id, name, type, avatar_thumb, avatar, location, state').in('id', ids);
+      if (cancelled) return;
+      const byId = Object.fromEntries((profs || []).map(p => [p.id, p]));
+      setCoHosts(ids.map(i => byId[i]).filter(Boolean));
+    })();
+    return () => { cancelled = true; };
+  }, [editId]);
 
   useEffect(() => {
     if (!editId) return;
@@ -749,6 +785,22 @@ export default function CreateEventScreen() {
     setSaving(false);
     if (err) { setError(err.message); return; }
 
+    /**
+     * The buffered co-hosts, now that there is an event_id to hang them on.
+     *
+     * ⚠ AFTER the insert and deliberately NOT fatal. The event exists and is
+     * saved; a failure here costs a line of billing, not the night's work, so
+     * it must not send the organiser back to a form whose event has already
+     * been created — that path ends in duplicate events. Surfaced as an error
+     * on the page they land on instead of thrown away.
+     */
+    if (data?.id && coHosts.length) {
+      const { error: chErr } = await supabase.from('event_hosts').insert(
+        coHosts.map((p, i) => ({ event_id: data.id, profile_id: p.id, position: i })),
+      );
+      if (chErr) setError(`Event saved, but the co-hosts could not be added: ${chErr.message}`);
+    }
+
     // A1 · two separate facts, not one. Creating is the effort; going live is
     // the outcome, and an event saved as a draft has not been published. They
     // coincide here only when the host used "go live" on the create form —
@@ -801,6 +853,21 @@ export default function CreateEventScreen() {
             </div>
           </>
         )}
+
+        {/* ⭐ CO-HOSTS. Billed equally in § 10, and that is ALL they get — the
+            main host above stays the only profile that can edit this event,
+            decide applications or receive its notifications. Enforced in
+            `event_hosts`'s RLS rather than asserted here. */}
+        <SectionHeader label="CO-HOSTS" />
+        <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 8 }}>
+          Billed alongside you on the event page. They can’t edit the event.
+        </div>
+        <CoHostPicker
+          eventId={editId || null}
+          ownerId={ownerId}
+          value={coHosts}
+          onChange={setCoHosts}
+        />
 
         {/* ── EVENT DETAILS ── */}
         <SectionHeader label="EVENT DETAILS" />

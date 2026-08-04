@@ -48,6 +48,45 @@ export function useEventData(id, navigate) {
       const { data: venueProfile } = ev.venue_profile_id
         ? await supabase.from('profiles').select('id, user_id, name, type, bio, tagline, avatar, avatar_thumb, location, suburb, state, postcode, lat, lng, accessibility, capacity').eq('id', ev.venue_profile_id).maybeSingle()
         : { data: null };
+      /**
+       * CO-HOSTS — additional profiles billed alongside the owner.
+       *
+       * ⚠ ATTRIBUTION ONLY. `owner_profile_id` remains the sole authority:
+       * nothing here touches who may edit, decide applications or receive
+       * notifications, and `event_hosts` carries no policy that would let it.
+       * A co-host is a name on the bill, and the RLS is what makes that true
+       * rather than merely intended.
+       *
+       * Two queries rather than an embedded join: PostgREST's `profiles(...)`
+       * embed would resolve through the FK, but `event_hosts` is read under a
+       * policy that joins `events`, and an embed makes the failure mode of
+       * that policy silent — an empty array reads identically to "no
+       * co-hosts". Fetching the ids first means an unreadable row is visible
+       * as a shorter list rather than as nothing at all.
+       *
+       * Ordered by `position` so the organiser's billing order survives; the
+       * PK is (event_id, profile_id), which does not imply an order.
+       */
+      const { data: coHostRows } = await supabase
+        .from('event_hosts').select('profile_id, position')
+        .eq('event_id', id).order('position');
+      const coHostIds = (coHostRows || [])
+        .map(r => r.profile_id)
+        // ⚠ The OWNER is never a co-host card. A row naming the owning profile
+        // would draw the same entity twice side by side — the duplication that
+        // got the venue fallback deleted from § 10. Dropped here, at the seam,
+        // so no renderer has to remember it.
+        .filter(pid => pid && pid !== ev.owner_profile_id);
+      const { data: coHostRowsFull } = coHostIds.length
+        ? await supabase.from('profiles')
+            .select('id, user_id, name, type, bio, avatar, avatar_thumb, location, state')
+            .in('id', coHostIds)
+        : { data: [] };
+      // Re-sorted into the co-host order: `.in()` returns rows in whatever
+      // order the planner likes, which is not the billing order.
+      const byId = Object.fromEntries((coHostRowsFull || []).map(p => [p.id, p]));
+      const coHostProfiles = coHostIds.map(pid => byId[pid]).filter(Boolean);
+
       const [{ data: membersData }, { data: perfsData }] = await Promise.all([
         supabase.from('lineup_members').select('id, artist_id, artist_profile_id, artist_name, genre, sound, card_pills').eq('event_id', id).neq('status', 'removed'),
         supabase.from('performances').select('id, lineup_member_id, slot_id, status').eq('event_id', id),
@@ -132,13 +171,14 @@ export function useEventData(id, navigate) {
       const mProfById = {}; (mPid.data || []).forEach(p => { mProfById[p.id] = p; });
       const mProfByUid = {}; (mUid.data || []).forEach(p => { mProfByUid[p.user_id] = p; });
       const memberProfiles = indexMemberProfiles(membersData, mProfById, mProfByUid);
-      return { event: ev, ownerProfile, venueProfile, claims: map, lineupMembers: membersData || [], memberPerfMap, memberProfiles };
+      return { event: ev, ownerProfile, venueProfile, coHostProfiles, claims: map, lineupMembers: membersData || [], memberPerfMap, memberProfiles };
     },
     enabled: !!id,
   });
 
   const event          = data?.event          || null;
   const ownerProfile   = data?.ownerProfile   || null;
+  const coHostProfiles = data?.coHostProfiles || [];
   const venueProfile   = data?.venueProfile   || null;
   const claims         = data?.claims         || {};
   const lineupMembers  = data?.lineupMembers  || [];
@@ -163,7 +203,7 @@ export function useEventData(id, navigate) {
   const lineupPct  = totalSlots > 0 ? Math.round((takenSlots / totalSlots) * 100) : 0;
 
   return {
-    loading, event, ownerProfile, venueProfile, claims, lineupMembers, memberPerfMap, memberProfiles,
+    loading, event, ownerProfile, venueProfile, coHostProfiles, claims, lineupMembers, memberPerfMap, memberProfiles,
     cfg, days, poster, posterFull, genres,
     isLocked, draftCount, showTimesPublicly, isPast,
     totalSlots, takenSlots, lineupPct,

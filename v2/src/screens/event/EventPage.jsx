@@ -39,6 +39,7 @@ import { shareUrl } from '../../lib/shareTarget';
 export default function EventPage({
   event,
   ownerProfile = null,
+  coHostProfiles = [],
   venueProfile = null,
   lineupMembers = [],
   memberProfiles = {},
@@ -77,8 +78,8 @@ export default function EventPage({
   // rather than per render so the status pill and "last checked" cannot
   // disagree with each other mid-page.
   const v = useMemo(
-    () => buildEventView({ event, ownerProfile, venueProfile, lineupMembers, memberProfiles }),
-    [event, ownerProfile, venueProfile, lineupMembers, memberProfiles],
+    () => buildEventView({ event, ownerProfile, coHostProfiles, venueProfile, lineupMembers, memberProfiles }),
+    [event, ownerProfile, coHostProfiles, venueProfile, lineupMembers, memberProfiles],
   );
 
   const collectables = useMemo(
@@ -206,10 +207,17 @@ export default function EventPage({
          margin on nothing (R5). The decision has to be made here, where the
          data is, not downstream where only an element is visible. */
       presentedBy={
-        v.presentedBy.presenter?.name
+        /* ⚠ The guard now asks about CO-HOSTS TOO. It used to test the
+           presenter alone, which was complete when a presenter was the only
+           thing this section could hold — with co-hosts it would drop a
+           billed profile whenever the owner happened to be unknown, and 17
+           events carry no owner at all. */
+        (v.presentedBy.presenter?.name || v.presentedBy.coHosts?.length)
           ? <EventPresentedBy
               presenter={v.presentedBy.presenter}
+              coHosts={v.presentedBy.coHosts}
               onViewProfile={p => openProfile(p?.profile || p)}
+              onViewCoHost={c => openProfile(c?.profile || c)}
             />
           : null
       }
