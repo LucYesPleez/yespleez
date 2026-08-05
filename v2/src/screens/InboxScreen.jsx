@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSession } from '../App';
@@ -152,15 +152,7 @@ export default function InboxScreen() {
   const userId = session?.user?.id;
   const [discoveryOpen, setDiscoveryOpen] = useState(false);
 
-  /**
-   * Which messaging identity this inbox is about.
-   *
-   * ⚠ RECORDED, NOT YET APPLIED. Conversation filtering is deliberately the
-   * NEXT step (owner, 2026-08-05) — this pass wires the control only. It is
-   * surfaced as a `data-` attribute on the screen rather than left as an unused
-   * variable: that makes the selection observable and testable without any
-   * copy on screen claiming a filter that is not happening.
-   */
+  /** Which messaging identity this inbox is about. */
   const [identity, setIdentity] = useState(ALL_PROFILES);
 
   // ⛔ `myAvatar` REMOVED WITH THE HEADER FACE — ProfileMenu shows it now.
@@ -226,6 +218,31 @@ export default function InboxScreen() {
     queryFn: fetchInboxRows,
     enabled: !!userId,
   });
+
+  /**
+   * The conversations belonging to the selected identity.
+   *
+   * ⚠ FILTERED ON `asProfile`, which is already "which of MY profiles is in
+   * this thread" — decided once in fetchInboxRows and reused, rather than
+   * re-derived here. That field is also what prints the "as Dusky Waters" line
+   * on each row, so the filter and the label can never disagree about which
+   * identity a conversation belongs to.
+   *
+   * ⚠ A THREAD BETWEEN TWO OF YOUR OWN PROFILES COUNTS AS PERSONAL. When both
+   * participants are yours, fetchInboxRows deliberately treats Personal as
+   * "you" and the industry profile as the recipient — so Personal → Dusky
+   * Waters appears under All profiles, not under Dusky Waters. That is the same
+   * rule the row's own label follows; changing it here would make the list and
+   * the label describe different things.
+   *
+   * ⚠ SEARCH IS NOT FILTERED. It is deliberately given the unfiltered `rows`:
+   * searching should find a person you talk to, not silently exclude them
+   * because of a control elsewhere on the screen.
+   */
+  const visibleRows = useMemo(
+    () => (identity === ALL_PROFILES ? rows : rows.filter((c) => c.asProfile?.id === identity)),
+    [rows, identity],
+  );
 
   /**
    * DEF-1 — the list stays LIVE while the dock is open.
@@ -473,9 +490,9 @@ export default function InboxScreen() {
             can be between two profiles the same human owns), and re-deriving
             it inside the section is how the two would drift apart.
             ⚠ SEPARATE FROM FOLLOWS by design — see the component header. */}
-        {!loading && rows.length > 0 && (
+        {!loading && visibleRows.length > 0 && (
           <MessengerContactsSection
-            rows={rows}
+            rows={visibleRows}
             loading={loading}
             onOpen={(conversationId, profile) => openConversation(conversationId, {
               profile: profile
@@ -496,6 +513,33 @@ export default function InboxScreen() {
           </div>
         )}
 
+        {/* ⚠ TWO DIFFERENT EMPTIES, AND THEY MUST NOT SHARE COPY. "You have no
+            conversations" is false when you have plenty and have simply filtered
+            to a profile with none — and it would read as data loss. This one
+            names the filter and offers the way out, because a control that can
+            empty the screen has to be able to un-empty it from where you are
+            looking. */}
+        {!loading && rows.length > 0 && visibleRows.length === 0 && (
+          <div style={{ textAlign: 'center', padding: '56px 0' }}>
+            <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 18, letterSpacing: 2, color: 'rgba(255,255,255,.3)' }}>
+              NOTHING HERE YET
+            </div>
+            <div style={{ fontSize: 13, color: 'rgba(255,255,255,.2)', marginTop: 6, lineHeight: 1.5 }}>
+              No conversations for this profile.
+            </div>
+            <button
+              type="button"
+              onClick={() => setIdentity(ALL_PROFILES)}
+              style={{ marginTop: 14, background: 'none', border: '1px solid var(--border)',
+                borderRadius: 999, padding: '8px 16px', cursor: 'pointer',
+                fontFamily: "'Bebas Neue', sans-serif", fontSize: 12, letterSpacing: 1.5,
+                color: 'var(--text)' }}
+            >
+              SHOW ALL PROFILES
+            </button>
+          </div>
+        )}
+
         {!loading && rows.length === 0 && (
           <div style={{ textAlign: 'center', padding: '64px 0' }}>
             <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 18, letterSpacing: 2, color: 'rgba(255,255,255,.3)' }}>
@@ -510,7 +554,7 @@ export default function InboxScreen() {
           </div>
         )}
 
-        {!loading && rows.map(c => {
+        {!loading && visibleRows.map(c => {
           const other = c.others[0];
           // ⚠ profileIdentity, NOT PROFILE_TYPES[...] — punter is deliberately
           // absent from that map (see profileTypes.js), so the bare lookup
