@@ -309,18 +309,23 @@ export default function InboxScreen() {
       <div style={{ maxWidth: 680, margin: '0 auto', padding: '0 16px' }}>
 
         <div style={{ marginBottom: 24, display: 'flex', alignItems: 'center', gap: 12 }}>
-          {/* ⚠ WAS 42px, NOW 24 (owner, 2026-08-05: "halve the height of the
-              messages title and have a searchbar there"). It was the app's usual
-              28px heading + 50% because Messages is the screen people land on
-              most — but a title is not what they came to DO. The search below it
-              is, so the title yields the room.
+          {/* 42px = the app's usual 28px heading + 50%. Deliberately larger than
+              NOTIFICATIONS and the other screen titles — Messages is the one
+              people land on most.
 
-              ⚠ `top` IS AN OPTICAL CORRECTION, NOT A NUDGE, AND IT SCALES WITH
-              THE SIZE. `align-items: center` levels the BOXES; Bebas Neue's ink
-              does not sit centred in its own line box, so all-caps reads high.
-              The original measured 2.5px at 42px — 2.5 × 24/42 ≈ 1.4 here.
-              Recompute it again if the size changes. */}
-          <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, letterSpacing: 3, lineHeight: 1, marginLeft: 20, position: 'relative', top: 1.4, background: HEADING_GRADIENT, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text', display: 'inline-block' }}>
+              ⚠ BRIEFLY 24px, RESTORED (owner, 2026-08-05). It was halved to make
+              room for the search bar; the search went in beneath the header row
+              rather than beside the title, so the room was never actually needed
+              and the screen just lost its heading.
+
+              ⚠ `top: 2.5px` IS AN OPTICAL CORRECTION, NOT A NUDGE. `align-items:
+              center` already levels the BOXES; the title still read high because
+              Bebas Neue's ink does not sit centred in its own line box. Measured
+              at this size: ascent 40, descent 15, and all-caps has zero ink
+              descent, so the ink centre lands 2.5px above the box centre.
+
+              Recompute it if the font size changes; the offset scales with it. */}
+          <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 42, letterSpacing: 3, lineHeight: 1, marginLeft: 20, position: 'relative', top: 2.5, background: HEADING_GRADIENT, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text', display: 'inline-block' }}>
             MESSAGES
           </div>
 
