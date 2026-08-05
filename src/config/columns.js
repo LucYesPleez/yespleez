@@ -25,6 +25,7 @@ export const COLUMNS = {
   topic:        { key: 'topic',        label: 'Workshop',         cell: 'text',  width: 180, priority: 2 },
   outlet:       { key: 'outlet',       label: 'Outlet',           cell: 'text',  width: 160, priority: 2 },
   trades:       { key: 'trades',       label: 'Sells',            cell: 'text',  width: 160, priority: 2 },
+  rig:          { key: 'rig',          label: 'Rig',              cell: 'text',  width: 170, priority: 2 },
   skills:       { key: 'skills',       label: 'Skills',           cell: 'tag',   width: 160, priority: 2 },
   availability: { key: 'availability', label: 'Availability',     cell: 'muted', width: 130, priority: 1 },
   frontage:     { key: 'frontage',     label: 'Frontage',         cell: 'muted', width: 110, priority: 1 },

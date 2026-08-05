@@ -23,6 +23,11 @@ const WINDOWS = {
   decor:              { opensAt: '2026-09-01', closesAt: '2026-10-01', state: 'open' },
   media:              { opensAt: '2026-10-01', closesAt: '2026-12-01', state: 'scheduled' },
   theme_camp:         { opensAt: '2026-09-01', closesAt: '2026-11-01', state: 'closed' },
+  // The trades have no closing date: a register-interest listing stays open
+  // because there is no round to close.
+  sound_system:       { opensAt: '2026-09-01', closesAt: null,         state: 'open' },
+  lighting:           { opensAt: '2026-09-01', closesAt: null,         state: 'open' },
+  staging:            { opensAt: '2026-09-01', closesAt: null,         state: 'open' },
 };
 
 function decorate(cat) {
@@ -35,6 +40,10 @@ function decorate(cat) {
     noun: cat.noun,
     columns: cat.columns,
     count: cat.count,
+    // ⚠ `decorate` builds an explicit object, so anything added to the registry
+    // and not named here is silently dropped before the UI sees it. `intent`
+    // decides whether a category renders as a queue or a list.
+    intent: cat.intent,
     opensAt: w.opensAt ?? null,
     closesAt: w.closesAt ?? null,
     state: w.state ?? 'open',

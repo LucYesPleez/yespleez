@@ -18,6 +18,10 @@ const PATHS = {
   decor:         <><path d="M12 3v18" /><path d="M4 8l8-5 8 5" /><path d="M4 8v8l8 5 8-5V8" /></>,
   media:         <><rect x="3" y="6" width="18" height="13" rx="2.5" /><circle cx="12" cy="12.5" r="3.5" /><path d="M8 6l1.5-2h5L16 6" /></>,
   theme_camp:    <><path d="M12 3 3 20h18L12 3Z" /><path d="M12 10v10" /></>,
+  // The trades. Single-stroke like the rest — a stack, a fresnel, a truss.
+  sound_system:  <><rect x="5" y="3" width="14" height="18" rx="2" /><circle cx="12" cy="8" r="2" /><circle cx="12" cy="16" r="3" /></>,
+  lighting:      <><path d="M9 3h6l2 5H7l2-5Z" /><path d="M12 8v4" /><path d="M6 21a6 6 0 0 1 12 0" /></>,
+  staging:       <><path d="M3 20h18" /><path d="M5 20V9h14v11" /><path d="M5 9 12 4l7 5" /><path d="M9 20v-6h6v6" /></>,
   messages:      <><path d="M4 5h16v11H9l-5 4V5Z" /></>,
   announcements: <><path d="M4 10v4h4l6 4V6l-6 4H4Z" /><path d="M17 9a4 4 0 0 1 0 6" /></>,
   profile:       <><circle cx="12" cy="9" r="3.5" /><path d="M5 20a7 7 0 0 1 14 0" /><circle cx="12" cy="12" r="9" /></>,
