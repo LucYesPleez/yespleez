@@ -1645,14 +1645,26 @@ body.yp-viewer-open .yp-global-header {
    ⚠ GLOBAL, NOT PER-MODULE. Every CSS-module class is content-hashed, so this
    cannot be shared from inside one — and three copies of a hit-area rule is
    how two of them end up at 40px. */
-.yp-tap44 { position: relative; }
-.yp-tap44::after {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: max(100%, 44px);
-  height: max(100%, 44px);
-  /* No background: this exists to be touched, never to be seen. */
+/* ⚠ TOUCH DEVICES ONLY (owner, 2026-08-05: "can we just do it on the phone").
+   `pointer: coarse` is the imprecise-pointer query — a finger, not a mouse. A
+   cursor is pixel-accurate and needs none of this, and on desktop these
+   invisible boxes are pure downside: they sit over neighbouring controls and
+   can swallow a hover the user aimed precisely. A laptop with a touchscreen
+   correctly reports coarse and gets them.
+
+   ⚠ IT ALSO MEANS DESKTOP MEASUREMENTS WILL SHOW THE RULE ABSENT. Verifying in
+   a desktop browser reads as "the class did nothing" — check `matchMedia
+   ('(pointer: coarse)')` before concluding anything. */
+@media (pointer: coarse) {
+  .yp-tap44 { position: relative; }
+  .yp-tap44::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: max(100%, 44px);
+    height: max(100%, 44px);
+    /* No background: this exists to be touched, never to be seen. */
+  }
 }

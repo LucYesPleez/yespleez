@@ -96,7 +96,12 @@ export default function FollowHeartBtn({ profile, style, className, onChange, on
 
   return (
     <button
-      className={className}
+      /* ⚠ `yp-tap44` IS APPENDED, NOT SUBSTITUTED — the caller's className is
+         still whatever it passed. Measured at 30×30 on My Scene with 27–130px
+         of clearance, so the hit area cannot reach a neighbour. One edit here
+         covers every follow control in the app; the alternative was ~50 call
+         sites, which is how a few of them end up missed. */
+      className={className ? `${className} yp-tap44` : 'yp-tap44'}
       onClick={toggle}
       aria-label={followed ? `Unfollow ${profile?.name || 'profile'}` : `Follow ${profile?.name || 'profile'}`}
       aria-pressed={followed}

@@ -897,15 +897,15 @@ export default function MySceneScreen({ isGuest, onSignOut }) {
       {session && !isGuest && (
         <div className={s.dateStripWrap}>
           <div className={s.dateStripTop}>
-            <button className={s.monthLabel} onClick={() => { setPickerYear(viewMonth.getFullYear()); setPickerMonth(viewMonth.getMonth()); setMonthPickerOpen(true); }}>
+            <button className={`${s.monthLabel} yp-tap44`} onClick={() => { setPickerYear(viewMonth.getFullYear()); setPickerMonth(viewMonth.getMonth()); setMonthPickerOpen(true); }}>
               <span>{viewMonth.toLocaleString('en-AU', { month: 'long', year: 'numeric' }).toUpperCase()}</span>
               <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M6 9l6 6 6-6"/></svg>
             </button>
             <div className={s.monthNav}>
-              <button className={s.navBtn} onClick={prevMonth}>←</button>
-              <button className={s.navBtn} onClick={nextMonth}>→</button>
+              <button className={`${s.navBtn} yp-tap44`} onClick={prevMonth}>←</button>
+              <button className={`${s.navBtn} yp-tap44`} onClick={nextMonth}>→</button>
               {!loading && (
-                <button className={s.addBtn} onClick={() => openAddEvent(selDate || todayStr)} title="Add to your scene">
+                <button className={`${s.addBtn} yp-tap44`} onClick={() => openAddEvent(selDate || todayStr)} title="Add to your scene">
                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round">
                     <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
                   </svg>
@@ -924,7 +924,7 @@ export default function MySceneScreen({ isGuest, onSignOut }) {
               const dow = ['S','M','T','W','T','F','S'][new Date(ds).getDay()];
               const dotColor = isSel ? '#fff' : '#FF2D78';
               return (
-                <button key={ds} className={s.dayPill + (isSel ? ' ' + s.dayPillSel : isToday ? ' ' + s.dayPillToday : '')}
+                <button key={ds} className={'yp-tap44 ' + s.dayPill + (isSel ? ' ' + s.dayPillSel : isToday ? ' ' + s.dayPillToday : '')}
                   onClick={() => !loading && selectDate(ds)}>
                   <div className={s.dayName}>{dow}</div>
                   <div className={s.dayNum}>{day}</div>
@@ -1321,14 +1321,14 @@ export default function MySceneScreen({ isGuest, onSignOut }) {
                 <div className={s.v1Head} style={{ marginBottom:8 }}>
                   <div className={s.followTabs} style={{ margin:0 }}>
                     <button
-                      className={s.followTab + (savedTab === 'saved' ? ' ' + s.followTabActive : '')}
+                      className={'yp-tap44 ' + s.followTab + (savedTab === 'saved' ? ' ' + s.followTabActive : '')}
                       onClick={() => { setSavedTab('saved'); setSavedLimit(3); setEventsExpanded(false); }}
                     >
                       COMING UP
                       {upcomingEvents.length > 0 && <span className={s.followCountBadge}>{upcomingEvents.length}</span>}
                     </button>
                     <button
-                      className={s.followTab + (savedTab === 'past' ? ' ' + s.followTabActive : '')}
+                      className={'yp-tap44 ' + s.followTab + (savedTab === 'past' ? ' ' + s.followTabActive : '')}
                       onClick={() => { setSavedTab('past'); setPastLimit(3); setEventsExpanded(false); }}
                     >
                       PAST
@@ -1414,14 +1414,14 @@ export default function MySceneScreen({ isGuest, onSignOut }) {
                 <div className={s.v1Head} style={{ marginBottom:8 }}>
                   <div className={s.followTabs} style={{ margin:0 }}>
                     <button
-                      className={s.followTab + (followTab === 'following' ? ' ' + s.followTabActive : '')}
+                      className={'yp-tap44 ' + s.followTab + (followTab === 'following' ? ' ' + s.followTabActive : '')}
                       onClick={() => setFollowTab('following')}
                     >
                       FOLLOWING
                       {profileFollows.length > 0 && <span className={s.followCountBadge}>{profileFollows.length}</span>}
                     </button>
                     <button
-                      className={s.followTab + (followTab === 'updates' ? ' ' + s.followTabActive : '')}
+                      className={'yp-tap44 ' + s.followTab + (followTab === 'updates' ? ' ' + s.followTabActive : '')}
                       onClick={() => setFollowTab('updates')}
                     >
                       UPDATES
@@ -1473,9 +1473,9 @@ export default function MySceneScreen({ isGuest, onSignOut }) {
                         now in the heading row beside View all. */}
                     {availableTypes.length > 1 && (
                       <div className={s.roleFilters} style={{ margin:0 }}>
-                        <button className={s.rolePill + (!followRoleFilter ? ' ' + s.rolePillActive : '')} onClick={() => setFollowRoleFilter(null)}>ALL</button>
+                        <button className={'yp-tap44 ' + s.rolePill + (!followRoleFilter ? ' ' + s.rolePillActive : '')} onClick={() => setFollowRoleFilter(null)}>ALL</button>
                         {availableTypes.map(t => (
-                          <button key={t} className={s.rolePill + (followRoleFilter === t ? ' ' + s.rolePillActive : '')} onClick={() => setFollowRoleFilter(followRoleFilter === t ? null : t)}>
+                          <button key={t} className={'yp-tap44 ' + s.rolePill + (followRoleFilter === t ? ' ' + s.rolePillActive : '')} onClick={() => setFollowRoleFilter(followRoleFilter === t ? null : t)}>
                             {TYPE_LABELS[t] || t.toUpperCase()}
                           </button>
                         ))}

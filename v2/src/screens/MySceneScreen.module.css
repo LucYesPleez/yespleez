@@ -94,7 +94,13 @@
 
 .monthNav {
   display: flex;
-  gap: 6px;
+  /* ⚠ 18px, NOT 6 — THE GAP IS WHAT MAKES THE TOUCH TARGETS SAFE. These three
+     buttons are 28px wide and take `yp-tap44`, which needs 8px of clearance
+     each side. At the old 6px they overlapped by 2px, and ← catching a press
+     meant for → moves the calendar the wrong way — the worst possible version
+     of that failure. The buttons look identical; only the space between them
+     changed. */
+  gap: 18px;
   align-items: center;
 }
 
