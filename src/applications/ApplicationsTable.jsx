@@ -1,5 +1,6 @@
 import { EmptyState, LoadingState } from '../design-system';
 import ApplicationsRow from './ApplicationsRow';
+import { columnClass } from './columnClass';
 import s from './ApplicationsTable.module.css';
 
 /**
@@ -40,7 +41,10 @@ export default function ApplicationsTable({
               <th
                 key={col.key}
                 scope="col"
-                className={s.sortable}
+                /* Same class source as the row's <td> — see columnClass.js.
+                   A header that hides on a different rule than its cells
+                   silently misaligns every row. */
+                className={columnClass(col, s.sortable)}
                 style={col.width ? { width: col.width } : undefined}
               >
                 {col.label}

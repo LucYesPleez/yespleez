@@ -4,7 +4,15 @@
    pagination bar must stay on screen while only the rows move. Scrolling the
    whole page would take the toolbar with it, and someone half-way down four
    hundred rows would have to scroll back up to change a filter. */
+/* ⚠ CONTAINER, NOT VIEWPORT.
+   Inside a three-pane shell the viewport is the wrong thing to measure. At a
+   1920px viewport this pane is about 1026px, because the sidebar takes 232
+   and the docked inspector takes 380 — so viewport media queries keep wide
+   layouts alive in a narrow pane and columns overflow with no warning.
+   Everything inside the workspace responds to THIS box. */
 .workspace {
+  container-type: inline-size;
+  container-name: workspace;
   flex: 1;
   min-height: 0;
   display: flex;

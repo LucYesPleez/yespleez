@@ -135,6 +135,10 @@
 .menuBtn:hover { color: var(--text); }
 
 /* Priority-based responsive hiding, driven by `columns.js`. `applicant` and
-   `status` carry no priority and never hide. */
-@media (max-width: 1560px) { .p2 { display: none; } }
-@media (max-width: 1320px) { .p1 { display: none; } }
+   `status` carry no priority and never hide — "who" and "where are we up to"
+   are the two questions a reviewer always needs answered.
+   ⚠ Measured against the WORKSPACE container, never the viewport: the pane is
+   ~1026px wide inside a 1920px window once the inspector is docked, and a
+   viewport query would keep six columns alive in a box that fits four. */
+@container workspace (max-width: 1000px) { .p1 { display: none; } }
+@container workspace (max-width:  760px) { .p2 { display: none; } }

@@ -1,4 +1,5 @@
 import { Icon, StatusBadge } from '../design-system';
+import { columnClass } from './columnClass';
 import s from './ApplicationsTable.module.css';
 
 /**
@@ -67,7 +68,8 @@ export default function ApplicationsRow({ application, columns, active, ticked, 
       {columns.map(col => (
         <td
           key={col.key}
-          className={[s.cell, col.priority === 1 && s.p1, col.priority === 2 && s.p2].filter(Boolean).join(' ')}
+          /* Same class source as the header's <th> — see columnClass.js. */
+          className={columnClass(col, s.cell)}
         >
           <Cell column={col} application={application} />
         </td>

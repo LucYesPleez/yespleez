@@ -43,4 +43,5 @@
 }
 .clear:hover { color: var(--neon); }
 
-@media (max-width: 1440px) { .collapsible { display: none; } }
+/* Container, not viewport — see ApplicationsTable.module.css. */
+@container workspace (max-width: 1100px) { .collapsible { display: none; } }

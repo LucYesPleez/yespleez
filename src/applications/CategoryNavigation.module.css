@@ -1,12 +1,34 @@
+/* The strip scrolls; the frame carries the fade. A pseudo-element on the
+   scroller itself would scroll away with the content. */
+.frame {
+  position: relative;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+  min-width: 0;
+}
+
+/* NO VISIBLE SCROLLBARS, ANYWHERE — so an overflowing strip needs a gradient
+   cue instead, or the last two categories read as missing rather than
+   off-screen. `--fade` is set from JS only when the strip actually overflows;
+   a permanent fade would imply hidden content that isn't there. */
+.frame::after {
+  content: '';
+  position: absolute;
+  top: 0; right: 0; bottom: 1px;
+  width: 56px;
+  pointer-events: none;
+  opacity: var(--fade, 0);
+  transition: opacity var(--yp-medium) var(--yp-ease);
+  background: linear-gradient(90deg, transparent, var(--card));
+}
+
 .nav {
   display: flex;
   align-items: center;
   gap: 3px;
   padding: 0 14px;
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
   overflow-x: auto;
-  position: relative;
+  scroll-behavior: smooth;
 }
 
 .tab {
@@ -54,6 +76,14 @@
 
 .icon { opacity: .85; flex-shrink: 0; }
 
-/* Below this the icons go before the labels do — a label with no icon is
-   still usable, an icon with no label is a guess. */
-@media (max-width: 1500px) { .icon { display: none; } }
+/* Icons go before labels do — a label with no icon is still usable, an icon
+   with no label is a guess. Measured against the WORKSPACE, not the viewport:
+   with the inspector docked, this pane is ~1026px inside a 1920px window. */
+@container workspace (max-width: 1200px) {
+  .icon { display: none; }
+  .tab { padding-left: 10px; padding-right: 10px; }
+}
+
+@container workspace (max-width: 900px) {
+  .count { display: none; }
+}
