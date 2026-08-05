@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Icon, Button, EmptyState } from '../design-system';
-import { Select, Textarea } from '../design-system/Form';
+import { Select } from '../design-system/Form';
 import { useRepositories } from '../data/dataContext';
 import { useQuery } from '../data/useQuery';
 import { useSession } from '../auth/useSession';
 import SignInScreen from '../auth/SignInScreen';
+import { dayOptions } from './dayOptions';
 import s from './ApplyScreen.module.css';
 
 /**
@@ -20,16 +21,33 @@ import s from './ApplyScreen.module.css';
  * them. No redirect, no return-to parameter, nothing to lose — which is the
  * whole reason there is no "you were trying to apply to…" recovery path.
  */
-function CategoryCard({ category, profiles, onApply, applied }) {
+function CategoryCard({ category, profiles, config, onApply, applied }) {
   const eligible = profiles.filter(p => category.appliesAs.includes(p.type));
   const [profileId, setProfileId] = useState(eligible[0]?.id ?? '');
-  const [answers, setAnswers] = useState({});
+  const [days, setDays] = useState([]);
+  const [departments, setDepartments] = useState([]);
   const [busy, setBusy] = useState(false);
 
-  const missingRequired = category.questions.some(q => !q.optional && !answers[q.key]);
+  const availableDays = category.asksAvailability ? dayOptions(config?.settings) : [];
+  const availableDepts = category.asksDepartments ? (config?.departments ?? []) : [];
+
+  // ⭐ THE ONE-CLICK RULE: no event-specific questions means the Apply button
+  // is live immediately. A festival that configured nothing asks nothing.
+  const needsDays = availableDays.length > 0 && days.length === 0;
+  const needsDepts = availableDepts.length > 0 && departments.length === 0;
+
+  function toggle(setter, value) {
+    setter(prev => prev.includes(value) ? prev.filter(v => v !== value) : [...prev, value]);
+  }
 
   async function submit() {
     setBusy(true);
+    // Departments are stored by NAME, not id: an application is a record of
+    // what was asked for at the time, and it must still read correctly after
+    // the organiser renames or archives a department.
+    const answers = {};
+    if (days.length) answers.days = days;
+    if (departments.length) answers.departments = departments;
     await onApply({ categoryKey: category.key, profileId, answers });
     setBusy(false);
   }
@@ -67,24 +85,46 @@ function CategoryCard({ category, profiles, onApply, applied }) {
             <p className={s.note}>Applying as <strong>{eligible[0].name || eligible[0].type}</strong>.</p>
           )}
 
-          {category.questions.map(q => (
-            q.type === 'textarea' ? (
-              <Textarea
-                key={q.key} label={q.label} optional={q.optional} rows={3}
-                value={answers[q.key] ?? ''}
-                onChange={e => setAnswers(a => ({ ...a, [q.key]: e.target.value }))}
-              />
-            ) : (
-              <Select
-                key={q.key} label={q.label} optional={q.optional}
-                value={answers[q.key] ?? ''}
-                onChange={e => setAnswers(a => ({ ...a, [q.key]: e.target.value }))}
-                options={[{ value: '', label: 'Choose…' }, ...q.options]}
-              />
-            )
-          ))}
+          {availableDays.length > 0 && (
+            <fieldset className={s.group}>
+              <legend className={s.legend}>Which days can you work?</legend>
+              {availableDays.map(d => (
+                <label key={d.value} className={s.check}>
+                  <input
+                    type="checkbox"
+                    checked={days.includes(d.value)}
+                    onChange={() => toggle(setDays, d.value)}
+                  />
+                  {d.label}
+                </label>
+              ))}
+            </fieldset>
+          )}
 
-          <Button variant="primary" block disabled={busy || !profileId || missingRequired} onClick={submit}>
+          {availableDepts.length > 0 && (
+            <fieldset className={s.group}>
+              <legend className={s.legend}>Where would you like to work?</legend>
+              {availableDepts.map(dept => (
+                <label key={dept.id} className={s.check}>
+                  <input
+                    type="checkbox"
+                    checked={departments.includes(dept.name)}
+                    onChange={() => toggle(setDepartments, dept.name)}
+                  />
+                  <span>
+                    {dept.name}
+                    {dept.description && <span className={s.deptNote}>{dept.description}</span>}
+                  </span>
+                </label>
+              ))}
+            </fieldset>
+          )}
+
+          <Button
+            variant="primary" block
+            disabled={busy || !profileId || needsDays || needsDepts}
+            onClick={submit}
+          >
             {busy ? 'Sending…' : 'Apply'}
           </Button>
         </>
@@ -100,6 +140,7 @@ export default function ApplyScreen() {
 
   const { data: event, loading: eventLoading } = useQuery(() => apply.getEvent(eventId), [eventId]);
   const { data: categories } = useQuery(() => apply.listOpenCategories(eventId), [eventId]);
+  const { data: config } = useQuery(() => apply.getEventConfig(eventId), [eventId]);
   const { data: profiles } = useQuery(
     () => apply.listMyProfiles(),
     [session?.user?.id],
@@ -162,6 +203,7 @@ export default function ApplyScreen() {
                   key={c.key}
                   category={c}
                   profiles={profiles ?? []}
+                  config={config}
                   applied={Boolean(applied[c.key])}
                   onApply={onApply}
                 />

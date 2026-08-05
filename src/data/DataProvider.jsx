@@ -4,6 +4,7 @@ import { festivalRepository } from './supabase/festivalRepository';
 import { categoryRepository } from './supabase/categoryRepository';
 import { applicationRepository } from './supabase/applicationRepository';
 import { applyRepository } from './supabase/applyRepository';
+import { eventConfigRepository } from './supabase/eventConfigRepository';
 
 /**
  * THE SWAP POINT.
@@ -33,6 +34,8 @@ const DEFAULT_REPOSITORIES = {
   // The public apply surface. Keyed by the event id in the URL rather than by
   // "which festival do I run", because an applicant runs none.
   apply: applyRepository,
+  // The organiser's half of an application: dates, departments, what is open.
+  eventConfig: eventConfigRepository,
 };
 
 export default function DataProvider({ repositories, children }) {

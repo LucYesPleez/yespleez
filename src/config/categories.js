@@ -72,28 +72,22 @@ export const CATEGORIES = [
     // as their punter identity, which every account already has.
     appliesAs: ['punter'],
     /**
-     * ⚠ PROVISIONAL — owner sign-off pending.
+     * ⭐ WHAT is asked lives here; WHICH OPTIONS lives on the event.
      *
-     * ⭐ These are NOT a second profile form. Everything here is true of THIS
-     * EVENT and false of the next one, so a profile structurally cannot hold
-     * it. Anything durable about the person — skills, emergency contact,
-     * accessibility, phone — already lives on `profiles` and must never be
-     * re-asked here.
+     * A volunteer application always needs availability and a department
+     * preference — that is a property of volunteering, not of one festival.
+     * But the DAYS come from the organiser's build/festival/pack-down dates,
+     * and the DEPARTMENTS are rows the organiser created. ⛔ Never hardcode
+     * either: real lists run 16 at one festival and 30+ at another, and a
+     * beach festival's reads Boat Crew / Beach Patrol / Shuttle Drivers.
      *
-     * ⛔ Adding a question that would be the same answer at every festival is
-     * the mistake this comment exists to prevent. Put it on the profile.
+     * ⛔ Anything durable about the person — skills, emergency contact,
+     * accessibility, phone, tickets — lives on `profiles` and is never
+     * re-asked. If the answer would be the same at every festival, it does not
+     * belong in an application at all.
      */
-    questions: [
-      { key: 'days',  label: 'Which days can you work?', type: 'select', options: [
-        'Thursday – Sunday', 'Friday – Sunday', 'Saturday – Sunday',
-        'Whole build and event',
-      ] },
-      { key: 'area',  label: 'Where would you like to work?', type: 'select', options: [
-        'Wherever needed', 'Bar', 'Gate', 'Kitchen', 'Site and build',
-        'Waste and recycling', 'Welfare',
-      ] },
-      { key: 'notes', label: 'Anything we should know?', type: 'textarea', optional: true },
-    ],
+    asksAvailability: true,
+    asksDepartments: true,
     intent: 'open_call',
     columns: ['applicant', 'skills', 'availability', 'stage', 'status', 'date'],
   },

@@ -1,0 +1,48 @@
+.list { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 8px; }
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--fp-radius-sm);
+  background: var(--card2);
+}
+
+/* Archived stays VISIBLE and dimmed. A row that disappears when archived reads
+   as a delete, and the whole point of archiving is that it is not one. */
+.archived { opacity: .45; }
+
+.rowFields { flex: 1; display: grid; gap: 4px; min-width: 0; }
+
+.inlineInput {
+  background: transparent;
+  border: 0;
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  padding: 2px 0;
+  width: 100%;
+}
+
+.inlineInput:focus { outline: none; box-shadow: 0 1px 0 var(--neon2); }
+
+.desc { font-size: 12.5px; color: var(--muted); }
+
+.rowActions { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+
+.iconBtn {
+  background: transparent;
+  border: 0;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 4px;
+  display: inline-flex;
+  border-radius: 6px;
+}
+
+.iconBtn:hover:not(:disabled) { color: var(--text); background: rgba(255, 255, 255, .05); }
+.iconBtn:disabled { opacity: .3; cursor: default; }
+
+.up { transform: rotate(180deg); }

@@ -63,3 +63,26 @@
 .note strong { color: var(--text); font-weight: 500; }
 
 .error { color: var(--neon); font-size: 13px; margin: 0 0 12px; }
+
+.group { border: 0; padding: 0; margin: 0; display: grid; gap: 7px; }
+
+.legend {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 0;
+  margin-bottom: 3px;
+}
+
+.check {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  color: var(--text);
+  font-size: 13.5px;
+  cursor: pointer;
+}
+
+.check input { margin-top: 2px; accent-color: var(--neon); }
+
+.deptNote { display: block; color: var(--muted); font-size: 12px; margin-top: 1px; }

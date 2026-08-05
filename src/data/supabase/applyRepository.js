@@ -55,9 +55,50 @@ export const applyRepository = {
         noun: c.noun,
         intent: c.intent,
         appliesAs: c.appliesAs ?? [],
-        questions: c.questions ?? [],
+        asksAvailability: Boolean(c.asksAvailability),
+        asksDepartments: Boolean(c.asksDepartments),
         closesAt: open.get(c.key).closes_at ?? null,
       }));
+  },
+
+  /**
+   * The organiser's configuration, read publicly.
+   *
+   * ⭐ The apply page renders ENTIRELY from this. Nothing about Deliverance's
+   * departments or dates exists in the code — they are the first real data
+   * entered through the editor, and the next festival needs no code change.
+   */
+  async getEventConfig(eventId) {
+    const [settingsRes, deptRes] = await Promise.all([
+      supabase
+        .from('festival_event_settings')
+        .select('build_starts_on, build_ends_on, starts_on, ends_on, packdown_starts_on, packdown_ends_on')
+        .eq('event_id', eventId)
+        .maybeSingle(),
+      supabase
+        .from('festival_departments')
+        .select('id, name, description')
+        .eq('event_id', eventId)
+        // ⛔ Archived departments are never offered to an applicant. They exist
+        // so last year's records still name something real.
+        .eq('archived', false)
+        .order('sort_order'),
+    ]);
+    if (settingsRes.error) throw settingsRes.error;
+    if (deptRes.error) throw deptRes.error;
+
+    const d = settingsRes.data;
+    return {
+      settings: {
+        buildStartsOn: d?.build_starts_on ?? '',
+        buildEndsOn: d?.build_ends_on ?? '',
+        startsOn: d?.starts_on ?? '',
+        endsOn: d?.ends_on ?? '',
+        packdownStartsOn: d?.packdown_starts_on ?? '',
+        packdownEndsOn: d?.packdown_ends_on ?? '',
+      },
+      departments: deptRes.data ?? [],
+    };
   },
 
   /** Every profile the signed-in user owns. The set they can apply as. */
