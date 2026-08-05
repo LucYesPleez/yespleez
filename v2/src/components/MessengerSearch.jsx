@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { looksLikeNumber, toE164, DEFAULT_COUNTRY } from '../lib/phoneNumber';
+import { looksLikeNumber, toE164, isoForE164, COUNTRIES, DEFAULT_COUNTRY } from '../lib/phoneNumber';
 import { findByPhone } from '../lib/phoneKey';
 import MessengerAvatar from './MessengerAvatar';
 
@@ -55,10 +55,25 @@ export default function MessengerSearch({ rows = [], onOpen }) {
 
   const query = q.trim();
   const isNumber = looksLikeNumber(q);
-  const completeNumber = isNumber ? toE164(q).e164 : null;
-  // `+` or `00` means the query carries its own country code, so nothing was
-  // assumed and there is nothing to warn about.
+  // `+` or `00` means the query carries its own country code, so nothing is
+  // assumed — and the chip below has nothing left to decide.
   const typedInternational = /^\s*(\+|00)/.test(q);
+
+  // ⚠ THE CHIP IS STATE, AND IT FEEDS THE LOOKUP. Owner, 2026-08-05: "as they
+  // start entering a number the country code appears at the front. if they
+  // enter a name the country code doesnt appear." So it is mounted only for a
+  // number query — a name search never sees a control that could not affect it.
+  const [searchIso, setSearchIso] = useState(DEFAULT_COUNTRY);
+  const completeNumber = isNumber ? toE164(q, searchIso).e164 : null;
+
+  // ⚠ THE CHIP MUST FOLLOW THE NUMBER. Typing +64… and leaving the chip on AU
+  // would show two different countries for one query, and the one the user can
+  // see would be the wrong one. Same rule PhoneNumberSettings applies on blur.
+  useEffect(() => {
+    if (!typedInternational || !completeNumber) return;
+    const detected = isoForE164(completeNumber);
+    if (detected && detected !== searchIso) setSearchIso(detected);
+  }, [typedInternational, completeNumber, searchIso]);
 
   // People you already talk to, deduped, most recent first — `rows` arrives
   // ordered by last_message_at, so first-seen IS most-recent.
@@ -107,27 +122,58 @@ export default function MessengerSearch({ rows = [], onOpen }) {
     let dead = false;
     setSearchingNumber(true);
     const t = setTimeout(async () => {
-      const { matches } = await findByPhone([q]);
+      // The chip's country, not the module default — that is the whole point
+      // of showing it.
+      const { matches } = await findByPhone([q], searchIso);
       if (dead) return;
       setNumberMatch(matches?.[0] ?? null);
       setSearchingNumber(false);
     }, 350);
     return () => { dead = true; clearTimeout(t); };
-  }, [q, completeNumber]);
+    // ⚠ `searchIso` BELONGS HERE even though `completeNumber` is derived from
+    // it. Changing the chip usually changes the resolved number and would
+    // re-run this anyway — but not always, and "usually re-runs" is a lookup
+    // that silently keeps showing the previous country's answer.
+  }, [q, completeNumber, searchIso]);
 
   const open = Boolean(query);
   const nothing = open && !known.length && !profiles.length && !numberMatch && !searchingNumber;
 
   return (
     <div style={{ padding: '0 20px', marginBottom: open ? 14 : 20 }}>
-      <input
-        value={q}
-        onChange={(e) => setQ(e.target.value)}
-        placeholder="Search by name or number…"
-        aria-label="Search people, artists and venues"
-        inputMode="text"
-        style={fieldStyle}
-      />
+      <div style={fieldWrap}>
+        {/* ⚠ MOUNTED ONLY FOR A NUMBER QUERY. On a name search it is not
+            greyed out or inert, it is ABSENT — a control that cannot affect
+            the result should not be occupying the field.
+
+            ⚠ DISABLED ONCE THE QUERY CARRIES ITS OWN CODE. With a leading +
+            or 00, toE164 ignores this entirely, so leaving it pressable would
+            be a control that visibly does nothing. It still SHOWS the detected
+            country, because that is the useful half. */}
+        {isNumber && (
+          <select
+            aria-label="Country the number belongs to"
+            value={searchIso}
+            disabled={typedInternational}
+            onChange={(e) => setSearchIso(e.target.value)}
+            style={{ ...isoChip, cursor: typedInternational ? 'default' : 'pointer',
+              opacity: typedInternational ? 0.55 : 1 }}
+          >
+            {COUNTRIES.map((c) => (
+              <option key={c.iso} value={c.iso}>+{c.dial}</option>
+            ))}
+          </select>
+        )}
+
+        <input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Search by name or number…"
+          aria-label="Search people, artists and venues"
+          inputMode="text"
+          style={bareInput}
+        />
+      </div>
 
       {open && (
         <div style={{ marginTop: 10 }}>
@@ -195,8 +241,9 @@ export default function MessengerSearch({ rows = [], onOpen }) {
                   domestic and would not thank us for the lecture. */}
               {completeNumber && !searchingNumber && !numberMatch && !typedInternational && (
                 <Note>
-                  Overseas? Start with <strong style={{ color: 'var(--text)' }}>+</strong> and their
-                  country code — without it a number is read as {DEFAULT_COUNTRY}.
+                  Overseas? Change the code at the front of the field, or start with{' '}
+                  <strong style={{ color: 'var(--text)' }}>+</strong> — without either it is read
+                  as {DEFAULT_COUNTRY}.
                 </Note>
               )}
             </Group>
@@ -248,11 +295,27 @@ function labelForType(type) {
   return type === 'artist' ? 'DJ / PROD.' : String(type).toUpperCase();
 }
 
-const fieldStyle = {
-  width: '100%', boxSizing: 'border-box',
+/* ⚠ THE PADDING MOVED FROM THE FIELD TO THE INPUT, so the 42px height survives
+   the chip appearing and disappearing. Left on the wrapper, the row would grow
+   by the chip's own line box the moment a number is typed and the field would
+   visibly jump mid-keystroke. */
+const fieldWrap = {
+  display: 'flex', alignItems: 'center', gap: 8, width: '100%', boxSizing: 'border-box',
   background: 'rgba(255,255,255,.06)', border: '1px solid var(--border)',
-  borderRadius: 999, padding: '11px 16px', outline: 'none',
-  color: 'var(--text)', fontFamily: "'DM Sans', sans-serif", fontSize: 14,
+  borderRadius: 999, padding: '0 16px',
+};
+
+const isoChip = {
+  background: 'transparent', border: 'none', outline: 'none', flexShrink: 0,
+  color: 'var(--text)', fontFamily: "'DM Sans', sans-serif", fontSize: 14, padding: 0,
+  // Native control on a dark surface needs this or the dropdown renders white.
+  colorScheme: 'dark',
+};
+
+const bareInput = {
+  flex: 1, minWidth: 0, background: 'transparent', border: 'none', outline: 'none',
+  padding: '11px 0', color: 'var(--text)',
+  fontFamily: "'DM Sans', sans-serif", fontSize: 14,
 };
 
 const groupTitleStyle = {
