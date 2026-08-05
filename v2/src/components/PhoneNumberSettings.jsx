@@ -7,6 +7,7 @@ import {
 } from '../lib/phoneKey';
 import { COUNTRIES, DEFAULT_COUNTRY, formatDisplay, toE164 } from '../lib/phoneNumber';
 import ContactSyncSettings from './ContactSyncSettings';
+import { summaryRow, rowLabel, rowAction } from './findPeopleRowStyles';
 import PrivacyInfo from './PrivacyInfo';
 import s from './NotificationPreferences.module.css';
 
@@ -180,7 +181,12 @@ export default function PhoneNumberSettings({ session, children }) {
     // ⚠ PADDING OVERRIDDEN LOCALLY, not on `.panel`. That class is shared with
     // NotificationPreferences, and widening it there would silently re-space a
     // screen this change has nothing to do with.
-    <div className={s.panel} style={{ padding: '18px 18px 20px' }}>
+    // ⛔ NOT `.panel` ANY MORE. This renders inside the account menu's own
+    // popover, and a bordered card within a bordered card was the other half of
+    // why it read as a foreign component. The menu supplies the surface; this
+    // supplies rows. `.panel` is still used by the loading state above, which
+    // renders before the menu has anything else to show.
+    <div style={{ padding: '2px 0 4px' }}>
 
       {/* ══ MY OWN NUMBER — collapsed by default ══════════════════
           Summary row carries the only fact worth seeing at a glance: which
@@ -192,22 +198,18 @@ export default function PhoneNumberSettings({ session, children }) {
         style={summaryRow}
       >
         {/* Label and number read as one phrase — "my ph number is ••• 829" —
-            so the number sits beside it rather than floating at the far edge.
-            No fontSize override: it inherits `.label`, matching FIND SOMEONE
-            BY NUMBER above it, because they are peers. */}
-        <span className={s.label}>MY PH NUMBER</span>
-        <span style={{ fontSize: 14, fontWeight: 600, letterSpacing: 1,
-          color: hasKey ? 'var(--text)' : 'var(--muted)' }}>
-          {hasKey ? `••• ••• ${key.last3 ?? '···'}` : 'Not set'}
+            so the number sits beside it rather than floating at the far edge. */}
+        <span style={rowLabel}>My phone number</span>
+        <span style={{ fontSize: 12.5, letterSpacing: 0.6,
+          color: hasKey ? 'var(--muted)' : 'var(--muted)' }}>
+          {hasKey ? `••• ${key.last3 ?? '···'}` : 'Not set'}
         </span>
 
         {/* The affordance says what it opens. A bare chevron on a row that
             already shows its value gives no reason to press it. */}
-        <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 5,
-          color: 'var(--muted)', fontFamily: "'Bebas Neue', sans-serif",
-          fontSize: 12, letterSpacing: 1.5 }}>
-          SETTINGS
-          <span aria-hidden="true" style={{ fontSize: 12, display: 'inline-block',
+        <span style={rowAction}>
+          Settings
+          <span aria-hidden="true" style={{ fontSize: 11, display: 'inline-block',
             transform: myOpen ? 'rotate(180deg)' : 'none',
             transition: 'transform .16s var(--yp-ease)' }}>▾</span>
         </span>
@@ -279,7 +281,7 @@ export default function PhoneNumberSettings({ session, children }) {
             </div>
           )}
 
-          <div className={s.label} style={{ margin: '18px 0 8px' }}>WHO CAN FIND ME</div>
+          <div style={{ ...rowLabel, margin: '16px 0 8px', color: 'var(--muted)' }}>Who can find me</div>
           {VISIBILITY.map((v) => (
             <button
               key={v.value}
@@ -408,12 +410,10 @@ export default function PhoneNumberSettings({ session, children }) {
         aria-expanded={contactsOpen}
         style={summaryRow}
       >
-        <span className={s.label}>MY CONTACTS</span>
-        <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 5,
-          color: 'var(--muted)', fontFamily: "'Bebas Neue', sans-serif",
-          fontSize: 12, letterSpacing: 1.5 }}>
-          SETTINGS
-          <span aria-hidden="true" style={{ fontSize: 12, display: 'inline-block',
+        <span style={rowLabel}>My contacts</span>
+        <span style={rowAction}>
+          Settings
+          <span aria-hidden="true" style={{ fontSize: 11, display: 'inline-block',
             transform: contactsOpen ? 'rotate(180deg)' : 'none',
             transition: 'transform .16s var(--yp-ease)' }}>▾</span>
         </span>
@@ -489,23 +489,6 @@ const fieldRow = { display: 'flex', gap: 8, alignItems: 'center', marginTop: 4 }
    sit flush with MY PH NUMBER and MY CONTACTS, and hand-copying these values
    into it drifted immediately (owner, 2026-08-05: it came out muted and 13px
    against their white 15px). One object, imported, cannot drift. */
-export const summaryRow = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: 10,
-  width: '100%',
-  marginTop: 20,
-  padding: '14px 0 6px',
-  background: 'none',
-  // `border: none` first to clear the button's default, THEN the top rule —
-  // reversing these makes the divider disappear, since the shorthand resets
-  // every side including the one just set.
-  border: 'none',
-  borderTop: '1px solid rgba(255,255,255,.08)',
-  color: 'var(--text)',
-  cursor: 'pointer',
-  textAlign: 'left',
-};
 
 const selectStyle = {
   background: 'var(--card2, #0f0f1a)', color: 'var(--text)',

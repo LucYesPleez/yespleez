@@ -234,12 +234,16 @@ export default function ProfileMenu({ session, unreadCount = 0, onSignOut, onOpe
       {open && createPortal(
         <>
           <div className={s.scrim} onMouseDown={() => setOpen(false)} />
-          {/* ⚠ THE MENU WIDENS AND SCROLLS ONLY WHILE FIND PEOPLE IS OPEN. The
-              panel inside carries a number field with a confirm, a radio list
-              and contact sync — none of which fit a 210px popover. Applied as an
-              override rather than in the module so the menu's ordinary shape is
-              untouched for the other seven items. `calc(100vw - 24px)` keeps it
-              on screen at 375px; scrollbars are hidden globally by index.css. */}
+          {/* ⚠ ONE SHELL, TWO CONTENTS — the sheet REPLACES the menu rather
+              than nesting inside it (owner, 2026-08-05: "i didnt mean literally
+              inside the window… it can be another pop up"). Same container, same
+              corner, same scrim: a second floating layer would be a second thing
+              to dismiss and would have to solve its own outside-click.
+
+              It widens and scrolls only while the sheet is showing — the panel
+              carries a number field with a confirm, a radio list and contact
+              sync, none of which fit a 232px popover. `calc(100vw - 24px)` keeps
+              it on screen at 375px; scrollbars are hidden globally by index.css. */}
           <div
             className={s.menu}
             role="menu"
@@ -248,6 +252,34 @@ export default function ProfileMenu({ session, unreadCount = 0, onSignOut, onOpe
               ? { width: 'min(380px, calc(100vw - 24px))', maxHeight: '72vh', overflowY: 'auto' }
               : undefined}
           >
+            {findOpen ? (
+              <>
+                {/* ⚠ BACK, NOT CLOSE. This sheet was reached from the menu, so
+                    the reverse of the gesture that opened it is returning to the
+                    menu — not dismissing everything and making the user start
+                    again. The scrim still closes the lot. */}
+                <div className={s.head} style={{ paddingBottom: 6 }}>
+                  <button
+                    type="button"
+                    onClick={() => setFindOpen(false)}
+                    aria-label="Back to account menu"
+                    style={backButton}
+                  >
+                    ‹
+                  </button>
+                  <div className={s.headText}>
+                    <div className={s.headName}>Find People</div>
+                  </div>
+                </div>
+
+                <div className={s.rule} />
+
+                <PhoneNumberSettings session={session}>
+                  <InviteRows myProfile={profile} />
+                </PhoneNumberSettings>
+              </>
+            ) : (
+              <>
             <div className={s.head}>
               <MessengerAvatar src={profile?.avatar_thumb || profile?.avatar} size={40} />
               <div className={s.headText}>
@@ -278,18 +310,6 @@ export default function ProfileMenu({ session, unreadCount = 0, onSignOut, onOpe
                   <span>{it.label}</span>
                   {it.badge > 0 && <span className={s.itemBadge}>{it.badge > 9 ? '9+' : it.badge}</span>}
                 </button>
-
-                {/* ⚠ THE PANEL IS A CHILD OF THE MENU, not a second popover.
-                    Owner asked for "another drop down from the find people
-                    line" — so it opens beneath that row and closes with the
-                    menu, rather than becoming a third layer to dismiss. */}
-                {it.expanded && (
-                  <div style={{ padding: '2px 2px 6px' }}>
-                    <PhoneNumberSettings session={session}>
-                      <InviteRows myProfile={profile} />
-                    </PhoneNumberSettings>
-                  </div>
-                )}
               </Fragment>
             ))}
 
@@ -299,6 +319,8 @@ export default function ProfileMenu({ session, unreadCount = 0, onSignOut, onOpe
               onClick={() => { setOpen(false); onSignOut?.(); }}>
               Sign Out
             </button>
+              </>
+            )}
           </div>
         </>,
         document.body,
@@ -306,3 +328,13 @@ export default function ProfileMenu({ session, unreadCount = 0, onSignOut, onOpe
     </div>
   );
 }
+
+/* Sized to the avatar it replaces in `.head`, so the sheet's header sits at the
+   same height as the menu's and the two do not jump when you move between them. */
+const backButton = {
+  width: 40, height: 40, flexShrink: 0,
+  display: 'grid', placeItems: 'center',
+  background: 'rgba(255,255,255,.06)', border: '1px solid var(--border)',
+  borderRadius: 999, cursor: 'pointer',
+  color: 'var(--text)', fontSize: 22, lineHeight: 1, paddingBottom: 3,
+};

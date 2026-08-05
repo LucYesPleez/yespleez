@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import { shareUrl, nativeShare, copyLink, canNativeShare } from '../lib/shareTarget';
 import { profileUrl } from '../lib/profileResolution';
-import { summaryRow } from './PhoneNumberSettings';
-import s from './NotificationPreferences.module.css';
+import { summaryRow, rowLabel, rowAction } from './findPeopleRowStyles';
 
 /**
  * INVITE FRIENDS — one row inside the Find Friends panel, flush with
@@ -77,24 +76,18 @@ export default function InviteRows({ myProfile }) {
 
   return (
     <button type="button" onClick={share} style={summaryRow} aria-label="Share your profile link">
-      <span className={s.label}>INVITE FRIENDS</span>
+      <span style={rowLabel}>Invite friends</span>
 
-      {/* Same shape and colour as the SETTINGS affordance on the rows above —
+      {/* Same shape and colour as the Settings affordance on the rows above —
           this row does a different thing, but it is not more important than
           they are and should not look it. */}
-      <span style={actionStyle}>
-        {copied ? 'COPIED' : 'SHARE'}
+      <span style={rowAction}>
+        {copied ? 'Copied' : 'Share'}
         <ShareIcon />
       </span>
     </button>
   );
 }
-
-const actionStyle = {
-  marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 5,
-  color: 'var(--muted)', fontFamily: "'Bebas Neue', sans-serif",
-  fontSize: 12, letterSpacing: 1.5,
-};
 
 /* ⚠ SVG, NOT EMOJI (owner, 2026-08-01). An emoji is a FONT glyph: the OS picks
    it, so it renders flat grey on Windows and full-colour on iOS, cannot inherit
