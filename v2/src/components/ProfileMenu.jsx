@@ -16,6 +16,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import MessengerAvatar from './MessengerAvatar';
 import { useAlwaysVisibleHeader } from '../lib/headerBehaviour';
+import { unreadContactJoinCount } from '../lib/contactJoins';
 import s from './ProfileMenu.module.css';
 
 export default function ProfileMenu({ session, unreadCount = 0, onSignOut, onOpenNotifications, onOpenHelp }) {
@@ -64,6 +65,23 @@ export default function ProfileMenu({ session, unreadCount = 0, onSignOut, onOpe
     return () => { cancelled = true; };
   }, [session?.user?.id]);
 
+  /**
+   * CJ1's count, for the Find People badge.
+   *
+   * ⚠ FETCHED WHEN THE MENU OPENS, NOT ON MOUNT. This component renders on
+   * every screen in the app, so a mount-time query would be one extra request
+   * per page load for a number nobody can see until the menu is open. The old
+   * home for this count was InboxScreen, which is visited far less often than
+   * "every route".
+   */
+  const [joinCount, setJoinCount] = useState(0);
+  useEffect(() => {
+    if (!open || !session?.user?.id) return undefined;
+    let cancelled = false;
+    unreadContactJoinCount(session.user.id).then((n) => { if (!cancelled) setJoinCount(n); });
+    return () => { cancelled = true; };
+  }, [open, session?.user?.id]);
+
   // Close on outside click and on Escape. ⚠ `mousedown`, not `click`: a
   // `click` listener fires after the menu item's own handler has already
   // navigated, which on a route change means closing a menu that has been
@@ -94,10 +112,26 @@ export default function ProfileMenu({ session, unreadCount = 0, onSignOut, onOpe
     || session.user.email?.split('@')[0]
     || 'Profile';
 
-  const go = path => { setOpen(false); navigate(path); };
+  // ⚠ TAKES ROUTER STATE, because Find People below has to reach a control
+  // that lives inside InboxScreen. Same channel the app already uses for
+  // `openConversation` — one mechanism for "go there and do a thing", not two.
+  const go = (path, state) => { setOpen(false); navigate(path, state ? { state } : undefined); };
 
   const items = [
     { label: 'View Profile', onClick: () => (profile?.id ? go(`/profile/${profile.id}?type=punter`) : go('/me')) },
+    {
+      // ⚠ WAS THE "FIND FRIENDS" PILL IN THE MESSAGES HEADER, renamed and moved
+      // here (owner, 2026-08-05) so that header can carry messaging identities
+      // instead. Renamed to Find People because it finds artists and venues too,
+      // which the old name quietly denied.
+      //
+      // ⚠ CJ1's BADGE CAME WITH IT. The rule is that contact joins badge THIS
+      // control and never the bell — the position IS the message — so moving the
+      // control without its badge would silently retire a ratified behaviour.
+      label: 'Find People',
+      onClick: () => go('/messages', { openDiscovery: true }),
+      badge: joinCount,
+    },
     {
       label: 'Notifications',
       // ⚠ Opens the SAME panel the bell opened, rather than routing to

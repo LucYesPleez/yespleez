@@ -322,6 +322,19 @@ export default function InboxScreen() {
     if (wanted) openConversation(wanted);
   }, [location.state, openConversation]);
 
+  /**
+   * Find People, arriving from the account menu.
+   *
+   * ⚠ GOES THROUGH `openDiscovery`, NOT `setDiscoveryOpen`. That function also
+   * clears CJ1's unread count — routing straight to the setter would open the
+   * panel and leave the badge lit, which is the exact "stuck badge" the
+   * optimistic clear exists to prevent.
+   */
+  useEffect(() => {
+    if (location.state?.openDiscovery) openDiscovery(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.state]);
+
   return (
     <div style={{ paddingTop: 72, paddingBottom: 90, minHeight: '100dvh', background: 'var(--bg)', boxSizing: 'border-box' }}>
       <div style={{ maxWidth: 680, margin: '0 auto', padding: '0 16px' }}>
@@ -365,36 +378,17 @@ export default function InboxScreen() {
                 white text, purple glow on hover. No inline background/border/
                 color here — an inline value would beat the stylesheet and
                 silently defeat the class. */}
-            {/* CJ1 · the badge sits on THIS control and nowhere else — the
-                position is the message. `position: relative` on the wrapper
-                rather than the button because .yp-gpill owns the button's own
-                box entirely, and an inline style here would beat the class. */}
-            <span style={{ position: 'relative', display: 'inline-block' }}>
-              <button
-                type="button"
-                className="yp-gpill"
-                onClick={() => openDiscovery(!discoveryOpen)}
-                aria-expanded={discoveryOpen}
-              >
-                {discoveryOpen ? 'DONE' : 'FIND FRIENDS'}
-              </button>
-              {joinCount > 0 && !discoveryOpen && (
-                <span
-                  aria-label={`${joinCount} new ${joinCount === 1 ? 'contact' : 'contacts'} joined`}
-                  style={{
-                    position: 'absolute', top: -5, right: -5, minWidth: 17, height: 17,
-                    borderRadius: 999, background: '#FF3B5C', color: '#fff',
-                    fontFamily: "'DM Sans', sans-serif", fontSize: 10.5, fontWeight: 700,
-                    display: 'grid', placeItems: 'center', padding: '0 4px',
-                    // Against the page, not the button — the pill is
-                    // transparent, so a bare dot would sit on whatever is behind it.
-                    boxShadow: '0 0 0 2px var(--dark)', pointerEvents: 'none',
-                  }}
-                >
-                  {joinCount > 9 ? '9+' : joinCount}
-                </span>
-              )}
-            </span>
+            {/* ⛔ THE "FIND FRIENDS" PILL AND ITS CJ1 BADGE MOVED TO THE ACCOUNT
+                MENU as "Find People" (owner, 2026-08-05), so this corner can
+                carry messaging identities instead. The badge went with the
+                control deliberately: CJ1's rule is that contact joins badge
+                THAT control and never the bell, and a badge left behind on a
+                button that no longer exists is a retired behaviour pretending
+                to be a live one.
+
+                Discovery still opens from here — see the `openDiscovery`
+                router-state effect below, the same channel `openConversation`
+                already uses. */}
           </div>
         </div>
 
@@ -423,9 +417,32 @@ export default function InboxScreen() {
             (owner, 2026-08-05) and Invite Friends moved INSIDE the panel rather
             than sitting under it as a loose card. */}
         {discoveryOpen && (
-          <PhoneNumberSettings session={session}>
-            <InviteRows myProfile={myProfile} />
-          </PhoneNumberSettings>
+          <>
+            {/* ⚠ THE PANEL NOW CARRIES ITS OWN CLOSE. The header pill used to
+                double as DONE; with it gone there would otherwise be no way out
+                of a panel opened from a menu on another screen. Titled too,
+                because a panel that appears after a menu tap should say what it
+                is rather than leave the user to infer it. */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 15,
+                letterSpacing: 2, color: 'var(--muted)' }}>
+                FIND PEOPLE
+              </div>
+              <button
+                type="button"
+                onClick={() => setDiscoveryOpen(false)}
+                style={{ marginLeft: 'auto', background: 'none', border: 'none',
+                  fontFamily: "'Bebas Neue', sans-serif", fontSize: 13, letterSpacing: 1.5,
+                  color: 'var(--text)', cursor: 'pointer', padding: '4px 2px' }}
+              >
+                DONE
+              </button>
+            </div>
+
+            <PhoneNumberSettings session={session}>
+              <InviteRows myProfile={myProfile} />
+            </PhoneNumberSettings>
+          </>
         )}
 
         {/* YOUR CONTACTS — the people you talk to, as a scroll rail.
