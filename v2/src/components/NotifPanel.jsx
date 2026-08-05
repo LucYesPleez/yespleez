@@ -5,14 +5,22 @@ import { useSession } from '../App';
 import { getNotifMeta, cleanMessage } from '../lib/notifMeta';
 import { acceptSlotOffer, declineSlotOffer, acceptInvite, declineInvite, dismissNotification, markResponded } from '../lib/notifActions';
 import { conversationNotificationTypes } from '../lib/conversationNotifications';
+import useSeenNotifications from '../hooks/useSeenNotifications';
 
-export default function NotifPanel({ onClose, onMarkAll }) {
+export default function NotifPanel({ onClose }) {
   const navigate = useNavigate();
   const { session } = useSession();
   const [notifs, setNotifs]   = useState([]);
   const [loading, setLoading] = useState(true);
   const [limit, setLimit]     = useState(10);
   const ref = useRef(null);
+  // DEF-4 — a row is read once it has been on screen for a moment, not once it
+  // has been fetched. See lib/markNotificationsRead.js for what this replaced.
+  const { observe, markSeenNow } = useSeenNotifications({
+    enabled: !!session,
+    onSeen: ids => setNotifs(prev => prev.map(
+      n => (ids.includes(n.id) ? { ...n, read: true } : n))),
+  });
 
   useEffect(() => {
     if (!session) { setLoading(false); return; }
@@ -38,11 +46,6 @@ export default function NotifPanel({ onClose, onMarkAll }) {
         .limit(60);
       setNotifs(data || []);
       setLoading(false);
-      const ids = (data || []).filter(n => !n.read).map(n => n.id);
-      if (ids.length) {
-        await supabase.from('notifications').update({ read: true }).in('id', ids);
-        if (onMarkAll) onMarkAll();
-      }
     })();
   }, [session]);
 
@@ -59,18 +62,31 @@ export default function NotifPanel({ onClose, onMarkAll }) {
   }
 
   // Drops the row from THIS list only. The record is untouched in the
-  // database — see dismissNotification. Everything reaching this point has
-  // already been marked read by the loader above, so the bell's count does
-  // not move and nothing needs to tell it to.
+  // database — see dismissNotification.
+  //
+  // ⚠ THIS USED TO SAY the bell's count could not move, because the loader had
+  // already marked everything read. Since DEF-4 it can: dismissing a row that
+  // was never seen leaves it unread, and SEC-6a's badge query excludes
+  // dismissed rows, so the count drops by one. dismissNotification's own write
+  // is what the badge reacts to — nothing extra is needed here, but the number
+  // moving is now correct rather than impossible.
   function removeNotif(id) {
     setNotifs(prev => prev.filter(n => n.id !== id));
   }
 
+  // The explicit half of the read rule. Everything loaded is marked, including
+  // the rows below `limit` that were never rendered — that is what the user
+  // asked for by pressing a button called "Mark all as read".
+  //
+  // ⚠ This button was DEAD before DEF-4. The loader marked every row read on
+  // open, so `anyUnread` was always false by the time anyone could reach it and
+  // it rendered at opacity 0. It only means something now that opening the
+  // panel no longer does its job for it.
   async function markAllRead() {
     const ids = notifs.filter(n => !n.read).map(n => n.id);
-    if (ids.length) await supabase.from('notifications').update({ read: true }).in('id', ids);
+    if (!ids.length) return;
     setNotifs(prev => prev.map(n => ({ ...n, read: true })));
-    if (onMarkAll) onMarkAll();
+    await markSeenNow(ids);
   }
 
   const visible = notifs.slice(0, limit);
@@ -155,6 +171,7 @@ export default function NotifPanel({ onClose, onMarkAll }) {
             onUpdate={updateNotif}
             onDismiss={removeNotif}
             isLast={i === visible.length - 1 && !hasMore}
+            rootRef={n.read ? undefined : observe(n.id)}
           />
         ))}
         {hasMore && (
@@ -181,7 +198,7 @@ export default function NotifPanel({ onClose, onMarkAll }) {
   );
 }
 
-function PanelRow({ notif, userId, onUpdate, onDismiss, isLast }) {
+function PanelRow({ notif, userId, onUpdate, onDismiss, isLast, rootRef }) {
   const [busy, setBusy]           = useState(false);
   const [responded, setResponded] = useState(!!notif.responded_at);
   const [dismissing, setDismissing] = useState(false);
@@ -247,7 +264,7 @@ function PanelRow({ notif, userId, onUpdate, onDismiss, isLast }) {
   }
 
   return (
-    <div style={{ display: 'flex', gap: 12, padding: '12px 16px', borderBottom: isLast ? 'none' : '1px solid rgba(255,255,255,.05)', background: isUnread ? `rgba(${meta.rgb},.04)` : 'transparent' }}>
+    <div ref={rootRef} style={{ display: 'flex', gap: 12, padding: '12px 16px', borderBottom: isLast ? 'none' : '1px solid rgba(255,255,255,.05)', background: isUnread ? `rgba(${meta.rgb},.04)` : 'transparent' }}>
 
       {/* Icon circle */}
       <div style={{ flexShrink: 0, width: 40, height: 40, borderRadius: 20, background: meta.bg, border: `1px solid rgba(${meta.rgb},.35)`, display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: 2 }}>

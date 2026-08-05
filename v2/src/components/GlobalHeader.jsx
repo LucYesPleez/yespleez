@@ -87,7 +87,7 @@ const BUILD_STAMP = [
     : 'unbuilt',
 ].join(' · ');
 
-export default function GlobalHeader({ onMarkRead, unreadCount = 0, session = null, onSignOut = null }) {
+export default function GlobalHeader({ unreadCount = 0, session = null, onSignOut = null }) {
   const navigate    = useNavigate();
   const location    = useLocation();
   const [infoOpen,  setInfoOpen]  = useState(false);
@@ -237,12 +237,15 @@ export default function GlobalHeader({ onMarkRead, unreadCount = 0, session = nu
             onOpenHelp={() => { setInfoOpen(true); setPanelOpen(false); }}
           />
 
-          {panelOpen && (
-            <NotifPanel
-              onClose={() => setPanelOpen(false)}
-              onMarkAll={() => { if (onMarkRead) onMarkRead(); }}
-            />
-          )}
+          {/* DEF-4 — `onMarkAll` is gone rather than rewired. The panel used to
+              have to tell the header it had marked things read, because it did
+              so on open; now rows are marked as they are SEEN, at unpredictable
+              moments, and marking read announces itself on the window instead
+              (NOTIFICATIONS_READ_EVENT). App.jsx listens and re-counts. A prop
+              alongside that event would be a second path saying the same
+              thing — and NotificationsScreen, which has no props to pass, would
+              still need the event. */}
+          {panelOpen && <NotifPanel onClose={() => setPanelOpen(false)} />}
         </div>
       </div>
 

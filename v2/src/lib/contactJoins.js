@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { announceNotificationsRead } from './markNotificationsRead';
 
 /**
  * CJ1 · THE BADGE ON *FIND FRIENDS* — owner's words: *"The red badge only
@@ -71,6 +72,17 @@ export async function unreadContactJoinCount(userId) {
  * Marks read rather than deleting: the notification remains in the bell's feed
  * as history, exactly like every other type.
  *
+ * ⚠ DEF-4 NAMED EXCEPTION — this is the one write of `read: true` outside
+ * lib/markNotificationsRead.js, and markNotificationsRead.test.js lists it by
+ * name. It is not the defect that rule exists to stop: that was marking read
+ * whatever a loader had FETCHED, 60 rows at a time, of which 8 were shown. This
+ * marks a whole type by predicate at a moment the user demonstrably looked —
+ * see the note above — which is the same principle, reached first.
+ *
+ * It stays a predicate rather than routing through the id-list writer because
+ * the id list does not exist here and inventing one would mean a SELECT before
+ * the UPDATE to fetch ids the query already describes perfectly well.
+ *
  * @param {string} userId
  */
 export async function markContactJoinsRead(userId) {
@@ -81,5 +93,19 @@ export async function markContactJoinsRead(userId) {
     .eq('to_user_id', userId)
     .eq('read', false)
     .eq('type', TYPE);
+
+  // ⚠ THE BELL IS COUNTING THESE BY DEFAULT. The tempting assumption is that it
+  // is not — CJ2 reads "in_app means FIND FRIENDS and nowhere else", and both
+  // bell surfaces filter in_app out. But in_app is a CHOICE, not the default:
+  // DEFAULT_CHANNEL is `push`, which is explicitly "phone buzzes, bell shows
+  // it, FIND FRIENDS badges" (notificationChannels.js). So for every user who
+  // has never opened that setting, opening FIND FRIENDS clears rows the bell
+  // was counting — and without this the bell would go on showing them for up to
+  // a minute, on the exact screen that just cleared them.
+  //
+  // Costs nothing for the users who did choose in_app: the badge re-reads and
+  // gets the same number back.
+  if (!error) announceNotificationsRead();
+
   return { error: error ?? null };
 }

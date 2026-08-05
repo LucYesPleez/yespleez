@@ -36,6 +36,7 @@ import { ShareTargetProvider } from './lib/shareTarget';
 import { ConversationUiProvider } from './lib/conversationUi';
 import ConversationDock from './components/ConversationDock';
 import { totalUnread } from './lib/messaging';
+import { NOTIFICATIONS_READ_EVENT } from './lib/markNotificationsRead';
 import {
   conversationNotificationTypes, isConversationActivity, KNOWN_CONVERSATION_TYPES,
 } from './lib/conversationNotifications';
@@ -158,6 +159,19 @@ function Shell({ session, isGuest, onSignOut }) {
     const onRead = () => fetchMessages();
     window.addEventListener('yp:messages-read', onRead);
 
+    // DEF-4 — the bell's own version of exactly the same gap. Marking a
+    // notification read is an UPDATE, and the subscription above watches
+    // INSERT, so nothing here would learn that the number had moved until the
+    // 60s poll. It matters more than it did for messages: rows are now marked
+    // read as they scroll past, a few at a time, so the badge would spend most
+    // of a minute contradicting a list the user is looking at.
+    //
+    // Re-counts from the database rather than subtracting what was just
+    // written — §5.6's rule. The count on screen is always one the database
+    // gave us, so it cannot drift from what a reload would show.
+    const onNotifsRead = () => fetchUnread();
+    window.addEventListener(NOTIFICATIONS_READ_EVENT, onNotifsRead);
+
     // The mirror of the above, for messages ARRIVING. The badge's own
     // subscription watches `notifications`, which is written by a second
     // trigger on a second table and reaches this client on a second socket —
@@ -192,6 +206,7 @@ function Shell({ session, isGuest, onSignOut }) {
     return () => {
       supabase.removeChannel(channel);
       window.removeEventListener('yp:messages-read', onRead);
+      window.removeEventListener(NOTIFICATIONS_READ_EVENT, onNotifsRead);
       window.removeEventListener('yp:message-received', onReceived);
       document.removeEventListener('visibilitychange', onVisible);
       clearInterval(pollRef.current);
@@ -233,7 +248,6 @@ function Shell({ session, isGuest, onSignOut }) {
       {location.pathname !== '/role-select' && (
         <GlobalHeader
           unreadCount={unreadCount}
-          onMarkRead={() => setUnreadCount(0)}
           /* ⭐ The header now carries the identity control, so it needs who
              you are and how to sign you out — both were already in Shell's
              props and simply never reached it. */

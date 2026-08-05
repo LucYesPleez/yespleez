@@ -9,6 +9,7 @@ import PushNotificationToggle from '../components/PushNotificationToggle';
 import {
   conversationNotificationTypes, KNOWN_CONVERSATION_TYPES,
 } from '../lib/conversationNotifications';
+import useSeenNotifications from '../hooks/useSeenNotifications';
 
 export default function NotificationsScreen() {
   const { session } = useSession();
@@ -26,6 +27,13 @@ export default function NotificationsScreen() {
     if (location.state?.openPrefs) setPrefsOpen(true);
   }, [location]);
   const pollRef = useRef(null);
+  // DEF-4 — see the note under load(). `observe` is attached to each row and
+  // marks it read once it has actually been on screen.
+  const { observe } = useSeenNotifications({
+    enabled: !!session,
+    onSeen: ids => setNotifs(prev => prev.map(
+      n => (ids.includes(n.id) ? { ...n, read: true } : n))),
+  });
   // Conversation types are read from the policy table so voice notes, images
   // and attachments join the rule by being categorised, not by someone
   // remembering to extend a list. Falls back to the known set on failure —
@@ -44,11 +52,6 @@ export default function NotificationsScreen() {
       // NP1: muted categories are recorded but never shown.
       .is('suppressed_at', null)
       // SEC-6a — dismissed rows are hidden, never deleted.
-      //
-      // ⚠ Same trap as the in_app exclusion below: everything this query
-      // returns is marked read a few lines down. A dismissed row left in
-      // would be silently marked read on its way past, so an undismiss would
-      // return it already-read and the unread state would be gone.
       .is('dismissed_at', null)
       // DEF-3 — conversation activity belongs to the MESSAGES badge and
       // nowhere else. The rows are still WRITTEN (N1's held pile and future
@@ -58,23 +61,32 @@ export default function NotificationsScreen() {
       .not('type', 'in', `(${convTypesRef.current.join(',')})`)
       // CJ2 — "In Messages only" means only in Messages. The bell is a
       // different tab, so an in_app row must not appear in this feed.
-      //
-      // ⚠ THIS IS NOT MERELY COSMETIC. Everything this query returns is marked
-      // read a few lines below. Leaving in_app rows in would mean opening the
-      // BELL silently cleared the FIND FRIENDS badge — destroying the one
-      // signal the user chose this channel to receive, on a screen that never
-      // showed it to them.
       .neq('channel', 'in_app')
       .order('created_at', { ascending: false })
       .limit(60);
     if (cancelled.current) return;
     setNotifs(data || []);
     setLoading(false);
-    const unreadIds = (data || []).filter(n => !n.read).map(n => n.id);
-    if (unreadIds.length > 0) {
-      await supabase.from('notifications').update({ read: true }).in('id', unreadIds);
-    }
   }
+
+  /**
+   * DEF-4 · THE MARK-READ WRITE THAT USED TO LIVE HERE IS GONE, and the three
+   * filters above no longer carry a second job.
+   *
+   * Two of them used to be defended with ⚠ notes explaining that anything this
+   * query returned got marked read on its way past — so a dismissed row left in
+   * would come back from an undismiss already-read, and an `in_app` row left in
+   * would mean opening the BELL silently cleared the FIND FRIENDS badge. Both
+   * hazards are retired: this query no longer writes anything, and rows are
+   * marked read by having been SEEN. The filters stay because a dismissed row
+   * and an in_app row still do not belong in this feed — which is all they were
+   * ever supposed to mean.
+   *
+   * ⚠ It also fixes what this screen was doing to the rows it never showed. It
+   * fetches 60 and renders 8 until SEE ALL is pressed, so up to 52 rows per
+   * visit were marked read without ever being on screen — and the bell counts
+   * only `read = false`, so they could never ask for attention again.
+   */
 
   useEffect(() => {
     if (!session) { setLoading(false); return; }
@@ -142,7 +154,7 @@ export default function NotificationsScreen() {
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {visible.map(n => (
-            <NotifRow key={n.id} notif={n} userId={session?.user?.id} onUpdate={updateNotif} onDismiss={removeNotif} />
+            <NotifRow key={n.id} notif={n} userId={session?.user?.id} onUpdate={updateNotif} onDismiss={removeNotif} rootRef={n.read ? undefined : observe(n.id)} />
           ))}
         </div>
 
@@ -159,7 +171,7 @@ export default function NotificationsScreen() {
   );
 }
 
-function NotifRow({ notif, userId, onUpdate, onDismiss }) {
+function NotifRow({ notif, userId, onUpdate, onDismiss, rootRef }) {
   const [busy, setBusy]           = useState(false);
   const [responded, setResponded] = useState(!!notif.responded_at);
   const [dismissing, setDismissing] = useState(false);
@@ -217,7 +229,7 @@ function NotifRow({ notif, userId, onUpdate, onDismiss }) {
   }
 
   return (
-    <div style={{
+    <div ref={rootRef} style={{
       display: 'flex',
       gap: 14,
       padding: '14px 16px',
