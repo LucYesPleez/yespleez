@@ -12,7 +12,7 @@
    Everything inside the workspace responds to THIS box. */
 .workspace {
   container-type: inline-size;
-  container-name: workspace;
+  container-name: pane;
   flex: 1;
   min-height: 0;
   display: flex;

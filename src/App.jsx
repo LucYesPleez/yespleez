@@ -2,11 +2,11 @@ import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import AppShell from './shell/AppShell';
 import OverviewScreen from './screens/OverviewScreen';
 import ApplicationsScreen from './screens/ApplicationsScreen';
+import FestivalScreen from './screens/FestivalScreen';
+import SettingsScreen from './screens/SettingsScreen';
 import {
   MessagesScreen,
   AnnouncementsScreen,
-  FestivalScreen,
-  SettingsScreen,
   HelpScreen,
 } from './screens/stubs';
 

@@ -79,11 +79,11 @@
 /* Icons go before labels do — a label with no icon is still usable, an icon
    with no label is a guess. Measured against the WORKSPACE, not the viewport:
    with the inspector docked, this pane is ~1026px inside a 1920px window. */
-@container workspace (max-width: 1200px) {
+@container pane (max-width: 1200px) {
   .icon { display: none; }
   .tab { padding-left: 10px; padding-right: 10px; }
 }
 
-@container workspace (max-width: 900px) {
+@container pane (max-width: 900px) {
   .count { display: none; }
 }

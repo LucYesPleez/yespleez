@@ -38,36 +38,6 @@ export function AnnouncementsScreen() {
   );
 }
 
-export function FestivalScreen() {
-  return (
-    <StubScreen
-      title="Festival"
-      subtitle="The public face of the festival and the categories it accepts. Identity, dates and media live on the shared profile system; only the application windows are portal-specific."
-      blocks={[
-        { title: 'Identity',        note: 'Name, logo, banner — the shared profile record.' },
-        { title: 'Dates & location', note: 'Drives the public page and every deadline shown here.' },
-        { title: 'Categories',      note: 'Which categories are open, and when each closes.' },
-        { title: 'Public page',     note: 'Preview exactly what an applicant sees.' },
-      ]}
-    />
-  );
-}
-
-export function SettingsScreen() {
-  return (
-    <StubScreen
-      title="Settings"
-      subtitle="Team, application preferences, notification defaults and data. Roles are festival-wide in this milestone; category-scoped review is a later addition the architecture already allows for."
-      blocks={[
-        { title: 'Team',          note: 'Owner, Admin and Reviewer. Exactly one Owner.' },
-        { title: 'Applications',  note: 'Default decline message and acknowledgement copy.' },
-        { title: 'Notifications', note: 'What the team is emailed or pushed.' },
-        { title: 'Data',          note: 'Export, and the platform retention policy.' },
-      ]}
-    />
-  );
-}
-
 export function HelpScreen() {
   return (
     <StubScreen

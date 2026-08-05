@@ -140,5 +140,5 @@
    ⚠ Measured against the WORKSPACE container, never the viewport: the pane is
    ~1026px wide inside a 1920px window once the inspector is docked, and a
    viewport query would keep six columns alive in a box that fits four. */
-@container workspace (max-width: 1000px) { .p1 { display: none; } }
-@container workspace (max-width:  760px) { .p2 { display: none; } }
+@container pane (max-width: 1000px) { .p1 { display: none; } }
+@container pane (max-width:  760px) { .p2 { display: none; } }
