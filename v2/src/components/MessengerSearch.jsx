@@ -140,11 +140,20 @@ export default function MessengerSearch({ rows = [], onOpen }) {
   const nothing = open && !known.length && !profiles.length && !numberMatch && !searchingNumber;
 
   return (
-    <div style={{ padding: '0 20px', marginBottom: open ? 14 : 20 }}>
-      <div style={fieldWrap}>
-        {/* ⚠ MOUNTED ONLY FOR A NUMBER QUERY. On a name search it is not
+    /* ⚠ INSET PAST THE TITLE'S 20px (owner: "come in from the ends a bit").
+       A full-bleed pill reads as a bar welded to the screen edges; held off
+       them it reads as a control sitting on the page. Deliberately NOT aligned
+       to MESSAGES above it — that is a heading, this is a thing you press. */
+    <div style={{ padding: '0 28px', marginBottom: open ? 14 : 20 }}>
+      <div style={rowWrap}>
+        {/* ⚠ IT POPS OUT TO THE LEFT OF THE FIELD, NOT INSIDE IT (owner,
+            2026-08-05). Its own pill, so it reads as a separate control you
+            can press rather than decoration printed on the field — which is
+            what it looked like sitting inside the same border.
+
+            ⚠ MOUNTED ONLY FOR A NUMBER QUERY. On a name search it is not
             greyed out or inert, it is ABSENT — a control that cannot affect
-            the result should not be occupying the field.
+            the result should not be taking up the row.
 
             ⚠ DISABLED ONCE THE QUERY CARRIES ITS OWN CODE. With a leading +
             or 00, toE164 ignores this entirely, so leaving it pressable would
@@ -171,7 +180,7 @@ export default function MessengerSearch({ rows = [], onOpen }) {
           placeholder="Search by name or number…"
           aria-label="Search people, artists and venues"
           inputMode="text"
-          style={bareInput}
+          style={fieldStyle}
         />
       </div>
 
@@ -295,27 +304,31 @@ function labelForType(type) {
   return type === 'artist' ? 'DJ / PROD.' : String(type).toUpperCase();
 }
 
-/* ⚠ THE PADDING MOVED FROM THE FIELD TO THE INPUT, so the 42px height survives
-   the chip appearing and disappearing. Left on the wrapper, the row would grow
-   by the chip's own line box the moment a number is typed and the field would
-   visibly jump mid-keystroke. */
-const fieldWrap = {
-  display: 'flex', alignItems: 'center', gap: 8, width: '100%', boxSizing: 'border-box',
-  background: 'rgba(255,255,255,.06)', border: '1px solid var(--border)',
-  borderRadius: 999, padding: '0 16px',
-};
+/* Two separate pills on one row. The gap is what makes the chip read as its
+   own control rather than a prefix printed inside the field. */
+const rowWrap = { display: 'flex', alignItems: 'center', gap: 8 };
+
+/* ⚠ BOTH PILLS STATE `height`, THEY DO NOT DERIVE IT FROM PADDING. Given
+   identical padding, border and font, a native <select> still came out 44px
+   against the input's 42 and sat a pixel high — its line box is computed by the
+   platform, not by the CSS above it. Vertical padding is therefore 0 and the
+   height is declared, so the two cannot drift apart on another platform either. */
+const PILL_HEIGHT = 42;
 
 const isoChip = {
-  background: 'transparent', border: 'none', outline: 'none', flexShrink: 0,
-  color: 'var(--text)', fontFamily: "'DM Sans', sans-serif", fontSize: 14, padding: 0,
+  flexShrink: 0, boxSizing: 'border-box', height: PILL_HEIGHT, lineHeight: 1,
+  background: 'rgba(255,255,255,.06)', border: '1px solid var(--border)',
+  borderRadius: 999, padding: '0 12px', outline: 'none',
+  color: 'var(--text)', fontFamily: "'DM Sans', sans-serif", fontSize: 14,
   // Native control on a dark surface needs this or the dropdown renders white.
   colorScheme: 'dark',
 };
 
-const bareInput = {
-  flex: 1, minWidth: 0, background: 'transparent', border: 'none', outline: 'none',
-  padding: '11px 0', color: 'var(--text)',
-  fontFamily: "'DM Sans', sans-serif", fontSize: 14,
+const fieldStyle = {
+  flex: 1, minWidth: 0, boxSizing: 'border-box', height: PILL_HEIGHT,
+  background: 'rgba(255,255,255,.06)', border: '1px solid var(--border)',
+  borderRadius: 999, padding: '0 16px', outline: 'none',
+  color: 'var(--text)', fontFamily: "'DM Sans', sans-serif", fontSize: 14,
 };
 
 const groupTitleStyle = {
