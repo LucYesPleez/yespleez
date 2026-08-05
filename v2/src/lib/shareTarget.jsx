@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { track, EVENTS } from './analytics';
 
 /**
  * SHARE ARCHITECTURE — resource-driven, permanent.
@@ -88,6 +89,54 @@ export function useCurrentShareTarget() {
 export function shareUrl(path) {
   const clean = String(path || '/').replace(/^#/, '');
   return `${window.location.origin}${window.location.pathname}#${clean.startsWith('/') ? clean : `/${clean}`}`;
+}
+
+/**
+ * ── THE TWO WAYS A LINK LEAVES THE APP ──────────────────────────────
+ *
+ * Lifted out of ShareSheet (owner, 2026-08-05) when Invite Friends became a
+ * single button instead of a row that opened that sheet. Both surfaces call
+ * these, so there is still exactly ONE implementation of each act — the rule
+ * the sharing architecture has always had, kept true as the UI changed.
+ *
+ * ⚠ TRACKING BELONGS HERE, NOT AT THE CALL SITE. It fires only after the act
+ * actually completes, so a cancelled native sheet is not counted as a share —
+ * and a caller that forgot to track would silently under-report.
+ *
+ * ⚠ THE RESOURCE TYPE ONLY, NEVER `url` OR `title`. A private link is a
+ * capability; putting one in an analytics row copies it somewhere with
+ * different access rules than the thing it opens.
+ */
+export async function nativeShare(target) {
+  if (!canNativeShare() || !target) return false;
+  try {
+    await navigator.share({
+      title: target.title,
+      text:  target.preview || undefined,
+      url:   target.url,
+    });
+    track(EVENTS.SHARED, { resource: target.type ?? null, method: 'native' });
+    return true;
+  } catch {
+    // A cancelled share sheet rejects. Not an error worth surfacing.
+    return false;
+  }
+}
+
+export async function copyLink(target) {
+  if (!target?.url) return false;
+  try {
+    await navigator.clipboard.writeText(target.url);
+    track(EVENTS.SHARED, { resource: target.type ?? null, method: 'copy_link' });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Whether the platform offers a share sheet at all. */
+export function canNativeShare() {
+  return typeof navigator !== 'undefined' && !!navigator.share;
 }
 
 /** The fallback payload for a screen that declares nothing. */

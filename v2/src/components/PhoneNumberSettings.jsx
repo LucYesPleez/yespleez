@@ -55,7 +55,14 @@ const VISIBILITY = [
   },
 ];
 
-export default function PhoneNumberSettings({ session }) {
+/**
+ * ⚠ `children` RENDER INSIDE THE PANEL, at the bottom. Added so Invite Friends
+ * sits within the Find Friends window rather than as a card floating beneath it
+ * (owner, 2026-08-05). Taken as children rather than importing InviteRows here,
+ * so this component stays unaware of what it is hosting and InboxScreen keeps
+ * ownership of the `myProfile` prop it already resolves.
+ */
+export default function PhoneNumberSettings({ session, children }) {
   const [key, setKey] = useState(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
@@ -229,12 +236,17 @@ export default function PhoneNumberSettings({ session }) {
           it gets the top of the panel and everything else collapses. */}
       <div className={s.label} style={{ marginBottom: 10 }}>FIND SOMEONE BY NUMBER</div>
 
-      <div style={fieldRow}>
+      {/* ⚠ ONE CONTROL, NOT THREE STACKED (owner, 2026-08-05). The country
+          chip was a pill of its own and SEARCH had a line of its own, so the
+          simplest act in the panel occupied three rows. Country, number and
+          SEARCH now sit inside a single field: the chip and the button lose
+          their own borders and read as parts of it rather than neighbours. */}
+      <div style={searchField}>
         <select
           aria-label="Country to search in"
           value={searchIso}
           onChange={(e) => setSearchIso(e.target.value)}
-          style={selectStyle}
+          style={isoSelect}
         >
           {COUNTRIES.map((c) => (
             <option key={c.iso} value={c.iso}>{c.iso} +{c.dial}</option>
@@ -244,7 +256,10 @@ export default function PhoneNumberSettings({ session }) {
           type="tel"
           inputMode="tel"
           aria-label="Phone number to search for"
-          placeholder="Search by phone number"
+          // Short, because the field now shares its width with a country chip
+          // and a SEARCH button. The heading above already says what this is,
+          // so repeating "search" inside it spent room saying nothing.
+          placeholder="Phone number"
           value={searchTyped}
           // ⚠ THE FIELD HOLDS EXACTLY WHAT WAS TYPED. Reformatting on every
           // keystroke and writing the result back is what let a display helper
@@ -265,19 +280,25 @@ export default function PhoneNumberSettings({ session }) {
           // Enter searches — this is a search field, and requiring a click on
           // a phone keyboard is a needless extra tap.
           onKeyDown={(e) => { if (e.key === 'Enter' && canSearch) runSearch(); }}
-          style={inputStyle}
+          style={numberInput}
         />
-      </div>
 
-      <button
-        type="button"
-        onClick={runSearch}
-        disabled={!canSearch}
-        style={{ ...pillStyle, marginTop: 12, opacity: canSearch ? 1 : 0.4,
-          cursor: canSearch ? 'pointer' : 'not-allowed' }}
-      >
-        {searching ? 'SEARCHING…' : 'SEARCH'}
-      </button>
+        {/* ⚠ THE LABEL MUST NOT CHANGE WIDTH. "SEARCHING…" is twice as wide as
+            "SEARCH", and inside a shared field that shove would resize the
+            input mid-keystroke. The ellipsis says the same thing in one glyph;
+            aria-label carries the real name for anyone not reading pixels. */}
+        <button
+          type="button"
+          onClick={runSearch}
+          disabled={!canSearch}
+          aria-label="Search"
+          aria-busy={searching || undefined}
+          style={{ ...searchPill, opacity: canSearch ? 1 : 0.4,
+            cursor: canSearch ? 'pointer' : 'not-allowed' }}
+        >
+          {searching ? '…' : 'SEARCH'}
+        </button>
+      </div>
 
       {result && result.length > 0 && result.map((r) => (
         <div key={r.profileId} style={resultRow}>
@@ -550,6 +571,11 @@ export default function PhoneNumberSettings({ session }) {
         </div>
       )}
 
+      {/* Invite Friends, hosted rather than imported — see the note on the
+          component signature. Last in the panel because it is what you reach
+          for once finding someone by number or contacts has come up empty. */}
+      {children}
+
       {senderChoices && (
         <MessageAsSheet
           profiles={senderChoices}
@@ -613,7 +639,48 @@ const confirmStyle = {
 
 const fieldRow = { display: 'flex', gap: 8, alignItems: 'center', marginTop: 4 };
 
-const summaryRow = {
+/* ── THE SEARCH FIELD — one pill containing three things ──────────────
+   Kept separate from `fieldRow`/`selectStyle`/`inputStyle`, which two other
+   blocks in this file still use as stacked rows. Compacting the search must
+   not silently restyle setting your own number. */
+const searchField = {
+  display: 'flex', alignItems: 'center', gap: 6, marginTop: 4,
+  background: 'rgba(255,255,255,.05)',
+  border: '1px solid var(--border)',
+  borderRadius: 999,
+  // Asymmetric: the button is a pill sitting INSIDE this one, so it needs 4px
+  // of breathing room on its side while the country chip sits closer in.
+  padding: '4px 4px 4px 12px',
+};
+
+const isoSelect = {
+  background: 'transparent', border: 'none', outline: 'none',
+  color: 'var(--muted)', flexShrink: 0, cursor: 'pointer',
+  fontFamily: "'Bebas Neue', sans-serif", fontSize: 12, letterSpacing: 1,
+  padding: 0,
+  // Native control on a dark surface needs this or the dropdown renders white.
+  colorScheme: 'dark',
+};
+
+const numberInput = {
+  flex: 1, minWidth: 0, background: 'transparent', border: 'none',
+  outline: 'none', color: 'var(--text)', fontSize: 15, padding: '8px 2px',
+};
+
+const searchPill = {
+  background: 'linear-gradient(135deg, #00E5FF, #BF5FFF)',
+  color: '#0a0a0f', border: 'none', borderRadius: 999, flexShrink: 0,
+  fontFamily: "'Bebas Neue', sans-serif", fontSize: 12, letterSpacing: 1.5,
+  padding: '8px 16px',
+  // A fixed floor so SEARCH and its loading ellipsis occupy the same box.
+  minWidth: 74, textAlign: 'center',
+};
+
+/* ⚠ EXPORTED FOR THE ROWS THIS PANEL HOSTS AS CHILDREN. Invite Friends has to
+   sit flush with MY PH NUMBER and MY CONTACTS, and hand-copying these values
+   into it drifted immediately (owner, 2026-08-05: it came out muted and 13px
+   against their white 15px). One object, imported, cannot drift. */
+export const summaryRow = {
   display: 'flex',
   alignItems: 'center',
   gap: 10,

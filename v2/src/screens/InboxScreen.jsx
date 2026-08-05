@@ -405,14 +405,15 @@ export default function InboxScreen() {
           </div>
         </div>
 
-        {/* FIND FRIENDS — the sketch's fourth section, in its order:
-            find by number, sync contacts (both inside PhoneNumberSettings),
-            then invite and share. See docs/contacts-page-2026-07.md §1. */}
+        {/* FIND FRIENDS — the sketch's fourth section, in its order: find by
+            number, sync contacts, then invite. See docs/contacts-page-2026-07.md
+            §1, which still lists a fifth row, Share YesPleez; that was removed
+            (owner, 2026-08-05) and Invite Friends moved INSIDE the panel rather
+            than sitting under it as a loose card. */}
         {discoveryOpen && (
-          <>
-            <PhoneNumberSettings session={session} />
+          <PhoneNumberSettings session={session}>
             <InviteRows myProfile={myProfile} />
-          </>
+          </PhoneNumberSettings>
         )}
 
         {/* YOUR CONTACTS — the people you talk to, as a scroll rail.

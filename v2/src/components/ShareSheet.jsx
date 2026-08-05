@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { track, EVENTS } from '../lib/analytics';
+import { nativeShare, copyLink, canNativeShare } from '../lib/shareTarget';
 
 /**
  * SHARE SHEET — the generic presentation of whatever the current screen
@@ -26,37 +26,22 @@ export default function ShareSheet({ target, onClose }) {
   const [copied, setCopied] = useState(false);
   if (!target) return null;
 
-  const canNativeShare = typeof navigator !== 'undefined' && !!navigator.share;
   const isPrivate = target.access === 'private';
 
-  async function nativeShare() {
-    try {
-      await navigator.share({
-        title: target.title,
-        text:  target.preview || undefined,
-        url:   target.url,
-      });
-      // A1 · after the await, so a CANCELLED share is not counted as one. The
-      // catch below is the cancel path — tracking before this line would count
-      // every opened-then-dismissed share sheet as a share.
-      //
-      // The resource TYPE only. Never target.url or target.title: a private
-      // link is a capability, and putting one in an analytics row copies it
-      // somewhere with different access rules than the thing it opens.
-      track(EVENTS.SHARED, { resource: target.type ?? null, method: 'native' });
-      onClose?.();
-    } catch {
-      // A cancelled share sheet rejects. That is not an error worth surfacing.
-    }
+  // ⚠ BOTH ACTS LIVE IN lib/shareTarget, WITH THEIR TRACKING. They were lifted
+  // out when Invite Friends became a single button that shares without opening
+  // this sheet — two surfaces, still one implementation of each act. Closing on
+  // success only: a cancelled native sheet returns false and leaves this open,
+  // which is what dismissing a share sheet asks for.
+  async function doNativeShare() {
+    if (await nativeShare(target)) onClose?.();
   }
 
-  async function copyLink() {
-    try {
-      await navigator.clipboard.writeText(target.url);
+  async function doCopyLink() {
+    if (await copyLink(target)) {
       setCopied(true);
-      track(EVENTS.SHARED, { resource: target.type ?? null, method: 'copy_link' });
       setTimeout(() => setCopied(false), 1800);
-    } catch {
+    } else {
       setCopied(false);
     }
   }
@@ -102,11 +87,11 @@ export default function ShareSheet({ target, onClose }) {
           </div>
         )}
 
-        {canNativeShare && (
-          <button type="button" style={rowStyle} onClick={nativeShare}>Share via…</button>
+        {canNativeShare() && (
+          <button type="button" style={rowStyle} onClick={doNativeShare}>Share via…</button>
         )}
 
-        <button type="button" style={rowStyle} onClick={copyLink}>
+        <button type="button" style={rowStyle} onClick={doCopyLink}>
           {copied ? 'Link copied' : 'Copy link'}
         </button>
 
