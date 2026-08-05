@@ -1,6 +1,23 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
   "plugins": ["react", "oxc"],
+  // The app runs in a browser. Without this, `no-undef` reports window,
+  // document, console, setTimeout and friends as undefined variables — which
+  // made `oxlint --deny no-undef` fail for config reasons, and a gate that is
+  // already red cannot catch a real regression. Tooling only: no rule is
+  // relaxed and no source file changes.
+  "env": {
+    "browser": true,
+    "es2024": true
+  },
+  // Build-time constants substituted by Vite's `define` (see vite.config.js).
+  // They exist in the bundle but never in source, so the linter cannot infer
+  // them.
+  "globals": {
+    "__APP_VERSION__": "readonly",
+    "__BUILD_SHA__": "readonly",
+    "__BUILD_TIME__": "readonly"
+  },
   "rules": {
     "react/rules-of-hooks": "error",
     "react/only-export-components": ["warn", { "allowConstantExport": true }]
