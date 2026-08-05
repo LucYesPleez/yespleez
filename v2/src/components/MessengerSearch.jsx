@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { looksLikeNumber, toE164 } from '../lib/phoneNumber';
+import { looksLikeNumber, toE164, DEFAULT_COUNTRY } from '../lib/phoneNumber';
 import { findByPhone } from '../lib/phoneKey';
 import MessengerAvatar from './MessengerAvatar';
 
@@ -56,6 +56,9 @@ export default function MessengerSearch({ rows = [], onOpen }) {
   const query = q.trim();
   const isNumber = looksLikeNumber(q);
   const completeNumber = isNumber ? toE164(q).e164 : null;
+  // `+` or `00` means the query carries its own country code, so nothing was
+  // assumed and there is nothing to warn about.
+  const typedInternational = /^\s*(\+|00)/.test(q);
 
   // People you already talk to, deduped, most recent first — `rows` arrives
   // ordered by last_message_at, so first-seen IS most-recent.
@@ -150,6 +153,21 @@ export default function MessengerSearch({ rows = [], onOpen }) {
                   is indistinguishable from "nobody found", which would be a
                   claim about a person rather than about the query. */}
               {!completeNumber && <Note>Enter the full number — a partial one matches nobody.</Note>}
+
+              {/* ⚠ NO COUNTRY PICKER HERE, DELIBERATELY — AND THIS IS WHAT
+                  REPLACES IT. Anything written with `+` or `00` identifies its
+                  own country, so a picker would be dead UI for almost every
+                  query. The exception is a LOCAL-format foreign number: `021
+                  555 0199` meant as NZ resolves against the AU default to
+                  +61215550199, which is a real number belonging to a different
+                  human. Echoing the resolved E.164 makes that assumption
+                  visible before the user reads a wrong answer as the truth.
+
+                  ⚠ E.164, NOT formatDisplay. That helper writes a LOCAL form,
+                  which would hide the country code — the one digit group this
+                  line exists to show. */}
+              {completeNumber && <div style={resolvedStyle}>{completeNumber}</div>}
+
               {completeNumber && searchingNumber && <Note>Searching…</Note>}
               {completeNumber && !searchingNumber && numberMatch && (
                 <Row
@@ -164,6 +182,21 @@ export default function MessengerSearch({ rows = [], onOpen }) {
                 <Note>
                   No match for that number. They might not be on YesPleez yet — or
                   they&rsquo;ve chosen not to be found.
+                </Note>
+              )}
+
+              {/* ⚠ ONLY ON A MISS, AND ONLY WHEN A COUNTRY WAS ASSUMED. What is
+                  stored is an HMAC of the E.164, so a match needs BOTH sides to
+                  resolve to the identical number — there is no fuzzy or partial
+                  matching to fall back on. A local-format overseas number
+                  therefore does not "nearly" match; it resolves to a different
+                  real number and finds nobody. Shown after the miss rather than
+                  before, because the overwhelming majority of searches are
+                  domestic and would not thank us for the lecture. */}
+              {completeNumber && !searchingNumber && !numberMatch && !typedInternational && (
+                <Note>
+                  Overseas? Start with <strong style={{ color: 'var(--text)' }}>+</strong> and their
+                  country code — without it a number is read as {DEFAULT_COUNTRY}.
                 </Note>
               )}
             </Group>
@@ -225,6 +258,14 @@ const fieldStyle = {
 const groupTitleStyle = {
   fontFamily: "'Bebas Neue', sans-serif", fontSize: 12, letterSpacing: 1.6,
   color: 'var(--muted)', margin: '10px 0 4px',
+};
+
+/* The number actually being looked up. Monospaced-ish tracking so the digit
+   groups stay readable, and muted because it is a confirmation of what was
+   typed rather than a result. */
+const resolvedStyle = {
+  fontFamily: "'DM Sans', sans-serif", fontSize: 12, letterSpacing: 0.8,
+  color: 'var(--text)', opacity: 0.75, padding: '4px 2px',
 };
 
 const rowStyle = {
