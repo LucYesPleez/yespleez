@@ -4,20 +4,35 @@ import { supabase } from '../lib/supabase';
 import s from './IndustryPanel.module.css';
 
 export default function IndustryPanel({ open, onClose, onNavigate, session, isGuest, onSignOut }) {
-  const [setupTypes, setSetupTypes] = useState(new Set());
+  /**
+   * type -> the profile's NAME (owner, 2026-08-04: "have the name next to the
+   * tick instead of where it says profile set up").
+   *
+   * ⚠ The select now asks for `name` as well as `type`. The tick used to say
+   * the same five words on every card, which told someone with five profiles
+   * nothing they could not already see from the row existing — the useful fact
+   * is WHICH profile is behind each role.
+   */
+  const [setupNames, setSetupNames] = useState({});
 
   useEffect(() => {
     if (!open || !session) return;
     supabase
       .from('profiles')
-      .select('type')
+      .select('type, name')
       .eq('user_id', session.user.id)
       .then(({ data }) => {
-        if (data) setSetupTypes(new Set(data.map(p => p.type)));
+        if (!data) return;
+        const byType = {};
+        // FIRST wins, not last. A card opens one dashboard per role, so if an
+        // account somehow holds two profiles of a type this must settle on one
+        // deterministically rather than on whatever order the planner returned.
+        for (const p of data) if (!(p.type in byType)) byType[p.type] = (p.name || '').trim();
+        setSetupNames(byType);
       });
   }, [open, session]);
 
-  const setupRoles = ROLES.filter(r => setupTypes.has(r.id));
+  const setupRoles = ROLES.filter(r => r.id in setupNames);
 
   return (
     <>
@@ -59,14 +74,22 @@ export default function IndustryPanel({ open, onClose, onNavigate, session, isGu
                       <span className={s.cardIcon} style={{ color: '#fff' }}>{role.icon}</span>
                       <div className={s.cardBody}>
                         <div className={s.cardTitle} style={role.titleStyle}>{role.title}</div>
-                        <div className={s.cardSetup} style={{ color: col }}>✓ Profile set up</div>
+                        {/* R1 · an unnamed profile falls back to the old
+                            wording rather than rendering a bare tick — "✓"
+                            alone reads as a rendering fault, not as absence. */}
+                        <div className={s.cardSetup} style={{ color: col }}>
+                          ✓ {setupNames[role.id] || 'Profile set up'}
+                        </div>
                       </div>
                     </button>
                   );
                 })}
               </div>
 
-              <button className={s.signOutBtn} onClick={onSignOut}>SIGN OUT</button>
+              {/* ⛔ NO SIGN OUT HERE (owner, 2026-08-04) — it lives only in the
+                  header's identity menu now. This panel is for switching
+                  between your industry profiles; leaving the app entirely was
+                  never the same kind of action. */}
             </>
           )}
         </div>

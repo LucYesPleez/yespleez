@@ -30,7 +30,6 @@ import { buildSpotlight } from '../lib/spotlight';
 import PastEventsSearch, { filterPastEvents } from '../components/PastEventsSearch';
 import { PROFILE_TYPES, PROFILE_TYPE_ORDER } from '../lib/profileTypes';
 import UnclaimedBadge from '../components/UnclaimedBadge';
-import MessengerAvatar from '../components/MessengerAvatar';
 
 let _discoverCache = [];
 
@@ -129,7 +128,6 @@ export default function MySceneScreen({ isGuest, onSignOut }) {
   const [addEventSaving,  setAddEventSaving]  = useState(false);
   const [dayArtists,       setDayArtists]       = useState([]);
   const [discoverProfiles, setDiscoverProfiles] = useState(_discoverCache);
-  const [profileName,    setProfileName]    = useState('');
   const [profileConfig,  setProfileConfig]  = useState({});
   const [updatedFollows, setUpdatedFollows] = useState([]);
   const [followProfiles, setFollowProfiles] = useState({});
@@ -304,7 +302,6 @@ export default function MySceneScreen({ isGuest, onSignOut }) {
         events:         evRes.data || [],
         myEvents:       myEvRes.data || [],
         punterName:     profRes.data?.[0]?.name || '',
-        punterAvatar:   profRes.data?.[0]?.avatar_thumb || profRes.data?.[0]?.avatar || '',
         punterPostcode: profRes.data?.[0]?.postcode || '',
         punterGenreString: profRes.data?.[0]?.genre_string || '',
         personalEvents: peRes.data   || [],
@@ -326,10 +323,6 @@ export default function MySceneScreen({ isGuest, onSignOut }) {
   const playingEvents  = data?.playingEvents  || EMPTY;
   const personalEvents = data?.personalEvents || EMPTY;
 
-  // Sync profileName from query result
-  useEffect(() => {
-    if (data?.punterName) setProfileName(data.punterName);
-  }, [data?.punterName]);
 
   // Sync followProfiles + updatedFollows from query result (computed inside queryFn)
   useEffect(() => {
@@ -472,7 +465,6 @@ export default function MySceneScreen({ isGuest, onSignOut }) {
     }
   }, [viewMonth, loading]);
 
-  const displayName = profileName || session?.user?.user_metadata?.name || (loading ? '' : session?.user?.email?.split('@')[0] || 'MY PROFILE');
 
   // Which events have a config.date
   const datedEvents = events.filter(ev => ev.config?.date);
@@ -880,24 +872,15 @@ export default function MySceneScreen({ isGuest, onSignOut }) {
           <div className={s.title}>MY SCENE</div>
           <div className={s.sub}>Your gigs · Your artists · Your world</div>
         </div>
-        {session && (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
-            {/* MI1 · opens the Messenger identity screen. This used to open an
-                inline rename sheet; the rename moved to that screen with it, so
-                nothing was lost — see MessengerIdentityScreen. */}
-            <div className={s.profilePill} onClick={() => navigate('/me')} style={{ cursor: 'pointer' }}>
-              {/* MI1 · THE SAME COMPONENT MESSAGES USES, not a lookalike.
-                  This was a generic person glyph, which meant My Scene and
-                  Messenger showed different things for the same identity — and
-                  no amount of uploading a photo would ever change this one.
-                  Sharing MessengerAvatar is what makes them link: one source
-                  for the image, one default when there isn't one. */}
-              <MessengerAvatar src={data?.punterAvatar} size={26} />
-              <span className={s.profileName}>{displayName.toUpperCase()}</span>
-            </div>
-            <div style={{ fontSize: 11, color: 'var(--muted)', paddingRight: 2 }}>{session.user.email}</div>
-          </div>
-        )}
+        {/* ⛔ THE PROFILE PILL AND THE EMAIL LINE ARE GONE (owner, 2026-08-04).
+            Both moved into the global header's identity control, which renders
+            on every screen — so keeping a copy here would have shown the same
+            person twice on the one screen, six pixels apart.
+
+            The email is not relocated, it is REMOVED: the brief drops it from
+            the header entirely. It was the only place an address was displayed
+            in ordinary use, and a name plus a picture identifies the account
+            without printing it. See ProfileMenu. */}
       </div>
 
       {/* Guest gate */}

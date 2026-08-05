@@ -3,9 +3,8 @@ import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
 import s from './GlobalHeader.module.css';
 import NotifPanel from './NotifPanel';
-import ShareSheet from './ShareSheet';
+import ProfileMenu from './ProfileMenu';
 import BetaWelcomePopup from './BetaWelcomePopup';
-import { useCurrentShareTarget, pageFallback } from '../lib/shareTarget';
 import useAutoHideHeader from '../hooks/useAutoHideHeader';
 import { readAuthLog, readAuthIncidents } from '../lib/authDiagnostics';
 import { readForensics } from '../lib/authForensics';
@@ -22,7 +21,10 @@ import {
 const INFO = {
   '/': {
     title: "WHATS HAPPENIN'",
-    body: `<p>Browse all upcoming events in your city.</p><ul><li><strong>Tap any event card</strong> to see the full lineup, set times, and details.</li><li><strong>Scroll left/right</strong> on the calendar strip to jump to a date.</li><li><strong>Share</strong> an event with the share icon in the top right.</li></ul>`
+    // ⚠ No longer mentions a share icon in the top right — there isn't one
+    // (owner, 2026-08-04). Sharing lives on the event page itself now, which
+    // is also where someone is when they decide to share something.
+    body: `<p>Browse all upcoming events in your city.</p><ul><li><strong>Tap any event card</strong> to see the full lineup, set times, and details.</li><li><strong>Scroll left/right</strong> on the calendar strip to jump to a date.</li><li><strong>Share</strong> an event from its own page, using the SHARE button under the description.</li></ul>`
   },
   '/discover': {
     title: 'DISCOVER',
@@ -85,18 +87,16 @@ const BUILD_STAMP = [
     : 'unbuilt',
 ].join(' · ');
 
-export default function GlobalHeader({ onMarkRead, unreadCount = 0 }) {
+export default function GlobalHeader({ onMarkRead, unreadCount = 0, session = null, onSignOut = null }) {
   const navigate    = useNavigate();
   const location    = useLocation();
   const [infoOpen,  setInfoOpen]  = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
-  const [shareOpen, setShareOpen] = useState(false);
   // ⚠ THE BUILD STAMP, SW STATE, AND BOTH LOGS ARE HIDDEN BY DEFAULT — owner:
   // "I don't want all that info easily available for everyone to see." They
   // are diagnostic, not explanatory, and belong behind a second tap from
   // anyone who is not actively debugging a device. See DiagnosticsReadout.
   const [diagOpen,  setDiagOpen]  = useState(false);
-  const shareTarget = useCurrentShareTarget();
   const headerRef = useRef(null);
   const infoRef = useRef(null);
 
@@ -157,17 +157,6 @@ export default function GlobalHeader({ onMarkRead, unreadCount = 0 }) {
     if (window.history.length > 1) navigate(-1);
   }
 
-  // SHARE IS RESOURCE-DRIVEN and this button stays generic. It renders
-  // whatever the mounted screen declared via useShareTarget — never a
-  // screen-specific branch, and never window.location.href, which is only
-  // where you happened to arrive rather than the resource's canonical address.
-  //
-  // A screen that declares nothing falls back to the page, so nothing breaks;
-  // but a screen representing a shareable resource should always declare.
-  function handleShare() {
-    setShareOpen(true);
-  }
-
   return (
     <>
       {/* `yp-global-header` is a STABLE hook for rules that live outside this
@@ -204,41 +193,47 @@ export default function GlobalHeader({ onMarkRead, unreadCount = 0 }) {
             once-per-device action that removes itself the moment it is done. */}
         <InstallButton />
 
-        {/* Standard top bar order: Back · logo · Share · Info · bell. */}
+        {/* ⛔ NO SHARE ICON (owner, 2026-08-04). Top bar order is now
+            Back · logo · Info · bell.
+
+            Sharing is NOT lost: the surfaces worth sharing carry their own
+            control — the event page's SHARE in § 4 and the address share in
+            § 7 both build their link with `shareUrl` directly. The header's
+            button was the generic fallback for whatever screen happened to be
+            mounted, which is the least specific version of the action.
+
+            ⚠ `useShareTarget` DECLARATIONS ARE NOW UNCONSUMED. EventScreen
+            still declares one and nothing reads it any more — see the note
+            where `useCurrentShareTarget` used to be called. Left in place
+            rather than ripped out, because the navigation/sharing architecture
+            treats it as the canonical way a screen announces what it
+            represents, and retiring it is a decision rather than a cleanup. */}
         <div className={s.actions} style={{ position: 'relative' }}>
-          <button className={s.iconBtn} onClick={handleShare} aria-label="Share">
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
-              <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
-              <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
-            </svg>
-          </button>
+          {/* ⛔ THE ⓘ INFO BUTTON IS GONE TOO (owner, 2026-08-04) — its sheet
+              now opens from the menu's Help & Feedback item.
 
-          {/* `data-tour` is the tour's anchor for its final step — the one
-              that points here and says "this is where it all lives". */}
-          <button data-tour="info" className={s.iconBtn} onClick={() => setInfoOpen(true)} aria-label="Info">
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="10"/>
-              <line x1="12" y1="8" x2="12" y2="8.01"/>
-              <polyline points="11 12 12 12 12 16"/>
-            </svg>
-          </button>
+              ⚠ `data-tour="info"` MOVED WITH IT, onto the identity control.
+              The guided tour's final step anchors to that attribute, and the
+              engine SKIPS a target it cannot find rather than throwing — so
+              deleting the button without rehoming the anchor would have gone
+              dark with a clean console and nobody the wiser. See ProfileMenu.
 
-          <button
-            className={s.iconBtn}
-            onClick={() => { setPanelOpen(v => !v); setInfoOpen(false); }}
-            aria-label="Notifications"
-            style={{ position: 'relative', color: panelOpen ? 'var(--neon2)' : undefined }}
-          >
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-              <path d="M12 2a7 7 0 0 0-7 7v4l-2 2v1h18v-1l-2-2V9a7 7 0 0 0-7-7zm0 20a2 2 0 0 0 2-2h-4a2 2 0 0 0 2 2z"/>
-            </svg>
-            {unreadCount > 0 && (
-              <span style={{ position: 'absolute', top: 2, right: 4, minWidth: 16, height: 16, borderRadius: 8, background: '#FF3B30', color: '#fff', fontSize: 10, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1, padding: '0 3px', boxSizing: 'border-box', fontFamily: 'DM Sans, sans-serif' }}>
-                {unreadCount > 9 ? '9+' : unreadCount}
-              </span>
-            )}
-          </button>
+          ⛔ THE NOTIFICATION BELL IS GONE (owner, 2026-08-04). Its two jobs
+              moved into the identity control beside it: the unread count is now
+              a badge on the avatar, and the panel opens from the menu's
+              Notifications item.
+
+              ⚠ THE PANEL ITSELF IS NOT GONE — only the button that opened it.
+              The brief removed a control, not a feature, and NotifPanel below
+              is unchanged; ProfileMenu simply asks for it via
+              `onOpenNotifications`. */}
+          <ProfileMenu
+            session={session}
+            unreadCount={unreadCount}
+            onSignOut={onSignOut}
+            onOpenNotifications={() => { setPanelOpen(true); setInfoOpen(false); }}
+            onOpenHelp={() => { setInfoOpen(true); setPanelOpen(false); }}
+          />
 
           {panelOpen && (
             <NotifPanel
@@ -248,13 +243,6 @@ export default function GlobalHeader({ onMarkRead, unreadCount = 0 }) {
           )}
         </div>
       </div>
-
-      {shareOpen && (
-        <ShareSheet
-          target={shareTarget ?? pageFallback()}
-          onClose={() => setShareOpen(false)}
-        />
-      )}
 
       {/* Info sheet */}
       <div className={infoOpen ? s.infoOverlayOpen : s.infoOverlay}>
@@ -278,6 +266,19 @@ export default function GlobalHeader({ onMarkRead, unreadCount = 0 }) {
             onClick={() => { setInfoOpen(false); startTour(); }}
           >
             TAKE THE TOUR
+          </button>
+
+          {/* ⭐ THE FEEDBACK HALF OF "HELP & FEEDBACK" (owner, 2026-08-04).
+              The menu item that opens this sheet is named Help & Feedback, and
+              it would only have been half true without a way through to the
+              form. Same close-first reason as the tour button above: this
+              sheet is a fixed panel at z-index 400 and would sit over the page
+              it just sent you to. */}
+          <button
+            className={s.infoTour}
+            onClick={() => { setInfoOpen(false); navigate('/beta-feedback'); }}
+          >
+            GIVE FEEDBACK
           </button>
 
           {/* ⚠ A PLACEHOLDER, AND IT MUST READ AS ONE. Per-role walkthroughs

@@ -126,18 +126,32 @@ function activateRole(id) {
 
 export { ROLES, getActiveRoles, activateRole };
 
-export default function RoleSelectorScreen({ session, onSignOut }) {
+// ⚠ `onSignOut` is gone from the signature — the button that used it was
+// removed above. IndustryPanel keeps its own copy because its GUEST branch
+// still uses it for SIGN IN, which is a different action wearing the same
+// handler.
+export default function RoleSelectorScreen({ session }) {
   const navigate = useNavigate();
   const [setupTypes, setSetupTypes] = useState(new Set());
+  // type -> name, for the tick. Same change as IndustryPanel: the two screens
+  // show the same rows and must not disagree about what a set-up role says.
+  // `setupTypes` is KEPT alongside it — handlePick below gates on it, and
+  // folding the two into one structure would make a membership test read as a
+  // name lookup.
+  const [setupNames, setSetupNames] = useState({});
 
   useEffect(() => {
     if (!session) return;
     supabase
       .from('profiles')
-      .select('type')
+      .select('type, name')
       .eq('user_id', session.user.id)
       .then(({ data }) => {
-        if (data) setSetupTypes(new Set(data.map(p => p.type)));
+        if (!data) return;
+        setSetupTypes(new Set(data.map(p => p.type)));
+        const byType = {};
+        for (const p of data) if (!(p.type in byType)) byType[p.type] = (p.name || '').trim();
+        setSetupNames(byType);
       });
   }, [session]);
 
@@ -176,16 +190,23 @@ export default function RoleSelectorScreen({ session, onSignOut }) {
               <div className={s.cardTitle} style={role.titleStyle}>{role.title}</div>
               <div className={s.cardDesc}>{role.desc}</div>
               {setupTypes.has(role.id) && (
-                <div className={s.profileTick} style={{ color: role.hoverStyle.borderColor }}>✓ Profile set up</div>
+                <div className={s.profileTick} style={{ color: role.hoverStyle.borderColor }}>
+                  ✓ {setupNames[role.id] || 'Profile set up'}
+                </div>
               )}
             </div>
           </button>
         ))}
       </div>
 
-      {session && (
-        <button className={s.signOut} onClick={onSignOut}>SIGN OUT</button>
-      )}
+      {/* ⛔ NO SIGN OUT HERE (owner, 2026-08-04). Signing out lives in ONE
+          place now — the identity menu in the global header. Three separate
+          sign-out buttons meant three things to keep consistent and three
+          places to look when it misbehaved.
+          ⚠ This screen is the ONE route where GlobalHeader does not render
+          (see App.jsx), so there is genuinely no sign-out reachable from here.
+          Accepted: /role-select is a pick-a-role step you arrive at and leave,
+          not somewhere you sit. */}
     </div>
   );
 }

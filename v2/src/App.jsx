@@ -234,6 +234,11 @@ function Shell({ session, isGuest, onSignOut }) {
         <GlobalHeader
           unreadCount={unreadCount}
           onMarkRead={() => setUnreadCount(0)}
+          /* ⭐ The header now carries the identity control, so it needs who
+             you are and how to sign you out — both were already in Shell's
+             props and simply never reached it. */
+          session={session}
+          onSignOut={onSignOut}
         />
       )}
       <ErrorBoundary>
@@ -264,7 +269,7 @@ function Shell({ session, isGuest, onSignOut }) {
         <Route path="/industry/standup/setup" element={<StandupProfileScreen />} />
         <Route path="/industry/band"     element={<PerformerDashboard role="band" />} />
         <Route path="/industry/standup"  element={<PerformerDashboard role="standup" />} />
-        <Route path="/role-select"       element={<RoleSelectorScreen session={session} onSignOut={onSignOut} />} />
+        <Route path="/role-select"       element={<RoleSelectorScreen session={session} />} />
         <Route path="/profile/:id"       element={<ProfileScreen />} />
         <Route path="/profile-edit"      element={<ProfileEditScreen />} />
         {/* The Messenger identity (avatar + display name). Reached from the

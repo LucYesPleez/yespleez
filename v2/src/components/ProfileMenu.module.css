@@ -1,0 +1,185 @@
+/* The identity control in the global header — see ProfileMenu.jsx. */
+
+.wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+/* ONE target. The name and the avatar are halves of a single button, so every
+   state applies across both rather than lighting up whichever half the pointer
+   happens to be over. */
+.control {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  /* ⭐ 44px TALL (owner, 2026-08-04). That is the iOS/WCAG minimum touch
+     target, and the audit a few steps back found almost every control in this
+     app sitting under it — the bell this replaced was 26px. The avatar stays
+     28px and the height comes from padding, so the picture is unchanged and
+     only the tappable area grows.
+     ⚠ 44 is also the ceiling here: the header measures itself into
+     --yp-header-height, which the event page's padding-top and every overlay's
+     `top` are built on. A taller control moves all of them. */
+  height: 44px;
+  padding: 0 6px 0 14px;
+  /* ⛔ NO BORDER, NO FILL (owner, 2026-08-04: "i dont want the border around my
+     profile pic and name, just invisible padding that size for the button").
+     The 44px is a HIT AREA, not a shape: the name and avatar read as they
+     always did and the extra space around them is simply tappable. An earlier
+     pass drew this as a visible pill, which added a box to a header that has
+     no other boxes in it.
+     The whole thing is still ONE button — that was never about the border. */
+  border: none;
+  border-radius: 999px;
+  background: none;
+  cursor: pointer;
+  color: var(--text);
+  transition: background .15s;
+}
+
+/* Barely-there on hover, and nothing at rest. A control with no response at all
+   reads as decoration on a pointer device; a border would reintroduce the box
+   that was just removed. Rounded to match the hit area, not to draw a pill. */
+.control:hover  { background: rgba(255, 255, 255, .06); }
+.control:active { background: rgba(255, 255, 255, .10); }
+.control:focus-visible {
+  outline: 2px solid var(--neon2);
+  outline-offset: 2px;
+}
+
+.name {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 15px;
+  letter-spacing: 0.06em;
+  /* A long display name must not push the header into wrapping — the bar
+     measures itself into --yp-header-height and everything reserving space for
+     it would move. */
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.avatarWrap {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+/* ⚠ THE BADGE OVERLAYS THE AVATAR ONLY, and sits OUTSIDE its circle's top
+   right. The ring in the app's own background colour is what keeps it legible
+   against a photograph rather than dissolving into whatever it lands on. */
+.badge {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 3px;
+  box-sizing: border-box;
+  border-radius: 8px;
+  background: #FF3B30;
+  color: #fff;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 0 2px var(--dark);
+  pointer-events: none;
+}
+
+/* ── the menu, portalled to body ─────────────────────────────────────
+   Fixed to the viewport. It cannot be positioned relative to the header: the
+   header is transformed, which would make it the containing block and drag the
+   menu off-screen with it on hide. */
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 240;
+}
+
+.menu {
+  position: fixed;
+  top: calc(var(--yp-header-height, 52px) + 6px);
+  right: max(12px, calc((100vw - 680px) / 2 + 8px));
+  z-index: 241;
+  min-width: 232px;
+  padding: 6px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: rgba(14, 14, 22, .97);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 18px 40px -12px rgba(0, 0, 0, .7);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px 10px;
+}
+
+.headText { min-width: 0; }
+
+.headName {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 18px;
+  letter-spacing: 0.06em;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.headLink {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--muted);
+}
+.headLink:hover { color: var(--text); text-decoration: underline; }
+
+.rule {
+  height: 1px;
+  margin: 4px 6px;
+  background: var(--border);
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 10px;
+  border: none;
+  border-radius: 9px;
+  background: none;
+  cursor: pointer;
+  color: var(--text);
+  font-size: 13.5px;
+  text-align: left;
+}
+.item:hover { background: rgba(255, 255, 255, .07); }
+.item:focus-visible { outline: 2px solid var(--neon2); outline-offset: -2px; }
+
+.itemBadge {
+  min-width: 18px;
+  padding: 1px 5px;
+  border-radius: 9px;
+  background: #FF3B30;
+  color: #fff;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.signOut { color: var(--neon); }
