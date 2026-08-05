@@ -130,6 +130,40 @@ CREATE INDEX IF NOT EXISTS notifications_inbox_idx
 --    WHERE proname IN ('deliver_held_notifications','on_profile_claimed');
 --
 -- prosecdef = false on either means fix that first.
+--
+-- ── RESOLVED · BOTH ARE `false`, AND THAT IS SAFE TODAY ─────────
+--
+-- Checked against the live database, 2026-08-05: `prosecdef = false` on
+-- BOTH functions. Applied anyway, deliberately, and SECURITY DEFINER is
+-- NOT added. The check above was written as a precaution without
+-- establishing WHO invokes the function. Traced, it does not bite:
+--
+--   · `approve_profile_claim()` is not callable by authenticated users.
+--     c1_profile_claim_requests.sql:289 —
+--       REVOKE EXECUTE ON FUNCTION public.approve_profile_claim(bigint)
+--         FROM PUBLIC, anon, authenticated;
+--
+--   · `deliver_held_notifications()` therefore executes only through the
+--     SQL editor or Studio's `service_role` — it runs solely via the N3
+--     trigger inside `approve_profile_claim()`, and no client code calls
+--     either function (grep of v2/src returns comments and tests only).
+--     The REVOKE below names `anon, authenticated`; `service_role` keeps
+--     UPDATE on every column, `to_user_id` included. The privilege
+--     failure this note feared needs the invoker to be a revoked role.
+--
+--   · Claim completion has NOT moved into the application. That is
+--     enforced by the database, not promised by the client — see the
+--     REVOKE EXECUTE above.
+--
+-- ⚠ REVISIT SECURITY DEFINER ONLY IF CLAIM COMPLETION BECOMES
+--    USER-INITIATED. On that day `deliver_held_notifications()` begins
+--    running as `authenticated`, and it will then need SECURITY DEFINER
+--    with `search_path` pinned AND the SEC-1 INSERT `with_check` fix
+--    TOGETHER — which is exactly the pairing n3_claim_delivery.sql:128
+--    deferred to a dedicated pass. Adding it now would do half of that:
+--    expand privilege without the INSERT constraint meant to accompany
+--    it. n3:131 says revisit "BEFORE moving claim completion into the
+--    app"; that move has not happened, so the trigger has not fired.
 REVOKE UPDATE ON public.notifications FROM anon, authenticated;
 
 GRANT UPDATE (read, dismissed_at, responded_at)
