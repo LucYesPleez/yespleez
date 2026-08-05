@@ -240,7 +240,7 @@ export default function ConversationDock() {
                             type="button"
                             onClick={() => { setOverflowOpen(false); open(id); }}
                             aria-label={`Reopen conversation with ${nm}`}
-                            style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0, background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', padding: 0 }}
+                            style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0, minHeight: 28, background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', padding: 0 }}
                           >
                             <TabAvatar name={nm} src={st.profile?.avatar} />
                             <span style={{ minWidth: 0, flex: 1, color: 'rgba(255,255,255,.86)', fontSize: 12.5, fontWeight: 550, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -257,7 +257,7 @@ export default function ConversationDock() {
                             type="button"
                             onClick={() => dismiss(id)}
                             aria-label={`Close conversation with ${nm}`}
-                            style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,.34)', fontSize: 14, cursor: 'pointer', lineHeight: 1, padding: '0 1px', flexShrink: 0 }}
+                            style={chipCloseBtn}
                           >
                             ×
                           </button>
@@ -410,13 +410,16 @@ function ConversationTab({ state, onOpen, onDismiss }) {
           }),
       borderBottom: 'none',
       borderRadius: '11px 11px 0 0',
-      padding: '5px 8px 6px 6px',
+      // ⚠ WAS '5px 8px 6px 6px' — the tab measured 33px tall with a 10×14
+      // close inside it (owner, 2026-08-05: "they need resizing"). Raised so
+      // the row clears 44px overall and the × has somewhere to live.
+      padding: '8px 8px 9px 8px',
     }}>
       <button
         type="button"
         onClick={onOpen}
         aria-label={`Reopen conversation with ${name}`}
-        style={{ display: 'flex', alignItems: 'center', gap: 7, flex: 1, minWidth: 0, background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', padding: 0 }}
+        style={{ display: 'flex', alignItems: 'center', gap: 7, flex: 1, minWidth: 0, minHeight: 28, background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', padding: 0 }}
       >
         <TabAvatar name={name} src={state.profile?.avatar} />
 
@@ -449,10 +452,44 @@ function ConversationTab({ state, onOpen, onDismiss }) {
         type="button"
         onClick={onDismiss}
         aria-label={`Close conversation with ${name}`}
-        style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,.34)', fontSize: 14, cursor: 'pointer', lineHeight: 1, padding: '0 1px', flexShrink: 0 }}
+        style={chipCloseBtn}
       >
         ×
       </button>
     </div>
   );
 }
+
+/**
+ * THE MINIMISED TAB'S CLOSE (×) — a real target at last.
+ *
+ * ⚠ MEASURED AT 10×14 BEFORE THIS (owner, 2026-08-05: "they need resizing").
+ * The comment beside it claimed it was "still a real target"; it was a bare
+ * glyph with 1px of horizontal padding, and it is the ONLY way to end a
+ * conversation.
+ *
+ * ⛔ DELIBERATELY NOT `.yp-tap44`. That utility centres a 44px box on the
+ * control, and this one lives inside an 86px-wide chip beside the name — a
+ * 44px hit area would reach 17px each side and swallow the right half of
+ * "Reopen conversation". Tapping a tab to reopen it would sometimes close it
+ * instead, which is worse than a small button. A real, visible box is the
+ * right answer here; invisible padding is not.
+ *
+ * 28px with the glyph optically centred: big enough to hit, small enough that
+ * the chip still reads as a quiet reminder rather than a dialog.
+ */
+const chipCloseBtn = {
+  width: 28,
+  height: 28,
+  flexShrink: 0,
+  display: 'grid',
+  placeItems: 'center',
+  padding: 0,
+  borderRadius: 999,
+  background: 'none',
+  border: 'none',
+  color: 'rgba(255,255,255,.34)',
+  fontSize: 16,
+  lineHeight: 1,
+  cursor: 'pointer',
+};
