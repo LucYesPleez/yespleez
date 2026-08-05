@@ -1,12 +1,11 @@
 import { useEffect, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSession } from '../App';
 import { supabase } from '../lib/supabase';
 import { useConversationUi } from '../lib/conversationUi';
 import HandIcon from '../components/HandIcon';
 import PhoneNumberSettings from '../components/PhoneNumberSettings';
-import MessengerAvatar from '../components/MessengerAvatar';
 import MessengerContactsSection from '../components/MessengerContactsSection';
 import MessengerSearch from '../components/MessengerSearch';
 import InviteRows from '../components/InviteRows';
@@ -145,17 +144,19 @@ function relativeTime(iso) {
 export default function InboxScreen() {
   const { session } = useSession();
   const { open: openConversation, openId } = useConversationUi();
+  // ⛔ `navigate` went with the header avatar — it was this screen's only
+  // caller. MessengerSearch does its own navigating.
   const location = useLocation();
-  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const userId = session?.user?.id;
   const [discoveryOpen, setDiscoveryOpen] = useState(false);
 
-  // MI1 · the caller's own Messenger face for the header. Its own tiny query
-  // rather than a field on the inbox query, so a failure here can never stop
-  // conversations loading — an avatar is decoration, the inbox is the screen.
-  const [myAvatar, setMyAvatar] = useState('');
-  // The same query now also carries id/name/type, because Invite Friends
+  // ⛔ `myAvatar` REMOVED WITH THE HEADER FACE — ProfileMenu shows it now.
+  // The query below stays because Invite Friends still needs the profile.
+  //
+  // Its own tiny query rather than a field on the inbox query, so a failure
+  // here can never stop conversations loading — the inbox is the screen.
+  // It carries id/name/type because Invite Friends
   // shares a link to THIS profile (see InviteRows). Widening the existing
   // select rather than adding a second one: it is the same row, already being
   // fetched, and a second query would be a second thing to keep in step.
@@ -198,10 +199,7 @@ export default function InboxScreen() {
         .select('id, name, type, avatar_thumb, avatar')
         .eq('id', id)
         .maybeSingle();
-      if (!cancelled && data) {
-        setMyAvatar(data.avatar_thumb || data.avatar || '');
-        setMyProfile(data);
-      }
+      if (!cancelled && data) setMyProfile(data);
     })();
     return () => { cancelled = true; };
   }, [userId]);
@@ -350,15 +348,12 @@ export default function InboxScreen() {
               the avatar back beside the title — which is the layout this move
               replaced. */}
           <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10 }}>
-            {/* MI1 · your own Messenger face, and the second way into /me.
-                Tapping it opens the same screen the name in My Scene does.
-                32px to sit level with the pill rather than tower over it. */}
-            <MessengerAvatar
-              src={myAvatar}
-              size={32}
-              onClick={() => navigate('/me')}
-              title="Your profile pic"
-            />
+            {/* ⛔ MI1's OWN-FACE AVATAR REMOVED (owner, 2026-08-05: "its now
+                redundant"). ProfileMenu in GlobalHeader carries the same face
+                one row above this one, on every screen, and tapping it reaches
+                /me as well — so this was the same picture twice with the same
+                destination, competing for the same corner. The identity control
+                won because it is app-wide; this one was Messages-only. */}
 
             {/* P1 · "find me by number" lives here for the same reason
                 notification preferences live on the notifications screen (NP1):
