@@ -40,13 +40,14 @@ export default function MessengerIdentityScreen() {
   const [name, setName] = useState('');
   const [avatar, setAvatar] = useState('');
   const [loading, setLoading] = useState(true);
-  const [savingName, setSavingName] = useState(false);
   const [status, setStatus] = useState('');
   /* HOME LOCALITY. Typed as a town OR a postcode; stored as a postcode, which
      is the only form the geo dataset can place. See saveLocality below. */
   const [locality, setLocality] = useState('');
-  const [savingLoc, setSavingLoc] = useState(false);
   const [locStatus, setLocStatus] = useState('');
+  /** The ONE busy flag for this screen. The two writes had one each, read by
+   *  a save button each; with one button there is one thing to be busy. */
+  const [saving, setSaving] = useState(false);
   const cancelled = useRef(false);
 
   useEffect(() => {
@@ -107,12 +108,10 @@ export default function MessengerIdentityScreen() {
    */
   async function saveName() {
     if (!userId || !name.trim()) return;
-    setSavingName(true);
     setStatus('');
     const { error } = await supabase
       .from('profiles')
       .upsert({ user_id: userId, type: 'punter', name: name.trim() }, { onConflict: 'user_id,type' });
-    setSavingName(false);
     setStatus(error ? "Couldn't save your name." : 'Name saved.');
   }
 
@@ -135,7 +134,6 @@ export default function MessengerIdentityScreen() {
     if (!profileId) return;
     const typed = String(locality || '').trim();
     if (!typed) return;
-    setSavingLoc(true);
     setLocStatus('');
 
     const digits = typed.replace(/\D/g, '');
@@ -151,7 +149,6 @@ export default function MessengerIdentityScreen() {
     }
 
     if (!postcode) {
-      setSavingLoc(false);
       const hint = suggestLocations(typed).slice(0, 3).join(', ');
       setLocStatus(hint ? `Not found. Did you mean ${hint}?` : "We don't know that town or postcode yet.");
       return;
@@ -161,12 +158,35 @@ export default function MessengerIdentityScreen() {
       .from('profiles')
       .update({ postcode, suburb: suburb || null })
       .eq('id', profileId);
-    setSavingLoc(false);
     if (error) { setLocStatus("Couldn't save your locality."); return; }
     // The rest of the app reads this before the network answers, so the two
     // must move together or My Scene shows the old town until a reload.
     try { localStorage.setItem('_userPostcode', postcode); } catch { /* private mode */ }
     setLocStatus(suburb ? `Saved — ${suburb} (${postcode}).` : `Saved — ${postcode}.`);
+  }
+
+  /**
+   * ONE SAVE FOR BOTH FIELDS (owner, 2026-08-05).
+   *
+   * ⚠ THE TWO WRITES STAY SEPARATE UNDERNEATH. They hit different columns by
+   * different routes — the name is an upsert keyed on (user_id, type), the
+   * locality is an update on the resolved profile id, and only the locality has
+   * a validation step that can reject what was typed. Merging them into one
+   * statement would mean either losing that validation or refusing to save a
+   * perfectly good name because a town was misspelt.
+   *
+   * ⚠ SEQUENTIAL, NOT `Promise.all`. Both touch the same profiles row; running
+   * them together invites the update to land before the upsert has created the
+   * row on a first-ever save.
+   */
+  async function saveAll() {
+    if (saving) return;
+    setSaving(true);
+    setStatus('');
+    setLocStatus('');
+    if (name.trim()) await saveName();
+    if (locality.trim()) await saveLocality();
+    setSaving(false);
   }
 
   if (loading) {
@@ -210,66 +230,73 @@ export default function MessengerIdentityScreen() {
           />
         )}
 
-        <div style={{ marginTop: 24 }}>
-          <label htmlFor="mi-name" style={labelStyle}>DISPLAY NAME</label>
-          <input
-            id="mi-name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Your name or username"
-            style={inputStyle}
-          />
-          <button
-            type="button"
-            onClick={saveName}
-            disabled={savingName || !name.trim()}
-            style={{ ...saveStyle, opacity: savingName || !name.trim() ? 0.5 : 1 }}
-          >
-            {savingName ? 'SAVING…' : 'SAVE NAME'}
-          </button>
+        {/* ⚠ ONE ROW, ONE SAVE (owner, 2026-08-05). These were two stacked
+            fields with a save button each, which read as two separate errands
+            for what is one act: "these are my details".
+
+            ⚠ `flex: 1 1 200px` — SO IT WRAPS RATHER THAN CRUSHES. Two 200px
+            minimums cannot both fit a 375px phone, so they stack there and sit
+            side by side from about 430px up. A fixed 50/50 would have given two
+            unusable 160px fields on a phone.
+
+            ⚠ HOME LOCALITY IS THE FIELD THAT DECIDES WHAT "NEAR YOU" MEANS. It
+            previously existed only inside My Scene → FOLLOWING → View all, so a
+            new user had no way to set it and no hint that it was what was
+            missing. That is why it belongs on this screen at all. */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginTop: 24 }}>
+          <div style={{ flex: '1 1 200px', minWidth: 0 }}>
+            <label htmlFor="mi-name" style={labelStyle}>DISPLAY NAME</label>
+            <input
+              id="mi-name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') saveAll(); }}
+              placeholder="Your name or username"
+              style={inputStyle}
+            />
+          </div>
+
+          <div style={{ flex: '1 1 200px', minWidth: 0 }}>
+            <label htmlFor="mi-locality" style={labelStyle}>TOWN / POSTCODE</label>
+            <input
+              id="mi-locality"
+              value={locality}
+              onChange={(e) => { setLocality(e.target.value); setLocStatus(''); }}
+              onKeyDown={(e) => { if (e.key === 'Enter') saveAll(); }}
+              placeholder="e.g. Bellingen or 2454"
+              list="mi-locality-options"
+              autoComplete="off"
+              style={inputStyle}
+            />
+            <datalist id="mi-locality-options">
+              {suggestLocations(locality).slice(0, 8).map(s => <option key={s} value={s} />)}
+            </datalist>
+          </div>
         </div>
 
-        {/* HOME LOCALITY — the field that decides what "near you" means, put
-            where someone actually looks for their own details. It previously
-            existed only inside My Scene → FOLLOWING → View all, so a new user
-            had no way to set it and no hint that it was what was missing. */}
-        <div style={{ marginTop: 24 }}>
-          <label htmlFor="mi-locality" style={labelStyle}>TOWN / POSTCODE</label>
-          <input
-            id="mi-locality"
-            value={locality}
-            onChange={(e) => { setLocality(e.target.value); setLocStatus(''); }}
-            onKeyDown={(e) => { if (e.key === 'Enter') saveLocality(); }}
-            placeholder="e.g. Bellingen or 2454"
-            list="mi-locality-options"
-            autoComplete="off"
-            style={inputStyle}
-          />
-          <datalist id="mi-locality-options">
-            {suggestLocations(locality).slice(0, 8).map(s => <option key={s} value={s} />)}
-          </datalist>
-          <div style={{ color: 'var(--muted)', fontSize: 12, lineHeight: 1.5, marginTop: 6 }}>
-            Set as your home gigs locality.
-          </div>
-          {/* ⚠ A LIMIT, NOT A REASSURANCE (privacy-copy rule). It is also
-              literally true and checkable: there is no geolocation call
-              anywhere in this app — distance is computed from this postcode
-              alone. Do not soften it into a promise about intentions. */}
-          <div style={{ color: 'var(--muted)', fontSize: 12, lineHeight: 1.5, marginTop: 2 }}>
-            This works off the database. We do not track you.
-          </div>
-          <button
-            type="button"
-            onClick={saveLocality}
-            disabled={savingLoc || !locality.trim()}
-            style={{ ...saveStyle, opacity: savingLoc || !locality.trim() ? 0.5 : 1 }}
-          >
-            {savingLoc ? 'SAVING…' : 'SAVE LOCALITY'}
-          </button>
-          {locStatus && (
-            <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 8 }}>{locStatus}</div>
-          )}
+        <div style={{ color: 'var(--muted)', fontSize: 12, lineHeight: 1.5, marginTop: 8 }}>
+          Set as your home gigs locality.
         </div>
+        {/* ⚠ A LIMIT, NOT A REASSURANCE (privacy-copy rule). It is also
+            literally true and checkable: there is no geolocation call anywhere
+            in this app — distance is computed from this postcode alone. Do not
+            soften it into a promise about intentions. */}
+        <div style={{ color: 'var(--muted)', fontSize: 12, lineHeight: 1.5, marginTop: 2 }}>
+          This works off the database. We do not track you.
+        </div>
+
+        {/* ⚠ ENABLED IF EITHER FIELD HAS SOMETHING. Requiring both would block
+            someone who only wants to fix their name, and each half already
+            no-ops on an empty value. */}
+        <button
+          type="button"
+          onClick={saveAll}
+          disabled={saving || (!name.trim() && !locality.trim())}
+          style={{ ...saveStyle,
+            opacity: saving || (!name.trim() && !locality.trim()) ? 0.5 : 1 }}
+        >
+          {saving ? 'SAVING…' : 'SAVE'}
+        </button>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 24,
           paddingTop: 18, borderTop: '1px solid var(--border)' }}>
@@ -292,9 +319,13 @@ export default function MessengerIdentityScreen() {
           </div>
         </div>
 
-        {status && (
+        {/* ⚠ BOTH MESSAGES, ONE LINE. The locality half is the only one that
+            can REJECT what was typed ("Not found. Did you mean…"), so dropping
+            it in favour of the name's "Saved." would report success for a save
+            that half failed. */}
+        {(status || locStatus) && (
           <div role="status" style={{ marginTop: 14, fontSize: 12.5, color: 'var(--muted)' }}>
-            {status}
+            {[status, locStatus].filter(Boolean).join('  ')}
           </div>
         )}
       </div>
