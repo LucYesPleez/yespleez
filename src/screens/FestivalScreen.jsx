@@ -4,6 +4,7 @@ import {
 } from '../design-system';
 import { CATEGORIES } from '../config/categories';
 import { FESTIVAL } from '../config/navigation';
+import ApplicationLink from '../festival/ApplicationLink';
 import s from './screens.module.css';
 
 /**
@@ -54,8 +55,11 @@ export default function FestivalScreen() {
             profile system; the application windows below belong to this portal.
           </p>
         </div>
-        <Button variant="secondary" iconRight="external">View public profile</Button>
       </header>
+
+      {/* First card on the screen, deliberately: sharing the link is the only
+          thing here that has to happen before anyone can apply at all. */}
+      <ApplicationLink />
 
       <div className={s.settingsGrid}>
         <div className={s.formStack}>

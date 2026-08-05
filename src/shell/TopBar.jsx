@@ -61,9 +61,21 @@ export default function TopBar({ notifications = 0, messages = 0 }) {
       />
 
       <div className={s.actions}>
-        <Button variant="secondary" iconRight="external">
-          <span className={s.publicLabel}>View Public Profile</span>
-        </Button>
+        {/* Was a dead button labelled "View Public Profile". There is no public
+            profile page yet; the application page IS the public face, so it
+            says what it does and goes where it says. */}
+        {festival?.eventId && (
+          <Button
+            variant="secondary"
+            iconRight="external"
+            onClick={() => window.open(
+              `${window.location.origin}${window.location.pathname}#/apply/${festival.eventId}`,
+              '_blank',
+            )}
+          >
+            <span className={s.publicLabel}>View application page</span>
+          </Button>
+        )}
 
         <span className={s.divider} />
 
