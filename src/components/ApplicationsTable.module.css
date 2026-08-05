@@ -1,0 +1,113 @@
+.wrap {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  /* The list has to survive thousands of rows without the columns dancing as
+     content changes. Fixed widths, set once, in the header. */
+  table-layout: fixed;
+}
+
+.head th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  text-align: left;
+  padding: 11px 14px;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 11px;
+  letter-spacing: 1.8px;
+  font-weight: 400;
+  color: var(--muted);
+  background: var(--card2);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.colCheck   { width: 44px; }
+.colGenre   { width: 150px; }
+.colCountry { width: 110px; }
+.colStage   { width: 130px; }
+.colStatus  { width: 130px; }
+.colDate    { width: 120px; }
+.colMenu    { width: 52px; }
+
+.row {
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  cursor: pointer;
+  transition: background var(--yp-fast) var(--yp-ease);
+}
+.row:hover { background: rgba(255, 255, 255, .028); }
+
+.rowActive { background: color-mix(in srgb, var(--neon) 8%, transparent); }
+.rowActive:hover { background: color-mix(in srgb, var(--neon) 11%, transparent); }
+
+.cell {
+  padding: 11px 14px;
+  font-size: 13.5px;
+  color: var(--text);
+  vertical-align: middle;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.applicant { display: flex; align-items: center; gap: 11px; min-width: 0; }
+
+.avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: linear-gradient(135deg,
+    color-mix(in srgb, var(--neon) 70%, var(--purple)),
+    var(--neon2));
+  border: 1px solid var(--border);
+}
+
+.who { min-width: 0; }
+.name { font-weight: 600; font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; }
+.where { font-size: 11.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
+
+.checkbox {
+  width: 15px;
+  height: 15px;
+  border-radius: 4px;
+  border: 1.5px solid var(--border);
+  background: var(--card2);
+  display: inline-block;
+}
+
+.genre {
+  display: inline-flex;
+  padding: 4px 10px 3px;
+  border-radius: 999px;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 11.5px;
+  letter-spacing: 1.1px;
+  color: var(--purple);
+  background: color-mix(in srgb, var(--purple) 11%, transparent);
+  border: 1px solid color-mix(in srgb, var(--purple) 26%, transparent);
+}
+
+.stage { display: inline-flex; align-items: center; gap: 7px; color: var(--muted); font-size: 13px; }
+.stageDot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+.muted { color: var(--muted); font-size: 12.5px; }
+
+.menuBtn {
+  color: var(--muted);
+  padding: 4px;
+  border-radius: 6px;
+  display: inline-flex;
+  transition: color var(--yp-medium) var(--yp-ease);
+}
+.menuBtn:hover { color: var(--text); }
+
+/* Below this the secondary columns go before the applicant name does. */
+@media (max-width: 1500px) { .hideLg { display: none; } }
+@media (max-width: 1280px) { .hideMd { display: none; } }

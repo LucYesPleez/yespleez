@@ -1,0 +1,78 @@
+/* Shared screen scaffolding. One module because every screen is the same
+   three shapes — a stats row, a workspace panel, a widget row — and three
+   near-identical modules is how they drift apart. */
+
+.statsRow {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 14px;
+  flex-shrink: 0;
+}
+
+.workspace {
+  display: flex;
+  flex-direction: column;
+  min-height: 420px;
+  flex: 1;
+  overflow: hidden;
+}
+
+.workspaceHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 15px 16px 13px;
+}
+
+.workspaceTitle {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 18px;
+  letter-spacing: 2px;
+  color: var(--text);
+}
+
+.widgetRow {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  flex-shrink: 0;
+}
+
+/* Generic placeholder screen — a titled panel that says plainly what will
+   live here. Not an error state and not an empty state: this route works,
+   its contents are simply a later milestone. */
+.stub {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 22px;
+  flex: 1;
+}
+
+.stubHead { display: flex; flex-direction: column; gap: 6px; }
+
+.stubTitle {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 24px;
+  letter-spacing: 2px;
+  color: var(--text);
+}
+
+.stubNote { font-size: 13px; color: var(--muted); max-width: 60ch; line-height: 1.55; }
+
+.stubGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 14px;
+}
+
+.stubBlock { padding: 18px; }
+
+@media (max-width: 1500px) {
+  .statsRow { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 900px) {
+  .statsRow { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .widgetRow { grid-template-columns: minmax(0, 1fr); }
+}

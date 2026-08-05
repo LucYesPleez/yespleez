@@ -1,0 +1,77 @@
+.item {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  padding: 9px 12px;
+  border-radius: var(--fp-radius-sm);
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 500;
+  text-align: left;
+  transition: background var(--yp-medium) var(--yp-ease),
+              color var(--yp-medium) var(--yp-ease);
+}
+
+.item:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, .04);
+}
+
+/* Active reads by a brand-tinted fill and a left marker, not by a heavy block:
+   the sidebar has up to fifteen rows and a solid highlight would dominate the
+   whole pane. */
+.active {
+  color: #fff;
+  background: linear-gradient(90deg,
+    color-mix(in srgb, var(--neon) 16%, transparent),
+    color-mix(in srgb, var(--neon) 4%, transparent) 70%,
+    transparent);
+  position: relative;
+}
+
+.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 60%;
+  border-radius: 0 3px 3px 0;
+  background: linear-gradient(180deg, var(--neon), var(--neon2));
+}
+
+.icon { flex-shrink: 0; opacity: .9; }
+
+.label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Nested category rows sit under the Applications heading. */
+.nested { padding-left: 26px; font-size: 13.5px; }
+
+.badge {
+  flex-shrink: 0;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 12px;
+  letter-spacing: .8px;
+  line-height: 1;
+  padding: 4px 7px 3px;
+  border-radius: 999px;
+  color: var(--muted);
+  background: rgba(255, 255, 255, .06);
+  transition: color var(--yp-medium) var(--yp-ease),
+              background var(--yp-medium) var(--yp-ease);
+}
+
+.item:hover .badge { color: var(--text); }
+
+.active .badge {
+  color: #fff;
+  background: color-mix(in srgb, var(--neon) 34%, transparent);
+}
