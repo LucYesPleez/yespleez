@@ -1,56 +1,94 @@
-import { Icon } from '../design-system';
+import { useState } from 'react';
+import { Icon, Popover, MenuCheckItem, MenuItem } from '../design-system';
+import { FILTERS } from '../config/filters';
 import s from './FilterBar.module.css';
 
 /**
  * The filter controls.
  *
- * ⛔ NO FILTERING LOGIC. Every control is presentational and inert. What this
- * component fixes now is the SHAPE — how many filters fit, what an applied
- * one looks like, where "Clear" goes — so that wiring them later changes
- * behaviour without moving a pixel.
+ * ⛔ NO FILTERING LOGIC. Each control records what was chosen and shows it;
+ * nothing narrows the table. What is settled here is the SHAPE — how many
+ * filters fit, what an applied one looks like, where "Clear all" appears —
+ * so wiring them later changes behaviour without moving a pixel.
  *
- * They are `<button>`s, not `<select>`s, deliberately: each will open a
- * multi-select popover with counts, and swapping a native select for a
- * popover later would be a rewrite rather than a fill-in.
+ * ⭐ AN APPLIED FILTER IS VISIBLY ON, and shows how many values it carries. A
+ * filtered list that looks identical to an unfiltered one is how people
+ * conclude the product has lost their data — and then reload, and then email
+ * support about applications that were never missing.
  *
- * `applied` is rendered from a prop so the "filters are on" treatment is
- * built and reviewable now, not discovered when the data layer arrives.
+ * Multi-select popovers do NOT close on click. Choosing three statuses should
+ * not mean three trips; single-select ones close immediately, and the
+ * checkbox-versus-tick distinction is what tells you which is which before
+ * you click.
  */
-const FILTERS = [
-  { key: 'status',    label: 'Status' },
-  { key: 'stage',     label: 'Stage' },
-  { key: 'country',   label: 'Country',  collapsible: true },
-  { key: 'submitted', label: 'Submitted', collapsible: true },
-];
+export default function FilterBar() {
+  const [applied, setApplied] = useState({});
 
-export default function FilterBar({ applied = {}, onOpen, onClear }) {
-  const appliedCount = Object.values(applied).filter(Boolean).length;
+  function toggleValue(filterKey, value, single) {
+    setApplied(prev => {
+      const current = prev[filterKey] || [];
+      if (single) return { ...prev, [filterKey]: current[0] === value ? [] : [value] };
+      const next = current.includes(value)
+        ? current.filter(v => v !== value)
+        : [...current, value];
+      return { ...prev, [filterKey]: next };
+    });
+  }
+
+  const appliedCount = Object.values(applied).filter(v => v?.length).length;
 
   return (
     <div className={s.bar}>
-      {FILTERS.map(f => {
-        const count = applied[f.key];
+      {FILTERS.map(filter => {
+        const values = applied[filter.key] || [];
+        const on = values.length > 0;
+
         return (
-          <button
-            key={f.key}
-            type="button"
-            className={[s.filter, f.collapsible && s.collapsible, count && s.applied].filter(Boolean).join(' ')}
-            onClick={() => onOpen?.(f.key)}
+          <Popover
+            key={filter.key}
+            title={filter.label}
+            action={on ? 'Clear' : undefined}
+            onAction={() => setApplied(p => ({ ...p, [filter.key]: [] }))}
+            button={props => (
+              <button
+                {...props}
+                type="button"
+                className={[s.filter, filter.collapsible && s.collapsible, on && s.applied]
+                  .filter(Boolean).join(' ')}
+              >
+                {filter.icon && <Icon name={filter.icon} size={14} />}
+                {filter.label}
+                {on
+                  ? <span className={s.appliedCount}>{values.length}</span>
+                  : <Icon name="chevron" size={14} />}
+              </button>
+            )}
           >
-            {f.label}
-            {count ? <span className={s.appliedCount}>{count}</span> : <Icon name="chevron" size={14} />}
-          </button>
+            {({ close }) => filter.options.map(o => (
+              filter.single ? (
+                <MenuItem
+                  key={o.value}
+                  label={o.label}
+                  selected={values.includes(o.value)}
+                  onClick={() => { toggleValue(filter.key, o.value, true); close(); }}
+                />
+              ) : (
+                <MenuCheckItem
+                  key={o.value}
+                  label={o.label}
+                  checked={values.includes(o.value)}
+                  onClick={() => toggleValue(filter.key, o.value, false)}
+                />
+              )
+            ))}
+          </Popover>
         );
       })}
 
-      <button type="button" className={s.filter} onClick={() => onOpen?.('more')}>
-        <Icon name="filter" size={14} /> More
-      </button>
-
-      {/* Only offered once there is something to clear — a permanently
-          visible "Clear" implies filters are on when none are. */}
+      {/* Offered only once there is something to clear — a permanently
+          visible "Clear all" implies filters are on when none are. */}
       {appliedCount > 0 && (
-        <button type="button" className={s.clear} onClick={onClear}>
+        <button type="button" className={s.clear} onClick={() => setApplied({})}>
           Clear all
         </button>
       )}

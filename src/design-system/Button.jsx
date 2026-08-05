@@ -21,6 +21,9 @@ export default function Button({
   tone,
   block = false,
   className = '',
+  // React 19 passes `ref` as an ordinary prop, so no forwardRef wrapper is
+  // needed. Popover needs it to return focus to the trigger on Escape.
+  ref,
   ...rest
 }) {
   const iconOnly = !children && (icon || iconRight);
@@ -37,7 +40,7 @@ export default function Button({
   const glyph = size === 'sm' ? 14 : size === 'lg' ? 18 : 16;
 
   return (
-    <button type="button" className={classes} {...rest}>
+    <button type="button" ref={ref} className={classes} {...rest}>
       {icon && <Icon name={icon} size={glyph} />}
       {children}
       {iconRight && <Icon name={iconRight} size={glyph} />}

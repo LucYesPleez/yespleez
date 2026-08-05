@@ -64,6 +64,7 @@ export default function ApplicationsWorkspace({ category }) {
       <CategoryNavigation />
 
       <TableToolbar
+        columns={columns}
         selectedCount={ticked.length}
         onClearSelection={() => setTicked([])}
       />

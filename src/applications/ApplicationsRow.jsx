@@ -1,4 +1,4 @@
-import { Icon, StatusBadge } from '../design-system';
+import { Icon, StatusBadge, Popover, MenuItem, MenuDivider } from '../design-system';
 import { columnClass } from './columnClass';
 import s from './ApplicationsTable.module.css';
 
@@ -78,15 +78,35 @@ export default function ApplicationsRow({ application, columns, active, ticked, 
         </td>
       ))}
 
-      <td className={s.cell}>
-        <button
-          className={s.menuBtn}
-          type="button"
-          aria-label={`Actions for ${application.name}`}
-          onClick={e => e.stopPropagation()}
+      {/* The row's own click opens the inspector, so everything in this cell
+          stops propagation — opening a menu must never also change what the
+          inspector is showing behind it. */}
+      <td className={s.cell} onClick={e => e.stopPropagation()}>
+        <Popover
+          align="end"
+          button={props => (
+            <button
+              {...props}
+              type="button"
+              className={s.menuBtn}
+              aria-label={`Actions for ${application.name}`}
+            >
+              <Icon name="dots" size={16} />
+            </button>
+          )}
         >
-          <Icon name="dots" size={16} />
-        </button>
+          {({ close }) => (
+            <>
+              <MenuItem label="Open in inspector" icon="inbox"
+                onClick={() => { onSelect(application); close(); }} />
+              <MenuItem label="Message applicant" icon="messages" onClick={close} />
+              <MenuDivider />
+              <MenuItem label="Shortlist" icon="star"  onClick={close} />
+              <MenuItem label="Accept"    icon="check" onClick={close} />
+              <MenuItem label="Decline"   icon="cross" danger onClick={close} />
+            </>
+          )}
+        </Popover>
       </td>
     </tr>
   );
