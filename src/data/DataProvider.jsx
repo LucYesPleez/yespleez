@@ -1,8 +1,8 @@
 import { useMemo } from 'react';
 import { DataContext } from './dataContext';
-import { festivalRepository } from './memory/festivalRepository';
-import { categoryRepository } from './memory/categoryRepository';
-import { applicationRepository } from './memory/applicationRepository';
+import { festivalRepository } from './supabase/festivalRepository';
+import { categoryRepository } from './supabase/categoryRepository';
+import { applicationRepository } from './supabase/applicationRepository';
 
 /**
  * THE SWAP POINT.
@@ -18,6 +18,12 @@ import { applicationRepository } from './memory/applicationRepository';
  * ⚠ Do not import a repository directly anywhere else. One direct import is
  * all it takes for a screen to be permanently coupled to in-memory data, and
  * it will not fail until the day someone tries to swap it.
+ *
+ * ✅ THE SWAP HAPPENED. These are the Supabase implementations, reading the
+ * same project as the Scene app. No screen, component or hook changed — which
+ * is the whole thing the interface was for. The in-memory versions remain in
+ * `./memory/` as the fixtures the UI can still be rendered against without a
+ * network.
  */
 const DEFAULT_REPOSITORIES = {
   festivals: festivalRepository,
