@@ -1,5 +1,14 @@
+/* A container in its own right — the panel is USER-RESIZABLE, so anything
+   inside it must respond to the panel's width and not the window's. Named
+   separately from `pane` so the workspace's rules can never match here. */
 .panel {
+  container-type: inline-size;
+  container-name: inspector;
   width: var(--fp-inspector-width);
+  /* A CAP, not an override. A media query setting `width` here would fight
+     the resize variable and silently snap a pane the user had dragged back
+     to a fixed size — which is exactly what the old 1400px rule did. */
+  max-width: 45vw;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
@@ -85,9 +94,8 @@
   background: linear-gradient(180deg, transparent, var(--card2));
 }
 
-@media (max-width: 1400px) { .panel { width: 340px; } }
-
 /* Below this the three-pane layout stops being viable. The dock hides rather
    than collapsing to an unusable width; mobile gets its own layout later, and
-   this breakpoint is the seam for it. */
+   this breakpoint is the seam for it. Genuinely a VIEWPORT decision — it is
+   about whether three panes fit on the screen at all. */
 @media (max-width: 1180px) { .panel { display: none; } }

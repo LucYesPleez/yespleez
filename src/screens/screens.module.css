@@ -71,5 +71,12 @@
   gap: 14px;
 }
 
-@media (max-width: 1560px) { .statsRow { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-@media (max-width: 980px)  { .statsRow { grid-template-columns: repeat(2, minmax(0, 1fr)); } .twoUp { grid-template-columns: minmax(0, 1fr); } }
+/* ⚠ The PANE, not the window. Overview sits beside a user-resizable
+   inspector: drag the dock to 620px and this pane is ~1000px inside a 1920px
+   window, so a viewport query would hold six stat cards across a box that
+   comfortably fits three. */
+@container pane (max-width: 1180px) { .statsRow { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@container pane (max-width:  760px) {
+  .statsRow { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .twoUp    { grid-template-columns: minmax(0, 1fr); }
+}
