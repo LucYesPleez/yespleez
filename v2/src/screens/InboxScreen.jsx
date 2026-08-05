@@ -8,6 +8,7 @@ import HandIcon from '../components/HandIcon';
 import MessengerContactsSection from '../components/MessengerContactsSection';
 import MessengerSearch from '../components/MessengerSearch';
 import MessagingIdentity, { ALL_PROFILES } from '../components/MessagingIdentity';
+import ProfileLink from '../components/ProfileLink';
 import {
   listConversations, listParticipants, actableProfileIds, unreadCount, latestMessages,
 } from '../lib/messaging';
@@ -527,17 +528,22 @@ export default function InboxScreen() {
                   label moves down next to the identity where it costs no
                   height. */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <span style={{ width: 46, height: 46, borderRadius: 999, flexShrink: 0, padding: 2, background: `linear-gradient(135deg, ${accent}, ${pt.accent2})`, display: 'flex' }}>
-                  <span style={{ width: '100%', height: '100%', borderRadius: 999, overflow: 'hidden', background: '#0d0d10', display: 'flex', alignItems: 'center', justifyContent: 'center', color: accent, fontFamily: "'Bebas Neue',sans-serif", fontSize: 17 }}>
-                    {/* The initial is now only reachable when the resolved
-                        identity has NO defaultImage at all — i.e. an unknown
-                        type. Every real profile type, punter included, has
-                        artwork, so this list matches the portrait rail. */}
-                    {avatarSrc
-                      ? <img src={avatarSrc} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                      : (other?.profiles?.name ?? '?').slice(0, 1).toUpperCase()}
+                {/* The face goes to the profile; the rest of the row still
+                    opens the conversation. See ProfileLink for why it is a
+                    span rather than a button inside this button. */}
+                <ProfileLink profile={other?.profiles}>
+                  <span style={{ width: 46, height: 46, borderRadius: 999, flexShrink: 0, padding: 2, background: `linear-gradient(135deg, ${accent}, ${pt.accent2})`, display: 'flex' }}>
+                    <span style={{ width: '100%', height: '100%', borderRadius: 999, overflow: 'hidden', background: '#0d0d10', display: 'flex', alignItems: 'center', justifyContent: 'center', color: accent, fontFamily: "'Bebas Neue',sans-serif", fontSize: 17 }}>
+                      {/* The initial is now only reachable when the resolved
+                          identity has NO defaultImage at all — i.e. an unknown
+                          type. Every real profile type, punter included, has
+                          artwork, so this list matches the portrait rail. */}
+                      {avatarSrc
+                        ? <img src={avatarSrc} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        : (other?.profiles?.name ?? '?').slice(0, 1).toUpperCase()}
+                    </span>
                   </span>
-                </span>
+                </ProfileLink>
 
                 <div style={{ minWidth: 0, flex: 1 }}>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>

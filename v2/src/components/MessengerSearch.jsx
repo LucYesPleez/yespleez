@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { looksLikeNumber, toE164, isoForE164, COUNTRIES, DEFAULT_COUNTRY } from '../lib/phoneNumber';
 import { findByPhone } from '../lib/phoneKey';
 import MessengerAvatar from './MessengerAvatar';
+import ProfileLink from './ProfileLink';
 import { profileIdentity } from '../lib/profileTypes';
 
 /**
@@ -286,7 +287,12 @@ function Row({ profile, onClick }) {
     : profile.suburb || profile.location || '';
   return (
     <button type="button" onClick={onClick} style={rowStyle}>
-      <MessengerAvatar src={profile.avatar_thumb || profile.avatar} size={36} />
+      {/* ⚠ MATTERS MOST IN THE "PEOPLE YOU TALK TO" GROUP, where the row opens
+          the conversation. Artist and venue rows already navigate, so there the
+          face simply agrees with the row instead of contradicting it. */}
+      <ProfileLink profile={profile}>
+        <MessengerAvatar src={profile.avatar_thumb || profile.avatar} size={36} />
+      </ProfileLink>
       <span style={{ minWidth: 0, textAlign: 'left' }}>
         <span style={{ display: 'block', fontSize: 14, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {profile.name || 'Unnamed'}

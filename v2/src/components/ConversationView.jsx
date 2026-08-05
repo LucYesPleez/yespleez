@@ -12,6 +12,7 @@ import { computeWave } from '../lib/voiceWave';
 import { listMessageState, toggleHand, toggleReaction } from '../lib/messageState';
 import { decideReactionTap, summariseReactions } from '../lib/reactions';
 import { playReactionLand } from '../lib/uiSound';
+import ProfileLink from './ProfileLink';
 import MessageActionSheet from './MessageActionSheet';
 import Composer, { COMPOSER_HEIGHT } from './Composer';
 import AudioSendSheet from './AudioSendSheet';
@@ -1462,14 +1463,17 @@ export default function ConversationView({ conversationId, compact = false, onMi
           </button>
         )}
 
-        {/* Avatar — unchanged size. It is the visual anchor. */}
-        <span style={{ width: 44, height: 44, borderRadius: 999, flexShrink: 0, padding: 2, background: `linear-gradient(135deg, ${otherAccent}, ${otherAccent2})`, display: 'flex', boxShadow: `0 4px 16px -6px ${otherAccent}80` }}>
-          <span style={{ width: '100%', height: '100%', borderRadius: 999, overflow: 'hidden', background: '#0d0d10', display: 'flex', alignItems: 'center', justifyContent: 'center', color: otherAccent, fontFamily: "'Bebas Neue',sans-serif", fontSize: 17 }}>
-            {otherAvatar
-              ? <img src={otherAvatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-              : title.slice(0, 1).toUpperCase()}
+        {/* Avatar — unchanged size. It is the visual anchor, and now also the
+            way to their profile from inside the thread. */}
+        <ProfileLink profile={otherHead}>
+          <span style={{ width: 44, height: 44, borderRadius: 999, flexShrink: 0, padding: 2, background: `linear-gradient(135deg, ${otherAccent}, ${otherAccent2})`, display: 'flex', boxShadow: `0 4px 16px -6px ${otherAccent}80` }}>
+            <span style={{ width: '100%', height: '100%', borderRadius: 999, overflow: 'hidden', background: '#0d0d10', display: 'flex', alignItems: 'center', justifyContent: 'center', color: otherAccent, fontFamily: "'Bebas Neue',sans-serif", fontSize: 17 }}>
+              {otherAvatar
+                ? <img src={otherAvatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                : title.slice(0, 1).toUpperCase()}
+            </span>
           </span>
-        </span>
+        </ProfileLink>
 
         {/* ── THE IDENTITY COLUMN ──────────────────────────────────
             Three stacked rows on desktop: name, then the type pill, then who
