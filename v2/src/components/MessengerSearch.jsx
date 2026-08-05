@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { looksLikeNumber, toE164, isoForE164, COUNTRIES, DEFAULT_COUNTRY } from '../lib/phoneNumber';
 import { findByPhone } from '../lib/phoneKey';
 import MessengerAvatar from './MessengerAvatar';
+import { profileIdentity } from '../lib/profileTypes';
 
 /**
  * MESSENGER SEARCH — one field at the top of Messages, results in groups.
@@ -276,8 +277,12 @@ function Group({ title, show, children }) {
 }
 
 function Row({ profile, onClick }) {
+  // ⚠ `profileIdentity`, NOT A LOCAL MAP. `artist` displays as "DJ / PROD."
+  // app-wide and lib/profileTypes is where that is decided; a second copy here
+  // drifts the moment a label changes.
   const sub = profile.type && profile.type !== 'punter'
-    ? [labelForType(profile.type), profile.suburb || profile.location].filter(Boolean).join(' · ')
+    ? [profileIdentity(profile.type)?.shortLabel, profile.suburb || profile.location]
+        .filter(Boolean).join(' · ')
     : profile.suburb || profile.location || '';
   return (
     <button type="button" onClick={onClick} style={rowStyle}>
@@ -298,11 +303,6 @@ function Note({ children }) {
   return <div style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.5, padding: '6px 2px' }}>{children}</div>;
 }
 
-/* `artist` displays as "DJ / PROD." app-wide — the rail, industry cards and
-   filters all say it, so a search result must not invent its own wording. */
-function labelForType(type) {
-  return type === 'artist' ? 'DJ / PROD.' : String(type).toUpperCase();
-}
 
 /* Two separate pills on one row. The gap is what makes the chip read as its
    own control rather than a prefix printed inside the field. */

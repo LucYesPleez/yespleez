@@ -8,6 +8,7 @@ import HandIcon from '../components/HandIcon';
 import PhoneNumberSettings from '../components/PhoneNumberSettings';
 import MessengerContactsSection from '../components/MessengerContactsSection';
 import MessengerSearch from '../components/MessengerSearch';
+import MessagingIdentity, { ALL_PROFILES } from '../components/MessagingIdentity';
 import InviteRows from '../components/InviteRows';
 import { unreadContactJoinCount, markContactJoinsRead } from '../lib/contactJoins';
 import { getPersonalProfileId } from '../lib/actingProfile';
@@ -150,6 +151,17 @@ export default function InboxScreen() {
   const queryClient = useQueryClient();
   const userId = session?.user?.id;
   const [discoveryOpen, setDiscoveryOpen] = useState(false);
+
+  /**
+   * Which messaging identity this inbox is about.
+   *
+   * ⚠ RECORDED, NOT YET APPLIED. Conversation filtering is deliberately the
+   * NEXT step (owner, 2026-08-05) — this pass wires the control only. It is
+   * surfaced as a `data-` attribute on the screen rather than left as an unused
+   * variable: that makes the selection observable and testable without any
+   * copy on screen claiming a filter that is not happening.
+   */
+  const [identity, setIdentity] = useState(ALL_PROFILES);
 
   // ⛔ `myAvatar` REMOVED WITH THE HEADER FACE — ProfileMenu shows it now.
   // The query below stays because Invite Friends still needs the profile.
@@ -336,7 +348,12 @@ export default function InboxScreen() {
   }, [location.state]);
 
   return (
-    <div style={{ paddingTop: 72, paddingBottom: 90, minHeight: '100dvh', background: 'var(--bg)', boxSizing: 'border-box' }}>
+    <div
+      /* See the note on `identity` — the selection is recorded here so it is
+         observable while filtering is still the next step. */
+      data-messaging-identity={identity}
+      style={{ paddingTop: 72, paddingBottom: 90, minHeight: '100dvh', background: 'var(--bg)', boxSizing: 'border-box' }}
+    >
       <div style={{ maxWidth: 680, margin: '0 auto', padding: '0 16px' }}>
 
         <div style={{ marginBottom: 24, display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -389,6 +406,11 @@ export default function InboxScreen() {
                 Discovery still opens from here — see the `openDiscovery`
                 router-state effect below, the same channel `openConversation`
                 already uses. */}
+            <MessagingIdentity
+              session={session}
+              value={identity}
+              onChange={setIdentity}
+            />
           </div>
         </div>
 
