@@ -1618,3 +1618,41 @@ body.yp-viewer-open .yp-global-header {
 @media (prefers-reduced-motion: reduce) {
   .yp-no-motion, [style*="ypPulse"] { animation: none !important; }
 }
+
+/* ── INVISIBLE 44px TOUCH TARGETS (.yp-tap44) ─────────────────────────────
+   Owner, 2026-08-05: "invisible touch padding 44px", then "same with the
+   buttons all in the messages window".
+
+   ⚠ A PSEUDO-ELEMENT, NOT PADDING. Padding works on a transparent control but
+   grows a VISIBLE one — the BETA badge is a gradient pill, and padding there
+   makes the badge itself bigger. An absolutely-positioned transparent box
+   centred on the control extends only what the finger hits.
+
+   ⚠ IT LEAVES LAYOUT ALONE. The pseudo-element is out of flow, so the
+   control's own box is unchanged: no `margin: -4px` arithmetic to preserve
+   surrounding gaps, and `getBoundingClientRect()` still returns the VISIBLE
+   box — which matters because the guided tour spotlights `[data-tour="beta"]`
+   by measuring it. It also means you cannot verify this with getBoundingClientRect;
+   probe `document.elementFromPoint` at the expanded edge instead.
+
+   ⚠ `max(100%, 44px)` NEVER SHRINKS A CONTROL THAT IS ALREADY BIGGER, and
+   never freezes one that grows with its own text.
+
+   ⚠ CHECK CLEARANCE BEFORE ADDING IT. The box grows in every direction, so a
+   control with less than ~10px to its neighbour will start swallowing taps
+   meant for it. Measure the gap; do not assume.
+
+   ⚠ GLOBAL, NOT PER-MODULE. Every CSS-module class is content-hashed, so this
+   cannot be shared from inside one — and three copies of a hit-area rule is
+   how two of them end up at 40px. */
+.yp-tap44 { position: relative; }
+.yp-tap44::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: max(100%, 44px);
+  height: max(100%, 44px);
+  /* No background: this exists to be touched, never to be seen. */
+}

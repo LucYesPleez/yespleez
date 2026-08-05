@@ -306,7 +306,7 @@ export default function Composer({
           aria-expanded={rec.active ? undefined : attachOpen}
           aria-haspopup={rec.active ? undefined : 'menu'}
           title={rec.active ? undefined : 'Attach'}
-          className={`yp-ctl ${rec.active ? 'yp-ctl-danger' : 'yp-ctl-attach'}${attachOpen && !rec.active ? ' yp-ctl-attach-on' : ''}`}
+          className={`yp-ctl yp-tap44 ${rec.active ? 'yp-ctl-danger' : 'yp-ctl-attach'}${attachOpen && !rec.active ? ' yp-ctl-attach-on' : ''}`}
           style={{ width: CONTROL, height: CONTROL }}
         >
           {rec.active ? (
@@ -392,7 +392,10 @@ export default function Composer({
           title={trailingIsSend ? undefined : 'Send a Yes'}
           // The Hand wears the gradient as a RING; Send wears it as a fill. Same
           // gradient — the difference is "this is ours" versus "this is the act".
-          className={`yp-ctl${trailingIsSend ? ' yp-ctl-send' : ' yp-hand-ring'}`}
+          // 36×36 measured, 5px clear of its neighbour — 4px of hit area each
+          // side fits. Only THIS control takes yp-tap44, not `.yp-ctl` as a
+          // whole: expanding both sides of that 5px gap would overlap them.
+          className={`yp-ctl yp-tap44 ${trailingIsSend ? 'yp-ctl-send' : 'yp-hand-ring'}`}
           style={{ width: CONTROL, height: CONTROL }}
         >
           {busy ? '…' : trailingIsSend ? (

@@ -167,6 +167,9 @@
   color: var(--muted);
   opacity: 1;
 }
+/* Hit area comes from the global `.yp-tap44` — see index.css. Measured before
+   adding it: back 36×36, BETA 42.4×24, both under the 44px minimum, and both
+   with 12px of clearance to the wordmark between them. */
 
 .ypTag {
   display: inline-block;

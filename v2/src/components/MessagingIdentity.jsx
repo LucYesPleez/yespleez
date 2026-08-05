@@ -102,6 +102,9 @@ export default function MessagingIdentity({ session, value = ALL_PROFILES, onCha
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label={`Messaging identity: ${label}`}
+        // 68×32 measured — under the 44px minimum on its short axis, and it is
+        // the only control in that corner, so there is nothing to crowd.
+        className="yp-tap44"
         style={stackButton}
       >
         {shown.map((p, i) => (
