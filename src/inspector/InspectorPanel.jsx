@@ -4,6 +4,7 @@ import { INSPECTOR_TABS, getTab } from './tabs/registry';
 import InspectorTabs from './InspectorTabs';
 import ProfileHeader from './ProfileHeader';
 import ActionButtons from './ActionButtons';
+import { useInspectorWidth } from './useInspectorWidth';
 import s from './InspectorPanel.module.css';
 
 /**
@@ -28,10 +29,26 @@ export default function InspectorPanel({ selection, onClose }) {
   const [tabKey, setTabKey] = useState('profile');
   const tab = getTab(tabKey);
   const TabBody = tab.Component;
+  const resize = useInspectorWidth();
 
   return (
     <aside className={s.panel} aria-label="Applicant inspector">
-      <div className={s.grip} aria-hidden="true" />
+      {/* A separator, not decoration — so it is reachable by keyboard and
+          announces its range. A drag handle nobody can tab to is not a
+          control. */}
+      <button
+        type="button"
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize inspector"
+        aria-valuenow={resize.width}
+        aria-valuemin={resize.min}
+        aria-valuemax={resize.max}
+        className={`${s.grip} ${resize.dragging ? s.gripping : ''}`}
+        onPointerDown={resize.onPointerDown}
+        onDoubleClick={resize.reset}
+        onKeyDown={resize.onKeyDown}
+      />
 
       <div className={s.head}>
         <span className={s.eyebrow}>{selection ? 'Applicant' : 'Inspector'}</span>

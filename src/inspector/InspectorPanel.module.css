@@ -9,16 +9,36 @@
   position: relative;
 }
 
-/* Reserved for the resize handle. Present now, inert, and sized — so
-   enabling drag is a pointer listener writing --fp-inspector-width, not a
-   layout change. */
+/* The resize handle. A wide invisible hit area with a thin visible line —
+   8px is reachable without aiming, while a visibly 8px-thick divider would
+   read as a design element rather than a border. */
 .grip {
   position: absolute;
-  left: -3px; top: 0; bottom: 0;
-  width: 6px;
+  left: -4px; top: 0; bottom: 0;
+  width: 9px;
   cursor: col-resize;
-  z-index: 2;
+  z-index: 3;
+  display: flex;
+  justify-content: center;
+  background: none;
+  border: none;
+  padding: 0;
+  touch-action: none;
 }
+
+.grip::after {
+  content: '';
+  width: 2px;
+  height: 100%;
+  background: transparent;
+  transition: background var(--yp-medium) var(--yp-ease);
+}
+.grip:hover::after { background: color-mix(in srgb, var(--neon2) 55%, transparent); }
+.grip:focus-visible::after { background: var(--neon2); }
+
+/* While dragging the line stays lit, so the pointer leaving the 9px hit area
+   mid-drag does not make it look like the drag was dropped. */
+.gripping::after { background: var(--neon2); }
 
 .head {
   display: flex;

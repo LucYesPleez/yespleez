@@ -5,6 +5,7 @@ import CategoryNavigation from './CategoryNavigation';
 import TableToolbar from './TableToolbar';
 import ApplicationsTable from './ApplicationsTable';
 import Pagination from './Pagination';
+import { useRowNavigation } from './useRowNavigation';
 import { columnsFor } from '../config/columns';
 import { PLACEHOLDER_ROWS } from '../config/placeholderRows';
 import s from './ApplicationsWorkspace.module.css';
@@ -28,11 +29,15 @@ import s from './ApplicationsWorkspace.module.css';
  * for review lives in the shell, because the inspector is a sibling pane.
  */
 export default function ApplicationsWorkspace({ category }) {
-  const { selection, select } = useShell();
+  const { selection, select, clear } = useShell();
   const [ticked, setTicked] = useState([]);
 
   const columns = columnsFor(category);
   const rows = PLACEHOLDER_ROWS;
+
+  // ↑ ↓ / j k move the selection and the inspector follows; Escape clears.
+  // Decision shortcuts are deliberately unbound — see useRowNavigation.
+  useRowNavigation({ rows, selection, onSelect: select, onClear: clear });
 
   function toggleTick(row) {
     setTicked(prev =>
@@ -49,6 +54,9 @@ export default function ApplicationsWorkspace({ category }) {
           </span>
         </div>
         <div className={s.headerActions}>
+          <span className={s.keyHint}>
+            <kbd>↑</kbd><kbd>↓</kbd> to move · <kbd>Esc</kbd> to clear
+          </span>
           <Button variant="quiet" size="sm" icon="clock">Open windows</Button>
         </div>
       </header>

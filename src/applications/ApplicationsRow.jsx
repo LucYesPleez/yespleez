@@ -43,6 +43,9 @@ function Cell({ column, application }) {
 export default function ApplicationsRow({ application, columns, active, ticked, onSelect, onTick }) {
   return (
     <tr
+      /* The keyboard navigation hook scrolls by this attribute — it needs a
+         handle on the DOM node without the table holding refs to every row. */
+      data-row-id={application.id}
       className={[s.row, active && s.rowActive, ticked && s.rowTicked].filter(Boolean).join(' ')}
       onClick={() => onSelect(application)}
       tabIndex={0}
