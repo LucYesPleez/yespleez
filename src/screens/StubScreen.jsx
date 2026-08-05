@@ -1,29 +1,35 @@
-import Placeholder from '../components/Placeholder';
+import { SectionCard, LoadingState } from '../design-system';
 import s from './screens.module.css';
 
 /**
- * The shell's honest stand-in for a route that exists but is not built.
+ * A route that exists, works, and is not built yet.
  *
- * One component for Messages, Announcements, Festival Profile and Settings.
- * Four separate empty files would each grow their own layout before anyone
- * decided what they should be; one says plainly "this route works, its
- * contents are a later milestone" and is deleted a screen at a time.
+ * ⭐ Not an error state and not an empty state — an honest "later". Each stub
+ * names what will live here AND which existing YesPleez system it will
+ * consume, because the most important fact about Messages and Announcements
+ * is that the portal builds neither of them.
+ *
+ * One component for four screens. Four separate files would each grow their
+ * own layout before anyone decided what they should be.
  */
-export default function StubScreen({ title, note, blocks = [] }) {
+export default function StubScreen({ title, subtitle, blocks = [], actions }) {
   return (
-    <section className={`fp-panel ${s.stub}`}>
-      <div className={s.stubHead}>
-        <span className={s.stubTitle}>{title}</span>
-        {note && <span className={s.stubNote}>{note}</span>}
-      </div>
+    <div className={s.page}>
+      <header className={s.pageHead}>
+        <div>
+          <h1 className={s.pageTitle}>{title}</h1>
+          {subtitle && <p className={s.pageSubtitle}>{subtitle}</p>}
+        </div>
+        {actions}
+      </header>
 
       <div className={s.stubGrid}>
         {blocks.map(block => (
-          <div key={block} className={`fp-panel ${s.stubBlock}`}>
-            <Placeholder title={block} lines={4} />
-          </div>
+          <SectionCard key={block.title} title={block.title} subtitle={block.note}>
+            <LoadingState lines={3} />
+          </SectionCard>
         ))}
       </div>
-    </section>
+    </div>
   );
 }

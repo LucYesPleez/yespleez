@@ -1,0 +1,55 @@
+.card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* `flush` removes the card's own padding for children that manage their own —
+   a table, for instance, whose header must reach the card's edge. */
+.padded { padding: 16px; gap: 14px; }
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 15px 16px 12px;
+  flex-shrink: 0;
+}
+
+.headerBordered { border-bottom: 1px solid var(--border); }
+
+.titleGroup { display: flex; align-items: baseline; gap: 9px; min-width: 0; }
+
+.title {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 16px;
+  letter-spacing: 1.9px;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.count {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 13px;
+  letter-spacing: 1px;
+  color: var(--muted);
+}
+
+.subtitle {
+  font-size: 12.5px;
+  color: var(--muted);
+  margin-top: 3px;
+}
+
+.actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+
+.body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.bodyPadded { padding: 0 16px 16px; gap: 12px; }

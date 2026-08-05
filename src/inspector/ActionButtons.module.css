@@ -1,0 +1,12 @@
+.row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 7px;
+}
+
+/* Below the inspector's comfortable width the labels would truncate to
+   nonsense ("Shortli…"), so the row wraps to two before that happens. Four
+   half-words is worse than two rows. */
+@media (max-width: 1440px) {
+  .row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

@@ -1,0 +1,54 @@
+.sidebar {
+  grid-area: sidebar;
+  display: flex;
+  flex-direction: column;
+  width: var(--fp-sidebar-width);
+  background: var(--card2);
+  border-right: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.brand { padding: 20px 18px 20px; flex-shrink: 0; }
+
+.wordmark {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 25px;
+  letter-spacing: 2.5px;
+  line-height: 1;
+  background: linear-gradient(135deg, var(--neon), var(--neon2));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* ⚠ Gradient text INHERITS its transparent fill. Any child that only sets
+   `color` renders invisible while present in the DOM — that is exactly how a
+   count once shipped unseen in the Scene app. Reset the fill explicitly. */
+.subMark {
+  display: block;
+  margin-top: 4px;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 10.5px;
+  letter-spacing: 2.6px;
+  color: var(--muted);
+  -webkit-text-fill-color: var(--muted);
+}
+
+.nav {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.footer {
+  flex-shrink: 0;
+  padding: 12px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}

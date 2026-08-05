@@ -1,8 +1,9 @@
-# YesPleez Festival Portal — Application Shell
+# YesPleez Festival Portal
 
-The organiser-facing workspace for festival recruitment. **Shell only**: no
-backend, no Supabase, no API calls, no business logic. Every part is a
-component that later functionality drops into without restructuring anything.
+The organiser-facing workspace for festival recruitment. **Production frontend
+architecture, no backend**: no Supabase, no API calls, no business logic. Every
+piece is a reusable component that future functionality plugs into rather than
+replaces.
 
 ```bash
 npm install
@@ -16,134 +17,173 @@ npm run lint
 ## What this is, and what it is not
 
 The Festival Portal is **another room inside YesPleez**, not a different
-product. It is a separate repository and a separate deployment, but the same
-platform: it consumes the existing authentication, profile system, messaging,
-notifications and assets. Only the navigation and the workflow differ.
+product. Separate repository, separate deployment, same platform: it consumes
+the existing authentication, profile system, messaging, notifications and
+assets. Only the navigation and the workflow differ.
 
 Two consequences run through the code:
 
 - **No festival-flavoured copies of shared systems.** There is no messaging
-  layer here, no notification pipeline, no profile store. The Messages and
-  Announcements routes are stubs precisely because the systems behind them
-  already exist elsewhere.
-- **The bell and the message count are global.** They are not portal-scoped.
-  A user must never miss something because they were in the wrong room.
+  layer here, no notification pipeline, no profile store. Messages and
+  Announcements are stubs precisely because the systems behind them exist.
+- **The bell and the message count are global.** Never portal-scoped. A user
+  must not miss something because they were in the wrong room. Filtering
+  belongs in the lists; a badge is a total.
 
 ## Folder structure
 
 ```
 src/
-├── main.jsx                    entry
-├── App.jsx                     routing (HashRouter, matching the Scene app)
+├── App.jsx                     routing — HashRouter, matching the Scene app
+├── main.jsx
 │
-├── styles/
-│   ├── tokens.css              ⚠ COPIED design tokens — see "Shared packages"
-│   └── base.css                reset, type, .fp-panel, .glow-pill, scrollbar law
-│
-├── config/
-│   ├── navigation.js           sidebar structure + badge counts (data, not markup)
-│   └── placeholderRows.js      ⚠ delete when a data layer exists
-│
-├── layout/                     the shell
-│   ├── FestivalLayout.jsx      the grid; owns the ONLY state in the app
-│   ├── useInspector.js         the shell's contract with its screens
-│   ├── FestivalSidebar.jsx
-│   ├── FestivalSidebarItem.jsx
-│   ├── FestivalTopbar.jsx
-│   ├── FestivalSelector.jsx
-│   ├── InspectorPanel.jsx
-│   └── InspectorTabs.jsx
-│
-├── components/                 reusable, presentational, no data access
+├── design-system/              every visual primitive; screens import ONLY from here
+│   ├── index.js                the barrel — the one import path
 │   ├── Icon.jsx                one inline SVG set
-│   ├── Placeholder.jsx         skeleton bars, deliberately not lorem ipsum
-│   ├── StatCard.jsx
-│   ├── StatusBadge.jsx
-│   ├── ApplicationsToolbar.jsx
-│   ├── ApplicationsTable.jsx
-│   ├── ApplicationsRow.jsx
-│   ├── Pagination.jsx
-│   ├── ActivityCard.jsx
-│   └── MessagesCard.jsx
+│   ├── Button.jsx              primary · secondary · ghost · quiet · intent
+│   ├── SectionCard.jsx         the portal's one raised surface
+│   ├── StatusBadge.jsx         the applicant-facing status vocabulary
+│   ├── EmptyState.jsx          absent is not withheld is not unknown
+│   ├── LoadingState.jsx        skeletons shaped like the content they replace
+│   └── Skeleton.jsx
 │
-└── screens/                    compositions, never giant pages
-    ├── DashboardScreen.jsx
-    ├── ApplicationsScreen.jsx  one route serves all nine categories
-    ├── StatsRow.jsx
-    ├── ApplicationsWorkspace.jsx
-    ├── StubScreen.jsx
-    └── stubs.jsx               Messages · Announcements · Profile · Settings
+├── shell/                      the permanent frame
+│   ├── AppShell.jsx            the grid; owns the ONLY app state
+│   ├── shellContext.js         useShell() — the contract with screens
+│   ├── Sidebar.jsx   SidebarItem.jsx
+│   ├── TopBar.jsx    FestivalSelector.jsx
+│   └── AnnouncementButton.jsx  the portal's one primary action
+│
+├── applications/               THE PRIMARY WORKSPACE
+│   ├── ApplicationsWorkspace.jsx   fixed frame; only rows scroll
+│   ├── CategoryNavigation.jsx      categories as TABS, not pages
+│   ├── TableToolbar.jsx            selection REPLACES it, never stacks
+│   ├── SearchBar.jsx   FilterBar.jsx
+│   ├── ApplicationsTable.jsx       single source of truth for a row
+│   ├── ApplicationsRow.jsx         six cell renderers, zero category branches
+│   └── Pagination.jsx
+│
+├── inspector/                  the primary detail workspace
+│   ├── InspectorPanel.jsx      permanently docked; only the tab body scrolls
+│   ├── InspectorTabs.jsx   ProfileHeader.jsx   ActionButtons.jsx
+│   └── tabs/
+│       ├── registry.jsx        add a tab = one entry here
+│       └── ProfileTab.jsx   StubTab.jsx
+│
+├── overview/                   the lightweight summary
+│   ├── StatCard.jsx            a door, not a display
+│   └── ActivityPanel.jsx   MessagesPanel.jsx
+│
+├── config/                     what makes one workspace serve nine categories
+│   ├── categories.js           the category registry
+│   ├── columns.js              column definitions + responsive priority
+│   ├── navigation.js           six destinations
+│   └── placeholderRows.js      delete when a data layer exists
+│
+├── screens/                    compositions, never giant pages
+│   ├── OverviewScreen.jsx   ApplicationsScreen.jsx
+│   └── StubScreen.jsx   stubs.jsx
+│
+└── styles/
+    ├── tokens.css              COPIED — see "Shared packages"
+    └── base.css
 ```
 
 ## Component hierarchy
 
 ```
 App (HashRouter)
-└── FestivalLayout                      ← owns `selection`, the only state
-    ├── FestivalSidebar
-    │   └── FestivalSidebarItem ×15     ← nav + 9 categories, badge-aware
-    ├── FestivalTopbar
-    │   └── FestivalSelector            ← festival, dates, location, status
+└── AppShell                            owns `selection`, the only state
+    ├── Sidebar → SidebarItem x6
+    ├── TopBar → FestivalSelector · AnnouncementButton
     ├── main → <Outlet>
-    │   ├── DashboardScreen
-    │   │   ├── StatsRow → StatCard ×6
-    │   │   ├── ApplicationsWorkspace
-    │   │   │   ├── ApplicationsToolbar
-    │   │   │   ├── ApplicationsTable → ApplicationsRow → StatusBadge
-    │   │   │   └── Pagination
-    │   │   └── ActivityCard + MessagesCard
-    │   ├── ApplicationsScreen           ← StatsRow + ApplicationsWorkspace
-    │   └── StubScreen ×5
-    └── InspectorPanel
-        ├── InspectorTabs                ← Profile · Application · Media · Notes · Activity
-        └── Placeholder
+    │   ├── OverviewScreen
+    │   │   ├── StatCard x6             each links into the workspace
+    │   │   └── ActivityPanel + MessagesPanel
+    │   ├── ApplicationsScreen
+    │   │   └── ApplicationsWorkspace
+    │   │       ├── CategoryNavigation   10 tabs, one workspace
+    │   │       ├── TableToolbar → SearchBar + FilterBar
+    │   │       ├── ApplicationsTable → ApplicationsRow → StatusBadge
+    │   │       └── Pagination
+    │   └── StubScreen x5
+    └── InspectorPanel                  permanently docked
+        ├── ProfileHeader · ActionButtons   (fixed)
+        ├── InspectorTabs                    (from the registry)
+        └── tab body                         (the only part that scrolls)
 ```
 
-## Routes
+## Navigation
+
+Six destinations: **Overview · Applications · Messages · Announcements ·
+Festival · Settings**.
+
+Application categories are deliberately **not** sidebar entries. Nine category
+pages would make the sidebar the place you choose your work and the table a
+consequence of it. Inverting that — one workspace, categories as tabs — is
+what makes the table the primary surface of the product. Switching category
+does not unmount the table, the toolbar, the pagination or the inspector, so
+moving between them costs nothing and loses nothing.
 
 | Path | Screen |
 |---|---|
-| `/dashboard` | Dashboard |
-| `/applications` | All applications |
-| `/applications/:category` | One category — `music`, `volunteer`, `market_stall`, `food_vendor`, `workshop`, `performance_artist`, `decor`, `media`, `theme_camp` |
-| `/messages` · `/announcements` · `/profile` · `/settings` · `/help` | Stubs |
+| `/applications` | The workspace, all categories |
+| `/applications/:category` | The same workspace, one category |
+| `/overview` | Lightweight summary |
+| `/messages` `/announcements` `/festival` `/settings` `/help` | Stubs |
 
-Category keys match the platform's ratified role keys: `food_vendor` is
-separate from `market_stall`, and the non-music performance role is
-`performance_artist` — never `performer`, which would collide with Scene's
-music artists.
+## Architecture decisions
 
-## Decisions worth knowing
+**The Applications workspace is the product.** Overview is a summary whose
+every figure is a door into it. Two places to review applications would mean
+two places to fix every bug.
 
-**One route serves nine categories.** Nine near-identical screens would be
-nine places to fix the same bug. The category is a URL parameter.
+**One table, nine categories, zero branches.** A category supplies a column
+set, a count and a noun. `ApplicationsRow` knows six cell renderers and has
+never heard of "cuisine". Adding a category is one entry in
+`config/categories.js` — no route, no screen, no component.
 
-**The shell owns one piece of state.** `FestivalLayout` tracks what the
-inspector is showing, and nothing else. Filters, sorting, paging and selection
-sets belong to screens or to a data layer that does not exist yet.
+**The inspector is permanently docked and keeps its width when empty.** A dock
+that appears and disappears reflows the table on every click. Only the tab
+body scrolls; identity and the four decision buttons stay fixed, and those
+buttons never move between applications — a reviewer builds muscle memory in
+the first ten rows and a shifted button eventually mis-fires a real decision.
 
-**The inspector keeps its width when nothing is selected.** A dock that
-appears and disappears makes the table reflow on every click, which is the
-most disorienting thing a three-pane workspace can do.
+**Inspector tabs come from a registry.** Adding one is a data entry plus a
+file. A tab receives only `{ selection }`; widening that contract would make
+every existing tab a party to the new one's requirements.
 
-**Placeholders are skeleton bars, not sample prose.** A shell full of
-plausible fake text gets screenshotted and evaluated as a finished product.
+**Selection replaces the toolbar; it does not stack a second bar.** Same
+height, same position, different contents — so ticking a checkbox never
+pushes the table down and loses your place mid-scan.
 
-**`null` never renders as `0`.** A badge means "N things await your decision";
-the absence of a badge is itself the signal.
+**Two selections that must never look alike.** Selected-for-review (the
+inspector is showing it) is a brand tint with a left marker. Ticked-for-bulk
+is a checkbox. Confusing them makes "accept 40" a guess.
 
-**Real `<table>`, `table-layout: fixed`, sticky header.** The header and rows
-must agree on column widths at any row count. Virtualisation drops into
-`ApplicationsTable` without any row or screen changing.
+**`null` never renders as `0`.** A badge means "N things await your decision",
+so zero is the absence of a badge. A count inside a category tab is a
+different idea — how many exist — and does show zero.
+
+**Absent, blank and unknown are three different things.** A column a category
+never asks for renders nothing; one asked and left empty renders a dimmed
+dash. A reviewer must be able to tell "we didn't ask" from "they didn't
+answer".
+
+**No business logic anywhere.** SearchBar holds its input value, the workspace
+holds which rows are ticked, the panel holds which tab is open. Nothing
+filters, sorts, pages or fetches.
 
 ## Desktop-first, mobile later
 
-The shell is a CSS grid with named areas (`sidebar` / `topbar` / `main`). A
+The shell is a CSS grid with named areas (`sidebar` / `topbar` / `body`). A
 mobile layout re-declares `grid-template-areas` in a media query and moves
-nothing else. Below 1180px the inspector hides and below 1024px the sidebar
-leaves the grid — those breakpoints are seams, not a mobile implementation.
-The portal-level tab set (Explore · Apps · Messages · Me) is a separate,
-mobile-first concern and is not built.
+nothing else. Below 1180px the inspector hides; below 1024px the sidebar
+leaves the grid. Those breakpoints are seams, not a mobile implementation.
+
+Table columns hide by `priority` from `config/columns.js` — `applicant` and
+`status` carry no priority and never hide, because "who" and "where are we up
+to" are the two questions a reviewer always needs answered.
 
 ## Shared packages (future)
 
@@ -152,21 +192,27 @@ is duplicated rather than shared:
 
 | Duplicated | Where | Becomes |
 |---|---|---|
-| Design tokens, fonts, `.glow-pill` | `src/styles/tokens.css`, `base.css` | `@yespleez/tokens` |
-| `Icon`, `StatusBadge`, `Placeholder` | `src/components/` | `@yespleez/ui` (candidates, not yet duplicated in Scene) |
+| Design tokens, fonts, `.glow-pill` | `src/styles/` | `@yespleez/tokens` |
+| `Icon`, `StatusBadge`, `Skeleton`, `EmptyState` | `src/design-system/` | `@yespleez/ui` candidates |
 
-Until `@yespleez/tokens` exists, a token change in the Scene app has to be
-mirrored here **by hand**. That is the known cost of the repository split and
-it is recorded here so it is a decision rather than a surprise.
+Until `@yespleez/tokens` exists, a token change in the Scene app must be
+mirrored here **by hand**. That is the known cost of the repository split,
+recorded so it is a decision rather than a surprise.
 
-⛔ Do not invent a token name. An undefined CSS custom property does not fall
+Do not invent a token name. An undefined CSS custom property does not fall
 back and does not warn — it silently drops the declaration.
 
 ## Status
 
-Builds clean, lints clean (`oxlint --deny no-undef`), no runtime console
-errors. Verified at 1680×1050: sidebar 232px, topbar 72px, inspector 380px,
-main 1068px, six stat cards, eight placeholder rows, no horizontal overflow.
+Builds clean, lints clean (`oxlint --deny no-undef`, zero warnings).
 
-**Not built:** any data access, filtering, search, sorting, paging, bulk
-actions, inspector resize drag, mobile layout.
+Verified in-browser at 1680x1050: six sidebar destinations, ten category tabs,
+inspector docked at 380px. Switching category changes the column set
+(Volunteers shows Skills/Availability where All shows Category/Country),
+updates the count and pagination total, and **preserves the inspector
+selection** — the workspace never unmounts. Ticking rows replaces the toolbar
+with a 60px selection bar at the same height. Rows missing a category's
+fields render dimmed dashes rather than blanks.
+
+**Not built:** data access, filtering, search, sorting, paging, bulk action
+behaviour, inspector resize drag, mobile layout.

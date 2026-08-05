@@ -1,0 +1,37 @@
+/* THE PRIMARY WORKSPACE.
+
+   A fixed frame, not a scrolling page: the category tabs, the toolbar and the
+   pagination bar must stay on screen while only the rows move. Scrolling the
+   whole page would take the toolbar with it, and someone half-way down four
+   hundred rows would have to scroll back up to change a filter. */
+.workspace {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  margin: var(--fp-gutter);
+  overflow: hidden;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px 16px 13px;
+  flex-shrink: 0;
+}
+
+.titleGroup { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+
+.title {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 19px;
+  letter-spacing: 2px;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.subtitle { font-size: 12.5px; color: var(--muted); white-space: nowrap; }
+
+.headerActions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }

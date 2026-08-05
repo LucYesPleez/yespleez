@@ -1,0 +1,70 @@
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border-radius: var(--fp-radius-sm);
+  font-family: inherit;
+  font-weight: 600;
+  white-space: nowrap;
+  border: 1px solid transparent;
+  transition: background var(--yp-medium) var(--yp-ease),
+              border-color var(--yp-medium) var(--yp-ease),
+              color var(--yp-medium) var(--yp-ease),
+              filter var(--yp-fast) var(--yp-ease);
+}
+
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.btn:focus-visible { outline: 2px solid var(--neon2); outline-offset: 2px; }
+
+/* ── sizes ── */
+.sm { padding: 7px 11px; font-size: 12.5px; }
+.md { padding: 9px 14px; font-size: 13.5px; }
+.lg { padding: 11px 18px; font-size: 14.5px; }
+
+.iconOnly { padding: 0; aspect-ratio: 1; }
+.iconOnly.sm { width: 30px; }
+.iconOnly.md { width: 38px; }
+.iconOnly.lg { width: 44px; }
+
+.block { width: 100%; }
+
+/* ── variants ──
+   Only `primary` carries the brand gradient. One gradient button per view is
+   the rule — a screen with three of them has no primary action at all. */
+.primary {
+  color: #fff;
+  background: linear-gradient(135deg, var(--neon), color-mix(in srgb, var(--neon) 55%, var(--purple)));
+  box-shadow: 0 6px 18px -8px color-mix(in srgb, var(--neon) 70%, transparent);
+}
+.primary:hover:not(:disabled) { filter: brightness(1.08); }
+
+.secondary {
+  color: var(--text);
+  background: var(--card);
+  border-color: var(--border);
+}
+.secondary:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--neon2) 45%, var(--border));
+  background: var(--card2);
+}
+
+.ghost { color: var(--muted); background: transparent; }
+.ghost:hover:not(:disabled) { color: var(--text); background: rgba(255, 255, 255, .05); }
+
+.quiet {
+  color: var(--muted);
+  background: var(--card2);
+  border-color: var(--border);
+}
+.quiet:hover:not(:disabled) { color: var(--text); border-color: var(--muted); }
+
+/* Intent variants — the decision actions. Colour arrives on hover so a row of
+   four does not read as four competing alarms at rest. */
+.intent { color: var(--muted); background: var(--card); border-color: var(--border); }
+.intent:hover:not(:disabled) { color: var(--tone); border-color: color-mix(in srgb, var(--tone) 55%, var(--border)); }
+
+.toneShortlist { --tone: var(--gold); }
+.toneAccept    { --tone: var(--green); }
+.toneDecline   { --tone: var(--neon); }
+.toneMessage   { --tone: var(--neon2); }

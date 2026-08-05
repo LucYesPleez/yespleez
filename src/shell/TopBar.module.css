@@ -1,0 +1,81 @@
+.topbar {
+  grid-area: topbar;
+  height: var(--fp-topbar-height);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 0 var(--fp-gutter);
+  background: color-mix(in srgb, var(--card2) 88%, transparent);
+  border-bottom: 1px solid var(--border);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+
+.iconBtn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px; height: 38px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--muted);
+  transition: color var(--yp-medium) var(--yp-ease),
+              border-color var(--yp-medium) var(--yp-ease);
+}
+.iconBtn:hover { color: var(--text); border-color: var(--muted); }
+.iconBtn:focus-visible { outline: 2px solid var(--neon2); outline-offset: 2px; }
+
+/* ⛔ ONE BELL, ONE INBOX. Notification and message counts are GLOBAL across
+   every YesPleez portal — never scoped to the room you happen to be in. A
+   user must not miss something because they were somewhere else. Filtering
+   belongs in the lists; the badge is a total. */
+.badge {
+  position: absolute;
+  top: -3px; right: -3px;
+  min-width: 18px; height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--neon);
+  color: #fff;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 11px;
+  letter-spacing: .5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--card2);
+}
+
+.divider { width: 1px; height: 26px; background: var(--border); margin: 0 2px; }
+
+.user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 10px 5px 5px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  transition: border-color var(--yp-medium) var(--yp-ease);
+}
+.user:hover { border-color: var(--muted); }
+.user:focus-visible { outline: 2px solid var(--neon2); outline-offset: 2px; }
+
+.avatar {
+  width: 30px; height: 30px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: linear-gradient(135deg, var(--neon), var(--neon2));
+}
+
+.userText { line-height: 1.2; text-align: left; }
+.userRole { display: block; font-size: 10.5px; color: var(--muted); }
+.userName { display: block; font-size: 13px; font-weight: 600; color: var(--text); white-space: nowrap; }
+
+@media (max-width: 1400px) { .publicLabel { display: none; } }
+@media (max-width: 1120px) { .userText { display: none; } .user { padding: 5px; } }

@@ -1,0 +1,29 @@
+.links { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.link {
+  width: 34px; height: 34px;
+  border-radius: var(--fp-radius-sm);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  background: var(--card2);
+  border: 1px solid var(--border);
+  transition: color var(--yp-medium) var(--yp-ease),
+              border-color var(--yp-medium) var(--yp-ease);
+}
+.link:hover { color: var(--neon2); border-color: color-mix(in srgb, var(--neon2) 45%, var(--border)); }
+
+.lines { display: flex; flex-direction: column; gap: 9px; }
+
+.field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 7px 0;
+}
+.field + .field { border-top: 1px solid color-mix(in srgb, var(--border) 55%, transparent); }
+
+.fieldLabel { font-size: 12.5px; color: var(--muted); flex-shrink: 0; }
+.fieldValue { font-size: 13px; color: var(--text); min-width: 0; display: flex; justify-content: flex-end; }
