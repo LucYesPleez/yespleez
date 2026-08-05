@@ -2,6 +2,8 @@ import { useRef, useState, useEffect, useCallback } from 'react';
 import { NavLink } from 'react-router-dom';
 import { Icon } from '../design-system';
 import { CATEGORIES, ALL_CATEGORY } from '../config/categories';
+import { useRepositories } from '../data/dataContext';
+import { useQuery } from '../data/useQuery';
 import s from './CategoryNavigation.module.css';
 
 /**
@@ -12,8 +14,11 @@ import s from './CategoryNavigation.module.css';
  * pagination and the inspector never unmount, so switching from Music to
  * Volunteers costs nothing and loses nothing.
  *
- * Rendered from `config/categories.js`. Adding "Sponsors" next year is one
- * entry there — no route, no screen, no component.
+ * ⚠ The registry supplies the LABELS and ICONS; the counts come from the
+ * repository. It used to render `cat.count` straight from config, which showed
+ * "Music 184" over an empty table — a false number is worse than no number,
+ * because it reads as data that failed to load rather than data that is not
+ * there. Adding "Sponsors" next year is still one entry in the registry.
  *
  * Links rather than buttons: the category belongs in the URL so a view is
  * shareable with a colleague and survives a reload.
@@ -26,7 +31,16 @@ import s from './CategoryNavigation.module.css';
  * content that is not there.
  */
 export default function CategoryNavigation() {
-  const tabs = [ALL_CATEGORY, ...CATEGORIES];
+  const { categories } = useRepositories();
+  const { data } = useQuery(() => categories.list(), []);
+
+  // Before the counts arrive the tabs render WITHOUT a number rather than with
+  // a stale or zero one. `null` never renders as `0` — the badge law, carried
+  // from Studio: a zero states a fact, a blank admits it does not know yet.
+  const tabs = data
+    ? [{ ...ALL_CATEGORY, count: data.reduce((n, c) => n + (c.count ?? 0), 0) }, ...data]
+    : [ALL_CATEGORY, ...CATEGORIES].map(c => ({ ...c, count: null }));
+
   const navRef = useRef(null);
   const [fade, setFade] = useState(0);
 
@@ -70,7 +84,7 @@ export default function CategoryNavigation() {
           >
             <Icon name={cat.icon} size={16} className={s.icon} />
             {cat.label}
-            <span className={s.count}>{cat.count}</span>
+            {cat.count != null && <span className={s.count}>{cat.count}</span>}
           </NavLink>
         ))}
       </nav>

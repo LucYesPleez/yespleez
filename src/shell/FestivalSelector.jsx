@@ -27,10 +27,18 @@ export default function FestivalSelector({ festival, onSwitch }) {
             {festival.applicationsOpen ? 'Applications Open' : 'Applications Closed'}
           </span>
         </span>
-        <span className={s.meta}>
-          <span className={s.metaItem}><Icon name="calendar" size={13} />{festival.dates}</span>
-          <span className={s.metaItem}><Icon name="location" size={13} />{festival.location}</span>
-        </span>
+        {/* Absent is not unknown: a festival with no dates set yet shows no
+            date line at all, rather than an icon beside an empty string. */}
+        {(festival.dates || festival.location) && (
+          <span className={s.meta}>
+            {festival.dates && (
+              <span className={s.metaItem}><Icon name="calendar" size={13} />{festival.dates}</span>
+            )}
+            {festival.location && (
+              <span className={s.metaItem}><Icon name="location" size={13} />{festival.location}</span>
+            )}
+          </span>
+        )}
       </span>
     </button>
   );

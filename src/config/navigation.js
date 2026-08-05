@@ -11,10 +11,13 @@
  * Scene app's five permanent tabs are governed the same way.
  */
 
+// ⚠ No counts here. A sidebar badge means "N things await YOUR decision", and
+// a hardcoded 62 said that over an empty workspace. `null` never renders as a
+// badge, so the number returns only when something real can produce it.
 export const NAVIGATION = [
   { key: 'overview',      label: 'Overview',      to: '/overview',      icon: 'dashboard' },
-  { key: 'applications',  label: 'Applications',  to: '/applications',  icon: 'inbox',         count: 62 },
-  { key: 'messages',      label: 'Messages',      to: '/messages',      icon: 'messages',      count: 4 },
+  { key: 'applications',  label: 'Applications',  to: '/applications',  icon: 'inbox' },
+  { key: 'messages',      label: 'Messages',      to: '/messages',      icon: 'messages' },
   { key: 'announcements', label: 'Announcements', to: '/announcements', icon: 'announcements' },
   { key: 'festival',      label: 'Festival',      to: '/festival',      icon: 'profile' },
   { key: 'settings',      label: 'Settings',      to: '/settings',      icon: 'settings' },
