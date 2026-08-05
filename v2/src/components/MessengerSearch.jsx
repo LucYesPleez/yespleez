@@ -140,11 +140,11 @@ export default function MessengerSearch({ rows = [], onOpen }) {
   const nothing = open && !known.length && !profiles.length && !numberMatch && !searchingNumber;
 
   return (
-    /* ⚠ INSET PAST THE TITLE'S 20px (owner: "come in from the ends a bit").
-       A full-bleed pill reads as a bar welded to the screen edges; held off
-       them it reads as a control sitting on the page. Deliberately NOT aligned
-       to MESSAGES above it — that is a heading, this is a thing you press. */
-    <div style={{ padding: '0 28px', marginBottom: open ? 14 : 20 }}>
+    /* ⚠ 20px, MATCHING THE TITLE'S OWN MARGIN. Briefly 28 (owner: "come in
+       from the ends a bit"), reverted on sight — the extra inset bought a
+       little breathing room and cost more width than it was worth, and the
+       search bar lines up with MESSAGES again. */
+    <div style={{ padding: '0 20px', marginBottom: open ? 14 : 20 }}>
       <div style={rowWrap}>
         {/* ⚠ IT POPS OUT TO THE LEFT OF THE FIELD, NOT INSIDE IT (owner,
             2026-08-05). Its own pill, so it reads as a separate control you
