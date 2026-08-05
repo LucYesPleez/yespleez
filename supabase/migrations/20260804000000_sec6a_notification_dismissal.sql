@@ -108,13 +108,32 @@ CREATE INDEX IF NOT EXISTS notifications_inbox_idx
 -- any client write sets today is `read`
 --   NotifPanel.jsx:41,61 · NotificationsScreen.jsx:68 · contactJoins.js:78
 --
--- `responded_at` is granted although NOTHING WRITES IT YET. It is read
--- (NotifPanel.jsx:175) but only ever set in local React state
--- (updateNotif, NotifPanel.jsx:55 / NotificationsScreen.jsx:83), so it
--- does not survive a reload and answered offers show their buttons
--- again. Granting it now means the fix for that is a one-line client
--- change rather than a client change plus a migration nobody expected
--- to need.
+-- ⚠ CORRECTED 2026-08-05 · `responded_at` DID NOT EXIST.
+--
+-- This note originally read "granted although NOTHING WRITES IT YET",
+-- and granted the column on the assumption it was already there. It was
+-- not: no migration in this repository has ever created it. Applying
+-- this file unamended fails at the GRANT with
+--
+--   ERROR: 42703: column "responded_at" of relation "notifications"
+--          does not exist
+--
+-- and, because the SQL editor runs the script as ONE transaction, takes
+-- the whole migration down with it. Confirmed against the live database.
+--
+-- ⭐ WHY THIS WAS INVISIBLE, AND WHY THAT MATTERS MORE THAN THE TYPO.
+--
+-- `markResponded()` is deliberately fire-and-forget (notifActions.js:57)
+-- so that failing to stamp a receipt cannot present as the accept or
+-- decline having failed. Correct — but it means the 42703 from EIGHT
+-- client call sites (NotifPanel.jsx:198,206,214,222 ·
+-- NotificationsScreen.jsx:176,184,192,200) is swallowed in silence. The
+-- row offers ACCEPT and DECLINE again, which is indistinguishable from
+-- the bug e5a596b set out to FIX, with no error anywhere to say why.
+--
+-- So the column is created here rather than merely granted. Without it
+-- e5a596b is inert: the replayable-response defect it names stays open,
+-- and the only symptom is the one it was supposed to remove.
 -- ⚠ INTERACTION WITH N3 · CHECK BEFORE APPLYING.
 -- `deliver_held_notifications()` (n3_claim_delivery) sets `to_user_id`,
 -- which is deliberately NOT granted below — delivery is a system act,
@@ -164,6 +183,19 @@ CREATE INDEX IF NOT EXISTS notifications_inbox_idx
 --    expand privilege without the INSERT constraint meant to accompany
 --    it. n3:131 says revisit "BEFORE moving claim completion into the
 --    app"; that move has not happened, so the trigger has not fired.
+-- The column the GRANT below depends on. Same shape as `dismissed_at`
+-- and `suppressed_at`: nullable timestamptz, NULL meaning "unanswered".
+-- A timestamp rather than a boolean for the same reason — when a person
+-- answered is the interesting part, and a boolean never widens into one.
+ALTER TABLE public.notifications
+  ADD COLUMN IF NOT EXISTS responded_at timestamptz;
+
+COMMENT ON COLUMN public.notifications.responded_at IS
+  'When the recipient answered an actionable notification. NULL = still '
+  'awaiting a response, and the row shows its ACCEPT/DECLINE buttons. '
+  'Stamped by markResponded() AFTER the underlying action commits, so a '
+  'failure here re-offers the buttons rather than losing the action.';
+
 REVOKE UPDATE ON public.notifications FROM anon, authenticated;
 
 GRANT UPDATE (read, dismissed_at, responded_at)
