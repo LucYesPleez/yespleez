@@ -1,0 +1,25 @@
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px 3px;
+  border-radius: 999px;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 11.5px;
+  letter-spacing: 1.1px;
+  line-height: 1;
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border: 1px solid var(--tone-border);
+  background: var(--tone-bg);
+  color: var(--tone-fg);
+}
+
+.neutral { --tone-fg: var(--muted);  --tone-bg: rgba(255, 255, 255, .05);                             --tone-border: var(--border); }
+.pink    { --tone-fg: var(--neon);   --tone-bg: color-mix(in srgb, var(--neon)   11%, transparent);   --tone-border: color-mix(in srgb, var(--neon)   26%, transparent); }
+.cyan    { --tone-fg: var(--neon2);  --tone-bg: color-mix(in srgb, var(--neon2)  11%, transparent);   --tone-border: color-mix(in srgb, var(--neon2)  26%, transparent); }
+.purple  { --tone-fg: var(--purple); --tone-bg: color-mix(in srgb, var(--purple) 11%, transparent);   --tone-border: color-mix(in srgb, var(--purple) 26%, transparent); }
+.gold    { --tone-fg: var(--gold);   --tone-bg: color-mix(in srgb, var(--gold)   11%, transparent);   --tone-border: color-mix(in srgb, var(--gold)   26%, transparent); }
+.green   { --tone-fg: var(--green);  --tone-bg: color-mix(in srgb, var(--green)  11%, transparent);   --tone-border: color-mix(in srgb, var(--green)  26%, transparent); }

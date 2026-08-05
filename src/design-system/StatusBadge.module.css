@@ -14,6 +14,7 @@
 
 .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
 
+.draft       { color: var(--muted);  background: rgba(255, 255, 255, .035);                          border-color: var(--border); }
 .new         { color: var(--neon2);  background: color-mix(in srgb, var(--neon2)  12%, transparent); border-color: color-mix(in srgb, var(--neon2)  30%, transparent); }
 .reviewing   { color: var(--purple); background: color-mix(in srgb, var(--purple) 12%, transparent); border-color: color-mix(in srgb, var(--purple) 30%, transparent); }
 .shortlisted { color: var(--gold);   background: color-mix(in srgb, var(--gold)   12%, transparent); border-color: color-mix(in srgb, var(--gold)   30%, transparent); }

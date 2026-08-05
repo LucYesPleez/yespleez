@@ -1,22 +1,18 @@
 import { useParams } from 'react-router-dom';
 import ApplicationsWorkspace from '../applications/ApplicationsWorkspace';
-import { getCategory } from '../config/categories';
 
 /**
  * THE PRIMARY SCREEN OF THE PORTAL.
  *
  * One route, every category. `/applications` and `/applications/:category`
- * both land here; the parameter selects a configuration, not a different
- * screen.
+ * both land here; the parameter selects a configuration, not a screen.
  *
- * The screen itself is four lines because it should be: it resolves a
- * category and hands it to the workspace. Everything else — tabs, toolbar,
- * table, pagination, inspector — is a component that stands on its own.
- *
- * An unknown category resolves to "All" rather than 404ing. A stale bookmark
- * to a retired category should show the list, not a dead end.
+ * Three lines because it should be: it reads the category from the URL and
+ * hands it down. Resolving what that category IS belongs to the repository,
+ * not to a screen — otherwise the screen would have to change the day
+ * categories start living in a database.
  */
 export default function ApplicationsScreen() {
   const { category } = useParams();
-  return <ApplicationsWorkspace category={getCategory(category)} />;
+  return <ApplicationsWorkspace categoryKey={category} />;
 }

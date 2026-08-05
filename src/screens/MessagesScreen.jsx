@@ -83,7 +83,7 @@ export default function MessagesScreen() {
               avatar
               title={t.name}
               meta={t.preview}
-              badge={<StatusBadge status="reviewing" />}
+              badge={<StatusBadge status="in_review" />}
               trail={
                 <>
                   <span className={s.threadTime}>{t.when}</span>

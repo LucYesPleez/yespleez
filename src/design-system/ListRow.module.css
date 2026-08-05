@@ -9,9 +9,24 @@
 }
 .row + .row { border-top: 1px solid color-mix(in srgb, var(--border) 55%, transparent); }
 
-.clickable { cursor: pointer; border-radius: var(--fp-radius-sm); padding-left: 8px; padding-right: 8px; }
-.clickable:hover { background: rgba(255, 255, 255, .035); }
-.clickable:focus-visible { outline: 2px solid var(--neon2); outline-offset: -2px; }
+/* The hover lives on the ROW so the whole strip lights up, while only the
+   inner control is focusable — the trail's own buttons stay separate tab
+   stops. */
+.interactive { border-radius: var(--fp-radius-sm); padding-left: 8px; padding-right: 8px; }
+.interactive:hover { background: rgba(255, 255, 255, .035); }
+
+.main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+  border-radius: var(--fp-radius-sm);
+}
+.main:focus-visible { outline: 2px solid var(--neon2); outline-offset: 2px; }
 
 .lead { flex-shrink: 0; display: flex; align-items: center; }
 

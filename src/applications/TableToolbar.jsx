@@ -21,8 +21,14 @@ import s from './TableToolbar.module.css';
  * hides anything — the menus exist so the interaction is settled before a
  * data layer makes them mean something.
  */
-export default function TableToolbar({ columns = [], selectedCount = 0, onClearSelection }) {
-  const [sort, setSort] = useState('newest');
+export default function TableToolbar({
+  columns = [],
+  sort = 'newest',
+  onSort,
+  onSearch,
+  selectedCount = 0,
+  onClearSelection,
+}) {
   const [hidden, setHidden] = useState([]);
 
   if (selectedCount > 0) {
@@ -43,7 +49,7 @@ export default function TableToolbar({ columns = [], selectedCount = 0, onClearS
 
   return (
     <div className={s.toolbar}>
-      <SearchBar />
+      <SearchBar onChange={onSearch} />
       <FilterBar />
       <span className={s.spacer} />
 
@@ -62,7 +68,7 @@ export default function TableToolbar({ columns = [], selectedCount = 0, onClearS
               key={o.value}
               label={o.label}
               selected={sort === o.value}
-              onClick={() => { setSort(o.value); close(); }}
+              onClick={() => { onSort?.(o.value); close(); }}
             />
           ))}
         </Popover>

@@ -21,6 +21,7 @@ export { default as Icon }         from './Icon';
 export { default as Button }       from './Button';
 export { default as SectionCard }  from './SectionCard';
 export { default as StatusBadge }  from './StatusBadge';
+export { default as Tag }          from './Tag';
 export { default as EmptyState }   from './EmptyState';
 export { default as LoadingState } from './LoadingState';
 export { default as Skeleton }     from './Skeleton';

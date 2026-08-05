@@ -21,13 +21,15 @@ export default function ApplicationsTable({
   rows = [],
   columns,
   loading = false,
+  error = null,
   selectedId,
   tickedIds = [],
   onSelect,
   onTick,
+  onRetry,
   emptyState,
 }) {
-  const showEmpty = !loading && rows.length === 0;
+  const showEmpty = !loading && !error && rows.length === 0;
 
   return (
     <div className={s.wrap}>
@@ -54,7 +56,7 @@ export default function ApplicationsTable({
           </tr>
         </thead>
 
-        {!loading && !showEmpty && (
+        {!loading && !error && !showEmpty && (
           <tbody>
             {rows.map(row => (
               <ApplicationsRow
@@ -72,6 +74,20 @@ export default function ApplicationsTable({
       </table>
 
       {loading && <LoadingState variant="rows" rows={8} />}
+
+      {/* ⛔ A failed load is an ERROR, not an empty state. "No applications"
+          when the request failed tells an organiser their applicants have
+          vanished — the single most alarming thing this screen could say,
+          and it would be a lie. */}
+      {error && (
+        <EmptyState
+          icon="cross"
+          title="Couldn’t load applications"
+          body="Something went wrong fetching this list. Your applications are safe — this is a display problem."
+          action="Try again"
+          onAction={onRetry}
+        />
+      )}
 
       {showEmpty && (emptyState || (
         <EmptyState

@@ -15,7 +15,14 @@ import s from './ApplicationsTable.module.css';
  * from "they didn't answer".
  */
 function Cell({ column, application }) {
-  const value = application[column.key];
+  /**
+   * A column resolves against the application itself first, then its answers.
+   * Identity and workflow live on the record (`name`, `status`, `stage`);
+   * everything a category asked for lives in `answers`. Looking in both, in
+   * that order, is what lets one renderer serve every category without the
+   * table knowing which fields belong where.
+   */
+  const value = application[column.key] ?? application.answers?.[column.key];
 
   if (column.cell === 'applicant') {
     return (

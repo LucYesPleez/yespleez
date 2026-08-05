@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import {
-  SectionCard, Button, ListRow, StatusBadge,
+  SectionCard, Button, ListRow, Tag,
   Textarea, Select, Toggle, Row,
 } from '../design-system';
 import s from './screens.module.css';
@@ -25,7 +25,9 @@ const TEAM = [
   { id: 'u4', name: 'Jules Okafor',   email: 'jules@northernskies.com', role: 'Reviewer' },
 ];
 
-const ROLE_TONE = { Owner: 'accepted', Admin: 'reviewing', Reviewer: 'withdrawn' };
+/* A role is not an application status — it gets a Tag, not a StatusBadge.
+   Owner reads strongest because it is the one role that cannot be removed. */
+const ROLE_TONE = { Owner: 'green', Admin: 'purple', Reviewer: 'neutral' };
 
 export default function SettingsScreen() {
   const [prefs, setPrefs] = useState({
@@ -60,7 +62,7 @@ export default function SettingsScreen() {
             avatar
             title={member.name}
             meta={member.email}
-            badge={<StatusBadge status={ROLE_TONE[member.role]} />}
+            badge={<Tag tone={ROLE_TONE[member.role]}>{member.role}</Tag>}
             trail={
               <Button
                 variant="ghost"
