@@ -5,7 +5,8 @@ import ApplicationsScreen from './screens/ApplicationsScreen';
 import AnnouncementsScreen from './screens/AnnouncementsScreen';
 import FestivalScreen from './screens/FestivalScreen';
 import SettingsScreen from './screens/SettingsScreen';
-import { MessagesScreen, HelpScreen } from './screens/stubs';
+import MessagesScreen from './screens/MessagesScreen';
+import { HelpScreen } from './screens/stubs';
 
 /**
  * Routing.
