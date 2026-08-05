@@ -25,5 +25,7 @@ export { default as EmptyState }   from './EmptyState';
 export { default as LoadingState } from './LoadingState';
 export { default as Skeleton }     from './Skeleton';
 export { default as ListRow }      from './ListRow';
+export { default as Callout }      from './Callout';
 
 export { Field, TextInput, Textarea, Select, Toggle, Row } from './Form';
+export { Chip, ChipGroup } from './Chip';

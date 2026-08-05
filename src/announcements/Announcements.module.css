@@ -1,0 +1,63 @@
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.audience { display: flex; flex-direction: column; gap: 16px; }
+
+/* The count sits between the choices and the message body — the last thing
+   read before writing, and the first thing seen on the way back up. */
+.countBox {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 13px 14px;
+  border-radius: var(--fp-radius-sm);
+  border: 1px solid color-mix(in srgb, var(--neon2) 28%, var(--border));
+  background: color-mix(in srgb, var(--neon2) 7%, transparent);
+  min-width: 0;
+}
+
+.countValue {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 30px;
+  letter-spacing: 1px;
+  line-height: 1;
+  color: var(--text);
+  flex-shrink: 0;
+}
+
+.countLabel { font-size: 12.5px; color: var(--muted); line-height: 1.4; }
+
+.composer { display: flex; flex-direction: column; gap: 14px; }
+
+.sendRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.sendNote { font-size: 12px; color: var(--muted); }
+
+/* ── Sent history ── */
+.sentMeta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+.pill {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 11px;
+  letter-spacing: .9px;
+  line-height: 1;
+  padding: 3px 7px 2px;
+  border-radius: 999px;
+  color: var(--muted);
+  background: rgba(255, 255, 255, .06);
+  border: 1px solid var(--border);
+}
+
+@container pane (max-width: 1000px) {
+  .layout { grid-template-columns: minmax(0, 1fr); }
+}
