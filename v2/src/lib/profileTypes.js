@@ -2,7 +2,7 @@
 // hex value (that's exactly how accent/accent2 drifted apart in ProfileScreen,
 // PortraitCard, FollowingSection, EnquiryCard, ApplicationCard, MySceneScreen,
 // CardTagPicker, and DashboardStats — see the 10D Cross-Profile QA audit).
-function hexToRgb(hex) {
+export function hexToRgb(hex) {
   const h = hex.replace('#', '');
   const r = parseInt(h.slice(0, 2), 16);
   const g = parseInt(h.slice(2, 4), 16);

@@ -1,8 +1,36 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { PROFILE_TYPES } from '../lib/profileTypes';
+import { PROFILE_TYPES, hexToRgb } from '../lib/profileTypes';
+import { CATEGORY_BADGES } from '../lib/eventBadges';
+import { visibleRoles } from '../lib/roleVisibility';
 import s from './RoleSelectorScreen.module.css';
+
+/**
+ * Where the FESTIVAL card sends you.
+ *
+ * The Portal is a SEPARATE FRONT-END over the same Supabase project, not a
+ * route in this app, so this is a real navigation out rather than a
+ * useNavigate() call. It has no deployed URL yet — the repo is private and runs
+ * on 5180 in development — so the env var is the seam that stops this needing
+ * a code change on the day it ships.
+ *
+ * ⚠ THE PREVIEW ENVIRONMENT HAS NO `VITE_*` VARS, so a preview build falls back
+ * to localhost and the card will not open anything useful there. Acceptable
+ * while this is owner-only; it is the first thing to fix when it is not.
+ */
+const FESTIVAL_PORTAL_URL =
+  import.meta.env.VITE_FESTIVAL_PORTAL_URL || 'http://localhost:5180';
+
+// The one festival colour this app already has (CATEGORY_BADGES.FESTIVAL, used
+// on every festival event card). Reused rather than picked afresh, so the role
+// card and the event badge cannot drift into two different purples.
+//
+// ⚠ NOT DERIVED FROM PROFILE_TYPES, because `festival` deliberately is not one
+// — see the card's own note below. `hexToRgb` keeps the glow's rgb from being
+// hand-typed alongside the hex, which is precisely how accent/accent2 drifted
+// across a dozen files before 10E.
+const FESTIVAL_ACCENT = CATEGORY_BADGES.FESTIVAL.bg;
 
 // Order is the shared canonical role ordering for V2 (Venue first — reflects
 // the platform's primary discovery flow). IndustryPanel.jsx imports this
@@ -111,6 +139,50 @@ const ROLES = [
       </svg>
     ),
   },
+  /**
+   * ⛔ OWNER-ONLY, AND DELIBERATELY NOT A SCENE PROFILE TYPE. Three things here
+   * look like oversights and are not:
+   *
+   * 1. `festival` is absent from PROFILE_TYPES on purpose. That map feeds
+   *    PROFILE_TYPE_ORDER, which drives FollowingSection's filter tokens and
+   *    MySceneScreen's colours and labels — adding it would put a FESTIVAL
+   *    filter in front of every user, and there is no `defaultfestival.webp`,
+   *    so any profile falling back to it would render as a bare pink gradient.
+   *    Making festival a real Scene type is its own migration (asset, DB
+   *    constraint, LOCALS_TYPES decision) and is tracked separately.
+   *
+   * 2. It leaves the app. Owner's ruling, 2026-08-05: a Festival is a
+   *    first-class identity and the Portal is the administrative WORKSPACE for
+   *    it — "A Festival opens the Festival workspace." The Portal is a separate
+   *    front-end over the SAME Supabase project, so this card is a link, not a
+   *    route, and `path` is an absolute URL rather than an /industry path.
+   *
+   * 3. `restrictedToEmail` hides it from everyone else — see lib/roleVisibility
+   *    for why that is a visibility gate and NOT a security boundary.
+   */
+  {
+    id: 'festival',
+    restrictedToEmail: 'lucious.aus@gmail.com',
+    external: true,
+    path: FESTIVAL_PORTAL_URL,
+    hoverStyle: { borderColor: FESTIVAL_ACCENT, boxShadow: `0 0 28px rgba(${hexToRgb(FESTIVAL_ACCENT)},.28)` },
+    titleStyle: { color: FESTIVAL_ACCENT },
+    title: 'FESTIVAL',
+    desc: 'Open the Festival Portal — editions, categories, applications and volunteers',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        {/* A marquee: pennant, ridge, and the scalloped hem of a festival tent. */}
+        <line x1="12" y1="1.5" x2="12" y2="4"/>
+        <path d="M12 1.8 L15.5 2.9 L12 4 Z" fill="currentColor" stroke="none"/>
+        <path d="M12 4 L21.5 11 L2.5 11 Z"/>
+        <path d="M4 11 v9.5"/>
+        <path d="M20 11 v9.5"/>
+        <path d="M4 20.5 q2 -1.6 4 0 q2 1.6 4 0 q2 -1.6 4 0 q2 1.6 4 0"/>
+        <path d="M12 4 L9 11"/>
+        <path d="M12 4 L15 11"/>
+      </svg>
+    ),
+  },
 ];
 
 function getActiveRoles() {
@@ -156,6 +228,16 @@ export default function RoleSelectorScreen({ session }) {
   }, [session]);
 
   function handlePick(role) {
+    // An external role is a different APP, not a mode of this one. It gets no
+    // entry in `yp_active_roles` — that list drives which industry dashboards
+    // this app offers, and the Portal is not one of them. A new tab rather than
+    // a redirect, so a half-finished thing in Scene is not thrown away by
+    // clicking a card that says "open".
+    if (role.external) {
+      window.open(role.path, '_blank', 'noopener,noreferrer');
+      return;
+    }
+
     activateRole(role.id);
     // Send to dedicated setup screen if profile not yet created
     if (role.id === 'host' && !setupTypes.has('host')) {
@@ -177,7 +259,7 @@ export default function RoleSelectorScreen({ session }) {
       <p className={s.sub}>Switch between modes anytime</p>
 
       <div className={s.cards}>
-        {ROLES.map(role => (
+        {visibleRoles(ROLES, session).map(role => (
           <button
             key={role.id}
             className={s.card}

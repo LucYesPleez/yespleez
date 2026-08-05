@@ -1,6 +1,19 @@
 .screen {
   min-height: 100dvh;
-  padding: 16px 24px 40px;
+  /* ⚠ THE LAST CARD USED TO SIT UNDER THE BOTTOM NAV, UNREACHABLE. With a flat
+     40px this screen was exactly one card away from breaking: `min-height:
+     100dvh` made the page precisely as tall as the viewport, the nav is fixed
+     over the bottom 67px of it, and scrollHeight therefore equalled
+     innerHeight — so `maxScroll` was 0 and the covered card could not be
+     scrolled into view at all. Five roles happened to clear it; the sixth
+     (FESTIVAL) did not, and the failure looked like a clipped card rather than
+     a layout fault.
+
+     --yp-safe-bottom, NOT --yp-nav-height: the mini player mounts above the nav
+     on this route too, and the top of whichever is showing is the effective
+     bottom of the screen (see the safe-area rule in index.css). The + 40px is
+     the breathing room that was always intended below the last card. */
+  padding: 16px 24px calc(var(--yp-safe-bottom, 67px) + 40px);
   display: flex;
   flex-direction: column;
   align-items: center;

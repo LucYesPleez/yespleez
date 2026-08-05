@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { ROLES } from '../screens/RoleSelectorScreen';
+import { visibleRoles } from '../lib/roleVisibility';
 import { supabase } from '../lib/supabase';
 import s from './IndustryPanel.module.css';
 
@@ -32,7 +33,14 @@ export default function IndustryPanel({ open, onClose, onNavigate, session, isGu
       });
   }, [open, session]);
 
-  const setupRoles = ROLES.filter(r => r.id in setupNames);
+  // ⚠ THE RESTRICTION FILTER IS NEEDED HERE TOO, and it is not obvious why.
+  // This panel only shows roles the account already has a profile for, and
+  // `festival` is not a Scene profile type — so it looks unreachable. But the
+  // Festival Portal writes to the SAME Supabase project, so a real
+  // `type = 'festival'` row can exist and would put the card in front of
+  // whoever owns it. Filtering by email first keeps the two surfaces agreeing
+  // about who may see what.
+  const setupRoles = visibleRoles(ROLES, session).filter(r => r.id in setupNames);
 
   return (
     <>
