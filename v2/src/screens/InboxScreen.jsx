@@ -5,13 +5,9 @@ import { useSession } from '../App';
 import { supabase } from '../lib/supabase';
 import { useConversationUi } from '../lib/conversationUi';
 import HandIcon from '../components/HandIcon';
-import PhoneNumberSettings from '../components/PhoneNumberSettings';
 import MessengerContactsSection from '../components/MessengerContactsSection';
 import MessengerSearch from '../components/MessengerSearch';
 import MessagingIdentity, { ALL_PROFILES } from '../components/MessagingIdentity';
-import InviteRows from '../components/InviteRows';
-import { unreadContactJoinCount, markContactJoinsRead } from '../lib/contactJoins';
-import { getPersonalProfileId } from '../lib/actingProfile';
 import {
   listConversations, listParticipants, actableProfileIds, unreadCount, latestMessages,
 } from '../lib/messaging';
@@ -150,63 +146,15 @@ export default function InboxScreen() {
   const location = useLocation();
   const queryClient = useQueryClient();
   const userId = session?.user?.id;
-  const [discoveryOpen, setDiscoveryOpen] = useState(false);
 
   /** Which messaging identity this inbox is about. */
   const [identity, setIdentity] = useState(ALL_PROFILES);
 
-  // ⛔ `myAvatar` REMOVED WITH THE HEADER FACE — ProfileMenu shows it now.
-  // The query below stays because Invite Friends still needs the profile.
-  //
-  // Its own tiny query rather than a field on the inbox query, so a failure
-  // here can never stop conversations loading — the inbox is the screen.
-  // It carries id/name/type because Invite Friends
-  // shares a link to THIS profile (see InviteRows). Widening the existing
-  // select rather than adding a second one: it is the same row, already being
-  // fetched, and a second query would be a second thing to keep in step.
-  const [myProfile, setMyProfile] = useState(null);
-
-  // CJ1 · the count behind the badge on FIND FRIENDS. Owner: the badge goes on
-  // the row where the discovery happened, never on the whole page.
-  const [joinCount, setJoinCount] = useState(0);
-  useEffect(() => {
-    if (!userId) return undefined;
-    let cancelled = false;
-    unreadContactJoinCount(userId).then((n) => { if (!cancelled) setJoinCount(n); });
-    return () => { cancelled = true; };
-  }, [userId]);
-
-  /**
-   * Opening FIND FRIENDS is what clears the badge — not opening the app.
-   * A located badge has to survive until the user looks at the thing it points
-   * at, or it clears for someone who never saw it.
-   *
-   * Cleared optimistically: the count is already zero on screen before the
-   * write lands, because a badge lingering for a round-trip after the user has
-   * plainly acted on it reads as a stuck badge.
-   */
-  function openDiscovery(next) {
-    setDiscoveryOpen(next);
-    if (next && joinCount > 0) {
-      setJoinCount(0);
-      markContactJoinsRead(userId);
-    }
-  }
-  useEffect(() => {
-    let cancelled = false;
-    if (!userId) return undefined;
-    (async () => {
-      const id = await getPersonalProfileId(userId);
-      if (!id || cancelled) return;
-      const { data } = await supabase
-        .from('profiles')
-        .select('id, name, type, avatar_thumb, avatar')
-        .eq('id', id)
-        .maybeSingle();
-      if (!cancelled && data) setMyProfile(data);
-    })();
-    return () => { cancelled = true; };
-  }, [userId]);
+  // ⛔ THE PERSONAL-PROFILE QUERY WENT WITH FIND PEOPLE. It existed for the
+  // header avatar and then for Invite Friends; both now live in ProfileMenu,
+  // which fetches the same row for its own head. Keeping a second copy here
+  // would be one more request per visit for something nothing on this screen
+  // reads.
 
   // Cache-first, revalidate-in-background — this is the fix for the mount
   // cost. `staleTime`/`gcTime` come from the QueryClient default in App.jsx
@@ -351,19 +299,6 @@ export default function InboxScreen() {
     if (wanted) openConversation(wanted);
   }, [location.state, openConversation]);
 
-  /**
-   * Find People, arriving from the account menu.
-   *
-   * ⚠ GOES THROUGH `openDiscovery`, NOT `setDiscoveryOpen`. That function also
-   * clears CJ1's unread count — routing straight to the setter would open the
-   * panel and leave the badge lit, which is the exact "stuck badge" the
-   * optimistic clear exists to prevent.
-   */
-  useEffect(() => {
-    if (location.state?.openDiscovery) openDiscovery(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location.state]);
-
   return (
     <div
       /* See the note on `identity` — the selection is recorded here so it is
@@ -420,9 +355,10 @@ export default function InboxScreen() {
                 button that no longer exists is a retired behaviour pretending
                 to be a live one.
 
-                Discovery still opens from here — see the `openDiscovery`
-                router-state effect below, the same channel `openConversation`
-                already uses. */}
+                ⚠ THE WHOLE FIND PEOPLE PANEL LIVES IN THAT MENU NOW, not on
+                this screen — it expands beneath its own row (owner,
+                2026-08-05). Nothing here opens it, which is why the
+                router-state hop this briefly used is gone again. */}
             <MessagingIdentity
               session={session}
               value={identity}
@@ -450,39 +386,6 @@ export default function InboxScreen() {
           })}
         />
 
-        {/* FIND FRIENDS — the sketch's fourth section, in its order: find by
-            number, sync contacts, then invite. See docs/contacts-page-2026-07.md
-            §1, which still lists a fifth row, Share YesPleez; that was removed
-            (owner, 2026-08-05) and Invite Friends moved INSIDE the panel rather
-            than sitting under it as a loose card. */}
-        {discoveryOpen && (
-          <>
-            {/* ⚠ THE PANEL NOW CARRIES ITS OWN CLOSE. The header pill used to
-                double as DONE; with it gone there would otherwise be no way out
-                of a panel opened from a menu on another screen. Titled too,
-                because a panel that appears after a menu tap should say what it
-                is rather than leave the user to infer it. */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-              <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 15,
-                letterSpacing: 2, color: 'var(--muted)' }}>
-                FIND PEOPLE
-              </div>
-              <button
-                type="button"
-                onClick={() => setDiscoveryOpen(false)}
-                style={{ marginLeft: 'auto', background: 'none', border: 'none',
-                  fontFamily: "'Bebas Neue', sans-serif", fontSize: 13, letterSpacing: 1.5,
-                  color: 'var(--text)', cursor: 'pointer', padding: '4px 2px' }}
-              >
-                DONE
-              </button>
-            </div>
-
-            <PhoneNumberSettings session={session}>
-              <InviteRows myProfile={myProfile} />
-            </PhoneNumberSettings>
-          </>
-        )}
 
         {/* YOUR CONTACTS — the people you talk to, as a scroll rail.
             ⚠ Fed from `rows`, which InboxScreen has already resolved. Working

@@ -10,13 +10,15 @@
 // if its replacement is app-wide too. My Scene's own pill and email line are
 // deleted rather than left as a second copy.
 
-import { useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import MessengerAvatar from './MessengerAvatar';
 import { useAlwaysVisibleHeader } from '../lib/headerBehaviour';
-import { unreadContactJoinCount } from '../lib/contactJoins';
+import { unreadContactJoinCount, markContactJoinsRead } from '../lib/contactJoins';
+import PhoneNumberSettings from './PhoneNumberSettings';
+import InviteRows from './InviteRows';
 import s from './ProfileMenu.module.css';
 
 export default function ProfileMenu({ session, unreadCount = 0, onSignOut, onOpenNotifications, onOpenHelp }) {
@@ -58,7 +60,10 @@ export default function ProfileMenu({ session, unreadCount = 0, onSignOut, onOpe
     // cannot show different names or pictures for one person. Industry
     // profiles are chosen from the Industry tab and are not "you".
     supabase.from('profiles')
-      .select('id, name, avatar, avatar_thumb')
+      // `type` is here for Invite Friends: profileUrl() emits `?type=` and a
+      // link without it resolves through the legacy precedence chain instead
+      // of pointing straight at this row.
+      .select('id, name, type, avatar, avatar_thumb')
       .eq('user_id', session.user.id).eq('type', 'punter')
       .maybeSingle()
       .then(({ data }) => { if (!cancelled) setProfile(data || null); });
@@ -75,6 +80,16 @@ export default function ProfileMenu({ session, unreadCount = 0, onSignOut, onOpe
    * "every route".
    */
   const [joinCount, setJoinCount] = useState(0);
+
+  /**
+   * Find People, expanded inside the menu rather than on another screen.
+   *
+   * ⚠ RESET WHENEVER THE MENU CLOSES. Left open, the next tap on the avatar
+   * would reopen the menu already showing a settings panel — which is not what
+   * "open my account menu" asks for, and buries the seven other items.
+   */
+  const [findOpen, setFindOpen] = useState(false);
+  useEffect(() => { if (!open) setFindOpen(false); }, [open]);
   useEffect(() => {
     if (!open || !session?.user?.id) return undefined;
     let cancelled = false;
@@ -128,9 +143,26 @@ export default function ProfileMenu({ session, unreadCount = 0, onSignOut, onOpe
       // ⚠ CJ1's BADGE CAME WITH IT. The rule is that contact joins badge THIS
       // control and never the bell — the position IS the message — so moving the
       // control without its badge would silently retire a ratified behaviour.
+      // ⚠ EXPANDS IN PLACE — it does NOT navigate. Owner, 2026-08-05: "i want
+      // this window to appear as another drop down from the find people line".
+      // It used to route to Messages and open a panel there, which meant a
+      // control in the app-wide menu only worked by taking you to one screen.
       label: 'Find People',
-      onClick: () => go('/messages', { openDiscovery: true }),
+      onClick: () => {
+        setFindOpen((v) => {
+          const next = !v;
+          // CJ1 · cleared optimistically on OPEN, matching the behaviour this
+          // inherited from InboxScreen: a badge that lingers for a round trip
+          // after the user has plainly acted on it reads as a stuck badge.
+          if (next && joinCount > 0) {
+            setJoinCount(0);
+            markContactJoinsRead(session?.user?.id);
+          }
+          return next;
+        });
+      },
       badge: joinCount,
+      expanded: findOpen,
     },
     {
       label: 'Notifications',
@@ -202,7 +234,20 @@ export default function ProfileMenu({ session, unreadCount = 0, onSignOut, onOpe
       {open && createPortal(
         <>
           <div className={s.scrim} onMouseDown={() => setOpen(false)} />
-          <div className={s.menu} role="menu" ref={menuRef}>
+          {/* ⚠ THE MENU WIDENS AND SCROLLS ONLY WHILE FIND PEOPLE IS OPEN. The
+              panel inside carries a number field with a confirm, a radio list
+              and contact sync — none of which fit a 210px popover. Applied as an
+              override rather than in the module so the menu's ordinary shape is
+              untouched for the other seven items. `calc(100vw - 24px)` keeps it
+              on screen at 375px; scrollbars are hidden globally by index.css. */}
+          <div
+            className={s.menu}
+            role="menu"
+            ref={menuRef}
+            style={findOpen
+              ? { width: 'min(380px, calc(100vw - 24px))', maxHeight: '72vh', overflowY: 'auto' }
+              : undefined}
+          >
             <div className={s.head}>
               <MessengerAvatar src={profile?.avatar_thumb || profile?.avatar} size={40} />
               <div className={s.headText}>
@@ -220,10 +265,32 @@ export default function ProfileMenu({ session, unreadCount = 0, onSignOut, onOpe
             <div className={s.rule} />
 
             {items.map(it => (
-              <button key={it.label} type="button" role="menuitem" className={s.item} onClick={it.onClick}>
-                <span>{it.label}</span>
-                {it.badge > 0 && <span className={s.itemBadge}>{it.badge > 9 ? '9+' : it.badge}</span>}
-              </button>
+              <Fragment key={it.label}>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className={s.item}
+                  onClick={it.onClick}
+                  // Only the expandable item claims this; the rest still
+                  // navigate, and announcing them as expandable would be a lie.
+                  aria-expanded={it.expanded === undefined ? undefined : it.expanded}
+                >
+                  <span>{it.label}</span>
+                  {it.badge > 0 && <span className={s.itemBadge}>{it.badge > 9 ? '9+' : it.badge}</span>}
+                </button>
+
+                {/* ⚠ THE PANEL IS A CHILD OF THE MENU, not a second popover.
+                    Owner asked for "another drop down from the find people
+                    line" — so it opens beneath that row and closes with the
+                    menu, rather than becoming a third layer to dismiss. */}
+                {it.expanded && (
+                  <div style={{ padding: '2px 2px 6px' }}>
+                    <PhoneNumberSettings session={session}>
+                      <InviteRows myProfile={profile} />
+                    </PhoneNumberSettings>
+                  </div>
+                )}
+              </Fragment>
             ))}
 
             <div className={s.rule} />
