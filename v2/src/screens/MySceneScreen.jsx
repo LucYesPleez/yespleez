@@ -1757,6 +1757,11 @@ export default function MySceneScreen({ isGuest, onSignOut }) {
                       </span>
                       <span style={{ color:'var(--muted)', fontSize:11 }}>•</span>
                       <button onClick={() => setRadiusOpen(v => !v)}
+                        // 87×17 measured — the last undersized control on this
+                        // screen outside the two left for a redesign.
+                        className="yp-tap44"
+                        aria-label="Change search radius"
+                        aria-expanded={radiusOpen}
                         style={{ background:'none', border:'none', cursor:'pointer', fontFamily:"'Bebas Neue'", fontSize:13, letterSpacing:1.5, color:'var(--neon2)', display:'flex', alignItems:'center', gap:4, padding:0 }}>
                         {sceneRadius === null ? 'ANYWHERE' : `WITHIN ${sceneRadius} KM`}
                         <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M6 9l6 6 6-6"/></svg>

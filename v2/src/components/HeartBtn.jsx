@@ -97,7 +97,24 @@ export default function HeartBtn({ event, className, style, onChange, onError })
   // caller's `style` spread over the top, which meant an overlay heart's base
   // border silently overrode the saved-state one.
   return (
-    <button className={className} onClick={toggle} style={{ ...style, ...(liked ? { color: 'var(--neon)', borderColor: 'rgba(255,45,120,.5)' } : {}) }}>
+    <button
+      /* ⚠ APPENDED, NOT SUBSTITUTED — the caller's className survives. Same
+         treatment as FollowHeartBtn: one edit here covers every event heart in
+         the app rather than ~28 call sites. Touch-only; see `.yp-tap44`. */
+      className={className ? `${className} yp-tap44` : 'yp-tap44'}
+      onClick={toggle}
+      /* ⚠ THERE WAS NO ACCESSIBLE NAME AT ALL. This button is an SVG glyph and
+         nothing else, so a screen reader announced 28 of them on My Scene as
+         "button", "button", "button". Found while giving it a 44px target —
+         the same class of problem, and the event was already in scope, so it
+         is named here rather than left for a sweep that may not come.
+         Mirrors FollowHeartBtn, which already labels and presses correctly. */
+      aria-label={liked
+        ? `Remove ${event?.name || 'this event'} from your scene`
+        : `Save ${event?.name || 'this event'} to your scene`}
+      aria-pressed={liked}
+      style={{ ...style, ...(liked ? { color: 'var(--neon)', borderColor: 'rgba(255,45,120,.5)' } : {}) }}
+    >
       <HeartGlyph filled={liked} />
     </button>
   );
