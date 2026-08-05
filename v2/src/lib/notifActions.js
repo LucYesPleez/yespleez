@@ -1,6 +1,7 @@
 import { supabase } from './supabase';
 import { writeNotification, inferToProfileId } from './writeNotification';
 import { resolvePerformerProfileId } from './actingProfile';
+import { scopeToApplicant } from './applicantProfiles';
 
 /**
  * Remove a notification from the recipient's inbox WITHOUT destroying it.
@@ -97,10 +98,9 @@ async function offeredProfileId(performanceId) {
   return member?.artist_profile_id ?? null;
 }
 
-/** Narrow an applications update to one profile when the offer names one. */
-function scopeToApplicant(query, profileId, userId) {
-  return profileId ? query.eq('from_profile_id', profileId) : query.eq('artist_id', userId);
-}
+// `scopeToApplicant` moved to lib/applicantProfiles.js at M6 completion: three
+// other call sites needed the same profile-first-with-account-fallback rule,
+// and a second copy of it is how the two drift apart.
 
 async function hostNoticeIdentities(hostUserId, artistUserId) {
   const [toProfileId, performer] = await Promise.all([

@@ -67,7 +67,8 @@ export default function FillSlotModal({ slot, eventId, eventName = '', hostId, a
   }
 
   const filtered = acceptedArtists.filter(app => {
-    const prof = acceptedProfiles[app.artist_id];
+    // M6 · acceptedProfiles is keyed by applications.id (lib/applicantProfiles.js).
+    const prof = acceptedProfiles[app.id];
     return (prof?.name || app.artist_name || '').toLowerCase().includes(filter.toLowerCase());
   });
 
@@ -134,7 +135,7 @@ export default function FillSlotModal({ slot, eventId, eventName = '', hostId, a
               {filtered.length === 0
                 ? <Empty>No accepted artists match.</Empty>
                 : filtered.map(app => {
-                    const prof = acceptedProfiles[app.artist_id] || {};
+                    const prof = acceptedProfiles[app.id] || {};
                     const n    = prof.name || app.artist_name || 'Unknown';
                     return (
                       <ArtistRow
@@ -143,7 +144,11 @@ export default function FillSlotModal({ slot, eventId, eventName = '', hostId, a
                         name={n}
                         sub={prof.sound || prof.genre_string || ''}
                         disabled={busy}
-                        onSelect={() => fillFromProfile({ user_id: app.artist_id, name: n, sound: prof.sound, genre_string: prof.genre_string })}
+                        // M6 · `id` was missing here, so every slot filled from
+                        // a shortlisted application wrote a lineup_member with
+                        // artist_profile_id UNDEFINED — a new row carrying only
+                        // the legacy account key. The resolved profile has it.
+                        onSelect={() => fillFromProfile({ id: prof.id, user_id: app.artist_id, name: n, sound: prof.sound, genre_string: prof.genre_string })}
                       />
                     );
                   })

@@ -15,6 +15,7 @@ import { completionFor } from '../lib/requirements';
 import FollowingSection, { FOLLOW_FILTER_CONFIGS } from '../components/FollowingSection';
 import EnquiryPanel from '../components/EnquiryPanel';
 import { ENQUIRY_CARD_COLUMNS } from '../components/EnquiryCard';
+import { fetchApplicantProfiles } from '../lib/applicantProfiles';
 import DashboardHeader from '../components/DashboardHeader';
 import DashboardProfileCard from '../components/DashboardProfileCard';
 import NotificationBar from '../components/NotificationBar';
@@ -132,18 +133,15 @@ export default function HostDashboard({ userId: userIdProp }) {
       const { data: apps } = await supabase.from('applications')
         .select('*').in('event_id', ids).order('created_at', { ascending: false });
       setAllApps(apps || []);
-      const artistIds = [...new Set((apps || []).map(a => a.artist_id).filter(Boolean))];
-      if (artistIds.length) {
-        // These rows are handed straight to EnquiryCard as `enq.profile`, so
-        // the card's own column list is the correct one to fetch. The former
-        // 10-column subset made every readiness percentage here too low: an
-        // unselected column reads as an unfilled one.
-        const { data: profs } = await supabase.from('profiles')
-          .select(ENQUIRY_CARD_COLUMNS.join(', ')).in('user_id', artistIds);
-        const map = {};
-        (profs || []).forEach(p => { map[p.user_id] = p; });
-        setAppProfiles(map);
-      }
+      // These rows are handed straight to EnquiryCard as `enq.profile`, so the
+      // card's own column list is the correct one to fetch. The former
+      // 10-column subset made every readiness percentage here too low: an
+      // unselected column reads as an unfilled one.
+      //
+      // M6 · keyed by applications.id, resolved by from_profile_id with the
+      // legacy account fallback — see lib/applicantProfiles.js.
+      setAppProfiles(await fetchApplicantProfiles(
+        supabase, apps, ENQUIRY_CARD_COLUMNS.join(', ')));
       setLoadingApps(false);
     }
     loadApps();
@@ -162,19 +160,15 @@ export default function HostDashboard({ userId: userIdProp }) {
       const ids = evRows.map(e => e.id);
       const { data: apps } = await supabase.from('applications')
         .select('*').in('event_id', ids).eq('status', 'accepted').order('created_at', { ascending: false });
-      const artistIds = [...new Set((apps || []).map(a => a.artist_id).filter(Boolean))];
-      let profMap = {};
-      if (artistIds.length) {
-        const { data: profs } = await supabase.from('profiles')
-          .select('user_id, name, avatar, type, sound, genre_string, location, bio').in('user_id', artistIds);
-        (profs || []).forEach(p => { profMap[p.user_id] = p; });
-      }
+      // M6 · keyed by applications.id, not by the applicant's account.
+      const profMap = await fetchApplicantProfiles(
+        supabase, apps, 'id, user_id, name, avatar, type, sound, genre_string, location, bio');
       const evtMap = {};
       evRows.forEach(e => { evtMap[e.id] = e; });
       const grouped = {};
       (apps || []).forEach(a => {
         if (!grouped[a.event_id]) grouped[a.event_id] = { event: evtMap[a.event_id], artists: [] };
-        grouped[a.event_id].artists.push({ ...a, profile: profMap[a.artist_id] });
+        grouped[a.event_id].artists.push({ ...a, profile: profMap[a.id] });
       });
       const grouped2 = Object.values(grouped).filter(g => g.event);
       setLineups(grouped2);
@@ -293,15 +287,17 @@ export default function HostDashboard({ userId: userIdProp }) {
     id: app.id,
     direction: 'incoming',
     status: app.status,
+    // M6 · the account id stays as the notification delivery identity; the
+    // DISPLAY identity is the profile that applied, keyed by application.
     applicant_user_id: app.artist_id,
-    applicant_type: appProfiles[app.artist_id]?.type || 'artist',
-    name: appProfiles[app.artist_id]?.name || app.artist_name || '',
+    applicant_type: appProfiles[app.id]?.type || 'artist',
+    name: appProfiles[app.id]?.name || app.artist_name || '',
     event_name: evtMap[app.event_id]?.name || '',
     date_requested: evtMap[app.event_id]?.config?.date || null,
     created_at: app.created_at,
     note: app.note,
     venue_name: null,
-    profile: appProfiles[app.artist_id] || null,
+    profile: appProfiles[app.id] || null,
     // P5 · the verdict recorded at submission. NULL for every application to an
     // event that declared no requirements, and for every row written before
     // P5 — EnquiryCard renders nothing in that case rather than "0/0".
@@ -544,12 +540,12 @@ export default function HostDashboard({ userId: userIdProp }) {
                       {activeTab === 'SHORT LIST' && (
                         evShortList.length === 0
                           ? <p className={s.empty} style={{ fontSize: 12 }}>No shortlisted artists for this event.</p>
-                          : <div style={{ marginBottom: 12 }}>{evShortList.map(app => <AppCard key={app.id} app={app} prof={appProfiles[app.artist_id] || {}} event={evtMap[app.event_id]} onRespond={respondApp} />)}</div>
+                          : <div style={{ marginBottom: 12 }}>{evShortList.map(app => <AppCard key={app.id} app={app} prof={appProfiles[app.id] || {}} event={evtMap[app.event_id]} onRespond={respondApp} />)}</div>
                       )}
                       {activeTab === 'PIPELINE' && (
                         evPipeline.length === 0
                           ? <p className={s.empty} style={{ fontSize: 12 }}>No pending applications for this event.</p>
-                          : <div style={{ marginBottom: 12 }}>{evPipeline.map(app => <AppCard key={app.id} app={app} prof={appProfiles[app.artist_id] || {}} event={evtMap[app.event_id]} onRespond={respondApp} />)}</div>
+                          : <div style={{ marginBottom: 12 }}>{evPipeline.map(app => <AppCard key={app.id} app={app} prof={appProfiles[app.id] || {}} event={evtMap[app.event_id]} onRespond={respondApp} />)}</div>
                       )}
                       </div>
                     </div>

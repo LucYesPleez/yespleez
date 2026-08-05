@@ -13,6 +13,7 @@ import { resolvePerformerProfileId } from '../../lib/actingProfile';
 import { writeNotification, writeNotifications } from '../../lib/writeNotification';
 import { track, EVENTS } from '../../lib/analytics';
 import { resolveProfileId } from '../../lib/resolveProfileId';
+import { scopeToApplicant, fetchApplicantProfiles } from '../../lib/applicantProfiles';
 import ProfileCard from '../../components/ProfileCard';
 import FillSlotModal from '../../components/FillSlotModal';
 import EventTabBar from '../../components/EventTabBar';
@@ -76,17 +77,11 @@ export default function EventHostView({
       const rows = apps || [];
       setAppCounts({ total: rows.length, shortlisted: rows.filter(a => a.status === 'tentative').length });
       setAllApps(rows);
-      const artistIds = [...new Set(rows.map(a => a.artist_id).filter(Boolean))];
-      if (artistIds.length) {
-        const { data: profs } = await supabase.from('profiles')
-          .select('user_id, name, avatar, type, sound, genre_string, location, bio, mix_link, card_pills, vibe_tags')
-          .in('user_id', artistIds);
-        if (!cancelled) {
-          const map = {};
-          (profs || []).forEach(p => { map[p.user_id] = p; });
-          setAppProfiles(map);
-        }
-      }
+      // M6 · keyed by applications.id, resolved by from_profile_id with the
+      // legacy account fallback — see lib/applicantProfiles.js.
+      const map = await fetchApplicantProfiles(supabase, rows,
+        'id, user_id, name, avatar, type, sound, genre_string, location, bio, mix_link, card_pills, vibe_tags');
+      if (!cancelled) setAppProfiles(map);
     }
     loadApps();
     return () => { cancelled = true; };
@@ -107,14 +102,20 @@ export default function EventHostView({
           message: `You have been removed from a slot at ${event.name}.`,
           data:    { event_id: id, event_name: event.name },
         }),
-        supabase.from('applications')
-          .update({ status: 'tentative' })
-          .eq('event_id', id)
-          .eq('artist_id', claim.user_id)
-          .in('status', ['offered', 'accepted']),
+        // M6 · narrow to the profile whose slot this was. Scoped by account,
+        // removing one alias from a slot reset every application that person
+        // had to this event.
+        scopeToApplicant(
+          supabase.from('applications').update({ status: 'tentative' }).eq('event_id', id),
+          claim.profile_id, claim.user_id,
+        ).in('status', ['offered', 'accepted']),
       ]);
+      // The optimistic update must match the query above, or the screen and
+      // the database disagree until the next refetch.
+      const affected = a => (claim.profile_id ? a.from_profile_id === claim.profile_id
+                                              : a.artist_id === claim.user_id);
       setAllApps(prev => prev.map(a =>
-        a.artist_id === claim.user_id && (a.status === 'offered' || a.status === 'accepted')
+        affected(a) && (a.status === 'offered' || a.status === 'accepted')
           ? { ...a, status: 'tentative' }
           : a
       ));
@@ -127,7 +128,7 @@ export default function EventHostView({
     setSendingOffers(true);
     const { data: drafts } = await supabase
       .from('performances')
-      .select('id, slot_id, lineup_members(artist_id, artist_name)')
+      .select('id, slot_id, lineup_members(artist_id, artist_profile_id, artist_name)')
       .eq('event_id', id)
       .eq('status', 'draft');
     if (drafts?.length) {
@@ -148,9 +149,20 @@ export default function EventHostView({
           data:    { performance_id: d.id, event_id: id, event_name: event.name, slot_id: d.slot_id },
         })));
         await writeNotifications(batchRows);
-        await Promise.all([...new Set(withArtist.map(d => d.lineup_members.artist_id))].map(artistId =>
-          supabase.from('applications').update({ status: 'offered' })
-            .eq('event_id', id).eq('artist_id', artistId).in('status', ['pending', 'tentative'])
+        // M6 · one update per APPLICANT, narrowed to the profile the host
+        // booked. De-duplicated by profile where there is one, by account only
+        // for members that never got a profile id.
+        const applicants = new Map();
+        withArtist.forEach(d => {
+          const pid = d.lineup_members.artist_profile_id || null;
+          const uid = d.lineup_members.artist_id;
+          applicants.set(pid || uid, { pid, uid });
+        });
+        await Promise.all([...applicants.values()].map(({ pid, uid }) =>
+          scopeToApplicant(
+            supabase.from('applications').update({ status: 'offered' }).eq('event_id', id),
+            pid, uid,
+          ).in('status', ['pending', 'tentative'])
         ));
       }
     }
@@ -209,7 +221,11 @@ export default function EventHostView({
     // Upsert lineup_member for this artist
     let { data: memberData } = await supabase.from('lineup_members').select('id').eq('event_id', id).eq('artist_id', aApp.artist_id).maybeSingle();
     if (!memberData) {
-      const artistProfileId = await resolveProfileId(aApp.artist_id, 'artist');
+      // M6 · the application already names the profile that applied. Ask it
+      // first; `resolveProfileId` guesses from the account and can only ever
+      // return an 'artist' — wrong for a band or a comedian.
+      const artistProfileId = aApp.from_profile_id
+        || await resolveProfileId(aApp.artist_id, 'artist');
       const { data: nm } = await supabase.from('lineup_members').insert({
         event_id: id, artist_id: aApp.artist_id, artist_profile_id: artistProfileId,
         artist_name: aProf?.name || aApp.artist_name,
@@ -497,13 +513,27 @@ export default function EventHostView({
                       <button onClick={async () => {
                         await supabase.from('performances').delete().eq('lineup_member_id', member.id);
                         await supabase.from('lineup_members').delete().eq('id', member.id);
-                        if (member.artist_id) await supabase.from('applications').update({ status: 'tentative' }).eq('event_id', id).eq('artist_id', member.artist_id).neq('status', 'declined');
+                        // M6 · narrow to the PROFILE the host actually booked.
+                        // Scoped by account, a DJ with a band alias had both
+                        // applications to this event flipped by unassigning one.
+                        if (member.artist_profile_id || member.artist_id) {
+                          await scopeToApplicant(
+                            supabase.from('applications').update({ status: 'tentative' }).eq('event_id', id),
+                            member.artist_profile_id, member.artist_id,
+                          ).neq('status', 'declined');
+                        }
                         queryClient.invalidateQueries({ queryKey: ['event', id] });
                       }} style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1, padding: '4px 10px', borderRadius: 6, border: '1px solid rgba(255,140,66,.4)', background: 'rgba(255,140,66,.08)', color: '#FF8C42', cursor: 'pointer', whiteSpace: 'nowrap' }}>UNASSIGN</button>
                       <button onClick={async () => {
                         await supabase.from('performances').delete().eq('lineup_member_id', member.id);
                         await supabase.from('lineup_members').delete().eq('id', member.id);
-                        if (member.artist_id) await supabase.from('applications').update({ status: 'declined' }).eq('event_id', id).eq('artist_id', member.artist_id);
+                        // M6 · same narrowing as UNASSIGN above.
+                        if (member.artist_profile_id || member.artist_id) {
+                          await scopeToApplicant(
+                            supabase.from('applications').update({ status: 'declined' }).eq('event_id', id),
+                            member.artist_profile_id, member.artist_id,
+                          );
+                        }
                         queryClient.invalidateQueries({ queryKey: ['event', id] });
                       }} style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1, padding: '4px 10px', borderRadius: 6, border: '1px solid rgba(255,51,51,.3)', background: 'rgba(255,51,51,.06)', color: 'rgba(255,80,80,.8)', cursor: 'pointer', whiteSpace: 'nowrap' }}>DISCARD</button>
                     </div>
@@ -521,8 +551,11 @@ export default function EventHostView({
           {shortList.length === 0
             ? <p style={{ textAlign: 'center', color: 'var(--muted)', fontSize: 13, padding: '32px 0' }}>No artists shortlisted yet.</p>
             : shortList.map(app => {
-              const prof = appProfiles[app.artist_id] || {};
-              const cardItem = { user_id: app.artist_id, name: prof.name || app.artist_name, type: prof.type || 'artist', avatar: prof.avatar || null, avatar_thumb: prof.avatar_thumb || null, sound: prof.sound || null, genre_string: prof.genre_string || null, location: prof.location || null, state: prof.state || null };
+              const prof = appProfiles[app.id] || {};
+              // ProfileCard routes on `id` first: without it an unclaimed
+              // applicant's card is unclickable (same rule as the lineup cards
+              // above). `user_id` stays for the legacy route.
+              const cardItem = { id: prof.id || null, user_id: app.artist_id, name: prof.name || app.artist_name, type: prof.type || 'artist', avatar: prof.avatar || null, avatar_thumb: prof.avatar_thumb || null, sound: prof.sound || null, genre_string: prof.genre_string || null, location: prof.location || null, state: prof.state || null };
               return (
                 <ProfileCard key={app.id} item={cardItem} badge="SHORTLISTED" badgeColor="var(--neon2)"
                   actions={
@@ -544,8 +577,11 @@ export default function EventHostView({
           {pipeline.length === 0
             ? <p style={{ textAlign: 'center', color: 'var(--muted)', fontSize: 13, padding: '32px 0' }}>No pending applications.</p>
             : pipeline.map(app => {
-              const prof = appProfiles[app.artist_id] || {};
-              const cardItem = { user_id: app.artist_id, name: prof.name || app.artist_name, type: prof.type || 'artist', avatar: prof.avatar || null, avatar_thumb: prof.avatar_thumb || null, sound: prof.sound || null, genre_string: prof.genre_string || null, location: prof.location || null, state: prof.state || null };
+              const prof = appProfiles[app.id] || {};
+              // ProfileCard routes on `id` first: without it an unclaimed
+              // applicant's card is unclickable (same rule as the lineup cards
+              // above). `user_id` stays for the legacy route.
+              const cardItem = { id: prof.id || null, user_id: app.artist_id, name: prof.name || app.artist_name, type: prof.type || 'artist', avatar: prof.avatar || null, avatar_thumb: prof.avatar_thumb || null, sound: prof.sound || null, genre_string: prof.genre_string || null, location: prof.location || null, state: prof.state || null };
               return (
                 <ProfileCard key={app.id} item={cardItem}
                   actions={

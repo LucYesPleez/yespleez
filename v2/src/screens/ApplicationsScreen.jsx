@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { writeNotification } from '../lib/writeNotification';
 import { resolvePerformerProfileId } from '../lib/actingProfile';
 import { profileUrl } from '../lib/profileResolution';
+import { fetchApplicantProfiles } from '../lib/applicantProfiles';
 import { ensureHttps } from '../lib/socialLinks';
 import { PROFILE_TYPES } from '../lib/profileTypes';
 import UnclaimedBadge from '../components/UnclaimedBadge';
@@ -39,17 +40,12 @@ export default function ApplicationsScreen() {
       const rows = appData || [];
       setApps(rows);
 
-      // Fetch profiles for all applicants
-      const ids = [...new Set(rows.map(a => a.artist_id).filter(Boolean))];
-      if (ids.length > 0) {
-        const { data: profData } = await supabase
-          .from('profiles')
-          .select('id, user_id, name, avatar, sound, genre_string, type')
-          .in('user_id', ids);
-        const map = {};
-        (profData || []).forEach(p => { map[p.user_id] = p; });
-        if (!cancelled) setProfiles(map);
-      }
+      // M6 · applicant profiles resolve by from_profile_id, with the legacy
+      // account key only for rows M6c could not resolve. Keyed by
+      // applications.id — see lib/applicantProfiles.js.
+      const map = await fetchApplicantProfiles(
+        supabase, rows, 'id, user_id, name, avatar, sound, genre_string, type, mix_link');
+      if (!cancelled) setProfiles(map);
       if (!cancelled) setLoading(false);
     }
     load();
@@ -116,7 +112,7 @@ export default function ApplicationsScreen() {
           <p className={s.empty}>No {tab.toLowerCase()} applications.</p>
         )}
         {filtered.map(app => {
-          const profile = profiles[app.artist_id];
+          const profile = profiles[app.id];
           return (
             <AppCard
               key={app.id}
@@ -134,14 +130,20 @@ export default function ApplicationsScreen() {
 
 function AppCard({ app, profile, onAccept, onReject }) {
   const navigate = useNavigate();
-  const name   = profile?.name  || `Artist #${app.artist_id?.slice(0, 6)}`;
+  // The fallback label uses the application id, not the applicant's account
+  // id: an orphan row (no profile either way) has no account to name, and
+  // showing a slice of someone's user id was never meaningful to a host.
+  const name   = profile?.name  || app.artist_name || `Applicant #${app.id?.slice(0, 6)}`;
   const sound  = profile?.sound || profile?.genre_string || '';
   const isPending = (app.status || 'pending') === 'pending';
   const mixLink = ensureHttps(app.mix_link || profile?.mix_link);
 
   return (
     <div className={s.card}>
-      <div className={s.cardTop} style={{ cursor: 'pointer' }} onClick={() => profile && navigate(profile.id ? profileUrl(profile) : `/profile/${app.artist_id}?type=${profile.type || 'artist'}`)}>
+      {/* Every resolved profile is a real `profiles` row with an id, so the
+          old `/profile/<user_id>` fallback is unreachable — and it built the
+          legacy URL form M5.1's shim retires. */}
+      <div className={s.cardTop} style={{ cursor: 'pointer' }} onClick={() => profile && navigate(profileUrl(profile))}>
         {profile
           ? <img className={s.avatar} src={profile.avatar || PROFILE_TYPES[profile.type]?.defaultImage || PROFILE_TYPES.artist.defaultImage} alt={name} />
           : <div className={s.avatarPH}>{name[0]?.toUpperCase()}</div>
