@@ -133,7 +133,22 @@ export default function ProfileMenu({ session, unreadCount = 0, onSignOut, onOpe
   const go = (path, state) => { setOpen(false); navigate(path, state ? { state } : undefined); };
 
   const items = [
-    { label: 'View Profile', onClick: () => (profile?.id ? go(`/profile/${profile.id}?type=punter`) : go('/me')) },
+    /**
+     * ⚠ VIEW PROFILE IS MUTED, NOT DELETED (owner, 2026-08-05: "i dont really
+     * want to have it as a socials network, or do i? at least mute it while i
+     * figure it out").
+     *
+     * ⛔ THE ROUTE AND THE PAGE ARE UNTOUCHED. `/profile/:id?type=punter` still
+     * resolves, and every link to it from elsewhere — search results, a shared
+     * invite link, the profile a contact taps — still works. What is gone is
+     * the account menu's own way of saying "here is your public self", which is
+     * the bit that makes it feel like a social network.
+     *
+     * Restoring it is uncommenting one line. It is left here rather than
+     * deleted precisely because the question is open:
+     *
+     * { label: 'View Profile', onClick: () => (profile?.id ? go(`/profile/${profile.id}?type=punter`) : go('/me')) },
+     */
     {
       // ⚠ WAS THE "FIND FRIENDS" PILL IN THE MESSAGES HEADER, renamed and moved
       // here (owner, 2026-08-05) so that header can carry messaging identities
