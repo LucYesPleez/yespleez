@@ -17,7 +17,12 @@
  * Vocabulary is fixed by the specification and must not be widened here:
  *   status  draft · submitted · in_review · shortlisted · accepted · declined
  *           · withdrawn        (waitlisted is reserved, not implemented)
- *   target  event | festival_edition
+ *   target  event
+ *
+ * ⭐ An application targets an EVENT — the platform's own `events` row, owned
+ * by the festival profile. `festival_edition` is gone: it was a parallel
+ * concept with no public URL, and an event already carries the dates, the
+ * poster and the page people apply from.
  *
  * @typedef {Object} Festival
  * @property {string}  id
@@ -45,7 +50,7 @@
  *
  * @typedef {Object} Application
  * @property {string}  id
- * @property {string}  targetType        'festival_edition'
+ * @property {string}  targetType        'event'
  * @property {string}  targetId
  * @property {string}  categoryKey
  * @property {string}  fromProfileId     the identity that applied — referenced, never copied

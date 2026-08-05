@@ -1,5 +1,5 @@
 import { supabase } from './client';
-import { getFestivalContext } from './currentEdition';
+import { getFestivalContext } from './currentEvent';
 import { CATEGORIES } from '../../config/categories';
 
 /**
@@ -24,11 +24,12 @@ const SELECT = `
   profiles!inner ( name, location )
 `;
 
-function toModel(row, editionId) {
+function toModel(row, eventId) {
   return {
     id: row.id,
-    targetType: 'festival_edition',
-    targetId: editionId,
+    // An application targets an EVENT — the platform's own, with a public URL.
+    targetType: 'event',
+    targetId: eventId,
     categoryKey: row.category_key,
     fromProfileId: row.from_profile_id,
     name: row.profiles?.name ?? '',
@@ -49,7 +50,7 @@ export const applicationRepository = {
     let q = supabase
       .from('festival_applications')
       .select(SELECT, { count: 'exact' })
-      .eq('edition_id', current.id);
+      .eq('event_id', current.id);
 
     if (categoryKey && categoryKey !== 'all') q = q.eq('category_key', categoryKey);
     if (search) q = q.ilike('profiles.name', `%${search}%`);
@@ -102,7 +103,7 @@ export const applicationRepository = {
       const { count, error } = await supabase
         .from('festival_applications')
         .select('id', { count: 'exact', head: true })
-        .eq('edition_id', current.id)
+        .eq('event_id', current.id)
         .eq('category_key', key);
       if (error) throw error;
       return [key, count ?? 0];

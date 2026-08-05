@@ -1,5 +1,5 @@
 import { supabase } from './client';
-import { getFestivalContext } from './currentEdition';
+import { getFestivalContext } from './currentEvent';
 import { CATEGORIES, ALL_CATEGORY } from '../../config/categories';
 import { applicationRepository } from './applicationRepository';
 
@@ -38,7 +38,7 @@ async function rows() {
   const { data, error } = await supabase
     .from('festival_categories')
     .select('id, key, state, opens_at, closes_at, decision_mode, intent')
-    .eq('edition_id', current.id);
+    .eq('event_id', current.id);
   if (error) throw error;
   return data ?? [];
 }
