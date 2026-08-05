@@ -4,13 +4,8 @@ import {
   setPhoneKey,
   removePhoneKey,
   setPhoneVisibility,
-  findByPhone,
 } from '../lib/phoneKey';
 import { COUNTRIES, DEFAULT_COUNTRY, formatDisplay, toE164 } from '../lib/phoneNumber';
-import { sendableProfiles, openDirectConversation } from '../lib/messaging';
-import { useConversationUi } from '../lib/conversationUi';
-import MessageAsSheet from './MessageAsSheet';
-import MessengerAvatar from './MessengerAvatar';
 import ContactSyncSettings from './ContactSyncSettings';
 import PrivacyInfo from './PrivacyInfo';
 import s from './NotificationPreferences.module.css';
@@ -78,17 +73,18 @@ export default function PhoneNumberSettings({ session, children }) {
   const [contactsOpen, setContactsOpen] = useState(false);
   const cancelled = useRef(false);
 
-  // ── Search by number (P2) ───────────────────────────────────────
-  const [searchIso, setSearchIso] = useState(DEFAULT_COUNTRY);
-  const [searchTyped, setSearchTyped] = useState('');
-  const [searching, setSearching] = useState(false);
-  // null = not searched yet, [] = searched and found nobody. The distinction
-  // matters: an empty result needs the "no match" copy, an unsearched state
-  // needs nothing at all.
-  const [result, setResult] = useState(null);
-  const [senderChoices, setSenderChoices] = useState(null);
-  const [pendingTarget, setPendingTarget] = useState(null);
-  const { open: openConversation } = useConversationUi();
+  // ⛔ SEARCH BY NUMBER (P2) LIVED HERE AND HAS MOVED. It is now the top of
+  // Messages — MessengerSearch — where it handles names as well and is visible
+  // without opening a settings panel first. Keeping a second copy behind this
+  // toggle would mean two fields, two country pickers and two sets of empty-
+  // state copy, drifting apart the moment either changed.
+  //
+  // ⚠ THE MESSAGE-A-RESULT PATH WENT WITH IT, deliberately. It used
+  // sendableProfiles + MessageAsSheet to ask WHICH of your profiles is sending
+  // (U4: infer only when there is exactly one candidate, otherwise ask). The
+  // new search opens the profile instead, and ProfileScreen's own Message
+  // button runs that same path — so the rule still has exactly one
+  // implementation rather than a copy here.
 
   useEffect(() => {
     cancelled.current = false;
@@ -173,50 +169,6 @@ export default function PhoneNumberSettings({ session, children }) {
     setMessage('Privacy updated.');
   }
 
-  const searchParsed = toE164(searchTyped, searchIso);
-  const canSearch = Boolean(searchParsed.e164) && !searching;
-
-  async function runSearch() {
-    setSearching(true);
-    setResult(null);
-    const { matches, error } = await findByPhone([searchTyped], searchIso);
-    // A failed lookup is not "no match" — saying "nobody found" when the
-    // request errored would tell the user something untrue about a person.
-    setResult(error ? null : matches);
-    if (error) setMessage("Search failed. Try again.");
-    setSearching(false);
-  }
-
-  /**
-   * MESSAGE — the same path ProfileScreen uses, deliberately.
-   *
-   * `sendableProfiles` then `openDirectConversation`, and when more than one
-   * of the user's profiles could send, MessageAsSheet asks. Inferring a sender
-   * would be a heuristic, and U4 settled that: infer only when there is
-   * exactly one candidate, otherwise ask.
-   */
-  async function messageProfile(target) {
-    if (!session?.user?.id) return;
-    const { profiles } = await sendableProfiles(session.user.id);
-    const options = (profiles ?? []).filter((p) => p.id !== target.profileId);
-    if (options.length === 0) return;
-    if (options.length === 1) return startConversationAs(options[0].id, target);
-    setPendingTarget(target);
-    setSenderChoices(options);
-  }
-
-  async function startConversationAs(fromProfileId, targetArg) {
-    const target = targetArg ?? pendingTarget;
-    setSenderChoices(null);
-    setPendingTarget(null);
-    if (!target) return;
-    const { conversationId, error } = await openDirectConversation(fromProfileId, target.profileId);
-    if (error || !conversationId) { setMessage("Couldn't open that conversation."); return; }
-    openConversation(conversationId, {
-      profile: { id: target.profileId, name: target.displayName, type: 'punter' },
-    });
-  }
-
   if (loading) {
     return <div className={s.panel}><div className={s.footnote}>Loading…</div></div>;
   }
@@ -229,104 +181,6 @@ export default function PhoneNumberSettings({ session, children }) {
     // NotificationPreferences, and widening it there would silently re-space a
     // screen this change has nothing to do with.
     <div className={s.panel} style={{ padding: '18px 18px 20px' }}>
-
-      {/* ══ SEARCH FIRST ══════════════════════════════════════════
-          This is the thing people come here to DO. Managing your own number is
-          a once-or-twice-ever act; looking someone up is the repeated one, so
-          it gets the top of the panel and everything else collapses. */}
-      <div className={s.label} style={{ marginBottom: 10 }}>FIND SOMEONE BY NUMBER</div>
-
-      {/* ⚠ ONE CONTROL, NOT THREE STACKED (owner, 2026-08-05). The country
-          chip was a pill of its own and SEARCH had a line of its own, so the
-          simplest act in the panel occupied three rows. Country, number and
-          SEARCH now sit inside a single field: the chip and the button lose
-          their own borders and read as parts of it rather than neighbours. */}
-      <div style={searchField}>
-        <select
-          aria-label="Country to search in"
-          value={searchIso}
-          onChange={(e) => setSearchIso(e.target.value)}
-          style={isoSelect}
-        >
-          {COUNTRIES.map((c) => (
-            <option key={c.iso} value={c.iso}>{c.iso} +{c.dial}</option>
-          ))}
-        </select>
-        <input
-          type="tel"
-          inputMode="tel"
-          aria-label="Phone number to search for"
-          // Short, because the field now shares its width with a country chip
-          // and a SEARCH button. The heading above already says what this is,
-          // so repeating "search" inside it spent room saying nothing.
-          placeholder="Phone number"
-          value={searchTyped}
-          // ⚠ THE FIELD HOLDS EXACTLY WHAT WAS TYPED. Reformatting on every
-          // keystroke and writing the result back is what let a display helper
-          // change the MEANING of a number. Tidying happens on blur, and only
-          // once the value is unambiguously valid.
-          onChange={(e) => { setSearchTyped(e.target.value); setResult(null); }}
-          // ⚠ THE PICKER MUST FOLLOW THE NUMBER. formatDisplay writes a
-          // LOCAL form, so "+64 21 555 0199" becomes "021 555 0199" — which
-          // re-read against Australia is +61215550199, a different human.
-          // Moving the chip to the detected country is what keeps the tidied
-          // text and the picker describing the same number.
-          onBlur={() => {
-            const { e164, iso: detected } = toE164(searchTyped, searchIso);
-            if (!e164) return;
-            if (detected) setSearchIso(detected);
-            setSearchTyped(formatDisplay(e164));
-          }}
-          // Enter searches — this is a search field, and requiring a click on
-          // a phone keyboard is a needless extra tap.
-          onKeyDown={(e) => { if (e.key === 'Enter' && canSearch) runSearch(); }}
-          style={numberInput}
-        />
-
-        {/* ⚠ THE LABEL MUST NOT CHANGE WIDTH. "SEARCHING…" is twice as wide as
-            "SEARCH", and inside a shared field that shove would resize the
-            input mid-keystroke. The ellipsis says the same thing in one glyph;
-            aria-label carries the real name for anyone not reading pixels. */}
-        <button
-          type="button"
-          onClick={runSearch}
-          disabled={!canSearch}
-          aria-label="Search"
-          aria-busy={searching || undefined}
-          style={{ ...searchPill, opacity: canSearch ? 1 : 0.4,
-            cursor: canSearch ? 'pointer' : 'not-allowed' }}
-        >
-          {searching ? '…' : 'SEARCH'}
-        </button>
-      </div>
-
-      {result && result.length > 0 && result.map((r) => (
-        <div key={r.profileId} style={resultRow}>
-          {/* Same component as the identity screen and the Messages header —
-              a search result must show exactly the face its owner set, including
-              the default when they have set none. */}
-          <MessengerAvatar src={r.avatar} size={44} />
-          <div style={{ minWidth: 0, flex: 1 }}>
-            <div style={{ fontSize: 15, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {r.displayName}
-            </div>
-            {/* "On YesPleez" rather than a profile type: this is the Personal
-                profile, and surfacing which of someone's other profiles is
-                "primary" would be a heuristic. Deferred with Find People. */}
-            <span className="glow-pill" style={{ marginTop: 4 }}>ON YESPLEEZ</span>
-          </div>
-          <button type="button" onClick={() => messageProfile(r)} style={pillStyle}>MESSAGE</button>
-        </div>
-      ))}
-
-      {result && result.length === 0 && (
-        // ⚠ IDENTICAL COPY whether the number is unregistered or its owner
-        // chose not to be found. Distinguishing them would leak membership.
-        <div className={s.footnote} style={{ marginTop: 12 }}>
-          No match for that number. They might not be on YesPleez yet — or
-          they've chosen not to be found.
-        </div>
-      )}
 
       {/* ══ MY OWN NUMBER — collapsed by default ══════════════════
           Summary row carries the only fact worth seeing at a glance: which
@@ -575,14 +429,6 @@ export default function PhoneNumberSettings({ session, children }) {
           component signature. Last in the panel because it is what you reach
           for once finding someone by number or contacts has come up empty. */}
       {children}
-
-      {senderChoices && (
-        <MessageAsSheet
-          profiles={senderChoices}
-          onConfirm={startConversationAs}
-          onCancel={() => { setSenderChoices(null); setPendingTarget(null); }}
-        />
-      )}
     </div>
   );
 }
@@ -639,43 +485,6 @@ const confirmStyle = {
 
 const fieldRow = { display: 'flex', gap: 8, alignItems: 'center', marginTop: 4 };
 
-/* ── THE SEARCH FIELD — one pill containing three things ──────────────
-   Kept separate from `fieldRow`/`selectStyle`/`inputStyle`, which two other
-   blocks in this file still use as stacked rows. Compacting the search must
-   not silently restyle setting your own number. */
-const searchField = {
-  display: 'flex', alignItems: 'center', gap: 6, marginTop: 4,
-  background: 'rgba(255,255,255,.05)',
-  border: '1px solid var(--border)',
-  borderRadius: 999,
-  // Asymmetric: the button is a pill sitting INSIDE this one, so it needs 4px
-  // of breathing room on its side while the country chip sits closer in.
-  padding: '4px 4px 4px 12px',
-};
-
-const isoSelect = {
-  background: 'transparent', border: 'none', outline: 'none',
-  color: 'var(--muted)', flexShrink: 0, cursor: 'pointer',
-  fontFamily: "'Bebas Neue', sans-serif", fontSize: 12, letterSpacing: 1,
-  padding: 0,
-  // Native control on a dark surface needs this or the dropdown renders white.
-  colorScheme: 'dark',
-};
-
-const numberInput = {
-  flex: 1, minWidth: 0, background: 'transparent', border: 'none',
-  outline: 'none', color: 'var(--text)', fontSize: 15, padding: '8px 2px',
-};
-
-const searchPill = {
-  background: 'linear-gradient(135deg, #00E5FF, #BF5FFF)',
-  color: '#0a0a0f', border: 'none', borderRadius: 999, flexShrink: 0,
-  fontFamily: "'Bebas Neue', sans-serif", fontSize: 12, letterSpacing: 1.5,
-  padding: '8px 16px',
-  // A fixed floor so SEARCH and its loading ellipsis occupy the same box.
-  minWidth: 74, textAlign: 'center',
-};
-
 /* ⚠ EXPORTED FOR THE ROWS THIS PANEL HOSTS AS CHILDREN. Invite Friends has to
    sit flush with MY PH NUMBER and MY CONTACTS, and hand-copying these values
    into it drifted immediately (owner, 2026-08-05: it came out muted and 13px
@@ -696,12 +505,6 @@ export const summaryRow = {
   color: 'var(--text)',
   cursor: 'pointer',
   textAlign: 'left',
-};
-
-const resultRow = {
-  display: 'flex', alignItems: 'center', gap: 11, marginTop: 12,
-  padding: '10px 12px', borderRadius: 14,
-  border: '1px solid var(--border)', background: 'rgba(255,255,255,.03)',
 };
 
 const selectStyle = {
