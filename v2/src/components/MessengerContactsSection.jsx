@@ -217,45 +217,18 @@ export default function MessengerContactsSection({ rows = [], onOpen, loading = 
 
   return (
     <div style={{ marginBottom: 20 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-        <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 15, letterSpacing: 2,
-          color: 'var(--muted)' }}>
-          YOUR CONTACTS
-        </div>
-        <div style={{ flex: 1 }} />
+      {/* ⛔ NO HEADING, NO ▦/☰ TOGGLE, NO "VIEW ALL" (owner, 2026-08-05:
+          "its not really needed lbh"). The rail is self-evidently your
+          contacts, it already renders EVERY one of them drag-scrollably, and
+          the list view was a second way to read the same list.
 
-        {/* Same control as FollowingSection, deliberately: two lists that look
-            and behave alike are easier than two that each invented their own. */}
-        {!showAll && (
-          <div style={{ display: 'flex', background: 'var(--card2)', borderRadius: 8,
-            overflow: 'hidden', border: '1px solid var(--border)' }}>
-            {[['portrait', '▦'], ['landscape', '☰']].map(([v, icon]) => (
-              <button
-                key={v}
-                onClick={() => setView(v)}
-                aria-label={v === 'portrait' ? 'Card view' : 'List view'}
-                style={{
-                  background: view === v ? 'rgba(0,229,255,.18)' : 'none', border: 'none',
-                  color: view === v ? 'var(--neon2)' : 'var(--muted)', padding: '5px 10px',
-                  cursor: 'pointer', fontSize: 13, lineHeight: 1,
-                  transition: 'background .15s, color .15s',
-                }}
-              >{icon}</button>
-            ))}
-          </div>
-        )}
-
-        {/* ⚠ HIDDEN, NOT JUST INERT, for phone+portrait — a control that
-            visibly does nothing when pressed is worse than no control. */}
-        {(showAll || contacts.length > 3) && !(isPhone && view === 'portrait') && (
-          <span
-            onClick={() => { setShowAll((v) => !v); setSearch(''); }}
-            style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 13, letterSpacing: 1,
-              color: showAll ? 'var(--text)' : 'var(--muted)', cursor: 'pointer', flexShrink: 0 }}
-          >{showAll ? 'View less' : 'View all >'}</span>
-        )}
-      </div>
-
+          ⚠ THIS MAKES `showAll` AND `view` PERMANENTLY FALSE/'portrait'. The
+          branches keyed on them below — the expanded grid, the paginated list
+          and the two search fields inside them — are now UNREACHABLE, not
+          merely unused. They are being lifted to a single search at the top of
+          Messages rather than deleted in place; until that lands this component
+          carries dead weight, which is recorded here so it is a staged move
+          and not an oversight. */}
       {loading ? (
         <p style={{ fontSize: 13, color: 'var(--muted)' }}>Loading…</p>
 
