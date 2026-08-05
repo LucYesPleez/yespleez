@@ -42,7 +42,7 @@ const MAX_VISIBLE_TABS = 3;
  */
 function TabAvatar({ name, src }) {
   return (
-    <span style={{ width: 20, height: 20, borderRadius: 999, overflow: 'hidden', flexShrink: 0, background: 'linear-gradient(135deg, #00E5FF, #BF5FFF)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0a0a0f', fontFamily: "'Bebas Neue',sans-serif", fontSize: 10 }}>
+    <span style={{ width: 16, height: 16, borderRadius: 999, overflow: 'hidden', flexShrink: 0, background: 'linear-gradient(135deg, #00E5FF, #BF5FFF)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0a0a0f', fontFamily: "'Bebas Neue',sans-serif", fontSize: 8 }}>
       {src
         ? <img src={src} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
         : (name ?? '?').slice(0, 1).toUpperCase()}
@@ -230,7 +230,7 @@ export default function ConversationDock() {
                             display: 'flex', alignItems: 'center', gap: 8,
                             background: 'rgba(26,26,32,.98)',
                             border: '1px solid rgba(255,255,255,.10)',
-                            borderRadius: 11, padding: '7px 9px',
+                            borderRadius: 10, padding: '6px 7px',
                             boxShadow: '0 8px 22px -10px rgba(0,0,0,.8)',
                             // Staggered so they fan open rather than appearing at once.
                             animation: `ypFanUp .26s cubic-bezier(.16,1,.3,1) ${i * 40}ms both`,
@@ -240,10 +240,11 @@ export default function ConversationDock() {
                             type="button"
                             onClick={() => { setOverflowOpen(false); open(id); }}
                             aria-label={`Reopen conversation with ${nm}`}
-                            style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0, minHeight: 28, background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', padding: 0 }}
+                            className="yp-tap44"
+                            style={{ display: 'flex', alignItems: 'center', gap: 7, flex: 1, minWidth: 0, minHeight: 22, background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', padding: 0 }}
                           >
                             <TabAvatar name={nm} src={st.profile?.avatar} />
-                            <span style={{ minWidth: 0, flex: 1, color: 'rgba(255,255,255,.86)', fontSize: 12.5, fontWeight: 550, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            <span style={{ minWidth: 0, flex: 1, color: 'rgba(255,255,255,.86)', fontSize: 11, fontWeight: 550, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                               {nm}
                             </span>
                             {un > 0 && (
@@ -410,16 +411,25 @@ function ConversationTab({ state, onOpen, onDismiss }) {
           }),
       borderBottom: 'none',
       borderRadius: '11px 11px 0 0',
-      // ⚠ WAS '5px 8px 6px 6px' — the tab measured 33px tall with a 10×14
-      // close inside it (owner, 2026-08-05: "they need resizing"). Raised so
-      // the row clears 44px overall and the × has somewhere to live.
-      padding: '8px 8px 9px 8px',
+      // ⚠ TWO PASSES, AND THE SECOND UNDID PART OF THE FIRST ON PURPOSE.
+      // It was '5px 8px 6px 6px' with a 10×14 close inside; raised to
+      // '8px 8px 9px 8px' so the × had somewhere to live; then brought back
+      // ~20% (owner, 2026-08-05) once the tap target stopped depending on the
+      // visible box. The chrome shrinks, the target does not — see the
+      // `yp-tap44` on the reopen button below.
+      padding: '6px 7px 7px 6px',
     }}>
       <button
         type="button"
         onClick={onOpen}
         aria-label={`Reopen conversation with ${name}`}
-        style={{ display: 'flex', alignItems: 'center', gap: 7, flex: 1, minWidth: 0, minHeight: 28, background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', padding: 0 }}
+        // ⚠ THE VISIBLE ROW IS 22px; THE HIT AREA IS 44. `yp-tap44` sizes to
+        // `max(100%, 44px)`, so the width stays this button's own full width —
+        // it never reaches sideways into the × beside it — while the height
+        // doubles invisibly. This is what let the chrome shrink 20% without
+        // giving back the target.
+        className="yp-tap44"
+        style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0, minHeight: 22, background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', padding: 0 }}
       >
         <TabAvatar name={name} src={state.profile?.avatar} />
 
@@ -427,7 +437,7 @@ function ConversationTab({ state, onOpen, onDismiss }) {
             nothing they could not infer, and a message preview is content —
             it invites reading, which is the opposite of a reminder you barely
             notice. Draft state survives as a dot rather than a sentence. */}
-        <span style={{ minWidth: 0, flex: 1, color: 'rgba(255,255,255,.86)', fontSize: 12.5, fontWeight: 550, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <span style={{ minWidth: 0, flex: 1, color: 'rgba(255,255,255,.86)', fontSize: 11, fontWeight: 550, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {name}
         </span>
 
@@ -475,12 +485,14 @@ function ConversationTab({ state, onOpen, onDismiss }) {
  * instead, which is worse than a small button. A real, visible box is the
  * right answer here; invisible padding is not.
  *
- * 28px with the glyph optically centred: big enough to hit, small enough that
- * the chip still reads as a quiet reminder rather than a dialog.
+ * ⚠ 22px, DOWN FROM 28 in the 20% shrink (owner, 2026-08-05). Still 2.5× the
+ * area it started at, and it does NOT get `yp-tap44` for the reason above —
+ * the reopen button beside it is the one that grows invisibly, and only
+ * vertically, so the two never fight over the same pixels.
  */
 const chipCloseBtn = {
-  width: 28,
-  height: 28,
+  width: 22,
+  height: 22,
   flexShrink: 0,
   display: 'grid',
   placeItems: 'center',
