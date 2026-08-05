@@ -1,0 +1,42 @@
+.wrap {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: var(--bg);
+}
+
+.card {
+  width: 100%;
+  max-width: 380px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--fp-radius);
+  padding: 28px 26px 26px;
+}
+
+.brand {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 26px;
+  letter-spacing: .06em;
+  color: var(--text);
+  margin: 0 0 2px;
+}
+
+.sub {
+  display: block;
+  color: var(--muted);
+  font-size: 13px;
+  margin-bottom: 22px;
+}
+
+.fields { display: grid; gap: 14px; margin-bottom: 18px; }
+
+/* Reserved height so the card does not jump when an error appears. A layout
+   shift on a failed password reads as a second thing having gone wrong. */
+.error {
+  min-height: 18px;
+  color: var(--neon);
+  font-size: 12.5px;
+  margin-bottom: 12px;
+}
