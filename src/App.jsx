@@ -4,6 +4,7 @@ import SessionProvider from './auth/SessionProvider';
 import SignInScreen from './auth/SignInScreen';
 import { useSession } from './auth/useSession';
 import AppShell from './shell/AppShell';
+import ApplyScreen from './apply/ApplyScreen';
 import OverviewScreen from './screens/OverviewScreen';
 import ApplicationsScreen from './screens/ApplicationsScreen';
 import AnnouncementsScreen from './screens/AnnouncementsScreen';
@@ -22,17 +23,11 @@ import { HelpScreen } from './screens/stubs';
  * is one screen resolving a configuration, which is what keeps the table the
  * single source of truth. The category is in the URL so a view is shareable
  * and survives a reload — that is UI state, not application state.
- */
-/**
- * The gate.
  *
- * ⚠ Not decoration. RLS scopes applications to the festival owner through
- * `auth.uid()`, so without a session every application query returns zero rows
- * — the dashboard would render an empty table rather than an error, which is
- * the most misleading possible failure.
- *
- * Renders nothing while the session resolves: a sign-in form that flashes for
- * one frame and vanishes reads as a bug to someone who is already signed in.
+ * ⭐ `/apply/:eventId` sits OUTSIDE the gate. It is the public face of the
+ * whole product — the link a festival sends out — and it must render for
+ * someone with no account at all. Everything else is the organiser's
+ * workspace and requires a session.
  */
 function Gate({ children }) {
   const { session, loading } = useSession();
@@ -44,34 +39,30 @@ function Gate({ children }) {
 export default function App() {
   return (
     <SessionProvider>
-      <Gate>
-        <AuthedApp />
-      </Gate>
-    </SessionProvider>
-  );
-}
+      <DataProvider>
+        <HashRouter>
+          <Routes>
+            <Route path="/apply/:eventId" element={<ApplyScreen />} />
 
-function AuthedApp() {
-  return (
-    <DataProvider>
-      <HashRouter>
-        <Routes>
-          <Route element={<AppShell />}>
-            <Route index element={<Navigate to="/applications" replace />} />
-            <Route path="/overview" element={<OverviewScreen />} />
-            <Route path="/applications" element={<ApplicationsScreen />} />
-            <Route path="/applications/:category" element={<ApplicationsScreen />} />
-            <Route path="/messages" element={<MessagesScreen />} />
-            <Route path="/announcements" element={<AnnouncementsScreen />} />
-            <Route path="/festival" element={<FestivalScreen />} />
-            <Route path="/settings" element={<SettingsScreen />} />
-            <Route path="/help" element={<HelpScreen />} />
-            {/* Applications is the front door, not Overview: the workspace is
-                where the work is, and an unknown path should land in it. */}
-            <Route path="*" element={<Navigate to="/applications" replace />} />
-          </Route>
-        </Routes>
-      </HashRouter>
-    </DataProvider>
+            {/* Gate wraps the SHELL, not each screen: AppShell renders the
+                Outlet, so the child routes below still resolve normally. */}
+            <Route element={<Gate><AppShell /></Gate>}>
+              <Route index element={<Navigate to="/applications" replace />} />
+              <Route path="/overview" element={<OverviewScreen />} />
+              <Route path="/applications" element={<ApplicationsScreen />} />
+              <Route path="/applications/:category" element={<ApplicationsScreen />} />
+              <Route path="/messages" element={<MessagesScreen />} />
+              <Route path="/announcements" element={<AnnouncementsScreen />} />
+              <Route path="/festival" element={<FestivalScreen />} />
+              <Route path="/settings" element={<SettingsScreen />} />
+              <Route path="/help" element={<HelpScreen />} />
+              {/* Applications is the front door, not Overview: the workspace is
+                  where the work is, and an unknown path should land in it. */}
+              <Route path="*" element={<Navigate to="/applications" replace />} />
+            </Route>
+          </Routes>
+        </HashRouter>
+      </DataProvider>
+    </SessionProvider>
   );
 }

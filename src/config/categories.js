@@ -20,6 +20,22 @@
  * — a volunteer applies as their punter identity, which every account already
  * has. Do not assume one-to-one when reading this registry.
  *
+ * ⭐ `appliesAs` — WHICH PROFILE TYPES MAY APPLY.
+ *
+ * The profile IS the application. Applying links an existing profile to a
+ * category; it never asks someone to retype what their profile already says,
+ * and the organiser reviews the profile rather than a duplicate of it.
+ *
+ * ⚠ Most categories OMIT it, and that is correct today. A market stall
+ * or lighting crew would apply as a `market_stall` / `lighting` profile, and
+ * those role types do not exist yet — the platform has six: punter, venue,
+ * host, artist, band, standup. An empty list means "nobody can apply to this
+ * yet", which the UI must state rather than offering a button that cannot
+ * work. Deliverance 2026 runs Music and Volunteer only.
+ *
+ * ⭐ `punter` is why Volunteer works for everyone: every account already has
+ * one, so a volunteer needs no new identity at all.
+ *
  * ⭐ `intent` — is this category a QUEUE or a LIST?
  *
  *   open_call         People apply, you review, you accept or decline.
@@ -42,6 +58,7 @@ export const CATEGORIES = [
     icon: 'music',
     count: 184,
     noun: 'act',
+    appliesAs: ['artist', 'band'],
     intent: 'open_call',
     columns: ['applicant', 'genre', 'country', 'stage', 'status', 'date'],
   },
@@ -51,7 +68,32 @@ export const CATEGORIES = [
     icon: 'volunteer',
     count: 93,
     noun: 'volunteer',
-    // ⚠ The only category with no role profile behind it — see the note above.
+    // ⚠ The only category with no role profile behind it — a volunteer applies
+    // as their punter identity, which every account already has.
+    appliesAs: ['punter'],
+    /**
+     * ⚠ PROVISIONAL — owner sign-off pending.
+     *
+     * ⭐ These are NOT a second profile form. Everything here is true of THIS
+     * EVENT and false of the next one, so a profile structurally cannot hold
+     * it. Anything durable about the person — skills, emergency contact,
+     * accessibility, phone — already lives on `profiles` and must never be
+     * re-asked here.
+     *
+     * ⛔ Adding a question that would be the same answer at every festival is
+     * the mistake this comment exists to prevent. Put it on the profile.
+     */
+    questions: [
+      { key: 'days',  label: 'Which days can you work?', type: 'select', options: [
+        'Thursday – Sunday', 'Friday – Sunday', 'Saturday – Sunday',
+        'Whole build and event',
+      ] },
+      { key: 'area',  label: 'Where would you like to work?', type: 'select', options: [
+        'Wherever needed', 'Bar', 'Gate', 'Kitchen', 'Site and build',
+        'Waste and recycling', 'Welfare',
+      ] },
+      { key: 'notes', label: 'Anything we should know?', type: 'textarea', optional: true },
+    ],
     intent: 'open_call',
     columns: ['applicant', 'skills', 'availability', 'stage', 'status', 'date'],
   },

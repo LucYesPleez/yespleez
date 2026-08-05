@@ -3,6 +3,7 @@ import { DataContext } from './dataContext';
 import { festivalRepository } from './supabase/festivalRepository';
 import { categoryRepository } from './supabase/categoryRepository';
 import { applicationRepository } from './supabase/applicationRepository';
+import { applyRepository } from './supabase/applyRepository';
 
 /**
  * THE SWAP POINT.
@@ -29,6 +30,9 @@ const DEFAULT_REPOSITORIES = {
   festivals: festivalRepository,
   categories: categoryRepository,
   applications: applicationRepository,
+  // The public apply surface. Keyed by the event id in the URL rather than by
+  // "which festival do I run", because an applicant runs none.
+  apply: applyRepository,
 };
 
 export default function DataProvider({ repositories, children }) {

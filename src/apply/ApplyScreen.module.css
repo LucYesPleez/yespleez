@@ -1,0 +1,65 @@
+.wrap {
+  min-height: 100dvh;
+  background: var(--bg);
+  padding: 32px 20px 64px;
+}
+
+.inner { max-width: 560px; margin: 0 auto; }
+
+.header { margin-bottom: 24px; }
+
+.festival {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.title {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 34px;
+  letter-spacing: .04em;
+  color: var(--text);
+  margin: 0 0 6px;
+}
+
+.sub { color: var(--muted); font-size: 13.5px; }
+
+.signInNote { color: var(--text); font-size: 14px; margin: 0 0 4px; }
+
+.cards { display: grid; gap: 14px; }
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--fp-radius);
+  padding: 18px 18px 16px;
+  display: grid;
+  gap: 12px;
+}
+
+.cardHead { display: flex; align-items: center; gap: 10px; }
+.cardIcon { color: var(--neon2); display: inline-flex; }
+
+.cardTitle {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 19px;
+  letter-spacing: .04em;
+  color: var(--text);
+  flex: 1;
+}
+
+.applied {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--green);
+  font-size: 12px;
+}
+
+.note { color: var(--muted); font-size: 13px; margin: 0; }
+.note strong { color: var(--text); font-weight: 500; }
+
+.error { color: var(--neon); font-size: 13px; margin: 0 0 12px; }
