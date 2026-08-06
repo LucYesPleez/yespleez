@@ -21,28 +21,34 @@ public bundle. Server secrets belong elsewhere — Functions/server-side
 configuration — and the moment a genuinely secret build value is needed, this
 mechanism must be revisited rather than stretched.
 
-## Why not the dashboard's "Variables and secrets"?
+## Why `.env.production` and not the dashboard? (full history — read before "fixing")
 
-Controlled experiment, 2026-08-06: with correctly named `VITE_*` variables
-visible in the panel's **Production** scope (type Plaintext), four consecutive
-successful builds produced bundles in which `import.meta.env` had none of the
-values, while the same names supplied via `.env.production` baked in every
-time, same commit, same pipeline. Their presence in the panel is documented by
-dashboard screenshots taken between those builds.
+Two experiments, opposite results:
 
-⚠ A cleaner sentinel test (a variable set *only* in the panel, then grepped for
-in the bundle) was designed but **never actually ran** — the sentinel was never
-created in the dashboard, which was only discovered afterwards. The evidence
-above is observational, not the controlled version.
+**2026-08-06, observational:** the three `VITE_*` variables entered during
+*project setup* were visible in the panel's Production scope, yet four
+consecutive successful builds produced bundles in which `import.meta.env` had
+none of the values. `.env.production` delivered every time, same pipeline. (A
+sentinel test attempted that night is void — the sentinel was never actually
+created, discovered only afterwards.)
 
-**What this shows:** the configuration used — that panel, Production scope,
-Plaintext type — did not supply Vite's build across four attempts.
-**What it does not show:** that Cloudflare Pages has no supported
-build-variable mechanism. If one is identified later, migrate freely — but run
-the sentinel test for real first: add `VITE_DASHBOARD_PROBE=reached-the-build`
-in the candidate location ONLY, **verify it exists there**, push a real source
-change, and grep the deployed bundle for the literal. Only a positive grep
-justifies deleting this file.
+**2026-08-07, controlled:** a sentinel variable
+(`VITE_DASHBOARD_PROBE=reached-the-build`) added via **Settings → Variables and
+secrets → Add**, existence verified by screenshot before the push, **WAS baked
+into the deployed bundle**. The panel does feed Vite builds.
+
+**So the panel works, and why the original three never reached a build is
+unrecoverable** — they were deleted before the controlled run. Leading
+hypotheses: an entry error (typo/whitespace in hand-typed names or values), or
+a difference between variables created in the *project-setup flow* versus the
+*Settings panel*.
+
+**Current decision: `.env.production` stays.** Both mechanisms are now known to
+work; this one is committed, reviewable, host-portable, and survived the whole
+saga. Migrating back to dashboard variables is legitimate — if doing so, add
+them via **Settings → Add** (not the setup flow), then verify with the sentinel
+method before deleting this file: reference the variable in code, push a real
+change, grep the deployed bundle for its value.
 
 The dashboard variables were removed after the experiment so there is exactly
 one apparent source of truth. If you find values in the dashboard panel again,

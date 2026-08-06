@@ -22,13 +22,6 @@ import { createClient } from '@supabase/supabase-js';
 // ⚠ These values come from `.env.production` at build time — a DOCUMENTED
 // DEPLOYMENT DECISION, not an accident. See DEPLOYMENT.md for the controlled
 // experiment behind it before "fixing" this back to dashboard variables.
-// ⚠ TEMPORARY PROBE, second attempt — this run's precondition IS verified
-// (screenshot of the saved dashboard variable, 2026-08-07). Vite only bakes an
-// env var where code references it, so this line is what makes the experiment
-// detectable: 'reached-the-build' in the bundle = the panel feeds builds;
-// 'probe-not-injected' = it does not. Remove after the verdict.
-console.info('[dashboard-probe]', import.meta.env.VITE_DASHBOARD_PROBE ?? 'probe-not-injected');
-
 const url = import.meta.env.VITE_SUPABASE_URL;
 const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
