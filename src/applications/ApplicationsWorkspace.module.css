@@ -44,6 +44,11 @@
 
 .headerActions { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
 
+/* ⚠ flex-shrink: 0 like every other row in this frame. `.workspace` is a flex
+   column with overflow: hidden, so a child that can shrink gets crushed and
+   its contents spill — the same failure the Festival screen hit. */
+.releaseBar { padding: 0 16px 12px; flex-shrink: 0; }
+
 /* The shortcut is discoverable rather than documented. Nobody reads a help
    sheet before their first review session, and a hint costs one line. */
 .keyHint {

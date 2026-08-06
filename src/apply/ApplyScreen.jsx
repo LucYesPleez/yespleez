@@ -4,6 +4,7 @@ import { Icon, Button, EmptyState } from '../design-system';
 import { Select } from '../design-system/Form';
 import { useRepositories } from '../data/dataContext';
 import { useQuery } from '../data/useQuery';
+import { applicantFacingStatus } from '../data/types';
 import { useSession } from '../auth/useSession';
 import SignInScreen from '../auth/SignInScreen';
 import { dayOptions } from './dayOptions';
@@ -21,7 +22,8 @@ import s from './ApplyScreen.module.css';
  * them. No redirect, no return-to parameter, nothing to lose — which is the
  * whole reason there is no "you were trying to apply to…" recovery path.
  */
-function CategoryCard({ category, profiles, config, onApply, applied }) {
+function CategoryCard({ category, profiles, config, onApply, existing }) {
+  const applied = Boolean(existing);
   const eligible = profiles.filter(p => category.appliesAs.includes(p.type));
 
   /**
@@ -67,7 +69,15 @@ function CategoryCard({ category, profiles, config, onApply, applied }) {
       <div className={s.cardHead}>
         <span className={s.cardIcon}><Icon name={category.icon} size={18} /></span>
         <span className={s.cardTitle}>{category.label}</span>
-        {applied && <span className={s.applied}><Icon name="check" size={13} /> Applied</span>}
+        {/* ⭐ THE APPLICANT'S VIEW OF THE OUTCOME. Never the raw workflow
+            status: shortlisting is not exposed, and a decision reads "In
+            review" until the organiser releases it. */}
+        {applied && (
+          <span className={`${s.applied} ${s[`st_${existing.status}`] ?? ''}`}>
+            <Icon name={existing.status === 'declined' ? 'close' : 'check'} size={13} />
+            {applicantFacingStatus(existing)}
+          </span>
+        )}
       </div>
 
       {/* Why a category can be open and still have no button. Stating it is the
@@ -174,16 +184,24 @@ export default function ApplyScreen() {
     { enabled: Boolean(session) },
   );
 
-  const [applied, setApplied] = useState({});
+  // What this person has already applied for, masked server-side. Replaces the
+  // local "applied" flag, which forgot everything on reload and could not know
+  // an outcome had been released.
+  const { data: mine, reload: reloadMine } = useQuery(
+    () => apply.myApplications(eventId),
+    [eventId, session?.user?.id],
+    { enabled: Boolean(session) },
+  );
+  const byCategory = new Map((mine ?? []).map(a => [a.categoryKey, a]));
+
   const [error, setError] = useState('');
 
   async function onApply({ categoryKey, profileId, answers }) {
     setError('');
     const res = await apply.apply({ eventId, categoryKey, profileId, answers });
-    if (res.ok) setApplied(a => ({ ...a, [categoryKey]: true }));
-    // Not an error state. Applicants have no read on their own applications, so
-    // a duplicate is only discoverable by attempting it — see applyRepository.
-    else if (res.reason === 'already_applied') setApplied(a => ({ ...a, [categoryKey]: true }));
+    // `already_applied` is not an error — the unique index is how a duplicate
+    // is discovered. Either way, re-read rather than guessing the new state.
+    if (res.ok || res.reason === 'already_applied') reloadMine();
     else setError('Something went wrong. Please try again.');
   }
 
@@ -234,7 +252,7 @@ export default function ApplyScreen() {
                   category={c}
                   profiles={profiles ?? []}
                   config={config}
-                  applied={Boolean(applied[c.key])}
+                  existing={byCategory.get(c.key)}
                   onApply={onApply}
                 />
               ))}

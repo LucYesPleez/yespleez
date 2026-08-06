@@ -121,6 +121,15 @@ export const applicationRepository = {
     return settle(ids.length);
   },
 
+  /** Decisions made but not yet told to anyone. Mirrors the Supabase version. */
+  async pendingRelease({ categoryKey } = {}) {
+    return settle(store
+      .filter(a => (a.status === 'accepted' || a.status === 'declined')
+        && a.decidedAt && !a.outcomeReleasedAt
+        && (!categoryKey || categoryKey === 'all' || a.categoryKey === categoryKey))
+      .map(a => a.id));
+  },
+
   /** The separate, deliberate act of telling people. */
   async releaseOutcomes(ids) {
     const now = new Date().toISOString();

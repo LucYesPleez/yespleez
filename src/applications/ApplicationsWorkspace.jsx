@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, EmptyState } from '../design-system';
+import { Button, EmptyState, Callout } from '../design-system';
 import { useShell } from '../shell/shellContext';
 import { useRepositories } from '../data/dataContext';
 import { useQuery } from '../data/useQuery';
@@ -74,6 +74,28 @@ export default function ApplicationsWorkspace({ categoryKey }) {
    * accept invites a second bulk action on a set the reviewer has stopped
    * thinking about.
    */
+  /**
+   * ⭐ RELEASE IS A SEPARATE, DELIBERATE ACT. Decisions are private until this
+   * runs: an organiser can accept over three weeks and tell everyone at once,
+   * and until then every applicant reads "In review".
+   *
+   * ⛔ Never fold this into `decide()`. The moment accepting also tells the
+   * applicant, an organiser can no longer change their mind about a lineup
+   * while it is still being assembled — which is the entire reason the two are
+   * separate.
+   */
+  const pending = useQuery(
+    () => applications.pendingRelease({ categoryKey }),
+    [categoryKey, dataVersion],
+  );
+  const pendingIds = pending.data ?? [];
+
+  async function releaseOutcomes() {
+    if (!pendingIds.length) return;
+    await applications.releaseOutcomes(pendingIds);
+    refreshData();
+  }
+
   async function bulkDecide(status) {
     if (!ticked.length) return;
     await applications.decide(ticked, status);
@@ -105,6 +127,28 @@ export default function ApplicationsWorkspace({ categoryKey }) {
           <Button variant="quiet" size="sm" icon="clock">Open windows</Button>
         </div>
       </header>
+
+      {/* ⭐ The consequence is stated BESIDE the button, not in a dialog after
+          the click. A confirmation asks "are you sure?" of someone who has
+          already decided; this tells them what they are about to do while
+          changing their mind is still free. Appears only when something is
+          actually waiting, so it never becomes furniture. */}
+      {pendingIds.length > 0 && (
+        <div className={s.releaseBar}>
+          <Callout
+            tone="warn"
+            title={`${pendingIds.length} ${pendingIds.length === 1 ? 'decision' : 'decisions'} not yet released`}
+            actions={
+              <Button variant="primary" size="sm" icon="check" onClick={releaseOutcomes}>
+                Release outcomes
+              </Button>
+            }
+          >
+            Applicants still read “In review”. Releasing shows every accepted and declined
+            applicant their real outcome, and cannot be taken back.
+          </Callout>
+        </div>
+      )}
 
       <CategoryNavigation />
 

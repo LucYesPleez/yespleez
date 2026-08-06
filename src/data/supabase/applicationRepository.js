@@ -124,6 +124,27 @@ export const applicationRepository = {
     return data?.length ?? 0;
   },
 
+  /**
+   * Decisions made but not yet told to anyone.
+   *
+   * ⭐ This is the number that makes hold-and-release visible to the organiser.
+   * Without it a reviewer has no idea anything is waiting, and "decide over
+   * three weeks, tell everyone at once" quietly becomes "nobody ever hears".
+   */
+  async pendingRelease({ categoryKey } = {}) {
+    const { current } = await getFestivalContext();
+    let q = supabase
+      .from('festival_applications')
+      .select('id')
+      .eq('event_id', current.id)
+      .in('status', ['accepted', 'declined'])
+      .is('outcome_released_at', null);
+    if (categoryKey && categoryKey !== 'all') q = q.eq('category_key', categoryKey);
+    const { data, error } = await q;
+    if (error) throw error;
+    return (data ?? []).map(r => r.id);
+  },
+
   /** The separate, deliberate act of telling people. */
   async releaseOutcomes(ids) {
     if (!ids?.length) return 0;

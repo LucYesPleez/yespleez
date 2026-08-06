@@ -76,9 +76,14 @@
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  color: var(--green);
+  color: var(--muted);
   font-size: 12px;
 }
+
+/* Only a RELEASED outcome earns a colour. "In review" stays neutral — a green
+   tick on an undecided application reads as good news that has not happened. */
+.st_accepted { color: var(--green); }
+.st_declined { color: var(--muted); }
 
 .note { color: var(--muted); font-size: 13px; margin: 0; }
 .note strong { color: var(--text); font-weight: 500; }

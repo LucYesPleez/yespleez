@@ -105,6 +105,29 @@ export const applyRepository = {
     };
   },
 
+  /**
+   * What the signed-in applicant has already applied for.
+   *
+   * ⭐ Goes through an RPC, not the table. Applicants have NO select on
+   * `festival_applications` and must not get one: RLS cannot hide a column, so
+   * a readable row would expose `shortlisted` and an unreleased `accepted`.
+   * The function is SECURITY DEFINER and masks both server-side, which is what
+   * makes hold-and-release a property of the database rather than a promise
+   * the UI makes.
+   */
+  async myApplications(eventId) {
+    const { data, error } = await supabase.rpc('my_festival_applications', {
+      p_event_id: eventId,
+    });
+    if (error) throw error;
+    return (data ?? []).map(r => ({
+      categoryKey: r.category_key,
+      status: r.status,
+      outcomeReleasedAt: r.outcome_released_at ?? null,
+      submittedAt: r.submitted_at ?? null,
+    }));
+  },
+
   /** Every profile the signed-in user owns. The set they can apply as. */
   async listMyProfiles() {
     const { data: { user } } = await supabase.auth.getUser();
