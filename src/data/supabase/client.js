@@ -13,13 +13,15 @@ import { createClient } from '@supabase/supabase-js';
  */
 // build-stamp: 2026-08-06 env-var rebuild — a real change, because an empty
 // commit hits Cloudflare's build cache and reuses the old output byte-for-byte.
-// ⚠ Config comes from BUILD-TIME env only, and on Cloudflare Pages that means
-// .env.production — proven 2026-08-06 by a controlled probe: a VITE_ variable
-// set solely in the dashboard's "Variables and secrets" (Production, Plaintext)
-// never reached import.meta.env across four builds, while the same names via
-// .env.production baked in every time. That panel feeds the Functions RUNTIME,
-// whatever its label says. Do not move these back to the dashboard without
-// re-running that experiment.
+// NOTE:
+// This application is client-side only.
+// Values in VITE_* are intentionally public and are compiled into the bundle.
+// Do not place secrets here.
+// Authentication and data protection are enforced by Supabase RLS.
+//
+// ⚠ These values come from `.env.production` at build time — a DOCUMENTED
+// DEPLOYMENT DECISION, not an accident. See DEPLOYMENT.md for the controlled
+// experiment behind it before "fixing" this back to dashboard variables.
 const url = import.meta.env.VITE_SUPABASE_URL;
 const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
