@@ -24,15 +24,26 @@
  * concept with no public URL, and an event already carries the dates, the
  * poster and the page people apply from.
  *
+ * ⭐ THE ORGANISATION AND THE OCCURRENCE ARE TWO TYPES, and the nesting is what
+ * keeps them apart. A Festival has no dates and is never "open" — it runs for
+ * thirty years. Its EVENT has both. ⛔ Do not flatten `event` up into Festival
+ * for a caller's convenience; that is precisely how a name and someone else's
+ * dates end up rendered as one heading.
+ *
  * @typedef {Object} Festival
  * @property {string}  id
  * @property {string}  name
  * @property {string}  [tagline]
  * @property {string}  [description]
- * @property {string}  [startsOn]        ISO date
- * @property {string}  [endsOn]          ISO date
  * @property {string}  [location]
  * @property {string}  [website]
+ * @property {?FestivalEvent} event      the occurrence in context; null if none exists yet
+ *
+ * @typedef {Object} FestivalEvent
+ * @property {string}  id
+ * @property {string}  name
+ * @property {?string} startsOn          ISO date
+ * @property {?string} endsOn            ISO date
  * @property {boolean} applicationsOpen  derived: any category currently open
  *
  * @typedef {Object} Category

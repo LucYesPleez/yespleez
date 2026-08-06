@@ -67,9 +67,12 @@ async function resolve() {
   // in SQL.
   if (!profile) return { profile: null, events: [], current: null };
 
+  // ⭐ Dates come from `festival_event_settings`, which is where an event's own
+  // dates live — the PROFILE has none. A festival is an organisation and runs
+  // for thirty years; only an occurrence has a start and an end.
   const { data: events, error: evErr } = await supabase
     .from('events')
-    .select('id, name, status, is_public, applications_open, postcode, created_at')
+    .select('id, name, status, is_public, applications_open, postcode, created_at, festival_event_settings ( starts_on, ends_on )')
     .eq('owner_profile_id', profile.id)
     .order('created_at', { ascending: false });
   if (evErr) throw evErr;

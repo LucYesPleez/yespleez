@@ -1,5 +1,5 @@
 import { Icon, Button, Popover, MenuItem } from '../design-system';
-import FestivalSelector from './FestivalSelector';
+import EventSelector from './EventSelector';
 import AnnouncementButton from './AnnouncementButton';
 import { useRepositories } from '../data/dataContext';
 import { useQuery } from '../data/useQuery';
@@ -22,9 +22,10 @@ import s from './TopBar.module.css';
 /**
  * "16 – 19 January 2027", or one date, or nothing.
  *
- * Returns null rather than a placeholder when a festival has no dates set:
+ * Returns null rather than a placeholder when an EVENT has no dates set:
  * absent is not the same as unknown, and a lone calendar icon beside an empty
- * string is a visual hole.
+ * string is a visual hole. ⛔ Dates are never the festival's — the organisation
+ * runs for thirty years; only an occurrence starts and ends.
  */
 function formatDates(startsOn, endsOn) {
   if (!startsOn && !endsOn) return null;
@@ -60,7 +61,7 @@ export default function TopBar({ notifications = 0, messages = 0 }) {
    * is worse than a one-second reload.
    */
   function switchEvent(id) {
-    if (id === festival?.eventId) return;
+    if (id === festival?.event?.id) return;
     eventConfig.selectEvent(id);
     window.location.reload();
   }
@@ -80,12 +81,12 @@ export default function TopBar({ notifications = 0, messages = 0 }) {
         align="start"
         title="Switch event"
         button={props => (
-          <FestivalSelector
+          <EventSelector
             {...props}
-            festival={festival && {
-              ...festival,
-              dates: formatDates(festival.startsOn, festival.endsOn),
-            }}
+            festivalName={festival?.name}
+            event={festival?.event ?? null}
+            location={festival?.location}
+            dates={formatDates(festival?.event?.startsOn, festival?.event?.endsOn)}
           />
         )}
       >
@@ -94,7 +95,7 @@ export default function TopBar({ notifications = 0, messages = 0 }) {
             key={ev.id}
             label={ev.name}
             meta={ev.isPublic ? 'Public' : 'Draft'}
-            selected={ev.id === festival?.eventId}
+            selected={ev.id === festival?.event?.id}
             onClick={() => switchEvent(ev.id)}
           />
         ))}
@@ -104,12 +105,12 @@ export default function TopBar({ notifications = 0, messages = 0 }) {
         {/* Was a dead button labelled "View Public Profile". There is no public
             profile page yet; the application page IS the public face, so it
             says what it does and goes where it says. */}
-        {festival?.eventId && (
+        {festival?.event?.id && (
           <Button
             variant="secondary"
             iconRight="external"
             onClick={() => window.open(
-              `${window.location.origin}${window.location.pathname}#/apply/${festival.eventId}`,
+              `${window.location.origin}${window.location.pathname}#/apply/${festival.event.id}`,
               '_blank',
             )}
           >

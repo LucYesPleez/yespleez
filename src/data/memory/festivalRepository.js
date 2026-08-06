@@ -14,17 +14,26 @@ import { settle } from './latency';
  * `festivals` table with its own name and avatar columns.
  */
 export const festivalRepository = {
+  /**
+   * ⭐ Same shape as the Supabase implementation, and the split is the shape:
+   * the organisation's fields at the top, the occurrence nested under `event`.
+   * Dates are the occurrence's — a festival profile has none.
+   */
   async getCurrent() {
     return settle({
       id: FESTIVAL.id,
       name: FESTIVAL.name,
       tagline: null,
       description: null,
-      startsOn: '2027-01-16',
-      endsOn: '2027-01-19',
       location: FESTIVAL.location,
       website: null,
-      applicationsOpen: FESTIVAL.applicationsOpen,
+      event: {
+        id: 'ev_2027',
+        name: `${FESTIVAL.name} 2027`,
+        startsOn: '2027-01-16',
+        endsOn: '2027-01-19',
+        applicationsOpen: FESTIVAL.applicationsOpen,
+      },
     });
   },
 

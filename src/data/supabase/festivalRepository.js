@@ -49,26 +49,35 @@ export const festivalRepository = {
     return data.id;
   },
 
+  /**
+   * The ORGANISATION, and — nested, never flattened — the occurrence currently
+   * in context.
+   *
+   * ⭐ THE SHAPE IS THE SPLIT. The profile's fields are the festival's; dates
+   * and applications-open belong to `event` and are reachable no other way.
+   * Flattening them onto one object is how a topbar ends up showing the
+   * organisation's name above an occurrence's dates — which reads as one thing
+   * and is two, and stops being merely untidy the moment a festival runs a
+   * second year.
+   *
+   * ⚠ `event` is null for a festival that has not created one yet. That is a
+   * state, not an error: a new organiser sees their identity and an empty
+   * events list.
+   */
   async getCurrent() {
     const { profile, current } = await getFestivalContext();
     if (!profile) return null;
 
-    // ⭐ A festival with no events yet is real and renders — eventId null,
-    // applications closed. Every event-scoped card checks eventId already.
-    if (!current) {
-      return {
-        id: profile.id,
-        eventId: null,
-        name: profile.name,
-        tagline: profile.tagline ?? null,
-        description: profile.bio ?? null,
-        startsOn: null,
-        endsOn: null,
-        location: profile.location ?? null,
-        website: profile.website ?? null,
-        applicationsOpen: false,
-      };
-    }
+    const organisation = {
+      id: profile.id,
+      name: profile.name,
+      tagline: profile.tagline ?? null,
+      description: profile.bio ?? null,
+      location: profile.location ?? null,
+      website: profile.website ?? null,
+    };
+
+    if (!current) return { ...organisation, event: null };
 
     // applicationsOpen is DERIVED from the categories, not from the event's own
     // flag: a festival is open because something is actually accepting people.
@@ -81,17 +90,19 @@ export const festivalRepository = {
       .eq('state', 'open');
     if (error) throw error;
 
+    const settings = Array.isArray(current.festival_event_settings)
+      ? current.festival_event_settings[0]
+      : current.festival_event_settings;
+
     return {
-      id: profile.id,
-      eventId: current.id,
-      name: profile.name,
-      tagline: profile.tagline ?? null,
-      description: profile.bio ?? null,
-      startsOn: null,
-      endsOn: null,
-      location: profile.location ?? null,
-      website: profile.website ?? null,
-      applicationsOpen: Boolean(current.applications_open) && (count ?? 0) > 0,
+      ...organisation,
+      event: {
+        id: current.id,
+        name: current.name,
+        startsOn: settings?.starts_on ?? null,
+        endsOn: settings?.ends_on ?? null,
+        applicationsOpen: Boolean(current.applications_open) && (count ?? 0) > 0,
+      },
     };
   },
 
