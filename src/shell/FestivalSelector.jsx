@@ -12,11 +12,19 @@ import s from './FestivalSelector.module.css';
  * "Are we still taking applications?" is the question an organiser asks most
  * often, and it should be answered by the chrome without navigating.
  */
-export default function FestivalSelector({ festival, onSwitch }) {
+export default function FestivalSelector({ festival, onSwitch, ...rest }) {
   if (!festival) return null;
 
   return (
-    <button className={s.selector} type="button" onClick={onSwitch} aria-label="Switch festival or edition">
+    // `rest` carries Popover's trigger props (ref, aria-expanded, onClick) so
+    // the whole block opens the event menu rather than only the chevron.
+    <button
+      className={s.selector}
+      type="button"
+      onClick={onSwitch}
+      aria-label="Switch event"
+      {...rest}
+    >
       <span className={s.poster} />
       <span className={s.body}>
         <span className={s.titleRow}>

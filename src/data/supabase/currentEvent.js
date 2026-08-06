@@ -18,6 +18,33 @@ import { supabase } from './client';
  */
 let cached = null;
 
+/**
+ * ⭐ THE SELECTED EVENT IS THE PORTAL'S CONTEXT.
+ *
+ * Every pane — the dashboard, the counts, the topbar, the editor — reads
+ * whichever event this names. It replaced a heuristic ("first one taking
+ * applications, else the newest") that silently decided for the organiser and
+ * would have switched under them the moment they created next year's event.
+ *
+ * Persisted, because context that resets on reload is not context: an
+ * organiser working through 2027's music applications must not be returned to
+ * 2026 by a refresh.
+ */
+const STORAGE_KEY = 'yespleez.festival.selectedEventId';
+
+function readStored() {
+  try { return localStorage.getItem(STORAGE_KEY); } catch { return null; }
+}
+
+export function getSelectedEventId() {
+  return readStored();
+}
+
+export function setSelectedEventId(id) {
+  try { localStorage.setItem(STORAGE_KEY, id); } catch { /* private mode */ }
+  cached = null;
+}
+
 export function resetEventCache() {
   cached = null;
 }
@@ -44,9 +71,16 @@ async function resolve() {
   if (evErr) throw evErr;
   if (!events?.length) throw new Error('This festival has no events yet');
 
-  // An event still taking applications wins over a newer one that is not —
-  // the organiser is working on the round people are actually applying to.
-  const current = events.find(e => e.applications_open) || events[0];
+  // ⭐ Explicit choice first. The fallbacks below only ever run for an account
+  // that has never chosen — or one whose chosen event has since been deleted,
+  // where silently landing on nothing would be worse than landing on the
+  // newest.
+  const selectedId = readStored();
+  const current =
+    (selectedId && events.find(e => e.id === selectedId))
+    || events.find(e => e.applications_open)
+    || events[0];
+
   return { profile, events, current };
 }
 

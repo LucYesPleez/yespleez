@@ -1,5 +1,7 @@
 import { supabase } from './client';
-import { getFestivalContext, resetEventCache } from './currentEvent';
+import {
+  getFestivalContext, resetEventCache, getSelectedEventId, setSelectedEventId,
+} from './currentEvent';
 import { CATEGORIES } from '../../config/categories';
 
 /**
@@ -175,6 +177,19 @@ export const eventConfigRepository = {
     const { error } = await supabase.from('events').delete().eq('id', eventId);
     if (error) throw error;
     resetEventCache();
+  },
+
+  /**
+   * The selected event is the Portal's context. Exposed through the repository
+   * rather than imported from the module directly, so the rule that only
+   * DataProvider knows where data comes from still holds.
+   */
+  getSelectedEventId() {
+    return getSelectedEventId();
+  },
+
+  selectEvent(eventId) {
+    setSelectedEventId(eventId);
   },
 
   async getEvent(eventId) {

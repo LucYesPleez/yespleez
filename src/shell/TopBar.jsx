@@ -1,4 +1,4 @@
-import { Icon, Button } from '../design-system';
+import { Icon, Button, Popover, MenuItem } from '../design-system';
 import FestivalSelector from './FestivalSelector';
 import AnnouncementButton from './AnnouncementButton';
 import { useRepositories } from '../data/dataContext';
@@ -41,9 +41,29 @@ function formatDates(startsOn, endsOn) {
 }
 
 export default function TopBar({ notifications = 0, messages = 0 }) {
-  const { festivals } = useRepositories();
+  const { festivals, eventConfig } = useRepositories();
   const { data: festival } = useQuery(() => festivals.getCurrent(), []);
+  const { data: events } = useQuery(() => eventConfig.listEvents(), []);
   const { user } = useSession();
+
+  /**
+   * ⚠ A full reload, deliberately.
+   *
+   * The selected event is read by module-level caches in the data layer, not
+   * just by React state — the festival context, the category counts and every
+   * open query all resolve against it. Reloading is the one way to guarantee
+   * nothing anywhere is still answering for the previous event, and switching
+   * years is a rare, deliberate act rather than something done mid-scan.
+   *
+   * ⛔ Do not "optimise" this into a state update without first proving every
+   * cache is invalidated. A dashboard showing 2027's counts over 2026's rows
+   * is worse than a one-second reload.
+   */
+  function switchEvent(id) {
+    if (id === festival?.eventId) return;
+    eventConfig.selectEvent(id);
+    window.location.reload();
+  }
 
   // Scene's sign-up stores a display name in user metadata; fall back to the
   // email rather than inventing a title. The old "Festival Director" was a
@@ -53,12 +73,32 @@ export default function TopBar({ notifications = 0, messages = 0 }) {
 
   return (
     <header className={s.topbar}>
-      <FestivalSelector
-        festival={festival && {
-          ...festival,
-          dates: formatDates(festival.startsOn, festival.endsOn),
-        }}
-      />
+      {/* ⭐ THE EVENT SELECTOR SETS THE PORTAL'S CONTEXT. Every pane follows
+          it, so the choice belongs in the chrome — visible from anywhere,
+          never buried in a screen you have to navigate to first. */}
+      <Popover
+        align="start"
+        title="Switch event"
+        button={props => (
+          <FestivalSelector
+            {...props}
+            festival={festival && {
+              ...festival,
+              dates: formatDates(festival.startsOn, festival.endsOn),
+            }}
+          />
+        )}
+      >
+        {(events ?? []).map(ev => (
+          <MenuItem
+            key={ev.id}
+            label={ev.name}
+            meta={ev.isPublic ? 'Public' : 'Draft'}
+            selected={ev.id === festival?.eventId}
+            onClick={() => switchEvent(ev.id)}
+          />
+        ))}
+      </Popover>
 
       <div className={s.actions}>
         {/* Was a dead button labelled "View Public Profile". There is no public

@@ -81,6 +81,11 @@ export default function EventsList() {
   const { eventConfig } = useRepositories();
   const { data, reload, error } = useQuery(() => eventConfig.listEvents(), []);
   const [name, setName] = useState('');
+  // ⭐ Four dates, not six. Build END and pack-down START are derived from the
+  // festival's own start and end, because "build runs up to the festival and
+  // pack-down starts when it finishes" is true almost everywhere — and both
+  // stay editable in the Event Editor for the festivals where it is not.
+  const [dates, setDates] = useState({ buildStartsOn: '', startsOn: '', endsOn: '', packdownEndsOn: '' });
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState('');
   const navigate = useNavigate();
@@ -100,8 +105,21 @@ export default function EventsList() {
     setBusy(true);
     setFailure('');
     try {
-      const id = await eventConfig.createEvent({ name: trimmed });
+      const id = await eventConfig.createEvent({
+        name: trimmed,
+        // ⛔ Created closed and draft, always. An event that opens itself can
+        // take applications the organiser has not finished configuring, and
+        // nothing is reversible for whoever already applied.
+        isPublic: false,
+        applicationsOpen: false,
+        dates: {
+          ...dates,
+          buildEndsOn: dates.startsOn || dates.buildStartsOn || '',
+          packdownStartsOn: dates.endsOn || dates.packdownEndsOn || '',
+        },
+      });
       setName('');
+      setDates({ buildStartsOn: '', startsOn: '', endsOn: '', packdownEndsOn: '' });
       // Straight into the editor: a new event has no dates, no departments and
       // nothing open, so leaving the organiser on a list would be leaving them
       // one step from a festival that cannot take an application.
@@ -118,18 +136,40 @@ export default function EventsList() {
       count={events.length}
       subtitle="One occurrence of this festival each. The profile is the organisation; events are the years."
     >
+      <TextInput
+        label="New event"
+        placeholder="Echo Valley Festival 2027"
+        value={name}
+        onChange={e => setName(e.target.value)}
+        onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); create(); } }}
+      />
       <Row>
         <TextInput
-          label="New event"
-          placeholder="Echo Valley Festival 2027"
-          value={name}
-          onChange={e => setName(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); create(); } }}
+          label="Build starts" type="date" value={dates.buildStartsOn}
+          onChange={e => setDates(d => ({ ...d, buildStartsOn: e.target.value }))}
+        />
+        <TextInput
+          label="Festival starts" type="date" value={dates.startsOn}
+          onChange={e => setDates(d => ({ ...d, startsOn: e.target.value }))}
+        />
+      </Row>
+      <Row>
+        <TextInput
+          label="Festival ends" type="date" value={dates.endsOn}
+          onChange={e => setDates(d => ({ ...d, endsOn: e.target.value }))}
+        />
+        <TextInput
+          label="Pack-down ends" type="date" value={dates.packdownEndsOn}
+          onChange={e => setDates(d => ({ ...d, packdownEndsOn: e.target.value }))}
         />
       </Row>
       <Button variant="primary" icon="plus" onClick={create} disabled={busy || !name.trim()}>
         Create event
       </Button>
+      <p className={s.hint}>
+        Created as a draft with applications closed, no departments and nothing open —
+        you configure all of that next.
+      </p>
 
       {(failure || error) && (
         <Callout tone="danger" title="Something went wrong">{failure || error.message}</Callout>
