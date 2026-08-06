@@ -35,6 +35,8 @@ function merge(row, entry, count) {
 
 async function rows() {
   const { current } = await getFestivalContext();
+  // No event selected-or-existing yet: no categories, not an error.
+  if (!current) return [];
   const { data, error } = await supabase
     .from('festival_categories')
     .select('id, key, state, opens_at, closes_at, decision_mode, intent')

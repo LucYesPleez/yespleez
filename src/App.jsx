@@ -2,7 +2,10 @@ import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import DataProvider from './data/DataProvider';
 import SessionProvider from './auth/SessionProvider';
 import SignInScreen from './auth/SignInScreen';
+import CreateFestivalScreen from './auth/CreateFestivalScreen';
 import { useSession } from './auth/useSession';
+import { useRepositories } from './data/dataContext';
+import { useQuery } from './data/useQuery';
 import AppShell from './shell/AppShell';
 import ApplyScreen from './apply/ApplyScreen';
 import OverviewScreen from './screens/OverviewScreen';
@@ -34,6 +37,25 @@ function Gate({ children }) {
   const { session, loading } = useSession();
   if (loading) return null;
   if (!session) return <SignInScreen />;
+  return <FestivalGate>{children}</FestivalGate>;
+}
+
+/**
+ * ⭐ The second gate: signed in, but owning no festival. This is how every NEW
+ * organiser arrives, and the answer is onboarding — not the shell rendering
+ * over empty repositories, and never an error. Sits inside the auth gate so it
+ * only ever asks the question of a real session, and OUTSIDE the shell so no
+ * event-scoped query runs before there is anything to scope to.
+ */
+function FestivalGate({ children }) {
+  const { session } = useSession();
+  const { festivals } = useRepositories();
+  const { data: profile, loading, reload } = useQuery(
+    () => festivals.getProfileOrNull(),
+    [session?.user?.id],
+  );
+  if (loading) return null;
+  if (!profile) return <CreateFestivalScreen onCreated={reload} />;
   return children;
 }
 

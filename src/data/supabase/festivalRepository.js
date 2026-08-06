@@ -12,8 +12,63 @@ import { getFestivalContext, resetEventCache } from './currentEvent';
  * owned by the festival profile. Identity outlives any one year of it.
  */
 export const festivalRepository = {
+  /**
+   * Whether this account owns a festival at all — the onboarding question.
+   * Returns null rather than throwing: a brand-new organiser is a state, and
+   * the gate that calls this renders "create your festival" in answer.
+   */
+  async getProfileOrNull() {
+    const { profile } = await getFestivalContext();
+    return profile;
+  },
+
+  /**
+   * ⭐ THE FRONT DOOR. Creates the festival profile for a signed-in account —
+   * the step that was SQL-only, which meant no organiser on earth could start
+   * without someone hand-inserting a row for them.
+   *
+   * Same evidence rule as updateProfile: the returned row is the proof. An
+   * INSERT no policy permits errors, but belt and braces costs one check.
+   */
+  async createProfile({ name, location }) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not signed in');
+    const { data, error } = await supabase
+      .from('profiles')
+      .insert({ user_id: user.id, type: 'festival', name, location: location || null, is_live: true })
+      .select('id')
+      .single();
+    if (error) {
+      // The one constraint a person can hit honestly: one festival per account.
+      if (error.code === '23505') {
+        throw new Error('This account already has a festival profile.');
+      }
+      throw error;
+    }
+    resetEventCache();
+    return data.id;
+  },
+
   async getCurrent() {
     const { profile, current } = await getFestivalContext();
+    if (!profile) return null;
+
+    // ⭐ A festival with no events yet is real and renders — eventId null,
+    // applications closed. Every event-scoped card checks eventId already.
+    if (!current) {
+      return {
+        id: profile.id,
+        eventId: null,
+        name: profile.name,
+        tagline: profile.tagline ?? null,
+        description: profile.bio ?? null,
+        startsOn: null,
+        endsOn: null,
+        location: profile.location ?? null,
+        website: profile.website ?? null,
+        applicationsOpen: false,
+      };
+    }
 
     // applicationsOpen is DERIVED from the categories, not from the event's own
     // flag: a festival is open because something is actually accepting people.
@@ -54,6 +109,7 @@ export const festivalRepository = {
    */
   async updateProfile(patch) {
     const { profile } = await getFestivalContext();
+    if (!profile) throw new Error('Create your festival profile first.');
     const { data, error } = await supabase
       .from('profiles')
       .update({

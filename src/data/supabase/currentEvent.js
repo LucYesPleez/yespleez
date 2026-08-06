@@ -61,7 +61,11 @@ async function resolve() {
     .eq('user_id', user.id)
     .maybeSingle();
   if (profErr) throw profErr;
-  if (!profile) throw new Error('This account owns no festival profile');
+  // ⭐ A missing profile is a STATE, not an error. It is how every new
+  // organiser arrives, and the app answers it with onboarding — throwing here
+  // turned "welcome" into a crash for anyone whose profile was not hand-made
+  // in SQL.
+  if (!profile) return { profile: null, events: [], current: null };
 
   const { data: events, error: evErr } = await supabase
     .from('events')
@@ -69,7 +73,10 @@ async function resolve() {
     .eq('owner_profile_id', profile.id)
     .order('created_at', { ascending: false });
   if (evErr) throw evErr;
-  if (!events?.length) throw new Error('This festival has no events yet');
+  // ⭐ Zero events is also a state — a brand-new festival that has not created
+  // its first year. `current` is null and every event-scoped surface says so
+  // plainly rather than crashing.
+  if (!events?.length) return { profile, events: [], current: null };
 
   // ⭐ Explicit choice first. The fallbacks below only ever run for an account
   // that has never chosen — or one whose chosen event has since been deleted,

@@ -46,6 +46,9 @@ function toModel(row, eventId) {
 export const applicationRepository = {
   async list({ categoryKey, search, filters = {}, sort = 'newest', page = 1, pageSize = 20 } = {}) {
     const { current } = await getFestivalContext();
+    // A festival with no event yet has no applications — an empty page, not a
+    // crash. Same for every event-scoped read below.
+    if (!current) return { items: [], total: 0, page, pageSize };
 
     let q = supabase
       .from('festival_applications')
@@ -79,6 +82,7 @@ export const applicationRepository = {
 
   async get(id) {
     const { current } = await getFestivalContext();
+    if (!current) return null;
     const { data, error } = await supabase
       .from('festival_applications')
       .select(SELECT)
@@ -99,6 +103,7 @@ export const applicationRepository = {
    */
   async countsByCategory() {
     const { current } = await getFestivalContext();
+    if (!current) return Object.fromEntries(CATEGORIES.map(c => [c.key, 0]));
     const entries = await Promise.all(CATEGORIES.map(async ({ key }) => {
       const { count, error } = await supabase
         .from('festival_applications')
@@ -139,6 +144,12 @@ export const applicationRepository = {
    */
   async stats() {
     const { current } = await getFestivalContext();
+    if (!current) {
+      return {
+        total: 0, newThisWeek: 0, awaitingReview: 0, shortlisted: 0, accepted: 0, declined: 0,
+        today: { newToday: 0, musicToday: 0, volunteersToday: 0, acceptedToday: 0, declinedToday: 0 },
+      };
+    }
     const q = () => supabase
       .from('festival_applications')
       .select('id', { count: 'exact', head: true })
@@ -182,6 +193,7 @@ export const applicationRepository = {
    */
   async pendingRelease({ categoryKey } = {}) {
     const { current } = await getFestivalContext();
+    if (!current) return [];
     let q = supabase
       .from('festival_applications')
       .select('id')

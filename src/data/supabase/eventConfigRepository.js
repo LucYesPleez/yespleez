@@ -39,6 +39,7 @@ export const eventConfigRepository = {
    */
   async listEvents() {
     const { profile } = await getFestivalContext();
+    if (!profile) return [];
     const { data, error } = await supabase
       .from('events')
       .select('id, name, status, is_public, applications_open, created_at, festival_event_settings ( starts_on, ends_on, archived )')
@@ -74,6 +75,7 @@ export const eventConfigRepository = {
    */
   async createEvent({ name, isPublic = false, applicationsOpen = false, dates = {} }) {
     const { profile } = await getFestivalContext();
+    if (!profile) throw new Error('Create your festival profile first.');
     const { data: { user } } = await supabase.auth.getUser();
 
     const { data: created, error } = await supabase
