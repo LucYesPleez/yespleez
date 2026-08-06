@@ -125,6 +125,55 @@ export const applicationRepository = {
   },
 
   /**
+   * The Overview's figures, for the SELECTED EVENT.
+   *
+   * ⚠ Every number is an exact head-count, never a fetch-and-count-in-JS:
+   * PostgREST caps a response at 1000 rows, and an Overview that quietly
+   * under-reports past a thousand applications is worse than one that is
+   * missing. These are the first numbers an organiser reads each morning.
+   *
+   * ⭐ Only deltas that can be COMPUTED are returned. There is no audit log, so
+   * "↑ 5 since yesterday" is unknowable and is therefore absent rather than
+   * invented — absent and zero are different facts, and a made-up trend is the
+   * one thing a summary screen must never do.
+   */
+  async stats() {
+    const { current } = await getFestivalContext();
+    const q = () => supabase
+      .from('festival_applications')
+      .select('id', { count: 'exact', head: true })
+      .eq('event_id', current.id);
+
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    const todayIso = startOfToday.toISOString();
+    const weekIso = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
+    const results = await Promise.all([
+      q(),
+      q().gte('submitted_at', weekIso),
+      q().in('status', ['submitted', 'in_review']),
+      q().eq('status', 'shortlisted'),
+      q().eq('status', 'accepted'),
+      q().eq('status', 'declined'),
+      q().gte('submitted_at', todayIso),
+      q().gte('submitted_at', todayIso).eq('category_key', 'music'),
+      q().gte('submitted_at', todayIso).eq('category_key', 'volunteer'),
+      q().eq('status', 'accepted').gte('decided_at', todayIso),
+      q().eq('status', 'declined').gte('decided_at', todayIso),
+    ]);
+
+    const n = r => { if (r.error) throw r.error; return r.count ?? 0; };
+    const [total, newThisWeek, awaitingReview, shortlisted, accepted, declined,
+      newToday, musicToday, volunteersToday, acceptedToday, declinedToday] = results.map(n);
+
+    return {
+      total, newThisWeek, awaitingReview, shortlisted, accepted, declined,
+      today: { newToday, musicToday, volunteersToday, acceptedToday, declinedToday },
+    };
+  },
+
+  /**
    * Decisions made but not yet told to anyone.
    *
    * ⭐ This is the number that makes hold-and-release visible to the organiser.

@@ -121,6 +121,20 @@ export const applicationRepository = {
     return settle(ids.length);
   },
 
+  /** Overview figures. Mirrors the Supabase version's shape exactly. */
+  async stats() {
+    const count = fn => store.filter(fn).length;
+    return settle({
+      total: store.length,
+      newThisWeek: 0,
+      awaitingReview: count(a => a.status === 'submitted' || a.status === 'in_review'),
+      shortlisted: count(a => a.status === 'shortlisted'),
+      accepted: count(a => a.status === 'accepted'),
+      declined: count(a => a.status === 'declined'),
+      today: { newToday: 0, musicToday: 0, volunteersToday: 0, acceptedToday: 0, declinedToday: 0 },
+    });
+  },
+
   /** Decisions made but not yet told to anyone. Mirrors the Supabase version. */
   async pendingRelease({ categoryKey } = {}) {
     return settle(store
