@@ -1,36 +1,32 @@
 import { SectionCard, Button, Skeleton, Row } from '../design-system';
-import ApplicationLink from '../festival/ApplicationLink';
-import ApplicationSetup from '../festival/ApplicationSetup';
+import EventsList from '../festival/EventsList';
 import FestivalIdentity from '../festival/FestivalIdentity';
-import { useRepositories } from '../data/dataContext';
-import { useQuery } from '../data/useQuery';
 import s from './screens.module.css';
 
 /**
- * FESTIVAL — the public face, and what it is asking for.
+ * FESTIVAL — the ORGANISATION.
  *
- * ⭐ Identity comes from the shared profile system; the application setup
- * below belongs to the EVENT. The card headers say which is which, because
- * the most expensive mistake here would be someone building a second festival
- * profile store inside this repo.
+ * ⭐ The profile owns identity, followers, messaging, announcements and its
+ * gallery; it outlives any one year of the festival. Dates, applications,
+ * departments and rosters belong to an EVENT, and live in the event editor.
+ * Keeping that split visible here is what stops someone building a second
+ * festival profile store inside this repo.
  *
- * ⚠ A hardcoded window list and per-category counts used to live here. They
- * were removed rather than updated: two displays of "what is open" that can
- * disagree is worse than one that is real.
+ * ⚠ A hardcoded window list, fake per-category counts and a single event's
+ * application setup all used to live on this screen. They were removed rather
+ * than updated: this screen cannot show "what is open" without also deciding
+ * WHICH event it means, and a festival has several.
  */
 
 export default function FestivalScreen() {
-  const { festivals } = useRepositories();
-  const { data: festival } = useQuery(() => festivals.getCurrent(), []);
-
   return (
     <div className={s.page}>
       <header className={s.pageHead}>
         <div>
           <h1 className={s.pageTitle}>Festival</h1>
           <p className={s.pageSubtitle}>
-            What applicants see, and what you are accepting. Identity and dates live on the shared
-            profile system; the application windows below belong to this portal.
+            The organisation and its years. Identity is shared with every YesPleez surface;
+            each event owns its own dates, departments and applications.
           </p>
         </div>
       </header>
@@ -40,9 +36,9 @@ export default function FestivalScreen() {
           overlap once the screen outgrew one viewport — see `.stack`. */}
       <div className={s.stack}>
 
-      {/* First card on the screen, deliberately: sharing the link is the only
-          thing here that has to happen before anyone can apply at all. */}
-      <ApplicationLink />
+      {/* ⭐ Events first. This screen is the ORGANISATION; the years are what
+          an organiser comes here to manage, and identity changes rarely. */}
+      <EventsList />
 
       <div className={s.settingsGrid}>
         <div className={s.formStack}>
@@ -62,10 +58,6 @@ export default function FestivalScreen() {
         </SectionCard>
       </div>
 
-      {/* Replaced a hardcoded window list and fake per-category counts. Two
-          displays of "what is open" that could disagree is worse than one that
-          is real — this reads and writes the event. */}
-      <ApplicationSetup eventId={festival?.eventId} />
       </div>
     </div>
   );

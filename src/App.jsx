@@ -9,6 +9,7 @@ import OverviewScreen from './screens/OverviewScreen';
 import ApplicationsScreen from './screens/ApplicationsScreen';
 import AnnouncementsScreen from './screens/AnnouncementsScreen';
 import FestivalScreen from './screens/FestivalScreen';
+import EventEditorScreen from './screens/EventEditorScreen';
 import SettingsScreen from './screens/SettingsScreen';
 import MessagesScreen from './screens/MessagesScreen';
 import { HelpScreen } from './screens/stubs';
@@ -54,6 +55,9 @@ export default function App() {
               <Route path="/messages" element={<MessagesScreen />} />
               <Route path="/announcements" element={<AnnouncementsScreen />} />
               <Route path="/festival" element={<FestivalScreen />} />
+              {/* Inside Festival, not a seventh destination — the navigation
+                  law holds at six and adding one is an architecture decision. */}
+              <Route path="/festival/event/:eventId" element={<EventEditorScreen />} />
               <Route path="/settings" element={<SettingsScreen />} />
               <Route path="/help" element={<HelpScreen />} />
               {/* Applications is the front door, not Overview: the workspace is
