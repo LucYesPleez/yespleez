@@ -20,7 +20,7 @@ const ACTIONS = [
   { key: 'decline',   label: 'Decline',   icon: 'cross',    tone: 'decline' },
 ];
 
-export default function ActionButtons({ onAction }) {
+export default function ActionButtons({ onAction, busy = false, unavailable = [] }) {
   return (
     <div className={s.row}>
       {ACTIONS.map(({ key, label, icon, tone }) => (
@@ -30,6 +30,9 @@ export default function ActionButtons({ onAction }) {
           tone={tone}
           size="sm"
           icon={icon}
+          // A disabled button stays visible and keeps its position — the row
+          // must not reflow because one action is unavailable.
+          disabled={busy || unavailable.includes(key)}
           onClick={() => onAction?.(key)}
         >
           {label}

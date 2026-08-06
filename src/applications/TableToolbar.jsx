@@ -28,6 +28,7 @@ export default function TableToolbar({
   onSearch,
   selectedCount = 0,
   onClearSelection,
+  onBulkDecide,
 }) {
   const [hidden, setHidden] = useState([]);
 
@@ -36,10 +37,15 @@ export default function TableToolbar({
       <div className={s.selectionBar}>
         <span className={s.selectionCount}>{selectedCount} selected</span>
         <div className={s.selectionActions}>
-          <Button variant="intent" tone="shortlist" size="sm" icon="star">Shortlist</Button>
-          <Button variant="intent" tone="accept"    size="sm" icon="check">Accept</Button>
-          <Button variant="intent" tone="decline"   size="sm" icon="cross">Decline</Button>
-          <Button variant="quiet"  size="sm" icon="export">Export selection</Button>
+          <Button variant="intent" tone="shortlist" size="sm" icon="star"
+            onClick={() => onBulkDecide?.('shortlisted')}>Shortlist</Button>
+          <Button variant="intent" tone="accept"    size="sm" icon="check"
+            onClick={() => onBulkDecide?.('accepted')}>Accept</Button>
+          <Button variant="intent" tone="decline"   size="sm" icon="cross"
+            onClick={() => onBulkDecide?.('declined')}>Decline</Button>
+          {/* Export is not built. Disabled and present beats present and inert
+              — the reader can tell the difference. */}
+          <Button variant="quiet"  size="sm" icon="export" disabled>Export selection</Button>
         </div>
         <span className={s.spacer} />
         <Button variant="ghost" size="sm" onClick={onClearSelection}>Clear</Button>

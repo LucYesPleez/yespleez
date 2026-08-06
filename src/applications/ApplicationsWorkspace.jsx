@@ -34,7 +34,7 @@ import s from './ApplicationsWorkspace.module.css';
  * inspector is a sibling pane.
  */
 export default function ApplicationsWorkspace({ categoryKey }) {
-  const { selection, select, clear } = useShell();
+  const { selection, select, clear, dataVersion, refreshData } = useShell();
   const { categories, applications } = useRepositories();
 
   const [page, setPage] = useState(1);
@@ -42,12 +42,15 @@ export default function ApplicationsWorkspace({ categoryKey }) {
   const [search, setSearch] = useState('');
   const [ticked, setTicked] = useState([]);
 
-  const cat = useQuery(() => categories.get(categoryKey), [categoryKey]);
+  // ⚠ `dataVersion` in the deps is what makes a decision taken in the inspector
+  // show up here. Without it the row a reviewer just accepted keeps saying
+  // "Submitted" until they change category and come back.
+  const cat = useQuery(() => categories.get(categoryKey), [categoryKey, dataVersion]);
   const category = cat.data;
 
   const result = useQuery(
     () => applications.list({ categoryKey, search, sort, page, pageSize: 20 }),
-    [categoryKey, search, sort, page],
+    [categoryKey, search, sort, page, dataVersion],
   );
 
   const rows = result.data?.items ?? [];
@@ -61,6 +64,21 @@ export default function ApplicationsWorkspace({ categoryKey }) {
   function toggleTick(row) {
     setTicked(prev =>
       prev.includes(row.id) ? prev.filter(id => id !== row.id) : [...prev, row.id]);
+  }
+
+  /**
+   * Bulk decisions. Same `decide()` as the inspector — one writer, so the two
+   * paths can never disagree about what accepting means.
+   *
+   * ⚠ The ticks are cleared afterwards. Leaving twenty rows ticked after a bulk
+   * accept invites a second bulk action on a set the reviewer has stopped
+   * thinking about.
+   */
+  async function bulkDecide(status) {
+    if (!ticked.length) return;
+    await applications.decide(ticked, status);
+    setTicked([]);
+    refreshData();
   }
 
   /** Any change to the query returns to the first page — page 4 of a new
@@ -97,6 +115,7 @@ export default function ApplicationsWorkspace({ categoryKey }) {
         onSearch={requery(setSearch)}
         selectedCount={ticked.length}
         onClearSelection={() => setTicked([])}
+        onBulkDecide={bulkDecide}
       />
 
       <ApplicationsTable

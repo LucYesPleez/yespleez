@@ -4,6 +4,7 @@ import { Icon } from '../design-system';
 import { CATEGORIES, ALL_CATEGORY } from '../config/categories';
 import { useRepositories } from '../data/dataContext';
 import { useQuery } from '../data/useQuery';
+import { useShell } from '../shell/shellContext';
 import s from './CategoryNavigation.module.css';
 
 /**
@@ -32,7 +33,9 @@ import s from './CategoryNavigation.module.css';
  */
 export default function CategoryNavigation() {
   const { categories } = useRepositories();
-  const { data } = useQuery(() => categories.list(), []);
+  // ⚠ `dataVersion` so a decision taken in the inspector moves the tab counts.
+  const { dataVersion } = useShell();
+  const { data } = useQuery(() => categories.list(), [dataVersion]);
 
   // Before the counts arrive the tabs render WITHOUT a number rather than with
   // a stale or zero one. `null` never renders as `0` — the badge law, carried
