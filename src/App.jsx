@@ -3,6 +3,7 @@ import DataProvider from './data/DataProvider';
 import SessionProvider from './auth/SessionProvider';
 import SignInScreen from './auth/SignInScreen';
 import CreateFestivalScreen from './auth/CreateFestivalScreen';
+import InviteOnly from './auth/InviteOnlyScreen';
 import { useSession } from './auth/useSession';
 import { useRepositories } from './data/dataContext';
 import { useQuery } from './data/useQuery';
@@ -33,10 +34,33 @@ import { HelpScreen } from './screens/stubs';
  * someone with no account at all. Everything else is the organiser's
  * workspace and requires a session.
  */
+/**
+ * ⭐ THE BETA ALLOWLIST — who may use the ORGANISER side at all.
+ *
+ * Comma-separated emails in VITE_ORGANISER_ALLOWLIST. ⚠ FAIL-CLOSED: if the
+ * variable is missing, nobody gets in. The alternative — open when unset —
+ * means one forgotten env var on a deploy silently turns a private beta into a
+ * public one, and nobody notices until a stranger owns a festival. A closed
+ * door that needs a key configured is the failure mode you can see.
+ *
+ * The /apply/:eventId route sits OUTSIDE this on purpose: the application link
+ * must work for anyone the organiser sends it to.
+ *
+ * ⚠ This is a UI gate only. The database-side lock is a restrictive RLS policy
+ * on festival-profile creation — a client check alone is cosmetic.
+ */
+const ALLOWLIST = (import.meta.env.VITE_ORGANISER_ALLOWLIST ?? '')
+  .split(',')
+  .map(s => s.trim().toLowerCase())
+  .filter(Boolean);
+
 function Gate({ children }) {
-  const { session, loading } = useSession();
+  const { session, loading, signOut } = useSession();
   if (loading) return null;
   if (!session) return <SignInScreen />;
+  if (!ALLOWLIST.includes((session.user?.email ?? '').toLowerCase())) {
+    return <InviteOnly email={session.user?.email} onSignOut={signOut} />;
+  }
   return <FestivalGate>{children}</FestivalGate>;
 }
 
