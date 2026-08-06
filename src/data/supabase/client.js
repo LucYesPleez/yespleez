@@ -13,6 +13,25 @@ import { createClient } from '@supabase/supabase-js';
  */
 // build-stamp: 2026-08-06 env-var rebuild — a real change, because an empty
 // commit hits Cloudflare's build cache and reuses the old output byte-for-byte.
+/**
+ * ⚠ TEMPORARY DIAGNOSTIC — remove after the Cloudflare env experiment.
+ *
+ * One question: do values entered in the dashboard's "Variables and secrets"
+ * panel reach the Vite build? VITE_DASHBOARD_PROBE exists ONLY in the
+ * dashboard (deliberately not in .env.production), so its presence here is
+ * conclusive either way. Presence booleans only — never the values.
+ */
+console.info('[env-diagnostic]', {
+  mode: import.meta.env.MODE,
+  dev: import.meta.env.DEV,
+  prod: import.meta.env.PROD,
+  hasUrl: Boolean(import.meta.env.VITE_SUPABASE_URL),
+  hasAnonKey: Boolean(import.meta.env.VITE_SUPABASE_ANON_KEY),
+  hasAllowlist: Boolean(import.meta.env.VITE_ORGANISER_ALLOWLIST),
+  hasDashboardProbe: Boolean(import.meta.env.VITE_DASHBOARD_PROBE),
+  dashboardProbeValue: import.meta.env.VITE_DASHBOARD_PROBE ?? null,
+});
+
 const url = import.meta.env.VITE_SUPABASE_URL;
 const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
