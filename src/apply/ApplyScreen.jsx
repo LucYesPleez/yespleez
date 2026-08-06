@@ -23,7 +23,17 @@ import s from './ApplyScreen.module.css';
  */
 function CategoryCard({ category, profiles, config, onApply, applied }) {
   const eligible = profiles.filter(p => category.appliesAs.includes(p.type));
-  const [profileId, setProfileId] = useState(eligible[0]?.id ?? '');
+
+  /**
+   * ⚠ DERIVED, not initial state. `useState(eligible[0]?.id)` runs once on the
+   * first render — before the profiles query resolves — so it captured '' and
+   * kept it forever, leaving Apply permanently disabled no matter what was
+   * ticked. Any default taken from async data has this bug; deriving it each
+   * render is the fix, with the chosen value winning once there is one.
+   */
+  const [chosenId, setChosenId] = useState('');
+  const profileId = chosenId || eligible[0]?.id || '';
+
   const [days, setDays] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [busy, setBusy] = useState(false);
@@ -82,7 +92,7 @@ function CategoryCard({ category, profiles, config, onApply, applied }) {
             <Select
               label="Apply as"
               value={profileId}
-              onChange={e => setProfileId(e.target.value)}
+              onChange={e => setChosenId(e.target.value)}
               options={eligible.map(p => ({ value: p.id, label: p.name || p.type }))}
             />
           )}
@@ -123,6 +133,18 @@ function CategoryCard({ category, profiles, config, onApply, applied }) {
                 </label>
               ))}
             </fieldset>
+          )}
+
+          {/* A disabled button that does not say why is the most frustrating
+              control in any form — the reader assumes it is broken, because
+              from where they are sitting it is indistinguishable from broken. */}
+          {(needsDays || needsDepts) && (
+            <p className={s.note}>
+              {needsDays && needsDepts
+                ? 'Choose at least one day and one area to apply.'
+                : needsDays ? 'Choose at least one day to apply.'
+                : 'Choose at least one area to apply.'}
+            </p>
           )}
 
           <Button

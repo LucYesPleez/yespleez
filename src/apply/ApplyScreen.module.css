@@ -1,5 +1,16 @@
+/**
+ * ⚠ THIS PAGE SCROLLS ITSELF.
+ *
+ * `base.css` sets `body { overflow: hidden }` — "the shell scrolls its panes,
+ * never the page" — which is right for the organiser's workspace and wrong
+ * here, because the apply page lives OUTSIDE the shell and has no pane to
+ * scroll. With only `min-height` the content below the fold was simply
+ * unreachable; the form could be filled in but not submitted without zooming
+ * out. A fixed height plus its own overflow gives it back.
+ */
 .wrap {
-  min-height: 100dvh;
+  height: 100dvh;
+  overflow-y: auto;
   background: var(--bg);
   padding: 32px 20px 64px;
 }
