@@ -10,15 +10,30 @@ export function hexToRgb(hex) {
   return `${r},${g},${b}`;
 }
 
+/**
+ * ⭐ SCENE'S OWN ROLES — the five identities THIS APP OFFERS.
+ *
+ * ⛔ DO NOT ADD A TYPE HERE TO MAKE IT RENDER. This object answers "which
+ * identities belong to Scene", and it is what `SCENE_ROLE_ORDER` iterates:
+ * FollowingSection's filter tokens, MySceneScreen's colours and labels, the
+ * role picker, onboarding. Anything added here is offered to every user as
+ * something they can be.
+ *
+ * "How do I draw this identity?" is a DIFFERENT question, answered by
+ * `PROFILE_TYPES` below, which is wider. That separation is the whole point of
+ * this file's 2026-08-06 split — one object used to do both jobs, and the two
+ * only diverged once the platform grew an identity Scene renders but does not
+ * offer. See PLATFORM_TYPES.
+ */
 // Key order is the shared canonical role ordering for V2 (Venue first —
 // reflects the platform's primary discovery flow). Object.keys/entries/values
-// preserve insertion order, so anything that iterates PROFILE_TYPES directly
-// (e.g. ProfileCard.jsx's TYPE_STYLES) inherits this order for free.
+// preserve insertion order, so anything that iterates inherits this order for
+// free.
 //
-// This object is the SOLE source of truth for profile identity (10E.1,
-// 2026-07). No component should define its own profile colours, gradients,
-// labels, RGB values, or default images — every one of those was previously
-// duplicated (and had drifted) across a dozen+ files; see the 10D audit.
+// No component should define its own profile colours, gradients, labels, RGB
+// values, or default images (10E.1, 2026-07) — every one of those was
+// previously duplicated (and had drifted) across a dozen+ files; see the 10D
+// audit.
 // `label` is the full display label; `shortLabel` is the compact form for
 // badges/pills where space is tight. Dashboard heading line-break text is
 // deliberately NOT here — that's UI content each dashboard owns locally, not
@@ -29,7 +44,7 @@ export function hexToRgb(hex) {
 // display-picture ring and glow only, and leaves the rest of the card neutral. Do NOT swap it in
 // for `accent` anywhere text sits directly on a dark background — at these values the contrast
 // is far below readable (see ProfileCard, where the genre line deliberately keeps `accent`).
-const RAW_TYPES = {
+const SCENE_ROLE_TYPES = {
   venue: {
     accent:      '#00E5A0',
     accent2:     '#00B4D8',
@@ -103,16 +118,84 @@ const RAW_TYPES = {
   },
 };
 
+/**
+ * ⭐ IDENTITIES SCENE MUST RENDER BUT DOES NOT OFFER.
+ *
+ * The platform owns identities; each application offers a subset. A festival is
+ * a first-class YesPleez identity created and administered in the Festival
+ * Portal, and Scene meets one the moment a festival owns a public event,
+ * messages an artist, or is followed. Before this existed, Deliverance Festival
+ * resolved to `UNKNOWN_PROFILE` — grey, labelled "PROFILE", no image — which is
+ * the "something upstream is broken" state, and nothing was broken.
+ *
+ * ⛔ THESE MUST NEVER REACH `SCENE_ROLE_ORDER`. Rendering a festival correctly
+ * and offering "become a festival" in Scene's role picker are different things;
+ * the second is the Portal's, and putting festival in the role registry would
+ * also add a FESTIVAL token to Scene's discovery filters.
+ *
+ * ⛔ Nor do the eight festival ROLES (volunteer · market stall · food vendor ·
+ * workshop · decor · media · theme camp · performance artist) belong here. They
+ * live in the Portal's own registry — ratified, and it is what structurally
+ * stops vendors leaking into Scene's discovery.
+ */
+const PLATFORM_TYPES = {
+  festival: {
+    // The one festival colour this app already has — CATEGORY_BADGES.FESTIVAL,
+    // worn by every festival event card. Reused so the badge and the identity
+    // cannot drift into two different purples.
+    accent:      '#BF5FFF',
+    accent2:     '#00E5FF',
+    // ⚠ DERIVED, NOT OWNER-SPECIFIED. Every other `muted` in this file is an
+    // owner-chosen hex (2026-08-02); this one is the same treatment applied by
+    // hand and is the value to check first if a festival reads wrong.
+    muted:       '#341A4D',
+    emoji:       '🎪',
+    label:       'FESTIVAL',
+    shortLabel:  'FESTIVAL',
+    // null, not a guess. Scene has no festival profile editor — nothing here
+    // uploads a festival avatar — and naming a storage bucket that may not
+    // exist would fail at the worst moment. (In practice `pathPrefix` is dead
+    // in this map anyway: every upload site passes the string literally.)
+    pathPrefix:  null,
+    // The festival "dashboard" is the Portal, which is a different application
+    // and cannot be expressed as a Scene route. Reached through the FESTIVAL
+    // intent card — see lib/festivalPortal.
+    dashPath:    null,
+    gradient:    'linear-gradient(135deg, #BF5FFF, #00E5FF)',
+    // ⚠ THERE IS NO `defaultfestival.webp` YET, and this being null is honest
+    // rather than finished. Sites that handle null correctly (ProfileCard,
+    // MessagingIdentity, InboxScreen) show no image. Sites still carrying the
+    // pre-10F fallback `pt?.defaultImage || PROFILE_TYPES.artist.defaultImage`
+    // will show a DJ's placeholder photo for a festival — confidently wrong,
+    // and the exact bug UNKNOWN_PROFILE was introduced to end. Six of those
+    // remain; the asset or those fallbacks, whichever lands first.
+    defaultImage: null,
+  },
+};
+
+/**
+ * ⭐ HOW TO DRAW ANY IDENTITY THE PLATFORM CAN PRODUCE — wider than Scene's
+ * roles, and deliberately so. Read through `profileIdentity()`.
+ */
 export const PROFILE_TYPES = Object.fromEntries(
-  Object.entries(RAW_TYPES).map(([type, t]) => [
+  Object.entries({ ...SCENE_ROLE_TYPES, ...PLATFORM_TYPES }).map(([type, t]) => [
     type,
     { ...t, rgb: hexToRgb(t.accent), accent2Rgb: hexToRgb(t.accent2), mutedRgb: hexToRgb(t.muted) },
   ])
 );
 
-// Canonical ordered list of type keys — reuse this instead of writing another
-// hardcoded venue/host/artist/band/standup array (see FollowingSection.jsx).
-export const PROFILE_TYPE_ORDER = Object.keys(PROFILE_TYPES);
+/**
+ * ⭐ THE ROLES SCENE OFFERS — ordered, canonical, and NOT the same list as
+ * `Object.keys(PROFILE_TYPES)`.
+ *
+ * ⚠ It used to be exactly that, under the name `PROFILE_TYPE_ORDER`, and the
+ * rename is the point rather than tidying: one list answered both "what may I
+ * become" and "what might I have to draw", so the first identity that was
+ * drawable-but-not-offerable had nowhere to go. Anything iterating this puts
+ * its contents in front of users as a choice — filter tokens, role cards,
+ * onboarding. Reuse it instead of hardcoding venue/host/artist/band/standup.
+ */
+export const SCENE_ROLE_ORDER = Object.keys(SCENE_ROLE_TYPES);
 
 // ── The unknown type (10F) ───────────────────────────────────────────────
 // A shared component handed a missing or unrecognised type must NOT inherit
@@ -170,7 +253,7 @@ export const UNKNOWN_PROFILE = Object.freeze({
  * one small extra constant.
  *
  * It stays out of PROFILE_TYPES because that map drives role pickers,
- * dashboards, application filters and PROFILE_TYPE_ORDER — punter belongs to
+ * dashboards, application filters and SCENE_ROLE_ORDER — punter belongs to
  * none of them (§A9: a Personal profile does not perform).
  *
  * `shortLabel: null` is what suppresses the type chip. A Personal profile is

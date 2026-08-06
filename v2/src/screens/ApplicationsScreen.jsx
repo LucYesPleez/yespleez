@@ -6,7 +6,7 @@ import { resolvePerformerProfileId } from '../lib/actingProfile';
 import { profileUrl } from '../lib/profileResolution';
 import { fetchApplicantProfiles } from '../lib/applicantProfiles';
 import { ensureHttps } from '../lib/socialLinks';
-import { PROFILE_TYPES } from '../lib/profileTypes';
+import ProfileAvatar from '../components/ProfileAvatar';
 import UnclaimedBadge from '../components/UnclaimedBadge';
 import s from './ApplicationsScreen.module.css';
 
@@ -145,7 +145,7 @@ function AppCard({ app, profile, onAccept, onReject }) {
           legacy URL form M5.1's shim retires. */}
       <div className={s.cardTop} style={{ cursor: 'pointer' }} onClick={() => profile && navigate(profileUrl(profile))}>
         {profile
-          ? <img className={s.avatar} src={profile.avatar || PROFILE_TYPES[profile.type]?.defaultImage || PROFILE_TYPES.artist.defaultImage} alt={name} />
+          ? <ProfileAvatar className={s.avatar} profile={profile} name={name} />
           : <div className={s.avatarPH}>{name[0]?.toUpperCase()}</div>
         }
         <div className={s.cardInfo}>

@@ -28,15 +28,15 @@ import {
 } from '../lib/sceneFloor';
 import { buildSpotlight } from '../lib/spotlight';
 import PastEventsSearch, { filterPastEvents } from '../components/PastEventsSearch';
-import { PROFILE_TYPES, PROFILE_TYPE_ORDER } from '../lib/profileTypes';
+import { PROFILE_TYPES, SCENE_ROLE_ORDER } from '../lib/profileTypes';
 import UnclaimedBadge from '../components/UnclaimedBadge';
 
 let _discoverCache = [];
 
 // 'event' isn't a profile type — kept as its own literal; every profile type
 // derives from the one canonical PROFILE_TYPES definition.
-const TYPE_COLORS = { ...Object.fromEntries(PROFILE_TYPE_ORDER.map(t => [t, PROFILE_TYPES[t].accent])), event: '#BF5FFF' };
-const TYPE_LABELS = { ...Object.fromEntries(PROFILE_TYPE_ORDER.map(t => [t, PROFILE_TYPES[t].shortLabel])), event: 'EVENT' };
+const TYPE_COLORS = { ...Object.fromEntries(SCENE_ROLE_ORDER.map(t => [t, PROFILE_TYPES[t].accent])), event: '#BF5FFF' };
+const TYPE_LABELS = { ...Object.fromEntries(SCENE_ROLE_ORDER.map(t => [t, PROFILE_TYPES[t].shortLabel])), event: 'EVENT' };
 const TYPE_UPDATES = { artist:'Updated their profile', venue:'Updated event listings', host:'Updated their events', band:'Updated their profile', standup:'Updated their profile' };
 
 function timeAgo(iso) {
@@ -1178,7 +1178,7 @@ export default function MySceneScreen({ isGuest, onSignOut }) {
                   return Math.abs(new Date(d + 'T12:00:00') - selD) / 86400000 <= 7 && d !== selDate;
                 }).sort((a, b) => Math.abs(new Date(a.config.date + 'T12:00:00') - selD) - Math.abs(new Date(b.config.date + 'T12:00:00') - selD)).slice(0, 6);
 
-                const TYPE_STYLES = Object.fromEntries(PROFILE_TYPE_ORDER.map(t => [t, PROFILE_TYPES[t].accent]));
+                const TYPE_STYLES = Object.fromEntries(SCENE_ROLE_ORDER.map(t => [t, PROFILE_TYPES[t].accent]));
 
                 return (
                   <>

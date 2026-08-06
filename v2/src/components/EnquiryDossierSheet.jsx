@@ -7,6 +7,7 @@ import { openDirectConversation } from '../lib/messaging';
 import { useConversationUi } from '../lib/conversationUi';
 import { completionFor, requirementLabel } from '../lib/requirements';
 import { PROFILE_TYPES } from '../lib/profileTypes';
+import ProfileAvatar from './ProfileAvatar';
 
 /**
  * THE BOOKING DOSSIER — everything needed to decide, in one readable place.
@@ -118,7 +119,7 @@ export default function EnquiryDossierSheet({ enq, viewerProfile, onClose, onRes
         {/* Scrolls; the actions below never do. */}
         <div style={{ overflowY: 'auto', padding: '0 20px', flex: 1 }}>
           <div style={{ display: 'flex', gap: 14, alignItems: 'center', marginBottom: 18 }}>
-            <img src={p.avatar || pt?.defaultImage || PROFILE_TYPES.artist.defaultImage} alt={name}
+            <ProfileAvatar avatar={p.avatar} identity={pt} name={name}
               style={{ width: 60, height: 60, borderRadius: 12, objectFit: 'cover', border: `2px solid ${accent}`, flexShrink: 0 }} />
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontFamily: "'Bebas Neue'", fontSize: 24, letterSpacing: 1, color: '#fff', lineHeight: 1.1 }}>{name}</div>

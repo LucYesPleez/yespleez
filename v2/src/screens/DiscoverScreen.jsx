@@ -18,7 +18,7 @@ import {
 } from '../lib/geo';
 import { today, dateStr, weekendRange } from '../lib/dates';
 
-// Venue-first, matching the shared canonical role order (PROFILE_TYPE_ORDER
+// Venue-first, matching the shared canonical role order (SCENE_ROLE_ORDER
 // in profileTypes.js). 'event' isn't a profile role, so it stays last.
 // Deliberate sentence-case renderings of PROFILE_TYPES' ALL-CAPS canonical
 // labels — this filter row uses prose-style chips (DM Sans, not the Bebas

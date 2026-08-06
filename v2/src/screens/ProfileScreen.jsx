@@ -19,7 +19,8 @@ import { socialProfileUrl, ensureHttps } from '../lib/socialLinks';
 import ProfileSocialLinks from '../components/ProfileSocialLinks';
 import AvailabilityCalendar from '../components/AvailabilityCalendar';
 import { selectedPerformanceRoleLabels, selectedArtistRoleLabels, ARTIST_ROLES, HOST_CATEGORIES } from '../lib/profileTaxonomy';
-import { PROFILE_TYPES } from '../lib/profileTypes';
+import { PROFILE_TYPES, profileIdentity } from '../lib/profileTypes';
+import ProfileAvatar from '../components/ProfileAvatar';
 import { openDirectConversation, sendableProfiles } from '../lib/messaging';
 import MessageAsSheet from '../components/MessageAsSheet';
 import { useConversationUi } from '../lib/conversationUi';
@@ -515,7 +516,14 @@ export default function ProfileScreen() {
   // Sharing lives in the header (GlobalHeader's Share icon) as the single
   // share action — see 11C.1 revision. No profile-local share() here.
 
-  const pt      = PROFILE_TYPES[profile.type] || PROFILE_TYPES.artist;
+  // ⛔ WAS `PROFILE_TYPES[profile.type] || PROFILE_TYPES.artist`, which is the
+  // hand-written fallback 10F introduced profileIdentity() to replace — and
+  // this copy survived that pass. It is not a harmless default: an unrecognised
+  // type inherited a DJ's ENTIRE identity here, so the public profile page
+  // rendered it in cyan, labelled "DJ / PROD.", wearing a DJ's placeholder
+  // photo, confidently and with nothing in the console. A festival hit exactly
+  // that until `festival` joined PROFILE_TYPES. Unknown must look unknown.
+  const pt      = profileIdentity(profile.type);
   const col     = pt.accent;
   const rgb     = pt.rgb;
   const grad2   = pt.accent2;
@@ -717,8 +725,15 @@ export default function ProfileScreen() {
             </div>
           )}
 
-          {/* Demo mix / sound */}
-          {!isHost && !isVenue && (
+          {/* Demo mix / sound
+              ⚠ AN ALLOWLIST, AND IT MUST STAY ONE. This read
+              `!isHost && !isVenue` — correct while five types existed, and
+              silently wrong the moment a sixth did: a FESTIVAL is neither a
+              host nor a venue, so it was offered a DJ's player and told
+              "DEMO MIX COMING SOON" about music it will never have.
+              Every type added from here is a performer or it is not; naming
+              who this is FOR cannot rot the way naming who it is not does. */}
+          {isPerformer && (
             mixLink
               ? <>
                   <span style={{ display: 'block', padding: 1, borderRadius: 12, marginBottom: 12, background: `linear-gradient(135deg, ${col}, ${grad2})` }}>
@@ -1140,7 +1155,7 @@ export default function ProfileScreen() {
               const tc = ptp ? { col: ptp.accent, rgb: ptp.rgb } : { col: '#00E5A0', rgb: '0,229,160' };
               return (
                 <button key={i} onClick={() => { setEnquiryProf(p); setPickerProfs([]); }} style={{ width: '100%', display: 'flex', gap: 12, alignItems: 'center', background: `rgba(${tc.rgb},.06)`, border: `1px solid rgba(${tc.rgb},.25)`, borderRadius: 12, padding: 12, cursor: 'pointer', textAlign: 'left', marginBottom: 8 }}>
-                  <img src={p.avatar || ptp?.defaultImage || PROFILE_TYPES.artist.defaultImage} style={{ width: 44, height: 44, borderRadius: 8, objectFit: 'cover', border: `1.5px solid rgba(${tc.rgb},.5)`, flexShrink: 0 }} alt={p.name} />
+                  <ProfileAvatar avatar={p.avatar} identity={ptp} name={p.name} style={{ width: 44, height: 44, borderRadius: 8, objectFit: 'cover', border: `1.5px solid rgba(${tc.rgb},.5)`, flexShrink: 0 }} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1.5, color: tc.col, marginBottom: 2 }}>{p.label}</div>
                     <div style={{ fontFamily: "'Bebas Neue'", fontSize: 16, letterSpacing: .5, color: '#e8e8f0' }}>{p.name}</div>
@@ -1164,7 +1179,7 @@ export default function ProfileScreen() {
             <div style={{ fontFamily: "'Bebas Neue'", fontSize: 20, letterSpacing: 1, marginBottom: 16 }}>{new Date(pickerDate + 'T00:00:00').toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).toUpperCase()}</div>
             {/* Profile preview */}
             <div style={{ display: 'flex', gap: 12, alignItems: 'center', background: 'rgba(255,255,255,.05)', border: `1px solid rgba(${rgb},.25)`, borderRadius: 12, padding: 12, marginBottom: 16 }}>
-              <img src={enquiryProf.avatar || PROFILE_TYPES[enquiryProf.type]?.defaultImage || PROFILE_TYPES.artist.defaultImage} style={{ width: 48, height: 48, borderRadius: 8, objectFit: 'cover', border: `2px solid ${col}`, flexShrink: 0 }} alt={enquiryProf.name} />
+              <ProfileAvatar profile={enquiryProf} name={enquiryProf.name} style={{ width: 48, height: 48, borderRadius: 8, objectFit: 'cover', border: `2px solid ${col}`, flexShrink: 0 }} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontFamily: "'Bebas Neue'", fontSize: 17, letterSpacing: 1 }}>{enquiryProf.name}</div>
                 {formatLocation(enquiryProf) && <div style={{ fontSize: 11, color: 'var(--muted)' }}>{formatLocation(enquiryProf)}</div>}

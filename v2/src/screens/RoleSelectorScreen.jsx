@@ -132,7 +132,7 @@ const ROLES = [
    * look like oversights and are not:
    *
    * 1. `festival` is absent from PROFILE_TYPES on purpose. That map feeds
-   *    PROFILE_TYPE_ORDER, which drives FollowingSection's filter tokens and
+   *    SCENE_ROLE_ORDER, which drives FollowingSection's filter tokens and
    *    MySceneScreen's colours and labels — adding it would put a FESTIVAL
    *    filter in front of every user, and there is no `defaultfestival.webp`,
    *    so any profile falling back to it would render as a bare pink gradient.

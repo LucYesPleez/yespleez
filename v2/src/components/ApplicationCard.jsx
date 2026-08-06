@@ -3,6 +3,7 @@ import ds from '../screens/DiscoverScreen.module.css';
 import { formatLocation } from '../lib/formatLocation';
 import { socialProfileUrl, socialHandle, ensureHttps } from '../lib/socialLinks';
 import { PROFILE_TYPES } from '../lib/profileTypes';
+import ProfileAvatar from './ProfileAvatar';
 
 function AppBtn({ onClick, disabled, base, hover, children }) {
   const [hov, setHov] = useState(false);
@@ -73,7 +74,7 @@ export default function ApplicationCard({ app, prof, event, onRespond, onAssign 
   return (
     <div style={{ marginBottom: 8 }}>
       <div className={ds.card} style={{ border: `1px solid rgba(${accentRgb},.35)`, cursor: 'default', marginBottom: 0, borderRadius: expanded ? '14px 14px 0 0' : 14 }}>
-        <img className={ds.cardAvatar} src={avatar || pt?.defaultImage || PROFILE_TYPES.artist.defaultImage} alt={name} style={{ borderColor: accent }} />
+        <ProfileAvatar className={ds.cardAvatar} avatar={avatar} identity={pt} name={name} style={{ borderColor: accent }} />
         <div className={ds.cardInfo}>
           <div className={ds.cardNameRow}>
             <span className={ds.cardName}>{name}</span>

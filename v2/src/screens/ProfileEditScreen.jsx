@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useSession } from '../App';
 import s from './ProfileEditScreen.module.css';
-import { PROFILE_TYPES } from '../lib/profileTypes';
+import { profileIdentity } from '../lib/profileTypes';
 import { STATE_OPTIONS } from '../lib/auLocations';
 
 // Screen-specific display flags — not shared metadata, stays local
@@ -81,7 +81,12 @@ export default function ProfileEditScreen() {
 
   if (loading) return <div className={s.screen}><p className={s.loading}>LOADING…</p></div>;
 
-  const pt    = PROFILE_TYPES[activeType] || PROFILE_TYPES.artist;
+  // The last two copies of 10F's hand-written fallback. `activeType` is always
+  // one of the account's own Scene roles here, so this never fired in practice
+  // — but the pattern is the thing being removed, not one of its outcomes.
+  // PROFILE_FLAGS keeps its own default: that map is about which FIELDS an
+  // editor shows, not about identity, and it has no neutral member to fall to.
+  const pt    = profileIdentity(activeType);
   const flags = PROFILE_FLAGS[activeType] || PROFILE_FLAGS.artist;
 
   return (
@@ -97,7 +102,7 @@ export default function ProfileEditScreen() {
       {profiles.length > 1 && (
         <div className={s.typeTabs}>
           {profiles.map(p => {
-            const ppt = PROFILE_TYPES[p.type] || PROFILE_TYPES.artist;
+            const ppt = profileIdentity(p.type);
             return (
               <button key={p.type}
                 className={activeType === p.type ? s.typeTabActive : s.typeTab}

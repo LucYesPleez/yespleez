@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import PortraitCard from './PortraitCard';
 import ProfileCard from './ProfileCard';
-import { PROFILE_TYPE_ORDER, PROFILE_TYPES } from '../lib/profileTypes';
+import { SCENE_ROLE_ORDER, PROFILE_TYPES } from '../lib/profileTypes';
 import { VISIBLE_PERFORMANCE_ROLES, VISIBLE_ARTIST_ROLES } from '../lib/profileTaxonomy';
 
 // One pill per profile type, except standup and artist — which each split
@@ -10,7 +10,10 @@ import { VISIBLE_PERFORMANCE_ROLES, VISIBLE_ARTIST_ROLES } from '../lib/profileT
 // regardless of what they actually do. Adding a role to PERFORMANCE_ROLES or
 // ARTIST_ROLES (profileTaxonomy.js) automatically gets a filter pill here,
 // no call-site changes needed.
-const BASE_TYPE_TOKENS = PROFILE_TYPE_ORDER.filter(t => t !== 'standup' && t !== 'artist');
+// SCENE_ROLE_ORDER, not every renderable type — these become filter CHIPS the
+// user picks from, and Scene must not offer to filter by an identity it does
+// not host (a festival is rendered here, never filtered for).
+const BASE_TYPE_TOKENS = SCENE_ROLE_ORDER.filter(t => t !== 'standup' && t !== 'artist');
 
 // The artist default-role model. Every Artist HAS a role: `dj_prod` is the
 // canonical default and `mc` is an explicit override, so an artist with no

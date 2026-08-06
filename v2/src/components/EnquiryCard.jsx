@@ -281,8 +281,17 @@ export default function EnquiryCard({ enq, viewerProfile, onRespond, onPlayDemo 
       }}>
         {/* Background image — same technique as EventCard: absolutely-positioned
             cover image + gradient overlay, content sits on top. */}
-        <img src={avatar || accentPt?.defaultImage || PROFILE_TYPES.artist.defaultImage} alt={name}
-          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+        {/* ⚠ NOT ProfileAvatar, and deliberately so: this is a full-bleed
+            BACKGROUND, not a face. A tinted initial stretched across the card
+            would be nonsense, so when there is no artwork the image is simply
+            omitted and the gradient overlay below becomes the whole treatment —
+            which is what it already is wherever the photo is dark.
+            It used to end `|| PROFILE_TYPES.artist.defaultImage`, so a type
+            without artwork wore a DJ's photo across the card. */}
+        {(avatar || accentPt?.defaultImage) && (
+          <img src={avatar || accentPt.defaultImage} alt=""
+            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+        )}
         <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(90deg, rgba(10,10,20,.92) 0%, rgba(10,10,20,.55) 50%, rgba(10,10,20,.82) 100%)' }} />
 
         <div style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', gap: 16, padding: '16px 18px' }}>
