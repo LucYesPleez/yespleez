@@ -1,5 +1,24 @@
+/**
+ * ⚠ `position: relative; z-index` IS LOad-BEARING — do not remove it as tidying.
+ *
+ * `backdrop-filter` below creates a STACKING CONTEXT. Any overlay opened from
+ * this bar — the event selector, the account menu — has its own z-index scoped
+ * INSIDE that context, so a `z-index: 40` popover cannot rise above the
+ * workspace, which has a backdrop-filter of its own and paints later in DOM
+ * order. The topbar itself has to sit above the body for anything inside it to.
+ *
+ * Symptom when it is missing: the popover opens, you can see a sliver of it in
+ * the gap above the workspace card, and the rest is painted over. It looks like
+ * clipping and is not.
+ *
+ * Same family as the Scene app's law that header overlays must portal to body,
+ * where a `transform` traps `position: fixed`. A filter traps z-index the same
+ * way.
+ */
 .topbar {
   grid-area: topbar;
+  position: relative;
+  z-index: 30;
   height: var(--fp-topbar-height);
   display: flex;
   align-items: center;
