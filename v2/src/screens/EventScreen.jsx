@@ -13,6 +13,8 @@ import { useEventData, EVENT_ID_RE } from './event/useEventData';
 import { useEventLike } from './event/useEventLike';
 import EventPage from './event/EventPage';
 import ApplyButton from './event/ApplyButton';
+import FestivalApplyLink from './event/FestivalApplyLink';
+import { applicationsBelongToFestival } from '../lib/festivalPortal';
 import DaySlots from './event/DaySlots';
 import EventHostView from './event/EventHostView';
 import s from './EventScreen.module.css';
@@ -101,6 +103,21 @@ export default function EventScreen() {
   // under wraps.
   const canApply = !isGuest && !!event.applications_open && !!session?.user?.id;
 
+  /**
+   * ⛔ ONE APPLICATION PIPELINE. A festival's event hands off to the Festival
+   * app rather than offering Scene's own form — Scene writes `applications` and
+   * the Portal's dashboard reads `festival_applications`, so showing both would
+   * let someone apply into a table no organiser ever opens, silently.
+   *
+   * ⚠ THIS IS THE SECOND APPLY SURFACE. EventPublicView builds the other one
+   * independently, and both must consult the same rule — a fix applied to one
+   * of two apply paths is not a fix. festivalPortal.test.js enforces it.
+   */
+  const applyAction = !canApply ? null
+    : applicationsBelongToFestival(d.ownerProfile)
+      ? <FestivalApplyLink eventId={id} festivalName={d.ownerProfile?.name} />
+      : <ApplyButton eventId={id} userId={session.user.id} ownerProfile={d.ownerProfile} />;
+
   // Mixes attached to confirmed slots, for the set-times player. Lifted from
   // EventPublicView, where it was computed for exactly this.
   const allMixSlots = d.days.flatMap(day => (day.slots || [])
@@ -118,9 +135,7 @@ export default function EventScreen() {
       favourited={like.liked}
       onToggleFavourite={like.toggleLike}
       canFavourite={!!session?.user?.id && !isGuest}
-      applyAction={canApply
-        ? <ApplyButton eventId={id} userId={session.user.id} ownerProfile={d.ownerProfile} />
-        : null}
+      applyAction={applyAction}
       setTimes={d.showTimesPublicly && d.totalSlots > 0
         ? <DaySlots
             eventId={id}

@@ -11,6 +11,8 @@
 // apply bar and the ticket button, overlays are siblings of .content inside
 // .screen. They are null for everyone else.
 import ApplyButton from './ApplyButton';
+import FestivalApplyLink from './FestivalApplyLink';
+import { applicationsBelongToFestival } from '../../lib/festivalPortal';
 import DaySlots from './DaySlots';
 import { formatDateRange } from '../../lib/dates';
 import s from '../EventScreen.module.css';
@@ -71,9 +73,15 @@ export default function EventPublicView({
           <span>{isPast ? 'PAST EVENT' : event.status === 'live' ? 'LIVE NOW' : 'NOT LIVE'}</span>
         </div>
 
-        {/* Apply bar — non-host, applications open */}
+        {/* Apply bar — non-host, applications open.
+            ⛔ A FESTIVAL'S EVENT NEVER GETS SCENE'S APPLY UI. Scene writes
+            `applications`; the Portal reads `festival_applications`. Rendering
+            both would let someone apply into a table the organiser's dashboard
+            never reads, with no error to show for it. See lib/festivalPortal. */}
         {!effectiveIsHost && !isGuest && event.applications_open && (
-          <ApplyButton eventId={id} userId={userId} ownerProfile={ownerProfile} />
+          applicationsBelongToFestival(ownerProfile)
+            ? <FestivalApplyLink eventId={id} festivalName={ownerProfile?.name} />
+            : <ApplyButton eventId={id} userId={userId} ownerProfile={ownerProfile} />
         )}
 
         {hostChrome}

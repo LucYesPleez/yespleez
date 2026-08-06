@@ -4,23 +4,11 @@ import { supabase } from '../lib/supabase';
 import { PROFILE_TYPES, hexToRgb } from '../lib/profileTypes';
 import { CATEGORY_BADGES } from '../lib/eventBadges';
 import { visibleRoles } from '../lib/roleVisibility';
+// ⭐ ONE definition of where the Portal is, shared with the apply hand-off on
+// festival-owned events. It was briefly declared here as well; two copies of a
+// URL is how the card and the hand-off end up pointing at different places.
+import { FESTIVAL_PORTAL_URL } from '../lib/festivalPortal';
 import s from './RoleSelectorScreen.module.css';
-
-/**
- * Where the FESTIVAL card sends you.
- *
- * The Portal is a SEPARATE FRONT-END over the same Supabase project, not a
- * route in this app, so this is a real navigation out rather than a
- * useNavigate() call. It has no deployed URL yet — the repo is private and runs
- * on 5180 in development — so the env var is the seam that stops this needing
- * a code change on the day it ships.
- *
- * ⚠ THE PREVIEW ENVIRONMENT HAS NO `VITE_*` VARS, so a preview build falls back
- * to localhost and the card will not open anything useful there. Acceptable
- * while this is owner-only; it is the first thing to fix when it is not.
- */
-const FESTIVAL_PORTAL_URL =
-  import.meta.env.VITE_FESTIVAL_PORTAL_URL || 'http://localhost:5180';
 
 // The one festival colour this app already has (CATEGORY_BADGES.FESTIVAL, used
 // on every festival event card). Reused rather than picked afresh, so the role
