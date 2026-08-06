@@ -177,10 +177,13 @@ export default function ApplyScreen() {
         <header className={s.header}>
           {event.festivalName && <span className={s.festival}>{event.festivalName}</span>}
           <h1 className={s.title}>{event.name}</h1>
+          {event.tagline && <p className={s.tagline}>{event.tagline}</p>}
           <span className={s.sub}>
             {event.applicationsOpen ? 'Applications are open' : 'Applications are closed'}
           </span>
         </header>
+
+        {event.description && <p className={s.description}>{event.description}</p>}
 
         {!event.applicationsOpen && (
           <EmptyState icon="clock" title="Applications are closed"

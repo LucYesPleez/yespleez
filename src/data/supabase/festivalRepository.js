@@ -1,5 +1,5 @@
 import { supabase } from './client';
-import { getFestivalContext } from './currentEvent';
+import { getFestivalContext, resetEventCache } from './currentEvent';
 
 /**
  * FESTIVAL — Supabase implementation.
@@ -38,6 +38,40 @@ export const festivalRepository = {
       website: profile.website ?? null,
       applicationsOpen: Boolean(current.applications_open) && (count ?? 0) > 0,
     };
+  },
+
+  /**
+   * Edit the festival's own identity.
+   *
+   * ⭐ Writes `profiles` — the SHARED profile system, not a portal-local copy.
+   * A festival is a profile like any other, so its name and bio live where
+   * every other identity's do.
+   *
+   * ⚠ `.select()` and a row check, deliberately. An UPDATE that no RLS policy
+   * permits does not error — it reports success having matched zero rows, and
+   * the form says "Saved" over a database that changed nothing. Requiring a
+   * returned row makes the success the evidence.
+   */
+  async updateProfile(patch) {
+    const { profile } = await getFestivalContext();
+    const { data, error } = await supabase
+      .from('profiles')
+      .update({
+        name: patch.name,
+        tagline: patch.tagline || null,
+        bio: patch.bio || null,
+        location: patch.location || null,
+        website: patch.website || null,
+      })
+      .eq('id', profile.id)
+      .select('id');
+    if (error) throw error;
+    if (!data?.length) {
+      throw new Error('Not saved: this account is not permitted to edit the festival profile.');
+    }
+    // The cached context holds the old name — drop it so the topbar and the
+    // apply page pick the new one up rather than disagreeing until reload.
+    resetEventCache();
   },
 
   /**

@@ -1,10 +1,7 @@
-import {
-  SectionCard, Button, Skeleton,
-  TextInput, Textarea, Row,
-} from '../design-system';
-import { FESTIVAL } from '../config/navigation';
+import { SectionCard, Button, Skeleton, Row } from '../design-system';
 import ApplicationLink from '../festival/ApplicationLink';
 import ApplicationSetup from '../festival/ApplicationSetup';
+import FestivalIdentity from '../festival/FestivalIdentity';
 import { useRepositories } from '../data/dataContext';
 import { useQuery } from '../data/useQuery';
 import s from './screens.module.css';
@@ -44,14 +41,7 @@ export default function FestivalScreen() {
 
       <div className={s.settingsGrid}>
         <div className={s.formStack}>
-          <SectionCard title="Identity" subtitle="Shared with every YesPleez surface — changing it here changes it everywhere.">
-            <TextInput label="Festival name" defaultValue={FESTIVAL.name} />
-            <TextInput label="Tagline" optional maxLength={80} placeholder="Eighty characters at most" />
-            <Textarea label="Description" rows={5} placeholder="What the festival is, in the words an applicant should read first." />
-            <TextInput label="Location" defaultValue={FESTIVAL.location} />
-            <TextInput label="Website" optional placeholder="https://" />
-          </SectionCard>
-
+          <FestivalIdentity />
         </div>
 
         <SectionCard

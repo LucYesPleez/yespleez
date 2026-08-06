@@ -17,7 +17,7 @@ export const applyRepository = {
   async getEvent(eventId) {
     const { data, error } = await supabase
       .from('events')
-      .select('id, name, applications_open, owner_profile_id, profiles!events_owner_profile_id_fkey ( name )')
+      .select('id, name, applications_open, owner_profile_id, profiles!events_owner_profile_id_fkey ( name, tagline, bio )')
       .eq('id', eventId)
       .maybeSingle();
     if (error) throw error;
@@ -27,6 +27,10 @@ export const applyRepository = {
       name: data.name,
       applicationsOpen: Boolean(data.applications_open),
       festivalName: data.profiles?.name ?? null,
+      // Absent, not blank. A festival that has written no tagline renders no
+      // tagline — never an empty line holding space for one.
+      tagline: data.profiles?.tagline ?? null,
+      description: data.profiles?.bio ?? null,
     };
   },
 

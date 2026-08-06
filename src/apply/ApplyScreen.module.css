@@ -25,7 +25,17 @@
   margin: 0 0 6px;
 }
 
+.tagline { color: var(--text); font-size: 15px; margin: 0 0 8px; }
+
 .sub { color: var(--muted); font-size: 13.5px; }
+
+.description {
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.55;
+  margin: 0 0 22px;
+  white-space: pre-line;
+}
 
 .signInNote { color: var(--text); font-size: 14px; margin: 0 0 4px; }
 
