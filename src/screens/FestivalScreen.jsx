@@ -35,6 +35,11 @@ export default function FestivalScreen() {
         </div>
       </header>
 
+      {/* ⚠ Everything below lives in a non-shrinking stack. `.page` is a flex
+          column that scrolls, and its children would otherwise shrink and
+          overlap once the screen outgrew one viewport — see `.stack`. */}
+      <div className={s.stack}>
+
       {/* First card on the screen, deliberately: sharing the link is the only
           thing here that has to happen before anyone can apply at all. */}
       <ApplicationLink />
@@ -61,6 +66,7 @@ export default function FestivalScreen() {
           displays of "what is open" that could disagree is worse than one that
           is real — this reads and writes the event. */}
       <ApplicationSetup eventId={festival?.eventId} />
+      </div>
     </div>
   );
 }

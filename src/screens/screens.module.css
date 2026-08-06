@@ -20,6 +20,23 @@
 
 .formStack { display: flex; flex-direction: column; gap: 14px; }
 
+/**
+ * A screen's cards, in a column that CANNOT shrink.
+ *
+ * ⚠ `.page` above is a flex column with a constrained height and `overflow-y:
+ * auto`. Flex children default to `flex-shrink: 1`, so once a screen's content
+ * exceeds the viewport the cards SHRINK instead of the page scrolling — and
+ * SectionCard does not clip, so each card's contents spill over the one below.
+ * The symptom is several headers stacked ~30px apart with their bodies
+ * overlapping, and clicks landing on the wrong control. It appears only after a
+ * screen grows past one viewport, which is why it arrived three cards late.
+ *
+ * `flex-shrink: 0` makes this wrapper keep its full content height, which is
+ * what gives `.page` something to scroll. Inside it the column is
+ * unconstrained, so its own children never shrink either.
+ */
+.stack { display: flex; flex-direction: column; gap: 14px; flex-shrink: 0; }
+
 .settingsGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
