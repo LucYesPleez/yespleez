@@ -11,6 +11,8 @@ import { createClient } from '@supabase/supabase-js';
  * public by design — RLS is what protects the data, not the key. The service
  * role key must never appear in a VITE_ variable.
  */
+// build-stamp: 2026-08-06 env-var rebuild — a real change, because an empty
+// commit hits Cloudflare's build cache and reuses the old output byte-for-byte.
 const url = import.meta.env.VITE_SUPABASE_URL;
 const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
