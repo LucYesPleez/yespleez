@@ -24,7 +24,7 @@ import assert from 'node:assert/strict';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, dirname, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { applicationsBelongToFestival, festivalApplyUrl } from './festivalPortal.js';
+import { applicationsBelongToFestival } from './festivalPortal.js';
 
 const SRC = join(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -55,10 +55,16 @@ test('an unknown or missing owner keeps Scene\'s flow', () => {
   }
 });
 
-test('the apply hand-off is a hash route keyed by event, and null without one', () => {
-  assert.match(festivalApplyUrl('abc-123'), /\/#\/apply\/abc-123$/);
-  assert.equal(festivalApplyUrl(''), null);
-  assert.equal(festivalApplyUrl(undefined), null);
+test('the public is never sent to the Portal to apply', () => {
+  // Owner reversed the hand-off on 2026-08-06: applying happens in Scene, on
+  // the normal event page. The Portal is the ORGANISER's tool and the public
+  // does not need to know it exists — so no punter-facing surface may build a
+  // Portal URL. The role picker's FESTIVAL card is the one legitimate crossing,
+  // and it is reached through Industry.
+  const src = readFileSync(join(SRC, 'lib', 'festivalPortal.js'), 'utf8');
+  assert.doesNotMatch(src, /export\s+function\s+festivalApplyUrl/,
+    'festivalApplyUrl is back. Applying belongs in Scene — see ' +
+    'screens/event/FestivalApply.jsx.');
 });
 
 test('EVERY surface that renders ApplyButton also consults the rule', () => {
@@ -80,5 +86,6 @@ test('EVERY surface that renders ApplyButton also consults the rule', () => {
     'app owns the pipeline. On a festival\'s event that writes an application ' +
     'into `applications`, which no festival dashboard reads — it is lost ' +
     'silently. Branch on applicationsBelongToFestival(ownerProfile) and render ' +
-    'FestivalApplyLink instead.');
+    'FestivalApply instead — Scene keeps the applicant, and writes to ' +
+    '`festival_applications` rather than its own `applications` table.');
 });

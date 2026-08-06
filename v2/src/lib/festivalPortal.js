@@ -55,18 +55,14 @@ export function applicationsBelongToFestival(ownerProfile) {
   return ownerProfile?.type === 'festival';
 }
 
-/**
- * The Portal's public apply page for one event.
+/* ⛔ `festivalApplyUrl()` WAS HERE AND IS GONE — do not restore it.
  *
- * Hash route, because the Portal is a hash-router SPA — see its own
- * `/apply/:eventId` route and the share link its TopBar builds. Keyed by event
- * id and nothing else: an applicant runs no festival, so there is no "which
- * festival am I" to resolve first.
+ * It pointed the public at the Portal's own apply page, which the owner
+ * reversed on 2026-08-06: "The public doesn't need to know a Festival app
+ * exists. They discover festivals through Scene exactly as they discover any
+ * other event." Applying now happens on Scene's event page — see
+ * screens/event/FestivalApply.jsx and lib/festivalApplications.js.
  *
- * @param {string} eventId
- * @returns {string|null} null when there is no event to point at
- */
-export function festivalApplyUrl(eventId) {
-  if (!eventId) return null;
-  return `${FESTIVAL_PORTAL_URL}/#/apply/${eventId}`;
-}
+ * FESTIVAL_PORTAL_URL survives because the ORGANISER still goes there, through
+ * the FESTIVAL card in the role picker. That is the only crossing left, and it
+ * is Industry → Festival → Festival App, never a punter's path. */

@@ -11,7 +11,7 @@
 // apply bar and the ticket button, overlays are siblings of .content inside
 // .screen. They are null for everyone else.
 import ApplyButton from './ApplyButton';
-import FestivalApplyLink from './FestivalApplyLink';
+import FestivalApply from './FestivalApply';
 import { applicationsBelongToFestival } from '../../lib/festivalPortal';
 import DaySlots from './DaySlots';
 import { formatDateRange } from '../../lib/dates';
@@ -80,7 +80,7 @@ export default function EventPublicView({
             never reads, with no error to show for it. See lib/festivalPortal. */}
         {!effectiveIsHost && !isGuest && event.applications_open && (
           applicationsBelongToFestival(ownerProfile)
-            ? <FestivalApplyLink eventId={id} festivalName={ownerProfile?.name} />
+            ? <FestivalApply eventId={id} userId={userId} festivalName={ownerProfile?.name} />
             : <ApplyButton eventId={id} userId={userId} ownerProfile={ownerProfile} />
         )}
 

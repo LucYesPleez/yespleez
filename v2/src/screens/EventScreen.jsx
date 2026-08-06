@@ -13,7 +13,7 @@ import { useEventData, EVENT_ID_RE } from './event/useEventData';
 import { useEventLike } from './event/useEventLike';
 import EventPage from './event/EventPage';
 import ApplyButton from './event/ApplyButton';
-import FestivalApplyLink from './event/FestivalApplyLink';
+import FestivalApply from './event/FestivalApply';
 import { applicationsBelongToFestival } from '../lib/festivalPortal';
 import DaySlots from './event/DaySlots';
 import EventHostView from './event/EventHostView';
@@ -115,7 +115,7 @@ export default function EventScreen() {
    */
   const applyAction = !canApply ? null
     : applicationsBelongToFestival(d.ownerProfile)
-      ? <FestivalApplyLink eventId={id} festivalName={d.ownerProfile?.name} />
+      ? <FestivalApply eventId={id} userId={session.user.id} festivalName={d.ownerProfile?.name} />
       : <ApplyButton eventId={id} userId={session.user.id} ownerProfile={d.ownerProfile} />;
 
   // Mixes attached to confirmed slots, for the set-times player. Lifted from
