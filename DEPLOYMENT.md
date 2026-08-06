@@ -26,16 +26,23 @@ mechanism must be revisited rather than stretched.
 Controlled experiment, 2026-08-06: with correctly named `VITE_*` variables
 visible in the panel's **Production** scope (type Plaintext), four consecutive
 successful builds produced bundles in which `import.meta.env` had none of the
-values. A sentinel variable set **only** in the panel
-(`VITE_DASHBOARD_PROBE=reached-the-build`) never appeared in the built bundle,
-while the same names supplied via `.env.production` baked in every time, same
-commit, same pipeline.
+values, while the same names supplied via `.env.production` baked in every
+time, same commit, same pipeline. Their presence in the panel is documented by
+dashboard screenshots taken between those builds.
 
-**What this proves:** the specific configuration tested — that panel, that
-scope, that type — does not supply Vite's build.
-**What it does not prove:** that Cloudflare Pages has no supported
-build-variable mechanism. If one is identified and verified later, migrating is
-fine — verify with the same sentinel experiment before deleting this file.
+⚠ A cleaner sentinel test (a variable set *only* in the panel, then grepped for
+in the bundle) was designed but **never actually ran** — the sentinel was never
+created in the dashboard, which was only discovered afterwards. The evidence
+above is observational, not the controlled version.
+
+**What this shows:** the configuration used — that panel, Production scope,
+Plaintext type — did not supply Vite's build across four attempts.
+**What it does not show:** that Cloudflare Pages has no supported
+build-variable mechanism. If one is identified later, migrate freely — but run
+the sentinel test for real first: add `VITE_DASHBOARD_PROBE=reached-the-build`
+in the candidate location ONLY, **verify it exists there**, push a real source
+change, and grep the deployed bundle for the literal. Only a positive grep
+justifies deleting this file.
 
 The dashboard variables were removed after the experiment so there is exactly
 one apparent source of truth. If you find values in the dashboard panel again,
