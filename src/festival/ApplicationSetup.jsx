@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { SectionCard, Button, EmptyState, Icon } from '../design-system';
+import { SectionCard, Button, EmptyState, Icon, Callout } from '../design-system';
 import { TextInput, Toggle, Row } from '../design-system/Form';
 import { CATEGORIES } from '../config/categories';
 import { useRepositories } from '../data/dataContext';
@@ -22,23 +22,36 @@ import s from './ApplicationSetup.module.css';
 function Dates({ eventId }) {
   const { eventConfig } = useRepositories();
   const { data, reload } = useQuery(() => eventConfig.getSettings(eventId), [eventId]);
+  const { data: event, reload: reloadEvent } = useQuery(() => eventConfig.getEvent(eventId), [eventId]);
   const [form, setForm] = useState(null);
+  const [name, setName] = useState(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [error, setError] = useState('');
 
   // Seed the form once the values arrive, and never again — re-seeding on every
   // data change would discard what the organiser is halfway through typing.
   useEffect(() => { if (data && !form) setForm(data); }, [data, form]);
-  if (!form) return null;
+  useEffect(() => { if (event && name === null) setName(event.name ?? ''); }, [event, name]);
+  if (!form || name === null) return null;
 
-  const set = (k, v) => { setForm(f => ({ ...f, [k]: v })); setSaved(false); };
+  const set = (k, v) => { setForm(f => ({ ...f, [k]: v })); setSaved(false); setError(''); };
 
   async function save() {
     setSaving(true);
-    await eventConfig.saveSettings(eventId, form);
+    setError('');
+    try {
+      if (name.trim() && name.trim() !== event?.name) {
+        await eventConfig.setEventName(eventId, name.trim());
+        reloadEvent();
+      }
+      await eventConfig.saveSettings(eventId, form);
+      setSaved(true);
+      reload();
+    } catch (e) {
+      setError(e.message);
+    }
     setSaving(false);
-    setSaved(true);
-    reload();
   }
 
   const field = (label, key) => (
@@ -47,14 +60,24 @@ function Dates({ eventId }) {
 
   return (
     <SectionCard
-      title="Dates"
-      subtitle="Build, festival and pack-down. Applicants choose their availability from these — the day list writes itself, so nobody types thirteen dates by hand."
+      title="This event"
+      subtitle="The round you are taking applications for. Its name is the heading applicants see, and the dates are what they pick their availability from — the day list writes itself, so nobody types thirteen dates by hand."
     >
+      {/* ⚠ The event name is a separate thing from the festival's name and both
+          appear on the apply page. Left uneditable, a festival renamed in
+          Identity showed the old name one line below the new one. */}
+      <TextInput
+        label="Event name"
+        value={name}
+        placeholder="Echo Valley Festival 2026"
+        onChange={e => { setName(e.target.value); setSaved(false); setError(''); }}
+      />
       <Row>{field('Build starts', 'buildStartsOn')}{field('Build ends', 'buildEndsOn')}</Row>
       <Row>{field('Festival starts', 'startsOn')}{field('Festival ends', 'endsOn')}</Row>
       <Row>{field('Pack-down starts', 'packdownStartsOn')}{field('Pack-down ends', 'packdownEndsOn')}</Row>
+      {error && <Callout tone="danger" title="Not saved">{error}</Callout>}
       <Button variant="primary" onClick={save} disabled={saving}>
-        {saving ? 'Saving…' : saved ? 'Saved' : 'Save dates'}
+        {saving ? 'Saving…' : saved ? 'Saved' : 'Save event'}
       </Button>
     </SectionCard>
   );

@@ -62,12 +62,17 @@ function CategoryCard({ category, profiles, config, onApply, applied }) {
 
       {/* Why a category can be open and still have no button. Stating it is the
           point — a card with nothing on it reads as something that failed to
-          load rather than something not open to this person. */}
+          load rather than something not open to this person.
+
+          ⚠ This used to say "Not open for applications this year", which was
+          wrong: the organiser HAS opened the category, there is simply no
+          profile type that can apply to it yet. Calling it closed contradicted
+          the page it was sitting on. */}
       {!eligible.length && (
         <p className={s.note}>
           {category.appliesAs.length
             ? `Open to ${category.appliesAs.join(' and ')} profiles. You don't have one yet.`
-            : 'Not open for applications this year.'}
+            : 'Applications for this category are not open through YesPleez yet.'}
         </p>
       )}
 

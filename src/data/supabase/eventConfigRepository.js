@@ -18,6 +18,34 @@ import { supabase } from './client';
  * get this wrong.
  */
 export const eventConfigRepository = {
+  async getEvent(eventId) {
+    const { data, error } = await supabase
+      .from('events')
+      .select('id, name')
+      .eq('id', eventId)
+      .maybeSingle();
+    if (error) throw error;
+    return data ?? null;
+  },
+
+  /**
+   * ⚠ Writes `events` — the SHARED table, governed by the Scene app's policies
+   * rather than `owns_festival_event`. Same guard as the profile editor:
+   * an UPDATE no policy permits succeeds having matched nothing, so the row
+   * count is the evidence, not the absence of an error.
+   */
+  async setEventName(eventId, name) {
+    const { data, error } = await supabase
+      .from('events')
+      .update({ name })
+      .eq('id', eventId)
+      .select('id');
+    if (error) throw error;
+    if (!data?.length) {
+      throw new Error('Not saved: this account is not permitted to rename the event.');
+    }
+  },
+
   async getSettings(eventId) {
     const { data, error } = await supabase
       .from('festival_event_settings')
