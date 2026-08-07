@@ -1,5 +1,15 @@
 # Handover — platform session, 2026-08-07 (evening)
 
+## Project State (2026-08-07)
+
+The platform architecture is complete enough to build against. The implementation
+is in a deliberate transition: core architectural decisions are ratified, but
+several are not yet realised in code. The monorepo migration is planned and
+documented but has not begun. **Read this handover as an execution guide, not as a
+statement that the architecture is already implemented.**
+
+---
+
 **Supersedes `handover-festival-thread-2026-08-07.md`** for execution state. That
 document is still correct about the Festival Portal's product state; this one
 carries what changed after it, across **both repos and the database**.
@@ -114,6 +124,22 @@ move rather than a tidy-up.
 4. **Resume Festival's integration of the shared Event Editor after the repository
    move** — that is the step the whole extraction was for, and it cannot happen
    before the move.
+
+**Step 4 is an architectural acceptance test, not an integration task.** The
+success criterion is *not* "Festival can render the editor". It is:
+
+> Festival renders the identical editor **without the shared package learning what
+> Festival is.**
+
+If the package needs `mode: 'scene' | 'festival'`, or starts branching on
+application identity at all, that is evidence the boundary was drawn in the wrong
+place — treat it as a finding, not a workaround. **The package knows about events,
+not about applications.** Festival-specific behaviour belongs in the Festival
+wrapper; Scene-specific behaviour belongs in the Scene wrapper. The shared editor
+stays oblivious to its host.
+
+This is the first genuine validation of the platform architecture rather than
+another implementation milestone.
 
 ⛔ Do not apply M2 to production as part of any of the above. It is its own
 deliberate deployment window, after the release and the move.
