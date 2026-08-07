@@ -3,7 +3,6 @@ import { DataContext } from './dataContext';
 import { festivalRepository } from './supabase/festivalRepository';
 import { categoryRepository } from './supabase/categoryRepository';
 import { applicationRepository } from './supabase/applicationRepository';
-import { applyRepository } from './supabase/applyRepository';
 import { eventConfigRepository } from './supabase/eventConfigRepository';
 
 /**
@@ -31,9 +30,10 @@ const DEFAULT_REPOSITORIES = {
   festivals: festivalRepository,
   categories: categoryRepository,
   applications: applicationRepository,
-  // The public apply surface. Keyed by the event id in the URL rather than by
-  // "which festival do I run", because an applicant runs none.
-  apply: applyRepository,
+  // ⛔ `apply` IS GONE — deleted with the public apply screen, 2026-08-07.
+  // Applying happens in Scene now; this app has no public surface. The
+  // organiser's half of an application stays, because configuring what is
+  // asked is an organiser's job.
   // The organiser's half of an application: dates, departments, what is open.
   eventConfig: eventConfigRepository,
 };

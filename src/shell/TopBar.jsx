@@ -4,6 +4,7 @@ import AnnouncementButton from './AnnouncementButton';
 import { useRepositories } from '../data/dataContext';
 import { useQuery } from '../data/useQuery';
 import { useSession } from '../auth/useSession';
+import { sceneEventUrl } from '../config/scene';
 import s from './TopBar.module.css';
 
 /**
@@ -102,19 +103,18 @@ export default function TopBar({ notifications = 0, messages = 0 }) {
       </Popover>
 
       <div className={s.actions}>
-        {/* Was a dead button labelled "View Public Profile". There is no public
-            profile page yet; the application page IS the public face, so it
-            says what it does and goes where it says. */}
+        {/* Was a dead button labelled "View Public Profile", then this app's own
+            apply page. ⭐ It now opens SCENE's public event page — the one and
+            only public representation of an event (owner, 2026-08-06). An
+            organiser checking "what does this look like to an applicant?" must
+            be shown the real thing, or they are verifying a copy. */}
         {festival?.event?.id && (
           <Button
             variant="secondary"
             iconRight="external"
-            onClick={() => window.open(
-              `${window.location.origin}${window.location.pathname}#/apply/${festival.event.id}`,
-              '_blank',
-            )}
+            onClick={() => window.open(sceneEventUrl(festival.event.id), '_blank')}
           >
-            <span className={s.publicLabel}>View application page</span>
+            <span className={s.publicLabel}>View public page</span>
           </Button>
         )}
 

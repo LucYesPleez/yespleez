@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { SectionCard, Button, Callout } from '../design-system';
 import { TextInput, Row } from '../design-system/Form';
+import { sceneEventUrl } from '../config/scene';
 
 /**
  * THE APPLICATION LINK.
@@ -10,25 +11,25 @@ import { TextInput, Row } from '../design-system/Form';
  * system at all — every other thing the portal does happens after someone has
  * followed this URL.
  *
- * ⚠ Built from `window.location` rather than a configured base URL. A hardcoded
- * host is wrong on localhost, wrong on a preview deploy and wrong again in
- * production, and it fails silently — the link looks perfectly valid and lands
- * nobody anywhere.
+ * ⭐ IT POINTS AT SCENE NOW, not at this app. Owner's ruling 2026-08-06: a
+ * festival's event opens the normal Scene event page, and the public never needs
+ * to know a Festival app exists. This repo's own `/apply/:eventId` has been
+ * deleted — it was a second public surface writing the same table.
+ *
+ * ⚠ It was built from `window.location` and could not stay that way once the
+ * destination moved to a different origin. See config/scene.js, which restates
+ * the hardcoded-host warning this comment used to carry.
  *
  * ⚠ Scoped to an EVENT ID passed in, never to "the current event". A festival
  * with three events has three links, and a card that quietly showed one of them
  * would be handing out the wrong year's URL.
  */
-function applyUrl(eventId) {
-  const { origin, pathname } = window.location;
-  return `${origin}${pathname}#/apply/${eventId}`;
-}
 
 export default function ApplicationLink({ eventId, applicationsOpen = true }) {
   const [copied, setCopied] = useState(false);
   if (!eventId) return null;
 
-  const url = applyUrl(eventId);
+  const url = sceneEventUrl(eventId);
 
   async function copy() {
     await navigator.clipboard.writeText(url);
@@ -41,7 +42,12 @@ export default function ApplicationLink({ eventId, applicationsOpen = true }) {
   return (
     <SectionCard
       title="Application link"
-      subtitle="Anyone with this link can apply. They sign in on the page itself and come straight back."
+      /* ⚠ The old copy promised "they sign in on the page itself and come
+         straight back", which was true of this app's apply page and is not true
+         of Scene's. Describing a flow the destination does not have is how an
+         organiser ends up reassuring an applicant about something that will not
+         happen to them. */
+      subtitle="Your event's public page in Scene. Anyone with this link can see the event and apply."
     >
       <TextInput label="Public link" readOnly value={url} onFocus={e => e.target.select()} />
       <Row>
