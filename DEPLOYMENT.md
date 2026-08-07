@@ -9,7 +9,13 @@ HashRouter precisely so deploys need none.
 
 Vite build-time configuration lives in the **committed** `.env.production`:
 
-- `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_ORGANISER_ALLOWLIST`
+- `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_ORGANISER_ALLOWLIST`,
+  `VITE_SCENE_URL`
+
+⚠ **`VITE_SCENE_URL` is load-bearing and was missing until 2026-08-07.** It is
+where every application link points. Unset, `config/scene.js` falls back to
+`http://localhost:5174`, so the live beta hands out links to the organiser's own
+machine — valid-looking, and dead for everyone else.
 
 **These are intentionally public client-side values only.** The anon key ships
 to every browser by design; Supabase RLS is the protection, not the key. The
