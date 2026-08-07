@@ -51,11 +51,21 @@ export default function FollowHeartBtn({ profile, style, className, onChange, on
   useEffect(() => {
     if (!session?.user?.id || !pid || isSelf) return;
     if (followedProfiles.has(pid)) return;           // already confirmed this session
+    /* ⚠ `.limit(1)`, NEVER `.maybeSingle()` — ONE FOLLOW CAN HAVE TWO ROWS.
+       The two keyspaces this OR spans are not exclusive: pre-M5 rows keyed
+       entity_id by profile.id, current rows key it by user_id, and an account
+       followed across that change owns one of each. maybeSingle() treats the
+       second row as an ERROR (PGRST116) and returns data=null, so the heart
+       read as unfollowed — and the follow it then tried to write collided with
+       the row already there (23505), silently, forever. Measured on live data
+       2026-08-08: one profile in the table was in exactly this state, and it
+       was the one that could not be hearted. ProfileScreen already reads it
+       this way (ProfileScreen.jsx:220); this was the outlier. */
     supabase.from('follows').select('id')
       .eq('user_id', session.user.id)
       .or(`target_profile_id.eq.${pid},entity_id.eq.${legacyId}`)
-      .maybeSingle()
-      .then(({ data }) => { if (data) { followedProfiles.add(pid); setFollowed(true); } });
+      .limit(1)
+      .then(({ data }) => { if (data?.length) { followedProfiles.add(pid); setFollowed(true); } });
   }, [pid, legacyId, session?.user?.id, isSelf]);
 
   function report(intent, error) {
@@ -72,8 +82,13 @@ export default function FollowHeartBtn({ profile, style, className, onChange, on
     if (!session?.user?.id || busy || !pid || isSelf) return;
     setBusy(true);
     if (followed) {
+      /* Both keyspaces, for the same reason the read spans both: deleting only
+         the entity_id match leaves a legacy row behind, the heart empties, and
+         the next mount reads that survivor and fills it again. Matches
+         ProfileScreen.toggleFollow (ProfileScreen.jsx:419). */
       const { error } = await supabase.from('follows').delete()
-        .eq('user_id', session.user.id).eq('entity_id', legacyId);
+        .eq('user_id', session.user.id)
+        .or(`target_profile_id.eq.${pid},entity_id.eq.${legacyId}`);
       if (error) { report('unfollow', error); onError?.(error, 'unfollow'); setBusy(false); return; }
       followedProfiles.delete(pid); setFollowed(false);
       onChange?.(false, profile);

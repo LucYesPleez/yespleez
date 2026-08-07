@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
@@ -154,6 +154,102 @@ function matchesDate(item, dateFilter) {
 const DEFAULT_RAIL_SIZE = 20;
 
 /**
+ * How many profiles are FETCHED to build that rail.
+ *
+ * The rail used to fetch exactly what it showed, so the twenty cards were the
+ * same twenty cards on every open — the screen read as stale even while the
+ * catalogue grew. Randomising needs something to choose FROM, so the pool is
+ * deliberately wider than the rail and the order is drawn from it per open.
+ */
+const POOL_SIZE = 60;
+
+/**
+ * One default-image profile per five cards.
+ *
+ * Owner, 2026-08-08: "i dont mind if it has 1:5 new roles that dont have images
+ * … but pepper new profiles with default images through the top 20". So the
+ * rail is 16 profiles using their own picture and 4 using a type default, in
+ * fixed slots, rather than a ratio that drifts with whatever the query returned.
+ */
+const PLAIN_EVERY = 5;
+
+/**
+ * Fisher–Yates against a SEEDED generator, not Math.random.
+ *
+ * The seed is minted once per mount and threaded through, so the order is
+ * stable for the life of the screen — re-renders (typing, opening filters,
+ * VIEW MORE) must not reshuffle the cards under the reader's thumb. A fresh
+ * mount mints a fresh seed, which is what makes each open different.
+ */
+function seededShuffle(rows, seed) {
+  const out = rows.slice();
+  let s = seed >>> 0;
+  const next = () => {
+    // mulberry32 — small, deterministic, and no dependency.
+    s = (s + 0x6d2b79f5) >>> 0;
+    let t = s;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(next() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+}
+
+/**
+ * THE RAIL: shuffled photos, with new default-image profiles peppered through.
+ *
+ * `withPhoto` is shuffled outright — every profile using its own picture is
+ * equally worth showing, so recency stopping the rest from ever surfacing is
+ * the thing being fixed.
+ *
+ * `plain` is NOT shuffled outright. The ask is to pepper NEW profiles through,
+ * and the pool arrives `updated_at DESC`, so only the newest slice is eligible
+ * and the shuffle happens inside it — otherwise "peppered" would mean a random
+ * draw from the whole imported catalogue, which is the grey directory the
+ * two-query split already exists to avoid.
+ *
+ * ⚠ SHORTFALL FILLS FROM THE OTHER BUCKET. Neither ratio nor rail length is
+ * worth a hole: if there are fewer than four eligible defaults the rail is
+ * completed with photos, and vice versa.
+ */
+function composeRail(pool, seed) {
+  const withPhoto = seededShuffle(pool.filter(p => p._ownPhoto), seed);
+  const plainCount = Math.floor(DEFAULT_RAIL_SIZE / PLAIN_EVERY);
+  const plainPool  = pool.filter(p => !p._ownPhoto);
+  const newWindow  = Math.max(plainCount * 3, 12);
+  // Shuffled NEW window first, then the rest in plain recency order. The tail
+  // is never reached while there are photos to show — it exists only so a thin
+  // photo pool still fills twenty cards instead of leaving the rail short.
+  const plain = [
+    ...seededShuffle(plainPool.slice(0, newWindow), seed ^ 0x9e3779b9),
+    ...plainPool.slice(newWindow),
+  ];
+
+  const rail = [];
+  let pi = 0, qi = 0;
+  for (let slot = 0; slot < DEFAULT_RAIL_SIZE; slot++) {
+    const wantPlain = (slot + 1) % PLAIN_EVERY === 0;
+    const first  = wantPlain ? plain : withPhoto;
+    const second = wantPlain ? withPhoto : plain;
+    const firstI  = wantPlain ? qi : pi;
+    if (firstI < first.length) {
+      rail.push(first[firstI]);
+      if (wantPlain) qi++; else pi++;
+    } else {
+      const secondI = wantPlain ? pi : qi;
+      if (secondI >= second.length) break;   // pool exhausted — a short rail, not a padded one
+      rail.push(second[secondI]);
+      if (wantPlain) pi++; else qi++;
+    }
+  }
+  return rail;
+}
+
+/**
  * M5: id included — cards navigate by the canonical profile.id, which is what
  * makes unclaimed profiles (user_id NULL) navigable at all.
  * postcode/suburb/lat/lng are selected so the radius filter has something to
@@ -198,7 +294,7 @@ async function fetchDefault() {
       .neq('avatar', '')
       .neq('avatar', 'N/A')
       .order('updated_at', { ascending: false })
-      .limit(DEFAULT_RAIL_SIZE),
+      .limit(POOL_SIZE),
     supabase.from('profiles')
       // The original rail, kept whole: whatever is genuinely newest, claimed
       // or not. Fills the rail behind the registered ones.
@@ -206,7 +302,7 @@ async function fetchDefault() {
       .in('type', DISCOVER_TYPES)
       .or('is_live.is.null,is_live.neq.false')
       .order('updated_at', { ascending: false })
-      .limit(DEFAULT_RAIL_SIZE),
+      .limit(POOL_SIZE),
     supabase.from('events')
       // The embedded venue is how an event gets a location at all: the venue
       // owns it (docs/location-architecture-2026-07.md §4). `postcode`/`lat`
@@ -223,12 +319,24 @@ async function fetchDefault() {
   // Deduped by id: the two queries overlap by design (a registered profile
   // that IS genuinely recent appears in both), and the Map keeps the first
   // insertion — which is the registered one, so the preference survives.
+  //
+  // ⚠ THIS IS THE POOL, NOT THE RAIL. It is deliberately NOT sliced to 20 and
+  // its order is only a preference: composeRail() draws the twenty cards from
+  // it per open. Slicing here would put the randomiser back where it started,
+  // choosing twenty out of twenty.
   const merged = new Map();
   for (const p of [...(registeredRes.data || []), ...(recentRes.data || [])]) {
     if (!merged.has(p.id)) merged.set(p.id, p);
   }
   return [
-    ...[...merged.values()].slice(0, DEFAULT_RAIL_SIZE).map(p => ({ ...p, _kind: 'profile' })),
+    // `_ownPhoto` is decided ONCE, here, against the same rule the queries use
+    // ('', null and 'N/A' all mean PortraitCard paints the type default) so the
+    // ratio the rail promises cannot drift from what the reader actually sees.
+    ...[...merged.values()].map(p => ({
+      ...p,
+      _kind: 'profile',
+      _ownPhoto: !!p.avatar && p.avatar !== 'N/A',
+    })),
     ...(evRes.data || []).map(e => ({ ...e, _kind: 'event' })),
   ];
 }
@@ -294,11 +402,29 @@ export default function DiscoverScreen() {
   // Reset pagination when filters change
   useEffect(() => { setVisibleCount(3); setVisibleEventsCount(3); }, [query, type, genre, state, postcode]);
 
+  /**
+   * ONE SEED PER OPEN — minted at mount, never during a render.
+   *
+   * The cache and the shuffle are deliberately separated. The query key stays
+   * ['discover','default'] so returning to Discover does not refetch, and the
+   * ORDER still changes because the seed is component state: a new mount is a
+   * new seed, a re-render is not. Reseeding on every render would reshuffle the
+   * rail while the reader was looking at it.
+   */
+  const [railSeed] = useState(() => Math.floor(Math.random() * 0xffffffff));
+
   // Default view — cached by React Query
-  const { data: defaultItems = [], isLoading: defaultLoading } = useQuery({
+  const { data: defaultPool = [], isLoading: defaultLoading } = useQuery({
     queryKey: ['discover', 'default'],
     queryFn: fetchDefault,
   });
+
+  // Events are not shuffled — they carry a date, and "what's on soonest" is an
+  // answer, not a preference. Only the profile rail is drawn.
+  const defaultItems = useMemo(() => [
+    ...composeRail(defaultPool.filter(r => r._kind === 'profile'), railSeed),
+    ...defaultPool.filter(r => r._kind === 'event'),
+  ], [defaultPool, railSeed]);
 
   const runSearch = useCallback(async (q, t, g, st, pc) => {
     setSearching(true);
