@@ -3,7 +3,7 @@ import { getPerformerProfiles } from '../../lib/actingProfile';
 import { supabase } from '../../lib/supabase';
 import {
   listOpenFestivalCategories, myFestivalApplications, festivalEventConfig,
-  festivalDayOptions, applyToFestival,
+  festivalDayOptions, applyToFestival, applicationOutcome,
 } from '../../lib/festivalApplications';
 import s from '../EventScreen.module.css';
 
@@ -94,7 +94,10 @@ export default function FestivalApply({ eventId, userId, festivalName }) {
   );
 }
 
+const OUTCOME_COLOUR = { good: '#00e676', pending: '#00e676', closed: 'rgba(255,255,255,.45)' };
+
 function CategoryRow({ category, profiles, days, departments, applied, signedIn, onApplied, eventId }) {
+  const outcome = applicationOutcome(applied?.status);
   const eligible = profiles.filter(p => category.appliesAs.includes(p.type));
   const [profileId, setProfileId] = useState('');
   const [pickedDays, setPickedDays] = useState([]);
@@ -139,16 +142,23 @@ function CategoryRow({ category, profiles, days, departments, applied, signedIn,
           <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 1 }}>{category.blurb}</div>
         </div>
         {applied && (
-          <span style={{ flexShrink: 0, fontSize: 11, letterSpacing: 1, color: '#00e676', fontFamily: "'Bebas Neue', sans-serif" }}>
-            ✓ APPLIED
+          <span style={{ flexShrink: 0, fontSize: 11, letterSpacing: 1, fontFamily: "'Bebas Neue', sans-serif", color: OUTCOME_COLOUR[outcome.tone] }}>
+            {outcome.tone === 'good' ? '★ ' : outcome.tone === 'pending' ? '✓ ' : ''}{outcome.label}
           </span>
         )}
       </div>
 
-      {/* Once applied, the row states that and stops. The outcome is NOT shown:
-          an organiser holds decisions until they release them, and that is
-          enforced in the database — this simply does not ask. */}
-      {applied ? null : !signedIn ? (
+      {/* ⚠ THIS USED TO RENDER NOTHING ONCE APPLIED, which meant an accepted
+          applicant returning after release saw exactly what they saw the second
+          they applied. The status is safe to show: the database masks it, so
+          `shortlisted` never arrives here and a decision reads `in_review`
+          until the organiser releases it. Withholding it was not caution, it
+          was the loop failing to close. */}
+      {applied ? (
+        <p style={{ margin: '8px 0 0', fontSize: 12, color: 'var(--muted)', lineHeight: 1.45 }}>
+          {outcome.note}
+        </p>
+      ) : !signedIn ? (
         <p style={{ margin: '10px 0 0', fontSize: 12, color: 'var(--muted)' }}>
           Sign in to apply.
         </p>

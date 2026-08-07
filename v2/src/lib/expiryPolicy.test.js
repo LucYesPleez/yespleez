@@ -17,7 +17,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -39,13 +39,82 @@ const DELIBERATELY_RETAINED = {
   festival_opened:'announcement, not an opportunity with a deadline; carries no event_id today',
 };
 
+/**
+ * ⚠ SCANS EVERY MIGRATION, not just N4's.
+ *
+ * It read one file until 2026-08-07, which was true only while one migration
+ * had ever written to this table. D2 classified two festival types in a later
+ * one and this test failed them as unaccounted — correctly complaining, at the
+ * wrong thing. A registry that grows across migrations is normal; a test that
+ * only knows the first one turns every future classification into a false
+ * alarm, and false alarms are how a real one gets waved through.
+ *
+ * Column ORDER is read from each INSERT rather than assumed: N4 writes
+ * `(type, policy)`, D2 writes `(type, category, policy, note)`, and a positional
+ * regex would silently read a category as a policy.
+ */
+/**
+ * Split a VALUES tuple on commas that are OUTSIDE quotes.
+ *
+ * ⚠ A plain `.split(',')` looks right and quietly drops rows. N4 classifies
+ * `profile_claimed` with the note "account-level fact, not time-bound" — the
+ * comma inside that string produced one value too many, the arity check
+ * discarded the row, and the type was reported as unclassified when it had been
+ * classified all along. A parser that silently loses input is worse here than
+ * no parser, because the failure looks like a real finding.
+ */
+function splitSqlTuple(body) {
+  const out = [];
+  let cur = '';
+  let inString = false;
+
+  for (let i = 0; i < body.length; i++) {
+    const ch = body[i];
+    if (ch === "'") {
+      // '' inside a string is an escaped quote, not a terminator.
+      if (inString && body[i + 1] === "'") { cur += "''"; i++; continue; }
+      inString = !inString;
+      cur += ch;
+      continue;
+    }
+    if (ch === ',' && !inString) { out.push(cur); cur = ''; continue; }
+    cur += ch;
+  }
+  out.push(cur);
+  return out.map(v => v.trim().replace(/^'|'$/g, ''));
+}
+
 function policyTypes() {
-  const sql = readFileSync(MIGRATION, 'utf8');
-  const block = sql.slice(sql.indexOf('INSERT INTO public.notification_expiry_policy'));
-  return new Map(
-    [...block.matchAll(/\(\s*'([a-z_]+)'\s*,\s*'(never|event|enquiry)'/g)]
-      .map(m => [m[1], m[2]]),
-  );
+  const dir = join(HERE, '../../../supabase/migrations');
+  const found = new Map();
+
+  for (const file of readdirSync(dir).filter(f => f.endsWith('.sql'))) {
+    // ⚠ COMMENTS ARE STRIPPED FIRST, and this is not tidiness. The statement is
+    // read up to its terminating `;`, and N4's own explanatory comment contains
+    // one — "claim moment worth anything; expiring them would defeat N3" — so
+    // parsing the raw text captured the prose and zero rows. It reported every
+    // type as unclassified while the classifications sat right there.
+    const sql = readFileSync(join(dir, file), 'utf8').replace(/--[^\n]*/g, '');
+    const inserts = sql.matchAll(
+      /INSERT\s+INTO\s+public\.notification_expiry_policy\s*\(([^)]*)\)\s*VALUES([\s\S]*?);/gi,
+    );
+
+    for (const insert of inserts) {
+      const cols = insert[1].split(',').map(c => c.trim().toLowerCase());
+      const iType = cols.indexOf('type');
+      const iPolicy = cols.indexOf('policy');
+      if (iType === -1 || iPolicy === -1) continue;
+
+      for (const tuple of insert[2].matchAll(/\(([^)]*)\)/g)) {
+        const vals = splitSqlTuple(tuple[1]);
+        // Skips the `ON CONFLICT (type)` trailer, which is a parenthesised
+        // group in the same statement but not a row.
+        if (vals.length !== cols.length) continue;
+        found.set(vals[iType], vals[iPolicy]);
+      }
+    }
+  }
+  return found;
 }
 
 function registryTypes() {

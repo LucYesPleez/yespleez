@@ -161,9 +161,34 @@ export async function myFestivalApplications(eventId) {
   if (error) return [];
   return (data || []).map(r => ({
     categoryKey: r.category_key,
+    // ⭐ ALREADY MASKED BY THE DATABASE. `shortlisted` is never exposed and a
+    // decision reads `in_review` until the organiser releases it — see
+    // my_festival_applications. So this can be rendered directly: there is no
+    // outcome here the applicant is not entitled to see.
     status: r.status,
+    outcomeReleasedAt: r.outcome_released_at ?? null,
     submittedAt: r.submitted_at ?? null,
   }));
+}
+
+/**
+ * What an applicant is told about their own application.
+ *
+ * ⛔ NEVER INVENT A STATE THE DATABASE DID NOT RETURN. The mask is the contract:
+ * anything undecided or unreleased arrives as `in_review`, and this must not
+ * dress that up as "shortlisted" or guess at progress from elapsed time.
+ *
+ * The decline wording is deliberate. This is the moment a person finds out, and
+ * a festival saying "Declined" in the same flat voice it says "Accepted" reads
+ * as a machine sorting them. It is also not the applicant's failure.
+ */
+export function applicationOutcome(status) {
+  switch (status) {
+    case 'accepted':  return { label: "YOU'RE IN",    tone: 'good',    note: 'The festival will be in touch with the details.' };
+    case 'declined':  return { label: 'NOT THIS TIME', tone: 'closed',  note: 'They could not fit everyone in this year.' };
+    case 'withdrawn': return { label: 'WITHDRAWN',     tone: 'closed',  note: 'You withdrew this application.' };
+    default:          return { label: 'APPLIED',       tone: 'pending', note: 'The festival has your application.' };
+  }
 }
 
 /**

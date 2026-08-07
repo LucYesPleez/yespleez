@@ -38,6 +38,16 @@ export const TYPE_META = {
   invite_declined:    { label: 'INVITE DECLINED',    ...RED,    Icon: XCircleIcon     },
   booking_cancelled:  { label: 'BOOKING CANCELLED',  ...RED,    Icon: XCircleIcon     },
   application_declined:{ label: 'DECLINED',          ...RED,    Icon: XCircleIcon     },
+  /* D2 · a festival released its decision. Written by a database trigger on
+     festival_applications, so these arrive no matter which app releases —
+     see 20260807000000_d2_festival_outcome_notification.sql.
+     ⚠ DECLINED IS DELIBERATELY *MUTED*, NOT RED, breaking the pattern above.
+     Red is for things that went wrong — a slot removed, a booking cancelled.
+     Not being picked from four hundred applicants is an outcome, not a fault,
+     and a red cross tells someone they failed at something they did not. It
+     matches the tone the event page uses for the same fact. */
+  festival_accepted:  { label: "YOU'RE IN",          ...GREEN,  Icon: CheckCircle2Icon },
+  festival_declined:  { label: 'NOT THIS TIME',      ...MUTED,  Icon: TentIcon        },
   generic:            { label: 'NOTICE',             ...MUTED,  Icon: BellIcon        },
 };
 
