@@ -8,6 +8,10 @@ import { useSession } from './auth/useSession';
 import { useRepositories } from './data/dataContext';
 import { useQuery } from './data/useQuery';
 import AppShell from './shell/AppShell';
+import CompanionShell from './companion/CompanionShell';
+import CompanionHome from './companion/HomeScreen';
+import CompanionPeople from './companion/PeopleScreen';
+import CompanionMore from './companion/MoreScreen';
 import OverviewScreen from './screens/OverviewScreen';
 import ApplicationsScreen from './screens/ApplicationsScreen';
 import AnnouncementsScreen from './screens/AnnouncementsScreen';
@@ -92,6 +96,19 @@ export default function App() {
           <Routes>
             {/* Gate wraps the SHELL, not each screen: AppShell renders the
                 Outlet, so the child routes below still resolve normally. */}
+            {/* ⭐ THE COMPANION — the same six rooms at mobile density, behind
+                the same gate. Its own shell rather than a responsive AppShell:
+                a docked inspector and a persistent sidebar have no mobile
+                equivalent, and pretending otherwise produces a desktop layout
+                squeezed onto a phone. It provides the identical ShellContext,
+                so existing screens can move in unchanged as each is made
+                mobile. */}
+            <Route path="/companion" element={<Gate><CompanionShell /></Gate>}>
+              <Route index element={<CompanionHome />} />
+              <Route path="people" element={<CompanionPeople />} />
+              <Route path="more" element={<CompanionMore />} />
+            </Route>
+
             <Route element={<Gate><AppShell /></Gate>}>
               <Route index element={<Navigate to="/applications" replace />} />
               <Route path="/overview" element={<OverviewScreen />} />

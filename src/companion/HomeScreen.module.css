@@ -1,0 +1,104 @@
+/* Mobile IS this screen — full-width, one column, thumb-reachable. Desktop
+   shows the same items in the same order at a wider measure; if desktop ever
+   showed an item mobile did not, the engine would have been compromised. */
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px 16px 24px;
+  max-width: 640px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.head { display: flex; flex-direction: column; gap: 2px; }
+
+.title {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 30px;
+  letter-spacing: 1.4px;
+  line-height: 1.05;
+  color: var(--text);
+  margin: 0;
+}
+
+.sub {
+  font-size: 13px;
+  color: var(--muted);
+  margin: 0;
+}
+
+/* Three numbers at most, and only ones that change a decision today. */
+.glance {
+  display: flex;
+  gap: 10px;
+}
+
+.stat {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 11px 12px;
+  border-radius: var(--fp-radius-sm);
+  border: 1px solid var(--border);
+  background: var(--card);
+  min-width: 0;
+}
+
+.statValue {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 24px;
+  line-height: 1;
+  letter-spacing: .8px;
+  color: var(--text);
+}
+
+.statLabel {
+  font-size: 11px;
+  letter-spacing: .3px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.list { display: flex; flex-direction: column; gap: 10px; }
+
+.calm {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 6px;
+  padding: 34px 22px 38px;
+  border-radius: var(--fp-radius);
+  border: 1px solid var(--border);
+  background: var(--card);
+}
+
+.calmMark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px; height: 44px;
+  margin-bottom: 4px;
+  border-radius: 50%;
+  color: var(--green);
+  background: rgba(0, 229, 160, .12);
+}
+
+.calmTitle {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.calmBody {
+  margin: 0;
+  max-width: 34ch;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--muted);
+}
