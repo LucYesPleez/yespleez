@@ -116,10 +116,35 @@ export const applicationRepository = {
     return Object.fromEntries(entries);
   },
 
-  /** Record a decision. PRIVATE until released — see the note at the top. */
+  /**
+   * Record a decision. PRIVATE until released — see the note at the top.
+   *
+   * ⭐⭐ ACCEPTANCE GOES THROUGH AN RPC, EVERY OTHER OUTCOME IS AN UPDATE, and
+   * the asymmetry is the point: accepting is where an application becomes
+   * PARTICIPATION, and the two must be written in one transaction or they can
+   * drift. A client that stamped the status and then created participation
+   * would leave a window where someone reads as accepted and is part of
+   * nothing — and neither half looks wrong on its own, so nothing would notice.
+   *
+   * ⭐ The category → participant_type mapping deliberately lives in the
+   * database, not here. Which identity a person participates as is platform
+   * knowledge; this app should not have to learn it, and a second copy in Scene
+   * would be a third place to get it wrong.
+   *
+   * ⛔ Shortlisted, waitlisted and declined create no participation.
+   * Participation begins at Accepted — a waitlisted person is still an
+   * applicant whose application has another outcome.
+   */
   async decide(ids, status) {
     if (!ids?.length) return 0;
-    const terminal = status === 'accepted' || status === 'declined';
+
+    if (status === 'accepted') {
+      const { data, error } = await supabase.rpc('accept_festival_applications', { p_ids: ids });
+      if (error) throw error;
+      return data ?? 0;
+    }
+
+    const terminal = status === 'declined';
     const { data, error } = await supabase
       .from('festival_applications')
       .update({ status, decided_at: terminal ? new Date().toISOString() : null })
