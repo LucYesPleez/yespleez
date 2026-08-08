@@ -1,0 +1,37 @@
+.tabs {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  border-bottom: 1px solid var(--border);
+  padding: 0 10px;
+  flex-shrink: 0;
+  overflow-x: auto;
+}
+
+.tab {
+  position: relative;
+  padding: 12px 10px 11px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+  white-space: nowrap;
+  transition: color var(--yp-medium) var(--yp-ease);
+}
+.tab:hover { color: var(--text); }
+.tab:focus-visible { outline: 2px solid var(--neon2); outline-offset: -3px; border-radius: 4px; }
+
+.active { color: #fff; }
+
+/* The underline is the ONLY thing that moves when tabs change. No background,
+   no border box, so switching tabs shifts not one pixel of the content below
+   it — which matters when someone is comparing two tabs of the same
+   application back and forth. */
+.active::after {
+  content: '';
+  position: absolute;
+  left: 10px; right: 10px;
+  bottom: -1px;
+  height: 2px;
+  border-radius: 2px 2px 0 0;
+  background: linear-gradient(90deg, var(--neon), var(--neon2));
+}

@@ -1,0 +1,97 @@
+.wrap { position: relative; display: inline-flex; }
+
+.panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  z-index: 40;
+  min-width: 200px;
+  max-width: 320px;
+  max-height: min(60vh, 420px);
+  overflow-y: auto;
+  padding: 6px;
+  border-radius: var(--fp-radius);
+  border: 1px solid var(--border);
+  background: var(--card);
+  box-shadow: 0 18px 40px -18px rgba(0, 0, 0, .8),
+              inset 0 1px 0 rgba(255, 255, 255, .05);
+  /* Opens downward from its trigger with a short rise — long enough to read
+     as "this came from there", short enough not to be waited on. */
+  animation: rise var(--yp-medium) var(--yp-ease);
+}
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel { animation: none; }
+}
+
+.start { left: 0; }
+.end   { right: 0; }
+
+/* Flipped above the trigger when there is no room below. */
+.up { top: auto; bottom: calc(100% + 6px); }
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 9px 8px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+}
+
+.title {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 11px;
+  letter-spacing: 1.9px;
+  color: var(--muted);
+}
+
+.clear { font-size: 11.5px; color: var(--neon2); }
+.clear:hover { filter: brightness(1.2); }
+
+/* ── Menu items ── */
+.item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 9px;
+  border-radius: var(--fp-radius-sm);
+  font-size: 13px;
+  color: var(--text);
+  text-align: left;
+  transition: background var(--yp-fast) var(--yp-ease);
+}
+.item:hover:not(:disabled),
+.item[data-active='true'] { background: rgba(255, 255, 255, .06); }
+.item:disabled { opacity: .4; cursor: not-allowed; }
+.item:focus-visible { outline: 2px solid var(--neon2); outline-offset: -2px; }
+
+.itemLabel { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.itemMeta { font-size: 11.5px; color: var(--muted); flex-shrink: 0; }
+
+.tick { flex-shrink: 0; color: var(--neon2); display: flex; opacity: 0; }
+.tickOn { opacity: 1; }
+
+.check {
+  width: 15px; height: 15px;
+  flex-shrink: 0;
+  border-radius: 4px;
+  border: 1.5px solid var(--border);
+  background: var(--card2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: transparent;
+}
+.checkOn { border-color: var(--neon2); background: var(--neon2); color: var(--dark); }
+
+.divider { height: 1px; margin: 5px 4px; background: var(--border); }
+
+.danger { color: var(--neon); }

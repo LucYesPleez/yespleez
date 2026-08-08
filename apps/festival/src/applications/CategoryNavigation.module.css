@@ -1,0 +1,89 @@
+/* The strip scrolls; the frame carries the fade. A pseudo-element on the
+   scroller itself would scroll away with the content. */
+.frame {
+  position: relative;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+  min-width: 0;
+}
+
+/* NO VISIBLE SCROLLBARS, ANYWHERE — so an overflowing strip needs a gradient
+   cue instead, or the last two categories read as missing rather than
+   off-screen. `--fade` is set from JS only when the strip actually overflows;
+   a permanent fade would imply hidden content that isn't there. */
+.frame::after {
+  content: '';
+  position: absolute;
+  top: 0; right: 0; bottom: 1px;
+  width: 56px;
+  pointer-events: none;
+  opacity: var(--fade, 0);
+  transition: opacity var(--yp-medium) var(--yp-ease);
+  background: linear-gradient(90deg, transparent, var(--card));
+}
+
+.nav {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 0 14px;
+  overflow-x: auto;
+  scroll-behavior: smooth;
+}
+
+.tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 13px 12px 14px;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--muted);
+  white-space: nowrap;
+  transition: color var(--yp-medium) var(--yp-ease);
+}
+.tab:hover { color: var(--text); }
+.tab:focus-visible { outline: 2px solid var(--neon2); outline-offset: -3px; border-radius: 4px; }
+
+.active { color: #fff; }
+.active::after {
+  content: '';
+  position: absolute;
+  left: 12px; right: 12px;
+  bottom: -1px;
+  height: 2px;
+  border-radius: 2px 2px 0 0;
+  background: linear-gradient(90deg, var(--neon), var(--neon2));
+}
+
+/* The count is part of the tab, not a badge: it states how many applications
+   are IN that category, which is different from "how many await you". Badges
+   are reserved for the latter. */
+.count {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 12px;
+  letter-spacing: .8px;
+  line-height: 1;
+  padding: 3px 6px 2px;
+  border-radius: 999px;
+  color: var(--muted);
+  background: rgba(255, 255, 255, .06);
+  transition: color var(--yp-medium) var(--yp-ease),
+              background var(--yp-medium) var(--yp-ease);
+}
+.active .count { color: #fff; background: color-mix(in srgb, var(--neon) 32%, transparent); }
+
+.icon { opacity: .85; flex-shrink: 0; }
+
+/* Icons go before labels do — a label with no icon is still usable, an icon
+   with no label is a guess. Measured against the WORKSPACE, not the viewport:
+   with the inspector docked, this pane is ~1026px inside a 1920px window. */
+@container pane (max-width: 1200px) {
+  .icon { display: none; }
+  .tab { padding-left: 10px; padding-right: 10px; }
+}
+
+@container pane (max-width: 900px) {
+  .count { display: none; }
+}

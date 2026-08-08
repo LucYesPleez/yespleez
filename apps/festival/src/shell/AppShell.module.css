@@ -1,0 +1,65 @@
+/* ── THE SHELL ────────────────────────────────────────────────────────────
+   One grid, named areas, three fixed regions and one that flexes.
+
+   Named areas rather than nested flex wrappers: a future mobile layout
+   re-declares `grid-template-areas` in a media query and moves nothing else.
+
+   The inspector is a GRID SIBLING of the main pane, not an overlay. It has to
+   sit beside the table permanently without the table reflowing under it —
+   that is the whole point of a docked inspector. */
+.shell {
+  display: grid;
+  grid-template-areas:
+    'sidebar topbar'
+    'sidebar body';
+  grid-template-columns: var(--fp-sidebar-width) minmax(0, 1fr);
+  grid-template-rows: var(--fp-topbar-height) minmax(0, 1fr);
+  height: 100vh;
+  height: 100dvh;
+  background: var(--dark);
+  position: relative;
+  isolation: isolate;
+}
+
+/* Brand wash — fixed, behind everything, so the shell reads as one surface
+   rather than a set of grey boxes. */
+.shell::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(90% 60% at 12% 0%, color-mix(in srgb, var(--neon)  9%, transparent), transparent 60%),
+    radial-gradient(80% 55% at 95% 8%, color-mix(in srgb, var(--neon2) 7%, transparent), transparent 62%);
+}
+
+.body {
+  grid-area: body;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+}
+
+.main {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* `scroll` is for summary screens that grow past the viewport; the
+   applications workspace does NOT scroll the page — its table scrolls inside
+   a fixed frame so the toolbar and pagination never leave the screen. */
+.scroll { overflow-y: auto; }
+
+@media (max-width: 1024px) {
+  .shell {
+    grid-template-areas:
+      'topbar'
+      'body';
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

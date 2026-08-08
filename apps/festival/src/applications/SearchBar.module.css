@@ -1,0 +1,49 @@
+.wrap {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex: 1;
+  min-width: 180px;
+  max-width: 340px;
+  padding: 8px 12px;
+  border-radius: var(--fp-radius-sm);
+  border: 1px solid var(--border);
+  background: var(--card2);
+  color: var(--muted);
+  transition: border-color var(--yp-medium) var(--yp-ease);
+}
+.wrap:focus-within { border-color: color-mix(in srgb, var(--neon2) 50%, var(--border)); }
+
+.input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: none;
+  font-size: 13.5px;
+  color: var(--text);
+}
+.input::placeholder { color: var(--muted); }
+
+/* Native clear buttons differ per browser and none of them match this UI. */
+.input::-webkit-search-cancel-button { display: none; }
+
+.clear {
+  display: inline-flex;
+  color: var(--muted);
+  padding: 2px;
+  border-radius: 5px;
+  transition: color var(--yp-medium) var(--yp-ease);
+}
+.clear:hover { color: var(--text); }
+
+.hint {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 2px 5px 1px;
+  flex-shrink: 0;
+}

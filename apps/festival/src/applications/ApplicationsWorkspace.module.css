@@ -1,0 +1,76 @@
+/* THE PRIMARY WORKSPACE.
+
+   A fixed frame, not a scrolling page: the category tabs, the toolbar and the
+   pagination bar must stay on screen while only the rows move. Scrolling the
+   whole page would take the toolbar with it, and someone half-way down four
+   hundred rows would have to scroll back up to change a filter. */
+/* ⚠ CONTAINER, NOT VIEWPORT.
+   Inside a three-pane shell the viewport is the wrong thing to measure. At a
+   1920px viewport this pane is about 1026px, because the sidebar takes 232
+   and the docked inspector takes 380 — so viewport media queries keep wide
+   layouts alive in a narrow pane and columns overflow with no warning.
+   Everything inside the workspace responds to THIS box. */
+.workspace {
+  container-type: inline-size;
+  container-name: pane;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  margin: var(--fp-gutter);
+  overflow: hidden;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px 16px 13px;
+  flex-shrink: 0;
+}
+
+.titleGroup { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+
+.title {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 19px;
+  letter-spacing: 2px;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.subtitle { font-size: 12.5px; color: var(--muted); white-space: nowrap; }
+
+.headerActions { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+
+/* ⚠ flex-shrink: 0 like every other row in this frame. `.workspace` is a flex
+   column with overflow: hidden, so a child that can shrink gets crushed and
+   its contents spill — the same failure the Festival screen hit. */
+.releaseBar { padding: 0 16px 12px; flex-shrink: 0; }
+
+/* The shortcut is discoverable rather than documented. Nobody reads a help
+   sheet before their first review session, and a hint costs one line. */
+.keyHint {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.keyHint kbd {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 11px;
+  letter-spacing: .6px;
+  line-height: 1;
+  padding: 3px 5px 2px;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  background: var(--card2);
+  color: var(--text);
+}
+
+/* First thing to go — it is an affordance, not information. */
+@container pane (max-width: 900px) { .keyHint { display: none; } }

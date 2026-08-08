@@ -1,0 +1,81 @@
+/* EmptyState · LoadingState · Skeleton — the three ways a surface renders
+   when it has nothing real to show. One module because they are the same
+   problem answered three ways, and they must look like siblings. */
+
+.empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 11px;
+  padding: 48px 28px;
+  text-align: center;
+}
+
+.emptyCompact { padding: 28px 20px; gap: 8px; }
+
+.emptyIcon {
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  background: rgba(255, 255, 255, .04);
+  border: 1px solid var(--border);
+  margin-bottom: 2px;
+}
+
+.emptyTitle {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 16px;
+  letter-spacing: 1.9px;
+  color: var(--text);
+}
+
+.emptyBody {
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--muted);
+  max-width: 34ch;
+}
+
+.emptyAction { margin-top: 6px; }
+
+/* ── Skeleton ──
+   A shimmer, not a static bar: a still grey block is indistinguishable from a
+   broken image, while movement reads unmistakably as "loading". */
+.skeleton {
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, .05) 0%,
+    rgba(255, 255, 255, .10) 40%,
+    rgba(255, 255, 255, .05) 80%
+  );
+  background-size: 300% 100%;
+  animation: shimmer 1.5s var(--yp-ease) infinite;
+}
+
+.skeletonBlock { border-radius: var(--fp-radius-sm); }
+.skeletonCircle { border-radius: 50%; }
+
+@keyframes shimmer {
+  from { background-position: 160% 0; }
+  to   { background-position: -60% 0; }
+}
+
+/* Respect the user's motion preference — an infinite animation is exactly
+   what `prefers-reduced-motion` exists for. */
+@media (prefers-reduced-motion: reduce) {
+  .skeleton { animation: none; }
+}
+
+.lines { display: flex; flex-direction: column; gap: 10px; width: 100%; }
+
+/* ── Loading rows for the table ── */
+.rowSkeleton { display: flex; align-items: center; gap: 12px; padding: 12px 14px; }
+.rowSkeleton + .rowSkeleton { border-top: 1px solid color-mix(in srgb, var(--border) 55%, transparent); }
+.rowGrow { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 7px; }

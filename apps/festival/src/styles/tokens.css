@@ -1,0 +1,59 @@
+/* ─────────────────────────────────────────────────────────────────────────
+   YESPLEEZ DESIGN TOKENS
+
+   ⚠ COPIED, NOT SHARED — and that is a known, temporary state.
+
+   These values are transcribed from the Scene app's `v2/src/index.css`. The
+   Festival Portal is a separate repository and must not edit the Scene app,
+   so there is no import path between them today.
+
+   FUTURE SHARED PACKAGE: `@yespleez/tokens`. When it exists, this file is
+   deleted and replaced with one import. Until then, any token change in the
+   Scene app has to be mirrored here by hand — see README "Shared packages".
+
+   ⛔ Do not invent a token name. An undefined custom property does not fall
+   back and does not warn; it silently drops the declaration. That already
+   cost the Scene app a see-through share sheet.
+   ───────────────────────────────────────────────────────────────────────── */
+
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&display=swap');
+
+:root {
+  /* Brand */
+  --neon:   #ff2d78;
+  --neon2:  #00e5ff;
+  --gold:   #ffb830;
+  --fire:   #ff6a00;
+  --green:  #00e676;
+  --purple: #b060ff;
+
+  /* Surfaces */
+  --dark:   #0a0a0f;
+  --bg:     #0a0a0f;
+  --card:   #13131f;
+  --card2:  #0f0f1a;
+  --border: #2a2a3d;
+
+  /* Type */
+  --text:   #e8e8f0;
+  --muted:  #7070a0;
+
+  /* Motion — the Scene app's four durations, unchanged. */
+  --yp-ease:   cubic-bezier(.2, .8, .3, 1);
+  --yp-fast:   .14s;
+  --yp-medium: .2s;
+  --yp-settle: .38s;
+
+  /* ── Festival Portal only ────────────────────────────────────────────────
+     Shell geometry. Portal-local because the Scene app has no docked
+     inspector and no persistent sidebar — these are not candidates for the
+     shared package.
+     The inspector width is a variable so the future resize handle has one
+     value to write to. */
+  --fp-sidebar-width:   232px;
+  --fp-topbar-height:   72px;
+  --fp-inspector-width: 380px;
+  --fp-gutter:          20px;
+  --fp-radius:          16px;
+  --fp-radius-sm:       10px;
+}

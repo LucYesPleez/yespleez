@@ -1,0 +1,116 @@
+/* Screen scaffolding. Screens are compositions — they lay out cards and
+   nothing else, so this module is layout only and carries no appearance. */
+
+/* ⚠ Also a `pane` container — see ApplicationsWorkspace.module.css. Every
+   main pane declares it under the SAME name, so a design-system component
+   carries one set of container queries wherever it is used. A second name
+   would mean form fields responding on Settings and silently not on the
+   workspace. */
+.page {
+  container-type: inline-size;
+  container-name: pane;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--fp-gutter);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.formStack { display: flex; flex-direction: column; gap: 14px; }
+
+/**
+ * A screen's cards, in a column that CANNOT shrink.
+ *
+ * ⚠ `.page` above is a flex column with a constrained height and `overflow-y:
+ * auto`. Flex children default to `flex-shrink: 1`, so once a screen's content
+ * exceeds the viewport the cards SHRINK instead of the page scrolling — and
+ * SectionCard does not clip, so each card's contents spill over the one below.
+ * The symptom is several headers stacked ~30px apart with their bodies
+ * overlapping, and clicks landing on the wrong control. It appears only after a
+ * screen grows past one viewport, which is why it arrived three cards late.
+ *
+ * `flex-shrink: 0` makes this wrapper keep its full content height, which is
+ * what gives `.page` something to scroll. Inside it the column is
+ * unconstrained, so its own children never shrink either.
+ */
+.stack { display: flex; flex-direction: column; gap: 14px; flex-shrink: 0; }
+
+.settingsGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  align-items: start;
+}
+
+.danger { border-color: color-mix(in srgb, var(--neon) 34%, var(--border)); }
+
+.filterRow { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+
+.threadTime { font-size: 11.5px; color: var(--muted); white-space: nowrap; }
+
+.threadUnread {
+  min-width: 18px; height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--neon);
+  color: #fff;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 11px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+@container pane (max-width: 900px) { .settingsGrid { grid-template-columns: minmax(0, 1fr); } }
+
+.pageHead {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 2px 2px 4px;
+}
+
+.pageTitle {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 26px;
+  letter-spacing: 2.2px;
+  color: var(--text);
+  line-height: 1.1;
+}
+
+.pageSubtitle { font-size: 13px; color: var(--muted); margin-top: 4px; max-width: 62ch; line-height: 1.5; }
+
+/* Six across on a wide screen; the row is a summary, not a dashboard, so it
+   never wraps to a second line of six. */
+.statsRow {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.twoUp {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  align-items: start;
+}
+
+.stubGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 14px;
+}
+
+/* ⚠ The PANE, not the window. Overview sits beside a user-resizable
+   inspector: drag the dock to 620px and this pane is ~1000px inside a 1920px
+   window, so a viewport query would hold six stat cards across a box that
+   comfortably fits three. */
+@container pane (max-width: 1180px) { .statsRow { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@container pane (max-width:  760px) {
+  .statsRow { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .twoUp    { grid-template-columns: minmax(0, 1fr); }
+}

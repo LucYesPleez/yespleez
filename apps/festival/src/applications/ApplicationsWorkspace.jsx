@@ -1,0 +1,189 @@
+import { useState } from 'react';
+import { Button, EmptyState, Callout } from '../design-system';
+import { useShell } from '../shell/shellContext';
+import { useRepositories } from '../data/dataContext';
+import { useQuery } from '../data/useQuery';
+import CategoryNavigation from './CategoryNavigation';
+import TableToolbar from './TableToolbar';
+import ApplicationsTable from './ApplicationsTable';
+import Pagination from './Pagination';
+import { useRowNavigation } from './useRowNavigation';
+import { columnsFor } from '../config/columns';
+import s from './ApplicationsWorkspace.module.css';
+
+/**
+ * THE PRIMARY WORKSPACE OF THE PORTAL.
+ *
+ *   header · CategoryNavigation · TableToolbar · ApplicationsTable · Pagination
+ *
+ * A fixed frame: only the table body scrolls, so the tabs, toolbar and
+ * pagination never leave the screen — someone four hundred rows deep can
+ * change a filter without scrolling back up.
+ *
+ * ⭐ Nothing here branches on category. The category supplies a column set, a
+ * count and a noun; the workspace is identical for all nine.
+ *
+ * ⭐ READS THROUGH A REPOSITORY, never from a constant. Search, filters, sort
+ * and paging are ARGUMENTS TO A QUERY, not operations this component performs
+ * on an array it was handed. That is what lets the same screen work against
+ * ten placeholder rows today and four hundred database rows later without
+ * moving the logic out of the component first.
+ *
+ * State held here is UI state only: which page, which sort, what was typed,
+ * which rows are ticked. Selection for review lives in the shell, because the
+ * inspector is a sibling pane.
+ */
+export default function ApplicationsWorkspace({ categoryKey }) {
+  const { selection, select, clear, dataVersion, refreshData } = useShell();
+  const { categories, applications } = useRepositories();
+
+  const [page, setPage] = useState(1);
+  const [sort, setSort] = useState('newest');
+  const [search, setSearch] = useState('');
+  const [ticked, setTicked] = useState([]);
+
+  // ⚠ `dataVersion` in the deps is what makes a decision taken in the inspector
+  // show up here. Without it the row a reviewer just accepted keeps saying
+  // "Submitted" until they change category and come back.
+  const cat = useQuery(() => categories.get(categoryKey), [categoryKey, dataVersion]);
+  const category = cat.data;
+
+  const result = useQuery(
+    () => applications.list({ categoryKey, search, sort, page, pageSize: 20 }),
+    [categoryKey, search, sort, page, dataVersion],
+  );
+
+  const rows = result.data?.items ?? [];
+  const total = result.data?.total ?? 0;
+  const columns = columnsFor(category);
+
+  // ↑ ↓ / j k move the selection and the inspector follows; Escape clears.
+  // Decision shortcuts are deliberately unbound — see useRowNavigation.
+  useRowNavigation({ rows, selection, onSelect: select, onClear: clear });
+
+  function toggleTick(row) {
+    setTicked(prev =>
+      prev.includes(row.id) ? prev.filter(id => id !== row.id) : [...prev, row.id]);
+  }
+
+  /**
+   * Bulk decisions. Same `decide()` as the inspector — one writer, so the two
+   * paths can never disagree about what accepting means.
+   *
+   * ⚠ The ticks are cleared afterwards. Leaving twenty rows ticked after a bulk
+   * accept invites a second bulk action on a set the reviewer has stopped
+   * thinking about.
+   */
+  /**
+   * ⭐ RELEASE IS A SEPARATE, DELIBERATE ACT. Decisions are private until this
+   * runs: an organiser can accept over three weeks and tell everyone at once,
+   * and until then every applicant reads "In review".
+   *
+   * ⛔ Never fold this into `decide()`. The moment accepting also tells the
+   * applicant, an organiser can no longer change their mind about a lineup
+   * while it is still being assembled — which is the entire reason the two are
+   * separate.
+   */
+  const pending = useQuery(
+    () => applications.pendingRelease({ categoryKey }),
+    [categoryKey, dataVersion],
+  );
+  const pendingIds = pending.data ?? [];
+
+  async function releaseOutcomes() {
+    if (!pendingIds.length) return;
+    await applications.releaseOutcomes(pendingIds);
+    refreshData();
+  }
+
+  async function bulkDecide(status) {
+    if (!ticked.length) return;
+    await applications.decide(ticked, status);
+    setTicked([]);
+    refreshData();
+  }
+
+  /** Any change to the query returns to the first page — page 4 of a new
+      result set is a blank table that looks like a failure. */
+  function requery(fn) {
+    return (...args) => { setPage(1); fn(...args); };
+  }
+
+  return (
+    <section className={`fp-panel ${s.workspace}`}>
+      <header className={s.header}>
+        <div className={s.titleGroup}>
+          <span className={s.title}>{category?.label ?? 'Applications'}</span>
+          <span className={s.subtitle}>
+            {result.loading && !result.data
+              ? 'Loading…'
+              : `${total} ${total === 1 ? category?.noun : `${category?.noun}s`}`}
+          </span>
+        </div>
+        <div className={s.headerActions}>
+          <span className={s.keyHint}>
+            <kbd>↑</kbd><kbd>↓</kbd> to move · <kbd>Esc</kbd> to clear
+          </span>
+          <Button variant="quiet" size="sm" icon="clock">Open windows</Button>
+        </div>
+      </header>
+
+      {/* ⭐ The consequence is stated BESIDE the button, not in a dialog after
+          the click. A confirmation asks "are you sure?" of someone who has
+          already decided; this tells them what they are about to do while
+          changing their mind is still free. Appears only when something is
+          actually waiting, so it never becomes furniture. */}
+      {pendingIds.length > 0 && (
+        <div className={s.releaseBar}>
+          <Callout
+            tone="warn"
+            title={`${pendingIds.length} ${pendingIds.length === 1 ? 'decision' : 'decisions'} not yet released`}
+            actions={
+              <Button variant="primary" size="sm" icon="check" onClick={releaseOutcomes}>
+                Release outcomes
+              </Button>
+            }
+          >
+            Applicants still read “In review”. Releasing shows every accepted and declined
+            applicant their real outcome, and cannot be taken back.
+          </Callout>
+        </div>
+      )}
+
+      <CategoryNavigation />
+
+      <TableToolbar
+        columns={columns}
+        sort={sort}
+        onSort={requery(setSort)}
+        onSearch={requery(setSearch)}
+        selectedCount={ticked.length}
+        onClearSelection={() => setTicked([])}
+        onBulkDecide={bulkDecide}
+      />
+
+      <ApplicationsTable
+        rows={rows}
+        columns={columns}
+        loading={result.loading}
+        error={result.error}
+        selectedId={selection?.id}
+        tickedIds={ticked}
+        onSelect={select}
+        onTick={toggleTick}
+        onRetry={result.reload}
+        emptyState={
+          <EmptyState
+            icon={category?.icon || 'inbox'}
+            title={search ? 'Nothing matches' : `No ${category?.noun ?? 'application'}s yet`}
+            body={search
+              ? `No applications match “${search}”. Clearing the search brings the list back.`
+              : `Applications appear here as soon as they are submitted. Nothing has arrived for ${category?.label ?? 'this category'} yet.`}
+          />
+        }
+      />
+
+      <Pagination page={page} pageSize={20} total={total} onPage={setPage} />
+    </section>
+  );
+}

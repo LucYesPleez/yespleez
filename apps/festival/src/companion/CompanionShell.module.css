@@ -1,0 +1,10 @@
+.shell {
+  min-height: 100dvh;
+  background: var(--bg);
+}
+
+.content {
+  /* Reserve the nav's height plus the iOS home-indicator inset, so the last
+     card in a list is always reachable rather than sitting under the bar. */
+  padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px) + 8px);
+}

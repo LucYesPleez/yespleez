@@ -1,0 +1,56 @@
+.group { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+
+.groupHead { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+
+.groupLabel { font-size: 12.5px; font-weight: 600; color: var(--text); }
+
+.groupAction {
+  font-size: 12px;
+  color: var(--neon2);
+  padding: 2px 0;
+}
+.groupAction:hover { filter: brightness(1.2); }
+
+.chips { display: flex; flex-wrap: wrap; gap: 7px; }
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--muted);
+  background: var(--card2);
+  border: 1px solid var(--border);
+  user-select: none;
+  transition: color var(--yp-fast) var(--yp-ease),
+              border-color var(--yp-fast) var(--yp-ease),
+              background var(--yp-fast) var(--yp-ease);
+}
+.chip:hover:not(:disabled) { color: var(--text); border-color: rgba(255, 255, 255, .3); }
+.chip:focus-visible { outline: 2px solid var(--neon2); outline-offset: 2px; }
+.chip:disabled { opacity: .4; cursor: not-allowed; }
+
+/* Selected state is the Scene app's glow-chip treatment — a brand-tinted
+   fill with a brand border, not a solid block. The row can carry ten of
+   these and half of them being "on" must still read as a row, not a wall. */
+.on {
+  color: #fff;
+  border-color: var(--neon);
+  background: linear-gradient(135deg,
+    color-mix(in srgb, var(--neon) 22%, transparent),
+    color-mix(in srgb, var(--neon2) 16%, transparent));
+}
+
+.count {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 11px;
+  letter-spacing: .7px;
+  line-height: 1;
+  padding: 3px 5px 2px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .09);
+}
+.on .count { background: rgba(255, 255, 255, .22); }

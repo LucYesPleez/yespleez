@@ -1,0 +1,144 @@
+.wrap {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  position: relative;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  /* The header and every row must agree on widths at any row count. A column
+     that sizes to its content makes a long list visibly twitch as it renders. */
+  table-layout: fixed;
+}
+
+.head th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  text-align: left;
+  padding: 11px 14px;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 11px;
+  letter-spacing: 1.8px;
+  font-weight: 400;
+  color: var(--muted);
+  background: var(--card2);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+  user-select: none;
+}
+
+.sortable { cursor: pointer; transition: color var(--yp-medium) var(--yp-ease); }
+.sortable:hover { color: var(--text); }
+
+.colCheck { width: 42px; }
+.colMenu  { width: 48px; }
+
+.row {
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+  cursor: pointer;
+  transition: background var(--yp-fast) var(--yp-ease);
+}
+.row:hover { background: rgba(255, 255, 255, .028); }
+.row:focus-visible { outline: 2px solid var(--neon2); outline-offset: -2px; }
+
+/* Selected-for-review (the inspector is showing this row) is a brand tint
+   with a left marker; ticked-for-bulk is a checkbox. Two different ideas that
+   must never look the same, or "accept 40" becomes a guess. */
+.rowActive { background: color-mix(in srgb, var(--neon) 9%, transparent); }
+.rowActive:hover { background: color-mix(in srgb, var(--neon) 12%, transparent); }
+.rowActive td:first-child { position: relative; }
+.rowActive td:first-child::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 2px;
+  background: linear-gradient(180deg, var(--neon), var(--neon2));
+}
+
+.rowTicked { background: color-mix(in srgb, var(--neon2) 7%, transparent); }
+
+.cell {
+  padding: 10px 14px;
+  font-size: 13.5px;
+  color: var(--text);
+  vertical-align: middle;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.applicant { display: flex; align-items: center; gap: 11px; min-width: 0; }
+
+.avatar {
+  width: 34px; height: 34px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: linear-gradient(135deg,
+    color-mix(in srgb, var(--neon) 70%, var(--purple)), var(--neon2));
+  border: 1px solid var(--border);
+}
+
+.who { min-width: 0; }
+.name { font-weight: 600; font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; }
+.where { font-size: 11.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
+
+.check {
+  width: 16px; height: 16px;
+  border-radius: 4px;
+  border: 1.5px solid var(--border);
+  background: var(--card2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: transparent;
+  transition: border-color var(--yp-medium) var(--yp-ease),
+              background var(--yp-medium) var(--yp-ease);
+}
+.checkOn { border-color: var(--neon2); background: var(--neon2); color: var(--dark); }
+
+.tag {
+  display: inline-flex;
+  padding: 4px 10px 3px;
+  border-radius: 999px;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 11.5px;
+  letter-spacing: 1.1px;
+  color: var(--purple);
+  background: color-mix(in srgb, var(--purple) 11%, transparent);
+  border: 1px solid color-mix(in srgb, var(--purple) 26%, transparent);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stage { display: inline-flex; align-items: center; gap: 7px; color: var(--muted); font-size: 13px; }
+.stageDot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+
+.muted { color: var(--muted); font-size: 12.5px; }
+
+/* R1 — absent is not the same as unknown. A field the category does not ask
+   for renders as nothing; a field that was asked and left blank renders as a
+   dash, so a reviewer can tell "not applicable" from "they skipped it". */
+.blank { color: color-mix(in srgb, var(--muted) 55%, transparent); }
+
+.menuBtn {
+  color: var(--muted);
+  padding: 4px;
+  border-radius: 6px;
+  display: inline-flex;
+  transition: color var(--yp-medium) var(--yp-ease);
+}
+.menuBtn:hover { color: var(--text); }
+
+/* Priority-based responsive hiding, driven by `columns.js`. `applicant` and
+   `status` carry no priority and never hide — "who" and "where are we up to"
+   are the two questions a reviewer always needs answered.
+   ⚠ Measured against the WORKSPACE container, never the viewport: the pane is
+   ~1026px wide inside a 1920px window once the inspector is docked, and a
+   viewport query would keep six columns alive in a box that fits four. */
+@container pane (max-width: 1000px) { .p1 { display: none; } }
+@container pane (max-width:  760px) { .p2 { display: none; } }
