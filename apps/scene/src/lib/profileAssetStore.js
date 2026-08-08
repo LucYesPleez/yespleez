@@ -17,7 +17,7 @@ import { supabase } from './supabase';
 import {
   ASSETS_BUCKET, ASSET_MAX_BYTES, ASSET_MIME_TYPES, DISTRIBUTABLE_ASSET_TYPES,
   assetPath, isMulti, assetLabel,
-} from './profileAssets';
+} from '@yespleez/requirements';
 
 /** Signed URLs last 60s — long enough to open, short enough that a copied
  *  link is not a lasting leak. */

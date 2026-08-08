@@ -20,7 +20,7 @@ import OpportunityCard from '../components/OpportunityCard';
 import BookingInvitation from '../components/BookingInvitation';
 import AvailabilitySection from '../components/AvailabilitySection';
 import { PROFILE_TYPES } from '../lib/profileTypes';
-import { completionFor } from '../lib/requirements';
+import { completionFor } from '@yespleez/requirements';
 
 // The artist's opportunity pipeline.
 //

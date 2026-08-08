@@ -46,7 +46,7 @@
  * changing one changes a user's percentage. Don't swap them casually.
  */
 
-import { ASSET_REQUIREMENT_KEYS, assetLabel } from './profileAssets';
+import { ASSET_REQUIREMENT_KEYS, assetLabel } from './profileAssets.js';
 
 /** The six profile sections (design §9). One vocabulary: requirement grouping,
  *  readiness breakdown, and how the profile is described. Files are ALWAYS

@@ -5,7 +5,7 @@ import { formatLocation } from '../lib/formatLocation';
 import { socialProfileUrl, ensureHttps } from '../lib/socialLinks';
 import { openDirectConversation } from '../lib/messaging';
 import { useConversationUi } from '../lib/conversationUi';
-import { completionFor, requirementLabel } from '../lib/requirements';
+import { completionFor, requirementLabel } from '@yespleez/requirements';
 import { PROFILE_TYPES } from '../lib/profileTypes';
 import ProfileAvatar from './ProfileAvatar';
 

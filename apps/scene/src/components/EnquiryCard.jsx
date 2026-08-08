@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { normaliseStatus } from '../lib/enquiryUtils';
-import { completionFor, COMPLETION_COLUMNS, requirementLabel } from '../lib/requirements';
+import { completionFor, COMPLETION_COLUMNS, requirementLabel } from '@yespleez/requirements';
 
 /**
  * Every `profiles` column this card reads — declared HERE, by the component

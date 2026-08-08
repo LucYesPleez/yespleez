@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
-import { PROFILE_ASSET_TYPES, isMulti } from '../lib/profileAssets';
+import { PROFILE_ASSET_TYPES, isMulti } from '@yespleez/requirements';
 import { listAssets, uploadAsset, deleteAsset, assetUrl, validateAssetFile } from '../lib/profileAssetStore';
 
 /**

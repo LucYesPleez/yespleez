@@ -1,0 +1,14 @@
+{
+  "name": "@yespleez/requirements",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Requested assets, matched against what a profile can supply.",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "scripts": {
+    "test": "node --test \"src/**/*.test.js\"",
+    "lint": "oxlint"
+  }
+}

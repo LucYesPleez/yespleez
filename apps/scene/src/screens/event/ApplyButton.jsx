@@ -5,7 +5,7 @@ import { getPerformerProfiles } from '../../lib/actingProfile';
 import { track, EVENTS } from '../../lib/analytics';
 import { writeNotification } from '../../lib/writeNotification';
 import { listAssets } from '../../lib/profileAssetStore';
-import { evaluate, columnsFor, snapshotEvaluation, requirementLabel } from '../../lib/requirements';
+import { evaluate, columnsFor, snapshotEvaluation, requirementLabel } from '@yespleez/requirements';
 import UnclaimedNotice from '../../components/UnclaimedNotice';
 import s from '../EventScreen.module.css';
 

@@ -19,7 +19,7 @@ import { useDragScroll } from '../hooks/useDragScroll';
 import { resolveProfileId } from '../lib/resolveProfileId';
 import s from './VenueDashboard.module.css';
 import { PROFILE_TYPES } from '../lib/profileTypes';
-import { completionFor } from '../lib/requirements';
+import { completionFor } from '@yespleez/requirements';
 import { ENQUIRY_CARD_COLUMNS } from '../components/EnquiryCard';
 
 // The card declares what it reads; this screen only joins it. Previously a

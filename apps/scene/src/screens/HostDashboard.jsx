@@ -12,7 +12,7 @@ import { formatLocation } from '../lib/formatLocation';
 import { HOST_CATEGORIES } from '../lib/profileTaxonomy';
 import { PROFILE_TYPES } from '../lib/profileTypes';
 import ProfileAvatar from '../components/ProfileAvatar';
-import { completionFor } from '../lib/requirements';
+import { completionFor } from '@yespleez/requirements';
 import FollowingSection, { FOLLOW_FILTER_CONFIGS } from '../components/FollowingSection';
 import EnquiryPanel from '../components/EnquiryPanel';
 import { ENQUIRY_CARD_COLUMNS } from '../components/EnquiryCard';
