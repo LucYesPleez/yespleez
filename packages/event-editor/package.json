@@ -5,7 +5,8 @@
   "type": "module",
   "description": "Editing an event — one implementation, however many applications.",
   "exports": {
-    ".": "./src/index.js"
+    ".": "./src/index.js",
+    "./styles.module.css": "./src/EventEditor.module.css"
   },
   "scripts": {
     "test": "node --test \"src/**/*.test.{js,mjs}\"",

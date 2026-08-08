@@ -2,11 +2,12 @@ import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { useSession } from "../App";
-import s from "./CreateEventScreen.module.css";
+import s from "@yespleez/event-editor/styles.module.css";
 import { getOwnerProfiles } from "../lib/actingProfile";
 import { track, EVENTS } from "../lib/analytics";
-import { useEventEditorState } from "./event/useEventEditorState";
-import EventEditorForm from "./event/EventEditorForm";
+import { useEventEditorState } from "@yespleez/event-editor";
+import EventEditorForm from "./event/SceneEventEditor";
+import { uploadPosterCrop } from "../lib/uploadImage";
 
 /**
  * SCENE’S EVENT SCREEN — plumbing only.
@@ -31,7 +32,7 @@ export default function CreateEventScreen() {
    * ⭐⭐ ALL FORM STATE LIVES IN THE SHARED HOOK, so Festival Companion renders
    * the identical editor rather than growing a second one.
    */
-  const ed = useEventEditorState({ userId: session?.user?.id });
+  const ed = useEventEditorState({ userId: session?.user?.id, uploadPosterCrop });
 
   // Only what the plumbing below reads. Everything else is the form’s.
   const {
