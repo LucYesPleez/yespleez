@@ -26,7 +26,12 @@ const DATE_TABS = [
   { id: 'TONIGHT',   label: 'TONIGHT',    sub: "What's on now" },
   { id: 'WEEKEND',   label: 'WEEKEND',    sub: 'Fri – Sun' },
   { id: 'COMING UP', label: 'COMING UP',  sub: 'Next 2 weeks' },
-  { id: 'ALL',       label: 'THIS MONTH', sub: MONTH_NAMES[new Date().getMonth()].toUpperCase() },
+  /* ⚠ NO `.toUpperCase()` HERE. Every other tab's sub is sentence case
+     ("What's on now", "Fri – Sun", "Next 2 weeks") and this one shouted
+     "AUGUST" beside them. The sub is the one line in this row the font does
+     NOT already case for us — the labels above are Bebas Neue, which has no
+     lowercase glyphs, so their caps are the typeface and not a choice. */
+  { id: 'ALL',       label: 'THIS MONTH', sub: MONTH_NAMES[new Date().getMonth()] },
 ];
 
 // FESTIVAL intentionally not offered as a Discover/What's On filter this
