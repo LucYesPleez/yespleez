@@ -413,6 +413,30 @@ Then add `"engines": { "node": ">=20.19" }` to both `package.json` files (docume
 
 ## PHASE 3 — Scene cutover (the moment production is at risk)
 
+> ### ⛔ HARD COORDINATION CONSTRAINT — `main` IS FROZEN FROM 3.2 UNTIL 3.5
+>
+> `root_dir` is **project-wide**: one field governs Production and Preview together.
+> Scene's production builds from `main`, which still contains `v2/`. So between the
+> PATCH and the merge there is a window where **any production build would fail** —
+> it would look for `apps/scene` in a tree that does not have it yet.
+>
+> Nothing triggers a build during that window *on its own* — a config PATCH does not
+> cause a rebuild — which is exactly why the order works. But it only works if the
+> window stays quiet:
+>
+> - **no push to `main`**
+> - **no "Retry deployment"** on the Scene project
+> - **no deploy hook, no manual production deployment**
+>
+> ⚠ **This is a coordination constraint, not a recommendation.** Other sessions work in
+> this repository and pushed to `main` unprompted on 2026-08-08. Announce the freeze
+> before starting 3.2 and lift it after 3.5 verifies.
+>
+> The order that avoids the window entirely:
+> **PATCH → verify on the `monorepo` PREVIEW (same project, same new `root_dir`) →
+> only then merge to `main`.** Production's first build after the merge runs against
+> configuration that is already proven correct.
+
 ### 3.1 [ME] Push the branch
 
 ```bash
@@ -466,7 +490,15 @@ curl -s "$URL/$ASSET" | grep -c -F "\"$SHA\""                                   
 # 2. Env vars reached the bundle
 curl -s "$URL/$ASSET" | grep -c -F 'doqzxvppibuzieajqkxm.supabase.co'                 # expect >=1
 
-# 3. SPA deep-link fallback (BrowserRouter; NO _redirects file exists, and none must be added)
+# 3. SPA fallback — Pages serves index.html for an unknown path.
+#    ⚠ CORRECTED 2026-08-08: the app is a **HashRouter**, not a BrowserRouter.
+#    A path URL like /event/<id> NEVER routes to the event page — it falls through
+#    to "/" and renders Home. That is correct behaviour, not a 404 and not a
+#    routing regression (it was misdiagnosed as one on 2026-08-08).
+#    So this check proves only that the shell is served; it says nothing about
+#    routing. The absence of a _redirects file is NOT evidence of BrowserRouter.
+#    The real route is /#/event/<id> — test that in the browser, not with curl,
+#    because the fragment is never sent to the server.
 curl -s "$URL/event/00000000-0000-0000-0000-000000000000" | grep -c -F '<div id="root"'   # expect 1
 
 # 4. PWA assets at the origin root (base unset; everything hardcoded to /)
