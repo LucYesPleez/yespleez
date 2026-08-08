@@ -73,11 +73,24 @@ boot and production is the only test surface. Biggest risk multiplier in the pla
 
 - **The verify project is correct.** `opdgflctitruzgfuobyg`, free org "YesPleez
   Verify", holds baseline + D2 + M2 + M2a and passes 14 behavioural tests.
-- **Production has NOT received M2.** No participation tables, no
-  `accept_festival_applications`.
-- ⚠ **Accepting an application fails in the live beta today.** `decide()` routes
-  every acceptance through an RPC that does not exist there. Declining and
-  shortlisting are unaffected.
+- ~~**Production has NOT received M2.** No participation tables, no
+  `accept_festival_applications`.~~
+- ~~⚠ **Accepting an application fails in the live beta today.** `decide()` routes
+  every acceptance through an RPC that does not exist there.~~
+
+  ⛔ **BOTH CLAIMS ABOVE ARE FALSE. Corrected 2026-08-08 by direct object audit
+  of production.** All three tables, all five triggers, both read policies,
+  `accept_festival_applications` and `notify_festival_outcome` are PRESENT —
+  as are F2's two follows indexes. **M2 is in production. Do not re-apply it:**
+  `CREATE POLICY` and `CREATE TRIGGER` have no `IF NOT EXISTS`, and the SQL
+  editor runs one transaction, so a re-run aborts the lot.
+
+  ⚠⚠ **THE LESSON MATTERS MORE THAN THE FACT.** `project_participation_model`
+  said "BUILT AND LIVE ON PRODUCTION" on the same day this said the opposite,
+  and the memory was right. A handover records what was true when it was
+  written; production is a live system that other sessions change.
+  **Probe the database before acting on any claim about its state** — the audit
+  is a single read-only query and it settles the question in seconds.
 - ⚠ **End-to-end applicant testing is still blocked** by production being 11
   commits behind — `VITE_SCENE_URL` now points at `yespleez.pages.dev`, which is
   the right destination running the wrong build.
