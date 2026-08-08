@@ -36,7 +36,7 @@
 - [ ] **No new inline `auth.uid()`** in a policy. The debt ledger (`docs/identity-ci-spec.md`) may only shrink. *(R3)*
 - [ ] **No new `.neq('type','punter')`.** Personal's discovery filter belongs in `profileResolution.js` alone. *(§A9)*
 - [ ] **New table?** Classified in the identity registry as profile-actionable or account-actionable. Silence is the failure mode. *(C5)*
-- [ ] **Edited `apps/scene/`, not the retired v1 at the repo root.** Root has files with identical names — `follows.js`, `events.js`, `app.js`.
+- [ ] **Edited `apps/scene/`, not the retired v1 in `legacy-v1/`.** That tree has files with identical names — `follows.js`, `events.js`, `app.js`.
 - [ ] **No M6/M7/M8 work.** The migration is paused at M5.1 and resumes only when the owner says so.
 
 ## Architecture

@@ -7,7 +7,7 @@ Read this before touching anything. It is short on purpose.
 | Path | What it is |
 |---|---|
 | `apps/scene/` | **The live Scene app.** React + Vite + Supabase. Was `v2/` until the monorepo move. |
-| `app.js`, `follows.js`, `events.js`, `auth.js`, … *(repo root)* | **Retired v1 (vanilla JS). Do not edit.** Root has files with the same names as live Scene modules — check your path before editing. |
+| `legacy-v1/` | **Retired v1 (vanilla JS). Do not edit.** `app.js`, `follows.js`, `events.js`, `auth.js`, … — same filenames as live Scene modules, so check your path before editing. Moved out of the repo root by the monorepo migration. |
 | `docs/` | Design reviews, migration plans, verification evidence |
 | `supabase/migrations/` | Applied migrations. Never edit a migration that has shipped. |
 
