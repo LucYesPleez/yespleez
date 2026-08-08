@@ -29,7 +29,7 @@ import { fileURLToPath } from 'node:url';
  * silently comparing two empty arrays.
  */
 
-const MIGRATIONS_DIR = fileURLToPath(new URL('../../../supabase/migrations/', import.meta.url));
+const MIGRATIONS_DIR = fileURLToPath(new URL('../../../../supabase/migrations/', import.meta.url));
 
 /**
  * The migration that currently DEFINES the kind CHECK.

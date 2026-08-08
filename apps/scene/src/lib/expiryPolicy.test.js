@@ -22,7 +22,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const HERE      = dirname(fileURLToPath(import.meta.url));
-const MIGRATION = join(HERE, '../../../supabase/migrations/20260720000002_n4_held_expiry.sql');
+const MIGRATION = join(HERE, '../../../../supabase/migrations/20260720000002_n4_held_expiry.sql');
 const NOTIF_META = join(HERE, 'notifMeta.jsx');
 
 /**
@@ -85,7 +85,7 @@ function splitSqlTuple(body) {
 }
 
 function policyTypes() {
-  const dir = join(HERE, '../../../supabase/migrations');
+  const dir = join(HERE, '../../../../supabase/migrations');
   const found = new Map();
 
   for (const file of readdirSync(dir).filter(f => f.endsWith('.sql'))) {

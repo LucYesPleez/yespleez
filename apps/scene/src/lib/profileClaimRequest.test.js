@@ -24,7 +24,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const HERE      = dirname(fileURLToPath(import.meta.url));
-const MIGRATION = join(HERE, '../../../supabase/migrations/20260724000003_c1_profile_claim_requests.sql');
+const MIGRATION = join(HERE, '../../../../supabase/migrations/20260724000003_c1_profile_claim_requests.sql');
 
 const USER    = '22222222-2222-2222-2222-222222222222';
 const OTHER   = '99999999-9999-9999-9999-999999999999';

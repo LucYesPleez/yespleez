@@ -32,7 +32,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const MIGRATIONS = join(HERE, '../../../supabase/migrations');
+const MIGRATIONS = join(HERE, '../../../../supabase/migrations');
 
 /**
  * The migration that CURRENTLY defines a column's allow-list.
