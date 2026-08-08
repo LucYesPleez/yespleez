@@ -16,7 +16,7 @@
  * Bellingen events is still the one call made the day 2454 was added. That is
  * the whole reason for the bucket.
  *
- * ── ENV (v2/.env.local) ──────────────────────────────────────────────
+ * ── ENV (apps/scene/.env.local) ──────────────────────────────────────────────
  *   GOOGLE_MAPS_STATIC_KEY   provider key
  *   SUPABASE_SERVICE_ROLE_KEY  upload rights; the anon key cannot write here
  *
@@ -236,7 +236,7 @@ async function main() {
     !SERVICE_KEY && 'SUPABASE_SERVICE_ROLE_KEY',
   ].filter(Boolean);
   if (missing.length) {
-    console.error(`Missing in v2/.env.local: ${missing.join(', ')}`);
+    console.error(`Missing in apps/scene/.env.local: ${missing.join(', ')}`);
     process.exit(1);
   }
 
