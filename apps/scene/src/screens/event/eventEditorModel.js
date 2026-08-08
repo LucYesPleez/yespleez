@@ -16,7 +16,7 @@
  * ⛔ No behaviour changed in the extraction. Every function here is the code
  * that was inline in CreateEventScreen, moved verbatim.
  */
-import { DEFAULT_CROP_Y, MAX_SLIDES } from './heroMedia.js';
+import { DEFAULT_CROP_Y, MAX_SLIDES } from '@yespleez/event-presentation';
 
 export function makeId() { return Math.random().toString(36).slice(2, 8); }
 

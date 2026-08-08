@@ -1,0 +1,14 @@
+{
+  "name": "@yespleez/event-presentation",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "How an event presents itself — the same rules wherever it is shown.",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "scripts": {
+    "test": "node --test \"src/**/*.test.js\"",
+    "lint": "oxlint"
+  }
+}

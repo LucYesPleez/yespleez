@@ -20,7 +20,7 @@
 // is not here.
 
 import { useState, useRef } from 'react';
-import { resolveHeroMedia } from './heroMedia';
+import { resolveHeroMedia } from '@yespleez/event-presentation';
 import s from './EventHero.module.css';
 
 export default function EventHero({

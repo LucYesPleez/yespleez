@@ -13,7 +13,7 @@ import CoHostPicker from "../../components/CoHostPicker";
 import { getEventBadges, CATEGORY_BADGES, CATEGORY_CHOICES, OPEN_MIC_BADGE, sameCategory } from "../../lib/eventBadges";
 import { PROFILE_TYPES } from "../../lib/profileTypes";
 import { requestableBySection, requirementLabel } from "../../lib/requirements";
-import { DEFAULT_CROP_Y, MAX_SLIDES } from "./heroMedia";
+import { DEFAULT_CROP_Y, MAX_SLIDES } from "@yespleez/event-presentation";
 import { makeId, generateSlots } from "./eventEditorModel";
 
 /**

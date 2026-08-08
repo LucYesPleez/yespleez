@@ -19,7 +19,7 @@
 // null and the section decides whether to hide, and where a value is uncertain
 // it passes the uncertainty along rather than flattening it.
 
-import { DEFAULT_CROP_Y } from './heroMedia';
+import { DEFAULT_CROP_Y } from '@yespleez/event-presentation';
 import { postcodeCoords } from '../../lib/geo';
 
 /* ── config readers ──────────────────────────────────────────────────

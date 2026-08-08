@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback } from 'react';
 import { useSensor, useSensors, PointerSensor } from '@dnd-kit/core';
 import { uploadPosterCrop } from '../../lib/uploadImage';
-import { MAX_SLIDES } from './heroMedia';
+import { MAX_SLIDES } from '@yespleez/event-presentation';
 import { makeId, emptyEventForm, fromConfig, toConfig } from './eventEditorModel';
 
 /**
