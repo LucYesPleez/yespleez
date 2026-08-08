@@ -6,8 +6,8 @@ Read this before touching anything. It is short on purpose.
 
 | Path | What it is |
 |---|---|
-| `v2/` | **The live app.** React + Vite + Supabase. All work happens here. |
-| `app.js`, `follows.js`, `events.js`, `auth.js`, … *(repo root)* | **Retired v1 (vanilla JS). Do not edit.** Root has files with the same names as live v2 modules — check your path before editing. |
+| `apps/scene/` | **The live Scene app.** React + Vite + Supabase. Was `v2/` until the monorepo move. |
+| `app.js`, `follows.js`, `events.js`, `auth.js`, … *(repo root)* | **Retired v1 (vanilla JS). Do not edit.** Root has files with the same names as live Scene modules — check your path before editing. |
 | `docs/` | Design reviews, migration plans, verification evidence |
 | `supabase/migrations/` | Applied migrations. Never edit a migration that has shipped. |
 
@@ -112,7 +112,7 @@ UPDATE touches, and a record its recipient can rewrite is not evidence.
 **Statically verified.** Full suite 628 tests / 615 pass (the 13 failures are the
 pre-existing `--experimental-test-module-mocks` loader faults, not product logic); build
 clean; `no-undef` clean. The reader contract is enforced by a drift guard in
-`v2/src/lib/notificationReaders.test.js` alongside `to_user_id` and `suppressed_at`, and
+`apps/scene/src/lib/notificationReaders.test.js` alongside `to_user_id` and `suppressed_at`, and
 was **mutation-checked** — reverting any single filter fails the guard and names the file.
 
 **NOT yet verified against the production database.** Nobody has dismissed a real row and
@@ -194,7 +194,7 @@ A row with only a user *cannot name its sender*. A row with only a profile *cann
 - **The active profile is UX state.** Client-stored, untrusted, a hint. It sets attribution and nothing else. A tampered value must change **only a label**.
 - **Attribution is stamped at write time** — never earlier, never later. A draft has no attribution because it has not been sent. A written row is never re-attributed by a later switch.
 - **Conversations belong to profiles**; every message records its human author. One model for every thread — there is no separate "commercial messaging".
-- **Personal (`type='punter'`) is system-generated and inalienable** — never claimed, never transferred, **never publicly discoverable**. Its discovery filter belongs in **one resolver** (`v2/src/lib/profileResolution.js`). Do not copy-paste `.neq('type','punter')` into a new query.
+- **Personal (`type='punter'`) is system-generated and inalienable** — never claimed, never transferred, **never publicly discoverable**. Its discovery filter belongs in **one resolver** (`apps/scene/src/lib/profileResolution.js`). Do not copy-paste `.neq('type','punter')` into a new query.
 - **V1 is single-owner.** The word "manage" is not part of this architecture. Do not build multi-manager, delegation or roles.
 - **Never key identity on `user_id`-as-identity.** `profile.id` is the permanent public identity; `user_id` routing is legacy and being retired.
 
