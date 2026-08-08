@@ -6,15 +6,15 @@ import { makeId, emptyEventForm, fromConfig, toConfig } from './eventEditorModel
 /**
  * ALL OF THE EVENT EDITOR'S FORM STATE, in one place and owned by the caller.
  *
- * ⭐ WHY THIS EXISTS: `CreateEventScreen` was a screen, not a component — it
- * fetched, transformed, rendered, saved, navigated and deleted, with 45 pieces
- * of state in its body. Nothing could embed it. Splitting the plumbing from the
- * form is what lets Festival Companion render the IDENTICAL editor instead of
- * growing a second one.
+ * ⭐ WHY THIS EXISTS: this began as a screen, not a component — it fetched,
+ * transformed, rendered, saved, navigated and deleted, with 45 pieces of state
+ * in its body. Nothing could embed it. Splitting the plumbing from the form is
+ * what lets a second host render the IDENTICAL editor instead of growing one of
+ * its own.
  *
- * ⛔ EXTRACTION ONLY. Every hook, default, clamp and comment below is the code
- * that was inline in CreateEventScreen, moved unchanged. No features, no
- * redesign, no workflow change.
+ * ⛔ EXTRACTION ONLY. Every hook, default, clamp and comment below was moved
+ * unchanged from the screen it used to live in. No features, no redesign, no
+ * workflow change.
  *
  * The consumer keeps routing, session, loading and saving. This keeps the form.
  *

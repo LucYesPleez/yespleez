@@ -1,20 +1,20 @@
 /**
  * THE EVENT EDITOR'S DATA MODEL — pure, no React, no Supabase.
  *
- * ⭐ EXTRACTED SO THERE IS ONE EVENT EDITOR, NOT TWO. The Festival Companion
- * embeds the same editor rather than growing its own, and everything in this
- * file is what both sides have to agree on: the slot shape, and the mapping
- * between `events.config` and the form.
+ * ⭐ EXTRACTED SO THERE IS ONE EVENT EDITOR, NOT TWO. Every host embeds the
+ * same editor rather than growing its own, and everything in this file is what
+ * they all have to agree on: the slot shape, and the mapping between
+ * `events.config` and the form.
  *
  * ⭐⭐ THIS FILE IS THE ONE PLACE `events.config` IS INTERPRETED FOR EDITING.
- * That is the whole point. The standing rule is that nothing outside Scene's
- * `eventViewModel` reads that blob — a second reader in another app is how two
- * apps start disagreeing about what an event says. A shared editor does not
- * break the rule, it satisfies it: `fromConfig`/`toConfig` below are the single
- * writer, and Festival uses them rather than parsing anything itself.
+ * That is the whole point. The standing rule is that a host's own view model is
+ * the only other reader of that blob — a second interpreter is how two
+ * applications start disagreeing about what an event says. A shared editor does
+ * not break the rule, it satisfies it: `fromConfig`/`toConfig` below are the
+ * single writer, and every host uses them rather than parsing anything itself.
  *
- * ⛔ No behaviour changed in the extraction. Every function here is the code
- * that was inline in CreateEventScreen, moved verbatim.
+ * ⛔ No behaviour changed in the extraction. Every function here was moved
+ * verbatim from the screen it used to live in.
  */
 import { DEFAULT_CROP_Y, MAX_SLIDES } from '@yespleez/event-presentation';
 

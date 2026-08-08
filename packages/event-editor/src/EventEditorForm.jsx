@@ -13,32 +13,31 @@ import { DEFAULT_CROP_Y, MAX_SLIDES } from "@yespleez/event-presentation";
 import { makeId, generateSlots } from "./eventEditorModel.js";
 
 /**
- * THE EVENT EDITOR — one implementation, used by both products.
+ * THE EVENT EDITOR — one implementation, however many applications.
  *
- * ⭐⭐ THE MILESTONE THIS SERVES: Scene and Festival Companion render the SAME
- * editor. Not a shared look, not a copied component — this file. Every future
- * improvement to event editing lands in both at once, and neither can drift.
+ * ⭐⭐ WHAT THIS BUYS: every application that edits an event renders THIS file.
+ * Not a shared look, not a copied component. Every future improvement to event
+ * editing lands everywhere at once, and no two can drift apart.
  *
- * ⛔ PURE. No routing, no session lookup, no Supabase, no navigation. It takes
- * form state (from useEventEditorState) plus callbacks, and renders. The host
- * owns loading and saving — Scene from CreateEventScreen, Festival from its
- * Event room.
+ * ⛔ PURE. No routing, no session lookup, no database client, no navigation. It
+ * takes form state (from useEventEditorState) plus callbacks, and renders. The
+ * host owns loading and saving.
  *
- * ⛔ The page wrapper and heading belong to the HOST. Scene says "EDIT EVENT"
- * above a full-page layout; Festival puts this in a room with its own chrome.
- * Either one living in here would make one product wear the other’s clothes.
+ * ⛔ The page wrapper and heading belong to the HOST. One may want a full-page
+ * layout with a heading; another may place this inside existing chrome. Either
+ * living in here would make every host wear the first one's clothes.
  *
- * ⛔ EXTRACTION ONLY — the markup below is what was inline in
- * CreateEventScreen, moved unchanged.
+ * ⛔ The markup below was extracted unchanged. Its dependencies are injected —
+ * see the prop contract on the component.
  */
 const CAL_DAYS = ['Su','Mo','Tu','We','Th','Fr','Sa'];
 const CAL_MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 const DUR_PRESETS = [{ label:'1 HR', mins:60 },{ label:'1.5 HRS', mins:90 },{ label:'2 HRS', mins:120 },{ label:'OTHER', mins:null }];
 
 /**
- * ⭐ These moved to `event/eventEditorModel.js` so the Festival Companion can
- * use the identical slot shape and the identical config mapping. Re-exported
- * here only as imports — nothing about them changed.
+ * ⭐ The slot shape and the config mapping live in eventEditorModel.js so every
+ * host uses the identical ones. Re-exported here only as imports — nothing
+ * about them changed.
  */
 
 /* ── Calendar Picker ─────────────────────────────────────────────────────── */

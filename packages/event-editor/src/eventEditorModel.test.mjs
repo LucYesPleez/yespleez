@@ -5,20 +5,19 @@ import { fromConfig, toConfig, emptyEventForm, slotToEdit, slotToSave } from './
 /**
  * ROUND-TRIP TESTS for the one place `events.config` is interpreted.
  *
- * ⭐ These exist because the mapping is now SHARED. Scene and Festival Companion
- * both go through it, so a silent change here would corrupt events in two apps
- * at once — and the save path cannot be exercised in a browser without writing
+ * ⭐ These exist because the mapping is now SHARED. Every host goes through it,
+ * so a silent change here would corrupt events in all of them at once — and the save path cannot be exercised in a browser without writing
  * to a real event.
  */
 
 const row = () => ({
-  name: 'Echo Valley Festival 2026',
+  name: 'Three Day Gathering 2026',
   is_public: false,
   applications_open: true,
   required_items: ['tech_rider', 'press_kit'],
   config: {
     date: '2026-11-13', endDate: '2026-11-15', venue: 'Echo Valley',
-    genres: 'psytrance, forest', categoryBadge: 'FESTIVAL', openMicBadge: false,
+    genres: 'psytrance, forest', categoryBadge: 'MULTI DAY', openMicBadge: false,
     ticketLink: 'https://humanitix.com/x', bio: 'Three days in the hills.',
     cover: 'c.jpg', gallery: ['g1.jpg', 'g2.jpg'],
     poster: 'p.jpg', poster_thumb: 'pt.jpg', poster_full: 'pf.jpg',
