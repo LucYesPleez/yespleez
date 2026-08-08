@@ -1,8 +1,7 @@
 import { useState, useRef, useCallback } from 'react';
 import { useSensor, useSensors, PointerSensor } from '@dnd-kit/core';
-import { uploadPosterCrop } from '../../lib/uploadImage';
 import { MAX_SLIDES } from '@yespleez/event-presentation';
-import { makeId, emptyEventForm, fromConfig, toConfig } from './eventEditorModel';
+import { makeId, emptyEventForm, fromConfig, toConfig } from './eventEditorModel.js';
 
 /**
  * ALL OF THE EVENT EDITOR'S FORM STATE, in one place and owned by the caller.
@@ -22,7 +21,15 @@ import { makeId, emptyEventForm, fromConfig, toConfig } from './eventEditorModel
  * @param {object}  opts
  * @param {?string} opts.userId  needed only to name uploaded crops
  */
-export function useEventEditorState({ userId } = {}) {
+/**
+ * @param userId           whose upload this is
+ * @param uploadPosterCrop async (posterUrl, rect, uid, suffix) => { url }
+ *        ⭐ The hook's only I/O, and therefore injected. Cropping a poster is
+ *        editing; putting the result somewhere is the caller's storage, its
+ *        bucket, its auth. A package that reached for a client would bind the
+ *        editor to one application's backend on the day it was written.
+ */
+export function useEventEditorState({ userId, uploadPosterCrop } = {}) {
   const init = emptyEventForm();
 
   // ── Event details ────────────────────────────────────────────────────

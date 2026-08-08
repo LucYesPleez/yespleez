@@ -7,14 +7,10 @@ import { CSS } from "@dnd-kit/utilities";
  * every class name in the same commit as a 500-line move, and the point of this
  * extraction is that the markup is byte-identical. Rename it separately.
  */
-import s from "../CreateEventScreen.module.css";
-import ImageUploadButton from "../../components/ImageUploadButton";
-import CoHostPicker from "../../components/CoHostPicker";
-import { getEventBadges, CATEGORY_BADGES, CATEGORY_CHOICES, OPEN_MIC_BADGE, sameCategory } from "../../lib/eventBadges";
-import { PROFILE_TYPES } from "../../lib/profileTypes";
+import s from "./EventEditor.module.css";
 import { requestableBySection, requirementLabel } from "@yespleez/requirements";
 import { DEFAULT_CROP_Y, MAX_SLIDES } from "@yespleez/event-presentation";
-import { makeId, generateSlots } from "./eventEditorModel";
+import { makeId, generateSlots } from "./eventEditorModel.js";
 
 /**
  * THE EVENT EDITOR — one implementation, used by both products.
@@ -400,7 +396,45 @@ function DayCard({ day, dayIndex, totalDays, onUpdateName, onRemoveDay, onUpdate
 }
 
 /* ── Main Component ──────────────────────────────────────────────────────── */
-export default function EventEditorForm({ ed, editId, saving, error, session, onSave, onDelete }) {
+/**
+ * ⭐ WHAT THIS COMPONENT IS GIVEN, AND WHY.
+ *
+ * Everything below is something the editor used to import and must not: a
+ * vocabulary, a label, a component that performs I/O, or an adornment. The
+ * editor knows how to edit an event. It does not know whose event it is, what
+ * categories exist in that world, where images are stored, or what advice a
+ * host should be offered — and it must not learn, or it stops being one editor
+ * and becomes two behind a flag.
+ *
+ * @param categories       {choices, openMic?, classify(genreText, name), isSame(a,b)}
+ *                         A classification SERVICE, not a list. `classify` is a
+ *                         function because one caller infers a category from
+ *                         free text while another has the organiser choose;
+ *                         returning [] is normal and must render correctly.
+ *                         `openMic` is optional — omit it and no such chip
+ *                         appears.
+ * @param labelProfileType (type) => string. Which short label a profile type
+ *                         shows. The registries differ between callers and one
+ *                         of them deliberately has no entry for the other's.
+ * @param components       {ImageUploadButton, CoHostPicker?} Anything that
+ *                         touches storage or queries profiles. Editing an event
+ *                         is platform; where the bytes go is the caller's
+ *                         business. CoHostPicker is OPTIONAL — omit it and the
+ *                         whole section disappears, because not every world
+ *                         has co-hosts.
+ * @param adornments       {categoryHint?} Presentation-only extension points.
+ *                         ⛔ An adornment may render. It may NOT mutate editor
+ *                         state, take part in validation, influence
+ *                         serialisation, or change what is saved. The editor
+ *                         remains the sole authority over event state.
+ *                         (Named `adornments`, not `slots` — this domain
+ *                         already uses "slot" for a performance slot.)
+ */
+export default function EventEditorForm({
+  ed, editId, saving, error, session, onSave, onDelete,
+  categories, labelProfileType, components, adornments = {},
+}) {
+  const { ImageUploadButton, CoHostPicker } = components;
   const handleSave = onSave;
   const handleDelete = onDelete;
   const {
@@ -456,7 +490,7 @@ export default function EventEditorForm({ ed, editId, saving, error, session, on
                       background: on ? 'rgba(0,229,255,.12)' : 'none',
                       color: on ? 'var(--neon2)' : 'var(--muted)',
                     }}>
-                    {p.name || '(unnamed)'} · {PROFILE_TYPES[p.type]?.shortLabel || p.type}
+                    {p.name || "(unnamed)"} · {labelProfileType(p.type)}
                   </button>
                 );
               })}
@@ -468,16 +502,20 @@ export default function EventEditorForm({ ed, editId, saving, error, session, on
             main host above stays the only profile that can edit this event,
             decide applications or receive its notifications. Enforced in
             `event_hosts`'s RLS rather than asserted here. */}
-        <SectionHeader label="CO-HOSTS" />
-        <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 8 }}>
-          Billed alongside you on the event page. They can’t edit the event.
-        </div>
-        <CoHostPicker
-          eventId={editId || null}
-          ownerId={ownerId}
-          value={coHosts}
-          onChange={setCoHosts}
-        />
+        {CoHostPicker && (
+          <>
+            <SectionHeader label="CO-HOSTS" />
+            <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 8 }}>
+              Billed alongside you on the event page. They can’t edit the event.
+            </div>
+            <CoHostPicker
+              eventId={editId || null}
+              ownerId={ownerId}
+              value={coHosts}
+              onChange={setCoHosts}
+            />
+          </>
+        )}
 
         {/* ── EVENT DETAILS ── */}
         <SectionHeader label="EVENT DETAILS" />
@@ -505,16 +543,18 @@ export default function EventEditorForm({ ed, editId, saving, error, session, on
 
         <Field label="CATEGORY CHIP (optional)">
           {(() => {
-            const auto = getEventBadges(genreText, name);
-            const openMicOpt = OPEN_MIC_BADGE;
+            // classify may legitimately return [] — a caller whose organiser
+            // picks the category outright has nothing to infer from.
+            const auto = categories.classify(genreText, name) || [];
+            const openMicOpt = categories.openMic;
             return (
               <div>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
-                  {CATEGORY_CHOICES.map(opt => {
-                    // sameCategory, not ===, so an event saved before the labels
+                  {categories.choices.map(opt => {
+                    // isSame, not ===, so an event saved before the labels
                     // were canonicalised ("Live Music") still highlights its chip.
-                    const manualActive = sameCategory(categoryBadge, opt.label);
-                    const autoActive = !categoryBadge && sameCategory(auto[0]?.label, opt.label);
+                    const manualActive = categories.isSame(categoryBadge, opt.label);
+                    const autoActive = !categoryBadge && categories.isSame(auto[0]?.label, opt.label);
                     const active = manualActive || autoActive;
                     return (
                       <button key={opt.label} type="button" onClick={() => setCategoryBadge(manualActive ? '' : opt.label)}
@@ -523,17 +563,26 @@ export default function EventEditorForm({ ed, editId, saving, error, session, on
                       </button>
                     );
                   })}
-                  <button type="button" onClick={() => setOpenMicBadge(v => !v)}
-                    style={{ fontFamily: "'DM Sans'", fontSize: 11, fontWeight: 700, letterSpacing: .8, padding: '5px 12px', borderRadius: 8, cursor: 'pointer', border: `1px solid ${openMicBadge ? 'transparent' : 'rgba(255,255,255,.15)'}`, background: openMicBadge ? openMicOpt.bg : 'rgba(255,255,255,.05)', color: openMicBadge ? openMicOpt.col : 'rgba(255,255,255,.5)', transition: 'all .15s' }}>
-                    {openMicOpt.label}
-                  </button>
+                  {openMicOpt && (
+                    <button type="button" onClick={() => setOpenMicBadge(v => !v)}
+                      style={{ fontFamily: "'DM Sans'", fontSize: 11, fontWeight: 700, letterSpacing: .8, padding: '5px 12px', borderRadius: 8, cursor: 'pointer', border: `1px solid ${openMicBadge ? 'transparent' : 'rgba(255,255,255,.15)'}`, background: openMicBadge ? openMicOpt.bg : 'rgba(255,255,255,.05)', color: openMicBadge ? openMicOpt.col : 'rgba(255,255,255,.5)', transition: 'all .15s' }}>
+                      {openMicOpt.label}
+                    </button>
+                  )}
                 </div>
                 {!categoryBadge && auto.length > 0 && (
                   <p style={{ fontSize: 11, color: 'var(--muted)', margin: 0 }}>Auto-detected from your genres: <strong style={{ color: 'var(--text)' }}>{auto[0].label}</strong> — select above to override</p>
                 )}
-                {sameCategory(categoryBadge, CATEGORY_BADGES.LIVE_MUSIC.label) && sameCategory(auto[0]?.label, CATEGORY_BADGES.DJS.label) && (
-                  <p style={{ fontSize: 11, color: 'var(--muted)', margin: 0 }}>We've auto-detected you as a DJ — Live Music is for bands, acoustic and live instruments.</p>
-                )}
+                {/* ⛔ ADORNMENT, not logic. Whether "you chose Live Music but
+                    your genres read as DJ" is worth saying is a judgement about
+                    one world's taxonomy, and the editor has no business holding
+                    an opinion about it. Render-only: it cannot change what is
+                    selected or what is saved. */}
+                {adornments.categoryHint?.({
+                  selected:  categoryBadge,
+                  suggested: auto[0] || null,
+                  isSame:    categories.isSame,
+                })}
               </div>
             );
           })()}
