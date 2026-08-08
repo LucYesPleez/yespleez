@@ -3,6 +3,7 @@ import { Button, SectionCard, Callout } from '../design-system';
 import { Toggle } from '../design-system/Form';
 import ApplicationLink from '../festival/ApplicationLink';
 import ApplicationSetup from '../festival/ApplicationSetup';
+import FestivalEventEditor from '../festival/FestivalEventEditor';
 import { useRepositories } from '../data/dataContext';
 import { useQuery } from '../data/useQuery';
 import s from './screens.module.css';
@@ -76,6 +77,16 @@ export default function EventEditorScreen() {
 
         <ApplicationLink eventId={eventId} applicationsOpen={event?.applicationsOpen ?? true} />
         <ApplicationSetup eventId={eventId} />
+
+        {/* ⭐⭐ THE SHARED EVENT EDITOR — the same component the other
+            application renders, with nothing added to it to make this work.
+            Everything this world answers differently is in the wrapper. */}
+        <SectionCard
+          title="Event details"
+          subtitle="Dates, venue, description and schedule — the same editor used everywhere an event is edited."
+        >
+          <FestivalEventEditor eventId={eventId} />
+        </SectionCard>
       </div>
     </div>
   );

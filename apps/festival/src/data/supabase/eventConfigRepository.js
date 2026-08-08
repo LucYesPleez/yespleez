@@ -210,6 +210,46 @@ export const eventConfigRepository = {
    * an UPDATE no policy permits succeeds having matched nothing, so the row
    * count is the evidence, not the absence of an error.
    */
+  /**
+   * The whole event, as the shared editor needs it.
+   *
+   * ⭐ `config` is the blob the shared editor's model interprets — this app
+   * never parses it, it hands it to `fromConfig` and gets it back from
+   * `toConfig`. That is the point of one editor: two apps cannot disagree
+   * about what an event says if neither of them reads the blob themselves.
+   */
+  async getEventForEditing(eventId) {
+    const { data, error } = await supabase
+      .from('events')
+      .select('id, name, config, is_public, applications_open, required_items')
+      .eq('id', eventId)
+      .maybeSingle();
+    if (error) throw error;
+    return data ?? null;
+  },
+
+  /**
+   * ⚠ Same guard as setEventName: `events` is the SHARED table, and an UPDATE
+   * no policy permits succeeds having matched nothing. The row count is the
+   * evidence, not the absence of an error.
+   */
+  async saveEventFromEditor(eventId, { name, config, isPublic, applicationsOpen, requiredItems }) {
+    const patch = { name, config };
+    if (isPublic !== undefined)         patch.is_public = isPublic;
+    if (applicationsOpen !== undefined) patch.applications_open = applicationsOpen;
+    if (requiredItems !== undefined)    patch.required_items = requiredItems;
+
+    const { data, error } = await supabase
+      .from('events')
+      .update(patch)
+      .eq('id', eventId)
+      .select('id');
+    if (error) throw error;
+    if (!data?.length) {
+      throw new Error('Not saved: this account is not permitted to edit the event.');
+    }
+  },
+
   async setEventName(eventId, name) {
     const { data, error } = await supabase
       .from('events')

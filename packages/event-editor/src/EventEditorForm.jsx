@@ -415,7 +415,7 @@ function DayCard({ day, dayIndex, totalDays, onUpdateName, onRemoveDay, onUpdate
  * @param labelProfileType (type) => string. Which short label a profile type
  *                         shows. The registries differ between callers and one
  *                         of them deliberately has no entry for the other's.
- * @param components       {ImageUploadButton, CoHostPicker?} Anything that
+ * @param components       {ImageUploadButton?, CoHostPicker?} Anything that
  *                         touches storage or queries profiles. Editing an event
  *                         is platform; where the bytes go is the caller's
  *                         business. CoHostPicker is OPTIONAL — omit it and the
@@ -615,17 +615,24 @@ export default function EventEditorForm({
         <div className={s.field}>
           <p className={s.fieldLabel}>EVENT MEDIA</p>
 
-          <div className={s.posterTabs} style={{ marginTop:0, marginBottom:12 }}>
-            {[['cover','COVER IMAGE'], ['poster','EVENT POSTER']].map(([key, label]) => (
-              <button key={key} type="button"
-                className={mediaTab === key ? s.posterTabActive : s.posterTab}
-                onClick={() => setMediaTab(key)}>{label}</button>
-            ))}
-          </div>
+          {/* ⛔ THE TABS ARE UPLOAD SURFACES. Both panels below exist to add or
+              replace an image, so with no upload capability there is nothing
+              for them to switch between. The strip stays: existing media is
+              part of the event model and is still shown, reordered and
+              removed — those are edits to the event, not to storage. */}
+          {ImageUploadButton && (
+            <div className={s.posterTabs} style={{ marginTop:0, marginBottom:12 }}>
+              {[['cover','COVER IMAGE'], ['poster','EVENT POSTER']].map(([key, label]) => (
+                <button key={key} type="button"
+                  className={mediaTab === key ? s.posterTabActive : s.posterTab}
+                  onClick={() => setMediaTab(key)}>{label}</button>
+              ))}
+            </div>
+          )}
 
           {/* ── COVER IMAGE ── slot 1, shown large because it is the one that
               carries the top of the page on its own. */}
-          {mediaTab === 'cover' && (
+          {ImageUploadButton && mediaTab === 'cover' && (
             <div>
               <p className={s.fieldSub} style={{ marginTop:0 }}>
                 The big image at the top of your event page · 3:2 landscape.
@@ -698,6 +705,11 @@ export default function EventEditorForm({
                   // it is the one drawn as an invitation; the rest are the
                   // same control shown quietly, as remaining room.
                   const isNext = i === slides.length;
+                  // ⛔ An empty slot IS an upload affordance. With no upload
+                  // capability there is nothing to invite, so the strip shows
+                  // what exists and stops — rather than six dashed boxes that
+                  // do nothing when tapped.
+                  if (!ImageUploadButton) return null;
                   return (
                     <ImageUploadButton key={`slot-${i}`} type="cover" userId={userId}
                       onUpload={({ cover:c }) => setSlides(s => [...s, c].slice(0, MAX_SLIDES))}>
@@ -737,7 +749,7 @@ export default function EventEditorForm({
 
         {/* ── EVENT POSTER — its own tab. The artwork you keep, and the
             source the carousel crops come from. */}
-        {mediaTab === 'poster' && (
+        {ImageUploadButton && mediaTab === 'poster' && (
         <div className={s.field}>
           <p className={s.fieldLabel}>EVENT POSTER</p>
           <p className={s.fieldSub}>Optional — the flyer as it was designed · any shape · shown whole at the bottom of the page</p>
