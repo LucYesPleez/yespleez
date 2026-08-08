@@ -207,18 +207,37 @@ export default function CreateEventScreen() {
         <h1 className={s.pageTitle}>{editId ? "EDIT EVENT" : "SET UP YOUR EVENT"}</h1>
         {!editId && <p className={s.pageSubtitle}>Fill in the details, generate or build slots manually, then go live</p>}
 
-        {/* ⭐⭐ THE SHARED EDITOR. Festival Companion renders this exact
-            component in its Event room. What is left in this file is the
-            plumbing a screen owns and a component must not: the route, the
-            session, the load, the save, the delete. */}
+        {/* ⭐⭐ THE SHARED EDITOR. Every application that edits an event renders
+            this exact component. What is left in this file is the plumbing a
+            screen owns and a component must not: the route, the session, the
+            load, the save, the delete — and the actions below, because what
+            "publishing" means is this application's decision, not the
+            editor's. */}
         <EventEditorForm
           ed={ed}
           editId={editId}
-          saving={saving}
-          error={error}
-          session={session}
-          onSave={handleSave}
-          onDelete={handleDelete}
+          userId={session?.user?.id}
+          actions={
+            <>
+              {error && <p className={s.error}>{error}</p>}
+
+              <button className={s.goLiveBtn} onClick={() => handleSave(true)} disabled={saving}>
+                {saving ? 'SAVING…' : 'GO LIVE →'}
+              </button>
+
+              {!editId && (
+                <button className={s.saveDraftBtn} onClick={() => handleSave(false)} disabled={saving}>
+                  SAVE AS DRAFT
+                </button>
+              )}
+
+              {editId && (
+                <button className={s.deleteBtn} onClick={handleDelete}>
+                  🗑 Delete Event
+                </button>
+              )}
+            </>
+          }
         />
       </div>
     </div>

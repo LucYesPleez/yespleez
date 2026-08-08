@@ -421,6 +421,16 @@ function DayCard({ day, dayIndex, totalDays, onUpdateName, onRemoveDay, onUpdate
  *                         business. CoHostPicker is OPTIONAL — omit it and the
  *                         whole section disappears, because not every world
  *                         has co-hosts.
+ * @param userId           string | null. The ONE datum this needs about the
+ *                         person editing, and it is passed to the injected
+ *                         upload component. ⛔ Deliberately not a session: the
+ *                         editor authenticates nobody, and taking a session
+ *                         object would bind it to one auth library's shape.
+ * @param actions          ReactNode. The host's own buttons. ⛔ The editor
+ *                         ships none — "go live", "save as draft" and "delete"
+ *                         are workflow decisions in one world's vocabulary,
+ *                         and another may Save · Review · Publish. Read
+ *                         `ed.toConfig()` for the model and decide out there.
  * @param adornments       {categoryHint?} Presentation-only extension points.
  *                         ⛔ An adornment may render. It may NOT mutate editor
  *                         state, take part in validation, influence
@@ -430,12 +440,10 @@ function DayCard({ day, dayIndex, totalDays, onUpdateName, onRemoveDay, onUpdate
  *                         already uses "slot" for a performance slot.)
  */
 export default function EventEditorForm({
-  ed, editId, saving, error, session, onSave, onDelete,
-  categories, labelProfileType, components, adornments = {},
+  ed, editId, userId,
+  categories, labelProfileType, components, adornments = {}, actions = null,
 }) {
   const { ImageUploadButton, CoHostPicker } = components;
-  const handleSave = onSave;
-  const handleDelete = onDelete;
   const {
     name, setName, startDate, setStartDate, endDate, setEndDate,
     venue, setVenue, genreText, setGenreText,
@@ -623,7 +631,7 @@ export default function EventEditorForm({
                 The big image at the top of your event page · 3:2 landscape.
                 It shows on its own, and leads the carousel if you add more.
               </p>
-              <ImageUploadButton type="cover" userId={session?.user?.id}
+              <ImageUploadButton type="cover" userId={userId}
                 onUpload={({ cover:c }) => setSlides(s => (s.length ? [c, ...s.slice(1)] : [c]))}>
                 {({ trigger, statusBadge }) => (
                   <div>
@@ -691,7 +699,7 @@ export default function EventEditorForm({
                   // same control shown quietly, as remaining room.
                   const isNext = i === slides.length;
                   return (
-                    <ImageUploadButton key={`slot-${i}`} type="cover" userId={session?.user?.id}
+                    <ImageUploadButton key={`slot-${i}`} type="cover" userId={userId}
                       onUpload={({ cover:c }) => setSlides(s => [...s, c].slice(0, MAX_SLIDES))}>
                       {({ trigger, statusBadge }) => (
                         <div onClick={trigger}
@@ -733,7 +741,7 @@ export default function EventEditorForm({
         <div className={s.field}>
           <p className={s.fieldLabel}>EVENT POSTER</p>
           <p className={s.fieldSub}>Optional — the flyer as it was designed · any shape · shown whole at the bottom of the page</p>
-          <ImageUploadButton type="poster" userId={session?.user?.id} onUpload={({ poster:p, poster_thumb:t, poster_full:f }) => { setPoster(p); setPosterThumb(t); setPosterFull(f||''); setPosterCropY(DEFAULT_CROP_Y); setCropMode(false); }}>
+          <ImageUploadButton type="poster" userId={userId} onUpload={({ poster:p, poster_thumb:t, poster_full:f }) => { setPoster(p); setPosterThumb(t); setPosterFull(f||''); setPosterCropY(DEFAULT_CROP_Y); setCropMode(false); }}>
             {({ trigger, statusBadge }) => (
               <div>
                 {/* ── The poster, WHOLE, with the cover band over it (spec §0.4) ──
@@ -977,23 +985,16 @@ export default function EventEditorForm({
           </div>
         )}
 
-        {error && <p className={s.error}>{error}</p>}
+        {/* ⛔ NO ACTIONS HERE, DELIBERATELY. "Go live", "Save as draft" and
+            "Delete" are workflow decisions, and the words are one world's
+            vocabulary: another may Save · Review · Publish, or Save ·
+            Synchronise, or need an approval step this editor has never heard
+            of. An editor that ships buttons has an opinion about what happens
+            next, and every host after the first has to argue with it.
 
-        <button className={s.goLiveBtn} onClick={() => handleSave(true)} disabled={saving}>
-          {saving ? 'SAVING…' : 'GO LIVE →'}
-        </button>
-
-        {!editId && (
-          <button className={s.saveDraftBtn} onClick={() => handleSave(false)} disabled={saving}>
-            SAVE AS DRAFT
-          </button>
-        )}
-
-        {editId && (
-          <button className={s.deleteBtn} onClick={handleDelete}>
-            🗑 Delete Event
-          </button>
-        )}
+            The host renders its own actions and reads `ed.toConfig()` for the
+            model. Same rule as the page wrapper and heading above. */}
+        {actions}
 
         <div style={{height:60}} />
     </>
