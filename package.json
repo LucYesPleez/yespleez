@@ -1,0 +1,10 @@
+{
+  "name": "yespleez-platform",
+  "private": true,
+  "version": "0.0.0",
+  "description": "The YesPleez platform monorepo — independent applications over shared packages.",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ]
+}
