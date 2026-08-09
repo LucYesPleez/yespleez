@@ -162,14 +162,15 @@ const PLATFORM_TYPES = {
     // intent card — see lib/festivalPortal.
     dashPath:    null,
     gradient:    'linear-gradient(135deg, #BF5FFF, #00E5FF)',
-    // ⚠ THERE IS NO `defaultfestival.webp` YET, and this being null is honest
-    // rather than finished. Sites that handle null correctly (ProfileCard,
-    // MessagingIdentity, InboxScreen) show no image. Sites still carrying the
-    // pre-10F fallback `pt?.defaultImage || PROFILE_TYPES.artist.defaultImage`
-    // will show a DJ's placeholder photo for a festival — confidently wrong,
-    // and the exact bug UNKNOWN_PROFILE was introduced to end. Six of those
-    // remain; the asset or those fallbacks, whichever lands first.
-    defaultImage: null,
+    // ✅ THE ASSET LANDED 2026-08-08, so this is no longer null. Until then a
+    // festival with no avatar rendered an <img> with an EMPTY src — a broken
+    // box on the public event page's PRESENTED BY card — and the six sites
+    // still carrying the pre-10F fallback
+    // `pt?.defaultImage || PROFILE_TYPES.artist.defaultImage` showed a DJ's
+    // placeholder photo for a festival, which is the confidently-wrong result
+    // UNKNOWN_PROFILE exists to prevent. Both stop now: the value is real, so
+    // the correct sites draw it and the fallback sites never reach the artist.
+    defaultImage: '/defaultfestival.webp',
   },
 };
 
