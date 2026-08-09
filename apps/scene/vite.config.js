@@ -1,7 +1,23 @@
 import { readFileSync } from 'node:fs'
 import { execSync } from 'node:child_process'
+import { fileURLToPath } from 'node:url'
+import { dirname } from 'node:path'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+
+/**
+ * ⛔ `root` AND `envDir` ARE PINNED ON PURPOSE. DO NOT REMOVE THEM.
+ *
+ * Vite resolves both from the current working directory when unset, so in a
+ * monorepo a build invoked from the repo root rather than this directory would
+ * resolve them one level up — finding no index.html and no .env.local, and
+ * handing every VITE_* value back as `undefined`.
+ *
+ * ⭐ This is a guard, not a change: `here` is the directory the build already
+ * used, `build.outDir` and `publicDir` do not move, and package.json is already
+ * read path-independently via import.meta.url. Verified byte-identical output.
+ */
+const here = dirname(fileURLToPath(import.meta.url))
 
 // Stamped onto every analytics row so a metric can be read per release —
 // "did installs drop after the last build" is unanswerable without it.
@@ -39,6 +55,8 @@ function buildSha() {
 
 // https://vite.dev/config/
 export default defineConfig({
+  root: here,
+  envDir: here,
   plugins: [react()],
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
