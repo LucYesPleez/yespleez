@@ -116,6 +116,12 @@ export default function ProfileScreen() {
    * never skip the P6 requirements.
    */
   const [preSendOpen, setPreSendOpen] = useState(false);
+  /**
+   * Why an enquiry did not send. Empty means nothing to report — never a
+   * lingering message from a previous attempt, which is why every path that
+   * changes WHAT is being sent clears it.
+   */
+  const [enquiryError, setEnquiryError] = useState('');
   const [claimOpen,         setClaimOpen]         = useState(false);
   const [inviteOpen,        setInviteOpen]        = useState(false);
   const [inviteDate,        setInviteDate]        = useState(null); // 11C.3: date tapped on the availability calendar, prefilled into InviteSheet
@@ -335,6 +341,8 @@ export default function ProfileScreen() {
     const mapped = profs.map(p => ({ ...p, label: PROFILE_TYPES[p.type]?.label || p.type.toUpperCase() }));
     setEnquiryLoading(false);
     setPickerDate(dateStr);
+    // A new date is a new attempt — a message about the last one is a lie here.
+    setEnquiryError('');
     if (mapped.length === 1) { setEnquiryProf(mapped[0]); setPickerProfs([]); }
     else { setPickerProfs(mapped); setEnquiryProf(null); }
   }
@@ -477,8 +485,40 @@ export default function ProfileScreen() {
       // for the notification's N4 expiry key below.
       .select('id')
       .maybeSingle();
-    if (error && !error.message?.includes('duplicate') && !error.message?.includes('unique')) {
-      console.error('venue_enquiries insert failed:', error.code, error.message, error.details, error.hint);
+    /**
+     * ⚠⚠ AN ENQUIRY THAT DID NOT SEND MUST NOT LOOK LIKE ONE THAT DID.
+     *
+     * `venue_enquiries` carries UNIQUE (venue_user_id, applicant_user_id,
+     * date_requested), so a second enquiry for the same date is rejected. This
+     * used to be swallowed as noise AND the sheet was closed on that path, so
+     * the screen behaved exactly as it does on success: an artist believed they
+     * had enquired, no row existed, no notification fired, and they waited on a
+     * reply the venue was never told to make. Found 2026-08-10 by reading the
+     * database after a send that looked perfect.
+     *
+     * Keyed on SQLSTATE 23505 first, not the message text: the string is a
+     * Postgres/PostgREST detail that can change between versions, whereas the
+     * code is the contract. The message check stays as a fallback.
+     *
+     * ⭐ "You have already enquired" is not an error, it is USEFUL INFORMATION —
+     * the person's own past action, which they may simply have forgotten.
+     */
+    const isDuplicate = error && (
+      error.code === '23505' ||
+      error.message?.includes('duplicate') ||
+      error.message?.includes('unique')
+    );
+    if (error) {
+      if (!isDuplicate) {
+        console.error('venue_enquiries insert failed:', error.code, error.message, error.details, error.hint);
+      }
+      setEnquiryError(isDuplicate
+        ? `You have already enquired about ${new Date(pickerDate + 'T00:00:00').toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long' })}. Check your enquiries for the reply.`
+        : 'That did not send. Check your connection and try again.');
+      setEnquirySending(false);
+      // ⛔ The sheet STAYS OPEN and the note is kept. Closing it is what made
+      // the failure invisible, and it would also throw away what they wrote.
+      return;
     }
     /**
      * Tell the venue. Until now this was the ONE transition in the enquiry
@@ -506,10 +546,9 @@ export default function ProfileScreen() {
         data:    { enquiry_id: inserted.id, date_requested: pickerDate, venue_name: profile.name || null },
       });
     }
+    // Only ever reached on a real success — every failure returned above.
     setEnquirySending(false);
-    if (!error || error.message?.includes('duplicate') || error.message?.includes('unique')) {
-      setEnquiryProf(null); setPickerDate(null); setEnquiryNote('');
-    }
+    setEnquiryProf(null); setPickerDate(null); setEnquiryNote(''); setEnquiryError('');
   }
 
   if (loading) return (
@@ -1372,6 +1411,17 @@ export default function ProfileScreen() {
                 style={{ marginTop: 12, marginBottom: 0 }}
               />
             )}
+            {/* ⚠ WHY AN ENQUIRY DID NOT SEND, said on the screen rather than in
+                the console. A duplicate used to close this sheet exactly as a
+                success does; the artist believed they had enquired and waited
+                on a reply nobody had been asked for. */}
+            {enquiryError && (
+              <div style={{ marginTop: 12, padding: '10px 12px', background: 'rgba(255,215,0,.08)',
+                            border: '1px solid rgba(255,215,0,.35)', borderRadius: 8,
+                            fontSize: 13, color: '#FFD700', lineHeight: 1.5 }}>
+                {enquiryError}
+              </div>
+            )}
             <button
               onClick={requestSendEnquiry}
               disabled={enquirySending || !canSendEnquiry({ required: venueRequired, evaluation: reqEval, evaluating: reqEvaluating, actingProfileId: enquiryProf?.id ?? null, evaluatedProfileId: reqEvalFor })}
@@ -1387,7 +1437,7 @@ export default function ProfileScreen() {
                 : venueRequired.length > 0 && (reqEvaluating || reqEvalFor !== (enquiryProf?.id ?? null)) ? 'CHECKING…'
                 : venueRequired.length > 0 && !reqEval?.canSubmit ? 'COMPLETE YOUR PROFILE FIRST'
                 : 'SEND ENQUIRY →'}</button>
-            <button onClick={() => { setEnquiryProf(null); setEnquiryNote(''); setPreSendOpen(false); }} style={{ marginTop: 8, width: '100%', background: 'none', border: 'none', color: 'var(--muted)', fontSize: 13, cursor: 'pointer', padding: 8 }}>Cancel</button>
+            <button onClick={() => { setEnquiryProf(null); setEnquiryNote(''); setPreSendOpen(false); setEnquiryError(''); }} style={{ marginTop: 8, width: '100%', background: 'none', border: 'none', color: 'var(--muted)', fontSize: 13, cursor: 'pointer', padding: 8 }}>Cancel</button>
           </div>
         </div>
       )}
