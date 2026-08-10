@@ -227,7 +227,10 @@ function PanelRow({ notif, userId, onUpdate, onDismiss, isLast, rootRef }) {
   async function handleAcceptInvite() {
     if (!userId || busy) return;
     setBusy(true);
-    await acceptInvite(data, userId);
+    // ⭐ The invitation named ONE act — pass it, rather than letting
+    // acceptInvite re-derive it from the account and lose it on a
+    // multi-act holder.
+    await acceptInvite(data, userId, notif.to_profile_id ?? null);
     await markResponded(notif.id);
     onUpdate(notif.id, { responded_at: new Date().toISOString() });
     setResponded(true); setBusy(false);

@@ -152,18 +152,47 @@ export async function declineSlotOffer(data, userId) {
   }
 }
 
-export async function acceptInvite(data, userId) {
-  // M6 (R6.1): stamp the sender profile. This path has no UI to ask with,
-  // so it resolves deterministically only. Where the account owns several
-  // performer profiles the sender stays NULL rather than being guessed —
-  // U4's rule applied at write time instead of at backfill time.
-  //
-  // If the invite ever starts carrying the invited profile id (as
-  // venue_enquiries.applicant_profile_id already does), prefer that and
-  // this branch stops mattering.
-  const { profileId, ambiguous } = await resolvePerformerProfileId(userId);
-  if (ambiguous) {
-    console.warn('[acceptInvite] multiple performer profiles; sender left unattributed', { userId });
+/**
+ * Accept an invitation to perform, which creates the application.
+ *
+ * ⭐⭐ THE INVITED PROFILE IS KNOWN — USE IT, DO NOT RE-DERIVE IT.
+ *
+ * The invitation names exactly one act: `InviteSheet` writes it as the
+ * notification's `to_profile_id`, and `venue_enquiries.applicant_profile_id`
+ * carries the same value. This function's own comment predicted the fix — "if
+ * the invite ever starts carrying the invited profile id … prefer that and this
+ * branch stops mattering" — and since `0758227` it always does.
+ *
+ * ⚠ WHAT THE OLD BEHAVIOUR COST. `resolvePerformerProfileId` looks the account
+ * up and refuses to guess when it owns several performer profiles, correctly
+ * under U4 — leaving `from_profile_id` NULL. So a person with a DJ act and a
+ * band who accepted an invite got an application attributed to NOBODY: absent
+ * from their dashboard, which reads by profile, and unattributable for the
+ * host. It picked the ambiguity up from the ACCOUNT when the invitation had
+ * already resolved it.
+ *
+ * ⚠ P11 made multi-act accounts a first-class case, so this was getting more
+ * likely, not less.
+ *
+ * @param {object} data          the notification's `data` payload
+ * @param {string} userId        the accepting account
+ * @param {string|null} [invitedProfileId]
+ *   the notification's `to_profile_id` — the act that was invited. Omitted
+ *   only by a caller that has not been updated, or by a LEGACY invite written
+ *   before the id was guaranteed; both fall back to the old resolution.
+ */
+export async function acceptInvite(data, userId, invitedProfileId = null) {
+  let profileId = invitedProfileId ?? null;
+
+  if (!profileId) {
+    // Legacy path. Same U4 rule as before: refuse to guess, leave it NULL,
+    // and say so — an unattributed application is a known state, not a
+    // silent one.
+    const resolved = await resolvePerformerProfileId(userId);
+    profileId = resolved.profileId;
+    if (resolved.ambiguous) {
+      console.warn('[acceptInvite] no invited profile on the notification and several performer profiles; sender left unattributed', { userId });
+    }
   }
   await supabase.from('applications').insert({
     event_id:        data.event_id,
