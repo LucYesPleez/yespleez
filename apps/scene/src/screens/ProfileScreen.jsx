@@ -25,6 +25,9 @@ import { openDirectConversation, sendableProfiles } from '../lib/messaging';
 import { evaluate, columnsFor } from '@yespleez/requirements';
 import { RequirementsVerdict } from '@yespleez/requirements/checklist';
 import { canSendEnquiry, enquirySnapshot } from '../lib/enquiryRequirements';
+import { ENQUIRY_PREVIEW_COLUMNS, buildEnquiryPreview } from '../lib/enquiryPreview';
+import { shouldShowPrompt, suppressPrompt, ENQUIRY_PRE_SEND_CHECK } from '../lib/promptPreferences';
+import PreSendCheckSheet from '../components/PreSendCheckSheet';
 import { listAssets } from '../lib/profileAssetStore';
 import MessageAsSheet from '../components/MessageAsSheet';
 import { useConversationUi } from '../lib/conversationUi';
@@ -105,6 +108,14 @@ export default function ProfileScreen() {
    * Carrying the id lets the gate notice.
    */
   const [reqEvalFor,    setReqEvalFor]    = useState(null);
+  /**
+   * P8 — the pre-send check. Open when the person has not suppressed it.
+   *
+   * ⛔ A CONFIRMATION, NEVER A GATE. It opens only AFTER `canSendEnquiry` has
+   * already passed, so dismissing it forever skips the confirmation and can
+   * never skip the P6 requirements.
+   */
+  const [preSendOpen, setPreSendOpen] = useState(false);
   const [claimOpen,         setClaimOpen]         = useState(false);
   const [inviteOpen,        setInviteOpen]        = useState(false);
   const [inviteDate,        setInviteDate]        = useState(null); // 11C.3: date tapped on the availability calendar, prefilled into InviteSheet
@@ -309,8 +320,15 @@ export default function ProfileScreen() {
   async function openEnquiry(dateStr) {
     if (!session?.user?.id) return;
     setEnquiryLoading(true);
+    /**
+     * ⚠ WIDENED FOR THE PRE-SEND CHECK. The picker itself needs only enough to
+     * draw a chooser row, but the confirmation shows what the VENUE will see,
+     * and it can only be honest about fields it actually has. The list is
+     * declared in enquiryPreview.js beside the projection that consumes it, so
+     * a field added there cannot be left unfetched here.
+     */
     const { data: profs } = await supabase.from('profiles')
-      .select('id, user_id, type, name, avatar, location, genre_string, sound')
+      .select(ENQUIRY_PREVIEW_COLUMNS.join(', '))
       .eq('user_id', session.user.id)
       .neq('type', 'punter').neq('type', 'venue');
     if (!profs?.length) return;
@@ -387,8 +405,39 @@ export default function ProfileScreen() {
     return () => { cancelled = true; };
   }, [venueRequired, enquiryProf?.id]);
 
+  /**
+   * P8 — what the SEND button now does.
+   *
+   * ⭐ THE ORDER IS THE DESIGN: gate first, confirmation second. The P6 check
+   * runs before the dialog can open, so someone who has said "don't ask again"
+   * is still refused when they do not meet the venue's requirements. If these
+   * were the other way round, dismissing a prompt would dismiss a rule.
+   *
+   * The preference read is awaited rather than prefetched so a person who
+   * suppresses it on their laptop is not asked again on their phone in the
+   * same session. It fails toward SHOWING the dialog — see promptPreferences.
+   */
+  async function requestSendEnquiry() {
+    if (!enquiryProf || !pickerDate || enquirySending) return;
+    if (!canSendEnquiry({ required: venueRequired, evaluation: reqEval, evaluating: reqEvaluating,
+                          actingProfileId: enquiryProf?.id ?? null, evaluatedProfileId: reqEvalFor })) return;
+    const show = await shouldShowPrompt(session?.user?.id, ENQUIRY_PRE_SEND_CHECK);
+    if (show) { setPreSendOpen(true); return; }
+    sendEnquiry();
+  }
+
+  /** "Don't ask me this again" — record it, then send either way. */
+  async function sendEnquiryAndSuppress() {
+    // ⚠ The send does NOT depend on the preference write succeeding. Failing to
+    // store a UI preference must never cost someone the enquiry they came to
+    // make; the worst case is being asked once more.
+    await suppressPrompt(session?.user?.id, ENQUIRY_PRE_SEND_CHECK);
+    sendEnquiry();
+  }
+
   async function sendEnquiry() {
     if (!enquiryProf || !pickerDate || enquirySending) return;
+    setPreSendOpen(false);
     /**
      * ⛔ THE GATE, IN THE WRITE PATH — not only in the button's styling.
      * A disabled button is a suggestion; this is the rule. Mirrors
@@ -1324,7 +1373,7 @@ export default function ProfileScreen() {
               />
             )}
             <button
-              onClick={sendEnquiry}
+              onClick={requestSendEnquiry}
               disabled={enquirySending || !canSendEnquiry({ required: venueRequired, evaluation: reqEval, evaluating: reqEvaluating, actingProfileId: enquiryProf?.id ?? null, evaluatedProfileId: reqEvalFor })}
               style={{ marginTop: 12, width: '100%', background: `linear-gradient(135deg,${col},${grad2})`, color: '#0a0a14', fontFamily: "'Bebas Neue'", fontSize: 17, letterSpacing: 2, padding: 16, border: 'none', borderRadius: 12, cursor: 'pointer', opacity: (enquirySending || !canSendEnquiry({ required: venueRequired, evaluation: reqEval, evaluating: reqEvaluating, actingProfileId: enquiryProf?.id ?? null, evaluatedProfileId: reqEvalFor })) ? .6 : 1 }}
             >{/* The label names the PROFILE GAP rather than saying "blocked" —
@@ -1338,9 +1387,29 @@ export default function ProfileScreen() {
                 : venueRequired.length > 0 && (reqEvaluating || reqEvalFor !== (enquiryProf?.id ?? null)) ? 'CHECKING…'
                 : venueRequired.length > 0 && !reqEval?.canSubmit ? 'COMPLETE YOUR PROFILE FIRST'
                 : 'SEND ENQUIRY →'}</button>
-            <button onClick={() => { setEnquiryProf(null); setEnquiryNote(''); }} style={{ marginTop: 8, width: '100%', background: 'none', border: 'none', color: 'var(--muted)', fontSize: 13, cursor: 'pointer', padding: 8 }}>Cancel</button>
+            <button onClick={() => { setEnquiryProf(null); setEnquiryNote(''); setPreSendOpen(false); }} style={{ marginTop: 8, width: '100%', background: 'none', border: 'none', color: 'var(--muted)', fontSize: 13, cursor: 'pointer', padding: 8 }}>Cancel</button>
           </div>
         </div>
+      )}
+
+      {/* P8 — the pre-send check. Rendered ABOVE the enquiry sheet rather than
+          inside it, so cancelling returns to a sheet that still holds the note
+          and the chosen act: "let me fix something" has to leave the something
+          intact, or the check costs more than it saves. */}
+      {preSendOpen && enquiryProf && pickerDate && (
+        <PreSendCheckSheet
+          profile={enquiryProf}
+          // The projection belongs to the CALLER — only this screen knows what
+          // a venue can read about an act.
+          rows={buildEnquiryPreview(enquiryProf)}
+          note={enquiryNote.trim() || null}
+          accent={col} accent2={grad2}
+          busy={enquirySending}
+          subtitle={`This is what ${profile.name || 'this venue'} will see about you, along with your enquiry for ${new Date(pickerDate + 'T00:00:00').toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long' })}.`}
+          onSend={sendEnquiry}
+          onSendAndSuppress={sendEnquiryAndSuppress}
+          onCancel={() => setPreSendOpen(false)}
+        />
       )}
 
       <ClaimDialog
