@@ -97,12 +97,15 @@ export default function ImageUploadButton({ type = 'avatar', userId, bucket = 'a
 
     try {
       let result;
+      // ⚠ Neither takes a path segment any more. Both used to be handed the
+      // literal 'new', which made one storage path serve every event this user
+      // ever illustrated — see uploadStamp() in lib/uploadImage.
       if (type === 'poster') {
-        result = await uploadPoster(croppedCanvas, userId, 'new', originalCanvas.current);
+        result = await uploadPoster(croppedCanvas, userId, originalCanvas.current);
       } else if (type === 'cover') {
         // No original passed: a Cover may crop by design (§0.1), so the
         // pre-crop canvas is not something any surface renders.
-        result = await uploadCover(croppedCanvas, userId, 'new');
+        result = await uploadCover(croppedCanvas, userId);
       } else {
         result = await uploadAvatar(croppedCanvas, bucket, `${pathPrefix}/${userId}`);
       }

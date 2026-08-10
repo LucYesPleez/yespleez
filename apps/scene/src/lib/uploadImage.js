@@ -47,6 +47,36 @@ async function uploadCanvas(canvas, outW, outH, bucket, path, quality) {
   return `${data.publicUrl}?v=${Date.now()}`;
 }
 
+/**
+ * ⭐ A UNIQUE FOLDER PER UPLOAD — the reason event images stopped eating each
+ * other.
+ *
+ * Covers and posters were both stored under a literal `new` segment
+ * (`event_covers/<userId>/new/cover.webp`), and `uid` here is the USER, not the
+ * event. So every cover that user ever cropped resolved to one storage path,
+ * and `uploadCanvas` upserts: the second event's cover silently overwrote the
+ * first's, and the first event went on pointing at bytes that were no longer
+ * its picture.
+ *
+ * ⚠ IT LOOKED FINE IN THE EDITOR, WHICH IS WHY IT SURVIVED. The `?v=` stamp
+ * gives each upload a distinct URL, so the browser cached each one separately
+ * and every event showed the right image for the rest of the session. Only a
+ * reload — or another person — read what was actually in the bucket.
+ *
+ * Same stamp as `assetPath` in @yespleez/requirements: Date.now plus randomness
+ * keeps two uploads in the same second distinct without a round-trip to reserve
+ * an id. ⛔ Not `Date.now()` alone — two covers can land in the same
+ * millisecond, and that is exactly the case this exists to stop.
+ *
+ * ⛔ NOT SOLVABLE IN `uploadCanvas`. Avatars deliberately DO reuse one path per
+ * user — `punter_avatars/<userId>_hero` is the whole point, one current face,
+ * with `?v=` making the replacement visible. Uniqueness belongs to the images
+ * that accumulate, not to the one that is replaced.
+ */
+function uploadStamp() {
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
 // Upload avatar — two sizes generated from one crop:
 //   hero  3200×3200 WebP @ 0.92  → profile headers (hi-res)
 //   thumb  320×320  WebP @ 0.82  → portrait cards / discover
@@ -80,7 +110,8 @@ export async function uploadAvatar(canvas, bucket, pathPrefix) {
  * redundant) because § 11's expand-to-fullscreen viewer wants the detail, and
  * because every event already in the database references it.
  */
-export async function uploadPoster(canvas, uid, suffix = 'new', originalCanvas = null) {
+export async function uploadPoster(canvas, uid, originalCanvas = null) {
+  const suffix = uploadStamp();
   const src = originalCanvas || canvas;
   const h = w => Math.round(w * src.height / src.width);   // the artwork's own aspect, always
   const [poster_full, poster, poster_thumb] = await Promise.all([
@@ -110,7 +141,8 @@ export async function uploadPoster(canvas, uid, suffix = 'new', originalCanvas =
  * them under `event_posters/` would make "which of these is the artwork?"
  * unanswerable from the path.
  */
-export async function uploadCover(canvas, uid, suffix = 'new') {
+export async function uploadCover(canvas, uid) {
+  const suffix = uploadStamp();
   const [cover, cover_thumb] = await Promise.all([
     uploadCanvas(canvas, 1800, 1200, 'posters', `event_covers/${uid}/${suffix}/cover`, 0.85),
     uploadCanvas(canvas,  600,  400, 'posters', `event_covers/${uid}/${suffix}/thumb`, 0.80),
