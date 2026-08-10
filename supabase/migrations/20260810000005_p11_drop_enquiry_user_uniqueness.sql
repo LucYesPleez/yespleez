@@ -1,0 +1,73 @@
+-- ═══════════════════════════════════════════════════════════════════
+-- P11 · DROP THE USER-LEVEL ENQUIRY KEY — ⚠ THIS ONE CHANGES BEHAVIOUR
+-- MANUAL APPLY. Paste into the Supabase SQL editor. Never `supabase db push`.
+-- Requires P10 (20260810000004). ⛔ Apply only when you intend the change below.
+-- ═══════════════════════════════════════════════════════════════════
+--
+-- ⚠⚠ AFTER THIS, ONE PERSON'S TWO ACTS CAN EACH ENQUIRE ABOUT THE SAME DATE
+-- AT THE SAME VENUE.
+--
+-- That is the fix, stated plainly. Lucious and Dusky Waters are different acts
+-- with different press kits, different fees and different audiences; a venue
+-- may reasonably want to hear from both. Until now the first one silently
+-- consumed the second's opportunity.
+--
+-- P9 and P10 were safe and reversible. THIS is the migration that alters an
+-- invariant, which is why it is alone: if anything reads wrong afterwards, you
+-- revert this and keep the NOT NULLs and the new key.
+--
+-- ── WHAT STILL PREVENTS TRUE DUPLICATES ──
+--
+-- P10's key: (venue_profile_id, applicant_profile_id, date_requested). The SAME
+-- act still cannot enquire twice about one date at one venue. Only the
+-- ACCOUNT-level collision is released.
+--
+-- ── ⚠ TWO CONSEQUENCES TO EXPECT, NEITHER A DEFECT ──
+--
+-- 1. A venue may now receive two enquiries for one date from one person. They
+--    are two different acts and should read that way. ⭐ The venue's UI should
+--    make the relationship visible rather than presenting them as strangers —
+--    a product decision that belongs with this release, not after it.
+--
+-- 2. `VenueDashboard` reads `.eq('venue_user_id', userId)`, so a person owning
+--    two venues sees both venues' enquiries merged. That is the same
+--    account-vs-profile confusion on the venue side, and it becomes more
+--    visible once more enquiries exist. The read moves to `venue_profile_id`
+--    in the same release as this migration.
+--
+-- ── THE ERROR THE APP SHOWS DOES NOT NEED CHANGING ──
+--
+-- `ProfileScreen.sendEnquiry` keys duplicate detection on SQLSTATE 23505, not
+-- on a constraint name, so it reports the surviving P10 violation correctly
+-- without knowing which key rejected the write.
+
+ALTER TABLE public.venue_enquiries
+  DROP CONSTRAINT IF EXISTS venue_enquiries_venue_user_id_applicant_user_id_date_reques_key;
+
+-- ── VERIFY ──
+-- Expect exactly ONE unique constraint — the P10 profile-level key:
+--
+--   SELECT conname
+--     FROM pg_constraint
+--    WHERE conrelid = 'public.venue_enquiries'::regclass AND contype = 'u';
+--
+-- Expect zero rows — the surviving key must still hold:
+--
+--   SELECT venue_profile_id, applicant_profile_id, date_requested, count(*)
+--     FROM public.venue_enquiries
+--    GROUP BY 1, 2, 3 HAVING count(*) > 1;
+--
+-- ⭐ The real acceptance test is behavioural, and the fixtures for it already
+-- exist: Elbows Rest holds enquiries from LUCIOUS on 13/16/23/30 Aug 2026.
+-- Enquiring as a DIFFERENT act of the same account for one of those dates must
+-- now SUCCEED, where before it was rejected as a duplicate.
+--
+-- ── ROLLBACK ──
+-- ⚠ Only possible while no row violates it. If two acts of one account have
+-- already enquired for the same date, this cannot be recreated without first
+-- deleting one of their enquiries — which is why the rollback window is
+-- effectively "before anyone uses the feature".
+--
+--   ALTER TABLE public.venue_enquiries
+--     ADD CONSTRAINT venue_enquiries_venue_user_id_applicant_user_id_date_reques_key
+--     UNIQUE (venue_user_id, applicant_user_id, date_requested);

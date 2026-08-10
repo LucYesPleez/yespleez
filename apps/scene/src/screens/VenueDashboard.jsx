@@ -59,10 +59,37 @@ export default function VenueDashboard({ userId: userIdProp }) {
   const { data, isLoading: loading } = useQuery({
     queryKey: ['venueDashboard', userId],
     queryFn: async () => {
-      const [profRes, availRes, enqRes, evtRes] = await Promise.all([
-        supabase.from('profiles').select('*').eq('user_id', userId).eq('type', 'venue').maybeSingle(),
+      /**
+       * ⭐ PROFILE FIRST, THEN ENQUIRIES BY PROFILE (P11).
+       *
+       * This used to read `.eq('venue_user_id', userId)` — the ACCOUNT — so a
+       * person owning two venues saw both venues' enquiries merged on either
+       * dashboard. Exactly the cross-over ArtistDashboard already removed from
+       * the applicant side: "falling back to the account key would reinstate
+       * the cross-over. That clause is the bug: it is what shows one profile's
+       * work on another."
+       *
+       * It matters more from P11 onward: once one person's two ACTS can each
+       * enquire about the same date, this screen is where that ambiguity shows
+       * up, and it must at least be showing the right venue's enquiries.
+       *
+       * The sequencing is the cost — the enquiry fetch needs the profile id, so
+       * it can no longer run in the same parallel batch.
+       */
+      const profRes = await supabase.from('profiles').select('*').eq('user_id', userId).eq('type', 'venue').maybeSingle();
+      const venueProfileId = profRes.data?.id ?? null;
+
+      const [availRes, enqRes, evtRes] = await Promise.all([
         supabase.from('venue_availability').select('available_date').eq('user_id', userId).gte('available_date', today()).order('available_date').limit(10),
-        supabase.from('venue_enquiries').select('*').eq('venue_user_id', userId).order('created_at', { ascending: false }).limit(100),
+        /**
+         * ⛔ No account-key fallback when there is no venue profile yet. An
+         * empty list is the correct answer — falling back to `venue_user_id`
+         * here would reinstate the merge for exactly the accounts most likely
+         * to notice it.
+         */
+        venueProfileId
+          ? supabase.from('venue_enquiries').select('*').eq('venue_profile_id', venueProfileId).order('created_at', { ascending: false }).limit(100)
+          : Promise.resolve({ data: [] }),
         // Upcoming events where config->venue matches profile name — approximated with host_id for now
         supabase.from('events').select('id, name, status, config, applications_open, is_public, created_at').eq('host_id', userId).order('created_at', { ascending: false }).limit(200),
       ]);
