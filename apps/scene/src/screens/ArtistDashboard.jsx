@@ -78,8 +78,11 @@ function applicantLabel(status) {
 // produced "No being considered applications yet" / "No not selected
 // applications yet" for the two multi-word tabs. Same calm voice as IN_EMPTY,
 // no new wording.
+// ⚠ SUBMITTED's copy widened: this list now holds venue availability enquiries
+// as well as event applications, and "you haven't applied to anything yet" told
+// someone who had just enquired with a venue that they had done nothing.
 const OUT_EMPTY = {
-  'SUBMITTED':        "You haven't applied to anything yet.",
+  'SUBMITTED':        "You haven't applied or enquired anywhere yet.",
   'BEING CONSIDERED': 'Nothing being considered right now.',
   'BOOKED':           'Nothing booked yet.',
   'NOT SELECTED':     'Nothing here yet.',
@@ -119,6 +122,48 @@ function ApplicationRow({ app, badge, badgeColor, onDelete }) {
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * One enquiry YOU sent to a venue.
+ *
+ * ⛔ NOT AN EVENT CARD. An availability enquiry has no event: no name, no
+ * lineup, no poster, no time — only a venue, a date, a note and a status. An
+ * EventCard filled with blanks reads as broken, and the Rendering Contract is
+ * explicit that absent ≠ broken. So this renders exactly what exists.
+ *
+ * ⚠ No category chip yet, deliberately. Ask Category is designed but not built
+ * (`Claude Cowork\ask-category-design-2026-08-10.md`), and inventing a local
+ * chip vocabulary here is precisely the third-copy mistake that design exists to
+ * prevent. The chip slots in when the registry does.
+ */
+function OutgoingEnquiryRow({ enq, badge, badgeColor, accent }) {
+  const sentOn = enq.created_at ? formatDisplayDate(enq.created_at.slice(0, 10)) : '';
+  const forDate = enq.date_requested ? formatDisplayDate(enq.date_requested) : null;
+  const venueName = enq.venue?.name || 'A venue';
+
+  return (
+    <div style={{ background: 'var(--card2)', border: '1px solid var(--border)', borderRadius: 12, padding: '12px 14px' }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
+        <span style={{ fontFamily: "'Bebas Neue'", fontSize: 16, letterSpacing: .5, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {venueName}
+        </span>
+        <span style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1, color: badgeColor, flexShrink: 0 }}>
+          {badge}
+        </span>
+      </div>
+      {/* The date asked about is the point of the enquiry — never buried. */}
+      {forDate && (
+        <div style={{ fontSize: 13, color: accent, marginTop: 3 }}>Availability · {forDate}</div>
+      )}
+      {enq.note && (
+        <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 6, overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+          {enq.note}
+        </div>
+      )}
+      {sentOn && <div style={{ fontSize: 11, color: 'rgba(255,255,255,.35)', marginTop: 6 }}>Sent {sentOn}</div>}
     </div>
   );
 }
@@ -198,12 +243,30 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
       // empty result is correct; falling back to the account key here would
       // reinstate the cross-over for exactly the users most likely to notice.
       const profRes = { data: profileRow };
-      const [appsRes, gigsRes] = profileId
+      /**
+       * ⭐ THE THIRD QUERY IS THE ARTIST'S OWN ENQUIRIES, AND IT WAS MISSING.
+       *
+       * Both existing `venue_enquiries` reads on this screen filter to
+       * `initiated_by: 'venue'` — those are OFFERS, a venue inviting you. There
+       * was no query anywhere for `'applicant'`, the enquiries you SEND, so an
+       * artist could enquire with a venue and then have no way to see that they
+       * had: not the date, not the status, not the venue's reply. The row was
+       * written correctly and the venue could see it; only the sender could not.
+       *
+       * The OUTGOING tab read `applications` alone, which is why it said "You
+       * haven't applied to anything yet" — literally true of EVENTS, and
+       * useless to someone who had just enquired with a venue.
+       */
+      const [appsRes, gigsRes, outEnqRes] = profileId
         ? await Promise.all([
             supabase.from('applications').select('id, status, event_id, created_at').eq('from_profile_id', profileId).order('created_at', { ascending: false }).limit(50),
             supabase.from('lineup_members').select('event_id').eq('artist_profile_id', profileId).neq('status', 'removed'),
+            supabase.from('venue_enquiries')
+              .select('id, status, created_at, date_requested, note, venue_profile_id, event_id')
+              .eq('applicant_profile_id', profileId).eq('initiated_by', 'applicant')
+              .order('created_at', { ascending: false }).limit(50),
           ])
-        : [{ data: [] }, { data: [] }];
+        : [{ data: [] }, { data: [] }, { data: [] }];
 
       const claimEventIds = [...new Set((gigsRes.data || []).map(c => c.event_id).filter(Boolean))];
       let allGigs = [];
@@ -223,6 +286,29 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
         (evData || []).forEach(ev => { appEvents[ev.id] = ev; });
       }
       const applications = (appsRes.data || []).map(a => ({ ...a, event: appEvents[a.event_id] || null }));
+
+      /**
+       * The venues those enquiries went to. Batch-fetched by profile id — the
+       * same shape VenueDashboard uses for applicant profiles, so a row never
+       * makes its own lookup.
+       */
+      const outEnqRows = outEnqRes.data || [];
+      const venueIds = [...new Set(outEnqRows.map(e => e.venue_profile_id).filter(Boolean))];
+      let venuesById = {};
+      if (venueIds.length) {
+        const { data: vs } = await supabase.from('profiles')
+          .select('id, name, type, avatar, avatar_thumb, location, state, suburb')
+          .in('id', venueIds);
+        (vs || []).forEach(v => { venuesById[v.id] = v; });
+      }
+      /**
+       * ⛔ A venue that did not come back is ABSENT, not an empty-named row —
+       * the enquiry still happened and must still be listed. The card renders
+       * what it has (Rendering Contract R4: broken ≠ sparse).
+       */
+      const outgoingEnquiries = outEnqRows.map(e => ({
+        ...e, venue: venuesById[e.venue_profile_id] || null,
+      }));
 
       // Venue-initiated invites only. Without this filter the artist's own
       // enquiries to venues (ProfileScreen's availability flow, which stores
@@ -244,13 +330,14 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
             .eq('initiated_by', 'venue')
         : { count: 0 };
 
-      return { profile: profRes.data, applications, upcomingGigs, pastGigs, offersCount: offersCount || 0 };
+      return { profile: profRes.data, applications, outgoingEnquiries, upcomingGigs, pastGigs, offersCount: offersCount || 0 };
     },
     enabled: !!userId,
   });
 
   const profile      = data?.profile      || null;
   const applications = data?.applications || [];
+  const outgoingEnquiries = data?.outgoingEnquiries || [];
   const upcomingGigs = data?.upcomingGigs || [];
   const pastGigs     = data?.pastGigs     || [];
   const offersCount  = data?.offersCount  ?? 0;
@@ -392,10 +479,29 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
   // capped a comedian at 76% no matter what they filled in.
   const completionPct = completionFor(profile, cfg.profileType)?.pct ?? 0;
 
-  const filteredApps = applications.filter(a => {
-    if (applicantLabel(a.status) !== outStatusTab) return false;
+  /**
+   * ⭐ ONE OUTGOING LIST — everything this act has asked for, in one place
+   * (owner: "i want all outgoing enquiries to be together").
+   *
+   * Two sources, one shape: an event application and a venue availability
+   * enquiry are different records but the same question — "I asked for
+   * something; where is it up to?". `applicantLabel` already maps both status
+   * vocabularies onto the same four buckets, so the sub-tabs need no special
+   * casing: an enquiry's `pending` lands in SUBMITTED exactly as an
+   * application's does.
+   *
+   * ⚠ Sorted by `created_at` across both, so the list reads chronologically
+   * rather than as two concatenated piles.
+   */
+  const outgoingItems = [
+    ...applications.map(a => ({ kind: 'application', at: a.created_at, row: a })),
+    ...outgoingEnquiries.map(e => ({ kind: 'enquiry', at: e.created_at, row: e })),
+  ].sort((x, y) => String(y.at || '').localeCompare(String(x.at || '')));
+
+  const filteredOut = outgoingItems.filter(it => {
+    if (applicantLabel(it.row.status) !== outStatusTab) return false;
     if (!enqSearch.trim()) return true;
-    return JSON.stringify(a).toLowerCase().includes(enqSearch.toLowerCase());
+    return JSON.stringify(it.row).toLowerCase().includes(enqSearch.toLowerCase());
   });
   const filteredOffers = offers.filter(o => {
     const st = (o.status || 'new').toLowerCase();
@@ -501,7 +607,12 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
       />
 
       <DashboardStats stats={[
-        { label: 'APPLICATIONS', value: loading ? '—' : applications.length,              accent: '#00E5FF', accentRgb: '0,229,255', onClick: () => { scrollToSection('section-enquiries'); setEnqDirTab('OUTGOING'); } },
+        /* ⚠ Counts the OUTGOING list, not applications alone — this tile opens
+           that tab, and a tile reading "0" above a tab showing an enquiry is
+           the kind of quiet disagreement nobody reports and everybody
+           distrusts. Relabelled for the same reason: an availability enquiry
+           is not an application. */
+        { label: 'OUTGOING', value: loading ? '—' : outgoingItems.length,                  accent: '#00E5FF', accentRgb: '0,229,255', onClick: () => { scrollToSection('section-enquiries'); setEnqDirTab('OUTGOING'); } },
         { label: 'OFFERS',       value: loading ? '—' : offersCount,                      accent: '#BF5FFF', accentRgb: '191,95,255', onClick: () => { scrollToSection('section-enquiries'); setEnqDirTab('INCOMING'); } },
         { label: 'BOOKINGS',     value: loading ? '—' : upcomingGigs.length + pastGigs.length, accent: '#00E5A0', accentRgb: '0,229,160', onClick: () => { scrollToSection('section-enquiries'); setEnqDirTab('BOOKED'); } },
       ]} />
@@ -518,7 +629,7 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
         <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
           {[
             { key: 'INCOMING', color: '#FFD700', rgb: '255,215,0',   cnt: offersCount },
-            { key: 'OUTGOING', color: 'var(--neon2)', rgb: '0,229,255', cnt: applications.length },
+            { key: 'OUTGOING', color: 'var(--neon2)', rgb: '0,229,255', cnt: outgoingItems.length },
             { key: 'BOOKED',   color: '#00E5A0', rgb: '0,229,160',   cnt: upcomingGigs.length + pastGigs.length },
           ].map(({ key, color, rgb, cnt }) => {
             const active = enqDirTab === key;
@@ -575,7 +686,7 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
           <div>
             <div className={s.subTabBar}>
               {APP_TABS.map(t => {
-                const count  = applications.filter(a => applicantLabel(a.status) === t).length;
+                const count  = outgoingItems.filter(it => applicantLabel(it.row.status) === t).length;
                 const active = outStatusTab === t;
                 const col    = APP_TAB_COLOR[t] || '#FFD700';
                 return (
@@ -591,16 +702,27 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
             <input className={s.searchBar} placeholder="Search events…" value={enqSearch} onChange={e => setEnqSearch(e.target.value)} />
             {loading
               ? <p className={s.empty}>Loading…</p>
-              : filteredApps.length === 0
+              : filteredOut.length === 0
                 ? <p className={s.empty}>{OUT_EMPTY[outStatusTab] || 'Nothing here yet.'}</p>
                 : <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    {filteredApps.map(app => app.event
-                      ? <ApplicationRow key={app.id} app={app}
-                          badge={applicantLabel(app.status)}
-                          badgeColor={APP_TAB_COLOR[applicantLabel(app.status)] || '#FFD700'}
-                          onDelete={handleDeleteApplication} />
-                      : null
-                    )}
+                    {filteredOut.map(({ kind, row }) => {
+                      const badge = applicantLabel(row.status);
+                      const badgeColor = APP_TAB_COLOR[badge] || '#FFD700';
+                      if (kind === 'enquiry') {
+                        return <OutgoingEnquiryRow key={`enq-${row.id}`} enq={row}
+                          badge={badge} badgeColor={badgeColor} accent={cfg.accent} />;
+                      }
+                      /* ⚠ An application whose event did not load renders
+                         nothing, as before — an EventCard with no event is the
+                         broken-vs-sparse case. Left as-is deliberately: it is a
+                         separate defect (see D2 in the Ask Category note) and
+                         changing it here would hide it. */
+                      return row.event
+                        ? <ApplicationRow key={`app-${row.id}`} app={row}
+                            badge={badge} badgeColor={badgeColor}
+                            onDelete={handleDeleteApplication} />
+                        : null;
+                    })}
                   </div>
             }
           </div>
