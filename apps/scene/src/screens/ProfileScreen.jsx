@@ -20,7 +20,7 @@ import ProfileSocialLinks from '../components/ProfileSocialLinks';
 import AvailabilityCalendar from '../components/AvailabilityCalendar';
 import { selectedPerformanceRoleLabels, selectedArtistRoleLabels, ARTIST_ROLES, HOST_CATEGORIES } from '../lib/profileTaxonomy';
 import { PROFILE_TYPES, profileIdentity } from '../lib/profileTypes';
-import ProfileAvatar from '../components/ProfileAvatar';
+import ProfileCard from '../components/ProfileCard';
 import { openDirectConversation, sendableProfiles } from '../lib/messaging';
 import { evaluate, columnsFor } from '@yespleez/requirements';
 import { RequirementsVerdict } from '@yespleez/requirements/checklist';
@@ -1351,21 +1351,16 @@ export default function ProfileScreen() {
             <div style={{ fontFamily: "'Bebas Neue'", fontSize: 11, letterSpacing: 2, color: col, marginBottom: 4 }}>ENQUIRING ABOUT</div>
             <div style={{ fontFamily: "'Bebas Neue'", fontSize: 18, letterSpacing: 1, marginBottom: 4 }}>{new Date(pickerDate + 'T00:00:00').toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).toUpperCase()}</div>
             <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 20 }}>Who are you enquiring as?</div>
-            {pickerProfs.map((p, i) => {
-              const ptp = PROFILE_TYPES[p.type];
-              const tc = ptp ? { col: ptp.accent, rgb: ptp.rgb } : { col: '#00E5A0', rgb: '0,229,160' };
-              return (
-                <button key={i} onClick={() => { setEnquiryProf(p); setPickerProfs([]); }} style={{ width: '100%', display: 'flex', gap: 12, alignItems: 'center', background: `rgba(${tc.rgb},.06)`, border: `1px solid rgba(${tc.rgb},.25)`, borderRadius: 12, padding: 12, cursor: 'pointer', textAlign: 'left', marginBottom: 8 }}>
-                  <ProfileAvatar avatar={p.avatar} identity={ptp} name={p.name} style={{ width: 44, height: 44, borderRadius: 8, objectFit: 'cover', border: `1.5px solid rgba(${tc.rgb},.5)`, flexShrink: 0 }} />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1.5, color: tc.col, marginBottom: 2 }}>{p.label}</div>
-                    <div style={{ fontFamily: "'Bebas Neue'", fontSize: 16, letterSpacing: .5, color: '#e8e8f0' }}>{p.name}</div>
-                    {p.genre_string && <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 1 }}>{p.genre_string.split(' · ').slice(0,3).join(' · ')}</div>}
-                  </div>
-                  <div style={{ color: tc.col, fontSize: 18 }}>›</div>
-                </button>
-              );
-            })}
+            {/* ⭐ The canonical card here too. Choosing WHICH ACT to enquire as
+                is the same act of recognising a profile that Discover and
+                Messenger's contact list ask for, and ProfileCard is already the
+                compact row both of those use. A third bespoke row on the same
+                screen was the last of them. */}
+            {pickerProfs.map((p, i) => (
+              <div key={i} style={{ marginBottom: 8 }}>
+                <ProfileCard item={p} onClick={() => { setEnquiryProf(p); setPickerProfs([]); }} />
+              </div>
+            ))}
             <button onClick={() => { setPickerDate(null); setPickerProfs([]); }} style={{ marginTop: 4, width: '100%', background: 'none', border: 'none', color: 'var(--muted)', fontSize: 13, cursor: 'pointer', padding: 8 }}>Cancel</button>
           </div>
         </div>
@@ -1378,14 +1373,17 @@ export default function ProfileScreen() {
             <div style={{ width: 36, height: 4, background: 'rgba(255,255,255,.2)', borderRadius: 2, margin: '0 auto 20px' }} />
             <div style={{ fontFamily: "'Bebas Neue'", fontSize: 11, letterSpacing: 2, color: col, marginBottom: 4 }}>ENQUIRE ABOUT THIS DATE</div>
             <div style={{ fontFamily: "'Bebas Neue'", fontSize: 20, letterSpacing: 1, marginBottom: 16 }}>{new Date(pickerDate + 'T00:00:00').toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).toUpperCase()}</div>
-            {/* Profile preview */}
-            <div style={{ display: 'flex', gap: 12, alignItems: 'center', background: 'rgba(255,255,255,.05)', border: `1px solid rgba(${rgb},.25)`, borderRadius: 12, padding: 12, marginBottom: 16 }}>
-              <ProfileAvatar profile={enquiryProf} name={enquiryProf.name} style={{ width: 48, height: 48, borderRadius: 8, objectFit: 'cover', border: `2px solid ${col}`, flexShrink: 0 }} />
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontFamily: "'Bebas Neue'", fontSize: 17, letterSpacing: 1 }}>{enquiryProf.name}</div>
-                {formatLocation(enquiryProf) && <div style={{ fontSize: 11, color: 'var(--muted)' }}>{formatLocation(enquiryProf)}</div>}
-                {enquiryProf.genre_string && <div style={{ fontSize: 11, color: col, marginTop: 2 }}>{enquiryProf.genre_string.split(' · ').slice(0,3).join(' · ')}</div>}
-              </div>
+            {/* ⭐ THE APP'S OWN CARD (owner, 2026-08-10: "the profile cards in
+                the availability still aren't the canonical cards").
+                This was a hand-rolled avatar + name + location + genres row —
+                the same information the shared card already renders, in a shape
+                that existed only here. Discover, the dashboards, Messenger and
+                the pre-send check all use ProfileCard; this was the last place
+                that did not.
+                ⛔ onClick is a no-op — you are looking at yourself, and
+                navigating away mid-enquiry would lose the note. */}
+            <div style={{ marginBottom: 16 }}>
+              <ProfileCard item={enquiryProf} onClick={() => {}} />
             </div>
             <textarea
               value={enquiryNote}
