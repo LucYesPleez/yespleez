@@ -9,6 +9,7 @@ import PostcodePrompt from '../components/PostcodePrompt';
 import { normalizeSocialValue } from '../lib/socialLinks';
 import { PROFILE_TYPES } from '../lib/profileTypes';
 import ProfileAssetsSection from '../components/ProfileAssetsSection';
+import RequirementChecklist, { toggleRequirement } from '@yespleez/requirements/checklist';
 
 
 // 'Festival Site' / 'Festivals' intentionally not offered this release — see
@@ -118,6 +119,13 @@ export default function VenueProfileScreen() {
   const [tiktok,      setTiktok]      = useState('');
   const [capacity,    setCapacity]    = useState('');
   const [cardPills,   setCardPills]   = useState([]);
+  /**
+   * P6 — STANDING requirements. What an act must already have on its profile
+   * before it may ask this venue about a date. Not the same question as an
+   * event's checklist: that one is asked once per occasion, this one is policy
+   * and outlives every enquiry.
+   */
+  const [requiredItems, setRequiredItems] = useState([]);
 
   const years = useMemo(
     () => Array.from({ length: new Date().getFullYear() - 1899 }, (_, i) => new Date().getFullYear() - i),
@@ -127,7 +135,7 @@ export default function VenueProfileScreen() {
   useEffect(() => {
     if (!userId) return;
     supabase.from('profiles')
-      .select('avatar, avatar_hero, avatar_thumb, name, sound, tagline, location, suburb, state, postcode, venue_type, atmosphere, perfect_for, established_year, bio, stage_dims, capacity, genre_string, card_pills, tech_features, live_nights, has_abn, abn, gst_registered, contact_email, email, website, instagram, facebook, tiktok')
+      .select('avatar, avatar_hero, avatar_thumb, name, sound, tagline, location, suburb, state, postcode, venue_type, atmosphere, perfect_for, established_year, bio, stage_dims, capacity, genre_string, card_pills, tech_features, live_nights, has_abn, abn, gst_registered, contact_email, email, website, instagram, facebook, tiktok, required_items')
       .eq('user_id', userId).eq('type', 'venue').maybeSingle()
       .then(({ data: p, error }) => {
         if (error) { setSaveErr('Failed to load profile. Please refresh.'); setLoading(false); return; }
@@ -164,6 +172,9 @@ export default function VenueProfileScreen() {
           loadNa(p.facebook, setFacebook, 'facebook');
           loadNa(p.tiktok, setTiktok, 'tiktok');
           setNaFields(naSet);
+          // NULL and '{}' both mean "no requirements" — an empty array, so the
+          // checklist renders every box unticked rather than throwing on null.
+          setRequiredItems(p.required_items || []);
         }
         setLoading(false);
       });
@@ -242,6 +253,10 @@ export default function VenueProfileScreen() {
         avatar:           avatarHero || avatarUrl || null,
         avatar_hero:      avatarHero || null,
         avatar_thumb:     avatarThumb || null,
+        // P6 — written as an array always, never null. '{}' and NULL mean the
+        // same thing to every reader, and always writing the array means
+        // clearing the last tick actually clears it.
+        required_items:   requiredItems,
         updated_at:       new Date().toISOString(),
       };
       const { error } = await supabase.from('profiles').upsert(payload, { onConflict: 'user_id,type' });
@@ -522,6 +537,26 @@ export default function VenueProfileScreen() {
             userId={userId} profileType="venue"
             accent={ACCENT} accent2={ACCENT2} gradientTitle
             titleClassName={s.sectionTitle} titleStyle={SECTION_TITLE_STYLE}
+          />
+        </div>
+
+        {/* P6 — STANDING requirements for availability enquiries.
+            In the EDITOR, not the dashboard, for the same reason as assets
+            (owner, 2026-08-02): the dashboard shows what is HAPPENING, the
+            editor is where you say who you are — and a minimum bar for who may
+            approach you is part of who you are. Placed after assets because
+            you decide what you require once you have seen what a profile can
+            hold. */}
+        <div className={s.section}>
+          <div className={s.sectionTitle} style={SECTION_TITLE_STYLE}><GH>ENQUIRY REQUIREMENTS</GH></div>
+          <RequirementChecklist
+            selected={requiredItems}
+            onToggle={key => { setRequiredItems(p => toggleRequirement(p, key)); setIsDirty(true); }}
+            intro={<>
+              Tick what an act must already have before they can ask you about a date.
+              Everything ticked is mandatory — an enquiry can&rsquo;t be sent until it&rsquo;s met.
+              Tick nothing and anyone can enquire.
+            </>}
           />
         </div>
 

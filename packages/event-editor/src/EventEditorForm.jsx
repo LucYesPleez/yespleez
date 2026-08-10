@@ -8,7 +8,17 @@ import { CSS } from "@dnd-kit/utilities";
  * extraction is that the markup is byte-identical. Rename it separately.
  */
 import s from "./EventEditor.module.css";
-import { requestableBySection, requirementLabel } from "@yespleez/requirements";
+/**
+ * ⭐ The checklist is no longer defined here. It moved to the package that owns
+ * the SUBJECT once a second thing could declare requirements: a venue and a
+ * host set STANDING requirements on their profile, and Scene's profile editors
+ * cannot import an *event* editor to render them.
+ *
+ * The markup is unchanged — only its address is. `intro` is passed because the
+ * component is not allowed to know whether it is blocking an application or an
+ * enquiry; that sentence belongs to whoever is calling.
+ */
+import RequirementChecklist, { toggleRequirement } from "@yespleez/requirements/checklist";
 import { DEFAULT_CROP_Y, MAX_SLIDES } from "@yespleez/event-presentation";
 import { makeId, generateSlots } from "./eventEditorModel.js";
 
@@ -109,77 +119,6 @@ function Toggle({ label, sub, value, onChange, locked, info }) {
         <div className={value ? s.toggleOnThumb : s.toggleOffThumb} />
       </div>
     </button>
-  );
-}
-
-/* ── Requirements checklist ──────────────────────────────────────────────
- *
- * Design §5.3: "A checklist. Tick what you need." No builder, no predicates,
- * no tiers, no engine terminology. The host never sees a requirement key, a
- * section is only a visual grouping, and the word on screen is Requirements —
- * `required_items` stays internal.
- *
- * The rows come from the engine's registry via requestableBySection(), so this
- * component cannot offer a key the engine is unable to resolve, and a new
- * asset type appears here the moment it is added to profileAssets.js.
- */
-/**
- * The tick-boxes, in two columns instead of one long vertical list. Same row
- * (checkbox + label) as before — only the wrapping changed, from a full-width
- * `<div>` per section to a two-column grid so a 19-item, 5-section checklist
- * reads as one compact window rather than a page-length scroll.
- */
-function RequirementChecklist({ selected, onToggle }) {
-  const groups = requestableBySection();
-  return (
-    // .controlsCard itself carries no padding — HOST CONTROLS supplies its
-    // own via .toggleRow. This checklist has no equivalent per-row padding
-    // on its sides, so without this the ASSETS section's last row sat flush
-    // against the gradient border. Padded here rather than on the shared
-    // class, so HOST CONTROLS' rows don't get pushed in from the edge too.
-    <div className={s.controlsCard} style={{ padding: '14px 16px' }}>
-      <p style={{ fontSize:13, color:'rgba(255,255,255,0.55)', lineHeight:1.6, padding:'2px 2px 12px' }}>
-        Tick what you need from applicants. Everything ticked is mandatory.
-        An application can&rsquo;t send until it&rsquo;s met.
-      </p>
-      {groups.map((g, gi) => (
-        <div key={g.section}>
-          {gi > 0 && <div className={s.controlsGroupDivider} />}
-          <p style={{ fontFamily:"'Bebas Neue'", fontSize:11, letterSpacing:2, color:'var(--muted)', margin:'14px 2px 6px' }}>
-            {g.section.toUpperCase()}
-          </p>
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', columnGap:8 }}>
-            {g.keys.map(key => {
-              const on = selected.includes(key);
-              return (
-                <button
-                  type="button" key={key} onClick={() => onToggle(key)}
-                  style={{
-                    display:'flex', alignItems:'center', gap:10, width:'100%',
-                    background:'none', border:'none', padding:'8px 2px',
-                    cursor:'pointer', textAlign:'left', minWidth:0,
-                  }}
-                >
-                  <span style={{
-                    width:18, height:18, flexShrink:0, borderRadius:5,
-                    border:`1.5px solid ${on ? '#00E5A0' : 'rgba(255,255,255,0.25)'}`,
-                    background: on ? 'rgba(0,229,160,0.18)' : 'transparent',
-                    color:'#00E5A0', fontSize:12, lineHeight:'15px', textAlign:'center',
-                    transition:'all .15s',
-                  }}>{on ? '✓' : ''}</span>
-                  <span style={{
-                    fontSize:14, color: on ? 'var(--text)' : 'rgba(255,255,255,0.6)',
-                    overflow:'hidden', whiteSpace:'nowrap', textOverflow:'ellipsis',
-                  }}>
-                    {requirementLabel(key)}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      ))}
-    </div>
   );
 }
 
@@ -960,7 +899,11 @@ export default function EventEditorForm({
         <SectionHeader label="REQUIREMENTS" />
         <RequirementChecklist
           selected={requiredItems}
-          onToggle={key => setRequiredItems(p => p.includes(key) ? p.filter(k => k !== key) : [...p, key])}
+          onToggle={key => setRequiredItems(p => toggleRequirement(p, key))}
+          intro={<>
+            Tick what you need from applicants. Everything ticked is mandatory.
+            An application can&rsquo;t send until it&rsquo;s met.
+          </>}
         />
 
         {/* ── HOST CONTROLS ── */}

@@ -22,6 +22,10 @@ import { selectedPerformanceRoleLabels, selectedArtistRoleLabels, ARTIST_ROLES, 
 import { PROFILE_TYPES, profileIdentity } from '../lib/profileTypes';
 import ProfileAvatar from '../components/ProfileAvatar';
 import { openDirectConversation, sendableProfiles } from '../lib/messaging';
+import { evaluate, columnsFor } from '@yespleez/requirements';
+import { RequirementsVerdict } from '@yespleez/requirements/checklist';
+import { canSendEnquiry, enquirySnapshot } from '../lib/enquiryRequirements';
+import { listAssets } from '../lib/profileAssetStore';
 import MessageAsSheet from '../components/MessageAsSheet';
 import { useConversationUi } from '../lib/conversationUi';
 import { isProfileUnclaimed } from '../lib/profileClaim';
@@ -72,6 +76,35 @@ export default function ProfileScreen() {
   const [enquiryNote,   setEnquiryNote]   = useState('');
   const [enquirySending,setEnquirySending]= useState(false);
   const [enquiryLoading,setEnquiryLoading]= useState(false);
+  /**
+   * P6/P7 — THE ENQUIRY GATE.
+   *
+   * `reqEval` is the verdict for the pair (this venue's standing requirements
+   * × the act the enquirer chose). It is a property of the PAIR, not of either
+   * side, which is why it is recomputed when the acting profile changes: a
+   * band may hold a press kit the same person's solo act does not.
+   *
+   * ⛔ This gates ONE direction — an artist asking a venue about a date. The
+   * venue-initiated path (InviteSheet) is never gated: when the venue is doing
+   * the asking, requiring the artist to satisfy the venue's own checklist
+   * would let a venue make itself unable to invite anyone.
+   */
+  /**
+   * ⚠ null, NOT []. `[]` is a real answer — "this venue asks for nothing" —
+   * and initialising to it made UNKNOWN indistinguishable from NONE, so an
+   * enquiry sent before the fetch returned skipped the gate entirely and was
+   * stored with a null snapshot forever. null means unread, and unread blocks.
+   */
+  const [venueRequired, setVenueRequired] = useState(null);
+  const [reqEval,       setReqEval]       = useState(null);
+  const [reqEvaluating, setReqEvaluating] = useState(false);
+  /**
+   * WHICH ACT `reqEval` DESCRIBES. A verdict is a property of the pair, so it
+   * stops being true the instant the enquirer switches profile — and for the
+   * render between the switch and the effect, the old verdict is still there.
+   * Carrying the id lets the gate notice.
+   */
+  const [reqEvalFor,    setReqEvalFor]    = useState(null);
   const [claimOpen,         setClaimOpen]         = useState(false);
   const [inviteOpen,        setInviteOpen]        = useState(false);
   const [inviteDate,        setInviteDate]        = useState(null); // 11C.3: date tapped on the availability calendar, prefilled into InviteSheet
@@ -288,8 +321,84 @@ export default function ProfileScreen() {
     else { setPickerProfs(mapped); setEnquiryProf(null); }
   }
 
+  /**
+   * The venue's STANDING requirements (P6). Read separately from the profile
+   * row for the same reason ApplyButton reads an event's separately: it is a
+   * gate input, never rendered on the public profile, and pulling it through
+   * the shared profile fetch would put a requirement list into every screen
+   * that shows a venue.
+   *
+   * Read on the venue's own profile page regardless of who is looking, because
+   * the enquiry sheet needs it the instant a date is tapped.
+   */
+  useEffect(() => {
+    // Not a venue: there is no enquiry path at all, so nothing is pending.
+    // `[]` is honest here — it is a settled answer, not an unread one.
+    if (!profile?.id || profile.type !== 'venue') { setVenueRequired([]); return; }
+    let cancelled = false;
+    // ⛔ Back to UNREAD while a different venue loads, so the previous venue's
+    // requirements can never gate this one.
+    setVenueRequired(null);
+    supabase.from('profiles').select('required_items').eq('id', profile.id).maybeSingle()
+      // ⚠ The DATABASE's NULL means "asks for nothing" — collapsed to `[]`
+      // HERE, at the boundary, so that in memory null only ever means unread.
+      // An ERROR must NOT collapse: leaving it null keeps the gate closed
+      // rather than treating a failed read as permission.
+      .then(({ data, error }) => {
+        if (cancelled || error) return;
+        setVenueRequired(data?.required_items || []);
+      });
+    return () => { cancelled = true; };
+  }, [profile?.id, profile?.type]);
+
+  /**
+   * Evaluate the ACTING profile against those requirements. Mirrors
+   * ApplyButton's effect deliberately — same engine, same column projection,
+   * same asset lookup — because "can this act ask for this" must have one
+   * answer however it is asked.
+   *
+   * Only the columns the requirements actually reference are fetched
+   * (`columnsFor`), so a venue asking for a bio does not pull a commercial
+   * record. `id` is included because assets resolve by profile id.
+   */
+  useEffect(() => {
+    if (!venueRequired?.length || !enquiryProf?.id) { setReqEval(null); setReqEvalFor(null); return; }
+    let cancelled = false;
+    const forProfileId = enquiryProf.id;
+    // ⛔ Drop the previous act's verdict BEFORE fetching the next one. Left in
+    // place it would answer for the wrong profile until the round trip
+    // returned — and a stale pass is a real bypass, not a flicker.
+    setReqEval(null);
+    setReqEvalFor(null);
+    setReqEvaluating(true);
+    (async () => {
+      const cols = [...new Set(['id', ...columnsFor(venueRequired)])].join(', ');
+      const [{ data: prof }, assets] = await Promise.all([
+        supabase.from('profiles').select(cols).eq('id', forProfileId).maybeSingle(),
+        listAssets(forProfileId).catch(() => []),
+      ]);
+      if (cancelled) return;
+      setReqEval(evaluate(venueRequired, { profile: prof || {}, assets: assets || [] }));
+      // Stamped with the act it describes, so the gate can tell a current
+      // verdict from a leftover one.
+      setReqEvalFor(forProfileId);
+      setReqEvaluating(false);
+    })();
+    return () => { cancelled = true; };
+  }, [venueRequired, enquiryProf?.id]);
+
   async function sendEnquiry() {
     if (!enquiryProf || !pickerDate || enquirySending) return;
+    /**
+     * ⛔ THE GATE, IN THE WRITE PATH — not only in the button's styling.
+     * A disabled button is a suggestion; this is the rule. Mirrors
+     * ApplyButton's identical guard.
+     *
+     * `reqEvaluating` blocks too: sending while the verdict is still being
+     * computed would write an enquiry whose snapshot is null against a venue
+     * that does have requirements.
+     */
+    if (!canSendEnquiry({ required: venueRequired, evaluation: reqEval, evaluating: reqEvaluating, actingProfileId: enquiryProf?.id ?? null, evaluatedProfileId: reqEvalFor })) return;
     setEnquirySending(true);
     // Dual-write (M2 invariant): both sides are already-resolved profiles rows,
     // so the profile ids are direct assignments, not lookups. The enquiry UI only
@@ -308,6 +417,10 @@ export default function ProfileScreen() {
       // incoming/outgoing from this — see enquiryUtils.deriveDirection.
       initiated_by:         'applicant',
       status:               'pending',
+      // P7 — the VERDICT at enquiry creation, never a copy of the profile.
+      // NULL when the venue declared nothing, exactly as P5 does for
+      // applications: no requirements is not the same fact as 0/0.
+      requirements_snapshot: enquirySnapshot({ required: venueRequired, evaluation: reqEval }),
     })
       // Returning the id is safe on this leg: "Profile owner can read their
       // enquiries" (M4) grants SELECT to EITHER side by profile ownership, so
@@ -1192,11 +1305,39 @@ export default function ProfileScreen() {
               placeholder="Add a message — anything extra the venue should know…"
               style={{ width: '100%', minHeight: 90, background: 'rgba(255,255,255,.06)', border: `1px solid rgba(${rgb},.35)`, borderRadius: 12, color: '#e8e8f0', fontSize: 14, padding: 12, resize: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
             />
+            {/* P6 — what this venue asks for, BEFORE the send button rather
+                than after a rejection. A checklist revealed on refusal is a
+                post-mortem; shown here it is something the enquirer can still
+                go and fix. Renders only when the venue asks for something —
+                a venue with no requirements shows nothing at all, never an
+                empty "0/0" card (Rendering Contract R3). */}
+            {venueRequired?.length > 0 && (
+              <RequirementsVerdict
+                evaluation={reqEval}
+                title="WHAT THIS VENUE ASKS FOR"
+                /* The editor for the profile they are ENQUIRING AS, resolved
+                   from that profile's own type — a comedian switching to their
+                   band profile gets the band editor. Same resolution as
+                   ApplyButton's, because the gap is closed in the same place. */
+                editPath={enquiryProf?.type ? `/industry/${enquiryProf.type}/setup` : null}
+                style={{ marginTop: 12, marginBottom: 0 }}
+              />
+            )}
             <button
               onClick={sendEnquiry}
-              disabled={enquirySending}
-              style={{ marginTop: 12, width: '100%', background: `linear-gradient(135deg,${col},${grad2})`, color: '#0a0a14', fontFamily: "'Bebas Neue'", fontSize: 17, letterSpacing: 2, padding: 16, border: 'none', borderRadius: 12, cursor: 'pointer', opacity: enquirySending ? .6 : 1 }}
-            >{enquirySending ? 'SENDING…' : 'SEND ENQUIRY →'}</button>
+              disabled={enquirySending || !canSendEnquiry({ required: venueRequired, evaluation: reqEval, evaluating: reqEvaluating, actingProfileId: enquiryProf?.id ?? null, evaluatedProfileId: reqEvalFor })}
+              style={{ marginTop: 12, width: '100%', background: `linear-gradient(135deg,${col},${grad2})`, color: '#0a0a14', fontFamily: "'Bebas Neue'", fontSize: 17, letterSpacing: 2, padding: 16, border: 'none', borderRadius: 12, cursor: 'pointer', opacity: (enquirySending || !canSendEnquiry({ required: venueRequired, evaluation: reqEval, evaluating: reqEvaluating, actingProfileId: enquiryProf?.id ?? null, evaluatedProfileId: reqEvalFor })) ? .6 : 1 }}
+            >{/* The label names the PROFILE GAP rather than saying "blocked" —
+                  the fix is one screen away and the button should say so. */}
+              {enquirySending ? 'SENDING…'
+                /* Requirements unread, or the verdict still in flight, or the
+                   verdict describing the act they just switched away from —
+                   all three are "we don't know yet", and all three say so
+                   rather than claiming the profile is incomplete. */
+                : venueRequired === null ? 'CHECKING…'
+                : venueRequired.length > 0 && (reqEvaluating || reqEvalFor !== (enquiryProf?.id ?? null)) ? 'CHECKING…'
+                : venueRequired.length > 0 && !reqEval?.canSubmit ? 'COMPLETE YOUR PROFILE FIRST'
+                : 'SEND ENQUIRY →'}</button>
             <button onClick={() => { setEnquiryProf(null); setEnquiryNote(''); }} style={{ marginTop: 8, width: '100%', background: 'none', border: 'none', color: 'var(--muted)', fontSize: 13, cursor: 'pointer', padding: 8 }}>Cancel</button>
           </div>
         </div>

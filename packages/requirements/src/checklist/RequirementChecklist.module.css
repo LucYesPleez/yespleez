@@ -1,0 +1,33 @@
+/**
+ * The checklist's own two classes.
+ *
+ * ⚠ COPIED FROM EventEditor.module.css, NOT SHARED — deliberately (owner,
+ * 2026-08-10). The event editor and the profile editors are different screens
+ * with different owners, and sharing a stylesheet between them would mean a
+ * spacing tweak in the event editor silently restyling a venue's profile. The
+ * duplication is two rules; the coupling it avoids is permanent.
+ *
+ * If these ever need to move together, that is a signal there is a shared
+ * "bordered card" primitive to extract — not a reason to reach back into the
+ * event editor's stylesheet.
+ */
+
+.card {
+  background: linear-gradient(var(--card), var(--card)) padding-box,
+              linear-gradient(135deg, #00E5FF, #BF5FFF) border-box;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  overflow: hidden;
+  margin-bottom: 14px;
+  /* The event editor's .controlsCard carries no padding because its toggle
+     rows supply their own. This checklist has no equivalent per-row side
+     padding, so without this the last row of the final section sits flush
+     against the gradient border. */
+  padding: 14px 16px;
+}
+
+.divider {
+  height: 1px;
+  margin-top: -1px;
+  background: linear-gradient(90deg, rgba(0,229,255,0.35), rgba(191,95,255,0.35), transparent);
+}

@@ -8,6 +8,7 @@ import { useProfileForm } from '../hooks/useProfileForm';
 import ProfileFormShell from '../components/ProfileFormShell';
 import SectionBlock from '../components/SectionBlock';
 import ProfileAssetsSection from '../components/ProfileAssetsSection';
+import RequirementChecklist, { toggleRequirement } from '@yespleez/requirements/checklist';
 import SocialSection from '../components/SocialSection';
 import { HOST_GENRES, ALL_GENRES, SUBGENRES, HOST_CATEGORIES, VISIBLE_HOST_CATEGORIES } from '../lib/profileTaxonomy';
 import { PROFILE_TYPES } from '../lib/profileTypes';
@@ -140,6 +141,19 @@ export default function HostProfileScreen() {
   const [selGenres, setSelGenres] = useState([]);
   const [selSubs,   setSelSubs]   = useState([]);
   const [selVibes,  setSelVibes]  = useState([]);
+  /**
+   * P6 — STANDING requirements: what an act must already have before it may
+   * ask this host about a date.
+   *
+   * ⚠⚠ DORMANT ON PURPOSE. Nothing evaluates these yet — there is no
+   * artist → host availability enquiry to gate (the only enquiry path in the
+   * app is artist → VENUE, ProfileScreen.sendEnquiry). A host can set them
+   * today and they persist; they begin to bite the day that flow is built.
+   *
+   * ⛔ Do NOT wire them into the venue-initiated invitation path to "make them
+   * do something". That direction is never gated — see P6's migration comment.
+   */
+  const [requiredItems, setRequiredItems] = useState([]);
 
   useEffect(() => {
     if (!userId) return;
@@ -164,6 +178,8 @@ export default function HostProfileScreen() {
           loadNa(data.website,                     setWebsite,      'website',      naSet);
           loadNa(data.contact_email || data.email, setContactEmail, 'contactEmail', naSet);
           setNaFields(naSet);
+          // NULL and '{}' both mean "no requirements" — an empty array either way.
+          setRequiredItems(data.required_items || []);
           const parsed = parseGenreString(data.genre_string);
           setSelCats(parsed.cats);
           setSelGenres(parsed.genres);
@@ -208,6 +224,8 @@ export default function HostProfileScreen() {
       contact_email: naFields.has('contactEmail') ? 'N/A' : contactEmail,
       genre_string, avatar: avatarHero || avatarUrl,
       avatar_hero: avatarHero || null, avatar_thumb: avatarThumb || null,
+      // P6 — always an array, never null, so clearing the last tick clears it.
+      required_items: requiredItems,
     };
     runSave(async () => {
       const { error } = await supabase.from('profiles').upsert(payload, { onConflict: 'user_id,type' });
@@ -371,6 +389,28 @@ export default function HostProfileScreen() {
             userId={userId} profileType="host"
             accent={ACCENT} accent2={ACCENT2}
             titleClassName={s.sectionTitle} titleStyle={EXPERIMENTAL_HEADING_STYLE}
+          />
+        </Section>
+
+        {/* P6 — STANDING requirements for availability enquiries.
+            In the EDITOR, not the dashboard, for the same reason as assets
+            (owner, 2026-08-02): a minimum bar for who may approach you is part
+            of who you are.
+
+            ⚠ The copy says "will be able to", not "can", because it is TRUE:
+            there is no artist → host enquiry flow yet, so ticking a box here
+            changes nothing today. Promising a gate that does not exist would
+            be worse than an empty section — a host would believe they were
+            filtering and they would not be. */}
+        <Section title="ENQUIRY REQUIREMENTS">
+          <RequirementChecklist
+            selected={requiredItems}
+            onToggle={key => { setRequiredItems(p => toggleRequirement(p, key)); setIsDirty(true); }}
+            intro={<>
+              Tick what an act must already have before they can ask you about a date.
+              Everything ticked is mandatory. Saved now and applied to host enquiries
+              once that flow arrives — it doesn&rsquo;t affect anything you receive today.
+            </>}
           />
         </Section>
 

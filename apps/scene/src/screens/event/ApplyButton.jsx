@@ -5,68 +5,17 @@ import { getPerformerProfiles } from '../../lib/actingProfile';
 import { track, EVENTS } from '../../lib/analytics';
 import { writeNotification } from '../../lib/writeNotification';
 import { listAssets } from '../../lib/profileAssetStore';
-import { evaluate, columnsFor, snapshotEvaluation, requirementLabel } from '@yespleez/requirements';
+import { evaluate, columnsFor, snapshotEvaluation } from '@yespleez/requirements';
+/**
+ * ⭐ The verdict display moved to the requirements package once a second
+ * surface needed it: a venue's standing requirements are shown on the venue
+ * profile, and that screen cannot import an event screen's component. Markup
+ * unchanged — `title` and `editPath` are props because this component is not
+ * allowed to know whose requirements it is reporting.
+ */
+import { RequirementsVerdict } from '@yespleez/requirements/checklist';
 import UnclaimedNotice from '../../components/UnclaimedNotice';
 import s from '../EventScreen.module.css';
-
-/* ── The requirements checklist, applicant side ──────────────────────────
- *
- * Every ticked item is mandatory — field or file alike (2026-08-03: the owner
- * overrode design §5.2's field-blocks/file-requests split; see the note above
- * REQUIREMENT_KEYS in requirements.js). One tick means one requirement, so
- * there is nothing left for the applicant to learn about tiers.
- *
- * Deliberately shown BEFORE submitting, not after. The point is to let someone
- * go and fix a gap while it still matters — a checklist revealed on rejection
- * is a post-mortem.
- */
-function RequirementsChecklist({ evaluation, editPath }) {
-  const STATE_UI = {
-    satisfied: { mark: '✓', color: '#00E5A0' },
-    withheld:  { mark: '✓', color: '#00E5A0' },   // declining is an answer (R1)
-    absent:    { mark: '○', color: 'var(--muted)' },
-    unknown:   { mark: '·', color: 'var(--muted)' },
-  };
-  return (
-    <div style={{ marginBottom: 10, padding: '10px 12px', background: 'var(--card2)', border: '1px solid var(--border)', borderRadius: 8 }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 8 }}>
-        <span style={{ fontFamily: "'Bebas Neue'", fontSize: 12, letterSpacing: 1.5, color: 'var(--muted)' }}>WHAT THIS HOST ASKS FOR</span>
-        <span style={{ fontFamily: "'Bebas Neue'", fontSize: 13, letterSpacing: .5, color: evaluation.satisfiedCount === evaluation.totalCount ? '#00E5A0' : 'var(--muted)' }}>
-          {evaluation.satisfiedCount}/{evaluation.totalCount}
-        </span>
-      </div>
-      {evaluation.items.map(it => {
-        const ui = STATE_UI[it.state] || STATE_UI.unknown;
-        const met = it.state === 'satisfied' || it.state === 'withheld';
-        return (
-          <div key={it.key} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '3px 0' }}>
-            <span style={{ color: ui.color, fontSize: 12, width: 12, flexShrink: 0 }}>{ui.mark}</span>
-            <span style={{ fontSize: 13, color: met ? 'var(--text)' : 'var(--muted)', flex: 1 }}>{requirementLabel(it.key)}</span>
-            {/* Every unmet requirement is a blocking one now, so NEEDED shows
-                on all of them — the flag stays keyed on `it.blocking` rather
-                than on `!met` alone, because an UNRECOGNISED key (a stale
-                requirement the registry no longer knows) is deliberately
-                non-blocking and must not be labelled as something the
-                applicant can fix. */}
-            {!met && it.blocking && (
-              <span style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1, color: '#FFD700' }}>NEEDED</span>
-            )}
-          </div>
-        );
-      })}
-      {/* Naming the gap is not the same as being able to close it. Without
-          this, an applicant is told "Press Kit NEEDED" and left to already
-          know that press kits live inside the profile editor's Assets
-          section — the one screen they cannot reach from here. */}
-      {editPath && !evaluation.canSubmit && (
-        <a href={`#${editPath}`}
-          style={{ display: 'inline-block', marginTop: 8, fontFamily: "'Bebas Neue'", fontSize: 12, letterSpacing: 1, color: 'var(--neon2)' }}>
-          ADD WHAT&rsquo;S MISSING →
-        </a>
-      )}
-    </div>
-  );
-}
 
 export default function ApplyButton({ eventId, userId, ownerProfile }) {
   const [note,          setNote]          = useState('');
@@ -288,8 +237,9 @@ export default function ApplyButton({ eventId, userId, ownerProfile }) {
               that profile's own type, not the account's, so a comedian
               switching to their band profile gets the band editor. */}
           {evaluation && (
-            <RequirementsChecklist
+            <RequirementsVerdict
               evaluation={evaluation}
+              title="WHAT THIS HOST ASKS FOR"
               editPath={(() => {
                 const t = performers.find(p => p.id === actingId)?.type;
                 return t ? `/industry/${t}/setup` : null;
