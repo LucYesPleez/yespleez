@@ -78,14 +78,20 @@ test('an enquiry renders its own row, never an EventCard', () => {
 });
 
 /**
- * ⛔ No local chip vocabulary. Ask Category is designed but not built, and a
- * third copy of category labels is exactly what that design exists to prevent.
+ * ⛔ No local chip vocabulary.
+ *
+ * ⚠ This assertion CHANGED SHAPE when P12 landed, and deliberately: it used to
+ * forbid any chip at all, because Ask Category was designed but not built and a
+ * third copy of category labels was the risk. Now the chip exists — so what
+ * must be forbidden is the LABELS being written here rather than looked up.
+ * The constraint was never "no chip"; it was "no second vocabulary".
  */
-test('no category chip is invented locally', () => {
+test('the chip is read from the registry, never invented locally', () => {
   const row = DASH.slice(DASH.indexOf('function OutgoingEnquiryRow'));
   const body = row.slice(0, row.indexOf('\n}'));
-  assert.doesNotMatch(body, /MUSIC|PERFORMANCE|WORKSHOP|ask_category/i,
-    'a chip vocabulary has been invented here instead of read from a registry');
+  assert.match(body, /askCategoryLabel\(/, 'the chip does not consult the registry');
+  assert.doesNotMatch(body, /'Music'|'Performance'|'Workshops'|'Volunteers'/,
+    'category labels are hard-coded here instead of read from the registry');
 });
 
 test('the empty state no longer claims the artist has done nothing', () => {

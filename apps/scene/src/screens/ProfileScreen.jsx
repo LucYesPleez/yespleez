@@ -26,6 +26,8 @@ import { evaluate, columnsFor } from '@yespleez/requirements';
 import { RequirementsVerdict } from '@yespleez/requirements/checklist';
 import { canSendEnquiry, enquirySnapshot } from '../lib/enquiryRequirements';
 import { ENQUIRY_PREVIEW_COLUMNS, buildEnquiryPreview } from '../lib/enquiryPreview';
+import { resolveAskCategory } from '../lib/askCategoryResolver';
+import { askCategoryLabel } from '@yespleez/ask-categories';
 import { shouldShowPrompt, suppressPrompt, ENQUIRY_PRE_SEND_CHECK } from '../lib/promptPreferences';
 import PreSendCheckSheet from '../components/PreSendCheckSheet';
 import { listAssets } from '../lib/profileAssetStore';
@@ -122,6 +124,17 @@ export default function ProfileScreen() {
    * changes WHAT is being sent clears it.
    */
   const [enquiryError, setEnquiryError] = useState('');
+  /**
+   * P12 — the Ask Category the enquirer has settled on.
+   *
+   * ⭐ Derived from the acting profile, but held in state rather than computed
+   * at send time, because the "several applicable" branch makes it a CHOICE.
+   * Null covers both "nothing applies" (host, festival) and "not chosen yet";
+   * `askChoiceNeeded` is what tells those apart — see the resolver's contract.
+   */
+  const [askCategory, setAskCategory] = useState(null);
+  const [askChoiceNeeded, setAskChoiceNeeded] = useState(false);
+  const [askOptions, setAskOptions] = useState([]);
   const [claimOpen,         setClaimOpen]         = useState(false);
   const [inviteOpen,        setInviteOpen]        = useState(false);
   const [inviteDate,        setInviteDate]        = useState(null); // 11C.3: date tapped on the availability calendar, prefilled into InviteSheet
@@ -425,8 +438,40 @@ export default function ProfileScreen() {
    * suppresses it on their laptop is not asked again on their phone in the
    * same session. It fails toward SHOWING the dialog — see promptPreferences.
    */
+  /**
+   * P12 — resolve the Ask Category when the acting profile changes.
+   *
+   * ⭐ ONE CALL, THREE STATES. `resolveAskCategory` hands back
+   * `{ category, needsChoice, applicable }` precisely so the two nulls cannot
+   * collapse: "no category applies" and "the asker must choose" are different
+   * facts, and a caller that stored a bare null would silently skip a question.
+   *
+   * ⚠ `needsChoice` cannot be true today — no profile spans two categories. The
+   * branch exists so that the day one does, the enquiry asks instead of
+   * guessing.
+   */
+  useEffect(() => {
+    const { category, needsChoice, applicable } = resolveAskCategory(enquiryProf);
+    setAskCategory(category);
+    setAskChoiceNeeded(needsChoice);
+    setAskOptions(applicable);
+    // ⚠ Depends on the profile OBJECT, not its fields: it is state set from one
+    // fetch, so its identity is stable between selections, and listing fields
+    // while reading the whole object is what exhaustive-deps rightly objects to.
+  }, [enquiryProf]);
+
   async function requestSendEnquiry() {
     if (!enquiryProf || !pickerDate || enquirySending) return;
+    /**
+     * ⛔ A CHOICE THAT WAS NEVER MADE MUST NOT BE SENT. When several categories
+     * apply, the resolver deliberately returns null rather than picking one —
+     * sending here would freeze "no category" onto a record that had one, and
+     * `ask_category` is never revisited after creation.
+     */
+    if (askChoiceNeeded && !askCategory) {
+      setEnquiryError('Choose what you are enquiring about before sending.');
+      return;
+    }
     if (!canSendEnquiry({ required: venueRequired, evaluation: reqEval, evaluating: reqEvaluating,
                           actingProfileId: enquiryProf?.id ?? null, evaluatedProfileId: reqEvalFor })) return;
     const show = await shouldShowPrompt(session?.user?.id, ENQUIRY_PRE_SEND_CHECK);
@@ -474,6 +519,18 @@ export default function ProfileScreen() {
       // incoming/outgoing from this — see enquiryUtils.deriveDirection.
       initiated_by:         'applicant',
       status:               'pending',
+      /**
+       * P12 — what this enquiry is asking FOR, frozen at creation.
+       *
+       * ⭐ `askCategory` is resolved from the acting profile's ROLE before the
+       * send (see `requestSendEnquiry`), never re-derived here — a category
+       * computed at write time and again at read time is two answers waiting to
+       * disagree.
+       *
+       * ⛔ NULL is a real answer: a host or festival has no applicable category
+       * at all. It is stored as null and renders no chip.
+       */
+      ask_category:         askCategory,
       // P7 — the VERDICT at enquiry creation, never a copy of the profile.
       // NULL when the venue declared nothing, exactly as P5 does for
       // applications: no requirements is not the same fact as 0/0.
@@ -1409,6 +1466,37 @@ export default function ProfileScreen() {
                 style={{ marginTop: 12, marginBottom: 0 }}
               />
             )}
+            {/* P12 — ⛔ THE CHOICE PATH. Rendered only when several Ask
+                Categories apply to the acting profile, which no profile can do
+                today. It exists because the alternative is a resolver that
+                guesses, and a guess here is frozen onto the record forever:
+                `ask_category` is written once at creation and never revisited.
+                ⚠ If this ever appears on screen, a profile has started spanning
+                two categories — that is information, not a bug. */}
+            {askChoiceNeeded && (
+              <div style={{ marginTop: 12 }}>
+                <div style={{ fontFamily: "'Bebas Neue'", fontSize: 11, letterSpacing: 1.5, color: 'var(--muted)', marginBottom: 6 }}>
+                  WHAT ARE YOU ENQUIRING ABOUT?
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {askOptions.map(key => {
+                    const on = askCategory === key;
+                    return (
+                      <button key={key} type="button" onClick={() => setAskCategory(key)}
+                        style={{ fontFamily: "'Bebas Neue'", fontSize: 12, letterSpacing: 1,
+                                 padding: '6px 12px', borderRadius: 20, cursor: 'pointer',
+                                 border: `1px solid ${on ? col : 'rgba(255,255,255,.2)'}`,
+                                 background: on ? `rgba(${rgb},.15)` : 'transparent',
+                                 color: on ? col : 'var(--muted)' }}>
+                        {/* ⛔ The registry owns the label — never the raw key. */}
+                        {askCategoryLabel(key) || key}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {/* ⚠ WHY AN ENQUIRY DID NOT SEND, said on the screen rather than in
                 the console. A duplicate used to close this sheet exactly as a
                 success does; the artist believed they had enquired and waited

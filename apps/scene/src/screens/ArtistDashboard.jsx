@@ -21,6 +21,7 @@ import BookingInvitation from '../components/BookingInvitation';
 import AvailabilitySection from '../components/AvailabilitySection';
 import { PROFILE_TYPES } from '../lib/profileTypes';
 import { completionFor } from '@yespleez/requirements';
+import { askCategoryLabel } from '@yespleez/ask-categories';
 
 // The artist's opportunity pipeline.
 //
@@ -143,6 +144,12 @@ function OutgoingEnquiryRow({ enq, badge, badgeColor, accent }) {
   const sentOn = enq.created_at ? formatDisplayDate(enq.created_at.slice(0, 10)) : '';
   const forDate = enq.date_requested ? formatDisplayDate(enq.date_requested) : null;
   const venueName = enq.venue?.name || 'A venue';
+  /**
+   * P12 — what this ask was FOR. ⛔ Null renders nothing: a historical row, an
+   * asker with no applicable category, or a key the registry no longer knows
+   * all mean "no chip", never a placeholder and never the raw key.
+   */
+  const askLabel = askCategoryLabel(enq.ask_category);
 
   return (
     <div style={{ background: 'var(--card2)', border: '1px solid var(--border)', borderRadius: 12, padding: '12px 14px' }}>
@@ -150,9 +157,21 @@ function OutgoingEnquiryRow({ enq, badge, badgeColor, accent }) {
         <span style={{ fontFamily: "'Bebas Neue'", fontSize: 16, letterSpacing: .5, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {venueName}
         </span>
-        <span style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1, color: badgeColor, flexShrink: 0 }}>
-          {badge}
-        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+          {/* ⭐ The chip says what was asked FOR. The pipeline badge beside it
+              says where it is up to. Two dimensions, never collapsed — the chip
+              must never read "Enquiry" or "Application". */}
+          {askLabel && (
+            <span style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1,
+                           padding: '2px 8px', borderRadius: 20, color: accent,
+                           border: `1px solid ${accent}`, opacity: .85 }}>
+              {askLabel.toUpperCase()}
+            </span>
+          )}
+          <span style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1, color: badgeColor }}>
+            {badge}
+          </span>
+        </div>
       </div>
       {/* The date asked about is the point of the enquiry — never buried. */}
       {forDate && (
@@ -262,7 +281,7 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
             supabase.from('applications').select('id, status, event_id, created_at').eq('from_profile_id', profileId).order('created_at', { ascending: false }).limit(50),
             supabase.from('lineup_members').select('event_id').eq('artist_profile_id', profileId).neq('status', 'removed'),
             supabase.from('venue_enquiries')
-              .select('id, status, created_at, date_requested, note, venue_profile_id, event_id')
+              .select('id, status, created_at, date_requested, note, venue_profile_id, event_id, ask_category')
               .eq('applicant_profile_id', profileId).eq('initiated_by', 'applicant')
               .order('created_at', { ascending: false }).limit(50),
           ])

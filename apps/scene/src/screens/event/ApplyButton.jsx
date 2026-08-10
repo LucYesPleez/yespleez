@@ -5,6 +5,7 @@ import { getPerformerProfiles } from '../../lib/actingProfile';
 import { track, EVENTS } from '../../lib/analytics';
 import { writeNotification } from '../../lib/writeNotification';
 import { listAssets } from '../../lib/profileAssetStore';
+import { resolveAskCategory } from '../../lib/askCategoryResolver';
 import { evaluate, columnsFor, snapshotEvaluation } from '@yespleez/requirements';
 /**
  * ⭐ The verdict display moved to the requirements package once a second
@@ -146,6 +147,19 @@ export default function ApplyButton({ eventId, userId, ownerProfile }) {
       requirements_snapshot: evaluation
         ? snapshotEvaluation(evaluation, opportunity?.required_items)
         : null,
+      /**
+       * P12 — what this application is asking FOR, frozen at creation.
+       *
+       * ⭐ Resolved from the ACTING profile's role, not from the event. The
+       * event's own category (`CATEGORY_BADGES`) is a different vocabulary
+       * describing a different subject, and translating between them is
+       * explicitly out of bounds — see the Ask Category design.
+       *
+       * ⛔ NULL is a real answer and is stored as one. `needsChoice` cannot
+       * fire here today: only performer profiles reach this button, and every
+       * performer role maps to exactly one category.
+       */
+      ask_category: resolveAskCategory(performers.find(p => p.id === actingId)).category,
     }).select('id').maybeSingle();
     setLoading(false);
     if (!error) {
