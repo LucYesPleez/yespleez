@@ -39,13 +39,22 @@ function EventRow({ event, onOpen, onDuplicate, onArchive, onDelete }) {
         </div>
       </div>
 
+      {/* ⭐ ONE action here is the journey; the other three are housekeeping.
+          Opening the event is what an organiser came to do, and Duplicate,
+          Archive and Delete are all rarer — two of them destructive. Four
+          same-weight buttons made the common one the hardest to find, so the
+          hierarchy is now carried by BORDER, not by a 4-value difference in
+          background lightness: exactly one bordered, filled control in the
+          cluster, and it names where it goes rather than saying "Open". */}
       <div className={s.actions}>
-        <Button size="sm" variant="secondary" onClick={onOpen}>Open</Button>
-        <Button size="sm" variant="quiet" onClick={onDuplicate}>Duplicate</Button>
-        <Button size="sm" variant="quiet" onClick={onArchive}>
+        <Button size="sm" variant="secondary" iconRight="chevron" onClick={onOpen}>
+          Open event
+        </Button>
+        <Button size="sm" variant="ghost" onClick={onDuplicate}>Duplicate</Button>
+        <Button size="sm" variant="ghost" onClick={onArchive}>
           {event.archived ? 'Restore' : 'Archive'}
         </Button>
-        <Button size="sm" variant="quiet" tone="decline" onClick={() => setConfirming(c => !c)}>
+        <Button size="sm" variant="ghost" tone="decline" onClick={() => setConfirming(c => !c)}>
           Delete
         </Button>
       </div>
