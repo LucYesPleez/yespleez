@@ -1476,6 +1476,9 @@ export default function ProfileScreen() {
           artist={profile}
           events={venueCtx.events}
           venueUserId={session.user.id}
+          // venueCtx.id IS the viewer's venue profile — passing it stops
+          // InviteSheet re-deriving a fact this screen already knows.
+          venueProfileId={venueCtx.id}
           initialDate={inviteDate || ''}
           onClose={() => { setInviteOpen(false); setInviteDate(null); }}
         />

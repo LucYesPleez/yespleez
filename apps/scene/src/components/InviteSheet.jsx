@@ -30,7 +30,23 @@ function fmtSlot(startHHMM, durationMin) {
   return `${fmt(start)}–${fmt(end)}`;
 }
 
-export default function InviteSheet({ artist, events = [], venueUserId, initialDate = '', onClose }) {
+/**
+ * ⭐ `venueProfileId` is PASSED IN, and the applicant's profile id is taken from
+ * the `artist` row itself. Both used to be looked up with
+ * `resolveProfileId(user_id, type)`, which returns null whenever the account is
+ * unknown — and an UNCLAIMED artist has no `user_id` at all, which is what
+ * unclaimed means. So inviting exactly the acts a venue is most likely to
+ * discover produced a row with no applicant profile on it.
+ *
+ * The callers already hold both ids (VenueDashboard's `profile.id`,
+ * ProfileScreen's `venueCtx.id`, and the artist row being invited), so the
+ * lookup was converting known facts into unknown ones.
+ *
+ * ⚠ This matters beyond tidiness: `venue_enquiries.applicant_profile_id` is
+ * about to become NOT NULL and part of the uniqueness key, so a null here stops
+ * being an incomplete row and becomes a rejected write.
+ */
+export default function InviteSheet({ artist, events = [], venueUserId, venueProfileId = null, initialDate = '', onClose }) {
   const navigate = useNavigate();
   const [eventId,   setEventId]   = useState('');
   const [headliner, setHeadliner] = useState('');
@@ -74,10 +90,36 @@ export default function InviteSheet({ artist, events = [], venueUserId, initialD
   async function handleSend() {
     setSending(true);
     setError('');
-    const [venueProfileId, applicantProfileId] = await Promise.all([
-      resolveProfileId(venueUserId, 'venue'),
-      resolveProfileId(artist.user_id, artist.type || 'artist'),
+    /**
+     * ⭐ Known facts, not lookups. `artist.id` IS the profile being invited —
+     * the caller opened this sheet from that row. The venue's profile id comes
+     * from the caller for the same reason.
+     *
+     * ⚠ The account-keyed fallbacks remain ONLY for a caller that has not been
+     * updated, and they are the old failure mode: `resolveProfileId` returns
+     * null for an unclaimed artist (no `user_id`), so the fallback cannot
+     * rescue the case that actually broke. It exists so an un-migrated caller
+     * degrades rather than throws.
+     */
+    const [resolvedVenueId, resolvedApplicantId] = await Promise.all([
+      venueProfileId ? Promise.resolve(venueProfileId) : resolveProfileId(venueUserId, 'venue'),
+      artist?.id     ? Promise.resolve(artist.id)     : resolveProfileId(artist?.user_id, artist?.type || 'artist'),
     ]);
+    const venueProfileIdFinal = resolvedVenueId;
+    const applicantProfileId  = resolvedApplicantId;
+
+    /**
+     * ⛔ REFUSE RATHER THAN WRITE AN UNATTRIBUTED ROW. An enquiry with no
+     * applicant profile cannot be shown on the artist's dashboard (it reads by
+     * `applicant_profile_id`), cannot be deduplicated once uniqueness moves to
+     * profile identity, and is the row shape M6c exists to clean up. Saying so
+     * beats creating one silently.
+     */
+    if (!applicantProfileId) {
+      setSending(false);
+      setError("That act has no profile to invite yet. Ask them to set one up, or invite them from their profile page.");
+      return;
+    }
     // Every key here is a real column (verified against the live schema,
     // 2026-07-17). Names match the table, not the UI's vocabulary:
     //   date_requested — the proposed date. NOT NULL, no default: the insert
@@ -103,7 +145,7 @@ export default function InviteSheet({ artist, events = [], venueUserId, initialD
       note:             message.trim() || null,
       initiated_by:     'venue',
       status:           'pending',
-      venue_profile_id:     venueProfileId,
+      venue_profile_id:     venueProfileIdFinal,
       applicant_profile_id: applicantProfileId,
       headliner:        headliner.trim() || null,
       slot_role:        slotRole || null,
@@ -133,7 +175,7 @@ export default function InviteSheet({ artist, events = [], venueUserId, initialD
     await writeNotification({
       toUserId:       artist.user_id,      // delivery
       toProfileId:    applicantProfileId,  // the invited profile
-      aboutProfileId: venueProfileId,      // the venue doing the inviting
+      aboutProfileId: venueProfileIdFinal, // the venue doing the inviting
       type:    'event_invite',
       message: `You've received an invite to perform${selectedEvent ? ` at ${selectedEvent.name}` : ''}.`,
       data:    { event_id: eventId || null, event_name: selectedEvent?.name || null, host_id: venueUserId, proposed_date: date || null, proposed_fee: fee || null },

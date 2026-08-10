@@ -309,6 +309,8 @@ export default function VenueDashboard({ userId: userIdProp }) {
           artist={inviteArtist}
           events={events.filter(ev => ev.status !== 'completed')}
           venueUserId={userId}
+          // The dashboard already loaded this venue's profile row.
+          venueProfileId={profile?.id ?? null}
           onClose={() => setInviteArtist(null)}
         />
       )}
