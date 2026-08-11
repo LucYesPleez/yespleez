@@ -5,7 +5,8 @@
       "name": "scene",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev", "--prefix", "apps/scene"],
-      "port": 5173
+      "port": 5173,
+      "autoPort": true
     },
     {
       "name": "festival",

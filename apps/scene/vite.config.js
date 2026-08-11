@@ -67,6 +67,23 @@ export default defineConfig({
   },
   server: {
     host: true,
+    /**
+     * ⚠ VITE DOES NOT READ `PORT` ON ITS OWN — only the `--port` flag. Without
+     * this line an agent harness that assigns a port through the environment is
+     * ignored, Vite takes 5173, finds it busy, and quietly walks up to the next
+     * free one. Everything then "works" while pointing at a port nobody named,
+     * which is precisely how a session ends up inspecting a DIFFERENT server
+     * than the one it started.
+     *
+     * ⛔ Unset stays 5173 — Vite's own default, and the one the local workflow
+     * assumes. This only makes an explicit instruction win; it introduces no
+     * new default.
+     *
+     * ⚠ A non-default port is a DIFFERENT ORIGIN to Supabase. Anything pinned
+     * to an origin allowlist (auth redirects) is only guaranteed on 5173, so
+     * sign-in flows should be exercised there.
+     */
+    port: Number(process.env.PORT) || 5173,
     // DEV ONLY — lets a phone reach this server through an HTTPS tunnel.
     //
     // Phones refuse microphone access on an insecure origin, and a LAN address
