@@ -119,7 +119,37 @@ export default function ProfileMenu({ session, unreadCount = 0, onSignOut, onOpe
     };
   }, [open]);
 
-  if (!session) return null;
+  /**
+   * ⭐ SIGNED OUT, THE SLOT IS THE ACCOUNT ENTRY POINT, NOT AN EMPTY SPACE
+   * (owner, 2026-08-12). With the auth wall gone this header is the one
+   * surface every anonymous visitor has, so the identity control's signed-out
+   * state is a SIGN IN button — same 44px geometry and 32px face as the
+   * signed-in control, so --yp-header-height cannot move between the two
+   * states, and no box, because this header draws none. The face is the Hand
+   * placeholder MessengerAvatar already renders with no src: the brand's own
+   * "no one here yet".
+   *
+   * ⚠ `data-tour="info"` stays on the signed-in control only. The tour's
+   * final step describes the account MENU; for a signed-out viewer the engine
+   * skips the missing anchor, exactly as it did when this branch was null.
+   */
+  if (!session) {
+    return (
+      <div className={s.wrap}>
+        <button
+          type="button"
+          className={s.control}
+          onClick={() => navigate('/auth')}
+          aria-label="Sign in or create an account"
+        >
+          <span className={`${s.name} ${s.signInName}`}>SIGN IN</span>
+          <span className={s.avatarWrap}>
+            <MessengerAvatar size={32} />
+          </span>
+        </button>
+      </div>
+    );
+  }
 
   const displayName =
     profile?.name?.trim()

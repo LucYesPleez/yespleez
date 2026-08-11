@@ -61,6 +61,10 @@
   white-space: nowrap;
 }
 
+/* The signed-out control's label. Same type as the name it stands in for; the
+   accent colour is the whole affordance, because this header draws no boxes. */
+.signInName { color: var(--neon2); }
+
 .avatarWrap {
   position: relative;
   display: inline-flex;
