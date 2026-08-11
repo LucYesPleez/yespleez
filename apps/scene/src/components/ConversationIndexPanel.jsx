@@ -167,6 +167,43 @@ export default function ConversationIndexPanel({ mode, messages, mine, profilesB
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
+  /**
+   * ⭐ THE APP'S OWN BACK ARROW CLOSES THIS PANEL.
+   *
+   * ⚠ The panel used to carry its own back button, removed 2026-08-11 as
+   * redundant — the global header draws one directly above it. But that arrow
+   * runs `navigate(-1)`, and a panel that is only React state is not a history
+   * entry, so pressing it did NOTHING while the panel was open. Removing the
+   * duplicate left no way out on touch at all: Escape covers a keyboard, and a
+   * phone has none.
+   *
+   * ⭐ So opening pushes an entry, and popping it closes the panel. That makes
+   * the header's arrow work AND Android's hardware back, which is the same
+   * gesture and would otherwise have left the conversation entirely.
+   *
+   * ⛔⛔ THE CLEANUP MUST NOT CALL `history.back()`. The obvious tidy-up — "if
+   * we closed some other way, remove the entry we pushed" — CLOSES THE PANEL
+   * THE INSTANT IT OPENS, and only in development, which is the worst place to
+   * find it. `back()` is ASYNCHRONOUS and StrictMode double-invokes effects:
+   *
+   *     effect  → push          cleanup → back() queued
+   *     effect  → push again, listener attached
+   *     …the queued back() lands → the NEW listener fires → onClose
+   *
+   * Observed 2026-08-11: the panel flashed and vanished, history sitting back
+   * at idx 0. ⚠ Accept the stale entry instead — closing by Escape or by
+   * jumping leaves one dead back-press behind, which is invisible and harmless
+   * next to a panel that will not stay open.
+   */
+  useEffect(() => {
+    window.history.pushState({ ypIndexPanel: true }, '');
+    const onPop = () => onClose();
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+    // ⛔ Mount only. Re-running would push a second entry for one open panel.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const entries = useMemo(() => {
     if (mode === 'media') return mediaEntries(messages);
     if (mode === 'files') return fileEntries(messages);
@@ -181,18 +218,60 @@ export default function ConversationIndexPanel({ mode, messages, mine, profilesB
     <div
       role="dialog" aria-modal="true" aria-label={INDEX_LABELS[mode]}
       style={{
-        position: 'fixed', top: 0, left: 0, right: 0,
+        position: 'fixed',
+        /**
+         * ⚠ BELOW THE GLOBAL HEADER, NOT AT THE TOP OF THE VIEWPORT.
+         *
+         * This was `top: 0`, so the panel's own title and back arrow rendered
+         * UNDER the YESPLEEZ banner — "Links" sat on top of the wordmark. It
+         * reads as a rendering fault rather than a stacking one, which is why
+         * it survived: the panel is drawn correctly, just in a space that is
+         * already occupied.
+         *
+         * ⭐ `--yp-header-height` is published by GlobalHeader and MEASURED with
+         * getBoundingClientRect, so it accounts for the safe-area inset on a
+         * notched phone rather than assuming a number. The fallback matches the
+         * one the rest of the app uses for the same variable.
+         */
+        top: 'var(--yp-header-height, 56px)', left: 0, right: 0,
         bottom: 'var(--yp-safe-bottom, var(--yp-nav-height, 64px))',
         margin: '0 auto', width: 'min(100%, 680px)',
-        background: 'rgba(10,9,13,.99)', zIndex: 300,
+        background: 'rgba(10,9,13,.99)',
+        /**
+         * ⭐ BELOW THE GLOBAL HEADER (199), NOT ABOVE IT.
+         *
+         * ⚠ This was 300, and that is what produced the hard horizontal line.
+         * The header already draws a 32px soft bottom edge — a `::after` that
+         * hangs BELOW its box into the page's space (owner, 2026-08-04: "blends
+         * into the page content instead of ending with a hard horizontal edge").
+         * A panel stacked above the header covers exactly that falloff, so the
+         * fade was still being drawn and simply never seen.
+         *
+         * ⛔ Do not add a second gradient here. The one that exists is tied to
+         * `--yp-header-bg-a` and moves with the header on scroll; a static copy
+         * in this panel would drift out of step with it the moment the header
+         * hides or its background fades in.
+         *
+         * ⚠ It also keeps the header INTERACTIVE while the panel is open, which
+         * is what lets its back arrow close this.
+         */
+        zIndex: 190,
         display: 'flex', flexDirection: 'column',
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 14px 10px', borderBottom: '1px solid rgba(255,255,255,.08)', flexShrink: 0 }}>
-        <button type="button" onClick={onClose} aria-label="Back" style={{ background: 'none', border: 'none', color: 'var(--text)', cursor: 'pointer', display: 'flex', padding: 4 }}>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 6l-6 6 6 6" /></svg>
-        </button>
-
+      {/**
+        * ⚠ NO DIVIDER, NO BACK ARROW (owner, 2026-08-11).
+        *
+        * The rule underneath both: this panel sits directly beneath the global
+        * header, which already draws a back arrow and already separates itself
+        * from the content below it. A second arrow one row down asked "back to
+        * what?", and a second horizontal rule drew a line immediately under the
+        * one the header ends with.
+        *
+        * ⛔ Do not reinstate either without moving the panel away from the
+        * header — they only read as clutter BECAUSE the header is adjacent.
+        */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 14px 10px', flexShrink: 0 }}>
         {mode === 'search' ? (
           <input
             autoFocus
