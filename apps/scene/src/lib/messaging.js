@@ -64,7 +64,7 @@ const CONVERSATION_COLUMNS =
  * `messaging.columns.test.js` fails if either name is dropped again.
  */
 const MESSAGE_COLUMNS =
-  'id, conversation_id, from_profile_id, from_user_id, body, kind, payload, created_at';
+  'id, conversation_id, from_profile_id, from_user_id, body, kind, payload, created_at, deleted_at, deleted_by';
 
 /**
  * Postgres unique-violation, and the index that carries our idempotency key.
@@ -580,4 +580,51 @@ export async function resolveSenderProfile(conversationId) {
 export async function totalUnread() {
   const { data, error } = await supabase.rpc('total_unread_count');
   return { count: error ? 0 : (data ?? 0), error: error ?? null };
+}
+
+/**
+ * UNSEND — withdraw a message you sent.
+ *
+ * ⚠⚠ THE UPDATE SETS ONE COLUMN, AND THAT IS THE WHOLE INTERFACE. `deleted_at`
+ * is sent as a mere signal of intent; U1's trigger throws away the value and
+ * every other column the request carries, then writes the redaction itself. So
+ * this cannot be turned into an edit by adding a field here — the server would
+ * discard it. Do not "improve" this by sending the tombstone body from the
+ * client; that would be the app asserting what the record becomes, which is
+ * exactly what the trigger exists to prevent.
+ *
+ * ⭐ `.select()` IS SAFE HERE, unlike on insert. The read-back failure that
+ * caused duplicate sends mattered because a retry re-inserted; withdrawing is
+ * idempotent in the only direction that counts — the second attempt is refused
+ * by the trigger because the row is already withdrawn, so a lost response can
+ * never produce a second effect. Realtime carries the redaction to both sides.
+ *
+ * @returns {Promise<{message: object|null, error: object|null}>}
+ */
+export async function unsendMessage(messageId) {
+  if (!messageId) return { message: null, error: new Error('messageId is required') };
+
+  const { data, error } = await supabase
+    .from('messages')
+    .update({ deleted_at: new Date().toISOString() })
+    .eq('id', messageId)
+    .select(MESSAGE_COLUMNS)
+    .maybeSingle();
+
+  /**
+   * ⚠ ZERO ROWS IS THE WINDOW CLOSING, NOT A BUG. RLS filters the UPDATE
+   * rather than refusing it, so a message past its 15 minutes — or one sent by
+   * somebody else — simply matches nothing and returns `null` with no error.
+   * Reporting that as success would leave the sender believing a message was
+   * withdrawn while the other person still has it, which is the exact shape of
+   * the duplicate-send defect: a silent failure that looks like a win.
+   */
+  if (!error && !data) {
+    return {
+      message: null,
+      error: new Error('That message can no longer be unsent.'),
+    };
+  }
+
+  return { message: data ?? null, error: error ?? null };
 }

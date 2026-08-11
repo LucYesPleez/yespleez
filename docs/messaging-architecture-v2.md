@@ -135,6 +135,33 @@ kinds the **fallback** an older client or a screen reader says) and `payload`
 `payload` is deliberately **not** validated per kind — a CHECK per kind would
 need rewriting on every addition. The renderer owns its own payload shape.
 
+### Unsend (U1) — messages are no longer immutable
+
+*Files: `supabase/migrations/20260811000000_u1_message_unsend.sql`;
+`v2/src/lib/unsend.js`, `messaging.js#unsendMessage`.*
+
+The baseline's "IMMUTABLE in v1 … removal right deferred, not denied" is now
+taken up. A sender may withdraw their own message for **15 minutes**.
+
+It is a **tombstone, not a delete**: the row survives with `deleted_at`,
+`deleted_by`, `body` replaced by a sentinel and `payload` emptied. A hard
+DELETE would corrupt everything counted from `messages` — unread counts,
+`last_message_at` — and leave a hole rather than an acknowledgement.
+
+⚠⚠ **The UPDATE policy grants the power to rewrite history, and the trigger is
+the only thing that does not.** `redact_message_on_unsend` rebuilds the row
+from `OLD` and discards every value the client sent, so an UPDATE that also
+tried to change `body`, `kind` or the author changes none of them. The client's
+UPDATE expresses **intent only**. ⛔ Never send the tombstone body from the app.
+
+⚠ The 15 minutes is enforced in the policy. `lib/unsend.js` mirrors it purely
+to decide what to OFFER; if the two disagree, the app is wrong.
+
+⚠ The realtime channel now subscribes to **UPDATE as well as INSERT**. Without
+that the recipient's open conversation keeps displaying withdrawn text until
+they reload — the sender told, truthfully, that it was withdrawn while it sits
+on the other screen.
+
 ### The canonical list
 
 `messages_kind_valid`:

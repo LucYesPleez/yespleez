@@ -3,9 +3,10 @@ import { supabase } from '../lib/supabase';
 import { useSession } from '../App';
 import {
   listMessages, listParticipants, actableProfileIds,
-  markConversationRead,
+  markConversationRead, unsendMessage,
   markConversationDelivered, conversationReceipts, receiptChannelName,
 } from '../lib/messaging';
+import { canUnsend, isUnsent, unsendRemainingLabel } from '../lib/unsend';
 import { prepareImage, describeOriginal, formatBytes as formatImageBytes } from '../lib/messageImages';
 import { safeName, isLosslessAudio, isPlayableAudio, WAVE_CEILING_BYTES, MAX_BYTES, formatBytes } from '../lib/messageFiles';
 import { computeWave } from '../lib/voiceWave';
@@ -15,6 +16,8 @@ import { playReactionLand } from '../lib/uiSound';
 import ProfileLink from './ProfileLink';
 import MessageActionSheet from './MessageActionSheet';
 import Composer, { COMPOSER_HEIGHT } from './Composer';
+import { stageClearance } from './VoiceyStage';
+import { useVoiceyStage } from '../hooks/useVoiceyStage';
 import AudioSendSheet from './AudioSendSheet';
 import ConversationIndexPanel from './ConversationIndexPanel';
 import { useConversationUi } from '../lib/conversationUi';
@@ -415,6 +418,13 @@ export default function ConversationView({ conversationId, compact = false, onMi
   // and passed to the sheet, which is `position: fixed` — the thread scrolls
   // and the bar must not travel with it mid-gesture.
   const [actionSheet, setActionSheet] = useState(null);
+
+  /**
+   * Whether the oversized Voicey stage is raised. Read here purely so the
+   * thread can reserve room for it — the composer owns the gesture and the
+   * preference; this view only gets out of its way.
+   */
+  const [stageRaised] = useVoiceyStage();
   /**
    * Latest moment any OTHER participant read this thread — the EQ receipt's
    * top rung. ONE timestamp for the whole conversation, not a flag per message:
@@ -477,6 +487,22 @@ export default function ConversationView({ conversationId, compact = false, onMi
     if (!el || !sel) return;
     try { el.setSelectionRange(sel.start, sel.end); } catch { /* input may not support it */ }
   }, [conversationId, getState]);
+
+  /**
+   * WITHDRAW A MESSAGE.
+   *
+   * ⚠ NO OPTIMISTIC UPDATE, DELIBERATELY. Painting the tombstone before the
+   * server agrees would show "This message was deleted" for a withdrawal that
+   * was actually refused — the window having closed being the ordinary case —
+   * and the sender would walk away believing it was gone. That is the same
+   * silent-success shape as the duplicate-enquiry defect. The row comes back
+   * redacted, or an error is shown; nothing in between.
+   */
+  async function onUnsend(messageId) {
+    const { message, error } = await unsendMessage(messageId);
+    if (error) { setError(error.message || 'That message could not be unsent.'); return; }
+    if (message) setMessages(prev => prev.map(m => (m.id === message.id ? { ...m, ...message } : m)));
+  }
 
   function rememberSelection() {
     const el = inputRef.current;
@@ -647,6 +673,26 @@ export default function ConversationView({ conversationId, compact = false, onMi
           }
         }
       })
+      /**
+       * ⚠⚠ WITHOUT THIS, UNSEND IS A LIE ON THE OTHER PERSON'S SCREEN. The
+       * redaction is an UPDATE, and this channel only ever listened for
+       * INSERT — so the row would be withdrawn in the database while the
+       * recipient's open conversation went on displaying the original text
+       * until they happened to reload. The sender would have been told it was
+       * withdrawn, truthfully, and it would still be on screen.
+       *
+       * ⭐ No dedupe branch and no append: an UPDATE is always a row we already
+       * have, so this replaces in place. A message that is NOT in the list is
+       * deliberately ignored rather than added — it would arrive with its body
+       * already redacted and appear as a tombstone for something the reader
+       * never saw.
+       */
+      .on('postgres_changes', {
+        event: 'UPDATE', schema: 'public', table: 'messages',
+        filter: `conversation_id=eq.${conversationId}`,
+      }, ({ new: row }) => {
+        setMessages(prev => prev.map(m => (m.id === row.id ? { ...m, ...row } : m)));
+      })
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
@@ -729,6 +775,27 @@ export default function ConversationView({ conversationId, compact = false, onMi
     if (atBottomRef.current) el.scrollTop = el.scrollHeight;
     else if (saved != null) el.scrollTop = saved;
   }, [messages.length, conversationId, getState]);
+
+  /**
+   * Follow the last message when the stage rises or falls.
+   *
+   * ⚠ THE PADDING ALONE IS NOT ENOUGH. Reserving space stops the panel COVERING
+   * the thread, but the scroll position does not move with it: someone reading
+   * the newest message who raises the stage keeps their old offset, so the
+   * message they were looking at slides up out of view and the space opens
+   * below it. The thread looks like it jumped.
+   *
+   * ⛔ Only when they were already at the bottom — the same rule the effect
+   * above follows. Yanking someone reading history down to the newest message
+   * because a panel opened is the defect that rule exists to prevent.
+   */
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || !atBottomRef.current) return;
+    // After the padding change has been applied, or scrollHeight is the old one.
+    const id = requestAnimationFrame(() => { el.scrollTop = el.scrollHeight; });
+    return () => cancelAnimationFrame(id);
+  }, [stageRaised]);
 
   /**
    * Tell the other side a rung has been reached.
@@ -1397,12 +1464,30 @@ export default function ConversationView({ conversationId, compact = false, onMi
     // instead of on the bubble. Every other kind keeps double-tap. Flagged to
     // the owner rather than solved here, because the fix is a product choice
     // (a gesture on the viewer, or a corner affordance) and not a tidy-up.
-    if (typeof sheetMessage.body === 'string' && sheetMessage.body) {
+    // Nothing to copy from a withdrawn message — its body is the tombstone
+    // sentence, not anything the sender wrote.
+    if (typeof sheetMessage.body === 'string' && sheetMessage.body && !isUnsent(sheetMessage)) {
       sheetActions.push({
         key: 'copy',
         label: 'Copy text',
         icon: '⧉',
         onSelect: () => { navigator.clipboard?.writeText(sheetMessage.body).catch(() => {}); },
+      });
+    }
+
+    /**
+     * UNSEND. Offered only while the server would actually allow it — see
+     * lib/unsend. ⭐ The remaining time is IN THE LABEL rather than hidden
+     * behind the tap: a withdrawal people believe is permanent, offered with no
+     * hint that it expires, is a promise the product cannot keep.
+     */
+    if (canUnsend(sheetMessage, session?.user?.id)) {
+      sheetActions.push({
+        key: 'unsend',
+        label: `Unsend · ${unsendRemainingLabel(sheetMessage)}`,
+        icon: '⟲',
+        destructive: true,
+        onSelect: () => { void onUnsend(sheetMessage.id); },
       });
     }
   }
@@ -1708,7 +1793,21 @@ export default function ConversationView({ conversationId, compact = false, onMi
           // underneath it. Margin moves the box; padding protects what is in
           // it — they are not cancelling each other out.
           marginBottom: -composerBleed(),
-          padding: `22px 18px ${composerBleed() + 8}px`,
+          /**
+           * ⚠⚠ THE RAISED STAGE ADDS TO THIS, OR MESSAGES HIDE BEHIND IT.
+           *
+           * The oversized Voicey panel is absolutely positioned, so it takes no
+           * space in layout and simply covers the bottom of the thread. Owner:
+           * "the top of the button needs to be the bottom of the message window
+           * so messages don't get lost behind the button."
+           *
+           * Padding rather than margin, for the same reason as the line above:
+           * the wallpaper stays painted on this box and keeps running behind
+           * everything, while the CONTENT stops where the panel starts.
+           */
+          padding: stageRaised
+            ? `22px 18px calc(${composerBleed() + 8}px + ${stageClearance(COMPOSER_HEIGHT)})`
+            : `22px 18px ${composerBleed() + 8}px`,
           // THE MESSAGE LIST OWNS VERTICAL SCROLLING, AND KEEPS IT.
           //
           // `contain` stops the scroll CHAINING outward when the thread reaches
@@ -1934,6 +2033,35 @@ function RecoveredDraftBanner({ url, durationMs, onSend, onDiscard }) {
         Send
       </button>
     </div>
+  );
+}
+
+/**
+ * A WITHDRAWN MESSAGE — what is left after an unsend.
+ *
+ * ⭐ IT STAYS IN THE THREAD ON PURPOSE. Removing the bubble entirely would make
+ * a conversation change shape behind someone's back, and leave "did you delete
+ * something?" unanswerable. Both people see that something was said and taken
+ * back, which is the honest account and the one that ends the argument.
+ *
+ * Quiet, italic, no tail and no reactions: it is a note about the conversation
+ * rather than a contribution to it.
+ */
+function Withdrawn({ isMine }) {
+  return (
+    <span
+      style={{
+        display: 'inline-flex', alignItems: 'center', gap: 6,
+        fontSize: 13, fontStyle: 'italic',
+        color: 'rgba(255,255,255,.42)',
+        padding: '2px 0',
+      }}
+    >
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+        <path d="M9 14 4 9l5-5" /><path d="M4 9h10a6 6 0 0 1 0 12H7" />
+      </svg>
+      {isMine ? 'You unsent this message' : 'This message was unsent'}
+    </span>
   );
 }
 
@@ -2178,7 +2306,14 @@ function MessageBubble({ message, isMine, grouped = false, endsBurst = true, spe
         {/* The bubble owns the CONTAINER — alignment, tail, spacing — and knows
             nothing about kinds. Content comes from the registry, so a new kind
             is a renderer there and no change here. */}
-        {renderMessage(message, { receipt })}
+        {/* ⚠ THE TOMBSTONE SHORT-CIRCUITS THE REGISTRY. A withdrawn message is
+            no longer a voice note or a photo — its payload was emptied by the
+            server — so handing it to the renderer for its `kind` would ask a
+            player for segments that are gone and an image for a URL that is
+            not there. It is one sentence in italics, whatever it used to be. */}
+        {isUnsent(message)
+          ? <Withdrawn isMine={isMine} />
+          : renderMessage(message, { receipt })}
 
         {/* ALWAYS VISIBLE, never on tap.
 
