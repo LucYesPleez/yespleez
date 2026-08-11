@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   listConversations, listParticipants, actableProfileIds, sendMessage,
 } from '../lib/messaging';
@@ -33,6 +34,7 @@ import {
  * this list.
  */
 export default function SendToConversationSheet({ title, buildMessage, onClose, onSent }) {
+  const queryClient = useQueryClient();
   const [rows, setRows]       = useState(null);   // null = still loading
   const [query, setQuery]     = useState('');
   const [sendingTo, setSending] = useState(null);
@@ -121,6 +123,32 @@ export default function SendToConversationSheet({ title, buildMessage, onClose, 
     // first send is what makes that feel like three.
     setSentTo(prev => new Set(prev).add(row.id));
     setLastSent(row.who);
+
+    /**
+     * ⭐⭐ TELL THE INBOX. THE SENDER MUST NOT LEARN OF ITS OWN SEND FROM THE
+     * SERVER.
+     *
+     * ⚠ Reported 2026-08-11: share an event from an event page, then tap
+     * Messages — the conversation is not at the top and shows no new preview.
+     * "I have to click into the chat window or refresh the page."
+     *
+     * The inbox re-orders on a Postgres realtime INSERT, and that listener
+     * lives in InboxScreen's effect — so it only exists WHILE THAT SCREEN IS
+     * MOUNTED. Sending from an event page means nothing is listening, the
+     * event is missed, and the cached list stays as it was. It looked like a
+     * send failure and it was a send that nobody told the list about.
+     *
+     * ⛔ Do not "fix" this by widening the realtime subscription. A client
+     * knows what it just sent; making it wait for a round trip to find out is
+     * the actual mistake, and on a phone that socket drops constantly.
+     *
+     * ⚠ Keyed on the PREFIX, not `['inbox', userId]` — this sheet does not
+     * know the viewer's account id, and the sender is by definition the only
+     * inbox cached in this browser. Marking it stale is enough: an inbox on
+     * screen refetches at once, one that is not refetches when it next mounts,
+     * which is exactly the moment the reader looks at it.
+     */
+    queryClient.invalidateQueries({ queryKey: ['inbox'] });
 
     /**
      * ⭐ A HAPTIC, BECAUSE THIS FAILED ON A PHONE (owner, 2026-08-11).
