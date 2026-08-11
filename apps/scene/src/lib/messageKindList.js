@@ -192,6 +192,21 @@ export const KIND_SHAPE = {
     radius: 18,
     padding: 5,
   },
+
+  /**
+   * A shared event. Same treatment as a document and for the same reason: the
+   * card draws its own border and cover, so the bubble's usual 12/16 would put
+   * a frame around a frame — the exact mistake the composer capsule was
+   * redesigned to remove.
+   *
+   * Keeps the TAIL. Sharing an event is something a person did in the middle
+   * of a conversation, not an object that arrived, so it should read as one of
+   * their turns.
+   */
+  event: {
+    radius: 18,
+    padding: 4,
+  },
 };
 
 /** Geometry overrides for this kind, or null for a standard bubble. */

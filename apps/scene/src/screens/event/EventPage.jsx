@@ -35,6 +35,8 @@ import { navigationUrl } from '../../lib/navigateTo';
 import { venueMapImageUrl } from '../../lib/venueMap';
 import { profileUrl } from '../../lib/profileResolution';
 import { shareUrl } from '../../lib/shareTarget';
+import SendToConversationSheet from '../../components/SendToConversationSheet';
+import { eventCardBody, eventCardPayload } from '../../lib/eventCard';
 
 export default function EventPage({
   event,
@@ -55,6 +57,10 @@ export default function EventPage({
 }) {
   const navigate = useNavigate();
   const [collected, setCollected] = useState(false);
+  // The "send to a conversation" sheet. Mounted only while open, so its
+  // conversation fetch runs when someone asks for it rather than on every
+  // event page view.
+  const [sendOpen, setSendOpen] = useState(false);
 
   // § 11 — logos for everyone involved. Loaded after the page renders: the
   // collectables shelf is the LAST section and must never delay the Hero or
@@ -108,6 +114,7 @@ export default function EventPage({
   }
 
   return (
+    <>
     <EventPageLayout
       hero={<EventHero {...v.hero} alt={v.name} />}
 
@@ -127,6 +134,10 @@ export default function EventPage({
           attending={v.summary.attending}
           description={v.summary.description}
           onShare={share}
+          // ⚠ ABSENT when there is nobody to send to. A signed-out reader has
+          // no conversations, so the control is not rendered rather than
+          // rendered-and-dead (R3) — the same rule the heart above follows.
+          onSendToChat={canFavourite ? () => setSendOpen(true) : null}
           onAddToScene={canFavourite && onToggleFavourite ? onToggleFavourite : null}
           websiteUrl={null}
         />
@@ -224,5 +235,25 @@ export default function EventPage({
 
       informationSources={<EventSources {...v.sources} />}
     />
+
+    {sendOpen && (
+      <SendToConversationSheet
+        title={v.name}
+        // ⭐ Built at SEND time, not at open time. The snapshot should record
+        // the event as it is when it is actually shared — an open sheet left
+        // sitting while the organiser edits the event would otherwise send a
+        // card that was already out of date on arrival.
+        buildMessage={() => ({
+          kind: 'event',
+          // ⚠ `v`, NOT `event`. The view model has already resolved the date
+          // out of `config` and honoured a WITHHELD venue; the raw row has
+          // done neither. See the note at the top of lib/eventCard.
+          body: eventCardBody(v),
+          payload: eventCardPayload(event.id, v),
+        })}
+        onClose={() => setSendOpen(false)}
+      />
+    )}
+    </>
   );
 }

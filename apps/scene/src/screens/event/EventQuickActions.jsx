@@ -9,11 +9,12 @@
 // own: EventSummaryCard supplies the border, the fill and the divider above.
 // Rendering it standalone gives an unbordered row, which is intentional.
 
-import { ShareIcon, SceneIcon, GlobeIcon } from './eventIcons';
+import { ShareIcon, SendIcon, SceneIcon, GlobeIcon } from './eventIcons';
 import s from './EventSections.module.css';
 
 export default function EventQuickActions({
   onShare = null,
+  onSendToChat = null,
   onAddToScene = null,
   websiteUrl = null,
 }) {
@@ -21,6 +22,23 @@ export default function EventQuickActions({
   const actions = [];
 
   if (onShare) actions.push({ key: 'share', label: 'SHARE', Icon: ShareIcon, onClick: onShare });
+
+  /**
+   * SEND — into a YesPleez conversation, as an event card.
+   *
+   * ⭐ A SEPARATE ACTION FROM SHARE, NOT A ROW INSIDE IT. They are different
+   * acts with different destinations: SHARE sends people OUT of the app with a
+   * link, this one keeps it in and arrives as something the recipient can act
+   * on. Folding it into SHARE would bury the in-app path behind the one that
+   * leaves.
+   *
+   * ⚠ Absent, not disabled, when the caller has nobody to send to — a signed-
+   * out reader has no conversations, and a control that admits it is dead is
+   * still a dead control (R3).
+   */
+  if (onSendToChat) {
+    actions.push({ key: 'send', label: 'SEND', Icon: SendIcon, onClick: onSendToChat });
+  }
 
   // "MY SCENE", not "ADD TO MY SCENE" — the long form measured 108px in a
   // 108px cell, fitting with zero margin, so any font fallback or a narrower

@@ -41,6 +41,7 @@ import { KINDS, LABELS, handScale, HAND_SCALE_MIN } from './messageKindList';
 import VoiceMessage from '../components/VoiceMessage';
 import ImageMessage from '../components/ImageMessage';
 import FileMessage from '../components/FileMessage';
+import EventMessage from '../components/EventMessage';
 import HandIcon from '../components/HandIcon';
 
 /** Text is the only kind with a renderer today. Everything else falls back. */
@@ -107,6 +108,10 @@ const RENDERERS = {
   // M12. A row, not a preview — rendering someone else's document inside the
   // thread is the one thing this kind must not do. See `FileMessage`.
   file:  message => <FileMessage message={message} />,
+  // An event shared into the conversation. ⭐ The `event` kind has been legal
+  // since the baseline and had no author until sharing; this is one import and
+  // one line, which is what the registry was built before the feature for.
+  event: message => <EventMessage message={message} />,
 };
 
 /**

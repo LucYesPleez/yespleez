@@ -7,6 +7,11 @@ const svg = (size, cls, children) => (
 );
 
 export const ShareIcon    = ({ size = 16, className }) => svg(size, className, <><path d="M12 3v13" /><path d="M8 7l4-4 4 4" /><path d="M4 14v5a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5" /></>);
+// SEND INTO A CONVERSATION — a speech bubble with an arrow, not a paper plane.
+// The plane is the universal "send a message" mark and would read as composing
+// a new one; this action puts the event into a conversation that already
+// exists, which is what the bubble says.
+export const SendIcon     = ({ size = 16, className }) => svg(size, className, <><path d="M21 11.5a8.4 8.4 0 0 1-9 8.3 9 9 0 0 1-3.3-.6L3 21l1.9-5.4A8.3 8.3 0 0 1 4 11.5 8.4 8.4 0 0 1 12.5 3 8.4 8.4 0 0 1 21 11.5z" /><path d="M9 12h6M12.5 9l3 3-3 3" /></>);
 export const CalendarIcon = ({ size = 16, className }) => svg(size, className, <><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 10h18M8 3v4M16 3v4" /></>);
 // ADD TO MY SCENE — a plus against the app's own concept, not a calendar. The
 // distinction matters: this puts the event into the reader's scene, it does not

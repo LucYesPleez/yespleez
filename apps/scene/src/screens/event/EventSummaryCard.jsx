@@ -44,6 +44,7 @@ export default function EventSummaryCard({
   attending = null,
   description = '',
   onShare = null,
+  onSendToChat = null,
   onAddToScene = null,
   websiteUrl = null,
   sticky = true,
@@ -57,7 +58,7 @@ export default function EventSummaryCard({
   const body = typeof description === 'string' ? description.trim() : '';
   const showDescription = !!body;
 
-  const showActions = !!(onShare || onAddToScene || websiteUrl);
+  const showActions = !!(onShare || onSendToChat || onAddToScene || websiteUrl);
 
   // R1 · absent. No band survived, so there is no card.
   if (!showStatus && !showDescription && !showActions) return null;
@@ -92,6 +93,7 @@ export default function EventSummaryCard({
         <div className={s.band}>
           <EventQuickActions
             onShare={onShare}
+            onSendToChat={onSendToChat}
             onAddToScene={onAddToScene}
             websiteUrl={websiteUrl}
           />
