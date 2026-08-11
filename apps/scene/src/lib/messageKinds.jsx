@@ -38,6 +38,7 @@
  */
 export { KINDS, LABELS, isKind, isBareKind, BARE_KINDS, canReceiveHand, UNHANDABLE_KINDS, shapeFor, KIND_SHAPE, materialFor, KIND_MATERIAL } from './messageKindList';
 import { KINDS, LABELS, handScale, HAND_SCALE_MIN } from './messageKindList';
+import { linkify } from './linkify';
 import VoiceMessage from '../components/VoiceMessage';
 import ImageMessage from '../components/ImageMessage';
 import FileMessage from '../components/FileMessage';
@@ -45,10 +46,46 @@ import EventMessage from '../components/EventMessage';
 import HandIcon from '../components/HandIcon';
 
 /** Text is the only kind with a renderer today. Everything else falls back. */
+/**
+ * ⭐ A URL TYPED INTO A MESSAGE IS CLICKABLE ON SIGHT — no menu, no long press.
+ *
+ * ⛔ `message.body` IS NOT MODIFIED. `linkify` returns tokens whose values
+ * concatenate back to the exact input, so copy, notification previews and
+ * screen readers keep reading the one authoritative string. The link exists
+ * only in the rendering.
+ *
+ * ⛔ REACT ELEMENTS, NEVER AN HTML STRING. Auto-linking text other people
+ * wrote is an injection surface, and `dangerouslySetInnerHTML` is the way it
+ * becomes one. The tokeniser returns data and this maps it to elements, so
+ * nothing typed into a message can ever execute.
+ *
+ * ⚠ `stopPropagation` is what keeps the bubble's own behaviour off the link:
+ * MessageBubble treats a tap as its own gesture, and without this a link tap
+ * would fire both. ⭐ A LONG press on a link still opens the action sheet
+ * rather than navigating — the bubble's existing click-suppression runs in the
+ * capture phase and swallows the click the long press produces, which is the
+ * behaviour we want and costs nothing here.
+ *
+ * `underline` rather than a colour: the thread has bubbles in several
+ * materials (mine, theirs, tinted kinds) and one accent cannot stay legible on
+ * all of them, whereas an underline reads as a link on any background.
+ */
 function renderText(message) {
+  const tokens = linkify(message.body);
   return (
     <div style={{ color: 'var(--text)', fontSize: 14, lineHeight: 1.45, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-      {message.body}
+      {tokens.map((t, i) => t.type === 'url' ? (
+        <a
+          key={i}
+          href={t.href}
+          target="_blank"
+          // ⛔ `noopener` is not optional: without it the opened page gets a
+          // handle on this one through `window.opener`.
+          rel="noopener noreferrer"
+          onClick={e => e.stopPropagation()}
+          style={{ color: 'inherit', textDecoration: 'underline', textUnderlineOffset: 2 }}
+        >{t.value}</a>
+      ) : t.value)}
     </div>
   );
 }

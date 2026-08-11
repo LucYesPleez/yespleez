@@ -1,4 +1,5 @@
 import { isPlayableAudio } from './messageFiles';
+import { linkify } from './linkify';
 
 /**
  * THE CONVERSATION INDEXES — Media, Files, Links, Search.
@@ -71,13 +72,26 @@ export function fileEntries(messages) {
  * "Open Link" and for display — a message that shared several links is rare
  * enough that this is an acceptable simplification rather than a defect.
  */
-const URL_PATTERN = /\bhttps?:\/\/[^\s<>"')\]]+/gi;
-
-/** The first http(s) URL in a string, or null. Exported so it has its own test. */
+/**
+ * ⛔ ONE DEFINITION OF "WHAT IS A LINK", AND IT LIVES IN lib/linkify.
+ *
+ * ⚠ This used to carry its own `/\bhttps?:\/\/[^\s<>"')\]]+/` — scheme only.
+ * The moment the thread began auto-linking bare domains (slice 0a), the two
+ * disagreed on the exact case the feature was asked for: "Check yespleez.com"
+ * rendered a clickable link in the bubble and did not appear in this list at
+ * all. Two matchers agree until one of them is improved.
+ *
+ * ⭐ IT RETURNS THE `href`, NOT THE TYPED TEXT — and that is load bearing.
+ * `LinkRow` does `new URL(url).hostname` (which THROWS on a bare domain, so
+ * the row would show the raw string) and puts the same value in `href` (where
+ * a bare domain is a RELATIVE path, so "yespleez.com" would navigate inside
+ * the app instead of out to the web). The scheme-qualified form is correct for
+ * both, and for a scheme URL it is unchanged from what this always returned.
+ */
 export function firstUrl(text) {
   if (!text) return null;
-  const match = String(text).match(URL_PATTERN);
-  return match ? match[0].replace(/[.,;:!?]+$/, '') : null;   // trailing punctuation is prose, not the address
+  const token = linkify(String(text)).find(t => t.type === 'url');
+  return token ? token.href : null;
 }
 
 export function linkEntries(messages) {

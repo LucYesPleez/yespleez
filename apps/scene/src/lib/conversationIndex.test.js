@@ -95,6 +95,46 @@ test('⚠ one entry per MESSAGE, not per url — a message is one thing said', (
   assert.equal(out[0].url, 'https://a.com', 'the first link represents the message');
 });
 
+/**
+ * ⛔⛔ ONE DEFINITION OF "WHAT IS A LINK". This list used to carry its own
+ * scheme-only regex; the moment the thread began auto-linking bare domains the
+ * two disagreed on exactly the case the feature was asked for — "Check
+ * yespleez.com" was clickable in the bubble and absent from this list.
+ */
+test('⛔ the Links list and the thread agree on what a link is', async () => {
+  const { linkify } = await import('./linkify.js');
+  ['Check out yespleez.com — this is the new site.',
+   'www.bellobrewery.com.au/whats-on',
+   'https://soundcloud.com/x/y',
+   'README.md is not a link',
+   'lucious.aus@gmail.com',
+   'no links here'].forEach(body => {
+    const fromThread = linkify(body).find(t => t.type === 'url')?.href ?? null;
+    assert.equal(firstUrl(body), fromThread, `disagreement on: ${body}`);
+  });
+});
+
+test('a bare domain now reaches the Links list', () => {
+  assert.equal(firstUrl('Check out yespleez.com — this is the new site.'), 'https://yespleez.com');
+});
+
+/**
+ * ⭐ LOAD BEARING: `LinkRow` feeds this value to `new URL(url).hostname` (which
+ * THROWS on a bare domain) and to `href` (where a bare domain is a RELATIVE
+ * path and would navigate inside the app). It must always carry a scheme.
+ */
+test('⭐ every returned url is absolute, so the row can open it', () => {
+  ['yespleez.com', 'www.abc.net/x', 'https://x.io/p'].forEach(body => {
+    const u = firstUrl(body);
+    assert.match(u, /^https?:\/\//, `${body} produced a relative url`);
+    assert.doesNotThrow(() => new URL(u), `${body} produced a url LinkRow cannot parse`);
+  });
+});
+
+test('⛔ a filename in a message never becomes a listed link', () => {
+  assert.equal(firstUrl('sent you README.md and script.sh'), null);
+});
+
 test('messages with no link are absent from the list entirely', () => {
   const out = linkEntries([T('text', { body: 'no link' }), T('text', { body: 'https://x.com' })]);
   assert.equal(out.length, 1);
