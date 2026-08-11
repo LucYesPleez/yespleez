@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { formatDisplayDate } from '../lib/dates';
-import { formatLocation } from '../lib/formatLocation';
 import { socialProfileUrl, ensureHttps } from '../lib/socialLinks';
 import { openDirectConversation } from '../lib/messaging';
 import { useConversationUi } from '../lib/conversationUi';
 import { completionFor, requirementLabel } from '@yespleez/requirements';
+import { askCategoryLabel } from '@yespleez/ask-categories';
 import { PROFILE_TYPES } from '../lib/profileTypes';
-import ProfileAvatar from './ProfileAvatar';
+import ProfileCard from './ProfileCard';
 
 /**
  * THE BOOKING DOSSIER — everything needed to decide, in one readable place.
@@ -52,6 +52,9 @@ export default function EnquiryDossierSheet({ enq, viewerProfile, onClose, onRes
   const readiness = p.type ? completionFor(p, p.type) : null;
   const demoUrl  = ensureHttps(p.mix_link) || socialProfileUrl('soundcloud', p.soundcloud) || socialProfileUrl('mixcloud', p.mixcloud);
   const dateRaw  = enq.date_requested || enq.preferred_date || null;
+  // ⛔ Read from the registry, never written here — the third copy of a
+  // category vocabulary is the mistake the registry exists to prevent.
+  const askLabel = askCategoryLabel(enq.ask_category);
 
   const fee = [
     p.fee ? `$${p.fee}` : null,
@@ -118,14 +121,22 @@ export default function EnquiryDossierSheet({ enq, viewerProfile, onClose, onRes
 
         {/* Scrolls; the actions below never do. */}
         <div style={{ overflowY: 'auto', padding: '0 20px', flex: 1 }}>
-          <div style={{ display: 'flex', gap: 14, alignItems: 'center', marginBottom: 18 }}>
-            <ProfileAvatar avatar={p.avatar} identity={pt} name={name}
-              style={{ width: 60, height: 60, borderRadius: 12, objectFit: 'cover', border: `2px solid ${accent}`, flexShrink: 0 }} />
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontFamily: "'Bebas Neue'", fontSize: 24, letterSpacing: 1, color: '#fff', lineHeight: 1.1 }}>{name}</div>
-              {formatLocation(p) && <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>{formatLocation(p)}</div>}
-              {p.genre_string && <div style={{ fontSize: 12, color: accent, marginTop: 2 }}>{p.genre_string.split(' · ').slice(0, 4).join(' · ')}</div>}
-            </div>
+          {/**
+            * ⭐ THE CANONICAL CARD — the same one every other enquiry surface
+            * draws (owner, 2026-08-11). This header used to be a bespoke
+            * avatar + name + location + genre block: the fourth hand-built
+            * rendering of a profile in the enquiry flow, and the one that got
+            * left behind when the other three were unified on 2026-08-10
+            * (`32eb713`). It had already drifted — a square avatar where the
+            * card draws a ringed circle, four genre segments where the card
+            * shows the curated pills, and no type badge at all, so a venue
+            * could not see at a glance whether a HOST or a DJ was asking.
+            *
+            * ⛔ Not `cover` — that variant is the event page's Presented By and
+            * nothing else. The compact 72px row is what a header wants.
+            */}
+          <div style={{ marginBottom: 18 }}>
+            <ProfileCard item={p.id ? p : { ...p, id: enq.applicant_profile_id }} />
           </div>
 
           {/* THEIR MESSAGE — first, and the largest text on the sheet. */}
@@ -141,6 +152,31 @@ export default function EnquiryDossierSheet({ enq, viewerProfile, onClose, onRes
                   cursor: msgBusy ? 'default' : 'pointer', opacity: msgBusy ? .6 : 1,
                 }}>{msgBusy ? 'OPENING…' : 'REPLY →'}</button>
             </div>
+          )}
+
+          {/**
+            * ⭐ WHAT THEY ARE ASKING FOR — and the venue could not see it.
+            *
+            * P12 stores `ask_category` at creation, the sender sees it as a
+            * chip on their outgoing row, and the picker shows it before the
+            * send. The RECEIVING side rendered it nowhere, so the one party
+            * whose decision it informs — the venue reading the enquiry — was
+            * the only one it was hidden from.
+            *
+            * ⛔ Null renders NO ROW, never "None" and never the raw key. A
+            * host asking for a room has no applicable category, a historical
+            * row predates the column, and a key the registry no longer knows
+            * is not a label — all three mean "this says nothing", which the
+            * Rendering Contract answers by showing nothing (R3).
+            */}
+          {askLabel && (
+            <Row label="ASKING FOR">
+              <span style={{ fontFamily: "'Bebas Neue'", fontSize: 12, letterSpacing: 1,
+                             padding: '3px 10px', borderRadius: 20, color: accent,
+                             border: `1px solid ${accent}`, opacity: .85 }}>
+                {askLabel.toUpperCase()}
+              </span>
+            </Row>
           )}
 
           <Row label="ASKING ABOUT">
@@ -210,8 +246,14 @@ export default function EnquiryDossierSheet({ enq, viewerProfile, onClose, onRes
             far down the sheet you have scrolled. */}
         <div style={{ padding: '12px 20px calc(16px + var(--yp-safe-bottom))', borderTop: '1px solid rgba(255,255,255,.08)', background: '#13131f', flexShrink: 0 }}>
           <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+            {/* ⭐ IDENTICAL TO REPLY, because it IS reply — both call the same
+                function and open the same conversation. A hollow outline
+                beside a filled gradient read as two different weights of
+                action, and the quieter-looking one was the primary. Same
+                gradient, same ink (owner, 2026-08-11). */}
             <Action onClick={reply} disabled={msgBusy || !viewerProfile?.id || !p.id}
-              bg={`rgba(${rgb},.14)`} border={`1px solid rgba(${rgb},.5)`} color={accent}>
+              bg={`linear-gradient(135deg,${accent},${pt?.accent2 || accent})`}
+              border="none" color="#0a0a14">
               {msgBusy ? 'OPENING…' : 'MESSAGE'}
             </Action>
             <Action onClick={() => { onClose?.(); navigate(`/profile/${p.id || enq.applicant_profile_id}?type=${p.type || enq.applicant_type || 'artist'}`); }}
