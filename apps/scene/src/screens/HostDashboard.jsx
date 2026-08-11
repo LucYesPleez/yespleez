@@ -22,8 +22,11 @@ import DashboardProfileCard from '../components/DashboardProfileCard';
 import NotificationBar from '../components/NotificationBar';
 import DashboardStats from '../components/DashboardStats';
 import AvailabilitySection from '../components/AvailabilitySection';
+import { fetchOutgoingEnquiries } from '../lib/outgoingPipeline';
+import { withDirection } from '../lib/enquiryUtils';
 import EventsSection from '../components/EventsSection';
 import EventTabBar from '../components/EventTabBar';
+import SectionCollapseButton from '../components/SectionCollapseButton';
 import { useDragScroll } from '../hooks/useDragScroll';
 
 /* Phase 16 §14 — the ONE definition of "events this host is responsible for".
@@ -52,6 +55,9 @@ export default function HostDashboard({ userId: userIdProp }) {
   const navigate = useNavigate();
 
   const [showAllLineup,  setShowAllLineup]  = useState(true);
+  // Open by default, exactly as LINEUP is — the control is there to get a long
+  // list out of the way, never to hide the section until someone finds it.
+  const [showEnquiries,  setShowEnquiries]  = useState(true);
   const [lineupFocusId,  setLineupFocusId]  = useState(null);  // null = show all
   const [lineupExpandMap, setLineupExpandMap] = useState({});  // eventId → bool (default true)
   const [lineupSubTabs,  setLineupSubTabs]  = useState({});   // eventId → 'LINEUP'|'SET TIMES'|'SHORT LIST'|'PIPELINE'
@@ -104,11 +110,28 @@ export default function HostDashboard({ userId: userIdProp }) {
         newAppsCount      = pendingRes.count  || 0;
         lineupSlotsCount  = acceptedRes.count || 0;
       }
+      /**
+       * ⭐ THE ENQUIRIES THIS PROMOTER SENT — and they had NOWHERE to appear.
+       *
+       * A host may enquire with a venue about a date (ProfileScreen's picker
+       * offers every industry profile the account owns, host included), and the
+       * row was written correctly, notified the venue, and could be answered
+       * from VenueDashboard — but this screen never read `venue_enquiries`, so
+       * the sender could see none of it: not the date, not the status, not the
+       * reply. Exactly the defect fixed on the artist side on 2026-08-10, on
+       * the one dashboard it was not fixed on.
+       *
+       * ⛔ Keyed on the HOST PROFILE. Keying on the account would list this
+       * person's DJ act's enquiries here too — the cross-over the whole
+       * profile-keying sweep exists to prevent.
+       */
+      const outgoingEnquiries = await fetchOutgoingEnquiries(supabase, hostProfileId);
       return {
         profile: profRes.data || null,
         events:  evtRes.data  || [],
         newAppsCount,
         lineupSlotsCount,
+        outgoingEnquiries,
       };
     },
     enabled: !!userId,
@@ -118,6 +141,7 @@ export default function HostDashboard({ userId: userIdProp }) {
   const events           = data?.events           || [];
   const newAppsCount     = data?.newAppsCount     ?? null;
   const lineupSlotsCount = data?.lineupSlotsCount ?? null;
+  const outgoingEnquiries = data?.outgoingEnquiries || [];
 
   // Load applications on mount.
   // §14: waits for the host PROFILE, not just the account — applications must
@@ -305,7 +329,46 @@ export default function HostDashboard({ userId: userIdProp }) {
     requirements_snapshot: app.requirements_snapshot || null,
   }));
 
+  /**
+   * ⭐ THE PROMOTER'S OWN ENQUIRIES, IN THE PANEL THAT ALREADY HAD A PLACE FOR
+   * THEM.
+   *
+   * ⚠ THE FIRST ATTEMPT BUILT A SECOND SET OF DIRECTION TABS above this panel
+   * — INCOMING/OUTGOING drawn twice, one above the other, because the existing
+   * pair was three lines further down inside `EnquiryPanel` and went unread.
+   * Everything needed already existed: `withDirection` derives the direction,
+   * `normaliseStatus` has an OUTGOING map, the panel has an OUTGOING tab with
+   * its own AWAITING/INTERESTED/ACCEPTED/DECLINED sub-tabs, and `EnquiryCard`
+   * words its next-step copy per direction. ⛔ Look for the tab before building
+   * one.
+   *
+   * ⭐ `profile` IS THE VENUE, and that is the whole trick. `EnquiryCard`
+   * resolves the APPLICANT when no profile is supplied — correct for a venue,
+   * who is never the applicant, and wrong for a promoter reading their own
+   * enquiry, who would be shown themselves. Supplying it names the counterparty
+   * explicitly and the card's own lookup stands down (it returns early when
+   * `enq.profile` is set). No shared component learns who is asking.
+   *
+   * ⛔ `direction` is DERIVED, never stored — the same row is incoming to the
+   * venue and outgoing to the promoter, so there is no correct column value.
+   * This screen reads from the applicant's side.
+   */
+  const mappedOutgoing = withDirection(outgoingEnquiries, 'applicant').map(e => ({
+    ...e,
+    // ⛔ The venue may be absent — a profile that failed to load does not
+    // delete the enquiry. The card renders what it has (R4: broken ≠ sparse).
+    profile: e.venue || null,
+    applicant_type: e.venue?.type || 'venue',
+    name: e.venue?.name || '',
+    venue_name: e.venue?.name || null,
+  }));
+
+  const panelEnquiries = [...mappedEnquiries, ...mappedOutgoing];
+
   async function handleEnquiryRespond(id, status) {
+    // ⛔ ONLY the promoter's INCOMING applications are theirs to answer. An
+    // enquiry they SENT is the venue's to decide; a status write from this side
+    // would be the asker marking their own request accepted.
     const app = allApps.find(a => a.id === id);
     if (!app) return;
     await respondApp(id, status, app.artist_id, evtMap[app.event_id]?.name);
@@ -381,11 +444,22 @@ export default function HostDashboard({ userId: userIdProp }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
           <span style={{ fontFamily: "'Bebas Neue'", fontSize: 13, letterSpacing: 2.5, color: '#fff' }}>ENQUIRIES</span>
           {newAppsCount > 0 && <span style={{ fontFamily: "'DM Sans'", fontWeight: 700, fontSize: 11, color: 'var(--muted)', background: 'var(--card2)', borderRadius: 8, padding: '1px 7px' }}>{newAppsCount}</span>}
+          {/* ⚠ The SAME control as LINEUP's, not a lookalike — see
+              SectionCollapseButton for why it stopped being inline markup. */}
+          <SectionCollapseButton expanded={showEnquiries} onToggle={() => setShowEnquiries(v => !v)} />
         </div>
-        {loadingApps
+
+        {/* ⭐ ONE PANEL, ONE SET OF DIRECTION TABS. The promoter's own enquiries
+            arrive as `direction: 'outgoing'` rows in the same array — see
+            `mappedOutgoing` — so the panel's existing OUTGOING tab lists them
+            with no new control on this screen.
+            ⭐ The count badge above stays visible when collapsed: the heading
+            must still say how much is waiting, or minimising a section hides
+            the fact that it needs attention. */}
+        {showEnquiries && (loadingApps
           ? <p className={s.empty}>Loading applications…</p>
-          : <EnquiryPanel enquiries={mappedEnquiries} viewerProfile={profile} onRespond={handleEnquiryRespond} />
-        }
+          : <EnquiryPanel enquiries={panelEnquiries} viewerProfile={profile} onRespond={handleEnquiryRespond} />
+        )}
       </div>
 
       {/* ── LINEUP ── */}
@@ -393,16 +467,7 @@ export default function HostDashboard({ userId: userIdProp }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: lineups.length > 1 ? 8 : 12 }}>
           <span style={{ fontFamily: "'Bebas Neue'", fontSize: 13, letterSpacing: 2.5, color: '#fff' }}>LINEUP</span>
           {lineupSlotsCount > 0 && <span style={{ fontFamily: "'DM Sans'", fontWeight: 700, fontSize: 11, color: 'var(--muted)', background: 'var(--card2)', borderRadius: 8, padding: '1px 7px' }}>{lineupSlotsCount}</span>}
-          <button onClick={() => setShowAllLineup(v => !v)} style={{ marginLeft: 'auto', background: 'none', border: '1px solid rgba(255,255,255,.15)', borderRadius: 8, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--muted)', flexShrink: 0, transition: 'border-color .15s, color .15s' }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--neon2)'; e.currentTarget.style.color = 'var(--neon2)'; }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,.15)'; e.currentTarget.style.color = 'var(--muted)'; }}
-            title={showAllLineup ? 'Minimise' : 'Maximise'}
-          >
-            {showAllLineup
-              ? <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M8 3v3a2 2 0 0 1-2 2H3"/><path d="M21 8h-3a2 2 0 0 1-2-2V3"/><path d="M3 16h3a2 2 0 0 1 2 2v3"/><path d="M16 21v-3a2 2 0 0 1 2-2h3"/></svg>
-              : <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg>
-            }
-          </button>
+          <SectionCollapseButton expanded={showAllLineup} onToggle={() => setShowAllLineup(v => !v)} />
         </div>
 
         {/* Event selector pills — only when >1 event */}

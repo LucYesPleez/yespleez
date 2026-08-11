@@ -346,10 +346,29 @@ export default function ProfileScreen() {
      * declared in enquiryPreview.js beside the projection that consumes it, so
      * a field added there cannot be left unfetched here.
      */
+    /**
+     * ⛔ WHO MAY ASK — and it is not "everything that is not a punter".
+     *
+     * `punter` cannot: a Personal profile does not perform or promote (§A9).
+     * `venue` cannot: a venue asking a venue about a date is not a thing this
+     * flow models.
+     * ⭐ `festival` cannot, as of 2026-08-11, and the reason is the platform
+     * boundary rather than the flow: a festival is administered in the Portal,
+     * `PROFILE_TYPES.festival.dashPath` is null, and Scene has nowhere for a
+     * festival to SEE an enquiry it sent. It could send one perfectly well and
+     * then never hear about it again — a write into a void. Scene renders
+     * festivals; it does not act as one. The capability returns in the Festival
+     * app, where it has somewhere to live.
+     *
+     * ⚠ Everything left is an act or a promoter, and BOTH have an outgoing
+     * surface: performers on ArtistDashboard, hosts on HostDashboard. That is
+     * the standing rule — ⛔ do not widen this list to a profile type with
+     * nowhere to read the reply.
+     */
     const { data: profs } = await supabase.from('profiles')
       .select(ENQUIRY_PREVIEW_COLUMNS.join(', '))
       .eq('user_id', session.user.id)
-      .neq('type', 'punter').neq('type', 'venue');
+      .neq('type', 'punter').neq('type', 'venue').neq('type', 'festival');
     if (!profs?.length) return;
     const mapped = profs.map(p => ({ ...p, label: PROFILE_TYPES[p.type]?.label || p.type.toUpperCase() }));
     setEnquiryLoading(false);

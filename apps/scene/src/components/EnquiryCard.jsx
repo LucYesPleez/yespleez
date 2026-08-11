@@ -136,7 +136,16 @@ export default function EnquiryCard({ enq, viewerProfile, onRespond, onPlayDemo 
 
   const displayStatus = normaliseStatus(enq);
   const enqDir        = (enq.direction || 'incoming').toLowerCase();
-  const accentPt      = PROFILE_TYPES[enq.applicant_type];
+  /**
+   * ⚠ THE IDENTITY OF THE PROFILE BEING DRAWN, not of the applicant.
+   *
+   * These are the same thing for a venue — who is never the applicant — and
+   * different for a promoter reading an enquiry they SENT, where the card draws
+   * the VENUE. Keyed on `applicant_type` it rendered a venue's row in the
+   * host's magenta. `EnquiryDossierSheet` already resolved it this way; this
+   * was the copy that had not caught up.
+   */
+  const accentPt      = PROFILE_TYPES[profile?.type || enq.applicant_type];
   const accent        = accentPt?.accent || '#00E5FF';
   const accentRgb     = accentPt?.rgb    || '0,229,255';
   const statusColor   = STATUS_COLOR[displayStatus] || '#FFD700';
@@ -172,7 +181,19 @@ export default function EnquiryCard({ enq, viewerProfile, onRespond, onPlayDemo 
    * rather than rendering 0% — an unknown readiness is not a bad one (R1),
    * and a hidden row beats a misleading one (R3).
    */
-  const readiness = profile ? completionFor(p, p.type) : null;
+  /**
+   * ⛔ READINESS DESCRIBES THE PARTY BEING BOOKED — and on a promoter's own
+   * outgoing enquiry the profile drawn is the VENUE, who is not being booked.
+   * It rendered "23% READY" against Elbows Rest: not the venue's real
+   * completeness (its own dashboard says 77%) but an artifact of the slim
+   * column list an outgoing row is fetched with. A confident wrong number is
+   * worse than no number (R3), and it was answering a question nobody asked.
+   *
+   * ⚠ Keyed on the SUBJECT — the type of profile being drawn — not on which
+   * screen is rendering. A venue inviting an act still sees that act's
+   * readiness, because there the subject really is the one being booked.
+   */
+  const readiness = profile && p.type !== 'venue' ? completionFor(p, p.type) : null;
   // The per-field "not supplied" list is deliberately NOT built here any more.
   // It told a venue which profile fields an applicant had left blank —
   // including their emergency contact, which is between the artist and the

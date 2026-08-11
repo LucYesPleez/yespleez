@@ -19,6 +19,11 @@ const sqlOf = rel => read(rel).split('\n').filter(l => !/^\s*--/.test(l)).join('
 const PROFILE = read('../screens/ProfileScreen.jsx');
 const APPLY   = read('../screens/event/ApplyButton.jsx');
 const DASH    = read('../screens/ArtistDashboard.jsx');
+// ⚠ 2026-08-11: the outgoing fetch and the row that renders the chip moved out
+// of ArtistDashboard when HostDashboard grew the same list. Same assertions,
+// new home — and they now cover both dashboards at once.
+const PIPE    = read('./outgoingPipeline.js');
+const ROW     = read('../components/OutgoingEnquiryRow.jsx');
 const INVITE  = read('../components/InviteSheet.jsx');
 const P12     = sqlOf('../../../../supabase/migrations/20260810000006_p12_ask_category.sql');
 
@@ -123,13 +128,15 @@ test('the acting profile has exactly one setter, so no path bypasses the effect'
 // ── Rendering ────────────────────────────────────────────────────────────
 
 test('the chip reads the registry label, never the raw key', () => {
-  assert.match(DASH, /askCategoryLabel\(enq\.ask_category\)/);
-  assert.match(DASH, /\{askLabel && \(/, 'a null category must render no chip at all');
+  assert.match(ROW, /askCategoryLabel\(enq\.ask_category\)/);
+  assert.match(ROW, /\{askLabel && \(/, 'a null category must render no chip at all');
 });
 
 test('the outgoing fetch selects the column it renders', () => {
-  assert.match(DASH, /select\('id, status, created_at, date_requested, note, venue_profile_id, event_id, ask_category'\)/,
+  assert.match(PIPE, /OUTGOING_ENQUIRY_COLUMNS =\s*\n?\s*'[^']*\bask_category\b/,
     'the chip would always be blank — the column is never fetched');
+  assert.match(PIPE, /\.select\(OUTGOING_ENQUIRY_COLUMNS\)/,
+    'the column list is declared but the fetch selects something else');
 });
 
 /**
@@ -137,9 +144,7 @@ test('the outgoing fetch selects the column it renders', () => {
  * pipeline badge says where it is up to.
  */
 test('the chip never renders the interaction mechanism', () => {
-  const row = DASH.slice(DASH.indexOf('function OutgoingEnquiryRow'));
-  const body = row.slice(0, row.indexOf('\n}'));
-  assert.doesNotMatch(body, /'ENQUIRY'|"ENQUIRY"|'APPLICATION'|"APPLICATION"/,
+  assert.doesNotMatch(ROW, /'ENQUIRY'|"ENQUIRY"|'APPLICATION'|"APPLICATION"/,
     'the chip is describing the mechanism rather than the ask');
 });
 

@@ -19,9 +19,10 @@ import FollowingSection, { FOLLOW_FILTER_CONFIGS } from '../components/Following
 import OpportunityCard from '../components/OpportunityCard';
 import BookingInvitation from '../components/BookingInvitation';
 import AvailabilitySection from '../components/AvailabilitySection';
+import OutgoingEnquiryRow from '../components/OutgoingEnquiryRow';
+import { APP_TABS, APP_TAB_COLOR, applicantLabel, OUT_EMPTY, fetchOutgoingEnquiries } from '../lib/outgoingPipeline';
 import { PROFILE_TYPES } from '../lib/profileTypes';
 import { completionFor } from '@yespleez/requirements';
-import { askCategoryLabel } from '@yespleez/ask-categories';
 
 // The artist's opportunity pipeline.
 //
@@ -53,41 +54,13 @@ const IN_EMPTY = {
   HISTORY:     'Nothing here yet.',
 };
 
-// Applicant-side (OUTGOING) pipeline — what artists see (asymmetric labels).
-// Single source of truth for status -> tab: applicantLabel() is the only
-// place this mapping lives. The sub-tab counts, the list filter, and each
-// row's badge all call it, so they can never disagree with each other.
-// 'offered'/'confirmed' come from the host slot-offer flow (EventScreen.jsx /
-// notifActions.js) — they used to fall through every bucket here, counted in
-// the OUTGOING total but invisible in every sub-tab.
-const APP_TABS = ['SUBMITTED', 'BEING CONSIDERED', 'BOOKED', 'NOT SELECTED'];
-const APP_TAB_COLOR = {
-  'SUBMITTED':        '#FFD700',
-  'BEING CONSIDERED': '#BF5FFF',
-  'BOOKED':           '#00E5A0',
-  'NOT SELECTED':     '#888',
-};
-function applicantLabel(status) {
-  const s = (status || 'pending').toLowerCase();
-  if (['declined', 'rejected'].includes(s))                              return 'NOT SELECTED';
-  if (['accepted', 'booked', 'confirmed'].includes(s))                   return 'BOOKED';
-  if (['shortlisted', 'interested', 'tentative', 'offered'].includes(s)) return 'BEING CONSIDERED';
-  return 'SUBMITTED'; // pending, new, viewed, or any other/unrecognised status
-}
-// Per-tab empty states, mirroring IN_EMPTY above. The OUTGOING list previously
-// built its empty string as `No ${tab.toLowerCase()} applications yet`, which
-// produced "No being considered applications yet" / "No not selected
-// applications yet" for the two multi-word tabs. Same calm voice as IN_EMPTY,
-// no new wording.
-// ⚠ SUBMITTED's copy widened: this list now holds venue availability enquiries
-// as well as event applications, and "you haven't applied to anything yet" told
-// someone who had just enquired with a venue that they had done nothing.
-const OUT_EMPTY = {
-  'SUBMITTED':        "You haven't applied or enquired anywhere yet.",
-  'BEING CONSIDERED': 'Nothing being considered right now.',
-  'BOOKED':           'Nothing booked yet.',
-  'NOT SELECTED':     'Nothing here yet.',
-};
+// Applicant-side (OUTGOING) pipeline — what the person who ASKED sees
+// (asymmetric with the venue's own labels, deliberately).
+//
+// ⚠ THESE NOW LIVE IN lib/outgoingPipeline.js, unchanged. They moved the moment
+// HostDashboard needed the same four buckets: a promoter asking a venue about a
+// night is the same question as a DJ applying to an event, and two copies of a
+// status vocabulary agree today and drift tomorrow.
 const GIG_TABS  = ['UPCOMING', 'PAST'];
 
 // One application row: the event card, an "applied on" caption so it's always
@@ -123,66 +96,6 @@ function ApplicationRow({ app, badge, badgeColor, onDelete }) {
           </button>
         </div>
       )}
-    </div>
-  );
-}
-
-/**
- * One enquiry YOU sent to a venue.
- *
- * ⛔ NOT AN EVENT CARD. An availability enquiry has no event: no name, no
- * lineup, no poster, no time — only a venue, a date, a note and a status. An
- * EventCard filled with blanks reads as broken, and the Rendering Contract is
- * explicit that absent ≠ broken. So this renders exactly what exists.
- *
- * ⚠ No category chip yet, deliberately. Ask Category is designed but not built
- * (`Claude Cowork\ask-category-design-2026-08-10.md`), and inventing a local
- * chip vocabulary here is precisely the third-copy mistake that design exists to
- * prevent. The chip slots in when the registry does.
- */
-function OutgoingEnquiryRow({ enq, badge, badgeColor, accent }) {
-  const sentOn = enq.created_at ? formatDisplayDate(enq.created_at.slice(0, 10)) : '';
-  const forDate = enq.date_requested ? formatDisplayDate(enq.date_requested) : null;
-  const venueName = enq.venue?.name || 'A venue';
-  /**
-   * P12 — what this ask was FOR. ⛔ Null renders nothing: a historical row, an
-   * asker with no applicable category, or a key the registry no longer knows
-   * all mean "no chip", never a placeholder and never the raw key.
-   */
-  const askLabel = askCategoryLabel(enq.ask_category);
-
-  return (
-    <div style={{ background: 'var(--card2)', border: '1px solid var(--border)', borderRadius: 12, padding: '12px 14px' }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
-        <span style={{ fontFamily: "'Bebas Neue'", fontSize: 16, letterSpacing: .5, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {venueName}
-        </span>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-          {/* ⭐ The chip says what was asked FOR. The pipeline badge beside it
-              says where it is up to. Two dimensions, never collapsed — the chip
-              must never read "Enquiry" or "Application". */}
-          {askLabel && (
-            <span style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1,
-                           padding: '2px 8px', borderRadius: 20, color: accent,
-                           border: `1px solid ${accent}`, opacity: .85 }}>
-              {askLabel.toUpperCase()}
-            </span>
-          )}
-          <span style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1, color: badgeColor }}>
-            {badge}
-          </span>
-        </div>
-      </div>
-      {/* The date asked about is the point of the enquiry — never buried. */}
-      {forDate && (
-        <div style={{ fontSize: 13, color: accent, marginTop: 3 }}>Availability · {forDate}</div>
-      )}
-      {enq.note && (
-        <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 6, overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
-          {enq.note}
-        </div>
-      )}
-      {sentOn && <div style={{ fontSize: 11, color: 'rgba(255,255,255,.35)', marginTop: 6 }}>Sent {sentOn}</div>}
     </div>
   );
 }
@@ -276,16 +189,16 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
        * haven't applied to anything yet" — literally true of EVENTS, and
        * useless to someone who had just enquired with a venue.
        */
-      const [appsRes, gigsRes, outEnqRes] = profileId
+      const [appsRes, gigsRes, outgoingEnquiries] = profileId
         ? await Promise.all([
             supabase.from('applications').select('id, status, event_id, created_at').eq('from_profile_id', profileId).order('created_at', { ascending: false }).limit(50),
             supabase.from('lineup_members').select('event_id').eq('artist_profile_id', profileId).neq('status', 'removed'),
-            supabase.from('venue_enquiries')
-              .select('id, status, created_at, date_requested, note, venue_profile_id, event_id, ask_category')
-              .eq('applicant_profile_id', profileId).eq('initiated_by', 'applicant')
-              .order('created_at', { ascending: false }).limit(50),
+            // ⚠ The query and its venue join now live in lib/outgoingPipeline —
+            // HostDashboard asks the identical question, and one asker's list
+            // must not be able to answer it differently from another's.
+            fetchOutgoingEnquiries(supabase, profileId),
           ])
-        : [{ data: [] }, { data: [] }, { data: [] }];
+        : [{ data: [] }, { data: [] }, []];
 
       const claimEventIds = [...new Set((gigsRes.data || []).map(c => c.event_id).filter(Boolean))];
       let allGigs = [];
@@ -305,29 +218,6 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
         (evData || []).forEach(ev => { appEvents[ev.id] = ev; });
       }
       const applications = (appsRes.data || []).map(a => ({ ...a, event: appEvents[a.event_id] || null }));
-
-      /**
-       * The venues those enquiries went to. Batch-fetched by profile id — the
-       * same shape VenueDashboard uses for applicant profiles, so a row never
-       * makes its own lookup.
-       */
-      const outEnqRows = outEnqRes.data || [];
-      const venueIds = [...new Set(outEnqRows.map(e => e.venue_profile_id).filter(Boolean))];
-      let venuesById = {};
-      if (venueIds.length) {
-        const { data: vs } = await supabase.from('profiles')
-          .select('id, name, type, avatar, avatar_thumb, location, state, suburb')
-          .in('id', venueIds);
-        (vs || []).forEach(v => { venuesById[v.id] = v; });
-      }
-      /**
-       * ⛔ A venue that did not come back is ABSENT, not an empty-named row —
-       * the enquiry still happened and must still be listed. The card renders
-       * what it has (Rendering Contract R4: broken ≠ sparse).
-       */
-      const outgoingEnquiries = outEnqRows.map(e => ({
-        ...e, venue: venuesById[e.venue_profile_id] || null,
-      }));
 
       // Venue-initiated invites only. Without this filter the artist's own
       // enquiries to venues (ProfileScreen's availability flow, which stores

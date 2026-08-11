@@ -19,13 +19,45 @@ import { fileURLToPath } from 'node:url';
  *
  * Found 2026-08-10 by the owner, immediately after the enquiry flow started
  * working properly.
+ *
+ * ⚠ 2026-08-11: the query, the four buckets and the row moved into
+ * `lib/outgoingPipeline.js` + `components/OutgoingEnquiryRow.jsx` when
+ * HostDashboard grew the same list. The assertions below MOVED WITH THEM —
+ * every rule they encode is unchanged, they simply now hold for both askers at
+ * once, which is the point of the extraction.
  */
 
-const DASH = readFileSync(fileURLToPath(new URL('../screens/ArtistDashboard.jsx', import.meta.url)), 'utf8');
+const read = name => readFileSync(fileURLToPath(new URL(name, import.meta.url)), 'utf8');
+const DASH = read('../screens/ArtistDashboard.jsx');
+const PIPE = read('./outgoingPipeline.js');
+const ROW  = read('../components/OutgoingEnquiryRow.jsx');
 
-test('the dashboard queries the enquiries the artist SENT', () => {
-  assert.match(DASH, /eq\('applicant_profile_id', profileId\)\.eq\('initiated_by', 'applicant'\)/,
-    "only venue-initiated offers are fetched — the artist's own enquiries are invisible");
+test('the shared query asks for the enquiries the profile SENT', () => {
+  assert.match(PIPE, /eq\('applicant_profile_id', profileId\)[\s\S]{0,40}eq\('initiated_by', 'applicant'\)/,
+    "only venue-initiated offers are fetched — the sender's own enquiries are invisible");
+});
+
+/**
+ * ⛔ Keyed on the PROFILE. `applicant_user_id` is the account, and one account
+ * owns a host profile, a DJ act and a comedy act — keying on it puts all three
+ * profiles' enquiries on each of their dashboards.
+ */
+test('the shared query never falls back to the account key', () => {
+  // Filters only — the prose above the function names the column it must not
+  // filter on, and forbidding the WORD would forbid explaining the rule.
+  assert.doesNotMatch(PIPE, /eq\('applicant_user_id'|or\(/,
+    'the outgoing list can cross over between one account\'s profiles');
+});
+
+test('a venue that did not resolve still yields its enquiry', () => {
+  assert.match(PIPE, /venue: venuesById\[e\.venue_profile_id\] \|\| null/,
+    'an enquiry disappears when its venue fails to load — absent is being treated as broken');
+});
+
+test('the artist dashboard uses the shared query, not a private copy', () => {
+  assert.match(DASH, /fetchOutgoingEnquiries\(supabase, profileId\)/);
+  assert.doesNotMatch(DASH, /eq\('initiated_by', 'applicant'\)/,
+    'the artist dashboard has grown its own second copy of the outgoing query');
 });
 
 test('the offers queries still filter to venue-initiated', () => {
@@ -71,10 +103,7 @@ test('the tab counts and the stat tile count the same list the tab renders', () 
  * Rendering Contract says must never happen (absent ≠ broken).
  */
 test('an enquiry renders its own row, never an EventCard', () => {
-  assert.match(DASH, /function OutgoingEnquiryRow/);
-  const row = DASH.slice(DASH.indexOf('function OutgoingEnquiryRow'));
-  const body = row.slice(0, row.indexOf('\n}'));
-  assert.doesNotMatch(body, /<EventCard/, 'an enquiry is being rendered as an event');
+  assert.doesNotMatch(ROW, /<EventCard/, 'an enquiry is being rendered as an event');
 });
 
 /**
@@ -87,14 +116,24 @@ test('an enquiry renders its own row, never an EventCard', () => {
  * The constraint was never "no chip"; it was "no second vocabulary".
  */
 test('the chip is read from the registry, never invented locally', () => {
-  const row = DASH.slice(DASH.indexOf('function OutgoingEnquiryRow'));
-  const body = row.slice(0, row.indexOf('\n}'));
-  assert.match(body, /askCategoryLabel\(/, 'the chip does not consult the registry');
-  assert.doesNotMatch(body, /'Music'|'Performance'|'Workshops'|'Volunteers'/,
+  assert.match(ROW, /askCategoryLabel\(/, 'the chip does not consult the registry');
+  assert.doesNotMatch(ROW, /askLabel = '|'Music'|'Performance'|'Workshops'|'Volunteers'/,
     'category labels are hard-coded here instead of read from the registry');
 });
 
+/**
+ * ⛔ The row must not learn WHO is looking at it. The accent is passed in — cyan
+ * for a DJ, magenta for a promoter — and a `type === 'host'` branch in here is
+ * the consumer-identity finding, not a feature.
+ */
+test('the shared row knows nothing about who is asking', () => {
+  assert.doesNotMatch(ROW, /=== 'host'|=== 'artist'|PROFILE_TYPES\./,
+    'the shared row branches on the identity of its consumer');
+  assert.doesNotMatch(PIPE, /=== 'host'|=== 'artist'/,
+    'the shared pipeline branches on the identity of its consumer');
+});
+
 test('the empty state no longer claims the artist has done nothing', () => {
-  assert.doesNotMatch(DASH, /"You haven't applied to anything yet\."/,
+  assert.doesNotMatch(PIPE, /"You haven't applied to anything yet\."/,
     'someone who enquired with a venue is still told they have applied to nothing');
 });

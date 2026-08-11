@@ -174,11 +174,28 @@ export default function VenueDashboard({ userId: userIdProp }) {
     };
     const notif = NOTIF[status];
     if (notif && artistId) {
-      // §A7: about = this venue's profile (whose decision this is);
-      // to = the artist's performer profile, U4-resolved, null if ambiguous.
+      /**
+       * §A7: about = this venue's profile (whose decision this is);
+       * to = the profile that ASKED.
+       *
+       * ⭐⭐ THE ROW ALREADY NAMES THEM — `applicant_profile_id`. It used to be
+       * re-derived with `resolvePerformerProfileId(artistId)`, which answers
+       * "which act does this account perform as", and that is a different
+       * question. For a HOST who enquired about a room it returns their DJ act,
+       * or null: the venue's reply arrives addressed to a profile that never
+       * asked, or to nobody. Same class of defect as `acceptInvite` losing
+       * attribution (D1, 2026-08-10), same fix — read the identity the record
+       * states rather than computing one beside it.
+       *
+       * The seam stays only for legacy rows written before the column was
+       * populated, and even then it is honest: a performer-only account is what
+       * it was ever right for.
+       */
       await writeNotification({
         toUserId:       artistId,
-        toProfileId:    (await resolvePerformerProfileId(artistId)).profileId ?? null,
+        toProfileId:    enq.applicant_profile_id
+                          ?? (await resolvePerformerProfileId(artistId)).profileId
+                          ?? null,
         aboutProfileId: profile?.id ?? null,
         type:    notif.type,
         message: notif.message,
