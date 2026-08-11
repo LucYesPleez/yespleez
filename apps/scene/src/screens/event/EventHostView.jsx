@@ -14,6 +14,7 @@ import { writeNotification, writeNotifications } from '../../lib/writeNotificati
 import { track, EVENTS } from '../../lib/analytics';
 import { resolveProfileId } from '../../lib/resolveProfileId';
 import { scopeToApplicant, fetchApplicantProfiles } from '../../lib/applicantProfiles';
+import { findOpenAsksForDate, declineOpenAsks } from '../../lib/dateLockout';
 import ProfileCard from '../../components/ProfileCard';
 import FillSlotModal from '../../components/FillSlotModal';
 import EventTabBar from '../../components/EventTabBar';
@@ -46,6 +47,27 @@ export default function EventHostView({
   const [localDays,     setLocalDays]     = useState(null);
   const [viewAsPunter,  setViewAsPunter]  = useState(false);
   const [goLiveConfirm, setGoLiveConfirm] = useState(false);
+  // Everyone still queued for a date that has just been locked in. null until
+  // a publish finds some — see the Go Live handler and lib/dateLockout.
+  const [lockoutAsks,   setLockoutAsks]   = useState(null);
+  const [lockoutBusy,   setLockoutBusy]   = useState(false);
+  /**
+   * ⚠⚠ THE DECLINE BUTTON IS DEAD FOR HALF A SECOND AFTER THE SHEET OPENS.
+   *
+   * Moving the destructive action away from the previous click position is not
+   * enough on its own: this sheet appears unprompted, and a click already on
+   * its way down can land on whatever arrives underneath it. An irreversible
+   * bulk decline must not be reachable by a click aimed at something else.
+   *
+   * ⛔ Only the destructive button is disarmed. LEAVE THEM stays live — being
+   * unable to dismiss a dialog you did not ask for would be its own bug.
+   */
+  const [lockoutArmed,  setLockoutArmed]  = useState(false);
+  useEffect(() => {
+    if (!lockoutAsks) { setLockoutArmed(false); return; }
+    const t = setTimeout(() => setLockoutArmed(true), 500);
+    return () => clearTimeout(t);
+  }, [lockoutAsks]);
   const [sendingOffers, setSendingOffers] = useState(false);
   const [confirmUnlock, setConfirmUnlock] = useState(false);
 
@@ -667,9 +689,110 @@ export default function EventHostView({
                 if (!error) track(EVENTS.PUBLISHED_EVENT, { from: 'draft' });
                 queryClient.invalidateQueries({ queryKey: ['event', id] });
                 setGoLiveConfirm(false);
+                /**
+                 * ⭐ THE DATE IS NOW SPOKEN FOR — so ask about everyone still
+                 * queued for it (owner, 2026-08-11).
+                 *
+                 * ⛔ AFTER the publish, never as a condition of it. Publishing
+                 * must succeed on its own; a failure to look up the funnel
+                 * cannot be allowed to block going live.
+                 *
+                 * ⛔ The venue's enquiries are only ever included when THIS
+                 * account owns that venue. Publishing an event at someone
+                 * else's room does not grant the right to answer their mail.
+                 */
+                if (!error) {
+                  const ownsVenue = !!venueProfile?.user_id && venueProfile.user_id === session?.user?.id;
+                  const found = await findOpenAsksForDate({
+                    supabase, eventId: id, date: cfg?.date || null,
+                    venueProfileId: ownsVenue ? venueProfile.id : null,
+                  });
+                  if (found.applications.length + found.enquiries.length > 0) setLockoutAsks(found);
+                }
               }}
                 style={{ flex: 1, padding: '13px 0', fontFamily: "'Bebas Neue'", fontSize: 14, letterSpacing: 1.5, borderRadius: 10, border: 'none', background: '#00E5A0', color: '#0a0a14', cursor: 'pointer' }}>
                 GO LIVE
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/**
+        * ⭐ THE DATE IS LOCKED — CLEAR THE FUNNEL BY ANSWERING IT.
+        *
+        * ⛔ NOT a silent filter. Everyone listed here is waiting on a reply; the
+        * only honest way to take them out of the funnel is to actually decline
+        * them, which notifies each one. Hiding them would leave real people
+        * waiting on an answer nobody was ever prompted to give.
+        *
+        * ⛔ NOT automatic either. This is a bulk decline of real people, so it
+        * states exactly who it will touch and does nothing until the promoter
+        * says so. LEAVE THEM is a first-class answer — the event is already
+        * live either way.
+        */}
+      {lockoutAsks && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.75)', zIndex: 3000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', paddingBottom: 'var(--yp-safe-bottom)' }}
+          onClick={e => e.target === e.currentTarget && !lockoutBusy && setLockoutAsks(null)}>
+          <div style={{ background: '#0f0f1a', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 480, padding: '28px 24px 40px', border: '1px solid rgba(255,255,255,.08)', borderBottom: 'none' }}>
+            <div style={{ fontFamily: "'Bebas Neue'", fontSize: 18, letterSpacing: 2, color: '#fff' }}>
+              This date is now confirmed.
+            </div>
+            <div style={{ fontSize: 13, color: 'rgba(255,255,255,.6)', marginTop: 8, lineHeight: 1.6 }}>
+              {(() => {
+                const a = lockoutAsks.applications.length;
+                const e = lockoutAsks.enquiries.length;
+                const parts = [
+                  a > 0 && `${a} unanswered application${a !== 1 ? 's' : ''} to this event`,
+                  e > 0 && `${e} unanswered enquir${e !== 1 ? 'ies' : 'y'} for ${lockoutAsks.date}`,
+                ].filter(Boolean);
+                return `${parts.join(' and ')} ${a + e !== 1 ? 'are' : 'is'} still open. Decline them and let each person know?`;
+              })()}
+            </div>
+            {/* ⚠ Says what is NOT swept, so a promoter never has to wonder
+                whether their short list just went with it. */}
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,.4)', marginTop: 10, lineHeight: 1.5 }}>
+              Anyone you shortlisted, offered a slot or already accepted is left alone.
+            </div>
+            {/**
+              * ⚠⚠ THE DESTRUCTIVE BUTTON IS ON THE LEFT, AND THE SAFE ONE
+              * INHERITS THE PREVIOUS CLICK POSITION. Found the hard way while
+              * testing this on 2026-08-11: this sheet OPENS ITSELF straight
+              * after GO LIVE, in the same place, and GO LIVE sits on the right.
+              * With the confirm button in the conventional right-hand slot, a
+              * second GO LIVE click — a double-tap, an impatient retry when the
+              * first seems not to register — lands on it and silently commits
+              * an irreversible bulk decline. It happened on the very first run,
+              * and the dialog was never even seen.
+              *
+              * ⛔ So the app's usual "primary on the right" does NOT apply to a
+              * sheet nobody asked to open. Whatever occupies the spot the user
+              * just clicked must be the harmless choice.
+              */}
+            <div style={{ display: 'flex', gap: 10, marginTop: 24 }}>
+              <button disabled={lockoutBusy || !lockoutArmed} onClick={async () => {
+                setLockoutBusy(true);
+                await declineOpenAsks({
+                  supabase, writeNotification,
+                  applications: lockoutAsks.applications,
+                  enquiries:    lockoutAsks.enquiries,
+                  eventName:    event?.name || null,
+                  venueName:    venueProfile?.name || null,
+                  // Legacy rows carry no applicant profile id; the seam resolves
+                  // one rather than addressing the notice to nobody.
+                  resolveToProfileId: async uid => (await resolvePerformerProfileId(uid)).profileId ?? null,
+                });
+                setLockoutBusy(false);
+                setLockoutAsks(null);
+                queryClient.invalidateQueries({ queryKey: ['event', id] });
+              }}
+                style={{ flex: 1, padding: '13px 0', fontFamily: "'Bebas Neue'", fontSize: 14, letterSpacing: 1.5, borderRadius: 10, border: 'none', background: '#FF2D78', color: '#0a0a14', cursor: (lockoutBusy || !lockoutArmed) ? 'default' : 'pointer', opacity: (lockoutBusy || !lockoutArmed) ? .5 : 1 }}>
+                {lockoutBusy ? 'DECLINING…' : 'DECLINE & NOTIFY'}
+              </button>
+              {/* The safe choice, in the slot GO LIVE just occupied. */}
+              <button disabled={lockoutBusy} onClick={() => setLockoutAsks(null)}
+                style={{ flex: 1, padding: '13px 0', fontFamily: "'Bebas Neue'", fontSize: 14, letterSpacing: 1.5, borderRadius: 10, border: '1px solid rgba(255,255,255,.15)', background: 'none', color: 'rgba(255,255,255,.55)', cursor: lockoutBusy ? 'default' : 'pointer' }}>
+                LEAVE THEM
               </button>
             </div>
           </div>
