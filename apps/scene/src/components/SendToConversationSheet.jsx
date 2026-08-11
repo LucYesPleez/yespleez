@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   listConversations, listParticipants, actableProfileIds, sendMessage,
@@ -38,6 +38,25 @@ export default function SendToConversationSheet({ title, buildMessage, onClose, 
   const [sendingTo, setSending] = useState(null);
   const [error, setError]     = useState('');
   const [sentTo, setSentTo]   = useState(new Set());
+  /**
+   * ⭐ The row most recently sent to, named — so the confirmation can be shown
+   * where the finger ISN'T. See the banner below the search box.
+   */
+  const [lastSent, setLastSent] = useState(null);
+  /**
+   * ⚠⚠ THE DOUBLE-TAP GUARD, AND IT MUST BE A REF.
+   *
+   * `disabled={sendingTo === row.id}` reads STATE, and `setSending` does not
+   * apply until the next render — so two taps landing in the same frame both
+   * pass the check and both send. Each carries its own `client_id`, so the
+   * Outbox's duplicate protection cannot collapse them either: that guards
+   * against one message being delivered twice, not against two messages being
+   * created. The result is two cards in the conversation.
+   *
+   * ⛔ A ref is not a nicety here. It is set synchronously, so the second tap
+   * is refused in the SAME tick rather than one render later.
+   */
+  const inFlight = useRef(new Set());
 
   useEffect(() => {
     let live = true;
@@ -81,6 +100,11 @@ export default function SendToConversationSheet({ title, buildMessage, onClose, 
   }, [onClose]);
 
   async function send(row) {
+    // ⛔ Synchronous, before any await — see `inFlight`. A second tap in the
+    // same frame is refused here, where state cannot help.
+    if (inFlight.current.has(row.id) || sentTo.has(row.id)) return;
+    inFlight.current.add(row.id);
+
     setSending(row.id);
     setError('');
     const { body, kind, payload } = buildMessage();
@@ -90,11 +114,28 @@ export default function SendToConversationSheet({ title, buildMessage, onClose, 
       body, kind, payload,
     });
     setSending(null);
+    inFlight.current.delete(row.id);
     if (err) { setError(err.message || 'That could not be sent.'); return; }
     // ⭐ The row is marked sent rather than the sheet closing. Sharing one
     // event with three people is one trip, not three — and closing on the
     // first send is what makes that feel like three.
     setSentTo(prev => new Set(prev).add(row.id));
+    setLastSent(row.who);
+
+    /**
+     * ⭐ A HAPTIC, BECAUSE THIS FAILED ON A PHONE (owner, 2026-08-11).
+     *
+     * ⚠ The send queues to the Outbox rather than awaiting the network, so
+     * `Sending…` exists for about one frame — there is no motion to notice.
+     * Everything visual happens under the thumb that just tapped. A 12ms tick
+     * is the one channel a finger cannot cover.
+     *
+     * ⛔ Guarded, not assumed: `vibrate` is absent on iOS Safari and throws in
+     * some embedded webviews. A missing haptic must never cost someone the
+     * confirmation the rest of this function provides.
+     */
+    try { navigator.vibrate?.(12); } catch { /* no haptics here */ }
+
     onSent?.(row.id);
   }
 
@@ -153,6 +194,41 @@ export default function SendToConversationSheet({ title, buildMessage, onClose, 
           </div>
         )}
 
+        {/**
+          * ⭐⭐ THE CONFIRMATION, WHERE THE FINGER IS NOT.
+          *
+          * ⚠ Reported 2026-08-11: "it didnt say sent. i pressed it a bunch more
+          * times". It DID say Sent — as one 12.5px word at the right edge of
+          * the row, directly under the thumb that had just tapped it. The only
+          * feedback the system gave was in the one place it could not be seen.
+          *
+          * So the acknowledgement is repeated up here, above the list and
+          * beside the search box: a region the hand never covers when reaching
+          * for a row. ⭐ It names WHO, because after two sends "Sent" alone no
+          * longer answers the question being asked.
+          *
+          * `aria-live` so a screen reader announces it too — the same problem
+          * in a different form, and the same fix.
+          */}
+        {lastSent && !error && (
+          <div
+            aria-live="polite"
+            style={{
+              margin: '0 16px 8px', padding: '7px 10px', borderRadius: 8,
+              background: 'rgba(125,233,255,.10)', border: '1px solid rgba(125,233,255,.28)',
+              fontSize: 12.5, color: '#7DE9FF',
+              display: 'flex', alignItems: 'center', gap: 6,
+            }}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+              <path d="M20 6 9 17l-5-5" />
+            </svg>
+            <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              Sent to {lastSent}
+            </span>
+          </div>
+        )}
+
         <div style={{ overflowY: 'auto', padding: '0 8px 12px' }}>
           {/* ⚠ THREE DIFFERENT NOTHINGS, AND THEY MUST NOT LOOK ALIKE — the
               rendering contract. Still loading is not "you have none", and
@@ -177,15 +253,35 @@ export default function SendToConversationSheet({ title, buildMessage, onClose, 
                 onClick={() => void send(row)}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 10, width: '100%',
-                  padding: '10px 8px', border: 'none', background: 'none',
+                  padding: '10px 8px', border: 'none',
+                  /* ⭐ THE WHOLE ROW CHANGES, not one word at its edge. A tinted
+                     row is legible in peripheral vision and survives a thumb
+                     resting on the right-hand side of it. */
+                  background: done ? 'rgba(125,233,255,.10)' : 'none',
                   color: 'inherit', textAlign: 'left', cursor: done ? 'default' : 'pointer',
                   borderRadius: 10, opacity: row.archived && !done ? .62 : 1,
+                  transition: 'background 140ms linear',
                 }}
               >
-                {row.avatar
-                  ? <img src={row.avatar} alt="" style={{ width: 36, height: 36, borderRadius: 999, objectFit: 'cover', flexShrink: 0 }} />
-                  : <span style={{ width: 36, height: 36, borderRadius: 999, background: 'rgba(255,255,255,.10)', flexShrink: 0 }} />}
-                <span style={{ flex: 1, minWidth: 0, fontSize: 15, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {/* ⭐ THE TICK SITS ON THE LEFT, OVER THE AVATAR — the far side
+                    of the row from where the finger lands. That is the whole
+                    point of it: a confirmation the hand cannot cover. */}
+                <span style={{ position: 'relative', width: 36, height: 36, flexShrink: 0 }}>
+                  {row.avatar
+                    ? <img src={row.avatar} alt="" style={{ width: 36, height: 36, borderRadius: 999, objectFit: 'cover', opacity: done ? .35 : 1 }} />
+                    : <span style={{ display: 'block', width: 36, height: 36, borderRadius: 999, background: 'rgba(255,255,255,.10)', opacity: done ? .35 : 1 }} />}
+                  {done && (
+                    <span style={{
+                      position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      borderRadius: 999, background: 'rgba(125,233,255,.22)', color: '#7DE9FF',
+                    }}>
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M20 6 9 17l-5-5" />
+                      </svg>
+                    </span>
+                  )}
+                </span>
+                <span style={{ flex: 1, minWidth: 0, fontSize: 15, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: done ? '#7DE9FF' : 'inherit' }}>
                   {row.who}
                 </span>
                 <span style={{ fontSize: 12.5, color: done ? '#7DE9FF' : 'rgba(255,255,255,.45)', flexShrink: 0 }}>
