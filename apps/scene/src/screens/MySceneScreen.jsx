@@ -889,7 +889,6 @@ export default function MySceneScreen() {
           /auth is a route, and getting there is a navigation like any other. */}
       {!session && (
         <div className={s.guestGate}>
-          <div className={s.gateIcon}>⭐</div>
           <h2 className={s.gateTitle}>YOUR SCENE AWAITS</h2>
           <p className={s.gateSub}>Sign in to save events, follow artists and build your scene.</p>
           <button className={s.gateBtn} onClick={() => navigate('/auth')}>SIGN IN / CREATE ACCOUNT</button>
