@@ -22,7 +22,7 @@ import s from './EventScreen.module.css';
 export default function EventScreen() {
   const { id }   = useParams();
   const navigate = useNavigate();
-  const { session, isGuest } = useSession();
+  const { session } = useSession();
   const isRealEvent = EVENT_ID_RE.test(id);
 
   const d = useEventData(id, navigate);
@@ -74,7 +74,7 @@ export default function EventScreen() {
     claims: d.claims, days: d.days,
     showTimesPublicly: d.showTimesPublicly,
     totalSlots: d.totalSlots, takenSlots: d.takenSlots,
-    ownerProfile: d.ownerProfile, venueProfile: d.venueProfile, isGuest,
+    ownerProfile: d.ownerProfile, venueProfile: d.venueProfile,
   };
 
   if (session?.user?.id === event.host_id) {
@@ -101,7 +101,10 @@ export default function EventScreen() {
   // them. `showTimesPublicly` is the organiser's decision and is honoured here
   // exactly as it was — a bill can be announced with the running order still
   // under wraps.
-  const canApply = !isGuest && !!event.applications_open && !!session?.user?.id;
+  // A signed-out visitor cannot apply. This used to also check `!isGuest`,
+  // which was redundant even then (a session always cleared the guest flag);
+  // with guest-as-a-state deleted, the session IS the whole question.
+  const canApply = !!event.applications_open && !!session?.user?.id;
 
   /**
    * ⛔ ONE APPLICATION PIPELINE. A festival's event hands off to the Festival
@@ -134,7 +137,7 @@ export default function EventScreen() {
       memberProfiles={d.memberProfiles}
       favourited={like.liked}
       onToggleFavourite={like.toggleLike}
-      canFavourite={!!session?.user?.id && !isGuest}
+      canFavourite={!!session?.user?.id}
       applyAction={applyAction}
       setTimes={d.showTimesPublicly && d.totalSlots > 0
         ? <DaySlots

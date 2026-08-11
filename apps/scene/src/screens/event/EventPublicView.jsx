@@ -20,7 +20,7 @@ import s from '../EventScreen.module.css';
 export default function EventPublicView({
   id, event, cfg, poster, posterFull, genres, isPast,
   claims, days, showTimesPublicly, totalSlots, takenSlots,
-  userId, isGuest, ownerProfile,
+  userId, ownerProfile,
   host = null, hostChrome = null, overlays = null,
 }) {
   // Host state, read once. A punter has none of it, and every conditional
@@ -78,7 +78,7 @@ export default function EventPublicView({
             `applications`; the Portal reads `festival_applications`. Rendering
             both would let someone apply into a table the organiser's dashboard
             never reads, with no error to show for it. See lib/festivalPortal. */}
-        {!effectiveIsHost && !isGuest && event.applications_open && (
+        {!effectiveIsHost && !!userId && event.applications_open && (
           applicationsBelongToFestival(ownerProfile)
             ? <FestivalApply eventId={id} userId={userId} festivalName={ownerProfile?.name} />
             : <ApplyButton eventId={id} userId={userId} ownerProfile={ownerProfile} />

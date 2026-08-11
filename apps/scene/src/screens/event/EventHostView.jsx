@@ -26,7 +26,7 @@ import { EditIcon, InboxIcon, LockIcon, UnlockIcon, CopyIcon, TrashIcon, ManageS
 import s from '../EventScreen.module.css';
 
 export default function EventHostView({
-  id, event, cfg, session, isGuest, ownerProfile, venueProfile,
+  id, event, cfg, session, ownerProfile, venueProfile,
   claims, days, lineupMembers, memberPerfMap, memberProfiles,
   poster, posterFull, genres, isPast,
   showTimesPublicly, totalSlots, takenSlots, lineupPct, isLocked, draftCount,
@@ -897,7 +897,7 @@ export default function EventHostView({
       claims={claims} days={effectiveDays}
       showTimesPublicly={showTimesPublicly}
       totalSlots={totalSlots} takenSlots={takenSlots}
-      userId={session?.user?.id} isGuest={isGuest} ownerProfile={ownerProfile}
+      userId={session?.user?.id} ownerProfile={ownerProfile}
       hostChrome={hostChrome}
       overlays={overlays}
       host={{

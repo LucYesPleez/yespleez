@@ -264,7 +264,7 @@ export default function ApplyButton({ eventId, userId, ownerProfile }) {
             placeholder="Add a note for the host (optional)…" rows={3}
             style={{ width: '100%', background: 'var(--card2)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text)', padding: '10px 12px', fontSize: 13, outline: 'none', resize: 'none', marginBottom: 10 }} />
           {/* N2 · immediately above SEND, the last thing read before acting.
-              APPLY TO PLAY is gated on `!isHost && !isGuest && applications_open`
+              APPLY TO PLAY is gated on `!isHost && userId && applications_open`
               and never on the owner's claim state, so an event imported for an
               organiser who has never joined is applyable — and said nothing. */}
           <UnclaimedNotice profile={ownerProfile} context="apply" />

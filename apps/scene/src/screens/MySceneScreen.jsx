@@ -103,7 +103,7 @@ const SPOTLIGHT_HEART = HEART_OVERLAY_STYLE;
    What's On's cards and these share one definition. */
 const HEART_STYLE = HEART_BARE_STYLE;
 
-export default function MySceneScreen({ isGuest, onSignOut }) {
+export default function MySceneScreen() {
   const navigate = useNavigate();
   const { session } = useSession();
 
@@ -883,18 +883,21 @@ export default function MySceneScreen({ isGuest, onSignOut }) {
             without printing it. See ProfileMenu. */}
       </div>
 
-      {/* Guest gate */}
-      {(isGuest || !session) && (
+      {/* The signed-out invite state. ⚠ This button used to call `onSignOut`
+          — signing in was implemented as tearing down guest state so the app
+          re-rendered into the auth wall. The wall is gone (2026-08-12);
+          /auth is a route, and getting there is a navigation like any other. */}
+      {!session && (
         <div className={s.guestGate}>
           <div className={s.gateIcon}>⭐</div>
           <h2 className={s.gateTitle}>YOUR SCENE AWAITS</h2>
           <p className={s.gateSub}>Sign in to save events, follow artists and build your scene.</p>
-          <button className={s.gateBtn} onClick={onSignOut}>SIGN IN / CREATE ACCOUNT</button>
+          <button className={s.gateBtn} onClick={() => navigate('/auth')}>SIGN IN / CREATE ACCOUNT</button>
         </div>
       )}
 
       {/* Date strip — always visible, dots populate once data arrives */}
-      {session && !isGuest && (
+      {session && (
         <div className={s.dateStripWrap}>
           <div className={s.dateStripTop}>
             <button className={`${s.monthLabel} yp-tap44`} onClick={() => { setPickerYear(viewMonth.getFullYear()); setPickerMonth(viewMonth.getMonth()); setMonthPickerOpen(true); }}>
@@ -1932,8 +1935,8 @@ export default function MySceneScreen({ isGuest, onSignOut }) {
               )}
 
               {/* Sign out removed from My Scene — this is a browsing surface,
-                  not an account screen. `onSignOut` is still used above for the
-                  guest gate's SIGN IN / CREATE ACCOUNT action, so the prop stays. */}
+                  not an account screen. The invite card's SIGN IN action above
+                  navigates to /auth; no account action lives on this screen. */}
             </div>
           )}
         </>

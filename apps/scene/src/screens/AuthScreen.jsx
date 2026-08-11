@@ -1,9 +1,33 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { useSession } from '../App';
 import { track, EVENTS } from '../lib/analytics';
 import s from './AuthScreen.module.css';
 
-export default function AuthScreen({ onGuest }) {
+/**
+ * /auth — a routed surface, not the application's front door.
+ *
+ * This screen is an INTERRUPTION in an existing journey (owner, 2026-08-12):
+ * someone browsing taps SIGN IN, lands here, and goes back to exactly where
+ * they were the moment a session exists. It therefore never renders above the
+ * router (the old wall shape) and never owns the boot sequence.
+ *
+ * `leave()` is the whole return mechanism for O1: history back when this app
+ * put an entry behind us, What's On when the visitor cold-loaded /auth
+ * directly (`location.key === 'default'` is react-router's marker for the
+ * first entry — there is nothing of ours behind it to go back to). O2 adds
+ * returnIntent on top of this; route restoration already works without it
+ * because navigation preserved the journey.
+ *
+ * The same effect covers both directions: arriving here already signed in
+ * bounces straight off, and signing in/up here leaves as soon as
+ * onAuthStateChange delivers the session.
+ */
+export default function AuthScreen() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { session } = useSession() ?? {};
   const [mode,        setMode]        = useState('signin');
   const [email,       setEmail]       = useState('');
   const [password,    setPassword]    = useState('');
@@ -14,6 +38,18 @@ export default function AuthScreen({ onGuest }) {
   const [loading,     setLoading]     = useState(false);
   const [forgotMode,  setForgotMode]  = useState(false);
   const [resetSent,   setResetSent]   = useState(false);
+
+  function leave() {
+    if (location.key !== 'default') navigate(-1);
+    else navigate('/', { replace: true });
+  }
+
+  // One mechanism for both cases: already signed in → bounce off; signed
+  // in/up on this screen → session arrives via onAuthStateChange → leave.
+  useEffect(() => {
+    if (session) leave();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session]);
 
   function switchMode(m) { setMode(m); setError(''); setForgotMode(false); setResetSent(false); setConfirm(''); }
 
@@ -67,7 +103,7 @@ export default function AuthScreen({ onGuest }) {
     <div className={s.screen}>
       <div className={s.logoTag}>YESPLEEZ</div>
       <h1 className={s.title}>ARTISTS.<br />LINEUPS.<br />SORTED.</h1>
-      <p className={s.sub}>Sign in or create an account to continue</p>
+      <p className={s.sub}>Sign in or create your account</p>
 
       {/* Tabs */}
       <div className={s.tabs}>
@@ -171,11 +207,14 @@ export default function AuthScreen({ onGuest }) {
         </form>
       )}
 
-      {/* Guest entry — matches v1 .artist-entry section */}
+      {/* The exit. Browsing is the default state, so this is not "guest
+          entry" — the scene was never locked. It reuses the old guest-entry
+          styles because the visual slot is the same; only the meaning
+          changed: leave the interruption, keep browsing. */}
       <div className={s.artistEntry}>
-        <p>No account? Jump straight in.</p>
-        <button className={s.btnEntry} data-testid="guest-btn" onClick={onGuest}>
-          ENTER AS GUEST →
+        <p>Just browsing? The scene is open — no account needed.</p>
+        <button className={s.btnEntry} data-testid="keep-browsing-btn" onClick={leave}>
+          ← KEEP BROWSING
         </button>
       </div>
     </div>

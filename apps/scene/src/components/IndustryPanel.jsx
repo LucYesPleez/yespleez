@@ -4,7 +4,7 @@ import { visibleRoles } from '../lib/roleVisibility';
 import { supabase } from '../lib/supabase';
 import s from './IndustryPanel.module.css';
 
-export default function IndustryPanel({ open, onClose, onNavigate, session, isGuest, onSignOut }) {
+export default function IndustryPanel({ open, onClose, onNavigate, session }) {
   /**
    * type -> the profile's NAME (owner, 2026-08-04: "have the name next to the
    * tick instead of where it says profile set up").
@@ -50,10 +50,13 @@ export default function IndustryPanel({ open, onClose, onNavigate, session, isGu
         <div className={s.handle} />
 
         <div className={s.cards}>
-          {(isGuest || !session) ? (
+          {!session ? (
             <div className={s.guestMsg}>
               <p className={s.guestText}>Sign in to access industry features</p>
-              <button className={s.guestBtn} onClick={onSignOut}>SIGN IN →</button>
+              {/* ⚠ Was `onSignOut` — the pre-2026-08-12 shape where signing in
+                  meant tearing down guest state to fall back into the auth
+                  wall. /auth is a route now; onNavigate also closes the panel. */}
+              <button className={s.guestBtn} onClick={() => onNavigate('/auth')}>SIGN IN →</button>
             </div>
           ) : (
             <>

@@ -74,7 +74,7 @@ function tabFromPath(pathname) {
   return 'whats-on';
 }
 
-function Shell({ session, isGuest, onSignOut }) {
+function Shell({ session, onSignOut }) {
   const location  = useLocation();
   const navigate  = useNavigate();
   const [industryOpen, setIndustryOpen] = useState(false);
@@ -259,8 +259,15 @@ function Shell({ session, isGuest, onSignOut }) {
       <Routes>
         <Route path="/"          element={<WhatsOnScreen />} />
         <Route path="/discover"  element={<DiscoverScreen />} />
-        <Route path="/my-scene"  element={<MySceneScreen isGuest={isGuest} onSignOut={onSignOut} />} />
+        <Route path="/my-scene"  element={<MySceneScreen />} />
         <Route path="/event/:id"              element={<EventScreen />} />
+        {/* /auth is a routed surface, not the app's front door. It is an
+            INTERRUPTION in an existing journey: every SIGN IN affordance
+            navigates here and AuthScreen sends the visitor back where they
+            came from once a session exists. The old shape — AuthScreen
+            rendered ABOVE the router as a wall — is gone, and
+            routeAccess.test.js keeps it gone. */}
+        <Route path="/auth"                   element={<AuthScreen />} />
         {/* DEV ONLY — Event Page layout harness. Tree-shaken out of the
             production bundle by the import.meta.env.DEV guard. */}
         {import.meta.env.DEV && (
@@ -348,8 +355,6 @@ function Shell({ session, isGuest, onSignOut }) {
         onClose={() => setIndustryOpen(false)}
         onNavigate={(path) => { setIndustryOpen(false); navigate(path); }}
         session={session}
-        isGuest={isGuest}
-        onSignOut={onSignOut}
       />
       {/* ⚠ BOUNDED, and this is not optional.
           The dock is mounted ABOVE the router so it survives navigation — which
@@ -368,7 +373,6 @@ function Shell({ session, isGuest, onSignOut }) {
 
 export default function App() {
   const [session,  setSession]  = useState(null);
-  const [isGuest,  setIsGuest]  = useState(() => sessionStorage.getItem('yp_guest') === '1');
   const [loading,  setLoading]  = useState(true);
 
   useEffect(() => {
@@ -379,7 +383,6 @@ export default function App() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, s) => {
       setSession(s);
       setAnalyticsUser(s?.user?.id ?? null);
-      if (s) setIsGuest(false);
     });
 
 
@@ -443,13 +446,19 @@ export default function App() {
 
   if (loading) return null;
 
-  if (!session && !isGuest) {
-    return <AuthScreen onGuest={() => { sessionStorage.setItem('yp_guest', '1'); setIsGuest(true); }} />;
-  }
+  /**
+   * ⭐⭐ THERE IS NO AUTH WALL, AND THERE MUST NEVER BE ONE AGAIN (owner,
+   * 2026-08-12). Discovery is anonymous; participation is identified.
+   *
+   * The router mounts unconditionally — a QR scan, a shared link, a cold
+   * visit all land on real content with no session. Authentication is a
+   * property of route/action access (lib/routeAccess.js declares which), not
+   * the application's boot condition. "Guest" is not a state: `!session` is
+   * the whole fact, and the old `yp_guest` sessionStorage flag is deleted —
+   * routeAccess.test.js fails the suite if either concept returns.
+   */
 
   function handleSignOut() {
-    sessionStorage.removeItem('yp_guest');
-    setIsGuest(false);
     clearActingProfileCache();  // M6: a cached profile id must not outlive its session
     // ⏱ TEMPORARY — marks this SIGNED_OUT as user-initiated. GoTrue emits the
     // same event whether the button was pressed or a refresh was rejected, and
@@ -460,9 +469,9 @@ export default function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <SessionCtx.Provider value={{ session, isGuest }}>
+      <SessionCtx.Provider value={{ session }}>
         <HashRouter>
-          <Shell session={session} isGuest={isGuest} onSignOut={handleSignOut} />
+          <Shell session={session} onSignOut={handleSignOut} />
         </HashRouter>
       </SessionCtx.Provider>
     </QueryClientProvider>
