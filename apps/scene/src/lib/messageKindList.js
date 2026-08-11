@@ -19,12 +19,25 @@
  * `messageKindContract.test.js` fails if it drifts.
  */
 
-/** Canonical kinds, in the migration's order. */
+/**
+ * Canonical kinds, in the migration's order.
+ *
+ * ⚠ ORDER IS PART OF THE CONTRACT — `messageKindContract.test.js` compares
+ * this array to the CHECK with `deepEqual`, so a kind added in a different
+ * position here than in the SQL fails the suite even though both lists hold
+ * the same members.
+ */
 export const KINDS = [
-  // Authored by the sender
-  'text', 'voice', 'image', 'video', 'file', 'location', 'hand',
+  // Authored by the sender · M9i put `audio` beside `voice` deliberately,
+  // because that is the distinction people get wrong: `voice` is the Voicey
+  // recorder, `audio` is an uploaded track. ⛔ Never compress a master into a
+  // Voicey. ⭐ HD is METADATA (`payload.hd`), never a kind — there is no
+  // `hd_audio`, and adding one would double this list per quality tier.
+  'text', 'voice', 'audio', 'image', 'video', 'file', 'location', 'hand',
+  // Canonical objects shared into a conversation, BY REFERENCE (M9i).
+  'event', 'profile',
   // Authored by a workflow act
-  'event', 'application', 'booking', 'approval',
+  'application', 'booking', 'approval',
   // Authored by the platform, via a system profile (C29)
   'system',
 ];
@@ -33,6 +46,12 @@ export const KINDS = [
 export const LABELS = {
   text:        'Message',
   voice:       'Voice message',
+  // ⚠ "Audio", never "Voice message" — the two are different things and this
+  // label is what a notification preview and an older client show. ⭐ An HD
+  // master is still Audio here: quality lives in `payload.hd`, so the label
+  // does not fork into "HD Audio" and leave every consumer with two names for
+  // one kind. A surface that wants to say HD reads the payload.
+  audio:       'Audio',
   image:       'Photo',
   video:       'Video',
   file:        'File',
@@ -48,6 +67,9 @@ export const LABELS = {
   // presentation and change freely; stored text does not.
   hand:        'Acknowledged',
   event:       'Event',
+  // A profile shared into the conversation — a REFERENCE to the canonical row,
+  // never a copy of it (M9i).
+  profile:     'Profile',
   application: 'Application',
   booking:     'Booking',
   approval:    'Approval',

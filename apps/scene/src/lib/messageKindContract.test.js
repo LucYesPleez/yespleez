@@ -102,6 +102,86 @@ test('every kind has a human label', () => {
   }
 });
 
+/* ── M9i · audio and profile ────────────────────────────────────────── */
+
+/**
+ * ⚠ VERIFIED AGAINST THE LIVE DATABASE 2026-08-11, not only these files:
+ * `audio` and `profile` were ACCEPTED by the CHECK, `hd_audio`, `hd_image` and
+ * an invented kind were REJECTED, and zero rows were persisted.
+ *
+ * ⭐⭐ HOW TO PROBE A CONSTRAINT WITHOUT WRITING ANYTHING — the technique is
+ * worth more than the result. Make the operation fail LATER than the
+ * constraint under test: the probe inserted with a non-existent
+ * `conversation_id`, so a legal kind died on the FOREIGN KEY, 23503, having
+ * already passed the CHECK, and an illegal one died on the CHECK itself,
+ * 23514. Nothing committed, so no unread-count or push trigger fired.
+ *
+ * ⛔ AND VERIFY THE CODE ACTUALLY DISCRIMINATES. Two earlier probes did not:
+ * inserting as the signed-in user returned 42501 for EVERY kind, because RLS
+ * denies before the CHECK is evaluated; omitting `from_profile_id` returned
+ * 23502 for every kind, because NOT NULL fires first. A probe that returns the
+ * same code for pass and fail is measuring something else.
+ */
+test('M9i · audio and profile are valid kinds', () => {
+  const db = kindsInMigration();
+  assert.ok(db.includes('audio'),   'the CHECK does not accept `audio`');
+  assert.ok(db.includes('profile'), 'the CHECK does not accept `profile`');
+  assert.ok(KINDS.includes('audio') && KINDS.includes('profile'),
+    'the client list is missing one of the new kinds');
+});
+
+/**
+ * ⭐⭐ HD IS METADATA, NEVER A KIND. `payload.hd` already carries it for audio
+ * and `payload.original` for images.
+ *
+ * ⛔ An `hd_audio` kind would double this list per quality tier and force
+ * every consumer — renderer, notification preview, inbox row, index panel — to
+ * learn a second name for the same thing. The database enforces this, so the
+ * rule cannot be broken by convention alone.
+ */
+test('⛔ HD never becomes its own kind', () => {
+  const all = [...kindsInMigration(), ...KINDS];
+  ['hd_audio', 'hd_image', 'hd_video', 'audio_hd', 'image_hd'].forEach(k =>
+    assert.ok(!all.includes(k),
+      `'${k}' exists — HD must stay in the payload, not multiply the kinds`));
+});
+
+/**
+ * ⛔ `voice` is the Voicey recorder; `audio` is an uploaded track. Both must
+ * exist and stay distinct — "never compress an uploaded master into a Voicey".
+ */
+test('⛔ audio did not replace voice', () => {
+  const db = kindsInMigration();
+  assert.ok(db.includes('voice'), 'the Voicey kind was removed');
+  assert.ok(db.includes('audio'));
+  assert.notEqual(LABELS.voice, LABELS.audio, 'the two read as the same thing');
+});
+
+/**
+ * ⭐ An HD master is still labelled "Audio". The label must not fork, or every
+ * surface ends up with two names for one kind — quality is read from the
+ * payload by whatever wants to say it.
+ */
+test('⭐ the audio label does not fork on quality', () => {
+  assert.equal(LABELS.audio, 'Audio');
+  assert.doesNotMatch(String(LABELS.audio), /hd/i);
+});
+
+/**
+ * ⚠⚠ NO ROUND BRACKETS IN COMMENTS INSIDE THE `kind IN` LIST. `kindsInMigration`
+ * matches up to the first closing bracket, so a bracketed aside ends the match
+ * early and silently drops every kind below it. It happened twice while
+ * writing M9i: once from "(C29)" and once from a comment quoting the regex.
+ * The list would then parse SHORT and this file fails — which is the alarm
+ * working, but the cause reads as a missing kind rather than a stray bracket.
+ */
+test('⚠ the migration parses its whole list — no bracket truncation', () => {
+  const db = kindsInMigration();
+  assert.ok(db.includes('system'),
+    'the parse stopped early — check for a round bracket in a comment inside `kind IN`');
+  assert.equal(db.length, KINDS.length);
+});
+
 test('the registry still re-exports the list the app imports', () => {
   // The split is an implementation detail: `messageKinds.jsx` must remain the
   // one import a caller needs. If the re-export is dropped, every consumer
