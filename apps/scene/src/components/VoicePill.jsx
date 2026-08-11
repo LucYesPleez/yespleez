@@ -1,3 +1,5 @@
+import { useRef } from 'react';
+
 /**
  * THE VOICEY PILL — the microphone and its waveform panel as one control.
  *
@@ -107,11 +109,70 @@ const NEUTRAL_BORDER = '1px solid rgba(255,255,255,.22)';
  * caused the loss. Visual state stays `recording`-driven — parked is not live,
  * and the still dot beside it already carries that.
  */
-export default function VoicePill({ recording = false, parked = false, disabled = false, onToggle }) {
+/**
+ * How far the thumb must travel before a press becomes a drag.
+ *
+ * ⚠ THIS NUMBER PROTECTS THE TAP, NOT THE DRAG. Every recording starts with a
+ * press on this control, and fingers move a little on the way down — set this
+ * too low and ordinary taps start raising the stage instead of recording. 24px
+ * is comfortably past incidental movement and still an easy flick.
+ */
+const DRAG_THRESHOLD = 24;
+
+export default function VoicePill({
+  recording = false, parked = false, disabled = false, onToggle,
+  // Drag the pill UP to raise the oversized stage, DOWN to lower it. Optional:
+  // a mount that passes neither keeps the plain tap-to-record pill it always
+  // had, and none of the gesture code below can fire.
+  onRaise, onLower, stageRaised = false,
+}) {
+  const startY = useRef(null);
+  /**
+   * ⚠⚠ A DRAG MUST NOT ALSO RECORD. `click` fires after `pointerup` on the
+   * same press, so without this a flick upward would raise the stage AND start
+   * a recording — the user asked for a bigger button and got a live microphone
+   * they never pressed. The flag is read and cleared by the click handler that
+   * follows, so it can never leak into the next genuine tap.
+   */
+  const dragged = useRef(false);
+
+  function onPointerDown(e) {
+    if (disabled || (!onRaise && !onLower)) return;
+    startY.current = e.clientY;
+    dragged.current = false;
+    // Keeps move/up events coming to this element even once the thumb has
+    // travelled off it — which, for an upward drag, it immediately has.
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+  }
+
+  function onPointerMove(e) {
+    if (startY.current === null) return;
+    const dy = e.clientY - startY.current;
+    if (Math.abs(dy) < DRAG_THRESHOLD) return;
+    // Fire ONCE per press. Without the flag a slow drag crosses the threshold
+    // on many consecutive move events and re-fires all the way up.
+    if (dragged.current) return;
+    if (dy < 0 && !stageRaised) { dragged.current = true; onRaise?.(); }
+    else if (dy > 0 && stageRaised) { dragged.current = true; onLower?.(); }
+  }
+
+  function onPointerUp() {
+    startY.current = null;
+  }
+
+  function handleClick() {
+    if (dragged.current) { dragged.current = false; return; }
+    onToggle?.();
+  }
+
   return (
     <button
       type="button"
-      onClick={onToggle}
+      onClick={handleClick}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerUp}
       disabled={disabled}
       aria-pressed={recording}
       aria-label={

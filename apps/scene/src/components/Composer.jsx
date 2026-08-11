@@ -4,6 +4,8 @@ import { formatDuration } from '../lib/voiceNotes';
 import HandIcon from './HandIcon';
 import VoicePill, { PILL_WIDTH as PILL_W } from './VoicePill';
 import LiveWaveform from './LiveWaveform';
+import VoiceyStage from './VoiceyStage';
+import { useVoiceyStage, setVoiceyStage } from '../hooks/useVoiceyStage';
 
 /**
  * THE COMPOSER — one glass capsule, four slots, four states.
@@ -96,34 +98,30 @@ const CONTROL = 36;
 const INSET = 5;
 
 /**
- * The camera, which is the one control NOT inside the capsule.
+ * How tall the field may grow before it starts scrolling instead.
  *
- * 40, not `CONTROL`'s 36. It is a lone object on open background rather than
- * one of four in a row, so it has to hold its position without the capsule's
- * help — at 36 it read as undersized next to the 48px capsule beside it.
+ * ⚠ THE CEILING IS THE POINT, NOT THE GROWTH. A field that grows without limit
+ * eventually eats the conversation it belongs to — you end up composing into a
+ * full-screen box with no sight of what you are replying to. Five lines is
+ * roughly where the other messaging apps stop, and it still leaves the thread
+ * readable on the shortest phone we support.
  *
- * ⚠ IT MUST NOT REACH 48. Matching the capsule's height would make it read as a
- * second capsule, which is what the glass version got wrong. It is deliberately
- * the smaller of the two objects.
+ * 21px line-height × 5, plus the field's own 7px top and bottom padding. Both
+ * numbers live in `.yp-composer-field`; if either changes, this does too.
  */
-const CAMERA = 40;
+const FIELD_MAX_H = 21 * 5 + 14;
 
-/**
- * Between the camera and the capsule — the gap BETWEEN two objects, which is a
- * different measurement from `INSET`, the gap INSIDE one.
+/*
+ * ⛔ `CAMERA` AND `GUTTER` ARE GONE WITH THE CAMERA ITSELF.
  *
- * 8, wider than the capsule's 5, deliberately: they must read as two separate
- * things sitting beside each other. At 5 the camera looked like a control that
- * had fallen out of the capsule.
+ * ⭐ AND THE FIELD GOT 52px BACK. The pair cost the capsule 44px of camera
+ * plus an 8px gutter, which on a 360px handset took the text field from ~155px
+ * to ~107px — the binding constraint the old comment called "the budget
+ * spent". The capsule is now the whole row.
  *
- * ⚠ THIS COSTS THE FIELD WIDTH, AND THE 360px HANDSET IS THE BINDING
- * CONSTRAINT. Camera + gutter takes 48px off the capsule, so the text field
- * goes from ~155px to ~107px on a 360px screen. Every other control keeps its
- * documented size — but this is the budget spent. There is not another 48px in
- * the row: a second companion button does not fit, and neither does a larger
- * camera without taking it out of the field.
+ * ⚠ So if a second companion control is ever proposed beside the capsule, that
+ * 52px is what it costs, and the 360px screen is where it has to be measured.
  */
-const GUTTER = 8;
 
 /**
  * The bar's own padding above and below the capsule.
@@ -195,9 +193,77 @@ export default function Composer({
 
   const trailingIsSend = hasText || rec.active;
 
+  /**
+   * THE OVERSIZED STAGE. A remembered preference, raised by dragging the pill
+   * upward and lowered by dragging it back down.
+   *
+   * ⚠ Shown only when the pill itself is available. The stage is a second face
+   * for that one control, so it must not linger over a composer where the pill
+   * has collapsed — mid-typing, mid-send, or where voice is unsupported. It is
+   * NOT hidden while a note is parked: a parked Voicey is continued from this
+   * control, and taking the big target away at that moment would be the same
+   * discard-by-surprise the constitutional rule forbids.
+   */
+  const [stageRaised] = useVoiceyStage();
+  const stageUp = stageRaised && pillOpen;
+
   function submit(e) {
     e.preventDefault();
     if (hasText) onSubmit?.(e);
+  }
+
+  /**
+   * AUTOSIZE. Reset to `auto` first, then adopt the content's own height.
+   *
+   * ⚠ THE RESET IS NOT OPTIONAL. `scrollHeight` never reports less than the
+   * element's current height, so measuring without collapsing it first means
+   * the field can only ever grow — delete three lines and it stays three lines
+   * tall, with a hole where the text was.
+   */
+  const fieldRef = useRef(null);
+
+  function autosize(el) {
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, FIELD_MAX_H)}px`;
+  }
+
+  // A callback ref so the field is measured the moment it exists — including
+  // when it REPLACES the voice slot, which remounts it with the draft already
+  // several lines long. It also has to keep `inputRef` fed: the conversation
+  // restores the caret through it.
+  function setFieldRef(el) {
+    fieldRef.current = el;
+    if (inputRef) inputRef.current = el;
+    autosize(el);
+  }
+
+  // Every change of the text, from any source. Typing is the obvious one; a
+  // restored draft and a cleared-on-send field are the ones that break if this
+  // is wired to the keystroke instead of the value.
+  useEffect(() => { autosize(fieldRef.current); }, [draft]);
+
+  /**
+   * ENTER. ⚠⚠ THE ONE BEHAVIOUR A TEXTAREA SILENTLY TAKES AWAY.
+   *
+   * An `<input>` in a form submits on Enter for free. A `<textarea>` inserts a
+   * newline instead — so the swap alone would have quietly broken sending by
+   * keyboard for every desktop user, with no error and nothing to see.
+   *
+   * ⭐ THE RULE IS THE KEYBOARD, NOT THE SCREEN SIZE. Where there is a real
+   * keyboard, Enter sends and Shift+Enter makes a new line — what every desktop
+   * chat client does. On a touch keyboard Enter must make a new line, because
+   * its Enter key is the ONLY way to get one and sending is a visible button
+   * right there. Deciding this on width would get a tablet with a keyboard
+   * wrong in both directions.
+   */
+  function onFieldKeyDown(e) {
+    if (e.key !== 'Enter' || e.shiftKey) return;
+    const hasKeyboard = typeof matchMedia === 'function'
+      && matchMedia('(hover: hover) and (pointer: fine)').matches;
+    if (!hasKeyboard) return;          // touch: Enter is a new line
+    e.preventDefault();
+    if (hasText && !sending) onSubmit?.(e);
   }
 
   return (
@@ -209,7 +275,13 @@ export default function Composer({
         // The form IS the row: camera, then capsule. A wrapper div would have
         // been a second box doing one box's job. The fade below is absolutely
         // positioned, so it stays out of flow and is not a flex item.
-        display: 'flex', alignItems: 'center', gap: GUTTER,
+        // ⚠ `flex-end` for the same reason the capsule uses it: the capsule
+        // GROWS now, and a centred camera drifts to the middle of a five-line
+        // message instead of staying level with the controls it belongs with.
+        // Identical at one line, where both boxes are the same height.
+        // No `gap`: the capsule is the row's only child now that the camera
+        // has gone, so there is nothing left to space it from.
+        display: 'flex', alignItems: 'flex-end',
         background: `linear-gradient(180deg, ${SCRIM_TOP} 0%, ${SCRIM_BOTTOM} 100%)`,
       }}
     >
@@ -239,6 +311,20 @@ export default function Composer({
           pointerEvents: 'none',
         }}
       />
+      {/* ── THE OVERSIZED STAGE · behind everything in this row ─────────
+          Mounted FIRST so it paints under the controls in DOM order, and it
+          carries the only z-index in here. It never unmounts while the pill is
+          available: the raise and lower are an animation on a permanent
+          element, so the row cannot jump when the stage moves. */}
+      <VoiceyStage
+        raised={stageUp}
+        recording={mode === 'recording'}
+        parked={mode === 'pending'}
+        disabled={!canWrite || sending}
+        getLevel={rec.getLevel}
+        onToggle={() => void rec.toggle()}
+      />
+
       {attachOpen && !rec.active && (
         <AttachMenu
           onClose={() => setAttachOpen(false)}
@@ -247,21 +333,18 @@ export default function Composer({
         />
       )}
 
-      {/* ── CAMERA · beside the capsule, not in it ──────────────────────
-          The one control that is NOT in the capsule, because it does not
-          compose a message — it opens a different way of making one. Putting it
-          inside would have made the capsule's slot count five and shoved the
-          field sideways, which is exactly the layout churn M9t removed.
+      {/* ⛔ THE CAMERA IS GONE (owner, 2026-08-11).
+          It stood beside the capsule and opened the rear camera directly with
+          `capture="environment"`. Removed on instruction.
 
-          It is a bare glyph, not a second surface: one capsule per row. */}
-      <CameraButton
-        onPick={onPickImage}
-        // Unavailable for the same reasons the field is, PLUS while a recording
-        // is open: a picker taking over the screen mid-recording leaves a live
-        // microphone running behind it with no visible way back.
-        disabled={!canWrite || sending || rec.active || busy || !onPickImage}
-      />
+          ⚠ TAKING A PHOTO IS STILL POSSIBLE, just no longer one tap: the `+`
+          menu's "Upload image" uses `accept="image/*"` with no `capture`, and
+          both mobile platforms offer "Take Photo" in the chooser that opens.
+          What was lost is the shortcut, not the capability — worth knowing
+          before anyone "restores" it by adding capture to that row, which
+          would instead REMOVE the library.
 
+          The row is now one object: the capsule, full width. */}
       <div
         className="yp-composer"
         // Drives the capsule's recording accent, and gives the state one
@@ -275,8 +358,28 @@ export default function Composer({
         // documents one slot down.
         style={{
           flex: 1, minWidth: 0,
-          display: 'flex', alignItems: 'center', gap: INSET,
-          padding: INSET, borderRadius: 999, boxSizing: 'border-box',
+          display: 'flex', gap: INSET,
+          // ⚠ `flex-end`, NOT `center`, now that the field can grow. Centred
+          // controls drift down the capsule as the text gets taller, so the
+          // microphone ends up level with the middle of a paragraph. Anchored
+          // to the bottom they stay where the thumb left them — and at one line
+          // the two are identical, because everything is the same height.
+          alignItems: 'flex-end',
+          padding: INSET, boxSizing: 'border-box',
+          /**
+           * ⚠ 24, NOT 999, AND IT LOOKS THE SAME AT REST. At the resting 48px
+           * height CSS was already clamping 999 to 24. But the capsule can be
+           * 120px tall now, where 999 would resolve to 60 and turn the sides
+           * into semicircles — a paragraph in a stadium. Stating the resolved
+           * number keeps the resting shape exactly as it was and stops it
+           * rounding further as it grows. Same reasoning as VoiceyStage's
+           * RADIUS.
+           */
+          borderRadius: 24,
+          // ⚠ FLOATS ON TOP OF THE STAGE. A positioned element paints above
+          // static siblings regardless of source order, so without an explicit
+          // layer here the stage would cover the entire row it sits behind.
+          position: 'relative', zIndex: 1,
         }}
       >
         {/* ── LEFT · attach, or discard ───────────────────────────────
@@ -328,18 +431,23 @@ export default function Composer({
         {showVoiceSlot ? (
           <VoiceSlot rec={rec} phase={rec.phase} />
         ) : (
-          <input
-            ref={inputRef}
+          <textarea
+            ref={setFieldRef}
+            rows={1}
             value={draft}
             onChange={e => { onDraftChange(e.target.value); onInputEvent?.(); }}
             onSelect={onInputEvent}
             onKeyUp={onInputEvent}
             onBlur={onInputEvent}
+            onKeyDown={onFieldKeyDown}
             disabled={!canWrite || sending}
             placeholder={placeholder}
             aria-label="Message"
             className="yp-composer-field"
-            style={{ flex: 1, minWidth: 0, height: CONTROL }}
+            // `height` is written by the autosize effect, not by React state:
+            // measuring in a render would need a second render to apply, and
+            // the field would visibly lag a character behind every keystroke.
+            style={{ flex: 1, minWidth: 0, height: CONTROL, maxHeight: FIELD_MAX_H }}
           />
         )}
 
@@ -362,6 +470,9 @@ export default function Composer({
         >
           {rec.supported && (
             <VoicePill
+              stageRaised={stageRaised}
+              onRaise={() => setVoiceyStage(true)}
+              onLower={() => setVoiceyStage(false)}
               recording={mode === 'recording'}
               // While a note is parked the microphone CONTINUES it rather than
               // starting over — see decideToggle. The label must match, or the
@@ -428,10 +539,15 @@ export default function Composer({
  * The accept value is what chooses the picker, so choosing the picker means
  * committing to a row before the tap. Hence two.
  *
- * ⚠ THE CAMERA IS NOT IN HERE. It is its own control beside the capsule, and
- * deliberately so: taking a photo is the one attachment worth reaching in a
- * single tap, and burying it two taps deep to tidy the row would cost the
- * gesture the whole feature exists for.
+ * ⚠ THIS MENU IS NOW THE ONLY ROUTE TO A PHOTO. The camera that stood beside
+ * the capsule was removed (2026-08-11), so "Upload image" carries what used to
+ * be a one-tap gesture. It still reaches the camera — `accept="image/*"` with
+ * no `capture` makes both mobile platforms offer "Take Photo" in the chooser —
+ * but it is two taps deep now, and that is the trade.
+ *
+ * ⛔ DO NOT "FIX" THAT BY ADDING `capture` TO THIS ROW. It would open the
+ * camera directly and REMOVE the library, which is the more common of the two
+ * and the reason this row exists.
  *
  * ⚠ IT STOPS ABOVE THE BOTTOM NAV. It is anchored to the composer, not to the
  * viewport, so it rises out of the + and cannot reach the nav — see the
@@ -630,87 +746,6 @@ const IMAGE_HD_ACCEPT = [
   '.dng', '.cr2', '.cr3', '.nef', '.nrw', '.arw', '.srf', '.sr2',
   '.raf', '.orf', '.rw2', '.pef', '.x3f', '.raw', '.tif', '.tiff',
 ].join(',');
-
-/**
- * THE CAMERA — outside the capsule, and currently inert.
- *
- * ⛔ IT IS DIMMED AND DISABLED ON PURPOSE. `image` and `video` are declared
- * message kinds with NO client implementation — nothing captures, uploads,
- * stores or renders one. A camera that opened a picker and then had nowhere to
- * send the result is the padlock defect the `+` inside the capsule already
- * documents: a control that looks pressable and does nothing.
- *
- * It holds its place so the layout is the real layout, and it goes live the day
- * image messages ship — by deleting `disabled` and giving it an `onClick`, with
- * no geometry change anywhere.
- *
- * It is a bare mark — no fill, no border, no ring. See `.yp-ctl-camera`.
- *
- * ── IT IS A LABEL WRAPPING A FILE INPUT, NOT A BUTTON ────────────────
- *
- * There is no way to open a camera or a photo library from script: the picker
- * only opens from a genuine user gesture on an `<input type="file">`. So the
- * mark is a `<label>` and the input is visually hidden inside it — the whole
- * 40px box is the label, so the tap target is unchanged from the button it
- * replaced.
- *
- * `capture="environment"` asks a PHONE for the rear camera directly. It is a
- * hint, not a guarantee, and desktop browsers ignore it entirely and open an
- * ordinary file picker — which is the correct behaviour there, since a laptop's
- * webcam is rarely what anyone means by "send a photo".
- *
- * ⚠ THE INPUT IS CLEARED AFTER EVERY PICK. Without `e.target.value = ''` the
- * same file chosen twice in a row fires no `change` event the second time —
- * the value has not changed — so re-sending a photo you just sent silently
- * does nothing.
- *
- * ⚠ THE ARTWORK IS 32-UNIT, NOT 24. Every other glyph in this file is drawn on
- * a 24 viewBox; this one is `0 0 32 32` and its `strokeWidth` of 2 is relative
- * to THAT. Copying 24-unit numbers onto it, or its numbers onto them, silently
- * changes the weight — the stroke is a third heavier per drawn pixel here.
- */
-function CameraButton({ onPick, disabled }) {
-  return (
-    <label
-      aria-label="Send a photo"
-      title="Send a photo"
-      className={`yp-ctl yp-ctl-camera${disabled ? ' yp-ctl-camera-off' : ''}`}
-      style={{ width: CAMERA, height: CAMERA, cursor: disabled ? 'not-allowed' : 'pointer' }}
-    >
-      <input
-        type="file"
-        accept="image/*"
-        capture="environment"
-        disabled={disabled}
-        onChange={e => {
-          const file = e.target.files?.[0];
-          e.target.value = '';          // see header — required for a repeat pick
-          if (file) onPick?.(file);
-        }}
-        // Hidden from sight, NOT from the accessibility tree or the pointer.
-        // `display: none` would make the input unfocusable by keyboard, and the
-        // label's own click would still reach it — but nothing would ever focus
-        // it, so a keyboard user could not tell where they were.
-        style={{
-          position: 'absolute', width: 1, height: 1,
-          opacity: 0, overflow: 'hidden', pointerEvents: 'none',
-        }}
-      />
-      {/* 32 in a 40px box — the artwork drawn at its own natural unit scale,
-          one drawn pixel per SVG unit, so the stroke lands on whole device
-          pixels rather than between them.
-
-          ⚠ THAT LEAVES 4px A SIDE, AND THE DRAWING IS FULL-BLEED. Its ink runs
-          to unit 31 of 32 with no padding built in, and a 2-unit stroke centred
-          on the path puts the outer edge at ~40 of the 40. The mark now reaches
-          the button's bounds almost exactly. It cannot go larger inside this
-          box, and the box cannot grow without taking width off the field. */}
-      <svg width="32" height="32" viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M22 31H26C26.553 31 27 30.553 27 30V20M19 20V30C19 30.553 18.553 31 18 31H2C1.447 31 1 30.553 1 30V12C1 11.447 1.447 11 2 11H7M7 11V10H12M7 11V19H13V15M23 17C18.582 17 15 13.418 15 9C15 4.582 18.582 1 23 1C27.418 1 31 4.582 31 9C31 13.418 27.418 17 23 17ZM23 17V23M25 9C25 7.896 24.104 7 23 7C21.896 7 21 7.896 21 9C21 10.104 21.896 11 23 11C24.104 11 25 10.104 25 9Z" />
-      </svg>
-    </label>
-  );
-}
 
 /**
  * The voice readout — the centre slot's other costume, at the field's exact

@@ -480,6 +480,21 @@ input, textarea, select {
   background: none;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
+  /* ⚠⚠ WITHOUT THIS THE DRAG GESTURE CANNOT WORK ON A PHONE, AND FAILS
+     SILENTLY. The pill is dragged UP to raise the oversized stage. On a touch
+     screen the browser owns vertical gestures by default: it claims the drag
+     for scrolling the conversation and stops delivering pointermove to this
+     element, so the handler simply never fires. Nothing errors — the control
+     just does not respond, which is exactly how it was reported.
+
+     `none` rather than `pan-x`: the pill is 66×44 and there is nothing to pan
+     inside it, so surrendering both axes costs nothing and leaves no axis for
+     the browser to claim. The thread still scrolls everywhere else. */
+  touch-action: none;
+  /* A mouse drag across a button otherwise starts a text selection, which is
+     the desktop version of the same problem. */
+  user-select: none;
+  -webkit-user-select: none;
 }
 .yp-pill-hit:disabled { cursor: not-allowed; opacity: .5; }
 
@@ -928,48 +943,6 @@ input, textarea, select {
   .yp-img-loading { animation: none; }
 }
 
-/* THE CAMERA — A MARK, AND NOTHING ELSE.
-
-   No fill, no border, no ring, no shadow. It went through the capsule's glass
-   (a second capsule beside the capsule) and the play button's smoked disc (a
-   second play button beside the thread) before landing here. Both failed the
-   same way: the row already has one surface, and the camera is not on it.
-
-   THE COLOUR IS A TINTED WHITE, NOT THE BRAND PURPLE — and that is a decision,
-   not a default. It was `#BF5FFF` while the mark was small and needed the
-   pigment to hold its position. At 32 it does not: the drawing itself is now
-   the largest single glyph in the row, and a saturated purple camera at that
-   size competes with Send, which is the ONE control here that should ever be
-   loud. Same reasoning that makes the Hand a ring instead of a fill.
-
-   So it keeps a violet cast — enough to belong to the palette — with the
-   saturation taken out, and sits below the live controls in weight. Brand
-   colour in this row means "this is the act", and the camera is not the act.
-
-   ⚠ THE TAP TARGET IS NOT THE MARK. The `<button>` keeps its full 40px box; only
-   the paint is gone. Do not shrink the element to the glyph — on a phone that
-   trades a comfortable target for a purely visual tidy-up.
-
-   ⚠ IT IS A `<label>`, NOT A `<button>` — a file picker only opens from a real
-   gesture on an `<input type="file">`. So `.yp-ctl`'s button assumptions are
-   restated here rather than inherited, and `:disabled` does not apply to a
-   label: the unavailable state is the explicit `.yp-ctl-camera-off` below. */
-.yp-ctl-camera {
-  background: transparent;
-  border: none;
-  box-shadow: none;
-  position: relative;         /* anchors the visually-hidden file input */
-  /* Violet-cast white. The hue is the brand's; the saturation is not. */
-  color: rgba(223,211,255,.66);
-}
-
-/* Unavailable — while a recording is open, or in a thread that cannot be
-   written to. Dimmed rather than removed: the camera keeps its place in the
-   row, so nothing shifts sideways when it comes back. */
-.yp-ctl-camera-off {
-  color: rgba(255,255,255,.22);
-}
-
 /* ═══ APP-SCOPED DIALOGS ══════════════════════════════════════════════
 
    ⚠ A DIALOG BELONGS TO THE APP COLUMN, NOT TO THE DESKTOP.
@@ -1168,8 +1141,32 @@ input, textarea, select {
   color: var(--text);
   font-size: 15px;
   font-family: inherit;
-  padding: 0 6px;
+  /* ⚠ 16px ON iOS OR SAFARI ZOOMS THE PAGE on focus. The composer is fixed to
+     the bottom, so that zoom shoves the field under the keyboard — the field
+     you are typing into. 15px is under the threshold, which is why the size
+     above is not a free choice. */
+
+  /* ── IT IS A TEXTAREA NOW, AND IT GROWS ─────────────────────────────
+     It was an <input>: one line, forever, scrolling sideways once you passed
+     the end. A long message became a moving window a few words wide with no
+     way to see what you had written. It now grows downward like every other
+     messaging app, up to a ceiling, and scrolls only after that. */
+  resize: none;              /* no drag handle — the height is computed */
+  overflow-y: auto;
+  /* Vertical padding centres a single line in the 36px control height:
+     (36 − 21 line-height) / 2 ≈ 7. Getting this wrong is what makes a
+     one-line composer look like the text is sitting too high in its box. */
+  padding: 7px 6px;
+  line-height: 21px;
+  /* Long unbroken strings — a pasted URL — must wrap rather than force the
+     capsule wider than the screen. */
+  overflow-wrap: anywhere;
 }
+/* The field scrolls once it hits its ceiling, and a visible scrollbar inside
+   the glass capsule is exactly the "no visible scrollbars" rule this app holds
+   everywhere else. */
+.yp-composer-field::-webkit-scrollbar { width: 0; height: 0; }
+.yp-composer-field { scrollbar-width: none; }
 .yp-composer-field::placeholder { color: rgba(255,255,255,.36); }
 
 /* A slot that closes rather than disappearing. `overflow: hidden` keeps the
@@ -1667,4 +1664,124 @@ body.yp-viewer-open .yp-global-header {
     height: max(100%, 44px);
     /* No background: this exists to be touched, never to be seen. */
   }
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   THE OVERSIZED VOICEY STAGE (VoiceyStage.jsx)
+
+   A surface that rises BEHIND the composer row so the microphone gets a
+   target the size of a quarter of the screen. The row itself is untouched
+   and floats on top — see the component for the dead-zone rule that keeps
+   a near-miss on the camera from starting a recording.
+   ══════════════════════════════════════════════════════════════════════ */
+.yp-voicey-stage {
+  /* ⚠ Shape lives in VoiceyStage.jsx — INSET, RADIUS and BORDER are one set
+     and are written inline together. Nothing here may set border-radius or
+     border-width. */
+
+  /* ── ⭐⭐ THE 3px GRADIENT OUTLINE ──────────────────────────────────
+     TWO backgrounds, clipped to different boxes. The first is the panel's
+     fill, clipped to the PADDING box so it stops short of the border. The
+     second is the brand gradient, clipped to the BORDER box, so it shows only
+     where the transparent border sits. The result is a gradient outline that
+     follows border-radius exactly.
+
+     ⛔ Do NOT reach for `border-image` instead. It ignores border-radius and
+     squares the corners off — a 3px gradient frame around a rounded panel,
+     which is the one thing this must not be.
+
+     ⚠ The fill is opaque-ish rather than glassy. At .05 white the blur behind
+     it picked up whatever the wallpaper was doing and the panel washed out in
+     bright patches — reported as looking like a smudge. It now carries its own
+     dark body, and the blur only softens what shows through the edges. */
+  background:
+    linear-gradient(180deg, rgba(20,18,32,.90) 0%, rgba(14,13,22,.94) 100%) padding-box,
+    linear-gradient(135deg, #00E5FF 0%, #BF5FFF 100%) border-box;
+  backdrop-filter: blur(22px) saturate(140%);
+  -webkit-backdrop-filter: blur(22px) saturate(140%);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.06),
+    0 18px 48px -20px rgba(0,0,0,.95);
+
+  /* ── THE ANIMATION ──────────────────────────────────────────────────
+     It GROWS UP OUT OF THE ROW rather than sliding in from off-screen.
+     `transform-origin: bottom` with a Y scale means the foot stays planted
+     on the composer through the whole movement, so the stage reads as the
+     row expanding — which is what the drag gesture that raises it implies.
+
+     Scale and opacity only: both are compositor properties, so this runs on
+     a phone without touching layout. Animating `height` would reflow the
+     message list above on every frame. */
+  transform-origin: bottom center;
+  transform: scaleY(.7);
+  opacity: 0;
+  visibility: hidden;
+  transition: transform .34s var(--yp-ease),
+              opacity .22s var(--yp-ease),
+              visibility 0s linear .34s;
+}
+.yp-voicey-stage-up {
+  transform: scaleY(1);
+  opacity: 1;
+  visibility: visible;
+  transition: transform .34s var(--yp-ease),
+              opacity .22s var(--yp-ease),
+              visibility 0s linear 0s;
+}
+
+/* The pressable region. Transparent by design — the stage behind it is the
+   visible object, and a second surface here would draw a box inside a box,
+   the exact mistake the composer capsule was redesigned to remove. */
+.yp-voicey-stage-face {
+  border: none;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  /* The contents scale back with the stage, so the microphone does not hang
+     in mid-air at full size while the surface behind it is still growing. */
+  transition: opacity .22s var(--yp-ease);
+}
+.yp-voicey-stage-face:disabled { cursor: not-allowed; opacity: .45; }
+
+/* ⛔ NO RING AROUND THE MICROPHONE — removed on the owner's instruction.
+   It was an 84px bordered circle, which put a second outline inside a panel
+   that now has a gradient one of its own: a frame within a frame, the exact
+   thing the composer capsule was redesigned to remove. The glyph stands on
+   the surface by itself.
+
+   No fixed box either. The icon sizes itself, so nothing here can clip it. */
+.yp-voicey-stage-mic {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255,255,255,.94);
+  transition: color var(--yp-medium) var(--yp-ease),
+              filter var(--yp-medium) var(--yp-ease);
+}
+/* Recording lights the microphone and breathes, the one place on this surface
+   where motion is earned: it is the readout that the thing is actually live.
+   A GLOW rather than an expanding ring, now that there is no ring to expand. */
+.yp-voicey-stage-face[aria-pressed="true"] .yp-voicey-stage-mic {
+  color: #7DE9FF;
+  animation: yp-voicey-stage-pulse 1.9s var(--yp-ease) infinite;
+}
+@keyframes yp-voicey-stage-pulse {
+  0%, 100% { filter: drop-shadow(0 0 3px rgba(0,229,255,.35)); }
+  50%      { filter: drop-shadow(0 0 14px rgba(0,229,255,.85)); }
+}
+
+.yp-voicey-stage-wave {
+  display: block;
+  width: 68%;
+  height: 34px;
+}
+
+/* ⚠ THE WHOLE THING IS MOTION, SO IT ALL HAS TO STOP. Someone who asked the
+   system for less movement still gets the stage — it simply appears, which is
+   the state change they need, without the growth or the pulse. */
+@media (prefers-reduced-motion: reduce) {
+  .yp-voicey-stage,
+  .yp-voicey-stage-up { transition: opacity .01s linear; transform: none; }
+  .yp-voicey-stage-face[aria-pressed="true"] .yp-voicey-stage-mic { animation: none; }
 }
