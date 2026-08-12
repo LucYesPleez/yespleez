@@ -9,7 +9,7 @@ import {
   coachDismissed, dismissCoach, resetCoach,
   BREATH_MS, SPOTLIGHT_INTERVAL_MS, AMBIENT_FIRST_MS, AMBIENT_INTERVAL_MS,
 } from '../lib/installCoach';
-import { tourFinished, onTourFinished } from '../lib/tourState';
+import { onTourFinished } from '../lib/tourState';
 import s from './GlobalHeader.module.css';
 import sp from './InstallSpotlight.module.css';
 
@@ -121,7 +121,9 @@ export default function InstallButton() {
    * what makes the spotlight follow the tour's final card immediately rather
    * than surfacing later on an unrelated tab press.
    */
-  const [tourDone, setTourDone] = useState(tourFinished);
+  // ⚠ Starts TRUE — see the onTourFinished note below. It was
+  // `useState(tourFinished)` while an automatic tour had to go first.
+  const [tourDone, setTourDone] = useState(true);
   const btnRef = useRef(null);
   const location = useLocation();
   const forced = forcedPlatform();
@@ -131,7 +133,22 @@ export default function InstallButton() {
   // fired at first render — so this subscribes rather than reading once.
   useEffect(() => onInstallAvailabilityChange(() => setCanInstall(installAvailable())), []);
 
-  // The tour handing over: its last card closes, this one takes the stage.
+  /**
+   * ⚠⚠ THIS NO LONGER WAITS FOR AN AUTOMATIC TOUR, BECAUSE THERE ISN'T ONE
+   * (owner, 2026-08-12 — the tour left the startup routine).
+   *
+   * The gate existed so two overlays could never stack: the welcome card
+   * arrived 1200ms after launch, and the install spotlight had to queue
+   * behind it. With no automatic tour, `tourDone` would simply never flip for
+   * anyone new — and install coaching, which is how this app gets onto a home
+   * screen, would silently never appear again. That is the failure this
+   * comment exists to prevent someone re-creating.
+   *
+   * The subscription STAYS: a tour started deliberately from HOW IT ALL WORKS
+   * still announces when it closes, and honouring that keeps the spotlight
+   * from opening over a tour someone is in the middle of. What changed is the
+   * starting value — nothing to wait for means ready.
+   */
   useEffect(() => onTourFinished(() => setTourDone(true)), []);
 
   // ⏱ Runs before the first paint of the overlay so `?coach=reset` shows the

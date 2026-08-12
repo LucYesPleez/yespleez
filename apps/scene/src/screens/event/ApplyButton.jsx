@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase';
 import { getPerformerProfiles } from '../../lib/actingProfile';
 import { track, EVENTS } from '../../lib/analytics';
 import { writeNotification } from '../../lib/writeNotification';
+import { announcePushWorthIt } from '../../lib/pushPrompt';
 import { listAssets } from '../../lib/profileAssetStore';
 import { resolveAskCategory } from '../../lib/askCategoryResolver';
 import { evaluate, columnsFor, snapshotEvaluation } from '@yespleez/requirements';
@@ -190,6 +191,14 @@ export default function ApplyButton({ eventId, userId, ownerProfile }) {
       // asking and the artist agreeing — a different act, deliberately not
       // counted here.
       track(EVENTS.APPLIED, { has_note: !!(note && note.trim()) });
+      /**
+       * ⭐ O4 · FROM THIS SECOND THEY ARE WAITING FOR SOMEONE ELSE, which is
+       * the first moment in the product where a notification answers a
+       * question they are already asking. This announces the moment and
+       * forgets — ⛔ it must not learn whether push is supported, permitted or
+       * already asked; that policy lives in lib/pushPrompt, once.
+       */
+      announcePushWorthIt('application');
     }
   }
 

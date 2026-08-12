@@ -128,33 +128,19 @@ export function resetTour() {
  * browsing surfaces (`/`, `/discover`), which are exactly where a first-run
  * tour belongs and where its steps are written to point.
  */
-const CONTENT_ROUTE = /^\/(event|profile)\/[^/]+/;
-
-export function autoTourSuppressed(landingPath) {
-  return typeof landingPath === 'string' && CONTENT_ROUTE.test(landingPath);
-}
-
 /**
- * ⭐ AND IT NEVER COVERS A SCREEN THAT IS ITSELF ASKING SOMETHING.
+ * ⛔ `autoTourSuppressed` and `tourWelcomeBlocked` ARE GONE, and their absence
+ * is the point (owner, 2026-08-12 — the tour left the startup routine).
  *
- * The welcome card is on a 1200ms timer from mount, so it lands wherever the
- * person happens to be by then — which included, measurably, on top of the
- * sign-in form and on top of O3's "what brings you to YesPleez?" question.
- * Two prompts stacked on one screen is the exact nagging the tour's own
- * design set out to avoid.
+ * They existed to stop the automatic welcome card landing where it did not
+ * belong: on a QR arrival's event page, then on the sign-in form, then on the
+ * role question. Each was a correct guard against a wrong default. Removing
+ * the automatic offer removes the default, and a guard against something that
+ * cannot happen is dead code that reads as a live rule.
  *
- * ⚠ CURRENT path, not the landing path — this is about what is on screen when
- * the timer fires, whereas autoTourSuppressed is about where the session
- * BEGAN. Two different questions; ⛔ do not merge them into one predicate.
- *
- * Blocked, ⛔ not spent: navigating away from these screens lets the offer
- * appear normally, so a new account still meets the tour after answering.
+ * ⚠ If an automatic offer is ever reintroduced, both guards must come back
+ * with it — the QR case in particular was a real, measured regression.
  */
-const ASKING_ROUTES = new Set(['/auth', '/start']);
-
-export function tourWelcomeBlocked(currentPath) {
-  return ASKING_ROUTES.has(currentPath);
-}
 
 /**
  * ⏱ TEMPORARY — `?tour=reset` replays it, `?tour=off` suppresses it.

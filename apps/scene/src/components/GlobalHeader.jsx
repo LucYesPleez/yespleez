@@ -11,11 +11,9 @@ import { readForensics } from '../lib/authForensics';
 import { readPushLog } from '../lib/pushLog';
 import InstallButton from './InstallButton';
 import TourOverlay from './TourOverlay';
-import TourWelcome from './TourWelcome';
 import TourInfoNotice from './TourInfoNotice';
 import {
-  tourFinished, finishTour, announceTourFinished, resetTour, tourOverride,
-  startTour, onTourStart, autoTourSuppressed, tourWelcomeBlocked,
+  announceTourFinished, resetTour, tourOverride, onTourStart,
 } from '../lib/tourState';
 
 const INFO = {
@@ -257,21 +255,14 @@ export default function GlobalHeader({ unreadCount = 0, session = null, onSignOu
             dangerouslySetInnerHTML={{ __html: `<h4>${info.title}</h4>${info.body}` }}
           />
 
-          {/* ⚠ THE SECOND ENTRY POINT TO THE TOUR, and the one the skip notice
-              promises. It sits directly under the page's own explanation
-              because that is the moment someone is already asking "what is
-              this?" — and it is the only control in this sheet that DOES
-              something rather than reporting something.
-              Closing the sheet first is not cosmetic: the sheet is a fixed
-              panel at z-index 400 and the tour dims the screen beneath it, so
-              leaving it open would put an undimmed white-on-dark card over
-              step 1's spotlight. */}
-          <button
-            className={s.infoTour}
-            onClick={() => { setInfoOpen(false); startTour(); }}
-          >
-            TAKE THE TOUR
-          </button>
+          {/* ⛔ TAKE THE TOUR, SET UP A PROFILE and INDUSTRY ROLE TOURS ARE
+              NOT HERE ANY MORE (owner, 2026-08-12) — they live under HOW IT
+              ALL WORKS at the top of the identity menu, one tap from
+              anywhere instead of two taps inside a sheet about the current
+              screen. ⛔ Do not re-add them here: one control, one home.
+
+              This sheet keeps the job only it can do — explaining the SCREEN
+              you are on — plus the feedback route below. */}
 
           {/* ⭐ THE FEEDBACK HALF OF "HELP & FEEDBACK" (owner, 2026-08-04).
               The menu item that opens this sheet is named Help & Feedback, and
@@ -284,19 +275,6 @@ export default function GlobalHeader({ unreadCount = 0, session = null, onSignOu
             onClick={() => { setInfoOpen(false); navigate('/beta-feedback'); }}
           >
             GIVE FEEDBACK
-          </button>
-
-          {/* ⚠ A PLACEHOLDER, AND IT MUST READ AS ONE. Per-role walkthroughs
-              (artist, venue, host, promoter) are planned but do not exist, so
-              this is `disabled` in the DOM — not merely styled to look
-              inactive. A button that only LOOKS dead still takes focus, still
-              announces itself as pressable to a screen reader, and still
-              invites a tap that does nothing. The SOON tag says why it is
-              inert, which is the difference between "coming" and "broken".
-              Delete the `disabled` and the tag together when the tours land. */}
-          <button className={s.infoTourSoon} disabled>
-            INDUSTRY ROLE TOURS
-            <span className={s.infoSoonTag}>SOON</span>
           </button>
 
           {/* ⚠ EVERYTHING BELOW THIS BUTTON IS DIAGNOSTIC, NOT EXPLANATORY —
@@ -358,18 +336,7 @@ export default function GlobalHeader({ unreadCount = 0, session = null, onSignOu
  * Never two overlays at once. See announceTourFinished.
  */
 function TourRunner() {
-  /**
-   * ⭐ O2 — WHERE THIS SESSION BEGAN, captured once. A visitor who arrived
-   * on an event or a profile (QR, shared link) gets the content, not the
-   * generic welcome card; see autoTourSuppressed. A ref, not state: it is
-   * the FIRST route, and navigating afterwards must not change the answer.
-   */
-  const location = useLocation();
-  const landingPathRef = useRef(location.pathname);
-
-  const [welcome, setWelcome] = useState(false);
   const [open, setOpen] = useState(false);
-  const [done, setDone] = useState(tourFinished);
   const [infoNotice, setInfoNotice] = useState(false);
   const [startAt, setStartAt] = useState(0);
   /**
@@ -382,23 +349,38 @@ function TourRunner() {
   const [replay, setReplay] = useState(false);
   const override = tourOverride();
 
+  // ⏱ `?tour=reset` still clears the flag. It no longer un-hides an automatic
+  // offer (there isn't one) — it exists so a tester can un-spend the flag that
+  // the completion path writes.
   useEffect(() => {
-    if (override === 'reset') { resetTour(); setDone(false); }
-    if (override === 'off') setDone(true);
+    if (override === 'reset') resetTour();
   }, [override]);
 
-  useEffect(() => {
-    if (done) return undefined;
-    // ⛔ Not on a deep link into content. The flag is deliberately NOT spent
-    // — this suppresses the automatic offer for this session only.
-    if (autoTourSuppressed(landingPathRef.current)) return undefined;
-    const t = setTimeout(() => setWelcome(true), 1200);
-    return () => clearTimeout(t);
-  }, [done]);
+  /**
+   * ⭐⭐ THE TOUR IS NOT PART OF STARTUP AND MUST NEVER BE AGAIN (owner,
+   * 2026-08-12: "remove the tour from the start up routine").
+   *
+   * It used to arrive 1200ms after launch, uninvited, at whoever happened to
+   * be on screen — which O2 and O3 then had to defend against twice: once so
+   * a QR arrival saw its event instead of a welcome card, and again so it did
+   * not land on top of the sign-in form or the role question. Deleting the
+   * offer removes the whole class of problem rather than guarding it case by
+   * case, and the tour is now ONE tap away under HOW IT ALL WORKS in the
+   * identity menu.
+   *
+   * ⛔ Do not reintroduce a timer here. tourAutoOffer.test.js fails if one
+   * comes back.
+   *
+   * ⚠ THE INSTALL SPOTLIGHT USED TO WAIT FOR THIS. It was gated on the tour
+   * finishing so the two overlays could never stack; with no automatic tour
+   * there is nothing to wait for, and InstallButton no longer defers — see
+   * the note there. Without that change the install coaching would simply
+   * never have appeared for anyone new.
+   */
 
-  // The ⓘ sheet's "TAKE THE TOUR". Opens immediately — there is no settle
-  // delay to wait out, because the app is already on screen and the user just
-  // asked for this rather than having it arrive at them.
+  // "Take the tour", from the identity menu. Opens immediately — there is no
+  // settle delay to wait out, because the app is already on screen and the
+  // user just asked for this rather than having it arrive at them.
   useEffect(() => onTourStart((at = 0) => {
     setStartAt(at);
     setReplay(true);
@@ -411,41 +393,6 @@ function TourRunner() {
    * decision, and re-offering it is the exact nagging the design is trying to
    * avoid. The Help entry point is how they get it back.
    */
-  /**
-   * ⚠ THE REASON MATTERS HERE AND NOWHERE ELSE. Completing and skipping spend
-   * the tour identically — that part is deliberate — but only a skipper
-   * leaves without having been told the tour still exists. Someone who
-   * reached step 7 has just read it; showing them the same notice turns a
-   * finished tour into one more thing to dismiss.
-   */
-  /** The welcome's two answers. Both spend onboarding; only one runs a tour. */
-  function acceptTour() {
-    finishTour();
-    setDone(true);
-    setWelcome(false);
-    setOpen(true);
-  }
-
-  /**
-   * ⚠ NO TOAST HERE, UNLIKE THE OTHER TWO EXITS. The welcome card just told
-   * them the same sentence the toast would — "Guided Tour available any time
-   * from the ⓘ button" now lives under Skip for now — so popping the same
-   * line up again the instant the card closes would be the one thing this
-   * whole redesign was meant to stop: telling the user something twice in a
-   * row.
-   *
-   * ⚠ THE INSTALL HANDOVER STILL WAITS, just on a timer instead of the
-   * toast's lifespan. Announcing on the same tick the card starts closing
-   * would open the install spotlight mid-exit-animation; 450ms is enough for
-   * the card's own fade-and-scale to finish first.
-   */
-  function declineTour() {
-    finishTour();
-    setDone(true);
-    setWelcome(false);
-    setTimeout(announceTourFinished, 450);
-  }
-
   /**
    * ⚠ THE REASON IS WHAT DECIDES THE NOTICE, NOT WHETHER THE USER FINISHED.
    * Completing the tour ends on step 7, which already spotlights the ⓘ —
@@ -478,12 +425,7 @@ function TourRunner() {
 
   return (
     <>
-      {/* ⛔ Never over a screen that is itself asking something (/auth, /start).
-          Checked at RENDER against the live route rather than latched at
-          timer-time: the card is on a 1200ms fuse and the person may have
-          walked onto — or off — one of those screens in the meantime. */}
-      {welcome && !tourWelcomeBlocked(location.pathname)
-        && <TourWelcome onStart={acceptTour} onSkip={declineTour} />}
+      {/* ⛔ NO WELCOME CARD. The tour is started deliberately or not at all. */}
       <TourOverlay open={open} startAt={startAt} onClose={close} />
       <TourInfoNotice open={infoNotice} onClose={infoNoticeDone} />
     </>

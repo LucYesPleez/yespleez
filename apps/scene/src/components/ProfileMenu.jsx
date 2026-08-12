@@ -17,6 +17,7 @@ import { supabase } from '../lib/supabase';
 import MessengerAvatar from './MessengerAvatar';
 import { useAlwaysVisibleHeader } from '../lib/headerBehaviour';
 import { unreadContactJoinCount, markContactJoinsRead } from '../lib/contactJoins';
+import { startTour } from '../lib/tourState';
 import PhoneNumberSettings from './PhoneNumberSettings';
 import InviteRows from './InviteRows';
 import s from './ProfileMenu.module.css';
@@ -162,6 +163,28 @@ export default function ProfileMenu({ session, unreadCount = 0, onSignOut, onOpe
   // `openConversation` — one mechanism for "go there and do a thing", not two.
   const go = (path, state) => { setOpen(false); navigate(path, state ? { state } : undefined); };
 
+  /**
+   * ⭐ HOW IT ALL WORKS (owner, 2026-08-12) — the three "explain this app"
+   * actions, gathered under one heading at the TOP of the menu.
+   *
+   * They used to live inside the ⓘ info sheet, two taps deep, behind an item
+   * called Help & Feedback. That sheet still explains the SCREEN you are on;
+   * these three are about the PRODUCT, and they are the answer to "what is
+   * this and what do I do with it" — which is the question the tour used to
+   * ask on everybody's behalf, uninvited, 1200ms after launch.
+   *
+   * ⛔ Not duplicated in the sheet. One control, one home.
+   */
+  const learnItems = [
+    { label: 'Take the tour', onClick: () => { setOpen(false); startTour(); } },
+    { label: 'Set up a profile', onClick: () => go('/start') },
+    // ⚠ A PLACEHOLDER, AND IT MUST READ AS ONE — `disabled` in the DOM, not
+    // merely styled dead: a button that only looks inert still takes focus and
+    // still announces itself as pressable. The SOON tag says why. Delete the
+    // flag and the tag together when the per-role walkthroughs land.
+    { label: 'Industry role tours', soon: true },
+  ];
+
   const items = [
     /**
      * ⚠ VIEW PROFILE IS MUTED, NOT DELETED (owner, 2026-08-05: "i dont really
@@ -250,9 +273,11 @@ export default function ProfileMenu({ session, unreadCount = 0, onSignOut, onOpe
         onClick={() => setOpen(v => !v)}
         aria-haspopup="menu"
         aria-expanded={open}
+        /* ⛔ Commas, not dashes. A screen reader reads this aloud, which makes
+           it copy like any other (owner rule, 2026-08-12). */
         aria-label={unreadCount > 0
-          ? `${displayName} — account menu, ${unreadCount} unread`
-          : `${displayName} — account menu`}
+          ? `${displayName}, account menu, ${unreadCount} unread`
+          : `${displayName}, account menu`}
       >
         <span className={s.name}>{displayName}</span>
         <span className={s.avatarWrap}>
@@ -338,6 +363,25 @@ export default function ProfileMenu({ session, unreadCount = 0, onSignOut, onOpe
                 </button>
               </div>
             </div>
+
+            <div className={s.rule} />
+
+            {/* ⭐ HOW IT ALL WORKS — the product explains itself HERE now,
+                not by arriving uninvited at launch. See learnItems. */}
+            <div className={s.sectionLabel}>HOW IT ALL WORKS</div>
+            {learnItems.map(it => (
+              <button
+                key={it.label}
+                type="button"
+                role="menuitem"
+                className={s.item}
+                onClick={it.onClick}
+                disabled={!!it.soon}
+              >
+                <span>{it.label}</span>
+                {it.soon && <span className={s.soonTag}>SOON</span>}
+              </button>
+            ))}
 
             <div className={s.rule} />
 

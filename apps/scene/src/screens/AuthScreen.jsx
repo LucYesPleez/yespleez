@@ -250,7 +250,7 @@ export default function AuthScreen() {
           styles because the visual slot is the same; only the meaning
           changed: leave the interruption, keep browsing. */}
       <div className={s.artistEntry}>
-        <p>Just browsing? The scene is open — no account needed.</p>
+        <p>Just browsing? The scene is open. No account needed.</p>
         <button className={s.btnEntry} data-testid="keep-browsing-btn" onClick={leave}>
           ← KEEP BROWSING
         </button>

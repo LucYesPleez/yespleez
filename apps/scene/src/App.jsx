@@ -36,6 +36,8 @@ import AccessRequiredScreen from './screens/AccessRequiredScreen';
 import { ShareTargetProvider } from './lib/shareTarget';
 import { ParticipationProvider } from './components/ParticipationGate';
 import { InviteSuppressCtx } from './components/AccountInviteSheet';
+import PushValuePrompt from './components/PushValuePrompt';
+import FirstUseTeach from './components/FirstUseTeach';
 import { clearIntent } from './lib/returnIntent';
 import { ConversationUiProvider } from './lib/conversationUi';
 import ConversationDock from './components/ConversationDock';
@@ -385,6 +387,13 @@ function Shell({ session, onSignOut }) {
           That is not theoretical: it renders as a blank splash with `#root`
           empty, which reads as "the site is down" rather than "messaging
           broke". Bounded, a dock failure costs the dock and nothing else. */}
+      {/* O4 · offered only when something just happened that a notification
+          would answer — see lib/pushPrompt. Mounted once, above the router,
+          so the moment can be announced from anywhere. */}
+      <PushValuePrompt />
+      {/* O4 · one sentence, the first time a concept becomes true. ⛔ Not a
+          tour — see lib/firstUseTeach. */}
+      <FirstUseTeach />
       <ErrorBoundary>
         <ConversationDock />
       </ErrorBoundary>

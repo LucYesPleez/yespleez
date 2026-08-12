@@ -156,6 +156,30 @@
   background: var(--border);
 }
 
+/* The HOW IT ALL WORKS heading. Quiet by design — it names a group, it is
+   not itself a control, so it must not compete with the items under it. */
+.sectionLabel {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 10.5px;
+  letter-spacing: 1.6px;
+  color: var(--muted);
+  padding: 6px 10px 4px;
+}
+
+/* ⚠ Pairs with `disabled` in the DOM, never a substitute for it — the tag
+   says WHY the row is inert, which is the difference between "coming" and
+   "broken". */
+.soonTag {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 2px 6px;
+}
+
 .item {
   display: flex;
   align-items: center;
@@ -172,6 +196,8 @@
   text-align: left;
 }
 .item:hover { background: rgba(255, 255, 255, .07); }
+.item:disabled { cursor: default; color: var(--muted); }
+.item:disabled:hover { background: none; }
 .item:focus-visible { outline: 2px solid var(--neon2); outline-offset: -2px; }
 
 .itemBadge {

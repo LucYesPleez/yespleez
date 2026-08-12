@@ -19,6 +19,20 @@ export default function DashboardProfileCard({
   subtitle,
   genres,
   completionPct,
+  /**
+   * O4 · THE NEXT THING WORTH ADDING — `{ key, label }` from the requirements
+   * engine's firstUnsettled, or null when the profile is complete.
+   *
+   * ⭐ The bar has always reported a NUMBER. "PROFILE 72%" tells you where you
+   * stand and nothing about what to do, which is the difference between a
+   * gauge and the attention-dashboard pattern this app is built on: Signal,
+   * Reason, Action on one line. The percentage is the signal, the named field
+   * is the reason, and the row itself is the action.
+   *
+   * ⛔ ONE item, never a checklist. The whole point is not to dump the profile
+   * form on someone; the form is one tap away and always was.
+   */
+  nextStep = null,
 }) {
   const navigate  = useNavigate();
   const [hov, setHov] = useState(false);
@@ -188,6 +202,41 @@ export default function DashboardProfileCard({
             PROFILE {Math.round(completionPct)}%
           </span>
         </div>
+      )}
+
+      {/* ── The next thing worth adding ──
+          ⛔ NOT DISMISSIBLE, and it does not need to be: it disappears by
+          being DONE, which is the attention-dashboard rule. Nothing here
+          blocks anything — the profile works as-is, and what an APPLICATION
+          requires is a separate, non-dismissible gate the requirements engine
+          enforces at the point of applying. This is the "useful to complete
+          later" half; that is the "required to act now" half. ⛔ Never merge
+          them: one is an invitation, the other is a door. */}
+      {profile && nextStep && setupRoute && (
+        <button
+          type="button"
+          onClick={() => navigate(setupRoute)}
+          style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            gap: 10, width: '100%', marginBottom: 20, padding: '10px 12px',
+            background: `rgba(${accentRgb},.06)`,
+            border: `1px solid rgba(${accentRgb},.25)`,
+            borderRadius: 10, cursor: 'pointer', textAlign: 'left',
+          }}
+        >
+          <span style={{
+            fontFamily: "'Bebas Neue', sans-serif", fontSize: 14, letterSpacing: 1.2,
+            color: 'var(--text)',
+          }}>
+            Add your {nextStep.label}
+          </span>
+          <span style={{
+            fontFamily: "'Bebas Neue', sans-serif", fontSize: 11, letterSpacing: 1.5,
+            color: `rgb(${accentRgb})`, flexShrink: 0,
+          }}>
+            ADD →
+          </span>
+        </button>
       )}
     </>
   );

@@ -19,6 +19,8 @@
 export {
   evaluate,
   completionFor,
+  isSettled,
+  firstUnsettled,
   columnsFor,
   snapshotEvaluation,
   requestableBySection,

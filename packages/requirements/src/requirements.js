@@ -322,6 +322,35 @@ function assetState(assetType, assets) {
 const SETTLED = new Set(['satisfied', 'withheld']);
 
 /**
+ * Is this state an ANSWER — either a real value or a declared "N/A"?
+ *
+ * Exported because callers kept needing it and the only alternative was for
+ * each of them to keep its own copy of the two settled state names. A second
+ * copy is how "how complete is this profile?" acquires two answers that drift
+ * — the exact failure the header describes for the three dashboard closures.
+ */
+export function isSettled(state) {
+  return SETTLED.has(state);
+}
+
+/**
+ * The first item still unanswered — i.e. THE NEXT THING WORTH ASKING FOR.
+ *
+ * ⭐⭐ THE REGISTRY'S ORDER IS THE PRIORITY ORDER. COMPLETION_KEYS lists each
+ * type's fields most-valuable first (name, then photo, then location, long
+ * before a Facebook link), so "the highest-value missing item" is simply the
+ * first unsettled one. ⛔ Do not add a second ranking — a separate importance
+ * table would be free to disagree with the list it ranks, and then two places
+ * would answer "what should I do next?" differently.
+ *
+ * Returns null when everything is settled, which is a caller's cue to show
+ * nothing at all rather than an empty prompt.
+ */
+export function firstUnsettled(items) {
+  return (items || []).find(it => !SETTLED.has(it.state)) || null;
+}
+
+/**
  * The engine. Compares a list of requirement keys against a dossier.
  *
  * @param {string[]} keys      requirement keys — an opportunity's tick-list, or a completion list

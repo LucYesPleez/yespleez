@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { postAuthDestination } from './postAuthDestination.js';
+import { START_ANSWERS } from './startAnswers.js';
 
 /**
  * O3 · WHERE SOMEONE LANDS AFTER AUTHENTICATING — and, above all, the ORDER.
@@ -75,16 +76,33 @@ test('⛔ it is one question, not a wizard — skip is always present', () => {
 });
 
 test('every answer routes to a surface that already exists', () => {
-  const tos = [...START.matchAll(/to:\s*'([^']+)'/g)].map(m => m[1]);
+  // ⚠ O4 moved the answer table to lib/startAnswers so Help and the
+  // post-signup screen share one copy. The guarantee is unchanged — every
+  // destination is a real route — so it is read from the source of truth
+  // rather than scraped out of the screen. startAnswers.test.js covers which
+  // destination is chosen when.
+  // ⚠ FOUR answers, not five. The "just looking around" entry was removed
+  // (2026-08-12) because it navigated to '/' with replace — exactly what
+  // "Skip for now" beneath the list already did.
+  const tos = START_ANSWERS.flatMap(a => [a.to, a.haveTo].filter(Boolean));
   assert.deepEqual(tos, [
-    '/', '/industry/artist/setup', '/industry/host/setup', '/industry/venue/setup', '/',
+    '/',
+    '/industry/artist/setup', '/industry/artist',
+    '/industry/host/setup',   '/industry/host',
+    '/industry/venue/setup',  '/industry/venue',
   ]);
 });
 
 test('⭐ nothing is stored — the profile is the record, not the claim', () => {
-  assert.doesNotMatch(START, /supabase|user_prompt_preferences|localStorage\.setItem/,
+  // ⚠ O4 gave the screen a READ (which roles this account already holds, so a
+  // role you have opens its dashboard). That is the opposite of storing the
+  // answer, so the ban is on WRITES, not on touching Supabase at all — the
+  // original regex banned the word and would now fail for the wrong reason.
+  assert.doesNotMatch(START, /\.(insert|update|upsert)\(/,
     'the answer is a routing decision; storing it would create a second, weaker '
     + 'answer to "is this person an artist?" that drifts from the profiles table');
+  assert.doesNotMatch(START, /user_prompt_preferences|localStorage\.setItem/);
+  assert.match(START, /\.select\('type'\)/, 'the role read is what makes revisiting honest');
   // Role activation is the ONE thing it writes, and through the picker's own
   // exported helper rather than a second copy of the storage shape.
   assert.match(START, /activateRole\(answer\.role\)/);
@@ -96,8 +114,13 @@ test('a guest who types /start is sent to browse, not shown an account screen', 
 });
 
 test('answers replace the history entry, so BACK cannot re-ask the question', () => {
-  const navs = [...START.matchAll(/navigate\([^)]*\)/g)].map(m => m[0]);
-  assert.ok(navs.length >= 3);
+  // ⚠ Anchored on the navigate CALL up to its options object, not on a
+  // balanced-paren match: the destination is now a function call of its own
+  // (`navigate(startAnswerDestination(...), { replace: true })`) and a lazy
+  // `[^)]*` stops at the inner bracket, reporting a violation that is not
+  // there.
+  const navs = [...START.matchAll(/navigate\([\s\S]*?\)(?=;|\s*\})/g)].map(m => m[0]);
+  assert.ok(navs.length >= 3, `expected at least 3 navigate() calls, found ${navs.length}`);
   for (const n of navs) {
     assert.match(n, /replace:\s*true/, `"${n}" must replace — a question asked twice is a wizard`);
   }

@@ -22,7 +22,7 @@ import AvailabilitySection from '../components/AvailabilitySection';
 import OutgoingEnquiryRow from '../components/OutgoingEnquiryRow';
 import { APP_TABS, APP_TAB_COLOR, applicantLabel, OUT_EMPTY, fetchOutgoingEnquiries } from '../lib/outgoingPipeline';
 import { PROFILE_TYPES } from '../lib/profileTypes';
-import { completionFor } from '@yespleez/requirements';
+import { completionFor, firstUnsettled } from '@yespleez/requirements';
 
 // The artist's opportunity pipeline.
 //
@@ -386,7 +386,11 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
   // screen means: PerformerDashboard renders this same component for band and
   // comedy, and scoring them against the artist list is exactly the bug that
   // capped a comedian at 76% no matter what they filled in.
-  const completionPct = completionFor(profile, cfg.profileType)?.pct ?? 0;
+  const completion = completionFor(profile, cfg.profileType);
+  const completionPct = completion?.pct ?? 0;
+  // O4 · the highest-value missing field — registry order IS priority order,
+  // so this is simply the first unanswered one. Null once nothing is missing.
+  const nextStep = firstUnsettled(completion?.items);
 
   /**
    * ⭐ ONE OUTGOING LIST — everything this act has asked for, in one place
@@ -508,6 +512,7 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
         subtitle={profile?.sound || (profile ? profile.location : 'Promoters will see this — takes 2 mins')}
         genres={genres}
         completionPct={hasProfile ? completionPct : undefined}
+        nextStep={hasProfile ? nextStep : null}
       />
 
       <NotificationBar

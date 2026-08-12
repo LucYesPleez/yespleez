@@ -4,6 +4,7 @@ import { saveEvent, unsaveEvent } from '../lib/participation';
 import { likedEvents } from '../lib/likedEvents';
 import { useSession } from '../App';
 import { useParticipation } from './ParticipationGate';
+import { announceTeach } from '../lib/firstUseTeach';
 
 import { HEART_OVERLAY_STYLE, HEART_BARE_STYLE, HeartGlyph } from './heartStyles';
 
@@ -101,6 +102,14 @@ export default function HeartBtn({ event, className, style, onChange, onError })
       if (error) { report('save', error); onError?.(error, 'save'); setBusy(false); return; }
       setLiked(true);
       onChange?.(true);
+      /**
+       * ⭐ O4 · the first save is the moment MY SCENE becomes a real place —
+       * the heart is obvious, where it went is not. Announced only after the
+       * write LANDED, so nothing is taught about a save that did not happen.
+       * ⛔ This must not learn whether the lesson will be shown; that is
+       * lib/firstUseTeach's job, once.
+       */
+      announceTeach('saved_event');
     }
     setBusy(false);
   }

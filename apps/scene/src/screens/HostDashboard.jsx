@@ -12,7 +12,7 @@ import { formatLocation } from '../lib/formatLocation';
 import { HOST_CATEGORIES } from '../lib/profileTaxonomy';
 import { PROFILE_TYPES } from '../lib/profileTypes';
 import ProfileAvatar from '../components/ProfileAvatar';
-import { completionFor } from '@yespleez/requirements';
+import { completionFor, firstUnsettled } from '@yespleez/requirements';
 import FollowingSection, { FOLLOW_FILTER_CONFIGS } from '../components/FollowingSection';
 import EnquiryPanel from '../components/EnquiryPanel';
 import { ENQUIRY_CARD_COLUMNS } from '../components/EnquiryCard';
@@ -396,7 +396,10 @@ export default function HostDashboard({ userId: userIdProp }) {
   const hasProfile = !!profile;
   // Shared requirements engine — see lib/requirements.js. Same eight fields as
   // the closure this replaces; `website` keeps accepting 'N/A' as an answer.
-  const completionPct = completionFor(profile, 'host')?.pct ?? 0;
+  const completion = completionFor(profile, 'host');
+  const completionPct = completion?.pct ?? 0;
+  // O4 · the next thing worth adding; registry order is priority order.
+  const nextStep = firstUnsettled(completion?.items);
 
   return (
     <div className={s.screen}>
@@ -412,6 +415,7 @@ export default function HostDashboard({ userId: userIdProp }) {
         subtitle={profile?.location || 'Add your details so artists can find you'}
         genres={genres}
         completionPct={hasProfile ? completionPct : undefined}
+        nextStep={hasProfile ? nextStep : null}
       />
 
       <NotificationBar

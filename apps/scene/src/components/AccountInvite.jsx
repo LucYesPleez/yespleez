@@ -40,8 +40,10 @@ export default function AccountInvite({
       <button type="button" className={s.primary} onClick={onCreateAccount}>
         CREATE FREE ACCOUNT
       </button>
+      {/* ⛔ NO EM DASH (owner rule, 2026-08-12). A question mark carries the
+          same two-part sense and reads faster in a button. */}
       <button type="button" className={s.secondary} onClick={onSignIn}>
-        I ALREADY HAVE ONE — SIGN IN
+        ALREADY HAVE ONE? SIGN IN
       </button>
       {onDismiss && (
         <button type="button" className={s.dismiss} onClick={onDismiss}>

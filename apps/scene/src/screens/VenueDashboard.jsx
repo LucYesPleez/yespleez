@@ -19,7 +19,7 @@ import { useDragScroll } from '../hooks/useDragScroll';
 import { resolveProfileId } from '../lib/resolveProfileId';
 import s from './VenueDashboard.module.css';
 import { PROFILE_TYPES } from '../lib/profileTypes';
-import { completionFor } from '@yespleez/requirements';
+import { completionFor, firstUnsettled } from '@yespleez/requirements';
 import { ENQUIRY_CARD_COLUMNS } from '../components/EnquiryCard';
 
 // The card declares what it reads; this screen only joins it. Previously a
@@ -242,7 +242,10 @@ export default function VenueDashboard({ userId: userIdProp }) {
 
   // Shared requirements engine — see lib/requirements.js. Same thirteen fields
   // as the closure this replaces.
-  const completionPct = completionFor(profile, 'venue')?.pct ?? 0;
+  const completion = completionFor(profile, 'venue');
+  const completionPct = completion?.pct ?? 0;
+  // O4 · the next thing worth adding; registry order is priority order.
+  const nextStep = firstUnsettled(completion?.items);
 
   return (
     <div className={s.screen}>
@@ -258,6 +261,7 @@ export default function VenueDashboard({ userId: userIdProp }) {
         subtitle={profile?.location || 'Add your venue details so promoters can find you'}
         genres={profile?.sound}
         completionPct={hasProfile ? completionPct : undefined}
+        nextStep={hasProfile ? nextStep : null}
       />
 
       {(() => {
