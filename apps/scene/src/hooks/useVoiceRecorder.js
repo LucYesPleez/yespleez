@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { claimAudio, finishAudio, SHORT } from '../lib/mediaSession';
 import { startRecording, canRecordVoice } from '../lib/voiceNotes';
 import { computeRawEnvelope, combineEnvelopes } from '../lib/voiceWave';
 import { decideToggle, decideSend, decideInterrupt, isTooShort } from '../lib/voiceMachine';
@@ -91,6 +92,44 @@ export function useVoiceRecorder({ onRecorded, onNotice, onPark, onDiscard, disa
   const startingRef = useRef(false);  // inside the getUserMedia gap
   const tickRef     = useRef(null);
 
+  /**
+   * ── ⚠ RECORDING TAKES AUDIO TOO ──────────────────────────────────────
+   *
+   * THE DEFECT THIS FIXES, reported by the owner: a demo mix was playing, the
+   * microphone was pressed, and the mix kept going — straight into the note.
+   *
+   * The cause is that "the one pair of ears" was read as being about the
+   * SPEAKER. Every claim in the app was a player claiming before it played, so
+   * arbitration only ever mediated between things making sound. Recording makes
+   * none, and so was never wired in at all — the manager could not park the mix
+   * because nothing ever asked it to.
+   *
+   * But the microphone is exactly the case that needs it most. Two players
+   * overlapping is a mess the listener can fix by pausing one; a mix bleeding
+   * into a recording is captured permanently, and is discovered after the fact
+   * by whoever receives it. It is also the one interruption that CANNOT be
+   * solved by ducking alone — the recording wants silence, not quieter music.
+   *
+   * ⚠ SHORT, DELIBERATELY. Recording is an interruption in the same sense a
+   * Voicey is: seconds long, the reason the app is open, and the mix underneath
+   * is owed its place back afterwards. Declaring it LONG would make it a thing
+   * to be parked and resumed, which is meaningless for a microphone.
+   *
+   * ⚠ IT MUST HAVE `pause`, or `claimAudio` IGNORES IT ENTIRELY (see its first
+   * line). Being paused means something else has taken audio mid-recording —
+   * a Voicey played in the thread, say. The constitutional rule applies: park
+   * the note, never discard it. Guarded on `recording` because a park from
+   * `pending` would re-persist a draft that is already parked.
+   */
+  const sessionRef = useRef(null);
+  const parkRef    = useRef(null);
+  if (!sessionRef.current) {
+    sessionRef.current = {
+      kind: SHORT,
+      pause: () => { if (phaseRef.current === 'recording') void parkRef.current?.(); },
+    };
+  }
+
   const supported = canRecordVoice();
 
   // Stable identity: LiveWaveform keys an interval on this, and a new function
@@ -128,6 +167,9 @@ export function useVoiceRecorder({ onRecorded, onNotice, onPark, onDiscard, disa
   useEffect(() => () => {
     handleRef.current?.cancel();
     handleRef.current = null;
+    // The composer is gone and the capture with it, so the interruption is over
+    // — the mix the user was listening to before they opened it comes back.
+    finishAudio(sessionRef.current);
     pendingRef.current = null;
     segmentsRef.current = [];
     rawEnvsRef.current  = [];
@@ -300,6 +342,18 @@ export function useVoiceRecorder({ onRecorded, onNotice, onPark, onDiscard, disa
 
     abortRef.current    = false;
     startingRef.current = true;
+
+    // ⚠ CLAIM BEFORE THE MICROPHONE OPENS, NEVER AFTER. Claiming once recording
+    // has begun captures whatever was still sounding in the meantime, which is
+    // the defect rather than the fix.
+    //
+    // Nothing is awaited here: arbitration is synchronous by contract, and the
+    // mix's duck is fire-and-forget. That the duck (240ms) and the getUserMedia
+    // round trip overlap is deliberate — the device open is almost always the
+    // slower of the two, so the fade has finished before there is a microphone
+    // to hear it. Awaiting it instead would delay capture by a fixed 240ms and
+    // cost people the first word of every note.
+    claimAudio(sessionRef.current);
     // ⚠ BASELINE TO THE ACCUMULATED DURATION, NOT 0. On a resume the note is
     // already 2:37 long; the timer must continue from there the instant Continue
     // is pressed, never flash back to 0:00 — that flash is the one place the
@@ -316,6 +370,10 @@ export function useVoiceRecorder({ onRecorded, onNotice, onPark, onDiscard, disa
       handle = await startRecording({ onInterrupt: () => void onInterrupt() });
     } catch (err) {
       startingRef.current = false;
+      // ⚠ EXPLICIT, because `phase` never left `idle` on this path — the
+      // derived release below only fires on a CHANGE, and would never run.
+      // Without this a declined microphone permission silences the mix forever.
+      finishAudio(sessionRef.current);
       onNotice?.(
         err?.name === 'NotAllowedError'
           ? 'Microphone access was declined'
@@ -337,6 +395,7 @@ export function useVoiceRecorder({ onRecorded, onNotice, onPark, onDiscard, disa
     if (abortRef.current) {
       handle.cancel();
       await teardown('cancel');
+      finishAudio(sessionRef.current);   // same reason: `idle` throughout
       setElapsed(0);
       setPhaseBoth('idle');
       return;
@@ -421,6 +480,34 @@ export function useVoiceRecorder({ onRecorded, onNotice, onPark, onDiscard, disa
         return;
     }
   }, [disabled, supported, park, start, resume]);
+
+  // `pause` on the session object reaches the CURRENT park through this, so the
+  // session can stay one stable object across renders — the manager's guards
+  // compare by identity, and a new object per render defeats them.
+  useEffect(() => { parkRef.current = park; }, [park]);
+
+  /**
+   * ── GIVING THE MIX BACK, DERIVED RATHER THAN ENUMERATED ──────────────
+   *
+   * The claim is held for as long as the composer holds audio the user has not
+   * finished with — `recording` AND `pending`. Listing every exit instead
+   * (send, discard, too-short, ceiling, interrupt, escape) is a list that goes
+   * stale the first time a path is added, and the symptom of missing one is
+   * music that never comes back — silent, and blamed on the player.
+   *
+   * ⚠ `pending` STILL HOLDS IT. A parked note is mid-composition: the user is
+   * deciding between Send, Continue and Delete. Bringing the mix back for those
+   * few seconds would fade it up only to duck it again the instant they press
+   * Continue, and would play music over the replay of their own recording.
+   *
+   * Inert unless this session actually holds the claim — `finishAudio` compares
+   * identity first, so the mount-time run and every release by a recorder that
+   * never claimed do nothing at all.
+   */
+  const holdsAudio = phase === 'recording' || phase === 'pending';
+  useEffect(() => {
+    if (!holdsAudio) finishAudio(sessionRef.current);
+  }, [holdsAudio]);
 
   // Escape discards from any state that holds audio.
   //

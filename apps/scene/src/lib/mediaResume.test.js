@@ -132,6 +132,63 @@ test('5 · with nothing long-form playing, Voiceys behave exactly as Phase 1', a
   assert.equal(a.paused, 1, 'nothing is resumed, because nothing was parked');
 });
 
+// ── 6 · RECORDING IS AN INTERRUPTION ─────────────────────────────────
+//
+// The owner played a demo mix, pressed record, and the mix kept playing into
+// the note. `mediaSessionContract` proves the hook is now wired in; these prove
+// the POLICY that wiring depends on — that a source which makes no sound of its
+// own still parks and restores long-form exactly as a Voicey does.
+//
+// A recorder's session is deliberately the same shape as a player's: SHORT,
+// with a `pause`. That is the point of the manager — it arbitrates claims on
+// the ears, and never asks what a claimant intends to do with them.
+
+/** The session object `useVoiceRecorder` registers, in miniature. */
+const recorderSource = () => {
+  const s = { kind: SHORT, parked: 0 };
+  s.pause = () => { s.parked++; };
+  return s;
+};
+
+test('⚠ 6 · starting a recording PARKS the demo mix', async () => {
+  const { p, source } = fakeProvider({ position: 33_000 });
+  const rec = recorderSource();
+
+  claimAudio(source);
+  claimAudio(rec);        // the microphone opens
+
+  assert.equal(p.paused, 1, 'the mix must stop — otherwise it is IN the recording');
+});
+
+test('⚠ 6 · finishing the recording gives the mix back where it was', async () => {
+  const { p, source } = fakeProvider({ position: 33_000 });
+  const rec = recorderSource();
+
+  claimAudio(source);
+  claimAudio(rec);
+  await finishAudio(rec);          // sent, or discarded
+  await new Promise(r => setTimeout(r, 0));
+
+  assert.equal(p.played, 1, 'silence after a recording is a taking, not a feature');
+  assert.deepEqual(p.seeks, [33_000], 'and it resumes where it stopped, not at zero');
+});
+
+test('⚠ 6 · a Voicey played mid-recording parks the RECORDING, not the mix again', async () => {
+  // The mix is already parked. Something claiming audio during a recording must
+  // stop the capture (its `pause` parks the note) and must NOT displace the mix
+  // as the thing waiting to come back — short-over-short keeps the parked mix.
+  const { source } = fakeProvider({ position: 20_000 });
+  const rec = recorderSource();
+  const voicey = shortSource();
+
+  claimAudio(source);
+  claimAudio(rec);
+  claimAudio(voicey);
+
+  assert.equal(rec.parked, 1, 'the capture is stopped rather than recording the Voicey');
+  assert.equal(parkedAudio(), source, 'and the MIX is still what resumes');
+});
+
 // ── STATE CAPTURE ────────────────────────────────────────────────────
 
 test('the captured state names its provider and position', () => {
@@ -252,22 +309,65 @@ test('⚠ forgetAudio and releaseAudio differ ONLY in whether parked survives', 
 });
 
 // ── THE INTERRUPTION FADE ─────────────────────────────────────────────
+//
+// ⚠ THESE TESTS OWN THE CLOCK, AND THAT IS THE POINT. They used to sleep 350ms
+// and read whatever the volume ramp had managed in the meantime, which asks
+// "did 240ms of fade fit inside 350ms of wall clock" — true on an idle machine,
+// false on a loaded one. It failed about one full-suite run in four while the
+// code under test was perfectly correct, which is worse than useless: a test
+// that cries wolf gets read as noise, and the run it is right about gets
+// dismissed with the rest.
+//
+// Driving `delay` by hand removes the machine from the assertion entirely. The
+// fade's DURATION is still asserted — see the 240ms total below — so this is
+// not the fake clock quietly excusing an instant snap to silence.
+
+/**
+ * A clock the test advances rung by rung.
+ *
+ * `step(n)` releases exactly n waits, which is how a test gets to be reliably
+ * MID-RAMP; `drain()` runs the ramp out, including any new waits a settling
+ * fade starts as it finishes.
+ */
+function manualClock() {
+  const queue = [];
+  const requested = [];
+  const delay = ms => { requested.push(ms); return new Promise(resolve => queue.push(resolve)); };
+  // Releasing a wait only queues the ramp's continuation; these ticks let it —
+  // and anything chained after it, like the pause at the bottom of a duck —
+  // actually run before the test looks.
+  const settle = async () => { for (let i = 0; i < 10; i++) await Promise.resolve(); };
+
+  return {
+    delay,
+    requested,
+    async step(n = 1) {
+      for (let i = 0; i < n && queue.length; i++) { queue.shift()(); await settle(); }
+    },
+    async drain() {
+      let guard = 0;
+      while (queue.length && ++guard < 100) { queue.shift()(); await settle(); }
+    },
+  };
+}
 
 function fadeProvider() {
   const vol = [];
+  const clock = manualClock();
   const src = createResumableSource({
     id: 'fadey', position: 10_000,
     pause: () => {}, play: () => {},
     getPosition: () => 10_000, seekTo: () => {},
     setVolume: v => vol.push(+v.toFixed(3)),
-  });
-  return { vol, src };
+  }, { delay: clock.delay });
+  return { vol, src, clock };
 }
 
 test('⚠ parking DUCKS the volume down rather than snapping to silence', async () => {
-  const { vol, src } = fadeProvider();
+  const { vol, src, clock } = fadeProvider();
   src.pause();
-  await new Promise(r => setTimeout(r, 350));   // let the ramp finish
+  await clock.drain();          // run the ramp out, rather than outwait it
+  await src.fadesSettled();     // and confirm it has actually ended
 
   // The sequence is duck-to-zero, THEN pause, THEN reset to 1 — so the trailing
   // value is 1, in readiness for the next independent play. The duck itself is
@@ -277,16 +377,32 @@ test('⚠ parking DUCKS the volume down rather than snapping to silence', async 
   assert.ok(duck[0] > duck[duck.length - 1], 'volume descends');
   assert.equal(duck[duck.length - 1], 0, 'and reaches silence before pausing');
   assert.equal(vol[vol.length - 1], 1, 'then resets to full for the next independent play');
+
+  // ── What owning the clock buys: the guarantee, stated exactly ──────
+  // The four assertions above are the original ones and still hold. These are
+  // the ones the wall-clock version COULDN'T make, because it never knew
+  // whether it had seen the whole ramp or merely the part that fit in 350ms.
+  for (let i = 1; i < duck.length; i++) {
+    assert.ok(duck[i] < duck[i - 1], `step ${i} must be quieter than the one before`);
+  }
+  assert.equal(clock.requested.length, duck.length, 'every step waited its turn');
+  // ⚠ THE DURATION IS ASSERTED, NOT ASSUMED. Without this a fade of six
+  // instantaneous steps would satisfy everything above — which is a snap to
+  // silence wearing a fade's shape, the exact defect this test exists to stop.
+  assert.equal(clock.requested.reduce((a, b) => a + b, 0), 240,
+    'and the ramp spans 240ms — several steps over TIME, not six in one tick');
 });
 
 test('resuming fades back UP from silence', async () => {
-  const { vol, src } = fadeProvider();
+  const { vol, src, clock } = fadeProvider();
   src.pause();
-  await new Promise(r => setTimeout(r, 350));
+  await clock.drain();
+  await src.fadesSettled();
   vol.length = 0;
 
   await src.resume();
-  await new Promise(r => setTimeout(r, 350));
+  await clock.drain();
+  await src.fadesSettled();
 
   assert.equal(vol[0], 0, 'starts silent so the seek is inaudible');
   assert.equal(vol[vol.length - 1], 1, 'and climbs back to full');
@@ -303,17 +419,23 @@ test('a provider with no setVolume simply cuts — nothing breaks', () => {
 
 test('⚠ a resume that interrupts a duck must not be paused by the stale fade', async () => {
   const calls = [];
+  const clock = manualClock();
   const src = createResumableSource({
     id: 'racey', position: 5_000,
     pause: () => calls.push('pause'), play: () => calls.push('play'),
     getPosition: () => 5_000, seekTo: () => calls.push('seek'),
     setVolume: () => {},
-  });
+  }, { delay: clock.delay });
 
   src.pause();                          // starts a duck-then-pause
-  await new Promise(r => setTimeout(r, 40));   // mid-ramp
+  // ⚠ EXACTLY TWO RUNGS IN. `setTimeout(40)` used to stand in for "mid-ramp"
+  // and only approximately was one: a slow tick could land past the whole duck,
+  // in which case the pause has already happened and the race this test is
+  // named for was never run at all — it would pass without testing anything.
+  await clock.step(2);
   await src.resume();                   // supersedes it — must cancel the pause
-  await new Promise(r => setTimeout(r, 350));  // let the superseded ramp finish
+  await clock.drain();                  // let the superseded ramp run out too
+  await src.fadesSettled();
 
   assert.ok(calls.includes('play'), 'resume must have played');
   assert.equal(calls.filter(c => c === 'pause').length, 0,

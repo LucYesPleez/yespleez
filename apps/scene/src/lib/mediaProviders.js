@@ -36,6 +36,9 @@ import { LONG } from './mediaSession';
  * preserve it anyway is merely seeked to where it already was.
  */
 
+/** The real clock. Swapped out only by tests — see `fadesSettled`. */
+const realDelay = ms => new Promise(r => setTimeout(r, ms));
+
 /**
  * Wrap a provider's primitives into a source the manager can park and resume.
  *
@@ -47,8 +50,11 @@ import { LONG } from './mediaSession';
  * @param {(ms: number) => void} adapter.seekTo
  * @param {() => Promise<void>} [adapter.whenReady]  defaults to ready now
  * @param {() => object} [adapter.extraState]  provider-specific session state
+ * @param {object} [options]
+ * @param {(ms: number) => Promise<void>} [options.delay]  how the fade ramp
+ *        waits between steps. Defaults to a real timer; see `fadesSettled`.
  */
-export function createResumableSource(adapter) {
+export function createResumableSource(adapter, { delay = realDelay } = {}) {
   const {
     id, pause, play, getPosition, seekTo,
     whenReady = () => Promise.resolve(),
@@ -80,9 +86,28 @@ export function createResumableSource(adapter) {
    *
    * A generation token supersedes an in-flight fade: interrupt, then resume
    * before the duck completes, and the stale ramp must not fight the new one.
+   *
+   * ⚠ THE RAMP IS A DURATION, SO A TEST MUST NOT GUESS AT IT. Sampling the
+   * volume after a fixed sleep asks "has 240ms of ramp happened in 350ms of
+   * wall clock", which is true on a quiet machine and false on a loaded one —
+   * the assertion measures the CI box, not the fade. Hence two seams:
+   * `delay` lets a test own the clock, and `fadesSettled` lets it wait for the
+   * ramp to actually END. Production passes neither and is unchanged.
    */
   const FADE_MS = 240;
+  const FADE_STEPS = 6;
   let fadeToken = 0;
+
+  // Every ramp currently in flight, INCLUDING superseded ones — a stale duck
+  // keeps stepping until it notices it lost the token, and a test that stops
+  // waiting before then would race the very supersession it is checking.
+  const inFlight = new Set();
+
+  function track(promise) {
+    inFlight.add(promise);
+    promise.then(() => inFlight.delete(promise), () => inFlight.delete(promise));
+    return promise;
+  }
 
   // Returns true only if the ramp finished WITHOUT a newer fade superseding it.
   // The caller uses that to decide whether its terminal action (pause, reset)
@@ -91,11 +116,10 @@ export function createResumableSource(adapter) {
   async function ramp(from, to) {
     if (typeof adapter.setVolume !== 'function') return false;
     const mine = ++fadeToken;
-    const steps = 6;
-    for (let i = 1; i <= steps; i++) {
+    for (let i = 1; i <= FADE_STEPS; i++) {
       if (mine !== fadeToken) return false;        // a newer op took over
-      adapter.setVolume(from + (to - from) * (i / steps));
-      await new Promise(r => setTimeout(r, FADE_MS / steps));
+      adapter.setVolume(from + (to - from) * (i / FADE_STEPS));
+      await delay(FADE_MS / FADE_STEPS);
     }
     return mine === fadeToken;
   }
@@ -136,7 +160,7 @@ export function createResumableSource(adapter) {
     // blips at the seam is not heard doing it.
     if (typeof adapter.setVolume === 'function') adapter.setVolume(0);
     play();
-    ramp(0, 1);
+    track(ramp(0, 1));
   }
 
   return {
@@ -154,11 +178,11 @@ export function createResumableSource(adapter) {
       // Voicey starts immediately — a brief natural overlap as the mix ducks
       // under it. A provider without setVolume falls straight through to pause.
       if (typeof adapter.setVolume === 'function') {
-        ramp(1, 0).then(finished => {
+        track(ramp(1, 0).then(finished => {
           // If a resume started mid-duck, IT owns fadeToken now and is ramping
           // back up — pausing here would stop audio the newer op just started.
           if (finished) { pause(); adapter.setVolume(1); }
-        });
+        }));
       } else {
         pause();
       }
@@ -185,6 +209,23 @@ export function createResumableSource(adapter) {
     captureState,
     restoreState,
     parkedState: () => state,
+
+    /**
+     * Resolves once no ramp is still stepping — including one that has been
+     * superseded and is on its way out.
+     *
+     * ⚠ THIS IS HOW A TEST WAITS FOR A FADE. `pause()` is deliberately
+     * fire-and-forget (arbitration must not block on 240ms), so there is
+     * otherwise no handle on when the duck — and the pause it performs at the
+     * bottom — has actually happened. Sleeping instead makes the assertion a
+     * measurement of machine load.
+     */
+    async fadesSettled() {
+      // Looped rather than a single `all`: a settling ramp can start the next
+      // one (duck → pause → reset), and the set is empty only when the whole
+      // chain is done.
+      while (inFlight.size) await Promise.all([...inFlight]);
+    },
   };
 }
 

@@ -102,6 +102,57 @@ test('no component talks to the retired module', () => {
   }
 });
 
+// ── ⚠ THE MICROPHONE IS A CLAIMANT TOO ────────────────────────────────
+//
+// THE DEFECT THESE GUARD, reported by the owner: a demo mix was playing, the
+// microphone was pressed, and the mix played on into the recording.
+//
+// Every test above asks whether a PLAYER arbitrates, because arbitration was
+// built for things that make sound. Recording makes none and was simply never
+// wired in — so the manager was working perfectly and the mix was never parked,
+// because nothing asked it to. Nothing in the suite could see that: the hook
+// passed its own tests, the manager passed its own tests, and the failure lived
+// in the gap between them, audible only to whoever played the note back.
+
+const recorder = code(readFileSync(new URL('../hooks/useVoiceRecorder.js', import.meta.url), 'utf8'));
+
+test('⚠ useVoiceRecorder arbitrates through the media session manager', () => {
+  assert.match(recorder, /from '\.\.\/lib\/mediaSession'/,
+    'a recorder that does not claim audio records whatever else is playing');
+});
+
+test('⚠ the recorder claims audio BEFORE the microphone opens', () => {
+  // This ORDER is the entire guarantee. Claiming after the recorder is live
+  // captures whatever was still sounding during the gap — the defect wearing
+  // the fix's clothes, and it would satisfy a test that only checked both
+  // calls were present.
+  const claim = recorder.indexOf('claimAudio(');
+  const mic   = recorder.indexOf('await startRecording(');
+  assert.ok(claim !== -1, 'the recorder must claim audio');
+  assert.ok(mic !== -1,   'startRecording is how the microphone opens');
+  assert.ok(claim < mic,
+    'claimAudio must precede startRecording, or the mix bleeds into the note');
+});
+
+test('⚠ the recorder registers as SHORT and can be paused', () => {
+  // `claimAudio` returns immediately for a source with no `pause` — so a
+  // session object missing it is not a weaker claim, it is NO claim, silently.
+  assert.match(recorder, /sessionRef\.current\s*=\s*\{[\s\S]*?kind:\s*SHORT[\s\S]*?pause:/,
+    'the session must declare SHORT and expose pause, or claimAudio ignores it');
+});
+
+test('⚠ the recorder gives the mix back — this is what resumes the music', () => {
+  assert.match(recorder, /finishAudio\(/,
+    'without this, recording a Voicey silences a demo mix permanently');
+});
+
+test('⚠ the recorder holds ONE stable session object', () => {
+  // Same reason as the players: the manager's guards compare by identity, and
+  // a fresh object per render makes every release look like a stale one.
+  assert.match(recorder, /sessionRef\s*=\s*useRef\(/);
+  assert.match(recorder, /if \(!sessionRef\.current\)/, 'built once, not on every render');
+});
+
 // ── PHASE 2 · THE MINIPLAYER IS THE LONG SOURCE ───────────────────────
 
 const miniPlayer = readFileSync(new URL('../components/MiniPlayer.jsx', import.meta.url), 'utf8');
