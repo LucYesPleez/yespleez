@@ -91,6 +91,19 @@ export default function ProfileMenu({ session, unreadCount = 0, onSignOut, onOpe
    */
   const [findOpen, setFindOpen] = useState(false);
   useEffect(() => { if (!open) setFindOpen(false); }, [open]);
+
+  /**
+   * HOW IT ALL WORKS, expanded. Same mechanism and same reset-on-close as
+   * Find People above: reopening the menu must not land someone straight
+   * back inside a panel they were finished with.
+   *
+   * ⚠ DECLARED WITH THE OTHER HOOKS, ABOVE THE SIGNED-OUT RETURN. It sat
+   * below it for one revision — a rules-of-hooks violation, because the hook
+   * order changes the moment `session` flips and React pairs state to the
+   * WRONG hook. Lint caught it; the test suite could not. Second time today.
+   */
+  const [learnOpen, setLearnOpen] = useState(false);
+  useEffect(() => { if (!open) setLearnOpen(false); }, [open]);
   useEffect(() => {
     if (!open || !session?.user?.id) return undefined;
     let cancelled = false;
@@ -165,27 +178,37 @@ export default function ProfileMenu({ session, unreadCount = 0, onSignOut, onOpe
 
   /**
    * ⭐ HOW IT ALL WORKS (owner, 2026-08-12) — the three "explain this app"
-   * actions, gathered under one heading at the TOP of the menu.
+   * actions, behind a menu item that opens them.
    *
    * They used to live inside the ⓘ info sheet, two taps deep, behind an item
    * called Help & Feedback. That sheet still explains the SCREEN you are on;
    * these three are about the PRODUCT, and they are the answer to "what is
-   * this and what do I do with it" — which is the question the tour used to
-   * ask on everybody's behalf, uninvited, 1200ms after launch.
+   * this and what do I do with it" — the question the tour used to ask on
+   * everybody's behalf, uninvited, 1200ms after launch.
+   *
+   * ⚠ A HEADING WOULD HAVE PUT THREE PERMANENT ROWS ABOVE EVERY OTHER ITEM.
+   * It expands instead, exactly as Find People does — same mechanism, same
+   * reset-on-close — so the menu opens at its normal length and these appear
+   * only when asked for.
    *
    * ⛔ Not duplicated in the sheet. One control, one home.
    */
   const learnItems = [
-    { label: 'Take the tour', onClick: () => { setOpen(false); startTour(); } },
-    { label: 'Set up a profile', onClick: () => go('/start') },
+    { label: 'TAKE THE TOUR', onClick: () => { setOpen(false); startTour(); } },
+    { label: 'SET UP A PROFILE', onClick: () => go('/start') },
     // ⚠ A PLACEHOLDER, AND IT MUST READ AS ONE — `disabled` in the DOM, not
     // merely styled dead: a button that only looks inert still takes focus and
     // still announces itself as pressable. The SOON tag says why. Delete the
     // flag and the tag together when the per-role walkthroughs land.
-    { label: 'Industry role tours', soon: true },
+    { label: 'INDUSTRY ROLE TOURS', soon: true },
   ];
 
   const items = [
+    {
+      label: 'How it all works',
+      onClick: () => setLearnOpen(v => !v),
+      expanded: learnOpen,
+    },
     /**
      * ⚠ VIEW PROFILE IS MUTED, NOT DELETED (owner, 2026-08-05: "i dont really
      * want to have it as a socials network, or do i? at least mute it while i
@@ -366,25 +389,6 @@ export default function ProfileMenu({ session, unreadCount = 0, onSignOut, onOpe
 
             <div className={s.rule} />
 
-            {/* ⭐ HOW IT ALL WORKS — the product explains itself HERE now,
-                not by arriving uninvited at launch. See learnItems. */}
-            <div className={s.sectionLabel}>HOW IT ALL WORKS</div>
-            {learnItems.map(it => (
-              <button
-                key={it.label}
-                type="button"
-                role="menuitem"
-                className={s.item}
-                onClick={it.onClick}
-                disabled={!!it.soon}
-              >
-                <span>{it.label}</span>
-                {it.soon && <span className={s.soonTag}>SOON</span>}
-              </button>
-            ))}
-
-            <div className={s.rule} />
-
             {items.map(it => (
               <Fragment key={it.label}>
                 <button
@@ -399,6 +403,30 @@ export default function ProfileMenu({ session, unreadCount = 0, onSignOut, onOpe
                   <span>{it.label}</span>
                   {it.badge > 0 && <span className={s.itemBadge}>{it.badge > 9 ? '9+' : it.badge}</span>}
                 </button>
+
+                {/* ⭐ THE THREE ACTIONS, ONLY ONCE ASKED FOR. Rendered as the
+                    purple gradient buttons they were in the ⓘ sheet (owner,
+                    2026-08-12) — same ramp as the tour's own Next button, so
+                    "this explains the app" looks the same wherever it is
+                    offered. They sit INSIDE the expanding row rather than
+                    after the list, so closing the menu takes them with it. */}
+                {it.label === 'How it all works' && learnOpen && (
+                  <div className={s.learnPanel}>
+                    {learnItems.map(l => (
+                      <button
+                        key={l.label}
+                        type="button"
+                        role="menuitem"
+                        className={l.soon ? s.learnSoon : s.learnBtn}
+                        onClick={l.onClick}
+                        disabled={!!l.soon}
+                      >
+                        {l.label}
+                        {l.soon && <span className={s.soonTag}>SOON</span>}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </Fragment>
             ))}
 

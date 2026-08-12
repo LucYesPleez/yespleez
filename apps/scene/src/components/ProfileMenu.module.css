@@ -156,28 +156,71 @@
   background: var(--border);
 }
 
-/* The HOW IT ALL WORKS heading. Quiet by design — it names a group, it is
-   not itself a control, so it must not compete with the items under it. */
-.sectionLabel {
+/* ── HOW IT ALL WORKS, expanded ──
+   ⭐ The three actions as the purple gradient buttons they were in the ⓘ
+   sheet (owner, 2026-08-12). ⚠ The ramp is copied value for value from
+   GlobalHeader.module.css .infoTour — which is also the tour's own Next
+   button — so "this explains the app" reads the same everywhere it appears.
+   ⛔ Do not re-tune it here alone. */
+.learnPanel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px 10px 10px;
+}
+
+/* ⚠ 20% DOWN ON THE SOURCE (owner, 2026-08-12): 13px → 10.4, 10/8 padding →
+   8/6.4, 2px tracking → 1.6, 8px radius → 6.4. Written as the arithmetic so
+   the ratio to .infoTour stays legible if that button is ever retuned. */
+.learnBtn {
+  display: block;
+  width: 100%;
+  padding: 8px 6.4px;
+  border: none;
+  border-radius: 6.4px;
+  background: linear-gradient(135deg, #7c4dff, var(--purple) 55%, #d07bff);
+  color: #fff;
   font-family: 'Bebas Neue', sans-serif;
-  font-size: 10.5px;
+  font-size: 10.4px;
   letter-spacing: 1.6px;
+  cursor: pointer;
+  box-shadow: 0 5px 14px rgba(124, 77, 255, .3);
+  transition: box-shadow .18s, filter .18s;
+}
+.learnBtn:hover { box-shadow: 0 6px 18px rgba(124, 77, 255, .45); filter: brightness(1.06); }
+
+/* ⚠ The placeholder is OUTLINED, never gradient. Wearing the same fill as a
+   working button is how "coming soon" starts reading as "broken". */
+.learnSoon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6.4px;
+  width: 100%;
+  padding: 8px 6.4px;
+  border: 1px solid var(--border);
+  border-radius: 6.4px;
+  background: none;
   color: var(--muted);
-  padding: 6px 10px 4px;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 10.4px;
+  letter-spacing: 1.6px;
+  cursor: default;
 }
 
 /* ⚠ Pairs with `disabled` in the DOM, never a substitute for it — the tag
    says WHY the row is inert, which is the difference between "coming" and
    "broken". */
+/* ⚠ Scaled with the button it sits in: 9px → 7.2, 2/6 padding → 1.6/4.8. */
 .soonTag {
   font-family: 'DM Sans', sans-serif;
-  font-size: 9px;
+  font-size: 7.2px;
   font-weight: 700;
   letter-spacing: .08em;
   color: var(--muted);
   border: 1px solid var(--border);
   border-radius: 999px;
-  padding: 2px 6px;
+  padding: 1.6px 4.8px;
 }
 
 .item {

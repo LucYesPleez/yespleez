@@ -118,8 +118,12 @@ test('the identity menu offers the question, under HOW IT ALL WORKS', () => {
   assert.ok(from > 0, 'the HOW IT ALL WORKS group must exist');
   assert.match(group, /go\('\/start'\)/, 'the role question belongs in that group');
   assert.match(group, /startTour\(\)/, 'so does the tour');
-  assert.match(MENU, /<div className=\{s\.sectionLabel\}>HOW IT ALL WORKS<\/div>/,
-    'and the group must actually render its heading');
+  // ⚠ It is an EXPANDING MENU ITEM now, not a standing heading (owner,
+  // 2026-08-12) — three permanent rows above every other item was the thing
+  // that change removed. The group renders only once the item is opened.
+  assert.match(MENU, /label: 'How it all works'/);
+  assert.match(MENU, /it\.label === 'How it all works' && learnOpen/,
+    'the buttons must be gated on the item being opened');
   // `go` closes the menu before navigating — a portalled menu left open would
   // sit over the screen it just sent you to.
   assert.match(MENU, /const go = \(path, state\) => \{ setOpen\(false\);/);

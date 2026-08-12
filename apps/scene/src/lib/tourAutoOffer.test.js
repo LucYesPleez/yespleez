@@ -50,7 +50,10 @@ test('the ONLY way in is an explicit request', () => {
   // lives in the identity menu rather than two taps inside the info sheet.
   assert.match(HEADER, /onTourStart\(/);
   assert.match(MENU, /startTour\(\)/);
-  assert.match(MENU, /HOW IT ALL WORKS/);
+  // ⚠ Sentence case, and it is a menu ITEM rather than a heading — the three
+  // actions expand from it instead of standing permanently above the list.
+  assert.match(MENU, /label: 'How it all works'/);
+  assert.match(MENU, /TAKE THE TOUR/);
 });
 
 test('⛔ the dead guards are gone rather than left to read as live rules', () => {

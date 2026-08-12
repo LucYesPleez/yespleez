@@ -76,20 +76,33 @@
 }
 
 /* ── HEADLINE ──
-   The dominant element. ⛔ No new font: the same Bebas the app titles with. */
+   The dominant element. ⛔ No new font: the same Bebas the app titles with.
+
+   ⚠⚠ `font-weight: 400` IS NOT DECORATIVE — IT IS THE WHOLE REASON THIS
+   MATCHED THE WRONG FONT. Bebas Neue ships ONE weight. This is an <h1>, so
+   its children inherited the browser's default `bold`, and the browser
+   SYNTHESISED it — smearing every stroke and turning the app's title face
+   into something that read as a different, heavier font beside What's On's
+   "WHATS HAPPENIN'". Measured 2026-08-12: both lines computed to 700 where
+   .heroTitle computes to 400.
+   ⚠ .heroTitle sets `font-weight: 400` explicitly for exactly this reason.
+   ⛔ Do not remove it from either rule below. */
 .headline {
   margin: 0 0 10px;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 2px;
+  font-weight: 400;
 }
 
 .headlineLead {
   font-family: 'Bebas Neue', sans-serif;
   font-size: 19px;
-  letter-spacing: 3.5px;
+  /* 4px, matching .heroTitle's tracking exactly. */
+  letter-spacing: 4px;
   line-height: 1;
+  font-weight: 400;
   color: rgba(255, 255, 255, .82);
 }
 
@@ -101,6 +114,8 @@
   font-size: 58px;
   line-height: .92;
   letter-spacing: 2px;
+  /* ⚠ See the note above .headline — one weight, never synthesised. */
+  font-weight: 400;
   /* ⭐ THE TOUR'S "NEXT" BUTTON RAMP (owner, 2026-08-12), copied value for
      value from TourOverlay.module.css: violet #7c4dff into var(--purple) at
      55%, out to light pink #d07bff. Purple to light pink, ⛔ no cyan.
