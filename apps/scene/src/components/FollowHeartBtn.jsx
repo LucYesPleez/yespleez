@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { getPersonalProfileId } from '../lib/actingProfile';
-import { track, EVENTS } from '../lib/analytics';
+import { followProfile, unfollowProfile } from '../lib/participation';
 import { followedProfiles } from '../lib/followedProfiles';
 import { useSession } from '../App';
+import { useParticipation } from './ParticipationGate';
 // ⚠ from ./heartStyles, NOT ./HeartBtn — importing the button pulls App into
 // the cycle and puts the styles in the TDZ. See heartStyles.jsx.
 import { HeartGlyph, HEART_BARE_STYLE } from './heartStyles';
@@ -40,6 +40,7 @@ import { HeartGlyph, HEART_BARE_STYLE } from './heartStyles';
  */
 export default function FollowHeartBtn({ profile, style, className, onChange, onError }) {
   const { session } = useSession();
+  const requestParticipation = useParticipation();
   const pid = profile?.id;
   const legacyId = profile?.user_id ?? profile?.id;
   const [followed, setFollowed] = useState(() => followedProfiles.has(pid));
@@ -79,29 +80,37 @@ export default function FollowHeartBtn({ profile, style, className, onChange, on
   async function toggle(e) {
     e.stopPropagation();
     e.preventDefault();
-    if (!session?.user?.id || busy || !pid || isSelf) return;
+    if (busy || !pid || isSelf) return;
+    /**
+     * ⭐ O2 — a signed-out tap OPENS THE PARTICIPATION GATE instead of dying
+     * silently. Intent context is the profile ID ONLY; `display` carries the
+     * type purely for the gate's copy and never enters the stored intent.
+     * After auth the follow completes via lib/intentActions — the SAME
+     * followProfile below, so the two-keyspace row shape has one author.
+     */
+    if (!session?.user?.id) {
+      requestParticipation('follow_profile', {
+        context: { profileId: pid },
+        display: { type: profile?.type },
+      });
+      return;
+    }
     setBusy(true);
     if (followed) {
-      /* Both keyspaces, for the same reason the read spans both: deleting only
-         the entity_id match leaves a legacy row behind, the heart empties, and
-         the next mount reads that survivor and fills it again. Matches
-         ProfileScreen.toggleFollow (ProfileScreen.jsx:419). */
-      const { error } = await supabase.from('follows').delete()
-        .eq('user_id', session.user.id)
-        .or(`target_profile_id.eq.${pid},entity_id.eq.${legacyId}`);
+      /* Both keyspaces, in lib/participation, for the same reason the read
+         spans both: deleting only the entity_id match leaves a legacy row
+         behind, the heart empties, and the next mount reads that survivor
+         and fills it again. Matches ProfileScreen.toggleFollow. */
+      const { error } = await unfollowProfile(session.user.id, profile);
       if (error) { report('unfollow', error); onError?.(error, 'unfollow'); setBusy(false); return; }
-      followedProfiles.delete(pid); setFollowed(false);
+      setFollowed(false);
       onChange?.(false, profile);
     } else {
-      const fromProfileId = await getPersonalProfileId(session.user.id);
-      const { error } = await supabase.from('follows').insert({
-        user_id: session.user.id, from_profile_id: fromProfileId,
-        entity_id: legacyId, entity_type: profile.type, entity_name: profile.name,
-        target_profile_id: pid,
-      });
+      // Write, cache and tracking in lib/participation — shared with the
+      // intent executor. The heart only fills when the write landed.
+      const { error } = await followProfile(session.user.id, profile);
       if (error) { report('follow', error); onError?.(error, 'follow'); setBusy(false); return; }
-      track(EVENTS.FOLLOWED, { entity_type: profile.type });
-      followedProfiles.add(pid); setFollowed(true);
+      setFollowed(true);
       onChange?.(true, profile);
     }
     setBusy(false);

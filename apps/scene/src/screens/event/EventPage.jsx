@@ -48,6 +48,11 @@ export default function EventPage({
   favourited = false,
   onToggleFavourite = null,
   canFavourite = true,
+  // O2 · sending needs conversations, saving only needs desire — the two
+  // stopped sharing a switch when the guest heart became a gate trigger.
+  // Defaults to canFavourite so existing callers (EventHostView's false)
+  // keep their exact behaviour.
+  canSend = undefined,
   // Two live features the old page carried and this one must not lose.
   // Both are given as nodes rather than data: they need session, host
   // handlers and write paths that this page has no business knowing about.
@@ -122,8 +127,9 @@ export default function EventPage({
         <EventIdentity
           {...v.identity}
           favourited={favourited}
-          // R3 · no dead controls. A guest has nothing to save to, so the
-          // heart is absent rather than present-and-inert.
+          // R3 · no dead controls — which O2 satisfies by making the guest
+          // heart LIVE (it opens the ParticipationGate) rather than absent.
+          // canFavourite=false now means only the host's own preview.
           onToggleFavourite={canFavourite && onToggleFavourite ? onToggleFavourite : null}
         />
       }
@@ -136,8 +142,9 @@ export default function EventPage({
           onShare={share}
           // ⚠ ABSENT when there is nobody to send to. A signed-out reader has
           // no conversations, so the control is not rendered rather than
-          // rendered-and-dead (R3) — the same rule the heart above follows.
-          onSendToChat={canFavourite ? () => setSendOpen(true) : null}
+          // rendered-and-dead (R3). Gated on canSend, not canFavourite: the
+          // guest heart gates to an account, but sending stays session-only.
+          onSendToChat={(canSend ?? canFavourite) ? () => setSendOpen(true) : null}
           onAddToScene={canFavourite && onToggleFavourite ? onToggleFavourite : null}
           websiteUrl={null}
         />

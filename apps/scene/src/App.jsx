@@ -33,6 +33,8 @@ import InboxScreen from './screens/InboxScreen';
 import ConversationScreen from './screens/ConversationScreen';
 import AccessRequiredScreen from './screens/AccessRequiredScreen';
 import { ShareTargetProvider } from './lib/shareTarget';
+import { ParticipationProvider } from './components/ParticipationGate';
+import { clearIntent } from './lib/returnIntent';
 import { ConversationUiProvider } from './lib/conversationUi';
 import ConversationDock from './components/ConversationDock';
 import { totalUnread } from './lib/messaging';
@@ -241,6 +243,11 @@ function Shell({ session, onSignOut }) {
   return (
     <PlayerCtx.Provider value={{ player, setPlayer }}>
       <ShareTargetProvider>
+      {/* O2 · the participation gate serves every heart and follow control in
+          the app — screens, cards, and the dock alike — so it wraps them all.
+          Needs the router (returnIntent captures the live route), which Shell
+          is already under. */}
+      <ParticipationProvider>
       {/* Messaging is APP-SHELL state, not screen state. The dock is mounted
           once, above the router, so a conversation survives navigation and
           "minimise" never means "unmount and lose the draft". */}
@@ -366,6 +373,7 @@ function Shell({ session, onSignOut }) {
         <ConversationDock />
       </ErrorBoundary>
       </ConversationUiProvider>
+      </ParticipationProvider>
       </ShareTargetProvider>
     </PlayerCtx.Provider>
   );
@@ -460,6 +468,7 @@ export default function App() {
 
   function handleSignOut() {
     clearActingProfileCache();  // M6: a cached profile id must not outlive its session
+    clearIntent();              // O2: a pending intent must not outlive it either
     // ⏱ TEMPORARY — marks this SIGNED_OUT as user-initiated. GoTrue emits the
     // same event whether the button was pressed or a refresh was rejected, and
     // this is the app's only signOut call site. Labelling only.

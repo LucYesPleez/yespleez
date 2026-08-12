@@ -70,6 +70,11 @@ export const EVENTS = Object.freeze({
   ERROR:                    'error',
   // A3 — what people ASK the scene for. The demand half of Scene Pulse.
   FILTERED:                 'filtered',
+  // O2 — the participation funnel. GATE_SHOWN carries the ACTION only (rule
+  // 3: no ids), INTENT_RESUMED whether the act completed after auth. Together
+  // they measure the conversion moment that was a silent dead tap until now.
+  GATE_SHOWN:               'gate_shown',
+  INTENT_RESUMED:           'intent_resumed',
 });
 
 /**

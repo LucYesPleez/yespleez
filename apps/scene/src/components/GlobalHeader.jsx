@@ -15,7 +15,7 @@ import TourWelcome from './TourWelcome';
 import TourInfoNotice from './TourInfoNotice';
 import {
   tourFinished, finishTour, announceTourFinished, resetTour, tourOverride,
-  startTour, onTourStart,
+  startTour, onTourStart, autoTourSuppressed,
 } from '../lib/tourState';
 
 const INFO = {
@@ -358,6 +358,15 @@ export default function GlobalHeader({ unreadCount = 0, session = null, onSignOu
  * Never two overlays at once. See announceTourFinished.
  */
 function TourRunner() {
+  /**
+   * ⭐ O2 — WHERE THIS SESSION BEGAN, captured once. A visitor who arrived
+   * on an event or a profile (QR, shared link) gets the content, not the
+   * generic welcome card; see autoTourSuppressed. A ref, not state: it is
+   * the FIRST route, and navigating afterwards must not change the answer.
+   */
+  const location = useLocation();
+  const landingPathRef = useRef(location.pathname);
+
   const [welcome, setWelcome] = useState(false);
   const [open, setOpen] = useState(false);
   const [done, setDone] = useState(tourFinished);
@@ -380,6 +389,9 @@ function TourRunner() {
 
   useEffect(() => {
     if (done) return undefined;
+    // ⛔ Not on a deep link into content. The flag is deliberately NOT spent
+    // — this suppresses the automatic offer for this session only.
+    if (autoTourSuppressed(landingPathRef.current)) return undefined;
     const t = setTimeout(() => setWelcome(true), 1200);
     return () => clearTimeout(t);
   }, [done]);

@@ -6,6 +6,7 @@ import { getPersonalProfileId } from '../lib/actingProfile';
 import { writeNotification } from '../lib/writeNotification';
 import { track, EVENTS } from '../lib/analytics';
 import { useSession, usePlayer } from '../App';
+import { useParticipation } from '../components/ParticipationGate';
 import EventCard from '../components/EventCard';
 import { eventCategoryBadges } from '../lib/eventBadges';
 import { eventCardImage } from '../lib/eventImage';
@@ -50,6 +51,7 @@ export default function ProfileScreen() {
   const { id }    = useParams();
   const navigate  = useNavigate();
   const { session } = useSession();
+  const requestParticipation = useParticipation();
   const { open: openConversation } = useConversationUi();
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
@@ -688,7 +690,20 @@ export default function ProfileScreen() {
   }
 
   async function toggleFollow() {
-    if (!session?.user?.id || followBusy) return;
+    if (followBusy) return;
+    /**
+     * ⭐ O2 — the profile page's FOLLOW is the artist-follow conversion
+     * moment, and for a guest it was a greyed `disabled` button with no
+     * explanation. It now opens the ParticipationGate on the same contract
+     * FollowHeartBtn uses: profile id only in the intent, type for copy.
+     */
+    if (!session?.user?.id) {
+      requestParticipation('follow_profile', {
+        context: { profileId: profile?.id },
+        display: { type: profile?.type },
+      });
+      return;
+    }
     if (followed) {
       setFollowBusy(true);
       // M5: cover both keyspaces — legacy rows keyed by entity_id, canonical
@@ -1127,7 +1142,9 @@ export default function ProfileScreen() {
                     ? { borderColor: 'transparent', color: '#0a0a0f', background: `linear-gradient(135deg, ${col}, ${grad2})`, width: '100%', margin: 0 }
                     : { borderColor: 'transparent', background: 'rgba(19,19,31,.92)', width: '100%', margin: 0 }}
                   onClick={toggleFollow}
-                  disabled={followBusy || !session}
+                  /* O2 · live for a guest — it opens the gate rather than
+                     sitting greyed out with nothing to say. */
+                  disabled={followBusy}
                 >
                   {followed ? '✓ FOLLOWING' : <span style={{ backgroundImage: `linear-gradient(135deg, ${col}, ${grad2})`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>+ FOLLOW</span>}
                 </button>

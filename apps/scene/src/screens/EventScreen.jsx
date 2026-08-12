@@ -17,12 +17,14 @@ import FestivalApply from './event/FestivalApply';
 import { applicationsBelongToFestival } from '../lib/festivalPortal';
 import DaySlots from './event/DaySlots';
 import EventHostView from './event/EventHostView';
+import { useParticipation } from '../components/ParticipationGate';
 import s from './EventScreen.module.css';
 
 export default function EventScreen() {
   const { id }   = useParams();
   const navigate = useNavigate();
   const { session } = useSession();
+  const requestParticipation = useParticipation();
   const isRealEvent = EVENT_ID_RE.test(id);
 
   const d = useEventData(id, navigate);
@@ -136,8 +138,19 @@ export default function EventScreen() {
       lineupMembers={d.lineupMembers}
       memberProfiles={d.memberProfiles}
       favourited={like.liked}
-      onToggleFavourite={like.toggleLike}
-      canFavourite={!!session?.user?.id}
+      onToggleFavourite={session?.user?.id
+        ? like.toggleLike
+        : () => requestParticipation('save_event', { context: { eventId: id } })}
+      /**
+       * ⭐ O2 — the event page heart is THE prime conversion point (owner),
+       * so for a signed-out reader it renders and opens the ParticipationGate
+       * instead of being absent. R3 ("no dead controls") still holds: the
+       * control is live for everyone, it just does the right thing per state.
+       * Send-to-chat stays session-only — a guest has no conversations, and
+       * messaging is not in O2's scope.
+       */
+      canFavourite={true}
+      canSend={!!session?.user?.id}
       applyAction={applyAction}
       setTimes={d.showTimesPublicly && d.totalSlots > 0
         ? <DaySlots

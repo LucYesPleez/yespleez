@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useSession } from '../App';
+import { resumeIntent } from '../lib/intentActions';
 import { track, EVENTS } from '../lib/analytics';
 import s from './AuthScreen.module.css';
 
@@ -28,7 +29,10 @@ export default function AuthScreen() {
   const navigate = useNavigate();
   const location = useLocation();
   const { session } = useSession() ?? {};
-  const [mode,        setMode]        = useState('signin');
+  // O2 · the ParticipationGate names which tab it is sending someone to —
+  // CREATE FREE ACCOUNT should not land on a sign-in form.
+  const [mode,        setMode]        = useState(() =>
+    location.state?.mode === 'signup' ? 'signup' : 'signin');
   const [email,       setEmail]       = useState('');
   const [password,    setPassword]    = useState('');
   const [confirm,     setConfirm]     = useState('');
@@ -44,10 +48,26 @@ export default function AuthScreen() {
     else navigate('/', { replace: true });
   }
 
-  // One mechanism for both cases: already signed in → bounce off; signed
-  // in/up on this screen → session arrives via onAuthStateChange → leave.
+  /**
+   * O2 · leaving now goes through the returnIntent slot first. With an
+   * intent: complete the auto-safe act (lib/intentActions — save/follow
+   * only, ⛔ never a send or a submit) and put the person back on the exact
+   * route the gate captured. Without one: the O1 behaviour, history back.
+   *
+   * ⚠ THE REF IS THE DOUBLE-RUN GUARD. StrictMode double-invokes effects and
+   * consumeIntent is destructive — the second invocation would find an empty
+   * slot and fall through to leave(), queueing a second navigation. One
+   * flag, one departure.
+   */
+  const handledRef = useRef(false);
   useEffect(() => {
-    if (session) leave();
+    if (!session || handledRef.current) return;
+    handledRef.current = true;
+    (async () => {
+      const resumed = await resumeIntent(session);
+      if (resumed?.intent?.route) navigate(resumed.intent.route, { replace: true });
+      else leave();
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session]);
 

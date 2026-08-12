@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { getPersonalProfileId } from '../lib/actingProfile';
-import { track, EVENTS } from '../lib/analytics';
+import { saveEvent, unsaveEvent } from '../lib/participation';
 import { likedEvents } from '../lib/likedEvents';
 import { useSession } from '../App';
+import { useParticipation } from './ParticipationGate';
 
 import { HEART_OVERLAY_STYLE, HEART_BARE_STYLE, HeartGlyph } from './heartStyles';
 
@@ -47,6 +47,7 @@ export { HEART_OVERLAY_STYLE, HEART_BARE_STYLE, HeartGlyph };
  */
 export default function HeartBtn({ event, className, style, onChange, onError }) {
   const { session } = useSession();
+  const requestParticipation = useParticipation();
   const [liked, setLiked] = useState(() => likedEvents.has(event.id));
   const [busy,  setBusy]  = useState(false);
   const isReal = UUID_RE.test(event.id);
@@ -72,22 +73,33 @@ export default function HeartBtn({ event, className, style, onChange, onError })
 
   async function toggle(e) {
     e.stopPropagation();
-    if (!session?.user?.id || busy || !isReal) return;
+    if (busy || !isReal) return;
+    /**
+     * ⭐ O2 — a signed-out tap OPENS THE PARTICIPATION GATE. This was a
+     * silent `return`: the most natural "I want in" moment in the product,
+     * and the tap died with no feedback at all. The gate captures the
+     * returnIntent (this route, this event id) and after auth the save
+     * completes via lib/intentActions — the SAME saveEvent below, never a
+     * second write path.
+     */
+    if (!session?.user?.id) {
+      requestParticipation('save_event', { context: { eventId: event.id } });
+      return;
+    }
     setBusy(true);
     if (liked) {
-      const { error } = await supabase.from('follows').delete().eq('user_id', session.user.id).eq('entity_id', event.id);
+      const { error } = await unsaveEvent(session.user.id, event.id);
       if (error) { report('unsave', error); onError?.(error, 'unsave'); setBusy(false); return; }
-      likedEvents.delete(event.id); setLiked(false);
+      setLiked(false);
       onChange?.(false);
     } else {
-      // M6 (R6.1): stamp attribution at write time — personal act (§A6/§A9).
-      const fromProfileId = await getPersonalProfileId(session.user.id);
-      const { error } = await supabase.from('follows').insert({ user_id: session.user.id, from_profile_id: fromProfileId, entity_id: event.id, entity_type: 'event', entity_name: event.name });
-      // The heart must not fill and nothing may claim a save happened. The
-      // UI's state is the write's state, not the tap's.
+      // The write, cache update and tracking live in lib/participation —
+      // shared with the intent executor. The heart must not fill and nothing
+      // may claim a save happened unless the write landed: the UI's state is
+      // the write's state, not the tap's.
+      const { error } = await saveEvent(session.user.id, event);
       if (error) { report('save', error); onError?.(error, 'save'); setBusy(false); return; }
-      track(EVENTS.FOLLOWED, { entity_type: 'event' });
-      likedEvents.add(event.id); setLiked(true);
+      setLiked(true);
       onChange?.(true);
     }
     setBusy(false);

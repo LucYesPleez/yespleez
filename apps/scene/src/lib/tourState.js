@@ -104,6 +104,37 @@ export function resetTour() {
 }
 
 /**
+ * ⭐⭐ ARRIVING ON CONTENT IS NOT ARRIVING AT THE APP (owner, 2026-08-12).
+ *
+ * A QR scan or a shared link lands someone on ONE event because they were
+ * told about THAT event. The first thing they see must be the poster, not a
+ * generic welcome card explaining what YesPleez is:
+ *
+ *     QR → Event → Explore → Intent → ParticipationGate      ⭐ ratified
+ *     QR → Event → Tour → Event → Intent                     ⛔ what it did
+ *
+ * ⚠ SUPPRESSED, NOT SPENT. The done flag is untouched, so the tour still
+ * offers itself on a later launch that begins at What's On, and "TAKE THE
+ * TOUR" in the ⓘ sheet (onTourStart) is unaffected — this governs the
+ * AUTOMATIC first-run presentation only. ⛔ Do not "fix" this by calling
+ * finishTour() on a deep link: that would silently retire onboarding for
+ * someone who has seen one page.
+ *
+ * The landing path is the app's FIRST route this session, not the current
+ * one — walking from What's On to an event is not an arrival, and the tour
+ * that was already offered there should not be cancelled retroactively.
+ *
+ * Content = an individual resource: `/event/:id`, `/profile/:id`. ⛔ NOT the
+ * browsing surfaces (`/`, `/discover`), which are exactly where a first-run
+ * tour belongs and where its steps are written to point.
+ */
+const CONTENT_ROUTE = /^\/(event|profile)\/[^/]+/;
+
+export function autoTourSuppressed(landingPath) {
+  return typeof landingPath === 'string' && CONTENT_ROUTE.test(landingPath);
+}
+
+/**
  * ⏱ TEMPORARY — `?tour=reset` replays it, `?tour=off` suppresses it.
  *
  * ⚠ WITHOUT THIS THE TOUR IS UNREVIEWABLE after its first run, on the only

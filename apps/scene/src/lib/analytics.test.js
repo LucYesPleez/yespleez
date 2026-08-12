@@ -175,13 +175,18 @@ test('every platform the client can produce is accepted by the A1 CHECK', () => 
 });
 
 test('the name allow-list is read from the NEWEST migration that redefines it', () => {
-  // Guards the scanner itself. If this ever resolves back to A1 or A2, the
-  // contract tests above would be checking a constraint the database has not
-  // had since A3 — passing while proving nothing.
+  // Guards the scanner itself. If this ever resolves back to an older
+  // migration, the contract tests above would be checking a constraint the
+  // database no longer has — passing while proving nothing.
+  //
+  // ⚠ MOVED FROM A3 TO O2 (2026-08-12) when gate_shown/intent_resumed were
+  // added. Updating this expectation is the documented response to a newer
+  // migration redefining the list; ⛔ do not pin the contract tests above to
+  // a fixed file instead.
   const file = migrationDefining('name');
   assert.ok(
-    file.endsWith('20260725000000_a3_demand_signals.sql'),
-    `expected the live name allow-list to come from A3, got ${file}. If a ` +
+    file.endsWith('20260812000000_o2_gate_funnel_events.sql'),
+    `expected the live name allow-list to come from O2, got ${file}. If a ` +
     'later migration redefines it, update this expectation — but do not ' +
     'pin the contract tests to a fixed file.',
   );

@@ -1,0 +1,91 @@
+/* The participation gate — see ParticipationGate.jsx.
+   Shape and stacking follow IndustryPanel's sheet: fixed above the nav
+   (--yp-safe-bottom — ⛔ the bottom nav is sacred, nothing covers it),
+   portalled to body because transformed ancestors trap position:fixed. */
+
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 600;
+  background: rgba(0, 0, 0, .7);
+}
+
+.sheet {
+  position: fixed;
+  bottom: var(--yp-safe-bottom);
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(92vw, 420px);
+  z-index: 601;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-bottom: none;
+  border-radius: 20px 20px 0 0;
+  padding: 4px 22px 18px;
+  text-align: center;
+  box-sizing: border-box;
+}
+
+.handle {
+  width: 40px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--border);
+  margin: 12px auto 14px;
+}
+
+.title {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 24px;
+  letter-spacing: 2px;
+  color: var(--text);
+  margin: 0 0 8px;
+}
+
+.body {
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--muted);
+  margin: 0 0 18px;
+}
+
+.primary {
+  display: block;
+  width: 100%;
+  background: linear-gradient(135deg, #00E5FF, #BF5FFF);
+  color: #000;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 16px;
+  letter-spacing: 2px;
+  padding: 13px;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  margin-bottom: 10px;
+}
+
+.secondary {
+  display: block;
+  width: 100%;
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 14px;
+  letter-spacing: 1.5px;
+  padding: 11px;
+  border-radius: 10px;
+  cursor: pointer;
+  margin-bottom: 6px;
+}
+.secondary:hover { border-color: var(--neon2); }
+
+.dismiss {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 12.5px;
+  padding: 10px 16px;
+  cursor: pointer;
+}
+.dismiss:hover { color: var(--text); }
