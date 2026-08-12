@@ -135,6 +135,28 @@ export function autoTourSuppressed(landingPath) {
 }
 
 /**
+ * ⭐ AND IT NEVER COVERS A SCREEN THAT IS ITSELF ASKING SOMETHING.
+ *
+ * The welcome card is on a 1200ms timer from mount, so it lands wherever the
+ * person happens to be by then — which included, measurably, on top of the
+ * sign-in form and on top of O3's "what brings you to YesPleez?" question.
+ * Two prompts stacked on one screen is the exact nagging the tour's own
+ * design set out to avoid.
+ *
+ * ⚠ CURRENT path, not the landing path — this is about what is on screen when
+ * the timer fires, whereas autoTourSuppressed is about where the session
+ * BEGAN. Two different questions; ⛔ do not merge them into one predicate.
+ *
+ * Blocked, ⛔ not spent: navigating away from these screens lets the offer
+ * appear normally, so a new account still meets the tour after answering.
+ */
+const ASKING_ROUTES = new Set(['/auth', '/start']);
+
+export function tourWelcomeBlocked(currentPath) {
+  return ASKING_ROUTES.has(currentPath);
+}
+
+/**
  * ⏱ TEMPORARY — `?tour=reset` replays it, `?tour=off` suppresses it.
  *
  * ⚠ WITHOUT THIS THE TOUR IS UNREVIEWABLE after its first run, on the only

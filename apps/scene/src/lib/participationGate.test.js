@@ -80,8 +80,18 @@ test('⛔ the gate and AccessRequiredScreen stay separate concepts', () => {
 test('the gate never says "sign in required" — it names what an account enables', () => {
   assert.doesNotMatch(GATE, /sign[- ]?in required/i);
   assert.match(GATE, /KEEP THIS IN YOUR SCENE/);
-  assert.match(GATE, /we'll save this event for you/);
+  assert.match(GATE, /save this event for you/i);
   assert.match(GATE, /KEEP UP WITH/);
+});
+
+test('⛔ the body never repeats the button — no "create a free account" in COPY', () => {
+  // Owner, 2026-08-12: the button directly beneath already says it, and
+  // saying it twice in four lines reads as a form rather than an offer. The
+  // body is what you GET; the button is what it costs.
+  const from = GATE.indexOf('const COPY');
+  const copyBlock = GATE.slice(from, GATE.indexOf('export function useParticipation'));
+  assert.ok(from >= 0 && copyBlock.length > 0);
+  assert.doesNotMatch(copyBlock, /create a free account/i);
 });
 
 // ── the auth surface: one, and it consumes the intent ───────────────────────
@@ -95,7 +105,13 @@ test('the gate routes to the existing /auth — it does not build a second auth 
 
 test('AuthScreen resumes the intent and returns to its route', () => {
   assert.match(AUTH, /resumeIntent\(session\)/);
-  assert.match(AUTH, /navigate\(resumed\.intent\.route/);
+  // ⚠ O3 moved the "where do they land" choice into postAuthDestination,
+  // which takes the intent's route as its FIRST and winning input. The
+  // guarantee is unchanged — the resumed route is still where they go — so
+  // this asserts the wiring rather than a literal navigate() argument.
+  // postAuthDestination.test.js proves the ordering itself.
+  assert.match(AUTH, /intentRoute:\s*resumed\?\.intent\?\.route/);
+  assert.match(AUTH, /navigate\(dest,\s*\{\s*replace:\s*true\s*\}\)/);
 });
 
 test('signing out clears any pending intent', () => {

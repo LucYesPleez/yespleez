@@ -33,11 +33,10 @@
  */
 
 import { createContext, useContext, useState, useCallback } from 'react';
-import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { captureIntent, clearIntent } from '../lib/returnIntent';
 import { track, EVENTS } from '../lib/analytics';
-import s from './ParticipationGate.module.css';
+import AccountInviteSheet from './AccountInviteSheet';
 
 const Ctx = createContext(null);
 
@@ -50,16 +49,22 @@ const FOLLOW_SUBJECT = {
   venue: 'this venue', host: 'this host',
 };
 
+/**
+ * ⛔ THE BODY NEVER SAYS "CREATE A FREE ACCOUNT" — the button directly beneath
+ * it already does (owner, 2026-08-12). Saying it twice in four lines reads as
+ * a form to fill in rather than an offer. The body's whole job is what you
+ * GET; the button's is what it costs.
+ */
 const COPY = {
   save_event: () => ({
     title: 'KEEP THIS IN YOUR SCENE',
-    body: "Create a free account and we'll save this event for you.",
+    body: "We'll save this event for you.",
   }),
   follow_profile: (display) => {
     const subject = FOLLOW_SUBJECT[display?.type] || 'them';
     return {
       title: `KEEP UP WITH ${subject.toUpperCase()}`,
-      body: `Create a free account to follow ${subject} and see them in your scene.`,
+      body: `Follow ${subject} and see them in your scene.`,
     };
   },
 };
@@ -104,25 +109,20 @@ export function ParticipationProvider({ children }) {
   return (
     <Ctx.Provider value={request}>
       {children}
-      {gate && createPortal(
-        <>
-          <div className={s.scrim} onClick={dismiss} />
-          <div className={s.sheet} role="dialog" aria-modal="true" aria-label={copy.title}>
-            <div className={s.handle} />
-            <h2 className={s.title}>{copy.title}</h2>
-            <p className={s.body}>{copy.body}</p>
-            <button type="button" className={s.primary} onClick={() => toAuth('signup')}>
-              CREATE FREE ACCOUNT
-            </button>
-            <button type="button" className={s.secondary} onClick={() => toAuth('signin')}>
-              I ALREADY HAVE ONE — SIGN IN
-            </button>
-            <button type="button" className={s.dismiss} onClick={dismiss}>
-              Not now
-            </button>
-          </div>
-        </>,
-        document.body,
+      {/* ⚠ The sheet itself — dock, handle, rise — is AccountInviteSheet,
+          which My Scene and Messages render too. This file owns WHEN the gate
+          appears and WHAT it says; ⛔ it must not grow its own styling again,
+          or the four surfaces drift back apart.
+          Dismissible, because the content is still there behind it — the
+          difference from a destination gate is spelled out in that file. */}
+      {gate && (
+        <AccountInviteSheet
+          title={copy.title}
+          body={copy.body}
+          onCreateAccount={() => toAuth('signup')}
+          onSignIn={() => toAuth('signin')}
+          onDismiss={dismiss}
+        />
       )}
     </Ctx.Provider>
   );

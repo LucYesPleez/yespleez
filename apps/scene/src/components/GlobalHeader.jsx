@@ -15,7 +15,7 @@ import TourWelcome from './TourWelcome';
 import TourInfoNotice from './TourInfoNotice';
 import {
   tourFinished, finishTour, announceTourFinished, resetTour, tourOverride,
-  startTour, onTourStart, autoTourSuppressed,
+  startTour, onTourStart, autoTourSuppressed, tourWelcomeBlocked,
 } from '../lib/tourState';
 
 const INFO = {
@@ -478,7 +478,12 @@ function TourRunner() {
 
   return (
     <>
-      {welcome && <TourWelcome onStart={acceptTour} onSkip={declineTour} />}
+      {/* ⛔ Never over a screen that is itself asking something (/auth, /start).
+          Checked at RENDER against the live route rather than latched at
+          timer-time: the card is on a 1200ms fuse and the person may have
+          walked onto — or off — one of those screens in the meantime. */}
+      {welcome && !tourWelcomeBlocked(location.pathname)
+        && <TourWelcome onStart={acceptTour} onSkip={declineTour} />}
       <TourOverlay open={open} startAt={startAt} onClose={close} />
       <TourInfoNotice open={infoNotice} onClose={infoNoticeDone} />
     </>

@@ -1,37 +1,14 @@
-/* The participation gate — see ParticipationGate.jsx.
-   Shape and stacking follow IndustryPanel's sheet: fixed above the nav
-   (--yp-safe-bottom — ⛔ the bottom nav is sacred, nothing covers it),
-   portalled to body because transformed ancestors trap position:fixed. */
+/* The account invite — see AccountInvite.jsx.
+   These values ARE the participation gate's: the sheet that comes up on the
+   heart is the reference, and Industry / My Scene / Messages now render the
+   same block. ⛔ Change them here, never in one copy. */
 
-.scrim {
-  position: fixed;
-  inset: 0;
-  z-index: 600;
-  background: rgba(0, 0, 0, .7);
-}
-
-.sheet {
-  position: fixed;
-  bottom: var(--yp-safe-bottom);
-  left: 50%;
-  transform: translateX(-50%);
-  width: min(92vw, 420px);
-  z-index: 601;
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-bottom: none;
-  border-radius: 20px 20px 0 0;
-  padding: 4px 22px 18px;
+.invite {
   text-align: center;
+  max-width: 420px;
+  margin: 0 auto;
+  width: 100%;
   box-sizing: border-box;
-}
-
-.handle {
-  width: 40px;
-  height: 4px;
-  border-radius: 2px;
-  background: var(--border);
-  margin: 12px auto 14px;
 }
 
 .title {

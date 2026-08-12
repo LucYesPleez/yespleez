@@ -395,41 +395,11 @@
 }
 
 
-/* ── Guest gate ── */
-.guestGate {
-  text-align: center;
-  padding: 60px 16px;
-  max-width: 680px;
-  margin: 0 auto;
-}
-
-.gateTitle {
-  font-family: 'Bebas Neue', sans-serif;
-  font-size: 28px;
-  letter-spacing: 2px;
-  color: var(--text);
-  font-weight: 400;
-  margin-bottom: 8px;
-}
-
-.gateSub {
-  font-size: 13px;
-  color: var(--muted);
-  margin-bottom: 24px;
-  line-height: 1.5;
-}
-
-.gateBtn {
-  background: var(--neon2);
-  color: #0a0a0f;
-  font-family: 'Bebas Neue', sans-serif;
-  font-size: 16px;
-  letter-spacing: 2px;
-  padding: 14px 32px;
-  border-radius: 8px;
-  border: none;
-  cursor: pointer;
-}
+/* ── The signed-out invite ──
+   ⚠ Nothing here. It is AccountInviteSheet now — portalled to body and
+   docked above the nav, the same slide-up Industry and the heart's gate
+   use. The old .guestGate/.gateTitle/.gateSub/.gateBtn rules went with the
+   markup they styled. */
 
 /* ── Misc ── */
 .empty {

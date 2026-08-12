@@ -1,0 +1,50 @@
+/* The invite sheet — see AccountInviteSheet.jsx.
+   The dock, the handle and the rise. The block INSIDE it is
+   AccountInvite.module.css; ⛔ keep content styling out of this file. */
+
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 600;
+  background: rgba(0, 0, 0, .7);
+}
+
+/* ⛔ Docked above the nav (--yp-safe-bottom, index.css) — the bottom nav is
+   never covered. Matches IndustryPanel's dock for the same reason. */
+.sheet {
+  position: fixed;
+  bottom: var(--yp-safe-bottom);
+  left: 50%;
+  width: min(92vw, 420px);
+  z-index: 601;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-bottom: none;
+  border-radius: 20px 20px 0 0;
+  padding: 4px 22px 18px;
+  box-sizing: border-box;
+  /* The rise. Same curve and duration as IndustryPanel's panel, so the two
+     sheets read as one behaviour rather than two animations that nearly
+     agree. `translateX(-50%)` is the centring and must survive the slide —
+     hence a keyframe rather than a bare transform transition. */
+  animation: rise .3s cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+
+@keyframes rise {
+  from { transform: translate(-50%, 100%); }
+  to   { transform: translate(-50%, 0); }
+}
+
+/* ⚠ Someone who asked not to see motion gets the sheet, just not the
+   travel — it still docks in exactly the same place. */
+@media (prefers-reduced-motion: reduce) {
+  .sheet { animation: none; transform: translate(-50%, 0); }
+}
+
+.handle {
+  width: 40px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--border);
+  margin: 12px auto 14px;
+}

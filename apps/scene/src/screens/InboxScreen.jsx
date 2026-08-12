@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSession } from '../App';
 import { supabase } from '../lib/supabase';
@@ -9,6 +9,7 @@ import MessengerContactsSection from '../components/MessengerContactsSection';
 import MessengerSearch from '../components/MessengerSearch';
 import MessagingIdentity, { ALL_PROFILES } from '../components/MessagingIdentity';
 import ProfileLink from '../components/ProfileLink';
+import AccountInviteSheet from '../components/AccountInviteSheet';
 import {
   listConversations, listParticipants, actableProfileIds, unreadCount, latestMessages,
 } from '../lib/messaging';
@@ -142,8 +143,10 @@ function relativeTime(iso) {
 export default function InboxScreen() {
   const { session } = useSession();
   const { open: openConversation, openId } = useConversationUi();
-  // ⛔ `navigate` went with the header avatar — it was this screen's only
-  // caller. MessengerSearch does its own navigating.
+  // ⚠ `navigate` is back — it left with the header avatar, and the signed-out
+  // invite below is its new (and only) caller. MessengerSearch still does its
+  // own navigating.
+  const navigate = useNavigate();
   const location = useLocation();
   const queryClient = useQueryClient();
   const userId = session?.user?.id;
@@ -299,6 +302,31 @@ export default function InboxScreen() {
     const wanted = location.state?.openConversation;
     if (wanted) openConversation(wanted);
   }, [location.state, openConversation]);
+
+  /**
+   * ⭐ SIGNED OUT, MESSAGES INVITES RATHER THAN SHOWING AN EMPTY INBOX
+   * (owner, 2026-08-12: "messages also needs one").
+   *
+   * This screen used to render its full chrome — heading, search, identity
+   * switcher — over a list that could never contain anything, because every
+   * query is keyed on a user id the visitor does not have. An empty state
+   * that cannot fill is not an empty state; it is a broken promise.
+   *
+   * ⛔ No dismiss: nothing sits behind this to return to. Signing in comes
+   * back here by history, which is O1's behaviour and needs no intent.
+   */
+  if (!session) {
+    return (
+      <div style={{ paddingTop: 72, paddingBottom: 90, minHeight: '100dvh', background: 'var(--bg)', boxSizing: 'border-box' }}>
+        <AccountInviteSheet
+          title="TALK TO YOUR SCENE"
+          body={<>Friends, artists, venues and hosts.<br />Every convo in one place</>}
+          onCreateAccount={() => navigate('/auth', { state: { mode: 'signup' } })}
+          onSignIn={() => navigate('/auth', { state: { mode: 'signin' } })}
+        />
+      </div>
+    );
+  }
 
   return (
     <div

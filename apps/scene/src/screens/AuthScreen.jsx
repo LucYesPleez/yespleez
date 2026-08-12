@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useSession } from '../App';
 import { resumeIntent } from '../lib/intentActions';
+import { postAuthDestination } from '../lib/postAuthDestination';
 import { track, EVENTS } from '../lib/analytics';
 import s from './AuthScreen.module.css';
 
@@ -60,12 +61,25 @@ export default function AuthScreen() {
    * flag, one departure.
    */
   const handledRef = useRef(false);
+  /**
+   * O3 · WAS THIS A SIGNUP? Recorded at submit rather than read from `mode`,
+   * because someone can switch tabs while the request is in flight — and the
+   * question belongs to the act that created the account, not to whichever
+   * tab happens to be showing when the session lands.
+   */
+  const signedUpRef = useRef(false);
   useEffect(() => {
     if (!session || handledRef.current) return;
     handledRef.current = true;
     (async () => {
       const resumed = await resumeIntent(session);
-      if (resumed?.intent?.route) navigate(resumed.intent.route, { replace: true });
+      // ⭐⭐ INTENT FIRST, ALWAYS — an event-origin signup goes back to its
+      // event with the save done, and never meets the question.
+      const dest = postAuthDestination({
+        intentRoute: resumed?.intent?.route ?? null,
+        wasSignup:   signedUpRef.current,
+      });
+      if (dest) navigate(dest, { replace: true });
       else leave();
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -88,6 +102,10 @@ export default function AuthScreen() {
       } else {
         const { error } = await supabase.auth.signUp({ email, password, options: { data: { name } } });
         if (error) throw error;
+        // O3 · an account was just created on this device — the one moment
+        // the "what brings you here?" question is asked. Set only after the
+        // call succeeded, so a rejected signup never sends anyone to /start.
+        signedUpRef.current = true;
         // A1 · signed_up only, never signed_in. Returning visits are already
         // counted by opened_app; a second event on every sign-in would make
         // "new users" and "sessions" measure the same thing.

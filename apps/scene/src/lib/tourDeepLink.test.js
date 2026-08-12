@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { autoTourSuppressed } from './tourState.js';
+import { autoTourSuppressed, tourWelcomeBlocked } from './tourState.js';
 
 /**
  * ⭐⭐ A QR SCAN LANDS ON THE EVENT, NOT ON A TOUR (owner, 2026-08-12).
@@ -47,6 +47,29 @@ test('a missing or malformed landing path never suppresses', () => {
   assert.equal(autoTourSuppressed(''), false);
 });
 
+// ── it never covers a screen that is itself asking something ────────────────
+
+test('⛔ the welcome never lands on the auth form or the O3 question', () => {
+  // Measured: the 1200ms fuse put the card on top of both. Two prompts
+  // stacked on one screen is what the tour's own design set out to avoid.
+  assert.equal(tourWelcomeBlocked('/auth'), true);
+  assert.equal(tourWelcomeBlocked('/start'), true);
+});
+
+test('everywhere else is fair game — blocked is not spent', () => {
+  for (const p of ['/', '/discover', '/my-scene', '/event/abc', '/messages']) {
+    assert.equal(tourWelcomeBlocked(p), false);
+  }
+  assert.equal(tourWelcomeBlocked(undefined), false);
+});
+
+test('the two tour predicates answer DIFFERENT questions and stay separate', () => {
+  // autoTourSuppressed = where the session BEGAN; tourWelcomeBlocked = what is
+  // on screen when the fuse burns down. Merging them would break one of them.
+  assert.equal(autoTourSuppressed('/auth'), false, 'arriving at /auth is not a content deep link');
+  assert.equal(tourWelcomeBlocked('/event/abc'), false, 'an event is not a screen that asks anything');
+});
+
 // ── the wiring ──────────────────────────────────────────────────────────────
 
 test('the welcome timer is guarded by the landing path, captured as a ref', () => {
@@ -63,6 +86,11 @@ test('⛔ suppression must NEVER spend the done flag', () => {
   const window120 = HEADER.slice(guardIdx, guardIdx + 400);
   assert.doesNotMatch(window120, /finishTour|setDone\(true\)/,
     'a deep-link arrival must not mark onboarding complete — the tour is owed to them later');
+});
+
+test('the render guard consults the LIVE route, not a latched one', () => {
+  assert.match(HEADER, /welcome && !tourWelcomeBlocked\(location\.pathname\)/,
+    'the card is on a 1200ms fuse — the person may have moved on or off an asking screen');
 });
 
 test('the explicit entry point is untouched — TAKE THE TOUR still works', () => {

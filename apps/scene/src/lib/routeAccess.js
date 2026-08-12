@@ -56,6 +56,9 @@ export const ROUTE_ACCESS = Object.freeze({
   '/access-required':         { access: ACCESS.PUBLIC },
   '/dev/event-layout':        { access: ACCESS.PUBLIC, devOnly: true },
 
+  // O3 · post-signup only. ACCOUNT because it acts on behalf of an account;
+  // a guest who types the URL is sent to What's On by the screen itself.
+  '/start':                   { access: ACCESS.ACCOUNT },
   '/messages':                { access: ACCESS.ACCOUNT },
   '/messages/:id':            { access: ACCESS.ACCOUNT },
   '/notifications':           { access: ACCESS.ACCOUNT },

@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { useSession } from '../App';
 import EventCard from '../components/EventCard';
+import AccountInviteSheet from '../components/AccountInviteSheet';
 import FeaturedEventCard from '../components/FeaturedEventCard';
 import HeartBtn from '../components/HeartBtn';
 // ⚠ styles from ./heartStyles, not ./HeartBtn — this file reads them at MODULE
@@ -887,12 +888,19 @@ export default function MySceneScreen() {
           — signing in was implemented as tearing down guest state so the app
           re-rendered into the auth wall. The wall is gone (2026-08-12);
           /auth is a route, and getting there is a navigation like any other. */}
+      {/* Slides up like the Industry panel (owner, 2026-08-12).
+          ⛔ No dismiss — a destination gate has nothing behind it, and a
+          "Not now" that leaves someone on an empty My Scene is a dead end
+          wearing a friendly label. The bottom nav is the way out and is
+          always visible. Signing in returns here by history, which is O1's
+          behaviour and needs no intent. */}
       {!session && (
-        <div className={s.guestGate}>
-          <h2 className={s.gateTitle}>YOUR SCENE AWAITS</h2>
-          <p className={s.gateSub}>Sign in to save events, follow artists and build your scene.</p>
-          <button className={s.gateBtn} onClick={() => navigate('/auth')}>SIGN IN / CREATE ACCOUNT</button>
-        </div>
+        <AccountInviteSheet
+          title="YOUR SCENE AWAITS"
+          body="Save events, follow artists and build your scene."
+          onCreateAccount={() => navigate('/auth', { state: { mode: 'signup' } })}
+          onSignIn={() => navigate('/auth', { state: { mode: 'signin' } })}
+        />
       )}
 
       {/* Date strip — always visible, dots populate once data arrives */}

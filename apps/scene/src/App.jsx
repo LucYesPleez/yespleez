@@ -19,6 +19,7 @@ const queryClient = new QueryClient({
   },
 });
 import AuthScreen from './screens/AuthScreen';
+import StartScreen from './screens/StartScreen';
 import BottomNav from './components/BottomNav';
 import MiniPlayer from './components/MiniPlayer';
 import WhatsOnScreen from './screens/WhatsOnScreen';
@@ -34,6 +35,7 @@ import ConversationScreen from './screens/ConversationScreen';
 import AccessRequiredScreen from './screens/AccessRequiredScreen';
 import { ShareTargetProvider } from './lib/shareTarget';
 import { ParticipationProvider } from './components/ParticipationGate';
+import { InviteSuppressCtx } from './components/AccountInviteSheet';
 import { clearIntent } from './lib/returnIntent';
 import { ConversationUiProvider } from './lib/conversationUi';
 import ConversationDock from './components/ConversationDock';
@@ -243,6 +245,11 @@ function Shell({ session, onSignOut }) {
   return (
     <PlayerCtx.Provider value={{ player, setPlayer }}>
       <ShareTargetProvider>
+      {/* ⭐ ONE INVITE SHEET AT A TIME. My Scene and Messages hold theirs up
+          for the whole signed-out visit, so opening the Industry panel — which
+          carries its own invite — stacked two of them. Wraps the gate as well
+          as the routes, so nothing can slip out from under the rule. */}
+      <InviteSuppressCtx.Provider value={industryOpen}>
       {/* O2 · the participation gate serves every heart and follow control in
           the app — screens, cards, and the dock alike — so it wraps them all.
           Needs the router (returnIntent captures the live route), which Shell
@@ -275,6 +282,10 @@ function Shell({ session, onSignOut }) {
             rendered ABOVE the router as a wall — is gone, and
             routeAccess.test.js keeps it gone. */}
         <Route path="/auth"                   element={<AuthScreen />} />
+        {/* O3 · the one post-signup question. Reached ONLY as the destination
+            postAuthDestination picks for a fresh signup with no returnIntent
+            — never on sign-in, and never when an intent is waiting. */}
+        <Route path="/start"                  element={<StartScreen />} />
         {/* DEV ONLY — Event Page layout harness. Tree-shaken out of the
             production bundle by the import.meta.env.DEV guard. */}
         {import.meta.env.DEV && (
@@ -360,7 +371,12 @@ function Shell({ session, onSignOut }) {
       <IndustryPanel
         open={industryOpen}
         onClose={() => setIndustryOpen(false)}
-        onNavigate={(path) => { setIndustryOpen(false); navigate(path); }}
+        /* `mode` is the auth tab to open on — CREATE FREE ACCOUNT must not
+           land on a sign-in form. Ignored for every other destination. */
+        onNavigate={(path, mode) => {
+          setIndustryOpen(false);
+          navigate(path, mode ? { state: { mode } } : undefined);
+        }}
         session={session}
       />
       {/* ⚠ BOUNDED, and this is not optional.
@@ -374,6 +390,7 @@ function Shell({ session, onSignOut }) {
       </ErrorBoundary>
       </ConversationUiProvider>
       </ParticipationProvider>
+      </InviteSuppressCtx.Provider>
       </ShareTargetProvider>
     </PlayerCtx.Provider>
   );

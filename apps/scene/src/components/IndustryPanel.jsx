@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { ROLES } from '../screens/RoleSelectorScreen';
 import { visibleRoles } from '../lib/roleVisibility';
 import { supabase } from '../lib/supabase';
+import AccountInvite from './AccountInvite';
 import s from './IndustryPanel.module.css';
 
 export default function IndustryPanel({ open, onClose, onNavigate, session }) {
@@ -51,12 +52,20 @@ export default function IndustryPanel({ open, onClose, onNavigate, session }) {
 
         <div className={s.cards}>
           {!session ? (
+            /* ⚠ Was "Sign in to access industry features" + a bare SIGN IN
+               button — which named the wall rather than what lies past it.
+               Now the same block the heart's sheet shows (owner, 2026-08-12),
+               and this panel IS already a slide-up, so the two match without
+               a card inside a sheet.
+               ⛔ No dismiss: the panel's own scrim and handle close it, and a
+               second "Not now" inside would be two ways to do one thing. */
             <div className={s.guestMsg}>
-              <p className={s.guestText}>Sign in to access industry features</p>
-              {/* ⚠ Was `onSignOut` — the pre-2026-08-12 shape where signing in
-                  meant tearing down guest state to fall back into the auth
-                  wall. /auth is a route now; onNavigate also closes the panel. */}
-              <button className={s.guestBtn} onClick={() => onNavigate('/auth')}>SIGN IN →</button>
+              <AccountInvite
+                title="SET UP YOUR PROFILE"
+                body="Apply for gigs, book acts and run your own events."
+                onCreateAccount={() => onNavigate('/auth', 'signup')}
+                onSignIn={() => onNavigate('/auth', 'signin')}
+              />
             </div>
           ) : (
             <>
