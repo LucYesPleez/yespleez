@@ -139,3 +139,160 @@ test('the toggle is derived from the stored days, never a second flag', () => {
   assert.equal(fromConfig({ config: { days: [{ name: '', slots: [] }] } }).setTimesNeeded, true,
     'a day with no slots yet is still an intention to have a running order');
 });
+
+/* ── THE VENUE: its link, and its town ──────────────────────────────────────
+ *
+ * `venue_profile_id` is a COLUMN and the town lives in `config.suburb`, so the
+ * two halves of "where is this gig" are read from different places and it is
+ * easy to drop one silently. These pin both.
+ */
+
+test('⚠ the venue link is read from the ROW, never from config', () => {
+  const linked = fromConfig({ venue_profile_id: 'abc-123', config: { venue: 'The Coast Hotel' } });
+  assert.equal(linked.venueProfileId, 'abc-123');
+
+  // An event saved before the picker existed has no link, and that is "not
+  // linked" rather than a defect — the picker opens on its search field.
+  assert.equal(fromConfig({ config: { venue: 'The Coast Hotel' } }).venueProfileId, null);
+});
+
+test('⚠ the town is written as `suburb` — the key eventViewModel actually reads', () => {
+  const v = {
+    ...emptyEventForm(),
+    venue: 'The Coast Hotel', venueTown: 'Wollongong',
+    venueState: 'NSW', venuePostcode: '2500',
+  };
+  const out = toConfig(v);
+
+  // eventViewModel's locality ladder is venueProfile.suburb → cfg.suburb.
+  // Storing this under any other key would file a town the page cannot find.
+  assert.equal(out.suburb, 'Wollongong');
+  assert.equal(out.state, 'NSW');
+  assert.equal(out.postcode, '2500', 'geo.js turns the postcode into the map centroid');
+});
+
+test('a town survives a load/save round trip rather than being dropped', () => {
+  const r = { config: { venue: 'The Coast Hotel', suburb: 'Wollongong', state: 'NSW', postcode: '2500' } };
+  const v = { ...emptyEventForm(), ...fromConfig(r) };
+
+  assert.equal(v.venueTown, 'Wollongong', 'the importer has always written this; the editor must keep it');
+  assert.equal(v.venueState, 'NSW');
+  assert.equal(v.venuePostcode, '2500');
+
+  const out = toConfig(v);
+  assert.equal(out.suburb, 'Wollongong', 'a save that loses the town makes two rooms with one name identical again');
+  assert.equal(out.postcode, '2500');
+});
+
+test('no town is null, not an empty string — absent is not "a town called nothing"', () => {
+  const out = toConfig({ ...emptyEventForm(), venue: 'Some warehouse' });
+  assert.equal(out.suburb, null);
+  assert.equal(out.state, null);
+  assert.equal(out.postcode, null);
+});
+
+/* ── THE SECRET LOCATION ────────────────────────────────────────────────────
+ *
+ * ⚠ THESE EXIST BECAUSE A CONTROL TEST FOUND THEM MISSING. Removing the
+ * snake_case branch from `fromConfig` broke nothing in this suite, and the
+ * failure it allows is silent and destructive: an older event stored as
+ * `location_withheld` loads as "not secret", the organiser saves a poster, and
+ * the address of a secret party is published by a form they never touched.
+ */
+
+test('⚠ a secret location survives a load/save round trip', () => {
+  const v = { ...emptyEventForm(), ...fromConfig({ config: { venue: 'A paddock', locationWithheld: true } }) };
+  assert.equal(v.locationWithheld, true, 'loaded as secret');
+  assert.equal(toConfig(v).locationWithheld, true, 'and saved as secret');
+});
+
+test('⚠ the snake_case spelling is read too, so older secret events stay secret', () => {
+  const v = fromConfig({ config: { venue: 'A paddock', location_withheld: true } });
+  assert.equal(v.locationWithheld, true,
+    'an event stored under the older key must not load as public');
+});
+
+test('locationWithheld always saves as a boolean, never null', () => {
+  // eventViewModel tests `=== true`; a null would read as public.
+  assert.equal(toConfig({ ...emptyEventForm() }).locationWithheld, false);
+  assert.strictEqual(typeof toConfig({ ...emptyEventForm() }).locationWithheld, 'boolean');
+});
+
+test('⛔ an unlisted venue keeps its name and never gains a profile id', () => {
+  const row = { venue_profile_id: null, config: { venue: 'Coffs Hinterland', suburb: 'Coffs Harbour' } };
+  const v = { ...emptyEventForm(), ...fromConfig(row) };
+  assert.equal(v.venueProfileId, null, 'null in stays null');
+  assert.equal(v.venue, 'Coffs Hinterland', 'and the location is preserved');
+  assert.equal(toConfig(v).venue, 'Coffs Hinterland', 'through the save too');
+});
+
+/* ── THREE VENUE IDENTITIES × TWO VISIBILITIES ──────────────────────────────
+ *
+ * ⭐⭐ IDENTITY AND VISIBILITY ARE INDEPENDENT, and the whole point of these is
+ * that all six combinations survive a save. Conflating "event-only" with
+ * "secret" is the error the UI separation exists to prevent: an established
+ * venue can host something unannounced, and a one-off paddock can publish its
+ * address freely.
+ *
+ *   EXISTING    venue_profile_id set        → a catalogue venue
+ *   CREATE      venueRequest true           → a real room awaiting Studio
+ *   EVENT-ONLY  neither                     → this event's own location
+ */
+
+const IDENTITIES = [
+  { label: 'EXISTING',   form: { venueProfileId: 'venue-1', venue: 'Elbows Rest',  venueRequest: false } },
+  { label: 'CREATE',     form: { venueProfileId: null,      venue: 'The Old Barn', venueRequest: true  } },
+  { label: 'EVENT-ONLY', form: { venueProfileId: null,      venue: 'A paddock',    venueRequest: false } },
+];
+
+for (const id of IDENTITIES) {
+  for (const withheld of [false, true]) {
+    test(`${id.label} venue + ${withheld ? 'SECRET' : 'PUBLIC'} location round-trips`, () => {
+      const out = toConfig({ ...emptyEventForm(), ...id.form, locationWithheld: withheld });
+      assert.equal(out.venue, id.form.venue, 'the name survives');
+      assert.equal(out.locationWithheld, withheld, 'visibility is stored as chosen');
+      assert.equal(out.venueRequest, id.form.venueRequest,
+        'and identity is stored independently of visibility');
+    });
+  }
+}
+
+test('⛔ EVENT-ONLY never asks Studio for a venue', () => {
+  const out = toConfig({ ...emptyEventForm(), venue: 'A paddock', venueRequest: false });
+  assert.equal(out.venueRequest, false,
+    'no request means no review queue entry and no catalogue venue, ever');
+});
+
+test('⭐ CREATE records the request, and the event still works immediately', () => {
+  const out = toConfig({ ...emptyEventForm(), venue: 'The Old Barn', venueRequest: true });
+  assert.equal(out.venueRequest, true, 'Studio can find it');
+  assert.equal(out.venue, 'The Old Barn', 'and the event names its venue right now');
+});
+
+test('⚠ a confirmed request stops being a request', () => {
+  /* Studio confirming creates the profile and sets `venue_profile_id`. If the
+     flag survived that, the event would sit in the review queue forever asking
+     for a venue that now exists. */
+  const out = toConfig({ ...emptyEventForm(), venue: 'The Old Barn', venueRequest: true, venueProfileId: 'venue-9' });
+  assert.equal(out.venueRequest, false);
+
+  const loaded = fromConfig({ venue_profile_id: 'venue-9', config: { venue: 'The Old Barn', venueRequest: true } });
+  assert.equal(loaded.venueRequest, false, 'and it does not come back on load either');
+});
+
+test('⚠ SECRET does not imply EVENT-ONLY — a pending venue can be secret', () => {
+  const out = toConfig({ ...emptyEventForm(), venue: 'The Old Barn', venueRequest: true, locationWithheld: true });
+  assert.equal(out.venueRequest, true, 'still a real venue we want catalogued');
+  assert.equal(out.locationWithheld, true, 'whose address is simply not public yet');
+});
+
+test('⭐ show-area-map rides with SECRET and is cleared by PUBLIC', () => {
+  const secret = toConfig({ ...emptyEventForm(), locationWithheld: true, showAreaMap: true });
+  assert.equal(secret.showAreaMap, true, 'a secret event can keep its town map');
+
+  /* ⚠ Meaningless on a public event, so it must not persist there: a stored
+     true would silently arm the exception the moment someone flipped to
+     SECRET, months later, with no idea they had. */
+  const pub = toConfig({ ...emptyEventForm(), locationWithheld: false, showAreaMap: true });
+  assert.equal(pub.showAreaMap, false);
+});

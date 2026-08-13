@@ -6,6 +6,7 @@ import s from "@yespleez/event-editor/styles.module.css";
 import { getOwnerProfiles } from "../lib/actingProfile";
 import { track, EVENTS } from "../lib/analytics";
 import { useEventEditorState } from "@yespleez/event-editor";
+import VenueCheckSheet, { nearestVenues } from "../components/VenueCheckSheet";
 import EventEditorForm from "./event/SceneEventEditor";
 import { uploadPosterCrop } from "../lib/uploadImage";
 
@@ -27,6 +28,8 @@ export default function CreateEventScreen() {
   const editId = searchParams.get('edit');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [venueCheckOpen, setVenueCheckOpen] = useState(false);
+  const [venueCandidates, setVenueCandidates] = useState([]);
 
   /**
    * ⭐⭐ ALL FORM STATE LIVES IN THE SHARED HOOK, so Festival Companion renders
@@ -37,7 +40,7 @@ export default function CreateEventScreen() {
   // Only what the plumbing below reads. Everything else is the form’s.
   const {
     name, venue, venueProfileId, owners, ownerId, coHosts, requiredItems, isPublic, appsOpen,
-    setOwners, setOwnerId, setCoHosts,
+    setOwners, setOwnerId, setCoHosts, setVenueProfileId, setVenue, setVenueTown,
   } = ed;
 
   // Owner resolution. Skipped when editing — an event's owner is set once at
@@ -101,9 +104,37 @@ export default function CreateEventScreen() {
   }, [editId]);
 
 
-  async function handleSave(goLive) {
+  /**
+   * ⭐ THE VENUE CHECK — the last gate before an event goes public.
+   *
+   * An unmatched venue is only worth interrupting for at GO LIVE: a draft can
+   * hold a half-typed name harmlessly, and asking mid-form made the promoter
+   * reason about the venue database while naming a pub. Here the question is
+   * concrete — "did you mean one of these five?" — and it is the moment a
+   * duplicate would otherwise be created.
+   *
+   * ⛔ DRAFTS ARE NEVER INTERRUPTED. Saving a draft is how someone parks an
+   * event they have not finished thinking about.
+   */
+  async function handleSave(goLive, opts = {}) {
     if (!name.trim()) { setError('Event name is required.'); return; }
     if (!session)     { setError('You must be signed in.'); return; }
+
+    /* ⛔ NOT ASKED FOR A SECRET LOCATION. A withheld venue is deliberately not
+       in the catalogue and never will be, so "did you mean one of these?" is
+       arguing with a decision the host has already made explicitly. */
+    if (goLive && !opts.venueChecked && !venueProfileId && venue.trim() && !ed.locationWithheld) {
+      setError('');
+      const { data: venues } = await supabase.from('profiles')
+        .select('id, name, suburb, location, state, postcode, lat, lng')
+        .eq('type', 'venue');
+      setVenueCandidates(nearestVenues(venues || [], {
+        town: ed.venueTown, postcode: ed.venuePostcode, state: ed.venueState, name: venue,
+      }));
+      setVenueCheckOpen(true);
+      return;
+    }
+
     setSaving(true); setError('');
 
     /**
@@ -283,6 +314,33 @@ export default function CreateEventScreen() {
           }
         />
       </div>
+
+      {venueCheckOpen && (
+        <VenueCheckSheet
+          typedName={venue}
+          town={ed.venueTown}
+          candidates={venueCandidates}
+          busy={saving}
+          /* Picked an existing room: link it and carry straight on to publish,
+             so answering the question IS the click they already made. */
+          onPick={v => {
+            setVenueProfileId(v.id);
+            setVenue(v.name);
+            if (v.suburb) setVenueTown(v.suburb, { state: v.state || '', postcode: v.postcode || '' });
+            setVenueCheckOpen(false);
+            handleSave(true, { venueChecked: true });
+          }}
+          /* ⚠ "None of these" PUBLISHES — it does not block. The check exists to
+             catch a room that is already here under a name they did not guess;
+             a genuinely new venue is a normal thing to have, and refusing to
+             publish it would punish the honest answer. The event keeps the
+             typed name with no venue link, exactly as before this sheet
+             existed. Routing new venues to Studio for review is the next step
+             and needs its own table — see the handover. */
+          onNoneOfThese={() => { setVenueCheckOpen(false); handleSave(true, { venueChecked: true }); }}
+          onCancel={() => setVenueCheckOpen(false)}
+        />
+      )}
     </div>
   );
 }

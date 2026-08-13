@@ -84,6 +84,10 @@ export function buildVenue({ event = {}, cfg = {}, venueProfile = null } = {}) {
   // here and passed on; resolveVenue checks it again before it looks at any
   // coordinate, so a secret location cannot leak a map.
   const withheld = cfg.locationWithheld === true || cfg.location_withheld === true;
+  /* Opt-in, and only meaningful while withheld: keep the TOWN map on a secret
+     event. Absent means false, so every event saved before this behaves exactly
+     as it did — a secret location shows no map unless someone asked for one. */
+  const showAreaMap = withheld && cfg.showAreaMap === true;
 
   const name     = first(venueProfile?.name, cfg.venue);
   const address  = first(venueProfile?.location, cfg.location, cfg.address);
@@ -141,10 +145,24 @@ export function buildVenue({ event = {}, cfg = {}, venueProfile = null } = {}) {
     coords:    withheld ? null : (coords || null),
     // Aim directions here, never at `coords` — see the note above.
     navCoords: withheld ? null : (navCoords || null),
-    // The locality map is drawn from the POSTCODE — one picture per postcode,
-    // shared by every venue in it. Null when withheld: a secret location does
-    // not get a map of its town either.
-    postcode:  withheld ? null : (postcode || null),
+    /**
+     * The locality map is drawn from the POSTCODE — one picture per postcode,
+     * shared by every venue in it.
+     *
+     * ⭐ A SECRET LOCATION MAY STILL SHOW ITS TOWN (owner, 2026-08-14). This
+     * used to be a flat `withheld ? null`, on the reasoning that a secret
+     * location does not get a map of its town either. That is the right
+     * DEFAULT and stays the default — but it is too blunt as a rule: "bush
+     * doof, 40 minutes from Bellingen, address on the day" is a real listing,
+     * and a town-level picture is how someone decides whether they can get
+     * there at all. The map is one image per POSTCODE, so it reveals a town,
+     * never an address.
+     *
+     * ⛔ ONLY the map is optional. `profileId`, `coords` and `navCoords` above
+     * stay null whenever withheld — those name a building or point navigation
+     * at a door, which is exactly what "secret" refuses.
+     */
+    postcode:  (withheld && !showAreaMap) ? null : (postcode || null),
     lat, lng,
     profile: venueProfile || null,
   };

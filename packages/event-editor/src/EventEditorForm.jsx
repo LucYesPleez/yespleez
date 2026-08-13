@@ -104,9 +104,23 @@ function CalendarPicker({ value, onChange, placeholder='Select a date' }) {
 }
 
 /* ── Toggle ──────────────────────────────────────────────────────────────── */
-function Toggle({ label, sub, value, onChange, locked, info }) {
+/**
+ * @param disabled  the switch cannot take effect yet, because something it
+ *                  depends on is off. ⚠ MUTED AND INERT, NOT HIDDEN — the
+ *                  organiser still needs to see the setting exists and to read
+ *                  WHY it is unavailable, which `sub` says. A control that
+ *                  vanishes teaches nothing; one that is greyed out teaches the
+ *                  dependency.
+ */
+function Toggle({ label, sub, value, onChange, locked, info, disabled }) {
   return (
-    <button className={s.toggleRow} onClick={() => onChange(!value)} type="button">
+    <button
+      className={s.toggleRow}
+      onClick={() => !disabled && onChange(!value)}
+      type="button"
+      aria-disabled={disabled || undefined}
+      style={disabled ? { opacity: .45, cursor: 'not-allowed' } : undefined}
+    >
       <div style={{flex:1,minWidth:0}}>
         <div style={{display:'flex',alignItems:'center',gap:6}}>
           <p className={s.toggleLabel}>{label}</p>
@@ -189,12 +203,16 @@ function SectionHeader({ label, onInfo }) {
    (and fully wired below) so re-enabling them is a one-line flag flip. */
 const HOST_CONTROL_INFO = [
   { label: 'Public Event', beta: true, body: 'When on, your event is listed in Discover and searchable by anyone on the app. Turn off to keep it invite-only or while you\'re still setting up.' },
-  { label: 'Show Set Times to Artists', beta: true, body: 'Booked artists can see the running order before it is public. Turn it off to keep set times private — each artist only sees their own slot until you choose to reveal the full lineup.' },
-  { label: 'Publish Set Times', beta: true, body: 'Show the running order on the public event page. Keep it off to build anticipation or if times are still being confirmed — your artists can still see it via the control above.' },
-  { label: 'Artists can remove their own claim', body: 'When on, artists can withdraw from their slot at any time without contacting you. Turn this off if you want full control — no one leaves the lineup without your say.' },
+  /* ⚠ SAME ORDER AND SAME NAMES AS THE CARD. This read "Publish Set Times"
+     while the switch read "Show Set Times Publicly", and listed the two set-time
+     controls the other way round — so the explanation sheet described a screen
+     that no longer existed. */
+  { label: 'Show Set Times Publicly', beta: true, body: 'Show the running order on the public event page. Needs Public Event to be on, since there is no public page without it. Keep it off to build anticipation or if times are still being confirmed. Your artists can still see it via the control below.' },
+  { label: 'Show Set Times to Artists', beta: true, body: 'Booked artists can see the running order before it is public. Turn it off to keep set times private. Each artist only sees their own slot until you choose to reveal the full lineup.' },
+  { label: 'Artists can remove their own claim', body: 'When on, artists can withdraw from their slot at any time without contacting you. Turn this off if you want full control. No one leaves the lineup without your say.' },
   { label: 'Show ranked backup preferences', body: 'Artists can nominate up to 3 slots they\'d like as a backup if their first choice is taken. Gives the auto-generator better data to fill your lineup fairly.' },
-  { label: 'Show genre / vibe pickers', body: 'Adds sound and genre selectors to the application form. Helps you match the right artists to the right slots — especially useful for multi-genre or themed events.' },
-  { label: 'Applications open', body: 'Controls whether artists can submit an application to play your event. Turn off once you\'re booked out or want to close submissions without cancelling the event.' },
+  { label: 'Show genre / vibe pickers', body: 'Adds sound and genre selectors to the application form. Helps you match the right artists to the right slots. Especially useful for multi-genre or themed events.' },
+  { label: 'Applications are open', beta: true, body: 'Controls whether artists can submit an application to play your event. Turn off once you\'re booked out or want to close submissions without cancelling the event.' },
 ];
 
 /* Flip to true to restore the full host-controls set (state, persistence and
@@ -385,7 +403,12 @@ export default function EventEditorForm({
   const { ImageUploadButton, CoHostPicker, VenuePicker } = components;
   const {
     name, setName, startDate, setStartDate, endDate, setEndDate,
-    venue, setVenue, venueProfileId, setVenueProfileId, genreText, setGenreText,
+    venue, setVenue, venueProfileId, setVenueProfileId,
+    venueTown, setVenueTown, venueState,
+    locationWithheld, setLocationWithheld,
+    venueRequest, setVenueRequest,
+    showAreaMap, setShowAreaMap,
+    genreText, setGenreText,
     categoryBadge, setCategoryBadge, openMicBadge, setOpenMicBadge,
     ticketLink, setTicketLink, bio, setBio,
     slides, setSlides, poster, setPoster, setPosterThumb,
@@ -395,6 +418,7 @@ export default function EventEditorForm({
     cropError, fullView, setFullView,
     setTimesNeeded, setSetTimesNeeded, days, setDays,
     slotsCollapsed, setSlotsCollapsed,
+    requirementsOpen, setRequirementsOpen,
     owners, setOwners, ownerId, setOwnerId, coHosts, setCoHosts,
     isPublic, setIsPublic, appsOpen, setAppsOpen,
     artistsCanRemove, setArtistsCanRemove,
@@ -457,12 +481,11 @@ export default function EventEditorForm({
             not supply one still gets the original text field and behaves
             exactly as before — the package learns nothing about who is using
             it. */}
+        {/* ⛔ NO EXPLANATION HERE. It read as an instruction to understand the
+            venue data model before naming a pub. The check that matters now
+            happens at GO LIVE, where an unmatched venue is worth interrupting
+            for — not while someone is still typing. */}
         <SectionHeader label="VENUE" />
-        <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 8 }}>
-          {VenuePicker
-            ? 'Pick the venue from the list so every gig at that room tracks to the same place, keeps its map, and shows on the venue’s own page.'
-            : 'Where the gig is.'}
-        </div>
         {VenuePicker
           ? <div style={{ marginBottom: 14 }}>
               <VenuePicker
@@ -470,12 +493,87 @@ export default function EventEditorForm({
                 onChange={setVenue}
                 profileId={venueProfileId}
                 onProfileIdChange={setVenueProfileId}
+                town={venueTown}
+                stateCode={venueState}
+                onTownChange={setVenueTown}
+                venueRequest={venueRequest}
+                onVenueRequestChange={setVenueRequest}
               />
             </div>
           : <Field label="VENUE">
               <input className={s.input} value={venue} onChange={e => setVenue(e.target.value)} placeholder="e.g. The Newsagency, Bellingen" />
             </Field>
         }
+
+        {/* ⭐⭐ A SECOND, INDEPENDENT QUESTION.
+            ⚠ SECRET IS NOT THE SAME AS EVENT-ONLY, and conflating them is the
+            mistake this separation exists to prevent. Venue identity answers
+            "should the world be able to find this room"; visibility answers
+            "should tonight's address be public yet". All six combinations are
+            real: an established venue can host something unannounced, and a
+            one-off paddock party can publish its location freely.
+
+            With SECRET on, `eventViewModel` nulls the venue profile,
+            coordinates, navigation coordinates, postcode AND the town map, and
+            § 7 renders "LOCATION REVEALED CLOSER TO THE DATE" over the area
+            alone. ⚠ The location is NOT deleted — it stays on the event for the
+            host. Withholding is a rendering decision, not a data one. */}
+        <SectionHeader label="LOCATION VISIBILITY" />
+        <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+          {[
+            { key: false, title: 'PUBLIC', sub: 'Show the location on the event.' },
+            { key: true,  title: 'SECRET', sub: 'Hide the address until you announce it.' },
+          ].map(opt => {
+            const on = locationWithheld === opt.key;
+            return (
+              <button key={opt.title} type="button" onClick={() => setLocationWithheld(opt.key)}
+                style={{
+                  flex: 1, textAlign: 'left', padding: '10px 12px', borderRadius: 8, cursor: 'pointer',
+                  border: `1px solid ${on ? 'var(--neon2)' : 'var(--border)'}`,
+                  background: on ? 'rgba(0,229,255,.10)' : 'none',
+                }}>
+                {/* ⚠ THE TITLE IS ALWAYS WHITE. Colouring it on selection made
+                    the unselected option read as disabled rather than as the
+                    other half of a choice; the border and fill carry the
+                    state. */}
+                <span style={{ display: 'block', fontFamily: "'Bebas Neue'", fontSize: 13, letterSpacing: 1, color: '#fff' }}>
+                  {opt.title}
+                </span>
+                <span style={{ display: 'block', fontSize: 11, color: 'var(--muted)', lineHeight: 1.45, marginTop: 2 }}>
+                  {opt.sub}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* ⭐ SECRET'S OWN SETTING, and the reason it is a toggle rather than a
+            third option: it is not a third kind of visibility, it is a detail
+            OF secret. A town map reveals a postcode, never a door, so "40
+            minutes from Bellingen, address on the day" can still tell someone
+            whether they can get there.
+
+            ⛔ NOT nested inside the SECRET button — a button inside a button is
+            invalid and unclickable. It sits below the pair and belongs to
+            SECRET by only existing while SECRET is chosen. */}
+        {locationWithheld && (
+          <>
+            <div className={s.controlsCard}>
+              <Toggle
+                label="Show area map"
+                sub={showAreaMap
+                  ? 'The town / area map shows. The address and directions stay hidden.'
+                  : 'No map at all until you announce the location.'}
+                value={showAreaMap}
+                onChange={setShowAreaMap}
+              />
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 14, lineHeight: 1.5 }}>
+              This only hides the location from the public. It doesn&apos;t change
+              whether the venue is added to YesPleez.
+            </div>
+          </>
+        )}
 
         {/* ⭐ CO-HOSTS. Billed equally in § 10, and that is ALL they get — the
             main host above stays the only profile that can edit this event,
@@ -484,9 +582,9 @@ export default function EventEditorForm({
         {CoHostPicker && (
           <>
             <SectionHeader label="CO-HOSTS" />
-            <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 8 }}>
-              Billed alongside you on the event page. They can’t edit the event.
-            </div>
+            {/* ⛔ NO EXPLANATION HERE EITHER. The picker offers promoters only,
+                so the rule the copy was teaching is now enforced by what the
+                control returns rather than by a paragraph above it. */}
             <CoHostPicker
               eventId={editId || null}
               ownerId={ownerId}
@@ -645,83 +743,17 @@ export default function EventEditorForm({
             </div>
           )}
 
-          {/* ── THE STRIP — outside the tabs, always visible ──
-              Six slots whether filled or not: an empty strip that only appears
-              once you have images tells a first-time organiser neither that
-              the feature exists nor how much room is left. Slot 1 is the
-              cover; the rest follow in order. Drag to reorder. */}
-          <div style={{ marginTop:16, paddingTop:14, borderTop:'1px solid rgba(255,255,255,.08)' }}>
-            <p style={{ fontFamily:"'Bebas Neue'", fontSize:11, letterSpacing:2, color:'var(--muted)', margin:'0 0 8px' }}>
-              YOUR IMAGES — SLOT 1 IS THE COVER
-            </p>
-          <DndContext sensors={dragSensors} collisionDetection={closestCenter}
-            onDragEnd={({ active, over }) => {
-              if (!over || active.id === over.id) return;
-              setSlides(s => arrayMove(s, s.indexOf(active.id), s.indexOf(over.id)));
-            }}>
-            {/* Keyed by URL, unique per upload — a slide keeps its identity
-                across a reorder, so React cannot reuse the wrong <img>. */}
-            <SortableContext items={slides} strategy={horizontalListSortingStrategy}>
-              <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
-                {Array.from({ length: MAX_SLIDES }, (_, i) => {
-                  const url = slides[i];
-                  if (url) {
-                    return (
-                      <SortableSlide key={url} url={url} index={i} total={slides.length}
-                        onRemove={() => setSlides(s => s.filter(u => u !== url))} />
-                    );
-                  }
-                  // The next free slot is where an upload actually lands, so
-                  // it is the one drawn as an invitation; the rest are the
-                  // same control shown quietly, as remaining room.
-                  const isNext = i === slides.length;
-                  // ⛔ An empty slot IS an upload affordance. With no upload
-                  // capability there is nothing to invite, so the strip shows
-                  // what exists and stops — rather than six dashed boxes that
-                  // do nothing when tapped.
-                  if (!ImageUploadButton) return null;
-                  return (
-                    <ImageUploadButton key={`slot-${i}`} type="cover" userId={userId}
-                      onUpload={({ cover:c }) => setSlides(s => [...s, c].slice(0, MAX_SLIDES))}>
-                      {({ trigger, statusBadge }) => (
-                        <div onClick={trigger}
-                          style={{ width:104, aspectRatio:'3/2', borderRadius:9, cursor:'pointer', position:'relative',
-                            display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
-                            background: isNext ? 'rgba(0,229,255,0.06)' : 'rgba(255,255,255,0.03)',
-                            border: isNext ? '2px dashed rgba(0,229,255,0.45)' : '1px dashed rgba(255,255,255,0.14)',
-                            color: isNext ? 'var(--neon2)' : 'rgba(255,255,255,0.28)' }}>
-                          <div style={{ fontSize:22, lineHeight:1 }}>+</div>
-                          {isNext && <div style={{ fontSize:10, marginTop:3 }}>Add image</div>}
-                          <span style={{ position:'absolute', top:4, left:4, minWidth:16, height:16, borderRadius:8,
-                            display:'flex', alignItems:'center', justifyContent:'center',
-                            fontFamily:"'Bebas Neue'", fontSize:9,
-                            background:'rgba(255,255,255,.06)', color:'rgba(255,255,255,.35)' }}>{i+1}</span>
-                          {statusBadge}
-                        </div>
-                      )}
-                    </ImageUploadButton>
-                  );
-                })}
-              </div>
-            </SortableContext>
-          </DndContext>
+        {/* ── EVENT POSTER — the other tab. The artwork you keep, and the
+            source the carousel crops come from.
 
-          <p style={{ fontSize:11, color:'var(--muted)', marginTop:8 }}>
-            {slides.length}/{MAX_SLIDES} ·{' '}
-            {slides.length === 0
-              ? 'With none here, the top of the page falls back to a slice of the poster.'
-              : slides.length === 1
-                ? 'One image shows still; add another to make it a carousel.'
-                : `Swipes through ${slides.length} images.`}
-          </p>
-          </div>
-        </div>
-
-        {/* ── EVENT POSTER — its own tab. The artwork you keep, and the
-            source the carousel crops come from. */}
+            ⚠ ABOVE THE STRIP, exactly like the cover panel. It used to sit
+            BELOW it, outside the media block entirely, so switching tabs moved
+            the upload target from above your images to beneath them and the
+            two tabs behaved like two different screens. Whichever tab is
+            selected now occupies the same place, and the strip stays put
+            underneath as the constant answer to "what have I got". */}
         {ImageUploadButton && mediaTab === 'poster' && (
-        <div className={s.field}>
-          <p className={s.fieldLabel}>EVENT POSTER</p>
+        <div>
           <p className={s.fieldSub}>Optional — the flyer as it was designed · any shape · shown whole at the bottom of the page</p>
           <ImageUploadButton type="poster" userId={userId} onUpload={({ poster:p, poster_thumb:t, poster_full:f }) => { setPoster(p); setPosterThumb(t); setPosterFull(f||''); setPosterCropY(DEFAULT_CROP_Y); setCropMode(false); }}>
             {({ trigger, statusBadge }) => (
@@ -875,6 +907,79 @@ export default function EventEditorForm({
         </div>
         )}
 
+          {/* ── THE STRIP — outside the tabs, always visible ──
+              Six slots whether filled or not: an empty strip that only appears
+              once you have images tells a first-time organiser neither that
+              the feature exists nor how much room is left. Slot 1 is the
+              cover; the rest follow in order. Drag to reorder. */}
+          <div style={{ marginTop:16, paddingTop:14, borderTop:'1px solid rgba(255,255,255,.08)' }}>
+            <p style={{ fontFamily:"'Bebas Neue'", fontSize:11, letterSpacing:2, color:'var(--muted)', margin:'0 0 8px' }}>
+              YOUR IMAGES — SLOT 1 IS THE COVER
+            </p>
+          <DndContext sensors={dragSensors} collisionDetection={closestCenter}
+            onDragEnd={({ active, over }) => {
+              if (!over || active.id === over.id) return;
+              setSlides(s => arrayMove(s, s.indexOf(active.id), s.indexOf(over.id)));
+            }}>
+            {/* Keyed by URL, unique per upload — a slide keeps its identity
+                across a reorder, so React cannot reuse the wrong <img>. */}
+            <SortableContext items={slides} strategy={horizontalListSortingStrategy}>
+              <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+                {Array.from({ length: MAX_SLIDES }, (_, i) => {
+                  const url = slides[i];
+                  if (url) {
+                    return (
+                      <SortableSlide key={url} url={url} index={i} total={slides.length}
+                        onRemove={() => setSlides(s => s.filter(u => u !== url))} />
+                    );
+                  }
+                  // The next free slot is where an upload actually lands, so
+                  // it is the one drawn as an invitation; the rest are the
+                  // same control shown quietly, as remaining room.
+                  const isNext = i === slides.length;
+                  // ⛔ An empty slot IS an upload affordance. With no upload
+                  // capability there is nothing to invite, so the strip shows
+                  // what exists and stops — rather than six dashed boxes that
+                  // do nothing when tapped.
+                  if (!ImageUploadButton) return null;
+                  return (
+                    <ImageUploadButton key={`slot-${i}`} type="cover" userId={userId}
+                      onUpload={({ cover:c }) => setSlides(s => [...s, c].slice(0, MAX_SLIDES))}>
+                      {({ trigger, statusBadge }) => (
+                        <div onClick={trigger}
+                          style={{ width:104, aspectRatio:'3/2', borderRadius:9, cursor:'pointer', position:'relative',
+                            display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
+                            background: isNext ? 'rgba(0,229,255,0.06)' : 'rgba(255,255,255,0.03)',
+                            border: isNext ? '2px dashed rgba(0,229,255,0.45)' : '1px dashed rgba(255,255,255,0.14)',
+                            color: isNext ? 'var(--neon2)' : 'rgba(255,255,255,0.28)' }}>
+                          <div style={{ fontSize:22, lineHeight:1 }}>+</div>
+                          {isNext && <div style={{ fontSize:10, marginTop:3 }}>Add image</div>}
+                          <span style={{ position:'absolute', top:4, left:4, minWidth:16, height:16, borderRadius:8,
+                            display:'flex', alignItems:'center', justifyContent:'center',
+                            fontFamily:"'Bebas Neue'", fontSize:9,
+                            background:'rgba(255,255,255,.06)', color:'rgba(255,255,255,.35)' }}>{i+1}</span>
+                          {statusBadge}
+                        </div>
+                      )}
+                    </ImageUploadButton>
+                  );
+                })}
+              </div>
+            </SortableContext>
+          </DndContext>
+
+          <p style={{ fontSize:11, color:'var(--muted)', marginTop:8 }}>
+            {slides.length}/{MAX_SLIDES} ·{' '}
+            {slides.length === 0
+              ? 'With none here, the top of the page falls back to a slice of the poster.'
+              : slides.length === 1
+                ? 'One image shows still; add another to make it a carousel.'
+                : `Swipes through ${slides.length} images.`}
+          </p>
+          </div>
+        </div>
+
+
         {/* Full view modal */}
         {fullView && (
           <div style={{ position:'fixed', inset:0, zIndex:9000, background:'rgba(0,0,0,0.92)', display:'flex', alignItems:'center', justifyContent:'center', padding:20 }} onClick={() => setFullView(false)}>
@@ -923,41 +1028,112 @@ export default function EventEditorForm({
           </>
         )}
 
-        {/* ── REQUIREMENTS ──
-            Sits before HOST CONTROLS: what you ask of applicants is part of
-            defining the opportunity, whereas host controls govern how the
-            event runs once people are in it. */}
-        <SectionHeader label="REQUIREMENTS" />
-        <RequirementChecklist
-          selected={requiredItems}
-          onToggle={key => setRequiredItems(p => toggleRequirement(p, key))}
-          intro={<>
-            Tick what you need from applicants. Everything ticked is mandatory.
-            An application can&rsquo;t send until it&rsquo;s met.
-          </>}
-        />
-
         {/* ── HOST CONTROLS ── */}
         <SectionHeader label="HOST CONTROLS" onInfo={() => setShowHostInfo(true)} />
         <div className={s.controlsCard}>
           <Toggle label="Public Event"                         sub="Visible in Discover to anyone browsing"                                     value={isPublic}          onChange={setIsPublic} />
           <div className={s.controlsGroupDivider} />
-          <Toggle label="Show Set Times to Artists"            sub="Booked artists can see the running order before it is public."              value={!privateSetTimes}  onChange={v => setPrivateSetTimes(!v)} />
-          {/* ⚠ NOT "Publish Set Times". That name belonged to two different
+          {/* ⭐ PUBLIC FIRST, THEN ARTISTS — widest audience at the top, each
+              row narrowing the circle: everyone → the bill → nobody. The old
+              order asked about artists before the public, which read as two
+              unrelated switches rather than one audience being widened.
+
+              ⚠ NOT "Publish Set Times". That name belonged to two different
               actions: this one, which reveals the timetable to the public, and
               the event page's SEND SET TIMES TO ARTISTS, which notifies the
               bill and locks the order. Neither implies the other, so sharing a
               name meant an organiser could confidently do one and believe they
-              had done both. */}
-          <Toggle label="Show Set Times Publicly"              sub="Show the running order on the public event page."                           value={showTimesPublicly} onChange={setShowTimesPublicly} />
+              had done both.
+
+              ⚠ MUTED WHEN THE EVENT IS PRIVATE. There is no public page for a
+              running order to appear on, so the switch cannot do anything —
+              and a control that silently does nothing is worse than one that
+              says why. The stored value is left alone: turning Public Event
+              back on restores whatever was chosen here. */}
+          <Toggle
+            label="Show Set Times Publicly"
+            sub={isPublic
+              ? 'Show the running order on the public event page.'
+              /* ⛔ NO EM DASH in user-facing copy (standing rule). */
+              : 'Turn Public Event on first. There is no public page yet.'}
+            value={showTimesPublicly}
+            onChange={setShowTimesPublicly}
+            disabled={!isPublic}
+          />
+          <Toggle label="Show Set Times to Artists"            sub="Booked artists can see the running order before it is public."              value={!privateSetTimes}  onChange={v => setPrivateSetTimes(!v)} />
 
           {SHOW_ADVANCED_HOST_CONTROLS && (<>
             <div className={s.controlsGroupDivider} />
             <Toggle label="Artists can remove their own claim" sub="When off, only the host can clear slots"                                     value={artistsCanRemove}  onChange={setArtistsCanRemove} />
             <Toggle label="Show ranked backup preferences"     sub="Artists rank up to 3 preferred slots for the generator"                      value={showRankedBackup}  onChange={setShowRankedBackup} />
             <Toggle label="Show genre / vibe pickers"          sub="Collect musical style info from artists"                                     value={showGenrePickers}  onChange={setShowGenrePickers} />
-            <Toggle label="Applications open"                  sub="Allow artists to apply to this event"                                       value={appsOpen}          onChange={setAppsOpen} />
           </>)}
+        </div>
+
+        {/* ⭐ APPLICATIONS — ITS OWN CARD, WHICH GROWS TO HOLD THE REQUIREMENTS.
+            (owner, 2026-08-14: "give applications are open its own border and
+            when clicked the border drops down into and incorporates the
+            requirements".)
+
+            It is separated from the card above because it is a different KIND
+            of switch: those govern what the page shows, this one opens a door
+            and then has terms attached to it. Sharing one border made the
+            requirements read as a stray section that happened to follow some
+            toggles; inside this one they read as the conditions ON the thing
+            immediately above them, which is what they are.
+
+            ⚠ THE TWO HALVES ARE NOT THE SAME QUESTION. The profile editor
+            records what an artist can GENERALLY provide; this records what
+            THIS gig demands, and neither replaces the other.
+
+            ⚠ Turning applications off hides the requirements but NEVER clears
+            them — reopening brings the selection back exactly as it was, so
+            the collapse costs the organiser nothing. */}
+        <div className={s.controlsCard}>
+          <Toggle label="Applications are open" sub="Artists can apply to play this event." value={appsOpen} onChange={setAppsOpen} />
+
+          {appsOpen && (
+            <>
+              <div className={s.controlsGroupDivider} />
+              <div style={{ padding: '14px 16px' }}>
+                <div style={{ fontFamily: "'Bebas Neue'", fontSize: 12, letterSpacing: 1.6, color: 'var(--muted)', marginBottom: 4 }}>
+                  APPLICATION REQUIREMENTS
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 10 }}>
+                  Select anything artists must provide to apply.
+                  {' '}Artists set what they can provide in their own profile.
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setRequirementsOpen(v => !v)}
+                  style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    width: '100%', cursor: 'pointer', padding: '10px 12px', borderRadius: 8,
+                    border: '1px solid var(--border)', background: 'var(--card2)', color: 'var(--text)',
+                  }}
+                >
+                  <span style={{ fontSize: 13 }}>
+                    {requiredItems.length > 0
+                      ? `${requiredItems.length} selected`
+                      : 'Nothing required. Anyone can apply'}
+                  </span>
+                  <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.4)" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"
+                    style={{ transform: requirementsOpen ? 'rotate(0deg)' : 'rotate(-90deg)', transition: 'transform .2s', flexShrink: 0 }}>
+                    <polyline points="6 9 12 15 18 9" />
+                  </svg>
+                </button>
+                {requirementsOpen && (
+                  <div style={{ marginTop: 10 }}>
+                    <RequirementChecklist
+                      selected={requiredItems}
+                      onToggle={key => setRequiredItems(p => toggleRequirement(p, key))}
+                      intro="Selected requirements are mandatory. Artists fill these in on their own profile, so anything you tick is checked against what they already have."
+                    />
+                  </div>
+                )}
+              </div>
+            </>
+          )}
         </div>
 
         {/* Host controls info modal */}

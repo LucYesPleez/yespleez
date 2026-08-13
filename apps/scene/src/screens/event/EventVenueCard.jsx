@@ -36,6 +36,27 @@ export default function EventVenueCard({
   // yields entirely and the Venue section carries the notice on its own.
   if (!v || v.mode === 'withheld' || !v.name) return null;
 
+  /**
+   * ⛔ NO PROFILE, NO CARD — AN UNLISTED LOCATION IS NOT A VENUE.
+   *
+   * An event may name where it is without that place being a canonical
+   * YesPleez venue: secret parties, private addresses, a paddock, a room whose
+   * profile nobody has made. Those live entirely on the event
+   * (`config.venue` + suburb/state, `venue_profile_id` NULL) and the catalogue
+   * never learns about them.
+   *
+   * ⚠ THIS CARD USED TO INVENT ONE ANYWAY. It spread `...(profile || {})` into
+   * a literal `{ type: 'venue' }`, so with no profile row PortraitCard still
+   * resolved a venue accent, a VENUE badge and the default venue photograph —
+   * a portrait of a business that does not exist, indistinguishable from a real
+   * venue's card except that it led nowhere. On one live event it drew the
+   * brewery twice: once as its actual profile, once as an unlinked name.
+   *
+   * The name is not lost. § 7's Venue section renders it as plain event
+   * location text, which is what it is.
+   */
+  if (!profile) return null;
+
   const identity = (
     <div className={s.venueIdentity}>
       <PortraitCard

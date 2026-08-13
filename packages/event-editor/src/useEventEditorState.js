@@ -41,6 +41,33 @@ export function useEventEditorState({ userId, uploadPosterCrop } = {}) {
      beside owner_profile_id, so it rides in this state but never through
      toConfig() — the screens write it as its own field on insert/update. */
   const [venueProfileId, setVenueProfileId] = useState(init.venueProfileId);
+  /* THE TOWN. `eventViewModel` has always READ `cfg.suburb` as the locality
+     fallback for an event with no venue profile — the editor simply never
+     wrote it, so an app-made event at an unlisted room had no town at all and
+     "The Coast Hotel" could not say which one it was. State and postcode ride
+     along because the town resolves to both, and the postcode is what
+     geo.js turns into a map centroid. */
+  const [venueTown, setVenueTownValue] = useState(init.venueTown);
+  const [venueState, setVenueState] = useState(init.venueState);
+  const [venuePostcode, setVenuePostcode] = useState(init.venuePostcode);
+  /* THE SECRET-LOCATION SWITCH. `eventViewModel` has always honoured this key —
+     it nulls the venue profile, coords, nav coords, postcode and town map — but
+     nothing in the app could ever SET it. The capability was built and
+     unreachable; this is the control that reaches it. */
+  const [locationWithheld, setLocationWithheld] = useState(init.locationWithheld);
+  /* Whether the organiser asked for this location to BECOME a catalogue venue.
+     ⛔ Independent of locationWithheld: a secret party can be at a real new
+     venue, and a public event can be at a place nobody should catalogue. */
+  const [venueRequest, setVenueRequest] = useState(init.venueRequest);
+  /* Whether a SECRET event still shows its town map. Independent of everything
+     else; meaningless unless locationWithheld is on. */
+  const [showAreaMap, setShowAreaMap] = useState(init.showAreaMap);
+  /** (town, { state, postcode }) — one call, because they are one answer. */
+  const setVenueTown = (name, meta = {}) => {
+    setVenueTownValue(name);
+    if (meta.state !== undefined) setVenueState(meta.state);
+    if (meta.postcode !== undefined) setVenuePostcode(meta.postcode);
+  };
   const [genreText, setGenreText] = useState(init.genreText);
   const [categoryBadge, setCategoryBadge] = useState(init.categoryBadge);
   const [openMicBadge, setOpenMicBadge] = useState(init.openMicBadge);
@@ -80,6 +107,12 @@ export function useEventEditorState({ userId, uploadPosterCrop } = {}) {
   const [setTimesNeeded, setSetTimesNeeded] = useState(init.setTimesNeeded);
   const [days, setDays] = useState(init.days);
   const [slotsCollapsed, setSlotsCollapsed] = useState(false);
+  /* ⚠ COLLAPSED BY DEFAULT. The requirement registry is ~16 checkboxes across
+     five categories, and opened flat it read as "here is a database of things
+     you might need to understand" at the exact moment someone is trying to
+     create an event. Closed, it states the answer — "4 selected" — and opens
+     only for the organiser who wants to change it. */
+  const [requirementsOpen, setRequirementsOpen] = useState(false);
 
   // ── Ownership and co-hosts ───────────────────────────────────────────
   const [owners, setOwners] = useState([]);
@@ -231,6 +264,12 @@ export function useEventEditorState({ userId, uploadPosterCrop } = {}) {
     setEndDate(v.endDate);
     setVenue(v.venue);
     setVenueProfileId(v.venueProfileId);
+    setVenueTownValue(v.venueTown);
+    setVenueState(v.venueState);
+    setVenuePostcode(v.venuePostcode);
+    setLocationWithheld(v.locationWithheld);
+    setVenueRequest(v.venueRequest);
+    setShowAreaMap(v.showAreaMap);
     setGenreText(v.genreText);
     setCategoryBadge(v.categoryBadge);
     setOpenMicBadge(v.openMicBadge);
@@ -258,7 +297,9 @@ export function useEventEditorState({ userId, uploadPosterCrop } = {}) {
 
   /** Everything the form currently holds, as one plain object. */
   const value = {
-    name, startDate, endDate, venue, venueProfileId, genreText, categoryBadge, openMicBadge,
+    name, startDate, endDate, venue, venueProfileId,
+    venueTown, venueState, venuePostcode, locationWithheld, venueRequest, showAreaMap,
+    genreText, categoryBadge, openMicBadge,
     ticketLink, bio, slides, poster, posterThumb, posterFull, posterCropY,
     setTimesNeeded, days, isPublic, appsOpen, artistsCanRemove,
     showRankedBackup, showGenrePickers, privateSetTimes, showTimesPublicly,
@@ -269,7 +310,12 @@ export function useEventEditorState({ userId, uploadPosterCrop } = {}) {
     // values + setters, named exactly as they were in the screen so the JSX
     // that consumes them did not have to change during the extraction
     name, setName, startDate, setStartDate, endDate, setEndDate,
-    venue, setVenue, venueProfileId, setVenueProfileId, genreText, setGenreText,
+    venue, setVenue, venueProfileId, setVenueProfileId,
+    venueTown, setVenueTown, venueState, venuePostcode,
+    locationWithheld, setLocationWithheld,
+    venueRequest, setVenueRequest,
+    showAreaMap, setShowAreaMap,
+    genreText, setGenreText,
     categoryBadge, setCategoryBadge, openMicBadge, setOpenMicBadge,
     ticketLink, setTicketLink, bio, setBio,
     slides, setSlides, poster, setPoster, posterThumb, setPosterThumb,
@@ -279,6 +325,7 @@ export function useEventEditorState({ userId, uploadPosterCrop } = {}) {
     cropError, setCropError, fullView, setFullView,
     setTimesNeeded, setSetTimesNeeded, days, setDays,
     slotsCollapsed, setSlotsCollapsed,
+    requirementsOpen, setRequirementsOpen,
     owners, setOwners, ownerId, setOwnerId, coHosts, setCoHosts,
     isPublic, setIsPublic, appsOpen, setAppsOpen,
     artistsCanRemove, setArtistsCanRemove,

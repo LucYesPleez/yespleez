@@ -81,7 +81,9 @@ export function generateSlots(startTime, endTime, slotLenMins) {
 /** The form's shape when nothing has been loaded. */
 export function emptyEventForm() {
   return {
-    name: '', startDate: '', endDate: '', venue: '', venueProfileId: null, genreText: '',
+    name: '', startDate: '', endDate: '', venue: '', venueProfileId: null,
+    venueTown: '', venueState: '', venuePostcode: '', venueRequest: false,
+    locationWithheld: false, showAreaMap: false, genreText: '',
     categoryBadge: '', openMicBadge: false, ticketLink: '', bio: '',
     slides: [], poster: '', posterThumb: '', posterFull: '',
     posterCropY: DEFAULT_CROP_Y,
@@ -116,6 +118,26 @@ export function fromConfig(row) {
     // event saved before the venue picker existed has NULL here, which is
     // "not linked", and the picker opens on its search field accordingly.
     venueProfileId: row?.venue_profile_id || null,
+    // The importer has always written these; the editor can now read and keep
+    // them rather than dropping the town on the first save.
+    venueTown: c.suburb || '',
+    venueState: c.state || '',
+    venuePostcode: c.postcode || '',
+    /* ⚠ BOTH SPELLINGS. `eventViewModel` reads `locationWithheld` OR
+       `location_withheld` — older rows carry the snake_case one, so a form that
+       only knew the camelCase spelling would show "not secret" for an event
+       that IS, and then write that back over it. */
+    locationWithheld: c.locationWithheld === true || c.location_withheld === true,
+    /* ⭐ THE PENDING VENUE. A real room YesPleez does not know about yet: the
+       organiser has asked for it to become a catalogue venue, and Studio
+       decides. Until then it behaves exactly like an event-only location — no
+       profile, not searchable, no venue page — so the flag changes only what
+       Studio sees, never what the public does.
+       ⛔ Meaningless once `venue_profile_id` is set: a confirmed request IS the
+       link, so the request cannot outlive its own approval. */
+    venueRequest: c.venueRequest === true && !row?.venue_profile_id,
+    /* Only meaningful while withheld; see eventViewModel's note. */
+    showAreaMap: c.showAreaMap === true,
     genreText: c.genres || '',
     categoryBadge: c.categoryBadge || '',
     openMicBadge: c.openMicBadge || false,
@@ -165,6 +187,23 @@ export function fromConfig(row) {
 export function toConfig(v) {
   return {
     name: v.name, date: v.startDate, endDate: v.endDate, venue: v.venue,
+    // ⚠ `suburb` IS THE KEY eventViewModel ALREADY READS (its locality ladder
+    // is venueProfile.suburb → cfg.suburb). Writing anything else here would
+    // store a town the page cannot find. postcode feeds geo.js's centroid, so
+    // an unlisted venue still gets a town-level map.
+    suburb: v.venueTown || null,
+    state: v.venueState || null,
+    postcode: v.venuePostcode || null,
+    /* ⚠ ALWAYS A BOOLEAN, never null. `eventViewModel` tests `=== true`, and a
+       secret location that saved as null would silently become public. Writing
+       the camelCase key only is deliberate: it is the one the view model reads
+       first, and emitting both would create two places to disagree. */
+    locationWithheld: v.locationWithheld === true,
+    /* ⚠ ALWAYS FALSE ONCE LINKED. Studio confirming a request sets
+       `venue_profile_id`; leaving the flag true would keep the event in the
+       review queue forever, asking to create a venue that now exists. */
+    venueRequest: v.venueRequest === true && !v.venueProfileId,
+    showAreaMap: v.locationWithheld === true && v.showAreaMap === true,
     genres: v.genreText,
     categoryBadge: v.categoryBadge || null,
     openMicBadge: v.openMicBadge || null,

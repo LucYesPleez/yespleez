@@ -9,6 +9,9 @@
 // rule holds even if some future caller forgets it. This component only has to
 // be honest about it, not to police it.
 //
+// ⚠ PROMOTERS ONLY — see the type filter below. The venue is named in its own
+// field now; co-hosting the room as well would bill one business twice.
+//
 // ⚠ THE OWNER IS NOT OFFERED AS A CO-HOST. Billing the main host twice would
 // draw the same card twice in § 10; the view model drops such a row anyway,
 // but offering it here would let someone save something that then silently
@@ -43,9 +46,21 @@ export default function CoHostPicker({ eventId = null, ownerId = null, value = [
     const t = setTimeout(async () => {
       const { data } = await supabase.from('profiles')
         .select('id, name, type, avatar_thumb, avatar, location, state')
-        // Hosts and venues only. An artist on the bill is a LINEUP member —
-        // billing them as a presenter would say they put the night on.
-        .in('type', ['host', 'venue'])
+        /**
+         * ⭐ HOSTS ONLY — A VENUE CO-HOSTING ITSELF IS REDUNDANT
+         * (owner, 2026-08-14: "a venue as a host or co host is redundant").
+         *
+         * Venues were offered here because, until the venue picker existed,
+         * this was the ONLY control that could attach a room as a real record
+         * — so organisers used it for that, and the event page then drew one
+         * business twice: an unlinked name beside its own profile. The VENUE
+         * field above answers "where" now, so billing the room here says the
+         * same thing a second time in a weaker way.
+         *
+         * An artist on the bill remains a LINEUP member — billing them as a
+         * presenter would say they put the night on.
+         */
+        .eq('type', 'host')
         .ilike('name', `%${q}%`)
         .limit(8);
       if (cancelled || inFlight.current !== q) return;
@@ -116,7 +131,7 @@ export default function CoHostPicker({ eventId = null, ownerId = null, value = [
       <input
         value={query}
         onChange={e => setQuery(e.target.value)}
-        placeholder="Search a host or venue to co-host…"
+        placeholder="Search promoters..."
         style={{
           width: '100%', padding: '10px 12px', borderRadius: 8,
           border: '1px solid var(--border)', background: 'var(--card2)',
@@ -128,7 +143,7 @@ export default function CoHostPicker({ eventId = null, ownerId = null, value = [
           note only appears once a real query has been made. */}
       {query.trim().length >= 2 && !results.length && (
         <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 6 }}>
-          No host or venue profiles match that.
+          No promoter profiles match that. The room itself goes in VENUE above.
         </div>
       )}
 
