@@ -88,3 +88,54 @@ test('slot time parsing round-trips', () => {
   const stored = { id: 'x', time: '9:05', ampm: 'AM', dur: 45, label: 'Opener' };
   assert.deepEqual(slotToSave(slotToEdit(stored)), stored);
 });
+
+/* ── SET TIMES HARDENING · fields this form does not offer ────────────── */
+
+test('⚠ labelColor and pinned survive an editor round trip', () => {
+  // THE DEFECT: both are written by the SET TIMES tab on the event page, which
+  // this form knows nothing about. Rebuilding a slot from a fixed key list
+  // deleted them, so opening the editor to change a poster silently threw away
+  // an organiser's slot colours and locks.
+  const stored = { id: 'x', time: '9:05', ampm: 'AM', dur: 45, label: 'Opener', labelColor: '#BF5FFF', pinned: true };
+  assert.deepEqual(slotToSave(slotToEdit(stored)), stored);
+});
+
+test('⚠ a slot without them does NOT grow the keys', () => {
+  // Otherwise every existing event acquires two null fields on its next save,
+  // and `pinned: false` starts meaning something different from absent.
+  const stored = { id: 'x', time: '9:05', ampm: 'AM', dur: 45, label: 'Opener' };
+  const out = slotToSave(slotToEdit(stored));
+  assert.ok(!('labelColor' in out), 'no phantom colour');
+  assert.ok(!('pinned' in out),     'no phantom pin');
+});
+
+test('an unpinned slot keeps its explicit false rather than losing the key', () => {
+  const stored = { id: 'x', time: '8:00', ampm: 'PM', dur: 60, label: '', pinned: false };
+  assert.equal(slotToSave(slotToEdit(stored)).pinned, false);
+});
+
+/* ── SET TIMES HARDENING · the setTimesNeeded round trip ──────────────── */
+
+test('⚠ set times OFF stays off across a load/save — no phantom Day 1', () => {
+  // THE DEFECT, and note what makes it invisible: every other test in this file
+  // spreads `setTimesNeeded` in BY HAND, which is exactly what hid the missing
+  // round trip. This one deliberately does not.
+  const r = row(); r.config.days = [];
+  const v = { ...emptyEventForm(), ...fromConfig(r) };
+
+  assert.equal(v.setTimesNeeded, false, 'the row says there is no running order');
+  assert.deepEqual(toConfig(v).days, [], 'and a save must not invent one');
+});
+
+test('set times ON survives the same trip', () => {
+  const v = { ...emptyEventForm(), ...fromConfig(row()) };
+  assert.equal(v.setTimesNeeded, true);
+  assert.equal(toConfig(v).days.length, 1);
+});
+
+test('the toggle is derived from the stored days, never a second flag', () => {
+  assert.equal(fromConfig({ config: { days: [] } }).setTimesNeeded, false);
+  assert.equal(fromConfig({ config: {} }).setTimesNeeded, false, 'absent is not "needed"');
+  assert.equal(fromConfig({ config: { days: [{ name: '', slots: [] }] } }).setTimesNeeded, true,
+    'a day with no slots yet is still an intention to have a running order');
+});

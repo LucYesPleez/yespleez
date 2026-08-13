@@ -19,6 +19,13 @@ import UnclaimedBadge from '../../components/UnclaimedBadge';
 import { parseDurMins, fmtDur, labelColor, stripEmoji } from './slotUtils';
 import s from '../EventScreen.module.css';
 
+/**
+ * Set Times hardening · the Notes accordion (Artist Brief, Host Notes, History)
+ * is hidden until there is somewhere to store it. See the note at its markup.
+ * ⛔ Do not flip this without the column and the RLS policy behind it.
+ */
+const NOTES_PERSISTENCE_READY = false;
+
 function HeadphoneIcon() {
   return (
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, opacity: 0.7 }}>
@@ -408,7 +415,22 @@ export default function SlotCard({ slot, claim, onFill, onEdit, onRemove, onPin,
                 </div>
               )}
 
-              {/* Notes accordion */}
+              {/* ── ⚠ NOTES ARE HIDDEN BECAUSE THEY NEVER SAVED ──────────────
+                  `hostNote` and `artistBrief` below are local state with no
+                  write path and no column behind them. The Artist Brief was
+                  labelled "Visible to artist" and its placeholder invited
+                  arrive times, load-in instructions and set length — none of
+                  which ever reached the artist, or survived closing the card.
+
+                  ⭐ A FEATURE THAT LIES IS WORSE THAN ONE THAT IS ABSENT. An
+                  organiser who types load-in details here has done the job as
+                  far as they can tell, and finds out on the night. Hidden
+                  rather than deleted: persisting this needs a column and an RLS
+                  policy that lets the act read their brief while host notes
+                  stay private, which is real work and is on the hardening
+                  backlog. Turning it back on is deleting this flag, and the
+                  markup below is kept intact for exactly that. */}
+              {NOTES_PERSISTENCE_READY && (
               <div style={{ borderTop: '1px solid rgba(255,255,255,.06)', marginTop: 4 }}>
                 <button
                   onClick={e => { e.stopPropagation(); setNotesBoxOpen(v => !v); }}
@@ -491,6 +513,7 @@ export default function SlotCard({ slot, claim, onFill, onEdit, onRemove, onPin,
                   </div>
                 )}
               </div>
+              )}
             </>
           )}
         </div>

@@ -13,6 +13,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../../lib/supabase';
 import { memberProfileKeys, indexMemberProfiles } from './lineupProfiles';
+import { tallySlots } from './slotTally';
 
 export const EVENT_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -198,8 +199,12 @@ export function useEventData(id, navigate) {
   const eventDateStr = cfg.endDate || cfg.date;
   const isPast = eventDateStr ? new Date(eventDateStr + 'T23:59:59') < new Date() : false;
 
-  const totalSlots = days.reduce((n, d) => n + (d.slots?.length || 0), 0);
-  const takenSlots = days.reduce((n, d) => n + (d.slots || []).filter(sl => claims[sl.id] && claims[sl.id].status !== 'declined').length, 0);
+  // ⚠ `takenSlots` COUNTS ACCEPTANCES, NOT OFFERS — see lib note in slotTally.
+  // It used to count anything that was not `declined`, which reported an
+  // unanswered offer as a booked slot.
+  const tally      = tallySlots(days, claims);
+  const totalSlots = tally.total;
+  const takenSlots = tally.filled;
   const lineupPct  = totalSlots > 0 ? Math.round((takenSlots / totalSlots) * 100) : 0;
 
   return {
@@ -207,5 +212,9 @@ export function useEventData(id, navigate) {
     cfg, days, poster, posterFull, genres,
     isLocked, draftCount, showTimesPublicly, isPast,
     totalSlots, takenSlots, lineupPct,
+    // The full breakdown, for the host's tally. A punter's claims map only ever
+    // holds `accepted` rows, so their counts collapse to confirmed/empty on
+    // their own — no branch needed here.
+    tally,
   };
 }

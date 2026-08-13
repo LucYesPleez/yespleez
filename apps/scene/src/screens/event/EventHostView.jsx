@@ -461,7 +461,9 @@ export default function EventHostView({
       {/* SET TIMES locked banner */}
       {effectiveIsHost && showEditor && eventTab === 'SET_TIMES' && isLocked && (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', marginBottom: 12, borderRadius: 10, background: 'rgba(0,229,160,.07)', border: '1px solid rgba(0,229,160,.28)' }}>
-          <span style={{ fontFamily: "'Bebas Neue'", fontSize: 12, letterSpacing: 1.5, color: '#00E5A0' }}>● SET TIMES PUBLISHED</span>
+          {/* Sent and locked. Says nothing about public visibility, which is a
+              separate decision made by the toggle above. */}
+          <span style={{ fontFamily: "'Bebas Neue'", fontSize: 12, letterSpacing: 1.5, color: '#00E5A0' }}>● SET TIMES SENT · LOCKED</span>
           <button onClick={() => setConfirmUnlock(true)} style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1, padding: '4px 10px', borderRadius: 6, border: '1px solid rgba(255,255,255,.18)', background: 'none', color: 'rgba(255,255,255,.45)', cursor: 'pointer' }}>EDIT SET TIMES</button>
         </div>
       )}
@@ -482,7 +484,12 @@ export default function EventHostView({
           }}
         >
           <span style={{ color: '#BF5FFF' }}>
-            {sendingOffers ? '● PUBLISHING…' : '● PUBLISH SET TIMES'}
+            {/* ⚠ "SEND", NOT "PUBLISH". This notifies the artists and locks the
+                running order; it does NOT put anything in front of the public.
+                The control that does is the SET TIMES PUBLIC toggle above, and
+                both were called "publish" — so an organiser pressing this
+                reasonably believed the timetable was now on the event page. */}
+            {sendingOffers ? '● SENDING…' : '● SEND SET TIMES TO ARTISTS'}
           </span>
           <span style={{ fontSize: 10, color: 'rgba(191,95,255,.6)', letterSpacing: 1 }}>
             NOTIFY {draftCount} ARTIST{draftCount !== 1 ? 'S' : ''}

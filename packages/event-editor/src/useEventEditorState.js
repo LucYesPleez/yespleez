@@ -239,6 +239,10 @@ export function useEventEditorState({ userId, uploadPosterCrop } = {}) {
     setIsPublic(v.isPublic);
     setAppsOpen(v.appsOpen);
     setRequiredItems(v.requiredItems);
+    // ⚠ Without this the toggle keeps its default (true) whatever the row said,
+    // and a gig saved with no running order grows a phantom Day 1 on its next
+    // save. See the note on `setTimesNeeded` in eventEditorModel.fromConfig.
+    setSetTimesNeeded(v.setTimesNeeded);
     if (v.days) setDays(v.days);
     setArtistsCanRemove(v.artistsCanRemove);
     setShowRankedBackup(v.showRankedBackup);

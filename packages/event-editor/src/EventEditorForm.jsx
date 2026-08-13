@@ -912,7 +912,13 @@ export default function EventEditorForm({
           <Toggle label="Public Event"                         sub="Visible in Discover to anyone browsing"                                     value={isPublic}          onChange={setIsPublic} />
           <div className={s.controlsGroupDivider} />
           <Toggle label="Show Set Times to Artists"            sub="Booked artists can see the running order before it is public."              value={!privateSetTimes}  onChange={v => setPrivateSetTimes(!v)} />
-          <Toggle label="Publish Set Times"                    sub="Show the running order on the public event page."                           value={showTimesPublicly} onChange={setShowTimesPublicly} />
+          {/* ⚠ NOT "Publish Set Times". That name belonged to two different
+              actions: this one, which reveals the timetable to the public, and
+              the event page's SEND SET TIMES TO ARTISTS, which notifies the
+              bill and locks the order. Neither implies the other, so sharing a
+              name meant an organiser could confidently do one and believe they
+              had done both. */}
+          <Toggle label="Show Set Times Publicly"              sub="Show the running order on the public event page."                           value={showTimesPublicly} onChange={setShowTimesPublicly} />
 
           {SHOW_ADVANCED_HOST_CONTROLS && (<>
             <div className={s.controlsGroupDivider} />

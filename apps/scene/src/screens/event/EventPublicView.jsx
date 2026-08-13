@@ -19,7 +19,7 @@ import s from '../EventScreen.module.css';
 
 export default function EventPublicView({
   id, event, cfg, poster, posterFull, genres, isPast,
-  claims, days, showTimesPublicly, totalSlots, takenSlots,
+  claims, days, showTimesPublicly, totalSlots, takenSlots, tally = null,
   userId, ownerProfile,
   host = null, hostChrome = null, overlays = null,
 }) {
@@ -117,10 +117,24 @@ export default function EventPublicView({
         )}
 
         {bodyVisible && <>
-        {/* Tally — only visible when set times are public or host is viewing */}
+        {/* Tally — only visible when set times are public or host is viewing.
+            ⚠ "Filled" means ACCEPTED. It used to mean "not declined", which
+            counted an unanswered offer as a booking — see lib slotTally. */}
         {(effectiveIsHost || showTimesPublicly) && totalSlots > 0 && (
           <div className={s.tally}>
-            <strong>{takenSlots}</strong> of <strong>{totalSlots}</strong> slots filled
+            <strong>{takenSlots}</strong> of <strong>{totalSlots}</strong> slots confirmed
+            {/* The host also gets what the bare fraction hides: who is still
+                deciding, and who has not been asked at all. A punter never sees
+                this — under SEC-2 their claims only ever hold accepted rows, so
+                there is nothing here for them to read anyway. */}
+            {effectiveIsHost && tally && (tally.awaiting > 0 || tally.unsent > 0) && (
+              <div style={{ marginTop: 4, fontSize: 12, color: 'var(--muted)' }}>
+                {[
+                  tally.awaiting > 0 && `${tally.awaiting} awaiting reply`,
+                  tally.unsent   > 0 && `${tally.unsent} not yet sent`,
+                ].filter(Boolean).join('  ·  ')}
+              </div>
+            )}
           </div>
         )}
 

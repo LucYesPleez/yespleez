@@ -75,7 +75,7 @@ export default function EventScreen() {
     poster: d.poster, posterFull: d.posterFull, genres: d.genres, isPast: d.isPast,
     claims: d.claims, days: d.days,
     showTimesPublicly: d.showTimesPublicly,
-    totalSlots: d.totalSlots, takenSlots: d.takenSlots,
+    totalSlots: d.totalSlots, takenSlots: d.takenSlots, tally: d.tally,
     ownerProfile: d.ownerProfile, venueProfile: d.venueProfile,
   };
 

@@ -116,7 +116,39 @@ export default function CreateEventScreen() {
     const cfg = ed.toConfig();
 
     if (editId) {
-      const { error:err } = await supabase.from('events').update({ name, config:cfg, is_public:isPublic, applications_open:appsOpen, required_items:requiredItems }).eq('id', editId);
+      /**
+       * ── ⚠ MERGE ONTO THE STORED CONFIG, NEVER REPLACE IT ──────────────
+       *
+       * `toConfig` emits a fixed list of the keys this form owns. Writing that
+       * object straight into `config` therefore DELETED every key the form does
+       * not offer — `set_times_locked`, `doors`, `price`, `age`, `accessibility`,
+       * `parking`, `location`, `locationWithheld`, `date_confidence` — so
+       * changing a poster silently wiped an event's door time and unlocked its
+       * published set times. Nothing threw, and the loss was only visible on the
+       * public page afterwards.
+       *
+       * ⚠ READ IMMEDIATELY BEFORE THE WRITE, not at load. The organiser may have
+       * published set times from the event page while this form sat open;
+       * merging onto the config we loaded minutes ago would resurrect the state
+       * from before that and lose the lock all over again, just more subtly.
+       *
+       * ⛔ A failed read ABORTS. Falling back to a bare replace here would be
+       * the exact destructive write this exists to prevent, and it would happen
+       * on precisely the flaky-connection save nobody is watching.
+       */
+      const { data: current, error: readErr } = await supabase
+        .from('events').select('config').eq('id', editId).single();
+      if (readErr || !current) {
+        setSaving(false);
+        setError('Could not read the current event to save onto it. Nothing was changed.');
+        return;
+      }
+
+      const { error:err } = await supabase.from('events').update({
+        name,
+        config: { ...(current.config || {}), ...cfg },
+        is_public:isPublic, applications_open:appsOpen, required_items:requiredItems,
+      }).eq('id', editId);
       setSaving(false);
       if (err) { setError(err.message); return; }
       navigate(`/event/${editId}`, { replace:true });

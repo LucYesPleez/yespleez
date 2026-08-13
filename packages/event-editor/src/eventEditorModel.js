@@ -20,15 +20,48 @@ import { DEFAULT_CROP_Y, MAX_SLIDES } from '@yespleez/event-presentation';
 
 export function makeId() { return Math.random().toString(36).slice(2, 8); }
 
+/**
+ * ── ⚠ FIELDS THIS EDITOR DOES NOT OFFER MUST STILL SURVIVE IT ────────
+ *
+ * `labelColor` and `pinned` are written by the SET TIMES tab on the event page
+ * (SlotEditModal's colour picker, and LOCK SLOT), which is a different surface
+ * from this form. This form has no control for either, and the version of these
+ * functions that rebuilt a slot from a fixed key list therefore DELETED both the
+ * moment an organiser opened the editor to change something unrelated — a
+ * silent loss of work they did elsewhere, with no way to notice until the
+ * colours were gone.
+ *
+ * ⛔ Carried through CONDITIONALLY. A slot that never had them must round-trip
+ * byte-identical, or every existing event gains two null keys on its next save.
+ */
+function carryUnedited(out, sl) {
+  if (sl.labelColor) out.labelColor = sl.labelColor;
+  if ('pinned' in sl) out.pinned = !!sl.pinned;
+  return out;
+}
+
 /** Editor slot → stored slot. */
 export function slotToSave(sl) {
-  return { id: sl.id, time: `${parseInt(sl.hh || 8)}:${String(sl.mm || '00').padStart(2, '0')}`, ampm: sl.ampm || 'PM', dur: sl.dur || 60, label: sl.label || '' };
+  return carryUnedited({
+    id: sl.id,
+    time: `${parseInt(sl.hh || 8)}:${String(sl.mm || '00').padStart(2, '0')}`,
+    ampm: sl.ampm || 'PM',
+    dur: sl.dur || 60,
+    label: sl.label || '',
+  }, sl);
 }
 
 /** Stored slot → editor slot. */
 export function slotToEdit(sl) {
   const [hh, mm] = (sl.time || '8:00').split(':');
-  return { id: sl.id || makeId(), hh: hh || '8', mm: (mm || '00').padStart(2, '0'), ampm: sl.ampm || 'PM', dur: sl.dur || sl.duration || 60, label: sl.label || '' };
+  return carryUnedited({
+    id: sl.id || makeId(),
+    hh: hh || '8',
+    mm: (mm || '00').padStart(2, '0'),
+    ampm: sl.ampm || 'PM',
+    dur: sl.dur || sl.duration || 60,
+    label: sl.label || '',
+  }, sl);
 }
 
 export function generateSlots(startTime, endTime, slotLenMins) {
@@ -95,6 +128,26 @@ export function fromConfig(row) {
     isPublic: row?.is_public !== false,
     appsOpen: row?.applications_open !== false,
     requiredItems: row?.required_items || [],
+    /**
+     * ⚠ THE ONE FORM FIELD THAT HAD NO ROUND TRIP, AND WHAT IT COST.
+     *
+     * `emptyEventForm()` defaults this true and `toConfig` reads it, but nothing
+     * ever returned it here, so `hydrate` left the toggle at its default. An
+     * event deliberately saved with NO running order (`days: []`) therefore
+     * reloaded with set times switched back ON and the form's one blank day
+     * still attached — and the next save wrote `days: [{name:'', slots:[]}]`.
+     * A round trip silently turned "this gig has no running order" into a
+     * phantom Day 1, and the organiser's decision was the thing lost.
+     *
+     * DERIVED, never stored: the schedule IS the answer to "are set times
+     * needed", so asking the stored days is the only version that cannot
+     * disagree with them. A separate boolean would be a second source of truth
+     * for a question the data already answers.
+     */
+    setTimesNeeded: (c.days || []).length > 0,
+    // ⛔ Stays `undefined` for an empty schedule — the form then keeps its own
+    // blank day so there is somewhere to add a slot. That is a different
+    // question from the toggle above, which is why both exist.
     days: loadedDays.length > 0 ? loadedDays : undefined,
     artistsCanRemove: hc.artistsCanRemove !== false,
     showRankedBackup: hc.showRankedBackup !== false,
