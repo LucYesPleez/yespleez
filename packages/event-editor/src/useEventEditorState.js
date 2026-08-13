@@ -37,6 +37,10 @@ export function useEventEditorState({ userId, uploadPosterCrop } = {}) {
   const [startDate, setStartDate] = useState(init.startDate);
   const [endDate, setEndDate] = useState(init.endDate);
   const [venue, setVenue] = useState(init.venue);
+  /* ⚠ A COLUMN, NOT CONFIG. `venue_profile_id` lives on the `events` row
+     beside owner_profile_id, so it rides in this state but never through
+     toConfig() — the screens write it as its own field on insert/update. */
+  const [venueProfileId, setVenueProfileId] = useState(init.venueProfileId);
   const [genreText, setGenreText] = useState(init.genreText);
   const [categoryBadge, setCategoryBadge] = useState(init.categoryBadge);
   const [openMicBadge, setOpenMicBadge] = useState(init.openMicBadge);
@@ -226,6 +230,7 @@ export function useEventEditorState({ userId, uploadPosterCrop } = {}) {
     setStartDate(v.startDate);
     setEndDate(v.endDate);
     setVenue(v.venue);
+    setVenueProfileId(v.venueProfileId);
     setGenreText(v.genreText);
     setCategoryBadge(v.categoryBadge);
     setOpenMicBadge(v.openMicBadge);
@@ -253,7 +258,7 @@ export function useEventEditorState({ userId, uploadPosterCrop } = {}) {
 
   /** Everything the form currently holds, as one plain object. */
   const value = {
-    name, startDate, endDate, venue, genreText, categoryBadge, openMicBadge,
+    name, startDate, endDate, venue, venueProfileId, genreText, categoryBadge, openMicBadge,
     ticketLink, bio, slides, poster, posterThumb, posterFull, posterCropY,
     setTimesNeeded, days, isPublic, appsOpen, artistsCanRemove,
     showRankedBackup, showGenrePickers, privateSetTimes, showTimesPublicly,
@@ -264,7 +269,7 @@ export function useEventEditorState({ userId, uploadPosterCrop } = {}) {
     // values + setters, named exactly as they were in the screen so the JSX
     // that consumes them did not have to change during the extraction
     name, setName, startDate, setStartDate, endDate, setEndDate,
-    venue, setVenue, genreText, setGenreText,
+    venue, setVenue, venueProfileId, setVenueProfileId, genreText, setGenreText,
     categoryBadge, setCategoryBadge, openMicBadge, setOpenMicBadge,
     ticketLink, setTicketLink, bio, setBio,
     slides, setSlides, poster, setPoster, posterThumb, setPosterThumb,

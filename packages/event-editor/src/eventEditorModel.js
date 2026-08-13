@@ -81,7 +81,7 @@ export function generateSlots(startTime, endTime, slotLenMins) {
 /** The form's shape when nothing has been loaded. */
 export function emptyEventForm() {
   return {
-    name: '', startDate: '', endDate: '', venue: '', genreText: '',
+    name: '', startDate: '', endDate: '', venue: '', venueProfileId: null, genreText: '',
     categoryBadge: '', openMicBadge: false, ticketLink: '', bio: '',
     slides: [], poster: '', posterThumb: '', posterFull: '',
     posterCropY: DEFAULT_CROP_Y,
@@ -112,6 +112,10 @@ export function fromConfig(row) {
     startDate: c.date || '',
     endDate: c.endDate || '',
     venue: c.venue || '',
+    // ⚠ From the ROW, not the config blob — venue_profile_id is a column. An
+    // event saved before the venue picker existed has NULL here, which is
+    // "not linked", and the picker opens on its search field accordingly.
+    venueProfileId: row?.venue_profile_id || null,
     genreText: c.genres || '',
     categoryBadge: c.categoryBadge || '',
     openMicBadge: c.openMicBadge || false,

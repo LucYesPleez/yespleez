@@ -382,10 +382,10 @@ export default function EventEditorForm({
   ed, editId, userId,
   categories, labelProfileType, components, adornments = {}, actions = null,
 }) {
-  const { ImageUploadButton, CoHostPicker } = components;
+  const { ImageUploadButton, CoHostPicker, VenuePicker } = components;
   const {
     name, setName, startDate, setStartDate, endDate, setEndDate,
-    venue, setVenue, genreText, setGenreText,
+    venue, setVenue, venueProfileId, setVenueProfileId, genreText, setGenreText,
     categoryBadge, setCategoryBadge, openMicBadge, setOpenMicBadge,
     ticketLink, setTicketLink, bio, setBio,
     slides, setSlides, poster, setPoster, setPosterThumb,
@@ -444,6 +444,39 @@ export default function EventEditorForm({
           </>
         )}
 
+        {/* ⭐ VENUE — ITS OWN SECTION, AND IT COMES BEFORE CO-HOSTS.
+            It sat mid-way down EVENT DETAILS as a plain text box, under the
+            dates, which put WHERE the gig is below fields nobody needs first
+            and left the co-host picker as the only control that could attach
+            the room as a real record. Organisers used it for that, and one
+            business then drew two cards on the event page: an unlinked name
+            beside its own profile. Asking WHERE before asking WHO ELSE IS
+            BILLED removes the reason to reach for the wrong control.
+
+            `VenuePicker` is injected (see `components`), so a host that does
+            not supply one still gets the original text field and behaves
+            exactly as before — the package learns nothing about who is using
+            it. */}
+        <SectionHeader label="VENUE" />
+        <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 8 }}>
+          {VenuePicker
+            ? 'Pick the venue from the list so every gig at that room tracks to the same place, keeps its map, and shows on the venue’s own page.'
+            : 'Where the gig is.'}
+        </div>
+        {VenuePicker
+          ? <div style={{ marginBottom: 14 }}>
+              <VenuePicker
+                value={venue}
+                onChange={setVenue}
+                profileId={venueProfileId}
+                onProfileIdChange={setVenueProfileId}
+              />
+            </div>
+          : <Field label="VENUE">
+              <input className={s.input} value={venue} onChange={e => setVenue(e.target.value)} placeholder="e.g. The Newsagency, Bellingen" />
+            </Field>
+        }
+
         {/* ⭐ CO-HOSTS. Billed equally in § 10, and that is ALL they get — the
             main host above stays the only profile that can edit this event,
             decide applications or receive its notifications. Enforced in
@@ -479,9 +512,7 @@ export default function EventEditorForm({
           </Field>
         </div>
 
-        <Field label="VENUE">
-          <input className={s.input} value={venue} onChange={e => setVenue(e.target.value)} placeholder="e.g. The Newsagency, Bellingen" />
-        </Field>
+        {/* VENUE has moved to its own section above CO-HOSTS. */}
 
         <Field label="SOUND / VIBE (optional)">
           <input className={s.input} value={genreText} onChange={e => setGenreText(e.target.value)} placeholder="e.g. Deep house into techno, heavy bass, late night energy" />

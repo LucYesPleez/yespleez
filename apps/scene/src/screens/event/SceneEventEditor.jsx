@@ -3,6 +3,7 @@ import { getEventBadges, CATEGORY_BADGES, CATEGORY_CHOICES, OPEN_MIC_BADGE, same
 import { PROFILE_TYPES } from '../../lib/profileTypes';
 import ImageUploadButton from '../../components/ImageUploadButton';
 import CoHostPicker from '../../components/CoHostPicker';
+import VenuePicker from '../../components/VenuePicker';
 
 /**
  * THIS APP'S EVENT EDITOR — the wrapper, and nothing else.
@@ -37,8 +38,11 @@ const categories = {
 /** This app's role registry. Another host's will not have the same entries. */
 const labelProfileType = type => PROFILE_TYPES[type]?.shortLabel || type;
 
-/** Everything that touches storage or queries this app's profiles. */
-const components = { ImageUploadButton, CoHostPicker };
+/** Everything that touches storage or queries this app's profiles.
+ *  VenuePicker searches THIS app's venue profiles, so like CoHostPicker it is
+ *  injected rather than imported by the package — the form falls back to a
+ *  plain text field for any host that does not supply one. */
+const components = { ImageUploadButton, CoHostPicker, VenuePicker };
 
 /**
  * ⛔ ADORNMENT — render-only. It may not change what is selected or saved.

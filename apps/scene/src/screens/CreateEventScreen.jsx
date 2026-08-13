@@ -36,7 +36,7 @@ export default function CreateEventScreen() {
 
   // Only what the plumbing below reads. Everything else is the form’s.
   const {
-    name, venue, owners, ownerId, coHosts, requiredItems, isPublic, appsOpen,
+    name, venue, venueProfileId, owners, ownerId, coHosts, requiredItems, isPublic, appsOpen,
     setOwners, setOwnerId, setCoHosts,
   } = ed;
 
@@ -148,6 +148,11 @@ export default function CreateEventScreen() {
         name,
         config: { ...(current.config || {}), ...cfg },
         is_public:isPublic, applications_open:appsOpen, required_items:requiredItems,
+        // The venue picker owns this column now, so an edit can both ATTACH a
+        // link to an older event that never had one and clear it again. It is
+        // a column rather than part of `cfg`, so the config merge above leaves
+        // it alone either way.
+        venue_profile_id: venueProfileId || null,
       }).eq('id', editId);
       setSaving(false);
       if (err) { setError(err.message); return; }
@@ -182,20 +187,26 @@ export default function CreateEventScreen() {
     // honest — the venue link is optional (v1.3 O-R4: warehouses, parks,
     // house shows). Resolving it properly for those needs a venue picker,
     // which is a feature rather than a defect fix.
+    // ⭐ THE PICKER IS NOW THE ANSWER, where one was given. The inference below
+    // survives only as the fallback for a venue running its own night without
+    // touching the control — it can no longer be the ONLY way a link gets set,
+    // which is what left a promoter's event at someone else's room pointing at
+    // nothing. See VenuePicker for what that cost.
     const ownerProfile = owners.find(o => o.id === ownerId) || null;
     const typed  = (venue || '').trim().toLowerCase();
     const ownNm  = (ownerProfile?.name || '').trim().toLowerCase();
-    const venueProfileId =
-      ownerProfile?.type === 'venue' && (!typed || typed === ownNm)
+    const resolvedVenueProfileId =
+      venueProfileId
+      || (ownerProfile?.type === 'venue' && (!typed || typed === ownNm)
         ? ownerProfile.id
-        : null;
+        : null);
 
     const { data, error:err } = await supabase.from('events').insert({
       name, config:cfg, host_id:session.user.id,
       owner_profile_id: ownerId,
       status: goLive ? 'live' : 'draft',
       is_public:isPublic, applications_open:appsOpen,
-      venue_profile_id: venueProfileId,
+      venue_profile_id: resolvedVenueProfileId,
       required_items: requiredItems,
     }).select('id').single();
     setSaving(false);
