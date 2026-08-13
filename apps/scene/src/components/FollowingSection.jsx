@@ -154,6 +154,29 @@ export default function FollowingSection({
         )}
       </div>
 
+      {/**
+        * ⚠ THE THREE LISTS BELOW ARE KEYED ON `p.id`, THE PROFILE'S OWN ID.
+        *
+        * They were keyed on `p.user_id`, which is not this card's identity and
+        * is not unique — it collided two different ways at once, and every
+        * dashboard rendering this section logged a React duplicate-key error
+        * per collision on load:
+        *
+        *   NULL   an UNCLAIMED profile has no account behind it, so its
+        *          user_id is legitimately null. `key={null}` stringifies to
+        *          "null", so EVERY unclaimed profile you follow shared one
+        *          key. On the day this was fixed that was 8 of 23 followed
+        *          profiles, and 99 of 161 profiles platform-wide.
+        *   SHARED one account owns several profiles, and you can follow more
+        *          than one of them. Two cards, two identities, one user_id.
+        *
+        * Not a data fault in either case: a null user_id is what an unclaimed
+        * profile IS, and following someone's host AND artist identity is the
+        * point. The key was simply reading the wrong column. `profiles.id` is
+        * the primary key, both branches of the loaders select it, and
+        * PortraitCard already navigates by it (`profileUrl(p)`), so the card's
+        * identity and its key now agree.
+        */}
       {loading ? (
         <p style={{ fontSize: 13, color: 'var(--muted)' }}>Loading…</p>
       ) : following.length === 0 ? (
@@ -170,7 +193,7 @@ export default function FollowingSection({
             return visible.length === 0
               ? <p style={{ fontSize: 13, color: 'var(--muted)' }}>No results.</p>
               : <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(150px,1fr))', gap: 10 }}>
-                  {visible.map(p => <PortraitCard key={p.user_id} profile={p} width={150} height={200} />)}
+                  {visible.map(p => <PortraitCard key={p.id} profile={p} width={150} height={200} />)}
                 </div>;
           })()}
         </div>
@@ -183,11 +206,11 @@ export default function FollowingSection({
               industry profile's Following list. Do not re-point this at
               useRailCardWidth: the two rails look alike but answer different
               questions, and only one of them was being redesigned. */}
-          {filtered.map(p => <PortraitCard key={p.user_id} profile={p} width={150} height={200} />)}
+          {filtered.map(p => <PortraitCard key={p.id} profile={p} width={150} height={200} />)}
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {filtered.map(p => <ProfileCard key={p.user_id} item={p} actions={actions?.(p)} />)}
+          {filtered.map(p => <ProfileCard key={p.id} item={p} actions={actions?.(p)} />)}
         </div>
       )}
     </div>

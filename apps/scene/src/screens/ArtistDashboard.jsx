@@ -311,9 +311,19 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
         fPids.length ? supabase.from('profiles').select(fCols).in('id', fPids) : Promise.resolve({ data: [] }),
         fLegacy.length ? supabase.from('profiles').select(fCols).in('user_id', fLegacy) : Promise.resolve({ data: [] }),
       ]);
+      // ⚠ ONE KEYSPACE OUT — PROFILE ID. The two follow keyspaces resolve
+      // differently (a modern row names a PROFILE, a legacy row names a USER),
+      // and this map used to store them under both: `seen[p.id]` beside
+      // `seen[p.user_id]`. A profile reachable both ways landed in it twice
+      // under two different keys, and FollowingSection then rendered it twice.
+      // Legacy rows still collapse per USER first — one legacy follow is one
+      // card even when that account owns several profiles, preferring a
+      // non-punter identity — and only the profile that wins goes into the map.
       const seen = {};
       (fPidRes.data || []).forEach(p => { seen[p.id] = p; });
-      (fUidRes.data || []).forEach(p => { if (!seen[p.user_id] || p.type !== 'punter') seen[p.user_id] = p; });
+      const legacyByUser = {};
+      (fUidRes.data || []).forEach(p => { if (!legacyByUser[p.user_id] || p.type !== 'punter') legacyByUser[p.user_id] = p; });
+      Object.values(legacyByUser).forEach(p => { seen[p.id] = p; });
       setFollowing(Object.values(seen));
       setLoadingFollow(false);
     })();

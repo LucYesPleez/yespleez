@@ -1469,7 +1469,13 @@ export default function MySceneScreen() {
                 {!followShowAll && followTab === 'updates' && (
                   updatedFollows.length > 0 ? (
                     <div ref={updatesDrag.ref} onMouseDown={updatesDrag.onMouseDown} onMouseMove={updatesDrag.onMouseMove} onMouseUp={updatesDrag.onMouseUp} onMouseLeave={updatesDrag.onMouseLeave} style={{ display:'flex', gap:10, overflowX:'auto', paddingBottom:8, WebkitOverflowScrolling:'touch', scrollbarWidth:'none', marginTop:12, cursor:'grab' }}>
-                      {updatedFollows.map(p => <PortraitCard key={p.user_id} profile={{ ...p, avatar: followAvatars[p.user_id] || p.avatar }} />)}
+                      {/* ⚠ KEYED ON `p.id`, NOT `p.user_id` — an unclaimed profile has no
+                          account and so no user_id, and one account can own several
+                          profiles you follow. Either way user_id is not this card's
+                          identity. Same fix as FollowingSection; see the note there.
+                          The AVATAR lookup beside it is a different map and stays on
+                          user_id by its own design (see the loader around :445). */}
+                      {updatedFollows.map(p => <PortraitCard key={p.id} profile={{ ...p, avatar: followAvatars[p.user_id] || p.avatar }} />)}
                     </div>
                   ) : (
                     <div className={s.empty}>No updates since your last visit.</div>
@@ -1584,7 +1590,8 @@ export default function MySceneScreen() {
                       {visible.length === 0
                         ? <div className={s.empty}>{followRadius && !postcodeValid ? 'Enter a valid postcode to filter by distance.' : 'No results.'}</div>
                         : <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(150px,1fr))', gap:10 }}>
-                            {visible.map(p => <PortraitCard key={p.user_id} profile={{ ...p, avatar: followAvatars[p.user_id] || p.avatar }} />)}
+                            {/* `p.id` — see the Updates rail above. */}
+                            {visible.map(p => <PortraitCard key={p.id} profile={{ ...p, avatar: followAvatars[p.user_id] || p.avatar }} />)}
                           </div>
                       }
                     </div>
