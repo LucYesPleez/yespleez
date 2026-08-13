@@ -15,6 +15,7 @@ import ClaimDialog from '../components/ClaimDialog';
 import InviteSheet from '../components/InviteSheet';
 import { resolveProfileRoute, profileUrl } from '../lib/profileResolution';
 import PastEventsSearch, { filterPastEvents } from '../components/PastEventsSearch';
+import { useDragScroll } from '../hooks/useDragScroll';
 import { formatLocation } from '../lib/formatLocation';
 import { socialProfileUrl, ensureHttps } from '../lib/socialLinks';
 import ProfileSocialLinks from '../components/ProfileSocialLinks';
@@ -77,6 +78,13 @@ export default function ProfileScreen() {
   const [showAllPast,   setShowAllPast]   = useState(false);
   const [pastGigSearch, setPastGigSearch] = useState('');
   const [gigsView,      setGigsView]      = useState('portrait'); // 'portrait' | 'list'
+  /* The gigs rail was the one horizontal rail in the app you could not drag —
+     What's On, My Scene, Discover, the event lineup, the Messenger contacts
+     rail and every dashboard's Following rail all use this hook, and this
+     screen scrolled by wheel or touch only. Same hook, so it inherits the 1:1
+     tracking, the drag-is-not-a-click guard, and the first-visits nudge that
+     tells a reader the rail moves at all. */
+  const gigsDrag = useDragScroll('profile-gigs');
   const [pickerDate,    setPickerDate]    = useState(null);
   const [pickerProfs,   setPickerProfs]   = useState([]);
   const [enquiryProf,   setEnquiryProf]   = useState(null);
@@ -1307,7 +1315,8 @@ export default function ProfileScreen() {
                 {list.length === 0
                   ? <p style={{ fontSize: 13, color: 'var(--muted)', margin: 0 }}>{showPast && pastGigSearch.trim() ? 'No past gigs match your search.' : `No ${showPast ? 'past' : 'upcoming'} gigs.`}</p>
                   : gigsView === 'portrait'
-                  ? <div style={{ display: 'flex', gap: 10, overflowX: 'auto', scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch', paddingBottom: 4 }}>
+                  ? <div ref={gigsDrag.ref} onMouseDown={gigsDrag.onMouseDown} onMouseMove={gigsDrag.onMouseMove} onMouseUp={gigsDrag.onMouseUp} onMouseLeave={gigsDrag.onMouseLeave}
+                      style={{ display: 'flex', gap: 10, overflowX: 'auto', scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch', paddingBottom: 4, cursor: 'grab' }}>
                       {list.map(ev => {
                         const cfg = ev.config || {};
                         // Cover first, poster as the fallback — lib/eventImage.js.
