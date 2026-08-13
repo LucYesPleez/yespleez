@@ -5,18 +5,21 @@ import { supabase } from '../lib/supabase';
 import { resolvePerformerProfileId } from '../lib/actingProfile';
 import { writeNotification } from '../lib/writeNotification';
 import { useSession, usePlayer } from '../App';
-import { today, formatDisplayDate } from '../lib/dates';
+import { today } from '../lib/dates';
 import FollowingSection, { FOLLOW_FILTER_CONFIGS } from '../components/FollowingSection';
 import InviteSheet from '../components/InviteSheet';
 import { normaliseStatus, withDirection } from '../lib/enquiryUtils';
 import EnquiryPanel from '../components/EnquiryPanel';
+import AvailabilitySection from '../components/AvailabilitySection';
+import EnquiryCalendar from '../components/EnquiryCalendar';
+import { CalendarIconBtn } from '../components/DecisionButtons';
+import SectionCollapseButton from '../components/SectionCollapseButton';
 import DashboardHeader from '../components/DashboardHeader';
 import DashboardProfileCard from '../components/DashboardProfileCard';
 import NotificationBar from '../components/NotificationBar';
 import DashboardStats from '../components/DashboardStats';
 import EventsSection from '../components/EventsSection';
 import { useDragScroll } from '../hooks/useDragScroll';
-import { resolveProfileId } from '../lib/resolveProfileId';
 import s from './VenueDashboard.module.css';
 import { PROFILE_TYPES } from '../lib/profileTypes';
 import { completionFor, firstUnsettled } from '@yespleez/requirements';
@@ -33,9 +36,15 @@ export default function VenueDashboard({ userId: userIdProp }) {
   const navigate = useNavigate();
   const userId = userIdProp || session?.user?.id;
   const [enquiries,      setEnquiries]      = useState([]);
-  const [localAvail,     setLocalAvail]     = useState(null);
-  const [showAvailCal,   setShowAvailCal]   = useState(false);
-  const [showAllEnq,     setShowAllEnq]     = useState(false);
+  // ⛔ `localAvail` / `showAvailCal` are gone with VenueAvailCalendar —
+  // AvailabilitySection owns availability state, its fetch and its modal now.
+  // Keeping a copy here would have been the duplicate state the whole swap
+  // exists to remove.
+  const [calendarOpen,   setCalendarOpen]   = useState(false);
+  // ⚠ DEFAULTS OPEN, matching Host's `showEnquiries`. It was `false`, which was
+  // harmless while nothing read it — now that it actually gates the panel, a
+  // false default would hide every enquiry on load.
+  const [showAllEnq,     setShowAllEnq]     = useState(true);
   const [following,      setFollowing]      = useState([]);
   const [inviteArtist,   setInviteArtist]   = useState(null);
   const [loadingFollow,  setLoadingFollow]  = useState(false);
@@ -48,13 +57,10 @@ export default function VenueDashboard({ userId: userIdProp }) {
   // (yp_hscroll_visits_*), so renaming it would replay the swipe hint for
   // everyone who has already seen it.
   const followingDrag = useDragScroll('venue-dashboard-regulars');
-  const [isNarrow, setIsNarrow] = useState(() => window.innerWidth < 640);
-
-  useEffect(() => {
-    const handler = () => setIsNarrow(window.innerWidth < 640);
-    window.addEventListener('resize', handler, { passive: true });
-    return () => window.removeEventListener('resize', handler);
-  }, []);
+  // ⛔ `isNarrow` and its resize listener are gone with the availability chips.
+  // They existed only to cap that list at 8 on narrow screens, and
+  // AvailabilitySection applies the same cap itself — a resize listener kept
+  // alive for a list this screen no longer renders is work done for nobody.
 
   const { data, isLoading: loading } = useQuery({
     queryKey: ['venueDashboard', userId],
@@ -130,7 +136,6 @@ export default function VenueDashboard({ userId: userIdProp }) {
   });
 
   const profile      = data?.profile      || null;
-  const availability = localAvail ?? data?.availability ?? [];
   const events       = data?.upcomingEvts || [];
   const todayStr     = new Date().toISOString().split('T')[0];
   const upcomingEvents = events.filter(ev => ev.status !== 'draft' && ev.status !== 'completed' && (ev.config?.date || '') >= todayStr)
@@ -139,20 +144,10 @@ export default function VenueDashboard({ userId: userIdProp }) {
   const pastEvents     = events.filter(ev => ev.status !== 'draft' && (ev.config?.date || '') < todayStr)
                                .sort((a, b) => (b.config?.date || '').localeCompare(a.config?.date || ''));
 
-  if (data?.availability && localAvail === null) setLocalAvail(data.availability);
-
-  async function toggleDate(dateStr) {
-    if (!userId) return;
-    const avail = localAvail ?? [];
-    const wasAvail = avail.includes(dateStr);
-    setLocalAvail(wasAvail ? avail.filter(d => d !== dateStr) : [...avail, dateStr].sort());
-    if (wasAvail) {
-      await supabase.from('venue_availability').delete().eq('user_id', userId).eq('available_date', dateStr);
-    } else {
-      const profileId = await resolveProfileId(userId, 'venue');
-      await supabase.from('venue_availability').upsert({ user_id: userId, available_date: dateStr, profile_id: profileId }, { onConflict: 'user_id,available_date' });
-    }
-  }
+  // ⛔ `toggleDate` removed with VenueAvailCalendar. AvailabilitySection owns
+  // the write, using the same table and the venue's own conflict target — one
+  // writer instead of two that had already drifted (this one deleted by
+  // `user_id`, the shared one by `profile_id`).
 
   // enquiries kept in local state so optimistic respond() updates work
   const allEnquiries = enquiries.length ? enquiries : (data?.enquiries || []);
@@ -229,8 +224,15 @@ export default function VenueDashboard({ userId: userIdProp }) {
         fLegacy.length ? supabase.from('profiles').select(fCols).in('user_id', fLegacy) : Promise.resolve({ data: [] }),
       ]);
       const seen = {};
+      // ⚠ ONE KEYSPACE OUT — PROFILE ID. See ArtistDashboard's loader: storing
+      // `seen[p.id]` beside `seen[p.user_id]` let a profile reachable through
+      // both follow keyspaces enter the list twice. Legacy rows still collapse
+      // per USER first (one legacy follow, one card, punter last), and only the
+      // winner is merged in by profile id.
       (fPidRes.data || []).forEach(p => { seen[p.id] = p; });
-      (fUidRes.data || []).forEach(p => { if (!seen[p.user_id] || p.type !== 'punter') seen[p.user_id] = p; });
+      const legacyByUser = {};
+      (fUidRes.data || []).forEach(p => { if (!legacyByUser[p.user_id] || p.type !== 'punter') legacyByUser[p.user_id] = p; });
+      Object.values(legacyByUser).forEach(p => { seen[p.id] = p; });
       setFollowing(Object.values(seen));
       setLoadingFollow(false);
     })();
@@ -238,7 +240,12 @@ export default function VenueDashboard({ userId: userIdProp }) {
 
   const hasProfile   = !!profile;
   const enquiryCount = allEnquiries.length;
-  const availCount   = availability.length;
+  // ⚠ STILL READ FROM THE DASHBOARD'S OWN QUERY, not from AvailabilitySection.
+  // The stat card needs a count before that section has mounted or fetched,
+  // and a component that owns an editor should not also be the source other
+  // widgets read. Same table, same rows — one number, fetched where it is
+  // needed, which is not duplicate STATE.
+  const availCount   = (data?.availability || []).length;
 
   // Shared requirements engine — see lib/requirements.js. Same thirteen fields
   // as the closure this replaces.
@@ -283,40 +290,81 @@ export default function VenueDashboard({ userId: userIdProp }) {
         accent="#00E5A0"
       />
 
-      {/* Availability */}
-      <div id="section-availability" style={{ marginTop: 40 }}>
-        <Section title="AVAILABLE DATES" subtitle="tap dates to add / remove" action={availability.length > 0 ? 'View all >' : null} onAction={() => setShowAvailCal(true)}>
-          {availability.length === 0
-            ? null
-            : <div className={s.chips}>
-                {availability.slice(0, isNarrow ? 8 : 12).map(d => (
-                  <DateChip key={d} label={formatDisplayDate(d)} onClick={() => setShowAvailCal(true)} />
-                ))}
-              </div>
-          }
-        </Section>
-        {showAvailCal && (
-          <VenueAvailCalendar
-            availability={localAvail ?? []}
-            onToggle={toggleDate}
-            onClose={() => setShowAvailCal(false)}
-          />
-        )}
+      {/* ── AVAILABILITY ──
+          ⭐⭐ THE SHARED SECTION, replacing this screen's own `VenueAvailCalendar`
+          — a third calendar with its own grid, own day labels and own month
+          logic, which meant every fix made to the real one stopped at the venue
+          border. It never got the fixed six-row height, so its chevrons moved
+          as you paged months, and it could not be handed application dots at
+          all.
+
+          ⚠ `conflictTarget` IS NOT OPTIONAL HERE. venue_availability is
+          UNIQUE (user_id, available_date) while the performer table is
+          UNIQUE (profile_id, available_date) — the default target names
+          columns this table has no constraint on, and the upsert would throw
+          on every toggle.
+
+          ⭐ ENQUIRIES PASSED for the same reason the host's are: a venue with
+          16 open enquiries could mark a date free with nothing on screen to
+          say anything was already against it. */}
+      <div id="section-availability">
+        <AvailabilitySection
+          userId={userId}
+          profileId={profile?.id}
+          table="venue_availability"
+          conflictTarget="user_id,available_date"
+          accent="#00E5A0"
+          accentRgb="0,229,160"
+          enquiries={allEnquiries}
+        />
       </div>
 
       {/* Enquiries */}
       <div id="section-enquiries" style={{ marginTop: 40 }}>
-        <Section title="ENQUIRIES" action={showAllEnq ? 'View less <' : 'View all >'} onAction={() => setShowAllEnq(v => !v)}>
-          <EnquiryPanel
-            enquiries={allEnquiries}
-            viewerProfile={profile}
-            onRespond={handleEnquiryRespond}
-            onPlayDemo={setPlayer}
-          />
+        {/* ⚠ THE SAME CONTROL HOST USES, not a lookalike — see
+            SectionCollapseButton for why it stopped being inline markup.
+
+            ⛔ IT REPLACES A "View all >" LINK THAT DID NOTHING. `showAllEnq`
+            was declared, flipped by that link and read by nothing but its own
+            label — so the only effect of pressing it was to change its own
+            wording. The panel never expanded or collapsed. This wires the
+            heading to something real. */}
+        <Section
+          title="ENQUIRIES"
+          headingAction={<CalendarIconBtn onClick={() => setCalendarOpen(true)} label="Open the enquiry calendar" />}
+          trailing={<SectionCollapseButton expanded={showAllEnq} onToggle={() => setShowAllEnq(v => !v)} />}
+        >
+          {showAllEnq && (
+            <EnquiryPanel
+              enquiries={allEnquiries}
+              viewerProfile={profile}
+              onRespond={handleEnquiryRespond}
+              onPlayDemo={setPlayer}
+            />
+          )}
         </Section>
+
+        {/* ⚠ ON DEMAND, NEVER RESIDENT — the same modal AVAILABLE DATES opens,
+            handed the private overlay. Mounted only while open so it holds no
+            page space and re-reads availability each time. */}
+        {calendarOpen && (
+          <EnquiryCalendar
+            profileId={profile?.id}
+            table="venue_availability"
+            enquiries={allEnquiries}
+            accent="#00E5A0"
+            accentRgb="0,229,160"
+            onClose={() => setCalendarOpen(false)}
+          />
+        )}
       </div>
 
-      {/* Following */}
+      {/* Following —
+          ⚠ Wrapped here rather than editing FollowingSection's own
+          `marginTop: 24`, which is shared by four other screens. Every section
+          on this dashboard sits at 40; this gives FOLLOWING the same rhythm
+          without reaching into the shared component. */}
+      <div style={{ marginTop: 40 }}>
       <FollowingSection
         following={following}
         loading={loadingFollow}
@@ -338,6 +386,7 @@ export default function VenueDashboard({ userId: userIdProp }) {
           >INVITE →</button>
         )}
       />
+      </div>
 
       <button
         onClick={() => navigate('/discover')}
@@ -367,74 +416,11 @@ export default function VenueDashboard({ userId: userIdProp }) {
 }
 
 
-function VenueAvailCalendar({ availability, onToggle, onClose }) {
-  const todayStr = new Date().toISOString().split('T')[0];
-  const [month, setMonth] = useState(() => { const d = new Date(); d.setDate(1); return d; });
+/* ⛔ `DateChip` deleted with the availability block it served. AvailabilitySection
+   renders its own chips — keeping a second, near-identical chip here is how the
+   two calendars drifted apart in the first place. */
 
-  const year        = month.getFullYear();
-  const monthIdx    = month.getMonth();
-  const label       = month.toLocaleDateString('en-AU', { month: 'long', year: 'numeric' }).toUpperCase();
-  const firstDay    = new Date(year, monthIdx, 1).getDay();
-  const daysInMonth = new Date(year, monthIdx + 1, 0).getDate();
-  const availSet    = new Set(availability);
-  const futureCount = availability.filter(d => d >= todayStr).length;
-  const DAY_LABELS  = ['S','M','T','W','T','F','S'];
-
-  return (
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 9000, background: 'rgba(0,0,0,.85)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', paddingBottom: 'var(--yp-safe-bottom)' }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: '#0f0f1a', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 480, padding: '24px 20px 100px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
-          <span style={{ fontFamily: "'Bebas Neue'", fontSize: 22, letterSpacing: 2, color: '#00E5A0' }}>VENUE AVAILABILITY</span>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--muted)', fontSize: 24, cursor: 'pointer', lineHeight: 1 }}>×</button>
-        </div>
-        <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 16 }}>Tap dates your venue is available for hire. Promoters will see this when browsing venues.</p>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-          <button onClick={() => setMonth(new Date(year, monthIdx - 1, 1))} style={{ background: 'none', border: 'none', color: 'var(--muted)', fontSize: 20, cursor: 'pointer' }}>‹</button>
-          <span style={{ fontFamily: "'Bebas Neue'", fontSize: 18, letterSpacing: 2, color: 'var(--text)' }}>{label}</span>
-          <button onClick={() => setMonth(new Date(year, monthIdx + 1, 1))} style={{ background: 'none', border: 'none', color: 'var(--muted)', fontSize: 20, cursor: 'pointer' }}>›</button>
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 4, marginBottom: 4 }}>
-          {DAY_LABELS.map((d, i) => <div key={i} style={{ textAlign: 'center', fontSize: 10, color: 'var(--muted)', fontFamily: "'Bebas Neue'", paddingBottom: 2 }}>{d}</div>)}
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 4, marginBottom: 16 }}>
-          {Array.from({ length: firstDay }).map((_, i) => <div key={`e${i}`} />)}
-          {Array.from({ length: daysInMonth }).map((_, i) => {
-            const day     = i + 1;
-            const dateStr = `${year}-${String(monthIdx + 1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
-            const isPast  = dateStr < todayStr;
-            const isAvail = availSet.has(dateStr);
-            const isToday = dateStr === todayStr;
-            return (
-              <div key={dateStr} onClick={() => !isPast && onToggle(dateStr)} style={{
-                textAlign: 'center', padding: '7px 2px', borderRadius: 6, fontSize: 13,
-                cursor: isPast ? 'default' : 'pointer',
-                background: isAvail ? 'rgba(0,229,160,.18)' : 'rgba(255,255,255,.04)',
-                color: isPast ? 'rgba(255,255,255,.2)' : isAvail ? '#00E5A0' : 'var(--text)',
-                border: isAvail ? '1px solid rgba(0,229,160,.5)' : isToday ? '1px solid rgba(255,255,255,.3)' : '1px solid transparent',
-                transition: 'background .15s',
-              }}>{day}</div>
-            );
-          })}
-        </div>
-        <div style={{ fontSize: 12, color: 'var(--muted)' }}>
-          {futureCount ? `${futureCount} date${futureCount !== 1 ? 's' : ''} marked available` : 'No dates marked yet'}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function DateChip({ label, onClick }) {
-  const [hov, setHov] = useState(false);
-  return (
-    <span className={s.chip} onClick={onClick}
-      onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
-      style={{ cursor: 'pointer', color: hov ? '#fff' : undefined, borderColor: hov ? 'rgba(255,255,255,.3)' : undefined, background: hov ? 'rgba(255,255,255,.06)' : undefined }}
-    >{label}</span>
-  );
-}
-
-function Section({ title, subtitle, action, onAction, children }) {
+function Section({ title, subtitle, action, onAction, headingAction, trailing, children }) {
   return (
     <div style={{ marginBottom: 20 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
@@ -442,10 +428,19 @@ function Section({ title, subtitle, action, onAction, children }) {
           <p style={{ fontFamily: "'Bebas Neue'", fontSize: 13, letterSpacing: 2.5 }}>
             <span style={{ color: '#fff' }}>{title}</span>
           </p>
+          {/* Sits BESIDE the heading, before the subtitle — the same position
+              the calendar icon takes on the host dashboard's ENQUIRIES and on
+              AVAILABLE DATES, so one calendar reads as one control wherever it
+              is opened from. Distinct from `action`, which is the right-aligned
+              "View all >" text link. */}
+          {headingAction}
           {subtitle && <span style={{ fontSize: 10, color: 'var(--muted)', letterSpacing: 0.3 }}>{subtitle}</span>}
         </div>
         <div style={{ flex: 1 }} />
         {action && <button onClick={onAction} className={s.viewAllBtn}>{action}</button>}
+        {/* Far right, after any "View all" link — the minimise/maximise control
+            sits in the same position on every dashboard section. */}
+        {trailing}
       </div>
       {children}
     </div>

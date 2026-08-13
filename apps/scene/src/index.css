@@ -1785,3 +1785,162 @@ body.yp-viewer-open .yp-global-header {
   .yp-voicey-stage-up { transition: opacity .01s linear; transform: none; }
   .yp-voicey-stage-face[aria-pressed="true"] .yp-voicey-stage-mic { animation: none; }
 }
+
+/* ── THE DECISION BAR · shortlist · accept · decline ───────────────────
+   The three things a venue does to an enquiry. They were three tinted
+   rectangles that swapped to a brighter tint on hover, which read as generic
+   admin controls — the same treatment a "Save" button gets anywhere.
+
+   ⭐ BUILT FROM .glow-pill's TECHNIQUE, not from new invention: smoked-glass
+   fill, a thin gradient border carried on a third background layer (border
+   alone cannot hold a gradient), backdrop blur, and a hairline inset top
+   highlight. The control reads BY ITS EDGE. No outer bloom at rest.
+
+   ⛔⛔ ACCEPT MUST NOT BECOME THE DEFAULT. Shortlisting and booking someone
+   are materially different decisions, and a filled green button makes the
+   second one the path of least resistance — a venue would accept when they
+   meant to shelve. So all three share one fill weight, one size and one
+   width, and differ ONLY in the hue of the edge and the ink. Accept earns its
+   emphasis from a cyan→green edge, never from mass.
+
+   ⚠ EQUAL WIDTH IS STRUCTURAL — `1fr` each, not content-sized. Three buttons
+   whose widths track their label lengths would rank the actions by how long
+   their names happen to be. */
+.yp-decision-row {
+  display: grid;
+  /* ⚠ AUTO-FLOW, NOT `repeat(3, 1fr)`. A shortlisted enquiry offers only
+     accept and decline, and a fixed three-column track would leave that row
+     with a hole where a third button used to be. This gives equal columns for
+     however many actions the status actually offers. */
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.yp-decision, .yp-detail {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 12.5px; font-weight: 400; letter-spacing: 1.6px; line-height: 1;
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  /* Bebas sits high in its line box — a touch more top than bottom, the same
+     compensation .glow-pill makes. The extra vertical over the old 8px is the
+     "breathing room": these are decisions, not toolbar buttons. */
+  padding: 13px 10px 11px;
+  border-radius: 11px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  /* ⚠⚠ WITHOUT THIS THE GLASS SITS ON #F0F0F0. A <button> carries the UA's
+     `buttonface` background-color, and the layers below are background-IMAGES
+     — the 62% dark glass therefore composited over light grey and SHORTLIST
+     rendered as a filled pale slab. `.glow-pill` never hit this because it is
+     applied to spans. Nothing warns; the button simply looks wrong, and only
+     on screen. */
+  background-color: transparent;
+  background-origin: padding-box, padding-box, border-box;
+  background-clip:  padding-box, padding-box, border-box;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.06);
+  transition: box-shadow var(--yp-medium) var(--yp-ease),
+              transform  var(--yp-fast)   var(--yp-ease),
+              color      var(--yp-medium) var(--yp-ease);
+}
+
+/* The lift is 1px. Anything more is a bouncing toy; this is meant to read as
+   the surface catching light, not as animation. */
+.yp-decision:hover,  .yp-detail:hover  { transform: translateY(-1px); }
+.yp-decision:active, .yp-detail:active { transform: translateY(0); box-shadow: inset 0 2px 5px rgba(0,0,0,.45); }
+.yp-decision:disabled, .yp-detail:disabled { opacity: .45; cursor: default; transform: none; box-shadow: inset 0 1px 0 rgba(255,255,255,.06); }
+
+.yp-decision svg, .yp-detail svg { flex-shrink: 0; }
+
+/* VIEW FULL DETAILS — same glass and the same edge technique, so the panel
+   reads as one surface, but it carries the CARD'S OWN ACCENT rather than any
+   of the three decision hues.
+   ⚠ That is deliberate separation, not decoration: this control commits to
+   nothing, and giving it a decision colour would make it look like a fourth
+   option in the row directly beneath it. Full width for the same reason —
+   nothing in the decision row is full width, so the shapes never rhyme. */
+.yp-detail {
+  width: 100%;
+  padding: 12px 14px 10px;
+  color: var(--yp-detail-accent, var(--neon2));
+  background-image:
+    linear-gradient(135deg, color-mix(in srgb, var(--yp-detail-accent, var(--neon2)) 7%, transparent), transparent),
+    linear-gradient(rgba(17,19,26,.62), rgba(17,19,26,.62)),
+    linear-gradient(135deg,
+      color-mix(in srgb, var(--yp-detail-accent, var(--neon2)) 52%, black),
+      color-mix(in srgb, var(--yp-detail-accent, var(--neon2)) 18%, black));
+}
+.yp-detail:hover {
+  background-image:
+    linear-gradient(135deg, color-mix(in srgb, var(--yp-detail-accent, var(--neon2)) 13%, transparent), transparent),
+    linear-gradient(rgba(17,19,26,.62), rgba(17,19,26,.62)),
+    linear-gradient(135deg,
+      var(--yp-detail-accent, var(--neon2)),
+      color-mix(in srgb, var(--yp-detail-accent, var(--neon2)) 42%, black));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.1),
+              0 7px 20px -12px color-mix(in srgb, var(--yp-detail-accent, var(--neon2)) 70%, transparent);
+}
+
+/* ⚠ ICON AND LABEL SHARE `currentColor`. That is what makes them one control
+   rather than a label with a glyph stuck after it. */
+
+/* SHORTLIST — premium neutral. Silver edge, no hue: this is the "not yet"
+   action and must not compete with the two that resolve the enquiry. */
+.yp-decision--shortlist {
+  color: var(--text);
+  background-image:
+    linear-gradient(135deg, rgba(255,255,255,.035), rgba(255,255,255,.015)),
+    linear-gradient(rgba(17,19,26,.62), rgba(17,19,26,.62)),
+    linear-gradient(135deg, rgba(255,255,255,.34), rgba(255,255,255,.12));
+}
+.yp-decision--shortlist:hover {
+  background-image:
+    linear-gradient(135deg, rgba(255,255,255,.06), rgba(255,255,255,.025)),
+    linear-gradient(rgba(17,19,26,.62), rgba(17,19,26,.62)),
+    linear-gradient(135deg, rgba(255,255,255,.6), rgba(255,255,255,.24));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.10), 0 6px 18px -12px rgba(255,255,255,.45);
+}
+
+/* ACCEPT — the cyan→green edge. Colour lives in the border and nowhere else;
+   the ink stays a cool white so the button is confident, not loud. */
+.yp-decision--accept {
+  color: #eafcff;
+  background-image:
+    linear-gradient(135deg, color-mix(in srgb, var(--neon2) 6%, transparent), color-mix(in srgb, var(--green) 5%, transparent)),
+    linear-gradient(rgba(17,19,26,.62), rgba(17,19,26,.62)),
+    linear-gradient(135deg, color-mix(in srgb, var(--neon2) 62%, black), color-mix(in srgb, var(--green) 62%, black));
+}
+.yp-decision--accept:hover {
+  background-image:
+    linear-gradient(135deg, color-mix(in srgb, var(--neon2) 11%, transparent), color-mix(in srgb, var(--green) 9%, transparent)),
+    linear-gradient(rgba(17,19,26,.62), rgba(17,19,26,.62)),
+    linear-gradient(135deg, var(--neon2), var(--green));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 7px 22px -12px rgba(0,229,255,.55);
+}
+
+/* DECLINE — subdued by default and never filled. It stays legible as the
+   destructive option through its magenta edge, and only warms when reached
+   for. A red button shouting on every card trains people to ignore red. */
+.yp-decision--decline {
+  color: var(--muted);
+  background-image:
+    linear-gradient(135deg, color-mix(in srgb, var(--neon) 4%, transparent), transparent),
+    linear-gradient(rgba(17,19,26,.62), rgba(17,19,26,.62)),
+    linear-gradient(135deg, color-mix(in srgb, var(--neon) 26%, black), color-mix(in srgb, var(--neon) 11%, black));
+}
+.yp-decision--decline:hover {
+  color: #ff7aa8;
+  background-image:
+    linear-gradient(135deg, color-mix(in srgb, var(--neon) 9%, transparent), transparent),
+    linear-gradient(rgba(17,19,26,.62), rgba(17,19,26,.62)),
+    linear-gradient(135deg, color-mix(in srgb, var(--neon) 70%, black), color-mix(in srgb, var(--neon) 34%, black));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 6px 18px -12px rgba(255,45,120,.5);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .yp-decision, .yp-detail { transition: box-shadow .01s linear, color .01s linear; }
+  .yp-decision:hover, .yp-decision:active,
+  .yp-detail:hover,   .yp-detail:active { transform: none; }
+}

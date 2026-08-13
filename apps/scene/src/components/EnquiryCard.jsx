@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
-import { normaliseStatus } from '../lib/enquiryUtils';
+import { normaliseStatus, STATUS_TAB_COLOR } from '../lib/enquiryUtils';
 import { completionFor, COMPLETION_COLUMNS, requirementLabel } from '@yespleez/requirements';
 
 /**
@@ -28,6 +28,7 @@ export const ENQUIRY_CARD_COLUMNS = [...new Set([
 import { formatLocation } from '../lib/formatLocation';
 import ds from '../screens/DiscoverScreen.module.css';
 import DateBox from './DateBox';
+import { DecisionBtn, DetailBtn, StarIcon, CheckIcon, XIcon } from './DecisionButtons';
 import EnquiryDossierSheet from './EnquiryDossierSheet';
 import { PROFILE_TYPES } from '../lib/profileTypes';
 
@@ -88,14 +89,44 @@ export function HoverBtn({ onClick, disabled, base, hover, children }) {
   );
 }
 
-const STATUS_COLOR = {
-  new: '#FFD700', awaiting: '#FFD700',
-  shortlisted: '#00B4D8', interested: '#00B4D8',
-  accepted: '#00E5A0', booked: '#00E5A0',
-  declined: 'var(--muted)',
-};
+/**
+ * ── ⚠ THE CHIP TAKES ITS COLOUR FROM THE TAB, NOT FROM A COPY ────────
+ *
+ * This file kept its own status→colour map, and it had drifted from
+ * `STATUS_TAB_COLOR` in exactly the way a duplicate always does: it had no
+ * `seen` key at all. Every seen enquiry therefore fell through to the `new`
+ * yellow while the tab above it underlined in orange, so the chip and the tab
+ * disagreed about what the card was — on the one screen that shows both.
+ *
+ * Deleted rather than corrected. Adding `seen: '#FF8C42'` would have fixed
+ * today's symptom and left the second map in place to drift again on the next
+ * status anyone adds. `STATUS_TAB_COLOR` is keyed by tab name (uppercase);
+ * `displayStatus` is the lowercase status, and they name the same thing.
+ */
+const statusChipColor = (displayStatus) =>
+  // ⛔ `declined` KEEPS `--muted` and does NOT take the tab's #888. The owner
+  // signed off the declined chip as it stands; the tab grey is a different
+  // grey, and switching it would be an unrequested change to the one chip that
+  // was already right.
+  displayStatus === 'declined'
+    ? 'var(--muted)'
+    : (STATUS_TAB_COLOR[displayStatus.toUpperCase()] || '#FFD700');
 
-// "What happens next" — same status set as STATUS_COLOR, worded per
+/**
+ * Chip wording where the status name is longer than the chip deserves.
+ *
+ * ⚠ THE CHIP ONLY. The status itself stays `shortlisted` everywhere — in the
+ * data, in the tab, in the colour lookup and in every comparison. This is one
+ * label in one corner, not a rename: "SHORTLISTED" is nearly as wide as the
+ * date chip beside it and unbalances the pair, while "SHORT" is unambiguous in
+ * a row that already reads new / seen / short / accepted.
+ */
+const STATUS_CHIP_LABEL = { shortlisted: 'SHORT' };
+
+/* The decision controls and their icons now live in DecisionButtons.jsx — the
+   dossier sheet renders the same three actions and was drawing its own. */
+
+// "What happens next" — same status set as the chip colours, worded per
 // direction (incoming = you received this; outgoing = you sent this).
 const NEXT_STEPS = {
   incoming: {
@@ -105,10 +136,19 @@ const NEXT_STEPS = {
     booked:      "You've accepted this — it's confirmed.",
     declined:    'You declined this.',
   },
+  /**
+   * ⚠ OUTGOING COPY MUST NOT INSTRUCT AN ACTION THE SENDER NO LONGER HAS.
+   *
+   * These read "confirm to lock it in" and "confirm to finalise the booking"
+   * while the only outgoing control is now CANCEL ENQUIRY — guidance pointing
+   * at a button that had just been removed, which is worse than no guidance.
+   * They now state where the enquiry stands and leave the next move to the
+   * party who actually has it.
+   */
   outgoing: {
     awaiting:    'Waiting for a response.',
-    interested:  "They're interested — confirm to lock it in.",
-    accepted:    'Accepted — confirm to finalise the booking.',
+    interested:  "They're interested — waiting on them to confirm.",
+    accepted:    'Accepted — waiting on them to finalise the booking.',
     booked:      'Booked and confirmed.',
     declined:    'This was declined.',
   },
@@ -148,7 +188,13 @@ export default function EnquiryCard({ enq, viewerProfile, onRespond, onPlayDemo 
   const accentPt      = PROFILE_TYPES[profile?.type || enq.applicant_type];
   const accent        = accentPt?.accent || '#00E5FF';
   const accentRgb     = accentPt?.rgb    || '0,229,255';
-  const statusColor   = STATUS_COLOR[displayStatus] || '#FFD700';
+  const statusColor   = statusChipColor(displayStatus);
+  // ⚠ WHITE INK ON A COLOURED EDGE. The colour was previously carried by the
+  // border AND the label, which made a yellow chip read as yellow TEXT — thin
+  // Bebas at 10px in #FFD700 is the least legible thing on the card. The edge
+  // now carries the status and the label just says what it is.
+  // `declined` keeps muted ink: it is the one status that should recede.
+  const statusInk     = displayStatus === 'declined' ? 'var(--muted)' : '#fff';
   const nextStepsCopy = NEXT_STEPS[enqDir]?.[displayStatus] || '';
 
   async function respond(status) {
@@ -227,66 +273,58 @@ export default function EnquiryCard({ enq, viewerProfile, onRespond, onPlayDemo 
   const reqColor = reqComplete ? '#00E5A0' : '#FFD700';
 
   const declineBtn = (
-    <HoverBtn onClick={() => respond('declined')} disabled={busy}
-      base={{ bg: 'rgba(255,80,80,.06)', border: '1px solid rgba(255,80,80,.2)', color: 'var(--muted)' }}
-      hover={{ bg: 'rgba(255,80,80,.2)', border: '1px solid #ff5050', color: '#ff5050' }}
-    >DECLINE ✗</HoverBtn>
+    <DecisionBtn tone="decline" icon={XIcon} label="DECLINE"
+      onClick={() => respond('declined')} disabled={busy} />
   );
+
+  /**
+   * The sender's one decision, computed OUTSIDE `ActionButtons` so the JSX
+   * below can put it in the same row as VIEW ENQUIRY. `null` on a settled
+   * status (accepted/declined/booked) — nothing to cancel once it is over.
+   * See the note on the outgoing branch of `ActionButtons` for why this
+   * writes `declined` and why the recipient's controls do not apply here.
+   */
+  const cancelBtn = (enqDir === 'outgoing' && (displayStatus === 'awaiting' || displayStatus === 'interested'))
+    ? <DecisionBtn tone="decline" icon={XIcon} label="CANCEL ENQUIRY"
+        onClick={() => respond('declined')} disabled={busy} />
+    : null;
 
   function ActionButtons() {
     if (enqDir === 'incoming') {
-      if (displayStatus === 'new') return (
-        <div style={{ display: 'flex', gap: 6, marginTop: 12 }}>
-          <HoverBtn onClick={() => respond('shortlisted')} disabled={busy}
-            base={{ bg: 'rgba(0,180,216,.1)', border: '1px solid rgba(0,180,216,.4)', color: '#00B4D8' }}
-            hover={{ bg: 'rgba(0,180,216,.28)', border: '1px solid #00B4D8' }}
-          >SHORTLIST ★</HoverBtn>
-          <HoverBtn onClick={() => respond('accepted')} disabled={busy}
-            base={{ bg: 'rgba(0,229,160,.1)', border: '1px solid rgba(0,229,160,.4)', color: '#00E5A0' }}
-            hover={{ bg: 'rgba(0,229,160,.28)', border: '1px solid #00E5A0' }}
-          >ACCEPT ✓</HoverBtn>
+      /**
+       * ⚠ `seen` BELONGS HERE, AND ITS ABSENCE WAS THE WHOLE PROBLEM.
+       *
+       * Opening a `new` enquiry auto-marks it `seen` — so the act of reading one
+       * moved it into a status with NO branch in this function, and the buttons
+       * disappeared at exactly the moment the host had finished reading and was
+       * ready to decide. Every enquiry in the SEEN tab was a dead end: the only
+       * way to act was the dossier sheet.
+       *
+       * `seen` offers the same three choices as `new` because it IS the same
+       * decision, one read later. Nothing about having looked at an enquiry
+       * narrows what you may do with it.
+       */
+      if (displayStatus === 'new' || displayStatus === 'seen') return (
+        <div className="yp-decision-row">
+          <DecisionBtn tone="shortlist" icon={StarIcon} label="SHORTLIST"
+            onClick={() => respond('shortlisted')} disabled={busy} />
+          <DecisionBtn tone="accept" icon={CheckIcon} label="ACCEPT"
+            onClick={() => respond('accepted')} disabled={busy} />
           {declineBtn}
         </div>
       );
       if (displayStatus === 'shortlisted') return (
-        <div style={{ display: 'flex', gap: 6, marginTop: 12 }}>
-          <HoverBtn onClick={() => respond('accepted')} disabled={busy}
-            base={{ bg: 'rgba(0,229,160,.1)', border: '1px solid rgba(0,229,160,.4)', color: '#00E5A0' }}
-            hover={{ bg: 'rgba(0,229,160,.28)', border: '1px solid #00E5A0' }}
-          >ACCEPT ✓</HoverBtn>
+        <div className="yp-decision-row">
+          <DecisionBtn tone="accept" icon={CheckIcon} label="ACCEPT"
+            onClick={() => respond('accepted')} disabled={busy} />
           {declineBtn}
         </div>
       );
     }
-    if (enqDir === 'outgoing') {
-      if (displayStatus === 'awaiting') return (
-        <div style={{ display: 'flex', gap: 6, marginTop: 12 }}>
-          <HoverBtn onClick={() => respond('interested')} disabled={busy}
-            base={{ bg: 'rgba(0,180,216,.1)', border: '1px solid rgba(0,180,216,.4)', color: '#00B4D8' }}
-            hover={{ bg: 'rgba(0,180,216,.28)', border: '1px solid #00B4D8' }}
-          >INTERESTED ✓</HoverBtn>
-          {declineBtn}
-        </div>
-      );
-      if (displayStatus === 'interested') return (
-        <div style={{ display: 'flex', gap: 6, marginTop: 12 }}>
-          <HoverBtn onClick={() => respond('accepted')} disabled={busy}
-            base={{ bg: 'rgba(0,229,160,.1)', border: '1px solid rgba(0,229,160,.4)', color: '#00E5A0' }}
-            hover={{ bg: 'rgba(0,229,160,.28)', border: '1px solid #00E5A0' }}
-          >CONFIRM ✓</HoverBtn>
-          {declineBtn}
-        </div>
-      );
-      if (displayStatus === 'accepted') return (
-        <div style={{ display: 'flex', gap: 6, marginTop: 12 }}>
-          <HoverBtn onClick={() => respond('booked')} disabled={busy}
-            base={{ bg: 'rgba(0,229,160,.15)', border: '1px solid rgba(0,229,160,.5)', color: '#00E5A0' }}
-            hover={{ bg: 'rgba(0,229,160,.35)', border: '1px solid #00E5A0' }}
-          >CONFIRM BOOKED ✓</HoverBtn>
-          {declineBtn}
-        </div>
-      );
-    }
+    // ⚠ OUTGOING IS NOT A DECISION, IT IS A WAIT. The sender's one control
+    // (`cancelBtn`, above) renders inline beside VIEW ENQUIRY rather than in
+    // its own row here — see the JSX below and the note on `cancelBtn` for
+    // why it writes `declined` and why the recipient's controls do not apply.
     return null;
   }
 
@@ -345,37 +383,73 @@ export default function EnquiryCard({ enq, viewerProfile, onRespond, onPlayDemo 
               </div>
             )}
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, flexShrink: 0 }}>
-            <span style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1.5, color: statusColor, border: `1px solid ${statusColor}`, borderRadius: 4, padding: '2px 7px' }}>
-              {displayStatus.toUpperCase()}
-            </span>
-            {/* Readiness sits on the COLLAPSED card deliberately. Opening the
-                expansion auto-writes 'seen' (below), so a badge hidden in
-                there would force a venue to consume an enquiry before it could
-                rank it — and ranking is the whole use. One number here, the
-                breakdown inside.
-                Deliberately one neutral treatment, not a red/amber/green
-                ladder: this is an incentive to finish a profile, not a grade
-                handed to a venue. */}
-            {readiness && (
-              <span title="How complete this profile is right now"
-                style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1.2, color: 'var(--muted)', border: '1px solid rgba(255,255,255,.14)', borderRadius: 4, padding: '2px 7px' }}>
-                <span style={{ color: accent }}>{Math.round(readiness.pct)}%</span> READY
-              </span>
-            )}
-            {/* Requirements outrank readiness on this row. A host does not
-                triage on "how professionally complete is this person" — they
-                triage on "did they bring what I asked for", and that is the
-                only number here with a yes/no answer. So it carries the
-                colour and readiness stays neutral above it. Absent entirely
-                when nothing was asked. */}
-            {reqTotal > 0 && (
-              <span title={`Met at submission, ${new Date(snap.evaluated_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })}`}
-                style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1.2, color: reqColor, border: `1px solid ${reqColor}`, borderRadius: 4, padding: '2px 7px' }}>
-                {reqComplete ? '✓ ' : ''}{reqMet}/{reqTotal} REQS
-              </span>
-            )}
-            {dateRaw && <DateBox date={dateRaw} size="sm" />}
+          {/* ── THE CORNER (owner, 2026-08-13) ────────────────────────────
+              Status to the left; the date and the expand toggle stacked on the
+              right, date on top.
+
+              ⛔⛔ THE DATE CHIP SIZE IS LOCKED AT `md` — OWNER SIGNED OFF.
+              It arrived there through several passes: `sm` in a crowded column
+              read as tiny, and a full-height `fill` version read as a stretched
+              rail rather than a chip. `md` at its NATURAL height is the answer.
+              Do not change the size, and do not reintroduce `fill`. Putting the
+              toggle back underneath is a layout change ONLY — the chip keeps
+              its own dimensions, which is what `flexShrink: 0` below protects.
+
+              ⛔ DateBox itself stays untouched by this card. It is shared with
+              five other cards and none of them asked for any of this. */}
+          {/* ⚠ `alignSelf: stretch` TAKES THE HEADER'S HEIGHT so `space-between`
+              has somewhere to push to: status and date at the top, the toggle
+              at the bottom — level with the genre pills, which are the last
+              thing in the column to the left. The parent row is `center`, so
+              without this the corner would size to its own content and the
+              toggle would float mid-card.
+              ⛔ Stretching the CONTAINER is not stretching the CHIP. The date
+              keeps its own dimensions; see the lock above. */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignSelf: 'stretch', justifyContent: 'space-between', alignItems: 'flex-end', gap: 8, flexShrink: 0 }}>
+            {/* ⚠ ONE RIGHT EDGE. Everything in this column is `flex-end`, so the
+                date chip and the toggle below it share a right edge rather than
+                being centred against each other at different widths. */}
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, flexShrink: 0 }}>
+              {/* Status, and readiness DIRECTLY BENEATH IT — one stack, kept to
+                  the left of the date so neither crowds the chip.
+
+                  ⚠ READINESS IS BACK OUTSIDE THE EXPANSION (owner, 2026-08-13).
+                  It spent one pass in the dropdown, which put it behind the
+                  toggle that auto-marks an enquiry `seen` — so ranking a list
+                  meant consuming every enquiry in it. Requirements can live
+                  inside because they are a detail you read once you care;
+                  readiness is a SCANNING signal and has to be legible closed.
+
+                  One neutral treatment, no red/amber/green ladder: this is an
+                  incentive for the act to finish their profile, not a grade
+                  handed to a venue. */}
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 5 }}>
+                <span style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1.5, color: statusInk, border: `1px solid ${statusColor}`, borderRadius: 4, padding: '2px 7px', whiteSpace: 'nowrap' }}>
+                  {STATUS_CHIP_LABEL[displayStatus] || displayStatus.toUpperCase()}
+                </span>
+                {readiness && (
+                  <span title="How complete this profile is right now"
+                    style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1.2, color: 'var(--muted)', border: '1px solid rgba(255,255,255,.14)', borderRadius: 4, padding: '2px 7px', whiteSpace: 'nowrap' }}>
+                    <span style={{ color: accent }}>{Math.round(readiness.pct)}%</span> READY
+                  </span>
+                )}
+              </div>
+              {dateRaw && <DateBox date={dateRaw} size="md" />}
+            </div>
+            {/* ── READINESS AND REQS MOVED INTO THE EXPANSION (owner, 2026-08-13)
+                Both numbers used to sit here, and the REQS one was near
+                tautological: requirements gate submission (`canSubmit`), so an
+                enquiry that arrived at all had almost always met them, and the
+                chip restated the panel directly beneath it. Two chips saying
+                "this is fine" is a corner that reads as busy without ever
+                changing a decision.
+
+                ⚠ WHAT THIS COSTS, RECORDED SO IT IS A CHOICE AND NOT A
+                REGRESSION: expanding auto-writes 'seen' (see the toggle below),
+                so both numbers are now behind an action that consumes the
+                enquiry. Ranking sixteen incoming without marking them all seen
+                is no longer possible from the list alone. Decoupling that is a
+                separate decision about what `seen` means. */}
             <HoverProfileBtn expanded={expanded} onClick={() => {
               const next = !expanded;
               setExpanded(next);
@@ -417,37 +491,65 @@ export default function EnquiryCard({ enq, viewerProfile, onRespond, onPlayDemo 
               </div>
             </div>
           )}
-          {/* Sits under readiness, per the agreed layout: readiness is the
-              general professionalism signal, requirements the actionable one.
-              Rendered from the stored verdict, item by item, so a host can see
-              exactly WHICH thing is missing rather than only a fraction. */}
+          {/* ── THE TWO NUMBERS, ON ONE LINE (owner, 2026-08-13) ──────────
+              Both kept as CHIPS and sat beside the REQUIREMENTS label rather
+              than each claiming a labelled row of its own. Stacked, they pushed
+              the message preview below the fold and the expansion opened with
+              two headings and no content.
+
+              ⚠ THEY ANSWER DIFFERENT QUESTIONS AND ARE ALLOWED TO DISAGREE.
+              REQS is the verdict FROZEN at submission; READY is live and about
+              now. An act can be 2/2 on what was asked in August and 60% ready
+              today, and neither number is wrong. That is why REQS carries the
+              colour and READY stays neutral, and why the date line below says
+              "as submitted" out loud.
+
+              ⚠ The row survives `reqTotal === 0` — a venue date enquiry has no
+              event and so no requirements, but the act still has a readiness.
+              The label and the item list go, the chip stays. */}
+          {/* ⛔ NO READINESS-ONLY ROW. This block renders ONLY where the host
+              actually asked for something. With readiness moved back to the
+              corner, an enquiry with no requirements was left with a lone chip
+              sitting on its own divider above VIEW FULL DETAILS — a labelled
+              row containing one number that is already visible on the closed
+              card. Gone entirely rather than left empty (owner, 2026-08-13). */}
           {reqTotal > 0 && (
             <div style={{ padding: '4px 0 9px', borderBottom: '1px solid rgba(255,255,255,.05)', marginBottom: 2 }}>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 6 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 6 }}>
                 <span style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1.5, color: 'var(--muted)' }}>REQUIREMENTS</span>
-                <span style={{ fontFamily: "'Bebas Neue'", fontSize: 15, letterSpacing: .5, color: reqColor }}>
-                  {reqComplete ? `✓ ${reqMet}/${reqTotal} COMPLETE` : `${reqMet}/${reqTotal}`}
+                <span title={`Met at submission, ${new Date(snap.evaluated_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })}`}
+                  style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1.2, color: reqColor, border: `1px solid ${reqColor}`, borderRadius: 4, padding: '2px 7px' }}>
+                  {reqComplete ? '✓ ' : ''}{reqMet}/{reqTotal} REQS
                 </span>
               </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 14px' }}>
-                {(snap.items || []).map(it => {
-                  // 'withheld' is an answer, not a gap — 'N/A' means asked and
-                  // declined (R1). It reads as met, exactly as the engine
-                  // scored it at submission.
-                  const met = it.state === 'satisfied' || it.state === 'withheld';
-                  return (
-                    <span key={it.key} style={{ fontSize: 11, color: met ? '#00E5A0' : 'var(--muted)' }}>
-                      {met ? '✓' : '○'}&nbsp;{requirementLabel(it.key)}
-                    </span>
-                  );
-                })}
-              </div>
-              <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 7, opacity: .75 }}>
-                {/* Says "as submitted" out loud. Without it a host reads these
-                    ticks as current, and they are not — that is the whole
-                    reason the verdict is stored rather than recomputed. */}
-                As submitted {new Date(snap.evaluated_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })}
-              </div>
+              {/* ⚠ GUARDED ON `reqTotal`, NOT ON THE ROW. This block now also
+                  renders for a readiness-only enquiry, where `snap` is null —
+                  reading `snap.items` there would throw and take the whole card
+                  down, on exactly the ordinary case (a venue date enquiry has
+                  no event and so no requirements). */}
+              {reqTotal > 0 && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 14px' }}>
+                  {(snap.items || []).map(it => {
+                    // 'withheld' is an answer, not a gap — 'N/A' means asked and
+                    // declined (R1). It reads as met, exactly as the engine
+                    // scored it at submission.
+                    const met = it.state === 'satisfied' || it.state === 'withheld';
+                    return (
+                      <span key={it.key} style={{ fontSize: 11, color: met ? '#00E5A0' : 'var(--muted)' }}>
+                        {met ? '✓' : '○'}&nbsp;{requirementLabel(it.key)}
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
+              {reqTotal > 0 && (
+                <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 7, opacity: .75 }}>
+                  {/* Says "as submitted" out loud. Without it a host reads these
+                      ticks as current, and they are not — that is the whole
+                      reason the verdict is stored rather than recomputed. */}
+                  As submitted {new Date(snap.evaluated_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })}
+                </div>
+              )}
             </div>
           )}
           {/* Everything else — bio, fee, demo, contact, readiness, replying —
@@ -455,15 +557,35 @@ export default function EnquiryCard({ enq, viewerProfile, onRespond, onPlayDemo 
               type over a photo, which a host summed up as "tells me nothing
               helpful and I can't read any of it". This expansion is the
               triage set only; the sheet is where a decision gets made. */}
-          <div style={{ padding: '10px 0 4px' }}>
-            <button
-              onClick={() => setSheetOpen(true)}
-              style={{ width: '100%', background: `rgba(${accentRgb},.12)`, border: `1px solid rgba(${accentRgb},.45)`, borderRadius: 9, padding: '10px', fontFamily: "'Bebas Neue'", fontSize: 12, letterSpacing: 1.5, color: accent, cursor: 'pointer', transition: 'background .15s' }}
-              onMouseEnter={e => { e.currentTarget.style.background = `rgba(${accentRgb},.22)`; }}
-              onMouseLeave={e => { e.currentTarget.style.background = `rgba(${accentRgb},.12)`; }}
-            >VIEW FULL DETAILS →</button>
-          </div>
-          <ActionButtons />
+          {/* ⚠ OUTGOING PAIRS VIEW ENQUIRY WITH CANCEL ON ONE LINE.
+              Incoming keeps VIEW FULL DETAILS full-width above its own
+              decision row, untouched — this only changes the outgoing case,
+              where there is exactly one decision button and the two together
+              read as one action bar rather than a full-width link with a
+              second row underneath it. */}
+          {enqDir === 'outgoing' ? (
+            cancelBtn ? (
+              // A live enquiry: the two side by side, equal width, one bar.
+              <div className="yp-decision-row">
+                {/* "VIEW ENQUIRY" WHEN IT IS MINE — the sheet shows the
+                    enquiry I sent, not a dossier on an applicant. */}
+                <DetailBtn accent={accent} label="VIEW ENQUIRY" onClick={() => setSheetOpen(true)} />
+                {cancelBtn}
+              </div>
+            ) : (
+              // Settled (accepted/booked/declined): nothing to cancel, so
+              // VIEW ENQUIRY stands alone full-width rather than sharing a
+              // grid track with an empty second column.
+              <div style={{ padding: '10px 0 0' }}>
+                <DetailBtn accent={accent} label="VIEW ENQUIRY" onClick={() => setSheetOpen(true)} />
+              </div>
+            )
+          ) : (<>
+            <div style={{ padding: '10px 0 0' }}>
+              <DetailBtn accent={accent} onClick={() => setSheetOpen(true)} />
+            </div>
+            <ActionButtons />
+          </>)}
         </div>
       )}
 

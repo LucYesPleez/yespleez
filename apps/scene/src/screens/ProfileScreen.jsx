@@ -1377,12 +1377,16 @@ export default function ProfileScreen() {
       {/* Availability modal — shared AvailabilityCalendar (11C.2). View mode:
           available future dates tap through to openEnquiry; event days show a
           pink dot. Month stays controlled here so it's remembered across
-          reopens, exactly as before. */}
+          reopens, exactly as before.
+
+          ⛔ NO SUBTITLE. "Dates this venue is available for hire" restated the
+          title directly above it and the key directly below it, which already
+          says TAP DATE TO ENQUIRE — three lines to explain a calendar of
+          dates. */}
       {availOpen && (
         <AvailabilityCalendar
           onClose={() => setAvailOpen(false)}
           title="VENUE AVAILABILITY"
-          subtitle="Dates this venue is available for hire."
           accent="#00E5A0"
           accentRgb="0,229,160"
           availableDates={availDates}

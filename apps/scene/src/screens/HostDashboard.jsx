@@ -22,6 +22,8 @@ import DashboardProfileCard from '../components/DashboardProfileCard';
 import NotificationBar from '../components/NotificationBar';
 import DashboardStats from '../components/DashboardStats';
 import AvailabilitySection from '../components/AvailabilitySection';
+import EnquiryCalendar from '../components/EnquiryCalendar';
+import { CalendarIconBtn } from '../components/DecisionButtons';
 import { fetchOutgoingEnquiries } from '../lib/outgoingPipeline';
 import { withDirection } from '../lib/enquiryUtils';
 import EventsSection from '../components/EventsSection';
@@ -58,6 +60,10 @@ export default function HostDashboard({ userId: userIdProp }) {
   // Open by default, exactly as LINEUP is — the control is there to get a long
   // list out of the way, never to hide the section until someone finds it.
   const [showEnquiries,  setShowEnquiries]  = useState(true);
+  // The availability calendar, opened from the ENQUIRIES heading. Closed by
+  // default and mounted only while open, so it holds no page space and re-reads
+  // availability every time it is opened.
+  const [calendarOpen,   setCalendarOpen]   = useState(false);
   const [lineupFocusId,  setLineupFocusId]  = useState(null);  // null = show all
   const [lineupExpandMap, setLineupExpandMap] = useState({});  // eventId → bool (default true)
   const [lineupSubTabs,  setLineupSubTabs]  = useState({});   // eventId → 'LINEUP'|'SET TIMES'|'SHORT LIST'|'PIPELINE'
@@ -242,12 +248,18 @@ export default function HostDashboard({ userId: userIdProp }) {
         fPids.length ? supabase.from('profiles').select(fCols).in('id', fPids) : Promise.resolve({ data: [] }),
         fLegacy.length ? supabase.from('profiles').select(fCols).in('user_id', fLegacy) : Promise.resolve({ data: [] }),
       ]);
-      // Dedupe (legacy rows only), preferring venue/artist over punter
+      // Dedupe (legacy rows only), preferring venue/artist over punter.
+      // ⚠ ONE KEYSPACE OUT — PROFILE ID. See ArtistDashboard's loader: storing
+      // `seen[p.id]` beside `seen[p.user_id]` let a profile reachable through
+      // both follow keyspaces enter the list twice. Legacy rows still collapse
+      // per USER first, and only the winner is merged in by profile id.
       const seen = {};
       (fPidRes.data || []).forEach(p => { seen[p.id] = p; });
+      const legacyByUser = {};
       (fUidRes.data || []).forEach(p => {
-        if (!seen[p.user_id] || p.type !== 'punter') seen[p.user_id] = p;
+        if (!legacyByUser[p.user_id] || p.type !== 'punter') legacyByUser[p.user_id] = p;
       });
+      Object.values(legacyByUser).forEach(p => { seen[p.id] = p; });
       setFollowing(Object.values(seen));
       setLoadingFollowing(false);
     }
@@ -319,6 +331,17 @@ export default function HostDashboard({ userId: userIdProp }) {
     name: appProfiles[app.id]?.name || app.artist_name || '',
     event_name: evtMap[app.event_id]?.name || '',
     date_requested: evtMap[app.event_id]?.config?.date || null,
+    /**
+     * ⚠ THE EVENT'S LAST DAY, so the calendar can mark every day a booking
+     * covers rather than only its first. An act on a three-day event is
+     * committed on all three, and a diary that shows the middle day as free is
+     * worse than one that shows nothing.
+     *
+     * Read straight off the event that is already in scope for `date_requested`
+     * above — no new query, and no new column. Absent on a single-day event,
+     * which `datesCovered` reads as a one-day range.
+     */
+    date_requested_end: evtMap[app.event_id]?.config?.endDate || null,
     created_at: app.created_at,
     note: app.note,
     venue_name: null,
@@ -441,13 +464,26 @@ export default function HostDashboard({ userId: userIdProp }) {
       {/* profileId is the HOST profile. Before this, a host and their own DJ or
           comedy profile wrote the same account-keyed rows, so marking yourself
           free as a promoter silently changed your performer availability. */}
-      <AvailabilitySection userId={userId} profileId={profile?.id} table="artist_availability" accent="#FF2D78" accentRgb="255,45,120" />
+      {/* ⭐⭐ THE SAME ENQUIRIES THE CALENDAR BELOW GETS. Available Dates used
+          to show availability alone, so the owner could mark a date free
+          without being told two acts had already applied for it — and the only
+          way to find out was to remember to look in Enquiries first. Both
+          entry points now render the same private state. */}
+      <AvailabilitySection userId={userId} profileId={profile?.id} table="artist_availability" accent="#FF2D78" accentRgb="255,45,120" enquiries={panelEnquiries} />
 
       {/* ── ENQUIRIES ── */}
       <div id="section-enquiries" style={{ marginTop: 40 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
           <span style={{ fontFamily: "'Bebas Neue'", fontSize: 13, letterSpacing: 2.5, color: '#fff' }}>ENQUIRIES</span>
           {newAppsCount > 0 && <span style={{ fontFamily: "'DM Sans'", fontWeight: 700, fontSize: 11, color: 'var(--muted)', background: 'var(--card2)', borderRadius: 8, padding: '1px 7px' }}>{newAppsCount}</span>}
+          {/* Opens the availability calendar with the private overlay. Quiet by
+              design — it sits beside the heading, not in the control rows, so
+              it never competes with INCOMING / OUTGOING / BOOKED.
+              ⚠ SAME BUTTON as the one AvailabilitySection puts beside AVAILABLE
+              DATES below (and the pink/white treatment MORE INFO already uses)
+              — one calendar, opened from either heading, must not look like it
+              belongs to two different controls. */}
+          <CalendarIconBtn onClick={() => setCalendarOpen(true)} label="Open the enquiry calendar" />
           {/* ⚠ The SAME control as LINEUP's, not a lookalike — see
               SectionCollapseButton for why it stopped being inline markup. */}
           <SectionCollapseButton expanded={showEnquiries} onToggle={() => setShowEnquiries(v => !v)} />
@@ -463,6 +499,22 @@ export default function HostDashboard({ userId: userIdProp }) {
         {showEnquiries && (loadingApps
           ? <p className={s.empty}>Loading applications…</p>
           : <EnquiryPanel enquiries={panelEnquiries} viewerProfile={profile} onRespond={handleEnquiryRespond} />
+        )}
+
+        {/* ⚠ ON DEMAND, NEVER RESIDENT. An earlier pass rendered this calendar
+            permanently above the panel, which made the product feel like it had
+            two calendars however much code they shared. It is the SAME modal
+            Available Dates opens; the only difference is that a signed-in
+            organiser looking at their own dashboard may be handed dots. */}
+        {calendarOpen && (
+          <EnquiryCalendar
+            profileId={profile?.id}
+            table="artist_availability"
+            enquiries={panelEnquiries}
+            accent="#FF2D78"
+            accentRgb="255,45,120"
+            onClose={() => setCalendarOpen(false)}
+          />
         )}
       </div>
 
@@ -485,7 +537,12 @@ export default function HostDashboard({ userId: userIdProp }) {
                 transition: 'background .15s, border-color .15s, color .15s',
                 background: lineupFocusId === null ? 'rgba(0,229,255,.12)' : 'transparent',
                 border: `1.5px solid ${lineupFocusId === null ? 'var(--neon2)' : 'rgba(255,255,255,.15)'}`,
-                color: lineupFocusId === null ? 'var(--neon2)' : 'var(--muted)',
+                /* ⚠ WHITE INK, COLOUR ON THE EDGE — the same rule the enquiry
+                   dir chips, the status sub-tabs and the card's status chip now
+                   follow. The tint and the border say which pill is selected;
+                   the word does not have to say it as well. Inactive stays
+                   `--muted`, as everywhere else. */
+                color: lineupFocusId === null ? '#fff' : 'var(--muted)',
               }}
             >ALL</button>
             {lineups.map(({ event: ev }) => {
@@ -500,7 +557,10 @@ export default function HostDashboard({ userId: userIdProp }) {
                     transition: 'background .15s, border-color .15s, color .15s',
                     background: active ? 'rgba(0,229,255,.12)' : 'transparent',
                     border: `1.5px solid ${active ? 'var(--neon2)' : 'rgba(255,255,255,.15)'}`,
-                    color: active ? 'var(--neon2)' : 'var(--muted)',
+                    /* Same rule as the ALL pill above — these are one control
+                       rendered twice, and the two inline styles must not drift
+                       apart the way the enquiry status colours did. */
+                    color: active ? '#fff' : 'var(--muted)',
                   }}
                 >{evName}</button>
               );
@@ -627,7 +687,16 @@ export default function HostDashboard({ userId: userIdProp }) {
         )}
       </div>
 
-      {/* ── FOLLOWING — always at bottom ── */}
+      {/* ── FOLLOWING — always at bottom ──
+          ⚠ WRAPPED HERE, NOT EDITED IN FollowingSection. That component's own
+          `marginTop: 24` is shared by ArtistDashboard, MySceneScreen,
+          RoleSelectorScreen and VenueDashboard too — changing it there would
+          have altered spacing on four screens nobody asked to touch. Every
+          other section on THIS screen (EVENTS, AVAILABLE DATES, ENQUIRIES,
+          LINEUP) sits in its own `marginTop: 40` wrapper; this gives
+          FOLLOWING the same rhythm without reaching into the shared
+          component. */}
+      <div style={{ marginTop: 40 }}>
       <FollowingSection
         following={following}
         loading={loadingFollowing}
@@ -643,6 +712,7 @@ export default function HostDashboard({ userId: userIdProp }) {
         emptyMsg="Follow artists from their profiles to build your roster here."
         filterTypes={FOLLOW_FILTER_CONFIGS.host}
       />
+      </div>
 
       {/* Slot edit modal */}
       {editingSlot && (

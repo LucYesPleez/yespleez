@@ -5,6 +5,7 @@ import { socialProfileUrl, ensureHttps } from '../lib/socialLinks';
 import { openDirectConversation } from '../lib/messaging';
 import { useConversationUi } from '../lib/conversationUi';
 import { completionFor, requirementLabel } from '@yespleez/requirements';
+import { DecisionBtn, StarIcon, CheckIcon, XIcon } from './DecisionButtons';
 import { askCategoryLabel } from '@yespleez/ask-categories';
 import { PROFILE_TYPES } from '../lib/profileTypes';
 import ProfileCard from './ProfileCard';
@@ -43,13 +44,31 @@ export default function EnquiryDossierSheet({ enq, viewerProfile, onClose, onRes
   const [busy,    setBusy]    = useState(false);
   const [msgBusy, setMsgBusy] = useState(false);
 
+  // ⚠ Derived, never stored — the same row is incoming to one side and
+  // outgoing to the other, so there is no correct column for it.
+  const enqDir   = (enq.direction || 'incoming').toLowerCase();
   const p        = enq.profile || {};
   const pt       = PROFILE_TYPES[p.type || enq.applicant_type];
   const accent   = pt?.accent || '#00E5FF';
   const rgb      = pt?.rgb    || '0,229,255';
   const name     = p.name || enq.name || '—';
   const snap     = enq.requirements_snapshot || null;
-  const readiness = p.type ? completionFor(p, p.type) : null;
+  /**
+   * ⛔ READINESS DESCRIBES THE PARTY BEING BOOKED, and a venue never is.
+   *
+   * This sheet scored whoever it happened to be drawing. On a promoter's own
+   * outgoing enquiry that is the VENUE, so it rendered "BOOKING READY 23%"
+   * against Elbows Rest — not the venue's real completeness (its own dashboard
+   * says 77%) but an artifact of the slim column list an outgoing row is
+   * fetched with. A confident wrong number is worse than no number.
+   *
+   * ⚠ THE CARD ALREADY HAD THIS GUARD; this surface never got it, so the same
+   * wrong figure survived one tap away from where it had been removed. Keyed
+   * on the SUBJECT being drawn, not on the direction — a venue inviting an act
+   * still sees that act's readiness, because there the subject really is the
+   * one being booked.
+   */
+  const readiness = (p.type && p.type !== 'venue') ? completionFor(p, p.type) : null;
   const demoUrl  = ensureHttps(p.mix_link) || socialProfileUrl('soundcloud', p.soundcloud) || socialProfileUrl('mixcloud', p.mixcloud);
   const dateRaw  = enq.date_requested || enq.preferred_date || null;
   // ⛔ Read from the registry, never written here — the third copy of a
@@ -236,8 +255,13 @@ export default function EnquiryDossierSheet({ enq, viewerProfile, onClose, onRes
               <a href={socialProfileUrl('instagram', p.instagram)} target="_blank" rel="noopener" style={{ color: accent }}>Open</a>
             </Row>
           )}
+          {/* ⚠ "RECEIVED" IS THE RECIPIENT'S WORD. Same timestamp either way —
+              `created_at` is when the enquiry was written — but on an outgoing
+              row it is the day I SENT it, and calling that "received" told the
+              sender they had received their own enquiry. No data change; one
+              label, read from the direction. */}
           {enq.created_at && (
-            <Row label="RECEIVED">{new Date(enq.created_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric' })}</Row>
+            <Row label={enqDir === 'outgoing' ? 'SENT' : 'RECEIVED'}>{new Date(enq.created_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric' })}</Row>
           )}
           <div style={{ height: 12 }} />
         </div>
@@ -261,13 +285,28 @@ export default function EnquiryDossierSheet({ enq, viewerProfile, onClose, onRes
               VIEW PROFILE
             </Action>
           </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <Action onClick={() => respond('shortlisted')} disabled={busy}
-              bg="rgba(0,180,216,.12)" border="1px solid rgba(0,180,216,.45)" color="#00B4D8">SHORTLIST ★</Action>
-            <Action onClick={() => respond('accepted')} disabled={busy}
-              bg="rgba(0,229,160,.12)" border="1px solid rgba(0,229,160,.45)" color="#00E5A0">ACCEPT ✓</Action>
-            <Action onClick={() => respond('declined')} disabled={busy}
-              bg="rgba(255,80,80,.08)" border="1px solid rgba(255,80,80,.3)" color="var(--muted)">DECLINE ✗</Action>
+          {/* ⭐ THE SAME CONTROLS THE CARD RENDERS, from the same module. They
+              were built twice and drifted: different fills, different borders,
+              and `★ ✓ ✗` text glyphs here against outline icons there — so a
+              host saw one treatment while triaging and another while deciding,
+              for literally the same action.
+
+              ⚠ AND THE SAME DIRECTION RULE. This sheet offered SHORTLIST /
+              ACCEPT / DECLINE on every enquiry, including ones the viewer had
+              SENT — inviting a promoter to shortlist their own request to a
+              venue. The card's fix stopped one tap short of here. */}
+          <div className="yp-decision-row" style={{ marginTop: 0 }}>
+            {enqDir === 'outgoing' ? (
+              <DecisionBtn tone="decline" icon={XIcon} label="CANCEL ENQUIRY"
+                onClick={() => respond('declined')} disabled={busy} />
+            ) : (<>
+              <DecisionBtn tone="shortlist" icon={StarIcon} label="SHORTLIST"
+                onClick={() => respond('shortlisted')} disabled={busy} />
+              <DecisionBtn tone="accept" icon={CheckIcon} label="ACCEPT"
+                onClick={() => respond('accepted')} disabled={busy} />
+              <DecisionBtn tone="decline" icon={XIcon} label="DECLINE"
+                onClick={() => respond('declined')} disabled={busy} />
+            </>)}
           </div>
         </div>
       </div>
