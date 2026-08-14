@@ -6,6 +6,7 @@ import { findByPhone } from '../lib/phoneKey';
 import MessengerAvatar from './MessengerAvatar';
 import ProfileLink from './ProfileLink';
 import { profileIdentity } from '../lib/profileTypes';
+import { profileUrl } from '../lib/profileResolution';
 
 /**
  * MESSENGER SEARCH — one field at the top of Messages, results in groups.
@@ -200,7 +201,7 @@ export default function MessengerSearch({ rows = [], onOpen }) {
 
           <Group title="ARTISTS & VENUES" show={profiles.length > 0}>
             {profiles.map((p) => (
-              <Row key={p.id} profile={p} onClick={() => { setQ(''); navigate(`/profile/${p.id}`); }} />
+              <Row key={p.id} profile={p} onClick={() => { setQ(''); navigate(profileUrl(p)); }} />
             ))}
           </Group>
 
@@ -227,9 +228,23 @@ export default function MessengerSearch({ rows = [], onOpen }) {
 
               {completeNumber && searchingNumber && <Note>Searching…</Note>}
               {completeNumber && !searchingNumber && numberMatch && (
+                /* ⚠ `type: 'punter'` IS LOAD-BEARING, NOT DECORATION.
+                   `find_by_phone` joins `pr.type = 'punter'` — a phone match is
+                   ALWAYS a personal profile and never anything else. But
+                   `resolveProfileRoute` defaults to `.neq('type','punter')`,
+                   so a bare `/profile/:id` resolves nothing and the page reads
+                   PROFILE NOT FOUND. The `?type=punter` that `profileUrl`
+                   writes from this field is what makes the one result phone
+                   search can return reachable at all.
+
+                   ⛔ Do not hand-build the path here. `profileUrl` is the one
+                   place the query param is decided, and ProfileLink on the
+                   avatar below calls it too — a local template string would
+                   fix the row and leave the face going nowhere. */
                 <Row
-                  profile={{ id: numberMatch.profileId, name: numberMatch.displayName, avatar: numberMatch.avatar }}
-                  onClick={() => { setQ(''); navigate(`/profile/${numberMatch.profileId}`); }}
+                  profile={{ id: numberMatch.profileId, name: numberMatch.displayName,
+                    avatar: numberMatch.avatar, type: 'punter' }}
+                  onClick={() => { setQ(''); navigate(profileUrl({ id: numberMatch.profileId, type: 'punter' })); }}
                 />
               )}
               {/* ⚠ IDENTICAL COPY whether the number is unregistered or its
