@@ -71,9 +71,69 @@
   flex-shrink: 0;
 }
 
-/* ⚠ THE BADGE OVERLAYS THE AVATAR ONLY, and sits OUTSIDE its circle's top
-   right. The ring in the app's own background colour is what keeps it legible
-   against a photograph rather than dissolving into whatever it lands on. */
+/* ⚠ 44px SQUARE AND UNBORDERED. The full touch target, no box: the header
+   draws none, so a framed button here would be the only framed thing in the
+   bar. The height matches .control exactly, which matters because the header
+   measures itself into --yp-header-height and the event page's padding-top and
+   every overlay's `top` are built on it — a 48px bell would move all of them.
+
+   ⚠ HOVER TINTS THE ICON, NOT A BACKGROUND. .control has a background hover
+   because it is a filled pill of name + face; a bare icon does not, and giving
+   it one would draw the box this is meant not to have. */
+.bellBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: rgba(255, 255, 255, .55);
+  -webkit-tap-highlight-color: transparent;
+  transition: color .15s;
+}
+.bellBtn:hover  { color: #fff; }
+.bellBtn:active { color: rgba(255, 255, 255, .8); }
+.bellBtn:focus-visible {
+  outline: 2px solid var(--neon2);
+  outline-offset: -4px;
+  border-radius: 10px;
+}
+
+/* Just the positioning context for the dot — the colour lives on .bellBtn so
+   the whole 44px target drives it, not the 22px mark inside it. */
+.bellWrap {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+/* ⚠ A DOT, NOT A COUNT. The bell answers "is there anything", and the panel
+   behind it answers "what". A number here would be a second, smaller version
+   of the list two taps away, and it would have to shrink to fit an icon this
+   size until it stopped being readable anyway.
+
+   The ring in the header's own colour is what keeps it legible where the dot
+   overlaps the bell's stroke, exactly as .badge does over a photograph. */
+.bellDot {
+  position: absolute;
+  top: -1px;
+  right: -1px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #FF3B30;
+  box-shadow: 0 0 0 2px var(--bg, #000);
+}
+
+/* ⚠ NO LONGER RENDERED — the unread mark is .bellDot above, on the concierge
+   bell (owner, 2026-08-14). Kept because it is the only avatar-overlay badge
+   in the file and the next thing that needs one (a claim, a verification) will
+   want exactly this geometry; deleting it means re-deriving the -3px offset
+   and the ring that survives a photograph.
+   ⛔ Do not wire it back to unreadCount. Two marks, one fact. */
 .badge {
   position: absolute;
   top: -3px;
@@ -253,6 +313,41 @@
   font-size: 10px;
   font-weight: 700;
   text-align: center;
+}
+
+/* ⚠ A SETTINGS SUB-ROW IS A PLAIN ROW, INDENTED — not a gradient button like
+   .learnBtn. Those three are an invitation to learn the product and are meant
+   to be the loudest thing in the menu when opened; these are destinations you
+   already went looking for, and dressing a preferences link as a call to
+   action would make the quiet half of the menu shout.
+
+   The left rule is what says "these belong to the row above" once there are
+   several of them, which is the whole reason Settings expands rather than
+   navigating. */
+.subItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: calc(100% - 10px);
+  margin-left: 10px;
+  padding: 9px 10px;
+  border: none;
+  border-left: 1px solid var(--border);
+  border-radius: 0 9px 9px 0;
+  background: none;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 12.5px;
+  text-align: left;
+}
+.subItem:hover { background: rgba(255, 255, 255, .06); color: var(--text); }
+.subItem:focus-visible { outline: 2px solid var(--neon2); outline-offset: -2px; }
+
+.subPanel {
+  display: flex;
+  flex-direction: column;
+  padding: 2px 0 6px;
 }
 
 .signOut { color: var(--neon); }

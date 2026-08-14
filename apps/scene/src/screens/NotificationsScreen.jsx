@@ -241,9 +241,12 @@ function NotifRow({ notif, userId, onUpdate, onDismiss, rootRef }) {
       border: `1px solid ${isUnread ? `rgba(${meta.rgb},.2)` : 'rgba(255,255,255,.07)'}`,
     }}>
 
-      {/* Icon circle */}
-      <div style={{ flexShrink: 0, width: 44, height: 44, borderRadius: 22, background: meta.bg, border: `1px solid rgba(${meta.rgb},.35)`, display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: 2 }}>
-        <Icon color={meta.col} size={20} />
+      {/* ⚠ NO RING, NO TINTED DISC — the icon fills the slot. Same change and
+          same reasoning as NotifPanel's row; the two lists must not drift,
+          because they render the same notifications and a reader moving
+          between them would read the difference as meaning something. */}
+      <div style={{ flexShrink: 0, width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: 2 }}>
+        <Icon color={meta.col} size={38} />
       </div>
 
       {/* Body */}

@@ -122,34 +122,61 @@ export default function NotifPanel({ onClose }) {
 
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px 10px', borderBottom: '1px solid rgba(255,255,255,.07)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 16, letterSpacing: 3, color: '#fff' }}>NOTIFICATIONS</span>
-          {/* ⚠ THE COG IS THE ONLY WAY TO SETTINGS FROM HERE, AND THAT IS THE
+        <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 16, letterSpacing: 3, color: '#fff' }}>NOTIFICATIONS</span>
+
+        {/* ⚠ THE TITLE OWNS THE LEFT, THE CONTROLS OWN THE RIGHT (owner,
+            2026-08-14). Both actions now sit in one cluster instead of one
+            hugging the heading and one at the far edge, so there is a single
+            place to look for something to press.
+
+            ⚠ MANAGE IS LAST, AND THAT ORDER IS DELIBERATE. `Mark all as read`
+            acts on the list you are looking at; MANAGE leaves it. The one that
+            navigates away sits outermost, so a mis-tap on the common action
+            cannot take you off the panel.
+
+            ⚠ `Mark all as read` GOES TRANSPARENT, IT DOES NOT UNMOUNT, with
+            pointer events off to match — it has always worked this way, and it
+            matters more now that something sits beside it: unmounting would
+            let MANAGE slide sideways every time the last unread was cleared. */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <button
+            onClick={markAllRead}
+            style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 12, color: '#FF3399', background: 'none', border: 'none', cursor: 'pointer', padding: 0, opacity: anyUnread ? 1 : 0, pointerEvents: anyUnread ? 'auto' : 'none' }}
+          >
+            Mark all as read
+          </button>
+
+          {/* ⚠ STILL THE ONLY WAY TO SETTINGS FROM HERE, AND THAT IS THE
               POINT. Owner: the footer link is "view all notifications" and
               nothing else. Two destinations that were previously reached
-              through one link now have one control each — you cannot end up
-              at the list when you wanted preferences. */}
+              through one link have one control each — you cannot end up at the
+              list when you wanted preferences.
+
+              ⚠ A CHIP THAT SAYS MANAGE, NOT A COG (owner, 2026-08-14). A 15px
+              cog was a small grey shape that had to be recognised before it
+              could be read, and it sat well under the touch minimum. A word
+              cannot be misread, and the chip gives it a border to aim at.
+              Bebas at 10px with the app's tracking, so it reads as a control
+              in this app's own voice rather than one borrowed from elsewhere. */}
           <button
             type="button"
             onClick={() => { onClose(); navigate('/notifications', { state: { openPrefs: true } }); }}
-            aria-label="Notification settings"
-            title="Notification settings"
-            style={{ background: 'none', border: 'none', padding: 2, cursor: 'pointer', color: 'rgba(255,255,255,.45)', display: 'flex', alignItems: 'center' }}
-            onMouseEnter={e => e.currentTarget.style.color = '#fff'}
-            onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,.45)'}
+            aria-label="Manage notification settings"
+            title="Manage notification settings"
+            style={{
+              display: 'inline-flex', alignItems: 'center', flexShrink: 0,
+              padding: '3px 9px', borderRadius: 999,
+              border: '1px solid rgba(255,255,255,.18)', background: 'none',
+              color: 'rgba(255,255,255,.55)', cursor: 'pointer',
+              fontFamily: "'Bebas Neue',sans-serif", fontSize: 10, letterSpacing: 1.6,
+              lineHeight: 1.6, transition: 'color .15s, border-color .15s',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.color = '#fff'; e.currentTarget.style.borderColor = 'rgba(255,255,255,.45)'; }}
+            onMouseLeave={e => { e.currentTarget.style.color = 'rgba(255,255,255,.55)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,.18)'; }}
           >
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="3" />
-              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-            </svg>
+            MANAGE
           </button>
         </div>
-        <button
-          onClick={markAllRead}
-          style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 12, color: '#FF3399', background: 'none', border: 'none', cursor: 'pointer', padding: 0, opacity: anyUnread ? 1 : 0, pointerEvents: anyUnread ? 'auto' : 'none' }}
-        >
-          Mark all as read
-        </button>
       </div>
 
       {/* List */}
@@ -269,9 +296,21 @@ function PanelRow({ notif, userId, onUpdate, onDismiss, isLast, rootRef }) {
   return (
     <div ref={rootRef} style={{ display: 'flex', gap: 12, padding: '12px 16px', borderBottom: isLast ? 'none' : '1px solid rgba(255,255,255,.05)', background: isUnread ? `rgba(${meta.rgb},.04)` : 'transparent' }}>
 
-      {/* Icon circle */}
-      <div style={{ flexShrink: 0, width: 40, height: 40, borderRadius: 20, background: meta.bg, border: `1px solid rgba(${meta.rgb},.35)`, display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: 2 }}>
-        <Icon color={meta.col} size={18} />
+      {/* ⚠ NO RING, NO TINTED DISC — THE MARK ITSELF (owner, 2026-08-14). The
+          40px circle spent most of its area on a border and a background wash,
+          leaving an 18px glyph floating in the middle of it; at that size the
+          difference between a calendar and a calendar-with-a-magnifier is not
+          readable. The icon now fills the same 40px slot, so the column width
+          and every row's alignment are unchanged while the drawing roughly
+          doubles.
+
+          ⚠ THE COLOUR STILL CARRIES THE MEANING. It moved from the ring to the
+          stroke, which is where it now does the work — see lib/notifMeta.jsx
+          for the semantic mapping. The unread row tint (`rgba(meta.rgb,.04)`
+          on the row) is untouched, so "unread" is still said by the row and
+          "what kind" by the icon; the disc was saying neither. */}
+      <div style={{ flexShrink: 0, width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: 2 }}>
+        <Icon color={meta.col} size={34} />
       </div>
 
       {/* Body */}

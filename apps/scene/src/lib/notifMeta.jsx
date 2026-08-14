@@ -1,6 +1,12 @@
 // Centralised notification type → colour + icon mapping.
 // Colours are semantic, not read/unread-based.
 // Green = success, Amber = action needed, Cyan = info, Pink/Purple = discovery, Red = negative, Orange = warning.
+//
+// ⚠ `bg` IS CURRENTLY UNREAD BY ANYTHING (2026-08-14). Both lists dropped the
+// tinted disc behind the icon, so the colour now arrives entirely through
+// `col` on the stroke and `rgb` on the unread row tint. Kept because it is the
+// matching dark shade for each hue and the next surface that needs a filled
+// chip will want it — but do not assume it is live; grep before relying on it.
 
 const GREEN   = { col: '#00E5A0', rgb: '0,229,160',   bg: '#0d2b22' };
 const AMBER   = { col: '#F59E0B', rgb: '245,158,11',  bg: '#2b2010' };

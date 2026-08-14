@@ -104,6 +104,10 @@ export default function ProfileMenu({ session, unreadCount = 0, onSignOut, onOpe
    */
   const [learnOpen, setLearnOpen] = useState(false);
   useEffect(() => { if (!open) setLearnOpen(false); }, [open]);
+  /* SETTINGS EXPANDS, IT DOES NOT NAVIGATE — same mechanism and same
+     reset-on-close as How it all works. See the item itself for why. */
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  useEffect(() => { if (!open) setSettingsOpen(false); }, [open]);
   useEffect(() => {
     if (!open || !session?.user?.id) return undefined;
     let cancelled = false;
@@ -193,6 +197,19 @@ export default function ProfileMenu({ session, unreadCount = 0, onSignOut, onOpe
    *
    * ⛔ Not duplicated in the sheet. One control, one home.
    */
+  /**
+   * What lives under Settings. One entry today; the rest of the usual list
+   * (light/dark, theme colour, …) joins it here.
+   *
+   * ⚠ THE SAME DESTINATION THE NOTIFICATION PANEL'S COG USES — `/notifications`
+   * with `openPrefs`, not a second preferences surface. That panel's own note
+   * says the cog is the only way to settings from there; this makes the menu
+   * the second way to the SAME place rather than a rival one.
+   */
+  const settingsItems = [
+    { label: 'Notification settings', onClick: () => go('/notifications', { openPrefs: true }) },
+  ];
+
   const learnItems = [
     { label: 'TAKE THE TOUR', onClick: () => { setOpen(false); startTour(); } },
     { label: 'SET UP A PROFILE', onClick: () => go('/start') },
@@ -264,12 +281,31 @@ export default function ProfileMenu({ session, unreadCount = 0, onSignOut, onOpe
       onClick: () => { setOpen(false); onOpenNotifications?.(); },
       badge: unreadCount,
     },
-    // ⚠ Settings points at /me, which is where display name, photo and home
-    // locality actually live. Privacy Centre points at /messages, where
-    // PrivacyInfo renders inside PhoneNumberSettings — behind the FIND FRIENDS
-    // toggle, so it lands NEAR rather than ON the privacy copy. Neither has a
-    // page of its own yet; see the note in the handover.
-    { label: 'Settings',       onClick: () => go('/me') },
+    /**
+     * ⭐ SETTINGS IS A DRAWER, AND IT EDITS NOTHING (owner, 2026-08-14).
+     *
+     * ⛔ IT USED TO OPEN /me, WHICH IS A PROFILE EDITOR — display name, photo,
+     * home locality. That made the one item people look for when they want
+     * preferences the one item that changes their public identity instead.
+     * "Edit Profile" already sits at the top of this menu on the account
+     * header, so nothing is lost by Settings no longer going there; what is
+     * gained is that the two stop being the same door.
+     *
+     * ⚠ ONE CHILD FOR NOW, DELIBERATELY. Light/dark, theme colour and the rest
+     * of the usual list land here as siblings as they are built. It expands
+     * rather than routing precisely so that growth costs a line in
+     * `settingsItems` instead of a screen — and so the menu opens at its
+     * normal length until asked.
+     *
+     * ⛔ NOT a new /settings route. A page with one link on it is a worse
+     * version of this drawer, and it would need its own back-navigation to say
+     * what the ‹ in Find People already says.
+     */
+    {
+      label: 'Settings',
+      onClick: () => setSettingsOpen(v => !v),
+      expanded: settingsOpen,
+    },
     { label: 'Privacy Centre', onClick: () => go('/messages') },
     // ⚠ OPENS THE INFO SHEET, not /beta-feedback. The header's ⓘ button was
     // removed in the same pass, and that sheet is the only place the app
@@ -309,12 +345,58 @@ export default function ProfileMenu({ session, unreadCount = 0, onSignOut, onOpe
               therefore --yp-header-height and everything reserving space
               against it — does not move. */}
           <MessengerAvatar src={profile?.avatar_thumb || profile?.avatar} size={32} />
-          {/* R3 · no zero badge. A dot that says "0" is worse than no dot. */}
-          {unreadCount > 0 && (
-            <span className={s.badge} aria-hidden="true">
-              {unreadCount > 9 ? '9+' : unreadCount}
-            </span>
-          )}
+          {/* ⚠ THE COUNT BADGE MOVED TO THE BELL, AND BECAME A DOT. It read
+              from `unreadCount` too, so leaving it here would put two marks
+              for one fact on one control — and the reader would reasonably
+              assume two different facts. The count itself is not lost: the
+              Notifications item in the menu still carries it, and that is the
+              control that opens the list.
+              ⛔ Do not re-add a badge here without removing the dot. */}
+        </span>
+      </button>
+
+      {/* ⭐ THE CONCIERGE BELL — the header's notification signal (owner,
+          2026-08-14). Lucide's `bell-concierge` geometry: 24-box, 2px stroke,
+          round caps and joins, so it belongs to the same family as every other
+          icon in the app rather than reading as artwork.
+
+          ⚠ ITS OWN CONTROL, TO THE RIGHT OF THE FACE (owner). Which also
+          settles the HTML: interactive content nested in a button is invalid
+          and can stop receiving events entirely, so as a sibling it is free to
+          be a real button — and it opens the same panel the menu's
+          Notifications item opens, rather than inventing a second surface.
+
+          ⚠ 44px AND UNBORDERED. The full touch target with no box: the header
+          draws no boxes (see the SIGN IN branch), and a bordered button here
+          would be the only framed thing in the bar. Hover tints the icon, not
+          a background, so the affordance lives in the mark itself.
+
+          ⚠ LAST IN THE BAR, SO IT IS THE THING NEAREST THE SCREEN EDGE. The
+          menu is portalled and right-aligned to this wrapper, so the order of
+          these two children moves the anchor as well as the icon — checked
+          after the move, not assumed.
+
+          ⛔ NOT THE OLD 26px BELL RETURNING. That one was removed for sitting
+          under the touch minimum; this one is 44. */}
+      <button
+        type="button"
+        className={s.bellBtn}
+        onClick={() => { setOpen(false); onOpenNotifications?.(); }}
+        aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : 'Notifications'}
+      >
+        <span className={s.bellWrap}>
+          <svg
+            width="22" height="22" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M3 20a1 1 0 0 1-1-1v-1a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v1a1 1 0 0 1-1 1Z" />
+            <path d="M20 16a8 8 0 1 0-16 0" />
+            <path d="M12 4v4" />
+            <path d="M10 4h4" />
+          </svg>
+          {/* R3 · no zero dot, same rule the count badge followed. */}
+          {unreadCount > 0 && <span className={s.bellDot} aria-hidden="true" />}
         </span>
       </button>
 
@@ -410,6 +492,24 @@ export default function ProfileMenu({ session, unreadCount = 0, onSignOut, onOpe
                     "this explains the app" looks the same wherever it is
                     offered. They sit INSIDE the expanding row rather than
                     after the list, so closing the menu takes them with it. */}
+                {/* Inside the row, like the learn panel, so closing the menu
+                    takes the drawer with it. */}
+                {it.label === 'Settings' && settingsOpen && (
+                  <div className={s.subPanel}>
+                    {settingsItems.map(sub => (
+                      <button
+                        key={sub.label}
+                        type="button"
+                        role="menuitem"
+                        className={s.subItem}
+                        onClick={sub.onClick}
+                      >
+                        {sub.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
                 {it.label === 'How it all works' && learnOpen && (
                   <div className={s.learnPanel}>
                     {learnItems.map(l => (
