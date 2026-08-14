@@ -404,7 +404,7 @@ export default function EventEditorForm({
   const {
     name, setName, startDate, setStartDate, endDate, setEndDate,
     venue, setVenue, venueProfileId, setVenueProfileId,
-    venueTown, setVenueTown, venueState,
+    venueTown, setVenueTown, venueState, venuePostcode,
     locationWithheld, setLocationWithheld,
     venueRequest, setVenueRequest,
     showAreaMap, setShowAreaMap,
@@ -495,6 +495,7 @@ export default function EventEditorForm({
                 onProfileIdChange={setVenueProfileId}
                 town={venueTown}
                 stateCode={venueState}
+                postcode={venuePostcode}
                 onTownChange={setVenueTown}
                 venueRequest={venueRequest}
                 onVenueRequestChange={setVenueRequest}

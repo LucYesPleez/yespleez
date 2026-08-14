@@ -23,7 +23,7 @@ import assert from 'node:assert/strict';
 
 const {
   haversineKm, postcodeCoords, profileCoords, eventCoords,
-  sameArea, withinRadius, isKnownPostcode, RADIUS_STEPS,
+  sameArea, withinRadius, isKnownPostcode, RADIUS_STEPS, postcodeState,
 } = await import('./geo.js');
 
 // Real fixtures from AU_POSTCODES — Bellingen is the first venue client.
@@ -165,4 +165,53 @@ test('sameArea compares postcodes as strings, tolerating type drift', () => {
   assert.equal(sameArea(' 2454 ', '2454'), true);
   assert.equal(sameArea(null, '2454'), false);
   assert.equal(sameArea('2454', null), false);
+});
+
+/**
+ * ── postcodeState · A POSTCODE IMPLIES A STATE, NEVER A TOWN ─────────
+ *
+ * The editor back-fills the state from a typed postcode and deliberately does
+ * NOT back-fill the town, because a postcode names one state and many towns.
+ * These pin the boundaries, which are where a range table goes wrong: the
+ * ACT enclaves sit INSIDE the NSW range, and getting either edge off by one
+ * silently mislabels a whole town's events.
+ */
+test('a postcode names exactly one state, at every range boundary', () => {
+  assert.equal(postcodeState('2454'), 'NSW', 'Bellingen');
+  assert.equal(postcodeState('2450'), 'NSW', 'Coffs Harbour');
+  assert.equal(postcodeState('3000'), 'VIC', 'Melbourne');
+  assert.equal(postcodeState('4000'), 'QLD', 'Brisbane');
+  assert.equal(postcodeState('5000'), 'SA');
+  assert.equal(postcodeState('6000'), 'WA');
+  assert.equal(postcodeState('7000'), 'TAS');
+  assert.equal(postcodeState('0800'), 'NT', 'a leading zero is still four digits');
+
+  // ⚠ THE ACT ENCLAVES. 2600–2618 and 2900–2920 are carved OUT of the NSW
+  // range; a naive "2000–2999 is NSW" puts Canberra in the wrong state.
+  assert.equal(postcodeState('2599'), 'NSW');
+  assert.equal(postcodeState('2600'), 'ACT', 'Canberra, inside the NSW span');
+  assert.equal(postcodeState('2618'), 'ACT');
+  assert.equal(postcodeState('2619'), 'NSW', 'back out the other side');
+  assert.equal(postcodeState('2899'), 'NSW');
+  assert.equal(postcodeState('2900'), 'ACT');
+  assert.equal(postcodeState('2921'), 'NSW');
+});
+
+test('an unplaceable postcode reads as UNKNOWN, never as a default', () => {
+  // '' rather than a guess: the field is left for the organiser to answer, and
+  // a wrong state is worse than a blank one because it looks decided.
+  for (const bad of ['', null, undefined, 'abc', '12', '99999', '   ']) {
+    assert.equal(postcodeState(bad), '', `${String(bad)} must not resolve`);
+  }
+});
+
+test('postcodeState answers for codes the coordinate table has never heard of', () => {
+  // The ranges are complete; AU_POSTCODES is a sample. A code that cannot be
+  // PLACED can still be correctly ATTRIBUTED, and conflating the two would
+  // blank the state on every postcode missing from the coordinate file.
+  const unplaceable = ['2299', '3999', '6797'].filter(pc => !isKnownPostcode(pc));
+  for (const pc of unplaceable) {
+    assert.notEqual(postcodeState(pc), '',
+      `${pc} is not in AU_POSTCODES but its state is still knowable`);
+  }
 });

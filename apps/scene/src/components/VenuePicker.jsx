@@ -30,7 +30,8 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { suggestLocations, resolveLocationToPostcodes } from '../lib/auLocations';
+import { suggestLocations, resolveLocationToPostcodes, STATE_OPTIONS } from '../lib/auLocations';
+import { postcodeState, isKnownPostcode } from '../lib/geo';
 
 const norm = s => String(s || '').trim().toLowerCase();
 
@@ -42,11 +43,12 @@ const norm = s => String(s || '').trim().toLowerCase();
  * @param town              config.suburb — the town the room is in
  * @param onTownChange      (town, { state, postcode }) => void
  * @param stateCode         config.state
+ * @param postcode          config.postcode — what the town map is keyed on
  */
 export default function VenuePicker({
   value = '', onChange,
   profileId = null, onProfileIdChange,
-  town = '', onTownChange, stateCode = '',
+  town = '', onTownChange, stateCode = '', postcode = '',
   venueRequest = false, onVenueRequestChange,
 }) {
   const [results, setResults] = useState([]);
@@ -209,6 +211,24 @@ export default function VenuePicker({
 
   const townField = (
     <div style={{ marginBottom: 12 }}>
+      {/**
+        * ⭐ ONE LINE, because it is ONE ANSWER: where the night is. Town, state
+        * and postcode stacked read as three separate questions and invited
+        * answering only the first, which is the state that costs the map and
+        * every radius filter.
+        *
+        * ⚠ `alignItems: start` is load-bearing. The town's suggestion list is
+        * in normal flow, so a stretched row would make state and postcode grow
+        * as tall as the open dropdown.
+        * ⚠ `minmax(0, 1fr)` likewise: a bare `1fr` refuses to shrink below its
+        * content's min-width, and the town column would push the other two off
+        * a 375px screen.
+        */}
+      <div style={{
+        display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 92px 96px',
+        gap: 8, alignItems: 'start',
+      }}>
+      <div style={{ minWidth: 0 }}>
       <SubLabel>TOWN</SubLabel>
       {town ? (
         <div style={{
@@ -216,10 +236,22 @@ export default function VenuePicker({
           padding: '9px 12px', borderRadius: 8,
           border: '1px solid var(--border)', background: 'var(--card2)',
         }}>
-          <span style={{ flex: 1, minWidth: 0, color: 'var(--text)', fontSize: 13 }}>
-            {town}{stateCode ? <span style={{ color: 'var(--muted)' }}> · {stateCode}</span> : null}
+          {/* ⛔ THE TOWN, AND ONLY THE TOWN. This used to append " · NSW",
+              which was right when the state had nowhere else to appear and is
+              now the same value printed twice, side by side, in adjacent
+              fields. Two copies of one fact invite the question of which is
+              authoritative, and the STATE control is the one that can be
+              edited. */}
+          <span style={{ flex: 1, minWidth: 0, color: 'var(--text)', fontSize: 13,
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {town}
           </span>
-          <button type="button" onClick={() => onTownChange?.('', { state: '', postcode: '' })}
+          {/* ⚠ CLEARS THE TOWN ONLY. It used to wipe state and postcode too,
+              which was harmless while they were invisible and is now data loss:
+              the postcode is its own field, it carries the map and every
+              radius filter, and nobody changing a town name expects to lose
+              it. Both are still editable directly below. */}
+          <button type="button" onClick={() => onTownChange?.('', { state: stateCode, postcode })}
             aria-label="Change town"
             style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', padding: 0, lineHeight: 1, fontSize: 16 }}>
             ×
@@ -231,7 +263,9 @@ export default function VenuePicker({
             className="yp-venue-town"
             value={townQuery}
             onChange={e => setTownQuery(e.target.value)}
-            placeholder="Search town..."
+            /* Shortened with the column: "Search town..." truncated mid-word
+               at 375px, and the TOWN label above already names the field. */
+            placeholder="Search..."
             style={{
               width: '100%', boxSizing: 'border-box', padding: '10px 12px', borderRadius: 8,
               border: '1px solid var(--border)', background: 'var(--card2)',
@@ -257,6 +291,74 @@ export default function VenuePicker({
           )}
         </>
       )}
+      </div>
+
+      {/**
+        * ⭐⭐ STATE AND POSTCODE ARE VISIBLE, AND POSTCODE IS ENTERABLE ON ITS
+        * OWN. Picking a town has always filled all three, but the other two
+        * were invisible and unreachable, so an organiser who knew the postcode
+        * and not a listed town had no way to say so. The postcode is what the
+        * town map's filename is built from and what places the event for every
+        * distance filter, so "no listed town" was silently costing both.
+        *
+        * ⛔ A POSTCODE BACK-FILLS THE STATE, NEVER THE TOWN. A postcode names
+        * exactly one state and many towns: 2450 is Coffs Harbour AND Coramba
+        * AND Karangi AND Ulong. Choosing one would put a locality on the event
+        * that nobody typed, and it would look authoritative. See
+        * `postcodeState` in lib/geo for the same rule stated where it lives.
+        *
+        * ⚠ The state stays editable after back-filling. The ranges cover
+        * Australia only, and STATE_OPTIONS offers NZ and International on
+        * purpose — a derived value must never lock out the case it cannot
+        * derive.
+        */}
+        <div style={{ minWidth: 0 }}>
+          <SubLabel>STATE</SubLabel>
+          <select
+            className="yp-venue-state"
+            value={stateCode || ''}
+            onChange={e => onTownChange?.(town, { state: e.target.value, postcode })}
+            style={fieldStyle}
+          >
+            <option value="">Not set</option>
+            {STATE_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
+          </select>
+        </div>
+        <div style={{ minWidth: 0 }}>
+          <SubLabel>POSTCODE</SubLabel>
+          <input
+            className="yp-venue-postcode"
+            value={postcode || ''}
+            inputMode="numeric"
+            maxLength={4}
+            /* Just the number: "e.g. 2450" does not fit the column, and the
+               label above already says what the field is. */
+            placeholder="2450"
+            onChange={e => {
+              const pc = e.target.value.replace(/\D/g, '').slice(0, 4);
+              // The town is passed through untouched — this field answers the
+              // postcode question and nothing else. Only the state follows,
+              // and only when the code is long enough to imply one.
+              const derived = pc.length === 4 ? postcodeState(pc) : '';
+              onTownChange?.(town, {
+                state: derived || stateCode || '',
+                postcode: pc,
+              });
+            }}
+            style={fieldStyle}
+          />
+        </div>
+      </div>
+
+      {/* ⚠ Says WHICH thing is missing, and what it costs. A postcode the app
+          cannot place is not an error — NZ and International are real answers —
+          but it silently removes the town map and every radius filter, and
+          that is worth one quiet line rather than a surprise later. */}
+      {postcode.length === 4 && !isKnownPostcode(postcode, stateCode) && (
+        <div style={{ marginTop: 6, fontSize: 11, color: 'var(--muted)', lineHeight: 1.5 }}>
+          We cannot place {postcode} on a map, so this event will not show an area map or appear in distance searches.
+        </div>
+      )}
     </div>
   );
   /* ── ONE FIELD. Type a name; matches appear; picking one links the record.
@@ -266,7 +368,21 @@ export default function VenuePicker({
      the promoter reason about the venue database while naming a pub. */
   return (
     <div>
-      {townField}
+      {/**
+        * ⭐⭐ VENUE FIRST. The section used to open with TOWN / STATE /
+        * POSTCODE and only then offer the venue search, which is backwards:
+        * most events are at a room that already exists, and that room already
+        * knows its own town, state and postcode. Asking for the locality first
+        * made every organiser hand-type three fields the catalogue was about
+        * to supply, and invited them to disagree with it.
+        *
+        * ⛔ So the location fields are NOT rendered while a canonical venue is
+        * linked. Not disabled, not pre-filled and greyed — absent. A read-only
+        * copy of the venue's own postcode is a second place for it to live and
+        * a second thing to drift; `choose()` already writes the inherited
+        * values through onTownChange, and eventViewModel reads the VENUE's
+        * locality ahead of the event's regardless.
+        */}
       <SubLabel>VENUE</SubLabel>
       <div style={{ position: 'relative' }}>
         <input
@@ -322,7 +438,14 @@ export default function VenuePicker({
           <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 8 }}>Can&apos;t find it?</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <button type="button" onClick={() => pick('create')} style={choiceStyle}>
-              <span style={choiceTitle}>+ CREATE VENUE</span>
+              {/* ⚠ "USE AN UNLISTED VENUE", ⛔ never "CREATE VENUE" (owner,
+                  2026-08-14). The organiser is not creating anything: they are
+                  naming a room that exists in the world but not yet in the
+                  catalogue, and whether it joins is Studio's decision, not
+                  theirs. A verb that promises creation would make a declined
+                  submission read as a broken promise. The behaviour behind this
+                  button is unchanged — it still sets venueRequest. */}
+              <span style={choiceTitle}>+ USE UNLISTED VENUE</span>
               <span style={choiceSub}>
                 A real venue that isn&apos;t on YesPleez yet. We&apos;ll check it and add
                 it, so the venue can claim their page later.
@@ -351,6 +474,15 @@ export default function VenuePicker({
           </button>
         </div>
       )}
+
+      {/* ⚠ ONLY ONCE THE VENUE IS UNLISTED. `named` is true for both branches
+          of the fork — a room awaiting Studio and a one-off spot — because
+          both store their locality on the EVENT and both need somewhere to put
+          it. A linked catalogue venue never reaches here; it brought its own.
+          ⭐ Editing an older event still works: `mode` initialises to
+          'event-only' whenever there is a venue name and no profile id, so a
+          pre-existing unlisted venue opens with its location visible. */}
+      {named && <div style={{ marginTop: 12 }}>{townField}</div>}
     </div>
   );
 }
@@ -374,6 +506,14 @@ function SubLabel({ children }) {
     </div>
   );
 }
+
+/* The town search input's own styling, shared by the state and postcode
+   controls so the three read as one address block rather than three widgets. */
+const fieldStyle = {
+  width: '100%', boxSizing: 'border-box', padding: '10px 12px', borderRadius: 8,
+  border: '1px solid var(--border)', background: 'var(--card2)',
+  color: 'var(--text)', fontSize: 13, outline: 'none',
+};
 
 const rowStyle = {
   display: 'flex', alignItems: 'center', gap: 10, width: '100%',

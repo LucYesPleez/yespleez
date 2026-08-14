@@ -62,6 +62,44 @@ export function isKnownPostcode(pc, state) {
 }
 
 /**
+ * ⭐ THE STATE A POSTCODE IMPLIES — and ⛔ deliberately NOT the town.
+ *
+ * Australian postcodes are allocated in contiguous ranges per state, so a
+ * postcode names exactly ONE state and that is a fact rather than a guess. It
+ * names MANY towns: 2450 alone covers Coffs Harbour, Coramba, Karangi, Ulong
+ * and a dozen more, and picking the first would silently invent a locality the
+ * organiser never typed.
+ *
+ * ⛔ THAT ASYMMETRY IS THE WHOLE POINT and the reason this returns a string
+ * rather than an object. A caller that wants to back-fill a town from a
+ * postcode should not find a convenient field here to do it with.
+ *
+ * ⚠ RANGES, NOT AU_POSTCODES. That table is coordinates only — it carries no
+ * state at all — so this cannot be derived from it, and a lookup that returned
+ * '' for every code would look like "unknown postcode" rather than "wrong data
+ * source". Ranges are also complete: they answer for codes the coordinate
+ * table has never heard of.
+ *
+ * Returns '' when the input is not four digits or falls outside every range,
+ * because an unplaceable code must read as UNKNOWN and never as a default.
+ */
+const STATE_RANGES = [
+  ['NSW', 1000, 2599], ['ACT', 2600, 2618], ['NSW', 2619, 2899],
+  ['ACT', 2900, 2920], ['NSW', 2921, 2999],
+  ['VIC', 3000, 3999], ['QLD', 4000, 4999], ['SA', 5000, 5799],
+  ['WA', 6000, 6797], ['TAS', 7000, 7799], ['NT', 800, 899],
+  ['VIC', 8000, 8999], ['QLD', 9000, 9999],
+];
+
+export function postcodeState(pc) {
+  const s = String(pc ?? '').trim();
+  if (!/^\d{3,4}$/.test(s)) return '';
+  const n = Number(s);
+  const hit = STATE_RANGES.find(([, lo, hi]) => n >= lo && n <= hi);
+  return hit ? hit[0] : '';
+}
+
+/**
  * Great-circle distance in kilometres.
  *
  * Haversine rather than a flat-earth approximation: Australia spans ~40° of
