@@ -5,6 +5,7 @@ import { writeNotification } from '../lib/writeNotification';
 import { resolveProfileId } from '../lib/resolveProfileId';
 import { formatLocation } from '../lib/formatLocation';
 import { profileIdentity } from '../lib/profileTypes';
+import ArtistPicker from './ArtistPicker';
 
 const SLOT_ROLES = ['Opener', 'Support', 'Headline'];
 const DURATIONS  = [30, 45, 60, 90, 120];
@@ -46,9 +47,48 @@ function fmtSlot(startHHMM, durationMin) {
  * about to become NOT NULL and part of the uniqueness key, so a null here stops
  * being an incomplete row and becomes a rejected write.
  */
-export default function InviteSheet({ artist, events = [], venueUserId, venueProfileId = null, initialDate = '', onClose }) {
+export default function InviteSheet({ artist, events = [], venueUserId, venueProfileId = null, venueProfiles = null, initialDate = '', onClose }) {
   const navigate = useNavigate();
+  /**
+   * ── ⭐⭐ WHO IS SENDING THIS OFFER — STATED, ALWAYS (owner, 2026-08-14:
+   * "must always know whos sending the offer") ─────────────────────────
+   *
+   * ⚠ U4, THE APP'S EXISTING RULE, APPLIED TO THE ONE PATH THAT SKIPPED IT.
+   * Messaging (`MessageAsSheet`) and the ASK path (ProfileScreen's date
+   * picker) both infer the acting profile only when there is exactly one
+   * candidate and ask otherwise. This sheet used to take a single id from its
+   * caller and never say what it was — the offer went out signed by a profile
+   * the sender was never shown.
+   *
+   * ⚠ ONE OWNER MAY RUN SEVERAL VENUES, and that is a supported shape, not an
+   * edge case: different rooms, different projects, different promotional
+   * hosts all live under one login. `venueProfiles` is therefore a LIST.
+   * ProfileScreen previously resolved it with `.maybeSingle()`, which errors
+   * on more than one row — so an owner with two venues got no invite button at
+   * all, silently. The list is what fixes that, not a bigger limit.
+   *
+   * ⛔ NULL IS NOT "PICK ONE FOR THEM". With several candidates and none
+   * chosen, `canSend` stays false: an offer carries a booking commitment from
+   * a named room, so guessing which is worse than asking.
+   */
+  const senderOptions = venueProfiles?.length
+    ? venueProfiles
+    : (venueProfileId ? [{ id: venueProfileId, name: null }] : []);
+  const [senderId, setSenderId] = useState(
+    senderOptions.length === 1 ? senderOptions[0].id : (venueProfiles?.length ? '' : venueProfileId || '')
+  );
   const [eventId,   setEventId]   = useState('');
+  /* ⚠ TEXT, AND ONLY TEXT (owner, 2026-08-14). ArtistPicker below searches
+     real profiles so the promoter can find the act and get the name right,
+     but nothing about that match is stored: `headliner` is a name, the same
+     column it has always been.
+
+     ⛔ DO NOT ADD A PROFILE ID HERE without asking. It was proposed and
+     declined. The consequence is deliberate and worth knowing: the offer the
+     artist receives carries the NAME, so their copy cannot render a linked
+     card. ⛔ And it must not be faked by matching the name at read time —
+     names collide and acts rename, so that card would eventually point at the
+     wrong person with no way to notice. */
   const [headliner, setHeadliner] = useState('');
   const [message,   setMessage]   = useState('');
   const [slotRole,  setSlotRole]  = useState('');
@@ -102,7 +142,9 @@ export default function InviteSheet({ artist, events = [], venueUserId, venuePro
      * degrades rather than throws.
      */
     const [resolvedVenueId, resolvedApplicantId] = await Promise.all([
-      venueProfileId ? Promise.resolve(venueProfileId) : resolveProfileId(venueUserId, 'venue'),
+      // ⚠ THE CHOSEN SENDER FIRST — it is the only one the user was shown.
+      senderId ? Promise.resolve(senderId)
+        : venueProfileId ? Promise.resolve(venueProfileId) : resolveProfileId(venueUserId, 'venue'),
       artist?.id     ? Promise.resolve(artist.id)     : resolveProfileId(artist?.user_id, artist?.type || 'artist'),
     ]);
     const venueProfileIdFinal = resolvedVenueId;
@@ -211,7 +253,11 @@ export default function InviteSheet({ artist, events = [], venueUserId, venuePro
   // is a guaranteed 23502. Gating here rather than failing at the insert. The
   // DATE field prefills from the selected event, so picking an event satisfies
   // this without extra typing.
-  const canSend    = message.trim().length > 0 && !!date && !sending;
+  /* ⚠ `senderId` JOINS THE REQUIRED SET. The offer names a room and commits
+     it; with several to choose from and none chosen there is no honest value
+     to write, and S2's RLS would reject the guess anyway (can_act_as of the
+     wrong profile). Refusing here says so before the round trip. */
+  const canSend    = message.trim().length > 0 && !!date && !!senderId && !sending;
 
   const labelStyle = { fontFamily: "'Bebas Neue'", fontSize: 13, letterSpacing: 1.5, color: 'rgba(255,255,255,.6)', display: 'block', marginBottom: 8 };
   const subLabel   = { fontFamily: "'Bebas Neue'", fontSize: 11, letterSpacing: 1.2, color: 'rgba(255,255,255,.45)', display: 'block', marginBottom: 5 };
@@ -264,6 +310,62 @@ export default function InviteSheet({ artist, events = [], venueUserId, venuePro
                 <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,.4)', fontSize: 22, cursor: 'pointer', lineHeight: 1, padding: 4 }}>✕</button>
               </div>
 
+              {/* ── ⭐ SENDING AS — the sender's own identity, stated on every
+                     offer (owner, 2026-08-14). Above the artist chip, because
+                     the order of the two answers the two halves of "who is
+                     asking whom" in reading order.
+
+                     ⚠ IT RENDERS WITH ONE OPTION TOO, as a plain line. The
+                     point is not to offer a choice, it is to remove the
+                     question — an owner of one venue still deserves to know
+                     which name is on the offer. ⛔ Do not hide it when the
+                     answer is obvious; obvious to us is not stated to them.
+
+                     ⚠ RADIO ROWS, NOT A <select>, when there are several. The
+                     app uses pickers for consequential identity choices
+                     (MessageAsSheet's select-then-confirm), and a collapsed
+                     native menu shows one option while hiding that a choice
+                     exists at all. ── */}
+              {senderOptions.length > 0 && (
+                <div style={{ marginBottom: 14 }}>
+                  <div style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1.5, color: 'rgba(255,255,255,.45)', marginBottom: 6 }}>SENDING AS</div>
+                  {senderOptions.length === 1 ? (
+                    <div style={{ fontSize: 13.5, color: '#fff' }}>
+                      {senderOptions[0].name || 'Your venue'}
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {senderOptions.map(v => (
+                        <button
+                          key={v.id}
+                          type="button"
+                          onClick={() => setSenderId(v.id)}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: 10, width: '100%', textAlign: 'left',
+                            padding: '9px 12px', borderRadius: 10, cursor: 'pointer',
+                            background: senderId === v.id ? `rgba(${accentRgb},.12)` : 'rgba(255,255,255,.04)',
+                            border: `1px solid ${senderId === v.id ? accent : 'rgba(255,255,255,.1)'}`,
+                            color: '#fff', fontSize: 13.5,
+                          }}
+                        >
+                          <span style={{
+                            width: 14, height: 14, borderRadius: '50%', flexShrink: 0,
+                            border: `2px solid ${senderId === v.id ? accent : 'rgba(255,255,255,.3)'}`,
+                            background: senderId === v.id ? accent : 'transparent',
+                          }} />
+                          {v.name || 'Unnamed venue'}
+                        </button>
+                      ))}
+                      {!senderId && (
+                        <div style={{ fontSize: 11.5, color: 'rgba(255,255,255,.45)' }}>
+                          Choose which venue this offer comes from.
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* ── Artist chip ── */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.1)', borderRadius: 12, padding: '10px 14px', marginBottom: 18 }}>
                 {img
@@ -291,7 +393,9 @@ export default function InviteSheet({ artist, events = [], venueUserId, venuePro
                 {(slotLabel || slotRole || fee || extrasList.length > 0 || headliner) && (
                   <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,.08)', fontSize: 12.5, color: 'rgba(255,255,255,.7)', lineHeight: 1.7 }}>
                     {selectedEvent && <div>{selectedEvent.name}{date ? ` · ${new Date(date + 'T12:00:00').toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' })}` : ''}</div>}
-                    {headliner && <div>Headlining: <span style={{ color: '#fff' }}>{headliner}</span></div>}
+                    {/* ⛔ NO "Headlining:" PREFIX — it is implied by naming
+                        them at all (owner, 2026-08-14). Just the act. */}
+                    {headliner && <div style={{ color: '#fff' }}>{headliner}</div>}
                     {(slotRole || slotLabel) && <div>Your slot: <span style={{ color: '#fff' }}>{[slotRole, slotLabel].filter(Boolean).join(' · ')}</span></div>}
                     {(fee || extrasList.length > 0) && <div>Offer: <span style={{ color: '#00E5A0' }}>{[fee, ...extrasList].filter(Boolean).join(' + ')}</span></div>}
                   </div>
@@ -315,8 +419,19 @@ export default function InviteSheet({ artist, events = [], venueUserId, venuePro
                   </label>
                 </div>
                 <div style={{ marginTop: 12 }}>
-                  <label style={subLabel}>WHO'S HEADLINING / ALSO PLAYING <span style={{ opacity: .6 }}>(the pull)</span></label>
-                  <input type="text" value={headliner} onChange={e => setHeadliner(e.target.value)} placeholder="e.g. Flowidus" style={inputStyle} />
+                  {/* ⛔ NOT "WHO'S HEADLINING" ANY MORE (owner, 2026-08-14):
+                      naming an act in the pull already implies the draw, and
+                      the old label made a claim about billing order the
+                      promoter had not necessarily made. */}
+                  <label style={subLabel}>WHO ELSE IS PLAYING <span style={{ opacity: .6 }}>(the pull)</span></label>
+                  {/* ⚠ A TYPEAHEAD, NOT A LINK. Picking a result fills the
+                      NAME and nothing else — see the state declaration for why
+                      no id is stored. */}
+                  <ArtistPicker
+                    value={headliner}
+                    onChange={(name) => setHeadliner(name)}
+                    placeholder="e.g. Flowidus"
+                  />
                 </div>
               </div>
 

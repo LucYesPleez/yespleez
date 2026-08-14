@@ -313,14 +313,30 @@ export default function ProfileScreen() {
     if (isUnclaimed) return;                           // nobody to receive it
     let cancelled = false;
     (async () => {
-      const { data: venue } = await supabase.from('profiles')
-        .select('id, user_id').eq('user_id', session.user.id).eq('type', 'venue').maybeSingle();
-      if (cancelled || !venue) return;
+      /**
+       * ⚠⚠ EVERY VENUE THIS ACCOUNT RUNS, NOT `.maybeSingle()`.
+       *
+       * `.maybeSingle()` does not return the first of several — it ERRORS on
+       * more than one row and hands back null. The error was discarded, so an
+       * owner running two venues fell into `!venue` and got NO INVITE BUTTON
+       * AT ALL, silently, on every performer profile. One venue worked, two
+       * disabled the feature.
+       *
+       * ⭐ MORE THAN ONE PROFILE IS A SUPPORTED SHAPE (owner, 2026-08-14):
+       * separate rooms, projects and promotional hosts under one login. Code
+       * that assumes one of anything per account is the bug, not the data.
+       */
+      const { data: venues } = await supabase.from('profiles')
+        .select('id, user_id, name, avatar_thumb, avatar')
+        .eq('user_id', session.user.id).eq('type', 'venue').order('name');
+      if (cancelled || !venues?.length) return;
       // Events are attributed by host_id on this table (see VenueDashboard).
       const { data: evs } = await supabase.from('events')
         .select('id, name, status, config').eq('host_id', session.user.id)
         .neq('status', 'completed').order('created_at', { ascending: false }).limit(20);
-      if (!cancelled) setVenueCtx({ id: venue.id, events: evs || [] });
+      // `id` stays the first venue so existing readers keep working; `venues`
+      // is what InviteSheet uses to state — or ask — who is sending.
+      if (!cancelled) setVenueCtx({ id: venues[0].id, venues, events: evs || [] });
     })();
     return () => { cancelled = true; };
   }, [session?.user?.id, profile?.id, profile?.type, isUnclaimed]);
@@ -1675,6 +1691,8 @@ export default function ProfileScreen() {
           // venueCtx.id IS the viewer's venue profile — passing it stops
           // InviteSheet re-deriving a fact this screen already knows.
           venueProfileId={venueCtx.id}
+          /* U4: one venue is stated, several are asked. See InviteSheet. */
+          venueProfiles={venueCtx.venues}
           initialDate={inviteDate || ''}
           onClose={() => { setInviteOpen(false); setInviteDate(null); }}
         />

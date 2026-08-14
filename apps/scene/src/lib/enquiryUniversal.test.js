@@ -123,6 +123,56 @@ test('P12/P6/P7 intact: the offer path still writes initiated_by and touches no 
     'offers are ungated: a venue requiring its own checklist of an invitee could never invite anyone');
 });
 
+// ── S5 · the sender is named on every offer ─────────────────────────────
+
+const ARTIST_PICKER = read('../components/ArtistPicker.jsx');
+
+test('S5: an offer cannot be sent without a chosen sender', () => {
+  assert.ok(INVITE_SHEET.includes('!!senderId && !sending'),
+    'with several venues and none chosen there is no honest value to write — and S2 RLS would reject a guess');
+});
+
+test('S5: SENDING AS renders even when there is exactly one candidate', () => {
+  assert.ok(INVITE_SHEET.includes('senderOptions.length > 0 &&'),
+    'the point is to remove the question, not to offer a choice: one venue is STATED, not hidden');
+  assert.ok(INVITE_SHEET.includes('SENDING AS'));
+});
+
+test('S5: the multi-venue read is a list — maybeSingle ERRORS on more than one row', () => {
+  // .maybeSingle() does not return the first of several; it errors and yields
+  // null, which silently removed the invite button from any account running
+  // two venues. More than one profile per account is a supported shape.
+  assert.ok(!/type',\s*'venue'\)\s*\.maybeSingle\(\)/.test(PROFILE_SCREEN),
+    'ProfileScreen must not resolve the acting venue with maybeSingle');
+  assert.ok(PROFILE_SCREEN.includes("setVenueCtx({ id: venues[0].id, venues"),
+    'every venue the account can act as must reach InviteSheet');
+});
+
+// ── The act picker · a name typeahead, nothing stored but the name ──────
+
+test('the picker resolves to a NAME — no profile id is stored (owner declined it)', () => {
+  assert.ok(!INVITE_SHEET.includes('headliner_profile_id'),
+    'the offer payload carries the typed name and nothing else');
+  // ⚠ `\bprofileId\b` — a bare substring also matches `profileIdentity`, which
+  // the picker legitimately imports to label each result's type.
+  assert.ok(!/\bprofileId\b/.test(ARTIST_PICKER),
+    'the picker holds no link state: picking a result fills the text');
+});
+
+test('the picker cannot reach personal profiles', () => {
+  assert.ok(/\.in\('type', \['artist', 'band', 'standup'\]\)/.test(ARTIST_PICKER),
+    'a name must never find a stranger\'s personal profile — the boundary MessengerSearch states');
+});
+
+test('S4: naming an act no longer claims they are headlining', () => {
+  // ⚠ `>Headlining:` — JSX-adjacent only. The PROHIBITION is itself written in
+  // a comment beside the code, and a bare substring check reads the ban as a
+  // violation. Second time this exact trap has fired in this file.
+  assert.ok(!/>\s*Headlining:/.test(INVITE_SHEET),
+    'owner 2026-08-14: it is implied by naming them at all');
+  assert.ok(INVITE_SHEET.includes("WHO ELSE IS PLAYING"));
+});
+
 test('P12 intact: ask_category is still resolved and stored on the ask path, snapshot preserved', () => {
   assert.ok(PROFILE_SCREEN.includes('resolveAskCategory'), 'the P12 resolver still runs at creation');
   assert.ok(PROFILE_SCREEN.includes('requirements_snapshot') || PROFILE_SCREEN.includes('enquirySnapshot'),

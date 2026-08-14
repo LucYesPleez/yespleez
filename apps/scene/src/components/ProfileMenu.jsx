@@ -355,10 +355,11 @@ export default function ProfileMenu({ session, unreadCount = 0, onSignOut, onOpe
         </span>
       </button>
 
-      {/* ⭐ THE CONCIERGE BELL — the header's notification signal (owner,
-          2026-08-14). Lucide's `bell-concierge` geometry: 24-box, 2px stroke,
-          round caps and joins, so it belongs to the same family as every other
-          icon in the app rather than reading as artwork.
+      {/* ⭐ THE BELL — the header's notification signal (owner, 2026-08-14).
+          Lucide's `bell` (the plain one; it replaced `bell-concierge` on the
+          owner's call the same day): 24-box, 2px stroke, round caps and joins,
+          so it belongs to the same family as every other icon in the app
+          rather than reading as artwork.
 
           ⚠ ITS OWN CONTROL, TO THE RIGHT OF THE FACE (owner). Which also
           settles the HTML: interactive content nested in a button is invalid
@@ -390,10 +391,8 @@ export default function ProfileMenu({ session, unreadCount = 0, onSignOut, onOpe
             stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
             aria-hidden="true"
           >
-            <path d="M3 20a1 1 0 0 1-1-1v-1a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v1a1 1 0 0 1-1 1Z" />
-            <path d="M20 16a8 8 0 1 0-16 0" />
-            <path d="M12 4v4" />
-            <path d="M10 4h4" />
+            <path d="M10.268 21a2 2 0 0 0 3.464 0" />
+            <path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326" />
           </svg>
           {/* R3 · no zero dot, same rule the count badge followed. */}
           {unreadCount > 0 && <span className={s.bellDot} aria-hidden="true" />}

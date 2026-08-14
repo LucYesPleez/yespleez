@@ -406,8 +406,12 @@ export default function VenueDashboard({ userId: userIdProp }) {
           artist={inviteArtist}
           events={events.filter(ev => ev.status !== 'completed')}
           venueUserId={userId}
-          // The dashboard already loaded this venue's profile row.
+          /* The dashboard already loaded this venue's profile row — and here
+             the sender is NOT a choice: this screen IS one venue's dashboard,
+             so passing the list would offer to send from a room the user did
+             not open. One option, stated. */
           venueProfileId={profile?.id ?? null}
+          venueProfiles={profile ? [{ id: profile.id, name: profile.name }] : null}
           onClose={() => setInviteArtist(null)}
         />
       )}
