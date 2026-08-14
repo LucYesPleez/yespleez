@@ -20,7 +20,7 @@ import { useDragScroll } from '../hooks/useDragScroll';
 import { haversineKm, profileCoords, postcodeCoords, isKnownPostcode, withinRadius } from '../lib/geo';
 import { buildLocals, LOCALS_TYPES } from '../lib/locals';
 import { useEvents } from '../lib/useEvents';
-import { weekendRange } from '../lib/dates';
+import { weekendRange, dateStr, today } from '../lib/dates';
 import { trackFiltered } from '../lib/analytics';
 import { getPersonalProfileId } from '../lib/actingProfile';
 import {
@@ -258,8 +258,11 @@ export default function MySceneScreen() {
       const appEventIds      = [...new Set(apps.map(a => a.event_id).filter(Boolean))];
 
       // Step 2: parallel fetches — date-windowed events (indexed, ~50 rows)
-      const threeMonthsAgo = new Date(Date.now() - 90  * 86400000).toISOString().slice(0, 10);
-      const sixMonthsAhead = new Date(Date.now() + 180 * 86400000).toISOString().slice(0, 10);
+      // Local-date bounds, same reason as todayStr below. Harmless at this
+      // width, but a second convention for "what day is it" in one file is how
+      // the todayStr bug stayed invisible.
+      const threeMonthsAgo = dateStr(-90);
+      const sixMonthsAhead = dateStr(180);
       // `state` is selected so geo.js can refuse NZ/International postcodes —
       // without it the guard has nothing to test and AU_POSTCODES happily
       // answers "Wellington 6011" with Perth.
@@ -474,7 +477,29 @@ export default function MySceneScreen() {
   const y = viewMonth.getFullYear();
   const m = viewMonth.getMonth();
   const daysInMonth = new Date(y, m + 1, 0).getDate();
-  const todayStr = new Date().toISOString().slice(0, 10);
+  /**
+   * ⚠ LOCAL DATE, NOT UTC — and it is the boundary the whole screen turns on.
+   *
+   * This was `new Date().toISOString().slice(0, 10)`. toISOString is UTC, so
+   * east of Greenwich the string is YESTERDAY for the whole stretch between
+   * local midnight and the UTC rollover — in AEST/AEDT that is every morning
+   * until 10am (11am in daylight saving). Reported at 09:35 on Fri 14 Aug 2026
+   * with YOUR AREA still advertising Thursday night's Poetry Night, which had
+   * finished twelve hours earlier.
+   *
+   * It reads correct every afternoon, which is why it survived: the defect has
+   * a ten-hour window and closes itself before most people look twice.
+   *
+   * ⛔ Not local to `todayStr` either. This one value feeds YOUR AREA and the
+   * catalogue floor's lower bound, the calendar's is-today highlight, the
+   * upcoming/past split at lines 730 and 746, and the pinned-event guard — so
+   * every one of them ran a day behind for the same ten hours.
+   *
+   * `today()` in lib/dates already builds the string from getFullYear/getMonth/
+   * getDate, and its own comment says why. The helper existed; this call site
+   * just never used it.
+   */
+  const todayStr = today();
 
   // Followed event IDs
   const followedEventIds = new Set(follows.filter(f => f.entity_type === 'event').map(f => f.entity_id));
@@ -487,7 +512,7 @@ export default function MySceneScreen() {
   // Same source + cache as What's On (useEvents), REAL events only — the demo
   // merge What's On does is deliberately absent here. Selection rules live in
   // lib/sceneFloor.js where they are tested; this screen only renders.
-  const { events: catalogueEvents, loading: floorLoading } = useEvents(todayStr, new Date(Date.now() + 180 * 86400000).toISOString().slice(0, 10));
+  const { events: catalogueEvents, loading: floorLoading } = useEvents(todayStr, dateStr(180));
   const wr = useMemo(() => weekendRange(), []);
   const newSinceIso = useMemo(() => new Date(Date.now() - 14 * 86400000).toISOString(), []);
   const originPostcode = /^\d{4}$/.test(userPostcode) && isKnownPostcode(userPostcode) ? userPostcode : '';
