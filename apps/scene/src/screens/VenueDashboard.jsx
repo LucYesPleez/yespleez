@@ -393,11 +393,10 @@ export default function VenueDashboard({ userId: userIdProp }) {
       </div>
 
       {/* Following —
-          ⚠ Wrapped here rather than editing FollowingSection's own
-          `marginTop: 24`, which is shared by four other screens. Every section
-          on this dashboard sits at 40; this gives FOLLOWING the same rhythm
-          without reaching into the shared component. */}
-      <div style={{ marginTop: 40 }}>
+          ⛔ NO WRAPPER MARGIN. The gap is FollowingSection's own
+          `FOLLOWING_GAP`, shared by every screen that renders it (owner,
+          2026-08-15). See the note in that component for why one owner beats
+          two: these margins collapse rather than add. */}
       <FollowingSection
         following={following}
         loading={loadingFollow}
@@ -419,7 +418,6 @@ export default function VenueDashboard({ userId: userIdProp }) {
           >INVITE →</button>
         )}
       />
-      </div>
 
       <button
         onClick={() => navigate('/discover')}

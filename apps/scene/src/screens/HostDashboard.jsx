@@ -723,15 +723,11 @@ export default function HostDashboard({ userId: userIdProp }) {
       </div>
 
       {/* ── FOLLOWING — always at bottom ──
-          ⚠ WRAPPED HERE, NOT EDITED IN FollowingSection. That component's own
-          `marginTop: 24` is shared by ArtistDashboard, MySceneScreen,
-          RoleSelectorScreen and VenueDashboard too — changing it there would
-          have altered spacing on four screens nobody asked to touch. Every
-          other section on THIS screen (EVENTS, AVAILABLE DATES, ENQUIRIES,
-          LINEUP) sits in its own `marginTop: 40` wrapper; this gives
-          FOLLOWING the same rhythm without reaching into the shared
-          component. */}
-      <div style={{ marginTop: 40 }}>
+          ⛔ NO WRAPPER MARGIN. The gap is FollowingSection's own
+          `FOLLOWING_GAP`, so every screen showing this section shows the same
+          space above it (owner, 2026-08-15). A wrapper here would collapse into
+          that margin and quietly win or lose depending on which was larger,
+          which is how Host and Artist came to differ in the first place. */}
       <FollowingSection
         following={following}
         loading={loadingFollowing}
@@ -747,7 +743,6 @@ export default function HostDashboard({ userId: userIdProp }) {
         emptyMsg="Follow artists from their profiles to build your roster here."
         filterTypes={FOLLOW_FILTER_CONFIGS.host}
       />
-      </div>
 
       {/* Slot edit modal */}
       {editingSlot && (

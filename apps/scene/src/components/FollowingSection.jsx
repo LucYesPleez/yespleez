@@ -59,6 +59,16 @@ export const FOLLOW_FILTER_CONFIGS = {
   standup: ['ALL', ...FULL_ORDER],
 };
 
+/**
+ * The space above FOLLOWING, everywhere it appears.
+ *
+ * 80px: twice the 40 the Host and Venue dashboards actually rendered (owner,
+ * 2026-08-15 — "i want twice the gap there is"). Exported so a caller can align
+ * something to it rather than guessing a matching number, ⛔ never so a caller
+ * can add another margin of its own.
+ */
+export const FOLLOWING_GAP = 80;
+
 export default function FollowingSection({
   following, loading,
   followView, setFollowView,
@@ -113,7 +123,27 @@ export default function FollowingSection({
   });
 
   return (
-    <div style={{ marginTop: 24 }}>
+    /**
+     * ⭐⭐ THE GAP LIVES HERE, AND IT IS THE ONLY PLACE IT LIVES (owner,
+     * 2026-08-15: "make it canonical across all pages this appears").
+     *
+     * It used to be split in two, and the two halves disagreed. This component
+     * carried `marginTop: 24`, while HostDashboard and VenueDashboard each
+     * wrapped it in another `marginTop: 40` — so FOLLOWING sat 40px below the
+     * section above it on those two screens and 24px below it on
+     * ArtistDashboard, which wrapped nothing. Nobody chose that difference.
+     *
+     * ⚠ AND THE 40 + 24 NEVER ADDED UP TO 64. Adjacent vertical margins
+     * collapse: a parent whose first child has a top margin, with no padding or
+     * border between them, yields max(40, 24) = 40, not their sum. Anyone
+     * reading those two numbers and expecting 64 was reading a gap that did not
+     * exist — which is exactly why one owner beats two.
+     *
+     * ⛔ DO NOT RE-WRAP THIS AT A CALL SITE. A wrapper margin would collapse
+     * into this one and silently win or lose depending on which is larger, and
+     * the screens would drift apart again.
+     */
+    <div style={{ marginTop: FOLLOWING_GAP }}>
       {/* Header row */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
         <span style={{ fontFamily: "'Bebas Neue'", fontSize: 18, letterSpacing: 2, color: '#fff' }}>{sectionTitle}</span>
