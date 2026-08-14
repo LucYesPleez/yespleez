@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
-import { getPersonalProfileId } from '../lib/actingProfile';
+import { getPersonalProfileId, getOwnerProfiles } from '../lib/actingProfile';
 import { writeNotification } from '../lib/writeNotification';
 import { track, EVENTS } from '../lib/analytics';
 import { useSession, usePlayer } from '../App';
@@ -314,29 +314,62 @@ export default function ProfileScreen() {
     let cancelled = false;
     (async () => {
       /**
-       * ⚠⚠ EVERY VENUE THIS ACCOUNT RUNS, NOT `.maybeSingle()`.
+       * ⭐⭐ HOST **OR** VENUE — THE SAME CHOICE EVENT CREATION ALREADY ASKS
+       * (owner, 2026-08-14: "just as event creation is a choice of who is
+       * creating the event host or venue, it needs to be the same. i need to
+       * be able to choose me the venue or me the host").
        *
-       * `.maybeSingle()` does not return the first of several — it ERRORS on
-       * more than one row and hands back null. The error was discarded, so an
-       * owner running two venues fell into `!venue` and got NO INVITE BUTTON
-       * AT ALL, silently, on every performer profile. One venue worked, two
-       * disabled the feature.
+       * ⚠ `getOwnerProfiles` IS THAT QUESTION'S EXISTING ANSWER — the same
+       * function CreateEventScreen uses to ask which profile owns an event
+       * (OWNER_ELIGIBLE_TYPES = venue + host). ⛔ Never a second local query
+       * filtered to one type: this used to read `.eq('type','venue')`, so a
+       * promoter offering their own night was silently attributed to whichever
+       * venue they happened to own.
        *
-       * ⭐ MORE THAN ONE PROFILE IS A SUPPORTED SHAPE (owner, 2026-08-14):
-       * separate rooms, projects and promotional hosts under one login. Code
-       * that assumes one of anything per account is the bug, not the data.
+       * ⚠⚠ AND NEVER `.maybeSingle()`. It does not return the first of
+       * several — it ERRORS on more than one row and hands back null, which
+       * removed the invite button entirely from any account running two
+       * venues. More than one profile is a supported shape.
        */
-      const { data: venues } = await supabase.from('profiles')
-        .select('id, user_id, name, avatar_thumb, avatar')
-        .eq('user_id', session.user.id).eq('type', 'venue').order('name');
-      if (cancelled || !venues?.length) return;
-      // Events are attributed by host_id on this table (see VenueDashboard).
-      const { data: evs } = await supabase.from('events')
-        .select('id, name, status, config').eq('host_id', session.user.id)
-        .neq('status', 'completed').order('created_at', { ascending: false }).limit(20);
-      // `id` stays the first venue so existing readers keep working; `venues`
+      const owners = await getOwnerProfiles(session.user.id);
+      if (cancelled || !owners.length) return;
+      /**
+       * ⚠ EVENTS BY OWNING PROFILE, NOT BY ACCOUNT. This read `host_id` — the
+       * human — so the sheet listed every event the login owns while claiming
+       * the offer came from one venue. A promoter's night at someone else's
+       * room could be offered "from Elbows Rest", which is a false statement
+       * to the artist, not merely an untidy one.
+       *
+       * `owner_profile_id` is the column that answers WHO IS ACCOUNTABLE
+       * (M14b / identity v1.3 O-R4); the sheet filters these by the chosen
+       * sender, so the events on offer always belong to the profile making
+       * the offer.
+       */
+      /**
+       * ⚠⚠ TWO READS, BECAUSE 34 OF 88 EVENTS HAVE NO OWNER (measured live,
+       * 2026-08-14). `owner_profile_id` arrived with M14b; everything created
+       * before it is NULL, and filtering on it alone emptied the picker
+       * completely — a correctness fix that deleted the feature.
+       *
+       * ⭐ AN UNOWNED EVENT IS AMBIGUOUS, NOT MINE-AS-ANYONE. Nothing records
+       * which profile ran it, so it is offered under whichever identity the
+       * sender picks — and that is now an explicit choice they made, not the
+       * silent substitution this replaced.
+       */
+      const [ownedRes, legacyRes] = await Promise.all([
+        supabase.from('events')
+          .select('id, name, status, config, owner_profile_id')
+          .in('owner_profile_id', owners.map(o => o.id))
+          .neq('status', 'completed').order('created_at', { ascending: false }).limit(40),
+        supabase.from('events')
+          .select('id, name, status, config, owner_profile_id')
+          .is('owner_profile_id', null).eq('host_id', session.user.id)
+          .neq('status', 'completed').order('created_at', { ascending: false }).limit(40),
+      ]);
+      const evs = [...(ownedRes.data || []), ...(legacyRes.data || [])];
+      // `id` stays the first owner so existing readers keep working; `owners`
       // is what InviteSheet uses to state — or ask — who is sending.
-      if (!cancelled) setVenueCtx({ id: venues[0].id, venues, events: evs || [] });
+      if (!cancelled) setVenueCtx({ id: owners[0].id, venues: owners, events: evs || [] });
     })();
     return () => { cancelled = true; };
   }, [session?.user?.id, profile?.id, profile?.type, isUnclaimed]);

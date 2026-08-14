@@ -77,6 +77,25 @@ export default function InviteSheet({ artist, events = [], venueUserId, venuePro
   const [senderId, setSenderId] = useState(
     senderOptions.length === 1 ? senderOptions[0].id : (venueProfiles?.length ? '' : venueProfileId || '')
   );
+  /**
+   * ⭐ THE EVENTS THIS SENDER CAN OFFER — theirs, not the account's.
+   *
+   * ⚠ `owner_profile_id` IS THE ONLY HONEST FILTER. The caller used to hand
+   * over every event the LOGIN owns, while the sheet named one venue as the
+   * sender: a promoter's night at someone else's room could be offered "from
+   * Elbows Rest", which tells the artist something untrue about who is booking
+   * them.
+   *
+   * ⚠ FALLS BACK TO THE WHOLE LIST for a caller that has not been updated (the
+   * venue dashboard passes one profile and its own events, and every row there
+   * belongs to it). ⛔ Not a permanent seam — it exists so an un-migrated
+   * caller degrades rather than shows an empty picker.
+   */
+  const senderEvents = (events || []).filter(e =>
+    !senderId                                   // nothing chosen yet: show all
+    || !('owner_profile_id' in e)               // un-migrated caller (venue dashboard)
+    || e.owner_profile_id == null               // legacy event, owned by nobody
+    || e.owner_profile_id === senderId);
   const [eventId,   setEventId]   = useState('');
   /* ⚠ TEXT, AND ONLY TEXT (owner, 2026-08-14). ArtistPicker below searches
      real profiles so the promoter can find the act and get the name right,
@@ -364,7 +383,12 @@ export default function InviteSheet({ artist, events = [], venueUserId, venuePro
                         <button
                           key={v.id}
                           type="button"
-                          onClick={() => setSenderId(v.id)}
+                          /* ⚠ CHANGING SENDER CLEARS THE EVENT. The list below
+                             is scoped to whoever is offering, so a choice made
+                             under the previous identity may not even be in it —
+                             carrying it silently is how an offer ends up naming
+                             someone else's night. */
+                          onClick={() => { setSenderId(v.id); setEventId(''); }}
                           style={{
                             display: 'flex', alignItems: 'center', gap: 10, width: '100%', textAlign: 'left',
                             padding: '9px 12px', borderRadius: 10, cursor: 'pointer',
@@ -378,12 +402,28 @@ export default function InviteSheet({ artist, events = [], venueUserId, venuePro
                             border: `2px solid ${senderId === v.id ? accent : 'rgba(255,255,255,.3)'}`,
                             background: senderId === v.id ? accent : 'transparent',
                           }} />
-                          {v.name || 'Unnamed venue'}
+                          <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {v.name || 'Unnamed profile'}
+                          </span>
+                          {/* ⚠ THE TYPE IS THE POINT OF THE CHOICE. "Elbows
+                              Rest" and "Freedom Machine Events" are two names;
+                              VENUE and HOST are what actually differ, and the
+                              artist will read the offer as coming from one or
+                              the other. */}
+                          {v.type && (
+                            <span style={{ marginLeft: 'auto', fontFamily: "'Bebas Neue'", fontSize: 9, letterSpacing: 1.2, color: 'rgba(255,255,255,.45)' }}>
+                              {profileIdentity(v.type)?.shortLabel || v.type.toUpperCase()}
+                            </span>
+                          )}
                         </button>
                       ))}
                       {!senderId && (
                         <div style={{ fontSize: 11.5, color: 'rgba(255,255,255,.45)' }}>
-                          Choose which venue this offer comes from.
+                          {/* ⛔ NOT "which venue" — a host is a legitimate
+                              sender now, and naming only one of the two types
+                              is how the old venue-only assumption reads back
+                              into the copy. */}
+                          Choose which profile this offer comes from.
                         </div>
                       )}
                     </div>
@@ -431,7 +471,7 @@ export default function InviteSheet({ artist, events = [], venueUserId, venuePro
               <div style={sectionGap}>
                 <label style={labelStyle}>WHICH EVENT?</label>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {events.slice(0, 6).map(ev => (
+                  {senderEvents.slice(0, 6).map(ev => (
                     <label key={ev.id} style={{ display: 'flex', alignItems: 'center', gap: 10, background: eventId === ev.id ? `rgba(${accentRgb},.1)` : 'rgba(255,255,255,.04)', border: `1px solid ${eventId === ev.id ? accent : 'rgba(255,255,255,.1)'}`, borderRadius: 10, padding: '10px 14px', cursor: 'pointer', transition: 'all .15s' }}>
                       <input type="radio" name="invite-event" value={ev.id} checked={eventId === ev.id} onChange={() => setEventId(ev.id)} style={{ accentColor: accent, flexShrink: 0 }} />
                       <span style={{ fontFamily: "'DM Sans'", fontSize: 13, color: '#fff' }}>{ev.name}</span>

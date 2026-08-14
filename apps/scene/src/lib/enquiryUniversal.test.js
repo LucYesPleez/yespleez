@@ -138,14 +138,33 @@ test('S5: SENDING AS renders even when there is exactly one candidate', () => {
   assert.ok(INVITE_SHEET.includes('SENDING AS'));
 });
 
-test('S5: the multi-venue read is a list — maybeSingle ERRORS on more than one row', () => {
+test('S5: the offering identity is a LIST, and it is host OR venue', () => {
   // .maybeSingle() does not return the first of several; it errors and yields
   // null, which silently removed the invite button from any account running
   // two venues. More than one profile per account is a supported shape.
   assert.ok(!/type',\s*'venue'\)\s*\.maybeSingle\(\)/.test(PROFILE_SCREEN),
-    'ProfileScreen must not resolve the acting venue with maybeSingle');
-  assert.ok(PROFILE_SCREEN.includes("setVenueCtx({ id: venues[0].id, venues"),
-    'every venue the account can act as must reach InviteSheet');
+    'ProfileScreen must not resolve the acting profile with maybeSingle');
+  /**
+   * ⭐ owner, 2026-08-14: "i need to be able to choose me the venue or me the
+   * host". `getOwnerProfiles` is the SAME function event creation uses to ask
+   * which profile owns an event — ⛔ never a second local query filtered to
+   * one type, which is what attributed a promoter's offer to their venue.
+   */
+  assert.ok(PROFILE_SCREEN.includes('getOwnerProfiles(session.user.id)'),
+    'the sender list must come from the shared owner-profile question');
+  assert.ok(PROFILE_SCREEN.includes('setVenueCtx({ id: owners[0].id, venues: owners'),
+    'every profile the account can offer as must reach InviteSheet');
+});
+
+test('the events offered belong to the OFFERING PROFILE, not to the account', () => {
+  assert.ok(PROFILE_SCREEN.includes(".in('owner_profile_id', owners.map(o => o.id))")
+    && PROFILE_SCREEN.includes(".is('owner_profile_id', null).eq('host_id', session.user.id)"),
+    'reading by host_id listed every event the login owns while naming one venue as sender');
+  const SHEET = read('../components/InviteSheet.jsx');
+  assert.ok(SHEET.includes('e.owner_profile_id === senderId'),
+    'the event list must be scoped to whoever is sending');
+  assert.ok(SHEET.includes("setSenderId(v.id); setEventId('')"),
+    'changing sender must clear a chosen event — it may not exist under the new identity');
 });
 
 // ── The act picker · a name typeahead, nothing stored but the name ──────
