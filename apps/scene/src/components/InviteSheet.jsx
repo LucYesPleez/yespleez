@@ -262,6 +262,31 @@ export default function InviteSheet({ artist, events = [], venueUserId, venuePro
   const labelStyle = { fontFamily: "'Bebas Neue'", fontSize: 13, letterSpacing: 1.5, color: 'rgba(255,255,255,.6)', display: 'block', marginBottom: 8 };
   const subLabel   = { fontFamily: "'Bebas Neue'", fontSize: 11, letterSpacing: 1.2, color: 'rgba(255,255,255,.45)', display: 'block', marginBottom: 5 };
   const inputStyle = { width: '100%', boxSizing: 'border-box', background: 'rgba(255,255,255,.06)', border: '1px solid rgba(255,255,255,.12)', borderRadius: 8, padding: '10px 12px', color: '#fff', fontFamily: "'DM Sans',sans-serif", fontSize: 13, outline: 'none' };
+
+  /**
+   * ── ⚠ ONE PILL, THREE USES — AND THE TEXT IS ALWAYS WHITE ────────────
+   *
+   * THE SLOT, WHAT'S COVERED and HOLD THE SPOT UNTIL were three copies of the
+   * same button carrying the same colour logic, which is how they drifted:
+   * two used the sheet's accent and one used the green, and all three dimmed
+   * their label to 60% when off.
+   *
+   * ⭐ WHITE IN BOTH STATES (owner, 2026-08-14). Selection is said by the
+   * BORDER and the FILL, which is enough — a dimmed label made an option that
+   * is merely unchosen look unavailable, and these are the choices the offer
+   * is built from. The tint stays per-group (green reads as "covered" under
+   * WHAT'S COVERED) because that colour carries meaning; the text does not.
+   *
+   * ⛔ Do not re-add a colour to the label to show selection. That was the
+   * thing that made an offer sheet look half-disabled.
+   */
+  const pillStyle = (on, tint = accent, tintRgb = accentRgb) => ({
+    fontFamily: "'Bebas Neue'", fontSize: 12, letterSpacing: 1,
+    padding: '7px 16px', borderRadius: 20, cursor: 'pointer', transition: 'all .15s',
+    background: on ? `rgba(${tintRgb},.15)` : 'rgba(255,255,255,.04)',
+    border: `1px solid ${on ? tint : 'rgba(255,255,255,.12)'}`,
+    color: '#fff',
+  });
   const sectionGap = { marginBottom: 22 };
 
   return (
@@ -454,10 +479,7 @@ export default function InviteSheet({ artist, events = [], venueUserId, venuePro
                 <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
                   {SLOT_ROLES.map(r => (
                     <button key={r} type="button" onClick={() => setSlotRole(slotRole === r ? '' : r)}
-                      style={{ fontFamily: "'Bebas Neue'", fontSize: 12, letterSpacing: 1, padding: '7px 16px', borderRadius: 20, cursor: 'pointer', transition: 'all .15s',
-                        background: slotRole === r ? `rgba(${accentRgb},.15)` : 'rgba(255,255,255,.04)',
-                        border: `1px solid ${slotRole === r ? accent : 'rgba(255,255,255,.12)'}`,
-                        color: slotRole === r ? accent : 'rgba(255,255,255,.6)' }}>{r}</button>
+                      style={pillStyle(slotRole === r)}>{r}</button>
                   ))}
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
@@ -485,12 +507,12 @@ export default function InviteSheet({ artist, events = [], venueUserId, venuePro
                 <input type="text" value={fee} onChange={e => setFee(e.target.value)} placeholder="e.g. $900, or $300 + door split" style={{ ...inputStyle, marginBottom: 10 }} />
                 <label style={subLabel}>WHAT'S COVERED</label>
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  {/* Green, not the sheet accent: under WHAT'S COVERED the
+                      colour means "included", the same green the offer line
+                      uses in the preview. */}
                   {EXTRAS.map(x => (
                     <button key={x} type="button" onClick={() => toggleExtra(x)}
-                      style={{ fontFamily: "'Bebas Neue'", fontSize: 12, letterSpacing: 1, padding: '7px 16px', borderRadius: 20, cursor: 'pointer', transition: 'all .15s',
-                        background: extras.has(x) ? 'rgba(0,229,160,.12)' : 'rgba(255,255,255,.04)',
-                        border: `1px solid ${extras.has(x) ? '#00E5A0' : 'rgba(255,255,255,.12)'}`,
-                        color: extras.has(x) ? '#00E5A0' : 'rgba(255,255,255,.6)' }}>
+                      style={pillStyle(extras.has(x), '#00E5A0', '0,229,160')}>
                       {extras.has(x) ? '✓ ' : '+ '}{x}
                     </button>
                   ))}
@@ -508,10 +530,7 @@ export default function InviteSheet({ artist, events = [], venueUserId, venuePro
                     const on = respondBy === d;
                     return (
                       <button key={p.label} type="button" onClick={() => setRespondBy(on ? '' : d)}
-                        style={{ fontFamily: "'Bebas Neue'", fontSize: 12, letterSpacing: 1, padding: '7px 16px', borderRadius: 20, cursor: 'pointer', transition: 'all .15s',
-                          background: on ? `rgba(${accentRgb},.15)` : 'rgba(255,255,255,.04)',
-                          border: `1px solid ${on ? accent : 'rgba(255,255,255,.12)'}`,
-                          color: on ? accent : 'rgba(255,255,255,.6)' }}>{p.label}</button>
+                        style={pillStyle(on)}>{p.label}</button>
                     );
                   })}
                 </div>
