@@ -9,6 +9,7 @@ import { useEventEditorState } from "@yespleez/event-editor";
 import VenueCheckSheet, { nearestVenues } from "../components/VenueCheckSheet";
 import EventEditorForm from "./event/SceneEventEditor";
 import { uploadPosterCrop } from "../lib/uploadImage";
+import { submitVenueRequest, venueRequestFromConfig } from "../lib/venueSubmissions";
 
 /**
  * SCENE’S EVENT SCREEN — plumbing only.
@@ -187,6 +188,7 @@ export default function CreateEventScreen() {
       }).eq('id', editId);
       setSaving(false);
       if (err) { setError(err.message); return; }
+      await queueVenueRequest(editId, cfg);
       navigate(`/event/${editId}`, { replace:true });
       return;
     }
@@ -259,6 +261,8 @@ export default function CreateEventScreen() {
       if (chErr) setError(`Event saved, but the co-hosts could not be added: ${chErr.message}`);
     }
 
+    await queueVenueRequest(data?.id, cfg);
+
     // A1 · two separate facts, not one. Creating is the effort; going live is
     // the outcome, and an event saved as a draft has not been published. They
     // coincide here only when the host used "go live" on the create form —
@@ -267,6 +271,35 @@ export default function CreateEventScreen() {
     if (goLive) track(EVENTS.PUBLISHED_EVENT, { from: 'create' });
 
     navigate(`/event/${data.id}`, { replace:true });
+  }
+
+  /**
+   * A PENDING VENUE BECOMES A REVIEWABLE REQUEST — the app half of the loop
+   * Studio closes.
+   *
+   * ⚠ AFTER the save and deliberately NOT fatal, exactly like the co-host
+   * insert above. The event is already stored and correct; the worst case here
+   * is that a place does not reach the review queue, which is a missing line in
+   * a moderation list rather than a lost night's work. ⛔ Never let this send
+   * the organiser back to a form whose event already exists.
+   *
+   * The write is idempotent per event, so re-saving does not re-queue —
+   * `submitVenueRequest` reads before it inserts, and the partial unique index
+   * is the real guarantee behind it.
+   *
+   * ⛔ NOTHING HERE TOUCHES `config.venueRequest`. That flag is the organiser's
+   * own record of having asked, and Studio's decision lands in
+   * `venue_submissions`, never back on the event.
+   */
+  async function queueVenueRequest(eventId, cfg) {
+    const venue = venueRequestFromConfig(cfg);
+    if (!eventId || !venue || !session?.user?.id) return;
+    try {
+      await submitVenueRequest({ eventId, userId: session.user.id, venue });
+    } catch (_) {
+      // Swallowed on purpose: see the contract above. A thrown error here would
+      // abort the navigate and strand the organiser on a stale form.
+    }
   }
 
   async function handleDelete() {

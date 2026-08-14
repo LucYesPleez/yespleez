@@ -18,6 +18,7 @@ import EnquiryPanel from '../components/EnquiryPanel';
 import { ENQUIRY_CARD_COLUMNS } from '../components/EnquiryCard';
 import { fetchApplicantProfiles } from '../lib/applicantProfiles';
 import DashboardHeader from '../components/DashboardHeader';
+import MyVenueSubmissions from '../components/MyVenueSubmissions';
 import DashboardProfileCard from '../components/DashboardProfileCard';
 import NotificationBar from '../components/NotificationBar';
 import DashboardStats from '../components/DashboardStats';
@@ -470,6 +471,12 @@ export default function HostDashboard({ userId: userIdProp }) {
           way to find out was to remember to look in Enquiries first. Both
           entry points now render the same private state. */}
       <AvailabilitySection userId={userId} profileId={profile?.id} table="artist_availability" accent="#FF2D78" accentRgb="255,45,120" enquiries={panelEnquiries} />
+
+      {/* ── MY VENUE SUBMISSIONS ──
+          Renders itself away entirely when this organiser has never asked for
+          a venue, which is most of them. See the component for why an empty
+          panel would be worse than none. */}
+      <MyVenueSubmissions />
 
       {/* ── ENQUIRIES ── */}
       <div id="section-enquiries" style={{ marginTop: 40 }}>
