@@ -21,6 +21,7 @@ const queryClient = new QueryClient({
 import AuthScreen from './screens/AuthScreen';
 import StartScreen from './screens/StartScreen';
 import BottomNav from './components/BottomNav';
+import UpdateBanner from './components/UpdateBanner';
 import MiniPlayer from './components/MiniPlayer';
 import WhatsOnScreen from './screens/WhatsOnScreen';
 import DiscoverScreen from './screens/DiscoverScreen';
@@ -323,6 +324,11 @@ function Shell({ session, onSignOut }) {
         onTabPress={handleTabPress}
         messagesBadge={messagesBadge}
       />
+
+      {/* ⚠ Mounted once, at the root, and OUTSIDE the routes. A tab left open
+          for hours is exactly the case this exists for, so it must not unmount
+          and restart its check every time someone changes screen. */}
+      <UpdateBanner />
 
       {/* Global mini player — persists across navigation */}
       {player && (
