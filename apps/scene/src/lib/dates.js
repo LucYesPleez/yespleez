@@ -10,7 +10,15 @@ export function dateStr(offsetDays = 0) {
 
 export function today() { return dateStr(0); }
 
-function localDateStr(d) {
+// The YYYY-MM-DD a Date falls on IN THE VIEWER'S TIMEZONE.
+//
+// ⛔ Never `d.toISOString().slice(0, 10)` for this. That is the UTC date, and
+// east of Greenwich it is a different day from the one the Date represents —
+// `new Date('2026-08-14T00:00:00')` is local midnight, which is 2026-08-13
+// 14:00 in UTC, so the round trip hands back the day BEFORE the one asked for.
+// Exported (it used to be module-private) because every caller that formats a
+// day needs it and the ones that reached for toISOString all got it wrong.
+export function localDateStr(d) {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
 

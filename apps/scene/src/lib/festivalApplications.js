@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { localDateStr } from './dates';
 
 /**
  * APPLYING TO A FESTIVAL, FROM SCENE.
@@ -94,7 +95,22 @@ export function festivalDayOptions(settings) {
     // that hangs is a worse answer than one that shows nothing.
     let guard = 0;
     while (d <= end && guard++ < 400) {
-      const iso = d.toISOString().slice(0, 10);
+      /**
+       * ⚠ THE LABEL AND THE VALUE MUST NAME THE SAME DAY, and for a long time
+       * they did not.
+       *
+       * This was `d.toISOString().slice(0, 10)` while the label beside it came
+       * from `toLocaleDateString` — one UTC, one local. `d` starts at LOCAL
+       * midnight (`${from}T00:00:00`), which in AEST is 14:00 the previous day
+       * in UTC, so every option READ "Fri, 14 Aug" and SUBMITTED "2026-08-13".
+       *
+       * ⛔ Worse than the `todayStr` bug in MySceneScreen, not the same shape.
+       * That one misfired only between local midnight and the UTC rollover and
+       * looked fine every afternoon. This was wrong at every hour of every day,
+       * and silently: the volunteer picked the right-looking day and the stored
+       * availability named the day before.
+       */
+      const iso = localDateStr(d);
       if (!out.some(o => o.value === iso)) {
         out.push({
           value: iso,
