@@ -13,6 +13,12 @@
 
 // domain: the platform's canonical URL host.
 // pathPrefix: a fixed path segment before the handle (e.g. LinkedIn's "in/").
+// subdomain: the handle is a SUBDOMAIN, not a path — "band.bandcamp.com", not
+//   "bandcamp.com/band". Bandcamp is the only one, and without this flag it is
+//   silently wrong in both directions: a pasted URL keeps the whole host as the
+//   "handle" and rebuilds as bandcamp.com/band.bandcamp.com, while a bare
+//   handle rebuilds as bandcamp.com/band — a real page, but the label shop, not
+//   the artist. Both produce a link that looks plausible and goes nowhere.
 const PLATFORMS = {
   instagram:  { domain: 'instagram.com' },
   facebook:   { domain: 'facebook.com' },
@@ -22,7 +28,7 @@ const PLATFORMS = {
   mixcloud:   { domain: 'mixcloud.com' },
   youtube:    { domain: 'youtube.com' },
   beatport:   { domain: 'beatport.com' },
-  bandcamp:   { domain: 'bandcamp.com' },
+  bandcamp:   { domain: 'bandcamp.com', subdomain: true },
   linkedin:   { domain: 'linkedin.com', pathPrefix: 'in/' },
 };
 
@@ -40,6 +46,14 @@ function extractHandle(platformKey, raw) {
   const platform = PLATFORMS[platformKey];
   let v = String(raw).trim();
   v = v.replace(/^https?:\/\//i, '').replace(/^www\./i, '');
+  if (platform?.subdomain) {
+    // "band.bandcamp.com/album/x" → "band". The trailing path is dropped with
+    // it: the handle is the whole identity for these, and a deep link to one
+    // release is not the artist's page.
+    const subRe = new RegExp('^([^/.]+)\\.' + platform.domain.replace(/\./g, '\\.') + '(?:/.*)?$', 'i');
+    const hit = v.match(subRe);
+    if (hit) return hit[1].trim();
+  }
   if (platform) {
     const domainRe = new RegExp('^' + platform.domain.replace(/\./g, '\\.') + '\\/?', 'i');
     v = v.replace(domainRe, '');
@@ -93,5 +107,6 @@ export function socialProfileUrl(platformKey, raw) {
   if (!platform) return ensureHttps(raw);
   const handle = extractHandle(platformKey, raw);
   if (!handle) return '';
+  if (platform.subdomain) return `https://${handle}.${platform.domain}`;
   return `https://${platform.domain}/${platform.pathPrefix || ''}${handle}`;
 }

@@ -128,6 +128,7 @@ export default function BandProfileScreen() {
   const [abn,           setAbn]           = useState('');
   const [gstReg,        setGstReg]        = useState(false);
   const [spotify,       setSpotify]       = useState('');
+  const [bandcamp,      setBandcamp]      = useState('');
   const [soundcloud,    setSoundcloud]    = useState('');
   const [youtube,       setYoutube]       = useState('');
   const [instagram,     setInstagram]     = useState('');
@@ -168,6 +169,7 @@ export default function BandProfileScreen() {
           setGstReg(!!data.gst_registered);
           const naSet = new Set();
           loadNa(data.spotify,       setSpotify,      'spotify',      naSet);
+          loadNa(data.bandcamp,      setBandcamp,     'bandcamp',     naSet);
           loadNa(data.soundcloud,    setSoundcloud,   'soundcloud',   naSet);
           loadNa(data.youtube,       setYoutube,      'youtube',      naSet);
           loadNa(data.instagram,     setInstagram,    'instagram',    naSet);
@@ -218,7 +220,9 @@ export default function BandProfileScreen() {
       experience:      expLevel,
       fee_type:        feeType,
       fee:             feeAmount ? parseInt(feeAmount) : null,
-      fee_max:         (!feeNegotiable && feeMax) ? parseInt(feeMax) : null,
+      // ⚠ `feeNegotiable &&` — the negation discarded the max in the only
+      // state that produces one. See ArtistProfileScreen.
+      fee_max:         (feeNegotiable && feeMax) ? parseInt(feeMax) : null,
       fee_negotiable:  feeNegotiable,
       fee_travel:      feeTravel,
       emergency_name:  emergName,
@@ -228,6 +232,9 @@ export default function BandProfileScreen() {
       abn,
       gst_registered:  gstReg,
       spotify:       naFields.has('spotify')      ? 'N/A' : normalizeSocialValue('spotify', spotify),
+      // ⚠ NEEDS MIGRATION S1 (20260814000000) — see ArtistProfileScreen. Until
+      // that column exists this line 400s the entire save, not just itself.
+      bandcamp:      naFields.has('bandcamp')     ? 'N/A' : normalizeSocialValue('bandcamp', bandcamp),
       soundcloud:    naFields.has('soundcloud')   ? 'N/A' : normalizeSocialValue('soundcloud', soundcloud),
       youtube:       naFields.has('youtube')      ? 'N/A' : normalizeSocialValue('youtube', youtube),
       instagram:     naFields.has('instagram')    ? 'N/A' : normalizeSocialValue('instagram', instagram),
@@ -424,9 +431,17 @@ export default function BandProfileScreen() {
                     <div style={{ fontSize: 11, color: 'var(--muted)', letterSpacing: 1.5, fontFamily: "'Bebas Neue'", marginBottom: 6 }}>FROM $</div>
                     <input className={s.input} type="text" inputMode="numeric" value={feeAmount} onChange={e => setFeeAmount(e.target.value)} placeholder="e.g. 600" />
                   </div>
+                  {/* ⚠ TOUCHING `TO $` TICKS NEGOTIABLE — see ArtistProfileScreen
+                      for why, and why this is not a disabled input. */}
                   <div style={{ flex: 1, opacity: feeNegotiable ? 1 : 0.35 }}>
-                    <div style={{ fontSize: 11, color: 'var(--muted)', letterSpacing: 1.5, fontFamily: "'Bebas Neue'", marginBottom: 6 }}>TO $</div>
-                    <input className={s.input} type="text" inputMode="numeric" value={feeMax} onChange={e => setFeeMax(e.target.value)} placeholder="e.g. 1200" disabled={!feeNegotiable} />
+                    {/* ⚠ (OPTIONAL) ON THE LABEL — see ArtistProfileScreen. */}
+                    <div style={{ fontSize: 11, color: 'var(--muted)', letterSpacing: 1.5, fontFamily: "'Bebas Neue'", marginBottom: 6 }}>
+                      TO $ <span style={{ opacity: 0.6 }}>(OPTIONAL)</span>
+                    </div>
+                    <input className={s.input} type="text" inputMode="numeric" value={feeMax}
+                      onFocus={() => { if (!feeNegotiable) { setFeeNegotiable(true); setIsDirty(true); } }}
+                      onChange={e => { setFeeMax(e.target.value); setIsDirty(true); }}
+                      placeholder="e.g. 1200" />
                   </div>
                 </div>
               )}
@@ -483,7 +498,13 @@ export default function BandProfileScreen() {
             <Section title="SOCIALS + LINKS">
               <SocialSection
                 links={[
-                  { icon: 'spotify', key: 'spotify',      value: spotify,       onChange: e => setSpotify(e.target.value),      placeholder: '@handle or link' },
+                  /* ⚠ NOT "@handle or link" like its neighbours. Spotify has
+                     no handle: the only thing that resolves is the artist URL,
+                     whose `artist/<id>` path IS the stored value. Asking for a
+                     handle invites an ID pasted bare, which rebuilds as
+                     open.spotify.com/<id> and 404s. */
+                  { icon: 'spotify', key: 'spotify',      value: spotify,       onChange: e => setSpotify(e.target.value),      placeholder: 'open.spotify.com/artist/…' },
+                  { icon: 'bc',      key: 'bandcamp',     value: bandcamp,      onChange: e => setBandcamp(e.target.value),     placeholder: 'yourband.bandcamp.com' },
                   { icon: 'sc',      key: 'soundcloud',   value: soundcloud,    onChange: e => setSoundcloud(e.target.value),   placeholder: '@handle or link' },
                   { icon: 'yt',      key: 'youtube',      value: youtube,       onChange: e => setYoutube(e.target.value),      placeholder: '@handle or link' },
                   { icon: 'ig',      key: 'instagram',    value: instagram,     onChange: e => setInstagram(e.target.value),    placeholder: '@handle or link' },

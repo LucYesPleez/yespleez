@@ -169,11 +169,14 @@ export default function ArtistProfileScreen() {
   const [hasAbn,         setHasAbn]         = useState(null);
   const [abn,            setAbn]            = useState('');
   const [gstReg,         setGstReg]         = useState(null);
+  const [spotify,        setSpotify]        = useState('');
   const [soundcloud,     setSoundcloud]     = useState('');
   const [mixcloud,       setMixcloud]       = useState('');
   const [instagram,      setInstagram]      = useState('');
   const [youtube,        setYoutube]        = useState('');
   const [facebook,       setFacebook]       = useState('');
+  const [bandcamp,       setBandcamp]       = useState('');
+  const [beatport,       setBeatport]       = useState('');
   const [website,        setWebsite]        = useState('');
   const [contactEmail,   setContactEmail]   = useState('');
 
@@ -197,11 +200,14 @@ export default function ArtistProfileScreen() {
           setMixLink(data.mix_link || '');
           setBio(data.bio || '');
           const naSet = new Set();
+          loadNa(data.spotify,    setSpotify,    'spotify',    naSet);
           loadNa(data.soundcloud, setSoundcloud, 'soundcloud', naSet);
           loadNa(data.mixcloud,   setMixcloud,   'mixcloud',   naSet);
           loadNa(data.instagram,  setInstagram,  'instagram',  naSet);
           loadNa(data.youtube,    setYoutube,    'youtube',    naSet);
           loadNa(data.facebook,   setFacebook,   'facebook',   naSet);
+          loadNa(data.bandcamp,   setBandcamp,   'bandcamp',   naSet);
+          loadNa(data.beatport,   setBeatport,   'beatport',   naSet);
           loadNa(data.website,    setWebsite,    'website',    naSet);
           loadNa(data.contact_email, setContactEmail, 'contactEmail', naSet);
           setNaFields(naSet);
@@ -266,11 +272,20 @@ export default function ArtistProfileScreen() {
       name, label, years, location, state: locState, postcode,
       sound, tagline, bio,
       mix_link: ensureHttps(mixLink),
+      // ⚠ `spotify` ALREADY EXISTS as a column — the band editor has written it
+      // since it shipped. Only bandcamp/beatport below need migration S1.
+      spotify:    naFields.has('spotify')    ? 'N/A' : normalizeSocialValue('spotify', spotify),
       soundcloud: naFields.has('soundcloud') ? 'N/A' : normalizeSocialValue('soundcloud', soundcloud),
       mixcloud:   naFields.has('mixcloud')   ? 'N/A' : normalizeSocialValue('mixcloud', mixcloud),
       instagram:  naFields.has('instagram')  ? 'N/A' : normalizeSocialValue('instagram', instagram),
       youtube:    naFields.has('youtube')    ? 'N/A' : normalizeSocialValue('youtube', youtube),
       facebook:   naFields.has('facebook')   ? 'N/A' : normalizeSocialValue('facebook', facebook),
+      // ⚠ THESE TWO NEED MIGRATION S1 (20260814000000). PostgREST rejects the
+      // whole INSERT with a 400 when it is handed a column that does not
+      // exist, so without those columns this line does not lose two fields —
+      // it stops every artist profile from saving at all.
+      bandcamp:   naFields.has('bandcamp')   ? 'N/A' : normalizeSocialValue('bandcamp', bandcamp),
+      beatport:   naFields.has('beatport')   ? 'N/A' : normalizeSocialValue('beatport', beatport),
       website:    naFields.has('website')    ? 'N/A' : normalizeSocialValue('website', website),
       contact_email: naFields.has('contactEmail') ? 'N/A' : contactEmail,
       genre_string, avatar: avatarHero || avatarUrl,
@@ -280,7 +295,11 @@ export default function ArtistProfileScreen() {
       tech_setup:      techSetup.join(' · '),
       fee_type:        feeType,
       fee:             feeAmount ? parseInt(feeAmount) : null,
-      fee_max:         (!feeNegotiable && feeMax) ? parseInt(feeMax) : null,
+      // ⚠ `feeNegotiable &&`, NOT `!feeNegotiable &&`. The negation discarded
+      // the upper bound in the one state that can produce one: TO $ is only
+      // reachable once Negotiable is on, so the old test was false exactly
+      // when a max existed and every range ever typed was written as null.
+      fee_max:         (feeNegotiable && feeMax) ? parseInt(feeMax) : null,
       fee_local:       feeLocal,
       fee_plus_travel: feeTravelLocal,
       fee_negotiable:  feeNegotiable,
@@ -548,9 +567,40 @@ export default function ArtistProfileScreen() {
                     <div style={{ fontSize: 11, color: 'var(--muted)', letterSpacing: 1.5, fontFamily: "'Bebas Neue'", marginBottom: 6 }}>FROM $</div>
                     <input className={s.input} type="text" inputMode="numeric" value={feeAmount} onChange={e => setFeeAmount(e.target.value)} placeholder="e.g. 300" />
                   </div>
+                  {/* ⚠ TOUCHING `TO $` IS WHAT TICKS NEGOTIABLE — the field is
+                      not disabled and waiting to be unlocked from elsewhere.
+                      Naming an upper bound IS saying the number is open to
+                      discussion, so making the artist find a checkbox further
+                      down the section before the box they are already trying
+                      to type in will accept anything is asking them to declare
+                      the same thing twice.
+
+                      ⛔ NOT `disabled`, which is what this was. A disabled
+                      input dispatches no pointer events at all, so nothing on
+                      it or around it could have noticed the tap — the field
+                      simply refused, and the reason lived three rows away.
+
+                      ⚠ IT STILL LOOKS OFF UNTIL IT IS ON, and that is the
+                      point: 0.35 is the same dimming as before, so a range
+                      reads as something you opt into rather than a second
+                      amount the form is asking everyone for. Only the refusal
+                      is gone, not the state — the field is inert to the eye
+                      and live to the finger. */}
                   <div style={{ flex: 1, opacity: feeNegotiable ? 1 : 0.35 }}>
-                    <div style={{ fontSize: 11, color: 'var(--muted)', letterSpacing: 1.5, fontFamily: "'Bebas Neue'", marginBottom: 6 }}>TO $</div>
-                    <input className={s.input} type="text" inputMode="numeric" value={feeMax} onChange={e => setFeeMax(e.target.value)} placeholder="e.g. 800" disabled={!feeNegotiable} />
+                    {/* ⚠ (OPTIONAL) SITS ON THE LABEL, NOT UNDER THE FIELD as a
+                        hint. Sharing the line is what makes it read as part of
+                        the field's name rather than another thing to read, and
+                        it answers the question the dimming raises — "is this
+                        one broken, or is it just not for me" — in the place the
+                        eye already is. Dimmer than the label so it qualifies
+                        rather than competes. */}
+                    <div style={{ fontSize: 11, color: 'var(--muted)', letterSpacing: 1.5, fontFamily: "'Bebas Neue'", marginBottom: 6 }}>
+                      TO $ <span style={{ opacity: 0.6 }}>(OPTIONAL)</span>
+                    </div>
+                    <input className={s.input} type="text" inputMode="numeric" value={feeMax}
+                      onFocus={() => { if (!feeNegotiable) { setFeeNegotiable(true); setIsDirty(true); } }}
+                      onChange={e => { setFeeMax(e.target.value); setIsDirty(true); }}
+                      placeholder="e.g. 800" />
                   </div>
                 </div>
               )}
@@ -607,8 +657,22 @@ export default function ArtistProfileScreen() {
             <Section title="SOCIALS + LINKS">
               <SocialSection
                 links={[
+                  /* ⚠ NOT "@handle or link" like its neighbours, which is what
+                     the band editor says. Spotify has no handle: the only
+                     thing that resolves is the artist URL, whose `artist/<id>`
+                     path IS the stored value. Asking for a handle invites an
+                     ID pasted bare, which rebuilds as open.spotify.com/<id>
+                     and 404s. */
+                  { icon: 'spotify', key: 'spotify', value: spotify, onChange: e => setSpotify(e.target.value), placeholder: 'open.spotify.com/artist/…' },
                   { icon: 'sc', key: 'soundcloud', value: soundcloud, onChange: e => setSoundcloud(e.target.value), placeholder: '@handle or link' },
                   { icon: 'mc', key: 'mixcloud',   value: mixcloud,   onChange: e => setMixcloud(e.target.value),   placeholder: '@handle or link' },
+                  /* ⚠ THE RELEASE PLATFORMS SIT WITH THE MIX ONES, above the
+                     socials. An artist filling this in is answering "where can
+                     you hear me", and Bandcamp and Beatport answer that
+                     question, not "where do I post". Same reason SoundCloud
+                     leads the list rather than Instagram. */
+                  { icon: 'bc', key: 'bandcamp',   value: bandcamp,   onChange: e => setBandcamp(e.target.value),   placeholder: 'yourname.bandcamp.com' },
+                  { icon: 'bp', key: 'beatport',   value: beatport,   onChange: e => setBeatport(e.target.value),   placeholder: '@handle or link' },
                   { icon: 'ig', key: 'instagram',  value: instagram,  onChange: e => setInstagram(e.target.value),  placeholder: '@handle or link' },
                   { icon: 'yt', key: 'youtube',    value: youtube,    onChange: e => setYoutube(e.target.value),    placeholder: '@handle or link' },
                   { icon: 'fb', key: 'facebook',   value: facebook,   onChange: e => setFacebook(e.target.value),   placeholder: '@handle or link' },

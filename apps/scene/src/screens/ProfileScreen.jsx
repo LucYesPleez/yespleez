@@ -913,6 +913,8 @@ export default function ProfileScreen() {
         !na(profile.soundcloud) && { href: socialProfileUrl('soundcloud', profile.soundcloud), col: '#FF5500',     icon: 'soundcloud' },
         !na(profile.spotify)    && { href: socialProfileUrl('spotify', profile.spotify),       col: '#1DB954',     icon: 'spotify' },
         !na(profile.mixcloud)   && { href: socialProfileUrl('mixcloud', profile.mixcloud),     col: '#52aad8',     icon: 'mixcloud' },
+        !na(profile.bandcamp)   && { href: socialProfileUrl('bandcamp', profile.bandcamp),     col: '#629AA9',     icon: 'bandcamp' },
+        !na(profile.beatport)   && { href: socialProfileUrl('beatport', profile.beatport),     col: '#01FF95',     icon: 'beatport' },
         !na(profile.website)    && { href: ensureHttps(profile.website),                       col: 'var(--neon2)', icon: 'globe' },
         !na(profile.contact_email) && { href: `mailto:${profile.contact_email}`, col: '#aaaacc', icon: 'email' },
       ].filter(Boolean);

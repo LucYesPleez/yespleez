@@ -130,6 +130,7 @@ export default function StandupProfileScreen() {
   const [hasAbn,        setHasAbn]        = useState(false);
   const [abn,           setAbn]           = useState('');
   const [gstReg,        setGstReg]        = useState(false);
+  const [spotify,       setSpotify]       = useState('');
   const [instagram,     setInstagram]     = useState('');
   const [tiktok,        setTiktok]        = useState('');
   const [facebook,      setFacebook]      = useState('');
@@ -166,6 +167,7 @@ export default function StandupProfileScreen() {
           setAbn(data.abn || '');
           setGstReg(!!data.gst_registered);
           const naSet = new Set();
+          loadNa(data.spotify,       setSpotify,      'spotify',      naSet);
           loadNa(data.instagram,     setInstagram,    'instagram',    naSet);
           loadNa(data.tiktok,        setTiktok,       'tiktok',       naSet);
           loadNa(data.facebook,      setFacebook,     'facebook',     naSet);
@@ -229,7 +231,9 @@ export default function StandupProfileScreen() {
       experience:      expLevel,
       fee_type:        feeType,
       fee:             feeAmount ? parseInt(feeAmount) : null,
-      fee_max:         (!feeNegotiable && feeMax) ? parseInt(feeMax) : null,
+      // ⚠ `feeNegotiable &&` — the negation discarded the max in the only
+      // state that produces one. See ArtistProfileScreen.
+      fee_max:         (feeNegotiable && feeMax) ? parseInt(feeMax) : null,
       fee_negotiable:  feeNegotiable,
       fee_travel:      feeTravel,
       emergency_name:  emergName,
@@ -238,6 +242,7 @@ export default function StandupProfileScreen() {
       has_abn:         hasAbn,
       abn,
       gst_registered:  gstReg,
+      spotify:       naFields.has('spotify')      ? 'N/A' : normalizeSocialValue('spotify', spotify),
       instagram:     naFields.has('instagram')    ? 'N/A' : normalizeSocialValue('instagram', instagram),
       tiktok:        naFields.has('tiktok')       ? 'N/A' : normalizeSocialValue('tiktok', tiktok),
       facebook:      naFields.has('facebook')     ? 'N/A' : normalizeSocialValue('facebook', facebook),
@@ -431,9 +436,17 @@ export default function StandupProfileScreen() {
                     <div style={{ fontSize: 11, color: 'var(--muted)', letterSpacing: 1.5, fontFamily: "'Bebas Neue'", marginBottom: 6 }}>FROM $</div>
                     <input className={s.input} type="text" inputMode="numeric" value={feeAmount} onChange={e => setFeeAmount(e.target.value)} placeholder="e.g. 200" />
                   </div>
+                  {/* ⚠ TOUCHING `TO $` TICKS NEGOTIABLE — see ArtistProfileScreen
+                      for why, and why this is not a disabled input. */}
                   <div style={{ flex: 1, opacity: feeNegotiable ? 1 : 0.35 }}>
-                    <div style={{ fontSize: 11, color: 'var(--muted)', letterSpacing: 1.5, fontFamily: "'Bebas Neue'", marginBottom: 6 }}>TO $</div>
-                    <input className={s.input} type="text" inputMode="numeric" value={feeMax} onChange={e => setFeeMax(e.target.value)} placeholder="e.g. 500" disabled={!feeNegotiable} />
+                    {/* ⚠ (OPTIONAL) ON THE LABEL — see ArtistProfileScreen. */}
+                    <div style={{ fontSize: 11, color: 'var(--muted)', letterSpacing: 1.5, fontFamily: "'Bebas Neue'", marginBottom: 6 }}>
+                      TO $ <span style={{ opacity: 0.6 }}>(OPTIONAL)</span>
+                    </div>
+                    <input className={s.input} type="text" inputMode="numeric" value={feeMax}
+                      onFocus={() => { if (!feeNegotiable) { setFeeNegotiable(true); setIsDirty(true); } }}
+                      onChange={e => { setFeeMax(e.target.value); setIsDirty(true); }}
+                      placeholder="e.g. 500" />
                   </div>
                 </div>
               )}
@@ -490,6 +503,15 @@ export default function StandupProfileScreen() {
             <Section title="SOCIALS + LINKS">
               <SocialSection
                 links={[
+                  /* ⚠ SPOTIFY IS FOR THE RECORDED SET — a comedy or spoken-word
+                     album lives there the same way a mix lives on SoundCloud,
+                     which is why it leads the list rather than sitting with
+                     the socials.
+
+                     ⚠ NOT "@handle or URL" like its neighbours. Spotify has no
+                     handle: only the artist URL resolves, and its
+                     `artist/<id>` path IS the stored value. */
+                  { icon: 'spotify', key: 'spotify',    value: spotify,      onChange: e => setSpotify(e.target.value),      placeholder: 'open.spotify.com/artist/…' },
                   { icon: 'ig',    key: 'instagram',    value: instagram,    onChange: e => setInstagram(e.target.value),    placeholder: '@handle or URL' },
                   { icon: 'tt',    key: 'tiktok',       value: tiktok,       onChange: e => setTiktok(e.target.value),       placeholder: '@handle or URL' },
                   { icon: 'fb',    key: 'facebook',     value: facebook,     onChange: e => setFacebook(e.target.value),     placeholder: 'facebook.com/…' },
