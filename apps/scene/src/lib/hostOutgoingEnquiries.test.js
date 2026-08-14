@@ -44,12 +44,26 @@ function fakeSupabase({ enquiries = [], profiles = [] } = {}) {
         select() { return api; },
         eq(col, val) { filters[col] = val; return api; },
         in(col, vals) { filters[`in:${col}`] = vals; return api; },
+        /* S5 · `.is(col, null)` — the cleared-row filter. Modelled as a real
+           predicate rather than a no-op: a double that silently accepts a
+           filter it does not apply would let a cleared row pass this suite.
+           ⚠ Kept apart from `eq` because SQL NULL is not JS strict equality —
+           a fixture with no such key is NULL in the database's terms, and
+           `undefined === null` is false. */
+        is(col, val) { filters[`is:${col}`] = val; return api; },
         order() { return api; },
         limit() { return api; },
         then(resolve) {
           const data = table === 'venue_enquiries'
             ? enquiries.filter(e =>
-                Object.entries(filters).every(([k, v]) => k.startsWith('in:') || e[k] === v))
+                Object.entries(filters).every(([k, v]) => {
+                  if (k.startsWith('in:')) return true;
+                  if (k.startsWith('is:')) {
+                    const col = k.slice(3);
+                    return v === null ? e[col] == null : e[col] === v;
+                  }
+                  return e[k] === v;
+                }))
             : profiles.filter(p => (filters['in:id'] || []).includes(p.id));
           return Promise.resolve({ data }).then(resolve);
         },

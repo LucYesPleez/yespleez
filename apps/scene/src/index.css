@@ -1939,6 +1939,25 @@ body.yp-viewer-open .yp-global-header {
   box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 6px 18px -12px rgba(255,45,120,.5);
 }
 
+/* NEUTRAL — the fourth tone, and the quietest. CLEAR only hides a finished row
+   from your own list: it changes no outcome, notifies nobody and destroys
+   nothing, so it carries no hue at all. Wearing the decline magenta would
+   claim a consequence it does not have, and the whole point of that colour is
+   that it stays rare enough to mean something. */
+.yp-decision--neutral {
+  color: var(--muted);
+  background-image:
+    linear-gradient(rgba(17,19,26,.62), rgba(17,19,26,.62)),
+    linear-gradient(135deg, rgba(255,255,255,.10), rgba(255,255,255,.04));
+}
+.yp-decision--neutral:hover {
+  color: var(--text);
+  background-image:
+    linear-gradient(rgba(17,19,26,.62), rgba(17,19,26,.62)),
+    linear-gradient(135deg, rgba(255,255,255,.18), rgba(255,255,255,.07));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.08);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .yp-decision, .yp-detail { transition: box-shadow .01s linear, color .01s linear; }
   .yp-decision:hover, .yp-decision:active,

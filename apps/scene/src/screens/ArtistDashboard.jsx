@@ -6,7 +6,7 @@ import { resolvePerformerProfileId } from '../lib/actingProfile';
 import { writeNotification, inferToProfileId } from '../lib/writeNotification';
 import { useSession } from '../App';
 import { today, formatDisplayDate } from '../lib/dates';
-import { STATUS_TAB_COLOR, withDirection } from '../lib/enquiryUtils';
+import { withDirection } from '../lib/enquiryUtils';
 import s from './ArtistDashboard.module.css';
 import EventCard from '../components/EventCard';
 import { useDragScroll } from '../hooks/useDragScroll';
@@ -20,7 +20,11 @@ import OpportunityCard from '../components/OpportunityCard';
 import BookingInvitation from '../components/BookingInvitation';
 import AvailabilitySection from '../components/AvailabilitySection';
 import OutgoingEnquiryRow from '../components/OutgoingEnquiryRow';
-import { APP_TABS, APP_TAB_COLOR, applicantLabel, OUT_EMPTY, fetchOutgoingEnquiries } from '../lib/outgoingPipeline';
+import { APP_TAB_COLOR, applicantLabel, OUT_EMPTY, fetchOutgoingEnquiries, isFadedDecline, DECLINE_FADE_DAYS } from '../lib/outgoingPipeline';
+import { DIR_TABS, EnquiryDirectionTabs, EnquiryStatusTabs, EnquirySearch } from '../components/EnquiryTabs';
+import { normaliseStatus } from '../lib/enquiryUtils';
+import EnquiryCalendar from '../components/EnquiryCalendar';
+import { CalendarIconBtn } from '../components/DecisionButtons';
 import { PROFILE_TYPES } from '../lib/profileTypes';
 import { completionFor, firstUnsettled } from '@yespleez/requirements';
 
@@ -37,13 +41,12 @@ import { completionFor, firstUnsettled } from '@yespleez/requirements';
 // sits alongside a top-level BOOKED tab for confirmed gigs. Two nested tabs
 // sharing a name is worse than a slightly less pure label. Revisit if/when the
 // dashboard's top-level navigation gets reworked.
-const IN_STATUS_MAP  = {
-  NEW:         ['new', 'pending', 'seen', 'viewed'],
-  CONSIDERING: ['shortlisted', 'interested', 'tentative'],
-  ACCEPTED:    ['accepted', 'booked', 'confirmed'],
-  HISTORY:     ['declined', 'rejected', 'cancelled', 'completed', 'expired'],
-};
-const IN_TABS = ['NEW', 'CONSIDERING', 'ACCEPTED', 'HISTORY'];
+/* ⛔ IN_STATUS_MAP AND IN_TABS ARE GONE (owner, 2026-08-14). They were a
+   third and fourth mapping of one status set, and the reason this screen
+   showed NEW / CONSIDERING / ACCEPTED / HISTORY where the venue and host
+   showed NEW / SEEN / SHORTLISTED / ACCEPTED / DECLINED. The buckets now come
+   from normaliseStatus, the same function every other surface uses.
+   ⛔ Do not reintroduce a local vocabulary here. */
 // Unread = never opened. Drives the NEW dot only, never the bucket.
 const UNREAD_STATUSES = ['new', 'pending'];
 // Calm by default — an empty bucket is a feature, not a gap.
@@ -125,7 +128,9 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
   const [openOffer,     setOpenOffer]     = useState(null);
   const [undoItem,      setUndoItem]      = useState(null);
   const undoTimer = useRef(null);
-  const [outStatusTab,  setOutStatusTab]  = useState('SUBMITTED');
+  /* AWAITING, not SUBMITTED — the shared OUTGOING sub-tabs (see EnquiryTabs). */
+  const [outStatusTab,  setOutStatusTab]  = useState('AWAITING');
+  const [calendarOpen,  setCalendarOpen]  = useState(false);
   const [gigTab,        setGigTab]        = useState('UPCOMING');
   const [enqSearch,     setEnqSearch]     = useState('');
   const [pastGigSearch, setPastGigSearch] = useState('');
@@ -336,6 +341,52 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
     queryClient.invalidateQueries({ queryKey: ['artistDashboard', userId, cfg.profileType] });
   }
 
+  /**
+   * ⭐ WITHDRAW AN ENQUIRY YOU SENT (owner, 2026-08-14).
+   *
+   * ⚠ AN UPDATE, NOT A DELETE — and the row it guards on is the one the SENDER
+   * owns. `applicant_profile_id` scopes the write to this act's own asks, so
+   * a mis-passed id cannot cancel somebody else's; RLS says the same thing
+   * from the other side, and agreeing with it here means the failure is a
+   * no-op rather than an error.
+   *
+   * ⚠ `declined` IS THE EXISTING STATUS, not a new `cancelled` one. It is what
+   * EnquiryCard's CANCEL ENQUIRY writes on the venue and host surfaces, what
+   * the OUTGOING sub-tabs already bucket, and what the venue's own list
+   * already reads. A new status would need a home in four places to say the
+   * same thing.
+   *
+   * ⛔ NO NOTIFICATION. Cancelling is the asker stepping back, not news the
+   * venue is owed — the same reason declining an offer notifies nobody.
+   */
+  async function handleCancelEnquiry(enquiryId) {
+    if (!profile?.id) return;
+    await supabase.from('venue_enquiries')
+      .update({ status: 'cancelled', applicant_cleared_at: new Date().toISOString() })
+      .eq('id', enquiryId)
+      .eq('applicant_profile_id', profile.id);
+    queryClient.invalidateQueries({ queryKey: ['artistDashboard', userId, cfg.profileType] });
+  }
+
+  /**
+   * ⭐ CLEAR — TIDY A DECLINED ROW OUT OF YOUR OWN LIST.
+   *
+   * ⛔ NOT A DELETE, and not a status change. The venue said no; that answer is
+   * theirs and stays in their history. This only stops the row appearing here.
+   *
+   * `ids` so one call serves both the single CLEAR and CLEAR ALL — the sweep is
+   * one round trip rather than one per row, and cannot half-finish.
+   */
+  async function handleClearEnquiries(ids) {
+    const list = (Array.isArray(ids) ? ids : [ids]).filter(Boolean);
+    if (!profile?.id || !list.length) return;
+    await supabase.from('venue_enquiries')
+      .update({ applicant_cleared_at: new Date().toISOString() })
+      .in('id', list)
+      .eq('applicant_profile_id', profile.id);
+    queryClient.invalidateQueries({ queryKey: ['artistDashboard', userId, cfg.profileType] });
+  }
+
   function updateOffer(id, changes) {
     setOffers(prev => prev.map(o => o.id === id ? { ...o, ...changes } : o));
   }
@@ -421,17 +472,60 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
     ...outgoingEnquiries.map(e => ({ kind: 'enquiry', at: e.created_at, row: e })),
   ].sort((x, y) => String(y.at || '').localeCompare(String(x.at || '')));
 
-  const filteredOut = outgoingItems.filter(it => {
-    if (applicantLabel(it.row.status) !== outStatusTab) return false;
+  /**
+   * ⭐ THE SHARED BUCKETS (owner, 2026-08-14: "theyre sposed to look the
+   * same"). `normaliseStatus` is the same function EnquiryPanel uses on the
+   * venue and host surfaces, so a row with status `tentative` lands under the
+   * identical sub-tab wherever it is read.
+   *
+   * ⛔ THIS RETIRES TWO LOCAL VOCABULARIES — `IN_STATUS_MAP` (NEW /
+   * CONSIDERING / ACCEPTED / HISTORY) and `applicantLabel`'s APP_TABS
+   * (SUBMITTED / BEING CONSIDERED / BOOKED / NOT SELECTED). They were the
+   * third and fourth mappings of one status set, and the drift they caused is
+   * exactly what the owner could see: different sub-headings on two screens
+   * showing the same table.
+   *
+   * ⚠ `applicantLabel` SURVIVES for the row BADGES below, which say where the
+   * asker stands in the asker's own words. A tab is navigation and must match
+   * every other surface; a badge is commentary on one row and may keep the
+   * asker-facing wording.
+   */
+  /* ⚠ THE 30-DAY FADE RUNS BEFORE ANY BUCKETING, so a faded decline is absent
+     from the tab COUNT as well as the list. A badge counting rows the list
+     will not show is the bug that makes people tap an empty tab. */
+  const outStatuses = outgoingItems
+    .filter(it => !isFadedDecline(it.row))
+    .map(it => ({ ...it, bucket: normaliseStatus({ ...it.row, direction: 'outgoing' }) }));
+  const filteredOut = outStatuses.filter(it => {
+    if (it.bucket !== outStatusTab.toLowerCase()) return false;
     if (!enqSearch.trim()) return true;
     return JSON.stringify(it.row).toLowerCase().includes(enqSearch.toLowerCase());
   });
   const filteredOffers = offers.filter(o => {
-    const st = (o.status || 'new').toLowerCase();
-    if (!(IN_STATUS_MAP[inStatusTab] || ['new']).includes(st)) return false;
+    if (normaliseStatus({ ...o, direction: 'incoming' }) !== inStatusTab.toLowerCase()) return false;
     if (!enqSearch.trim()) return true;
     return JSON.stringify(o).toLowerCase().includes(enqSearch.toLowerCase());
   });
+
+  /* Counts for the shared tabs. BOOKED counts real gigs, not accepted rows:
+     this surface's BOOKED tab lists what the act is actually playing
+     (lineup-derived), which is a better answer than "enquiries that ended in
+     yes" and is why its sub-tabs stay UPCOMING / PAST. */
+  const dirCounts = {
+    INCOMING: offers.length,
+    OUTGOING: outgoingItems.length,
+    BOOKED:   upcomingGigs.length + pastGigs.length,
+  };
+  const inCounts = Object.fromEntries(
+    (DIR_TABS.find(d => d.key === 'INCOMING')?.subTabs || []).map(sub =>
+      [sub, offers.filter(o => normaliseStatus({ ...o, direction: 'incoming' }) === sub.toLowerCase()).length]));
+  /* What CLEAR ALL would sweep: declined ENQUIRIES only. Applications are not
+     included — see the button. */
+  const clearableDeclined = outStatuses.filter(it => it.kind === 'enquiry' && it.bucket === 'declined');
+
+  const outCounts = Object.fromEntries(
+    (DIR_TABS.find(d => d.key === 'OUTGOING')?.subTabs || []).map(sub =>
+      [sub, outStatuses.filter(it => it.bucket === sub.toLowerCase()).length]));
 
   // The clash-check — one source of truth for both the Opportunity Card and the
   // Booking Invitation, so they can never disagree. v1 only checks against the
@@ -547,46 +641,42 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
       {/* ── ENQUIRIES ── */}
       <div id="section-enquiries" style={{ marginTop: 40 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-          <p style={{ fontFamily: "'Bebas Neue'", fontSize: 13, letterSpacing: 2.5, color: '#fff' }}>ENQUIRIES</p>
+          <p style={{ fontFamily: "'Bebas Neue'", fontSize: 13, letterSpacing: 2.5, color: '#fff', margin: 0 }}>ENQUIRIES</p>
+          {/* ⚠ THE CALENDAR CHIP, PRESENT ON FIVE SURFACES INSTEAD OF TWO.
+              The venue and host have had this since the enquiry calendar was
+              built; the performer dashboards never got it, which is why the
+              icon appeared beside AVAILABLE DATES on this screen and not
+              beside ENQUIRIES. An act arguably needs it MORE than a venue —
+              the question they are answering is "am I free that night". */}
+          <CalendarIconBtn onClick={() => setCalendarOpen(true)} label="Open the enquiry calendar" />
         </div>
-        {/* Direction tabs */}
-        <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
-          {[
-            { key: 'INCOMING', color: '#FFD700', rgb: '255,215,0',   cnt: offersCount },
-            { key: 'OUTGOING', color: 'var(--neon2)', rgb: '0,229,255', cnt: outgoingItems.length },
-            { key: 'BOOKED',   color: '#00E5A0', rgb: '0,229,160',   cnt: upcomingGigs.length + pastGigs.length },
-          ].map(({ key, color, rgb, cnt }) => {
-            const active = enqDirTab === key;
-            return (
-              <button key={key} onClick={() => setEnqDirTab(key)}
-                style={{ fontFamily: "'Bebas Neue'", fontSize: 12, letterSpacing: 1.5, padding: '5px 14px', borderRadius: 20, cursor: 'pointer', transition: 'all .15s', background: active ? `rgba(${rgb},.12)` : 'transparent', border: `1.5px solid ${active ? color : 'rgba(255,255,255,.12)'}`, color: active ? color : 'var(--muted)', display: 'flex', alignItems: 'center', gap: 5 }}>
-                {key}
-                {cnt > 0 && <span style={{ fontSize: 9, fontFamily: "'DM Sans'", fontWeight: 700, background: active ? `rgba(${rgb},.22)` : 'rgba(255,255,255,.06)', color: active ? color : 'var(--muted)', borderRadius: 8, padding: '1px 5px' }}>{cnt}</span>}
-              </button>
-            );
-          })}
-        </div>
+        {/* ⭐ THE SHARED CHROME — identical component, identical colours and
+            identical sub-headings to the venue and host surfaces. This block
+            used to be a hand-rolled copy that coloured its LABEL where the
+            shared one colours its BORDER, which is the mismatch the owner
+            could see across five dashboards. */}
+        <EnquiryDirectionTabs
+          dirTab={enqDirTab}
+          onChange={(key) => {
+            setEnqDirTab(key);
+            if (key === 'INCOMING') setInStatusTab('NEW');
+            if (key === 'OUTGOING') setOutStatusTab('AWAITING');
+          }}
+          counts={dirCounts}
+        />
 
         <div>
         {/* INCOMING — venue offers/invites */}
         {enqDirTab === 'INCOMING' && (
           <div>
-            <div className={s.subTabBar}>
-              {IN_TABS.map(t => {
-                const statuses = IN_STATUS_MAP[t] || [];
-                const count = offers.filter(o => statuses.includes((o.status || 'new').toLowerCase())).length;
-                const active = inStatusTab === t && offers.length > 0;
-                return (
-                  <button key={t} className={s.subTab}
-                    style={active ? { color: '#fff', borderBottomColor: STATUS_TAB_COLOR[t] } : {}}
-                    onClick={() => setInStatusTab(t)}>
-                    {t}
-                    {count > 0 && <span className={s.subTabCount} style={active ? { color: STATUS_TAB_COLOR[t] } : {}}>{count}</span>}
-                  </button>
-                );
-              })}
-            </div>
-            <input className={s.searchBar} placeholder="Search by venue, event, date…" value={enqSearch} onChange={e => setEnqSearch(e.target.value)} style={{ '--focus-col': 'rgba(191,95,255,.4)' }} />
+            <EnquiryStatusTabs
+              subTabs={DIR_TABS.find(d => d.key === 'INCOMING')?.subTabs}
+              statusTab={inStatusTab}
+              onChange={setInStatusTab}
+              dirColor="#FFD700"
+              counts={inCounts}
+            />
+            <EnquirySearch value={enqSearch} onChange={setEnqSearch} placeholder="Search by venue, event, date…" />
             {loadingOffers
               ? <p className={s.empty}>Loading…</p>
               : filteredOffers.length === 0
@@ -608,22 +698,39 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
         {/* OUTGOING — applications the artist submitted */}
         {enqDirTab === 'OUTGOING' && (
           <div>
-            <div className={s.subTabBar}>
-              {APP_TABS.map(t => {
-                const count  = outgoingItems.filter(it => applicantLabel(it.row.status) === t).length;
-                const active = outStatusTab === t;
-                const col    = APP_TAB_COLOR[t] || '#FFD700';
-                return (
-                  <button key={t} className={s.subTab}
-                    style={active ? { color: '#fff', borderBottomColor: col } : {}}
-                    onClick={() => setOutStatusTab(t)}>
-                    {t}
-                    {count > 0 && <span className={s.subTabCount} style={active ? { color: col } : {}}>{count}</span>}
-                  </button>
-                );
-              })}
-            </div>
-            <input className={s.searchBar} placeholder="Search events…" value={enqSearch} onChange={e => setEnqSearch(e.target.value)} />
+            <EnquiryStatusTabs
+              subTabs={DIR_TABS.find(d => d.key === 'OUTGOING')?.subTabs}
+              statusTab={outStatusTab}
+              onChange={setOutStatusTab}
+              dirColor="#00B4D8"
+              counts={outCounts}
+            />
+            <EnquirySearch value={enqSearch} onChange={setEnqSearch} placeholder="Search events…" />
+
+            {/* ⭐ CLEAR ALL — only in DECLINED, and only when there is
+                something to clear. An always-present sweep on a list you might
+                still be reading is an accident waiting to be tapped.
+
+                ⚠ ENQUIRIES ONLY. Applications keep their own per-row DELETE,
+                which really deletes and which the applicant genuinely owns. A
+                sweep that quietly destroyed applications while merely hiding
+                enquiries would be one button doing two different things. The
+                count says so out loud rather than leaving it to be discovered.
+
+                ⚠ SAYS WHAT SURVIVES. "Hidden from your list" is the honest
+                description — the venue's record is untouched, and a button
+                that reads as deletion would be claiming otherwise. */}
+            {outStatusTab === 'DECLINED' && clearableDeclined.length > 0 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <span style={{ fontSize: 11, color: 'rgba(255,255,255,.35)' }}>
+                  Declines older than {DECLINE_FADE_DAYS} days clear themselves.
+                </span>
+                <button type="button" onClick={() => handleClearEnquiries(clearableDeclined.map(it => it.row.id))}
+                  style={{ marginLeft: 'auto', fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1, padding: '4px 10px', borderRadius: 6, border: '1px solid rgba(255,255,255,.2)', background: 'transparent', color: 'rgba(255,255,255,.7)', cursor: 'pointer' }}>
+                  CLEAR ALL ({clearableDeclined.length})
+                </button>
+              </div>
+            )}
             {loading
               ? <p className={s.empty}>Loading…</p>
               : filteredOut.length === 0
@@ -634,7 +741,9 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
                       const badgeColor = APP_TAB_COLOR[badge] || '#FFD700';
                       if (kind === 'enquiry') {
                         return <OutgoingEnquiryRow key={`enq-${row.id}`} enq={row}
-                          badge={badge} badgeColor={badgeColor} accent={cfg.accent} />;
+                          badge={badge} badgeColor={badgeColor} accent={cfg.accent}
+                          onCancel={handleCancelEnquiry}
+                          onClear={handleClearEnquiries} />;
                       }
                       /* ⚠ An application whose event did not load renders
                          nothing, as before — an EventCard with no event is the
@@ -655,20 +764,19 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
         {/* BOOKED — confirmed gigs */}
         {enqDirTab === 'BOOKED' && (
           <div>
-            <div className={s.subTabBar}>
-              {GIG_TABS.map(t => {
-                const count  = t === 'UPCOMING' ? upcomingGigs.length : pastGigs.length;
-                const active = gigTab === t;
-                return (
-                  <button key={t} className={s.subTab}
-                    style={active ? { color: '#00E5A0', borderBottomColor: '#00E5A0' } : {}}
-                    onClick={() => setGigTab(t)}>
-                    {t}
-                    <span className={s.subTabCount} style={active ? { background: 'rgba(0,229,160,.15)', color: '#00E5A0' } : {}}>{count}</span>
-                  </button>
-                );
-              })}
-            </div>
+            {/* ⚠ BOOKED KEEPS ITS OWN PAIR, and that is not drift. On the
+                venue and host surfaces BOOKED lists accepted ENQUIRIES and
+                needs no sub-tabs; here it lists the act's actual GIGS, derived
+                from the lineup, where "have I played it yet" is the only
+                division that matters. Same control, same styling, different
+                labels — which is what the shared component is for. */}
+            <EnquiryStatusTabs
+              subTabs={GIG_TABS}
+              statusTab={gigTab}
+              onChange={setGigTab}
+              dirColor="#00E5A0"
+              counts={{ UPCOMING: upcomingGigs.length, PAST: pastGigs.length }}
+            />
             {gigTab === 'PAST' && !loading && pastGigs.length > 0 && (
               <PastEventsSearch query={pastGigSearch} onChange={setPastGigSearch} />
             )}
@@ -687,6 +795,21 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
           </div>
         )}
         </div>
+
+        {/* ⚠ THE ACT'S OWN DIARY. Same component the venue and host open from
+            the same chip, fed this surface's rows: offers coming in and asks
+            going out, both carrying `date_requested`. `artist_availability` is
+            this profile's table (the venue's is `venue_availability`). */}
+        {calendarOpen && (
+          <EnquiryCalendar
+            profileId={profile?.id}
+            table="artist_availability"
+            enquiries={[...offers, ...outgoingItems.map(it => it.row)]}
+            accent={cfg.accent}
+            accentRgb={cfg.accentRgb}
+            onClose={() => setCalendarOpen(false)}
+          />
+        )}
       </div>
 
       {/* ── FOLLOWING — always at bottom ── */}

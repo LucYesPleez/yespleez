@@ -43,6 +43,12 @@ export function applicantLabel(status) {
   return 'SUBMITTED'; // pending, new, viewed, or any other/unrecognised status
 }
 
+/* ⚠ DECLINE_FADE_DAYS / isFadedDecline MOVED to lib/enquiryUtils.js — the
+   shared enquiry vocabulary — the moment EnquiryPanel needed the same rule
+   for the venue and host surfaces. Re-exported so existing importers keep
+   working. ⛔ Do not reimplement: the fade must be one clock. */
+export { DECLINE_FADE_DAYS, isFadedDecline } from './enquiryUtils';
+
 /**
  * Per-bucket empty states. Same calm voice as the incoming side: an empty
  * bucket is a feature, not a gap.
@@ -93,6 +99,11 @@ export async function fetchOutgoingEnquiries(supabase, profileId) {
     .select(OUTGOING_ENQUIRY_COLUMNS)
     .eq('applicant_profile_id', profileId)
     .eq('initiated_by', 'applicant')
+    /* ⚠ S5 · CLEARED ROWS NEVER ARRIVE. Filtered in the QUERY, not in the
+       render: a row the asker has tidied away should not be counted by a tab,
+       matched by a search or included in a limit. Cancelling sets this too, so
+       a withdrawn ask leaves this list by the same door. */
+    .is('applicant_cleared_at', null)
     .order('created_at', { ascending: false })
     .limit(50);
   const enquiries = rows || [];

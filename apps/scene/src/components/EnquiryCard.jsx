@@ -154,7 +154,7 @@ const NEXT_STEPS = {
   },
 };
 
-export default function EnquiryCard({ enq, viewerProfile, onRespond, onPlayDemo }) {
+export default function EnquiryCard({ enq, viewerProfile, onRespond, onPlayDemo, onClear }) {
   const [busy, setBusy]       = useState(false);
   const [profile, setProfile] = useState(enq.profile || null);
   const [expanded, setExpanded] = useState(false);
@@ -284,9 +284,35 @@ export default function EnquiryCard({ enq, viewerProfile, onRespond, onPlayDemo 
    * See the note on the outgoing branch of `ActionButtons` for why this
    * writes `declined` and why the recipient's controls do not apply here.
    */
+  /**
+   * ⚠⚠ `cancelled`, NOT `declined` (owner, 2026-08-14). This wrote the
+   * recipient's verdict onto the sender's own withdrawal, which put everything
+   * you changed your mind about into the same pile as everything you were
+   * turned down for — and DECLINED exists to show the second.
+   *
+   * The dashboards translate `cancelled` into "also hide this from me"; here
+   * the card only reports the decision, as it does for every other status.
+   */
   const cancelBtn = (enqDir === 'outgoing' && (displayStatus === 'awaiting' || displayStatus === 'interested'))
     ? <DecisionBtn tone="decline" icon={XIcon} label="CANCEL ENQUIRY"
-        onClick={() => respond('declined')} disabled={busy} />
+        onClick={() => respond('cancelled')} disabled={busy} />
+    : null;
+
+  /**
+   * ⭐ CLEAR — TIDY A FINISHED ROW OUT OF YOUR OWN LIST.
+   *
+   * ⛔ NEVER A DELETE, and never visible on an open row. The other side's
+   * answer stays in the other side's history; this hides the row for whoever
+   * tapped it, which is why the write picks its column from WHICH SIDE the
+   * viewer is on (`onClear` resolves that — see the dashboards).
+   *
+   * ⚠ Offered in BOTH directions, unlike cancel: a venue accumulates asks it
+   * declined exactly as an asker accumulates declines, and neither list should
+   * become a monument.
+   */
+  const clearBtn = (onClear && (displayStatus === 'declined'))
+    ? <DecisionBtn tone="neutral" icon={XIcon} label="CLEAR"
+        onClick={() => onClear(enq)} disabled={busy} />
     : null;
 
   function ActionButtons() {
@@ -564,13 +590,15 @@ export default function EnquiryCard({ enq, viewerProfile, onRespond, onPlayDemo 
               read as one action bar rather than a full-width link with a
               second row underneath it. */}
           {enqDir === 'outgoing' ? (
-            cancelBtn ? (
+            (cancelBtn || clearBtn) ? (
               // A live enquiry: the two side by side, equal width, one bar.
+              // A settled-and-declined one pairs VIEW with CLEAR the same way —
+              // the two never appear together, so the bar always holds two.
               <div className="yp-decision-row">
                 {/* "VIEW ENQUIRY" WHEN IT IS MINE — the sheet shows the
                     enquiry I sent, not a dossier on an applicant. */}
                 <DetailBtn accent={accent} label="VIEW ENQUIRY" onClick={() => setSheetOpen(true)} />
-                {cancelBtn}
+                {cancelBtn || clearBtn}
               </div>
             ) : (
               // Settled (accepted/booked/declined): nothing to cancel, so

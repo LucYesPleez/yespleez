@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import { formatDisplayDate } from '../lib/dates';
 import { askCategoryLabel } from '@yespleez/ask-categories';
+import { normaliseStatus } from '../lib/enquiryUtils';
 
 /**
  * One enquiry YOU sent to a venue.
@@ -18,7 +20,9 @@ import { askCategoryLabel } from '@yespleez/ask-categories';
  * cyan on a DJ's, magenta on a host's. ⛔ Never hardcoded here: this component
  * knows nothing about who is asking, and that is what lets it be shared.
  */
-export default function OutgoingEnquiryRow({ enq, badge, badgeColor, accent }) {
+export default function OutgoingEnquiryRow({ enq, badge, badgeColor, accent, onCancel, onClear }) {
+  const [confirming, setConfirming] = useState(false);
+  const [busy, setBusy] = useState(false);
   const sentOn = enq.created_at ? formatDisplayDate(enq.created_at.slice(0, 10)) : '';
   const forDate = enq.date_requested ? formatDisplayDate(enq.date_requested) : null;
   const venueName = enq.venue?.name || 'A venue';
@@ -33,6 +37,34 @@ export default function OutgoingEnquiryRow({ enq, badge, badgeColor, accent }) {
    * creation for them — ⛔ do not invent a category here to fill the space.
    */
   const askLabel = askCategoryLabel(enq.ask_category);
+
+  /**
+   * ⭐ CANCEL — THE SENDER'S ONE DECISION.
+   *
+   * The asker cannot accept or decline their own ask; withdrawing it is the
+   * only move they hold. `EnquiryCard` has offered exactly this on the venue
+   * and host surfaces (CANCEL ENQUIRY, which writes `declined`); this row is
+   * the performer's equivalent and had none, so an enquiry sent for the wrong
+   * date could only sit there.
+   *
+   * ⚠ ONLY WHILE IT IS STILL OPEN. `normaliseStatus` is the same bucketing
+   * every tab uses, so this can never disagree with the tab the row sits in —
+   * a settled row (accepted / declined / booked) has nothing left to cancel.
+   */
+  const bucket = normaliseStatus({ ...enq, direction: 'outgoing' });
+  const canCancel = Boolean(onCancel) && ['awaiting', 'interested'].includes(bucket);
+
+  /**
+   * ⭐ CLEAR — only on a row that is FINISHED, and only ever a hide.
+   *
+   * ⛔ NOT on an open ask. Tidying away something you are still waiting on
+   * would lose the thread with no way back, which is what CANCEL is for and
+   * why the two never appear together.
+   *
+   * ⛔ NOT A DELETE. The venue's answer stays in the venue's history; this row
+   * simply stops appearing here (owner: "hide it from me only").
+   */
+  const canClear = Boolean(onClear) && bucket === 'declined';
 
   return (
     <div style={{ background: 'var(--card2)', border: '1px solid var(--border)', borderRadius: 12, padding: '12px 14px' }}>
@@ -65,7 +97,72 @@ export default function OutgoingEnquiryRow({ enq, badge, badgeColor, accent }) {
           {enq.note}
         </div>
       )}
-      {sentOn && <div style={{ fontSize: 11, color: 'rgba(255,255,255,.35)', marginTop: 6 }}>Sent {sentOn}</div>}
+      {/* ⚠ THE SENT LINE CARRIES THE CANCEL CONTROL, so the card does not grow
+          a row to hold it. A button on its own line made every awaiting row
+          taller than every settled one, and a list you scroll is mostly rows
+          you are not about to cancel. `marginTop: 6` and the 11px caption are
+          unchanged — the control sits in space the row already occupied.
+          ⚠ minHeight holds the line when there is no `sentOn`, so a row with
+          no date does not close up around the button. */}
+      {(sentOn || canCancel || canClear) && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6, minHeight: 20 }}>
+          {sentOn && <span style={{ fontSize: 11, color: 'rgba(255,255,255,.35)' }}>Sent {sentOn}</span>}
+          {/* ⚠ Quieter than CANCEL — grey, not red. Clearing destroys nothing,
+              and dressing it in the same warning colour as a withdrawal would
+              overstate it. */}
+          {canClear && (
+            <button type="button" onClick={() => onClear(enq.id)}
+              style={{ marginLeft: 'auto', fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1, padding: '3px 9px', borderRadius: 6, border: '1px solid rgba(255,255,255,.18)', background: 'transparent', color: 'rgba(255,255,255,.55)', cursor: 'pointer' }}>
+              CLEAR
+            </button>
+          )}
+          {canCancel && !confirming && (
+            <button type="button" onClick={() => setConfirming(true)}
+              style={{ marginLeft: 'auto', fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1, padding: '3px 9px', borderRadius: 6, border: '1px solid rgba(255,51,51,.3)', background: 'rgba(255,51,51,.06)', color: 'rgba(255,80,80,.8)', cursor: 'pointer' }}>
+              CANCEL ENQUIRY
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* ── ⭐ CANCEL — THE SENDER'S ONE DECISION ─────────────────────────
+          The asker cannot accept or decline their own ask; withdrawing it is
+          the only move they hold. `EnquiryCard` has offered exactly this on
+          the venue and host surfaces (CANCEL ENQUIRY → writes `declined`);
+          this row is the performer's equivalent and had none, so an enquiry
+          sent to the wrong date could only sit there.
+
+          ⚠ WRITES `declined`, THE SAME STATUS EnquiryCard WRITES. ⛔ Not a
+          delete: the venue may already have read it, and erasing a
+          conversation from one side is not the same as ending it. `declined`
+          is also what both the OUTGOING sub-tabs and the venue's own view
+          already understand, so no new status enters the vocabulary.
+
+          ⚠ ONLY WHILE IT IS STILL OPEN. `normaliseStatus` is the same
+          bucketing every tab uses, so this button can never disagree with the
+          tab the row is sitting in — settled rows (accepted / declined /
+          booked) have nothing left to cancel.
+
+          ⚠ TWO STEPS, matching ApplicationRow's delete directly above it in
+          the same list. Cancelling notifies nobody and cannot be undone, so a
+          single tap next to the card you were reading is too cheap. */}
+      {/* ⚠ ONLY THE CONFIRM STEP COSTS HEIGHT, and only on the one row you are
+          acting on. That is the trade: the resting state adds nothing, and the
+          moment you are deciding is the moment a row may grow. */}
+      {canCancel && confirming && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(255,45,45,.08)', border: '1px solid rgba(255,45,45,.3)', borderRadius: 10, padding: '8px 10px', marginTop: 8 }}>
+          <span style={{ fontSize: 11, color: 'rgba(255,255,255,.6)', marginRight: 'auto' }}>Cancel this enquiry?</span>
+          <button type="button" onClick={() => setConfirming(false)} disabled={busy}
+            style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1, padding: '3px 9px', borderRadius: 6, border: '1px solid rgba(255,255,255,.2)', background: 'transparent', color: 'rgba(255,255,255,.7)', cursor: 'pointer' }}>
+            KEEP IT
+          </button>
+          <button type="button" disabled={busy}
+            onClick={async () => { setBusy(true); await onCancel(enq.id); setBusy(false); setConfirming(false); }}
+            style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1, padding: '3px 9px', borderRadius: 6, border: '1px solid rgba(255,51,51,.5)', background: 'rgba(255,51,51,.15)', color: '#fff', cursor: busy ? 'default' : 'pointer' }}>
+            {busy ? 'CANCELLING…' : 'YES, CANCEL'}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

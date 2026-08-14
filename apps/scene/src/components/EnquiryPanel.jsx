@@ -1,16 +1,12 @@
 import { useState, useMemo, useEffect, Fragment } from 'react';
 import EnquiryCard from './EnquiryCard';
-import { normaliseStatus } from '../lib/enquiryUtils';
-import { STATUS_TAB_COLOR } from '../lib/enquiryUtils';
+import { normaliseStatus, isFadedDecline, DECLINE_FADE_DAYS } from '../lib/enquiryUtils';
+import { DIR_TABS, EnquiryDirectionTabs, EnquiryStatusTabs, EnquirySearch } from './EnquiryTabs';
 
-const DIR_TABS = [
-  { key: 'INCOMING', color: '#FFD700', rgb: '255,215,0',
-    subTabs: ['NEW', 'SEEN', 'SHORTLISTED', 'ACCEPTED', 'DECLINED'] },
-  { key: 'OUTGOING', color: '#00B4D8', rgb: '0,180,216',
-    subTabs: ['AWAITING', 'INTERESTED', 'ACCEPTED', 'DECLINED'] },
-  { key: 'BOOKED',   color: '#00E5A0', rgb: '0,229,160',
-    subTabs: [] },
-];
+/* ⚠ DIR_TABS AND THE THREE CONTROLS NOW LIVE IN components/EnquiryTabs.jsx,
+   unchanged. They moved the moment a THIRD surface needed them (artist, band
+   and stand-up, which had hand-rolled their own and drifted). ⛔ Do not
+   re-declare them here — that is precisely how the drift started. */
 
 /**
  * The two orders an enquiry list can be read in. Labels say WHICH DATE, not
@@ -30,35 +26,7 @@ const SORTS = [
   { key: 'applied',   label: 'ENQUIRY DATE', hint: 'When the enquiry arrived, newest first' },
 ];
 
-function EnqTabBtn({ active, color, rgb, onClick, children }) {
-  const [hov, setHov] = useState(false);
-  return (
-    <button
-      onClick={onClick}
-      onMouseEnter={() => setHov(true)}
-      onMouseLeave={() => setHov(false)}
-      style={{
-        fontFamily: "'Bebas Neue'", fontSize: 12, letterSpacing: 1.5,
-        padding: '5px 14px', borderRadius: 20, cursor: 'pointer',
-        transition: 'background .15s, border-color .15s, color .15s',
-        background: active ? `rgba(${rgb},.12)` : hov ? `rgba(${rgb},.08)` : 'transparent',
-        border: `1.5px solid ${active ? color : hov ? `rgba(${rgb},.6)` : 'rgba(255,255,255,.12)'}`,
-        /* ⚠ WHITE INK, COLOUR ON THE EDGE — the rule the status sub-tabs below
-           already follow (`active ? '#fff' : muted`) and the enquiry card's
-           status chip now follows too. This was the last control still putting
-           its colour in the label, so INCOMING read as yellow text on a yellow
-           border while the tab directly beneath it read as white on an orange
-           underline. The tint and the border say which is selected; the word
-           does not have to say it as well.
-           ⛔ Inactive stays `--muted`, and the count badge keeps its hue — both
-           match the sub-tabs exactly. */
-        color: active || hov ? '#fff' : 'var(--muted)',
-      }}
-    >{children}</button>
-  );
-}
-
-export default function EnquiryPanel({ enquiries = [], viewerProfile, onRespond, onPlayDemo }) {
+export default function EnquiryPanel({ enquiries = [], viewerProfile, onRespond, onPlayDemo, onClear }) {
   const [dirTab,    setDirTab]    = useState('INCOMING');
   const [statusTab, setStatusTab] = useState('NEW');
   const [search,    setSearch]    = useState('');
@@ -110,6 +78,21 @@ export default function EnquiryPanel({ enquiries = [], viewerProfile, onRespond,
    */
   const [sort, setSort] = useState('applied');
 
+  /**
+   * ⭐ THE 30-DAY FADE, APPLIED ONCE AND BEFORE EVERYTHING (owner, 2026-08-14).
+   *
+   * A rejections list is useful for a while and then it is only a monument.
+   * Same rule the performer surface uses — the helper lives in enquiryUtils so
+   * the two cannot keep different clocks.
+   *
+   * ⚠ AHEAD OF THE COUNTS, not just the list. A tab badge that counts rows the
+   * list will not render is how you get an empty tab with a number on it.
+   *
+   * ⛔ ONLY SETTLED DECLINES FADE. An ask still waiting stays however long it
+   * has been waiting: that it has waited is information, not clutter.
+   */
+  const visible = useMemo(() => enquiries.filter(e => !isFadedDecline(e)), [enquiries]);
+
   const filtered = useMemo(() => {
     const appliedAt   = e => new Date(e.created_at || 0).getTime();
     const requestedOn = e => e.date_requested || e.preferred_date || null;
@@ -123,7 +106,7 @@ export default function EnquiryPanel({ enquiries = [], viewerProfile, onRespond,
       return new Date(da) - new Date(db);
     };
 
-    return enquiries
+    return visible
       .filter(e => {
         if (dirTab === 'BOOKED') {
           const st = (e.status || '').toLowerCase();
@@ -139,75 +122,77 @@ export default function EnquiryPanel({ enquiries = [], viewerProfile, onRespond,
       // Safe to sort in place: `.filter` already handed us a new array, so the
       // `enquiries` prop is never reordered under its owner.
       .sort(sort === 'requested' ? byRequested : byApplied);
-  }, [enquiries, dirTab, statusTab, search, sticky, sort]);
+  }, [visible, dirTab, statusTab, search, sticky, sort]);
 
   const currentDir = DIR_TABS.find(d => d.key === dirTab);
 
+  /* ⚠ THE CALLER COUNTS, because only the caller knows what its rows are —
+     EnquiryTabs renders chrome and reads no row. Both tallies are unchanged
+     from the inline versions they replaced: BOOKED counts by STATUS (a booked
+     row is booked whichever way it was asked), the other two by DIRECTION. */
+  const dirCounts = useMemo(() => {
+    const out = {};
+    for (const { key } of DIR_TABS) {
+      out[key] = visible.filter(e => {
+        if (key === 'BOOKED') { const st = (e.status || '').toLowerCase(); return st === 'booked' || st === 'accepted'; }
+        return (e.direction || 'incoming').toLowerCase() === key.toLowerCase();
+      }).length;
+    }
+    return out;
+  }, [visible]);
+
+  const statusCounts = useMemo(() => {
+    const out = {};
+    for (const sub of currentDir?.subTabs || []) {
+      out[sub] = visible.filter(e =>
+        (e.direction || 'incoming').toLowerCase() === dirTab.toLowerCase() &&
+        normaliseStatus(e) === sub.toLowerCase()
+      ).length;
+    }
+    return out;
+  }, [visible, currentDir, dirTab]);
+
   return (
     <div>
-      {/* Direction tabs */}
-      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
-        {DIR_TABS.map(({ key, color, rgb, subTabs }) => {
-          const cnt = enquiries.filter(e => {
-            if (key === 'BOOKED') { const st = (e.status || '').toLowerCase(); return st === 'booked' || st === 'accepted'; }
-            return (e.direction || 'incoming').toLowerCase() === key.toLowerCase();
-          }).length;
-          return (
-            <EnqTabBtn key={key} active={dirTab === key} color={color} rgb={rgb}
-              onClick={() => { setDirTab(key); setStatusTab(subTabs[0] || ''); }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                {key}
-                {cnt > 0 && <span style={{ fontSize: 9, fontFamily: "'DM Sans'", fontWeight: 700, background: dirTab === key ? `rgba(${rgb},.22)` : 'rgba(255,255,255,.06)', color: dirTab === key ? color : 'var(--muted)', borderRadius: 8, padding: '1px 5px' }}>{cnt}</span>}
-              </span>
-            </EnqTabBtn>
-          );
-        })}
-      </div>
+      <EnquiryDirectionTabs
+        dirTab={dirTab}
+        onChange={(key, firstSub) => { setDirTab(key); setStatusTab(firstSub); }}
+        counts={dirCounts}
+      />
 
-      {/* Status sub-tabs */}
-      {currentDir && currentDir.subTabs.length > 0 && (
-        <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid rgba(255,255,255,.08)', marginBottom: 10 }}>
-          {currentDir.subTabs.map(sub => {
-            const active = statusTab === sub;
-            const subColor = STATUS_TAB_COLOR[sub] || currentDir.color;
-            const cnt = enquiries.filter(e =>
-              (e.direction || 'incoming').toLowerCase() === dirTab.toLowerCase() &&
-              normaliseStatus(e) === sub.toLowerCase()
-            ).length;
-            return (
-              <button key={sub} onClick={() => setStatusTab(sub)}
-                style={{
-                  flex: 1, background: 'none', border: 'none', cursor: 'pointer',
-                  fontFamily: "'Bebas Neue'", fontSize: 11, letterSpacing: 1.5,
-                  padding: '8px 4px 6px',
-                  color: active ? '#fff' : 'var(--muted)',
-                  borderBottom: `2px solid ${active ? subColor : 'transparent'}`,
-                  transition: 'color .15s, border-color .15s',
-                }}>
-                {sub}
-                {cnt > 0 && (
-                  <span style={{
-                    marginLeft: 4, fontSize: 9, fontFamily: "'DM Sans'", fontWeight: 700,
-                    background: active ? `${subColor}22` : 'rgba(255,255,255,.06)',
-                    color: active ? subColor : 'var(--muted)',
-                    borderRadius: 8, padding: '1px 5px',
-                  }}>{cnt}</span>
-                )}
-              </button>
-            );
-          })}
+      <EnquiryStatusTabs
+        subTabs={currentDir?.subTabs}
+        statusTab={statusTab}
+        onChange={setStatusTab}
+        dirColor={currentDir?.color}
+        counts={statusCounts}
+      />
+
+      <EnquirySearch value={search} onChange={setSearch} />
+
+      {/* ⭐ CLEAR ALL — only in DECLINED, only when there is something to
+          sweep, and only when the surface supplied a way to clear. An
+          always-present sweep above a list you might still be reading is an
+          accident waiting to be tapped.
+
+          ⚠ SWEEPS WHAT THIS TAB SHOWS, nothing more: the declined rows in the
+          CURRENT direction. A button that also cleared the other direction's
+          declines would be tidying a list you are not looking at.
+
+          ⚠ SAYS WHAT SURVIVES. Clearing hides the row from YOUR list; the
+          other side's record is untouched, and a label reading as deletion
+          would claim otherwise. */}
+      {onClear && statusTab === 'DECLINED' && filtered.length > 0 && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+          <span style={{ fontSize: 11, color: 'rgba(255,255,255,.35)' }}>
+            Declines older than {DECLINE_FADE_DAYS} days clear themselves.
+          </span>
+          <button type="button" onClick={() => onClear(filtered)}
+            style={{ marginLeft: 'auto', fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1, padding: '4px 10px', borderRadius: 6, border: '1px solid rgba(255,255,255,.2)', background: 'transparent', color: 'rgba(255,255,255,.7)', cursor: 'pointer' }}>
+            CLEAR ALL ({filtered.length})
+          </button>
         </div>
       )}
-
-      {/* Search */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--card2)', border: '1px solid var(--border)', borderRadius: 10, padding: '8px 12px', marginBottom: 8 }}>
-        <span style={{ fontSize: 14 }}>🔍</span>
-        <input
-          type="text" value={search} onChange={e => setSearch(e.target.value)}
-          placeholder="Search by genre, vibe, act type…"
-          style={{ flex: 1, background: 'none', border: 'none', outline: 'none', color: 'var(--text)', fontSize: 13 }}
-        />
-      </div>
 
       {/* ── SORT · A PREFERENCE, NOT A FILTER ────────────────────────────
           ⛔ NO PILL. A bordered pill put this at the same rank as INCOMING /
@@ -263,7 +248,7 @@ export default function EnquiryPanel({ enquiries = [], viewerProfile, onRespond,
             No enquiries{search ? ' match your search' : ' here yet'}.
           </p>
         : filtered.map(enq => (
-            <EnquiryCard key={enq.id} enq={enq} viewerProfile={viewerProfile} onRespond={handleRespond} onPlayDemo={onPlayDemo} />
+            <EnquiryCard key={enq.id} enq={enq} viewerProfile={viewerProfile} onRespond={handleRespond} onPlayDemo={onPlayDemo} onClear={onClear} />
           ))
       }
       </div>

@@ -389,6 +389,34 @@ export default function HostDashboard({ userId: userIdProp }) {
 
   const panelEnquiries = [...mappedEnquiries, ...mappedOutgoing];
 
+  /**
+   * ⭐ CLEAR — the promoter tidying a finished row out of THEIR OWN list (S5).
+   *
+   * ⚠ ENQUIRIES ONLY. The incoming rows on this surface are APPLICATIONS,
+   * mapped into the enquiry shape for display — a different table with its own
+   * delete.  picks the column from the row and the viewer, so
+   * this can only ever hide the promoter's own side.
+   */
+  async function handleClearEnquiry(enqOrList) {
+    const list = (Array.isArray(enqOrList) ? enqOrList : [enqOrList]).filter(Boolean)
+      /* ⛔ APPLICATIONS ARE NOT IN THIS TABLE. Half this surface's rows are
+         applications mapped into the enquiry shape; without this guard a
+         sweep would write `venue_enquiries` rows by an application's id and
+         silently hit nothing — or worse, something. They keep their own
+         delete. */
+      .filter(e => e.venue_profile_id);
+    if (!list.length) return;
+    const now = new Date().toISOString();
+    const byCol = {};
+    for (const e of list) {
+      const col = clearedColumnFor(e, profile?.id);
+      (byCol[col] ||= []).push(e.id);
+    }
+    await Promise.all(Object.entries(byCol).map(([col, ids]) =>
+      supabase.from('venue_enquiries').update({ [col]: now }).in('id', ids)));
+    queryClient.invalidateQueries({ queryKey: ['hostDashboard', userId] });
+  }
+
   async function handleEnquiryRespond(id, status) {
     // ⛔ ONLY the promoter's INCOMING applications are theirs to answer. An
     // enquiry they SENT is the venue's to decide; a status write from this side
@@ -505,7 +533,7 @@ export default function HostDashboard({ userId: userIdProp }) {
             the fact that it needs attention. */}
         {showEnquiries && (loadingApps
           ? <p className={s.empty}>Loading applications…</p>
-          : <EnquiryPanel enquiries={panelEnquiries} viewerProfile={profile} onRespond={handleEnquiryRespond} />
+          : <EnquiryPanel enquiries={panelEnquiries} viewerProfile={profile} onRespond={handleEnquiryRespond} onClear={handleClearEnquiry} />
         )}
 
         {/* ⚠ ON DEMAND, NEVER RESIDENT. An earlier pass rendered this calendar

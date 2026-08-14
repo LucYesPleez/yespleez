@@ -8,7 +8,7 @@ import { useSession, usePlayer } from '../App';
 import { today } from '../lib/dates';
 import FollowingSection, { FOLLOW_FILTER_CONFIGS } from '../components/FollowingSection';
 import InviteSheet from '../components/InviteSheet';
-import { normaliseStatus, withDirection } from '../lib/enquiryUtils';
+import { normaliseStatus, withDirection, clearedColumnFor } from '../lib/enquiryUtils';
 import EnquiryPanel from '../components/EnquiryPanel';
 import AvailabilitySection from '../components/AvailabilitySection';
 import EnquiryCalendar from '../components/EnquiryCalendar';
@@ -94,7 +94,12 @@ export default function VenueDashboard({ userId: userIdProp }) {
          * to notice it.
          */
         venueProfileId
-          ? supabase.from('venue_enquiries').select('*').eq('venue_profile_id', venueProfileId).order('created_at', { ascending: false }).limit(100)
+          /* ⚠ S5 · THIS VENUE'S OWN CLEARED ROWS NEVER ARRIVE — and ⛔ only
+             its own: `applicant_cleared_at` is the ASKER's marker and must not
+             be read here, or one side tidying its list would empty the
+             other's. Filtered in the query so a hidden row cannot be counted
+             by a tab or consume the 100-row limit. */
+          ? supabase.from('venue_enquiries').select('*').eq('venue_profile_id', venueProfileId).is('venue_cleared_at', null).order('created_at', { ascending: false }).limit(100)
           : Promise.resolve({ data: [] }),
         // Upcoming events where config->venue matches profile name — approximated with host_id for now
         supabase.from('events').select('id, name, status, config, applications_open, is_public, created_at').eq('host_id', userId).order('created_at', { ascending: false }).limit(200),
@@ -151,6 +156,33 @@ export default function VenueDashboard({ userId: userIdProp }) {
 
   // enquiries kept in local state so optimistic respond() updates work
   const allEnquiries = enquiries.length ? enquiries : (data?.enquiries || []);
+
+  /**
+   * ⭐ CLEAR — the venue tidying a declined row out of ITS OWN list (S5).
+   *
+   * ⛔ `venue_cleared_at`, never the applicant's column — `clearedColumnFor`
+   * picks it from the row and the viewer so this screen cannot hide something
+   * from the person on the other side. Optimistic locally, then refetched.
+   */
+  async function handleClearEnquiry(enqOrList) {
+    const list = (Array.isArray(enqOrList) ? enqOrList : [enqOrList]).filter(Boolean);
+    if (!list.length) return;
+    /* ⚠ ONE ROUND TRIP, so a sweep cannot half-finish and leave the list in a
+       state neither the user nor the next render can explain. Grouped by
+       column because a single sweep can in principle contain rows from both
+       sides — today it cannot, and relying on that would be the assumption
+       that breaks when it can. */
+    const byCol = {};
+    for (const e of list) {
+      const col = clearedColumnFor(e, profile?.id);
+      (byCol[col] ||= []).push(e.id);
+    }
+    const now = new Date().toISOString();
+    await Promise.all(Object.entries(byCol).map(([col, ids]) =>
+      supabase.from('venue_enquiries').update({ [col]: now }).in('id', ids)));
+    const gone = new Set(list.map(e => e.id));
+    setEnquiries(allEnquiries.filter(e => !gone.has(e.id)));
+  }
 
   async function handleEnquiryRespond(id, status) {
     await supabase.from('venue_enquiries').update({ status }).eq('id', id);
@@ -339,6 +371,7 @@ export default function VenueDashboard({ userId: userIdProp }) {
               enquiries={allEnquiries}
               viewerProfile={profile}
               onRespond={handleEnquiryRespond}
+              onClear={handleClearEnquiry}
               onPlayDemo={setPlayer}
             />
           )}
