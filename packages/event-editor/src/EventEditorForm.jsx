@@ -252,18 +252,17 @@ function QuickGenerator({ onGenerate }) {
     <div className={s.quickGen}>
       <p className={s.quickGenTitle}>QUICK GENERATOR</p>
       <p className={s.quickGenSub}>Auto-build your slot schedule then customise as needed.</p>
+      {/* ⭐ SHAPE FIRST, THEN CLOCK. The grid used to run DAYS · START TIME /
+          END TIME · SLOT LENGTH, which split the two times across separate
+          rows and put the slot length diagonally opposite the day count. The
+          row order now matches the two questions actually being answered: how
+          the schedule is SHAPED (how many days, how long each slot), then WHEN
+          it runs (from, until). Start and end sit side by side, which is the
+          only pairing where a wrong order is visible at a glance. */}
       <div className={s.quickGenGrid}>
         <div className={s.quickGenField}>
           <p className={s.quickGenLabel}>DAYS</p>
           <input className={s.quickGenInput} type="number" min={1} max={7} value={numDays} onChange={e => setNumDays(Math.max(1,Number(e.target.value)))} />
-        </div>
-        <div className={s.quickGenField}>
-          <p className={s.quickGenLabel}>START TIME</p>
-          <input className={s.quickGenInput} type="time" value={startTime} onChange={e => setStartTime(e.target.value)} />
-        </div>
-        <div className={s.quickGenField}>
-          <p className={s.quickGenLabel}>END TIME</p>
-          <input className={s.quickGenInput} type="time" value={endTime} onChange={e => setEndTime(e.target.value)} />
         </div>
         <div className={s.quickGenField}>
           <p className={s.quickGenLabel}>SLOT LENGTH</p>
@@ -274,6 +273,14 @@ function QuickGenerator({ onGenerate }) {
             <option value={90}>1.5 hrs</option>
             <option value={120}>2 hrs</option>
           </select>
+        </div>
+        <div className={s.quickGenField}>
+          <p className={s.quickGenLabel}>START TIME</p>
+          <input className={s.quickGenInput} type="time" value={startTime} onChange={e => setStartTime(e.target.value)} />
+        </div>
+        <div className={s.quickGenField}>
+          <p className={s.quickGenLabel}>END TIME</p>
+          <input className={s.quickGenInput} type="time" value={endTime} onChange={e => setEndTime(e.target.value)} />
         </div>
       </div>
       <button className={s.quickGenBtn} onClick={handle}>GENERATE</button>
@@ -714,10 +721,22 @@ export default function EventEditorForm({
                     <div onClick={!slides[0] ? trigger : undefined}
                       style={{ width:'100%', maxWidth:420, aspectRatio:'3/2', borderRadius:10, overflow:'hidden', position:'relative',
                         display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
-                        background: slides[0] ? 'transparent' : 'rgba(0,229,255,0.06)',
-                        border: slides[0] ? 'none' : '2px dashed rgba(0,229,255,0.45)',
+                        /* ⛔ DASHED, AND NO GRADIENT ON THIS EDGE.
+                           A border-box gradient paints CONTINUOUSLY under the
+                           border, so it fills the gaps between the dashes and
+                           the box reads as a solid outline however the
+                           border-style is set. The dashes are the thing that
+                           says "empty, drop a file here", and losing them costs
+                           more than the colour gains. The gradient lives on the
+                           tab above, where a solid edge is what is wanted.
+                           ⚠ No fill, per the same request: the surface stays
+                           the page. Identical to the poster drop zone on
+                           purpose — two upload targets that behave the same way
+                           must not look like different kinds of thing. */
+                        background: 'transparent',
+                        border: slides[0] ? 'none' : '2px dashed rgba(255,255,255,0.28)',
                         cursor: slides[0] ? 'default' : 'pointer',
-                        color:'var(--neon2)' }}>
+                        color:'var(--text)' }}>
                       {slides[0]
                         ? <img src={slides[0]} alt="cover" style={{ width:'100%', height:'100%', objectFit:'cover' }} />
                         : <><div style={{ fontSize:26, lineHeight:1 }}>+</div><div style={{ fontSize:12, marginTop:4 }}>Add a cover image</div></>}
@@ -775,8 +794,10 @@ export default function EventEditorForm({
                   // was not. Size is limited by WIDTH instead, which the image
                   // follows proportionally and the percentages survive.
                   style={{ width:'100%', maxWidth:400, margin:'0 auto', borderRadius:10, overflow:'hidden', position:'relative',
-                    background: poster ? 'transparent' : 'rgba(255,255,255,0.05)',
-                    border: poster ? 'none' : '2px dashed rgba(255,255,255,0.18)',
+                    /* Matches the cover drop zone exactly — see the note there
+                       for why the dashes rule out a gradient on this edge. */
+                    background: 'transparent',
+                    border: poster ? 'none' : '2px dashed rgba(255,255,255,0.28)',
                     aspectRatio: poster ? undefined : '4/5',
                     display:'flex', alignItems:'center', justifyContent:'center',
                     cursor: poster ? 'default' : 'pointer', userSelect:'none',
@@ -787,7 +808,10 @@ export default function EventEditorForm({
                     ? <img src={poster} alt="poster"
                         onLoad={e => setPosterDims({ w:e.target.naturalWidth, h:e.target.naturalHeight })}
                         style={{ width:'100%', display:'block', pointerEvents:'none' }} />
-                    : <div style={{ textAlign:'center', color:'rgba(255,255,255,0.4)', fontSize:13 }}><div style={{ fontSize:28, marginBottom:6 }}>+</div><div>Tap to add poster</div></div>
+                    /* White rather than 40% grey: this is the label on a
+                       button, not secondary prose. The dashed box already
+                       says "empty". */
+                    : <div style={{ textAlign:'center', color:'var(--text)', fontSize:13 }}><div style={{ fontSize:28, marginBottom:6 }}>+</div><div>Tap to add poster</div></div>
                   }
 
                   {/* The crop window — a 3:2 rectangle the organiser sizes with
@@ -950,9 +974,13 @@ export default function EventEditorForm({
                         <div onClick={trigger}
                           style={{ width:104, aspectRatio:'3/2', borderRadius:9, cursor:'pointer', position:'relative',
                             display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
-                            background: isNext ? 'rgba(0,229,255,0.06)' : 'rgba(255,255,255,0.03)',
-                            border: isNext ? '2px dashed rgba(0,229,255,0.45)' : '1px dashed rgba(255,255,255,0.14)',
-                            color: isNext ? 'var(--neon2)' : 'rgba(255,255,255,0.28)' }}>
+                            /* ⭐ `isNext` is still the one drawn to: a heavier,
+                               brighter dash and the only label. Dashed all the
+                               way down, matching the panels above — the slots
+                               are empty and must keep saying so. */
+                            background: 'transparent',
+                            border: isNext ? '2px dashed rgba(255,255,255,0.34)' : '1px dashed rgba(255,255,255,0.14)',
+                            color: isNext ? 'var(--text)' : 'rgba(255,255,255,0.28)' }}>
                           <div style={{ fontSize:22, lineHeight:1 }}>+</div>
                           {isNext && <div style={{ fontSize:10, marginTop:3 }}>Add image</div>}
                           <span style={{ position:'absolute', top:4, left:4, minWidth:16, height:16, borderRadius:8,

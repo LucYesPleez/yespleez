@@ -602,16 +602,28 @@
   cursor: pointer;
   border: 1px solid var(--border);
   background: var(--card2);
-  color: var(--muted);
+  /* ⚠ WHITE, not muted. These are the two halves of one choice, and a grey
+     label read as "disabled" rather than "not currently selected". Selection
+     is carried by the background and border below, which is a difference you
+     can see without having to compare two text colours. */
+  color: var(--text);
   transition: border-color .15s, color .15s;
 }
 
 .posterTab:hover { border-color: rgba(255,255,255,0.2); color: var(--text); }
 
+/* ⭐ SELECTED IS A GRADIENT EDGE, NOT A FILL. The cyan wash read as a
+   highlighted block and competed with the panel it introduces; the same
+   padding-box / border-box idiom `.controlsCard` and `.quickGen` already use
+   marks the choice on the edge and leaves the surface alone.
+   ⚠ The inner layer must be an OPAQUE colour, not `transparent` — a
+   transparent padding-box lets the gradient show straight through and the
+   whole tab fills with it, which is the exact thing this removes. */
 .posterTabActive {
-  background: rgba(0,229,255,0.1);
-  border-color: var(--neon2);
-  color: var(--neon2);
+  background: linear-gradient(var(--card2), var(--card2)) padding-box,
+              linear-gradient(135deg, #00E5FF, #BF5FFF) border-box;
+  border: 1px solid transparent;
+  color: var(--text);
 }
 
 .posterTabRemove {
