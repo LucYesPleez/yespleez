@@ -74,6 +74,35 @@ export default function AvailabilitySection({
   // separately from availability: tapping still toggles, and this only decides
   // what the summary underneath is talking about.
   const [touched,      setTouched]      = useState(null);
+  /**
+   * ⭐ THE PUBLISH SWITCH (ratified 2026-08-14: availability is optional
+   * public information). null = not yet read — and the control renders
+   * NOTHING until the read lands, so an account whose database predates the
+   * S3 migration sees no switch rather than a broken one.
+   *
+   * ⚠ THE FLAG LIVES ON `profiles`, NOT ON THE DATE ROWS, because it is a
+   * property of the PROFILE's public face. The owner keeps editing dates
+   * exactly as before while private — that is the whole point: a complete
+   * calendar, unpublished. ⚠ The boundary is S3's RLS, not this component;
+   * this button only records the choice.
+   */
+  const [availPrivate, setAvailPrivate] = useState(null);
+  useEffect(() => {
+    if (!profileId) return undefined;
+    let dead = false;
+    supabase.from('profiles').select('availability_private').eq('id', profileId).maybeSingle()
+      .then(({ data, error }) => {
+        if (!dead && !error && data) setAvailPrivate(!!data.availability_private);
+      });
+    return () => { dead = true; };
+  }, [profileId]);
+  async function togglePrivate() {
+    const next = !availPrivate;
+    setAvailPrivate(next); // optimistic — the switch answers the finger
+    const { error } = await supabase.from('profiles')
+      .update({ availability_private: next }).eq('id', profileId);
+    if (error) setAvailPrivate(!next); // the truth wins over the optimism
+  }
 
   useEffect(() => {
     // Reset rather than keep the previous profile's dates on screen while the
@@ -125,6 +154,30 @@ export default function AvailabilitySection({
           <span style={{ fontSize: 10, color: 'var(--muted)', letterSpacing: 0.3 }}>tap dates to add / remove</span>
         </div>
         <div style={{ flex: 1 }} />
+        {/* ⚠ STATES THE CONSEQUENCE, NOT A SETTING NAME. "PUBLIC" / "PRIVATE"
+            says what the world currently sees; a label like "publish dates"
+            would need the reader to work out which way the toggle points.
+            Amber when private — a deliberate standing choice worth noticing on
+            every visit, not an alarm. */}
+        {availPrivate !== null && (
+          <button
+            type="button"
+            onClick={togglePrivate}
+            title={availPrivate
+              ? 'Your dates are hidden. Others see "availability not published" and can still enquire.'
+              : 'Your available dates are visible on your public profile.'}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6, flexShrink: 0,
+              padding: '3px 10px', borderRadius: 999, marginRight: 12,
+              border: `1px solid ${availPrivate ? 'rgba(245,158,11,.5)' : 'var(--border)'}`,
+              background: 'none', cursor: 'pointer',
+              color: availPrivate ? '#F59E0B' : 'var(--muted)',
+              fontFamily: "'Bebas Neue', sans-serif", fontSize: 10, letterSpacing: 1.5, lineHeight: 1.6,
+            }}
+          >
+            {availPrivate ? 'PRIVATE' : 'PUBLIC'}
+          </button>
+        )}
         <button
           onClick={() => setShowCal(true)}
           onMouseEnter={() => setViewAllHov(true)}

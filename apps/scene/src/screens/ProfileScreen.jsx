@@ -1232,7 +1232,10 @@ export default function ProfileScreen() {
                   }
                 }}
               >
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 8, verticalAlign: 'middle', marginTop: -2 }}><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>CHECK AVAILABILITY
+                {/* ⚠ THE LABEL TELLS THE TRUTH ABOUT WHAT OPENS. A private
+                    calendar has no availability to check — the sheet it opens
+                    is a date picker for an enquiry, so the button says so. */}
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 8, verticalAlign: 'middle', marginTop: -2 }}><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>{profile.availability_private ? 'ENQUIRE' : 'CHECK AVAILABILITY'}
               </button>
             )}
             {/* 11C.3 revision: one CHECK AVAILABILITY button for performers.
@@ -1250,8 +1253,24 @@ export default function ProfileScreen() {
                   else { setInviteDate(null); setInviteOpen(true); }
                 }}
               >
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 8, verticalAlign: 'middle', marginTop: -2 }}><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>CHECK AVAILABILITY
+                {/* ⚠ Same truth-telling as the venue button: with no published
+                    dates the tap goes straight to the enquiry sheet, so
+                    CHECK AVAILABILITY would name a step that does not happen. */}
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 8, verticalAlign: 'middle', marginTop: -2 }}><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>{(perfAvailDates && perfAvailDates.size > 0) ? 'CHECK AVAILABILITY' : 'ENQUIRE'}
               </button>
+            )}
+            {/* ⚠ WITHHELD ≠ UNKNOWN, SAID OUT LOUD (ratified 2026-08-14). A
+                performer who keeps their calendar private used to be
+                indistinguishable from one who never filled it in — both
+                rendered as NO BUTTON, a visual hole with no explanation. For
+                viewers with no enquiry path (no venue profile), this line is
+                the difference between "nothing here" and "not published, on
+                purpose". Viewers WITH a venue get the ENQUIRE button above
+                instead, which says it better. */}
+            {isPerformer && !isUnclaimed && !venueCtx && profile.availability_private && (
+              <p style={{ fontSize: 12, color: 'var(--muted)', textAlign: 'center', margin: '2px 0 0', letterSpacing: 0.3 }}>
+                Availability isn&rsquo;t published for this profile.
+              </p>
             )}
             {/* Shared social links row beneath the action buttons — now on
                 every profile type, venue included (11C.4: the venue's socials
@@ -1402,7 +1421,26 @@ export default function ProfileScreen() {
           accentRgb="0,229,160"
           availableDates={availDates}
           eventDates={eventDates}
-          mode="view"
+          /* ⭐ THE THREE PUBLIC STATES (ratified 2026-08-14). Published keeps
+             the old behaviour: view mode, only green dates tappable. PRIVATE
+             (the owner keeps a calendar but does not publish it — S3 RLS means
+             the rows never even arrive here) and NOT SET both switch to edit
+             mode, where ANY future date is tappable — the enquirer names the
+             date they are asking about instead of hitting a calendar with
+             nothing to tap. ⛔ An empty calendar must never read as booked
+             out, and it must never be a dead end: availability is optional
+             public information, not the gate for contact. */
+          mode={(profile.availability_private || (availDates && availDates.size === 0)) ? 'edit' : 'view'}
+          /* ⚠ A SUBTITLE ONLY IN THE NON-PUBLISHED STATES. The published case
+             keeps its deliberate no-subtitle rule (it restated the title);
+             these two carry information the calendar cannot: WHY there are no
+             green dates, and that this is not a refusal. Withheld ≠ unknown,
+             so the two states say different things. */
+          subtitle={profile.availability_private
+            ? "This venue doesn't publish availability. Pick the date you're asking about."
+            : (availDates && availDates.size === 0)
+              ? "Availability isn't published yet. Pick the date you're asking about."
+              : undefined}
           onSelectDate={openEnquiry}
           month={availMonth}
           onMonthChange={setAvailMonth}
@@ -1412,9 +1450,16 @@ export default function ProfileScreen() {
               {enquiryLoading && <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 12 }}>Loading…</p>}
               {availDates !== null && (
                 <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {/* The green-square key describes published dates; in the
+                      private/not-set states there are none, and every future
+                      date is tappable, so the key would point at nothing. */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ width: 14, height: 14, borderRadius: 3, background: 'rgba(0,229,160,.18)', border: '1px solid rgba(0,229,160,.5)', flexShrink: 0 }} />
-                    <span style={{ fontSize: 12, color: 'var(--muted)', fontFamily: "'Bebas Neue'", letterSpacing: 1 }}>TAP DATE TO ENQUIRE</span>
+                    {!profile.availability_private && availDates.size > 0 && (
+                      <span style={{ width: 14, height: 14, borderRadius: 3, background: 'rgba(0,229,160,.18)', border: '1px solid rgba(0,229,160,.5)', flexShrink: 0 }} />
+                    )}
+                    <span style={{ fontSize: 12, color: 'var(--muted)', fontFamily: "'Bebas Neue'", letterSpacing: 1 }}>
+                      {(profile.availability_private || availDates.size === 0) ? 'TAP ANY DATE TO ENQUIRE' : 'TAP DATE TO ENQUIRE'}
+                    </span>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span style={{ width: 14, height: 14, borderRadius: '50%', background: '#FF2D78', flexShrink: 0 }} />
