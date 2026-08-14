@@ -1244,19 +1244,31 @@ export default function ProfileScreen() {
                 prefilled); everyone else sees it read-only. If the performer has
                 no published availability, a venue owner's button opens the
                 enquiry sheet directly — no lost enquiry path. */}
-            {isPerformer && !isUnclaimed && ((perfAvailDates && perfAvailDates.size > 0) || venueCtx) && (
+            {/* ⚠ The flag outranks the data here too: without it, the OWNER of
+                a private calendar (whose own rows RLS still returns) got a
+                button that opened nothing — the read-only calendar path is
+                for published dates, and the InviteSheet path needs venueCtx. */}
+            {isPerformer && !isUnclaimed && ((!profile.availability_private && perfAvailDates && perfAvailDates.size > 0) || venueCtx) && (
               <button
                 className={s.followBtn}
                 style={{ background: `linear-gradient(135deg, ${col}, ${grad2})`, color: '#0a0a14', borderColor: 'transparent', width: '100%' }}
                 onClick={() => {
-                  if (perfAvailDates && perfAvailDates.size > 0) setPerfAvailOpen(true);
+                  /* ⚠ THE FLAG OUTRANKS THE DATA — deliberately, because for
+                     one viewer they disagree: S3's RLS hides a private
+                     calendar from everyone EXCEPT its owner (can_act_as), so
+                     the owner's own view still loads dates. Checking size
+                     first showed the owner a published-state button nobody
+                     else sees. The flag is what the WORLD sees; render from
+                     it, and the owner's view stops lying about their public
+                     face. Same precedence the venue branch already uses. */
+                  if (!profile.availability_private && perfAvailDates && perfAvailDates.size > 0) setPerfAvailOpen(true);
                   else { setInviteDate(null); setInviteOpen(true); }
                 }}
               >
                 {/* ⚠ Same truth-telling as the venue button: with no published
                     dates the tap goes straight to the enquiry sheet, so
                     CHECK AVAILABILITY would name a step that does not happen. */}
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 8, verticalAlign: 'middle', marginTop: -2 }}><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>{(perfAvailDates && perfAvailDates.size > 0) ? 'CHECK AVAILABILITY' : 'ENQUIRE'}
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 8, verticalAlign: 'middle', marginTop: -2 }}><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>{(!profile.availability_private && perfAvailDates && perfAvailDates.size > 0) ? 'CHECK AVAILABILITY' : 'ENQUIRE'}
               </button>
             )}
             {/* ⚠ WITHHELD ≠ UNKNOWN, SAID OUT LOUD (ratified 2026-08-14). A

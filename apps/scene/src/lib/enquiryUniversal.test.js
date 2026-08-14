@@ -90,9 +90,13 @@ test('ProfileScreen: private and not-set say different things — withheld is no
 
 test('ProfileScreen: the performer CTA does not require published dates when the viewer can offer', () => {
   // venueCtx alone keeps the button: no dates → straight to the enquiry sheet.
-  assert.ok(PROFILE_SCREEN.includes('((perfAvailDates && perfAvailDates.size > 0) || venueCtx)'));
-  assert.ok(PROFILE_SCREEN.includes("(perfAvailDates && perfAvailDates.size > 0) ? 'CHECK AVAILABILITY' : 'ENQUIRE'"),
-    'with nothing to check, the label must not promise a checking step');
+  // ⚠ THE FLAG OUTRANKS THE DATA in every branch. S3's RLS hides a private
+  // calendar from everyone except its owner, so for the owner the flag and
+  // the data disagree — and rendering from the data showed the owner a
+  // published-state button nobody else sees (found live, 2026-08-14).
+  assert.ok(PROFILE_SCREEN.includes('((!profile.availability_private && perfAvailDates && perfAvailDates.size > 0) || venueCtx)'));
+  assert.ok(PROFILE_SCREEN.includes("(!profile.availability_private && perfAvailDates && perfAvailDates.size > 0) ? 'CHECK AVAILABILITY' : 'ENQUIRE'"),
+    'with nothing to check, the label must not promise a checking step — and a private calendar has nothing to check even when the owner can see the rows');
 });
 
 test('ProfileScreen: a withheld performer calendar is announced to viewers with no enquiry path', () => {
