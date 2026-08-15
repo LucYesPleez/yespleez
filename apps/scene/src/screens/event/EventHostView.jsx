@@ -786,14 +786,18 @@ export default function EventHostView({
       {/**
         * ACCEPTED tab — the ten applications that had nowhere to appear.
         *
-        * ⛔ READ-ONLY BY DESIGN. There is no ADD TO BILL here: the
-        * SHORT LIST → LINEUP transition is not built, and an accepted
-        * application must never become bill membership on its own. This tab
-        * says "you said yes to these people" and nothing more.
+        * ⛔ NOTHING HERE IS AUTOMATIC. An accepted application does not become
+        * bill membership on its own — ADD TO BILL is an explicit host action,
+        * and until it is pressed the badge honestly reads NOT ON THE BILL.
         *
-        * ⚠ The only action offered is the one that is unambiguously the host's
-        * to take back — a decline. It writes `applications.status` and touches
-        * nothing else.
+        * ⚠ This comment used to say the tab was read-only, which was true for
+        * exactly one commit before the transition was built. Left corrected
+        * rather than deleted: the rule that survived is that the tab shows a
+        * DECISION, and membership is a separate act.
+        *
+        * ⭐ ON BILL / NOT ON BILL is derived from `lineup_members`, ⛔ never
+        * from `applications.status` — the two are different facts and
+        * conflating them is what this whole sequence removed.
         */}
       {effectiveIsHost && showEditor && eventTab === 'ACCEPTED' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>

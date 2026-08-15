@@ -1242,6 +1242,29 @@ function AppCard({ app, prof, event, onRespond, onBill = false, onAddToBill = nu
               <span style={{ fontFamily: "'Bebas Neue'", fontSize: 26, color: '#FF2D78', lineHeight: 1 }}>{evDateBox.num}</span>
             </div>
           )}
+          {/**
+            * ⚠⚠ ON THE COLLAPSED CARD, NOT INSIDE THE EXPANDER.
+            *
+            * This button was placed in the `expanded` panel, so the primary
+            * action of the whole transition only appeared AFTER clicking VIEW
+            * FULL PROFILE. The owner opened the ACCEPTED tab, saw no way to add
+            * anyone, and nothing was written — the feature was unreachable
+            * without knowing to expand a card first.
+            *
+            * ⛔ A decision the tab exists to make must be on the face of the
+            * card. The expander is for reading someone, not for acting on them.
+            */}
+          {onAddToBill && !onBill && (
+            <button
+              onClick={async () => { setBusy(true); await onAddToBill(); setBusy(false); }}
+              disabled={busy}
+              style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1, background: 'rgba(0,229,160,.12)', border: '1px solid rgba(0,229,160,.45)', color: '#00E5A0', borderRadius: 8, padding: '3px 8px', cursor: busy ? 'default' : 'pointer', opacity: busy ? .5 : 1, whiteSpace: 'nowrap' }}
+            >{busy ? 'ADDING…' : '+ ADD TO BILL'}</button>
+          )}
+          {/* ⭐ Derived from `lineup_members`, never from applications.status. */}
+          {onAddToBill && onBill && (
+            <span style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1, color: '#00E5A0', border: '1px solid rgba(0,229,160,.45)', borderRadius: 8, padding: '3px 8px', whiteSpace: 'nowrap' }}>ON BILL</span>
+          )}
           <button
             onClick={() => setExpanded(e => !e)}
             style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1, background: 'rgba(255,45,120,.1)', border: '1px solid rgba(255,45,120,.35)', color: '#FF2D78', borderRadius: 8, padding: '3px 8px', cursor: 'pointer' }}
@@ -1293,25 +1316,8 @@ function AppCard({ app, prof, event, onRespond, onBill = false, onAddToBill = nu
               })()}
             </div>
           )}
-          {/**
-            * ⭐ ADD TO BILL — the SHORT LIST → LINEUP transition.
-            *
-            * ⛔ Hidden once they ARE on the bill, rather than disabled: the
-            * badge above already says so, and a dead control beside a label
-            * stating the same fact is noise.
-            *
-            * ⚠ Offered on ANY undeclined application, including an accepted
-            * one — an accepted applicant with no bill row was the dead end
-            * this fixes. `planAddToBill` refuses the declined ones.
-            */}
-          {onAddToBill && !onBill && (
-            <div style={{ display: 'flex', gap: 6, marginTop: 12 }}>
-              <AppBtn onClick={async () => { setBusy(true); await onAddToBill(); setBusy(false); }} disabled={busy}
-                base={{ bg: 'rgba(0,229,160,.1)', border: '1px solid rgba(0,229,160,.45)', color: '#00E5A0' }}
-                hover={{ bg: 'rgba(0,229,160,.28)', border: '1px solid #00E5A0' }}
-              >+ ADD TO BILL</AppBtn>
-            </div>
-          )}
+          {/* ⛔ ADD TO BILL is NOT here — it lives on the collapsed card, where
+              it can be seen. See the note beside it. */}
           {(isPending || isTentative) && (
             <div style={{ display: 'flex', gap: 6, marginTop: 12 }}>
               <AppBtn onClick={() => respond('accepted')} disabled={busy}
