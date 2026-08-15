@@ -2,8 +2,12 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import EventCard from './EventCard';
 import PastEventsSearch, { filterPastEvents } from './PastEventsSearch';
+import { isArchived } from '../lib/eventBuckets';
 
-const todayStr = () => new Date().toISOString().split('T')[0];
+/* ⛔⛔ WAS `new Date().toISOString().split('T')[0]` — the UTC date, which in
+   AEST is YESTERDAY every morning until 10am. It drove the FINISHED badge, so
+   an event on TODAY was labelled finished before 10am. `isArchived` in
+   lib/eventBuckets is the one rule now, and it honours `endDate` besides. */
 
 export default function EventsSection({
   tabs = {},            // { UPCOMING: [...], DRAFTS: [...], PAST: [...] } — pre-filtered by dashboard
@@ -22,8 +26,8 @@ export default function EventsSection({
   const [showAll, setShowAll] = useState(false);
   const [pastSearch, setPastSearch] = useState('');
 
-  const today = todayStr();
-  const isPastTab = activeTab === 'PAST';
+
+  const isPastTab = activeTab === 'ARCHIVE';
   const events = isPastTab ? filterPastEvents(tabs[activeTab] || [], pastSearch) : (tabs[activeTab] || []);
 
   return (
@@ -56,7 +60,7 @@ export default function EventsSection({
       </div>
 
       {/* Past Events communal filter/search — only where there's something to search */}
-      {isPastTab && !loading && (tabs.PAST || []).length > 0 && (
+      {isPastTab && !loading && (tabs.ARCHIVE || []).length > 0 && (
         <PastEventsSearch query={pastSearch} onChange={setPastSearch} />
       )}
 
@@ -86,7 +90,7 @@ export default function EventsSection({
           }>
             {events.map(ev => {
               const isLive      = ev.status === 'live';
-              const isCompleted = ev.status === 'completed' || (isLive && (ev.config?.date || '') < today);
+              const isCompleted = isArchived(ev);
               const cfg         = ev.config || {};
               const appsOpen    = cfg.applications_open === true || ev.applications_open === true;
               const isPublic    = cfg.is_public !== false && ev.is_public !== false;

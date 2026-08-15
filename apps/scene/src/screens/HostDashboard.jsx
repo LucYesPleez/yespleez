@@ -30,6 +30,7 @@ import EnquiryCalendar from '../components/EnquiryCalendar';
 import { CalendarIconBtn } from '../components/DecisionButtons';
 import { fetchOutgoingEnquiries } from '../lib/outgoingPipeline';
 import { withDirection, normaliseStatus, rawStatusesFor } from '../lib/enquiryUtils';
+import { bucketEvents, eventBucket, defaultBucket, effectiveDate, BUCKETS, UPCOMING, DRAFT, ARCHIVE } from '../lib/eventBuckets';
 import EventsSection from '../components/EventsSection';
 import EventTabBar from '../components/EventTabBar';
 import SectionCollapseButton from '../components/SectionCollapseButton';
@@ -69,6 +70,10 @@ export default function HostDashboard({ userId: userIdProp }) {
   // availability every time it is opened.
   const [calendarOpen,   setCalendarOpen]   = useState(false);
   const [lineupFocusId,  setLineupFocusId]  = useState(null);  // null = show all
+  /* null = follow `defaultBucket`, which lands on the first bucket that has
+     anything in it. ⚠ A fixed default would open this host on an EMPTY tab:
+     they have 0 upcoming, 4 drafts and 11 archived. */
+  const [lineupBucketPick, setLineupBucketPick] = useState(null);
   const [lineupExpandMap, setLineupExpandMap] = useState({});  // eventId → bool (default true)
   const [lineupSubTabs,  setLineupSubTabs]  = useState({});   // eventId → 'LINEUP'|'SET TIMES'|'SHORT LIST'|'PIPELINE'
   const [allApps,        setAllApps]        = useState([]);
@@ -374,18 +379,38 @@ export default function HostDashboard({ userId: userIdProp }) {
   const evtMap = Object.fromEntries(events.map(e => [e.id, e]));
 
   // Pre-compute event lists
-  const todayStr    = new Date().toISOString().split('T')[0];
-  const draftEvents    = events.filter(ev => ev.status === 'draft');
-  const upcomingEvents = events.filter(ev => ev.status !== 'draft' && ev.status !== 'completed' && (ev.config?.date || '') >= todayStr)
-                               .sort((a, b) => (a.config?.date || '').localeCompare(b.config?.date || ''));
-  const pastEvents     = events.filter(ev => ev.status !== 'draft' && (ev.config?.date || '') < todayStr)
-                               .sort((a, b) => (b.config?.date || '').localeCompare(a.config?.date || ''));
+  /**
+   * ⛔⛔ WAS `new Date().toISOString().split('T')[0]` — the UTC date, which in
+   * AEST reads as YESTERDAY every morning until 10am. It sat on the line
+   * deciding whether an event had happened, so an event on TODAY filed itself
+   * as past before 10am. `lib/eventBuckets` owns this now, and takes the local
+   * day from `lib/dates`.
+   */
+  const eventBuckets = bucketEvents(events);
+  /* Soonest first for what is coming, most recent first for what is done —
+     both read outward from today, which is where the reader is standing. */
+  const byDateAsc  = (a, b) => effectiveDate(a).localeCompare(effectiveDate(b));
+  const byDateDesc = (a, b) => effectiveDate(b).localeCompare(effectiveDate(a));
+  const draftEvents    = [...eventBuckets[DRAFT]].sort(byDateAsc);
+  const upcomingEvents = [...eventBuckets[UPCOMING]].sort(byDateAsc);
+  const pastEvents     = [...eventBuckets[ARCHIVE]].sort(byDateDesc);
   // Pre-compute application lists
   /* ⚠⚠ Both of these matched ZERO production rows — see the note in
      EventHostView. Routed through the one normaliser that knows both
      vocabularies, so a differently-spelled application can no longer be
      invisible. `tentativeApps` keeps its name only because the JSX below reads
      it; the bucket it now holds is `shortlisted`. */
+  /**
+   * The LINEUP section, filed the same way the events list is.
+   *
+   * ⛔ `eventBucket` is the ONE rule — reusing it here is what stops the
+   * selector and the events list disagreeing about which events are past.
+   */
+  const lineupsByBucket = { [UPCOMING]: [], [DRAFT]: [], [ARCHIVE]: [] };
+  lineups.forEach(g => { lineupsByBucket[eventBucket(g.event)].push(g); });
+  const activeLineupBucket = lineupBucketPick ?? defaultBucket(lineupsByBucket);
+  const bucketLineups      = lineupsByBucket[activeLineupBucket] || [];
+
   const bucketOfApp   = a => normaliseStatus({ status: a.status, direction: 'incoming' });
   const newApps       = allApps.filter(a => bucketOfApp(a) === 'new');
   const tentativeApps = allApps.filter(a => bucketOfApp(a) === 'shortlisted');
@@ -554,7 +579,7 @@ export default function HostDashboard({ userId: userIdProp }) {
       {/* ── EVENTS ── */}
       <EventsSection
         ownerType="host"
-        tabs={{ UPCOMING: upcomingEvents, DRAFTS: draftEvents, PAST: pastEvents }}
+        tabs={{ UPCOMING: upcomingEvents, DRAFT: draftEvents, ARCHIVE: pastEvents }}
         loading={loadingEvents}
         accent="#FF2D78"
       />
@@ -631,8 +656,47 @@ export default function HostDashboard({ userId: userIdProp }) {
           <SectionCollapseButton expanded={showAllLineup} onToggle={() => setShowAllLineup(v => !v)} />
         </div>
 
-        {/* Event selector pills — only when >1 event */}
-        {lineups.length > 1 && (
+        {/**
+          * ⭐⭐ UPCOMING · DRAFT · ARCHIVE — because 11 of this host's 15 events
+          * are 2023-2025 imports, and listing them all turned the selector into
+          * a wall of dead gigs with the four live ones buried at the end.
+          *
+          * ⛔ The archive is not hidden, it is FILED. Those bills are real and
+          * still readable; they are simply not what anyone opens this section to
+          * work on. Same rule as the events list above, from the same function,
+          * so the two cannot disagree about what "past" means.
+          */}
+        {lineups.length > 0 && (
+          <div style={{ display: 'flex', gap: 0, marginBottom: 12, borderBottom: '1px solid var(--border)' }}>
+            {BUCKETS.map(b => {
+              const n = (lineupsByBucket[b] || []).length;
+              const active = activeLineupBucket === b;
+              return (
+                <button key={b}
+                  onClick={() => { setLineupBucketPick(b); setLineupFocusId(null); }}
+                  style={{
+                    flex: 1, background: 'none', border: 'none',
+                    borderBottom: `2px solid ${active ? 'var(--neon2)' : 'transparent'}`,
+                    fontFamily: "'Bebas Neue'", fontSize: 12, letterSpacing: 1.5,
+                    /* ⚠ An empty bucket is dimmed, never hidden. Removing the tab
+                       would make the section's shape change under the reader
+                       every time a date passes. */
+                    color: active ? '#fff' : n === 0 ? 'rgba(255,255,255,.25)' : 'var(--muted)',
+                    padding: '8px 4px', cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+                    transition: 'color .15s, border-bottom-color .15s',
+                  }}
+                >
+                  {b}
+                  <span style={{ background: 'var(--card2)', color: 'var(--muted)', borderRadius: 10, fontSize: 10, padding: '1px 6px', fontFamily: "'DM Sans'", fontWeight: 700, letterSpacing: 0 }}>{n}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Event selector pills — only when the ACTIVE bucket holds >1 event */}
+        {bucketLineups.length > 1 && (
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
             <button
               onClick={() => setLineupFocusId(null)}
@@ -650,7 +714,7 @@ export default function HostDashboard({ userId: userIdProp }) {
                 color: lineupFocusId === null ? '#fff' : 'var(--muted)',
               }}
             >ALL</button>
-            {lineups.map(({ event: ev }) => {
+            {bucketLineups.map(({ event: ev }) => {
               const evName = ev.name || ev.config?.name || 'Untitled';
               const active = lineupFocusId === ev.id;
               return (
@@ -682,7 +746,9 @@ export default function HostDashboard({ userId: userIdProp }) {
           <p className={s.empty}>No events yet. Create one and start building its bill.</p>
         ) : showAllLineup === false ? null : (
           <div>
-            {(lineupFocusId ? lineups.filter(g => g.event.id === lineupFocusId) : lineups).map(({ event: ev, members, days, totalSlots, filledSlots, unscheduled }) => {
+            {/* ⚠ `bucketLineups`, not `lineups` — the list must show what the
+                tab above it says, or the counts and the content disagree. */}
+            {(lineupFocusId ? bucketLineups.filter(g => g.event.id === lineupFocusId) : bucketLineups).map(({ event: ev, members, days, totalSlots, filledSlots, unscheduled }) => {
               const evName      = ev.name || ev.config?.name || 'Untitled Event';
               const evDate      = ev.config?.date ? new Date(ev.config.date).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' }) : null;
               const evExpanded  = lineupExpandMap[ev.id] !== false;

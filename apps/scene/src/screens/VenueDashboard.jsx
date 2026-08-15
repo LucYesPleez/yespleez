@@ -18,6 +18,7 @@ import DashboardHeader from '../components/DashboardHeader';
 import DashboardProfileCard from '../components/DashboardProfileCard';
 import NotificationBar from '../components/NotificationBar';
 import DashboardStats from '../components/DashboardStats';
+import { bucketEvents, effectiveDate, UPCOMING, DRAFT, ARCHIVE } from '../lib/eventBuckets';
 import EventsSection from '../components/EventsSection';
 import { useDragScroll } from '../hooks/useDragScroll';
 import s from './VenueDashboard.module.css';
@@ -142,12 +143,20 @@ export default function VenueDashboard({ userId: userIdProp }) {
 
   const profile      = data?.profile      || null;
   const events       = data?.upcomingEvts || [];
-  const todayStr     = new Date().toISOString().split('T')[0];
-  const upcomingEvents = events.filter(ev => ev.status !== 'draft' && ev.status !== 'completed' && (ev.config?.date || '') >= todayStr)
-                               .sort((a, b) => (a.config?.date || '').localeCompare(b.config?.date || ''));
-  const draftEvents    = events.filter(ev => ev.status === 'draft');
-  const pastEvents     = events.filter(ev => ev.status !== 'draft' && (ev.config?.date || '') < todayStr)
-                               .sort((a, b) => (b.config?.date || '').localeCompare(a.config?.date || ''));
+  /**
+   * ⛔⛔ WAS THE UTC EXPRESSION AGAIN — `new Date().toISOString().split('T')[0]`,
+   * the third copy of it, deciding whether a venue's event had happened. In
+   * AEST that reads as YESTERDAY every morning until 10am.
+   *
+   * ⭐ `lib/eventBuckets` is the one rule now, shared with the host dashboard,
+   * so the two cannot disagree about which of the SAME events are past.
+   */
+  const venueBuckets   = bucketEvents(events);
+  const byDateAsc      = (a, b) => effectiveDate(a).localeCompare(effectiveDate(b));
+  const byDateDesc     = (a, b) => effectiveDate(b).localeCompare(effectiveDate(a));
+  const upcomingEvents = [...venueBuckets[UPCOMING]].sort(byDateAsc);
+  const draftEvents    = [...venueBuckets[DRAFT]].sort(byDateAsc);
+  const pastEvents     = [...venueBuckets[ARCHIVE]].sort(byDateDesc);
 
   // ⛔ `toggleDate` removed with VenueAvailCalendar. AvailabilitySection owns
   // the write, using the same table and the venue's own conflict target — one
@@ -317,7 +326,7 @@ export default function VenueDashboard({ userId: userIdProp }) {
       {/* Events */}
       <EventsSection
         ownerType="venue"
-        tabs={{ UPCOMING: upcomingEvents, DRAFTS: draftEvents, PAST: pastEvents }}
+        tabs={{ UPCOMING: upcomingEvents, DRAFT: draftEvents, ARCHIVE: pastEvents }}
         loading={loading}
         accent="#00E5A0"
       />
