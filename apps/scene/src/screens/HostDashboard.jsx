@@ -967,7 +967,7 @@ export default function HostDashboard({ userId: userIdProp }) {
                       {activeTab === 'SHORT LIST' && (
                         evShortList.length === 0
                           ? <p className={s.empty} style={{ fontSize: 12 }}>No shortlisted artists for this event.</p>
-                          : <div style={{ marginBottom: 12 }}>{evShortList.map(app => <AppCard key={app.id} app={app} prof={appProfiles[app.id] || {}} eventName={evtMap[app.event_id]?.name} onRespond={respondApp} onBill={!!findExistingMember(app, members.map(r => r.member))} onAddToBill={() => addApplicantToBill(app, members)} />)}</div>
+                          : <div style={{ marginBottom: 12 }}>{evShortList.map(app => <AppCard key={app.id} app={app} prof={appProfiles[app.id] || {}} eventName={evtMap[app.event_id]?.name} onRespond={respondApp} onBill={!!findExistingMember(app, members.map(r => r.member), appProfiles[app.id] || null)} onAddToBill={() => addApplicantToBill(app, members)} />)}</div>
                       )}
                       {activeTab === 'PIPELINE' && (
                         evPipeline.length === 0
@@ -983,7 +983,7 @@ export default function HostDashboard({ userId: userIdProp }) {
                               <p style={{ fontSize: 12, color: 'var(--muted)', margin: '0 0 8px', lineHeight: 1.5 }}>
                                 You said yes to these applications. Adding them to the bill is still a separate step.
                               </p>
-                              {evAccepted.map(app => <AppCard key={app.id} app={app} prof={appProfiles[app.id] || {}} eventName={evtMap[app.event_id]?.name} onRespond={respondApp} onBill={!!findExistingMember(app, members.map(r => r.member))} onAddToBill={() => addApplicantToBill(app, members)} />)}
+                              {evAccepted.map(app => <AppCard key={app.id} app={app} prof={appProfiles[app.id] || {}} eventName={evtMap[app.event_id]?.name} onRespond={respondApp} onBill={!!findExistingMember(app, members.map(r => r.member), appProfiles[app.id] || null)} onAddToBill={() => addApplicantToBill(app, members)} />)}
                             </div>
                       )}
                       </div>

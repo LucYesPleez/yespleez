@@ -28,11 +28,25 @@
  */
 
 /** Is this applicant already on this event's bill? */
-export function findExistingMember(app, members = []) {
+export function findExistingMember(app, members = [], profile = null) {
   if (!app) return null;
+  /**
+   * ⚠ THE NAME IS THE THIRD KEY, and it is load bearing. A hand-typed act has
+   * no profile and no account — 21 such members exist — so without this the
+   * ONLY de-duplication available to them is nothing at all, and ADD TO BILL
+   * becomes infinitely repeatable. That is exactly the incident of 2026-08-15.
+   *
+   * ⛔ Compared only when BOTH sides lack ids, and only for a NON-EMPTY name.
+   * Two blank names must never match: that is how an all-NULL row would come
+   * to "already be" every applicant.
+   */
+  const name = String(profile?.name || app.artist_name || '').trim().toLowerCase();
   return (members || []).find(m =>
     (app.from_profile_id && m.artist_profile_id === app.from_profile_id) ||
-    (app.artist_id && m.artist_id === app.artist_id),
+    (app.artist_id && m.artist_id === app.artist_id) ||
+    (!!name && !app.from_profile_id && !app.artist_id
+      && !m.artist_profile_id && !m.artist_id
+      && String(m.artist_name || '').trim().toLowerCase() === name),
   ) || null;
 }
 
@@ -49,7 +63,7 @@ export function planAddToBill(app, profile = null, members = []) {
    * not put someone on the bill twice — `lineup_members` has no uniqueness
    * constraint to catch it, so this is the only guard.
    */
-  const existing = findExistingMember(app, members);
+  const existing = findExistingMember(app, members, profile);
   if (existing) return { ok: false, reason: 'already on the bill', existing };
 
   /**
@@ -59,6 +73,32 @@ export function planAddToBill(app, profile = null, members = []) {
    */
   if (app.status === 'declined' || app.status === 'rejected') {
     return { ok: false, reason: 'this application was declined' };
+  }
+
+  /**
+   * ⛔⛔ AN APPLICATION WITH NO IDENTITY CANNOT JOIN A BILL.
+   *
+   * ⚠⚠ THIS CAUSED A REAL INCIDENT (2026-08-15). Application `73dee72b` on
+   * `fds` carries `from_profile_id` NULL, `artist_id` NULL AND `artist_name`
+   * NULL — nothing that names anybody. `findExistingMember` matches on those
+   * two ids, so it could never match, so the idempotency guard could never
+   * fire: every press of ADD TO BILL inserted ANOTHER anonymous member. The
+   * owner pressed it repeatedly because nothing appeared to change, and fds
+   * went from 7 members to 16. Eight all-NULL rows, deleted afterwards.
+   *
+   * ⭐ The guard is not "de-duplicate harder" — it is that this row is not a
+   * candidate at all. A member with no name, no profile and no account is not
+   * a person on a bill; it is a blank row. Refusing it is the honest answer,
+   * and it makes the anonymous case impossible rather than merely rarer.
+   *
+   * ⚠ `artist_name` counts as identity: a hand-typed act legitimately has no
+   * profile and no account, and those ARE valid bill members (21 exist). What
+   * is refused is having none of the three.
+   */
+  const hasIdentity = !!(app.from_profile_id || app.artist_id
+    || (profile?.name || app.artist_name || '').trim());
+  if (!hasIdentity) {
+    return { ok: false, reason: 'This application does not identify anybody — no profile, no account and no name — so it cannot be added to the bill.' };
   }
 
   const alreadyAccepted = app.status === 'accepted' || app.status === 'confirmed';

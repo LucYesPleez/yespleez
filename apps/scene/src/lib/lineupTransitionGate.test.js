@@ -208,6 +208,60 @@ test('9b · the inverse — a refused member insert changes nothing at all', asy
   assert.equal(JSON.stringify(db.world), before, 'a failed add must not move the application');
 });
 
+/* ── TEST 10 · THE ANONYMOUS-APPLICATION INCIDENT ──────────────────────────── */
+/**
+ * ⚠⚠ A REAL PRODUCTION INCIDENT, 2026-08-15.
+ *
+ * Application `73dee72b` on `fds` carries from_profile_id NULL, artist_id NULL
+ * AND artist_name NULL. `findExistingMember` matched on the two ids only, so it
+ * could NEVER match — the idempotency guard could never fire, and every press
+ * of ADD TO BILL inserted another anonymous member. The owner pressed it
+ * repeatedly because nothing on screen changed. fds went 7 → 16 members; eight
+ * all-NULL rows had to be deleted.
+ */
+const ANONYMOUS = { id: 'a-anon', event_id: 'ev', artist_id: null, from_profile_id: null, artist_name: null, status: 'accepted' };
+
+test('10 · ⛔ an application naming nobody is REFUSED, however many times it is pressed', async () => {
+  const db = fakeWorld({ apps: [ANONYMOUS] });
+  for (let i = 0; i < 5; i++) {
+    const { res } = await run(db, ANONYMOUS);
+    assert.equal(res.ok, false);
+  }
+  assert.equal(db.world.lineup_members.length, 0, 'the incident: this reached 8');
+});
+
+/**
+ * ⭐ THE COMPANION RULE. A hand-typed act legitimately has no profile and no
+ * account — 21 such members exist — so the NAME must de-duplicate them, or they
+ * inherit exactly the same infinite-insert bug.
+ */
+test('10b · a name-only act is added ONCE and then recognised', async () => {
+  const typed = { id: 'a-typed', event_id: 'ev', artist_id: null, from_profile_id: null, artist_name: 'DJ Flames', status: 'accepted' };
+  const db = fakeWorld({ apps: [typed] });
+
+  const first = await run(db, typed);
+  assert.equal(first.res.ok, true, 'a named act with no ids is still a real member');
+  assert.equal(db.world.lineup_members[0].artist_name, 'DJ Flames');
+
+  const second = await run(db, typed);
+  assert.equal(second.plan.ok, false);
+  assert.match(second.plan.reason, /already on the bill/);
+  assert.equal(db.world.lineup_members.length, 1);
+});
+
+test('10c · ⛔ two blank names never match each other', () => {
+  const blankMember = { id: 'm-blank', artist_profile_id: null, artist_id: null, artist_name: null };
+  assert.equal(findExistingMember(ANONYMOUS, [blankMember]), null,
+    'an all-NULL member must not read as "already" every anonymous applicant');
+  assert.equal(findExistingMember({ ...ANONYMOUS, artist_name: '   ' }, [{ ...blankMember, artist_name: '' }]), null);
+});
+
+test('10d · a named act is not confused with a differently-named one', () => {
+  const a = { id: 'x', event_id: 'ev', artist_id: null, from_profile_id: null, artist_name: 'DJ Flames', status: 'accepted' };
+  assert.equal(findExistingMember(a, [{ artist_profile_id: null, artist_id: null, artist_name: 'DJ Embers' }]), null);
+  assert.ok(findExistingMember(a, [{ artist_profile_id: null, artist_id: null, artist_name: 'dj flames' }]), 'case and spacing insensitive');
+});
+
 /* ── The shape of the approved model, asserted directly ────────────────────── */
 test('⭐ the three meanings stay distinct', async () => {
   const db = fakeWorld({ apps: [SHORTLISTED], perfs: PERFS, slots: SLOTS });

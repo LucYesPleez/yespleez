@@ -740,7 +740,7 @@ export default function EventHostView({
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
                       {/* ⭐ THE TRANSITION. Silent, and creates no set time —
                           ASSIGN SLOT below is the separate, notifying act. */}
-                      {!findExistingMember(app, lineupMembers) && (
+                      {!findExistingMember(app, lineupMembers, appProfiles[app.id] || null) && (
                         <button onClick={() => addApplicantToBill(app)} style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1, padding: '4px 10px', borderRadius: 6, border: '1px solid rgba(0,229,160,.45)', background: 'rgba(0,229,160,.1)', color: '#00E5A0', cursor: 'pointer', whiteSpace: 'nowrap' }}>ADD TO BILL</button>
                       )}
                       <button onClick={() => setAssigningApp({ app, prof })} style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1, padding: '4px 10px', borderRadius: 6, border: '1px solid rgba(0,229,255,.4)', background: 'rgba(0,229,255,.08)', color: 'var(--neon2)', cursor: 'pointer', whiteSpace: 'nowrap' }}>ASSIGN SLOT</button>
@@ -816,7 +816,7 @@ export default function EventHostView({
                    from `lineup_members`, which is the source of truth — the
                    application cannot tell you, and that is the whole point of
                    the separation. */
-                const onBill = !!findExistingMember(app, lineupMembers);
+                const onBill = !!findExistingMember(app, lineupMembers, appProfiles[app.id] || null);
                 return (
                   <ProfileCard key={app.id} item={cardItem}
                     badge={onBill ? 'ON THE BILL' : 'NOT ON THE BILL'}
