@@ -78,7 +78,9 @@ export default function ApplicationsScreen() {
     const NOTIF = {
       shortlisted: { type: 'shortlisted',          message: `You've been shortlisted${evLabel}.` },
       declined:    { type: 'application_declined', message: `Your application was unsuccessful${evLabel}.` },
-      accepted:    { type: 'booking_confirmed',    message: `You've been accepted${evLabel}. You're booked!` },
+      /* ⚠ Accepting the APPLICATION creates no lineup member and no
+         performance, so it may claim neither. See HostDashboard's copy. */
+      accepted:    { type: 'booking_confirmed',    message: `Your application was accepted${evLabel}.` },
     };
     const notif = NOTIF[normaliseStatus({ status, direction: 'incoming' })];
     // §A7: about = the event's owner (whose decision this is); to = the

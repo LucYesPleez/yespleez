@@ -391,7 +391,15 @@ export default function HostDashboard({ userId: userIdProp }) {
      * not a decision and would be noise.
      */
     const NOTIF = {
-      accepted:    { type: 'booking_confirmed',    message: `You've been accepted${evLabel}. You're booked!` },
+      /**
+       * ⚠⚠ NOT "You're booked!", AND NOT "you are on the lineup" EITHER.
+       *
+       * This button accepts the APPLICATION and nothing else — it creates no
+       * `lineup_member` and no `performance`. "Booked" claims a slot that has
+       * not been offered; "on the lineup" claims a membership that was not
+       * created. Only ADD TO BILL may say that, because only it makes it true.
+       */
+      accepted:    { type: 'booking_confirmed',    message: `Your application was accepted${evLabel}.` },
       shortlisted: { type: 'shortlisted',          message: `You've been shortlisted${evLabel}.` },
       declined:    { type: 'application_declined', message: `Your application was unsuccessful${evLabel}.` },
     };
