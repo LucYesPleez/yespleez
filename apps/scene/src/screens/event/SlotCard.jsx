@@ -137,6 +137,28 @@ export default function SlotCard({ slot, claim, onFill, onEdit, onRemove, onPin,
             {isHost && isDraft && (
               <span style={{ fontFamily: "'Bebas Neue'", fontSize: 9, letterSpacing: 1.5, color: 'rgba(255,255,255,.35)', border: '1px solid rgba(255,255,255,.15)', borderRadius: 3, padding: '1px 5px', flexShrink: 0 }}>DRAFT</span>
             )}
+            {/**
+              * ⭐⭐ A DECLINED SLOT SAYS SO (owner, 2026-08-15).
+              *
+              * ⚠⚠ IT ALREADY LOOKED DIFFERENT AND NEVER SAID WHY. `isSortable`
+              * in DaySlots excludes a declined claim, which is correct — a slot
+              * the artist turned down is not a booking you reorder — but the
+              * only visible consequence was a MISSING DRAG HANDLE. The row lost
+              * its grip and gave no reason, so it read as a rendering glitch
+              * rather than as an answer somebody gave.
+              *
+              * ⛔ HOST ONLY, like DRAFT beside it. Who said no is the
+              * organiser's business; the public page shows the slot as
+              * unfilled, ⛔ not as rejected.
+              *
+              * ⚠ "ARTIST DECLINED", matching the LINEUP tab's wording exactly —
+              * `applications.declined` is the HOST declining an application and
+              * this is the opposite party. Two systems share the word, so
+              * neither surface may use it bare.
+              */}
+            {isHost && claimStatus === 'declined' && (
+              <span style={{ fontFamily: "'Bebas Neue'", fontSize: 9, letterSpacing: 1.5, color: '#FF3399', border: '1px solid rgba(255,51,153,.4)', borderRadius: 3, padding: '1px 5px', flexShrink: 0, whiteSpace: 'nowrap' }}>ARTIST DECLINED</span>
+            )}
             {player?.url && player.url === claim?.mix_link && (
               <div className={s.eqBars}>
                 {[

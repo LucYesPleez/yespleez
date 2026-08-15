@@ -1,0 +1,212 @@
+/**
+ * THE OPERATIONAL WORK ITEM — the event workspace's card.
+ *
+ * ⭐⭐ THE PHOTOGRAPH IS NO LONGER THE SURFACE (owner, 2026-08-15). ProfileCard
+ * puts a full-bleed image behind every row with a dark gradient over it, which
+ * is right for Discover — you are browsing people there and the picture IS the
+ * content. In the host workspace you are working a queue, and the same
+ * treatment made twelve rows of near-black photographs with the actual job
+ * (what state is this, what do I press) written faintly on top.
+ *
+ * ⛔ The photography language is KEPT, not discarded: the avatar holds its
+ * type-coloured ring and soft glow, exactly as ProfileCard draws it. It is
+ * demoted from background to thumbnail, so information and action dominate.
+ *
+ * ⚠ Built from the existing tokens and the existing `.yp-decision` controls —
+ * ⛔ this is not a second design language, it is the same one at a different
+ * altitude.
+ */
+
+.card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 16px 13px 18px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  box-sizing: border-box;
+  width: 100%;
+  /* ⛔ NO hover-lift and NO pointer. The card itself is not a control any
+     more: every action lives in the action area below, including navigation
+     (MORE INFO). A surface that silently did something on tap, next to
+     buttons that say what they do, is the ambiguity this redesign removes. */
+}
+
+/**
+ * ⭐ THE RAIL IS THE STATE, and it is how the two kinds are told apart at a
+ * glance without reading a word (goal 5).
+ *
+ * APPLICATION cards carry it; LINEUP cards do not — a lineup card instead
+ * carries the two-line status block on the right. So a host scanning a mixed
+ * memory of these screens can tell "someone asking" from "someone booked" by
+ * the shape, before the type.
+ */
+/**
+ * ⚠ ONE NEUTRAL TONE, ⛔ NOT THE STATE COLOUR (owner, 2026-08-15).
+ *
+ * The rail was painted with `--state`, so it carried TWO meanings at once —
+ * "this is an application" and "this is its state" — and the owner's first
+ * question on seeing it was what the cyan edge meant. The state chip is
+ * already the state, in that exact colour, two inches to the right; a second
+ * element repeating it is redundancy, not information.
+ *
+ * So the rail now says only "application", which is the job it was added for,
+ * and the chip keeps the colour to itself.
+ */
+.card.application {
+  background: var(--card2);
+  border-left: 3px solid var(--border);
+  padding-left: 15px;
+}
+
+.head {
+  display: flex;
+  align-items: flex-start;
+  gap: 13px;
+}
+
+/* Same 2px ring + soft outer glow ProfileCard gives it, at a working size
+   rather than a portrait one. */
+.avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  object-fit: cover;
+  object-position: center center;
+  border: 2px solid;
+  flex-shrink: 0;
+}
+
+.who { flex: 1; min-width: 0; }
+
+.nameRow {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+
+/* ⚠ 20px Bebas at weight 400 — the ONE loudest thing on the card. Bebas has a
+   single weight; an <h3> would faux-bold it and stop it matching the app's own
+   titles, which is why the weight is stated. */
+.name {
+  margin: 0;
+  font-family: 'Bebas Neue', sans-serif;
+  font-weight: 400;
+  font-size: 20px;
+  letter-spacing: 1px;
+  line-height: 1.1;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/**
+ * ROLE AND PLACE ON ONE LINE, AS TEXT.
+ *
+ * ⛔ NOT PILLS. The old row carried a type pill, an unclaimed pill, a status
+ * pill and up to five tag pills — nine bordered objects around one name. Role
+ * and locality are reference information, so they are set as quiet text and
+ * the pill budget is spent on the one thing that is a decision input: state.
+ */
+.meta {
+  margin-top: 3px;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The act's own words about what they play. Carries the type accent so it
+   stays legibly separate from the grey meta line above it without becoming a
+   second heading. */
+.genres {
+  margin-top: 2px;
+  font-size: 11.5px;
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── THE STATUS COLUMN — right-aligned, and the point of the card ────────── */
+.status {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  flex-shrink: 0;
+  text-align: right;
+}
+
+/**
+ * ⭐ THE STATE, PROMINENT (goal 4). One chip, the state's own colour, white
+ * ink on a coloured edge — the treatment EnquiryCard settled on, because thin
+ * Bebas in a saturated hue at 10px is the least legible thing on a card.
+ */
+.state {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 11px;
+  letter-spacing: 1.4px;
+  line-height: 1;
+  padding: 5px 9px;
+  border-radius: 6px;
+  border: 1px solid var(--state, var(--border));
+  color: #fff;
+  white-space: nowrap;
+}
+
+/* Settled states recede rather than shout — a declined row is history, and
+   history should not be the brightest thing in a working queue. */
+.state.quiet { color: var(--muted); }
+
+/**
+ * ⭐⭐ THE SET-TIME LINE — the lineup card's second status, and the one goal 9
+ * is about. "ON BILL — NO SET TIME" is the single most common state in the
+ * database (123 of 152 members hold no performance), so it gets its own line
+ * directly under the bill status rather than being inferred from an absence.
+ */
+.subState {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 10.5px;
+  letter-spacing: 1.3px;
+  line-height: 1;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+/* The one that needs doing is the one that is lit. */
+.subState.needsAction { color: var(--gold); }
+
+/**
+ * ⚠ THE ACTION AREA IS `.yp-decision-row` FROM index.css — equal columns,
+ * auto-flow, so a row of two and a row of three both read as one bar. It is
+ * reused rather than restated so these buttons cannot drift from the enquiry
+ * card's, which are the same three decisions one screen earlier.
+ *
+ * Only the divider above it belongs to this card.
+ */
+.actions {
+  border-top: 1px solid rgba(255, 255, 255, .06);
+  padding-top: 2px;
+}
+
+/* On a phone the status column would squeeze the name to nothing, so it drops
+   under the identity block and sits left-aligned with it. */
+@media (max-width: 560px) {
+  .head { flex-wrap: wrap; }
+  .status {
+    align-items: flex-start;
+    text-align: left;
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding-left: 57px;
+  }
+}

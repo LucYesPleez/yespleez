@@ -129,11 +129,25 @@ const STATUS_CHIP_LABEL = { shortlisted: 'SHORT' };
 // "What happens next" — same status set as the chip colours, worded per
 // direction (incoming = you received this; outgoing = you sent this).
 const NEXT_STEPS = {
+  /**
+   * ⛔ A SETTLED INCOMING ENQUIRY GETS NO FOOTER (owner, 2026-08-15).
+   *
+   * `accepted` and `booked` are deliberately absent rather than empty strings —
+   * `NEXT_STEPS[dir]?.[status] || ''` already yields '' for a missing key, and
+   * an absent key states the rule where an empty string looks like an oversight.
+   *
+   * ⚠ Why: an accepted enquiry is already IN the ACCEPTED tab, already wearing
+   * an ACCEPTED chip in its own corner. A strip beneath saying "You've accepted
+   * this" is the same fact a third time, on the one card that has nothing left
+   * to decide. This section exists to answer "what happens next", and on a
+   * settled row the answer is nothing.
+   *
+   * ⚠ OUTGOING KEEPS ITS ACCEPTED COPY and is not a copy of this decision:
+   * there the next move belongs to the OTHER party, which the chip cannot say.
+   */
   incoming: {
     new:         'Awaiting your review — shortlist or respond when ready.',
     shortlisted: "You've shortlisted this — accept or decline when ready.",
-    accepted:    "You've accepted this — it's confirmed.",
-    booked:      "You've accepted this — it's confirmed.",
     declined:    'You declined this.',
   },
   /**

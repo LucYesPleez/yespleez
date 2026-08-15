@@ -6,7 +6,14 @@ import { resolvePerformerProfileId } from '../lib/actingProfile';
 import { writeNotification } from '../lib/writeNotification';
 import { useSession } from '../App';
 import s from './HostDashboard.module.css';
-import ProfileCard from '../components/ProfileCard';
+/* ⚠ `ProfileCard` IS NO LONGER USED ON THIS SCREEN — the lineup and
+   application cards were its only callers here, and both are WorkItemCard now.
+   `PROFILE_CARD_META_COLUMNS` stays: `memberCols` still fetches those columns,
+   and the enquiry cards above still render readiness from them. */
+import { PROFILE_CARD_META_COLUMNS } from '../components/ProfileCard';
+import WorkItemCard, { applicationWorkState, lineupWorkState } from '../components/WorkItemCard';
+import { DecisionBtn, StarIcon, XIcon, ArrowIcon } from '../components/DecisionButtons';
+import { profileUrl } from '../lib/profileResolution';
 import { HOST_CATEGORIES } from '../lib/profileTaxonomy';
 import { PROFILE_TYPES } from '../lib/profileTypes';
 import { completionFor, firstUnsettled } from '@yespleez/requirements';
@@ -17,7 +24,11 @@ import { fetchApplicantProfiles } from '../lib/applicantProfiles';
 import { memberProfileKeys, indexMemberProfiles } from './event/lineupProfiles';
 import { groupSlotsIntoDays, indexPerformances, durationLabel } from '../lib/eventSlots';
 import { buildHostLineup, STATE_COLOURS } from '../lib/hostLineup';
-import { planAddToBill, addToBill, findExistingMember } from '../lib/lineupFromApplication';
+/* ⚠ `findExistingMember` ONLY. The dashboard still needs to READ whether an
+   applicant is on the bill — that is what ACCEPTED · ON THE BILL says — but it
+   no longer WRITES membership, so `planAddToBill`/`addToBill` went with the
+   action. Reading the bill is triage; changing it is the workspace. */
+import { findExistingMember } from '../lib/lineupFromApplication';
 import DashboardHeader from '../components/DashboardHeader';
 import MyVenueSubmissions from '../components/MyVenueSubmissions';
 import DashboardProfileCard from '../components/DashboardProfileCard';
@@ -247,7 +258,13 @@ export default function HostDashboard({ userId: userIdProp }) {
        * `artist_profile_id` nor any profile at all, so every imported act
        * rendered as a bare name.
        */
-      const memberCols = 'id, user_id, name, avatar, avatar_thumb, type, sound, genre_string, location, state';
+      /* ⚠ `card_pills` and the completion columns feed the LINEUP cards' tags
+         and READY chip. ⛔ Omitting them does not hide readiness — every
+         unfetched column scores as an unmet gap, so a finished profile reports
+         as half-built. The applications side is already safe: it fetches
+         ENQUIRY_CARD_COLUMNS, which contains both. */
+      const memberCols = ['id, user_id, name, avatar, avatar_thumb, type, sound, genre_string, location, state',
+        ...PROFILE_CARD_META_COLUMNS].join(', ');
       const { profileIds, userIds } = memberProfileKeys(membersData);
       const [mPid, mUid] = await Promise.all([
         profileIds.length ? supabase.from('profiles').select(memberCols).in('id', profileIds) : Promise.resolve({ data: [] }),
@@ -323,60 +340,10 @@ export default function HostDashboard({ userId: userIdProp }) {
     loadFollowing();
   }, [userId]);
 
-  /**
-   * ⭐⭐ THE SHORT LIST → LINEUP TRANSITION, on the dashboard.
-   *
-   * ⚠ THE SAME MODULE THE EVENT PAGE USES. Two surfaces offering "add to bill"
-   * with two implementations is exactly the divergence this whole sequence has
-   * been removing — the rules (idempotency, no re-stamping an accepted
-   * application, no `performance`, silence unless the decision changes) live in
-   * lib/lineupFromApplication and are not restated here.
-   */
-  async function addApplicantToBill(app, groupMembers) {
-    const raw = (groupMembers || []).map(r => r.member);
-    const plan = planAddToBill(app, appProfiles[app.id] || null, raw);
-    /**
-     * ⚠⚠ A REFUSED ADD MUST SAY SO. These two lines were bare `return`s, so a
-     * rejected write and a button that does nothing looked IDENTICAL — the
-     * exact silence this whole sequence has been removing, reintroduced by me
-     * in the one place a host would first try the feature.
-     */
-    if (!plan.ok) { setLineupError(plan.reason); return; }
-
-    const { ok, error, memberId } = await addToBill(supabase, plan);
-    if (!ok) { setLineupError(error || 'Could not add them to the bill.'); return; }
-    if (error) setLineupError(error);   // added, but the status write failed
-
-    if (plan.statusUpdate) {
-      setAllApps(prev => prev.map(a => a.id === app.id ? { ...a, status: plan.statusUpdate } : a));
-    }
-    /* ⚠ Optimistic, because this screen loads lineups once behind a ref rather
-       than through react-query. Shape must match buildHostLineup's rows or the
-       list renders a hole. */
-    setLineups(prev => prev.map(g => g.event.id !== app.event_id ? g : {
-      ...g,
-      members: [...g.members, {
-        id: memberId,
-        member: { ...plan.member, id: memberId },
-        profile: appProfiles[app.id] || null,
-        perfs: [], state: 'ON BILL', slotCount: 0,
-      }],
-      onBill: g.onBill + 1,
-      unscheduled: g.unscheduled + 1,
-    }));
-    if (plan.notify === 'accepted' && app.artist_id) {
-      await writeNotification({
-        toUserId:       app.artist_id,
-        toProfileId:    (await resolvePerformerProfileId(app.artist_id)).profileId ?? null,
-        aboutProfileId: profile?.id ?? null,
-        type:    'booking_confirmed',
-        /* ⛔ NOT "You're booked!" — accepted means the host said yes; a booking
-           is a SLOT, which has not been offered. */
-        message: `Your application for ${evtMap[app.event_id]?.name || 'an event'} was accepted. You are on the lineup.`,
-        data:    { event_id: app.event_id, lineup_member_id: memberId },
-      });
-    }
-  }
+  /* ⛔ `addApplicantToBill` WAS DELETED HERE (owner, 2026-08-15) — the
+     dashboard is triage and no longer performs bill operations. The rules it
+     obeyed are untouched and still enforced where the action lives:
+     lib/lineupFromApplication, called from EventHostView. */
 
   async function respondApp(appId, status, artistId, eventName) {
     await supabase.from('applications').update({ status }).eq('id', appId);
@@ -881,7 +848,27 @@ export default function HostDashboard({ userId: userIdProp }) {
                         pendingCount={evPipeline.length}
                       />
 
-                      {/* Communal event tabs: LINEUP | SET TIMES | SHORT LIST | PIPELINE */}
+                      {/**
+                        * Communal event tabs.
+                        *
+                        * ⚠⚠ THE ORDER IS DUPLICATED IN `EventHostView` and the
+                        * two must match — they are the same five tabs on two
+                        * different screens, and an organiser moving between the
+                        * dashboard and the event page should not have to re-find
+                        * them. ⛔ Change one, change both.
+                        *
+                        * ⚠ ORDER IS THE FUNNEL, READ BACKWARDS (owner,
+                        * 2026-08-15): the settled bill, its running order, then
+                        * the decisions behind it in reverse — accepted,
+                        * shortlisted, and the raw inbox last. PIPELINE and
+                        * ACCEPTED previously sat at opposite ends with two
+                        * unrelated tabs between them.
+                        *
+                        * ⛔ ORDER ONLY — keys, labels and counts are untouched.
+                        * ⚠ The keys here are SPACED ('SET TIMES', 'SHORT LIST')
+                        * where EventHostView's are underscored; they index
+                        * `lineupSubTabs` and ⛔ must not be "tidied" to match.
+                        */}
                       <EventTabBar
                         active={activeTab}
                         onChange={setTab}
@@ -889,9 +876,9 @@ export default function HostDashboard({ userId: userIdProp }) {
                         tabs={[
                           { key: 'LINEUP',     label: `LINEUP${members.length ? ` (${members.length})` : ''}` },
                           { key: 'SET TIMES',  label: 'SET TIMES' },
+                          { key: 'ACCEPTED',   label: `ACCEPTED${evAccepted.length ? ` (${evAccepted.length})` : ''}` },
                           { key: 'SHORT LIST', label: `SHORT LIST${evShortList.length ? ` (${evShortList.length})` : ''}` },
                           { key: 'PIPELINE',   label: `PIPELINE${evPipeline.length ? ` (${evPipeline.length})` : ''}` },
-                          { key: 'ACCEPTED',   label: `ACCEPTED${evAccepted.length ? ` (${evAccepted.length})` : ''}` },
                         ]}
                       />
 
@@ -907,25 +894,43 @@ export default function HostDashboard({ userId: userIdProp }) {
                           : <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
                               {/* ⭐ Keyed by the MEMBER row. Keyed by artist_id,
                                   every imported act collides on NULL. */}
-                              {members.map(m => (
-                                <ProfileCard
-                                  key={m.id}
-                                  item={m.profile || {
-                                    /* ⛔ Not "Unknown". A member always has a
-                                       name — the old card fell back to Unknown
-                                       whenever the profile join missed, which
-                                       for imported acts was always. */
-                                    id: m.member.artist_profile_id || null,
-                                    user_id: m.member.artist_id || null,
-                                    name: m.member.artist_name || 'Unnamed act',
-                                    type: 'artist',
-                                    sound: m.member.sound || null,
-                                    genre_string: m.member.genre || null,
-                                  }}
-                                  badge={m.state}
-                                  badgeColor={STATE_COLOURS[m.state]}
-                                />
-                              ))}
+                              {/**
+                                * ⭐⭐ THE SAME CARD THE EVENT PAGE DRAWS, WITH NO
+                                * ACTION ROW (owner, 2026-08-15).
+                                *
+                                * ⚠⚠ THE APP HAD THREE WAYS OF DRAWING ONE ACT —
+                                * a photo tile here, a work item on the event
+                                * page, a slot row in Set Times — and the owner
+                                * hit all three within two clicks. "Keep the
+                                * dashboard as triage" is a rule about FUNCTION,
+                                * ⛔ not a licence for a second visual language.
+                                *
+                                * ⛔ SO: same component, same state vocabulary,
+                                * ⛔ no actions. Everything you can DO to a bill
+                                * member is a workspace operation and lives on
+                                * the event page. This is the summary that tells
+                                * you whether to go there.
+                                */}
+                              {members.map(m => {
+                                const item = m.profile || {
+                                  /* ⛔ Not "Unknown". A member always has a
+                                     name — the old card fell back to Unknown
+                                     whenever the profile join missed, which
+                                     for imported acts was always. */
+                                  id: m.member.artist_profile_id || null,
+                                  user_id: m.member.artist_id || null,
+                                  name: m.member.artist_name || 'Unnamed act',
+                                  type: 'artist',
+                                  sound: m.member.sound || null,
+                                  genre_string: m.member.genre || null,
+                                };
+                                const work = lineupWorkState(m.state);
+                                return (
+                                  <WorkItemCard key={m.id} kind="lineup" item={item}
+                                    stateLabel="ON BILL" stateColor={STATE_COLOURS[m.state]}
+                                    subState={work.setTime} needsAction={work.needsAction} />
+                                );
+                              })}
                               {/* The number the Lineup workspace exists to act
                                   on: booked, but nowhere to play yet. */}
                               {unscheduled > 0 && totalSlots > 0 && (
@@ -967,7 +972,7 @@ export default function HostDashboard({ userId: userIdProp }) {
                       {activeTab === 'SHORT LIST' && (
                         evShortList.length === 0
                           ? <p className={s.empty} style={{ fontSize: 12 }}>No shortlisted artists for this event.</p>
-                          : <div style={{ marginBottom: 12 }}>{evShortList.map(app => <AppCard key={app.id} app={app} prof={appProfiles[app.id] || {}} eventName={evtMap[app.event_id]?.name} onRespond={respondApp} onBill={!!findExistingMember(app, members.map(r => r.member), appProfiles[app.id] || null)} onAddToBill={() => addApplicantToBill(app, members)} />)}</div>
+                          : <div style={{ marginBottom: 12 }}>{evShortList.map(app => <AppCard key={app.id} app={app} prof={appProfiles[app.id] || {}} eventName={evtMap[app.event_id]?.name} onRespond={respondApp} onBill={!!findExistingMember(app, members.map(r => r.member), appProfiles[app.id] || null)} />)}</div>
                       )}
                       {activeTab === 'PIPELINE' && (
                         evPipeline.length === 0
@@ -983,7 +988,7 @@ export default function HostDashboard({ userId: userIdProp }) {
                               <p style={{ fontSize: 12, color: 'var(--muted)', margin: '0 0 8px', lineHeight: 1.5 }}>
                                 You said yes to these applications. Adding them to the bill is still a separate step.
                               </p>
-                              {evAccepted.map(app => <AppCard key={app.id} app={app} prof={appProfiles[app.id] || {}} eventName={evtMap[app.event_id]?.name} onRespond={respondApp} onBill={!!findExistingMember(app, members.map(r => r.member), appProfiles[app.id] || null)} onAddToBill={() => addApplicantToBill(app, members)} />)}
+                              {evAccepted.map(app => <AppCard key={app.id} app={app} prof={appProfiles[app.id] || {}} eventName={evtMap[app.event_id]?.name} onRespond={respondApp} onBill={!!findExistingMember(app, members.map(r => r.member), appProfiles[app.id] || null)} />)}
                             </div>
                       )}
                       </div>
@@ -1161,23 +1166,10 @@ function EventProgressSummary({ lineupCount, totalSlots, filledSlots, hasPoster,
 
 
 
-function AppBtn({ onClick, disabled, base, hover, children }) {
-  const [hov, setHov] = useState(false);
-  const st = hov && !disabled ? hover : base;
-  return (
-    <button
-      onClick={onClick} disabled={disabled}
-      onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
-      style={{
-        flex: 1, fontFamily: "'Bebas Neue'", fontSize: 12, letterSpacing: 1.5,
-        padding: '8px 0', borderRadius: 8, cursor: disabled ? 'default' : 'pointer',
-        transition: 'all .15s',
-        background: st.bg, border: st.border, color: st.color || base.color,
-        opacity: disabled ? .5 : 1,
-      }}
-    >{children}</button>
-  );
-}
+/* ⛔ `AppBtn` DELETED — the dashboard’s bespoke button. Its last callers
+   were the AppCard actions, which now use the shared `.yp-decision` controls so
+   a decision looks the same on every surface that offers it. */
+
 
 /**
  * ⭐⭐ THE CANONICAL CARD, with only what this section adds.
@@ -1202,7 +1194,11 @@ function AppBtn({ onClick, disabled, base, hover, children }) {
  *     ⚠⚠ That expander is also what HID `ADD TO BILL` from the owner: the
  *     action had been placed inside it, so the feature was unreachable.
  */
-function AppCard({ app, prof, onRespond, onBill = false, onAddToBill = null, eventName }) {
+/* ⛔ `onAddToBill` IS GONE FROM THIS SIGNATURE, not merely unrendered — the
+   dashboard no longer performs that operation, and a prop the component
+   accepts but never uses is how a removed capability quietly comes back. */
+function AppCard({ app, prof, onRespond, onBill = false, eventName }) {
+  const navigate = useNavigate();
   const [busy, setBusy] = useState(false);
   const bucket = normaliseStatus({ status: app.status, direction: 'incoming' });
   const undecided = PIPELINE_BUCKETS.includes(bucket);
@@ -1229,46 +1225,47 @@ function AppCard({ app, prof, onRespond, onBill = false, onAddToBill = null, eve
     await onRespond(app.id, status, app.artist_id, eventName);
     setBusy(false);
   }
-  async function add() {
-    if (busy || !onAddToBill) return;
-    setBusy(true);
-    await onAddToBill();
-    setBusy(false);
-  }
-
   return (
-    <ProfileCard
+    <WorkItemCard
+      kind="application"
       item={item}
-      /* ⭐ ON BILL WINS THE BADGE when membership exists: it is the more
+      /* ⭐ ON BILL WINS THE STATE when membership exists: it is the more
          specific fact, and it comes from `lineup_members`, ⛔ never from
          `applications.status`. */
-      badge={onBill ? 'ON BILL' : bucket.toUpperCase()}
-      badgeColor={onBill ? '#00E5A0' : (STATUS_TAB_COLOR[bucket.toUpperCase()] || 'var(--muted)')}
+      stateLabel={applicationWorkState(bucket, onBill).label}
+      stateColor={onBill ? '#00E5A0' : (STATUS_TAB_COLOR[bucket.toUpperCase()] || 'var(--muted)')}
+      quiet={applicationWorkState(bucket, onBill).quiet}
+      /**
+       * ⭐ TRIAGE DECISIONS ONLY — shortlist and decline.
+       *
+       * ⛔ `ADD TO BILL` AND `ACCEPT` WERE REMOVED FROM THIS SURFACE.
+       * Putting somebody on the bill is a workspace operation: it is the step
+       * that creates membership, and the next thing you want after it is a set
+       * time, which only the event page can give. Offering it here left the
+       * organiser on a summary screen with a half-finished act.
+       *
+       * ⚠ ACCEPT went with it because ADD TO BILL already accepts as a side
+       * effect (`planAddToBill.statusUpdate`), so a bare ACCEPT only moved a
+       * row between tabs — the same reasoning that removed it from the event
+       * page's PIPELINE.
+       *
+       * ⭐ Shortlist and decline STAY: deciding whether something is worth
+       * your attention is what triage IS. Stripping those would leave a queue
+       * you can read and not answer.
+       */
       actions={
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-          {onAddToBill && !onBill && (
-            <AppBtn onClick={add} disabled={busy}
-              base={{ bg: 'rgba(0,229,160,.1)', border: '1px solid rgba(0,229,160,.45)', color: '#00E5A0' }}
-              hover={{ bg: 'rgba(0,229,160,.28)', border: '1px solid #00E5A0' }}
-            >{busy ? 'ADDING…' : '+ ADD TO BILL'}</AppBtn>
+        <div className="yp-decision-row">
+          {(item.id || item.user_id) && (
+            <DecisionBtn tone="neutral" icon={ArrowIcon} label="MORE INFO"
+              onClick={() => { if (item.id) navigate(profileUrl(item)); else navigate(`/profile/${item.user_id}?type=${(item.type || '').toLowerCase()}`); }} />
           )}
           {undecided && (
-            <>
-              <AppBtn onClick={() => respond('accepted')} disabled={busy}
-                base={{ bg: 'rgba(0,229,160,.1)', border: '1px solid rgba(0,229,160,.4)', color: '#00E5A0' }}
-                hover={{ bg: 'rgba(0,229,160,.28)', border: '1px solid #00E5A0' }}
-              >ACCEPT ✓</AppBtn>
-              <AppBtn onClick={() => respond('shortlisted')} disabled={busy}
-                base={{ bg: 'rgba(0,180,216,.1)', border: '1px solid rgba(0,180,216,.4)', color: '#00B4D8' }}
-                hover={{ bg: 'rgba(0,180,216,.28)', border: '1px solid #00B4D8' }}
-              >SHORTLIST</AppBtn>
-            </>
+            <DecisionBtn tone="shortlist" icon={StarIcon} label="SHORTLIST"
+              onClick={() => respond('shortlisted')} disabled={busy} />
           )}
           {bucket !== 'declined' && (
-            <AppBtn onClick={() => respond('declined')} disabled={busy}
-              base={{ bg: 'rgba(120,120,160,.06)', border: '1px solid rgba(120,120,160,.2)', color: 'var(--muted)' }}
-              hover={{ bg: 'rgba(255,140,0,.18)', border: '1px solid #FF8C00', color: '#FF8C00' }}
-            >DECLINE ✗</AppBtn>
+            <DecisionBtn tone="decline" icon={XIcon} label="DECLINE"
+              onClick={() => respond('declined')} disabled={busy} />
           )}
         </div>
       }

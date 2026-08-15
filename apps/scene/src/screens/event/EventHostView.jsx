@@ -17,10 +17,26 @@ import { scopeToApplicant, fetchApplicantProfiles } from '../../lib/applicantPro
 import { findOpenAsksForDate, declineOpenAsks } from '../../lib/dateLockout';
 import { durationLabel } from '../../lib/eventSlots';
 import { memberState, STATE_COLOURS } from '../../lib/hostLineup';
-import { normaliseStatus, rawStatusesFor, PIPELINE_BUCKETS } from '../../lib/enquiryUtils';
+import { normaliseStatus, rawStatusesFor, PIPELINE_BUCKETS, STATUS_TAB_COLOR } from '../../lib/enquiryUtils';
 import { planUnassign, planRemoveFromBill, applyLineupPlan, notifiablePerformances, isReachable } from '../../lib/lineupActions';
 import { planAddToBill, addToBill, findExistingMember } from '../../lib/lineupFromApplication';
-import ProfileCard from '../../components/ProfileCard';
+import { PROFILE_CARD_META_COLUMNS } from '../../components/ProfileCard';
+import WorkItemCard, { applicationWorkState, lineupWorkState } from '../../components/WorkItemCard';
+/**
+ * ⚠⚠ MORE INFO IS `neutral` GLASS, ⛔ NOT `DetailBtn` (owner, 2026-08-15).
+ *
+ * `DetailBtn` carries the card's own ACCENT and is built to sit FULL-WIDTH ON
+ * ITS OWN LINE above a decision row — which is exactly how EnquiryCard uses
+ * it. Dropped inline as an equal-width peer it became the brightest control on
+ * every card: a filled teal slab outshouting CLEAR SET TIME, and competing
+ * with ASSIGN SET TIME on the one row that has real work outstanding.
+ *
+ * ⛔ Navigation must never out-weigh the operation. That is the same rule
+ * index.css already states for the decisions themselves ("Accept must never
+ * out-weigh Shortlist"), applied to the control that commits to nothing.
+ */
+import { DecisionBtn, StarIcon, CheckIcon, XIcon, ArrowIcon } from '../../components/DecisionButtons';
+import { profileUrl } from '../../lib/profileResolution';
 import FillSlotModal from '../../components/FillSlotModal';
 import EventTabBar from '../../components/EventTabBar';
 import EventPublicView from './EventPublicView';
@@ -49,6 +65,18 @@ export default function EventHostView({
   const [editingSlot,   setEditingSlot]   = useState(null);
   const [fillSlot,      setFillSlot]      = useState(null);
   const [assigningApp,  setAssigningApp]  = useState(null);
+  /**
+   * ⭐ ASSIGNING A SET TIME TO SOMEBODY ALREADY ON THE BILL (owner, 2026-08-15).
+   *
+   * ⚠⚠ A SEPARATE STATE FROM `assigningApp`, NOT A REUSE. The two share the
+   * slot-picker sheet but ⛔ not the write: `doAssign` upserts a member,
+   * accepts the APPLICATION and NOTIFIES, because it is answering an applicant.
+   * A member on the LINEUP tab has no application to accept and may never have
+   * had one — 21 acts were typed in by hand. Threading a member through
+   * `doAssign` would have written `applications.status` for a row that does
+   * not exist.
+   */
+  const [assigningMember, setAssigningMember] = useState(null);
   /**
    * ⚠ A FAILED SLOT WRITE MUST SAY SO. Until L1 the host could not write these
    * rows at all on 22 real events, and RLS filters an UPDATE rather than
@@ -120,8 +148,14 @@ export default function EventHostView({
       setAllApps(rows);
       // M6 · keyed by applications.id, resolved by from_profile_id with the
       // legacy account fallback — see lib/applicantProfiles.js.
+      /* ⚠ The completion columns are appended for the READY chip the
+         application cards now carry. `card_pills` was already selected here —
+         the LINEUP side's query was the one missing it. ⛔ See
+         PROFILE_CARD_META_COLUMNS: an unfetched completion column does not
+         hide readiness, it silently lowers it. */
       const map = await fetchApplicantProfiles(supabase, rows,
-        'id, user_id, name, avatar, type, sound, genre_string, location, bio, mix_link, card_pills, vibe_tags');
+        ['id, user_id, name, avatar, type, sound, genre_string, location, bio, mix_link, card_pills, vibe_tags',
+          ...PROFILE_CARD_META_COLUMNS].join(', '));
       if (!cancelled) setAppProfiles(map);
     }
     loadApps();
@@ -419,6 +453,63 @@ export default function EventHostView({
     setAssigningApp(null);
   }
 
+  /**
+   * ⭐⭐ GIVE AN EXISTING BILL MEMBER A SET TIME — the action the LINEUP tab
+   * exists to offer and did not have. 123 of 152 members sit at "on the bill,
+   * no set time"; until now the only routes to a slot were the SHORT LIST's
+   * ASSIGN SLOT (applications only) or the set-times grid.
+   *
+   * ⛔⛔ CREATES A `draft` PERFORMANCE AND NOTIFIES NOBODY.
+   *
+   * ⚠ This is Q3, not a shortcut: adding to the bill is private, and OFFERING
+   * a slot is the actionable, notifying act. `SEND SET TIMES TO ARTISTS`
+   * promotes drafts and sends them, and it stays the only thing that speaks.
+   * Writing `offered` here would notify from a button labelled "assign", which
+   * is an automatic transition the owner explicitly ruled out.
+   *
+   * ⛔ NOTHING IS WRITTEN TO `applications`. A member is not an applicant.
+   */
+  /**
+   * MORE INFO — the card's one navigation control.
+   *
+   * ⚠ AN EXPLICIT BUTTON, because the card body is no longer clickable. The
+   * old row navigated on tap while carrying buttons that did other things, so
+   * the same surface meant two things depending on where you landed. One
+   * labelled control is the whole point of the action area.
+   *
+   * ⛔ ROUTES ON `id` FIRST, `user_id` second — the same order ProfileCard
+   * used. An unclaimed imported profile has no user, and without the id its
+   * profile exists and cannot be opened.
+   *
+   * ⚠ A hand-typed act has NEITHER, and there is genuinely nothing to open —
+   * the button is not rendered rather than rendered dead (see the call sites).
+   */
+  function openProfile(item) {
+    if (item?.id) navigate(profileUrl(item));
+    else if (item?.user_id) navigate(`/profile/${item.user_id}?type=${(item.type || '').toLowerCase()}`);
+  }
+  const hasProfile = item => !!(item?.id || item?.user_id);
+
+  async function doAssignMember(slot) {
+    if (!assigningMember) return;
+    const { member } = assigningMember;
+    /* Replace whatever held this slot, matching FillSlotModal and doAssign —
+       a slot is a place in the running order, and two acts arriving there by
+       different routes is the contested-slot case the picker already warns
+       about. ⚠ Scoped to the event as well as the slot: `slot_id` is the
+       legacy text key and is not unique across events on its own. */
+    await supabase.from('performances').delete().eq('slot_id', slot.id).eq('event_id', id);
+    const { error } = await supabase.from('performances').insert({
+      lineup_member_id: member.id, event_id: id, slot_id: slot.id, status: 'draft',
+    });
+    /* ⚠ SURFACED, NOT SWALLOWED — an INSERT blocked by RLS fails loudly (42501)
+       while an UPDATE fails silently, and a set time that did not save must not
+       look like one that did. */
+    if (error) setSlotError(error.message);
+    queryClient.invalidateQueries({ queryKey: ['event', id] });
+    setAssigningMember(null);
+  }
+
   async function toggleAppsOpen() {
     const next = !appsOpen;
     setAppsOpen(next);
@@ -546,12 +637,25 @@ export default function EventHostView({
         <EventTabBar
           active={eventTab}
           onChange={setEventTab}
+          /**
+           * ⚠ TAB ORDER IS THE FUNNEL, READ BACKWARDS (owner, 2026-08-15).
+           *
+           * Left to right: the settled bill, its running order, then the
+           * decisions behind it in reverse — accepted, shortlisted, and finally
+           * the raw inbox at the far right. So the tabs that answer "where is
+           * this event up to" sit first, and the ones that are a queue of work
+           * sit last, rather than PIPELINE and ACCEPTED being separated by the
+           * two tabs that come between them in the process.
+           *
+           * ⛔ ORDER ONLY — the keys, labels and counts are untouched, and
+           * `eventTab` still defaults to LINEUP.
+           */
           tabs={[
             { key: 'LINEUP',    label: `LINEUP${lineupMembers.length ? ` (${lineupMembers.length})` : ''}` },
             { key: 'SET_TIMES', label: 'SET TIMES' },
+            { key: 'ACCEPTED',  label: `ACCEPTED${acceptedApps.length ? ` (${acceptedApps.length})` : ''}` },
             { key: 'SHORTLIST', label: `SHORT LIST${shortList.length ? ` (${shortList.length})` : ''}` },
             { key: 'PIPELINE',  label: `PIPELINE${pipeline.length ? ` (${pipeline.length})` : ''}` },
-            { key: 'ACCEPTED',  label: `ACCEPTED${acceptedApps.length ? ` (${acceptedApps.length})` : ''}` },
           ]}
         />
       )}
@@ -678,6 +782,7 @@ export default function EventHostView({
                */
               const badge      = memberState(member, memberPerfs(member.id));
               const badgeColor = STATE_COLOURS[badge];
+              const work       = lineupWorkState(badge);
               const cardItem = {
                 // ProfileCard routes on `id` first and falls back to user_id.
                 // An unclaimed imported profile has no user, so without the id
@@ -695,25 +800,49 @@ export default function EventHostView({
                 state:        prof?.state         || null,
               };
               return (
-                <ProfileCard key={member.id} item={cardItem} badge={badge} badgeColor={badgeColor}
+                <WorkItemCard key={member.id} kind="lineup" item={cardItem}
+                  /* ⭐ EVERYONE HERE IS ON THE BILL — that is what being in
+                     `lineup_members` means. The chip states the constant, the
+                     line beneath it carries the variable. */
+                  stateLabel="ON BILL" stateColor={badgeColor}
+                  subState={work.setTime} needsAction={work.needsAction}
                   actions={
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                      {/* ⚠⚠ THESE TWO WERE THE SAME OPERATION. Both deleted the
-                          performances AND the lineup_members row; only the
-                          write-back to `applications` differed, so the record
-                          the action did NOT touch was the one that decided how
-                          destructive it was. See lib/lineupActions.
-
-                          ⛔ CLEAR SET TIME is only offered when there IS one.
-                          A control that acts on nothing is not a control. */}
-                      {memberPerfs(member.id).length > 0 && (
-                        <button onClick={() => runLineupAction(planUnassign(member, memberPerfs(member.id)), member)}
-                          style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1, padding: '4px 10px', borderRadius: 6, border: '1px solid rgba(255,140,66,.4)', background: 'rgba(255,140,66,.08)', color: '#FF8C42', cursor: 'pointer', whiteSpace: 'nowrap' }}
-                          title="Take back the set time. They stay on the bill.">CLEAR SET TIME</button>
+                    <div className="yp-decision-row">
+                      {/* ⛔ A hand-typed act has no profile and no account —
+                          21 exist — so there is genuinely nothing to open.
+                          Absent, not disabled: a dead control is a worse answer
+                          than no control. */}
+                      {hasProfile(cardItem) && (
+                        <DecisionBtn tone="neutral" icon={ArrowIcon}
+                          label="MORE INFO" onClick={() => openProfile(cardItem)} />
                       )}
-                      <button onClick={() => setConfirmRemove({ member, perfs: memberPerfs(member.id) })}
-                        style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1, padding: '4px 10px', borderRadius: 6, border: '1px solid rgba(255,51,51,.3)', background: 'rgba(255,51,51,.06)', color: 'rgba(255,80,80,.8)', cursor: 'pointer', whiteSpace: 'nowrap' }}
-                        title="Take them off the bill entirely.">REMOVE FROM BILL</button>
+                      {/* ⭐⭐ THE DOMINANT STATE GETS THE PRIMARY ACTION (goal 9).
+                          No set time is the most common state on this tab and
+                          the only one with work outstanding, so it — and only
+                          it — offers the forward move. */}
+                      {memberPerfs(member.id).length === 0
+                        ? (
+                          <DecisionBtn tone="accept" icon={CheckIcon} label="ASSIGN SET TIME"
+                            onClick={() => setAssigningMember({ member, prof })} />
+                        )
+                        : (
+                          /* ⚠⚠ CLEAR SET TIME AND REMOVE FROM BILL WERE ONCE THE
+                             SAME DESTRUCTIVE OPERATION — both deleted the
+                             performances AND the member row. See
+                             lib/lineupActions; ⛔ they must stay distinct.
+                             ⛔ Only offered when there IS a set time: a control
+                             that acts on nothing is not a control. */
+                          <DecisionBtn tone="neutral" icon={XIcon} label="CLEAR SET TIME"
+                            onClick={() => runLineupAction(planUnassign(member, memberPerfs(member.id)), member)} />
+                        )}
+                      {/* ⛔ WITHHELD WHILE AN OFFER IS OUT. Removing somebody
+                          who is mid-decision destroys the performance they are
+                          being asked about; clear the set time first, which is
+                          the recoverable step and is the button beside it. */}
+                      {badge !== 'AWAITING' && (
+                        <DecisionBtn tone="decline" icon={XIcon} label="REMOVE FROM BILL"
+                          onClick={() => setConfirmRemove({ member, perfs: memberPerfs(member.id) })} />
+                      )}
                     </div>
                   }
                 />
@@ -735,16 +864,31 @@ export default function EventHostView({
               // above). `user_id` stays for the legacy route.
               const cardItem = { id: prof.id || null, user_id: app.artist_id, name: prof.name || app.artist_name, type: prof.type || 'artist', avatar: prof.avatar || null, avatar_thumb: prof.avatar_thumb || null, sound: prof.sound || null, genre_string: prof.genre_string || null, location: prof.location || null, state: prof.state || null };
               return (
-                <ProfileCard key={app.id} item={cardItem} badge="SHORTLISTED" badgeColor="var(--neon2)"
+                <WorkItemCard key={app.id} kind="application" item={cardItem}
+                  stateLabel="SHORTLISTED" stateColor={STATUS_TAB_COLOR.SHORTLISTED}
                   actions={
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                      {/* ⭐ THE TRANSITION. Silent, and creates no set time —
-                          ASSIGN SLOT below is the separate, notifying act. */}
-                      {!findExistingMember(app, lineupMembers, appProfiles[app.id] || null) && (
-                        <button onClick={() => addApplicantToBill(app)} style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1, padding: '4px 10px', borderRadius: 6, border: '1px solid rgba(0,229,160,.45)', background: 'rgba(0,229,160,.1)', color: '#00E5A0', cursor: 'pointer', whiteSpace: 'nowrap' }}>ADD TO BILL</button>
+                    <div className="yp-decision-row">
+                      {hasProfile(cardItem) && (
+                        <DecisionBtn tone="neutral" icon={ArrowIcon}
+                          label="MORE INFO" onClick={() => openProfile(cardItem)} />
                       )}
-                      <button onClick={() => setAssigningApp({ app, prof })} style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1, padding: '4px 10px', borderRadius: 6, border: '1px solid rgba(0,229,255,.4)', background: 'rgba(0,229,255,.08)', color: 'var(--neon2)', cursor: 'pointer', whiteSpace: 'nowrap' }}>ASSIGN SLOT</button>
-                      <button onClick={() => { supabase.from('applications').update({ status: 'declined' }).eq('id', app.id); setAllApps(prev => prev.map(a => a.id === app.id ? { ...a, status: 'declined' } : a)); }} style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1, padding: '4px 10px', borderRadius: 6, border: '1px solid rgba(255,51,51,.3)', background: 'rgba(255,51,51,.06)', color: 'rgba(255,80,80,.8)', cursor: 'pointer', whiteSpace: 'nowrap' }}>DROP</button>
+                      {/* ⭐ THE ONE FORWARD MOVE. Silent, and creates no set
+                          time — giving them a slot is the next step, from the
+                          LINEUP tab, and it is a separate decision.
+                          ⛔ ASSIGN SLOT was removed from this tab deliberately:
+                          it accepted the application AND notified AND created a
+                          performance in one press, which is three decisions
+                          behind one label, on the tab whose job is the first of
+                          them. */}
+                      {!findExistingMember(app, lineupMembers, appProfiles[app.id] || null) && (
+                        <DecisionBtn tone="accept" icon={CheckIcon} label="ADD TO BILL"
+                          onClick={() => addApplicantToBill(app)} />
+                      )}
+                      {/* ⚠ "DECLINE", NOT "DROP" (owner, 2026-08-15). It writes
+                          `status: 'declined'` — the same value the dashboard's
+                          DECLINE writes. One word for one write. */}
+                      <DecisionBtn tone="decline" icon={XIcon} label="DECLINE"
+                        onClick={() => { supabase.from('applications').update({ status: 'declined' }).eq('id', app.id); setAllApps(prev => prev.map(a => a.id === app.id ? { ...a, status: 'declined' } : a)); }} />
                     </div>
                   }
                 />
@@ -769,11 +913,23 @@ export default function EventHostView({
               // above). `user_id` stays for the legacy route.
               const cardItem = { id: prof.id || null, user_id: app.artist_id, name: prof.name || app.artist_name, type: prof.type || 'artist', avatar: prof.avatar || null, avatar_thumb: prof.avatar_thumb || null, sound: prof.sound || null, genre_string: prof.genre_string || null, location: prof.location || null, state: prof.state || null };
               return (
-                <ProfileCard key={app.id} item={cardItem}
+                <WorkItemCard key={app.id} kind="application" item={cardItem}
+                  /* ⚠ THE STATE IS THE ROW'S OWN BUCKET, not the tab's. This
+                     tab holds `new` AND `seen`, and the difference — has anyone
+                     looked at this yet — is exactly what a host triaging a
+                     queue wants to see per row. */
+                  stateLabel={applicationWorkState(bucketOf(app)).label}
+                  stateColor={STATUS_TAB_COLOR[bucketOf(app).toUpperCase()]}
                   actions={
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                      <button onClick={() => { supabase.from('applications').update({ status: 'shortlisted' }).eq('id', app.id); setAllApps(prev => prev.map(a => a.id === app.id ? { ...a, status: 'shortlisted' } : a)); }} style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1, padding: '4px 10px', borderRadius: 6, border: '1px solid rgba(0,229,255,.4)', background: 'rgba(0,229,255,.08)', color: 'var(--neon2)', cursor: 'pointer', whiteSpace: 'nowrap' }}>SHORTLIST</button>
-                      <button onClick={() => { supabase.from('applications').update({ status: 'declined' }).eq('id', app.id); setAllApps(prev => prev.map(a => a.id === app.id ? { ...a, status: 'declined' } : a)); }} style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1, padding: '4px 10px', borderRadius: 6, border: '1px solid rgba(255,51,51,.3)', background: 'rgba(255,51,51,.06)', color: 'rgba(255,80,80,.8)', cursor: 'pointer', whiteSpace: 'nowrap' }}>DECLINE</button>
+                    <div className="yp-decision-row">
+                      {hasProfile(cardItem) && (
+                        <DecisionBtn tone="neutral" icon={ArrowIcon}
+                          label="MORE INFO" onClick={() => openProfile(cardItem)} />
+                      )}
+                      <DecisionBtn tone="shortlist" icon={StarIcon} label="SHORTLIST"
+                        onClick={() => { supabase.from('applications').update({ status: 'shortlisted' }).eq('id', app.id); setAllApps(prev => prev.map(a => a.id === app.id ? { ...a, status: 'shortlisted' } : a)); }} />
+                      <DecisionBtn tone="decline" icon={XIcon} label="DECLINE"
+                        onClick={() => { supabase.from('applications').update({ status: 'declined' }).eq('id', app.id); setAllApps(prev => prev.map(a => a.id === app.id ? { ...a, status: 'declined' } : a)); }} />
                     </div>
                   }
                 />
@@ -818,17 +974,31 @@ export default function EventHostView({
                    the separation. */
                 const onBill = !!findExistingMember(app, lineupMembers, appProfiles[app.id] || null);
                 return (
-                  <ProfileCard key={app.id} item={cardItem}
-                    badge={onBill ? 'ON THE BILL' : 'NOT ON THE BILL'}
-                    badgeColor={onBill ? '#00E5A0' : 'rgba(255,255,255,.35)'}
+                  <WorkItemCard key={app.id} kind="application" item={cardItem}
+                    /* ⭐ ON BILL / NOT ON BILL is derived from `lineup_members`,
+                       ⛔ never from `applications.status` — the two are
+                       different facts, which is why the state chip has to say
+                       both halves rather than just "ACCEPTED". */
+                    stateLabel={applicationWorkState('accepted', onBill).label}
+                    stateColor={onBill ? '#00E5A0' : 'rgba(255,255,255,.35)'}
                     actions={
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                        {/* ⚠ THIS TAB USED TO BE A DEAD END: it said NOT ON THE
-                            BILL and offered no way to change that. */}
-                        {!onBill && (
-                          <button onClick={() => addApplicantToBill(app)} style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1, padding: '4px 10px', borderRadius: 6, border: '1px solid rgba(0,229,160,.45)', background: 'rgba(0,229,160,.1)', color: '#00E5A0', cursor: 'pointer', whiteSpace: 'nowrap' }}>ADD TO BILL</button>
+                      <div className="yp-decision-row">
+                        {hasProfile(cardItem) && (
+                          <DecisionBtn tone="neutral" icon={ArrowIcon}
+                            label="MORE INFO" onClick={() => openProfile(cardItem)} />
                         )}
-                        <button onClick={() => { supabase.from('applications').update({ status: 'declined' }).eq('id', app.id); setAllApps(prev => prev.map(a => a.id === app.id ? { ...a, status: 'declined' } : a)); }} style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1, padding: '4px 10px', borderRadius: 6, border: '1px solid rgba(255,51,51,.3)', background: 'rgba(255,51,51,.06)', color: 'rgba(255,80,80,.8)', cursor: 'pointer', whiteSpace: 'nowrap' }}>DECLINE</button>
+                        {/* ⚠ THIS TAB USED TO BE A DEAD END: it said NOT ON THE
+                            BILL and offered no way to change that.
+                            ⛔ Once they ARE on the bill there is nothing left to
+                            do here — the work moves to the LINEUP tab, and
+                            offering ADD TO BILL again would offer to repeat
+                            something already done. */}
+                        {!onBill && (
+                          <DecisionBtn tone="accept" icon={CheckIcon} label="ADD TO BILL"
+                            onClick={() => addApplicantToBill(app)} />
+                        )}
+                        <DecisionBtn tone="decline" icon={XIcon} label="DECLINE"
+                          onClick={() => { supabase.from('applications').update({ status: 'declined' }).eq('id', app.id); setAllApps(prev => prev.map(a => a.id === app.id ? { ...a, status: 'declined' } : a)); }} />
                       </div>
                     }
                   />
@@ -1080,17 +1250,41 @@ export default function EventHostView({
         />
       )}
 
-      {assigningApp && (
+      {/**
+        * ⭐ ONE SLOT PICKER, TWO CALLERS — an applicant being given a slot, and
+        * a member already on the bill being given one.
+        *
+        * ⛔ THE SHEET IS SHARED; THE WRITE IS NOT. `doAssign` answers an
+        * APPLICATION (accepts it, notifies); `doAssignMember` only creates a
+        * draft performance. Picking the handler here rather than branching
+        * inside one function is what keeps those two writes from converging
+        * into a third that does a bit of both.
+        */}
+      {(assigningApp || assigningMember) && (() => {
+        const closeAssign = () => { setAssigningApp(null); setAssigningMember(null); };
+        const assignName  = assigningApp
+          ? (assigningApp.prof?.name || assigningApp.app.artist_name || '—')
+          : (assigningMember.prof?.name || assigningMember.member.artist_name || '—');
+        const runAssign   = assigningApp ? doAssign : doAssignMember;
+        return (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.82)', zIndex: 2000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', paddingBottom: 'var(--yp-safe-bottom)' }}
-          onClick={() => setAssigningApp(null)}>
+          onClick={closeAssign}>
           <div style={{ background: '#0f0f1a', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 480, maxHeight: '70vh', display: 'flex', flexDirection: 'column', boxShadow: '0 -4px 40px rgba(0,0,0,.6)', border: '1px solid rgba(255,255,255,.07)', borderBottom: 'none' }}
             onClick={e => e.stopPropagation()}>
             <div style={{ padding: '16px 20px 12px', borderBottom: '1px solid rgba(255,255,255,.06)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div>
-                <div style={{ fontFamily: "'Bebas Neue'", fontSize: 20, letterSpacing: 2 }}>ASSIGN SLOT</div>
-                <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 1 }}>Pick a slot for {assigningApp.prof?.name || assigningApp.app.artist_name || '—'}</div>
+                <div style={{ fontFamily: "'Bebas Neue'", fontSize: 20, letterSpacing: 2 }}>ASSIGN SET TIME</div>
+                <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 1 }}>Pick a slot for {assignName}</div>
+                {/* ⚠ Says the quiet part out loud on the member route: the
+                    organiser is placing somebody in the running order, ⛔ not
+                    telling them. The bulk SEND button is what speaks. */}
+                {assigningMember && (
+                  <div style={{ fontSize: 10.5, color: 'var(--muted)', marginTop: 4, opacity: .8 }}>
+                    Saved as a draft. Nobody is notified until you send set times.
+                  </div>
+                )}
               </div>
-              <button onClick={() => setAssigningApp(null)} style={{ background: 'none', border: 'none', color: 'var(--muted)', fontSize: 24, cursor: 'pointer', padding: 0, lineHeight: 1 }}>×</button>
+              <button onClick={closeAssign} style={{ background: 'none', border: 'none', color: 'var(--muted)', fontSize: 24, cursor: 'pointer', padding: 0, lineHeight: 1 }}>×</button>
             </div>
             <div style={{ overflowY: 'auto', flex: 1, padding: '12px 20px 32px', display: 'flex', flexDirection: 'column', gap: 8 }}>
               {days.flatMap(d => d.slots || []).length === 0 && (
@@ -1111,7 +1305,7 @@ export default function EventHostView({
                    random. */
                 const onSlot    = claimsBySlot[slot.id] || (existing ? [existing] : []);
                 return (
-                  <button key={slot.id} onClick={() => doAssign(slot)}
+                  <button key={slot.id} onClick={() => runAssign(slot)}
                     style={{
                       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                       padding: '12px 16px', borderRadius: 12, cursor: 'pointer', textAlign: 'left',
@@ -1133,7 +1327,8 @@ export default function EventHostView({
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
     </>
   );
 

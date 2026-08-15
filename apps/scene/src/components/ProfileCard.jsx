@@ -5,6 +5,51 @@ import { profileUrl } from '../lib/profileResolution';
 import { formatLocation } from '../lib/formatLocation';
 import { selectedPerformanceRoleLabels } from '../lib/profileTaxonomy';
 import UnclaimedBadge from './UnclaimedBadge';
+import { COMPLETION_COLUMNS, completionFor } from '@yespleez/requirements';
+
+/**
+ * Every extra `profiles` column a caller must fetch to fill the OPT-IN `tags`
+ * and `readiness` props — declared HERE, beside the props that created the
+ * requirement, for the reason EnquiryCard learned the hard way:
+ *
+ * ⛔⛔ A COLUMN THE CARD READS BUT THE QUERY NEVER SELECTED ARRIVES AS
+ * `undefined`, AND NOTHING THROWS. The tag row simply never appears, and the
+ * readiness percentage counts every unfetched column as a real gap — so the
+ * card confidently reports a finished profile as half-built. Two callers had
+ * already drifted this way on the enquiry cards.
+ *
+ * ⚠ Callers that pass neither prop need none of this. The base row (id,
+ * user_id, name, type, avatar…) is unchanged.
+ */
+export const PROFILE_CARD_META_COLUMNS = [...new Set(['card_pills', ...COMPLETION_COLUMNS])];
+
+/**
+ * ⭐ ONE PROJECTION OF THE OPT-IN SIGNALS, spread straight into the card:
+ * `<ProfileCard {...profileCardMeta(prof)} />`.
+ *
+ * ⚠ Shared by the event page's four host tabs AND the dashboard's, which are
+ * SEPARATE SCREENS with separate copies of the same tab bar and the same
+ * cards. Written once here because a second copy is how those two surfaces
+ * drifted in the first place — and how a third application card
+ * (`components/ApplicationCard.jsx`) came to exist, imported nowhere.
+ *
+ * ⛔ READINESS IS NULL WITHOUT A PROFILE, NEVER ZERO. A hand-typed act (21 of
+ * them exist) has no profiles row at all. `completionFor` cannot describe
+ * somebody who never had a profile, and "0% READY" against a name the
+ * organiser typed in themselves is a wrong number, not a low one — Absent ≠
+ * Unknown. `completionFor` also returns null for a type with no completion
+ * list; both nulls hide the chip and are deliberately not distinguished here.
+ *
+ * ⚠ `fallbackTags` is `lineup_members.card_pills` — an imported act can carry
+ * tags on the member row with no profile behind it.
+ */
+export function profileCardMeta(prof, fallbackTags = null) {
+  const p = prof || null;
+  return {
+    tags: p?.card_pills || fallbackTags || null,
+    readiness: p && p.type !== 'venue' ? (completionFor(p, p.type)?.pct ?? null) : null,
+  };
+}
 
 // Re-exported in { col, rgb, label, emoji } shape — DiscoverScreen and others depend on this export.
 // `label` here is the compact badge/pill form (PROFILE_TYPES.shortLabel) — this
@@ -35,8 +80,26 @@ export const TYPE_STYLES = Object.fromEntries(
  *               ⭐ It ALSO renders `item.bio` as a window inside the card —
  *               see the note at the render site. Nothing else renders a bio,
  *               so a compact row handed a profile with one is unchanged.
+ *   tags      – ⚠ OPT-IN (owner, 2026-08-15). Their curated "Your 5 Tags"
+ *               (`card_pills`), rendered as the same `.spot-tag` pills the
+ *               enquiry cards use, because the ask was for these rows to carry
+ *               what those rows carry.
+ *   readiness – ⚠ OPT-IN. The live completion percentage, or null.
+ *
+ * ⛔⛔ WHY `tags`/`readiness` ARE PROPS AND NOT READ OFF `item`.
+ *
+ * DiscoverScreen, My Scene and ProfileScreen hand this card WHOLE profile rows
+ * — `item={r}` straight from a `select('*')` — so those rows already carry
+ * `card_pills` today. Reading the field off `item` would therefore not be
+ * "adding tags to the lineup cards", it would be adding a tag row to every
+ * search result, every follow and every contact in one edit, silently, with
+ * nothing at the call sites to show it happened. Same reasoning as `cover`.
+ *
+ * ⚠ Both grow the row past its 72px `min-height`, which is a floor and not a
+ * fixed height. That growth is the point on the event tabs and is exactly why
+ * neither may become a default.
  */
-export default function ProfileCard({ item, badge, badgeColor, actions, onClick, followAction = null, cover = false }) {
+export default function ProfileCard({ item, badge, badgeColor, actions, onClick, followAction = null, cover = false, tags = null, readiness = null }) {
   const navigate = useNavigate();
   if (!item) return null;
   // 10F: one resolver, no artist sentinel. `item.type || 'artist'` then
@@ -65,6 +128,14 @@ export default function ProfileCard({ item, badge, badgeColor, actions, onClick,
   // small dash-shaped pill with no text, on every punter row. Same bug as
   // PortraitCard had, missed here until the screenshot showed it.
   const typeLabels = (roleLabels.length ? roleLabels : [ts.label]).filter(Boolean);
+  /* `card_pills` is a delimited string on a profiles row and an array from some
+     callers — accept both, and treat any other shape as no tags rather than
+     rendering the result of splitting it. See the `tags` prop note above. */
+  const tagList = Array.isArray(tags)
+    ? tags.map(t => String(t).trim()).filter(Boolean)
+    : typeof tags === 'string'
+      ? tags.split(/[,·]/).map(t => t.trim()).filter(Boolean)
+      : [];
 
   /**
    * Where this card goes. Extracted from the click handler so SEE MORE can
@@ -125,6 +196,34 @@ export default function ProfileCard({ item, badge, badgeColor, actions, onClick,
           </div>
           {loc   && <div className={s.loc}><PinIcon />{loc}</div>}
           {sound && <div className={s.sound} style={{ color: ts.col }}>{sound}</div>}
+          {/* ⭐ THE SAME TWO SIGNALS THE ENQUIRY CARDS CARRY, in the same order
+              they appear there: the act's own five tags, then how complete
+              their profile is.
+
+              ⚠ `tagList` is normalised HERE rather than at four call sites.
+              `card_pills` is a delimited STRING on a profiles row but arrives
+              as a real array from some callers, and splitting a string that is
+              already an array yields one pill reading "[object Object]".
+
+              ⛔ READINESS RENDERS ONLY WHEN IT IS A NUMBER. A hand-typed act
+              has no profile at all, so its readiness is genuinely UNKNOWN —
+              `null` hides the chip, where `0` would publish "0% READY" about
+              somebody who never had a profile to fill in. Absent ≠ unknown
+              (the rendering contract), and it is the same rule EnquiryCard
+              applies while a profile is still resolving. */}
+          {tagList.length > 0 && (
+            <div className="spot-tags" style={{ marginTop: 5 }}>
+              {tagList.slice(0, 5).map(t => <span key={t} className="spot-tag">{t}</span>)}
+            </div>
+          )}
+          {Number.isFinite(readiness) && (
+            <div style={{ marginTop: 5 }}>
+              <span title="How complete this profile is right now"
+                style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1.2, color: 'var(--muted)', border: '1px solid rgba(255,255,255,.14)', borderRadius: 4, padding: '2px 7px', whiteSpace: 'nowrap' }}>
+                <span style={{ color: ts.col }}>{Math.round(readiness)}%</span> READY
+              </span>
+            </div>
+          )}
         </div>
         {actions && <div onClick={e => e.stopPropagation()} style={{ flexShrink: 0 }}>{actions}</div>}
       </div>

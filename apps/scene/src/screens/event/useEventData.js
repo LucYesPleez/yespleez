@@ -13,6 +13,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../../lib/supabase';
 import { memberProfileKeys, indexMemberProfiles } from './lineupProfiles';
+import { PROFILE_CARD_META_COLUMNS } from '../../components/ProfileCard';
 import { groupSlotsIntoDays, indexPerformances } from '../../lib/eventSlots';
 import { tallySlots } from './slotTally';
 
@@ -169,7 +170,15 @@ export function useEventData(id, navigate) {
       // tested there — this used to require `artist_id` on both sides, which
       // silently dropped every profile the Gig Importer attaches. The map is
       // keyed by lineup_members.id.
-      const memberCols = 'id, user_id, name, avatar, avatar_thumb, type, sound, genre_string, location, state';
+      /* ⚠ `card_pills` AND the completion columns are here because the LINEUP
+         tab's cards now render the act's tags and readiness (ProfileCard's
+         opt-in `tags`/`readiness`). ⛔ Fetching the profile without them does
+         not hide the tags and leave readiness alone — it makes readiness WRONG,
+         because every unfetched column scores as an unmet gap. The list is
+         appended from PROFILE_CARD_META_COLUMNS rather than typed out, so a
+         column added to the completion engine cannot leave this query behind. */
+      const memberCols = ['id, user_id, name, avatar, avatar_thumb, type, sound, genre_string, location, state',
+        ...PROFILE_CARD_META_COLUMNS].join(', ');
       const { profileIds, userIds } = memberProfileKeys(membersData);
       const [mPid, mUid] = await Promise.all([
         profileIds.length ? supabase.from('profiles').select(memberCols).in('id', profileIds) : Promise.resolve({ data: [] }),
