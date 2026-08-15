@@ -6,12 +6,9 @@ import { resolvePerformerProfileId } from '../lib/actingProfile';
 import { writeNotification } from '../lib/writeNotification';
 import { useSession } from '../App';
 import s from './HostDashboard.module.css';
-import ds from './DiscoverScreen.module.css';
 import ProfileCard from '../components/ProfileCard';
-import { formatLocation } from '../lib/formatLocation';
 import { HOST_CATEGORIES } from '../lib/profileTaxonomy';
 import { PROFILE_TYPES } from '../lib/profileTypes';
-import ProfileAvatar from '../components/ProfileAvatar';
 import { completionFor, firstUnsettled } from '@yespleez/requirements';
 import FollowingSection, { FOLLOW_FILTER_CONFIGS } from '../components/FollowingSection';
 import EnquiryPanel from '../components/EnquiryPanel';
@@ -30,7 +27,7 @@ import AvailabilitySection from '../components/AvailabilitySection';
 import EnquiryCalendar from '../components/EnquiryCalendar';
 import { CalendarIconBtn } from '../components/DecisionButtons';
 import { fetchOutgoingEnquiries } from '../lib/outgoingPipeline';
-import { withDirection, normaliseStatus, rawStatusesFor, PIPELINE_BUCKETS } from '../lib/enquiryUtils';
+import { withDirection, normaliseStatus, rawStatusesFor, PIPELINE_BUCKETS, STATUS_TAB_COLOR } from '../lib/enquiryUtils';
 import { bucketEvents, eventBucket, defaultBucket, effectiveDate, BUCKETS, UPCOMING, DRAFT, ARCHIVE } from '../lib/eventBuckets';
 import EventsSection from '../components/EventsSection';
 import EventTabBar from '../components/EventTabBar';
@@ -75,6 +72,9 @@ export default function HostDashboard({ userId: userIdProp }) {
      anything in it. ⚠ A fixed default would open this host on an EMPTY tab:
      they have 0 upcoming, 4 drafts and 11 archived. */
   const [lineupBucketPick, setLineupBucketPick] = useState(null);
+  /* ⚠ A refused ADD TO BILL must be visible. Without this the dashboard fails
+     silently, which is indistinguishable from a dead button. */
+  const [lineupError,    setLineupError]    = useState('');
   const [lineupExpandMap, setLineupExpandMap] = useState({});  // eventId → bool (default true)
   const [lineupSubTabs,  setLineupSubTabs]  = useState({});   // eventId → 'LINEUP'|'SET TIMES'|'SHORT LIST'|'PIPELINE'
   const [allApps,        setAllApps]        = useState([]);
@@ -335,10 +335,17 @@ export default function HostDashboard({ userId: userIdProp }) {
   async function addApplicantToBill(app, groupMembers) {
     const raw = (groupMembers || []).map(r => r.member);
     const plan = planAddToBill(app, appProfiles[app.id] || null, raw);
-    if (!plan.ok) return;
+    /**
+     * ⚠⚠ A REFUSED ADD MUST SAY SO. These two lines were bare `return`s, so a
+     * rejected write and a button that does nothing looked IDENTICAL — the
+     * exact silence this whole sequence has been removing, reintroduced by me
+     * in the one place a host would first try the feature.
+     */
+    if (!plan.ok) { setLineupError(plan.reason); return; }
 
-    const { ok, memberId } = await addToBill(supabase, plan);
-    if (!ok) return;
+    const { ok, error, memberId } = await addToBill(supabase, plan);
+    if (!ok) { setLineupError(error || 'Could not add them to the bill.'); return; }
+    if (error) setLineupError(error);   // added, but the status write failed
 
     if (plan.statusUpdate) {
       setAllApps(prev => prev.map(a => a.id === app.id ? { ...a, status: plan.statusUpdate } : a));
@@ -717,6 +724,16 @@ export default function HostDashboard({ userId: userIdProp }) {
           <SectionCollapseButton expanded={showAllLineup} onToggle={() => setShowAllLineup(v => !v)} />
         </div>
 
+        {/* ⚠ A REFUSED ADD TO BILL, SAID OUT LOUD. RLS filters a write rather
+            than erroring it, and this path used to swallow even the errors it
+            did get — so a rejected add looked exactly like a dead button. */}
+        {lineupError && (
+          <div role="alert" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '10px 14px', marginBottom: 12, borderRadius: 10, background: 'rgba(255,45,120,.1)', border: '1px solid rgba(255,45,120,.35)' }}>
+            <span style={{ fontSize: 12.5, color: '#FF2D78', lineHeight: 1.5 }}>{lineupError}</span>
+            <button onClick={() => setLineupError('')} style={{ background: 'none', border: 'none', color: '#FF2D78', fontSize: 18, cursor: 'pointer', lineHeight: 1, padding: 0, flexShrink: 0 }}>×</button>
+          </div>
+        )}
+
         {/**
           * ⭐⭐ UPCOMING · DRAFT · ARCHIVE — because 11 of this host's 15 events
           * are 2023-2025 imports, and listing them all turned the selector into
@@ -950,12 +967,12 @@ export default function HostDashboard({ userId: userIdProp }) {
                       {activeTab === 'SHORT LIST' && (
                         evShortList.length === 0
                           ? <p className={s.empty} style={{ fontSize: 12 }}>No shortlisted artists for this event.</p>
-                          : <div style={{ marginBottom: 12 }}>{evShortList.map(app => <AppCard key={app.id} app={app} prof={appProfiles[app.id] || {}} event={evtMap[app.event_id]} onRespond={respondApp} onBill={!!findExistingMember(app, members.map(r => r.member))} onAddToBill={() => addApplicantToBill(app, members)} />)}</div>
+                          : <div style={{ marginBottom: 12 }}>{evShortList.map(app => <AppCard key={app.id} app={app} prof={appProfiles[app.id] || {}} eventName={evtMap[app.event_id]?.name} onRespond={respondApp} onBill={!!findExistingMember(app, members.map(r => r.member))} onAddToBill={() => addApplicantToBill(app, members)} />)}</div>
                       )}
                       {activeTab === 'PIPELINE' && (
                         evPipeline.length === 0
                           ? <p className={s.empty} style={{ fontSize: 12 }}>Nothing waiting on you for this event.</p>
-                          : <div style={{ marginBottom: 12 }}>{evPipeline.map(app => <AppCard key={app.id} app={app} prof={appProfiles[app.id] || {}} event={evtMap[app.event_id]} onRespond={respondApp} />)}</div>
+                          : <div style={{ marginBottom: 12 }}>{evPipeline.map(app => <AppCard key={app.id} app={app} prof={appProfiles[app.id] || {}} eventName={evtMap[app.event_id]?.name} onRespond={respondApp} />)}</div>
                       )}
                       {/* ⛔ READ-ONLY. Says who was accepted; ⛔ creates no bill
                           membership — that transition is deliberately not built. */}
@@ -966,7 +983,7 @@ export default function HostDashboard({ userId: userIdProp }) {
                               <p style={{ fontSize: 12, color: 'var(--muted)', margin: '0 0 8px', lineHeight: 1.5 }}>
                                 You said yes to these applications. Adding them to the bill is still a separate step.
                               </p>
-                              {evAccepted.map(app => <AppCard key={app.id} app={app} prof={appProfiles[app.id] || {}} event={evtMap[app.event_id]} onRespond={respondApp} onBill={!!findExistingMember(app, members.map(r => r.member))} onAddToBill={() => addApplicantToBill(app, members)} />)}
+                              {evAccepted.map(app => <AppCard key={app.id} app={app} prof={appProfiles[app.id] || {}} eventName={evtMap[app.event_id]?.name} onRespond={respondApp} onBill={!!findExistingMember(app, members.map(r => r.member))} onAddToBill={() => addApplicantToBill(app, members)} />)}
                             </div>
                       )}
                       </div>
@@ -1139,12 +1156,6 @@ function EventProgressSummary({ lineupCount, totalSlots, filledSlots, hasPoster,
 }
 
 
-const LABEL_COLORS = {
-  main: '#FF3399', headliner: '#FF3399',
-  support: '#BF5FFF', special: '#BF5FFF', guest: '#BF5FFF',
-  opening: '#00B4D8', resident: '#00E5A0',
-  sunset: '#FFD700', sunrise: '#FFD700', sunrise_set: '#FFD700',
-};
 
 
 
@@ -1168,189 +1179,100 @@ function AppBtn({ onClick, disabled, base, hover, children }) {
   );
 }
 
-function AppCard({ app, prof, event, onRespond, onBill = false, onAddToBill = null }) {
-  const [expanded, setExpanded] = useState(false);
+/**
+ * ⭐⭐ THE CANONICAL CARD, with only what this section adds.
+ *
+ * This was 186 lines of bespoke markup — its own avatar, type pill, location,
+ * sound line, status chip, date box, expander, bio window and social rows —
+ * rendering the SAME thing `ProfileCard` renders everywhere else in the app.
+ * A third application card (`components/ApplicationCard.jsx`, imported nowhere)
+ * is a near-copy of it again.
+ *
+ * ⚠ WHAT THIS SECTION GENUINELY ADDS, and all it adds:
+ *   · the application's BUCKET as the badge
+ *   · ADD TO BILL / ON BILL — membership, derived from `lineup_members`
+ *   · the host's decision buttons
+ *
+ * ⛔ WHAT WAS DROPPED, deliberately:
+ *   · the event DATE BOX — these cards sit inside an event group whose header
+ *     already carries the name and the date. It was the same fact, twice.
+ *   · the EXPANDER (bio, tags, socials, mix link). Tapping the card opens the
+ *     real profile, which is what ProfileCard does everywhere else and is a
+ *     better home for detail than a panel that exists only here.
+ *     ⚠⚠ That expander is also what HID `ADD TO BILL` from the owner: the
+ *     action had been placed inside it, so the feature was unreachable.
+ */
+function AppCard({ app, prof, onRespond, onBill = false, onAddToBill = null, eventName }) {
   const [busy, setBusy] = useState(false);
-  const [bioOpen, setBioOpen] = useState(false);
-  const isPending   = app.status === 'pending';
-  const isTentative = normaliseStatus({ status: app.status, direction: 'incoming' }) === 'shortlisted';
+  const bucket = normaliseStatus({ status: app.status, direction: 'incoming' });
+  const undecided = PIPELINE_BUCKETS.includes(bucket);
 
-  const pType     = prof?.type || 'artist';
-  const pt        = PROFILE_TYPES[pType];
-  const accent    = pt?.accent || '#00E5FF';
-  const accentRgb = pt?.rgb    || '0,229,255';
-
-  const STATUS_COLOR = { accepted: '#00E5A0', rejected: '#888', declined: '#888', pending: '#FFD700' };
-  const STATUS_LABEL = { accepted: 'ACCEPTED', rejected: 'DECLINED', declined: 'DECLINED', pending: 'PENDING' };
-  const statusColor = STATUS_COLOR[app.status] || '#FFD700';
-  const statusLabel = STATUS_LABEL[app.status] || 'PENDING';
-
-  const p      = prof || {};
-  const name   = p.name || app.artist_name || '—';
-  const loc    = formatLocation(p);
-  const avatar = p.avatar || app.avatar_url || null;
-  const sound  = p.sound || (p.genre_string || '').split(/[·,]/).slice(0, 3).join(' · ') || app.genre || '';
-
-  const evName = event?.name || '—';
-  const evDateBox = (() => {
-    const raw = event?.config?.date;
-    const d = raw ? new Date(raw + 'T12:00:00') : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-    if (isNaN(d.getTime())) return null;
-    return {
-      dn:  d.toLocaleDateString('en-AU', { weekday: 'short' }).toUpperCase(),
-      mo:  d.toLocaleDateString('en-AU', { month: 'short' }).toUpperCase(),
-      num: d.getDate(),
-    };
-  })();
-
-  const appliedLabel = app.created_at
-    ? new Date(app.created_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })
-    : '';
-  const mixLink = app.mix_link || p.mix_link;
+  /* ProfileCard routes on `id` first and falls back to `user_id`: without the
+     id an unclaimed applicant's card is unclickable — the same rule the lineup
+     cards already follow. */
+  const item = {
+    id:           prof?.id || app.from_profile_id || null,
+    user_id:      app.artist_id || null,
+    name:         prof?.name || app.artist_name || 'Applicant',
+    type:         prof?.type || 'artist',
+    avatar:       prof?.avatar || null,
+    avatar_thumb: prof?.avatar_thumb || null,
+    sound:        prof?.sound || null,
+    genre_string: prof?.genre_string || null,
+    location:     prof?.location || null,
+    state:        prof?.state || null,
+  };
 
   async function respond(status) {
     if (busy) return;
     setBusy(true);
-    await onRespond(app.id, status, app.artist_id, event?.name);
+    await onRespond(app.id, status, app.artist_id, eventName);
+    setBusy(false);
+  }
+  async function add() {
+    if (busy || !onAddToBill) return;
+    setBusy(true);
+    await onAddToBill();
     setBusy(false);
   }
 
   return (
-    <div style={{ marginBottom: 8 }}>
-      {/* Main card */}
-      <div className={ds.card} style={{ border: `1px solid rgba(${accentRgb},.35)`, cursor: 'default', marginBottom: 0, borderRadius: expanded ? '14px 14px 0 0' : 14 }}>
-        <ProfileAvatar className={ds.cardAvatar} avatar={avatar} identity={pt} name={name} style={{ borderColor: accent }} />
-        <div className={ds.cardInfo}>
-          <div className={ds.cardNameRow}>
-            <span className={ds.cardName}>{name}</span>
-            <span className={ds.cardBadge} style={{ color: accent, background: `rgba(${accentRgb},.15)`, borderColor: `rgba(${accentRgb},.3)` }}>{pt?.shortLabel || pType.toUpperCase()}</span>
-          </div>
-          {loc  && <div className={ds.cardLoc}>{loc}</div>}
-          {sound && <div className={ds.cardSound} style={{ color: accent }}>{sound}</div>}
-        </div>
-        {/* Right column */}
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, flexShrink: 0 }}>
-          <span style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1.5, color: statusColor, border: `1px solid ${statusColor}`, borderRadius: 4, padding: '2px 7px' }}>
-            {statusLabel}
-          </span>
-          {evDateBox && (
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, border: '1px solid rgba(255,45,120,.4)', background: 'rgba(255,45,120,.08)', borderRadius: 7, padding: '4px 8px' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                <span style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1, color: 'rgba(255,45,120,.7)', lineHeight: 1 }}>{evDateBox.dn}</span>
-                <span style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1, color: 'rgba(255,45,120,.7)', lineHeight: 1 }}>{evDateBox.mo}</span>
-              </div>
-              <span style={{ fontFamily: "'Bebas Neue'", fontSize: 26, color: '#FF2D78', lineHeight: 1 }}>{evDateBox.num}</span>
-            </div>
-          )}
-          {/**
-            * ⚠⚠ ON THE COLLAPSED CARD, NOT INSIDE THE EXPANDER.
-            *
-            * This button was placed in the `expanded` panel, so the primary
-            * action of the whole transition only appeared AFTER clicking VIEW
-            * FULL PROFILE. The owner opened the ACCEPTED tab, saw no way to add
-            * anyone, and nothing was written — the feature was unreachable
-            * without knowing to expand a card first.
-            *
-            * ⛔ A decision the tab exists to make must be on the face of the
-            * card. The expander is for reading someone, not for acting on them.
-            */}
+    <ProfileCard
+      item={item}
+      /* ⭐ ON BILL WINS THE BADGE when membership exists: it is the more
+         specific fact, and it comes from `lineup_members`, ⛔ never from
+         `applications.status`. */
+      badge={onBill ? 'ON BILL' : bucket.toUpperCase()}
+      badgeColor={onBill ? '#00E5A0' : (STATUS_TAB_COLOR[bucket.toUpperCase()] || 'var(--muted)')}
+      actions={
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
           {onAddToBill && !onBill && (
-            <button
-              onClick={async () => { setBusy(true); await onAddToBill(); setBusy(false); }}
-              disabled={busy}
-              style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1, background: 'rgba(0,229,160,.12)', border: '1px solid rgba(0,229,160,.45)', color: '#00E5A0', borderRadius: 8, padding: '3px 8px', cursor: busy ? 'default' : 'pointer', opacity: busy ? .5 : 1, whiteSpace: 'nowrap' }}
-            >{busy ? 'ADDING…' : '+ ADD TO BILL'}</button>
+            <AppBtn onClick={add} disabled={busy}
+              base={{ bg: 'rgba(0,229,160,.1)', border: '1px solid rgba(0,229,160,.45)', color: '#00E5A0' }}
+              hover={{ bg: 'rgba(0,229,160,.28)', border: '1px solid #00E5A0' }}
+            >{busy ? 'ADDING…' : '+ ADD TO BILL'}</AppBtn>
           )}
-          {/* ⭐ Derived from `lineup_members`, never from applications.status. */}
-          {onAddToBill && onBill && (
-            <span style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1, color: '#00E5A0', border: '1px solid rgba(0,229,160,.45)', borderRadius: 8, padding: '3px 8px', whiteSpace: 'nowrap' }}>ON BILL</span>
-          )}
-          <button
-            onClick={() => setExpanded(e => !e)}
-            style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1, background: 'rgba(255,45,120,.1)', border: '1px solid rgba(255,45,120,.35)', color: '#FF2D78', borderRadius: 8, padding: '3px 8px', cursor: 'pointer' }}
-          >{expanded ? 'HIDE ▲' : 'VIEW FULL PROFILE ▼'}</button>
-        </div>
-      </div>
-
-      {/* Expanded panel */}
-      {expanded && (
-        <div style={{ background: 'var(--card)', border: `1px solid rgba(${accentRgb},.35)`, borderTop: 'none', borderRadius: '0 0 14px 14px', padding: '12px 18px' }}>
-          {p.bio && (
-            <div style={{ display: 'flex', gap: 8, padding: '7px 0', borderBottom: '1px solid rgba(255,255,255,.05)' }}>
-              <div style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1.5, color: 'var(--muted)', minWidth: 70, paddingTop: 2 }}>ABOUT</div>
-              <div style={{ fontSize: 13, color: 'var(--text)', flex: 1, overflow: 'hidden', display: 'flex', alignItems: 'baseline', gap: 6 }}>
-                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{p.bio}</span>
-                {p.bio.length > 60 && <span onClick={() => setBioOpen(true)} style={{ color: 'var(--muted)', fontSize: 11, cursor: 'pointer', flexShrink: 0 }}>see more</span>}
-              </div>
-            </div>
-          )}
-          {app.note && (
-            <div style={{ display: 'flex', gap: 8, padding: '7px 0', borderBottom: '1px solid rgba(255,255,255,.05)' }}>
-              <div style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1.5, color: 'var(--muted)', minWidth: 70, paddingTop: 2 }}>NOTE</div>
-              <div style={{ fontSize: 13, color: 'var(--text)', flex: 1, fontStyle: 'italic' }}>"{app.note}"</div>
-            </div>
-          )}
-          {[
-            ['FOR EVENT', evName],
-            ['APPLIED',   appliedLabel || null],
-            ['SOUND',     p.sound      || null],
-            ['LOCATION',  loc          || null],
-          ].filter(([, v]) => v).map(([label, value]) => (
-            <div key={label} style={{ display: 'flex', gap: 8, padding: '7px 0', borderBottom: '1px solid rgba(255,255,255,.05)' }}>
-              <div style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1.5, color: 'var(--muted)', minWidth: 70, paddingTop: 2 }}>{label}</div>
-              <div style={{ fontSize: 13, color: 'var(--text)', flex: 1 }}>{value}</div>
-            </div>
-          ))}
-          {mixLink && (
-            <div style={{ display: 'flex', gap: 8, padding: '7px 0', borderBottom: '1px solid rgba(255,255,255,.05)' }}>
-              <div style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1.5, color: 'var(--muted)', minWidth: 70, paddingTop: 2 }}>MIX / DEMO</div>
-              <a href={mixLink} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, color: accent, flex: 1, wordBreak: 'break-all' }}>▶ Play demo</a>
-            </div>
-          )}
-          {p.instagram && p.instagram !== 'N/A' && (
-            <div style={{ display: 'flex', gap: 8, padding: '7px 0', borderBottom: '1px solid rgba(255,255,255,.05)' }}>
-              <div style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1.5, color: 'var(--muted)', minWidth: 70, paddingTop: 2 }}>INSTAGRAM</div>
-              {(() => {
-                const h = p.instagram.replace(/^@/, '').replace(/^(?:https?:\/\/)?(?:www\.)?instagram\.com\/?/i, '').replace(/\/$/, '');
-                return <a href={`https://instagram.com/${h}`} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, color: accent }}>@{h}</a>;
-              })()}
-            </div>
-          )}
-          {/* ⛔ ADD TO BILL is NOT here — it lives on the collapsed card, where
-              it can be seen. See the note beside it. */}
-          {(isPending || isTentative) && (
-            <div style={{ display: 'flex', gap: 6, marginTop: 12 }}>
+          {undecided && (
+            <>
               <AppBtn onClick={() => respond('accepted')} disabled={busy}
                 base={{ bg: 'rgba(0,229,160,.1)', border: '1px solid rgba(0,229,160,.4)', color: '#00E5A0' }}
                 hover={{ bg: 'rgba(0,229,160,.28)', border: '1px solid #00E5A0' }}
               >ACCEPT ✓</AppBtn>
-              {isPending && (
-                <AppBtn onClick={() => respond('shortlisted')} disabled={busy}
-                  base={{ bg: 'rgba(0,180,216,.1)', border: '1px solid rgba(0,180,216,.4)', color: '#00B4D8' }}
-                  hover={{ bg: 'rgba(0,180,216,.28)', border: '1px solid #00B4D8' }}
-                >SHORTLIST</AppBtn>
-              )}
-              <AppBtn onClick={() => respond('declined')} disabled={busy}
-                base={{ bg: 'rgba(120,120,160,.06)', border: '1px solid rgba(120,120,160,.2)', color: 'var(--muted)' }}
-                hover={{ bg: 'rgba(255,140,0,.18)', border: '1px solid #FF8C00', color: '#FF8C00' }}
-              >DECLINE ✗</AppBtn>
-            </div>
+              <AppBtn onClick={() => respond('shortlisted')} disabled={busy}
+                base={{ bg: 'rgba(0,180,216,.1)', border: '1px solid rgba(0,180,216,.4)', color: '#00B4D8' }}
+                hover={{ bg: 'rgba(0,180,216,.28)', border: '1px solid #00B4D8' }}
+              >SHORTLIST</AppBtn>
+            </>
+          )}
+          {bucket !== 'declined' && (
+            <AppBtn onClick={() => respond('declined')} disabled={busy}
+              base={{ bg: 'rgba(120,120,160,.06)', border: '1px solid rgba(120,120,160,.2)', color: 'var(--muted)' }}
+              hover={{ bg: 'rgba(255,140,0,.18)', border: '1px solid #FF8C00', color: '#FF8C00' }}
+            >DECLINE ✗</AppBtn>
           )}
         </div>
-      )}
-
-      {/* Bio popup */}
-      {bioOpen && p.bio && (
-        <div onClick={() => setBioOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.75)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: 'var(--card)', border: `1px solid rgba(${accentRgb},.4)`, borderRadius: 16, padding: 24, maxWidth: 480, width: '100%', maxHeight: '70vh', overflowY: 'auto' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-              <span style={{ fontFamily: "'Bebas Neue'", fontSize: 16, letterSpacing: 2, color: accent }}>ABOUT {name.toUpperCase()}</span>
-              <button onClick={() => setBioOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--muted)', fontSize: 20, cursor: 'pointer', lineHeight: 1 }}>✕</button>
-            </div>
-            <p style={{ fontSize: 14, color: 'var(--text)', lineHeight: 1.7 }}>{p.bio}</p>
-          </div>
-        </div>
-      )}
-    </div>
+      }
+    />
   );
 }
+
