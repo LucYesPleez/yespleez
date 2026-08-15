@@ -20,6 +20,7 @@ import { fetchApplicantProfiles } from '../lib/applicantProfiles';
 import { memberProfileKeys, indexMemberProfiles } from './event/lineupProfiles';
 import { groupSlotsIntoDays, indexPerformances, durationLabel } from '../lib/eventSlots';
 import { buildHostLineup, STATE_COLOURS } from '../lib/hostLineup';
+import { planAddToBill, addToBill, findExistingMember } from '../lib/lineupFromApplication';
 import DashboardHeader from '../components/DashboardHeader';
 import MyVenueSubmissions from '../components/MyVenueSubmissions';
 import DashboardProfileCard from '../components/DashboardProfileCard';
@@ -321,6 +322,54 @@ export default function HostDashboard({ userId: userIdProp }) {
     }
     loadFollowing();
   }, [userId]);
+
+  /**
+   * ⭐⭐ THE SHORT LIST → LINEUP TRANSITION, on the dashboard.
+   *
+   * ⚠ THE SAME MODULE THE EVENT PAGE USES. Two surfaces offering "add to bill"
+   * with two implementations is exactly the divergence this whole sequence has
+   * been removing — the rules (idempotency, no re-stamping an accepted
+   * application, no `performance`, silence unless the decision changes) live in
+   * lib/lineupFromApplication and are not restated here.
+   */
+  async function addApplicantToBill(app, groupMembers) {
+    const raw = (groupMembers || []).map(r => r.member);
+    const plan = planAddToBill(app, appProfiles[app.id] || null, raw);
+    if (!plan.ok) return;
+
+    const { ok, memberId } = await addToBill(supabase, plan);
+    if (!ok) return;
+
+    if (plan.statusUpdate) {
+      setAllApps(prev => prev.map(a => a.id === app.id ? { ...a, status: plan.statusUpdate } : a));
+    }
+    /* ⚠ Optimistic, because this screen loads lineups once behind a ref rather
+       than through react-query. Shape must match buildHostLineup's rows or the
+       list renders a hole. */
+    setLineups(prev => prev.map(g => g.event.id !== app.event_id ? g : {
+      ...g,
+      members: [...g.members, {
+        id: memberId,
+        member: { ...plan.member, id: memberId },
+        profile: appProfiles[app.id] || null,
+        perfs: [], state: 'ON BILL', slotCount: 0,
+      }],
+      onBill: g.onBill + 1,
+      unscheduled: g.unscheduled + 1,
+    }));
+    if (plan.notify === 'accepted' && app.artist_id) {
+      await writeNotification({
+        toUserId:       app.artist_id,
+        toProfileId:    (await resolvePerformerProfileId(app.artist_id)).profileId ?? null,
+        aboutProfileId: profile?.id ?? null,
+        type:    'booking_confirmed',
+        /* ⛔ NOT "You're booked!" — accepted means the host said yes; a booking
+           is a SLOT, which has not been offered. */
+        message: `Your application for ${evtMap[app.event_id]?.name || 'an event'} was accepted. You are on the lineup.`,
+        data:    { event_id: app.event_id, lineup_member_id: memberId },
+      });
+    }
+  }
 
   async function respondApp(appId, status, artistId, eventName) {
     await supabase.from('applications').update({ status }).eq('id', appId);
@@ -893,7 +942,7 @@ export default function HostDashboard({ userId: userIdProp }) {
                       {activeTab === 'SHORT LIST' && (
                         evShortList.length === 0
                           ? <p className={s.empty} style={{ fontSize: 12 }}>No shortlisted artists for this event.</p>
-                          : <div style={{ marginBottom: 12 }}>{evShortList.map(app => <AppCard key={app.id} app={app} prof={appProfiles[app.id] || {}} event={evtMap[app.event_id]} onRespond={respondApp} />)}</div>
+                          : <div style={{ marginBottom: 12 }}>{evShortList.map(app => <AppCard key={app.id} app={app} prof={appProfiles[app.id] || {}} event={evtMap[app.event_id]} onRespond={respondApp} onBill={!!findExistingMember(app, members.map(r => r.member))} onAddToBill={() => addApplicantToBill(app, members)} />)}</div>
                       )}
                       {activeTab === 'PIPELINE' && (
                         evPipeline.length === 0
@@ -909,7 +958,7 @@ export default function HostDashboard({ userId: userIdProp }) {
                               <p style={{ fontSize: 12, color: 'var(--muted)', margin: '0 0 8px', lineHeight: 1.5 }}>
                                 You said yes to these applications. Adding them to the bill is still a separate step.
                               </p>
-                              {evAccepted.map(app => <AppCard key={app.id} app={app} prof={appProfiles[app.id] || {}} event={evtMap[app.event_id]} onRespond={respondApp} />)}
+                              {evAccepted.map(app => <AppCard key={app.id} app={app} prof={appProfiles[app.id] || {}} event={evtMap[app.event_id]} onRespond={respondApp} onBill={!!findExistingMember(app, members.map(r => r.member))} onAddToBill={() => addApplicantToBill(app, members)} />)}
                             </div>
                       )}
                       </div>
@@ -1111,7 +1160,7 @@ function AppBtn({ onClick, disabled, base, hover, children }) {
   );
 }
 
-function AppCard({ app, prof, event, onRespond }) {
+function AppCard({ app, prof, event, onRespond, onBill = false, onAddToBill = null }) {
   const [expanded, setExpanded] = useState(false);
   const [busy, setBusy] = useState(false);
   const [bioOpen, setBioOpen] = useState(false);
@@ -1234,6 +1283,25 @@ function AppCard({ app, prof, event, onRespond }) {
                 const h = p.instagram.replace(/^@/, '').replace(/^(?:https?:\/\/)?(?:www\.)?instagram\.com\/?/i, '').replace(/\/$/, '');
                 return <a href={`https://instagram.com/${h}`} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, color: accent }}>@{h}</a>;
               })()}
+            </div>
+          )}
+          {/**
+            * ⭐ ADD TO BILL — the SHORT LIST → LINEUP transition.
+            *
+            * ⛔ Hidden once they ARE on the bill, rather than disabled: the
+            * badge above already says so, and a dead control beside a label
+            * stating the same fact is noise.
+            *
+            * ⚠ Offered on ANY undeclined application, including an accepted
+            * one — an accepted applicant with no bill row was the dead end
+            * this fixes. `planAddToBill` refuses the declined ones.
+            */}
+          {onAddToBill && !onBill && (
+            <div style={{ display: 'flex', gap: 6, marginTop: 12 }}>
+              <AppBtn onClick={async () => { setBusy(true); await onAddToBill(); setBusy(false); }} disabled={busy}
+                base={{ bg: 'rgba(0,229,160,.1)', border: '1px solid rgba(0,229,160,.45)', color: '#00E5A0' }}
+                hover={{ bg: 'rgba(0,229,160,.28)', border: '1px solid #00E5A0' }}
+              >+ ADD TO BILL</AppBtn>
             </div>
           )}
           {(isPending || isTentative) && (

@@ -19,6 +19,7 @@ import { durationLabel } from '../../lib/eventSlots';
 import { memberState, STATE_COLOURS } from '../../lib/hostLineup';
 import { normaliseStatus, rawStatusesFor, PIPELINE_BUCKETS } from '../../lib/enquiryUtils';
 import { planUnassign, planRemoveFromBill, applyLineupPlan, notifiablePerformances, isReachable } from '../../lib/lineupActions';
+import { planAddToBill, addToBill, findExistingMember } from '../../lib/lineupFromApplication';
 import ProfileCard from '../../components/ProfileCard';
 import FillSlotModal from '../../components/FillSlotModal';
 import EventTabBar from '../../components/EventTabBar';
@@ -191,6 +192,45 @@ export default function EventHostView({
       });
     }
     setConfirmRemove(null);
+    queryClient.invalidateQueries({ queryKey: ['event', id] });
+  }
+
+  /**
+   * ⭐⭐ AN APPLICATION JOINS THE BILL — the transition that did not exist.
+   *
+   * ⛔ SILENT unless the DECISION changes. Q3: joining the bill notifies
+   * nobody; only "your application was accepted" is worth saying, and only the
+   * first time. See lib/lineupFromApplication for the rules.
+   *
+   * ⛔ Creates no `performance`. On the bill is not given a time.
+   */
+  async function addApplicantToBill(app) {
+    const plan = planAddToBill(app, appProfiles[app.id] || null, lineupMembers);
+    if (!plan.ok) { setSlotError(plan.reason); return; }
+
+    const { ok, error, memberId } = await addToBill(supabase, plan);
+    if (!ok) { setSlotError(error || 'Could not add them to the bill.'); return; }
+    if (error) setSlotError(error);   // added, but the status write failed
+
+    if (plan.statusUpdate) {
+      setAllApps(prev => prev.map(a => a.id === app.id ? { ...a, status: plan.statusUpdate } : a));
+    }
+    /**
+     * ⚠ THE APPLICANT HEARS ABOUT THE DECISION, NOT THE BILL. The old copy
+     * for this said "You're booked!" — which is now provably wrong: accepted
+     * means the host said yes, and a booking is a SLOT they have not been
+     * offered yet.
+     */
+    if (plan.notify === 'accepted' && app.artist_id) {
+      await writeNotification({
+        toUserId:       app.artist_id,
+        toProfileId:    (await resolvePerformerProfileId(app.artist_id)).profileId ?? null,
+        aboutProfileId: event.owner_profile_id ?? null,
+        type:    'booking_confirmed',
+        message: `Your application for ${event.name} was accepted. You are on the lineup.`,
+        data:    { event_id: id, event_name: event.name, lineup_member_id: memberId },
+      });
+    }
     queryClient.invalidateQueries({ queryKey: ['event', id] });
   }
 
@@ -698,6 +738,11 @@ export default function EventHostView({
                 <ProfileCard key={app.id} item={cardItem} badge="SHORTLISTED" badgeColor="var(--neon2)"
                   actions={
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                      {/* ⭐ THE TRANSITION. Silent, and creates no set time —
+                          ASSIGN SLOT below is the separate, notifying act. */}
+                      {!findExistingMember(app, lineupMembers) && (
+                        <button onClick={() => addApplicantToBill(app)} style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1, padding: '4px 10px', borderRadius: 6, border: '1px solid rgba(0,229,160,.45)', background: 'rgba(0,229,160,.1)', color: '#00E5A0', cursor: 'pointer', whiteSpace: 'nowrap' }}>ADD TO BILL</button>
+                      )}
                       <button onClick={() => setAssigningApp({ app, prof })} style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1, padding: '4px 10px', borderRadius: 6, border: '1px solid rgba(0,229,255,.4)', background: 'rgba(0,229,255,.08)', color: 'var(--neon2)', cursor: 'pointer', whiteSpace: 'nowrap' }}>ASSIGN SLOT</button>
                       <button onClick={() => { supabase.from('applications').update({ status: 'declined' }).eq('id', app.id); setAllApps(prev => prev.map(a => a.id === app.id ? { ...a, status: 'declined' } : a)); }} style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1, padding: '4px 10px', borderRadius: 6, border: '1px solid rgba(255,51,51,.3)', background: 'rgba(255,51,51,.06)', color: 'rgba(255,80,80,.8)', cursor: 'pointer', whiteSpace: 'nowrap' }}>DROP</button>
                     </div>
@@ -767,15 +812,20 @@ export default function EventHostView({
                    from `lineup_members`, which is the source of truth — the
                    application cannot tell you, and that is the whole point of
                    the separation. */
-                const onBill = lineupMembers.some(m =>
-                  (app.from_profile_id && m.artist_profile_id === app.from_profile_id) ||
-                  (app.artist_id && m.artist_id === app.artist_id));
+                const onBill = !!findExistingMember(app, lineupMembers);
                 return (
                   <ProfileCard key={app.id} item={cardItem}
                     badge={onBill ? 'ON THE BILL' : 'NOT ON THE BILL'}
                     badgeColor={onBill ? '#00E5A0' : 'rgba(255,255,255,.35)'}
                     actions={
-                      <button onClick={() => { supabase.from('applications').update({ status: 'declined' }).eq('id', app.id); setAllApps(prev => prev.map(a => a.id === app.id ? { ...a, status: 'declined' } : a)); }} style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1, padding: '4px 10px', borderRadius: 6, border: '1px solid rgba(255,51,51,.3)', background: 'rgba(255,51,51,.06)', color: 'rgba(255,80,80,.8)', cursor: 'pointer', whiteSpace: 'nowrap' }}>DECLINE</button>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                        {/* ⚠ THIS TAB USED TO BE A DEAD END: it said NOT ON THE
+                            BILL and offered no way to change that. */}
+                        {!onBill && (
+                          <button onClick={() => addApplicantToBill(app)} style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1, padding: '4px 10px', borderRadius: 6, border: '1px solid rgba(0,229,160,.45)', background: 'rgba(0,229,160,.1)', color: '#00E5A0', cursor: 'pointer', whiteSpace: 'nowrap' }}>ADD TO BILL</button>
+                        )}
+                        <button onClick={() => { supabase.from('applications').update({ status: 'declined' }).eq('id', app.id); setAllApps(prev => prev.map(a => a.id === app.id ? { ...a, status: 'declined' } : a)); }} style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1, padding: '4px 10px', borderRadius: 6, border: '1px solid rgba(255,51,51,.3)', background: 'rgba(255,51,51,.06)', color: 'rgba(255,80,80,.8)', cursor: 'pointer', whiteSpace: 'nowrap' }}>DECLINE</button>
+                      </div>
                     }
                   />
                 );
