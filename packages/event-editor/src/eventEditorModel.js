@@ -64,6 +64,95 @@ export function slotToEdit(sl) {
   }, sl);
 }
 
+/**
+ * ── SLOTS AS ROWS ────────────────────────────────────────────────────
+ *
+ * Scene moved slots out of `config.days` into an `event_slots` table (L2/L3,
+ * 2026-08-15), so `performances.slot_id` could stop being a foreign key into a
+ * JSON blob with nothing behind it.
+ *
+ * ⛔ THIS PACKAGE STILL KNOWS NOTHING ABOUT A DATABASE. These two functions are
+ * pure shape converters, exactly like `slotToSave`/`slotToEdit` above. The
+ * consumer that HAS a table does the reading and writing, the same way it
+ * already injects `uploadPosterCrop` rather than the package reaching for
+ * storage. Festival Companion passes neither and is untouched: it keeps
+ * persisting through `toConfig()`, which still emits `days`.
+ *
+ * ⚠ THE DIRECTION RULE, stated in FestivalEventEditor: the wrapper adapts the
+ * app to the package, never the reverse. A `useEventSlots: true` flag in here
+ * would have been the boundary violation these converters exist to avoid.
+ */
+
+/**
+ * `event_slots` rows → the editor's `days` array.
+ *
+ * ⚠ THE SLOT'S `id` BECOMES THE ROW'S UUID. That is what lets a save UPDATE the
+ * row it came from instead of deleting and re-inserting it — and re-inserting
+ * would cascade every `performance` hanging off it into oblivion.
+ */
+export function rowsToDays(rows = []) {
+  const byDay = new Map();
+  for (const r of rows || []) {
+    if (!r) continue;
+    const idx = r.day_index ?? 0;
+    if (!byDay.has(idx)) byDay.set(idx, { id: makeId(), dayIndex: idx, name: r.day_name || '', slots: [] });
+    byDay.get(idx).slots.push({ ...r, __pos: r.position ?? 0 });
+  }
+  return [...byDay.values()]
+    .sort((a, b) => a.dayIndex - b.dayIndex)
+    .map(d => ({
+      id: d.id,
+      name: d.name,
+      slots: d.slots.sort((a, b) => a.__pos - b.__pos).map(r => {
+        const [hh, mm] = String(r.time || '8:00').split(':');
+        return {
+          id:   r.id,                       // ⚠ the UUID, see above
+          hh:   hh || '8',
+          mm:   (mm || '00').padStart(2, '0'),
+          ampm: r.ampm || 'PM',
+          dur:  r.dur_mins ?? 60,
+          label: r.label || '',
+          ...(r.label_color ? { labelColor: r.label_color } : {}),
+          ...(r.pinned ? { pinned: true } : {}),
+        };
+      }),
+    }));
+}
+
+/**
+ * The editor's `days` array → `event_slots` rows.
+ *
+ * ⚠ A SLOT WHOSE `id` IS NOT A UUID IS NEW. `makeId()` mints 6-character keys
+ * for slots added in the form, and the three id generations already in
+ * production (`sat_1`, `d0s3`, `ehkh62`) are all short too — so "looks like a
+ * uuid" is the only honest test for "this came from a row". A new slot emits no
+ * `id` at all and lets the database mint one.
+ */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function daysToRows(days = []) {
+  const out = [];
+  (days || []).forEach((day, dayIndex) => {
+    (day?.slots || []).forEach((sl, position) => {
+      out.push({
+        ...(UUID_RE.test(String(sl.id || '')) ? { id: sl.id } : {}),
+        day_index:   dayIndex,
+        day_name:    day.name || null,
+        position,
+        time:        `${parseInt(sl.hh || 8, 10)}:${String(sl.mm || '00').padStart(2, '0')}`,
+        ampm:        sl.ampm || 'PM',
+        // ⚠ NEVER null — `dur_mins` is NOT NULL, and a cleared field must fall
+        // back rather than fail the whole save.
+        dur_mins:    Number.isFinite(Number(sl.dur)) && Number(sl.dur) > 0 ? Number(sl.dur) : 60,
+        label:       sl.label || null,
+        label_color: sl.labelColor || null,
+        pinned:      !!sl.pinned,
+      });
+    });
+  });
+  return out;
+}
+
 export function generateSlots(startTime, endTime, slotLenMins) {
   const [sh, sm] = startTime.split(':').map(Number);
   const [eh, em] = endTime.split(':').map(Number);

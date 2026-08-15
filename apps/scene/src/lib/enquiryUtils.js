@@ -132,6 +132,40 @@ export function normaliseStatus(e) {
  * awaiting an answer stays visible no matter how long it has been waiting,
  * because waiting a long time is information, not clutter.
  */
+/**
+ * ⭐ THE INVERSE OF `normaliseStatus`, FOR QUERIES THAT CANNOT CALL IT.
+ *
+ * A client-side filter maps each row through `normaliseStatus`. A SERVER-side
+ * count cannot: PostgREST needs the raw values up front. Hand-typing that list
+ * beside the map is precisely how the two drift, so it is DERIVED from the same
+ * object the renderer uses — add a spelling to the map and every query that
+ * counts it follows automatically.
+ *
+ * ⚠⚠ WHY THIS EXISTS AT ALL. `HostDashboard` counted the PIPELINE with
+ * `.eq('status','pending')` and `EventHostView` filtered SHORT LIST with
+ * `status === 'tentative'`. Production holds ZERO rows of either spelling —
+ * the host surfaces write `seen`/`shortlisted`/`accepted`/`declined` through
+ * EnquiryCard, while those filters were written against the older vocabulary.
+ * Both tabs were therefore permanently empty on every event.
+ *
+ * ⛔ KNOWN AND ACCEPTED LIMIT: `normaliseStatus` sends an UNRECOGNISED status
+ * to the first bucket ('new' / 'awaiting'), and no `.in()` list can express
+ * "anything not listed". So a status nobody has ever written would appear in
+ * the NEW tab (client-side) and be missing from the NEW header count
+ * (server-side). The drift test below pins every known spelling; a genuinely
+ * unknown one is a bug in whatever wrote it.
+ */
+export function rawStatusesFor(bucket, direction = 'incoming') {
+  const map = String(direction).toLowerCase() === 'outgoing' ? OUTGOING_STATUS_MAP : INCOMING_STATUS_MAP;
+  return Object.entries(map).filter(([, v]) => v === bucket).map(([k]) => k);
+}
+
+/** Every bucket a row can normalise into, for building tab lists. */
+export function bucketsFor(direction = 'incoming') {
+  const map = String(direction).toLowerCase() === 'outgoing' ? OUTGOING_STATUS_MAP : INCOMING_STATUS_MAP;
+  return [...new Set(Object.values(map))];
+}
+
 export const DECLINE_FADE_DAYS = 30;
 
 export function isFadedDecline(row, now = Date.now()) {

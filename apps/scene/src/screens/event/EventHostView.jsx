@@ -15,6 +15,10 @@ import { track, EVENTS } from '../../lib/analytics';
 import { resolveProfileId } from '../../lib/resolveProfileId';
 import { scopeToApplicant, fetchApplicantProfiles } from '../../lib/applicantProfiles';
 import { findOpenAsksForDate, declineOpenAsks } from '../../lib/dateLockout';
+import { durationLabel } from '../../lib/eventSlots';
+import { memberState, STATE_COLOURS } from '../../lib/hostLineup';
+import { normaliseStatus, rawStatusesFor } from '../../lib/enquiryUtils';
+import { planUnassign, planRemoveFromBill, applyLineupPlan, notifiablePerformances, isReachable } from '../../lib/lineupActions';
 import ProfileCard from '../../components/ProfileCard';
 import FillSlotModal from '../../components/FillSlotModal';
 import EventTabBar from '../../components/EventTabBar';
@@ -27,7 +31,7 @@ import s from '../EventScreen.module.css';
 
 export default function EventHostView({
   id, event, cfg, session, ownerProfile, venueProfile,
-  claims, days, lineupMembers, memberPerfMap, memberProfiles,
+  claims, claimsBySlot = {}, days, lineupMembers, perfsByMember = {}, memberProfiles,
   poster, posterFull, genres, isPast,
   showTimesPublicly, totalSlots, takenSlots, lineupPct, isLocked, draftCount,
 }) {
@@ -44,7 +48,16 @@ export default function EventHostView({
   const [editingSlot,   setEditingSlot]   = useState(null);
   const [fillSlot,      setFillSlot]      = useState(null);
   const [assigningApp,  setAssigningApp]  = useState(null);
-  const [localDays,     setLocalDays]     = useState(null);
+  /**
+   * ⚠ A FAILED SLOT WRITE MUST SAY SO. Until L1 the host could not write these
+   * rows at all on 22 real events, and RLS filters an UPDATE rather than
+   * erroring it — so the screen reported success and changed nothing. Surfacing
+   * the error is what makes that class of failure visible if it ever returns.
+   */
+  const [slotError,     setSlotError]     = useState('');
+  /* Taking somebody off a bill is irreversible-looking and affects a real
+     person, so it states exactly what it will do and waits. */
+  const [confirmRemove, setConfirmRemove] = useState(null);
   const [viewAsPunter,  setViewAsPunter]  = useState(false);
   const [goLiveConfirm, setGoLiveConfirm] = useState(false);
   // Everyone still queued for a date that has just been locked in. null until
@@ -76,10 +89,10 @@ export default function EventHostView({
   const isHost = true;
   const effectiveIsHost = !viewAsPunter;
 
-  // `localDays` is the optimistic copy the slot editor writes to. It only ever
-  // diverges from the fetched config between a save and the refetch, and it is
-  // host state — which is why it lives here and not in useEventData.
-  const effectiveDays = localDays ?? days;
+  // L4 · `days` comes from `event_slots` and a save is a one-row update, so
+  // there is nothing left for an optimistic copy to smooth over. `localDays` is
+  // gone with the blob rewrite it existed to hide.
+  const effectiveDays = days;
 
   // Load applications + profiles for host
   useEffect(() => {
@@ -97,7 +110,12 @@ export default function EventHostView({
         .order('created_at', { ascending: false });
       if (cancelled) return;
       const rows = apps || [];
-      setAppCounts({ total: rows.length, shortlisted: rows.filter(a => a.status === 'tentative').length });
+      // Same normaliser as the tab below it — a header that disagrees with the
+      // list it sits above is worse than no header.
+      setAppCounts({
+        total: rows.length,
+        shortlisted: rows.filter(a => normaliseStatus({ status: a.status, direction: 'incoming' }) === 'shortlisted').length,
+      });
       setAllApps(rows);
       // M6 · keyed by applications.id, resolved by from_profile_id with the
       // legacy account fallback — see lib/applicantProfiles.js.
@@ -109,39 +127,70 @@ export default function EventHostView({
     return () => { cancelled = true; };
   }, [id, session?.user?.id]);
 
+  /**
+   * Clearing ONE slot from the set-times grid.
+   *
+   * ⭐ THE SAME ACT AS "CLEAR SET TIME" ON THE LINEUP TAB, so it goes through
+   * the same rules — ⛔ it used to carry its own copy, and they disagreed: this
+   * one notified on ANY status (including a draft nobody was sent) and wrote
+   * `tentative` back onto the applicant's row.
+   *
+   * ⚠ SCOPED TO THE ONE SLOT, not to the member. An act playing two slots keeps
+   * the other one, which is why `planUnassign` is given a single performance
+   * here rather than everything the member holds.
+   */
   async function removeArtist(slotId) {
     const claim = claims[slotId];
     if (!claim) return;
-    await supabase.from('performances').delete().eq('id', claim.id);
-    if (claim?.user_id) {
-      await Promise.all([
-        // §A7: about = the event's owner, whose lineup decision this is.
-        writeNotification({
-          toUserId:       claim.user_id,
-          toProfileId:    (await resolvePerformerProfileId(claim.user_id)).profileId ?? null,
-          aboutProfileId: event.owner_profile_id ?? null,
-          type:    'slot_removed',
-          message: `You have been removed from a slot at ${event.name}.`,
-          data:    { event_id: id, event_name: event.name },
-        }),
-        // M6 · narrow to the profile whose slot this was. Scoped by account,
-        // removing one alias from a slot reset every application that person
-        // had to this event.
-        scopeToApplicant(
-          supabase.from('applications').update({ status: 'tentative' }).eq('event_id', id),
-          claim.profile_id, claim.user_id,
-        ).in('status', ['offered', 'accepted']),
-      ]);
-      // The optimistic update must match the query above, or the screen and
-      // the database disagree until the next refetch.
-      const affected = a => (claim.profile_id ? a.from_profile_id === claim.profile_id
-                                              : a.artist_id === claim.user_id);
-      setAllApps(prev => prev.map(a =>
-        affected(a) && (a.status === 'offered' || a.status === 'accepted')
-          ? { ...a, status: 'tentative' }
-          : a
-      ));
+    const member = lineupMembers.find(m => m.id === claim.member_id);
+    if (!member) return;
+    const thisPerf = memberPerfs(member.id).filter(p => p.id === claim.id);
+    await runLineupAction(planUnassign(member, thisPerf), member);
+  }
+
+  /** Every performance a member holds — the array, not the last one. */
+  function memberPerfs(memberId) {
+    return perfsByMember[memberId] || [];
+  }
+
+  /**
+   * ⭐ ONE EXECUTOR FOR BOTH LINEUP ACTIONS.
+   *
+   * The plan says what happens; this does it and tells the artist only what
+   * they were actually told about. `lib/lineupActions` holds the rules and the
+   * reasoning — ⛔ do not re-derive either here.
+   */
+  async function runLineupAction(plan, member) {
+    /**
+     * ⚠ WHAT THE PLAN IS ACTUALLY REMOVING, not everything the member holds.
+     * Clearing one slot from the grid must not notify about a second slot they
+     * still have — and `removeArtist` passes exactly one performance for that
+     * reason.
+     */
+    const acting = memberPerfs(member.id).filter(p => plan.deletePerformanceIds.includes(p.id));
+    const sent   = notifiablePerformances(acting);
+    const { ok, error } = await applyLineupPlan(supabase, plan);
+    if (!ok) { setSlotError(error || 'That change was not saved.'); return; }
+
+    /**
+     * ⚠ ONLY IF THEY WERE EVER SENT SOMETHING. A `draft` slot was never
+     * announced, so "you have been removed from a slot" would announce the
+     * booking and cancel it in one message. And a hand-entered act has no
+     * account to write to at all.
+     */
+    if (sent.length && isReachable(member)) {
+      await writeNotification({
+        toUserId:       member.artist_id,
+        toProfileId:    (await resolvePerformerProfileId(member.artist_id)).profileId ?? null,
+        aboutProfileId: event.owner_profile_id ?? null,
+        type:    'slot_removed',
+        message: plan.kind === 'remove-from-bill'
+          ? `You are no longer on the lineup for ${event.name}.`
+          : `Your set time at ${event.name} has been removed. You are still on the lineup.`,
+        data:    { event_id: id, event_name: event.name },
+      });
     }
+    setConfirmRemove(null);
     queryClient.invalidateQueries({ queryKey: ['event', id] });
   }
 
@@ -182,9 +231,13 @@ export default function EventHostView({
         });
         await Promise.all([...applicants.values()].map(({ pid, uid }) =>
           scopeToApplicant(
-            supabase.from('applications').update({ status: 'offered' }).eq('event_id', id),
+            /* ⚠ `accepted`, NOT `offered`. Sending someone a set time means the
+               HOST has said yes — that is the host decision this column
+               records. The OFFER itself is `performances.status='offered'` +
+               `offered_at`, which the update above already wrote. */
+            supabase.from('applications').update({ status: 'accepted' }).eq('event_id', id),
             pid, uid,
-          ).in('status', ['pending', 'tentative'])
+          ).in('status', [...rawStatusesFor('new'), ...rawStatusesFor('shortlisted')])
         ));
       }
     }
@@ -205,35 +258,65 @@ export default function EventHostView({
     queryClient.invalidateQueries({ queryKey: ['event', id] });
   }
 
-  async function saveSlot(dayIdx, slotIdx, updated) {
-    const baseDays = localDays ?? (event.config?.days || []);
-    const newDays = baseDays.map((day, di) =>
-      di !== dayIdx ? day : {
-        ...day,
-        slots: day.slots.map((sl, si) => si !== slotIdx ? sl : { ...sl, ...updated }),
-      }
-    );
-    await supabase.from('events').update({ config: { ...event.config, days: newDays } }).eq('id', id);
-    setLocalDays(newDays);
+  /**
+   * L4 · A SLOT EDIT IS A ROW UPDATE.
+   *
+   * ⭐ This used to rebuild the whole `config.days` array and write the entire
+   * blob back, which is why `localDays` existed: the write was slow, total, and
+   * raced anything else editing the same event. One row, one update — so the
+   * optimistic copy has nothing left to be optimistic about and is gone.
+   *
+   * ⚠ `dur` ARRIVES AS A NUMBER OR NULL from SlotEditModal. `dur_mins` is NOT
+   * NULL with a default, so a cleared field must fall back rather than write
+   * null — otherwise clearing the duration would fail the constraint and the
+   * save would silently do nothing.
+   */
+  async function saveSlot(slotId, updated) {
+    const { error } = await supabase.from('event_slots').update({
+      time:        updated.time || null,
+      ampm:        updated.ampm || null,
+      dur_mins:    Number.isFinite(Number(updated.dur)) && Number(updated.dur) > 0 ? Number(updated.dur) : 60,
+      label:       updated.label || null,
+      label_color: updated.labelColor || null,
+      updated_at:  new Date().toISOString(),
+    }).eq('id', slotId);
+    if (error) { setSlotError(error.message); return; }
     setEditingSlot(null);
+    queryClient.invalidateQueries({ queryKey: ['event', id] });
   }
 
-  async function togglePin(dayIdx, slotIdx) {
-    const baseDays = localDays ?? (event.config?.days || []);
-    const slot = baseDays[dayIdx]?.slots?.[slotIdx];
-    if (!slot) return;
-    const newDays = baseDays.map((day, di) =>
-      di !== dayIdx ? day : {
-        ...day,
-        slots: day.slots.map((sl, si) => si !== slotIdx ? sl : { ...sl, pinned: !sl.pinned }),
-      }
-    );
-    await supabase.from('events').update({ config: { ...event.config, days: newDays } }).eq('id', id);
-    setLocalDays(newDays);
+  /**
+   * ⚠ THE CURRENT VALUE IS PASSED IN, not re-derived from an index.
+   *
+   * The old version looked the slot up by `days[dayIdx].slots[slotIdx]`, so any
+   * reorder between render and click pinned the wrong slot. The card knows
+   * which slot it is; it says so.
+   */
+  async function togglePin(slot) {
+    if (!slot?.id) return;
+    const { error } = await supabase.from('event_slots')
+      .update({ pinned: !slot.pinned, updated_at: new Date().toISOString() })
+      .eq('id', slot.id);
+    if (error) { setSlotError(error.message); return; }
+    queryClient.invalidateQueries({ queryKey: ['event', id] });
   }
 
-  const shortList  = allApps.filter(a => a.status === 'tentative');
-  const pipeline   = allApps.filter(a => a.status === 'pending');
+  /**
+   * ⚠⚠ THESE TWO TABS WERE PERMANENTLY EMPTY ON EVERY EVENT.
+   *
+   * `'tentative'` and `'pending'` have ZERO rows in production. The host
+   * surfaces write through `EnquiryCard`, whose buttons emit the enquiry
+   * vocabulary (`seen` / `shortlisted` / `accepted` / `declined`), while these
+   * filters were written against the older booking vocabulary. Neither filter
+   * has matched a real row since the two diverged.
+   *
+   * ⭐ `normaliseStatus` is the one place both vocabularies already meet, and
+   * it sends anything unrecognised to 'new' rather than dropping it — so an
+   * application can no longer become invisible by being spelled differently.
+   */
+  const bucketOf   = a => normaliseStatus({ status: a.status, direction: 'incoming' });
+  const shortList  = allApps.filter(a => bucketOf(a) === 'shortlisted');
+  const pipeline   = allApps.filter(a => bucketOf(a) === 'new');
 
   async function doAssign(slot) {
     if (!assigningApp) return;
@@ -261,7 +344,9 @@ export default function EventHostView({
       lineup_member_id: memberData.id, event_id: id, slot_id: slot.id, status: 'offered',
     }).select('id').single();
     await Promise.all([
-      supabase.from('applications').update({ status: 'offered' }).eq('id', aApp.id),
+      /* Same rule as publishSetTimes: giving somebody a slot IS the host
+         saying yes. The slot offer lives on the performance created above. */
+      supabase.from('applications').update({ status: 'accepted' }).eq('id', aApp.id),
       writeNotification({
         toUserId:       aApp.artist_id,
         toProfileId:    (await resolvePerformerProfileId(aApp.artist_id)).profileId ?? null,
@@ -271,7 +356,9 @@ export default function EventHostView({
         data:    { performance_id: perf?.id, event_id: id, event_name: event.name, slot_id: slot.id, slot_time: slotTime, artist_name: artistName, host_id: session?.user?.id },
       }),
     ]);
-    setAllApps(prev => prev.map(a => a.id === aApp.id ? { ...a, status: 'offered' } : a));
+    // The optimistic update must match the write above, or the screen and the
+    // database disagree until the next refetch.
+    setAllApps(prev => prev.map(a => a.id === aApp.id ? { ...a, status: 'accepted' } : a));
     queryClient.invalidateQueries({ queryKey: ['event', id] });
     setAssigningApp(null);
   }
@@ -412,6 +499,18 @@ export default function EventHostView({
         />
       )}
 
+      {/* ⚠ A SLOT WRITE THAT FAILED MUST SAY SO. RLS filters an UPDATE rather
+          than erroring it, so a silent failure looks exactly like success —
+          which is how 22 events sat un-editable without anyone noticing. */}
+      {effectiveIsHost && showEditor && slotError && (
+        <div role="alert" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '10px 14px', marginBottom: 12, borderRadius: 10, background: 'rgba(255,45,120,.1)', border: '1px solid rgba(255,45,120,.35)' }}>
+          <span style={{ fontSize: 12.5, color: '#FF2D78', lineHeight: 1.5 }}>
+            That slot could not be saved. Nothing was changed. {slotError}
+          </span>
+          <button onClick={() => setSlotError('')} style={{ background: 'none', border: 'none', color: '#FF2D78', fontSize: 18, cursor: 'pointer', lineHeight: 1, padding: 0, flexShrink: 0 }}>×</button>
+        </div>
+      )}
+
       <div style={{ minHeight: (effectiveIsHost && showEditor && eventTab !== 'SET_TIMES') ? '60vh' : 0 }}>
 
       {/* Set times toggle — SET_TIMES tab, editor mode */}
@@ -512,13 +611,16 @@ export default function EventHostView({
               // has a profile and no artist_id, and the old lookup returned
               // null for every one of them.
               const prof = memberProfiles[member.id] || null;
-              const perf = memberPerfMap[member.id];
-              let badge, badgeColor;
-              if (!perf)                       { badge = 'ON BILL';   badgeColor = 'rgba(255,255,255,.35)'; }
-              else if (perf.status === 'draft')    { badge = 'DRAFT';     badgeColor = 'rgba(255,255,255,.35)'; }
-              else if (perf.status === 'offered')  { badge = 'AWAITING';  badgeColor = '#FF8C42'; }
-              else if (perf.status === 'accepted') { badge = 'CONFIRMED'; badgeColor = '#00E5A0'; }
-              else if (perf.status === 'declined') { badge = 'DECLINED';  badgeColor = '#FF3399'; }
+              /**
+               * ⭐ ONE DEFINITION OF WHAT STATE AN ACT IS IN, shared with the
+               * host dashboard. This ladder was written out longhand here and
+               * again there, and they had already drifted: this one read the
+               * LAST performance per member and had no rule for a hand-entered
+               * act, so somebody typed in by the organiser showed as AWAITING a
+               * reply from nobody, forever.
+               */
+              const badge      = memberState(member, memberPerfs(member.id));
+              const badgeColor = STATE_COLOURS[badge];
               const cardItem = {
                 // ProfileCard routes on `id` first and falls back to user_id.
                 // An unclaimed imported profile has no user, so without the id
@@ -539,32 +641,22 @@ export default function EventHostView({
                 <ProfileCard key={member.id} item={cardItem} badge={badge} badgeColor={badgeColor}
                   actions={
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                      <button onClick={async () => {
-                        await supabase.from('performances').delete().eq('lineup_member_id', member.id);
-                        await supabase.from('lineup_members').delete().eq('id', member.id);
-                        // M6 · narrow to the PROFILE the host actually booked.
-                        // Scoped by account, a DJ with a band alias had both
-                        // applications to this event flipped by unassigning one.
-                        if (member.artist_profile_id || member.artist_id) {
-                          await scopeToApplicant(
-                            supabase.from('applications').update({ status: 'tentative' }).eq('event_id', id),
-                            member.artist_profile_id, member.artist_id,
-                          ).neq('status', 'declined');
-                        }
-                        queryClient.invalidateQueries({ queryKey: ['event', id] });
-                      }} style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1, padding: '4px 10px', borderRadius: 6, border: '1px solid rgba(255,140,66,.4)', background: 'rgba(255,140,66,.08)', color: '#FF8C42', cursor: 'pointer', whiteSpace: 'nowrap' }}>UNASSIGN</button>
-                      <button onClick={async () => {
-                        await supabase.from('performances').delete().eq('lineup_member_id', member.id);
-                        await supabase.from('lineup_members').delete().eq('id', member.id);
-                        // M6 · same narrowing as UNASSIGN above.
-                        if (member.artist_profile_id || member.artist_id) {
-                          await scopeToApplicant(
-                            supabase.from('applications').update({ status: 'declined' }).eq('event_id', id),
-                            member.artist_profile_id, member.artist_id,
-                          );
-                        }
-                        queryClient.invalidateQueries({ queryKey: ['event', id] });
-                      }} style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1, padding: '4px 10px', borderRadius: 6, border: '1px solid rgba(255,51,51,.3)', background: 'rgba(255,51,51,.06)', color: 'rgba(255,80,80,.8)', cursor: 'pointer', whiteSpace: 'nowrap' }}>DISCARD</button>
+                      {/* ⚠⚠ THESE TWO WERE THE SAME OPERATION. Both deleted the
+                          performances AND the lineup_members row; only the
+                          write-back to `applications` differed, so the record
+                          the action did NOT touch was the one that decided how
+                          destructive it was. See lib/lineupActions.
+
+                          ⛔ CLEAR SET TIME is only offered when there IS one.
+                          A control that acts on nothing is not a control. */}
+                      {memberPerfs(member.id).length > 0 && (
+                        <button onClick={() => runLineupAction(planUnassign(member, memberPerfs(member.id)), member)}
+                          style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1, padding: '4px 10px', borderRadius: 6, border: '1px solid rgba(255,140,66,.4)', background: 'rgba(255,140,66,.08)', color: '#FF8C42', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                          title="Take back the set time. They stay on the bill.">CLEAR SET TIME</button>
+                      )}
+                      <button onClick={() => setConfirmRemove({ member, perfs: memberPerfs(member.id) })}
+                        style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1, padding: '4px 10px', borderRadius: 6, border: '1px solid rgba(255,51,51,.3)', background: 'rgba(255,51,51,.06)', color: 'rgba(255,80,80,.8)', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                        title="Take them off the bill entirely.">REMOVE FROM BILL</button>
                     </div>
                   }
                 />
@@ -615,7 +707,7 @@ export default function EventHostView({
                 <ProfileCard key={app.id} item={cardItem}
                   actions={
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                      <button onClick={() => { supabase.from('applications').update({ status: 'tentative' }).eq('id', app.id); setAllApps(prev => prev.map(a => a.id === app.id ? { ...a, status: 'tentative' } : a)); }} style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1, padding: '4px 10px', borderRadius: 6, border: '1px solid rgba(0,229,255,.4)', background: 'rgba(0,229,255,.08)', color: 'var(--neon2)', cursor: 'pointer', whiteSpace: 'nowrap' }}>SHORTLIST</button>
+                      <button onClick={() => { supabase.from('applications').update({ status: 'shortlisted' }).eq('id', app.id); setAllApps(prev => prev.map(a => a.id === app.id ? { ...a, status: 'shortlisted' } : a)); }} style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1, padding: '4px 10px', borderRadius: 6, border: '1px solid rgba(0,229,255,.4)', background: 'rgba(0,229,255,.08)', color: 'var(--neon2)', cursor: 'pointer', whiteSpace: 'nowrap' }}>SHORTLIST</button>
                       <button onClick={() => { supabase.from('applications').update({ status: 'declined' }).eq('id', app.id); setAllApps(prev => prev.map(a => a.id === app.id ? { ...a, status: 'declined' } : a)); }} style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1, padding: '4px 10px', borderRadius: 6, border: '1px solid rgba(255,51,51,.3)', background: 'rgba(255,51,51,.06)', color: 'rgba(255,80,80,.8)', cursor: 'pointer', whiteSpace: 'nowrap' }}>DECLINE</button>
                     </div>
                   }
@@ -664,7 +756,7 @@ export default function EventHostView({
       {editingSlot && (
         <SlotEditModal
           slot={editingSlot.slot}
-          onSave={updated => saveSlot(editingSlot.dayIdx, editingSlot.slotIdx, updated)}
+          onSave={updated => saveSlot(editingSlot.slot.id, updated)}
           onClose={() => setEditingSlot(null)}
         />
       )}
@@ -806,13 +898,61 @@ export default function EventHostView({
         </div>
       )}
 
+      {/**
+        * ⭐ TAKING SOMEBODY OFF A BILL STATES WHAT IT WILL DO, AND WHAT IT WILL
+        * NOT. The old DISCARD button did this instantly, hard-deleted the row,
+        * and silently wrote `declined` onto their application.
+        *
+        * ⚠ THE DESTRUCTIVE BUTTON IS ON THE LEFT. Same rule the publish sweep
+        * had to learn: whatever occupies the position of the click that opened
+        * a sheet must be the harmless choice. REMOVE FROM BILL sits in the
+        * card's right-hand action column, so CANCEL takes the right.
+        */}
+      {confirmRemove && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.75)', zIndex: 3000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', paddingBottom: 'var(--yp-safe-bottom)' }}
+          onClick={e => e.target === e.currentTarget && setConfirmRemove(null)}>
+          <div style={{ background: '#0f0f1a', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 480, padding: '28px 24px 40px', border: '1px solid rgba(255,255,255,.08)', borderBottom: 'none' }}>
+            <div style={{ fontFamily: "'Bebas Neue'", fontSize: 18, letterSpacing: 2, color: '#fff' }}>
+              Take {confirmRemove.member.artist_name || 'this act'} off the bill?
+            </div>
+            <div style={{ fontSize: 13, color: 'rgba(255,255,255,.6)', marginTop: 8, lineHeight: 1.6 }}>
+              {(() => {
+                const sent = notifiablePerformances(confirmRemove.perfs).length;
+                const held = confirmRemove.perfs.length;
+                const parts = [];
+                if (held) parts.push(`Their ${held === 1 ? 'set time' : `${held} set times`} will be cleared.`);
+                if (sent && isReachable(confirmRemove.member)) parts.push('They will be told.');
+                else if (held) parts.push('Nothing was sent to them, so they will not be notified.');
+                return parts.join(' ') || 'They hold no set times, so nothing else changes.';
+              })()}
+            </div>
+            {/* ⚠ Says what is NOT touched, so nobody has to wonder whether this
+                also rejected their application. It does not: declining an
+                applicant is its own control, on the SHORT LIST. */}
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,.4)', marginTop: 10, lineHeight: 1.5 }}>
+              Their application is left exactly as it is, and you can put them back on the bill later.
+            </div>
+            <div style={{ display: 'flex', gap: 10, marginTop: 24 }}>
+              <button onClick={() => runLineupAction(planRemoveFromBill(confirmRemove.member, confirmRemove.perfs), confirmRemove.member)}
+                style={{ flex: 1, padding: '13px 0', fontFamily: "'Bebas Neue'", fontSize: 14, letterSpacing: 1.5, borderRadius: 10, border: 'none', background: '#FF2D78', color: '#0a0a14', cursor: 'pointer' }}>
+                REMOVE FROM BILL
+              </button>
+              <button onClick={() => setConfirmRemove(null)}
+                style={{ flex: 1, padding: '13px 0', fontFamily: "'Bebas Neue'", fontSize: 14, letterSpacing: 1.5, borderRadius: 10, border: '1px solid rgba(255,255,255,.15)', background: 'none', color: 'rgba(255,255,255,.55)', cursor: 'pointer' }}>
+                CANCEL
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {fillSlot && (
         <FillSlotModal
           slot={fillSlot.slot}
           eventId={id}
           eventName={event?.name || ''}
           hostId={session?.user?.id}
-          acceptedArtists={allApps.filter(a => a.status === 'tentative')}
+          acceptedArtists={shortList}
           acceptedProfiles={appProfiles}
           onFilled={() => { setFillSlot(null); queryClient.invalidateQueries({ queryKey: ['event', id] }); }}
           onClose={() => setFillSlot(null)}
@@ -832,14 +972,23 @@ export default function EventHostView({
               <button onClick={() => setAssigningApp(null)} style={{ background: 'none', border: 'none', color: 'var(--muted)', fontSize: 24, cursor: 'pointer', padding: 0, lineHeight: 1 }}>×</button>
             </div>
             <div style={{ overflowY: 'auto', flex: 1, padding: '12px 20px 32px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {(localDays ?? days).flatMap(d => d.slots || []).length === 0 && (
+              {days.flatMap(d => d.slots || []).length === 0 && (
                 <p style={{ textAlign: 'center', color: 'var(--muted)', fontSize: 13, padding: '24px 0' }}>No slots yet — add slots in the LINEUP editor first.</p>
               )}
-              {(localDays ?? days).flatMap(d => d.slots || []).map(slot => {
+              {days.flatMap(d => d.slots || []).map(slot => {
                 const existing = claims[slot.id];
                 const isFilled = existing && existing.status !== 'declined';
                 const timeLabel = [slot.time, slot.ampm].filter(Boolean).join(' ');
-                const durLabel  = slot.dur ? (slot.dur >= 60 ? `${slot.dur / 60}hr` : `${slot.dur}m`) : '';
+                /* ⚠ WAS `slot.dur >= 60 ? … : `${slot.dur}m``, which printed
+                   `1.5 hrsm` for every slot whose `dur` was the string
+                   "1.5 hrs" — the comparison is false against a string, so it
+                   fell to the minutes branch and concatenated the unit twice.
+                   `durationLabel` is the one formatter now. */
+                const durLabel  = durationLabel(slot.dur);
+                /* Every act on the slot, not just the one the map picked. On a
+                   contested slot "Currently: X" was naming one of two at
+                   random. */
+                const onSlot    = claimsBySlot[slot.id] || (existing ? [existing] : []);
                 return (
                   <button key={slot.id} onClick={() => doAssign(slot)}
                     style={{
@@ -852,7 +1001,7 @@ export default function EventHostView({
                       <div style={{ fontFamily: "'Bebas Neue'", fontSize: 14, letterSpacing: 1, color: isFilled ? 'rgba(255,255,255,.5)' : '#fff' }}>
                         {timeLabel}{durLabel ? ` — ${durLabel}` : ''}{slot.label ? ` · ${slot.label}` : ''}
                       </div>
-                      {isFilled && <div style={{ fontSize: 11, color: 'rgba(255,255,255,.3)', marginTop: 2 }}>Currently: {existing.name}</div>}
+                      {isFilled && <div style={{ fontSize: 11, color: 'rgba(255,255,255,.3)', marginTop: 2 }}>Currently: {onSlot.map(c => c.name).filter(Boolean).join(' · ')}</div>}
                     </div>
                     <span style={{ fontSize: 11, fontFamily: "'Bebas Neue'", letterSpacing: 1, color: isFilled ? 'rgba(255,255,255,.3)' : '#00E5A0', flexShrink: 0, marginLeft: 12 }}>
                       {isFilled ? 'REASSIGN' : 'OPEN →'}
@@ -910,9 +1059,9 @@ export default function EventHostView({
       host={{
         effectiveIsHost, showEditor, eventTab, isLocked,
         onFill:   slot          => setFillSlot({ slot }),
-        onEdit:   (di, si, slot) => setEditingSlot({ dayIdx: di, slotIdx: si, slot }),
-        onRemove: slot          => removeArtist(slot.id),
-        onPin:    (di, si)      => togglePin(di, si),
+        onEdit:   slot => setEditingSlot({ slot }),
+        onRemove: slot => removeArtist(slot.id),
+        onPin:    slot => togglePin(slot),
       }}
     />
   );

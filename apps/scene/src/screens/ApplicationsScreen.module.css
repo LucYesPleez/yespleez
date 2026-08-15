@@ -161,8 +161,17 @@
   flex-shrink: 0;
 }
 
+/* The normalised buckets. Colours match STATUS_TAB_COLOR in lib/enquiryUtils
+   so this pill agrees with every other surface that shows the same state.
+   ⛔ The raw spellings below them are kept only so a row that has not been
+   through the normaliser still renders styled rather than bare. */
+.status[data-status="new"]         { color: var(--gold);  border-color: var(--gold); }
+.status[data-status="seen"]        { color: #FF8C42;      border-color: #FF8C42; }
+.status[data-status="shortlisted"] { color: #00B4D8;      border-color: #00B4D8; }
+.status[data-status="accepted"]    { color: var(--green); border-color: var(--green); }
+.status[data-status="declined"]    { color: var(--muted); border-color: var(--muted); }
+
 .status[data-status="pending"]  { color: var(--gold);  border-color: var(--gold); }
-.status[data-status="accepted"] { color: var(--green); border-color: var(--green); }
 .status[data-status="rejected"] { color: var(--muted); border-color: var(--muted); }
 .status[data-status="invited"]  { color: var(--neon2); border-color: var(--neon2); }
 

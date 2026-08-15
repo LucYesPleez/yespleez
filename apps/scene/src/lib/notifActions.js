@@ -1,7 +1,7 @@
 import { supabase } from './supabase';
 import { writeNotification, inferToProfileId } from './writeNotification';
 import { resolvePerformerProfileId } from './actingProfile';
-import { scopeToApplicant } from './applicantProfiles';
+
 
 /**
  * Remove a notification from the recipient's inbox WITHOUT destroying it.
@@ -76,31 +76,21 @@ export async function markResponded(id) {
  * the note in writeNotification.js.
  */
 /**
- * Which PROFILE was offered this slot.
+ * ⛔ `offeredProfileId` AND THE `scopeToApplicant` IMPORT ARE GONE.
  *
- * The two status updates below narrowed by `artist_id` — the account — so a
- * person with a DJ act and a band could accept a slot offered to one and flip
- * the other's application row for the same event. The offer itself is not
- * ambiguous: a performance names a lineup member, and a lineup member names
- * the profile the host booked. That is the answer, so ask for it.
+ * Both existed solely to narrow the `applications` writes that accept/decline
+ * used to make — scoping them to the right profile so that a person with a DJ
+ * act and a band could not accept a slot offered to one and flip the other's
+ * application row.
  *
- * Returns null for a manually-typed lineup entry (`fillManual` writes a name
- * and no profile) — the caller then keeps the account filter, which is the
- * pre-identity behaviour and no worse than before.
+ * ⭐ Those writes are removed (ratified 2026-08-15: the artist's answer lives on
+ * `performances`, and `applications` records the host's decision). The bug the
+ * scoping defended against cannot occur if nothing reaches across in the first
+ * place — a whole class of ambiguity deleted rather than guarded.
+ *
+ * ⚠ `scopeToApplicant` itself still lives in lib/applicantProfiles.js and is
+ * still used by three other call sites. Only this file's use of it is gone.
  */
-async function offeredProfileId(performanceId) {
-  if (!performanceId) return null;
-  const { data: perf } = await supabase.from('performances')
-    .select('lineup_member_id').eq('id', performanceId).maybeSingle();
-  if (!perf?.lineup_member_id) return null;
-  const { data: member } = await supabase.from('lineup_members')
-    .select('artist_profile_id').eq('id', perf.lineup_member_id).maybeSingle();
-  return member?.artist_profile_id ?? null;
-}
-
-// `scopeToApplicant` moved to lib/applicantProfiles.js at M6 completion: three
-// other call sites needed the same profile-first-with-account-fallback rule,
-// and a second copy of it is how the two drift apart.
 
 async function hostNoticeIdentities(hostUserId, artistUserId) {
   const [toProfileId, performer] = await Promise.all([
@@ -110,15 +100,28 @@ async function hostNoticeIdentities(hostUserId, artistUserId) {
   return { toProfileId, aboutProfileId: performer.profileId ?? null };
 }
 
+/**
+ * ⭐⭐ THE ARTIST'S ANSWER LIVES ON `performances`, AND NOWHERE ELSE.
+ *
+ * ⛔ THE `applications` WRITE IS GONE (ratified 2026-08-15). This used to also
+ * set `applications.status = 'confirmed'`, which is the exact conflation the
+ * application state machine exists to end: `applications.status` records the
+ * HOST's decision, and an artist accepting a slot is not a host decision. The
+ * host already said yes — that is what produced the offer.
+ *
+ * ⚠ `confirmed` was the ONLY status this line ever wrote, and it is retired.
+ * The forensic trace of the single production row carrying it (application
+ * f8e03ca7) is why: its meaning could not be read off the row at all, only
+ * recovered from git history.
+ *
+ * `performances.status = 'accepted'` + `accepted_at` is now the whole record of
+ * the artist agreeing, which is what every surface should read.
+ */
 export async function acceptSlotOffer(data, userId) {
   if (data.performance_id) {
-    await supabase.from('performances').update({ status: 'accepted' }).eq('id', data.performance_id);
-  }
-  if (data.event_id && userId) {
-    await scopeToApplicant(
-      supabase.from('applications').update({ status: 'confirmed' }).eq('event_id', data.event_id),
-      await offeredProfileId(data.performance_id), userId,
-    ).in('status', ['offered', 'accepted']);
+    await supabase.from('performances')
+      .update({ status: 'accepted', accepted_at: new Date().toISOString() })
+      .eq('id', data.performance_id);
   }
   if (data.host_id) {
     await writeNotification({
@@ -131,15 +134,20 @@ export async function acceptSlotOffer(data, userId) {
   }
 }
 
+/**
+ * ⛔ THE `applications` WRITE IS GONE HERE TOO. Declining a slot used to reset
+ * the application to `tentative`, i.e. to walk the HOST's decision backwards
+ * because the ARTIST said no. The host still wants them; they simply cannot
+ * play that slot.
+ *
+ * ⚠ NOTHING IS LOST. `performances.status = 'declined'` is the signal, and the
+ * Lineup surface renders it as DECLINED against that act — which is more
+ * precise than the old behaviour, because it says WHICH slot was turned down
+ * rather than quietly demoting the whole application.
+ */
 export async function declineSlotOffer(data, userId) {
   if (data.performance_id) {
     await supabase.from('performances').update({ status: 'declined' }).eq('id', data.performance_id);
-  }
-  if (data.event_id && userId) {
-    await scopeToApplicant(
-      supabase.from('applications').update({ status: 'tentative' }).eq('event_id', data.event_id),
-      await offeredProfileId(data.performance_id), userId,
-    ).in('status', ['offered', 'accepted']);
   }
   if (data.host_id) {
     await writeNotification({
@@ -198,7 +206,11 @@ export async function acceptInvite(data, userId, invitedProfileId = null) {
     event_id:        data.event_id,
     artist_id:       userId,
     from_profile_id: profileId ?? null,
-    status:          'tentative',
+    /* ⚠ RENAME ONLY, semantics unchanged: `tentative` and `shortlisted` were
+       always the same bucket. An accepted invite lands on the short list, where
+       it landed before — ⛔ NOT on `accepted`, which would silently promote an
+       invite into a booking decision the host has not made. */
+    status:          'shortlisted',
   });
   if (data.host_id) {
     await writeNotification({

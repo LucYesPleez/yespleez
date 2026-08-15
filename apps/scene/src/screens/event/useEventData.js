@@ -13,6 +13,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../../lib/supabase';
 import { memberProfileKeys, indexMemberProfiles } from './lineupProfiles';
+import { groupSlotsIntoDays, indexPerformances } from '../../lib/eventSlots';
 import { tallySlots } from './slotTally';
 
 export const EVENT_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -88,39 +89,35 @@ export function useEventData(id, navigate) {
       const byId = Object.fromEntries((coHostRowsFull || []).map(p => [p.id, p]));
       const coHostProfiles = coHostIds.map(pid => byId[pid]).filter(Boolean);
 
-      const [{ data: membersData }, { data: perfsData }] = await Promise.all([
+      /**
+       * L4 · SLOTS COME FROM `event_slots`, NOT FROM `config.days`.
+       *
+       * ⭐ The claim map and the day array are both built in `lib/eventSlots`
+       * now — see that file for why one slot can hold several acts and why the
+       * winner used to change between page loads.
+       *
+       * ⚠ `slot_uuid` is what keys everything from here on. `slot_id` is still
+       * SELECTed only so a row can be traced back to the blob it came from; ⛔
+       * nothing may key on it again.
+       */
+      const [{ data: membersData }, { data: perfsData }, { data: slotRows }] = await Promise.all([
         supabase.from('lineup_members').select('id, artist_id, artist_profile_id, artist_name, genre, sound, card_pills').eq('event_id', id).neq('status', 'removed'),
-        supabase.from('performances').select('id, lineup_member_id, slot_id, status').eq('event_id', id),
+        supabase.from('performances').select('id, lineup_member_id, slot_id, slot_uuid, status').eq('event_id', id),
+        supabase.from('event_slots').select('id, event_id, day_index, day_name, position, legacy_key, time, ampm, dur_mins, label, label_color, pinned')
+          .eq('event_id', id).order('day_index').order('position'),
       ]);
       const membersById = {};
       (membersData || []).forEach(m => { membersById[m.id] = m; });
-      const map = {};
-      (perfsData || []).forEach(p => {
-        if (!p.slot_id) return;
-        const member = membersById[p.lineup_member_id];
-        if (!member) return;
-        const status = p.status === 'accepted' ? 'confirmed'
-          : p.status === 'declined' ? 'declined'
-          : p.status === 'draft'    ? 'draft'
-          : !member.artist_id ? 'confirmed'
-          : 'offered';
-        map[p.slot_id] = {
-          id:         p.id,
-          member_id:  member.id,
-          slot_id:    p.slot_id,
-          user_id:    member.artist_id || null,
-          profile_id: member.artist_profile_id || null,
-          name:       member.artist_name || null,
-          genre:      member.genre || null,
-          sound:      member.sound || null,
-          card_pills: member.card_pills || null,
-          status,
-        };
-      });
+      const { bySlot: claimsBySlot, primary: map } = indexPerformances(perfsData, membersById);
+      const slotDays = groupSlotsIntoDays(slotRows);
       // M5.1 (D1): socials resolve by the slot's own profile id — deterministic
       // for multi-profile owners (replaces undefined row-order behaviour);
       // legacy user_id join kept only for rows without a profile id.
-      const claimList = Object.values(map);
+      //
+      // ⚠ EVERY act on a contested slot is enriched, not just the one the grid
+      // happens to show. Enriching `map` alone would leave the second act on
+      // `sat_1` with no avatar and no links the moment anything renders it.
+      const claimList = Object.values(claimsBySlot).flat();
       const socialCols = 'id, user_id, mix_link, soundcloud, mixcloud, instagram, facebook, youtube, website, genre_string, sound';
       const pidClaims = claimList.filter(c => c.profile_id);
       const uidClaims = claimList.filter(c => !c.profile_id && c.user_id);
@@ -154,9 +151,18 @@ export function useEventData(id, navigate) {
         if (!slot.genre && p.genre_string) slot.genre = p.genre_string;
         if (!slot.sound && p.sound)        slot.sound = p.sound;
       });
-      // Build member → performance map for the Lineup tab
-      const memberPerfMap = {};
-      (perfsData || []).forEach(p => { memberPerfMap[p.lineup_member_id] = p; });
+      /**
+       * Member → EVERY performance they hold.
+       *
+       * ⛔ THIS REPLACED A `memberPerfMap` THAT KEPT ONLY THE LAST ROW per
+       * member. That was survivable for a badge and wrong for an action: an act
+       * playing two slots would have had one silently left behind by a "clear
+       * set time" built on it, and the badge itself reported whichever row the
+       * planner happened to return last. ⛔ Do not reintroduce a one-per-member
+       * map — `memberState` and `lib/lineupActions` both take the array.
+       */
+      const perfsByMember = {};
+      (perfsData || []).forEach(p => { (perfsByMember[p.lineup_member_id] ||= []).push(p); });
       // M5.1 (D2): member profiles resolve by artist_profile_id (deterministic
       // for multi-profile owners), legacy artist_id join only for rows without
       // one. ⚠ Both the fetch and the key live in lineupProfiles.js and are
@@ -172,7 +178,11 @@ export function useEventData(id, navigate) {
       const mProfById = {}; (mPid.data || []).forEach(p => { mProfById[p.id] = p; });
       const mProfByUid = {}; (mUid.data || []).forEach(p => { mProfByUid[p.user_id] = p; });
       const memberProfiles = indexMemberProfiles(membersData, mProfById, mProfByUid);
-      return { event: ev, ownerProfile, venueProfile, coHostProfiles, claims: map, lineupMembers: membersData || [], memberPerfMap, memberProfiles };
+      return {
+        event: ev, ownerProfile, venueProfile, coHostProfiles,
+        claims: map, claimsBySlot, slotDays,
+        lineupMembers: membersData || [], perfsByMember, memberProfiles,
+      };
     },
     enabled: !!id,
   });
@@ -182,12 +192,25 @@ export function useEventData(id, navigate) {
   const coHostProfiles = data?.coHostProfiles || [];
   const venueProfile   = data?.venueProfile   || null;
   const claims         = data?.claims         || {};
+  const claimsBySlot   = data?.claimsBySlot   || {};
   const lineupMembers  = data?.lineupMembers  || [];
-  const memberPerfMap  = data?.memberPerfMap  || {};
+  const perfsByMember  = data?.perfsByMember  || {};
   const memberProfiles = data?.memberProfiles || {};
 
   const cfg        = event?.config || {};
-  const days       = cfg.days || [];
+  /**
+   * ⚠ `days` NOW COMES FROM `event_slots`, ⛔ no longer from `cfg.days`.
+   *
+   * The shape is unchanged — `[{ name, slots }]` — so every renderer that took
+   * it still does. What changed is that a slot's `id` is a UUID with a foreign
+   * key behind it rather than a 6-character string with nothing behind it.
+   *
+   * ⛔ `cfg.days` is deliberately NOT consulted as a fallback. A fallback here
+   * would mean an event silently rendering its pre-migration running order the
+   * moment a slot query failed, and nobody could tell which one they were
+   * looking at. An unreadable slot list is an empty one, and says so.
+   */
+  const days       = data?.slotDays || [];
   const poster     = cfg.poster || null;
   const posterFull = cfg.poster_full || poster;
   const genres     = cfg.genres || '';
@@ -208,7 +231,7 @@ export function useEventData(id, navigate) {
   const lineupPct  = totalSlots > 0 ? Math.round((takenSlots / totalSlots) * 100) : 0;
 
   return {
-    loading, event, ownerProfile, venueProfile, coHostProfiles, claims, lineupMembers, memberPerfMap, memberProfiles,
+    loading, event, ownerProfile, venueProfile, coHostProfiles, claims, claimsBySlot, lineupMembers, perfsByMember, memberProfiles,
     cfg, days, poster, posterFull, genres,
     isLocked, draftCount, showTimesPublicly, isPast,
     totalSlots, takenSlots, lineupPct,

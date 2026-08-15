@@ -3,6 +3,7 @@
 // Loads the event, handles the three non-page outcomes (demo id, loading, gone),
 // then branches: the owner gets the management surface, everyone else gets the
 // public page directly. This file no longer knows what either one looks like.
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useSession } from '../App';
 import { useShareTarget, shareUrl } from '../lib/shareTarget';
@@ -18,6 +19,8 @@ import { applicationsBelongToFestival } from '../lib/festivalPortal';
 import DaySlots from './event/DaySlots';
 import EventHostView from './event/EventHostView';
 import { useParticipation } from '../components/ParticipationGate';
+import { isEventManager } from '../lib/eventOwnership';
+import { getOwnerProfiles } from '../lib/actingProfile';
 import s from './EventScreen.module.css';
 
 export default function EventScreen() {
@@ -29,6 +32,29 @@ export default function EventScreen() {
 
   const d = useEventData(id, navigate);
   const { event } = d;
+
+  /**
+   * The profiles this account owns, for the management gate below.
+   *
+   * ⚠⚠ DECLARED HERE, ABOVE EVERY EARLY RETURN. This screen returns early for
+   * the loading skeleton and again for a missing event; a `useState` below
+   * either one mispairs the whole hook list the moment the condition flips.
+   * That exact mistake shipped twice during the onboarding work and neither
+   * time did a passing test suite notice.
+   *
+   * ⛔ An empty list is "not a manager", never "manager by default" — a failed
+   * lookup must lose the buttons, not hand them out.
+   */
+  const [ownedProfileIds, setOwnedProfileIds] = useState([]);
+  useEffect(() => {
+    const uid = session?.user?.id;
+    if (!uid) { setOwnedProfileIds([]); return undefined; }
+    let cancelled = false;
+    getOwnerProfiles(uid).then(list => {
+      if (!cancelled) setOwnedProfileIds((list || []).map(p => p.id));
+    });
+    return () => { cancelled = true; };
+  }, [session?.user?.id]);
 
   // Resource-driven share (navigation & sharing architecture). This screen
   // declares its own canonical payload; the header's Share button stays
@@ -79,13 +105,20 @@ export default function EventScreen() {
     ownerProfile: d.ownerProfile, venueProfile: d.venueProfile,
   };
 
-  if (session?.user?.id === event.host_id) {
+  /**
+   * ⚠⚠ WAS `session?.user?.id === event.host_id`, which hid the management UI
+   * from the owners of 82 of 92 events — every row with a NULL `host_id`. See
+   * lib/eventOwnership for the measurement and for why this is a RENDERING
+   * gate rather than a permission (RLS re-checks every write behind it).
+   */
+  if (isEventManager(event, { userId: session?.user?.id, ownedProfileIds })) {
     return (
       <EventHostView
         {...common}
+        claimsBySlot={d.claimsBySlot}
         session={session}
         lineupMembers={d.lineupMembers}
-        memberPerfMap={d.memberPerfMap}
+        perfsByMember={d.perfsByMember}
         memberProfiles={d.memberProfiles}
         lineupPct={d.lineupPct}
         isLocked={d.isLocked}

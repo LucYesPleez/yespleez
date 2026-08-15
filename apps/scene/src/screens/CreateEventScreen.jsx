@@ -5,7 +5,8 @@ import { useSession } from "../App";
 import s from "@yespleez/event-editor/styles.module.css";
 import { getOwnerProfiles } from "../lib/actingProfile";
 import { track, EVENTS } from "../lib/analytics";
-import { useEventEditorState } from "@yespleez/event-editor";
+import { useEventEditorState, rowsToDays } from "@yespleez/event-editor";
+import { loadEventSlots, saveEventSlots } from "../lib/eventSlotWrites";
 import VenueCheckSheet, { nearestVenues } from "../components/VenueCheckSheet";
 import EventEditorForm from "./event/SceneEventEditor";
 import { uploadPosterCrop } from "../lib/uploadImage";
@@ -31,6 +32,9 @@ export default function CreateEventScreen() {
   const [error, setError] = useState('');
   const [venueCheckOpen, setVenueCheckOpen] = useState(false);
   const [venueCandidates, setVenueCandidates] = useState([]);
+  /* ⚠ An unreadable running order is stated, never guessed at — see the load
+     effect. A form that silently shows the wrong schedule will save it. */
+  const [slotLoadError, setSlotLoadError] = useState('');
 
   /**
    * ⭐⭐ ALL FORM STATE LIVES IN THE SHARED HOOK, so Festival Companion renders
@@ -97,9 +101,39 @@ export default function CreateEventScreen() {
    */
   useEffect(() => {
     if (!editId) return;
-    supabase.from('events').select('*').eq('id', editId).single().then(({ data }) => {
+    supabase.from('events').select('*').eq('id', editId).single().then(async ({ data }) => {
       if (!data) return;
       ed.hydrate(data);
+      /**
+       * ⭐ THE SCHEDULE COMES FROM `event_slots`, AFTER hydrate.
+       *
+       * `hydrate` fills `days` from `config.days`, which is now the stale copy —
+       * the event page reads rows. Overwriting it here is what stops the editor
+       * showing a running order the rest of the app no longer believes in.
+       *
+       * ⚠ `setTimesNeeded` has to follow. It is derived, not stored (see
+       * `fromConfig`), and it was derived from the blob — so an event whose
+       * slots live only in rows would load with the toggle OFF and the next
+       * save would clear the lot.
+       *
+       * ⛔ A FAILED READ MUST NOT FALL THROUGH TO THE BLOB. `saveEventSlots`
+       * diffs against what it can see, so an editor holding `config.days` after
+       * an unreadable slot query would delete every real slot on save.
+       */
+      try {
+        const rows = await loadEventSlots(supabase, editId);
+        if (rows.length) { ed.setDays(rowsToDays(rows)); ed.setSetTimesNeeded(true); }
+        else if ((data.config?.days || []).some(d => (d.slots || []).length)) {
+          // Rows are empty but the blob is not: this event predates the
+          // migration or its slots were removed elsewhere. ⛔ Do not guess —
+          // say so rather than silently offering the old schedule for re-save.
+          setSlotLoadError('This event\'s running order could not be loaded. Editing and saving would clear it, so the schedule is shown empty on purpose.');
+          ed.setDays([]); ed.setSetTimesNeeded(false);
+        }
+      } catch (e) {
+        setSlotLoadError(e.message);
+        ed.setDays([]); ed.setSetTimesNeeded(false);
+      }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editId]);
@@ -188,6 +222,7 @@ export default function CreateEventScreen() {
       }).eq('id', editId);
       setSaving(false);
       if (err) { setError(err.message); return; }
+      await persistSlots(editId);
       await queueVenueRequest(editId, cfg);
       navigate(`/event/${editId}`, { replace:true });
       return;
@@ -261,6 +296,7 @@ export default function CreateEventScreen() {
       if (chErr) setError(`Event saved, but the co-hosts could not be added: ${chErr.message}`);
     }
 
+    await persistSlots(data?.id);
     await queueVenueRequest(data?.id, cfg);
 
     // A1 · two separate facts, not one. Creating is the effort; going live is
@@ -291,6 +327,33 @@ export default function CreateEventScreen() {
    * own record of having asked, and Studio's decision lands in
    * `venue_submissions`, never back on the event.
    */
+  /**
+   * THE SCHEDULE, WRITTEN TO ROWS.
+   *
+   * ⚠ NOT FATAL, and after the event is saved — same contract as the co-host
+   * insert and the venue request below it. The event exists and is correct; a
+   * failure here must never send the organiser back to a form whose event has
+   * already been created, because that path ends in duplicate events.
+   *
+   * ⛔ SKIPPED ENTIRELY IF THE SCHEDULE COULD NOT BE READ. `saveEventSlots`
+   * diffs against what it loaded, so saving a form that never received the real
+   * slots would delete all of them. Doing nothing is the correct answer to "I
+   * do not know what is there".
+   *
+   * ⚠ Removing a slot cascades its `performances` away — by design. The act is
+   * NOT dropped from the event: `lineup_members` is untouched, so they return
+   * to the Lineup with no set time, which is where the LINEUP surface shows
+   * them. That is the ratified model, not a silent loss.
+   */
+  async function persistSlots(eventId) {
+    if (!eventId || slotLoadError) return;
+    try {
+      await saveEventSlots(supabase, eventId, ed.days, { setTimesNeeded: ed.setTimesNeeded });
+    } catch (e) {
+      setError(`The event was saved, but its running order was not: ${e.message}`);
+    }
+  }
+
   async function queueVenueRequest(eventId, cfg) {
     const venue = venueRequestFromConfig(cfg);
     if (!eventId || !venue || !session?.user?.id) return;
@@ -326,6 +389,11 @@ export default function CreateEventScreen() {
           userId={session?.user?.id}
           actions={
             <>
+              {/* ⚠ An unreadable running order, said out loud. The schedule
+                  above is empty because it is UNKNOWN, not because it is gone —
+                  and saving deliberately leaves the stored slots untouched
+                  rather than writing this blank over them. */}
+              {slotLoadError && <p className={s.error}>{slotLoadError}</p>}
               {error && <p className={s.error}>{error}</p>}
 
               <button className={s.goLiveBtn} onClick={() => handleSave(true)} disabled={saving}>

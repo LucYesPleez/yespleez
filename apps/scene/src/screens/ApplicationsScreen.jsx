@@ -6,11 +6,24 @@ import { resolvePerformerProfileId } from '../lib/actingProfile';
 import { profileUrl } from '../lib/profileResolution';
 import { fetchApplicantProfiles } from '../lib/applicantProfiles';
 import { ensureHttps } from '../lib/socialLinks';
+import { normaliseStatus } from '../lib/enquiryUtils';
 import ProfileAvatar from '../components/ProfileAvatar';
 import UnclaimedBadge from '../components/UnclaimedBadge';
 import s from './ApplicationsScreen.module.css';
 
-const STATUS_TABS = ['PENDING', 'TENTATIVE', 'OFFERED', 'CONFIRMED', 'REJECTED'];
+/**
+ * ⚠⚠ THESE TABS WERE NAMED AFTER A VOCABULARY THE DATA DOES NOT USE.
+ *
+ * `PENDING`, `TENTATIVE` and `OFFERED` match ZERO production rows, and
+ * `REJECTED` matched nothing because every decline is written as `declined`.
+ * Four of five tabs were dead.
+ *
+ * ⭐ The buckets are now the ones `normaliseStatus` actually produces, which is
+ * the same set the venue and host dashboards already show. Both vocabularies
+ * land in the right tab, and an unrecognised status falls into NEW rather than
+ * vanishing.
+ */
+const STATUS_TABS = ['NEW', 'SEEN', 'SHORTLISTED', 'ACCEPTED', 'DECLINED'];
 
 export default function ApplicationsScreen() {
   const { id: eventId } = useParams();
@@ -19,7 +32,9 @@ export default function ApplicationsScreen() {
   const [profiles,  setProfiles]  = useState({});
   const [eventName, setEventName] = useState('');
   const [eventOwnerProfileId, setEventOwnerProfileId] = useState(null);  // §A7 subject
-  const [tab,       setTab]       = useState('PENDING');
+  // ⚠ Must be one of STATUS_TABS. It was 'PENDING', which is no longer a tab —
+  // the screen would have opened on a tab whose button does not exist.
+  const [tab,       setTab]       = useState('NEW');
   const [loading,   setLoading]   = useState(true);
 
   useEffect(() => {
@@ -57,11 +72,15 @@ export default function ApplicationsScreen() {
     setApps(prev => prev.map(a => a.id === appId ? { ...a, status } : a));
     if (!artistId) return;
     const evLabel = eventName ? ` for ${eventName}` : '';
+    /* ⚠ Keyed on the NORMALISED bucket. Keyed on the raw value this map missed
+       every decline (`declined` is what gets written, `rejected` is what it
+       listened for), so the applicant was never told. */
     const NOTIF = {
-      tentative: { type: 'shortlisted',         message: `You've been shortlisted${evLabel}.` },
-      rejected:  { type: 'application_declined', message: `Your application was unsuccessful${evLabel}.` },
+      shortlisted: { type: 'shortlisted',          message: `You've been shortlisted${evLabel}.` },
+      declined:    { type: 'application_declined', message: `Your application was unsuccessful${evLabel}.` },
+      accepted:    { type: 'booking_confirmed',    message: `You've been accepted${evLabel}. You're booked!` },
     };
-    const notif = NOTIF[status];
+    const notif = NOTIF[normaliseStatus({ status, direction: 'incoming' })];
     // §A7: about = the event's owner (whose decision this is); to = the
     // artist's performer profile, U4-resolved, null if ambiguous.
     if (notif) await writeNotification({
@@ -74,11 +93,11 @@ export default function ApplicationsScreen() {
     });
   }
 
-  const filtered = apps.filter(a => {
-    const st = (a.status || 'pending').toLowerCase();
-    if (tab === 'OFFERED') return st === 'offered' || st === 'accepted';
-    return st === tab.toLowerCase();
-  });
+  /* One rule for the list and the tab counts below — they read the same
+     function, so a count can no longer disagree with the list it labels. */
+  const bucketOf = a => normaliseStatus({ status: a.status, direction: 'incoming' });
+  const inTab    = (a, t) => bucketOf(a) === t.toLowerCase();
+  const filtered = apps.filter(a => inTab(a, tab));
 
   return (
     <div className={s.screen}>
@@ -95,13 +114,7 @@ export default function ApplicationsScreen() {
             onClick={() => setTab(t)}
           >
             {t}
-            <span className={s.tabCount}>
-              {apps.filter(a => {
-              const st = (a.status || 'pending').toLowerCase();
-              if (t === 'OFFERED') return st === 'offered' || st === 'accepted';
-              return st === t.toLowerCase();
-            }).length}
-            </span>
+            <span className={s.tabCount}>{apps.filter(a => inTab(a, t)).length}</span>
           </button>
         ))}
       </div>
@@ -118,8 +131,8 @@ export default function ApplicationsScreen() {
               key={app.id}
               app={app}
               profile={profile}
-              onAccept={() => respond(app.id, 'tentative', app.artist_id)}
-              onReject={() => respond(app.id, 'rejected', app.artist_id)}
+              onAccept={() => respond(app.id, 'shortlisted', app.artist_id)}
+              onReject={() => respond(app.id, 'declined', app.artist_id)}
             />
           );
         })}
@@ -135,7 +148,13 @@ function AppCard({ app, profile, onAccept, onReject }) {
   // showing a slice of someone's user id was never meaningful to a host.
   const name   = profile?.name  || app.artist_name || `Applicant #${app.id?.slice(0, 6)}`;
   const sound  = profile?.sound || profile?.genre_string || '';
-  const isPending = (app.status || 'pending') === 'pending';
+  /**
+   * ⚠ WAS `status === 'pending'`, which is zero rows — so even once a tab
+   * populated, every card rendered with NO accept/decline buttons. Undecided
+   * means the row has not been acted on yet, whichever vocabulary spelled it.
+   */
+  const bucket    = normaliseStatus({ status: app.status, direction: 'incoming' });
+  const isPending = bucket === 'new' || bucket === 'seen';
   const mixLink = ensureHttps(app.mix_link || profile?.mix_link);
 
   return (
@@ -159,8 +178,12 @@ function AppCard({ app, profile, onAccept, onReject }) {
           </div>
           {sound && <p className={s.cardSound}>{sound}</p>}
         </div>
-        <span className={s.status} data-status={app.status || 'pending'}>
-          {(app.status || 'PENDING').toUpperCase()}
+        {/* ⭐ The pill shows the NORMALISED bucket, so the DOM carries one
+            vocabulary too. Showing the raw value put `tentative` on one card
+            and `shortlisted` on the next for the same state, and only three
+            raw spellings had any CSS at all. */}
+        <span className={s.status} data-status={bucket}>
+          {bucket.toUpperCase()}
         </span>
       </div>
       {app.note && <p className={s.note}>"{app.note}"</p>}

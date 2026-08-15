@@ -3,6 +3,7 @@ import ds from '../screens/DiscoverScreen.module.css';
 import { formatLocation } from '../lib/formatLocation';
 import { socialProfileUrl, socialHandle, ensureHttps } from '../lib/socialLinks';
 import { PROFILE_TYPES } from '../lib/profileTypes';
+import { normaliseStatus } from '../lib/enquiryUtils';
 import ProfileAvatar from './ProfileAvatar';
 
 function AppBtn({ onClick, disabled, base, hover, children }) {
@@ -27,18 +28,27 @@ export default function ApplicationCard({ app, prof, event, onRespond, onAssign 
   const [expanded, setExpanded] = useState(false);
   const [busy, setBusy]         = useState(false);
   const [bioOpen, setBioOpen]   = useState(false);
-  const isPending   = app.status === 'pending';
-  const isTentative = app.status === 'tentative';
+  /* ⚠ BUCKETS, NOT RAW SPELLINGS. `pending` and `tentative` have zero rows in
+     production, so both of these were permanently false and this card offered
+     no actions at all. See lib/enquiryUtils and the application state machine. */
+  const bucket      = normaliseStatus({ status: app.status, direction: 'incoming' });
+  const isPending   = bucket === 'new' || bucket === 'seen';
+  const isTentative = bucket === 'shortlisted';
 
   const pType     = prof?.type || 'artist';
   const pt        = PROFILE_TYPES[pType];
   const accent    = pt?.accent || '#00E5FF';
   const accentRgb = pt?.rgb    || '0,229,255';
 
-  const STATUS_COLOR = { confirmed: '#00E5A0', offered: '#FF8C42', accepted: '#FF8C42', rejected: '#888', declined: '#888', pending: '#FFD700', tentative: '#00B4D8' };
-  const STATUS_LABEL = { confirmed: 'CONFIRMED', offered: 'OFFERED', accepted: 'OFFERED', rejected: 'DECLINED', declined: 'DECLINED', pending: 'PENDING', tentative: 'SHORTLISTED' };
-  const statusColor = STATUS_COLOR[app.status] || '#FFD700';
-  const statusLabel = STATUS_LABEL[app.status] || 'PENDING';
+  /**
+   * ⚠ KEYED ON THE BUCKET. Keyed on the raw value, this map labelled
+   * `accepted` as "OFFERED" — so the nine accepted applications in production
+   * all read as offers nobody had answered. Colours match STATUS_TAB_COLOR so
+   * this pill agrees with every other surface showing the same state.
+   */
+  const STATUS_COLOR = { new: '#FFD700', seen: '#FF8C42', shortlisted: '#00B4D8', accepted: '#00E5A0', declined: '#888' };
+  const statusColor = STATUS_COLOR[bucket] || '#FFD700';
+  const statusLabel = bucket.toUpperCase();
 
   const p      = prof || {};
   const name   = p.name || app.artist_name || '—';
@@ -154,11 +164,11 @@ export default function ApplicationCard({ app, prof, event, onRespond, onAssign 
           )}
           {isPending && (
             <div style={{ display: 'flex', gap: 6, marginTop: 12 }}>
-              <AppBtn onClick={() => respond('tentative')} disabled={busy}
+              <AppBtn onClick={() => respond('shortlisted')} disabled={busy}
                 base={{ bg: 'rgba(0,180,216,.1)', border: '1px solid rgba(0,180,216,.4)', color: '#00B4D8' }}
                 hover={{ bg: 'rgba(0,180,216,.28)', border: '1px solid #00B4D8' }}
               >SHORTLIST ✓</AppBtn>
-              <AppBtn onClick={() => respond('rejected')} disabled={busy}
+              <AppBtn onClick={() => respond('declined')} disabled={busy}
                 base={{ bg: 'rgba(120,120,160,.06)', border: '1px solid rgba(120,120,160,.2)', color: 'var(--muted)' }}
                 hover={{ bg: 'rgba(255,140,0,.18)', border: '1px solid #FF8C00', color: '#FF8C00' }}
               >DECLINE ✗</AppBtn>
@@ -170,7 +180,7 @@ export default function ApplicationCard({ app, prof, event, onRespond, onAssign 
                 base={{ bg: 'rgba(0,229,160,.1)', border: '1px solid rgba(0,229,160,.4)', color: '#00E5A0' }}
                 hover={{ bg: 'rgba(0,229,160,.28)', border: '1px solid #00E5A0' }}
               >ASSIGN SLOT →</AppBtn>
-              <AppBtn onClick={() => respond('rejected')} disabled={busy}
+              <AppBtn onClick={() => respond('declined')} disabled={busy}
                 base={{ bg: 'rgba(120,120,160,.06)', border: '1px solid rgba(120,120,160,.2)', color: 'var(--muted)' }}
                 hover={{ bg: 'rgba(255,140,0,.18)', border: '1px solid #FF8C00', color: '#FF8C00' }}
               >DECLINE ✗</AppBtn>

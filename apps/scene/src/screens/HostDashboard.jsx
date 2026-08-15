@@ -17,6 +17,9 @@ import FollowingSection, { FOLLOW_FILTER_CONFIGS } from '../components/Following
 import EnquiryPanel from '../components/EnquiryPanel';
 import { ENQUIRY_CARD_COLUMNS } from '../components/EnquiryCard';
 import { fetchApplicantProfiles } from '../lib/applicantProfiles';
+import { memberProfileKeys, indexMemberProfiles } from './event/lineupProfiles';
+import { groupSlotsIntoDays, indexPerformances, durationLabel } from '../lib/eventSlots';
+import { buildHostLineup, STATE_COLOURS } from '../lib/hostLineup';
 import DashboardHeader from '../components/DashboardHeader';
 import MyVenueSubmissions from '../components/MyVenueSubmissions';
 import DashboardProfileCard from '../components/DashboardProfileCard';
@@ -26,7 +29,7 @@ import AvailabilitySection from '../components/AvailabilitySection';
 import EnquiryCalendar from '../components/EnquiryCalendar';
 import { CalendarIconBtn } from '../components/DecisionButtons';
 import { fetchOutgoingEnquiries } from '../lib/outgoingPipeline';
-import { withDirection } from '../lib/enquiryUtils';
+import { withDirection, normaliseStatus, rawStatusesFor } from '../lib/enquiryUtils';
 import EventsSection from '../components/EventsSection';
 import EventTabBar from '../components/EventTabBar';
 import SectionCollapseButton from '../components/SectionCollapseButton';
@@ -68,7 +71,6 @@ export default function HostDashboard({ userId: userIdProp }) {
   const [lineupFocusId,  setLineupFocusId]  = useState(null);  // null = show all
   const [lineupExpandMap, setLineupExpandMap] = useState({});  // eventId → bool (default true)
   const [lineupSubTabs,  setLineupSubTabs]  = useState({});   // eventId → 'LINEUP'|'SET TIMES'|'SHORT LIST'|'PIPELINE'
-  const [setTimesMap,    setSetTimesMap]    = useState({});   // eventId → bool
   const [allApps,        setAllApps]        = useState([]);
   const [appProfiles,    setAppProfiles]    = useState({});
   const [loadingApps,    setLoadingApps]    = useState(false);
@@ -110,12 +112,26 @@ export default function HostDashboard({ userId: userIdProp }) {
       const evtIds = (evtRes.data || []).map(e => e.id);
       let newAppsCount = 0, lineupSlotsCount = 0;
       if (evtIds.length) {
-        const [pendingRes, acceptedRes] = await Promise.all([
-          supabase.from('applications').select('id', { count: 'exact', head: true }).in('event_id', evtIds).eq('status', 'pending'),
-          supabase.from('applications').select('id', { count: 'exact', head: true }).in('event_id', evtIds).eq('status', 'accepted'),
+        /**
+         * ⚠⚠ THE LINEUP COUNT IS THE BILL, ⛔ NOT ACCEPTED APPLICATIONS.
+         *
+         * This read `count(applications where status='accepted')`, which was 3
+         * across the entire database while 152 acts were actually booked. The
+         * header therefore under-reported the lineup by two orders of magnitude
+         * — and agreed with the list below it only because that list was built
+         * from the same wrong query.
+         */
+        /* ⚠ A SERVER COUNT CANNOT CALL THE NORMALISER, so the raw spellings are
+           DERIVED from the same map the renderer uses (`rawStatusesFor`). This
+           was `.eq('status','pending')` — zero rows in production, so the
+           header's APPLICATIONS number was always 0 while real applications
+           sat underneath it. */
+        const [pendingRes, billRes] = await Promise.all([
+          supabase.from('applications').select('id', { count: 'exact', head: true }).in('event_id', evtIds).in('status', rawStatusesFor('new')),
+          supabase.from('lineup_members').select('id', { count: 'exact', head: true }).in('event_id', evtIds).neq('status', 'removed'),
         ]);
-        newAppsCount      = pendingRes.count  || 0;
-        lineupSlotsCount  = acceptedRes.count || 0;
+        newAppsCount      = pendingRes.count || 0;
+        lineupSlotsCount  = billRes.count    || 0;
       }
       /**
        * ⭐ THE ENQUIRIES THIS PROMOTER SENT — and they had NOWHERE to appear.
@@ -185,48 +201,82 @@ export default function HostDashboard({ userId: userIdProp }) {
     if (!userId || !profile?.id || lineupsLoaded.current) return;
     lineupsLoaded.current = true;
     setLoadingLineups(true);
+    /**
+     * ⭐⭐ THE LINEUP IS THE HOST'S EVENTS AND WHO IS ON THEM.
+     *
+     * ⛔ THERE IS NO APPLICATIONS QUERY HERE ANY MORE. This used to select
+     * `applications where status='accepted'` and GROUP BY event, so an event
+     * existed to this section only once somebody had applied and been accepted:
+     * 149 of 152 real bill members were invisible, and `Bass Heavy` did not
+     * appear at all. Applications still fill the SHORT LIST and PIPELINE tabs —
+     * they are loaded elsewhere, and ⛔ they must never decide which events or
+     * which acts appear. See lib/hostLineup for the ratified invariant.
+     */
     async function loadLineups() {
       const { data: evRows } = await supabase.from('events')
-        .select('id, name, config, status').or(ownedByFilter(userId, profile.id));
+        .select('id, name, config, status').or(ownedByFilter(userId, profile.id))
+        .order('created_at', { ascending: false });
       if (!evRows?.length) { setLoadingLineups(false); return; }
       const ids = evRows.map(e => e.id);
-      const { data: apps } = await supabase.from('applications')
-        .select('*').in('event_id', ids).eq('status', 'accepted').order('created_at', { ascending: false });
-      // M6 · keyed by applications.id, not by the applicant's account.
-      const profMap = await fetchApplicantProfiles(
-        supabase, apps, 'id, user_id, name, avatar, type, sound, genre_string, location, bio');
-      const evtMap = {};
-      evRows.forEach(e => { evtMap[e.id] = e; });
-      const grouped = {};
-      (apps || []).forEach(a => {
-        if (!grouped[a.event_id]) grouped[a.event_id] = { event: evtMap[a.event_id], artists: [] };
-        grouped[a.event_id].artists.push({ ...a, profile: profMap[a.id] });
+
+      const [{ data: membersData }, { data: perfsData }, { data: slotRows }] = await Promise.all([
+        supabase.from('lineup_members')
+          .select('id, event_id, artist_id, artist_profile_id, artist_name, genre, sound, card_pills')
+          .in('event_id', ids).neq('status', 'removed'),
+        // ⚠ `declined` is NO LONGER FILTERED OUT. It was, which meant a slot
+        // somebody turned down looked identical to one nobody had been asked
+        // about — the organiser could not tell "needs refilling because of a no"
+        // from "never sent".
+        supabase.from('performances')
+          .select('id, lineup_member_id, slot_uuid, status, event_id').in('event_id', ids),
+        supabase.from('event_slots')
+          .select('id, event_id, day_index, day_name, position, legacy_key, time, ampm, dur_mins, label, label_color, pinned')
+          .in('event_id', ids).order('day_index').order('position'),
+      ]);
+
+      /**
+       * ⭐ THE SAME RESOLVER THE EVENT PAGE USES. `lineupProfiles` keys the map
+       * by `lineup_members.id` and joins on `artist_profile_id` with the legacy
+       * `artist_id` fallback — the dashboard's old query selected neither
+       * `artist_profile_id` nor any profile at all, so every imported act
+       * rendered as a bare name.
+       */
+      const memberCols = 'id, user_id, name, avatar, avatar_thumb, type, sound, genre_string, location, state';
+      const { profileIds, userIds } = memberProfileKeys(membersData);
+      const [mPid, mUid] = await Promise.all([
+        profileIds.length ? supabase.from('profiles').select(memberCols).in('id', profileIds) : Promise.resolve({ data: [] }),
+        userIds.length    ? supabase.from('profiles').select(memberCols).in('user_id', userIds) : Promise.resolve({ data: [] }),
+      ]);
+      const byPid = {}; (mPid.data || []).forEach(p => { byPid[p.id] = p; });
+      const byUid = {}; (mUid.data || []).forEach(p => { byUid[p.user_id] = p; });
+      const memberProfiles = indexMemberProfiles(membersData, byPid, byUid);
+
+      const slotsByEvent = {};
+      (slotRows || []).forEach(r => { (slotsByEvent[r.event_id] ||= []).push(r); });
+      Object.keys(slotsByEvent).forEach(k => { slotsByEvent[k] = groupSlotsIntoDays(slotsByEvent[k]); });
+
+      const groups = buildHostLineup({
+        events: evRows, members: membersData || [], performances: perfsData || [],
+        slotsByEvent, memberProfiles,
       });
-      const grouped2 = Object.values(grouped).filter(g => g.event);
-      setLineups(grouped2);
+      setLineups(groups);
 
-      if (ids.length) {
-        const [{ data: membersData }, { data: perfsData }] = await Promise.all([
-          supabase.from('lineup_members').select('id, event_id, artist_id, artist_name, genre, sound, card_pills').in('event_id', ids).neq('status', 'removed'),
-          supabase.from('performances').select('lineup_member_id, slot_id, event_id').in('event_id', ids).neq('status', 'declined'),
-        ]);
+      // slotId → who is on it, for the SET TIMES strip. Deterministic now; the
+      // old map took whichever row the planner returned last.
+      const cm = {};
+      groups.forEach(g => {
         const membersById = {};
-        (membersData || []).forEach(m => { membersById[m.id] = m; });
-        const cm = {};
-        (perfsData || []).forEach(p => {
-          if (!p.slot_id) return;
-          const member = membersById[p.lineup_member_id];
-          if (!member) return;
-          if (!cm[p.event_id]) cm[p.event_id] = {};
-          cm[p.event_id][p.slot_id] = { ...member, name: member.artist_name, user_id: member.artist_id };
-        });
-        setClaimsMap(cm);
-      }
+        g.members.forEach(r => { membersById[r.member.id] = r; });
+        const { primary } = indexPerformances(perfsData || [], Object.fromEntries(
+          (membersData || []).filter(m => m.event_id === g.event.id).map(m => [m.id, m])));
+        if (Object.keys(primary).length) cm[g.event.id] = primary;
+      });
+      setClaimsMap(cm);
 
-      // Init set-times map: true = show set times (default on when days exist)
-      const stMap = {};
-      grouped2.forEach(({ event: ev }) => { stMap[ev.id] = (ev.config?.days?.length ?? 0) > 0; });
-      setSetTimesMap(stMap);
+      /* ⛔ The old `setTimesMap` write is gone with the state it fed. Nothing
+         has read that map since before this rewrite — the SET TIMES tab decides
+         from `totalSlots`, which is derived and cannot fall out of step with
+         the slots it describes. */
       setLoadingLineups(false);
     }
     loadLineups();
@@ -272,12 +322,26 @@ export default function HostDashboard({ userId: userIdProp }) {
     setAllApps(prev => prev.map(a => a.id === appId ? { ...a, status } : a));
     if (!artistId) return;
     const evLabel = eventName ? ` for ${eventName}` : '';
+    /**
+     * ⚠⚠ THE HOST'S DECISIONS WERE SILENT. This map was keyed on `tentative`
+     * and `rejected`; `EnquiryCard` sends `shortlisted` and `declined`, so
+     * `NOTIF[status]` was undefined and NO NOTIFICATION WAS SENT for either.
+     * Only `accepted` ever matched. Applicants were being shortlisted and
+     * declined without being told.
+     *
+     * ⭐ Keyed on the NORMALISED bucket, so both spellings reach the same
+     * notice and a future rename cannot silence it again.
+     *
+     * ⛔ `seen` is deliberately absent. It is written automatically when a card
+     * is expanded — notifying someone that their application was looked at is
+     * not a decision and would be noise.
+     */
     const NOTIF = {
-      accepted:  { type: 'booking_confirmed',    message: `You've been accepted${evLabel}. You're booked!` },
-      tentative: { type: 'shortlisted',          message: `You've been shortlisted${evLabel}.` },
-      rejected:  { type: 'application_declined', message: `Your application was unsuccessful${evLabel}.` },
+      accepted:    { type: 'booking_confirmed',    message: `You've been accepted${evLabel}. You're booked!` },
+      shortlisted: { type: 'shortlisted',          message: `You've been shortlisted${evLabel}.` },
+      declined:    { type: 'application_declined', message: `Your application was unsuccessful${evLabel}.` },
     };
-    const notif = NOTIF[status];
+    const notif = NOTIF[normaliseStatus({ status, direction: 'incoming' })];
     // §A7: about = this host's profile (whose decision this is);
     // to = the artist's performer profile, U4-resolved, null if ambiguous.
     if (notif) await writeNotification({
@@ -317,8 +381,14 @@ export default function HostDashboard({ userId: userIdProp }) {
   const pastEvents     = events.filter(ev => ev.status !== 'draft' && (ev.config?.date || '') < todayStr)
                                .sort((a, b) => (b.config?.date || '').localeCompare(a.config?.date || ''));
   // Pre-compute application lists
-  const newApps       = allApps.filter(a => a.status === 'pending');
-  const tentativeApps = allApps.filter(a => a.status === 'tentative');
+  /* ⚠⚠ Both of these matched ZERO production rows — see the note in
+     EventHostView. Routed through the one normaliser that knows both
+     vocabularies, so a differently-spelled application can no longer be
+     invisible. `tentativeApps` keeps its name only because the JSX below reads
+     it; the bucket it now holds is `shortlisted`. */
+  const bucketOfApp   = a => normaliseStatus({ status: a.status, direction: 'incoming' });
+  const newApps       = allApps.filter(a => bucketOfApp(a) === 'new');
+  const tentativeApps = allApps.filter(a => bucketOfApp(a) === 'shortlisted');
 
   // Map applications to the common enquiry shape for EnquiryPanel
   const mappedEnquiries = allApps.map(app => ({
@@ -606,10 +676,13 @@ export default function HostDashboard({ userId: userIdProp }) {
         {loadingLineups ? (
           <p className={s.empty}>Loading lineup…</p>
         ) : lineups.length === 0 ? (
-          <p className={s.empty}>No confirmed artists yet. Accept applications to build your lineup.</p>
+          /* ⚠ THIS NOW MEANS "YOU HAVE NO EVENTS", which is the only honest
+             reading. It used to mean "no accepted applications", and appeared
+             above 39 events that had a bill. */
+          <p className={s.empty}>No events yet. Create one and start building its bill.</p>
         ) : showAllLineup === false ? null : (
           <div>
-            {(lineupFocusId ? lineups.filter(g => g.event.id === lineupFocusId) : lineups).map(({ event: ev, artists }) => {
+            {(lineupFocusId ? lineups.filter(g => g.event.id === lineupFocusId) : lineups).map(({ event: ev, members, days, totalSlots, filledSlots, unscheduled }) => {
               const evName      = ev.name || ev.config?.name || 'Untitled Event';
               const evDate      = ev.config?.date ? new Date(ev.config.date).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' }) : null;
               const evExpanded  = lineupExpandMap[ev.id] !== false;
@@ -618,10 +691,11 @@ export default function HostDashboard({ userId: userIdProp }) {
               const setTab      = (tab) => setLineupSubTabs(prev => ({ ...prev, [ev.id]: tab }));
               const evShortList = tentativeApps.filter(a => a.event_id === ev.id);
               const evPipeline  = newApps.filter(a => a.event_id === ev.id);
-              const days        = ev.config?.days || [];
-              const totalSlots  = days.reduce((n, d) => n + (d.slots?.length || 0), 0);
+              /* ⚠ `days`, `totalSlots` and `filledSlots` arrive from
+                 `buildHostLineup` — they came from `ev.config.days` and from
+                 `Object.keys(claims).length`, which counted an unanswered offer
+                 as a booked slot. */
               const evClaims    = claimsMap[ev.id] || {};
-              const filledSlots = Object.keys(evClaims).length;
 
               return (
                 <div key={ev.id} className={s.lineupGroup}>
@@ -652,7 +726,7 @@ export default function HostDashboard({ userId: userIdProp }) {
                   {evExpanded && (
                     <div style={{ marginTop: 10 }}>
                       <EventProgressSummary
-                        lineupCount={artists.length}
+                        lineupCount={members.length}
                         totalSlots={totalSlots}
                         filledSlots={filledSlots}
                         hasPoster={!!(ev.config?.poster || ev.config?.poster_full)}
@@ -665,7 +739,7 @@ export default function HostDashboard({ userId: userIdProp }) {
                         onChange={setTab}
                         style={{ marginBottom: 12 }}
                         tabs={[
-                          { key: 'LINEUP',     label: `LINEUP${artists.length ? ` (${artists.length})` : ''}` },
+                          { key: 'LINEUP',     label: `LINEUP${members.length ? ` (${members.length})` : ''}` },
                           { key: 'SET TIMES',  label: 'SET TIMES' },
                           { key: 'SHORT LIST', label: `SHORT LIST${evShortList.length ? ` (${evShortList.length})` : ''}` },
                           { key: 'PIPELINE',   label: `PIPELINE${evPipeline.length ? ` (${evPipeline.length})` : ''}` },
@@ -674,9 +748,43 @@ export default function HostDashboard({ userId: userIdProp }) {
 
                       <div>
                       {activeTab === 'LINEUP' && (
-                        artists.length === 0
-                          ? <p className={s.empty} style={{ fontSize: 12 }}>No confirmed artists yet.</p>
-                          : <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>{artists.map(a => <ProfileCard key={a.id || a.artist_id} item={a.profile || { name: 'Unknown', type: 'artist' }} />)}</div>
+                        members.length === 0
+                          /* ⚠ "No confirmed artists yet. Accept applications to
+                             build your lineup." was the old copy, and it was
+                             wrong twice: it described the bill as a by-product
+                             of applications, and it appeared on events that had
+                             a full bill. An empty bill is an empty bill. */
+                          ? <p className={s.empty} style={{ fontSize: 12 }}>Nobody on the bill yet.</p>
+                          : <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
+                              {/* ⭐ Keyed by the MEMBER row. Keyed by artist_id,
+                                  every imported act collides on NULL. */}
+                              {members.map(m => (
+                                <ProfileCard
+                                  key={m.id}
+                                  item={m.profile || {
+                                    /* ⛔ Not "Unknown". A member always has a
+                                       name — the old card fell back to Unknown
+                                       whenever the profile join missed, which
+                                       for imported acts was always. */
+                                    id: m.member.artist_profile_id || null,
+                                    user_id: m.member.artist_id || null,
+                                    name: m.member.artist_name || 'Unnamed act',
+                                    type: 'artist',
+                                    sound: m.member.sound || null,
+                                    genre_string: m.member.genre || null,
+                                  }}
+                                  badge={m.state}
+                                  badgeColor={STATE_COLOURS[m.state]}
+                                />
+                              ))}
+                              {/* The number the Lineup workspace exists to act
+                                  on: booked, but nowhere to play yet. */}
+                              {unscheduled > 0 && totalSlots > 0 && (
+                                <p style={{ fontSize: 11.5, color: 'var(--muted)', margin: '2px 0 0' }}>
+                                  {unscheduled} of {members.length} {unscheduled === 1 ? 'has' : 'have'} no set time yet.
+                                </p>
+                              )}
+                            </div>
                       )}
                       {activeTab === 'SET TIMES' && (() => {
                         const slots = days.flatMap(d => d.slots || []);
@@ -690,6 +798,11 @@ export default function HostDashboard({ userId: userIdProp }) {
                               <div key={slot.id} style={{ display: 'flex', alignItems: 'baseline', gap: 10, padding: '7px 0', borderBottom: '1px solid rgba(255,255,255,.05)' }}>
                                 <span style={{ fontFamily: "'Bebas Neue'", fontSize: 13, letterSpacing: 1, color: 'var(--neon2)', minWidth: 56 }}>{[slot.time, slot.ampm].filter(Boolean).join(' ') || '—'}</span>
                                 <span style={{ fontSize: 13, color: evClaims[slot.id]?.name ? 'var(--text)' : 'var(--muted)', fontStyle: evClaims[slot.id]?.name ? 'normal' : 'italic' }}>{evClaims[slot.id]?.name || 'Open slot'}</span>
+                                {/* ⚠ The duration, through the ONE formatter —
+                                    the inline `dur >= 60` ternary printed
+                                    `1.5 hrsm` for any slot whose dur was the
+                                    string "1.5 hrs". */}
+                                {slot.dur ? <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--muted)', flexShrink: 0 }}>{durationLabel(slot.dur)}</span> : null}
                               </div>
                             ))}
                             {rest > 0 && <p style={{ fontSize: 12, color: 'var(--muted)', margin: '8px 0 0' }}>+{rest} more</p>}
@@ -916,7 +1029,7 @@ function AppCard({ app, prof, event, onRespond }) {
   const [busy, setBusy] = useState(false);
   const [bioOpen, setBioOpen] = useState(false);
   const isPending   = app.status === 'pending';
-  const isTentative = app.status === 'tentative';
+  const isTentative = normaliseStatus({ status: app.status, direction: 'incoming' }) === 'shortlisted';
 
   const pType     = prof?.type || 'artist';
   const pt        = PROFILE_TYPES[pType];
@@ -1043,12 +1156,12 @@ function AppCard({ app, prof, event, onRespond }) {
                 hover={{ bg: 'rgba(0,229,160,.28)', border: '1px solid #00E5A0' }}
               >ACCEPT ✓</AppBtn>
               {isPending && (
-                <AppBtn onClick={() => respond('tentative')} disabled={busy}
+                <AppBtn onClick={() => respond('shortlisted')} disabled={busy}
                   base={{ bg: 'rgba(0,180,216,.1)', border: '1px solid rgba(0,180,216,.4)', color: '#00B4D8' }}
                   hover={{ bg: 'rgba(0,180,216,.28)', border: '1px solid #00B4D8' }}
-                >TENTATIVE</AppBtn>
+                >SHORTLIST</AppBtn>
               )}
-              <AppBtn onClick={() => respond('rejected')} disabled={busy}
+              <AppBtn onClick={() => respond('declined')} disabled={busy}
                 base={{ bg: 'rgba(120,120,160,.06)', border: '1px solid rgba(120,120,160,.2)', color: 'var(--muted)' }}
                 hover={{ bg: 'rgba(255,140,0,.18)', border: '1px solid #FF8C00', color: '#FF8C00' }}
               >DECLINE ✗</AppBtn>

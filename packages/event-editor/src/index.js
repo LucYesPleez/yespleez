@@ -28,4 +28,9 @@ export {
   toConfig,
   makeId,
   generateSlots,
+  // Pure shape converters for hosts that store slots as ROWS rather than in
+  // `config.days`. ⛔ No database knowledge travels with them — the consumer
+  // owns the reading and writing, as it already does for poster uploads.
+  rowsToDays,
+  daysToRows,
 } from './eventEditorModel.js';
