@@ -17,7 +17,7 @@ import { scopeToApplicant, fetchApplicantProfiles } from '../../lib/applicantPro
 import { findOpenAsksForDate, declineOpenAsks } from '../../lib/dateLockout';
 import { durationLabel } from '../../lib/eventSlots';
 import { memberState, STATE_COLOURS } from '../../lib/hostLineup';
-import { normaliseStatus, rawStatusesFor } from '../../lib/enquiryUtils';
+import { normaliseStatus, rawStatusesFor, PIPELINE_BUCKETS } from '../../lib/enquiryUtils';
 import { planUnassign, planRemoveFromBill, applyLineupPlan, notifiablePerformances, isReachable } from '../../lib/lineupActions';
 import ProfileCard from '../../components/ProfileCard';
 import FillSlotModal from '../../components/FillSlotModal';
@@ -316,7 +316,23 @@ export default function EventHostView({
    */
   const bucketOf   = a => normaliseStatus({ status: a.status, direction: 'incoming' });
   const shortList  = allApps.filter(a => bucketOf(a) === 'shortlisted');
-  const pipeline   = allApps.filter(a => bucketOf(a) === 'new');
+  /**
+   * ⚠⚠ `new` AND `seen`. Matching `new` alone meant OPENING an application
+   * dropped it out of the queue, because `EnquiryCard` auto-writes `seen` on
+   * expand. Bass Heavy's PIPELINE read empty with an application sitting in it.
+   * See PIPELINE_BUCKETS — reading is not deciding.
+   */
+  const pipeline   = allApps.filter(a => PIPELINE_BUCKETS.includes(bucketOf(a)));
+  /**
+   * ⭐ ACCEPTED HAD NO HOME. Ten of the thirteen applications in production are
+   * `accepted`, and no tab rendered them — the host said yes and nothing on
+   * screen showed it. This tab makes them visible.
+   *
+   * ⛔ VISIBLE, NOT ACTED ON. Nothing here creates a `lineup_member`; the
+   * SHORT LIST → LINEUP transition is deliberately not built yet, and an
+   * accepted application still does not gate the bill.
+   */
+  const acceptedApps = allApps.filter(a => bucketOf(a) === 'accepted');
 
   async function doAssign(slot) {
     if (!assigningApp) return;
@@ -495,6 +511,7 @@ export default function EventHostView({
             { key: 'SET_TIMES', label: 'SET TIMES' },
             { key: 'SHORTLIST', label: `SHORT LIST${shortList.length ? ` (${shortList.length})` : ''}` },
             { key: 'PIPELINE',  label: `PIPELINE${pipeline.length ? ` (${pipeline.length})` : ''}` },
+            { key: 'ACCEPTED',  label: `ACCEPTED${acceptedApps.length ? ` (${acceptedApps.length})` : ''}` },
           ]}
         />
       )}
@@ -696,7 +713,10 @@ export default function EventHostView({
       {effectiveIsHost && showEditor && eventTab === 'PIPELINE' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {pipeline.length === 0
-            ? <p style={{ textAlign: 'center', color: 'var(--muted)', fontSize: 13, padding: '32px 0' }}>No pending applications.</p>
+            /* ⚠ "Nothing waiting on you", not "no pending applications" — the
+               tab now holds `new` AND `seen`, so "pending" is the wrong word
+               for what is or is not in it. */
+            ? <p style={{ textAlign: 'center', color: 'var(--muted)', fontSize: 13, padding: '32px 0' }}>Nothing waiting on you.</p>
             : pipeline.map(app => {
               const prof = appProfiles[app.id] || {};
               // ProfileCard routes on `id` first: without it an unclaimed
@@ -714,6 +734,53 @@ export default function EventHostView({
                 />
               );
             })
+          }
+        </div>
+      )}
+
+      {/**
+        * ACCEPTED tab — the ten applications that had nowhere to appear.
+        *
+        * ⛔ READ-ONLY BY DESIGN. There is no ADD TO BILL here: the
+        * SHORT LIST → LINEUP transition is not built, and an accepted
+        * application must never become bill membership on its own. This tab
+        * says "you said yes to these people" and nothing more.
+        *
+        * ⚠ The only action offered is the one that is unambiguously the host's
+        * to take back — a decline. It writes `applications.status` and touches
+        * nothing else.
+        */}
+      {effectiveIsHost && showEditor && eventTab === 'ACCEPTED' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {acceptedApps.length === 0
+            ? <p style={{ textAlign: 'center', color: 'var(--muted)', fontSize: 13, padding: '32px 0' }}>Nobody accepted yet.</p>
+            : <>
+              {/* ⚠ Says what this tab is NOT, because the obvious reading of
+                  "accepted" is "on the bill" and that is not what it means. */}
+              <p style={{ fontSize: 12, color: 'var(--muted)', margin: '0 0 4px', lineHeight: 1.5 }}>
+                You said yes to these applications. Adding them to the bill is still a separate step.
+              </p>
+              {acceptedApps.map(app => {
+                const prof = appProfiles[app.id] || {};
+                const cardItem = { id: prof.id || null, user_id: app.artist_id, name: prof.name || app.artist_name, type: prof.type || 'artist', avatar: prof.avatar || null, avatar_thumb: prof.avatar_thumb || null, sound: prof.sound || null, genre_string: prof.genre_string || null, location: prof.location || null, state: prof.state || null };
+                /* ⚠ Is this accepted applicant ALREADY on the bill? Answered
+                   from `lineup_members`, which is the source of truth — the
+                   application cannot tell you, and that is the whole point of
+                   the separation. */
+                const onBill = lineupMembers.some(m =>
+                  (app.from_profile_id && m.artist_profile_id === app.from_profile_id) ||
+                  (app.artist_id && m.artist_id === app.artist_id));
+                return (
+                  <ProfileCard key={app.id} item={cardItem}
+                    badge={onBill ? 'ON THE BILL' : 'NOT ON THE BILL'}
+                    badgeColor={onBill ? '#00E5A0' : 'rgba(255,255,255,.35)'}
+                    actions={
+                      <button onClick={() => { supabase.from('applications').update({ status: 'declined' }).eq('id', app.id); setAllApps(prev => prev.map(a => a.id === app.id ? { ...a, status: 'declined' } : a)); }} style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1, padding: '4px 10px', borderRadius: 6, border: '1px solid rgba(255,51,51,.3)', background: 'rgba(255,51,51,.06)', color: 'rgba(255,80,80,.8)', cursor: 'pointer', whiteSpace: 'nowrap' }}>DECLINE</button>
+                    }
+                  />
+                );
+              })}
+            </>
           }
         </div>
       )}

@@ -29,7 +29,7 @@ import AvailabilitySection from '../components/AvailabilitySection';
 import EnquiryCalendar from '../components/EnquiryCalendar';
 import { CalendarIconBtn } from '../components/DecisionButtons';
 import { fetchOutgoingEnquiries } from '../lib/outgoingPipeline';
-import { withDirection, normaliseStatus, rawStatusesFor } from '../lib/enquiryUtils';
+import { withDirection, normaliseStatus, rawStatusesFor, PIPELINE_BUCKETS } from '../lib/enquiryUtils';
 import { bucketEvents, eventBucket, defaultBucket, effectiveDate, BUCKETS, UPCOMING, DRAFT, ARCHIVE } from '../lib/eventBuckets';
 import EventsSection from '../components/EventsSection';
 import EventTabBar from '../components/EventTabBar';
@@ -412,8 +412,12 @@ export default function HostDashboard({ userId: userIdProp }) {
   const bucketLineups      = lineupsByBucket[activeLineupBucket] || [];
 
   const bucketOfApp   = a => normaliseStatus({ status: a.status, direction: 'incoming' });
-  const newApps       = allApps.filter(a => bucketOfApp(a) === 'new');
+  /* ⚠ `new` AND `seen` — opening an application auto-writes `seen`, so matching
+     `new` alone meant LOOKING at one removed it from the queue. See
+     PIPELINE_BUCKETS: reading is not deciding. */
+  const newApps       = allApps.filter(a => PIPELINE_BUCKETS.includes(bucketOfApp(a)));
   const tentativeApps = allApps.filter(a => bucketOfApp(a) === 'shortlisted');
+  const acceptedApps  = allApps.filter(a => bucketOfApp(a) === 'accepted');
 
   // Map applications to the common enquiry shape for EnquiryPanel
   const mappedEnquiries = allApps.map(app => ({
@@ -757,6 +761,10 @@ export default function HostDashboard({ userId: userIdProp }) {
               const setTab      = (tab) => setLineupSubTabs(prev => ({ ...prev, [ev.id]: tab }));
               const evShortList = tentativeApps.filter(a => a.event_id === ev.id);
               const evPipeline  = newApps.filter(a => a.event_id === ev.id);
+              /* ⭐ The applications the host said yes to. They had no home on
+                 either surface — ten of thirteen in production. ⛔ Visible only:
+                 nothing here creates bill membership. */
+              const evAccepted  = acceptedApps.filter(a => a.event_id === ev.id);
               /* ⚠ `days`, `totalSlots` and `filledSlots` arrive from
                  `buildHostLineup` — they came from `ev.config.days` and from
                  `Object.keys(claims).length`, which counted an unanswered offer
@@ -809,6 +817,7 @@ export default function HostDashboard({ userId: userIdProp }) {
                           { key: 'SET TIMES',  label: 'SET TIMES' },
                           { key: 'SHORT LIST', label: `SHORT LIST${evShortList.length ? ` (${evShortList.length})` : ''}` },
                           { key: 'PIPELINE',   label: `PIPELINE${evPipeline.length ? ` (${evPipeline.length})` : ''}` },
+                          { key: 'ACCEPTED',   label: `ACCEPTED${evAccepted.length ? ` (${evAccepted.length})` : ''}` },
                         ]}
                       />
 
@@ -888,8 +897,20 @@ export default function HostDashboard({ userId: userIdProp }) {
                       )}
                       {activeTab === 'PIPELINE' && (
                         evPipeline.length === 0
-                          ? <p className={s.empty} style={{ fontSize: 12 }}>No pending applications for this event.</p>
+                          ? <p className={s.empty} style={{ fontSize: 12 }}>Nothing waiting on you for this event.</p>
                           : <div style={{ marginBottom: 12 }}>{evPipeline.map(app => <AppCard key={app.id} app={app} prof={appProfiles[app.id] || {}} event={evtMap[app.event_id]} onRespond={respondApp} />)}</div>
+                      )}
+                      {/* ⛔ READ-ONLY. Says who was accepted; ⛔ creates no bill
+                          membership — that transition is deliberately not built. */}
+                      {activeTab === 'ACCEPTED' && (
+                        evAccepted.length === 0
+                          ? <p className={s.empty} style={{ fontSize: 12 }}>Nobody accepted for this event yet.</p>
+                          : <div style={{ marginBottom: 12 }}>
+                              <p style={{ fontSize: 12, color: 'var(--muted)', margin: '0 0 8px', lineHeight: 1.5 }}>
+                                You said yes to these applications. Adding them to the bill is still a separate step.
+                              </p>
+                              {evAccepted.map(app => <AppCard key={app.id} app={app} prof={appProfiles[app.id] || {}} event={evtMap[app.event_id]} onRespond={respondApp} />)}
+                            </div>
                       )}
                       </div>
                     </div>

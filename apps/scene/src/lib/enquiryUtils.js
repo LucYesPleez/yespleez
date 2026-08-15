@@ -155,6 +155,29 @@ export function normaliseStatus(e) {
  * (server-side). The drift test below pins every known spelling; a genuinely
  * unknown one is a bug in whatever wrote it.
  */
+/**
+ * ⭐⭐ THE PIPELINE IS EVERYTHING UNDECIDED — `new` AND `seen`.
+ *
+ * ⚠⚠ `seen` IS WRITTEN BY LOOKING. `EnquiryCard` auto-marks an incoming row
+ * `seen` the moment it is expanded. So a PIPELINE matching `new` alone means
+ * OPENING an application removes it from the queue: on Bass Heavy the tab read
+ * empty while an application sat there, because someone had once looked at it.
+ *
+ * ⛔ Reading is not deciding. The rule is already written down on the artist
+ * side, in ArtistDashboard's own header: "NEW means UNDECIDED, not unread.
+ * Reading is metadata... The pipeline advances only on intentional decisions."
+ * This is that rule, applied to the surface that needed it.
+ *
+ * ⭐ Exported so the event page and the dashboard cannot disagree about what
+ * is still waiting on the host.
+ */
+export const PIPELINE_BUCKETS = ['new', 'seen'];
+
+/** Is this row still waiting on a decision? */
+export function isUndecided(row) {
+  return PIPELINE_BUCKETS.includes(normaliseStatus(row));
+}
+
 export function rawStatusesFor(bucket, direction = 'incoming') {
   const map = String(direction).toLowerCase() === 'outgoing' ? OUTGOING_STATUS_MAP : INCOMING_STATUS_MAP;
   return Object.entries(map).filter(([, v]) => v === bucket).map(([k]) => k);

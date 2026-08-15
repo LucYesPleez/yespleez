@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { normaliseStatus, rawStatusesFor, bucketsFor } from './enquiryUtils.js';
+import { normaliseStatus, rawStatusesFor, bucketsFor, PIPELINE_BUCKETS, isUndecided } from './enquiryUtils.js';
 
 /**
  * THE TABS THAT WERE PERMANENTLY EMPTY.
@@ -70,6 +70,45 @@ test('⛔ no application can become invisible by being spelled differently', () 
   assert.equal(bucket('a_status_from_the_future'), 'new');
   assert.equal(bucket(undefined), 'new');
   assert.equal(bucket(null), 'new');
+});
+
+/**
+ * ⚠⚠ OPENING AN APPLICATION USED TO REMOVE IT FROM THE QUEUE.
+ *
+ * `EnquiryCard` auto-writes `seen` when a card is expanded, and PIPELINE
+ * matched `new` alone. So Bass Heavy's PIPELINE read EMPTY while an
+ * application sat in it, because someone had once looked at it.
+ *
+ * ⛔ Reading is not deciding — the rule ArtistDashboard already states:
+ * "NEW means UNDECIDED, not unread."
+ */
+test('⚠⚠ looking at an application does not remove it from the pipeline', () => {
+  assert.equal(isUndecided({ status: 'pending' }), true);
+  assert.equal(isUndecided({ status: 'seen' }), true, 'the regression: this was false, and Bass Heavy went blank');
+  assert.equal(isUndecided({ status: 'shortlisted' }), false, 'shortlisting IS a decision');
+  assert.equal(isUndecided({ status: 'accepted' }), false);
+  assert.equal(isUndecided({ status: 'declined' }), false);
+  assert.deepEqual([...PIPELINE_BUCKETS].sort(), ['new', 'seen']);
+});
+
+test('every production application now appears in exactly one host tab', () => {
+  // PIPELINE = new+seen · SHORT LIST = shortlisted · ACCEPTED = accepted
+  // (DECLINED is deliberately not a host tab; it is the closed pile.)
+  const rows = PRODUCTION.flatMap(([status, n]) => Array.from({ length: n }, () => ({ status })));
+  const tabOf = r => {
+    const b = bucket(r.status);
+    if (PIPELINE_BUCKETS.includes(b)) return 'PIPELINE';
+    if (b === 'shortlisted') return 'SHORT LIST';
+    if (b === 'accepted') return 'ACCEPTED';
+    return 'none';
+  };
+  const counts = rows.reduce((acc, r) => { const t = tabOf(r); acc[t] = (acc[t] || 0) + 1; return acc; }, {});
+  assert.equal(counts.PIPELINE, 1, 'the seen application on Bass Heavy, which was invisible');
+  assert.equal(counts['SHORT LIST'], 1);
+  assert.equal(counts.ACCEPTED, 10, 'nine accepted plus the one confirmed, which display-normalises to accepted');
+  assert.equal(counts.none, 1, 'only the declined one, which has no host tab by design');
+  // ⭐ 12 of 13 now have a home. Before this: 1 of 13.
+  assert.equal(rows.length - counts.none, 12);
 });
 
 test('the synonym pairs collapse, as ratified', () => {
