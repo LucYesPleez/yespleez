@@ -422,6 +422,90 @@
   overflow: hidden;
   cursor: pointer;
   transition: background .15s;
+  /* ⛔ REQUIRED by the full-bleed image below — it is the positioning context.
+     ⚠ `overflow: hidden` was already here, so the radius already clips. */
+  position: relative;
+}
+
+/**
+ * ⭐⭐ THE SETTLE — what a slot does when its OCCUPANT changes.
+ *
+ * ⚠⚠ Killing the drop animation fixed the "fly back to where you picked it up"
+ * lie, but left nothing in its place: the overlay vanished and the new occupant
+ * appeared instantly, which the owner read as "I let go and it flicks to it".
+ *
+ * ⭐ So the motion moved from the OVERLAY to the ROW. The card that just
+ * received an act eases in over 220ms; the one that lost it does too. ⛔ NOT a
+ * return-to-origin — this animates the thing that actually changed.
+ *
+ * ⚠ Deliberately small: 4px and a partial fade. A drop is a confirmation, ⛔ not
+ * an event, and a big movement here would read as the app doing something
+ * rather than acknowledging something.
+ */
+@keyframes slotSettle {
+  /* ⚠ SLOWER AND SOFTER (owner, 2026-08-16). ⛔ The movement did NOT grow —
+     it shrank. 5px → 3px, and the fade starts at .55 rather than .3, so the
+     card is already mostly THERE and simply resolves. A long animation over a
+     big jump is not soft, it is slow; softness is a small distance given time. */
+  /* ⚠ SLOWER AND SOFTER, PASS 2 (owner, 2026-08-16). Same principle, further:
+     the distance shrank AGAIN (3px → 2px) and the fade now starts at .7, so
+     barely anything travels and what remains is mostly a dissolve. ⛔ Do not
+     answer "softer" by increasing the movement — that is the one change that
+     always makes it worse. */
+  from { opacity: .7; transform: translateY(-2px) scale(.999); }
+  to   { opacity: 1;  transform: translateY(0)    scale(1); }
+}
+
+.slotSettle {
+  /* ⚠ `ease-out`, ⛔ not a springy curve — an overshoot is itself a flick.
+     ⚠ .42s → .6s. Long enough to read as a settle rather than a state change,
+     short enough that a host reordering five slots is never waiting on it. */
+  animation: slotSettle .6s cubic-bezier(.16, .84, .44, 1);
+}
+
+/* ⚠ Respect the system setting — a settle is decoration, and decoration is the
+   first thing to drop for anyone who has asked for less motion. */
+@media (prefers-reduced-motion: reduce) {
+  .slotSettle { animation: none; }
+}
+
+/* ── THE CARD SYSTEM'S BACKGROUND, on the set-times row ───────────────────
+ *
+ * ⛔⛔ THE SAME RECIPE AS `ProfileCard` AND `WorkItemCard`, ⛔ copied not
+ * re-tuned (owner, 2026-08-16). ⛔ Change the overlay in one, change it in all
+ * three, or the card system has drifted again.
+ *
+ * ⚠ These are absolutely positioned, so they are ⛔ NOT grid items — they do
+ * not consume one of the three columns. */
+.slotBgImg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 30%;
+  display: block;
+  opacity: .85;
+}
+
+.slotBgOverlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    rgba(10,10,20,.92) 0%,
+    rgba(10,10,20,.55) 50%,
+    rgba(10,10,20,.75) 100%
+  );
+}
+
+/* ⭐ EVERY REAL CHILD SITS ABOVE THE PICTURE — written as "everything except
+   the two background layers" so the third grid column, and anything added to
+   this row later, is covered without another rule. ⛔ A later child left out of
+   this would paint UNDER the image and simply vanish. */
+.slot > *:not(.slotBgImg):not(.slotBgOverlay) {
+  position: relative;
+  z-index: 1;
 }
 
 .slot:hover { background: rgba(255,255,255,0.03); }

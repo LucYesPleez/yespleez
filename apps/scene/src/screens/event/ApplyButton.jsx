@@ -7,6 +7,7 @@ import { writeNotification } from '../../lib/writeNotification';
 import { announcePushWorthIt } from '../../lib/pushPrompt';
 import { listAssets } from '../../lib/profileAssetStore';
 import { resolveAskCategory } from '../../lib/askCategoryResolver';
+import { genreLabels } from '../../lib/profileTaxonomy';
 import { evaluate, columnsFor, snapshotEvaluation } from '@yespleez/requirements';
 /**
  * ⭐ The verdict display moved to the requirements package once a second
@@ -217,7 +218,11 @@ export default function ApplyButton({ eventId, userId, ownerProfile }) {
               than hidden: silently dropping it reads as a missing profile. */}
           {remaining.length === 1 && performers.length === 1 && (
             <p style={{ fontSize: 12, color: 'var(--neon2)', marginBottom: 8, fontFamily: "'Bebas Neue'", letterSpacing: 1 }}>
-              APPLYING AS: {performers[0].name} · {performers[0].sound || performers[0].genre_string || ''}
+              {/* ⛔⛔ `genreLabels`, ⛔ never the raw column — role keys live in
+                  `genre_string`, and this is the line telling an artist who
+                  they are about to apply AS. ⚠ Sliced to three; it printed the
+                  whole list into a one-line label. */}
+              APPLYING AS: {performers[0].name} · {performers[0].sound || genreLabels(performers[0].genre_string).slice(0, 3).join(' · ')}
             </p>
           )}
           {performers.length > 1 && (

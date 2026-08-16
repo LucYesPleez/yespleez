@@ -169,6 +169,28 @@ function selectedRoleLabels(genreString, roles) {
 export const selectedPerformanceRoleLabels = genreString => selectedRoleLabels(genreString, PERFORMANCE_ROLES);
 export const selectedArtistRoleLabels = genreString => selectedRoleLabels(genreString, ARTIST_ROLES);
 
+// ⭐⭐ THE INVERSE, AND THE ONE ANY DISPLAY OF genre_string SHOULD USE.
+//
+// ⛔⛔ ROLE KEYS ARE STORED INSIDE genre_string, so printing the column raw
+// leaks an internal identifier into user-facing copy: a DJ's genre list reads
+// "dj_prod · Drum & Bass · Breaks", and a comedian's leads with "comedy".
+// Found on the lineup card's own GENRES row, 2026-08-16.
+//
+// ⚠ Splits on `·` OR `,`. GENRE_SEP is the canonical separator, but
+// MySceneScreen writes `genres.join(', ')`, so a display helper that only knew
+// about `·` would hand back one long comma-joined blob for those profiles.
+//
+// ⛔ Roles are not "missing" from the result — `selectedArtistRoleLabels` is
+// how a surface shows them, with their LABEL. This function is only about the
+// genre list.
+const ALL_ROLE_KEYS = new Set([...PERFORMANCE_ROLES, ...ARTIST_ROLES].map(r => r.key));
+
+export function genreLabels(genreString) {
+  return String(genreString || '')
+    .split(/[·,]/).map(t => t.trim()).filter(Boolean)
+    .filter(t => !ALL_ROLE_KEYS.has(t));
+}
+
 // Genre-string encoding shared with the app (genre_string column).
 export const GENRE_SEP = ' · ';
 

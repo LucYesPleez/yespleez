@@ -3,7 +3,7 @@ import s from './ProfileCard.module.css';
 import { PROFILE_TYPES, profileIdentity } from '../lib/profileTypes';
 import { profileUrl } from '../lib/profileResolution';
 import { formatLocation } from '../lib/formatLocation';
-import { selectedPerformanceRoleLabels } from '../lib/profileTaxonomy';
+import { selectedPerformanceRoleLabels, genreLabels } from '../lib/profileTaxonomy';
 import UnclaimedBadge from './UnclaimedBadge';
 import { COMPLETION_COLUMNS, completionFor } from '@yespleez/requirements';
 
@@ -114,7 +114,10 @@ export default function ProfileCard({ item, badge, badgeColor, actions, onClick,
   const dim   = pt.muted;
   const dimRgb = pt.mutedRgb;
   const loc   = formatLocation(item);
-  const sound = item.sound || item.genre_string?.split(' · ').slice(0, 3).join(' · ') || '';
+  /* ⛔⛔ `genreLabels`, ⛔ NEVER a raw split — role KEYS are stored inside
+     `genre_string`, so an act with no `sound` of their own read "dj_prod ·
+     Drum & Bass · Breaks" on Discover, My Scene and Messenger contacts. */
+  const sound = item.sound || genreLabels(item.genre_string).slice(0, 3).join(' · ') || '';
   const img   = item.avatar_thumb || item.avatar || null;
   // 10F: null for an unknown type — see UNKNOWN_PROFILE. There is no neutral
   // placeholder asset, and borrowing a real type's photo is what this pass exists

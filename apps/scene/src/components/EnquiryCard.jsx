@@ -31,6 +31,7 @@ import DateBox from './DateBox';
 import { DecisionBtn, DetailBtn, StarIcon, CheckIcon, XIcon } from './DecisionButtons';
 import EnquiryDossierSheet from './EnquiryDossierSheet';
 import { PROFILE_TYPES } from '../lib/profileTypes';
+import { genreLabels } from '../lib/profileTaxonomy';
 
 
 export function HoverPill({ label, accentRgb, accent }) {
@@ -223,7 +224,8 @@ export default function EnquiryCard({ enq, viewerProfile, onRespond, onPlayDemo,
   const loc          = formatLocation(p);
   const avatar       = p.avatar || null;
   const allTags      = (p.card_pills || '').split(/[,·]/).map(s => s.trim()).filter(Boolean);
-  const sound        = p.sound || p.genre_string?.split(/[·,]/).slice(0, 3).join(' · ') || '';
+  /* ⛔⛔ `genreLabels`, ⛔ never a raw split — role keys live in `genre_string`. */
+  const sound        = p.sound || genreLabels(p.genre_string).slice(0, 3).join(' · ') || '';
 
   /**
    * BOOKING READINESS — computed from the LIVE profile row, never snapshotted

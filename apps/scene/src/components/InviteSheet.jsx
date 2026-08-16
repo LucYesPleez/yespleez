@@ -5,6 +5,7 @@ import { writeNotification } from '../lib/writeNotification';
 import { resolveProfileId } from '../lib/resolveProfileId';
 import { formatLocation } from '../lib/formatLocation';
 import { profileIdentity } from '../lib/profileTypes';
+import { genreLabels } from '../lib/profileTaxonomy';
 import ArtistPicker from './ArtistPicker';
 
 const SLOT_ROLES = ['Opener', 'Support', 'Headline'];
@@ -244,7 +245,8 @@ export default function InviteSheet({ artist, events = [], venueUserId, venuePro
     setSent(true);
   }
 
-  const sound  = artist.sound || artist.genre_string?.split(' · ').slice(0, 3).join(' · ') || '';
+  /* ⛔⛔ `genreLabels`, ⛔ never a raw split — role keys live in `genre_string`. */
+  const sound  = artist.sound || genreLabels(artist.genre_string).slice(0, 3).join(' · ') || '';
   const loc    = formatLocation(artist);
   const img    = artist.avatar_thumb || artist.avatar || null;
 

@@ -21,7 +21,15 @@ import EnquiryPanel from '../components/EnquiryPanel';
 import { ENQUIRY_CARD_COLUMNS } from '../components/EnquiryCard';
 import { fetchApplicantProfiles } from '../lib/applicantProfiles';
 import { memberProfileKeys, indexMemberProfiles } from './event/lineupProfiles';
-import { groupSlotsIntoDays, indexPerformances, durationLabel } from '../lib/eventSlots';
+/* ⚠ `durationLabel` went with the hand-rolled SET TIMES row — `SlotCard` does
+   its own duration formatting through `fmtDur`. ⛔ Two formatters for one value
+   is how the old row came to print "1.5 hrsm". */
+import { groupSlotsIntoDays, indexPerformances } from '../lib/eventSlots';
+/* ⭐ THE ONE definition of a dressed claim — shared with `useEventData`. */
+import { enrichClaims } from '../lib/claimEnrichment';
+/* ⛔ `DaySlots`, ⛔ NOT `SlotCard` directly — it owns the DndContext, so the
+   drag dots the padlock reveals actually drag. */
+import DaySlots from './event/DaySlots';
 import { buildHostLineup, STATE_COLOURS } from '../lib/hostLineup';
 /* ⚠ `findExistingMember` ONLY. The dashboard still needs to READ whether an
    applicant is on the bill — that is what ACCEPTED · ON THE BILL says — but it
@@ -71,6 +79,32 @@ export default function HostDashboard({ userId: userIdProp }) {
   const [lineupError,    setLineupError]    = useState('');
   const [lineupExpandMap, setLineupExpandMap] = useState({});  // eventId → bool (default true)
   const [lineupSubTabs,  setLineupSubTabs]  = useState({});   // eventId → 'LINEUP'|'SET TIMES'|'SHORTLIST'|'PIPELINE'|'NOT BOOKED'
+  /**
+   * ⭐⭐ eventId → is SET TIMES unlocked for editing HERE (owner, 2026-08-16).
+   *
+   * ⛔ LOCKED IS THE DEFAULT, and that is the whole point. The dashboard is
+   * triage; editing a running order from a summary screen is a deliberate act,
+   * so the padlock makes the host ASK for it rather than arrive in it.
+   *
+   * ⚠ PER EVENT, ⛔ not global: unlocking one event's schedule must not quietly
+   * arm the controls on every other event in the list.
+   *
+   * ⚠ NOT PERSISTED — it resets on reload, like the event page's own
+   * `viewAsPunter`. A latch that survives a refresh is a mode, ⛔ and a mode
+   * that outlives the session it was opened for is how someone edits the wrong
+   * event a week later.
+   */
+  const [setTimesUnlocked, setSetTimesUnlocked] = useState({});
+  /**
+   * ⭐ BUMPED TO RE-RUN `loadLineups`. The lineup data is NOT react-query — it
+   * is an effect writing `setLineups`/`setClaimsMap` — so there is no key to
+   * invalidate when a drag on this screen changes a performance.
+   *
+   * ⛔ Without it a reorder writes to the database and this screen keeps
+   * rendering its stale copy, which is indistinguishable from a failed write.
+   * That is exactly what the owner saw.
+   */
+  const [lineupReload, setLineupReload] = useState(0);
   /* ⚠ Shortlisted MEMBERS, keyed by event — the second half of the SHORTLIST
      tab. ⛔ Kept out of `lineups`, which is the bill. */
   const [shortlistMembersByEvent, setShortlistMembersByEvent] = useState({});
@@ -202,9 +236,35 @@ export default function HostDashboard({ userId: userIdProp }) {
   // Load lineups lazily — triggered by BOOKED tab or LINEUP section scroll.
   // §14: same ownership question as the event list and applications above.
   useEffect(() => {
-    if (!userId || !profile?.id || lineupsLoaded.current) return;
+    /**
+     * ⛔⛔ THE LATCH MUST NOT BLOCK A DELIBERATE RELOAD (2026-08-16).
+     *
+     * ⚠⚠ `lineupsLoaded` is a LAZY-LOAD guard — "only fetch this section once,
+     * when it is first needed". But it also swallowed `lineupReload`, which is
+     * the drag's way of saying "refetch, something changed": the effect re-ran
+     * and returned on this very line, so a set-times drag WROTE SUCCESSFULLY
+     * and the screen kept painting its stale copy until a manual refresh.
+     *
+     * ⭐ A first-load guard and a refresh signal are two different things.
+     * `lineupReload > 0` means somebody ASKED, so the latch does not apply.
+     */
+    if (!userId || !profile?.id) return;
+    if (lineupsLoaded.current && lineupReload === 0) return;
     lineupsLoaded.current = true;
-    setLoadingLineups(true);
+    /**
+     * ⛔⛔ A REFRESH IS SILENT. ⛔ NEVER raise the loading state on a reload.
+     *
+     * ⚠⚠ `setLoadingLineups(true)` swaps the whole section for a skeleton, so
+     * after every drag the list UNMOUNTED and came back — losing scroll
+     * position and flashing the entire screen. The owner read that as "the
+     * whole screen resets after each drag drop", and they were right: the data
+     * was correct, the repaint was violent.
+     *
+     * ⭐ On a reload the CURRENT rows stay on screen until the new ones arrive.
+     * The move is already on screen anyway — dnd-kit leaves the card where it
+     * was dropped — so there is nothing to hide and nothing to wait for.
+     */
+    if (lineupReload === 0) setLoadingLineups(true);
     /**
      * ⭐⭐ THE LINEUP IS THE HOST'S EVENTS AND WHO IS ON THEM.
      *
@@ -297,6 +357,20 @@ export default function HostDashboard({ userId: userIdProp }) {
           (membersData || []).filter(m => m.event_id === g.event.id).map(m => [m.id, m])));
         if (Object.keys(primary).length) cm[g.event.id] = primary;
       });
+
+      /**
+       * ⭐⭐ DRESSED BY THE SAME MODULE THE EVENT PAGE USES.
+       *
+       * ⚠⚠ This replaced a hand-rolled `claim.profile = memberProfiles[…]`,
+       * which was me patching ONE symptom — missing avatars — while `mix_link`,
+       * the socials and the mix rail stayed absent, so the play button never
+       * rendered here and the same card behaved differently on two screens.
+       *
+       * ⛔ ONE CALL FOR EVERY EVENT, ⛔ not one per event: this screen loads the
+       * whole list in a single pass, and `enrichClaims` is a plain function
+       * rather than a hook precisely so it can be handed the lot.
+       */
+      await enrichClaims(supabase, Object.values(cm).flatMap(bySlot => Object.values(bySlot)));
       setClaimsMap(cm);
 
       /* ⛔ The old `setTimesMap` write is gone with the state it fed. Nothing
@@ -306,7 +380,9 @@ export default function HostDashboard({ userId: userIdProp }) {
       setLoadingLineups(false);
     }
     loadLineups();
-  }, [userId, profile?.id]);   // §14: re-runs once the host profile resolves (loadLineups)
+    /* ⚠ `lineupReload` re-runs this after a set-times drag on this screen —
+       ⛔ there is no query key to invalidate; see the state's own note. */
+  }, [userId, profile?.id, lineupReload]);   // §14: re-runs once the host profile resolves (loadLineups)
 
   // Load following on mount
   useEffect(() => {
@@ -803,6 +879,12 @@ export default function HostDashboard({ userId: userIdProp }) {
               const toggleExpand = () => setLineupExpandMap(prev => ({ ...prev, [ev.id]: !evExpanded }));
               const activeTab   = lineupSubTabs[ev.id] || 'LINEUP';
               const setTab      = (tab) => setLineupSubTabs(prev => ({ ...prev, [ev.id]: tab }));
+              /* ⚠ Lifted to the group scope because the PADLOCK lives in the
+                 tab heading and the cards it governs render further down. ⛔ Two
+                 copies of `!!setTimesUnlocked[ev.id]` is how a control and the
+                 thing it controls come to disagree. */
+              const stUnlocked  = !!setTimesUnlocked[ev.id];
+              const toggleSetTimes = () => setSetTimesUnlocked(prev => ({ ...prev, [ev.id]: !stUnlocked }));
               const evPipeline  = newApps.filter(a => a.event_id === ev.id);
               /**
                * ⭐⭐ THE SHORTLIST IS TWO SOURCES, matching `EventHostView`.
@@ -844,12 +926,41 @@ export default function HostDashboard({ userId: userIdProp }) {
                     <span className={s.lineupEventName}>{evName}</span>
                     {evDate && <span className={s.lineupEventDate}>{evDate}</span>}
                     <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+                      {/**
+                        * ⭐⭐ TWO CONTROLS, ⛔ NOT ONE (owner, 2026-08-16).
+                        * `VIEW / EDIT EVENT` was a single button doing two
+                        * unrelated jobs, and it did neither directly: it landed
+                        * on the host workspace, from which EDIT was another two
+                        * presses through MANAGE EVENT.
+                        *
+                        * ⚠ The EYE is the app's established "see it as the
+                        * public does" mark — the same glyph DashboardHeader
+                        * uses for the profile preview and the event page uses
+                        * for its own punter toggle. ⛔ Do not give it a label;
+                        * three of these sit in a row and the icon is the
+                        * vocabulary.
+                        */}
                       <button
-                        onClick={() => navigate(`/event/${ev.id}`)}
+                        onClick={() => navigate(`/event/${ev.id}?view=public`)}
+                        title="View as the public sees it"
+                        aria-label="View as the public sees it"
+                        style={{ background: 'none', border: '1px solid rgba(255,255,255,.15)', borderRadius: 8, width: 26, height: 26, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--muted)', flexShrink: 0, transition: 'border-color .15s, color .15s' }}
+                        onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--neon2)'; e.currentTarget.style.color = 'var(--neon2)'; }}
+                        onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,.15)'; e.currentTarget.style.color = 'var(--muted)'; }}
+                      >
+                        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <circle cx="12" cy="12" r="3"/><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7z"/>
+                        </svg>
+                      </button>
+                      {/* ⛔ STRAIGHT TO THE EDITOR, ⛔ not to the event page.
+                          "Edit" that lands somewhere you then have to press
+                          MANAGE EVENT from is not an edit button. */}
+                      <button
+                        onClick={() => navigate(`/create-event?edit=${ev.id}`)}
                         style={{ background: 'none', border: '1px solid rgba(255,255,255,.15)', borderRadius: 8, padding: '4px 10px', color: 'var(--muted)', fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1.5, cursor: 'pointer', transition: 'border-color .15s, color .15s' }}
                         onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--neon2)'; e.currentTarget.style.color = 'var(--neon2)'; }}
                         onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,.15)'; e.currentTarget.style.color = 'var(--muted)'; }}
-                      >VIEW / EDIT EVENT →</button>
+                      >EDIT EVENT →</button>
                       <button onClick={toggleExpand}
                         style={{ background: 'none', border: '1px solid rgba(255,255,255,.15)', borderRadius: 8, width: 26, height: 26, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--muted)', flexShrink: 0, transition: 'border-color .15s, color .15s' }}
                         onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,.4)'; e.currentTarget.style.color = '#fff'; }}
@@ -900,7 +1011,54 @@ export default function HostDashboard({ userId: userIdProp }) {
                         style={{ marginBottom: 12 }}
                         tabs={[
                           { key: 'LINEUP',     label: `LINEUP${members.length ? ` (${members.length})` : ''}` },
-                          { key: 'SET TIMES',  label: 'SET TIMES' },
+                          /**
+                            * ⭐⭐ THE PADLOCK SITS IN THE HEADING (owner,
+                            * 2026-08-16). `EventTabBar` renders `label` as a
+                            * child, so it takes a node — ⛔ no change needed
+                            * there, and ⛔ none made: it is shared with the
+                            * event page.
+                            *
+                            * ⛔ A `<span role="button">`, ⛔ NOT a `<button>` —
+                            * the tab itself is a button and nesting one inside
+                            * another is invalid HTML that browsers resolve by
+                            * dropping the inner control.
+                            *
+                            * ⚠ `stopPropagation` or the padlock would also fire
+                            * the tab change underneath it. ⭐ Toggling the lock
+                            * and choosing the tab are two different intents on
+                            * one piece of chrome.
+                            *
+                            * ⚠ 40px hit area via padding + equal NEGATIVE
+                            * margin, so the target is thumb-sized without
+                            * growing the tab row's height.
+                            */
+                          { key: 'SET TIMES',  label: (
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                              SET TIMES
+                              <span
+                                role="button"
+                                tabIndex={0}
+                                aria-pressed={stUnlocked}
+                                aria-label={stUnlocked ? 'Lock set times' : 'Unlock to edit set times here'}
+                                title={stUnlocked ? 'Lock set times' : 'Unlock to edit set times here'}
+                                onClick={e => { e.stopPropagation(); toggleSetTimes(); }}
+                                onKeyDown={e => {
+                                  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); toggleSetTimes(); }
+                                }}
+                                style={{
+                                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                                  padding: 13, margin: -13, border: 'none', background: 'none',
+                                  color: stUnlocked ? '#fff' : 'var(--muted)',
+                                  cursor: 'pointer', transition: 'color .15s',
+                                }}
+                              >
+                                {stUnlocked
+                                  ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>
+                                  : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                                }
+                              </span>
+                            </span>
+                          ) },
                           { key: 'SHORTLIST',  label: `SHORTLIST${evShortList.length ? ` (${evShortList.length})` : ''}` },
                           { key: 'PIPELINE',   label: `PIPELINE${evPipeline.length ? ` (${evPipeline.length})` : ''}` },
                           ...(evOrphaned.length
@@ -954,7 +1112,11 @@ export default function HostDashboard({ userId: userIdProp }) {
                                 const work = lineupWorkState(m.state);
                                 return (
                                   <WorkItemCard key={m.id} kind="lineup" item={item}
-                                    stateLabel="ON BILL" stateColor={STATE_COLOURS[m.state]}
+                                    /* ⛔ NO `stateLabel` — see EventHostView's
+                                       twin of this call. The tab is the bill;
+                                       the set time is promoted into the chip.
+                                       ⛔ Change one, change both. */
+                                    stateColor={STATE_COLOURS[m.state]}
                                     subState={work.setTime} needsAction={work.needsAction}
                                     tags={m.profile?.card_pills || m.member.card_pills}
                                     viewerProfileId={profile?.id || null}
@@ -981,23 +1143,125 @@ export default function HostDashboard({ userId: userIdProp }) {
                       {activeTab === 'SET TIMES' && (() => {
                         const slots = days.flatMap(d => d.slots || []);
                         if (slots.length === 0) return <p className={s.empty} style={{ fontSize: 12 }}>No set times added for this event yet.</p>;
-                        const PREVIEW_COUNT = 4;
-                        const preview = slots.slice(0, PREVIEW_COUNT);
-                        const rest    = slots.length - preview.length;
+                        /**
+                         * ⚠ `saveSlot(ev, dayIdx, slotIdx, …)` writes back into
+                         * `config.days` BY POSITION, but `DaySlots` hands its
+                         * callback the SLOT ONLY. So the indices are looked up
+                         * by id at the moment of editing.
+                         *
+                         * ⛔ Looked up, ⛔ not captured in a render-time map: a
+                         * DRAG REORDERS `days`, so an index captured when the
+                         * list rendered would write the edit into whichever
+                         * slot has since taken that position.
+                         */
+                        const locate = slot => {
+                          for (let dayIdx = 0; dayIdx < days.length; dayIdx++) {
+                            const slotIdx = (days[dayIdx].slots || []).findIndex(x => x.id === slot.id);
+                            if (slotIdx >= 0) return { dayIdx, slotIdx };
+                          }
+                          return null;
+                        };
+                        /* ⛔ THE PADLOCK MOVED INTO THE TAB HEADING (owner,
+                           2026-08-16) — icon only, ⛔ no label row and ⛔ no
+                           border. `stUnlocked` is the group-scope source. */
+                        const unlocked = stUnlocked;
                         return (
                           <div style={{ marginBottom: 12 }}>
-                            {preview.map(slot => (
-                              <div key={slot.id} style={{ display: 'flex', alignItems: 'baseline', gap: 10, padding: '7px 0', borderBottom: '1px solid rgba(255,255,255,.05)' }}>
-                                <span style={{ fontFamily: "'Bebas Neue'", fontSize: 13, letterSpacing: 1, color: 'var(--neon2)', minWidth: 56 }}>{[slot.time, slot.ampm].filter(Boolean).join(' ') || '—'}</span>
-                                <span style={{ fontSize: 13, color: evClaims[slot.id]?.name ? 'var(--text)' : 'var(--muted)', fontStyle: evClaims[slot.id]?.name ? 'normal' : 'italic' }}>{evClaims[slot.id]?.name || 'Open slot'}</span>
-                                {/* ⚠ The duration, through the ONE formatter —
-                                    the inline `dur >= 60` ternary printed
-                                    `1.5 hrsm` for any slot whose dur was the
-                                    string "1.5 hrs". */}
-                                {slot.dur ? <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--muted)', flexShrink: 0 }}>{durationLabel(slot.dur)}</span> : null}
-                              </div>
-                            ))}
-                            {rest > 0 && <p style={{ fontSize: 12, color: 'var(--muted)', margin: '8px 0 0' }}>+{rest} more</p>}
+                            {/**
+                              * ⭐⭐ THE REAL `SlotCard` — the same row the event
+                              * page draws (owner, 2026-08-16). ⛔ It replaced a
+                              * hand-rolled time/name/duration line that shared
+                              * no markup, no styling and no vocabulary with the
+                              * card one screen over, so the same schedule read
+                              * as two different products.
+                              *
+                              * ⚠ `isHost` — this IS the host's own dashboard.
+                              * ⛔ Passing false would render the PUBLIC view,
+                              * which shows an unconfirmed act as "PENDING" and
+                              * treats a draft slot as empty: the host would be
+                              * hidden from acts they can see one tab away.
+                              *
+                              * ⛔ NO `onFill`/`onEdit`/`onRemove` and ⛔ NOT
+                              * sortable — "triage, not a second workspace", the
+                              * same rule the LINEUP tab above follows by
+                              * passing no `actions`. Scheduling happens on the
+                              * event page, and OPEN FULL SCHEDULE goes there.
+                              */}
+                            <DaySlots
+                              eventId={ev.id}
+                              days={days}
+                              claims={evClaims}
+                              isHost
+                                /**
+                                 * ⭐⭐ EXPANDING IS READING; THE PADLOCK GOVERNS
+                                 * WRITING (owner, 2026-08-16).
+                                 *
+                                 * ⚠ I had `expandable={unlocked}` first, which
+                                 * conflated the two: a host could not even LOOK
+                                 * at who is on a slot without arming the edit
+                                 * controls. ⛔ Wrong gate. The panel's status,
+                                 * tags, follow, message and profile are all
+                                 * read-only, so they are ⛔ never locked.
+                                 *
+                                 * `locked` still hides EDIT SLOT, and with no
+                                 * `onPin`/`onRemove`/`onFill` passed the other
+                                 * three controls never render here at all.
+                                 */
+                              /**
+                               * ⭐⭐ `editable` IS THE EDITOR ON/OFF FLAG, and
+                               * the padlock now drives it (owner, 2026-08-16:
+                               * "just wire the padlock to do the job of the
+                               * editor on/off button").
+                               *
+                               * ⛔ `DaySlots` OWNS THE DndContext — that is why
+                               * this renders it rather than mapping `SlotCard`
+                               * directly. Drag dots without a drag context are
+                               * an affordance that does nothing.
+                               *
+                               * ⚠ `editable` gives the CONTEXT; `isLocked`
+                               * gives the CONTROLS. Both follow the padlock, so
+                               * locked is a readable schedule and unlocked is
+                               * the editor.
+                               */
+                              editable={unlocked}
+                              isLocked={!unlocked}
+                              /* ⭐ ONLY `onEdit` — `DaySlots` and `SlotCard` now
+                                 both render a control only where its handler
+                                 exists, so the dash offers EDIT SLOT and ⛔ no
+                                 LOCK SLOT, REMOVE or REPLACE ARTIST. ⚠ This
+                                 revives `SlotEditModal`, which was wired to
+                                 `saveSlot` and which ⛔ nothing could open. */
+                              onEdit={slot => {
+                                const at = locate(slot);
+                                if (at) setEditingSlot({ ev, ...at, slot });
+                              }}
+                              /* ⭐⭐ THIS SCREEN REFRESHES ITSELF. `DaySlots`
+                                 invalidates the EVENT PAGE's query key, which
+                                 nothing here reads — without this a drag wrote
+                                 to the database and the row snapped back. */
+                              onChanged={() => setLineupReload(n => n + 1)}
+                              /**
+                                * ⭐⭐ OPTIMISTIC, and it is what makes the drop
+                                * feel instant. `DaySlots` patches the event
+                                * page's query cache; this screen keeps its
+                                * claims in state, so it patches them here.
+                                *
+                                * ⚠ Mirrors the swap rules exactly: an occupied
+                                * target EXCHANGES the two claims, an empty one
+                                * takes the source and ⛔ leaves the origin
+                                * empty. Getting that wrong shows an act in two
+                                * places until the refetch corrects it.
+                                */
+                              onLocalMove={({ from, to, sourceClaim, targetClaim, filled }) => {
+                                setClaimsMap(prev => {
+                                  const bySlot = { ...(prev[ev.id] || {}) };
+                                  bySlot[to] = sourceClaim;
+                                  if (filled) bySlot[from] = targetClaim;
+                                  else delete bySlot[from];
+                                  return { ...prev, [ev.id]: bySlot };
+                                });
+                              }}
+                              viewerProfileId={profile?.id || null} />
                             <button
                               onClick={() => navigate(`/event/${ev.id}`)}
                               style={{ marginTop: 10, background: 'none', border: '1px solid rgba(255,255,255,.15)', borderRadius: 8, padding: '6px 12px', color: 'var(--muted)', fontFamily: "'Bebas Neue'", fontSize: 11, letterSpacing: 1.5, cursor: 'pointer', transition: 'border-color .15s, color .15s' }}

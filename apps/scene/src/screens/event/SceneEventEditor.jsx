@@ -4,6 +4,7 @@ import { PROFILE_TYPES } from '../../lib/profileTypes';
 import ImageUploadButton from '../../components/ImageUploadButton';
 import CoHostPicker from '../../components/CoHostPicker';
 import VenuePicker from '../../components/VenuePicker';
+import EventArtistsSection from '../../components/EventArtistsSection';
 
 /**
  * THIS APP'S EVENT EDITOR — the wrapper, and nothing else.
@@ -41,8 +42,12 @@ const labelProfileType = type => PROFILE_TYPES[type]?.shortLabel || type;
 /** Everything that touches storage or queries this app's profiles.
  *  VenuePicker searches THIS app's venue profiles, so like CoHostPicker it is
  *  injected rather than imported by the package — the form falls back to a
- *  plain text field for any host that does not supply one. */
-const components = { ImageUploadButton, CoHostPicker, VenuePicker };
+ *  plain text field for any host that does not supply one.
+ *
+ *  ⭐ EventArtistsSection writes `lineup_members`, which is Scene's table and
+ *  Scene's model. The package knows only that it was handed a component and an
+ *  event id; ⛔ it must never learn what a shortlist or a bill is. */
+const components = { ImageUploadButton, CoHostPicker, VenuePicker, ArtistsSection: EventArtistsSection };
 
 /**
  * ⛔ ADORNMENT — render-only. It may not change what is selected or saved.

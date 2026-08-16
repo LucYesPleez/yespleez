@@ -28,6 +28,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import s from './WorkItemCard.module.css';
 import { profileIdentity } from '../lib/profileTypes';
+import { genreLabels } from '../lib/profileTaxonomy';
 import { openDirectConversation } from '../lib/messaging';
 import UnclaimedBadge from './UnclaimedBadge';
 import FollowHeartBtn from './FollowHeartBtn';
@@ -57,7 +58,16 @@ export function applicationWorkState(bucket, onBill = false) {
 }
 
 /**
- * ⭐⭐ THE BILL AND THE SET TIME ARE TWO FACTS, SHOWN AS TWO LINES.
+ * ⭐⭐ ONE FACT, ⛔ NOT TWO (owner, 2026-08-16).
+ *
+ * ⛔ THE BILL IS THE TAB. Every row in LINEUP is in `lineup_members`, so an
+ * `ON BILL` chip on each of them restated the tab's own name once per card and
+ * distinguished nothing. It is GONE from this surface. What varies — and
+ * therefore what the card shows — is the SET TIME.
+ *
+ * ⚠ The chip's COLOUR still comes from `STATE_COLOURS[memberState]`, so the
+ * state information the chip carried is kept; only the redundant word was
+ * dropped.
  *
  * ⚠ `DECLINED` HERE IS THE ARTIST DECLINING A SLOT — ⛔ not the host declining
  * an application. Two systems, one word; the copy says "ARTIST DECLINED" out
@@ -67,8 +77,14 @@ export function lineupWorkState(memberState) {
   switch (memberState) {
     /* ⭐ THE DOMINANT OPERATIONAL STATE: 123 of 152 members are here. It is the
        only one flagged as needing action, which is what makes the tab
-       scannable — the lit rows are the work. */
-    case 'ON BILL':   return { setTime: 'NO SET TIME',       needsAction: true  };
+       scannable — the lit rows are the work.
+
+       ⚠⚠ "NEEDS SET TIME", ⛔ NOT "NO SET TIME" (owner, 2026-08-16). Beside
+       `SET TIME NOT SENT` the old wording was a near-homograph — both are
+       literally true of a member with no performance, and a host had to stop
+       and work out which one they were reading. NEEDS names the WORK; NOT SENT
+       names a set time that already exists and is being withheld. */
+    case 'ON BILL':   return { setTime: 'NEEDS SET TIME',    needsAction: true  };
     case 'DRAFT':     return { setTime: 'SET TIME NOT SENT', needsAction: false };
     case 'AWAITING':  return { setTime: 'AWAITING REPLY',    needsAction: false };
     case 'CONFIRMED': return { setTime: 'CONFIRMED',         needsAction: false };
@@ -80,7 +96,9 @@ export function lineupWorkState(memberState) {
 /**
  * @param kind        'application' | 'lineup'
  * @param item        the profile-shaped row this card draws
- * @param stateLabel  the prominent state chip's words
+ * @param stateLabel  the prominent state chip's words. ⛔ OPTIONAL — omit it
+ *                    and `subState` is promoted into the chip instead, which is
+ *                    what the LINEUP tab does.
  * @param stateColor  its colour, from the caller's own status map
  * @param quiet       settled states recede
  * @param subState    lineup only — the set-time line
@@ -121,7 +139,17 @@ export default function WorkItemCard({
   /* Their own words first, the genre string as the fallback — the same
      resolution ProfileCard uses, kept identical so one act does not describe
      itself differently on two screens. */
-  const sound = item.sound || item.genre_string?.split(/[·,]/).slice(0, 3).map(g => g.trim()).join(' · ') || '';
+  /* ⛔⛔ `genreLabels`, ⛔ NEVER a raw split of `genre_string`. Role KEYS live in
+     that column beside the genres, so the raw string reads "dj_prod · Drum &
+     Bass · Breaks" and a comedian's leads with "comedy". See profileTaxonomy. */
+  const genres = genreLabels(item.genre_string);
+
+  const sound = item.sound || genres.slice(0, 3).join(' · ') || '';
+
+  /* ⚠ THE FULL LIST, for the panel — ⛔ not sliced to three like the face, and
+     ⛔ not suppressed when `sound` won: an act with words of their own shows
+     its genres NOWHERE unless this row carries them. */
+  const genreLine = genres.join(' · ');
 
   /* `card_pills` is a delimited string on a profiles row and an array from
      some callers — accept both, and treat any other shape as no tags rather
@@ -151,13 +179,35 @@ export default function WorkItemCard({
 
   /* The panel is worth opening only if it would hold something. ⛔ A
      disclosure that reveals an empty box is worse than no disclosure. */
-  const hasPanel = !!(actions || tagList.length || canOpenProfile || viewerProfileId);
+  const hasPanel = !!(actions || tagList.length || genreLine || canOpenProfile || viewerProfileId);
 
   return (
     <article
       className={`${s.card} ${kind === 'application' ? s.application : s.lineup}`}
       style={{ '--state': stateColor || 'var(--border)' }}
     >
+      {/**
+        * ⭐⭐ THE APP'S CARD TREATMENT — full-bleed image under a dark ramp,
+        * the same `.bgImg` + `.bgOverlay` pair ProfileCard and EventCard use
+        * (owner, 2026-08-16: "canonical cards" = one visual language, ⛔ not
+        * one component). ⛔ Do not restyle these here; change all three.
+        *
+        * ⛔ RENDERED ONLY WHEN THERE IS GENUINELY AN IMAGE. `img` resolves to
+        * the TYPE's default and that default is legitimately null for an
+        * unknown type — and ⛔ borrowing a real type's photograph to fill the
+        * gap is precisely what an earlier pass existed to stop. With none, the
+        * card keeps its own `--card` ground and the overlay is skipped too:
+        * a dark ramp over a flat panel is just a smudge.
+        *
+        * ⚠ `alt=""` — decoration. The name is right there in the heading, and
+        * a screen reader announcing the picture would read the act twice.
+        */}
+      {img && (
+        <>
+          <img className={s.bgImg} src={img} alt="" />
+          <div className={s.bgOverlay} />
+        </>
+      )}
       {/**
         * ⭐⭐ THE WHOLE HEAD IS THE TRIGGER (owner, 2026-08-16: "just clicking
         * the card is the padding for the chevron").
@@ -218,10 +268,27 @@ export default function WorkItemCard({
           {sound && <div className={s.genres} style={{ color: pt.accent }}>{sound}</div>}
         </div>
 
+        {/**
+          * ⭐⭐ THE STATUS COLUMN CARRIES ONE PROMINENT CHIP, ⛔ never two.
+          *
+          * ⚠ A caller that has a genuine headline state (an application's
+          * NEW / UNDECIDED / SHORTLISTED) passes `stateLabel`, and `subState`
+          * sits beneath it as the quiet second line. A caller with no headline
+          * — the LINEUP tab, where "on the bill" is the tab itself — passes
+          * only `subState`, and it is PROMOTED into the chip rather than being
+          * rendered small under an empty space.
+          *
+          * ⛔ DO NOT "FIX" THIS BY PASSING stateLabel={subState}. The promotion
+          * has to keep `needsAction`, which is what lights the rows holding
+          * work, and a headline chip has no such concept.
+          */}
         <div className={s.status}>
-          <span className={`${s.state}${quiet ? ' ' + s.quiet : ''}`}>{stateLabel}</span>
-          {subState && (
-            <span className={`${s.subState}${needsAction ? ' ' + s.needsAction : ''}`}>{subState}</span>
+          {stateLabel && (
+            <span className={`${s.state}${quiet ? ' ' + s.quiet : ''}`}>{stateLabel}</span>
+          )}
+          {subState && (stateLabel
+            ? <span className={`${s.subState}${needsAction ? ' ' + s.needsAction : ''}`}>{subState}</span>
+            : <span className={`${s.state}${needsAction ? ' ' + s.stateAction : ''}`}>{subState}</span>
           )}
         </div>
 
@@ -249,6 +316,28 @@ export default function WorkItemCard({
               left of the old meta line and it earned no room: an organiser
               deciding who plays their night is not deciding on locality, and
               the profile behind PROFILE carries it in full. */}
+
+          {/**
+            * ⭐ THE GENRES, IN FULL (owner, 2026-08-16: the dropdown gets "the
+            * genres and the info thats currently there as is").
+            *
+            * ⚠⚠ THIS IS ⛔ NOT A DUPLICATE OF THE SOUND LINE ON THE FACE. That
+            * line prefers the act's OWN WORDS and only falls back to genres,
+            * truncated to three. So for an act with a `sound` the genres appear
+            * nowhere until this row exists, and for an act without one the face
+            * is showing a THIRD of the list. The panel is the complete answer.
+            *
+            * ⛔ Reuses `.panelRow`/`.panelLabel`/`.panelValue`, which the
+            * removed HOME TOWN row left behind — ⛔ do not invent a fourth
+            * label style for the one row that still needs one.
+            */}
+          {genreLine && (
+            <div className={s.panelRow}>
+              <span className={s.panelLabel}>GENRES</span>
+              <span className={s.panelValue}>{genreLine}</span>
+            </div>
+          )}
+
           {tagList.length > 0 && (
             /* Their own curated five, ⛔ not a genre guess. `.spot-tag` is the
                app's existing pill; this panel does not invent another. */

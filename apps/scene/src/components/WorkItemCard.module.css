@@ -1,24 +1,36 @@
 /**
  * THE OPERATIONAL WORK ITEM — the event workspace's card.
  *
- * ⭐⭐ THE PHOTOGRAPH IS NO LONGER THE SURFACE (owner, 2026-08-15). ProfileCard
- * puts a full-bleed image behind every row with a dark gradient over it, which
- * is right for Discover — you are browsing people there and the picture IS the
- * content. In the host workspace you are working a queue, and the same
- * treatment made twelve rows of near-black photographs with the actual job
- * (what state is this, what do I press) written faintly on top.
+ * ⭐⭐ IT WEARS THE APP'S CARD SYSTEM (owner, 2026-08-16): full-bleed profile
+ * image, left-to-right dark overlay, ⛔ the SAME `.bgImg`/`.bgOverlay` recipe
+ * ProfileCard and EventCard use. ⛔ Do not tune these two rules in isolation —
+ * if the overlay changes, it changes in all three or the system has drifted.
  *
- * ⛔ The photography language is KEPT, not discarded: the avatar holds its
- * type-coloured ring and soft glow, exactly as ProfileCard draws it. It is
- * demoted from background to thumbnail, so information and action dominate.
+ * ⚠⚠ THIS REVERSES A DECISION MADE ONE DAY EARLIER, deliberately, and the old
+ * reasoning is kept here because it is the thing to re-read if the queue ever
+ * does become hard to scan:
  *
- * ⚠ Built from the existing tokens and the existing `.yp-decision` controls —
- * ⛔ this is not a second design language, it is the same one at a different
- * altitude.
+ *     2026-08-15 — "the photograph is no longer the surface". The worry was
+ *     that a working queue of twelve rows would read as twelve near-black
+ *     photographs with the actual job written faintly on top.
+ *
+ * ⭐ WHAT SETTLED IT (owner, 2026-08-16): "canonical cards" means one visual
+ * LANGUAGE, ⛔ not one React component. A lineup card may keep its own
+ * semantics, chips and controls — what it may NOT do is invent a second look.
+ * A surface that is visibly its own species reads as a different app.
+ *
+ * ⛔ THE HEIGHT AND THE INFORMATION ARE UNCHANGED. This pass moved the image
+ * from thumbnail to background and nothing else: same padding, same density,
+ * same chips, same disclosure. ⚠ If a future edit here changes the row height,
+ * that is a regression, not a refinement.
  */
 
 .card {
   position: relative;
+  /* ⛔ REQUIRED — it clips the full-bleed image to the 14px radius. Without it
+     the picture squares off the corners and the card stops matching every
+     other card in the app. */
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -28,6 +40,8 @@
   margin-bottom: 6px;
   border-radius: 14px;
   border: 1px solid var(--border);
+  /* ⚠ Still painted: it is the ground beneath a `.85`-opacity photograph, and
+     it is the whole surface for the split second before the image loads. */
   background: var(--card);
   box-sizing: border-box;
   width: 100%;
@@ -62,6 +76,46 @@
   background: var(--card2);
   border-left: 3px solid var(--border);
   padding-left: 15px;
+}
+
+/* ── THE CARD SYSTEM'S BACKGROUND ────────────────────────────────────────
+ *
+ * ⛔⛔ COPIED FROM `ProfileCard.module.css`, ⛔ NOT re-tuned. Same numbers,
+ * same comment: `object-position: center 30%` because faces sit high in a
+ * portrait, `.85` so the card's own ground still tints it, and the 90deg ramp
+ * dark at BOTH ends because this card carries a name on the left and a status
+ * chip on the right, and both need solid footing.
+ *
+ * ⚠ The mid-point stays at `.55` — light enough that the picture is still a
+ * picture. ⛔ If a name ever fails to read, darken it in ProfileCard too. */
+.bgImg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 30%;
+  display: block;
+  opacity: .85;
+}
+
+.bgOverlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    rgba(10,10,20,.92) 0%,
+    rgba(10,10,20,.55) 50%,
+    rgba(10,10,20,.75) 100%
+  );
+}
+
+/* ⭐ EVERYTHING REAL SITS ABOVE THE PICTURE. ⛔ Without this the image paints
+   over the row: both are children of the same card, and the later one wins. */
+.head,
+.panel {
+  position: relative;
+  z-index: 1;
 }
 
 .head {
@@ -190,10 +244,30 @@
 .state.quiet { color: var(--muted); }
 
 /**
- * ⭐⭐ THE SET-TIME LINE — the lineup card's second status, and the one goal 9
- * is about. "ON BILL — NO SET TIME" is the single most common state in the
- * database (123 of 152 members hold no performance), so it gets its own line
- * directly under the bill status rather than being inferred from an absence.
+ * ⭐⭐ THE PROMOTED SET-TIME CHIP, WHEN IT IS THE ONLY ONE (LINEUP tab).
+ *
+ * ⚠ The lineup card no longer carries an `ON BILL` headline — the tab already
+ * says that — so `NEEDS SET TIME` moves up into `.state`. It has to keep
+ * carrying "this row is the work", which on the small line was `--gold` ink.
+ *
+ * ⛔ THE BORDER GOES GOLD TOO, ⛔ not just the ink. `--state` for an unscheduled
+ * member is `rgba(255,255,255,.35)`, so gold text inside a white-grey outline
+ * read as a rendering fault rather than a highlight.
+ */
+.state.stateAction {
+  color: var(--gold);
+  border-color: var(--gold);
+}
+
+/**
+ * ⭐ THE SET-TIME LINE, when the card ALSO has a headline state — i.e. the
+ * application cards, where the bill status is genuinely news.
+ *
+ * ⛔ THE LINEUP TAB NO LONGER REACHES THIS RULE. There the set time is the only
+ * status, so it is promoted into `.state` above; see `.state.stateAction`.
+ * "needs a set time" is the single most common condition in the database
+ * (123 of 152 members hold no performance), which is why it is the one that
+ * gets lit rather than the one that gets inferred from an absence.
  */
 .subState {
   font-family: 'Bebas Neue', sans-serif;

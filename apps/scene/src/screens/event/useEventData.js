@@ -15,6 +15,7 @@ import { supabase } from '../../lib/supabase';
 import { memberProfileKeys, indexMemberProfiles } from './lineupProfiles';
 import { PROFILE_CARD_META_COLUMNS } from '../../components/ProfileCard';
 import { groupSlotsIntoDays, indexPerformances } from '../../lib/eventSlots';
+import { enrichClaims } from '../../lib/claimEnrichment';
 import { tallySlots } from './slotTally';
 
 export const EVENT_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -129,40 +130,12 @@ export function useEventData(id, navigate) {
       // ⚠ EVERY act on a contested slot is enriched, not just the one the grid
       // happens to show. Enriching `map` alone would leave the second act on
       // `sat_1` with no avatar and no links the moment anything renders it.
+      /* ⭐⭐ ONE DEFINITION OF A DRESSED CLAIM — `lib/claimEnrichment`. This
+         block used to live here in full, and the dashboard had no equivalent,
+         which is why the same `SlotCard` behaved differently on the two screens
+         for an entire afternoon. ⛔ Do not re-inline it. */
       const claimList = Object.values(claimsBySlot).flat();
-      const socialCols = 'id, user_id, mix_link, soundcloud, mixcloud, instagram, facebook, youtube, website, genre_string, sound';
-      const pidClaims = claimList.filter(c => c.profile_id);
-      const uidClaims = claimList.filter(c => !c.profile_id && c.user_id);
-      const [pidSocials, uidSocials] = await Promise.all([
-        pidClaims.length ? supabase.from('profiles').select(socialCols).in('id', pidClaims.map(c => c.profile_id)) : Promise.resolve({ data: [] }),
-        uidClaims.length ? supabase.from('profiles').select(socialCols).in('user_id', uidClaims.map(c => c.user_id)) : Promise.resolve({ data: [] }),
-      ]);
-      const socialsById = {}; (pidSocials.data || []).forEach(p => { socialsById[p.id] = p; });
-      const socialsByUid = {}; (uidSocials.data || []).forEach(p => { socialsByUid[p.user_id] = p; });
-      claimList.forEach(slot => {
-        const p = slot.profile_id ? socialsById[slot.profile_id] : socialsByUid[slot.user_id];
-        if (!p) return;
-        // M15: keep the resolved profiles row itself, not just fields lifted
-        // off it. `slot.user_id` above is lineup_members.artist_id — a
-        // different column with a different meaning — and FillSlotModal writes
-        // that as prof.user_id, which is NULL for an unclaimed profile. A
-        // claim-state test against it would therefore look correct on exactly
-        // the case it gets wrong. isProfileUnclaimed takes this row instead.
-        // Left undefined for a typed billing name with no profile behind it,
-        // which is not an unclaimed profile. socialCols already selects
-        // `id, user_id`, so no query change is needed.
-        slot.profile = p;
-        const link = [p.mix_link, p.soundcloud, p.mixcloud].find(v => v && v.trim() && v !== 'N/A');
-        if (link && !slot.mix_link) slot.mix_link = link;
-        if (p.soundcloud) slot.soundcloud = p.soundcloud;
-        if (p.mixcloud)   slot.mixcloud   = p.mixcloud;
-        if (p.instagram)  slot.instagram  = p.instagram;
-        if (p.facebook)   slot.facebook   = p.facebook;
-        if (p.youtube)    slot.youtube    = p.youtube;
-        if (p.website)    slot.website    = p.website;
-        if (!slot.genre && p.genre_string) slot.genre = p.genre_string;
-        if (!slot.sound && p.sound)        slot.sound = p.sound;
-      });
+      await enrichClaims(supabase, claimList);
       /**
        * Member → EVERY performance they hold.
        *

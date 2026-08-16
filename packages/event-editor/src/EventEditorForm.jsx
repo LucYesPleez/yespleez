@@ -379,12 +379,20 @@ function DayCard({ day, dayIndex, totalDays, onUpdateName, onRemoveDay, onUpdate
  * @param labelProfileType (type) => string. Which short label a profile type
  *                         shows. The registries differ between callers and one
  *                         of them deliberately has no entry for the other's.
- * @param components       {ImageUploadButton?, CoHostPicker?} Anything that
- *                         touches storage or queries profiles. Editing an event
- *                         is platform; where the bytes go is the caller's
- *                         business. CoHostPicker is OPTIONAL — omit it and the
- *                         whole section disappears, because not every world
- *                         has co-hosts.
+ * @param components       {ImageUploadButton?, CoHostPicker?, VenuePicker?,
+ *                         ArtistsSection?} Anything that touches storage or
+ *                         queries profiles. Editing an event is platform; where
+ *                         the bytes go is the caller's business. CoHostPicker is
+ *                         OPTIONAL — omit it and the whole section disappears,
+ *                         because not every world has co-hosts.
+ *
+ *                         ⭐ `ArtistsSection` is given ONLY `{eventId}` and is
+ *                         rendered only when the event already exists. ⛔ The
+ *                         editor does not know what it writes and never reads
+ *                         it back — who is on a bill is the host's data, ⛔ not
+ *                         event config, so it takes no part in `toConfig()`.
+ *                         ⚠ It is a COMPONENT, ⛔ not an adornment: adornments
+ *                         may not mutate anything, and this one writes.
  * @param userId           string | null. The ONE datum this needs about the
  *                         person editing, and it is passed to the injected
  *                         upload component. ⛔ Deliberately not a session: the
@@ -407,7 +415,7 @@ export default function EventEditorForm({
   ed, editId, userId,
   categories, labelProfileType, components, adornments = {}, actions = null,
 }) {
-  const { ImageUploadButton, CoHostPicker, VenuePicker } = components;
+  const { ImageUploadButton, CoHostPicker, VenuePicker, ArtistsSection } = components;
   const {
     name, setName, startDate, setStartDate, endDate, setEndDate,
     venue, setVenue, venueProfileId, setVenueProfileId,
@@ -1014,6 +1022,36 @@ export default function EventEditorForm({
           <div style={{ position:'fixed', inset:0, zIndex:9000, background:'rgba(0,0,0,0.92)', display:'flex', alignItems:'center', justifyContent:'center', padding:20 }} onClick={() => setFullView(false)}>
             <img src={poster} alt="poster" style={{ maxWidth:'100%', maxHeight:'100%', borderRadius:12, boxShadow:'0 8px 48px rgba(0,0,0,.8)' }} />
           </div>
+        )}
+
+        {/**
+          * ── ⭐ ARTISTS — WHO IS PLAYING, BEFORE WHEN THEY PLAY ──────────────
+          *
+          * ⭐⭐ IT SITS ABOVE DAYS & TIME SLOTS ON PURPOSE. The booking funnel
+          * runs LINEUP → SET TIMES: a running order is an arrangement OF acts,
+          * so asking for the acts after the timetable inverts the model — the
+          * same reasoning that put VENUE above CO-HOSTS.
+          *
+          * ⛔⛔ EDIT-ONLY, AND `editId` IS WHY. Membership is rows in the
+          * host's own table keyed by event id, and a NEW event has no id yet.
+          * Rendering a picker that cannot write is worse than rendering
+          * nothing: it invites the organiser to build a bill that silently
+          * evaporates on save. They add artists once the event exists.
+          *
+          * ⛔ OPTIONAL, exactly like CoHostPicker — omit it and the section
+          * disappears. Not every world using this editor has a bill, and the
+          * package must not learn what one is.
+          *
+          * ⛔ THE EDITOR PASSES ONLY THE EVENT ID. It does not know what the
+          * component writes, what a shortlist is, or that a lineup exists, and
+          * ⛔ nothing here reads or serialises the result — membership is NOT
+          * event config and never enters `ed.toConfig()`.
+          */}
+        {ArtistsSection && editId && (
+          <>
+            <SectionHeader label="ARTISTS" />
+            <ArtistsSection eventId={editId} />
+          </>
         )}
 
         {/* ── DAYS & TIME SLOTS ── */}

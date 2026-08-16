@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import UnclaimedNotice from './UnclaimedNotice';
 import { supabase } from '../lib/supabase';
+import { genreLabels } from '../lib/profileTaxonomy';
 
 export default function FillSlotModal({ slot, eventId, eventName = '', hostId, acceptedArtists = [], acceptedProfiles = {}, onFilled, onClose }) {
   const [view,    setView]    = useState('menu');
@@ -142,7 +143,10 @@ export default function FillSlotModal({ slot, eventId, eventName = '', hostId, a
                         key={app.id}
                         avatar={prof.avatar}
                         name={n}
-                        sub={prof.sound || prof.genre_string || ''}
+                        /* ⛔⛔ `genreLabels`, ⛔ never the raw column — role keys live
+                       in it. ⚠ Sliced to three like every other card; this row
+                       printed the WHOLE genre list. */
+                    sub={prof.sound || genreLabels(prof.genre_string).slice(0, 3).join(' · ')}
                         disabled={busy}
                         // M6 · `id` was missing here, so every slot filled from
                         // a shortlisted application wrote a lineup_member with
@@ -179,7 +183,10 @@ export default function FillSlotModal({ slot, eventId, eventName = '', hostId, a
                   <ArtistRow
                     avatar={prof.avatar}
                     name={prof.name}
-                    sub={prof.sound || prof.genre_string || ''}
+                    /* ⛔⛔ `genreLabels`, ⛔ never the raw column — role keys live
+                       in it. ⚠ Sliced to three like every other card; this row
+                       printed the WHOLE genre list. */
+                    sub={prof.sound || genreLabels(prof.genre_string).slice(0, 3).join(' · ')}
                     disabled={busy}
                     onSelect={() => fillFromProfile(prof)}
                   />

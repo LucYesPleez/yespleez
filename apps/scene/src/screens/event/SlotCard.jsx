@@ -3,7 +3,7 @@
 // host editor — the difference is entirely in the props it is given.
 /* ⚠ `useRef` went with the genre rail's scroll hint — the pill row no longer
    overflows, so there is nothing to nudge. */
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -18,6 +18,7 @@ import { resolveProfileId } from '../../lib/resolveProfileId';
 import { track, EVENTS } from '../../lib/analytics';
 import { openDirectConversation } from '../../lib/messaging';
 import UnclaimedBadge from '../../components/UnclaimedBadge';
+import { profileIdentity } from '../../lib/profileTypes';
 import { parseDurMins, fmtDur, labelColor, stripEmoji } from './slotUtils';
 import s from '../EventScreen.module.css';
 
@@ -37,7 +38,23 @@ function HeadphoneIcon() {
   );
 }
 
-export default function SlotCard({ slot, claim, onFill, onEdit, onRemove, onPin, isHost, isSortable, isActiveSort, isDragOverlay, allMixSlots = [], locked = false, viewerProfileId = null }) {
+/**
+ * @param expandable ⛔ FALSE ON THE DASHBOARD (owner, 2026-08-16).
+ *
+ * ⚠⚠ WITHHOLDING `onEdit`/`onRemove` IS NOT ENOUGH, and assuming it was is a
+ * mistake this prop exists to correct. The expanded panel renders EDIT SLOT,
+ * LOCK SLOT, REMOVE and REPLACE ARTIST from `isHost` ALONE — so the dashboard,
+ * which must pass `isHost` to show acts truthfully, drew four host controls
+ * (two of them destructive-looking) wired to handlers that do not exist.
+ *
+ * ⛔ A dead REMOVE button is worse than a missing one: it reads as a working
+ * control, and the one time it appears not to work is indistinguishable from
+ * the RLS-filtered silent failure this codebase keeps being bitten by.
+ *
+ * ⭐ So the dashboard stays TRIAGE — the same rule its LINEUP tab follows by
+ * passing no `actions`. Scheduling happens on the event page.
+ */
+export default function SlotCard({ slot, claim, onFill, onEdit, onRemove, onPin, isHost, isSortable, isActiveSort, isDragOverlay, allMixSlots = [], locked = false, viewerProfileId = null, expandable = true }) {
   const [expanded,      setExpanded]      = useState(false);
   const [hostNote,      setHostNote]      = useState('');
   const [artistBrief,   setArtistBrief]   = useState('');
@@ -50,12 +67,54 @@ export default function SlotCard({ slot, claim, onFill, onEdit, onRemove, onPin,
   const [confirm,       setConfirm]       = useState(null); // 'replace' | 'remove'
   const [msgBusy,       setMsgBusy]       = useState(false);
 
+  /**
+   * ⭐⭐ DRAGGABLE AND DROPPABLE ARE TWO DIFFERENT QUESTIONS (2026-08-16).
+   *
+   * ⚠⚠ THIS WAS `disabled: !isSortable`, and in dnd-kit a boolean `disabled`
+   * turns off BOTH halves. An empty slot is not sortable — nothing to drag — so
+   * it was also NOT A DROP TARGET. Drag an act onto a gap and `closestCenter`
+   * had no droppable there to resolve, so `over` fell back to the ORIGIN and
+   * `handleDragEnd` bailed on `active.id === over.id`. dnd-kit's own announcer
+   * said so out loud: "dropped over droppable area <its own id>".
+   *
+   * ⛔ So the "move to an empty slot" branch in DaySlots could NEVER run — the
+   * code planned for a drop the registration made impossible. Act-onto-ACT
+   * (a swap) always worked, which is why this hid on the event page and only
+   * surfaced on a dashboard with two acts and three gaps.
+   *
+   * ⭐ Now: `draggable` follows `isSortable` (you cannot pick up an empty slot),
+   * `droppable` follows `isHost` (any slot can RECEIVE an act while editing).
+   * ⚠ Pinned slots stay undroppable via the guard in `handleDragEnd`.
+   */
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: slot.id,
-    disabled: !isSortable,
+    disabled: { draggable: !isSortable, droppable: !isHost },
   });
   const navigate = useNavigate();
   const { session } = useSession();
+
+  /**
+   * ⭐ RUNS THE SETTLE WHEN THIS SLOT'S OCCUPANT CHANGES — see `.slotSettle`.
+   *
+   * ⚠ Keyed on the CLAIM ID, ⛔ not on `claim` itself: the object identity is
+   * rebuilt by every refetch, so watching the object would animate all five
+   * rows on any reload. The id changes only when somebody actually moved.
+   *
+   * ⚠ `null → id` and `id → null` both count — the slot that GAINED an act and
+   * the one that LOST one are both news.
+   */
+  const [settling, setSettling] = useState(false);
+  const prevClaimId = useRef(claim?.id ?? null);
+  useEffect(() => {
+    const nextId = claim?.id ?? null;
+    if (prevClaimId.current === nextId) return undefined;
+    prevClaimId.current = nextId;
+    setSettling(true);
+    /* ⚠ Must OUTLAST the animation in `.slotSettle` (.6s) or the class is
+       pulled mid-flight and the card snaps to its end state. ⛔ Change both. */
+    const t = setTimeout(() => setSettling(false), 680);
+    return () => clearTimeout(t);
+  }, [claim?.id]);
 
   useEffect(() => {
     if (!session?.user?.id || !claim?.user_id || session.user.id === claim.user_id) return;
@@ -77,6 +136,32 @@ export default function SlotCard({ slot, claim, onFill, onEdit, onRemove, onPin,
 
   // Single descriptor pill matching v1: sound > card_pills > genre
   const descriptor = claim?.sound || claim?.card_pills || claim?.genre || '';
+
+  /**
+   * ⭐ THE ACT'S PICTURE, for the card background.
+   *
+   * ⚠⚠ TWO DIFFERENT ABSENCES, ⛔ and they must not be collapsed:
+   *
+   *     no ACT at all      → ⛔ NO image. "Open slot" names an absence, and a
+   *                          photograph there would draw a booking that does
+   *                          not exist.
+   *     an act with no PIC → the TYPE's default, exactly as the lineup card
+   *                          resolves it.
+   *
+   * ⚠ The second half was missed on the first pass, and `fewrf` — an unclaimed
+   * act with no avatar — carried a picture on the LINEUP tab and none on SET
+   * TIMES. ⛔ The same act rendering two ways on two tabs of one event is the
+   * precise inconsistency this whole card pass exists to remove.
+   *
+   * ⚠ `defaultImage` is itself legitimately null for an unknown type, which is
+   * the one case that correctly falls through to no image at all.
+   */
+  const slotImg = !claim ? null : (
+    claim.profile?.avatar_thumb || claim.profile?.avatar
+    || claim.avatar_thumb || claim.avatar
+    || profileIdentity(String(claim.profile?.type || 'artist').toLowerCase()).defaultImage
+    || null
+  );
 
   const borderCol = slot.pinned ? '#FFB830' : (isEmpty && !isDraft) ? 'var(--border)' : isDraft ? 'rgba(255,255,255,.18)' : 'var(--neon)';
 
@@ -101,14 +186,37 @@ export default function SlotCard({ slot, claim, onFill, onEdit, onRemove, onPin,
           </div>
         )}
         <div
-          className={s.slot + (isEmpty ? ' ' + s.slotEmpty : '')}
+          className={s.slot + (isEmpty ? ' ' + s.slotEmpty : '') + (settling ? ' ' + s.slotSettle : '')}
           style={{ border: `1px solid ${borderCol}`, borderLeft: player?.url && player.url === claim?.mix_link ? '2px solid var(--neon2)' : `1px solid ${borderCol}`, borderRadius: isSortable ? (expanded ? '0 10px 0 0' : '0 10px 10px 0') : (expanded ? '10px 10px 0 0' : 10), cursor: 'pointer', marginBottom: 0, flex: 1 }}
           onClick={() => {
             if (isEmpty && onFill) { onFill(); return; }
+            /* ⛔ THE READ-ONLY SURFACES STOP HERE — see `expandable` above. The
+               panel below is a workspace, and a summary must not open one. */
+            if (!expandable) return;
             if (!isHost && !isConfirmed) return; // pending slot — not expandable in public view
             setExpanded(v => !v);
           }}
         >
+        {/**
+          * ⭐⭐ THE APP'S CARD TREATMENT, LAYERED ONTO THE SLOT (owner,
+          * 2026-08-16: "layer the slotcard with all the data from the work
+          * item"). ⛔ The same `.bgImg`/`.bgOverlay` pair ProfileCard,
+          * EventCard and WorkItemCard use — ⛔ do not restyle it here.
+          *
+          * ⛔⛔ AN EMPTY SLOT GETS NO PICTURE. "Open slot" names an ABSENCE;
+          * there is no act, so there is no photograph, and borrowing one would
+          * draw a booking that does not exist. ⚠ This is the same rule
+          * WorkItemCard follows for a profile with no image of its own — an
+          * absent picture stays absent rather than being filled in.
+          *
+          * ⚠ `alt=""` — decoration. The act's name is already in the row.
+          */}
+        {!isEmpty && slotImg && (
+          <>
+            <img className={s.slotBgImg} src={slotImg} alt="" />
+            <div className={s.slotBgOverlay} />
+          </>
+        )}
         <div className={s.timeBlock} style={{ '--divider-col': borderCol }}>
           <div className={s.timeNum}>{slot.time || '—'}</div>
           {slot.ampm && <div className={s.timeAmPm}>{slot.ampm}</div>}
@@ -403,28 +511,51 @@ export default function SlotCard({ slot, claim, onFill, onEdit, onRemove, onPin,
                 </div>
               )}
 
-              {/* Manage actions — hidden when set times are locked */}
-              {!locked && (
+              {/**
+                * Manage actions — hidden when set times are locked.
+                *
+                * ⛔⛔ AND EACH ONE IS GATED ON ITS OWN HANDLER (2026-08-16).
+                * ⚠⚠ They used to render from `isHost` alone and call
+                * `onEdit?.()` / `onPin?.()`, so a surface that supplied no
+                * handlers drew three controls — one of them a red REMOVE — that
+                * did NOTHING when pressed. That shipped to the dashboard and
+                * was caught by looking at a screenshot, ⛔ not by any test.
+                *
+                * ⭐⭐ THE RULE: a control exists only where its verb does. That
+                * makes "pass no handler" mean "offer no button", which is what
+                * every caller already assumed it meant.
+                *
+                * ⚠ The column count is derived, ⛔ not a fixed `1fr 1fr 1fr` —
+                * one button in a three-column grid renders a third of a row
+                * wide with two empty gaps beside it.
+                */}
+              {!locked && (onEdit || onPin || onRemove) && (
                 <div style={{ paddingTop: 0, marginBottom: 14 }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
-                    <SlotManageBtn
-                      icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>}
-                      label="EDIT SLOT" sub="Time, duration & details"
-                      accent="#4A9EFF"
-                      onClick={e => { e.stopPropagation(); onEdit?.(); }}
-                    />
-                    <SlotManageBtn
-                      icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>}
-                      label={slot.pinned ? 'LOCKED' : 'LOCK SLOT'} sub="Prevent this slot from moving"
-                      accent="#FFB830"
-                      onClick={e => { e.stopPropagation(); onPin?.(); }}
-                    />
-                    <SlotManageBtn
-                      icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>}
-                      label="REMOVE" sub="Remove this artist from slot"
-                      onClick={e => { e.stopPropagation(); setConfirm('remove'); }}
-                      danger
-                    />
+                  <div style={{ display: 'grid', gridTemplateColumns: `repeat(${[onEdit, onPin, onRemove].filter(Boolean).length}, minmax(0, 1fr))`, gap: 8 }}>
+                    {onEdit && (
+                      <SlotManageBtn
+                        icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>}
+                        label="EDIT SLOT" sub="Time, duration & details"
+                        accent="#4A9EFF"
+                        onClick={e => { e.stopPropagation(); onEdit(); }}
+                      />
+                    )}
+                    {onPin && (
+                      <SlotManageBtn
+                        icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>}
+                        label={slot.pinned ? 'LOCKED' : 'LOCK SLOT'} sub="Prevent this slot from moving"
+                        accent="#FFB830"
+                        onClick={e => { e.stopPropagation(); onPin(); }}
+                      />
+                    )}
+                    {onRemove && (
+                      <SlotManageBtn
+                        icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>}
+                        label="REMOVE" sub="Remove this artist from slot"
+                        onClick={e => { e.stopPropagation(); setConfirm('remove'); }}
+                        danger
+                      />
+                    )}
                   </div>
                 </div>
               )}
@@ -444,7 +575,7 @@ export default function SlotCard({ slot, claim, onFill, onEdit, onRemove, onPin,
                 * ⛔ Withheld while the set times are LOCKED, exactly like the
                 * three controls above: a locked slot does not change hands.
                 */}
-              {claim && !locked && (
+              {claim && !locked && onFill && (
                 <div style={{ marginBottom: 14 }}>
                   <button
                     onClick={e => { e.stopPropagation(); setConfirm('replace'); }}

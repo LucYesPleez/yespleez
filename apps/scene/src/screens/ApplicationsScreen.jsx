@@ -7,6 +7,7 @@ import { profileUrl } from '../lib/profileResolution';
 import { fetchApplicantProfiles } from '../lib/applicantProfiles';
 import { ensureHttps } from '../lib/socialLinks';
 import { normaliseStatus } from '../lib/enquiryUtils';
+import { genreLabels } from '../lib/profileTaxonomy';
 import ProfileAvatar from '../components/ProfileAvatar';
 import UnclaimedBadge from '../components/UnclaimedBadge';
 import s from './ApplicationsScreen.module.css';
@@ -149,7 +150,10 @@ function AppCard({ app, profile, onAccept, onReject }) {
   // id: an orphan row (no profile either way) has no account to name, and
   // showing a slice of someone's user id was never meaningful to a host.
   const name   = profile?.name  || app.artist_name || `Applicant #${app.id?.slice(0, 6)}`;
-  const sound  = profile?.sound || profile?.genre_string || '';
+  /* ⛔⛔ `genreLabels`, ⛔ never the raw column — role keys are stored inside
+     `genre_string`, so this read "dj_prod · …" for any act with no `sound`.
+     ⚠ Sliced to three like every other card; it printed the WHOLE list. */
+  const sound  = profile?.sound || genreLabels(profile?.genre_string).slice(0, 3).join(' · ');
   /**
    * ⚠ WAS `status === 'pending'`, which is zero rows — so even once a tab
    * populated, every card rendered with NO accept/decline buttons. Undecided

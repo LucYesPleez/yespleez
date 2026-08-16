@@ -6,7 +6,7 @@
 // unchanged — but nothing in here is reachable from the public page, and a
 // change to the public page cannot reach in here.
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../lib/supabase';
 import { resolvePerformerProfileId } from '../../lib/actingProfile';
@@ -91,7 +91,19 @@ export default function EventHostView({
   /* Taking somebody off a bill is irreversible-looking and affects a real
      person, so it states exactly what it will do and waits. */
   const [confirmRemove, setConfirmRemove] = useState(null);
-  const [viewAsPunter,  setViewAsPunter]  = useState(false);
+  /**
+   * ⭐ `?view=public` OPENS STRAIGHT INTO THE PUNTER PREVIEW (owner,
+   * 2026-08-16), so the dashboard's eye can reach it in one press instead of
+   * landing the host in their own workspace to go hunting for the toggle.
+   *
+   * ⚠ INITIAL STATE ONLY, ⛔ not a synced mirror of the URL. The × on the
+   * preview banner and the eye in the host bar both just setState, and making
+   * the param authoritative would mean either fighting them or rewriting the
+   * URL on every toggle. The link chooses the ENTRY; the controls own it after
+   * that.
+   */
+  const [searchParams] = useSearchParams();
+  const [viewAsPunter,  setViewAsPunter]  = useState(searchParams.get('view') === 'public');
   const [goLiveConfirm, setGoLiveConfirm] = useState(false);
   // Everyone still queued for a date that has just been locked in. null until
   // a publish finds some — see the Go Live handler and lib/dateLockout.
@@ -969,10 +981,13 @@ export default function EventHostView({
               };
               return (
                 <WorkItemCard key={member.id} kind="lineup" item={cardItem}
-                  /* ⭐ EVERYONE HERE IS ON THE BILL — that is what being in
-                     `lineup_members` means. The chip states the constant, the
-                     line beneath it carries the variable. */
-                  stateLabel="ON BILL" stateColor={badgeColor}
+                  /* ⭐⭐ EVERYONE HERE IS ON THE BILL — that is what being in
+                     `lineup_members` means, and it is why there is ⛔ NO
+                     `stateLabel`. The chip stated the CONSTANT once per row and
+                     said nothing; only the variable is worth the space, so the
+                     set time is promoted into the chip instead.
+                     ⛔ Change one, change both — HostDashboard has the twin. */
+                  stateColor={badgeColor}
                   subState={work.setTime} needsAction={work.needsAction}
                   /* ⚠ `member.card_pills` is the fallback: an imported act can
                      carry tags on the member row with no profile behind it. */
