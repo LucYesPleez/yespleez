@@ -36,7 +36,7 @@ export default function FillSlotModal({ slot, eventId, eventName = '', hostId, a
   async function fillFromProfile(prof) {
     setBusy(true);
     // Upsert lineup_member for this artist on this event
-    let { data: memberData } = await supabase.from('lineup_members').select('id').eq('event_id', eventId).eq('artist_id', prof.user_id).maybeSingle();
+    let { data: memberData } = await supabase.from('lineup_members').select('id').eq('event_id', eventId).eq('artist_id', prof.user_id).eq('status', 'on_bill').maybeSingle();
     if (!memberData) {
       const { data: nm } = await supabase.from('lineup_members').insert({
         event_id: eventId, artist_id: prof.user_id, artist_profile_id: prof.id,

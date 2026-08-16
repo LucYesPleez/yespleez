@@ -67,31 +67,79 @@ export function isReachable(member) {
 }
 
 /**
+ * ⛔⛔ THREE OPERATIONS DESTROY PERFORMANCES, AND THEY ARE NOT THE SAME THING.
+ *
+ *     CLEAR SET TIME      performances gone · stays ON BILL
+ *     MOVE TO SHORTLIST   performances gone · back to SHORTLIST
+ *     REMOVE FROM EVENT   performances gone · off the event
+ *
+ * ⚠⚠ Two of these were once literally one function and it caused real damage.
+ * Every one of them goes through a planner here — ⛔ never an inline write at a
+ * call site — so the difference between them stays a value in a plan rather
+ * than a detail of whichever button was wired last.
+ */
+
+/**
  * ── PLANNING, KEPT PURE SO IT CAN BE TESTED ─────────────────────────────────
  *
- * @returns {{ deletePerformanceIds: string[], softRemoveMemberId: ?string,
- *             notifyCount: number, kind: 'unassign'|'remove-from-bill' }}
+ * @returns {{ deletePerformanceIds: string[],
+ *             writeMemberStatus: ?{id: string, status: string},
+ *             notifyCount: number,
+ *             kind: 'unassign'|'move-to-shortlist'|'remove-from-event' }}
+ *
+ * ⚠ `writeMemberStatus` REPLACED `softRemoveMemberId` (2026-08-16). The old
+ * name assumed the only status a plan could write was `removed`; the funnel now
+ * has `shortlisted` too, and a field called "softRemove" carrying "shortlisted"
+ * would be the kind of lie this module exists to prevent.
  */
 export function planUnassign(member, perfs = []) {
   return {
     kind: 'unassign',
     // Every performance goes: they hold no slot afterwards.
     deletePerformanceIds: (perfs || []).map(p => p.id).filter(Boolean),
-    // ⛔ THE MEMBER ROW SURVIVES. This is the whole fix.
-    softRemoveMemberId: null,
+    // ⛔ THE MEMBER ROW IS UNTOUCHED. This is the whole fix.
+    writeMemberStatus: null,
     notifyCount: isReachable(member) ? notifiablePerformances(perfs).length : 0,
   };
 }
 
-export function planRemoveFromBill(member, perfs = []) {
+/**
+ * ⭐⭐ BACK TO CONSIDERATION — the only exit from the LINEUP (ratified
+ * 2026-08-16). `REMOVE FROM BILL` no longer exists on that tab; a lineup member
+ * you have changed your mind about returns to SHORTLIST, and dropping them from
+ * the event entirely is a separate, explicit act from there.
+ *
+ * ⛔ THE CALLER MUST REFUSE THIS WHERE THE ARTIST HAS ACCEPTED A SLOT. That is
+ * a UI rule, not a data one — the card hides the control and shows a chip
+ * saying to clear the set time first, so the host un-books the thing the artist
+ * agreed to before un-booking the person. ⭐ Because of that, this plan can
+ * never destroy an accepted performance, which is why it notifies nobody.
+ */
+export function planMoveToShortlist(member, perfs = []) {
   return {
-    kind: 'remove-from-bill',
+    kind: 'move-to-shortlist',
     deletePerformanceIds: (perfs || []).map(p => p.id).filter(Boolean),
-    // Soft, so it is reversible and the history survives.
-    softRemoveMemberId: member?.id || null,
+    writeMemberStatus: member?.id ? { id: member.id, status: 'shortlisted' } : null,
     notifyCount: isReachable(member) ? notifiablePerformances(perfs).length : 0,
   };
 }
+
+/**
+ * Off the event entirely. ⚠ Offered from SHORTLIST, ⛔ not from the LINEUP —
+ * see planMoveToShortlist.
+ */
+export function planRemoveFromEvent(member, perfs = []) {
+  return {
+    kind: 'remove-from-event',
+    deletePerformanceIds: (perfs || []).map(p => p.id).filter(Boolean),
+    // Soft, so it is reversible and the history survives.
+    writeMemberStatus: member?.id ? { id: member.id, status: 'removed' } : null,
+    notifyCount: isReachable(member) ? notifiablePerformances(perfs).length : 0,
+  };
+}
+
+/** @deprecated Kept as the old name for `planRemoveFromEvent`. */
+export const planRemoveFromBill = planRemoveFromEvent;
 
 /**
  * ── EXECUTION ───────────────────────────────────────────────────────────────
@@ -111,10 +159,13 @@ export async function applyLineupPlan(db, plan) {
     if (error) return { ok: false, error: error.message };
   }
 
-  if (plan.softRemoveMemberId) {
+  if (plan.writeMemberStatus?.id) {
+    /* ⛔ THE STATUS COMES FROM THE PLAN, never from the function. Hardcoding
+       'removed' here is what made "clear the set time" and "take them off the
+       bill" indistinguishable at the point of execution. */
     const { error } = await db.from('lineup_members')
-      .update({ status: 'removed', updated_at: new Date().toISOString() })
-      .eq('id', plan.softRemoveMemberId);
+      .update({ status: plan.writeMemberStatus.status, updated_at: new Date().toISOString() })
+      .eq('id', plan.writeMemberStatus.id);
     if (error) return { ok: false, error: error.message };
   }
 

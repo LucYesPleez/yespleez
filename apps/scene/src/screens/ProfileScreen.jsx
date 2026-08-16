@@ -206,7 +206,7 @@ export default function ProfileScreen() {
         // genuine artist_profile_id-linked row.
         const legs = [`artist_profile_id.eq.${ownedProfile.id}`];
         if (ownedProfile.user_id && ownedProfile.type === 'artist') legs.push(`and(artist_id.eq.${ownedProfile.user_id},artist_profile_id.is.null)`);
-        const claimsRes = await supabase.from('lineup_members').select('event_id').or(legs.join(',')).neq('status', 'removed');
+        const claimsRes = await supabase.from('lineup_members').select('event_id').or(legs.join(',')).eq('status', 'on_bill');
         const eventIds = [...new Set((claimsRes.data || []).map(c => c.event_id).filter(Boolean))];
         if (eventIds.length) {
           const eRes = await supabase.from('events').select('id,name,config').in('id', eventIds).order('id', { ascending: true }).limit(10);

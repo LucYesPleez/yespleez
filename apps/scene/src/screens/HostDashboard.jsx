@@ -144,7 +144,7 @@ export default function HostDashboard({ userId: userIdProp }) {
            sat underneath it. */
         const [pendingRes, billRes] = await Promise.all([
           supabase.from('applications').select('id', { count: 'exact', head: true }).in('event_id', evtIds).in('status', rawStatusesFor('new')),
-          supabase.from('lineup_members').select('id', { count: 'exact', head: true }).in('event_id', evtIds).neq('status', 'removed'),
+          supabase.from('lineup_members').select('id', { count: 'exact', head: true }).in('event_id', evtIds).eq('status', 'on_bill'),
         ]);
         newAppsCount      = pendingRes.count || 0;
         lineupSlotsCount  = billRes.count    || 0;
@@ -238,7 +238,7 @@ export default function HostDashboard({ userId: userIdProp }) {
       const [{ data: membersData }, { data: perfsData }, { data: slotRows }] = await Promise.all([
         supabase.from('lineup_members')
           .select('id, event_id, artist_id, artist_profile_id, artist_name, genre, sound, card_pills')
-          .in('event_id', ids).neq('status', 'removed'),
+          .in('event_id', ids).eq('status', 'on_bill'),
         // ⚠ `declined` is NO LONGER FILTERED OUT. It was, which meant a slot
         // somebody turned down looked identical to one nobody had been asked
         // about — the organiser could not tell "needs refilling because of a no"

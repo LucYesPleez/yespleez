@@ -239,7 +239,7 @@ export default function MySceneScreen() {
         // migration and is fetched separately so its absence can't 400 this
         // whole query).
         supabase.from('profiles').select('name,avatar_thumb,avatar,postcode,genre_string').eq('user_id', uid).eq('type', 'punter').limit(1),
-        supabase.from('lineup_members').select('event_id').eq('artist_id', uid).neq('status', 'removed'),
+        supabase.from('lineup_members').select('event_id').eq('artist_id', uid).eq('status', 'on_bill'),
         supabase.from('personal_events').select('*').eq('user_id', uid),
       ]);
 
@@ -830,7 +830,7 @@ export default function MySceneScreen() {
     const dayEvs = datedEvents.filter(ev => ev.config?.date === dateStr);
     if (!dayEvs.length) return;
     const evIds = dayEvs.map(ev => ev.id);
-    const { data: membersData } = await supabase.from('lineup_members').select('event_id, artist_name, genre, sound, artist_id, artist_profile_id').in('event_id', evIds).neq('status', 'removed');
+    const { data: membersData } = await supabase.from('lineup_members').select('event_id, artist_name, genre, sound, artist_id, artist_profile_id').in('event_id', evIds).eq('status', 'on_bill');
     if (!membersData?.length) return;
     // M5.1 (D8): avatars resolve by artist_profile_id; legacy artist_id join
     // only for rows without one.

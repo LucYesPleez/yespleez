@@ -197,7 +197,7 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
       const [appsRes, gigsRes, outgoingEnquiries] = profileId
         ? await Promise.all([
             supabase.from('applications').select('id, status, event_id, created_at').eq('from_profile_id', profileId).order('created_at', { ascending: false }).limit(50),
-            supabase.from('lineup_members').select('event_id').eq('artist_profile_id', profileId).neq('status', 'removed'),
+            supabase.from('lineup_members').select('event_id').eq('artist_profile_id', profileId).eq('status', 'on_bill'),
             // ⚠ The query and its venue join now live in lib/outgoingPipeline —
             // HostDashboard asks the identical question, and one asker's list
             // must not be able to answer it differently from another's.

@@ -102,7 +102,7 @@ export function useEventData(id, navigate) {
        * nothing may key on it again.
        */
       const [{ data: membersData }, { data: perfsData }, { data: slotRows }] = await Promise.all([
-        supabase.from('lineup_members').select('id, artist_id, artist_profile_id, artist_name, genre, sound, card_pills').eq('event_id', id).neq('status', 'removed'),
+        supabase.from('lineup_members').select('id, artist_id, artist_profile_id, artist_name, genre, sound, card_pills').eq('event_id', id).eq('status', 'on_bill'),
         supabase.from('performances').select('id, lineup_member_id, slot_id, slot_uuid, status').eq('event_id', id),
         supabase.from('event_slots').select('id, event_id, day_index, day_name, position, legacy_key, time, ampm, dur_mins, label, label_color, pinned')
           .eq('event_id', id).order('day_index').order('position'),

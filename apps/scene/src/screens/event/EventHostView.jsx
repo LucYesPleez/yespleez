@@ -18,7 +18,7 @@ import { findOpenAsksForDate, declineOpenAsks } from '../../lib/dateLockout';
 import { durationLabel } from '../../lib/eventSlots';
 import { memberState, STATE_COLOURS } from '../../lib/hostLineup';
 import { normaliseStatus, rawStatusesFor, PIPELINE_BUCKETS, STATUS_TAB_COLOR } from '../../lib/enquiryUtils';
-import { planUnassign, planRemoveFromBill, applyLineupPlan, notifiablePerformances, isReachable } from '../../lib/lineupActions';
+import { planUnassign, planMoveToShortlist, applyLineupPlan, notifiablePerformances, isReachable } from '../../lib/lineupActions';
 import { planAddToBill, addToBill, findExistingMember } from '../../lib/lineupFromApplication';
 import { PROFILE_CARD_META_COLUMNS } from '../../components/ProfileCard';
 import WorkItemCard, { applicationWorkState, lineupWorkState } from '../../components/WorkItemCard';
@@ -413,7 +413,7 @@ export default function EventHostView({
     const artistName = aProf?.name || aApp.artist_name || '—';
     const slotTime = [slot.time, slot.ampm].filter(Boolean).join(' ');
     // Upsert lineup_member for this artist
-    let { data: memberData } = await supabase.from('lineup_members').select('id').eq('event_id', id).eq('artist_id', aApp.artist_id).maybeSingle();
+    let { data: memberData } = await supabase.from('lineup_members').select('id').eq('event_id', id).eq('artist_id', aApp.artist_id).eq('status', 'on_bill').maybeSingle();
     if (!memberData) {
       // M6 · the application already names the profile that applied. Ask it
       // first; `resolveProfileId` guesses from the account and can only ever
@@ -813,14 +813,34 @@ export default function EventHostView({
                           <DecisionBtn tone="neutral" icon={XIcon} label="CLEAR SET TIME"
                             onClick={() => runLineupAction(planUnassign(member, memberPerfs(member.id)), member)} />
                         )}
-                      {/* ⛔ WITHHELD WHILE AN OFFER IS OUT. Removing somebody
-                          who is mid-decision destroys the performance they are
-                          being asked about; clear the set time first, which is
-                          the recoverable step and is the button beside it. */}
-                      {badge !== 'AWAITING' && (
-                        <DecisionBtn tone="decline" icon={XIcon} label="REMOVE FROM BILL"
-                          onClick={() => setConfirmRemove({ member, perfs: memberPerfs(member.id) })} />
-                      )}
+                      {/**
+                        * ⭐⭐ THE ONLY EXIT FROM THE LINEUP (ratified 2026-08-16).
+                        * `REMOVE FROM BILL` is gone from this tab — changing
+                        * your mind returns somebody to SHORTLIST, and dropping
+                        * them from the event entirely is a separate act from
+                        * there. SHORTLIST is active consideration, ⛔ not a bin.
+                        *
+                        * ⛔⛔ WITHHELD ONCE THE ARTIST HAS ACCEPTED A SLOT. They
+                        * agreed to a specific time; silently deleting that is
+                        * the rudest thing this screen could do. The chip below
+                        * says to clear the set time first, which forces the
+                        * order — un-book the slot (a conversation) before
+                        * un-booking the person.
+                        *
+                        * ⭐ BECAUSE OF THAT, THIS CAN NEVER DESTROY AN ACCEPTED
+                        * PERFORMANCE, which is why nothing is notified.
+                        */}
+                      {badge === 'CONFIRMED'
+                        ? (
+                          <span title="Clear the set time before moving them back to the shortlist"
+                            style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Bebas Neue'", fontSize: 11, letterSpacing: 1.2, color: 'var(--muted)', border: '1px dashed rgba(255,255,255,.18)', borderRadius: 11, padding: '10px 8px', textAlign: 'center', lineHeight: 1.25 }}>
+                            ARTIST CONFIRMED — CLEAR THE SET TIME FIRST
+                          </span>
+                        )
+                        : (
+                          <DecisionBtn tone="decline" icon={XIcon} label="MOVE TO SHORTLIST"
+                            onClick={() => setConfirmRemove({ member, perfs: memberPerfs(member.id) })} />
+                        )}
                     </div>
                   }
                 />
@@ -1176,29 +1196,44 @@ export default function EventHostView({
           onClick={e => e.target === e.currentTarget && setConfirmRemove(null)}>
           <div style={{ background: '#0f0f1a', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 480, padding: '28px 24px 40px', border: '1px solid rgba(255,255,255,.08)', borderBottom: 'none' }}>
             <div style={{ fontFamily: "'Bebas Neue'", fontSize: 18, letterSpacing: 2, color: '#fff' }}>
-              Take {confirmRemove.member.artist_name || 'this act'} off the bill?
+              Move {confirmRemove.member.artist_name || 'this act'} back to the shortlist?
             </div>
+            {/**
+              * ⭐⭐ THE DIALOG SAYS WHAT IS ACTUALLY DESTROYED, and that differs
+              * by state (owner, 2026-08-16). A blanket "are you sure?" trains
+              * people to click straight through it, so the sentence changes:
+              *
+              *     no set time  → nothing is destroyed, so it barely warns
+              *     draft        → private, they were never told
+              *     offered      → you are WITHDRAWING A QUESTION they have not
+              *                    answered
+              *
+              * ⛔ THERE IS NO `accepted` CASE HERE. The card withholds this
+              * action entirely once the artist has agreed to a slot — see the
+              * chip on the LINEUP card — so the worst outcome cannot be reached
+              * from this dialog at all.
+              */}
             <div style={{ fontSize: 13, color: 'rgba(255,255,255,.6)', marginTop: 8, lineHeight: 1.6 }}>
               {(() => {
-                const sent = notifiablePerformances(confirmRemove.perfs).length;
                 const held = confirmRemove.perfs.length;
-                const parts = [];
-                if (held) parts.push(`Their ${held === 1 ? 'set time' : `${held} set times`} will be cleared.`);
-                if (sent && isReachable(confirmRemove.member)) parts.push('They will be told.');
-                else if (held) parts.push('Nothing was sent to them, so they will not be notified.');
-                return parts.join(' ') || 'They hold no set times, so nothing else changes.';
+                if (!held) return 'They hold no set time, so nothing else changes.';
+                const offered = notifiablePerformances(confirmRemove.perfs).length;
+                const label = held === 1 ? 'set time' : `${held} set times`;
+                return offered && isReachable(confirmRemove.member)
+                  ? `Their ${label} will be cleared. They were offered ${offered === 1 ? 'it' : 'them'} and have not replied, so that offer will be withdrawn.`
+                  : `Their ${label} will be cleared. Nothing was sent to them, so they will not be notified.`;
               })()}
             </div>
             {/* ⚠ Says what is NOT touched, so nobody has to wonder whether this
                 also rejected their application. It does not: declining an
                 applicant is its own control, on the SHORT LIST. */}
             <div style={{ fontSize: 12, color: 'rgba(255,255,255,.4)', marginTop: 10, lineHeight: 1.5 }}>
-              Their application is left exactly as it is, and you can put them back on the bill later.
+              Their application is left exactly as it is. They stay on the shortlist, so you can add them back to the lineup at any time.
             </div>
             <div style={{ display: 'flex', gap: 10, marginTop: 24 }}>
-              <button onClick={() => runLineupAction(planRemoveFromBill(confirmRemove.member, confirmRemove.perfs), confirmRemove.member)}
+              <button onClick={() => runLineupAction(planMoveToShortlist(confirmRemove.member, confirmRemove.perfs), confirmRemove.member)}
                 style={{ flex: 1, padding: '13px 0', fontFamily: "'Bebas Neue'", fontSize: 14, letterSpacing: 1.5, borderRadius: 10, border: 'none', background: '#FF2D78', color: '#0a0a14', cursor: 'pointer' }}>
-                REMOVE FROM BILL
+                MOVE TO SHORTLIST
               </button>
               <button onClick={() => setConfirmRemove(null)}
                 style={{ flex: 1, padding: '13px 0', fontFamily: "'Bebas Neue'", fontSize: 14, letterSpacing: 1.5, borderRadius: 10, border: '1px solid rgba(255,255,255,.15)', background: 'none', color: 'rgba(255,255,255,.55)', cursor: 'pointer' }}>

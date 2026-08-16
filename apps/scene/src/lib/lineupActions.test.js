@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  planUnassign, planRemoveFromBill, applyLineupPlan, restoreToBill,
+  planUnassign, planRemoveFromBill, planMoveToShortlist, planRemoveFromEvent, applyLineupPlan, restoreToBill,
   notifiablePerformances, wasEverSent, isReachable,
 } from './lineupActions.js';
 
@@ -25,14 +25,14 @@ const perfs = () => ([
 test('⚠⚠ UNASSIGN takes the set times and LEAVES THEM ON THE BILL', () => {
   const plan = planUnassign(madds, perfs());
   assert.deepEqual(plan.deletePerformanceIds, ['p-1', 'p-2']);
-  assert.equal(plan.softRemoveMemberId, null,
+  assert.equal(plan.writeMemberStatus, null,
     'the regression: this deleted the lineup_members row, erasing them from the event');
 });
 
 test('REMOVE FROM BILL takes them off, softly', () => {
   const plan = planRemoveFromBill(madds, perfs());
   assert.deepEqual(plan.deletePerformanceIds, ['p-1', 'p-2'], 'a booking for a slot you are not on is not a thing');
-  assert.equal(plan.softRemoveMemberId, 'm-madds');
+  assert.equal(plan.writeMemberStatus?.id, 'm-madds');
 });
 
 test('the two actions are actually different', () => {
@@ -63,13 +63,13 @@ test('⛔ a hand-entered act is never notified, because there is nobody to tell'
   assert.equal(isReachable(madds), true);
   const plan = planRemoveFromBill(typed, [{ id: 'p-9', status: 'offered' }]);
   assert.equal(plan.notifyCount, 0);
-  assert.equal(plan.softRemoveMemberId, 'm-typed', 'still removed, just silently');
+  assert.equal(plan.writeMemberStatus?.id, 'm-typed', 'still removed, just silently');
 });
 
 test('a member with no set times is still removable from the bill', () => {
   const plan = planRemoveFromBill(madds, []);
   assert.deepEqual(plan.deletePerformanceIds, []);
-  assert.equal(plan.softRemoveMemberId, 'm-madds');
+  assert.equal(plan.writeMemberStatus?.id, 'm-madds');
   assert.equal(plan.notifyCount, 0);
   // ⚠ 123 of 152 members are in exactly this state.
   assert.equal(planUnassign(madds, []).deletePerformanceIds.length, 0);
@@ -143,4 +143,39 @@ test('⛔ no lineup action touches applications', async () => {
   await restoreToBill(db, 'm-madds');
   assert.equal(db.calls.some(c => c.name === 'applications'), false,
     'declining an applicant is its own act, on the surface that is about applications');
+});
+
+/**
+ * ⛔⛔ THE THIRD DESTRUCTIVE OPERATION. Same deletion, different destination —
+ * which is exactly the shape of the original defect, so it is pinned the same
+ * way the first two are.
+ */
+test('MOVE TO SHORTLIST returns them to consideration, ⛔ not removed', () => {
+  const plan = planMoveToShortlist(madds, perfs());
+  assert.deepEqual(plan.deletePerformanceIds, ['p-1', 'p-2'], 'a set time for someone off the bill is not a thing');
+  assert.equal(plan.writeMemberStatus?.id, 'm-madds');
+  assert.equal(plan.writeMemberStatus?.status, 'shortlisted',
+    '⛔ writing removed here would drop them off the event instead of back into the pool');
+});
+
+test('⛔ shortlist and remove are NOT the same plan', () => {
+  const a = planMoveToShortlist(madds, perfs());
+  const b = planRemoveFromEvent(madds, perfs());
+  assert.deepEqual(a.deletePerformanceIds, b.deletePerformanceIds, 'both destroy the performances');
+  assert.notEqual(a.writeMemberStatus.status, b.writeMemberStatus.status,
+    'and the ONLY difference is the status they write — which is why it comes from the plan');
+  assert.equal(a.writeMemberStatus.status, 'shortlisted');
+  assert.equal(b.writeMemberStatus.status, 'removed');
+});
+
+test('applyLineupPlan writes the status the PLAN carries, ⛔ never a hardcoded one', async () => {
+  const calls = [];
+  const db = { from: (name) => ({
+    delete: () => ({ in: async () => { calls.push({ op: 'delete', name }); return { error: null }; } }),
+    update: (patch) => ({ eq: async () => { calls.push({ op: 'update', name, patch }); return { error: null }; } }),
+  }) };
+  await applyLineupPlan(db, planMoveToShortlist(madds, perfs()));
+  const upd = calls.find(c => c.op === 'update');
+  assert.equal(upd.name, 'lineup_members');
+  assert.equal(upd.patch.status, 'shortlisted');
 });
