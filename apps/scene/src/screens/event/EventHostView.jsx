@@ -626,7 +626,44 @@ export default function EventHostView({
               </div>
             </div>
 
-            <button className={s.manageBtn} onClick={() => navigate(`/create-event?edit=${id}`)}>MANAGE EVENT ›</button>
+            {/* ⚠ HOST DASH SITS BESIDE MANAGE EVENT (owner, 2026-08-16), not in
+                the right-hand stack — leaving the buttons that act on THIS event
+                on one line, and the stack for the ones that change how you are
+                viewing it. */}
+            <div style={{ display: 'flex', gap: 8, alignItems: 'stretch' }}>
+              {/**
+                * ⚠ THE PINK/WHITE COMBO FROM `HoverProfileBtn` (owner,
+                * 2026-08-16) — the treatment the old profile control used, and
+                * the same one `CalendarIconBtn` carries. Reused rather than
+                * re-picked so the app has ONE quiet-pink small control, ⛔ not a
+                * third neutral language invented for one button.
+                *
+                * ⛔ White ink on the pink edge, ⛔ not pink text. Thin Bebas at
+                * 10px in a saturated hue is the least legible thing on a card —
+                * the same rule the enquiry status chip follows.
+                */}
+              {/* ⚠ 47px AND flexShrink:0 — the same height as `.manageBtn` next
+                  to it, at its own natural width rather than stretching. The two
+                  buttons act on this event and now read as one pair.
+
+                  ⛔ A BLOCK COMMENT BETWEEN JSX ATTRIBUTES IS NOT A COMMENT. Put
+                  one inside a tag and it swallows the next attribute: the style
+                  object collapsed to a bare `flex: 1` and threw "flex is not
+                  defined" at runtime, while the build stayed green. Comments in
+                  a tag belong out here, in braces. */}
+              <button
+                onClick={() => navigate('/industry/host')}
+                style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5, flexShrink: 0, height: 47, padding: '0 14px', borderRadius: 8, cursor: 'pointer', fontFamily: "'Bebas Neue'", fontSize: 11, letterSpacing: 1.4, whiteSpace: 'nowrap', border: '1px solid rgba(255,51,153,.35)', background: 'rgba(255,51,153,.1)', color: '#fff', transition: 'all .15s' }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,51,153,.22)'; e.currentTarget.style.borderColor = '#FF69B4'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,51,153,.1)'; e.currentTarget.style.borderColor = 'rgba(255,51,153,.35)'; }}
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="15 18 9 12 15 6" />
+                </svg>
+                HOST DASH
+              </button>
+            <button className={s.manageBtn} style={{ flex: 1 }} onClick={() => navigate(`/create-event?edit=${id}`)}>MANAGE EVENT ›</button>
+            </div>
           </div>
           {/**
             * ⭐ THE HOST CONTROL STACK — draft/live, dashboard, editor, preview.
@@ -682,28 +719,6 @@ export default function EventHostView({
                 </button>
               </div>
             </div>
-            {/**
-              * ⚠ THE PINK/WHITE COMBO FROM `HoverProfileBtn` (owner,
-              * 2026-08-16) — the treatment the old profile control used, and
-              * the same one `CalendarIconBtn` carries. Reused rather than
-              * re-picked so the app has ONE quiet-pink small control, ⛔ not a
-              * third neutral language invented for one button.
-              *
-              * ⛔ White ink on the pink edge, ⛔ not pink text. Thin Bebas at
-              * 10px in a saturated hue is the least legible thing on a card —
-              * the same rule the enquiry status chip follows.
-              */}
-            <button
-              onClick={() => navigate('/industry/host')}
-              style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5, width: '100%', padding: '7px 8px', borderRadius: 8, cursor: 'pointer', fontFamily: "'Bebas Neue'", fontSize: 11, letterSpacing: 1.4, whiteSpace: 'nowrap', border: '1px solid rgba(255,51,153,.35)', background: 'rgba(255,51,153,.1)', color: '#fff', transition: 'all .15s' }}
-              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,51,153,.22)'; e.currentTarget.style.borderColor = '#FF69B4'; }}
-              onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,51,153,.1)'; e.currentTarget.style.borderColor = 'rgba(255,51,153,.35)'; }}
-            >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="15 18 9 12 15 6" />
-              </svg>
-              HOST DASH
-            </button>
             <div style={{ display: 'flex', gap: 8 }}>
             <button
               onClick={() => setShowEditor(v => !v)}
