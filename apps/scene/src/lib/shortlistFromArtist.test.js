@@ -12,8 +12,12 @@ import { planAddArtistToShortlist, addArtistToShortlist, findArtistOnEvent } fro
  */
 
 const EV = 'ev-1';
-const madds = { id: 'p-madds', user_id: 'u-madds', name: 'Madds', sound: 'Techno', genre_string: 'Techno · Industrial' };
-const nobody = { id: null, user_id: null, name: 'Typed Name' };
+/* ⚠ `type` IS PART OF THE FIXTURE because it is part of the row — the search
+   selects it and the bookable-act guard reads it. Without it these fixtures
+   described a profile that cannot exist, and every duplicate test was passing
+   for the wrong reason once that guard landed. */
+const madds = { id: 'p-madds', user_id: 'u-madds', name: 'Madds', type: 'artist', sound: 'Techno', genre_string: 'Techno · Industrial' };
+const nobody = { id: null, user_id: null, name: 'Typed Name', type: 'artist' };
 
 const onBill      = { id: 'm-1', event_id: EV, artist_profile_id: 'p-madds', artist_id: 'u-madds', status: 'on_bill' };
 const shortlisted = { id: 'm-2', event_id: EV, artist_profile_id: 'p-madds', artist_id: 'u-madds', status: 'shortlisted' };
@@ -74,4 +78,38 @@ test('a refused plan writes nothing at all', async () => {
   const res = await addArtistToShortlist(db, planAddArtistToShortlist(madds, EV, [onBill]));
   assert.equal(res.ok, false);
   assert.equal(touched, false, '⛔ the guard must stop the write, not merely report on it');
+});
+
+/**
+ * ⛔⛔ WHO CAN BE ON A BILL. Shipped as an exclusion list (`punter` only), which
+ * offered a shire council and a memorial hall in a list headed ADD ARTIST.
+ */
+const venue    = { id: 'p-v', name: 'Bellingen Memorial Hall', type: 'venue' };
+const host     = { id: 'p-h', name: 'Bellingen Shire Council', type: 'host' };
+const festival = { id: 'p-f', name: 'Some Festival', type: 'festival' };
+const band     = { id: 'p-b', name: 'A Band', type: 'band' };
+
+test('⛔ a VENUE cannot be shortlisted', () => {
+  const plan = planAddArtistToShortlist(venue, EV, []);
+  assert.equal(plan.ok, false);
+  assert.match(plan.reason, /not an act/i);
+});
+
+test('⛔ a HOST cannot be shortlisted', () => {
+  assert.equal(planAddArtistToShortlist(host, EV, []).ok, false);
+});
+
+test('⛔ a FESTIVAL cannot be shortlisted — it runs events, it does not play them', () => {
+  assert.equal(planAddArtistToShortlist(festival, EV, []).ok, false);
+});
+
+test('bands and standups can, alongside artists', () => {
+  assert.equal(planAddArtistToShortlist(band, EV, []).ok, true);
+  assert.equal(planAddArtistToShortlist({ id: 'p-s', name: 'A Comic', type: 'standup' }, EV, []).ok, true);
+});
+
+test('⛔⛔ THE LIST IS POSITIVE, so a future profile type is excluded by DEFAULT', () => {
+  const invented = { id: 'p-x', name: 'Whatever Comes Next', type: 'collective' };
+  assert.equal(planAddArtistToShortlist(invented, EV, []).ok, false,
+    'an exclusion list would have admitted this silently — the same trap as .neq(removed)');
 });

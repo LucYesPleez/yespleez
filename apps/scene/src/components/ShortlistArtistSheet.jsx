@@ -15,7 +15,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { profileIdentity } from '../lib/profileTypes';
-import { findArtistOnEvent } from '../lib/shortlistFromArtist';
+import { findArtistOnEvent, BOOKABLE_ACT_TYPES } from '../lib/shortlistFromArtist';
 
 export default function ShortlistArtistSheet({ members = [], onPick, onClose, busy = false, error = null }) {
   const [query, setQuery]     = useState('');
@@ -29,14 +29,16 @@ export default function ShortlistArtistSheet({ members = [], onPick, onClose, bu
     inFlight.current = q;
     const t = setTimeout(async () => {
       setSearching(true);
-      /* ⛔ `punter` IS EXCLUDED, matching FillSlotModal. A personal account is
-         not an act, and offering one here would let a host shortlist somebody
-         who cannot perform. */
+      /* ⛔⛔ A POSITIVE TYPE FILTER. This shipped as `.neq(punter)`, which let
+         venues, hosts and festivals into a list headed ADD ARTIST — the owner
+         was offered Bellingen Shire Council and the Memorial Hall as acts. See
+         BOOKABLE_ACT_TYPES: an exclusion list admits every future type by
+         default. */
       const { data } = await supabase
         .from('profiles')
         .select('id, user_id, name, type, avatar, avatar_thumb, sound, genre_string, location, state')
         .ilike('name', `%${q}%`)
-        .neq('type', 'punter')
+        .in('type', BOOKABLE_ACT_TYPES)
         .limit(20);
       /* ⚠ A STALE RESPONSE MUST NOT OVERWRITE A NEWER ONE. Two keystrokes in
          flight can land out of order, which shows results for a query the host

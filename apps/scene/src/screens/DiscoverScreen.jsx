@@ -15,6 +15,7 @@ import { STATE_OPTIONS } from '../lib/auLocations';
 import { useSession } from '../App';
 import { getOwnedProfileOfType } from '../lib/actingProfile';
 import ShortlistToEventSheet from '../components/ShortlistToEventSheet';
+import { isBookableAct } from '../lib/shortlistFromArtist';
 import { trackFiltered } from '../lib/analytics';
 import {
   RADIUS_STEPS, eventCoords, profileCoords, postcodeCoords, withinRadius,
@@ -381,12 +382,34 @@ export default function DiscoverScreen() {
    * host is not something you put on one. Excluded by type rather than by
    * guessing from the card.
    */
-  const canShortlist = r => !!hostProfileId && !['venue', 'host', 'punter'].includes(String(r?.type || '').toLowerCase());
+  const canShortlist = r => !!hostProfileId && isBookableAct(r);
   const shortlistBtn = r => canShortlist(r) ? (
     <button
       onClick={e => { e.stopPropagation(); setShortlisting(r); }}
       title={`Shortlist ${r.name || 'this artist'} for one of your events`}
-      style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1.2, padding: '5px 9px', borderRadius: 7, cursor: 'pointer', whiteSpace: 'nowrap', border: '1px solid rgba(0,229,255,.35)', background: 'rgba(0,229,255,.08)', color: 'var(--neon2)' }}
+      style={{
+        fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1.2,
+        padding: '6px 10px', borderRadius: 8, cursor: 'pointer', whiteSpace: 'nowrap',
+        /* ⚠ LIFTED CLEAR OF THE HEART. `followAction` is absolutely positioned
+           at bottom:8/right:10, while this sits in `actions`, which ProfileCard
+           centres vertically — so on a 72px row the two overlapped in the
+           bottom-right corner. Raised here rather than by realigning
+           ProfileCard's actions slot, because FollowingSection uses that slot
+           too and has no heart to avoid. */
+        marginBottom: 28,
+        /* ⭐ THE GRADIENT-BORDER TECHNIQUE ALREADY IN THE APP — two backgrounds,
+           one clipped to the padding box for the fill and one to the border box
+           for the edge, with a transparent border to reveal it. Same as the
+           FOLLOW control on a slot card, so the brand edge means one thing.
+           ⛔ The border must stay `transparent`; a colour would paint over the
+           gradient and the edge would silently go flat. */
+        border: '1.5px solid transparent',
+        background: 'linear-gradient(var(--card),var(--card)) padding-box, linear-gradient(135deg,#00E5FF,#BF5FFF) border-box',
+        /* ⚠ WHITE INK, not the accent. Thin Bebas at 10px in a saturated cyan is
+           the least legible thing on a card — the same reason the enquiry
+           status chip puts white text inside a coloured edge. */
+        color: '#fff',
+      }}
     >+ SHORTLIST</button>
   ) : null;
 

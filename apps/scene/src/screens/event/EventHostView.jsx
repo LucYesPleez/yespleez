@@ -594,9 +594,22 @@ export default function EventHostView({
       {/* Manage Event panel — owner only */}
       {effectiveIsHost && (
         <div className={s.managePanel}>
-          {/* Title row */}
-          <div style={{ display: 'flex', alignItems: 'center', marginBottom: 14 }}>
-            <div className={s.managePanelStats} style={{ flex: 1, marginBottom: 0 }}>
+          {/**
+            * ⭐ TWO COLUMNS, FULL HEIGHT (owner, 2026-08-16).
+            *
+            * ⚠ The stats used to be their own row spanning the whole panel, so
+            * they ran ACROSS the top of the control stack rather than stopping
+            * at it. Left column now owns the numbers and MANAGE EVENT; right
+            * column owns the four host controls and runs the full height beside
+            * them.
+            *
+            * ⚠ `alignItems: stretch` is what lets the stack reach top to bottom
+            * — with `center` it would sit in the middle of whatever height the
+            * left column happened to be.
+            */}
+          <div style={{ display: 'flex', gap: 8, alignItems: 'stretch' }}>
+          <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div className={s.managePanelStats} style={{ marginBottom: 0 }}>
               <div className={s.manageStat}>
                 <span className={s.manageStatNum}>{appCounts.total}</span>
                 <span className={s.manageStatLabel}>Applications</span>
@@ -613,7 +626,28 @@ export default function EventHostView({
               </div>
             </div>
 
-            {/* Draft/Live toggle — width matched to EDITOR OFF + eye group below */}
+            <button className={s.manageBtn} onClick={() => navigate(`/create-event?edit=${id}`)}>MANAGE EVENT ›</button>
+          </div>
+          {/**
+            * ⭐ THE HOST CONTROL STACK — draft/live, dashboard, editor, preview.
+            *
+            * ⚠ `justifyContent: space-between` spreads it across the full height
+            * of the panel rather than bunching it at the top, so the column runs
+            * bottom to top beside the stats and MANAGE EVENT.
+            *
+            * ⭐ HOST DASH is an EXPLICIT destination, ⛔ not `navigate(-1)`. The
+            * header chevron already does history-back, and history is wherever
+            * you came from — an event opened from Discover, a notification or a
+            * shared link would send you back there rather than to your events.
+            *
+            * ⛔ HOST CHROME ONLY. This whole block is gated on being the event's
+            * host, so a punter never sees a link to a workspace they cannot
+            * open.
+            */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flexShrink: 0, width: 128, justifyContent: 'space-between' }}>
+            {/* ⚠ MOVED INTO THE RIGHT-HAND STACK (owner, 2026-08-16) so the four
+                host controls share one column and one edge, instead of the toggle
+                floating above the stats while the rest sat beside them. */}
             <div style={{ display: 'flex', flexShrink: 0, width: 128, justifyContent: 'center' }}>
               <div style={{
                 display: 'flex', borderRadius: 8, padding: 3, gap: 2,
@@ -648,15 +682,40 @@ export default function EventHostView({
                 </button>
               </div>
             </div>
-          </div>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <button className={s.manageBtn} style={{ flex: 1 }} onClick={() => navigate(`/create-event?edit=${id}`)}>MANAGE EVENT ›</button>
-            <div style={{ display: 'flex', gap: 8, flexShrink: 0, width: 128 }}>
+            {/**
+              * ⚠ THE PINK/WHITE COMBO FROM `HoverProfileBtn` (owner,
+              * 2026-08-16) — the treatment the old profile control used, and
+              * the same one `CalendarIconBtn` carries. Reused rather than
+              * re-picked so the app has ONE quiet-pink small control, ⛔ not a
+              * third neutral language invented for one button.
+              *
+              * ⛔ White ink on the pink edge, ⛔ not pink text. Thin Bebas at
+              * 10px in a saturated hue is the least legible thing on a card —
+              * the same rule the enquiry status chip follows.
+              */}
+            <button
+              onClick={() => navigate('/industry/host')}
+              style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5, width: '100%', padding: '7px 8px', borderRadius: 8, cursor: 'pointer', fontFamily: "'Bebas Neue'", fontSize: 11, letterSpacing: 1.4, whiteSpace: 'nowrap', border: '1px solid rgba(255,51,153,.35)', background: 'rgba(255,51,153,.1)', color: '#fff', transition: 'all .15s' }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,51,153,.22)'; e.currentTarget.style.borderColor = '#FF69B4'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,51,153,.1)'; e.currentTarget.style.borderColor = 'rgba(255,51,153,.35)'; }}
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="15 18 9 12 15 6" />
+              </svg>
+              HOST DASH
+            </button>
+            <div style={{ display: 'flex', gap: 8 }}>
             <button
               onClick={() => setShowEditor(v => !v)}
               style={{
                 fontFamily: "'Bebas Neue'", fontSize: 11, letterSpacing: 1.5,
-                padding: '8px 14px', borderRadius: 8, cursor: 'pointer',
+                /* ⚠ 47px MATCHES `.manageBtn` BESIDE IT (owner, 2026-08-16). It
+                   sat at 36px, so the two controls in one row read as different
+                   weights of thing. ⛔ Height, not more padding — the label is
+                   centred by flex, and padding would move the text rather than
+                   grow the box. */
+                height: 47, padding: '0 14px', borderRadius: 8, cursor: 'pointer',
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                 whiteSpace: 'nowrap', border: '1px solid transparent',
                 background: showEditor
                   ? 'linear-gradient(135deg,#00E5A0,#00B4D8)'
@@ -675,7 +734,9 @@ export default function EventHostView({
               onClick={() => { setViewAsPunter(true); setShowEditor(false); }}
               title="View as punter"
               style={{
-                flexShrink: 0, width: 36, height: 36, borderRadius: 8, cursor: 'pointer',
+                /* ⚠ 47px to match the editor toggle and MANAGE EVENT — the three
+                   controls in this row share one height. */
+                flexShrink: 0, width: 36, height: 47, borderRadius: 8, cursor: 'pointer',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 border: '1px solid rgba(255,255,255,.15)', background: 'rgba(255,255,255,.05)',
                 transition: 'background .15s, border-color .15s',
@@ -688,6 +749,7 @@ export default function EventHostView({
                 <circle cx="12" cy="12" r="3"/>
               </svg>
             </button>
+            </div>
             </div>
           </div>
 

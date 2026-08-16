@@ -26,6 +26,26 @@
  */
 
 /**
+ * ⭐⭐ WHO CAN BE ON A BILL — the one definition (2026-08-16).
+ *
+ * ⛔⛔ A POSITIVE LIST, ⛔ NOT A `neq` CHAIN. The shortlist search shipped
+ * excluding only `punter`, so venues, hosts and festivals were all offered as
+ * bookable acts — the owner saw Bellingen Shire Council and the Memorial Hall
+ * in a list headed ADD ARTIST. An exclusion list is wrong by default: every
+ * profile type added later joins bills silently until somebody notices. This is
+ * the same trap as `.neq('status','removed')` on `lineup_members`, one table
+ * over.
+ *
+ * ⚠ `festival` IS EXCLUDED. It is an organisation that runs events, not an act
+ * that plays them — the same reason `host` and `venue` are out.
+ */
+export const BOOKABLE_ACT_TYPES = ['artist', 'band', 'standup'];
+
+export function isBookableAct(profile) {
+  return BOOKABLE_ACT_TYPES.includes(String(profile?.type || '').toLowerCase());
+}
+
+/**
  * Is this artist already attached to this event, in any state?
  *
  * ⚠⚠ ANY STATE — `shortlisted`, `on_bill`, AND `removed`. Adding somebody who
@@ -58,6 +78,12 @@ export function planAddArtistToShortlist(profile, eventId, members = []) {
      that caused the incident, and it cannot arise from a search result unless
      something upstream is broken. Refused rather than coerced. */
   if (!profile?.id) return { ok: false, reason: 'that artist has no profile to attach' };
+  /* ⛔ THE PLANNER REFUSES IT TOO, not just the search that offers it. A picker
+     filtering its query is a convenience; this is the rule. Two surfaces now
+     call this, and a third would otherwise have to remember. */
+  if (!isBookableAct(profile)) {
+    return { ok: false, reason: `${profile.name || 'That profile'} is a ${String(profile.type || 'profile').toLowerCase()}, not an act you can put on a bill.` };
+  }
 
   const existing = findArtistOnEvent(profile, members);
   if (existing) {
