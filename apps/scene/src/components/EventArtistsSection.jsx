@@ -7,6 +7,12 @@ import { genreLabels } from '../lib/profileTaxonomy';
 import {
   BOOKABLE_ACT_TYPES, planAddArtistToShortlist, addArtistToShortlist,
 } from '../lib/shortlistFromArtist';
+/* ⛔ TAKING SOMEBODY OFF IS A RULE, and the rules live there. ⚠ This component
+   must not compose its own delete: removal is SOFT, it destroys performances,
+   and it notifies only what was actually sent. */
+import { planRemoveFromEvent, executeLineupPlan } from '../lib/lineupActions';
+import { writeNotification } from '../lib/writeNotification';
+import { resolvePerformerProfileId } from '../lib/actingProfile';
 
 /**
  * THE EVENT EDITOR'S ARTISTS SECTION — the third entry into the shortlist.
@@ -44,6 +50,7 @@ export default function EventArtistsSection({ eventId }) {
   const [busy, setBusy]       = useState(false);
   const [error, setError]     = useState('');
   const [loaded, setLoaded]   = useState(false);
+  const [confirmRemove, setConfirmRemove] = useState(null); // { member, perfs }
   const inFlight = useRef('');
   const queryClient = useQueryClient();
 
@@ -117,6 +124,59 @@ export default function EventArtistsSection({ eventId }) {
      * into one cached view means both must, ⛔ or the one that forgets makes
      * the other look broken.
      */
+    queryClient.invalidateQueries({ queryKey: ['event', eventId] });
+  }
+
+  /**
+   * ── TAKING SOMEBODY OFF THE EVENT ───────────────────────────────────────
+   *
+   * ⛔⛔ NOT A DELETE. `planRemoveFromEvent` writes `status = 'removed'` and
+   * destroys the performances; the member row survives so the history does and
+   * so the duplicate guard above still sees them.
+   *
+   * ⚠⚠ THE PERFORMANCES MUST BE FETCHED FIRST. Passing `[]` would leave
+   * `deletePerformanceIds` empty, and a set time hanging off a removed member
+   * is invisible to every read while still holding its slot in the unique index
+   * on (slot_uuid, lineup_member_id) — so re-adding them to that slot later
+   * would fail for no reason a host could see.
+   */
+  async function beginRemove(m) {
+    setError('');
+    const { data: perfs, error: perr } = await supabase.from('performances')
+      .select('id, status, slot_uuid').eq('lineup_member_id', m.id);
+    if (perr) { setError(perr.message); return; }
+    const plan = planRemoveFromEvent(m, perfs || []);
+    /**
+     * ⭐ STATE-AWARE, ⛔ not a blanket "are you sure?". Most rows here are
+     * SHORTLISTED: nobody was told, nothing was booked, and a dialog on that is
+     * the kind that trains people to click through the one that matters.
+     * ⚠ `notifyCount` is the honest test — it is non-zero only where a set time
+     * was actually SENT, which is exactly when removal costs somebody something.
+     */
+    if (plan.notifyCount > 0) { setConfirmRemove({ member: m, perfs: perfs || [] }); return; }
+    await doRemove(m, perfs || []);
+  }
+
+  async function doRemove(m, perfs) {
+    setBusy(true);
+    /* ⚠ The event's name and owner are for the NOTIFICATION, not for display —
+       fetched here rather than held in state because this is the only path that
+       needs them, and only when somebody is actually being told. */
+    const { data: ev } = await supabase.from('events')
+      .select('id, name, owner_profile_id').eq('id', eventId).maybeSingle();
+    const { ok, error: err } = await executeLineupPlan(supabase, planRemoveFromEvent(m, perfs), {
+      member: m,
+      perfs,
+      event: ev || { id: eventId },
+      notify: writeNotification,
+      resolveProfileId: resolvePerformerProfileId,
+    });
+    setBusy(false);
+    setConfirmRemove(null);
+    if (!ok) { setError(err || 'Could not remove them.'); return; }
+    await loadMembers();
+    /* ⚠ Same reason as the add path: the event page caches its own copy, and a
+       stale read is indistinguishable from a broken one. */
     queryClient.invalidateQueries({ queryKey: ['event', eventId] });
   }
 
@@ -194,8 +254,59 @@ export default function EventArtistsSection({ eventId }) {
               <span style={{ fontFamily: "'Bebas Neue'", fontSize: 10.5, letterSpacing: 1.3, color: 'var(--muted)' }}>
                 {m.status === 'on_bill' ? 'ON THE BILL' : 'SHORTLISTED'}
               </span>
+              {/**
+                * ⚠ TAKE THEM OFF THE EVENT. ⛔ Deliberately quiet: it is muted
+                * until hovered, because the row's job is to show who is
+                * attached and removal is the rarer act. ⛔ An X as loud as the
+                * status beside it would make the list read as a delete queue.
+                *
+                * ⚠ 28px of target on a 13px glyph — the same reasoning as the
+                * heart on the slot card.
+                */}
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => beginRemove(m)}
+                title={`Take ${m.artist_name || 'this act'} off the event`}
+                aria-label={`Take ${m.artist_name || 'this act'} off the event`}
+                style={{
+                  width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  flexShrink: 0, marginRight: -6, border: 'none', background: 'none', padding: 0,
+                  color: 'rgba(255,255,255,.35)', cursor: busy ? 'default' : 'pointer', transition: 'color .15s',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.color = '#FF2D78'; }}
+                onMouseLeave={e => { e.currentTarget.style.color = 'rgba(255,255,255,.35)'; }}
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+                  <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
             </div>
           ))}
+          {/**
+            * ⭐ THE DIALOG APPEARS ONLY WHERE SOMETHING WAS SENT — see
+            * `beginRemove`. ⚠ It names the COST rather than asking "are you
+            * sure": the host is not being asked to confirm a click, they are
+            * being told what the artist will hear.
+            */}
+          {confirmRemove && (
+            <div style={{ marginTop: 10, padding: '10px 12px', borderRadius: 8, border: '1px solid rgba(255,45,120,.4)', background: 'rgba(255,45,120,.08)' }}>
+              <p style={{ margin: '0 0 8px', fontSize: 12, color: 'var(--text)' }}>
+                {confirmRemove.member.artist_name || 'This act'} has a set time they were told about.
+                Taking them off the event removes it and lets them know.
+              </p>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button type="button" disabled={busy} onClick={() => setConfirmRemove(null)}
+                  style={{ flex: 1, padding: '7px 0', borderRadius: 8, border: '1px solid rgba(255,255,255,.15)', background: 'rgba(255,255,255,.05)', fontFamily: "'Bebas Neue'", fontSize: 12, letterSpacing: 1.2, color: 'var(--muted)', cursor: 'pointer' }}>
+                  CANCEL
+                </button>
+                <button type="button" disabled={busy} onClick={() => doRemove(confirmRemove.member, confirmRemove.perfs)}
+                  style={{ flex: 1, padding: '7px 0', borderRadius: 8, border: '1px solid rgba(255,45,120,.5)', background: 'rgba(255,45,120,.12)', fontFamily: "'Bebas Neue'", fontSize: 12, letterSpacing: 1.2, color: '#FF2D78', cursor: 'pointer' }}>
+                  TAKE THEM OFF
+                </button>
+              </div>
+            </div>
+          )}
           <p style={{ fontSize: 11, color: 'var(--muted)', margin: '8px 0 0' }}>
             Manage the bill and set times from the event page.
           </p>
