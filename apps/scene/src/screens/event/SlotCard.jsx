@@ -1,7 +1,9 @@
 // EP-00 · extracted verbatim from EventScreen.jsx.
 // One slot row. Renders read-only for the public view and editable for the
 // host editor — the difference is entirely in the props it is given.
-import { useState, useEffect, useRef } from 'react';
+/* ⚠ `useRef` went with the genre rail's scroll hint — the pill row no longer
+   overflows, so there is nothing to nudge. */
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -14,7 +16,7 @@ import { usePlayer, useSession } from '../../App';
 import { getPersonalProfileId } from '../../lib/actingProfile';
 import { resolveProfileId } from '../../lib/resolveProfileId';
 import { track, EVENTS } from '../../lib/analytics';
-import { socialProfileUrl, ensureHttps } from '../../lib/socialLinks';
+import { openDirectConversation } from '../../lib/messaging';
 import UnclaimedBadge from '../../components/UnclaimedBadge';
 import { parseDurMins, fmtDur, labelColor, stripEmoji } from './slotUtils';
 import s from '../EventScreen.module.css';
@@ -35,10 +37,8 @@ function HeadphoneIcon() {
   );
 }
 
-export default function SlotCard({ slot, claim, onFill, onEdit, onRemove, onPin, isHost, isSortable, isActiveSort, isDragOverlay, allMixSlots = [], locked = false }) {
+export default function SlotCard({ slot, claim, onFill, onEdit, onRemove, onPin, isHost, isSortable, isActiveSort, isDragOverlay, allMixSlots = [], locked = false, viewerProfileId = null }) {
   const [expanded,      setExpanded]      = useState(false);
-  const [genreShowAll, setGenreShowAll] = useState(false);
-  const pillHintRef = useRef(null);
   const [hostNote,      setHostNote]      = useState('');
   const [artistBrief,   setArtistBrief]   = useState('');
   const [notesBoxOpen,  setNotesBoxOpen]  = useState(false);
@@ -48,6 +48,7 @@ export default function SlotCard({ slot, claim, onFill, onEdit, onRemove, onPin,
   const [followed,      setFollowed]      = useState(false);
   const [followBusy,    setFollowBusy]    = useState(false);
   const [confirm,       setConfirm]       = useState(null); // 'replace' | 'remove'
+  const [msgBusy,       setMsgBusy]       = useState(false);
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: slot.id,
@@ -61,16 +62,6 @@ export default function SlotCard({ slot, claim, onFill, onEdit, onRemove, onPin,
     supabase.from('follows').select('id').eq('user_id', session.user.id).eq('entity_id', claim.user_id).maybeSingle()
       .then(({ data }) => setFollowed(!!data));
   }, [session?.user?.id, claim?.user_id]);
-
-  useEffect(() => {
-    if (!expanded) { setGenreShowAll(false); return; }
-    if (!pillHintRef.current || genreShowAll) return;
-    const el = pillHintRef.current;
-    if (el.scrollWidth <= el.clientWidth) return;
-    const t1 = setTimeout(() => el.scrollTo({ left: 48, behavior: 'smooth' }), 200);
-    const t2 = setTimeout(() => el.scrollTo({ left: 0, behavior: 'smooth' }), 600);
-    return () => { clearTimeout(t1); clearTimeout(t2); };
-  }, [expanded]);
 
   const { player, setPlayer } = usePlayer();
   const claimStatus   = claim?.status || (claim?.user_id ? 'pending' : 'name_added');
@@ -207,7 +198,28 @@ export default function SlotCard({ slot, claim, onFill, onEdit, onRemove, onPin,
               <svg width="10" height="11" viewBox="0 0 9 10" fill={player?.url === claim.mix_link ? '#fff' : 'rgba(255,255,255,.8)'}><polygon points="0,0 9,5 0,10"/></svg>
             </button>
           )}
-          {(isHost || isConfirmed) && <span className={s.slotChevron} style={{ transform: expanded ? 'rotate(90deg)' : 'none', transition: 'transform .15s' }}>›</span>}
+          {/**
+            * ⚠ THE SAME CHEVRON AS `WorkItemCard`, AIMED THE SAME WAY (owner,
+            * 2026-08-16). This was the text glyph `›` rotated 90°, so one
+            * screen had a caret that pointed RIGHT when closed and DOWN when
+            * open, while the cards above had one pointing DOWN when closed and
+            * UP when open — two disclosure languages for one gesture.
+            *
+            * ⛔ A TYPOGRAPHIC GLYPH IS NOT A MARK. `›` is sized by whatever
+            * font resolves it and never aligns to a drawn icon, which is the
+            * same reason `DecisionButtons` replaced `★ ✓ ✗` with outlines.
+            *
+            * ⭐ RIGHT at rest, DOWN when open — the motion this row always had,
+            * now with the drawn mark and matched by `WorkItemCard`.
+            */}
+          {(isHost || isConfirmed) && (
+            <span className={s.slotChevron} aria-hidden="true" style={{ display: 'inline-flex', alignItems: 'center', transform: expanded ? 'rotate(90deg)' : 'none', transition: 'transform .18s' }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="9 6 15 12 9 18" />
+              </svg>
+            </span>
+          )}
         </div>
         </div>
       </div>
@@ -215,40 +227,65 @@ export default function SlotCard({ slot, claim, onFill, onEdit, onRemove, onPin,
       {expanded && !isEmpty && (isHost || isConfirmed || claim) && (
         <div style={{ background: 'var(--card2)', border: `1px solid ${borderCol}`, borderTop: 'none', borderRadius: '0 0 10px 10px', padding: '14px 16px' }}>
 
-          {/* Genre pills — when a card_pills value exists, this IS the performer's
-              curated "Your 5 Tags" (their final identity), so it gets the
-              signature Glow Pill. Falls back to the raw genre field otherwise,
-              which keeps its existing look (that's not the curated 5). */}
-          {(claim?.card_pills?.length || claim?.genre) && (() => {
-            const usingCardPills = !!claim.card_pills?.length;
-            const raw = usingCardPills ? claim.card_pills : claim.genre;
-            const all = Array.isArray(raw)
-              ? raw
-              : raw.split(/[·,|/]+/).map(g => g.trim()).filter(Boolean);
-            const SHOW = 6;
-            const visible = genreShowAll ? all : all.slice(0, SHOW);
-            const rest = all.length - visible.length;
+          {/**
+            * ⭐⭐ THE EXPANDED SLOT, TRIMMED TO A HIERARCHY (owner, 2026-08-16).
+            *
+            * The order is stated rather than inherited: STATUS · RELATIONSHIP ·
+            * CONTEXT · SLOT CONTROLS · REPLACEMENT. It previously opened with a
+            * scrolling pill rail and put the status three rows down, so the
+            * first thing a host read was genre and the last was whether the
+            * artist had actually said yes.
+            *
+            * ⛔ REMOVED IN THIS PASS: the Instagram / SoundCloud / Mixcloud /
+            * YouTube / website row, and the `+N more` genre overflow. Both were
+            * browsing material on a card whose job is running a night.
+            *
+            * ⛔ NO NEW DATA OR BEHAVIOUR — presentation and action surface only.
+            * MESSAGE is the one addition, and it calls the existing
+            * `openDirectConversation`.
+            */}
+
+          {/* ── 1 · STATUS ─────────────────────────────────────────────── */}
+          {isHost && (() => {
+            const cStatus = claim?.status || (claim?.user_id ? 'pending' : 'name_added');
+            const chip = {
+              name_added: { label: 'NAME ADDED', bg: 'rgba(255,255,255,.04)', border: 'rgba(255,255,255,.15)', color: 'var(--muted)', icon: null },
+              pending:    { label: 'AWAITING REPLY', bg: 'rgba(255,184,48,.10)', border: 'rgba(255,184,48,.35)', color: '#FFB830', icon: null },
+              offered:    { label: 'AWAITING REPLY', bg: 'rgba(255,184,48,.10)', border: 'rgba(255,184,48,.35)', color: '#FFB830', icon: null },
+              draft:      { label: 'SET TIME NOT SENT', bg: 'rgba(255,255,255,.04)', border: 'rgba(255,255,255,.15)', color: 'var(--muted)', icon: null },
+              /* ⚠ "ARTIST DECLINED", matching the LINEUP tab exactly — the host
+                 declining an APPLICATION is a different event that shares the
+                 word, so neither surface may use it bare. */
+              declined:   { label: 'ARTIST DECLINED', bg: 'rgba(255,51,153,.10)', border: 'rgba(255,51,153,.40)', color: '#FF3399', icon: null },
+              confirmed:  { label: 'BOOKED', bg: 'rgba(0,200,100,.10)', border: 'rgba(255,255,255,.15)', color: '#00C864',
+                icon: <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg> },
+            }[cStatus] || { label: cStatus.toUpperCase(), bg: 'rgba(255,255,255,.04)', border: 'rgba(255,255,255,.15)', color: 'var(--muted)', icon: null };
+            const claimedByArtist = cStatus === 'confirmed' && !!claim?.user_id;
             return (
-              <div ref={genreShowAll ? null : pillHintRef} style={{ display: 'flex', flexWrap: genreShowAll ? 'wrap' : 'nowrap', gap: 5, marginBottom: 14, overflowX: genreShowAll ? 'visible' : 'auto', overflowY: 'hidden', scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}>
-                {visible.map(g => (
-                  usingCardPills
-                    ? <span key={g} className="glow-pill" style={{ whiteSpace: 'nowrap', flexShrink: 0 }}>{g}</span>
-                    : <span key={g} style={{ fontSize: 10, fontFamily: "'DM Sans',sans-serif", background: 'rgba(0,229,255,.08)', border: '1px solid rgba(0,229,255,.25)', color: '#fff', borderRadius: 20, padding: '2px 10px', whiteSpace: 'nowrap', flexShrink: 0 }}>{g}</span>
-                ))}
-                {!genreShowAll && rest > 0 && (
-                  <button onClick={e => { e.stopPropagation(); setGenreShowAll(true); }}
-                    style={{ fontSize: 12, fontFamily: "'DM Sans',sans-serif", background: 'rgba(0,229,255,.05)', border: '1px solid rgba(0,229,255,.15)', color: 'var(--muted)', borderRadius: 20, padding: '2px 10px', whiteSpace: 'nowrap', cursor: 'pointer', flexShrink: 0 }}>
-                    +{rest} more
-                  </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontFamily: "'Bebas Neue'", letterSpacing: 1.2, background: chip.bg, border: `1px solid ${chip.border}`, color: chip.color, borderRadius: 6, padding: '3px 10px' }}>
+                  {chip.icon}{chip.label}
+                </span>
+                {claimedByArtist && (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', fontSize: 11, fontFamily: "'Bebas Neue'", letterSpacing: 1.2, background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.15)', color: 'var(--muted)', borderRadius: 6, padding: '3px 10px' }}>
+                    ACCEPTED BY ARTIST
+                  </span>
+                )}
+                {slot.pinned && (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', fontSize: 11, fontFamily: "'Bebas Neue'", letterSpacing: 1.2, background: 'rgba(255,184,48,.10)', border: '1px solid rgba(255,184,48,.35)', color: '#FFB830', borderRadius: 6, padding: '3px 10px' }}>
+                    LOCKED
+                  </span>
                 )}
               </div>
             );
           })()}
 
-          {/* Public row — Follow | Social icons | View Full Profile */}
+          {/* ── 2 · RELATIONSHIP — follow · message · profile ───────────────
+              ⚠ These change YOUR relationship to a person. The slot controls
+              below change THEIR place in your night, which is why the two are
+              separate rows and not one row of six. */}
           {claim?.user_id && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-              {/* Follow — left */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
               {session?.user?.id && (
                 <button
                   onClick={async e => {
@@ -278,48 +315,24 @@ export default function SlotCard({ slot, claim, onFill, onEdit, onRemove, onPin,
                   }
                 </button>
               )}
-
-              {/* Social icons — centre, brand colours */}
-              <div style={{ flex: 1, display: 'flex', justifyContent: 'center', gap: 12, alignItems: 'center', opacity: 0.8 }}>
-                {claim.instagram && (
-                  <a href={socialProfileUrl('instagram', claim.instagram)} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center' }}>
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                      <defs><linearGradient id="ig" x1="0%" y1="100%" x2="100%" y2="0%"><stop offset="0%" stopColor="#F58529"/><stop offset="40%" stopColor="#DD2A7B"/><stop offset="100%" stopColor="#8134AF"/></linearGradient></defs>
-                      <rect x="2" y="2" width="20" height="20" rx="5" stroke="url(#ig)"/>
-                      <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" stroke="url(#ig)"/>
-                      <line x1="17.5" y1="6.5" x2="17.51" y2="6.5" stroke="url(#ig)" strokeWidth="2.5"/>
-                    </svg>
-                  </a>
-                )}
-                {(claim.soundcloud || claim.mix_link?.includes('soundcloud')) && (
-                  <a href={socialProfileUrl('soundcloud', claim.soundcloud) || ensureHttps(claim.mix_link)} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center' }}>
-                    <svg width="20" height="14" viewBox="0 0 24 16" fill="#FF5500">
-                      <path d="M1.4 9.8c0-.5.4-.9.9-.9s.9.4.9.9v3.8c0 .5-.4.9-.9.9s-.9-.4-.9-.9V9.8zm2.4-.9c0-.6.5-1.1 1.1-1.1s1.1.5 1.1 1.1v4.7c0 .6-.5 1.1-1.1 1.1S3.8 14.2 3.8 13.6V8.9zm2.5-.4c0-.7.6-1.3 1.3-1.3s1.3.6 1.3 1.3v5.1c0 .7-.6 1.3-1.3 1.3S6.3 14.3 6.3 13.6V8.5zm2.6-.3c0-.8.6-1.4 1.4-1.4s1.4.6 1.4 1.4v5.4c0 .8-.6 1.4-1.4 1.4s-1.4-.6-1.4-1.4V8.2zm2.7.1c0-.9.7-1.6 1.6-1.6s1.6.7 1.6 1.6v5.2c0 .9-.7 1.6-1.6 1.6s-1.6-.7-1.6-1.6V8.3zm2.7-.6c0-1 .8-1.8 1.8-1.8s1.8.8 1.8 1.8v5.8c0 1-.8 1.8-1.8 1.8s-1.8-.8-1.8-1.8V7.7zm2.8 1.1c0-1 .8-1.9 1.9-1.9s1.9.8 1.9 1.9v4.5c0 1-.8 1.9-1.9 1.9s-1.9-.8-1.9-1.9V8.8zm3-2c-.1 0-.3 0-.4.1C21.3 3.9 18.9 2 16.1 2c-1 0-1.9.3-2.7.7-.3.2-.4.4-.4.5v10.4c0 .2.1.3.3.3h8.9c.7 0 1.3-.6 1.3-1.3V8.8c0-1.1-.9-2-2-2z"/>
-                    </svg>
-                  </a>
-                )}
-                {(claim.mixcloud || claim.mix_link?.includes('mixcloud')) && (
-                  <a href={socialProfileUrl('mixcloud', claim.mixcloud) || ensureHttps(claim.mix_link)} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center' }}>
-                    <svg width="22" height="14" viewBox="0 0 32 16" fill="#52AAD8">
-                      <path d="M20 2c-3.3 0-6.1 2.2-6.9 5.2-.6-.4-1.3-.6-2.1-.6-2.2 0-3.9 1.8-3.9 4s1.7 4 3.9 4h13.1c2 0 3.6-1.6 3.6-3.6 0-1.8-1.3-3.3-3-3.5V7c0-3.3-2.7-5-4.7-5zM4.5 6C2 6.2 0 8.4 0 11v.1C-.9 11.5-1.5 12.5-1.5 13.5c0 1.7 1.3 3 3 3H2V6H1.5c-.7 0-1.3.3-1.8.6C-.7 5.5.1 4.5 1 3.8c.2-.2.5-.3.8-.4h.3c.4 0 .8.2 1.1.4l.2.3c-.4.2-.7.6-.9 1.2-.1.2-.1.5-.1.7H4.5z"/>
-                    </svg>
-                  </a>
-                )}
-                {claim.youtube && (
-                  <a href={socialProfileUrl('youtube', claim.youtube)} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center' }}>
-                    <svg width="20" height="14" viewBox="0 0 24 16" fill="#FF0000">
-                      <path d="M23.5 2.5a3 3 0 0 0-2.1-2.1C19.5 0 12 0 12 0S4.5 0 2.6.4A3 3 0 0 0 .5 2.5 31 31 0 0 0 0 8a31 31 0 0 0 .5 5.5 3 3 0 0 0 2.1 2.1C4.5 16 12 16 12 16s7.5 0 9.4-.4a3 3 0 0 0 2.1-2.1A31 31 0 0 0 24 8a31 31 0 0 0-.5-5.5zM9.75 11.5v-7L16 8l-6.25 3.5z"/>
-                    </svg>
-                  </a>
-                )}
-                {claim.website && (
-                  <a href={ensureHttps(claim.website)} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} style={{ color: 'var(--muted)', display: 'flex', alignItems: 'center' }}>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
-                  </a>
-                )}
-              </div>
-
-              {/* View Full Profile — right */}
+              {/* ⛔ MESSAGE NEEDS AN EXPLICIT SENDER. `openDirectConversation`
+                  takes a FROM profile and this account may hold several —
+                  `profiles.user_id` is shared across a multi-profile account —
+                  so the surface states who it is acting as, or the button is
+                  not offered. */}
+              {viewerProfileId && claim.profile_id && (
+                <button
+                  onClick={async e => {
+                    e.stopPropagation();
+                    if (msgBusy) return;
+                    setMsgBusy(true);
+                    const { conversationId } = await openDirectConversation(viewerProfileId, claim.profile_id);
+                    setMsgBusy(false);
+                    if (conversationId) navigate(`/messages/${conversationId}`);
+                  }}
+                  style={{ flexShrink: 0, padding: '7px 14px', borderRadius: 8, cursor: 'pointer', fontFamily: "'Bebas Neue'", fontSize: 12, letterSpacing: 1.5, border: '1px solid var(--border)', background: 'rgba(255,255,255,.03)', color: 'var(--muted)' }}
+                >{msgBusy ? 'OPENING…' : 'MESSAGE'}</button>
+              )}
               <button
                 onClick={e => { e.stopPropagation(); navigate(claim.profile_id ? `/profile/${claim.profile_id}?prefer=performer` : `/profile/${claim.user_id}?prefer=performer`); }}
                 style={{ flexShrink: 0, fontSize: 11, fontFamily: "'Bebas Neue'", letterSpacing: 1.5, background: 'none', border: 'none', padding: '5px 12px', cursor: 'pointer', whiteSpace: 'nowrap' }}
@@ -327,70 +340,49 @@ export default function SlotCard({ slot, claim, onFill, onEdit, onRemove, onPin,
             </div>
           )}
 
-          {/* Status */}
-          {(() => {
-            const claimStatus = claim?.status || (claim?.user_id ? 'pending' : 'name_added');
-            const updatedAgo = (claim?.created_at || claim?.updated_at) ? (() => {
-              const diff = Date.now() - new Date(claim.created_at || claim.updated_at).getTime();
-              const days = Math.floor(diff / 86400000);
-              const hrs  = Math.floor(diff / 3600000);
-              if (days >= 1) return `${days} day${days !== 1 ? 's' : ''} ago`;
-              if (hrs  >= 1) return `${hrs} hr${hrs  !== 1 ? 's' : ''} ago`;
-              return 'just now';
-            })() : null;
-
-            const statusChip = {
-              name_added: { label: 'NAME ADDED',  bg: 'rgba(255,255,255,.04)', border: 'rgba(255,255,255,.15)', color: 'var(--muted)',  icon: null },
-              pending:    { label: 'PENDING',      bg: 'rgba(255,184,48,.10)', border: 'rgba(255,184,48,.35)',  color: '#FFB830',        icon: null },
-              confirmed:  { label: 'BOOKED',       bg: 'rgba(0,200,100,.10)',  border: 'rgba(255,255,255,.15)', color: '#00C864',
-                icon: <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg> },
-            }[claimStatus] || { label: claimStatus.toUpperCase(), bg: 'rgba(255,255,255,.04)', border: 'rgba(255,255,255,.15)', color: 'var(--muted)', icon: null };
-
-            const claimedByArtist = claimStatus === 'confirmed' && !!claim?.user_id;
-
-            return isHost ? (
-              <div style={{ marginBottom: 8 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontFamily: "'Bebas Neue'", letterSpacing: 1.2, background: statusChip.bg, border: `1px solid ${statusChip.border}`, color: statusChip.color, borderRadius: 6, padding: '3px 10px' }}>
-                    {statusChip.icon}{statusChip.label}
-                  </span>
-                  {claimedByArtist && (
-                    <span style={{ display: 'inline-flex', alignItems: 'center', fontSize: 11, fontFamily: "'Bebas Neue'", letterSpacing: 1.2, background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.15)', color: 'var(--muted)', borderRadius: 6, padding: '3px 10px' }}>
-                      ACCEPTED BY ARTIST
-                    </span>
-                  )}
-                  {isConfirmed && (
-                    <button
-                      onClick={e => { e.stopPropagation(); setConfirm('replace'); }}
-                      style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontFamily: "'Bebas Neue'", letterSpacing: 1.2, background: 'rgba(255,45,120,.08)', border: '1px solid rgba(255,45,120,.35)', color: '#fff', borderRadius: 6, padding: '3px 10px', cursor: 'pointer', whiteSpace: 'nowrap', transition: 'background .15s, border-color .15s' }}
-                      onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,45,120,.2)'; e.currentTarget.style.borderColor = 'rgba(255,45,120,.6)'; }}
-                      onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,45,120,.08)'; e.currentTarget.style.borderColor = 'rgba(255,45,120,.35)'; }}
-                    >
-                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
-                      REPLACE ARTIST
-                    </button>
-                  )}
-                </div>
+          {/* ── 3 · CONTEXT — up to five tags, ⛔ no overflow control ────────
+              ⚠ FIVE, matching the act's own curated "Your 5 Tags" and the
+              lineup card's panel. The `+N more` button expanded a rail that
+              could run to twenty pills, which is browsing, not context. */}
+          {(claim?.card_pills?.length || claim?.genre) && (() => {
+            const usingCardPills = !!claim.card_pills?.length;
+            const raw = usingCardPills ? claim.card_pills : claim.genre;
+            const all = Array.isArray(raw)
+              ? raw
+              : raw.split(/[·,|/]+/).map(g => g.trim()).filter(Boolean);
+            return (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginBottom: 14 }}>
+                {all.slice(0, 5).map(g => (
+                  usingCardPills
+                    ? <span key={g} className="glow-pill" style={{ whiteSpace: 'nowrap' }}>{g}</span>
+                    : <span key={g} style={{ fontSize: 10, fontFamily: "'DM Sans',sans-serif", background: 'rgba(0,229,255,.08)', border: '1px solid rgba(0,229,255,.25)', color: '#fff', borderRadius: 20, padding: '2px 10px', whiteSpace: 'nowrap' }}>{g}</span>
+                ))}
               </div>
-            ) : null;
+            );
           })()}
 
           {isHost && (
             <>
-              {/* Primary action — only show big button when slot not yet confirmed */}
-              {!isConfirmed && (
-                <>
-                  <button
-                    onClick={e => { e.stopPropagation(); onFill?.(); }}
-                    onMouseEnter={e => e.currentTarget.style.background = 'var(--neon)'}
-                    onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,45,120,.5)'}
-                    style={{ width: '100%', padding: '12px 0', borderRadius: 10, border: 'none', cursor: 'pointer', background: 'rgba(255,45,120,.5)', fontFamily: "'Bebas Neue'", fontSize: 15, letterSpacing: 2, marginBottom: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, transition: 'background .15s' }}
-                  >
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
-                    <span style={{ color: '#fff' }}>BOOK ARTIST</span>
-                  </button>
-                </>
-              )}
+              {/**
+                * ⛔⛔ `BOOK ARTIST` IS GONE FROM THIS PANEL (owner, 2026-08-16).
+                *
+                * ⚠⚠ IT WAS OFFERED ON A SLOT THAT ALREADY HAD AN ARTIST. This
+                * whole block renders only when `!isEmpty` — an EMPTY slot never
+                * opens it, because tapping an empty row calls `onFill` directly
+                * (see the row's own onClick). So the button appeared on exactly
+                * the slots where "book an artist" is the wrong verb: somebody is
+                * already there, and the honest action is REPLACE.
+                *
+                * ⚠ It was gated on `!isConfirmed`, which meant an AWAITING or
+                * DECLINED slot showed BOOK ARTIST while a BOOKED one showed
+                * REPLACE ARTIST — two names for one operation, chosen by
+                * whether the artist had answered yet.
+                *
+                * ⭐ The action is state-dependent and now says so:
+                *     empty slot        → the row itself books (⛔ not here)
+                *     artist attached   → REPLACE ARTIST
+                *     artist declined   → REPLACE ARTIST
+                */}
 
               {/* Confirm dialog */}
               {confirm && (
@@ -434,6 +426,35 @@ export default function SlotCard({ slot, claim, onFill, onEdit, onRemove, onPin,
                       danger
                     />
                   </div>
+                </div>
+              )}
+
+              {/**
+                * ── 5 · REPLACEMENT ────────────────────────────────────────
+                * ⭐ LAST, AND ONLY WHERE AN ARTIST IS ATTACHED. It ends the
+                * panel because it is the one action that discards what the rest
+                * of the card describes.
+                *
+                * ⚠ Gated on `claim`, ⛔ not on `isConfirmed`. An artist who has
+                * not replied yet, and one who has DECLINED, are both still
+                * attached to the slot — declined especially is the case where a
+                * host most needs to swap somebody in, and it was the case the
+                * old `isConfirmed` gate hid it from.
+                *
+                * ⛔ Withheld while the set times are LOCKED, exactly like the
+                * three controls above: a locked slot does not change hands.
+                */}
+              {claim && !locked && (
+                <div style={{ marginBottom: 14 }}>
+                  <button
+                    onClick={e => { e.stopPropagation(); setConfirm('replace'); }}
+                    style={{ width: '100%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7, fontSize: 12, fontFamily: "'Bebas Neue'", letterSpacing: 1.5, background: 'rgba(255,45,120,.08)', border: '1px solid rgba(255,45,120,.35)', color: '#fff', borderRadius: 8, padding: '9px 12px', cursor: 'pointer', transition: 'background .15s, border-color .15s' }}
+                    onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,45,120,.2)'; e.currentTarget.style.borderColor = 'rgba(255,45,120,.6)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,45,120,.08)'; e.currentTarget.style.borderColor = 'rgba(255,45,120,.35)'; }}
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+                    REPLACE ARTIST
+                  </button>
                 </div>
               )}
 

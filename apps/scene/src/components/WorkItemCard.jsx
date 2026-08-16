@@ -7,25 +7,30 @@
  *     WHO is this · WHAT state are they in · WHAT happens next ·
  *     WHICH BUTTON does it.
  *
- * So the card has exactly three bands, in that order: identity, state, action.
- * Anything that does not serve one of those was removed rather than shrunk.
+ * ── ⛔ WHY THIS IS A SIBLING OF ProfileCard, NOT A MODE ON IT ───────────────
  *
- * ── ⛔ WHAT THIS DOES NOT DO ────────────────────────────────────────────────
+ * Same SUBJECT (a profile), different SHAPE — which the platform contract says
+ * makes it a sibling. `ProfileCard` is a BROWSE card: Discover, My Scene,
+ * Messenger contacts, Presented By, where the photograph IS the content and
+ * the job is to make you tap through. This is a WORK card: the job is state
+ * and action, and the picture is a thumbnail.
  *
- * It knows nothing about the database and holds no state model of its own. The
- * two ladders stay exactly where they were — `applications.status` through
- * `normaliseStatus`, and the slot lifecycle through `memberState` — and this
- * file only chooses WORDS and COLOUR for a state it is handed. ⛔ Adding a
- * status here, or deriving one, would be a third vocabulary.
+ * ⚠ The evidence for splitting rather than adding a mode: ProfileCard had
+ * already grown `cover`, then `tags`, then `readiness`, and every new caller
+ * had to know which flags to pass. A third "work" mode would have finished
+ * turning it into a switchboard.
  *
- * ⚠ USED BY `EventHostView` ONLY. The dashboard stays triage and keeps
- * `ProfileCard` (owner: "do not make the dashboard a second full event
- * management workspace").
+ * ⛔ IT HOLDS NO STATE MODEL. `applications.status` through `normaliseStatus`
+ * and the slot lifecycle through `memberState` are unchanged; this file only
+ * chooses WORDS and COLOUR for a state it is handed.
  */
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import s from './WorkItemCard.module.css';
 import { profileIdentity } from '../lib/profileTypes';
-import { formatLocation } from '../lib/formatLocation';
+import { openDirectConversation } from '../lib/messaging';
 import UnclaimedBadge from './UnclaimedBadge';
+import FollowHeartBtn from './FollowHeartBtn';
 
 /**
  * ⭐ THE APPLICATION LADDER, AS THE HOST READS IT.
@@ -33,19 +38,14 @@ import UnclaimedBadge from './UnclaimedBadge';
  * ⚠ `onBill` is NOT an application status and is deliberately not treated as
  * one — it is read from `lineup_members`, and it is the reason ACCEPTED splits
  * into two rows here. An accepted application that is not on the bill still
- * has work outstanding; one that is has none, and offering ADD TO BILL there
- * would be offering to do something already done.
- *
- * ⛔ Colours come from STATUS_TAB_COLOR at the call site so the chip cannot
- * disagree with the tab above it. This function names the STATE, not the hue.
+ * has work outstanding; one that is has none.
  */
 export function applicationWorkState(bucket, onBill = false) {
   switch (bucket) {
     case 'new':         return { label: 'NEW APPLICATION', quiet: false };
     /* ⚠ "UNDECIDED", not "SEEN". `seen` is written by LOOKING — expanding a
-       card sets it — so the word describes the host's eyes rather than the
-       row's position. What the host needs to know is that it is still theirs
-       to answer, which is also why PIPELINE holds new AND seen. */
+       card sets it — so the word would describe the host's eyes rather than
+       the row's position. */
     case 'seen':        return { label: 'UNDECIDED', quiet: false };
     case 'shortlisted': return { label: 'SHORTLISTED', quiet: false };
     case 'accepted':    return onBill
@@ -59,21 +59,15 @@ export function applicationWorkState(bucket, onBill = false) {
 /**
  * ⭐⭐ THE BILL AND THE SET TIME ARE TWO FACTS, SHOWN AS TWO LINES.
  *
- * Everyone on this tab is ON BILL — that is what being in `lineup_members`
- * means — so the bill line is constant and the SET TIME line is the one that
- * varies. Collapsing them into a single chip is what made the tab read as five
- * unrelated words (ON BILL / DRAFT / AWAITING / CONFIRMED / DECLINED) when it
- * is really one fact plus a progress state.
- *
  * ⚠ `DECLINED` HERE IS THE ARTIST DECLINING A SLOT — ⛔ not the host declining
  * an application. Two systems, one word; the copy says "ARTIST DECLINED" out
  * loud so the two can never be read as the same event.
  */
 export function lineupWorkState(memberState) {
   switch (memberState) {
-    /* ⭐ THE DOMINANT OPERATIONAL STATE (goal 9): 123 of 152 members are here.
-       It is the only one flagged as needing action, which is what makes the
-       tab scannable — the lit rows are the work. */
+    /* ⭐ THE DOMINANT OPERATIONAL STATE: 123 of 152 members are here. It is the
+       only one flagged as needing action, which is what makes the tab
+       scannable — the lit rows are the work. */
     case 'ON BILL':   return { setTime: 'NO SET TIME',       needsAction: true  };
     case 'DRAFT':     return { setTime: 'SET TIME NOT SENT', needsAction: false };
     case 'AWAITING':  return { setTime: 'AWAITING REPLY',    needsAction: false };
@@ -84,43 +78,118 @@ export function lineupWorkState(memberState) {
 }
 
 /**
- * @param kind        'application' | 'lineup' — the visual separation (goal 5)
- * @param item        { name, type, avatar, avatar_thumb, location, state,
- *                      sound, genre_string, id, user_id }
+ * @param kind        'application' | 'lineup'
+ * @param item        the profile-shaped row this card draws
  * @param stateLabel  the prominent state chip's words
  * @param stateColor  its colour, from the caller's own status map
  * @param quiet       settled states recede
  * @param subState    lineup only — the set-time line
  * @param needsAction lineup only — lights the set-time line
- * @param actions     the action area. ⚠ The caller composes it with
- *                    `DecisionBtn`/`DetailBtn` inside a `.yp-decision-row`, so
- *                    every surface in the app shares one control vocabulary.
+ * @param tags        their five `card_pills`, string or array. ⚠ PANEL ONLY.
+ * @param viewerProfileId  who MESSAGE would be sent AS. ⛔ Without it the
+ *                    button is not rendered — see the note at the render site.
+ * @param actions     the state's own buttons, inside a `.yp-decision-row`
  */
 export default function WorkItemCard({
   kind = 'application', item, stateLabel, stateColor, quiet = false,
-  subState = null, needsAction = false, actions = null,
+  subState = null, needsAction = false, tags = null, viewerProfileId = null,
+  actions = null,
 }) {
+  /**
+   * ⭐⭐ EVERYTHING BUT NAME, SOUND AND STATE IS BEHIND THE DISCLOSURE
+   * (owner, 2026-08-16).
+   *
+   * ⚠⚠ THE BUTTON ROW WAS THE WHOLE HEIGHT PROBLEM. A card carrying three
+   * actions stood roughly twice as tall as one carrying none, which is why the
+   * dashboard's lineup and the event page's lineup did not look like the same
+   * card even though they ARE the same component. Scanning a queue is the
+   * common case; acting on one row is the exception, so the exception folds.
+   *
+   * ⛔ AN INLINE EXPANDER, ⛔ NOT A FLOATING MENU. These cards sit inside
+   * scrolling tab panels; an absolutely-positioned dropdown is clipped by the
+   * first ancestor with `overflow` set, and escaping that means portalling to
+   * body — which this app already had to do for the header overlays. A
+   * disclosure that pushes the card open cannot be clipped and needs no portal.
+   */
+  const [open, setOpen] = useState(false);
+  const [msgBusy, setMsgBusy] = useState(false);
+  const navigate = useNavigate();
   if (!item) return null;
 
   const pt   = profileIdentity(String(item.type || '').toLowerCase());
-  const loc  = formatLocation(item);
   const img  = item.avatar_thumb || item.avatar || pt.defaultImage;
   /* Their own words first, the genre string as the fallback — the same
      resolution ProfileCard uses, kept identical so one act does not describe
-     itself differently on two tabs. */
+     itself differently on two screens. */
   const sound = item.sound || item.genre_string?.split(/[·,]/).slice(0, 3).map(g => g.trim()).join(' · ') || '';
 
-  /* ROLE and PLACE on one line. `.filter(Boolean)` because a hand-typed act
-     has no locality and an unknown type has no label — an empty separator
-     floating after a name is the placeholder problem in miniature. */
-  const metaLine = [pt.shortLabel, loc].filter(Boolean).join('  ·  ');
+  /* `card_pills` is a delimited string on a profiles row and an array from
+     some callers — accept both, and treat any other shape as no tags rather
+     than rendering the result of splitting it. */
+  const tagList = Array.isArray(tags)
+    ? tags.map(t => String(t).trim()).filter(Boolean)
+    : typeof tags === 'string'
+      ? tags.split(/[,·]/).map(t => t.trim()).filter(Boolean)
+      : [];
+
+  const canOpenProfile = !!(item.id || item.user_id);
+  const goProfile = () => {
+    /* ⛔ ROUTES ON `id` FIRST, `user_id` second. An unclaimed imported profile
+       has no user, and without the id its profile exists and cannot be
+       opened. */
+    if (item.id) navigate(`/profile/${item.id}`);
+    else navigate(`/profile/${item.user_id}?type=${(item.type || '').toLowerCase()}`);
+  };
+
+  async function message() {
+    if (msgBusy || !viewerProfileId || !item.id) return;
+    setMsgBusy(true);
+    const { conversationId } = await openDirectConversation(viewerProfileId, item.id);
+    setMsgBusy(false);
+    if (conversationId) navigate(`/messages/${conversationId}`);
+  }
+
+  /* The panel is worth opening only if it would hold something. ⛔ A
+     disclosure that reveals an empty box is worse than no disclosure. */
+  const hasPanel = !!(actions || tagList.length || canOpenProfile || viewerProfileId);
 
   return (
     <article
       className={`${s.card} ${kind === 'application' ? s.application : s.lineup}`}
       style={{ '--state': stateColor || 'var(--border)' }}
     >
-      <div className={s.head}>
+      {/**
+        * ⭐⭐ THE WHOLE HEAD IS THE TRIGGER (owner, 2026-08-16: "just clicking
+        * the card is the padding for the chevron").
+        *
+        * ⚠ I ARGUED THE OPPOSITE ONE PASS AGO and was wrong for a different
+        * card. The objection to a clickable card was ambiguity — a surface that
+        * silently NAVIGATED while carrying buttons that did other things. This
+        * tap does exactly one thing, disclose, which is what the chevron beside
+        * it already advertises, and it is what the slot rows have always done.
+        *
+        * ⛔ THE CHEVRON IS NO LONGER A BUTTON. Nested inside a clickable
+        * region its own handler would fire AND bubble — two toggles, net
+        * nothing, on the one control this card has. It is decoration now
+        * (`aria-hidden`), and the head carries the role, the keyboard handler
+        * and `aria-expanded`.
+        *
+        * ⚠ The PANEL is deliberately outside this region: clicking near an
+        * action button must not also collapse the thing you were reaching into.
+        */}
+      <div
+        className={s.head + (hasPanel ? ' ' + s.headClickable : '')}
+        {...(hasPanel ? {
+          role: 'button',
+          tabIndex: 0,
+          'aria-expanded': open,
+          'aria-label': open ? 'Hide details' : 'Show details',
+          onClick: () => setOpen(v => !v),
+          onKeyDown: e => {
+            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen(v => !v); }
+          },
+        } : {})}
+      >
         {/* ⭐ The type ring and glow, exactly as ProfileCard draws them — the
             photography language kept, demoted from surface to thumbnail. */}
         {img && (
@@ -131,11 +200,21 @@ export default function WorkItemCard({
         <div className={s.who}>
           <div className={s.nameRow}>
             <h3 className={s.name}>{item.name || 'Unnamed act'}</h3>
-            {/* Kept: it changes what a host can expect to happen when they
-                act on this row. ⛔ The type pill did not, and is now text. */}
+            {/* Kept on the face: it changes what a host can expect to happen
+                when they act on this row. */}
             <UnclaimedBadge profile={item} />
           </div>
-          {metaLine && <div className={s.meta}>{metaLine}</div>}
+          {/**
+            * ⭐ THE SOUND LINE, AND NOTHING ELSE (owner, 2026-08-16: "remove
+            * the dj / prod, have just the your sound tag under the artist name
+            * and thats it").
+            *
+            * ⛔ THE TYPE LABEL IS GONE FROM THE FACE. "DJ / PROD." was the same
+            * three words on almost every row of a music event's lineup, so it
+            * cost a line and separated nothing — the accent colour already
+            * carries type. ⚠ The locality moved into the panel as HOME TOWN,
+            * where it is reference rather than a scanning signal.
+            */}
           {sound && <div className={s.genres} style={{ color: pt.accent }}>{sound}</div>}
         </div>
 
@@ -145,9 +224,68 @@ export default function WorkItemCard({
             <span className={`${s.subState}${needsAction ? ' ' + s.needsAction : ''}`}>{subState}</span>
           )}
         </div>
+
+        {/* ⚠ ON THE RIGHT, where the slot rows already put theirs — one answer
+            to "where do I press to see more" per screen, ⛔ not one per
+            component. Decoration only; the head above owns the interaction. */}
+        {hasPanel && (
+          <span aria-hidden="true" className={s.disclosure + (open ? ' ' + s.disclosureOpen : '')}>
+            {/* ⚠ POINTS RIGHT AT REST, TURNS DOWN WHEN OPEN (owner,
+                2026-08-16) — so the glyph is the RIGHT chevron and the open
+                state rotates it a quarter turn, ⛔ not a down chevron flipped
+                180°. Right reads as "there is more through here"; down reads as
+                "it is now below you". */}
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="9 6 15 12 9 18" />
+            </svg>
+          </span>
+        )}
       </div>
 
-      {actions && <div className={s.actions}>{actions}</div>}
+      {open && hasPanel && (
+        <div className={s.panel}>
+          {/* ⛔ HOME TOWN REMOVED (owner, 2026-08-16). It was the last thing
+              left of the old meta line and it earned no room: an organiser
+              deciding who plays their night is not deciding on locality, and
+              the profile behind PROFILE carries it in full. */}
+          {tagList.length > 0 && (
+            /* Their own curated five, ⛔ not a genre guess. `.spot-tag` is the
+               app's existing pill; this panel does not invent another. */
+            <div className="spot-tags" style={{ marginTop: 2 }}>
+              {tagList.slice(0, 5).map(t => <span key={t} className="spot-tag">{t}</span>)}
+            </div>
+          )}
+
+          {/* ── WHO THEY ARE TO YOU — follow, message, profile ──────────────
+              ⚠ Separated from the decision row below by their own divider:
+              these change YOUR relationship to a person, the ones below change
+              THEIR position in your event. Reading them as one row of six
+              would put "follow" beside "remove from bill". */}
+          {(canOpenProfile || viewerProfileId) && (
+            <div className={s.relRow}>
+              {canOpenProfile && <FollowHeartBtn profile={item} />}
+              {/* ⛔ MESSAGE NEEDS AN EXPLICIT SENDER. `openDirectConversation`
+                  takes a FROM profile, and this account may hold several —
+                  `profiles.user_id` is shared across a multi-profile account,
+                  so guessing the sender here could speak as the wrong identity.
+                  The surface passes who it is acting as, or the button is not
+                  offered. */}
+              {viewerProfileId && item.id && (
+                <button type="button" className={s.relBtn} onClick={message} disabled={msgBusy}>
+                  {msgBusy ? 'OPENING…' : 'MESSAGE'}
+                </button>
+              )}
+              {canOpenProfile && (
+                <button type="button" className={s.relBtn} onClick={goProfile}>PROFILE</button>
+              )}
+            </div>
+          )}
+
+          {actions && <div className={s.actions}>{actions}</div>}
+        </div>
+      )}
+
     </article>
   );
 }

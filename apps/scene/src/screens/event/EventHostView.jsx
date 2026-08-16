@@ -35,8 +35,7 @@ import WorkItemCard, { applicationWorkState, lineupWorkState } from '../../compo
  * index.css already states for the decisions themselves ("Accept must never
  * out-weigh Shortlist"), applied to the control that commits to nothing.
  */
-import { DecisionBtn, StarIcon, CheckIcon, XIcon, ArrowIcon } from '../../components/DecisionButtons';
-import { profileUrl } from '../../lib/profileResolution';
+import { DecisionBtn, StarIcon, CheckIcon, XIcon } from '../../components/DecisionButtons';
 import FillSlotModal from '../../components/FillSlotModal';
 import EventTabBar from '../../components/EventTabBar';
 import EventPublicView from './EventPublicView';
@@ -469,26 +468,9 @@ export default function EventHostView({
    *
    * ⛔ NOTHING IS WRITTEN TO `applications`. A member is not an applicant.
    */
-  /**
-   * MORE INFO — the card's one navigation control.
-   *
-   * ⚠ AN EXPLICIT BUTTON, because the card body is no longer clickable. The
-   * old row navigated on tap while carrying buttons that did other things, so
-   * the same surface meant two things depending on where you landed. One
-   * labelled control is the whole point of the action area.
-   *
-   * ⛔ ROUTES ON `id` FIRST, `user_id` second — the same order ProfileCard
-   * used. An unclaimed imported profile has no user, and without the id its
-   * profile exists and cannot be opened.
-   *
-   * ⚠ A hand-typed act has NEITHER, and there is genuinely nothing to open —
-   * the button is not rendered rather than rendered dead (see the call sites).
-   */
-  function openProfile(item) {
-    if (item?.id) navigate(profileUrl(item));
-    else if (item?.user_id) navigate(`/profile/${item.user_id}?type=${(item.type || '').toLowerCase()}`);
-  }
-  const hasProfile = item => !!(item?.id || item?.user_id);
+  /* ⛔ `openProfile`/`hasProfile` DELETED — navigation moved INTO the card.
+     WorkItemCard’s panel owns PROFILE, MESSAGE and FOLLOW now, so the tabs no
+     longer each carry their own copy of the id-first routing rule. */
 
   async function doAssignMember(slot) {
     if (!assigningMember) return;
@@ -806,16 +788,12 @@ export default function EventHostView({
                      line beneath it carries the variable. */
                   stateLabel="ON BILL" stateColor={badgeColor}
                   subState={work.setTime} needsAction={work.needsAction}
+                  /* ⚠ `member.card_pills` is the fallback: an imported act can
+                     carry tags on the member row with no profile behind it. */
+                  tags={prof?.card_pills || member.card_pills}
+                  viewerProfileId={event?.owner_profile_id || null}
                   actions={
                     <div className="yp-decision-row">
-                      {/* ⛔ A hand-typed act has no profile and no account —
-                          21 exist — so there is genuinely nothing to open.
-                          Absent, not disabled: a dead control is a worse answer
-                          than no control. */}
-                      {hasProfile(cardItem) && (
-                        <DecisionBtn tone="neutral" icon={ArrowIcon}
-                          label="MORE INFO" onClick={() => openProfile(cardItem)} />
-                      )}
                       {/* ⭐⭐ THE DOMINANT STATE GETS THE PRIMARY ACTION (goal 9).
                           No set time is the most common state on this tab and
                           the only one with work outstanding, so it — and only
@@ -865,13 +843,11 @@ export default function EventHostView({
               const cardItem = { id: prof.id || null, user_id: app.artist_id, name: prof.name || app.artist_name, type: prof.type || 'artist', avatar: prof.avatar || null, avatar_thumb: prof.avatar_thumb || null, sound: prof.sound || null, genre_string: prof.genre_string || null, location: prof.location || null, state: prof.state || null };
               return (
                 <WorkItemCard key={app.id} kind="application" item={cardItem}
+                  tags={prof?.card_pills}
+                  viewerProfileId={event?.owner_profile_id || null}
                   stateLabel="SHORTLISTED" stateColor={STATUS_TAB_COLOR.SHORTLISTED}
                   actions={
                     <div className="yp-decision-row">
-                      {hasProfile(cardItem) && (
-                        <DecisionBtn tone="neutral" icon={ArrowIcon}
-                          label="MORE INFO" onClick={() => openProfile(cardItem)} />
-                      )}
                       {/* ⭐ THE ONE FORWARD MOVE. Silent, and creates no set
                           time — giving them a slot is the next step, from the
                           LINEUP tab, and it is a separate decision.
@@ -914,6 +890,8 @@ export default function EventHostView({
               const cardItem = { id: prof.id || null, user_id: app.artist_id, name: prof.name || app.artist_name, type: prof.type || 'artist', avatar: prof.avatar || null, avatar_thumb: prof.avatar_thumb || null, sound: prof.sound || null, genre_string: prof.genre_string || null, location: prof.location || null, state: prof.state || null };
               return (
                 <WorkItemCard key={app.id} kind="application" item={cardItem}
+                  tags={prof?.card_pills}
+                  viewerProfileId={event?.owner_profile_id || null}
                   /* ⚠ THE STATE IS THE ROW'S OWN BUCKET, not the tab's. This
                      tab holds `new` AND `seen`, and the difference — has anyone
                      looked at this yet — is exactly what a host triaging a
@@ -922,10 +900,6 @@ export default function EventHostView({
                   stateColor={STATUS_TAB_COLOR[bucketOf(app).toUpperCase()]}
                   actions={
                     <div className="yp-decision-row">
-                      {hasProfile(cardItem) && (
-                        <DecisionBtn tone="neutral" icon={ArrowIcon}
-                          label="MORE INFO" onClick={() => openProfile(cardItem)} />
-                      )}
                       <DecisionBtn tone="shortlist" icon={StarIcon} label="SHORTLIST"
                         onClick={() => { supabase.from('applications').update({ status: 'shortlisted' }).eq('id', app.id); setAllApps(prev => prev.map(a => a.id === app.id ? { ...a, status: 'shortlisted' } : a)); }} />
                       <DecisionBtn tone="decline" icon={XIcon} label="DECLINE"
@@ -975,6 +949,8 @@ export default function EventHostView({
                 const onBill = !!findExistingMember(app, lineupMembers, appProfiles[app.id] || null);
                 return (
                   <WorkItemCard key={app.id} kind="application" item={cardItem}
+                  tags={prof?.card_pills}
+                  viewerProfileId={event?.owner_profile_id || null}
                     /* ⭐ ON BILL / NOT ON BILL is derived from `lineup_members`,
                        ⛔ never from `applications.status` — the two are
                        different facts, which is why the state chip has to say
@@ -983,10 +959,6 @@ export default function EventHostView({
                     stateColor={onBill ? '#00E5A0' : 'rgba(255,255,255,.35)'}
                     actions={
                       <div className="yp-decision-row">
-                        {hasProfile(cardItem) && (
-                          <DecisionBtn tone="neutral" icon={ArrowIcon}
-                            label="MORE INFO" onClick={() => openProfile(cardItem)} />
-                        )}
                         {/* ⚠ THIS TAB USED TO BE A DEAD END: it said NOT ON THE
                             BILL and offered no way to change that.
                             ⛔ Once they ARE on the bill there is nothing left to
@@ -1374,6 +1346,10 @@ export default function EventHostView({
       overlays={overlays}
       host={{
         effectiveIsHost, showEditor, eventTab, isLocked,
+        /* ⛔ WHO A MESSAGE WOULD BE SENT AS. `openDirectConversation` takes a
+           FROM profile and this account may hold several, so the surface that
+           knows which one it is acting as states it. */
+        viewerProfileId: event?.owner_profile_id || null,
         onFill:   slot          => setFillSlot({ slot }),
         onEdit:   slot => setEditingSlot({ slot }),
         onRemove: slot => removeArtist(slot.id),

@@ -541,8 +541,12 @@
   padding: 2px 10px;
 }
 
+/* ⚠ Matched to WorkItemCard's disclosure inset (owner, 2026-08-16) so the two
+   surfaces put the mark the same distance from the edge. ⛔ `font-size` is no
+   longer load-bearing — the glyph is a drawn SVG now, not the `›` character —
+   but it stays harmless and removing it is not this pass's business. */
 .slotChevron {
-  padding: 0 14px;
+  padding: 0 9px 0 14px;
   font-size: 20px;
   color: var(--muted);
   align-self: center;

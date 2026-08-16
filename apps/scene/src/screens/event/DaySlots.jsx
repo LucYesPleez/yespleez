@@ -18,7 +18,7 @@ import s from '../EventScreen.module.css';
 
 export default function DaySlots({
   eventId, days, claims, allMixSlots,
-  isHost = false, editable = false, isLocked = false,
+  isHost = false, editable = false, isLocked = false, viewerProfileId = null,
   onFill, onEdit, onRemove, onPin,
 }) {
   const queryClient = useQueryClient();
@@ -92,7 +92,8 @@ export default function DaySlots({
             <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
               {slots.map(slot => (
                 <SlotCard key={slot.id} slot={slot} claim={claims[slot.id]}
-                  isHost={effectiveIsHost}
+isHost={effectiveIsHost}
+                  viewerProfileId={viewerProfileId}
                   locked={isLocked}
                   isSortable={!isLocked && !slot.pinned && !!claims[slot.id] && claims[slot.id].status !== 'declined'}
                   isActiveSort={slot.id === activeSlotId}
@@ -114,7 +115,8 @@ export default function DaySlots({
         ) : (
           slots.map(slot => (
             <SlotCard key={slot.id} slot={slot} claim={claims[slot.id]}
-              isHost={effectiveIsHost}
+isHost={effectiveIsHost}
+              viewerProfileId={viewerProfileId}
               locked={isLocked}
               onFill={effectiveIsHost && !isLocked ? () => onFill(slot) : null}
               onEdit={effectiveIsHost && !isLocked ? () => onEdit(slot) : null}

@@ -22,7 +22,10 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 14px 16px 13px 18px;
+  /* ⚠ The bottom padding leaves room for the disclosure to straddle the edge
+     without overlapping the sound line. */
+  padding: 14px 16px 15px 18px;
+  margin-bottom: 6px;
   border-radius: 14px;
   border: 1px solid var(--border);
   background: var(--card);
@@ -67,6 +70,34 @@
   gap: 13px;
 }
 
+/**
+ * ⭐ THE WHOLE HEAD IS THE DISCLOSURE'S HIT AREA (owner, 2026-08-16).
+ *
+ * ⚠ The negative margin plus matching padding pushes the target out to the
+ * card's own edges, so the row is clickable right up to its border rather than
+ * leaving a dead gutter inside the padding. ⛔ The card keeps its shape — this
+ * changes where a press registers, not where anything sits.
+ */
+.headClickable {
+  cursor: pointer;
+  margin: -14px -16px -15px -18px;
+  padding: 14px 16px 15px 18px;
+  border-radius: 13px;
+  transition: background .15s;
+  /* ⛔ No hover fill. Twelve rows that all light up on the way past is noise,
+     and the chevron is already the affordance. The focus ring below is for
+     keyboard users, who have no other cue. */
+}
+.headClickable:focus-visible {
+  outline: 2px solid var(--neon2);
+  outline-offset: -2px;
+}
+/* ⚠ THE MARK BRIGHTENS, ⛔ NOTHING BOXES IT (owner, 2026-08-16). A border and
+   fill appearing under the cursor drew a button that is not there — the whole
+   row is the control, so the chevron only needs to acknowledge the hover, not
+   claim it. */
+.headClickable:hover .disclosure { color: var(--text); }
+
 /* Same 2px ring + soft outer glow ProfileCard gives it, at a working size
    rather than a portrait one. */
 .avatar {
@@ -105,28 +136,21 @@
 }
 
 /**
- * ROLE AND PLACE ON ONE LINE, AS TEXT.
+ * ⭐ THE ONLY LINE UNDER THE NAME — the act's own words about what they play.
+ *
+ * ⛔ THE TYPE LABEL AND THE LOCALITY ARE GONE FROM THE FACE (owner,
+ * 2026-08-16). "DJ / PROD." was the same three words on nearly every row of a
+ * music lineup, so it cost a line and separated nothing; the accent colour
+ * this line carries already encodes type. The locality moved into the panel as
+ * HOME TOWN, where it is reference rather than a scanning signal.
  *
  * ⛔ NOT PILLS. The old row carried a type pill, an unclaimed pill, a status
- * pill and up to five tag pills — nine bordered objects around one name. Role
- * and locality are reference information, so they are set as quiet text and
- * the pill budget is spent on the one thing that is a decision input: state.
+ * pill and up to five tag pills — nine bordered objects around one name. The
+ * five tags moved to the panel; the pill budget on the face is spent on the
+ * one thing that is a decision input: state.
  */
-.meta {
-  margin-top: 3px;
-  font-size: 11.5px;
-  line-height: 1.45;
-  color: var(--muted);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* The act's own words about what they play. Carries the type accent so it
-   stays legibly separate from the grey meta line above it without becoming a
-   second heading. */
 .genres {
-  margin-top: 2px;
+  margin-top: 3px;
   font-size: 11.5px;
   line-height: 1.4;
   overflow: hidden;
@@ -196,17 +220,127 @@
   padding-top: 2px;
 }
 
+/**
+ * ⭐ THE DISCLOSURE — one small control in a fixed place.
+ *
+ * ⚠ `align-self: center` so it sits against the middle of the identity block
+ * rather than the top of it. The status column beside it is top-aligned and
+ * grows a second line; anchoring the chevron to that would make it hop between
+ * cards depending on whether the row happens to have a set-time state.
+ */
+/**
+ * ⭐ THE DISCLOSURE — right-hand side, matching the set-times cards
+ * (owner, 2026-08-16).
+ *
+ * ⚠ It spent one pass centred on the bottom edge. That read as a handle but it
+ * invented a second place for a control the app already has: the pink-bordered
+ * slot rows put their chevron on the right, and having the two disagree meant
+ * two answers to "where do I press to see more" on one screen.
+ *
+ * ⚠ `align-self: center` against the identity block, ⛔ not the status column
+ * beside it — the status grows a second line on lineup cards, so anchoring
+ * there would make the chevron sit at a different height depending on whether
+ * a row happened to carry a set-time state.
+ */
+.disclosure {
+  align-self: center;
+  flex-shrink: 0;
+  margin-left: 4px;
+  /* ⚠ PULLS OUT INTO THE CARD'S OWN RIGHT PADDING (owner, 2026-08-16), so the
+     mark sits near the edge rather than inset by the full 16px gutter. The
+     negative margin moves only the glyph — ⛔ the card keeps its padding, and
+     the status column beside it is unmoved. */
+  margin-right: -7px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  /* ⚠ The transparent border is GEOMETRY ONLY — it holds the 26px box steady
+     now that nothing paints on hover. ⛔ Do not give it a colour; that is the
+     button-that-isn't-there this pass removed. */
+  border: 1px solid transparent;
+  background: none;
+  color: var(--muted);
+  /* ⛔ NOT INTERACTIVE. It is a `<span aria-hidden>` — the head around it owns
+     the click, the keyboard handler and `aria-expanded`. Its hover state is
+     driven by `.headClickable:hover` above so the affordance still responds
+     when the pointer is anywhere on the row. */
+  pointer-events: none;
+  transition: color .15s, border-color .15s, background .15s;
+}
+/* ⚠ A QUARTER TURN, ⛔ not a half. The glyph is drawn pointing RIGHT, so 90°
+   lands it pointing DOWN and returns it to right on close. */
+.disclosure svg { transition: transform .18s; }
+.disclosureOpen svg { transform: rotate(90deg); }
+
+/* ── THE PANEL ─────────────────────────────────────────────────────────── */
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  border-top: 1px solid rgba(255, 255, 255, .06);
+  padding-top: 11px;
+}
+
+.panelRow { display: flex; align-items: baseline; gap: 10px; }
+
+.panelLabel {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 10px;
+  letter-spacing: 1.4px;
+  color: var(--muted);
+  min-width: 74px;
+  flex-shrink: 0;
+}
+
+.panelValue { font-size: 12.5px; color: var(--text); }
+
+/* Follow · message · profile. ⚠ Their own row, above the decisions: these
+   change YOUR relationship to a person, the ones below change THEIR position
+   in your event. */
+.relRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding-top: 2px;
+}
+
+.relBtn {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 11px;
+  letter-spacing: 1.4px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, .03);
+  color: var(--muted);
+  cursor: pointer;
+  transition: color .15s, border-color .15s, background .15s;
+}
+.relBtn:hover {
+  color: var(--text);
+  border-color: rgba(255, 255, 255, .24);
+  background: rgba(255, 255, 255, .07);
+}
+.relBtn:disabled { opacity: .5; cursor: default; }
+
 /* On a phone the status column would squeeze the name to nothing, so it drops
    under the identity block and sits left-aligned with it. */
 @media (max-width: 560px) {
   .head { flex-wrap: wrap; }
+  /* ⚠ `flex: 1`, ⛔ not `width: 100%`. At full width the status row pushed the
+     disclosure onto a line of its own, so the chevron's position — the one
+     thing that is meant to be identical on every card — moved on the narrowest
+     screens. It now shares the wrapped line with the status. */
   .status {
-    align-items: flex-start;
     text-align: left;
     flex-direction: row;
     align-items: center;
     gap: 8px;
-    width: 100%;
+    flex: 1;
     padding-left: 57px;
   }
+  .disclosure { order: 2; }
 }

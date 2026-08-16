@@ -12,8 +12,7 @@ import s from './HostDashboard.module.css';
    and the enquiry cards above still render readiness from them. */
 import { PROFILE_CARD_META_COLUMNS } from '../components/ProfileCard';
 import WorkItemCard, { applicationWorkState, lineupWorkState } from '../components/WorkItemCard';
-import { DecisionBtn, StarIcon, XIcon, ArrowIcon } from '../components/DecisionButtons';
-import { profileUrl } from '../lib/profileResolution';
+import { DecisionBtn, StarIcon, XIcon } from '../components/DecisionButtons';
 import { HOST_CATEGORIES } from '../lib/profileTaxonomy';
 import { PROFILE_TYPES } from '../lib/profileTypes';
 import { completionFor, firstUnsettled } from '@yespleez/requirements';
@@ -928,7 +927,18 @@ export default function HostDashboard({ userId: userIdProp }) {
                                 return (
                                   <WorkItemCard key={m.id} kind="lineup" item={item}
                                     stateLabel="ON BILL" stateColor={STATE_COLOURS[m.state]}
-                                    subState={work.setTime} needsAction={work.needsAction} />
+                                    subState={work.setTime} needsAction={work.needsAction}
+                                    tags={m.profile?.card_pills || m.member.card_pills}
+                                    viewerProfileId={profile?.id || null}
+                                    /* ⛔ NO `actions` — the dashboard performs no
+                                       bill operations. The disclosure is still
+                                       here because the panel holds home town,
+                                       tags, follow, message and profile, so a
+                                       dashboard card and an event card are the
+                                       same object closed AND open; only the
+                                       decision row differs, which is exactly
+                                       what "triage, not a second workspace"
+                                       means. */ />
                                 );
                               })}
                               {/* The number the Lineup workspace exists to act
@@ -972,12 +982,12 @@ export default function HostDashboard({ userId: userIdProp }) {
                       {activeTab === 'SHORT LIST' && (
                         evShortList.length === 0
                           ? <p className={s.empty} style={{ fontSize: 12 }}>No shortlisted artists for this event.</p>
-                          : <div style={{ marginBottom: 12 }}>{evShortList.map(app => <AppCard key={app.id} app={app} prof={appProfiles[app.id] || {}} eventName={evtMap[app.event_id]?.name} onRespond={respondApp} onBill={!!findExistingMember(app, members.map(r => r.member), appProfiles[app.id] || null)} />)}</div>
+                          : <div style={{ marginBottom: 12 }}>{evShortList.map(app => <AppCard key={app.id} app={app} viewerProfileId={profile?.id || null} prof={appProfiles[app.id] || {}} eventName={evtMap[app.event_id]?.name} onRespond={respondApp} onBill={!!findExistingMember(app, members.map(r => r.member), appProfiles[app.id] || null)} />)}</div>
                       )}
                       {activeTab === 'PIPELINE' && (
                         evPipeline.length === 0
                           ? <p className={s.empty} style={{ fontSize: 12 }}>Nothing waiting on you for this event.</p>
-                          : <div style={{ marginBottom: 12 }}>{evPipeline.map(app => <AppCard key={app.id} app={app} prof={appProfiles[app.id] || {}} eventName={evtMap[app.event_id]?.name} onRespond={respondApp} />)}</div>
+                          : <div style={{ marginBottom: 12 }}>{evPipeline.map(app => <AppCard key={app.id} app={app} viewerProfileId={profile?.id || null} prof={appProfiles[app.id] || {}} eventName={evtMap[app.event_id]?.name} onRespond={respondApp} />)}</div>
                       )}
                       {/* ⛔ READ-ONLY. Says who was accepted; ⛔ creates no bill
                           membership — that transition is deliberately not built. */}
@@ -988,7 +998,7 @@ export default function HostDashboard({ userId: userIdProp }) {
                               <p style={{ fontSize: 12, color: 'var(--muted)', margin: '0 0 8px', lineHeight: 1.5 }}>
                                 You said yes to these applications. Adding them to the bill is still a separate step.
                               </p>
-                              {evAccepted.map(app => <AppCard key={app.id} app={app} prof={appProfiles[app.id] || {}} eventName={evtMap[app.event_id]?.name} onRespond={respondApp} onBill={!!findExistingMember(app, members.map(r => r.member), appProfiles[app.id] || null)} />)}
+                              {evAccepted.map(app => <AppCard key={app.id} app={app} viewerProfileId={profile?.id || null} prof={appProfiles[app.id] || {}} eventName={evtMap[app.event_id]?.name} onRespond={respondApp} onBill={!!findExistingMember(app, members.map(r => r.member), appProfiles[app.id] || null)} />)}
                             </div>
                       )}
                       </div>
@@ -1197,8 +1207,7 @@ function EventProgressSummary({ lineupCount, totalSlots, filledSlots, hasPoster,
 /* ⛔ `onAddToBill` IS GONE FROM THIS SIGNATURE, not merely unrendered — the
    dashboard no longer performs that operation, and a prop the component
    accepts but never uses is how a removed capability quietly comes back. */
-function AppCard({ app, prof, onRespond, onBill = false, eventName }) {
-  const navigate = useNavigate();
+function AppCard({ app, prof, onRespond, onBill = false, eventName, viewerProfileId = null }) {
   const [busy, setBusy] = useState(false);
   const bucket = normaliseStatus({ status: app.status, direction: 'incoming' });
   const undecided = PIPELINE_BUCKETS.includes(bucket);
@@ -1234,6 +1243,8 @@ function AppCard({ app, prof, onRespond, onBill = false, eventName }) {
          `applications.status`. */
       stateLabel={applicationWorkState(bucket, onBill).label}
       stateColor={onBill ? '#00E5A0' : (STATUS_TAB_COLOR[bucket.toUpperCase()] || 'var(--muted)')}
+      tags={prof?.card_pills}
+      viewerProfileId={viewerProfileId}
       quiet={applicationWorkState(bucket, onBill).quiet}
       /**
        * ⭐ TRIAGE DECISIONS ONLY — shortlist and decline.
@@ -1255,10 +1266,6 @@ function AppCard({ app, prof, onRespond, onBill = false, eventName }) {
        */
       actions={
         <div className="yp-decision-row">
-          {(item.id || item.user_id) && (
-            <DecisionBtn tone="neutral" icon={ArrowIcon} label="MORE INFO"
-              onClick={() => { if (item.id) navigate(profileUrl(item)); else navigate(`/profile/${item.user_id}?type=${(item.type || '').toLowerCase()}`); }} />
-          )}
           {undecided && (
             <DecisionBtn tone="shortlist" icon={StarIcon} label="SHORTLIST"
               onClick={() => respond('shortlisted')} disabled={busy} />

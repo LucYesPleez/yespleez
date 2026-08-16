@@ -109,6 +109,7 @@ export default function EventPublicView({
             isHost={effectiveIsHost}
             editable={effectiveIsHost && showEditor}
             isLocked={!!host?.isLocked}
+            viewerProfileId={host?.viewerProfileId || null}
             onFill={host?.onFill}
             onEdit={host?.onEdit}
             onRemove={host?.onRemove}
