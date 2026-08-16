@@ -12,6 +12,9 @@ import s from './DiscoverScreen.module.css';
 import { resolveLocationToPostcodes, suggestLocations } from '../lib/auLocations';
 import { BAND_GENRES, SHARED_PERFORMANCE_TAGS, ROLE_TAGS } from '../lib/profileTaxonomy';
 import { STATE_OPTIONS } from '../lib/auLocations';
+import { useSession } from '../App';
+import { getOwnedProfileOfType } from '../lib/actingProfile';
+import ShortlistToEventSheet from '../components/ShortlistToEventSheet';
 import { trackFiltered } from '../lib/analytics';
 import {
   RADIUS_STEPS, eventCoords, profileCoords, postcodeCoords, withinRadius,
@@ -343,6 +346,50 @@ async function fetchDefault() {
 
 export default function DiscoverScreen() {
   const navigate = useNavigate();
+  const { session } = useSession();
+  const userId = session?.user?.id || null;
+  /**
+   * ⭐⭐ CAN THIS VIEWER SHORTLIST ANYBODY? Only if they host events.
+   *
+   * ⛔⛔ THE HOST PROFILE ID, ⛔ NOT JUST THE ACCOUNT. `ownedByFilter` needs
+   * both arms: `host_id` is NULL on 82 of 92 events, so an account-only filter
+   * would match almost nothing and the picker would report that you host no
+   * events. Resolved through `getOwnedProfileOfType`, the same route the rest
+   * of the app uses.
+   *
+   * ⚠ It is `.limit(1)`, so an account holding several HOST profiles resolves
+   * to one of them. That is the limitation HostDashboard already has, and the
+   * two agreeing matters more than either being clever.
+   */
+  const [hostProfileId, setHostProfileId] = useState(null);
+  const [shortlisting, setShortlisting] = useState(null);
+  useEffect(() => {
+    let cancelled = false;
+    if (!userId) { setHostProfileId(null); return; }
+    getOwnedProfileOfType(userId, 'host').then(pr => { if (!cancelled) setHostProfileId(pr?.id || null); });
+  return () => { cancelled = true; };
+  }, [userId]);
+
+    /**
+   * ⭐ THE SHORTLIST CONTROL, only where it makes sense.
+   *
+   * ⛔ HOSTS ONLY — no `hostProfileId`, no button. A viewer who runs no events
+   * has nothing to shortlist anyone TO, and offering it would open a sheet
+   * saying so.
+   *
+   * ⛔ PERFORMERS ONLY. `lineup_members` is a bill of acts; a venue or another
+   * host is not something you put on one. Excluded by type rather than by
+   * guessing from the card.
+   */
+  const canShortlist = r => !!hostProfileId && !['venue', 'host', 'punter'].includes(String(r?.type || '').toLowerCase());
+  const shortlistBtn = r => canShortlist(r) ? (
+    <button
+      onClick={e => { e.stopPropagation(); setShortlisting(r); }}
+      title={`Shortlist ${r.name || 'this artist'} for one of your events`}
+      style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1.2, padding: '5px 9px', borderRadius: 7, cursor: 'pointer', whiteSpace: 'nowrap', border: '1px solid rgba(0,229,255,.35)', background: 'rgba(0,229,255,.08)', color: 'var(--neon2)' }}
+    >+ SHORTLIST</button>
+  ) : null;
+
   const [query,    setQuery]    = useState('');
   const [type,     setType]     = useState('');
   const [genre,    setGenre]    = useState('');
@@ -750,7 +797,7 @@ export default function DiscoverScreen() {
                     {withEventsVisible(items, visibleCount).map(r =>
                       r._kind === 'event'
                         ? <EventCard key={r.id} event={r} />
-                        : <ProfileCard key={r.id ?? r.user_id} item={r} followAction={<FollowHeartBtn profile={r} />} />
+                        : <ProfileCard key={r.id ?? r.user_id} item={r} actions={shortlistBtn(r)} followAction={<FollowHeartBtn profile={r} />} />
                     )}
                   </div>
                   <button className={s.viewMore} style={{ opacity: visibleCount < items.length ? 1 : 0, pointerEvents: visibleCount < items.length ? 'auto' : 'none' }} onClick={() => setVisibleCount(v => v + 10)}>
@@ -779,7 +826,7 @@ export default function DiscoverScreen() {
                     {unplaceable.slice(0, 10).map(r =>
                       r._kind === 'event'
                         ? <EventCard key={r.id} event={r} />
-                        : <ProfileCard key={r.id ?? r.user_id} item={r} followAction={<FollowHeartBtn profile={r} />} />
+                        : <ProfileCard key={r.id ?? r.user_id} item={r} actions={shortlistBtn(r)} followAction={<FollowHeartBtn profile={r} />} />
                     )}
                   </div>
                 </>
@@ -788,8 +835,17 @@ export default function DiscoverScreen() {
           )}
         </div>
       </div>
+      {/* ⚠ INSIDE THE ROOT. It sits at the end of the tree rather than beside
+          it — a sibling of the root needs a fragment, and the sheet is
+          position:fixed so its place in the DOM changes nothing visually. */}
+      {shortlisting && (
+        <ShortlistToEventSheet
+          artist={shortlisting}
+          userId={userId}
+          hostProfileId={hostProfileId}
+          onClose={() => setShortlisting(null)}
+        />
+      )}
     </div>
   );
 }
-
-
