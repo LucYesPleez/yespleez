@@ -1246,18 +1246,21 @@ export default function HostDashboard({ userId: userIdProp }) {
                                 * page's query cache; this screen keeps its
                                 * claims in state, so it patches them here.
                                 *
-                                * ⚠ Mirrors the swap rules exactly: an occupied
-                                * target EXCHANGES the two claims, an empty one
-                                * takes the source and ⛔ leaves the origin
-                                * empty. Getting that wrong shows an act in two
-                                * places until the refetch corrects it.
+                                * ⚠⚠ IT TAKES THE WHOLE DAY'S NEW ORDER, ⛔ not a
+                                * pair. A drag is an INSERT: everyone between
+                                * the source and the target shifts one slot, so
+                                * any number of rows can change. ⛔ A slot
+                                * missing from `nextBySlot` ends up EMPTY and
+                                * must be deleted, or its old occupant lingers
+                                * in two places until the refetch.
                                 */
-                              onLocalMove={({ from, to, sourceClaim, targetClaim, filled }) => {
+                              onLocalMove={({ slotIds, nextBySlot }) => {
                                 setClaimsMap(prev => {
                                   const bySlot = { ...(prev[ev.id] || {}) };
-                                  bySlot[to] = sourceClaim;
-                                  if (filled) bySlot[from] = targetClaim;
-                                  else delete bySlot[from];
+                                  slotIds.forEach(sid => {
+                                    if (nextBySlot[sid]) bySlot[sid] = nextBySlot[sid];
+                                    else delete bySlot[sid];
+                                  });
                                   return { ...prev, [ev.id]: bySlot };
                                 });
                               }}

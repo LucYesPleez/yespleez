@@ -4,14 +4,15 @@
 // "host dragging them around" is entirely in the props: without `editable`
 // there is no DndContext at all, and without `isHost` every action handler is
 // null. Nothing here reads session or host state directly.
-import { useState } from 'react';
+import { useState, useRef, useLayoutEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragOverlay,
 } from '@dnd-kit/core';
-import {
-  SortableContext, verticalListSortingStrategy,
-} from '@dnd-kit/sortable';
+/* ⛔⛔ NO `SortableContext` (owner, 2026-08-16). A sortable exists to reorder a
+   LIST; these are FIXED TIME SLOTS and never reorder. Its per-item transforms
+   were the source of every drop artefact chased today — snap-back, replay,
+   bounce. ⛔ Do not reintroduce it "for the animation". */
 import { supabase } from '../../lib/supabase';
 import SlotCard from './SlotCard';
 import s from '../EventScreen.module.css';
@@ -38,6 +39,52 @@ export default function DaySlots({
    */
   const queryClient = useQueryClient();
   const [activeSlotId, setActiveSlotId] = useState(null);
+  /* ⛔ `justDropped` is GONE with the sortable transforms it existed to
+     suppress. Nothing animates on drop any more, so there is nothing to
+     exempt the dropped card from. */
+
+  /**
+   * ⭐⭐ FLIP — the DISPLACED act travels to its new slot.
+   *
+   * ⚠⚠ THE ROWS DO NOT MOVE, so this cannot be a layout animation. When Madds
+   * lands on Elbow's slot, Elbow does not slide anywhere — its NAME simply
+   * appears in a different fixed cell, which reads as teleporting.
+   *
+   * ⭐ So: measure each act's rectangle BEFORE the swap, and after the swap put
+   * it back where it was with a transform and release it. The act appears to
+   * travel between cells while the cells themselves never budge.
+   *
+   * ⛔ THE DROPPED ACT IS EXCLUDED (`skipClaimId`). It is already under the
+   * pointer where it was let go; animating it from its old slot is exactly the
+   * "goes back and flicks to the new spot" this whole rebuild removed.
+   */
+  const nodeRefs   = useRef({});   // slotId → the row element
+  const pendingFlip = useRef(null); // { rects: {claimId: DOMRect}, skipClaimId }
+
+  useLayoutEffect(() => {
+    const pending = pendingFlip.current;
+    if (!pending) return;
+    pendingFlip.current = null;
+
+    for (const [slotId, el] of Object.entries(nodeRefs.current)) {
+      const claimId = claims[slotId]?.id;
+      if (!el || !claimId || claimId === pending.skipClaimId) continue;
+      const before = pending.rects[claimId];
+      if (!before) continue;
+      const dy = before.top - el.getBoundingClientRect().top;
+      /* ⚠ Sub-pixel drift is not a move. */
+      if (Math.abs(dy) < 1) continue;
+
+      /* ⚠ Put it back, THEN release it on the next frame — a transform and its
+         transition applied in the same frame animate from nothing. */
+      el.style.transition = 'none';
+      el.style.transform  = `translateY(${dy}px)`;
+      requestAnimationFrame(() => {
+        el.style.transition = 'transform .38s cubic-bezier(.22, .9, .3, 1)';
+        el.style.transform  = '';
+      });
+    }
+  }, [claims]);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
   /**
@@ -52,14 +99,38 @@ export default function DaySlots({
    * ⛔ Do not "restore" the slot_id write. If a row's two columns disagree,
    * the read follows `slot_uuid` and the drag appears to have done nothing.
    */
-  async function persistClaimSwap(sourceSlotId, targetSlotId, sourceClaim, targetClaim) {
-    // Swap the two performances — no unique constraint, so both updates are safe
-    const a = await supabase.from('performances').update({ slot_uuid: targetSlotId }).eq('id', sourceClaim.id);
-    const b = await supabase.from('performances').update({ slot_uuid: sourceSlotId }).eq('id', targetClaim.id);
-    /* ⚠⚠ TEMPORARY — same reason as the move-to-empty write. ⚠ An RLS-filtered
-       UPDATE reports NO error and changes NOTHING, so ⛔ a null error here is
-       not proof the swap landed; check the rows. */
-    console.log('[YesPleez] drag WRITE swap', { aErr: a.error?.message ?? null, bErr: b.error?.message ?? null });
+  /**
+   * ⭐⭐ WRITES EVERY ACT WHOSE SLOT ACTUALLY CHANGED — one row, or five.
+   *
+   * ⚠⚠ This replaced a two-row SWAP. A shuffle moves an arbitrary number of
+   * acts, so the write follows the plan rather than assuming a pair.
+   *
+   * ⛔ Only genuinely moved rows are touched — writing the whole day on every
+   * drag would stamp `updated_at` on performances nobody moved.
+   *
+   * ⚠ Issued in parallel: `lineup_members` has no uniqueness constraint on the
+   * slot, so an intermediate state with two acts on one slot is legal and
+   * transient. ⛔ Serialising them would not make it safer, only slower.
+   */
+  async function persistReorder(ids, nextBySlot, prevSlotOfClaim) {
+    const updates = [];
+    ids.forEach(sid => {
+      const c = nextBySlot[sid];
+      if (c?.id && prevSlotOfClaim[c.id] !== sid) updates.push({ performanceId: c.id, slotId: sid });
+    });
+
+    const results = await Promise.all(updates.map(u =>
+      supabase.from('performances').update({ slot_uuid: u.slotId }).eq('id', u.performanceId),
+    ));
+
+    /* ⚠⚠ KEEP THIS LOG. ⛔ An RLS-filtered UPDATE returns NO error and changes
+       NOTHING, so a null error is not proof the write landed — but a non-null
+       one is proof it did not, and that was invisible for most of a day. */
+    console.log('[YesPleez] drag WRITE reorder', {
+      moved: updates.length,
+      errors: results.map(r => r.error?.message).filter(Boolean),
+    });
+
     queryClient.invalidateQueries({ queryKey: ['event', eventId] });
     onChanged?.();
   }
@@ -70,7 +141,8 @@ export default function DaySlots({
 
   return days.map((day, di) => {
     const slots = day.slots || [];
-    const sortableIds = slots.map(sl => sl.id);
+    /* ⛔ `sortableIds` is gone with SortableContext. Each slot registers itself
+       as a droppable in SlotCard, so no list of ids is needed here. */
     const activeSlot = activeSlotId ? slots.find(sl => sl.id === activeSlotId) : null;
 
     function handleDragEnd({ active, over }) {
@@ -99,25 +171,92 @@ export default function DaySlots({
          single most likely dashboard-vs-event-page divergence. */
       if (!sourceClaim) return log('BAIL · no sourceClaim for active.id', { claimKeys: Object.keys(claims || {}) });
       if (slots.find(sl => sl.id === over.id)?.pinned) return log('BAIL · target slot is pinned');
-      const targetClaim = claims[over.id];
-      const isFilled = c => c && c.status !== 'declined';
+
+      /**
+       * ⭐⭐ AN INSERT, ⛔ NOT A SWAP (owner, 2026-08-16: "if I move fewrf from
+       * 11 to Elbow 8, the cards in between are supposed to shuffle down. 11
+       * and 8 are not to swap").
+       *
+       * ⚠⚠ A swap exchanges two acts and leaves everyone else alone. Dragging
+       * an act up a running order is a MOVE: it takes the target time and
+       * everybody from there down shifts one slot later, exactly like dropping
+       * a row into a list.
+       *
+       * ⭐ So the day is read as an ORDERED ARRAY OF OCCUPANTS — empties
+       * included, because an empty slot is a real position that can absorb the
+       * shift — then spliced. `[null, Elbow, Madds, null, fewrf]` with fewrf
+       * moved to index 1 becomes `[null, fewrf, Elbow, Madds, null]`: Elbow and
+       * Madds each move one later, and 11:00 empties out.
+       *
+       * ⛔ The empties are NOT filtered out first. Doing that would march every
+       * act up past open slots and silently compact the running order.
+       */
+      const ids = slots.map(sl => sl.id);
+
+      /**
+       * ⛔⛔ A PINNED SLOT DOES NOT MOVE — IT IS PINNED (owner, 2026-08-16).
+       *
+       * ⚠⚠ So the shuffle runs over the MOVABLE slots only. A pinned slot is
+       * lifted out of the ordering entirely: its occupant stays exactly where
+       * it is, and the acts shifting past it flow around into the next
+       * unpinned slot.
+       *
+       * ⛔ Splicing the full list instead would carry a pinned act along with
+       * everyone else — which is the one thing pinning exists to prevent, and
+       * it would do it silently.
+       *
+       * ⚠ The source is already guaranteed unpinned (`isSortable` excludes a
+       * pinned slot, so it has no grip) and so is the target (guarded above).
+       */
+      const pinnedIds  = new Set(slots.filter(sl => sl.pinned).map(sl => sl.id));
+      const movableIds = ids.filter(sid => !pinnedIds.has(sid));
+
+      const fromIdx = movableIds.indexOf(active.id);
+      const toIdx   = movableIds.indexOf(over.id);
+      if (fromIdx < 0 || toIdx < 0) return log('BAIL · slot not movable, or not in this day');
+
+      const occupants = movableIds.map(sid => claims[sid] || null);
+      const [moved]   = occupants.splice(fromIdx, 1);
+      occupants.splice(toIdx, 0, moved);
+
+      /* slotId → who ends up there. ⚠ Absent key = the slot ends up EMPTY. */
+      const nextBySlot = {};
+      /* ⭐ Pinned slots keep their occupant, untouched by the splice. */
+      pinnedIds.forEach(sid => { if (claims[sid]) nextBySlot[sid] = claims[sid]; });
+      movableIds.forEach((sid, i) => { if (occupants[i]) nextBySlot[sid] = occupants[i]; });
+
+      /* ⚠ Where each act sat BEFORE, so only genuinely moved rows are written.
+         ⛔ Writing all of them would touch untouched performances on every drag. */
+      const prevSlotOfClaim = {};
+      Object.entries(claims).forEach(([sid, c]) => { if (c?.id) prevSlotOfClaim[c.id] = sid; });
+
+
+      /* ⭐ Snapshot every act's position BEFORE the swap — the "F" of FLIP.
+         ⛔ Must happen before `onLocalMove` below, or the rectangles measured
+         are the ones we are about to animate away from. */
+      const rects = {};
+      for (const [slotId, el] of Object.entries(nodeRefs.current)) {
+        const cid = claims[slotId]?.id;
+        if (el && cid) rects[cid] = el.getBoundingClientRect();
+      }
+      pendingFlip.current = { rects, skipClaimId: sourceClaim.id };
       log('PROCEEDING', {
         sourceClaimId: sourceClaim.id,
-        targetClaimId: targetClaim?.id ?? null,
-        path: isFilled(targetClaim) ? 'swap two claims' : 'move to empty slot',
+        fromIdx, toIdx,
+        order: ids.map(sid => nextBySlot[sid]?.name ?? '—'),
       });
 
-      // Optimistic update — swap claims in the React Query cache immediately
+      // Optimistic update — the whole day's new order, in the query cache
       const currentData = queryClient.getQueryData(['event', id]);
       if (currentData) {
         const newClaims = { ...currentData.claims };
-        if (isFilled(targetClaim)) {
-          newClaims[over.id]    = sourceClaim;
-          newClaims[active.id]  = targetClaim;
-        } else {
-          newClaims[over.id] = sourceClaim;
-          delete newClaims[active.id];
-        }
+        /* ⛔ Every slot in the day is rewritten, ⛔ not just two — a shuffle
+           can touch any number of them, and a slot that ends up empty must be
+           DELETED or its old occupant lingers in two places. */
+        ids.forEach(sid => {
+          if (nextBySlot[sid]) newClaims[sid] = nextBySlot[sid];
+          else delete newClaims[sid];
+        });
         queryClient.setQueryData(['event', id], { ...currentData, claims: newClaims });
       }
 
@@ -133,34 +272,9 @@ export default function DaySlots({
        * ⛔ Fires BEFORE the write, deliberately — it is optimistic. `onChanged`
        * still runs after, and the silent refetch is what CONFIRMS it.
        */
-      onLocalMove?.({
-        from: active.id,
-        to: over.id,
-        sourceClaim,
-        targetClaim,
-        filled: isFilled(targetClaim),
-      });
+      onLocalMove?.({ slotIds: ids, nextBySlot });
 
-      // Persist to DB. ⛔ `slot_uuid` — see persistClaimSwap for why.
-      if (!isFilled(targetClaim)) {
-        supabase.from('performances')
-          .update({ slot_uuid: over.id })
-          .eq('id', sourceClaim.id)
-          .then(({ error }) => {
-            /* ⚠⚠ TEMPORARY, and it should probably STAY. This write's error was
-               never read — and RLS FILTERS an UPDATE rather than erroring it, so
-               a blocked write returns no error AND changes nothing. ⛔ Silent
-               either way, which is half of why this took all afternoon. */
-            console.log('[YesPleez] drag WRITE move-to-empty', { error: error?.message ?? null });
-            queryClient.invalidateQueries({ queryKey: ['event', id] });
-            /* ⭐ THE MOVE-TO-AN-EMPTY-SLOT PATH NEEDS THIS TOO. It is the one
-               the owner hit first (fewrf → the 7:00 open slot), and it is the
-               half a "swap two claims" mental model forgets. */
-            onChanged?.();
-          });
-      } else {
-        persistClaimSwap(active.id, over.id, sourceClaim, targetClaim);
-      }
+      persistReorder(ids, nextBySlot, prevSlotOfClaim);
     }
 
     return (
@@ -192,7 +306,7 @@ export default function DaySlots({
             onDragEnd={handleDragEnd}
             onDragCancel={() => setActiveSlotId(null)}
           >
-            <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
+            <>
               {slots.map(slot => (
                 <SlotCard key={slot.id} slot={slot} claim={claims[slot.id]}
 isHost={effectiveIsHost}
@@ -200,6 +314,8 @@ isHost={effectiveIsHost}
                   locked={isLocked}
                   isSortable={!isLocked && !slot.pinned && !!claims[slot.id] && claims[slot.id].status !== 'declined'}
                   isActiveSort={slot.id === activeSlotId}
+                  /* ⭐ Hands the row element up so FLIP can measure it. */
+                  registerNode={el => { nodeRefs.current[slot.id] = el; }}
                   /* ⛔⛔ `&& onX` — ⛔ NOT just `!isLocked`. Wrapping a handler
                      that was never passed hands SlotCard a truthy function, so
                      the button renders and pressing it calls `undefined(slot)`
@@ -213,7 +329,7 @@ isHost={effectiveIsHost}
                   allMixSlots={allMixSlots}
                 />
               ))}
-            </SortableContext>
+            </>
             {/**
               * ⛔⛔ `dropAnimation={null}` — ⛔ do NOT restore the 180ms return.
               *

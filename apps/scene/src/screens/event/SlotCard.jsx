@@ -3,10 +3,17 @@
 // host editor — the difference is entirely in the props it is given.
 /* ⚠ `useRef` went with the genre rail's scroll hint — the pill row no longer
    overflows, so there is nothing to nudge. */
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useSortable } from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
+/**
+ * ⛔⛔ `useDraggable` + `useDroppable`, ⛔ NEVER `useSortable` (owner,
+ * 2026-08-16). A SORTABLE moves an object THROUGH A LIST; a schedule moves an
+ * artist INTO A FIXED TIME SLOT. Those are different interaction models, and
+ * every drop artefact chased today came from fighting that distinction:
+ * snap-back, double-play, bounce. ⛔ The slots never move, so nothing here may
+ * compute a transform from a destination.
+ */
+import { useDraggable, useDroppable } from '@dnd-kit/core';
 import { supabase } from '../../lib/supabase';
 import { usePlayer, useSession } from '../../App';
 // The follow-this-artist action inside an expanded slot needs all four of
@@ -54,7 +61,7 @@ function HeadphoneIcon() {
  * ⭐ So the dashboard stays TRIAGE — the same rule its LINEUP tab follows by
  * passing no `actions`. Scheduling happens on the event page.
  */
-export default function SlotCard({ slot, claim, onFill, onEdit, onRemove, onPin, isHost, isSortable, isActiveSort, isDragOverlay, allMixSlots = [], locked = false, viewerProfileId = null, expandable = true }) {
+export default function SlotCard({ slot, claim, onFill, onEdit, onRemove, onPin, isHost, isSortable, isActiveSort, isDragOverlay, allMixSlots = [], locked = false, viewerProfileId = null, expandable = true, registerNode }) {
   const [expanded,      setExpanded]      = useState(false);
   const [hostNote,      setHostNote]      = useState('');
   const [artistBrief,   setArtistBrief]   = useState('');
@@ -86,35 +93,36 @@ export default function SlotCard({ slot, claim, onFill, onEdit, onRemove, onPin,
    * `droppable` follows `isHost` (any slot can RECEIVE an act while editing).
    * ⚠ Pinned slots stay undroppable via the guard in `handleDragEnd`.
    */
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+  /**
+   * ⭐⭐ TWO SEPARATE ROLES ON ONE ROW.
+   *
+   *   DRAGGABLE — only an occupied slot can be picked up, and only by the grip.
+   *   DROPPABLE — EVERY slot can receive, occupied or not, while editing.
+   *
+   * ⛔ NEITHER PRODUCES A TRANSFORM. The row is painted at its own position and
+   * stays there for the whole gesture; the thing that follows the pointer is
+   * the `DragOverlay` in DaySlots. ⚠ That is the entire fix: there is no
+   * "return" to animate, because nothing ever left.
+   */
+  const { attributes, listeners, setNodeRef: setDragRef, isDragging } = useDraggable({
     id: slot.id,
-    disabled: { draggable: !isSortable, droppable: !isHost },
+    disabled: !isSortable,
   });
+  const { setNodeRef: setDropRef, isOver } = useDroppable({
+    id: slot.id,
+    disabled: !isHost,
+  });
+  /* ⚠ One element is three things — draggable, droppable, and the node DaySlots
+     measures for FLIP. ⛔ Assigning only some of these silently breaks either
+     the hit-testing or the displaced-act animation. */
+  const setRowRef = node => { setDragRef(node); setDropRef(node); registerNode?.(node); };
   const navigate = useNavigate();
   const { session } = useSession();
 
-  /**
-   * ⭐ RUNS THE SETTLE WHEN THIS SLOT'S OCCUPANT CHANGES — see `.slotSettle`.
-   *
-   * ⚠ Keyed on the CLAIM ID, ⛔ not on `claim` itself: the object identity is
-   * rebuilt by every refetch, so watching the object would animate all five
-   * rows on any reload. The id changes only when somebody actually moved.
-   *
-   * ⚠ `null → id` and `id → null` both count — the slot that GAINED an act and
-   * the one that LOST one are both news.
-   */
-  const [settling, setSettling] = useState(false);
-  const prevClaimId = useRef(claim?.id ?? null);
-  useEffect(() => {
-    const nextId = claim?.id ?? null;
-    if (prevClaimId.current === nextId) return undefined;
-    prevClaimId.current = nextId;
-    setSettling(true);
-    /* ⚠ Must OUTLAST the animation in `.slotSettle` (.6s) or the class is
-       pulled mid-flight and the card snaps to its end state. ⛔ Change both. */
-    const t = setTimeout(() => setSettling(false), 680);
-    return () => clearTimeout(t);
-  }, [claim?.id]);
+  /* ⛔ THE SETTLE ANIMATION IS GONE (owner, 2026-08-16: "no settle animation").
+     It existed to soften a transform unwind that no longer happens. A drop is
+     now a plain occupant change, and dressing that up is what made it read as
+     a second movement. */
 
   useEffect(() => {
     if (!session?.user?.id || !claim?.user_id || session.user.id === claim.user_id) return;
@@ -167,8 +175,32 @@ export default function SlotCard({ slot, claim, onFill, onEdit, onRemove, onPin,
 
   return (
     <div
-      ref={setNodeRef}
-      style={{ marginBottom: 8, opacity: isDragging ? 0 : isDragOverlay ? 0.85 : 1, transform: CSS.Transform.toString(transform), transition, boxShadow: isDragOverlay ? '0 8px 32px rgba(0,0,0,.5)' : undefined }}
+      ref={setRowRef}
+      /**
+       * ⭐⭐ THE ROW NEVER MOVES. ⛔ No transform, no transition, no settle.
+       *
+       * ⚠⚠ EVERY DROP ARTEFACT CHASED TODAY CAME FROM THIS ONE MISTAKE — using
+       * a SORTABLE for a schedule. A sortable transforms rows to preview a
+       * reorder; these rows are fixed times and never reorder, so those
+       * transforms always had to be undone. Undoing them instantly read as a
+       * SNAP; easing them read as the move PLAYING TWICE; and swapping between
+       * dnd-kit's transition and ours mid-flight read as a BOUNCE. Three
+       * symptoms, three failed fixes, one wrong model.
+       *
+       * ⭐ Now: the card under the pointer is the `DragOverlay`. This row is
+       * ghosted where it came from. The destination is decided ONLY by
+       * `over.id`, and on drop the occupant simply changes. ⛔ There is nothing
+       * to animate, because nothing ever left its slot.
+       */
+      style={{
+        marginBottom: 8,
+        /* ⭐ GHOSTED, ⛔ not hidden: the row keeps its space and shows you where
+           the act came FROM while the overlay carries it. */
+        opacity: isDragging ? 0.3 : isDragOverlay ? 0.95 : 1,
+        /* ⛔⛔ NO `transform`, and ⛔ NO `transition`. The row is painted at its
+           own position for the whole gesture. Nothing to return from. */
+        boxShadow: isDragOverlay ? '0 10px 34px rgba(0,0,0,.55)' : undefined,
+      }}
     >
       <div style={{ display: 'flex', alignItems: 'stretch' }}>
         {/* Drag handle — only in editor mode */}
@@ -176,18 +208,49 @@ export default function SlotCard({ slot, claim, onFill, onEdit, onRemove, onPin,
           <div
             {...attributes}
             {...listeners}
-            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, flexShrink: 0, cursor: 'grab', borderRadius: expanded ? '10px 0 0 0' : '10px 0 0 10px', background: 'rgba(255,255,255,.04)', border: `1px solid ${borderCol}`, borderRight: 'none', color: 'rgba(255,255,255,.3)' }}
+            /**
+              * ⭐⭐ 44px OF TARGET, 28px OF BUTTON (owner, 2026-08-16: "put the
+              * button back in its appearance but keep the padding only at 44px").
+              *
+              * ⚠⚠ Widening the button to 44 made the GRIP fatter, which was not
+              * the ask. The hit area and the mark are two different things: this
+              * outer element is INVISIBLE — no background, no border — and only
+              * carries the listeners and the 16px of dead space. The inner one
+              * keeps the exact appearance it always had.
+              *
+              * ⛔⛔ AND THE PADDING HANGS OUTSIDE THE ROW — `marginLeft: -16`
+              * cancels it (owner, 2026-08-16). ⚠⚠ Without that, the 16px of
+              * dead space was real layout: it pushed every draggable row 16px
+              * right, so the sortable slots no longer lined up with the open
+              * ones above and below them. A hit target is not allowed to move
+              * the thing it is targeting.
+              *
+              * ⭐ Net effect: the visible bar sits exactly where the old 28px
+              * button did, flush with the column edge, and the extra reach
+              * spills into the page margin where there was nothing to hit
+              * anyway. Its right border is still removed and its radius still
+              * matches the card's, so the two read as one object.
+              */
+            style={{ display: 'flex', alignItems: 'stretch', width: 44, paddingLeft: 16, marginLeft: -16, boxSizing: 'border-box', flexShrink: 0, cursor: 'grab', background: 'none', border: 'none' }}
           >
-            <svg width="12" height="16" viewBox="0 0 12 16" fill="currentColor">
-              <circle cx="4" cy="3" r="1.5"/><circle cx="8" cy="3" r="1.5"/>
-              <circle cx="4" cy="8" r="1.5"/><circle cx="8" cy="8" r="1.5"/>
-              <circle cx="4" cy="13" r="1.5"/><circle cx="8" cy="13" r="1.5"/>
-            </svg>
+            <div
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1, borderRadius: expanded ? '10px 0 0 0' : '10px 0 0 10px', background: 'rgba(255,255,255,.04)', border: `1px solid ${borderCol}`, borderRight: 'none', color: 'rgba(255,255,255,.3)' }}
+            >
+              <svg width="12" height="16" viewBox="0 0 12 16" fill="currentColor">
+                <circle cx="4" cy="3" r="1.5"/><circle cx="8" cy="3" r="1.5"/>
+                <circle cx="4" cy="8" r="1.5"/><circle cx="8" cy="8" r="1.5"/>
+                <circle cx="4" cy="13" r="1.5"/><circle cx="8" cy="13" r="1.5"/>
+              </svg>
+            </div>
           </div>
         )}
         <div
-          className={s.slot + (isEmpty ? ' ' + s.slotEmpty : '') + (settling ? ' ' + s.slotSettle : '')}
-          style={{ border: `1px solid ${borderCol}`, borderLeft: player?.url && player.url === claim?.mix_link ? '2px solid var(--neon2)' : `1px solid ${borderCol}`, borderRadius: isSortable ? (expanded ? '0 10px 0 0' : '0 10px 10px 0') : (expanded ? '10px 10px 0 0' : 10), cursor: 'pointer', marginBottom: 0, flex: 1 }}
+          className={s.slot + (isEmpty ? ' ' + s.slotEmpty : '')}
+          /* ⭐ `isOver` is the ONLY drag feedback now that nothing slides: the
+             slot under the pointer lights up, so the destination is visible
+             BEFORE you let go rather than explained afterwards. ⛔ Not applied
+             to the row being dragged — a card cannot land on itself. */
+          style={{ border: `1px solid ${isOver && !isDragging ? 'var(--neon2)' : borderCol}`, borderLeft: player?.url && player.url === claim?.mix_link ? '2px solid var(--neon2)' : `1px solid ${isOver && !isDragging ? 'var(--neon2)' : borderCol}`, background: isOver && !isDragging ? 'rgba(0,229,255,.07)' : undefined, borderRadius: isSortable ? (expanded ? '0 10px 0 0' : '0 10px 10px 0') : (expanded ? '10px 10px 0 0' : 10), cursor: 'pointer', marginBottom: 0, flex: 1 }}
           onClick={() => {
             if (isEmpty && onFill) { onFill(); return; }
             /* ⛔ THE READ-ONLY SURFACES STOP HERE — see `expandable` above. The

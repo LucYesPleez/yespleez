@@ -447,13 +447,22 @@
      it shrank. 5px → 3px, and the fade starts at .55 rather than .3, so the
      card is already mostly THERE and simply resolves. A long animation over a
      big jump is not soft, it is slow; softness is a small distance given time. */
-  /* ⚠ SLOWER AND SOFTER, PASS 2 (owner, 2026-08-16). Same principle, further:
-     the distance shrank AGAIN (3px → 2px) and the fade now starts at .7, so
-     barely anything travels and what remains is mostly a dissolve. ⛔ Do not
-     answer "softer" by increasing the movement — that is the one change that
-     always makes it worse. */
-  from { opacity: .7; transform: translateY(-2px) scale(.999); }
-  to   { opacity: 1;  transform: translateY(0)    scale(1); }
+  /**
+   * ⛔⛔ OPACITY ONLY — ⛔ NO transform, at any size.
+   *
+   * ⚠⚠ It ran at 5px, then 3px, then 2px, and each pass was still wrong for a
+   * SWAP: the slots do not move, so ANY post-drop movement reads as the drag
+   * replaying itself. The owner's words for the 2px version were "it's like
+   * they both go from where they started to the new spot instead of just
+   * dropping where they are".
+   *
+   * ⭐⭐ The card is ALREADY in the right place the instant you let go. The only
+   * thing that actually changed is WHO IS IN IT, so the only thing that should
+   * animate is the occupant. ⛔ Do not reintroduce translateY here "to make it
+   * softer" — that is the change that has been reverted three times.
+   */
+  from { opacity: .55; }
+  to   { opacity: 1; }
 }
 
 .slotSettle {
