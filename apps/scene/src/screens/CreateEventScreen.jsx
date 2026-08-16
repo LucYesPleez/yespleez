@@ -365,9 +365,38 @@ export default function CreateEventScreen() {
     }
   }
 
+  /**
+   * ⛔⛔ DELETING AN EVENT REPORTED SUCCESS WHILE DELETING NOTHING.
+   *
+   * ⚠⚠ RLS **FILTERS** A DELETE RATHER THAN ERRORING IT. The old body was
+   * `await …delete().eq('id', editId); navigate(-1);` — no error check, and
+   * there would have been no error to check: a blocked delete returns `null`
+   * error and zero rows. The screen navigated back and the event was still
+   * there, which reads as "the button does nothing".
+   *
+   * ⭐⭐ `.select('id')` IS THE PROOF. PostgREST returns the rows it actually
+   * removed, so an EMPTY array is the difference between "deleted" and
+   * "silently refused". ⛔ A null error is NOT proof the row is gone — that
+   * assumption is the one this codebase keeps paying for.
+   *
+   * ⚠⚠ AND IT IS BLOCKED TODAY FOR ALMOST EVERY EVENT. The only write policy
+   * on `events` is the baseline's `hosts manage own events` USING
+   * `(host_id = auth.uid())`, and `host_id` is NULL on 82 of 92 rows. L1 fixed
+   * exactly this on `lineup_members`/`performances` with
+   * `can_act_as(owner_profile_id)` and did not reach the `events` table
+   * itself. ⛔ THE CLIENT HALF ALONE DOES NOT MAKE DELETE WORK — it only makes
+   * the failure visible. The migration is the other half.
+   */
   async function handleDelete() {
     if (!editId || !window.confirm('Delete this event? This cannot be undone.')) return;
-    await supabase.from('events').delete().eq('id', editId);
+    setError('');
+    const { data, error: delErr } = await supabase
+      .from('events').delete().eq('id', editId).select('id');
+    if (delErr) { setError(`That event could not be deleted. ${delErr.message}`); return; }
+    if (!data?.length) {
+      setError('That event could not be deleted. You may not have permission to remove it, and nothing was changed.');
+      return;
+    }
     navigate(-1);
   }
 

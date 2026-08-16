@@ -5,6 +5,8 @@ import { genreLabels } from '../lib/profileTaxonomy';
 /* ⭐ THE ONE WRITER for putting somebody on a slot. ⛔ This component may not
    compose its own insert — it did, and it wrote the wrong column. */
 import { assignMemberToSlot } from '../lib/lineupActions';
+/* ⛔ THE CAP LIVES WITH THE BILL. This sheet asks; it does not decide. */
+import { billCapacity, billFullMessage } from '../lib/hostLineup';
 
 export default function FillSlotModal({ slot, eventId, eventName = '', hostId, acceptedArtists = [], acceptedProfiles = {}, onFilled, onClose }) {
   const [view,    setView]    = useState('menu');
@@ -42,11 +44,42 @@ export default function FillSlotModal({ slot, eventId, eventName = '', hostId, a
     return () => clearTimeout(timer.current);
   }, [query, view]);
 
+  /**
+   * ⛔⛔ REPLACE WAS THE HOLE IN THE CAP, and it is how a bill reaches 7/5.
+   *
+   * ⚠⚠ Replacing an act deletes the previous occupant's PERFORMANCE but leaves
+   * their MEMBER row on the bill — that is deliberate, they stay as "needs set
+   * time" — so a replace ADDS one to the lineup and removes none. Every other
+   * route is guarded by `planAddToBill` or `promoteMemberToBill`; this one
+   * targets an existing slot and slipped past both.
+   *
+   * ⚠ CHECKED ONLY WHERE A NEW MEMBER IS CREATED. Putting somebody who is
+   * ALREADY on the bill onto a slot moves them; it does not grow the bill, and
+   * refusing that would block a straight swap for no reason.
+   *
+   * ⛔ IT READS THE DATABASE, ⛔ not a prop. This component is mounted by two
+   * screens and a count passed in by one of them is a count the other can
+   * forget — the rule has to hold for whoever opened the sheet.
+   */
+  async function billHasRoom() {
+    const [{ count: onBill }, { count: slots }] = await Promise.all([
+      supabase.from('lineup_members').select('id', { count: 'exact', head: true })
+        .eq('event_id', eventId).eq('status', 'on_bill'),
+      supabase.from('event_slots').select('id', { count: 'exact', head: true })
+        .eq('event_id', eventId),
+    ]);
+    const cap = billCapacity(onBill || 0, slots || 0);
+    if (cap.full) { setErr(billFullMessage(cap.total)); setBusy(false); return false; }
+    return true;
+  }
+
   async function fillFromProfile(prof) {
     setBusy(true);
+    setErr(null);
     // Upsert lineup_member for this artist on this event
     let { data: memberData } = await supabase.from('lineup_members').select('id').eq('event_id', eventId).eq('artist_id', prof.user_id).eq('status', 'on_bill').maybeSingle();
     if (!memberData) {
+      if (!await billHasRoom()) return;
       const { data: nm } = await supabase.from('lineup_members').insert({
         event_id: eventId, artist_id: prof.user_id, artist_profile_id: prof.id,
         artist_name: prof.name, sound: prof.sound || null, genre: prof.genre_string || null, status: 'on_bill',
@@ -66,6 +99,10 @@ export default function FillSlotModal({ slot, eventId, eventName = '', hostId, a
   async function fillManual() {
     if (!name.trim()) return;
     setBusy(true);
+    setErr(null);
+    /* ⚠ ALWAYS a new member — a typed-in name has no row to reuse, so this path
+       always grows the bill and is always subject to the cap. */
+    if (!await billHasRoom()) return;
     const { data: memberData } = await supabase.from('lineup_members').insert({
       event_id: eventId, artist_name: name.trim(), status: 'on_bill',
     }).select('id').single();

@@ -335,40 +335,67 @@ export default function WorkItemCard({
             * plays, not for browsing.
             */}
 
-          {tagList.length > 0 && (
-            /* Their own curated five, ⛔ not a genre guess. `.spot-tag` is the
-               app's existing pill; this panel does not invent another. */
-            <div className="spot-tags" style={{ marginTop: 2 }}>
-              {tagList.slice(0, 5).map(t => <span key={t} className="spot-tag">{t}</span>)}
-            </div>
-          )}
-
-          {/* ── WHO THEY ARE TO YOU — follow, message, profile ──────────────
-              ⚠ Separated from the decision row below by their own divider:
-              these change YOUR relationship to a person, the ones below change
-              THEIR position in your event. Reading them as one row of six
-              would put "follow" beside "remove from bill". */}
-          {(canOpenProfile || viewerProfileId) && (
-            <div className={s.relRow}>
-              {canOpenProfile && <FollowHeartBtn profile={item} />}
-              {/* ⛔ MESSAGE NEEDS AN EXPLICIT SENDER. `openDirectConversation`
-                  takes a FROM profile, and this account may hold several —
-                  `profiles.user_id` is shared across a multi-profile account,
-                  so guessing the sender here could speak as the wrong identity.
-                  The surface passes who it is acting as, or the button is not
-                  offered. */}
-              {viewerProfileId && item.id && (
-                <button type="button" className={s.relBtn} onClick={message} disabled={msgBusy}>
-                  {msgBusy ? 'OPENING…' : 'MESSAGE'}
-                </button>
-              )}
+          {/**
+            * ⭐⭐ THE SET TIMES TREATMENT, ON THESE CARDS TOO (owner,
+            * 2026-08-16). ⛔ The old `.relRow` put FOLLOW · MESSAGE · PROFILE
+            * on a line of their own as three equal plain buttons; `SlotCard`
+            * had already settled a better arrangement and the two panels read
+            * as different products.
+            *
+            * ⭐ THE HEART RIDES THE TAGS LINE, far right. Following is about
+            * the PERSON and commits to nothing, so it sits away from the row
+            * that changes their position in the event.
+            */}
+          {(tagList.length > 0 || canOpenProfile) && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 2 }}>
+              {/* Their own curated five, ⛔ not a genre guess. `.spot-tag` is the
+                 app's existing pill; this panel does not invent another. */}
+              <div className="spot-tags" style={{ flex: 1, minWidth: 0 }}>
+                {tagList.slice(0, 5).map(t => <span key={t} className="spot-tag">{t}</span>)}
+              </div>
               {canOpenProfile && (
-                <button type="button" className={s.relBtn} onClick={goProfile}>PROFILE</button>
+                <span style={{ flexShrink: 0, display: 'inline-flex' }}><FollowHeartBtn profile={item} /></span>
               )}
             </div>
           )}
 
-          {actions && <div className={s.actions}>{actions}</div>}
+          {/**
+            * ⚠ ONE ROW: what you do to their POSITION stays left, what you do
+            * with the PERSON goes to the far edge — the same split `SlotCard`
+            * uses. ⛔ They are NOT six equal buttons: MESSAGE and VIEW PROFILE
+            * commit to nothing and must never carry the weight of REMOVE.
+            *
+            * ⚠ Their own flex group so they stay together when the row wraps.
+            */}
+          {(actions || (viewerProfileId && item.id) || canOpenProfile) && (
+            <div className={s.actions} style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
+              {actions}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginLeft: 'auto' }}>
+                {/* ⛔ MESSAGE NEEDS AN EXPLICIT SENDER. `openDirectConversation`
+                    takes a FROM profile, and this account may hold several —
+                    `profiles.user_id` is shared across a multi-profile account,
+                    so guessing the sender here could speak as the wrong identity.
+                    The surface passes who it is acting as, or the button is not
+                    offered. */}
+                {viewerProfileId && item.id && (
+                  <button type="button" onClick={message} disabled={msgBusy}
+                    /* ⭐ THE GRADIENT BORDER — the app's cyan→violet edge, painted
+                       with the two-layer background trick: a padding-box fill over
+                       a border-box gradient. ⛔ The transparent 1.5px border is
+                       REQUIRED; drop it and the gradient hides under the fill. */
+                    style={{ flexShrink: 0, padding: '7px 12px', borderRadius: 9, cursor: 'pointer', fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1.2, border: '1.5px solid transparent', background: 'linear-gradient(var(--card2),var(--card2)) padding-box, linear-gradient(135deg,#00E5FF,#BF5FFF) border-box', color: '#fff', whiteSpace: 'nowrap' }}>
+                    {msgBusy ? 'OPENING…' : 'MESSAGE'}
+                  </button>
+                )}
+                {canOpenProfile && (
+                  <button type="button" onClick={goProfile}
+                    style={{ flexShrink: 0, fontSize: 10, fontFamily: "'Bebas Neue'", letterSpacing: 1.2, background: 'none', border: 'none', padding: '7px 2px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                    <span style={{ background: 'linear-gradient(135deg,#00E5FF,#BF5FFF)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>VIEW PROFILE →</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

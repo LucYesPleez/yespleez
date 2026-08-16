@@ -287,10 +287,17 @@
  * reused rather than restated so these buttons cannot drift from the enquiry
  * card's, which are the same three decisions one screen earlier.
  *
- * Only the divider above it belongs to this card.
+ * ⛔ THE DIVIDER ABOVE IT IS GONE (owner, 2026-08-16). It separated the tags
+ * line from the decisions, which made sense when a GENRES row and a separate
+ * FOLLOW · MESSAGE · PROFILE row sat between them — three bands needed
+ * ruling apart. With the genres removed and the person controls moved onto
+ * the decision row itself, it was ruling a two-line panel into halves and
+ * ⛔ `SlotCard`, which this panel now matches, draws no such line.
+ *
+ * ⚠ `.panel` keeps ITS border-top: that one separates the card FACE from the
+ * dropdown and is still doing work.
  */
 .actions {
-  border-top: 1px solid rgba(255, 255, 255, .06);
   padding-top: 2px;
 }
 
