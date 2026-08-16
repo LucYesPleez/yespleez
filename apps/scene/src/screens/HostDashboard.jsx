@@ -70,7 +70,11 @@ export default function HostDashboard({ userId: userIdProp }) {
      silently, which is indistinguishable from a dead button. */
   const [lineupError,    setLineupError]    = useState('');
   const [lineupExpandMap, setLineupExpandMap] = useState({});  // eventId → bool (default true)
-  const [lineupSubTabs,  setLineupSubTabs]  = useState({});   // eventId → 'LINEUP'|'SET TIMES'|'SHORT LIST'|'PIPELINE'
+  const [lineupSubTabs,  setLineupSubTabs]  = useState({});   // eventId → 'LINEUP'|'SET TIMES'|'SHORTLIST'|'PIPELINE'|'NOT BOOKED'
+  /* ⚠ Shortlisted MEMBERS, keyed by event — the second half of the SHORTLIST
+     tab. ⛔ Kept out of `lineups`, which is the bill. */
+  const [shortlistMembersByEvent, setShortlistMembersByEvent] = useState({});
+  const [shortlistProfiles, setShortlistProfiles] = useState({});
   const [allApps,        setAllApps]        = useState([]);
   const [appProfiles,    setAppProfiles]    = useState({});
   const [loadingApps,    setLoadingApps]    = useState(false);
@@ -220,9 +224,13 @@ export default function HostDashboard({ userId: userIdProp }) {
       const ids = evRows.map(e => e.id);
 
       const [{ data: membersData }, { data: perfsData }, { data: slotRows }] = await Promise.all([
+        /* ⚠ BOTH STATUSES IN ONE READ, split immediately below — the same shape
+           `useEventData` uses. ⛔ Nothing downstream may receive the mixed
+           array: `buildHostLineup` is the BILL and a shortlisted member is
+           somebody you are only considering. */
         supabase.from('lineup_members')
-          .select('id, event_id, artist_id, artist_profile_id, artist_name, genre, sound, card_pills')
-          .in('event_id', ids).eq('status', 'on_bill'),
+          .select('id, event_id, artist_id, artist_profile_id, artist_name, genre, sound, card_pills, status')
+          .in('event_id', ids).in('status', ['on_bill', 'shortlisted']),
         // ⚠ `declined` is NO LONGER FILTERED OUT. It was, which meant a slot
         // somebody turned down looked identical to one nobody had been asked
         // about — the organiser could not tell "needs refilling because of a no"
@@ -261,8 +269,20 @@ export default function HostDashboard({ userId: userIdProp }) {
       (slotRows || []).forEach(r => { (slotsByEvent[r.event_id] ||= []).push(r); });
       Object.keys(slotsByEvent).forEach(k => { slotsByEvent[k] = groupSlotsIntoDays(slotsByEvent[k]); });
 
+      /* ⛔⛔ THE BILL IS `on_bill` ONLY. `buildHostLineup` builds the LINEUP, the
+         counts and the set-times strip; a shortlisted member reaching it would
+         appear as booked on the dashboard and in the header total. */
+      const billMembers  = (membersData || []).filter(m => m.status === 'on_bill');
+      const shortMembers = (membersData || []).filter(m => m.status === 'shortlisted');
+      const shortByEvent = {};
+      shortMembers.forEach(m => { (shortByEvent[m.event_id] ||= []).push(m); });
+      setShortlistMembersByEvent(shortByEvent);
+      /* ⚠ Profiles were resolved for BOTH statuses above, so the shortlist cards
+         get names and pictures from the same pass. */
+      setShortlistProfiles(memberProfiles);
+
       const groups = buildHostLineup({
-        events: evRows, members: membersData || [], performances: perfsData || [],
+        events: evRows, members: billMembers, performances: perfsData || [],
         slotsByEvent, memberProfiles,
       });
       setLineups(groups);
@@ -783,12 +803,34 @@ export default function HostDashboard({ userId: userIdProp }) {
               const toggleExpand = () => setLineupExpandMap(prev => ({ ...prev, [ev.id]: !evExpanded }));
               const activeTab   = lineupSubTabs[ev.id] || 'LINEUP';
               const setTab      = (tab) => setLineupSubTabs(prev => ({ ...prev, [ev.id]: tab }));
-              const evShortList = tentativeApps.filter(a => a.event_id === ev.id);
               const evPipeline  = newApps.filter(a => a.event_id === ev.id);
-              /* ⭐ The applications the host said yes to. They had no home on
-                 either surface — ten of thirteen in production. ⛔ Visible only:
-                 nothing here creates bill membership. */
-              const evAccepted  = acceptedApps.filter(a => a.event_id === ev.id);
+              /**
+               * ⭐⭐ THE SHORTLIST IS TWO SOURCES, matching `EventHostView`.
+               *
+               * ⚠⚠ THIS SCREEN READ APPLICATIONS ONLY and the event page did
+               * not, so an artist moved to the shortlist from the event page
+               * appeared in NEITHER list here — the same disappearing act the
+               * funnel work was meant to close, left live on one surface.
+               *
+               * ⛔ An applicant who already has a member row appears ONCE.
+               */
+              const evRawMembers = (shortlistMembersByEvent[ev.id] || []);
+              const evShortProfiles = shortlistProfiles;
+              const evShortList  = [
+                ...evRawMembers,
+                ...tentativeApps.filter(a => a.event_id === ev.id
+                  && !findExistingMember(a, evRawMembers, appProfiles[a.id] || null)
+                  && !findExistingMember(a, members.map(r => r.member), appProfiles[a.id] || null)),
+              ];
+              /**
+               * ⭐ ORPHANS ONLY — accepted, and on nobody's bill. ⛔ Not an
+               * `acceptedApps` list: ADD TO LINEUP *is* the acceptance now, so a
+               * permanent ACCEPTED workspace describes a state the model no
+               * longer creates. This tab is a one-time cleanup and disappears.
+               */
+              const evOrphaned  = acceptedApps.filter(a => a.event_id === ev.id
+                && !findExistingMember(a, members.map(r => r.member), appProfiles[a.id] || null)
+                && !findExistingMember(a, evRawMembers, appProfiles[a.id] || null));
               /* ⚠ `days`, `totalSlots` and `filledSlots` arrive from
                  `buildHostLineup` — they came from `ev.config.days` and from
                  `Object.keys(claims).length`, which counted an unanswered offer
@@ -859,9 +901,11 @@ export default function HostDashboard({ userId: userIdProp }) {
                         tabs={[
                           { key: 'LINEUP',     label: `LINEUP${members.length ? ` (${members.length})` : ''}` },
                           { key: 'SET TIMES',  label: 'SET TIMES' },
-                          { key: 'ACCEPTED',   label: `ACCEPTED${evAccepted.length ? ` (${evAccepted.length})` : ''}` },
-                          { key: 'SHORT LIST', label: `SHORT LIST${evShortList.length ? ` (${evShortList.length})` : ''}` },
+                          { key: 'SHORTLIST',  label: `SHORTLIST${evShortList.length ? ` (${evShortList.length})` : ''}` },
                           { key: 'PIPELINE',   label: `PIPELINE${evPipeline.length ? ` (${evPipeline.length})` : ''}` },
+                          ...(evOrphaned.length
+                            ? [{ key: 'NOT BOOKED', label: `NOT BOOKED (${evOrphaned.length})` }]
+                            : []),
                         ]}
                       />
 
@@ -963,26 +1007,59 @@ export default function HostDashboard({ userId: userIdProp }) {
                           </div>
                         );
                       })()}
-                      {activeTab === 'SHORT LIST' && (
+                      {activeTab === 'SHORTLIST' && (
                         evShortList.length === 0
-                          ? <p className={s.empty} style={{ fontSize: 12 }}>No shortlisted artists for this event.</p>
-                          : <div style={{ marginBottom: 12 }}>{evShortList.map(app => <AppCard key={app.id} app={app} viewerProfileId={profile?.id || null} prof={appProfiles[app.id] || {}} eventName={evtMap[app.event_id]?.name} onRespond={respondApp} onBill={!!findExistingMember(app, members.map(r => r.member), appProfiles[app.id] || null)} />)}</div>
+                          ? <p className={s.empty} style={{ fontSize: 12 }}>Nobody on the shortlist for this event.</p>
+                          : <div style={{ marginBottom: 12 }}>{evShortList.map(row => {
+                            /* ⚠⚠ TWO SHAPES IN ONE LIST — a `lineup_members` row
+                               carries `status`; an application does not.
+                               ⛔ Reading one shape's fields off the other yields
+                               `undefined`, which draws a nameless card rather
+                               than raising. */
+                            if (!row.status) {
+                              return <AppCard key={row.id} app={row} viewerProfileId={profile?.id || null} prof={appProfiles[row.id] || {}} eventName={evtMap[row.event_id]?.name} onRespond={respondApp} onBill={!!findExistingMember(row, members.map(r => r.member), appProfiles[row.id] || null)} />;
+                            }
+                            const mp = evShortProfiles[row.id] || null;
+                            const item = {
+                              id: mp?.id || row.artist_profile_id || null,
+                              user_id: row.artist_id || null,
+                              name: mp?.name || row.artist_name || 'Unnamed act',
+                              type: mp?.type || 'artist',
+                              avatar: mp?.avatar || null,
+                              avatar_thumb: mp?.avatar_thumb || null,
+                              sound: mp?.sound || row.sound || null,
+                              genre_string: mp?.genre_string || row.genre || null,
+                              location: mp?.location || null,
+                              state: mp?.state || null,
+                            };
+                            /* ⛔ NO ACTIONS — the dashboard is triage. Moving
+                               somebody onto the bill is a workspace operation
+                               and lives on the event page. */
+                            return (
+                              <WorkItemCard key={row.id} kind="application" item={item}
+                                stateLabel="SHORTLISTED" stateColor={STATUS_TAB_COLOR.SHORTLISTED}
+                                tags={mp?.card_pills || row.card_pills}
+                                viewerProfileId={profile?.id || null} />
+                            );
+                          })}</div>
                       )}
                       {activeTab === 'PIPELINE' && (
                         evPipeline.length === 0
                           ? <p className={s.empty} style={{ fontSize: 12 }}>Nothing waiting on you for this event.</p>
                           : <div style={{ marginBottom: 12 }}>{evPipeline.map(app => <AppCard key={app.id} app={app} viewerProfileId={profile?.id || null} prof={appProfiles[app.id] || {}} eventName={evtMap[app.event_id]?.name} onRespond={respondApp} />)}</div>
                       )}
-                      {/* ⛔ READ-ONLY. Says who was accepted; ⛔ creates no bill
-                          membership — that transition is deliberately not built. */}
-                      {activeTab === 'ACCEPTED' && (
-                        evAccepted.length === 0
-                          ? <p className={s.empty} style={{ fontSize: 12 }}>Nobody accepted for this event yet.</p>
+                      {/* ⛔ A ONE-TIME CLEANUP, ⛔ not a workspace. The tab only
+                          renders while orphans exist and disappears for good
+                          once they are cleared — see EventHostView, which must
+                          stay identical to this. */}
+                      {activeTab === 'NOT BOOKED' && (
+                        evOrphaned.length === 0
+                          ? <p className={s.empty} style={{ fontSize: 12 }}>Nothing left to clear.</p>
                           : <div style={{ marginBottom: 12 }}>
                               <p style={{ fontSize: 12, color: 'var(--muted)', margin: '0 0 8px', lineHeight: 1.5 }}>
-                                You said yes to these applications. Adding them to the bill is still a separate step.
+                                You told these artists yes and they were never added to the lineup. Open the event to add or decline them.
                               </p>
-                              {evAccepted.map(app => <AppCard key={app.id} app={app} viewerProfileId={profile?.id || null} prof={appProfiles[app.id] || {}} eventName={evtMap[app.event_id]?.name} onRespond={respondApp} onBill={!!findExistingMember(app, members.map(r => r.member), appProfiles[app.id] || null)} />)}
+                              {evOrphaned.map(app => <AppCard key={app.id} app={app} viewerProfileId={profile?.id || null} prof={appProfiles[app.id] || {}} eventName={evtMap[app.event_id]?.name} onRespond={respondApp} onBill={false} />)}
                             </div>
                       )}
                       </div>
