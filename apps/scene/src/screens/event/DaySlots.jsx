@@ -123,13 +123,24 @@ export default function DaySlots({
       supabase.from('performances').update({ slot_uuid: u.slotId }).eq('id', u.performanceId),
     ));
 
-    /* ⚠⚠ KEEP THIS LOG. ⛔ An RLS-filtered UPDATE returns NO error and changes
-       NOTHING, so a null error is not proof the write landed — but a non-null
-       one is proof it did not, and that was invisible for most of a day. */
-    console.log('[YesPleez] drag WRITE reorder', {
-      moved: updates.length,
-      errors: results.map(r => r.error?.message).filter(Boolean),
-    });
+    /**
+     * ⚠⚠ THIS ONE SURVIVES, BUT ONLY WHEN THERE IS SOMETHING TO SAY.
+     *
+     * ⛔ An RLS-filtered UPDATE returns NO error and changes NOTHING, so a null
+     * error is ⛔ not proof the write landed — but a non-null one IS proof it
+     * did not, and that was invisible for most of a day.
+     *
+     * ⚠ It was an unconditional `console.log` on every drag, which is noise in
+     * a production console and is why it read as leftover instrumentation. ⭐
+     * `console.warn` only when a write actually reported failure: silent on the
+     * happy path, loud on the one that cost a day.
+     */
+    const writeErrors = results.map(r => r.error?.message).filter(Boolean);
+    if (writeErrors.length) {
+      console.warn('[YesPleez] set-times reorder: some rows did not save', {
+        moved: updates.length, errors: writeErrors,
+      });
+    }
 
     queryClient.invalidateQueries({ queryKey: ['event', eventId] });
     onChanged?.();
@@ -148,29 +159,25 @@ export default function DaySlots({
     function handleDragEnd({ active, over }) {
       setActiveSlotId(null);
       /**
-       * ⚠⚠ TEMPORARY INSTRUMENTATION (2026-08-16) — the dashboard's drag does
-       * nothing and THREE ROUNDS OF THEORISING failed to find it. Every guard
-       * below returns SILENTLY, so from the outside "the sensor never armed",
-       * "the claim did not resolve" and "the target was pinned" are the same
-       * observation: nothing happened.
+       * ⚠⚠ THE INSTRUMENTATION IS GONE (2026-08-17) — the cause was named and
+       * the log said it would be removed once it was.
        *
-       * ⛔ REMOVE THIS once the cause is named. ⭐ Until then it is the only
-       * thing that distinguishes the four exits.
+       * ⚠ WHAT IT EXISTED TO DISTINGUISH IS KEPT AS COMMENTS. Every guard here
+       * returns SILENTLY, so from the outside "the sensor never armed", "the
+       * claim did not resolve" and "the target was pinned" are one observation:
+       * nothing happened. ⛔ If a drag goes dead again, the four exits below
+       * are the four suspects — ⭐ instrument them again rather than theorising,
+       * which is what three failed rounds proved.
        */
-      const log = (stage, extra = {}) => console.log('[YesPleez] drag', stage, {
-        active: active?.id, over: over?.id,
-        claimKeys: Object.keys(claims || {}).length,
-        slotIds: slots.map(sl => sl.id),
-        ...extra,
-      });
-      log('END');
 
-      if (!over || active.id === over.id) return log('BAIL · no target, or dropped on itself');
+      // 1 · No target, or dropped on itself.
+      if (!over || active.id === over.id) return;
       const sourceClaim = claims[active.id];
-      /* ⚠ If this fires, `claims` is keyed differently from `slot.id` — the
+      /* 2 · ⚠ If this fires, `claims` is keyed differently from `slot.id` — the
          single most likely dashboard-vs-event-page divergence. */
-      if (!sourceClaim) return log('BAIL · no sourceClaim for active.id', { claimKeys: Object.keys(claims || {}) });
-      if (slots.find(sl => sl.id === over.id)?.pinned) return log('BAIL · target slot is pinned');
+      if (!sourceClaim) return;
+      // 3 · The target slot is pinned, and a pinned slot does not accept a drop.
+      if (slots.find(sl => sl.id === over.id)?.pinned) return;
 
       /**
        * ⭐⭐ AN INSERT, ⛔ NOT A SWAP (owner, 2026-08-16: "if I move fewrf from
@@ -213,7 +220,8 @@ export default function DaySlots({
 
       const fromIdx = movableIds.indexOf(active.id);
       const toIdx   = movableIds.indexOf(over.id);
-      if (fromIdx < 0 || toIdx < 0) return log('BAIL · slot not movable, or not in this day');
+      // 4 · The slot is pinned, or is not in this day at all.
+      if (fromIdx < 0 || toIdx < 0) return;
 
       const occupants = movableIds.map(sid => claims[sid] || null);
       const [moved]   = occupants.splice(fromIdx, 1);
@@ -240,11 +248,6 @@ export default function DaySlots({
         if (el && cid) rects[cid] = el.getBoundingClientRect();
       }
       pendingFlip.current = { rects, skipClaimId: sourceClaim.id };
-      log('PROCEEDING', {
-        sourceClaimId: sourceClaim.id,
-        fromIdx, toIdx,
-        order: ids.map(sid => nextBySlot[sid]?.name ?? '—'),
-      });
 
       // Optimistic update — the whole day's new order, in the query cache
       const currentData = queryClient.getQueryData(['event', id]);
@@ -297,12 +300,11 @@ export default function DaySlots({
                evidence in §8 item 25h. ⛔ Collision detection was never the
                fault; the droppable registration was. */
             collisionDetection={closestCenter}
-            onDragOver={({ active, over }) => console.log('[YesPleez] drag OVER', { active: active?.id, over: over?.id ?? null })}
             /* ⚠⚠ TEMPORARY — ⭐ THE MOST IMPORTANT LINE OF THE THREE. If NO
                "drag START" appears, the PointerSensor never armed and the
                problem is upstream of every guard in handleDragEnd. ⛔ Remove
                with the rest of the instrumentation. */
-            onDragStart={({ active }) => { console.log('[YesPleez] drag START', active?.id); setActiveSlotId(active.id); }}
+            onDragStart={({ active }) => setActiveSlotId(active.id)}
             onDragEnd={handleDragEnd}
             onDragCancel={() => setActiveSlotId(null)}
           >
