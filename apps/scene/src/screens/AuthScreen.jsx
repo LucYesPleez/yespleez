@@ -38,6 +38,10 @@ export default function AuthScreen() {
   const [password,    setPassword]    = useState('');
   const [confirm,     setConfirm]     = useState('');
   const [showPw,      setShowPw]      = useState(false);
+  // Its own toggle, not a shared one. Someone reveals the confirm field to
+  // check what they just typed a second time; unmasking the field above it at
+  // the same moment is a different act, and one they did not ask for.
+  const [showConfirm, setShowConfirm] = useState(false);
   const [name,        setName]        = useState('');
   const [error,       setError]       = useState('');
   const [loading,     setLoading]     = useState(false);
@@ -85,7 +89,22 @@ export default function AuthScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session]);
 
-  function switchMode(m) { setMode(m); setError(''); setForgotMode(false); setResetSent(false); setConfirm(''); }
+  function switchMode(m) {
+    setMode(m); setError(''); setForgotMode(false); setResetSent(false);
+    setConfirm(''); setShowConfirm(false);
+  }
+
+  /**
+   * ⚠ CLEARING THE PASSWORD CLEARS THE CONFIRMATION WITH IT. The confirm field
+   * only renders once a password has been typed, so emptying the password
+   * unmounts it — and a retained value would come back the moment the next
+   * character is typed, silently pre-filled with the OLD password. That reads
+   * as "already confirmed" and is wrong exactly when someone is starting over.
+   */
+  function onPasswordChange(v) {
+    setPassword(v);
+    if (!v) { setConfirm(''); setShowConfirm(false); }
+  }
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -172,10 +191,19 @@ export default function AuthScreen() {
       ) : (
         /* Sign in / Sign up form */
         <form className={s.form} onSubmit={handleSubmit}>
+          {/* ⭐ THE PLACEHOLDER IS THE INSTRUCTION (owner, 2026-08-16). This is
+              the ACCOUNT holder, a person, and people were filling it with
+              their act or band name because nothing here said otherwise. An
+              act gets its own profile later; this field never does that job,
+              so it asks the question in the words a person answers it in.
+              "You can change this later" moved to the hint below rather than
+              being deleted: it lowers the stakes, but it was doing that in the
+              one slot that could have prevented the mistake. */}
           {mode === 'signup' && (
             <div className={s.field}>
               <label>Name</label>
-              <input type="text" placeholder="You can change this later" value={name} onChange={e => setName(e.target.value)} autoComplete="name" />
+              <input type="text" placeholder="How your friends know you" value={name} onChange={e => setName(e.target.value)} autoComplete="name" />
+              <p className={s.hint}>Not your act or band name. You can change this later.</p>
             </div>
           )}
 
@@ -191,37 +219,37 @@ export default function AuthScreen() {
                 type={showPw ? 'text' : 'password'}
                 placeholder={mode === 'signin' ? '••••••••' : 'Min 6 characters'}
                 value={password}
-                onChange={e => setPassword(e.target.value)}
+                onChange={e => onPasswordChange(e.target.value)}
                 autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
                 required
               />
-              <button type="button" className={s.eyeBtn} onClick={() => setShowPw(p => !p)} tabIndex={-1}>
-                {showPw ? (
-                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
-                    <line x1="1" y1="1" x2="23" y2="23"/>
-                  </svg>
-                ) : (
-                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/>
-                    <circle cx="12" cy="12" r="3"/>
-                  </svg>
-                )}
-              </button>
+              <EyeToggle shown={showPw} onToggle={() => setShowPw(p => !p)} />
             </div>
           </div>
 
-          {mode === 'signup' && (
+          {/* ⭐ THE SECOND FIELD DOES NOT EXIST UNTIL THERE IS SOMETHING TO
+              CONFIRM (owner, 2026-08-16). Asking someone to re-enter a
+              password they have not chosen yet is two empty boxes and one
+              decision; the form now poses that decision once, and only asks
+              for the check after it has been made.
+
+              ⚠ The gate is `password` itself, NOT a "has been touched" flag.
+              Clearing the field takes the confirmation away again, which is
+              what onPasswordChange is for. */}
+          {mode === 'signup' && password.length > 0 && (
             <div className={s.field}>
               <label>Confirm Password</label>
-              <input
-                type="password"
-                placeholder="Re-enter password"
-                value={confirm}
-                onChange={e => setConfirm(e.target.value)}
-                autoComplete="new-password"
-                required
-              />
+              <div className={s.pwWrap}>
+                <input
+                  type={showConfirm ? 'text' : 'password'}
+                  placeholder="Re-enter password"
+                  value={confirm}
+                  onChange={e => setConfirm(e.target.value)}
+                  autoComplete="new-password"
+                  required
+                />
+                <EyeToggle shown={showConfirm} onToggle={() => setShowConfirm(p => !p)} />
+              </div>
             </div>
           )}
 
@@ -257,5 +285,41 @@ export default function AuthScreen() {
       </div>
     </div>
     </>
+  );
+}
+
+/**
+ * The reveal control for a masked field.
+ *
+ * Extracted the moment there were two of them. The password and confirm
+ * fields must offer the SAME affordance — two eyes drawn differently, or one
+ * field having one and the other not, is the shape that made people distrust
+ * what they had typed in the first place.
+ *
+ * `tabIndex={-1}` keeps it out of the tab order: tabbing from password should
+ * reach the next field, not a display toggle. `aria-label` is what a screen
+ * reader gets instead, and it names the ACTION rather than the state.
+ */
+function EyeToggle({ shown, onToggle }) {
+  return (
+    <button
+      type="button"
+      className={s.eyeBtn}
+      onClick={onToggle}
+      tabIndex={-1}
+      aria-label={shown ? 'Hide password' : 'Show password'}
+    >
+      {shown ? (
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
+          <line x1="1" y1="1" x2="23" y2="23"/>
+        </svg>
+      ) : (
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/>
+          <circle cx="12" cy="12" r="3"/>
+        </svg>
+      )}
+    </button>
   );
 }

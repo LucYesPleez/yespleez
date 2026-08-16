@@ -262,7 +262,20 @@ function Shell({ session, onSignOut }) {
           once, above the router, so a conversation survives navigation and
           "minimise" never means "unmount and lose the draft". */}
       <ConversationUiProvider>
-      {location.pathname !== '/role-select' && (
+      {/* ⛔ NO TOP BAR ON /auth OR /role-select (owner, 2026-08-16: "top of
+          screen banner does not need to be there").
+
+          On /auth it was actively wrong, not merely surplus. The header carries
+          its own YESPLEEZ wordmark and it overlaid AuthScreen's logo tag — the
+          screen is vertically centred at 100dvh, so its own mark sits directly
+          under the bar — printing the brand twice, one on top of the other. It
+          also offered a SIGN IN control on the sign in screen.
+
+          ⚠ Removing it costs no route out. AuthScreen's exit is its own
+          KEEP BROWSING button, which calls leave() — history back, or What's On
+          for a cold load. That is the O1 mechanism and it never used the
+          header's chevron. */}
+      {!['/role-select', '/auth'].includes(location.pathname) && (
         <GlobalHeader
           unreadCount={unreadCount}
           /* ⭐ The header now carries the identity control, so it needs who

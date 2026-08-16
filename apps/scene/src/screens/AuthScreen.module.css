@@ -165,6 +165,17 @@
 .field input:focus { border-color: var(--neon2); }
 .field input::placeholder { color: var(--muted); }
 
+/* Sub-label under a field. Deliberately quieter than the placeholder above
+   it: the placeholder asks the question, this only lowers the stakes of
+   answering it. Sits inside .field so the 13px gap to the next field still
+   separates FIELDS, not a field from its own footnote. */
+.hint {
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--muted);
+  margin: 6px 2px 0;
+}
+
 /* Kill browser autofill white background */
 .field input:-webkit-autofill,
 .field input:-webkit-autofill:hover,
