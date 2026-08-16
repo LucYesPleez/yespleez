@@ -43,26 +43,10 @@ import EventsSection from '../components/EventsSection';
 import EventTabBar from '../components/EventTabBar';
 import SectionCollapseButton from '../components/SectionCollapseButton';
 import { useDragScroll } from '../hooks/useDragScroll';
+import { ownedByFilter } from '../lib/eventOwnership';
 
-/* Phase 16 §14 — the ONE definition of "events this host is responsible for".
- *
- * Responsibility follows OWNERSHIP (identity v1.3 O-R4). `owner_profile_id` is
- * authority and works for claimed and unclaimed profiles alike; `host_id` is
- * authorship — the auth account that created the row — and is kept only as a
- * backward-compatibility arm for events created before owner_profile_id was
- * populated.
- *
- * Every query on this dashboard uses this helper. The event list, the
- * applications lookup and the lineup lookup must answer the SAME question:
- * if they diverge, an owned event appears with no applications and no lineup,
- * which reads as broken rather than absent.
- */
-function ownedByFilter(userId, hostProfileId) {
-  const arms = [];
-  if (hostProfileId) arms.push(`owner_profile_id.eq.${hostProfileId}`);
-  if (userId) arms.push(`host_id.eq.${userId}`);
-  return arms.join(',');
-}
+/* ⚠ `ownedByFilter` MOVED to lib/eventOwnership (2026-08-16) — the Discover
+   shortlist sheet asks the same question and a second copy would drift. */
 
 export default function HostDashboard({ userId: userIdProp }) {
   const { session } = useSession();

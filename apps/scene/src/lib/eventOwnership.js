@@ -56,3 +56,30 @@ export function isEventManager(event, { userId, ownedProfileIds = [] } = {}) {
 export function manageableEvents(events = [], opts = {}) {
   return (events || []).filter(e => isEventManager(e, opts));
 }
+
+/**
+ * ⭐⭐ THE POSTGREST FORM OF THE SAME QUESTION — "events this host is
+ * responsible for", as an `.or()` filter.
+ *
+ * ⚠⚠ MOVED HERE FROM `HostDashboard` (2026-08-16), where its own header called
+ * it "the ONE definition" while being private to that file. The Discover
+ * shortlist sheet has to ask the identical question, and a second copy is how
+ * two surfaces come to disagree about which events you own.
+ *
+ * Responsibility follows OWNERSHIP (identity v1.3 O-R4). `owner_profile_id` is
+ * authority and works for claimed and unclaimed profiles alike; `host_id` is
+ * authorship — the account that created the row — and survives only as a
+ * backward-compatibility arm.
+ *
+ * ⛔⛔ BOTH ARMS OR NEITHER. `host_id` is NULL on 82 of 92 events, so an
+ * owner-only filter is not "stricter", it is wrong for the ten it does match;
+ * and a host_id-only filter misses almost everything. Dropping either arm is
+ * the same class of mistake that once locked owners out of their own events in
+ * RLS and in the client at the same time.
+ */
+export function ownedByFilter(userId, hostProfileId) {
+  const arms = [];
+  if (hostProfileId) arms.push(`owner_profile_id.eq.${hostProfileId}`);
+  if (userId) arms.push(`host_id.eq.${userId}`);
+  return arms.join(',');
+}
