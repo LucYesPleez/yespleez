@@ -118,6 +118,7 @@ export default function EventScreen() {
         claimsBySlot={d.claimsBySlot}
         session={session}
         lineupMembers={d.lineupMembers}
+      shortlistMembers={d.shortlistMembers}
         perfsByMember={d.perfsByMember}
         memberProfiles={d.memberProfiles}
         lineupPct={d.lineupPct}
@@ -169,6 +170,7 @@ export default function EventScreen() {
       coHostProfiles={d.coHostProfiles}
       venueProfile={d.venueProfile}
       lineupMembers={d.lineupMembers}
+      shortlistMembers={d.shortlistMembers}
       memberProfiles={d.memberProfiles}
       favourited={like.liked}
       onToggleFavourite={session?.user?.id

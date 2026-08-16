@@ -18,7 +18,7 @@ import { findOpenAsksForDate, declineOpenAsks } from '../../lib/dateLockout';
 import { durationLabel } from '../../lib/eventSlots';
 import { memberState, STATE_COLOURS } from '../../lib/hostLineup';
 import { normaliseStatus, rawStatusesFor, PIPELINE_BUCKETS, STATUS_TAB_COLOR } from '../../lib/enquiryUtils';
-import { planUnassign, planMoveToShortlist, applyLineupPlan, notifiablePerformances, isReachable } from '../../lib/lineupActions';
+import { planUnassign, planMoveToShortlist, planRemoveFromEvent, applyLineupPlan, notifiablePerformances, isReachable } from '../../lib/lineupActions';
 import { planAddToBill, addToBill, findExistingMember } from '../../lib/lineupFromApplication';
 import { PROFILE_CARD_META_COLUMNS } from '../../components/ProfileCard';
 import WorkItemCard, { applicationWorkState, lineupWorkState } from '../../components/WorkItemCard';
@@ -47,7 +47,7 @@ import s from '../EventScreen.module.css';
 
 export default function EventHostView({
   id, event, cfg, session, ownerProfile, venueProfile,
-  claims, claimsBySlot = {}, days, lineupMembers, perfsByMember = {}, memberProfiles,
+  claims, claimsBySlot = {}, days, lineupMembers, shortlistMembers = [], perfsByMember = {}, memberProfiles,
   poster, posterFull, genres, isPast,
   showTimesPublicly, totalSlots, takenSlots, lineupPct, isLocked, draftCount,
 }) {
@@ -388,7 +388,29 @@ export default function EventHostView({
    * application can no longer become invisible by being spelled differently.
    */
   const bucketOf   = a => normaliseStatus({ status: a.status, direction: 'incoming' });
-  const shortList  = allApps.filter(a => bucketOf(a) === 'shortlisted');
+  /**
+   * ⭐⭐ THE SHORTLIST IS A PLACE, NOT A WORD ON AN APPLICATION (ratified
+   * 2026-08-16). It holds artists you are ACTIVELY CONSIDERING, whether they
+   * applied, you found them in search, or you played them last month.
+   *
+   * ⚠⚠ TWO SOURCES, ONE LIST, AND THE MEMBER WINS. A `lineup_members` row with
+   * `status='shortlisted'` is the real thing; a `shortlisted` APPLICATION is the
+   * legacy shape from when this tab was a filter over applications. Both render,
+   * but an applicant who already has a member row must appear ONCE — production
+   * has exactly this case, and both of its shortlisted applications already had
+   * a member.
+   *
+   * ⛔ SHORTLIST IS NOT A BIN. Dropping somebody from the event is its own
+   * explicit act from this tab; calling this a holding pen is what turns the
+   * status into a garbage state.
+   */
+  const shortlistApps = allApps.filter(a =>
+    bucketOf(a) === 'shortlisted'
+    && !findExistingMember(a, shortlistMembers, appProfiles[a.id] || null)
+    && !findExistingMember(a, lineupMembers, appProfiles[a.id] || null));
+  /* ⚠ Kept under its old name for the tab COUNT and the header, which have
+     always meant "how many am I considering". It is now both sources. */
+  const shortList  = [...shortlistMembers, ...shortlistApps];
   /**
    * ⚠⚠ `new` AND `seen`. Matching `new` alone meant OPENING an application
    * dropped it out of the queue, because `EnquiryCard` auto-writes `seen` on
@@ -397,15 +419,21 @@ export default function EventHostView({
    */
   const pipeline   = allApps.filter(a => PIPELINE_BUCKETS.includes(bucketOf(a)));
   /**
-   * ⭐ ACCEPTED HAD NO HOME. Ten of the thirteen applications in production are
-   * `accepted`, and no tab rendered them — the host said yes and nothing on
-   * screen showed it. This tab makes them visible.
+   * ⭐⭐ THE ORPHANS — accepted, and on nobody's bill.
    *
-   * ⛔ VISIBLE, NOT ACTED ON. Nothing here creates a `lineup_member`; the
-   * SHORT LIST → LINEUP transition is deliberately not built yet, and an
-   * accepted application still does not gate the bill.
+   * ⚠⚠ A STATE THE MODEL NO LONGER CREATES. Since ADD TO LINEUP *is* the
+   * acceptance, "accepted" and "on the bill" arrive together. Five rows in
+   * production predate that and were told yes without ever being booked.
+   *
+   * ⛔ NOT AN `acceptedApps` LIST ANY MORE. Accepted applicants who ARE on the
+   * bill belong to the LINEUP and are excluded here — otherwise this tab would
+   * show four people who are already booked and read as a workspace rather than
+   * a one-time cleanup.
    */
-  const acceptedApps = allApps.filter(a => bucketOf(a) === 'accepted');
+  const orphanedAccepted = allApps.filter(a =>
+    bucketOf(a) === 'accepted'
+    && !findExistingMember(a, lineupMembers, appProfiles[a.id] || null)
+    && !findExistingMember(a, shortlistMembers, appProfiles[a.id] || null));
 
   async function doAssign(slot) {
     if (!assigningApp) return;
@@ -471,6 +499,30 @@ export default function EventHostView({
   /* ⛔ `openProfile`/`hasProfile` DELETED — navigation moved INTO the card.
      WorkItemCard’s panel owns PROFILE, MESSAGE and FOLLOW now, so the tabs no
      longer each carry their own copy of the id-first routing rule. */
+
+  /**
+   * ⭐⭐ SHORTLIST → LINEUP for a member who is already on the event.
+   *
+   * ⚠ A STATUS FLIP, ⛔ NOT AN INSERT. `addApplicantToBill` exists for an
+   * APPLICATION and creates the member row; this row already exists, and
+   * inserting a second one is precisely the duplication that produced eight
+   * junk members in production on 2026-08-15.
+   *
+   * ⛔ NOTHING IS WRITTEN TO `applications`. A member you shortlisted yourself
+   * may have no application at all, and one that does is not answered by this —
+   * membership does not reach back and rewrite the decision record.
+   *
+   * ⛔ NO PERFORMANCE. Being on the bill is not being given a time.
+   */
+  async function promoteMemberToBill(member) {
+    const { error } = await supabase.from('lineup_members')
+      .update({ status: 'on_bill', updated_at: new Date().toISOString() })
+      .eq('id', member.id);
+    /* ⚠ SURFACED, NEVER SWALLOWED — RLS filters an UPDATE rather than erroring
+       it, so a blocked write looks exactly like a button that did nothing. */
+    if (error) { setLineupError(error.message); return; }
+    queryClient.invalidateQueries({ queryKey: ['event', id] });
+  }
 
   async function doAssignMember(slot) {
     if (!assigningMember) return;
@@ -632,12 +684,32 @@ export default function EventHostView({
            * ⛔ ORDER ONLY — the keys, labels and counts are untouched, and
            * `eventTab` still defaults to LINEUP.
            */
+          /**
+           * ⭐⭐ FOUR WORKSPACES, IN FUNNEL ORDER (ratified 2026-08-16).
+           * LINEUP · SET TIMES · SHORTLIST · PIPELINE.
+           *
+           * ⛔ ACCEPTED IS NO LONGER ONE OF THEM. It was the redundant middle:
+           * ADD TO LINEUP *is* the acceptance, so a separate "you said yes but
+           * they're not on the bill" workspace described a state the model no
+           * longer creates. `applications.status = 'accepted'` survives as
+           * history, notifications and audit — ⛔ just not as a destination.
+           *
+           * ⭐⭐ THE ORPHAN TAB IS SELF-ELIMINATING. Five accepted applications
+           * in production have no lineup member — real people who were told yes
+           * and never booked. Dropping the tab outright would strand them where
+           * no surface shows them, and backfilling them into `lineup_members`
+           * would assert a booking the host never made. So the tab renders ONLY
+           * while such rows exist, says exactly what they are, and disappears
+           * for good once they are cleared. ⛔ Do not make it permanent.
+           */
           tabs={[
             { key: 'LINEUP',    label: `LINEUP${lineupMembers.length ? ` (${lineupMembers.length})` : ''}` },
             { key: 'SET_TIMES', label: 'SET TIMES' },
-            { key: 'ACCEPTED',  label: `ACCEPTED${acceptedApps.length ? ` (${acceptedApps.length})` : ''}` },
-            { key: 'SHORTLIST', label: `SHORT LIST${shortList.length ? ` (${shortList.length})` : ''}` },
+            { key: 'SHORTLIST', label: `SHORTLIST${shortList.length ? ` (${shortList.length})` : ''}` },
             { key: 'PIPELINE',  label: `PIPELINE${pipeline.length ? ` (${pipeline.length})` : ''}` },
+            ...(orphanedAccepted.length
+              ? [{ key: 'ACCEPTED', label: `NOT BOOKED (${orphanedAccepted.length})` }]
+              : []),
           ]}
         />
       )}
@@ -855,15 +927,33 @@ export default function EventHostView({
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {shortList.length === 0
             ? <p style={{ textAlign: 'center', color: 'var(--muted)', fontSize: 13, padding: '32px 0' }}>No artists shortlisted yet.</p>
-            : shortList.map(app => {
-              const prof = appProfiles[app.id] || {};
-              // ProfileCard routes on `id` first: without it an unclaimed
-              // applicant's card is unclickable (same rule as the lineup cards
-              // above). `user_id` stays for the legacy route.
-              const cardItem = { id: prof.id || null, user_id: app.artist_id, name: prof.name || app.artist_name, type: prof.type || 'artist', avatar: prof.avatar || null, avatar_thumb: prof.avatar_thumb || null, sound: prof.sound || null, genre_string: prof.genre_string || null, location: prof.location || null, state: prof.state || null };
+            : shortList.map(row => {
+              /**
+               * ⚠⚠ TWO SHAPES IN ONE LIST. A `lineup_members` row carries
+               * `artist_profile_id`; an application carries `from_profile_id`
+               * and lives in `appProfiles`. ⛔ Reading one shape's fields off
+               * the other silently yields `undefined`, which renders as a card
+               * with no name and no picture rather than as an error.
+               */
+              const isMember = !!row.status;
+              const prof = isMember
+                ? (memberProfiles[row.id] || null)
+                : (appProfiles[row.id] || null);
+              const cardItem = {
+                id:           prof?.id || (isMember ? row.artist_profile_id : null) || null,
+                user_id:      row.artist_id || null,
+                name:         prof?.name || row.artist_name || 'Unnamed act',
+                type:         prof?.type || 'artist',
+                avatar:       prof?.avatar || null,
+                avatar_thumb: prof?.avatar_thumb || null,
+                sound:        prof?.sound || (isMember ? row.sound : null) || null,
+                genre_string: prof?.genre_string || (isMember ? row.genre : null) || null,
+                location:     prof?.location || null,
+                state:        prof?.state || null,
+              };
               return (
-                <WorkItemCard key={app.id} kind="application" item={cardItem}
-                  tags={prof?.card_pills}
+                <WorkItemCard key={row.id} kind="application" item={cardItem}
+                  tags={prof?.card_pills || (isMember ? row.card_pills : null)}
                   viewerProfileId={event?.owner_profile_id || null}
                   stateLabel="SHORTLISTED" stateColor={STATUS_TAB_COLOR.SHORTLISTED}
                   actions={
@@ -876,15 +966,24 @@ export default function EventHostView({
                           performance in one press, which is three decisions
                           behind one label, on the tab whose job is the first of
                           them. */}
-                      {!findExistingMember(app, lineupMembers, appProfiles[app.id] || null) && (
-                        <DecisionBtn tone="accept" icon={CheckIcon} label="ADD TO BILL"
-                          onClick={() => addApplicantToBill(app)} />
-                      )}
-                      {/* ⚠ "DECLINE", NOT "DROP" (owner, 2026-08-15). It writes
-                          `status: 'declined'` — the same value the dashboard's
-                          DECLINE writes. One word for one write. */}
-                      <DecisionBtn tone="decline" icon={XIcon} label="DECLINE"
-                        onClick={() => { supabase.from('applications').update({ status: 'declined' }).eq('id', app.id); setAllApps(prev => prev.map(a => a.id === app.id ? { ...a, status: 'declined' } : a)); }} />
+                      <DecisionBtn tone="accept" icon={CheckIcon} label="ADD TO LINEUP"
+                        onClick={() => isMember ? promoteMemberToBill(row) : addApplicantToBill(row)} />
+                      {/**
+                        * ⭐ THE TWO EXITS ARE DIFFERENT FACTS, so they are
+                        * different words. An APPLICATION is declined — that is
+                        * an answer to a person who asked. A member you added
+                        * yourself was never asking, so there is nothing to
+                        * decline; they simply come off the event.
+                        */}
+                      {isMember
+                        ? (
+                          <DecisionBtn tone="decline" icon={XIcon} label="REMOVE FROM EVENT"
+                            onClick={() => runLineupAction(planRemoveFromEvent(row, []), row)} />
+                        )
+                        : (
+                          <DecisionBtn tone="decline" icon={XIcon} label="DECLINE"
+                            onClick={() => { supabase.from('applications').update({ status: 'declined' }).eq('id', row.id); setAllApps(prev => prev.map(a => a.id === row.id ? { ...a, status: 'declined' } : a)); }} />
+                        )}
                     </div>
                   }
                 />
@@ -934,7 +1033,7 @@ export default function EventHostView({
       )}
 
       {/**
-        * ACCEPTED tab — the ten applications that had nowhere to appear.
+        * NOT BOOKED — the one-time cleanup, ⛔ not a workspace.
         *
         * ⛔ NOTHING HERE IS AUTOMATIC. An accepted application does not become
         * bill membership on its own — ADD TO BILL is an explicit host action,
@@ -951,15 +1050,20 @@ export default function EventHostView({
         */}
       {effectiveIsHost && showEditor && eventTab === 'ACCEPTED' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {acceptedApps.length === 0
-            ? <p style={{ textAlign: 'center', color: 'var(--muted)', fontSize: 13, padding: '32px 0' }}>Nobody accepted yet.</p>
+          {orphanedAccepted.length === 0
+            /* ⛔ UNREACHABLE, and deliberately harmless. The tab is not rendered
+               at all once this list empties, so nobody can land here — but a
+               branch that assumes it cannot be reached is how a blank screen
+               ships. */
+            ? <p style={{ textAlign: 'center', color: 'var(--muted)', fontSize: 13, padding: '32px 0' }}>Nothing left to clear.</p>
             : <>
-              {/* ⚠ Says what this tab is NOT, because the obvious reading of
-                  "accepted" is "on the bill" and that is not what it means. */}
+              {/* ⚠ Says plainly that this is a cleanup with an end, not a stage
+                  of the funnel. The obvious reading of "accepted" is "on the
+                  bill", and for these five it never was. */}
               <p style={{ fontSize: 12, color: 'var(--muted)', margin: '0 0 4px', lineHeight: 1.5 }}>
-                You said yes to these applications. Adding them to the bill is still a separate step.
+                You told these artists yes and they were never added to the lineup. Add them or decline them — once this list is empty it will not come back.
               </p>
-              {acceptedApps.map(app => {
+              {orphanedAccepted.map(app => {
                 const prof = appProfiles[app.id] || {};
                 const cardItem = { id: prof.id || null, user_id: app.artist_id, name: prof.name || app.artist_name, type: prof.type || 'artist', avatar: prof.avatar || null, avatar_thumb: prof.avatar_thumb || null, sound: prof.sound || null, genre_string: prof.genre_string || null, location: prof.location || null, state: prof.state || null };
                 /* ⚠ Is this accepted applicant ALREADY on the bill? Answered

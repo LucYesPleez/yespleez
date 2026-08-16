@@ -102,13 +102,24 @@ export function useEventData(id, navigate) {
        * nothing may key on it again.
        */
       const [{ data: membersData }, { data: perfsData }, { data: slotRows }] = await Promise.all([
-        supabase.from('lineup_members').select('id, artist_id, artist_profile_id, artist_name, genre, sound, card_pills').eq('event_id', id).eq('status', 'on_bill'),
+        /* ⚠ BOTH STATUSES IN ONE READ so shortlist cards resolve profiles in the
+           same pass. They are split immediately below — ⛔ nothing downstream may
+           receive the mixed array. */
+        supabase.from('lineup_members').select('id, artist_id, artist_profile_id, artist_name, genre, sound, card_pills, status').eq('event_id', id).in('status', ['on_bill', 'shortlisted']),
         supabase.from('performances').select('id, lineup_member_id, slot_id, slot_uuid, status').eq('event_id', id),
         supabase.from('event_slots').select('id, event_id, day_index, day_name, position, legacy_key, time, ampm, dur_mins, label, label_color, pinned')
           .eq('event_id', id).order('day_index').order('position'),
       ]);
+      /* ⛔⛔ THE BILL IS `on_bill` ONLY. A shortlisted member is somebody you are
+         CONSIDERING; they must never reach the lineup, the tally, the public page
+         or the set-times grid. */
+      const billMembers  = (membersData || []).filter(m => m.status === 'on_bill');
+      const shortMembers = (membersData || []).filter(m => m.status === 'shortlisted');
+      /* ⚠ KEYED ON THE BILL ONLY. `indexPerformances` turns rows into slot claims;
+         a stray performance still pointing at a shortlisted member would otherwise
+         surface as somebody playing a slot they are not booked for. */
       const membersById = {};
-      (membersData || []).forEach(m => { membersById[m.id] = m; });
+      billMembers.forEach(m => { membersById[m.id] = m; });
       const { bySlot: claimsBySlot, primary: map } = indexPerformances(perfsData, membersById);
       const slotDays = groupSlotsIntoDays(slotRows);
       // M5.1 (D1): socials resolve by the slot's own profile id — deterministic
@@ -190,7 +201,7 @@ export function useEventData(id, navigate) {
       return {
         event: ev, ownerProfile, venueProfile, coHostProfiles,
         claims: map, claimsBySlot, slotDays,
-        lineupMembers: membersData || [], perfsByMember, memberProfiles,
+        lineupMembers: billMembers, shortlistMembers: shortMembers, perfsByMember, memberProfiles,
       };
     },
     enabled: !!id,
@@ -203,6 +214,7 @@ export function useEventData(id, navigate) {
   const claims         = data?.claims         || {};
   const claimsBySlot   = data?.claimsBySlot   || {};
   const lineupMembers  = data?.lineupMembers  || [];
+  const shortlistMembers = data?.shortlistMembers || [];
   const perfsByMember  = data?.perfsByMember  || {};
   const memberProfiles = data?.memberProfiles || {};
 
@@ -240,7 +252,7 @@ export function useEventData(id, navigate) {
   const lineupPct  = totalSlots > 0 ? Math.round((takenSlots / totalSlots) * 100) : 0;
 
   return {
-    loading, event, ownerProfile, venueProfile, coHostProfiles, claims, claimsBySlot, lineupMembers, perfsByMember, memberProfiles,
+    loading, event, ownerProfile, venueProfile, coHostProfiles, claims, claimsBySlot, lineupMembers, shortlistMembers, perfsByMember, memberProfiles,
     cfg, days, poster, posterFull, genres,
     isLocked, draftCount, showTimesPublicly, isPast,
     totalSlots, takenSlots, lineupPct,
