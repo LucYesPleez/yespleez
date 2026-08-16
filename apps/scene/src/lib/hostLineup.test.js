@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { buildHostLineup, memberState, totalOnBill } from './hostLineup.js';
+import { buildHostLineup, memberState, totalOnBill, billCapacity, billFullMessage } from './hostLineup.js';
 
 /**
  * BASS HEAVY IS THE REGRESSION CASE (owner, 2026-08-15).
@@ -160,4 +160,45 @@ test('the header count is the bill, across every event', () => {
   const groups = buildHostLineup({ events: [bassHeavy, emptyNight], members: bassMembers() });
   assert.equal(totalOnBill(groups), 4, 'was count(applications accepted), which was 3 in the whole database');
   assert.equal(totalOnBill([]), 0);
+});
+
+/* ── ⛔ THE BILL CANNOT OUTGROW THE RUNNING ORDER ──────────────────────────── */
+
+test('⛔ a full bill refuses the next act', () => {
+  assert.equal(billCapacity(5, 5).full, true);
+  assert.equal(billCapacity(4, 5).full, false);
+  assert.equal(billCapacity(4, 5).remaining, 1);
+});
+
+/**
+ * ⛔⛔ NO SLOTS IS NOT A CAP OF ZERO. An event with "set times needed" switched
+ * off has no `event_slots` rows on purpose, and reading that as "room for
+ * nobody" would make the bill unusable on exactly the events that need the
+ * least ceremony.
+ */
+test('⛔⛔ an event with no running order is NOT capped at zero', () => {
+  const cap = billCapacity(9, 0);
+  assert.equal(cap.capped, false);
+  assert.equal(cap.full, false);
+  assert.equal(billCapacity(9, null).full, false);
+  assert.equal(billCapacity(9, undefined).full, false);
+});
+
+/**
+ * ⚠ THE EXISTING 7/5 EVENTS STILL LOAD. The rule stops a new add; it cannot
+ * retroactively unbook anybody, and `remaining` must not go negative and read
+ * as "-2 places left" somewhere downstream.
+ */
+test('⚠ an already-over bill is full, and never reports negative room', () => {
+  const cap = billCapacity(7, 5);
+  assert.equal(cap.full, true);
+  assert.equal(cap.remaining, 0);
+});
+
+test('the refusal names the number and says what to do about it', () => {
+  const msg = billFullMessage(5);
+  assert.match(msg, /5 set times/);
+  assert.match(msg, /shortlist/i, 'a refusal with no way out is a dead end');
+  assert.doesNotMatch(msg, /—/, 'no em dashes in user-facing copy');
+  assert.match(billFullMessage(1), /1 set time\b/, 'singular, not "1 set times"');
 });

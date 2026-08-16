@@ -146,10 +146,9 @@ export default function WorkItemCard({
 
   const sound = item.sound || genres.slice(0, 3).join(' · ') || '';
 
-  /* ⚠ THE FULL LIST, for the panel — ⛔ not sliced to three like the face, and
-     ⛔ not suppressed when `sound` won: an act with words of their own shows
-     its genres NOWHERE unless this row carries them. */
-  const genreLine = genres.join(' · ');
+  /* ⛔ `genreLine` IS GONE with the GENRES row (owner, 2026-08-16). ⚠ `genres`
+     itself stays — the face's `sound` line still falls back to the first three
+     when an act has no words of its own. */
 
   /* `card_pills` is a delimited string on a profiles row and an array from
      some callers — accept both, and treat any other shape as no tags rather
@@ -179,7 +178,10 @@ export default function WorkItemCard({
 
   /* The panel is worth opening only if it would hold something. ⛔ A
      disclosure that reveals an empty box is worse than no disclosure. */
-  const hasPanel = !!(actions || tagList.length || genreLine || canOpenProfile || viewerProfileId);
+  /* ⚠ `genreLine` DROPPED FROM THIS TEST TOO, deliberately. It let a card with
+     nothing but genres open a panel that now has nothing in it — a chevron
+     that rewards a tap with an empty box. */
+  const hasPanel = !!(actions || tagList.length || canOpenProfile || viewerProfileId);
 
   return (
     <article
@@ -318,25 +320,20 @@ export default function WorkItemCard({
               the profile behind PROFILE carries it in full. */}
 
           {/**
-            * ⭐ THE GENRES, IN FULL (owner, 2026-08-16: the dropdown gets "the
-            * genres and the info thats currently there as is").
+            * ⛔⛔ THE GENRES ROW IS GONE (owner, 2026-08-16: "remove genres from
+            * cards. keep 5 tags"). It listed every genre in full and ran to
+            * three wrapped lines on a real act, which pushed the ACTIONS —
+            * the reason the panel opens — below the fold.
             *
-            * ⚠⚠ THIS IS ⛔ NOT A DUPLICATE OF THE SOUND LINE ON THE FACE. That
-            * line prefers the act's OWN WORDS and only falls back to genres,
-            * truncated to three. So for an act with a `sound` the genres appear
-            * nowhere until this row exists, and for an act without one the face
-            * is showing a THIRD of the list. The panel is the complete answer.
+            * ⚠ The act's own five tags stay and are now the only taxonomy here:
+            * curated by them, ⛔ not a machine's list of everything they have
+            * ever been filed under. The `sound` line on the card face is
+            * untouched.
             *
-            * ⛔ Reuses `.panelRow`/`.panelLabel`/`.panelValue`, which the
-            * removed HOME TOWN row left behind — ⛔ do not invent a fourth
-            * label style for the one row that still needs one.
+            * ⛔ Do not "restore the full genres for completeness" — the profile
+            * behind PROFILE carries them, and this panel is for deciding who
+            * plays, not for browsing.
             */}
-          {genreLine && (
-            <div className={s.panelRow}>
-              <span className={s.panelLabel}>GENRES</span>
-              <span className={s.panelValue}>{genreLine}</span>
-            </div>
-          )}
 
           {tagList.length > 0 && (
             /* Their own curated five, ⛔ not a genre guess. `.spot-tag` is the

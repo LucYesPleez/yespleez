@@ -28,6 +28,10 @@
  */
 
 /** Is this applicant already on this event's bill? */
+/* ⭐ THE CAP LIVES WITH THE BILL, ⛔ not here. `hostLineup` owns what the bill
+   IS; this module owns one arrow into it and asks that module the question. */
+import { billCapacity, billFullMessage } from './hostLineup';
+
 export function findExistingMember(app, members = [], profile = null) {
   if (!app) return null;
   /**
@@ -54,8 +58,26 @@ export function findExistingMember(app, members = [], profile = null) {
  * @returns {{ok:false, reason:string}}
  *        | {{ok:true, member:object, statusUpdate:?string, notify:?string}}
  */
-export function planAddToBill(app, profile = null, members = []) {
+/**
+ * @param opts.totalSlots ⭐ THE CAP. Omitted or 0 means "this event has no
+ *   running order", which is ⛔ NOT a cap of zero — see `billCapacity`.
+ */
+export function planAddToBill(app, profile = null, members = [], opts = {}) {
   if (!app?.event_id) return { ok: false, reason: 'no application' };
+
+  /**
+   * ⛔⛔ THE BILL CANNOT OUTGROW THE RUNNING ORDER (owner, 2026-08-16).
+   *
+   * ⚠ CHECKED HERE, in the planner, ⛔ not at the button. Three surfaces add to
+   * a bill and a rule enforced at one of them is a rule that holds two thirds
+   * of the time — which is worse than none, because it looks enforced.
+   *
+   * ⚠ Counts `on_bill` ONLY. A shortlisted member is somebody you are
+   * considering and occupies no slot, so they must not consume the capacity.
+   */
+  const onBill = (members || []).filter(m => m?.status === 'on_bill').length;
+  const cap = billCapacity(onBill, opts.totalSlots);
+  if (cap.full) return { ok: false, reason: billFullMessage(cap.total), full: true };
 
   /**
    * ⛔ IDEMPOTENT. The button can be double-tapped, and the ACCEPTED tab and

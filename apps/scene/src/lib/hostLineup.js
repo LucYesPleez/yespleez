@@ -144,3 +144,39 @@ export function buildHostLineup({
 export function totalOnBill(groups = []) {
   return (groups || []).reduce((n, g) => n + (g.members?.length || 0), 0);
 }
+
+/**
+ * ⭐⭐ THE BILL CANNOT EXCEED THE RUNNING ORDER (owner, 2026-08-16: "i dont
+ * want it to be possible to have 7/5 on the lineup").
+ *
+ * ⚠⚠ THIS REVERSES the warning-only decision taken earlier the same day. The
+ * amber `7 / 5` tile stays — it still has to describe the events already in
+ * that state, which a new rule cannot retroactively fix — but no NEW add may
+ * create one.
+ *
+ * ⛔⛔ NO SLOTS MEANS NO CAP, ⛔ NOT A CAP OF ZERO. An event with "set times
+ * needed" switched off has zero `event_slots` rows on purpose — a community
+ * night with no running order. Reading that as "room for nobody" would make
+ * the bill unusable on exactly the events that need the least ceremony, and it
+ * would look like a bug rather than a rule.
+ *
+ * @returns {{ capped: boolean, full: boolean, remaining: number, total: number }}
+ */
+export function billCapacity(onBillCount = 0, totalSlots = 0) {
+  const total = Number(totalSlots) || 0;
+  if (total <= 0) return { capped: false, full: false, remaining: Infinity, total: 0 };
+  const remaining = total - (Number(onBillCount) || 0);
+  return { capped: true, full: remaining <= 0, remaining: Math.max(remaining, 0), total };
+}
+
+/**
+ * ⚠ THE SENTENCE THE HOST READS. Kept beside the rule so every surface refuses
+ * in the same words — ⛔ a screen inventing its own phrasing is how two places
+ * come to describe one rule differently.
+ *
+ * ⚠ It says what to DO, not merely what failed: the way out is to add a slot
+ * or take somebody off, and neither is obvious from "the lineup is full".
+ */
+export function billFullMessage(total) {
+  return `This event has ${total} set ${total === 1 ? 'time' : 'times'} and the lineup is already full. Add another set time, or move somebody to the shortlist first.`;
+}

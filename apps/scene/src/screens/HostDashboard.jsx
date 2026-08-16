@@ -12,7 +12,7 @@ import s from './HostDashboard.module.css';
    and the enquiry cards above still render readiness from them. */
 import { PROFILE_CARD_META_COLUMNS } from '../components/ProfileCard';
 import WorkItemCard, { applicationWorkState, lineupWorkState } from '../components/WorkItemCard';
-import { DecisionBtn, StarIcon, XIcon } from '../components/DecisionButtons';
+import { DecisionBtn, StarIcon, XIcon, CheckIcon } from '../components/DecisionButtons';
 import { HOST_CATEGORIES } from '../lib/profileTaxonomy';
 import { PROFILE_TYPES } from '../lib/profileTypes';
 import { completionFor, firstUnsettled } from '@yespleez/requirements';
@@ -38,8 +38,9 @@ import { buildHostLineup, STATE_COLOURS } from '../lib/hostLineup';
 import { findExistingMember } from '../lib/lineupFromApplication';
 /* ⭐⭐ THE SAME EXECUTOR THE EVENT PAGE USES. ⛔ Not a copy of its rules — this
    screen may not decide what a removal destroys or who hears about it. */
-import { planUnassign, executeLineupPlan } from '../lib/lineupActions';
+import { planUnassign, planMoveToShortlist, planRemoveFromEvent, executeLineupPlan, assignMemberToSlot } from '../lib/lineupActions';
 import FillSlotModal from '../components/FillSlotModal';
+import AssignSlotSheet from '../components/AssignSlotSheet';
 import DashboardHeader from '../components/DashboardHeader';
 import MyVenueSubmissions from '../components/MyVenueSubmissions';
 import DashboardProfileCard from '../components/DashboardProfileCard';
@@ -121,6 +122,8 @@ export default function HostDashboard({ userId: userIdProp }) {
   const [claimsMap,      setClaimsMap]      = useState({});   // eventId → { slotId → claim }
   const [editingSlot,   setEditingSlot]    = useState(null); // { ev, dayIdx, slotIdx, slot }
   const [fillSlot,      setFillSlot]       = useState(null); // { ev, slot }
+  const [confirmExit,   setConfirmExit]    = useState(null); // { ev, member, name }
+  const [assigning,     setAssigning]      = useState(null); // { ev, member, name }
   const [following,      setFollowing]      = useState([]);
   const [loadingFollowing, setLoadingFollowing] = useState(false);
   const [followView,    setFollowView]    = useState('portrait');
@@ -480,19 +483,43 @@ export default function HostDashboard({ userId: userIdProp }) {
   }
 
 
-  async function saveSlot(ev, dayIdx, slotIdx, updated) {
-    const newDays = ev.config.days.map((day, di) =>
-      di !== dayIdx ? day : {
-        ...day,
-        slots: day.slots.map((sl, si) => si !== slotIdx ? sl : { ...sl, ...updated }),
-      }
-    );
-    const newConfig = { ...ev.config, days: newDays };
-    await supabase.from('events').update({ config: newConfig }).eq('id', ev.id);
-    setLineups(prev => prev.map(g =>
-      g.event.id !== ev.id ? g : { ...g, event: { ...g.event, config: newConfig } }
-    ));
+  /**
+   * ⛔⛔ THIS WROTE THE WRONG STORE, AND THE SAVE LOOKED LIKE A NO-OP.
+   *
+   * ⚠⚠ It rebuilt `events.config.days[].slots[]` — the JSON BLOB — and wrote
+   * that back. Since L2 the slots ARE ROWS and this screen reads
+   * `event_slots` (`groupSlotsIntoDays(slotRows)`), so the write landed
+   * somewhere nothing renders from: clearing a slot's label appeared to do
+   * nothing, and re-opening the editor showed the old value again because the
+   * row it came from never changed.
+   *
+   * ⭐ Same class as the `slot_uuid` defect — a reader migrated to the new
+   * store and a writer left on the old one. ⛔ Do not restore the blob write.
+   *
+   * ⚠ IDENTICAL TO `EventHostView.saveSlot`, deliberately: one row, one
+   * update, keyed by `slot.id`. The `dayIdx`/`slotIdx` pair it used to need is
+   * gone with it — those were positions into the blob, and a reorder between
+   * render and save pointed them at the wrong slot.
+   *
+   * ⚠ `dur_mins` is NOT NULL with a default, so a cleared duration must fall
+   * back to 60 rather than write null and fail the constraint silently.
+   */
+  async function saveSlot(slotId, updated) {
+    const { error } = await supabase.from('event_slots').update({
+      time:        updated.time || null,
+      ampm:        updated.ampm || null,
+      dur_mins:    Number.isFinite(Number(updated.dur)) && Number(updated.dur) > 0 ? Number(updated.dur) : 60,
+      /* ⭐ `|| null` IS WHAT CLEARS IT. An empty label must become NULL, or the
+         green text the owner tried to delete stays exactly where it was. */
+      label:       updated.label || null,
+      label_color: updated.labelColor || null,
+      updated_at:  new Date().toISOString(),
+    }).eq('id', slotId);
+    /* ⛔ SURFACED, NEVER SWALLOWED — this write reported success while doing
+       nothing for long enough that the owner reported it as a bug. */
+    if (error) { setLineupError(error.message); return; }
     setEditingSlot(null);
+    setLineupReload(n => n + 1);
   }
 
   /**
@@ -540,6 +567,58 @@ export default function HostDashboard({ userId: userIdProp }) {
       notify: writeNotification,
       resolveProfileId: resolvePerformerProfileId,
     });
+    if (!ok) { setLineupError(error); return; }
+    setLineupReload(n => n + 1);
+  }
+
+  /**
+   * ⭐⭐ MOVE TO SHORTLIST, FROM THE SET TIMES TAB — the bill exit the owner
+   * expected REMOVE to be. `removeFromSlot` clears the time and keeps them on
+   * the bill; this takes them off it and back to active consideration.
+   *
+   * ⚠ ALL their performances, ⛔ not just this slot's. They are leaving the
+   * bill, so a set time on another slot cannot outlive them. `removeFromSlot`
+   * passes one performance for exactly the opposite reason.
+   */
+  async function demoteFromSlot(ev, slot) {
+    const claim = claimsMap[ev.id]?.[slot.id];
+    if (!claim?.member) return;
+    const { data: perfs } = await supabase.from('performances')
+      .select('id, status, slot_uuid').eq('lineup_member_id', claim.member.id);
+    const rows = perfs || [];
+    const { ok, error } = await executeLineupPlan(supabase, planMoveToShortlist(claim.member, rows), {
+      member: claim.member,
+      perfs: rows,
+      event: ev,
+      notify: writeNotification,
+      resolveProfileId: resolvePerformerProfileId,
+    });
+    if (!ok) { setLineupError(error); return; }
+    setLineupReload(n => n + 1);
+  }
+
+  /**
+   * ⭐⭐ THE BILL EXITS, FROM A LINEUP CARD — the dashboard's twin of the event
+   * page's dialog. ⚠ Both exits, because one without the other is the gap the
+   * owner hit: an act could be demoted but never taken off, or the reverse.
+   *
+   * ⛔ NO RULES HERE. `planMoveToShortlist` and `planRemoveFromEvent` differ by
+   * exactly one field and `executeLineupPlan` decides who is told — this
+   * function picks which plan and refreshes.
+   */
+  async function exitMember(ev, member, mode) {
+    const { data: perfs } = await supabase.from('performances')
+      .select('id, status, slot_uuid').eq('lineup_member_id', member.id);
+    const rows = perfs || [];
+    const plan = mode === 'remove'
+      ? planRemoveFromEvent(member, rows)
+      : planMoveToShortlist(member, rows);
+    const { ok, error } = await executeLineupPlan(supabase, plan, {
+      member, perfs: rows, event: ev,
+      notify: writeNotification,
+      resolveProfileId: resolvePerformerProfileId,
+    });
+    setConfirmExit(null);
     if (!ok) { setLineupError(error); return; }
     setLineupReload(n => n + 1);
   }
@@ -1179,6 +1258,47 @@ export default function HostDashboard({ userId: userIdProp }) {
                                     subState={work.setTime} needsAction={work.needsAction}
                                     tags={m.profile?.card_pills || m.member.card_pills}
                                     viewerProfileId={profile?.id || null}
+                                    /**
+                                      * ⭐⭐ THE SAME PANEL AS THE EVENT PAGE
+                                      * (owner, 2026-08-16). ⛔ The note that
+                                      * used to sit here said "NO `actions` —
+                                      * the dashboard performs no lineup work",
+                                      * and that is no longer the rule: it
+                                      * removes from slots, replaces artists and
+                                      * now takes acts off the bill.
+                                      *
+                                      * ⚠⚠ THE TWIN RULE STILL BINDS — this call
+                                      * and `EventHostView`'s must agree. ⛔
+                                      * Change one, change both.
+                                      *
+                                      * ⚠ ASSIGN SET TIME IS ABSENT HERE, ⛔ not
+                                      * forgotten: it opens the event page's
+                                      * inline slot-picker sheet, which is 80
+                                      * lines of that screen's own state. It
+                                      * needs EXTRACTING before a second surface
+                                      * can offer it, and half-copying it is how
+                                      * these two screens drifted before.
+                                      */
+                                    actions={
+                                      <div className="yp-decision-row">
+                                        {/* ⭐ THE DOMINANT STATE GETS THE PRIMARY
+                                            ACTION — no set time is the only
+                                            state here with work outstanding, so
+                                            it alone offers the forward move.
+                                            ⛔ Change one, change both. */}
+                                        {/* ⚠ `slotCount`, ⛔ not the state label.
+                                            It is the same question the event
+                                            page asks (`memberPerfs(...).length
+                                            === 0`) answered from the data
+                                            `buildHostLineup` already derived. */}
+                                        {m.slotCount === 0 && (
+                                          <DecisionBtn tone="accept" icon={CheckIcon} label="ASSIGN SET TIME"
+                                            onClick={() => setAssigning({ ev, member: m.member, name: item.name, days })} />
+                                        )}
+                                        <DecisionBtn tone="decline" icon={XIcon} label="REMOVE FROM LINEUP"
+                                          onClick={() => setConfirmExit({ ev, member: m.member, name: item.name })} />
+                                      </div>
+                                    }
                                     /* ⛔ NO `actions` — the dashboard performs no
                                        bill operations. The disclosure is still
                                        here because the panel holds home town,
@@ -1202,24 +1322,11 @@ export default function HostDashboard({ userId: userIdProp }) {
                       {activeTab === 'SET TIMES' && (() => {
                         const slots = days.flatMap(d => d.slots || []);
                         if (slots.length === 0) return <p className={s.empty} style={{ fontSize: 12 }}>No set times added for this event yet.</p>;
-                        /**
-                         * ⚠ `saveSlot(ev, dayIdx, slotIdx, …)` writes back into
-                         * `config.days` BY POSITION, but `DaySlots` hands its
-                         * callback the SLOT ONLY. So the indices are looked up
-                         * by id at the moment of editing.
-                         *
-                         * ⛔ Looked up, ⛔ not captured in a render-time map: a
-                         * DRAG REORDERS `days`, so an index captured when the
-                         * list rendered would write the edit into whichever
-                         * slot has since taken that position.
-                         */
-                        const locate = slot => {
-                          for (let dayIdx = 0; dayIdx < days.length; dayIdx++) {
-                            const slotIdx = (days[dayIdx].slots || []).findIndex(x => x.id === slot.id);
-                            if (slotIdx >= 0) return { dayIdx, slotIdx };
-                          }
-                          return null;
-                        };
+                        /* ⛔ `locate()` IS GONE. It translated a slot into its
+                           `config.days` position for the old blob write, and
+                           `saveSlot` now updates the `event_slots` ROW by id —
+                           so there is no position to find, and no way for the
+                           lookup to fail and swallow the edit. */
                         /* ⛔ THE PADLOCK MOVED INTO THE TAB HEADING (owner,
                            2026-08-16) — icon only, ⛔ no label row and ⛔ no
                            border. `stUnlocked` is the group-scope source. */
@@ -1284,16 +1391,20 @@ export default function HostDashboard({ userId: userIdProp }) {
                                */
                               editable={unlocked}
                               isLocked={!unlocked}
-                              /* ⭐ ONLY `onEdit` — `DaySlots` and `SlotCard` now
-                                 both render a control only where its handler
-                                 exists, so the dash offers EDIT SLOT and ⛔ no
-                                 LOCK SLOT, REMOVE or REPLACE ARTIST. ⚠ This
-                                 revives `SlotEditModal`, which was wired to
-                                 `saveSlot` and which ⛔ nothing could open. */
-                              onEdit={slot => {
-                                const at = locate(slot);
-                                if (at) setEditingSlot({ ev, ...at, slot });
-                              }}
+                              /**
+                                * ⛔⛔ `locate(slot)` IS GONE FROM THIS PATH, and
+                                * it was a second way to lose the edit: it
+                                * searched `config.days` for the slot's position
+                                * and `if (at)` SILENTLY DID NOTHING when the
+                                * search failed. A slot that exists as a row but
+                                * has no counterpart left in the blob could not
+                                * be opened at all, and the button simply did
+                                * not respond.
+                                *
+                                * ⭐ The card knows which slot it is; it says so.
+                                * `saveSlot` needs only `slot.id`.
+                                */
+                              onEdit={slot => setEditingSlot({ ev, slot })}
                               /* ⭐ The padlock. */
                               onPin={slot => toggleSlotPin(slot)}
                               /**
@@ -1311,6 +1422,7 @@ export default function HostDashboard({ userId: userIdProp }) {
                                * the same `assignMemberToSlot`.
                                */
                               onRemove={slot => removeFromSlot(ev, slot)}
+                              onDemote={slot => demoteFromSlot(ev, slot)}
                               onFill={slot => setFillSlot({ ev, slot })}
                               /* ⭐⭐ THIS SCREEN REFRESHES ITSELF. `DaySlots`
                                  invalidates the EVENT PAGE's query key, which
@@ -1443,7 +1555,8 @@ export default function HostDashboard({ userId: userIdProp }) {
         <SlotEditModal
           slot={editingSlot.slot}
           claim={claimsMap[editingSlot.ev.id]?.[editingSlot.slot.id]}
-          onSave={updated => saveSlot(editingSlot.ev, editingSlot.dayIdx, editingSlot.slotIdx, updated)}
+          /* ⚠ THE SLOT'S OWN ID, ⛔ not its position in the blob. */
+          onSave={updated => saveSlot(editingSlot.slot.id, updated)}
           onClose={() => setEditingSlot(null)}
         />
       )}
@@ -1470,6 +1583,69 @@ export default function HostDashboard({ userId: userIdProp }) {
           onFilled={() => { setFillSlot(null); setLineupReload(n => n + 1); }}
           onClose={() => setFillSlot(null)}
         />
+      )}
+
+      {/**
+        * ⭐⭐ THE SAME SHEET THE EVENT PAGE USES — extracted for exactly this.
+        * ⚠ `quiet` is TRUE: this is the MEMBER route, which writes a draft and
+        * tells nobody. ⛔ The application route (which accepts and notifies) is
+        * not offered from this screen.
+        *
+        * ⛔ `assignMemberToSlot` does the write, so the dashboard cannot invent
+        * a different meaning for placing somebody in a running order.
+        */}
+      {assigning && (
+        <AssignSlotSheet
+          name={assigning.name}
+          days={assigning.days || []}
+          claims={claimsMap[assigning.ev.id] || {}}
+          quiet
+          onPick={async slot => {
+            const { ok, error } = await assignMemberToSlot(supabase, {
+              slotId: slot.id, eventId: assigning.ev.id, memberId: assigning.member.id, status: 'draft',
+            });
+            setAssigning(null);
+            if (!ok) { setLineupError(error); return; }
+            setLineupReload(n => n + 1);
+          }}
+          onClose={() => setAssigning(null)}
+        />
+      )}
+
+      {/**
+        * ⭐ BOTH EXITS, worded as the event page words them. ⚠ Keeping somebody
+        * is the safe reversible act, so it is the filled button; taking them
+        * off the event is the outline one beside it.
+        */}
+      {confirmExit && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.75)', zIndex: 2000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}
+          onClick={e => e.target === e.currentTarget && setConfirmExit(null)}>
+          <div style={{ background: '#0f0f1a', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 480, padding: '24px 20px 34px', border: '1px solid rgba(255,255,255,.08)', borderBottom: 'none' }}>
+            <div style={{ fontFamily: "'Bebas Neue'", fontSize: 18, letterSpacing: 2, color: '#fff' }}>
+              Take {confirmExit.name || 'this act'} off the lineup?
+            </div>
+            <div style={{ fontSize: 13, color: 'rgba(255,255,255,.6)', marginTop: 8, lineHeight: 1.6 }}>
+              Any set time they hold will be cleared. They are only told if it was already sent to them.
+            </div>
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,.4)', marginTop: 10, lineHeight: 1.5 }}>
+              Their application is left exactly as it is either way.
+            </div>
+            <div style={{ display: 'flex', gap: 10, marginTop: 22 }}>
+              <button onClick={() => exitMember(confirmExit.ev, confirmExit.member, 'shortlist')}
+                style={{ flex: 1, padding: '13px 0', fontFamily: "'Bebas Neue'", fontSize: 14, letterSpacing: 1.5, borderRadius: 10, border: 'none', background: '#FF2D78', color: '#0a0a14', cursor: 'pointer' }}>
+                MOVE TO SHORTLIST
+              </button>
+              <button onClick={() => exitMember(confirmExit.ev, confirmExit.member, 'remove')}
+                style={{ flex: 1, padding: '13px 0', fontFamily: "'Bebas Neue'", fontSize: 14, letterSpacing: 1.5, borderRadius: 10, border: '1px solid rgba(255,45,120,.5)', background: 'rgba(255,45,120,.10)', color: '#FF2D78', cursor: 'pointer' }}>
+                TAKE OFF EVENT
+              </button>
+            </div>
+            <button onClick={() => setConfirmExit(null)}
+              style={{ width: '100%', marginTop: 10, padding: '11px 0', fontFamily: "'Bebas Neue'", fontSize: 13, letterSpacing: 1.5, borderRadius: 10, border: '1px solid rgba(255,255,255,.15)', background: 'none', color: 'rgba(255,255,255,.55)', cursor: 'pointer' }}>
+              CANCEL
+            </button>
+          </div>
+        </div>
       )}
 
       {/* Browse CTA — always last */}
@@ -1553,9 +1729,29 @@ function EventProgressSummary({ lineupCount, totalSlots, filledSlots, hasPoster,
   const cols = [
     {
       label: 'LINEUP',
-      color: '#FF3399',
+      /**
+       * ⭐⭐ MORE ACTS THAN SLOTS IS ALLOWED, AND SAID OUT LOUD (owner,
+       * 2026-08-16). The bill and the running order are different things, and
+       * an organiser may genuinely hold six acts for five slots while they work
+       * it out — ⛔ so this is NOT blocked at the point of adding, which would
+       * fight them mid-decision.
+       *
+       * ⚠⚠ BUT IT MUST NOT READ AS FINE. `Math.min(…, 1)` capped the bar, so
+       * `7 / 5` painted exactly like `5 / 5`: a full pink bar and a value in
+       * the same colour as a complete one. The number said one thing and every
+       * other signal on the tile said "done".
+       *
+       * ⭐ Amber, ⛔ not red. This is an overage to resolve, not an error to
+       * fix — the same colour the app already uses for "awaiting" rather than
+       * for failure.
+       */
+      color: lineupCount > totalSlots && totalSlots > 0 ? '#FFB830' : '#FF3399',
       value: totalSlots > 0 ? `${lineupCount} / ${totalSlots}` : String(lineupCount),
       pct: totalSlots > 0 ? Math.min(lineupCount / totalSlots, 1) : (lineupCount > 0 ? 1 : 0),
+      /* ⚠ Names the SIZE of the overage, so the fix is countable. */
+      note: totalSlots > 0 && lineupCount > totalSlots
+        ? `${lineupCount - totalSlots} more than slots`
+        : null,
     },
     {
       label: 'SET TIMES',
@@ -1593,6 +1789,11 @@ function EventProgressSummary({ lineupCount, totalSlots, filledSlots, hasPoster,
           <div style={{ height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.08)' }}>
             <div style={{ height: '100%', width: `${col.pct * 100}%`, borderRadius: 2, background: col.color }} />
           </div>
+          {/* ⚠ Only where there is something to say. ⛔ An always-present line
+              would push every tile taller for the one case that needs it. */}
+          {col.note && (
+            <div style={{ marginTop: 5, fontSize: 9, lineHeight: 1.3, color: '#FFB830' }}>{col.note}</div>
+          )}
         </div>
       ))}
     </div>

@@ -70,7 +70,7 @@ function HeadphoneIcon() {
  * still withheld there — it needs the artist picker mounted, which is a
  * surface, not a rule.
  */
-export default function SlotCard({ slot, claim, onFill, onEdit, onRemove, onPin, isHost, isSortable, isActiveSort, isDragOverlay, allMixSlots = [], locked = false, viewerProfileId = null, expandable = true, registerNode }) {
+export default function SlotCard({ slot, claim, onFill, onEdit, onRemove, onDemote, onPin, isHost, isSortable, isActiveSort, isDragOverlay, allMixSlots = [], locked = false, viewerProfileId = null, expandable = true, registerNode }) {
   const [expanded,      setExpanded]      = useState(false);
   const [hostNote,      setHostNote]      = useState('');
   const [artistBrief,   setArtistBrief]   = useState('');
@@ -609,7 +609,24 @@ export default function SlotCard({ slot, claim, onFill, onEdit, onRemove, onPin,
                   <p style={{ margin: '0 0 10px', fontFamily: "'Bebas Neue'", fontSize: 13, letterSpacing: 1.2, color: '#fff' }}>
                     {claim?.name ? `${claim.name} is on this slot.` : 'This slot has an artist.'} What would you like to do?
                   </p>
-                  <div style={{ display: 'flex', gap: 8 }}>
+                  {/**
+                    * ⛔⛔ `REMOVE` MEANT ONE THING AND READ AS ANOTHER (owner,
+                    * 2026-08-16: "i removed enlil from the set times which is
+                    * essentially the lineup, so he should have gone back to
+                    * short list").
+                    *
+                    * ⚠⚠ It ran `planUnassign` — clear the SET TIME, stay on the
+                    * bill — while the word promised the act was gone. The
+                    * organiser pressed it expecting the bill exit and got a
+                    * still-booked artist with no time.
+                    *
+                    * ⭐⭐ SO THE TWO ANSWERS ARE NAMED, ⛔ not merged and ⛔ not
+                    * guessed. `CLEAR SET TIME` keeps them on the bill needing a
+                    * time; `MOVE TO SHORTLIST` takes them off it. ⚠⚠ This is
+                    * the same defect that once made UNASSIGN and DISCARD one
+                    * destructive operation: two outcomes behind one word.
+                    */}
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                     <button
                       onClick={() => { setConfirm(null); }}
                       style={{ flex: 1, padding: '8px 0', borderRadius: 8, border: '1px solid rgba(255,255,255,.15)', background: 'rgba(255,255,255,.05)', fontFamily: "'Bebas Neue'", fontSize: 12, letterSpacing: 1.2, color: 'var(--muted)', cursor: 'pointer' }}
@@ -617,8 +634,16 @@ export default function SlotCard({ slot, claim, onFill, onEdit, onRemove, onPin,
                     {onRemove && (
                       <button
                         onClick={() => { setConfirm(null); onRemove(); }}
-                        style={{ flex: 1, padding: '8px 0', borderRadius: 8, border: '1px solid rgba(255,45,120,.5)', background: 'rgba(255,45,120,.12)', fontFamily: "'Bebas Neue'", fontSize: 12, letterSpacing: 1.2, color: '#FF2D78', cursor: 'pointer' }}
-                      >REMOVE</button>
+                        style={{ flex: 1, padding: '8px 0', borderRadius: 8, border: '1px solid rgba(255,255,255,.22)', background: 'rgba(255,255,255,.05)', fontFamily: "'Bebas Neue'", fontSize: 12, letterSpacing: 1.2, color: 'var(--text)', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                      >CLEAR SET TIME</button>
+                    )}
+                    {/* ⭐ THE BILL EXIT, from the tab the owner reads AS the
+                        bill. ⛔ Rendered only where the surface supplies it. */}
+                    {onDemote && (
+                      <button
+                        onClick={() => { setConfirm(null); onDemote(); }}
+                        style={{ flex: 1, padding: '8px 0', borderRadius: 8, border: '1px solid rgba(255,45,120,.5)', background: 'rgba(255,45,120,.12)', fontFamily: "'Bebas Neue'", fontSize: 12, letterSpacing: 1.2, color: '#FF2D78', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                      >MOVE TO SHORTLIST</button>
                     )}
                     {onFill && (
                       <button
@@ -728,7 +753,7 @@ export default function SlotCard({ slot, claim, onFill, onEdit, onRemove, onPin,
                 {/* ⚠ Gated on `claim`: with nobody on the slot there is nobody
                     to replace or remove. ⛔ An empty row books through its own
                     onClick, not through here. */}
-                {claim && (onFill || onRemove) && (
+                {claim && (onFill || onRemove || onDemote) && (
                   <SlotManageBtn
                     icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>}
                     label="REPLACE / REMOVE"

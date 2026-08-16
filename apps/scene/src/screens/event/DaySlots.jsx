@@ -20,7 +20,7 @@ import s from '../EventScreen.module.css';
 export default function DaySlots({
   eventId, days, claims, allMixSlots,
   isHost = false, editable = false, isLocked = false, viewerProfileId = null,
-  onFill, onEdit, onRemove, onPin, onChanged, onLocalMove,
+  onFill, onEdit, onRemove, onDemote, onPin, onChanged, onLocalMove,
 }) {
   /**
    * ⭐⭐ `onChanged` — HOW THE CALLER REFRESHES ITSELF AFTER A DRAG.
@@ -338,6 +338,9 @@ isHost={effectiveIsHost}
                   onFill={onFill ? () => onFill(slot) : null}
                   onEdit={onEdit ? () => onEdit(slot) : null}
                   onRemove={onRemove ? () => onRemove(slot) : null}
+                  /* ⭐ CLEAR SET TIME vs MOVE TO SHORTLIST — two outcomes, two
+                     handlers. ⛔ Never one prop with a flag. */
+                  onDemote={onDemote ? () => onDemote(slot) : null}
                   onPin={onPin ? () => onPin(slot) : null}
                   allMixSlots={allMixSlots}
                 />
@@ -378,6 +381,7 @@ isHost={effectiveIsHost}
               onFill={effectiveIsHost && onFill ? () => onFill(slot) : null}
               onEdit={effectiveIsHost && onEdit ? () => onEdit(slot) : null}
               onRemove={effectiveIsHost && onRemove ? () => onRemove(slot) : null}
+              onDemote={effectiveIsHost && onDemote ? () => onDemote(slot) : null}
               onPin={effectiveIsHost && onPin ? () => onPin(slot) : null}
               allMixSlots={allMixSlots}
             />

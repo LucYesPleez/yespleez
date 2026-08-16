@@ -15,8 +15,7 @@ import { track, EVENTS } from '../../lib/analytics';
 import { resolveProfileId } from '../../lib/resolveProfileId';
 import { scopeToApplicant, fetchApplicantProfiles } from '../../lib/applicantProfiles';
 import { findOpenAsksForDate, declineOpenAsks } from '../../lib/dateLockout';
-import { durationLabel } from '../../lib/eventSlots';
-import { memberState, STATE_COLOURS } from '../../lib/hostLineup';
+import { memberState, STATE_COLOURS, billCapacity, billFullMessage } from '../../lib/hostLineup';
 import { normaliseStatus, rawStatusesFor, PIPELINE_BUCKETS, STATUS_TAB_COLOR } from '../../lib/enquiryUtils';
 import { planUnassign, planMoveToShortlist, planRemoveFromEvent, executeLineupPlan, assignMemberToSlot } from '../../lib/lineupActions';
 import { planAddToBill, addToBill, findExistingMember } from '../../lib/lineupFromApplication';
@@ -37,6 +36,7 @@ import WorkItemCard, { applicationWorkState, lineupWorkState } from '../../compo
  */
 import { DecisionBtn, StarIcon, CheckIcon, XIcon } from '../../components/DecisionButtons';
 import FillSlotModal from '../../components/FillSlotModal';
+import AssignSlotSheet from '../../components/AssignSlotSheet';
 import ShortlistArtistSheet from '../../components/ShortlistArtistSheet';
 import { planAddArtistToShortlist, addArtistToShortlist } from '../../lib/shortlistFromArtist';
 import EventTabBar from '../../components/EventTabBar';
@@ -237,7 +237,7 @@ export default function EventHostView({
    * ⛔ Creates no `performance`. On the bill is not given a time.
    */
   async function addApplicantToBill(app) {
-    const plan = planAddToBill(app, appProfiles[app.id] || null, lineupMembers);
+    const plan = planAddToBill(app, appProfiles[app.id] || null, lineupMembers, { totalSlots });
     if (!plan.ok) { setSlotError(plan.reason); return; }
 
     const { ok, error, memberId } = await addToBill(supabase, plan);
@@ -543,6 +543,19 @@ export default function EventHostView({
   }
 
   async function promoteMemberToBill(member) {
+    /**
+     * ⛔⛔ THE SECOND WAY ONTO A BILL, AND IT NEEDS THE SAME CAP. `planAddToBill`
+     * guards the APPLICATION route; this is the SHORTLIST route, and it does not
+     * go through that planner — it flips a status. ⚠ A rule enforced on one of
+     * two doors is not enforced.
+     *
+     * ⚠ `on_bill` only: the member being promoted is currently `shortlisted`
+     * and so is not already counted in the total they are about to join.
+     */
+    const onBill = lineupMembers.filter(m => m?.status === 'on_bill').length;
+    const cap = billCapacity(onBill, totalSlots);
+    if (cap.full) { setLineupError(billFullMessage(cap.total)); return; }
+
     const { error } = await supabase.from('lineup_members')
       .update({ status: 'on_bill', updated_at: new Date().toISOString() })
       .eq('id', member.id);
@@ -1024,7 +1037,11 @@ export default function EventHostView({
                           </span>
                         )
                         : (
-                          <DecisionBtn tone="decline" icon={XIcon} label="MOVE TO SHORTLIST"
+                          /* ⚠ NEUTRAL NOW, because the dialog it opens offers
+                             BOTH exits. Labelling the control MOVE TO SHORTLIST
+                             would promise one of the two answers before the
+                             question is asked. */
+                          <DecisionBtn tone="decline" icon={XIcon} label="REMOVE FROM LINEUP"
                             onClick={() => setConfirmRemove({ member, perfs: memberPerfs(member.id) })} />
                         )}
                     </div>
@@ -1427,7 +1444,7 @@ export default function EventHostView({
           onClick={e => e.target === e.currentTarget && setConfirmRemove(null)}>
           <div style={{ background: '#0f0f1a', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 480, padding: '28px 24px 40px', border: '1px solid rgba(255,255,255,.08)', borderBottom: 'none' }}>
             <div style={{ fontFamily: "'Bebas Neue'", fontSize: 18, letterSpacing: 2, color: '#fff' }}>
-              Move {confirmRemove.member.artist_name || 'this act'} back to the shortlist?
+              Take {confirmRemove.member.artist_name || 'this act'} off the lineup?
             </div>
             {/**
               * ⭐⭐ THE DIALOG SAYS WHAT IS ACTUALLY DESTROYED, and that differs
@@ -1459,18 +1476,39 @@ export default function EventHostView({
                 also rejected their application. It does not: declining an
                 applicant is its own control, on the SHORT LIST. */}
             <div style={{ fontSize: 12, color: 'rgba(255,255,255,.4)', marginTop: 10, lineHeight: 1.5 }}>
-              Their application is left exactly as it is. They stay on the shortlist, so you can add them back to the lineup at any time.
+              Their application is left exactly as it is either way.
             </div>
+            {/**
+              * ⭐⭐ BOTH EXITS, FROM ONE DIALOG (owner, 2026-08-16). The LINEUP
+              * offered only MOVE TO SHORTLIST, so an act added by mistake could
+              * be demoted but ⛔ never taken off the event — the organiser had
+              * to demote them here and then find them on the SHORTLIST tab to
+              * finish the job.
+              *
+              * ⚠⚠ THIS REVISES the earlier "the only exit from the LINEUP is
+              * MOVE TO SHORTLIST". The REASONING behind that rule survives and
+              * is why the two are not equals here: keeping somebody is the
+              * SAFE, reversible act, so it is the filled button. Taking them
+              * off the event is the outline one beside it.
+              *
+              * ⛔ NEITHER IS REACHABLE ONCE THE ARTIST HAS ACCEPTED — the card
+              * shows a chip instead of this control, so no path through this
+              * dialog can destroy an accepted performance.
+              */}
             <div style={{ display: 'flex', gap: 10, marginTop: 24 }}>
               <button onClick={() => runLineupAction(planMoveToShortlist(confirmRemove.member, confirmRemove.perfs), confirmRemove.member)}
                 style={{ flex: 1, padding: '13px 0', fontFamily: "'Bebas Neue'", fontSize: 14, letterSpacing: 1.5, borderRadius: 10, border: 'none', background: '#FF2D78', color: '#0a0a14', cursor: 'pointer' }}>
                 MOVE TO SHORTLIST
               </button>
-              <button onClick={() => setConfirmRemove(null)}
-                style={{ flex: 1, padding: '13px 0', fontFamily: "'Bebas Neue'", fontSize: 14, letterSpacing: 1.5, borderRadius: 10, border: '1px solid rgba(255,255,255,.15)', background: 'none', color: 'rgba(255,255,255,.55)', cursor: 'pointer' }}>
-                CANCEL
+              <button onClick={() => runLineupAction(planRemoveFromEvent(confirmRemove.member, confirmRemove.perfs), confirmRemove.member)}
+                style={{ flex: 1, padding: '13px 0', fontFamily: "'Bebas Neue'", fontSize: 14, letterSpacing: 1.5, borderRadius: 10, border: '1px solid rgba(255,45,120,.5)', background: 'rgba(255,45,120,.10)', color: '#FF2D78', cursor: 'pointer' }}>
+                TAKE OFF EVENT
               </button>
             </div>
+            <button onClick={() => setConfirmRemove(null)}
+              style={{ width: '100%', marginTop: 10, padding: '11px 0', fontFamily: "'Bebas Neue'", fontSize: 13, letterSpacing: 1.5, borderRadius: 10, border: '1px solid rgba(255,255,255,.15)', background: 'none', color: 'rgba(255,255,255,.55)', cursor: 'pointer' }}>
+              CANCEL
+            </button>
           </div>
         </div>
       )}
@@ -1511,75 +1549,22 @@ export default function EventHostView({
         />
       )}
 
-      {(assigningApp || assigningMember) && (() => {
-        const closeAssign = () => { setAssigningApp(null); setAssigningMember(null); };
-        const assignName  = assigningApp
-          ? (assigningApp.prof?.name || assigningApp.app.artist_name || '—')
-          : (assigningMember.prof?.name || assigningMember.member.artist_name || '—');
-        const runAssign   = assigningApp ? doAssign : doAssignMember;
-        return (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.82)', zIndex: 2000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', paddingBottom: 'var(--yp-safe-bottom)' }}
-          onClick={closeAssign}>
-          <div style={{ background: '#0f0f1a', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 480, maxHeight: '70vh', display: 'flex', flexDirection: 'column', boxShadow: '0 -4px 40px rgba(0,0,0,.6)', border: '1px solid rgba(255,255,255,.07)', borderBottom: 'none' }}
-            onClick={e => e.stopPropagation()}>
-            <div style={{ padding: '16px 20px 12px', borderBottom: '1px solid rgba(255,255,255,.06)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div>
-                <div style={{ fontFamily: "'Bebas Neue'", fontSize: 20, letterSpacing: 2 }}>ASSIGN SET TIME</div>
-                <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 1 }}>Pick a slot for {assignName}</div>
-                {/* ⚠ Says the quiet part out loud on the member route: the
-                    organiser is placing somebody in the running order, ⛔ not
-                    telling them. The bulk SEND button is what speaks. */}
-                {assigningMember && (
-                  <div style={{ fontSize: 10.5, color: 'var(--muted)', marginTop: 4, opacity: .8 }}>
-                    Saved as a draft. Nobody is notified until you send set times.
-                  </div>
-                )}
-              </div>
-              <button onClick={closeAssign} style={{ background: 'none', border: 'none', color: 'var(--muted)', fontSize: 24, cursor: 'pointer', padding: 0, lineHeight: 1 }}>×</button>
-            </div>
-            <div style={{ overflowY: 'auto', flex: 1, padding: '12px 20px 32px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {days.flatMap(d => d.slots || []).length === 0 && (
-                <p style={{ textAlign: 'center', color: 'var(--muted)', fontSize: 13, padding: '24px 0' }}>No slots yet — add slots in the LINEUP editor first.</p>
-              )}
-              {days.flatMap(d => d.slots || []).map(slot => {
-                const existing = claims[slot.id];
-                const isFilled = existing && existing.status !== 'declined';
-                const timeLabel = [slot.time, slot.ampm].filter(Boolean).join(' ');
-                /* ⚠ WAS `slot.dur >= 60 ? … : `${slot.dur}m``, which printed
-                   `1.5 hrsm` for every slot whose `dur` was the string
-                   "1.5 hrs" — the comparison is false against a string, so it
-                   fell to the minutes branch and concatenated the unit twice.
-                   `durationLabel` is the one formatter now. */
-                const durLabel  = durationLabel(slot.dur);
-                /* Every act on the slot, not just the one the map picked. On a
-                   contested slot "Currently: X" was naming one of two at
-                   random. */
-                const onSlot    = claimsBySlot[slot.id] || (existing ? [existing] : []);
-                return (
-                  <button key={slot.id} onClick={() => runAssign(slot)}
-                    style={{
-                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                      padding: '12px 16px', borderRadius: 12, cursor: 'pointer', textAlign: 'left',
-                      border: `1px solid ${isFilled ? 'rgba(255,255,255,.08)' : 'rgba(0,229,160,.25)'}`,
-                      background: isFilled ? 'rgba(255,255,255,.03)' : 'rgba(0,229,160,.06)',
-                    }}>
-                    <div>
-                      <div style={{ fontFamily: "'Bebas Neue'", fontSize: 14, letterSpacing: 1, color: isFilled ? 'rgba(255,255,255,.5)' : '#fff' }}>
-                        {timeLabel}{durLabel ? ` — ${durLabel}` : ''}{slot.label ? ` · ${slot.label}` : ''}
-                      </div>
-                      {isFilled && <div style={{ fontSize: 11, color: 'rgba(255,255,255,.3)', marginTop: 2 }}>Currently: {onSlot.map(c => c.name).filter(Boolean).join(' · ')}</div>}
-                    </div>
-                    <span style={{ fontSize: 11, fontFamily: "'Bebas Neue'", letterSpacing: 1, color: isFilled ? 'rgba(255,255,255,.3)' : '#00E5A0', flexShrink: 0, marginLeft: 12 }}>
-                      {isFilled ? 'REASSIGN' : 'OPEN →'}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-        );
-      })()}
+      {/* ⭐ EXTRACTED to `components/AssignSlotSheet` so the dashboard can offer
+          the same act. ⛔ The two ROUTES stay different here: an application
+          accepts and notifies, a member only drafts. */}
+      {(assigningApp || assigningMember) && (
+        <AssignSlotSheet
+          name={assigningApp
+            ? (assigningApp.prof?.name || assigningApp.app.artist_name || '—')
+            : (assigningMember.prof?.name || assigningMember.member.artist_name || '—')}
+          days={days}
+          claims={claims}
+          claimsBySlot={claimsBySlot}
+          quiet={!!assigningMember}
+          onPick={assigningApp ? doAssign : doAssignMember}
+          onClose={() => { setAssigningApp(null); setAssigningMember(null); }}
+        />
+      )}
     </>
   );
 
@@ -1632,6 +1617,21 @@ export default function EventHostView({
         onFill:   slot          => setFillSlot({ slot }),
         onEdit:   slot => setEditingSlot({ slot }),
         onRemove: slot => removeArtist(slot.id),
+        /**
+         * ⭐⭐ THE BILL EXIT, REACHED FROM SET TIMES (owner, 2026-08-16: the
+         * set times are "essentially the lineup"). ⛔ It does NOT get its own
+         * write — it opens the SAME dialog the LINEUP tab opens, so the two
+         * routes out of the bill cannot drift apart or explain themselves
+         * differently.
+         *
+         * ⚠ EVERY performance the member holds, ⛔ not just this slot's: they
+         * are leaving the bill, so a second set time cannot survive them.
+         */
+        onDemote: slot => {
+          const claim = claims[slot.id];
+          const member = claim && lineupMembers.find(m => m.id === claim.member_id);
+          if (member) setConfirmRemove({ member, perfs: memberPerfs(member.id) });
+        },
         onPin:    slot => togglePin(slot),
       }}
     />
