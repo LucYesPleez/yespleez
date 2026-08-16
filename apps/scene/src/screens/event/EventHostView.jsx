@@ -650,14 +650,23 @@ export default function EventHostView({
                   one inside a tag and it swallows the next attribute: the style
                   object collapsed to a bare `flex: 1` and threw "flex is not
                   defined" at runtime, while the build stayed green. Comments in
-                  a tag belong out here, in braces. */}
+                  a tag belong out here, in braces.
+
+                  ⚠ 15px MATCHES `.manageBtn` BESIDE IT — the two share a line,
+                  so a smaller label made this read as the lesser control.
+
+                  ⚠ `flex-start` with a 4px left pad puts the chevron ON the
+                  edge. ⛔ `justifyContent: center` would push it back inward
+                  however much padding it was given. */}
               <button
                 onClick={() => navigate('/industry/host')}
-                style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5, flexShrink: 0, height: 47, padding: '0 14px', borderRadius: 8, cursor: 'pointer', fontFamily: "'Bebas Neue'", fontSize: 11, letterSpacing: 1.4, whiteSpace: 'nowrap', border: '1px solid rgba(255,51,153,.35)', background: 'rgba(255,51,153,.1)', color: '#fff', transition: 'all .15s' }}
+                style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-start', gap: 4, flexShrink: 0, height: 47, padding: '0 14px 0 4px', borderRadius: 8, cursor: 'pointer', fontFamily: "'Bebas Neue'", fontSize: 15, letterSpacing: 1.5, whiteSpace: 'nowrap', border: '1px solid rgba(255,51,153,.35)', background: 'rgba(255,51,153,.1)', color: '#fff', transition: 'all .15s' }}
                 onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,51,153,.22)'; e.currentTarget.style.borderColor = '#FF69B4'; }}
                 onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,51,153,.1)'; e.currentTarget.style.borderColor = 'rgba(255,51,153,.35)'; }}
               >
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                {/* ⚠ The chevron grows with the label — a small mark beside 15px
+                    Bebas reads as an afterthought rather than part of the word. */}
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
                   <polyline points="15 18 9 12 15 6" />
                 </svg>
                 HOST DASH
