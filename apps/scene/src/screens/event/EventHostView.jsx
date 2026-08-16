@@ -37,6 +37,8 @@ import WorkItemCard, { applicationWorkState, lineupWorkState } from '../../compo
  */
 import { DecisionBtn, StarIcon, CheckIcon, XIcon } from '../../components/DecisionButtons';
 import FillSlotModal from '../../components/FillSlotModal';
+import ShortlistArtistSheet from '../../components/ShortlistArtistSheet';
+import { planAddArtistToShortlist, addArtistToShortlist } from '../../lib/shortlistFromArtist';
 import EventTabBar from '../../components/EventTabBar';
 import EventPublicView from './EventPublicView';
 import EventPage from './EventPage';
@@ -63,6 +65,9 @@ export default function EventHostView({
   const [appProfiles,   setAppProfiles]   = useState({});
   const [editingSlot,   setEditingSlot]   = useState(null);
   const [fillSlot,      setFillSlot]      = useState(null);
+  const [addArtistOpen,  setAddArtistOpen]  = useState(false);
+  const [addingArtist,   setAddingArtist]   = useState(false);
+  const [addArtistError, setAddArtistError] = useState('');
   const [assigningApp,  setAssigningApp]  = useState(null);
   /**
    * ⭐ ASSIGNING A SET TIME TO SOMEBODY ALREADY ON THE BILL (owner, 2026-08-15).
@@ -514,6 +519,29 @@ export default function EventHostView({
    *
    * ⛔ NO PERFORMANCE. Being on the bill is not being given a time.
    */
+  /**
+   * ⭐⭐ THE SECOND ENTRY POINT — an artist who never applied.
+   *
+   * ⛔ The rules live in `lib/shortlistFromArtist`, not here: no fabricated
+   * application, no notification, no performance, and a duplicate guard that
+   * counts `removed` rows too. `lineup_members` has no uniqueness constraint,
+   * so that guard is the only one.
+   */
+  async function addFoundArtistToShortlist(profile) {
+    if (addingArtist) return;
+    setAddingArtist(true);
+    setAddArtistError('');
+    /* ⚠ Checked against BOTH lists — somebody already on the bill is just as
+       much a duplicate as somebody already shortlisted. */
+    const plan = planAddArtistToShortlist(profile, id, [...lineupMembers, ...shortlistMembers]);
+    if (!plan.ok) { setAddArtistError(plan.reason); setAddingArtist(false); return; }
+    const { ok, error } = await addArtistToShortlist(supabase, plan);
+    setAddingArtist(false);
+    if (!ok) { setAddArtistError(error || 'Could not add them.'); return; }
+    setAddArtistOpen(false);
+    queryClient.invalidateQueries({ queryKey: ['event', id] });
+  }
+
   async function promoteMemberToBill(member) {
     const { error } = await supabase.from('lineup_members')
       .update({ status: 'on_bill', updated_at: new Date().toISOString() })
@@ -922,11 +950,24 @@ export default function EventHostView({
         </div>
       )}
 
-      {/* SHORT LIST tab */}
+      {/* SHORTLIST tab */}
       {effectiveIsHost && showEditor && eventTab === 'SHORTLIST' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {/**
+            * ⭐⭐ THE ENTRY POINT FOR AN ARTIST WHO NEVER APPLIED. Until this
+            * existed the funnel had one way in, so "I want to put this act on
+            * the list of people I am thinking about" had no answer but adding
+            * them to the bill.
+            *
+            * ⚠ AT THE TOP, and present even when the list is empty — an empty
+            * shortlist is exactly when you most need the way to fill it.
+            */}
+          <button onClick={() => { setAddArtistError(''); setAddArtistOpen(true); }}
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, width: '100%', padding: '11px 0', marginBottom: 2, borderRadius: 10, cursor: 'pointer', fontFamily: "'Bebas Neue'", fontSize: 12.5, letterSpacing: 1.5, border: '1px dashed rgba(0,229,255,.35)', background: 'rgba(0,229,255,.05)', color: 'var(--neon2)' }}>
+            + ADD ARTIST
+          </button>
           {shortList.length === 0
-            ? <p style={{ textAlign: 'center', color: 'var(--muted)', fontSize: 13, padding: '32px 0' }}>No artists shortlisted yet.</p>
+            ? <p style={{ textAlign: 'center', color: 'var(--muted)', fontSize: 13, padding: '24px 0' }}>Nobody on the shortlist yet. Add artists you are thinking about, then move them to the lineup when you decide.</p>
             : shortList.map(row => {
               /**
                * ⚠⚠ TWO SHAPES IN ONE LIST. A `lineup_members` row carries
@@ -1371,6 +1412,19 @@ export default function EventHostView({
         * inside one function is what keeps those two writes from converging
         * into a third that does a bit of both.
         */}
+      {addArtistOpen && (
+        <ShortlistArtistSheet
+          /* ⚠ BOTH lists — the sheet greys out anyone already attached, and it
+             must consider the bill as well as the shortlist or it would offer
+             to add somebody who is already playing. */
+          members={[...lineupMembers, ...shortlistMembers]}
+          busy={addingArtist}
+          error={addArtistError}
+          onPick={addFoundArtistToShortlist}
+          onClose={() => setAddArtistOpen(false)}
+        />
+      )}
+
       {(assigningApp || assigningMember) && (() => {
         const closeAssign = () => { setAssigningApp(null); setAssigningMember(null); };
         const assignName  = assigningApp
