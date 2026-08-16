@@ -377,35 +377,16 @@
 
 .panelValue { font-size: 12.5px; color: var(--text); }
 
-/* Follow · message · profile. ⚠ Their own row, above the decisions: these
-   change YOUR relationship to a person, the ones below change THEIR position
-   in your event. */
-.relRow {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  padding-top: 2px;
-}
+/* ⛔ `.relRow` / `.relBtn` DELETED 2026-08-17. They styled FOLLOW · MESSAGE ·
+   PROFILE as three equal plain buttons on a row of their own. That row is gone:
+   the heart moved onto the tags line and MESSAGE / VIEW PROFILE took SlotCard's
+   gradient treatment at the far edge of the decision row, so the two panels
+   read as one product.
 
-.relBtn {
-  font-family: 'Bebas Neue', sans-serif;
-  font-size: 11px;
-  letter-spacing: 1.4px;
-  padding: 6px 12px;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  background: rgba(255, 255, 255, .03);
-  color: var(--muted);
-  cursor: pointer;
-  transition: color .15s, border-color .15s, background .15s;
-}
-.relBtn:hover {
-  color: var(--text);
-  border-color: rgba(255, 255, 255, .24);
-  background: rgba(255, 255, 255, .07);
-}
-.relBtn:disabled { opacity: .5; cursor: default; }
+   ⚠ The RULE those rules encoded still holds and now lives in the JSX beside
+   the markup: what changes YOUR relationship to a person is separated from what
+   changes THEIR position in your event. ⛔ Deleting dead CSS must not delete the
+   reason it existed. */
 
 /* On a phone the status column would squeeze the name to nothing, so it drops
    under the identity block and sits left-aligned with it. */

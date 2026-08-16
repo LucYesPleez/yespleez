@@ -340,7 +340,8 @@ export default function WorkItemCard({
             * 2026-08-16). ⛔ The old `.relRow` put FOLLOW · MESSAGE · PROFILE
             * on a line of their own as three equal plain buttons; `SlotCard`
             * had already settled a better arrangement and the two panels read
-            * as different products.
+            * as different products. ⚠ Those CSS rules are DELETED — ⛔ do not
+            * reach for `.relRow`/`.relBtn`, they no longer exist.
             *
             * ⭐ THE HEART RIDES THE TAGS LINE, far right. Following is about
             * the PERSON and commits to nothing, so it sits away from the row
