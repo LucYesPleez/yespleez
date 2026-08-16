@@ -71,7 +71,10 @@ export default function SlotCard({ slot, claim, onFill, onEdit, onRemove, onPin,
   const [historyOpen,   setHistoryOpen]   = useState(false);
   const [followed,      setFollowed]      = useState(false);
   const [followBusy,    setFollowBusy]    = useState(false);
-  const [confirm,       setConfirm]       = useState(null); // 'replace' | 'remove'
+  /* ⚠ ONE state, ⛔ no longer 'replace' | 'remove'. REPLACE and REMOVE share a
+     single button, so the panel asks once and the CHOICE is made in the
+     confirm. See the action row below. */
+  const [confirm,       setConfirm]       = useState(null); // 'choose' | null
   const [msgBusy,       setMsgBusy]       = useState(false);
 
   /**
@@ -383,20 +386,62 @@ export default function SlotCard({ slot, claim, onFill, onEdit, onRemove, onPin,
             * ⭐ RIGHT at rest, DOWN when open — the motion this row always had,
             * now with the drawn mark and matched by `WorkItemCard`.
             */}
-          {(isHost || isConfirmed) && (
-            <span className={s.slotChevron} aria-hidden="true" style={{ display: 'inline-flex', alignItems: 'center', transform: expanded ? 'rotate(90deg)' : 'none', transition: 'transform .18s' }}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="9 6 15 12 9 18" />
-              </svg>
-            </span>
-          )}
+          {/**
+            * ⭐⭐ THE HEART SITS ABOVE THE CHEVRON (owner, 2026-08-16), ⛔ not in
+            * the panel. Following an artist is about the PERSON, so it belongs
+            * on the row that names them rather than inside the workspace that
+            * schedules them — and it stays reachable without opening anything.
+            *
+            * ⚠ 44px of TARGET, ⛔ no border and no fill: the glyph is the whole
+            * control. Same heart, same size; only the hit area is generous.
+            */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            {claim?.user_id && session?.user?.id && (
+              <button
+                onClick={async e => {
+                  e.stopPropagation();
+                  if (followBusy) return;
+                  setFollowBusy(true);
+                  if (followed) {
+                    await supabase.from('follows').delete().eq('user_id', session.user.id).eq('entity_id', claim.user_id);
+                    setFollowed(false);
+                  } else {
+                    const targetProfileId = await resolveProfileId(claim.user_id, 'artist');
+                    /* M6 (R6.1): from_profile_id is the follower (Personal);
+                       target_profile_id is who is being followed. ⛔ Two ends,
+                       two columns — never conflate them. */
+                    const fromProfileId = await getPersonalProfileId(session.user.id);
+                    await supabase.from('follows').insert({ user_id: session.user.id, from_profile_id: fromProfileId, entity_id: claim.user_id, entity_type: 'artist', entity_name: claim.name, target_profile_id: targetProfileId });
+                    track(EVENTS.FOLLOWED, { entity_type: 'artist' });
+                    setFollowed(true);
+                  }
+                  setFollowBusy(false);
+                }}
+                title={followed ? 'Following' : 'Follow'}
+                aria-label={followed ? 'Following' : 'Follow'}
+                aria-pressed={followed}
+                style={{ width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, border: 'none', background: 'none', padding: 0, cursor: 'pointer', color: followed ? '#FF2D78' : 'rgba(255,255,255,.45)', transition: 'color .15s' }}
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill={followed ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1.1 1L12 21l7.7-7.6 1.1-1a5.5 5.5 0 0 0 0-7.8z"/>
+                </svg>
+              </button>
+            )}
+            {(isHost || isConfirmed) && (
+              <span className={s.slotChevron} aria-hidden="true" style={{ display: 'inline-flex', alignItems: 'center', transform: expanded ? 'rotate(90deg)' : 'none', transition: 'transform .18s' }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                  strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="9 6 15 12 9 18" />
+                </svg>
+              </span>
+            )}
+          </div>
         </div>
         </div>
       </div>
 
       {expanded && !isEmpty && (isHost || isConfirmed || claim) && (
-        <div style={{ background: 'var(--card2)', border: `1px solid ${borderCol}`, borderTop: 'none', borderRadius: '0 0 10px 10px', padding: '14px 16px' }}>
+        <div style={{ background: 'var(--card2)', border: `1px solid ${borderCol}`, borderTop: 'none', borderRadius: '0 0 10px 10px', padding: '10px 13px' }}>
 
           {/**
             * ⭐⭐ THE EXPANDED SLOT, TRIMMED TO A HIERARCHY (owner, 2026-08-16).
@@ -416,121 +461,57 @@ export default function SlotCard({ slot, claim, onFill, onEdit, onRemove, onPin,
             * `openDirectConversation`.
             */}
 
-          {/* ── 1 · STATUS ─────────────────────────────────────────────── */}
-          {isHost && (() => {
-            const cStatus = claim?.status || (claim?.user_id ? 'pending' : 'name_added');
-            const chip = {
-              name_added: { label: 'NAME ADDED', bg: 'rgba(255,255,255,.04)', border: 'rgba(255,255,255,.15)', color: 'var(--muted)', icon: null },
-              pending:    { label: 'AWAITING REPLY', bg: 'rgba(255,184,48,.10)', border: 'rgba(255,184,48,.35)', color: '#FFB830', icon: null },
-              offered:    { label: 'AWAITING REPLY', bg: 'rgba(255,184,48,.10)', border: 'rgba(255,184,48,.35)', color: '#FFB830', icon: null },
-              draft:      { label: 'SET TIME NOT SENT', bg: 'rgba(255,255,255,.04)', border: 'rgba(255,255,255,.15)', color: 'var(--muted)', icon: null },
-              /* ⚠ "ARTIST DECLINED", matching the LINEUP tab exactly — the host
-                 declining an APPLICATION is a different event that shares the
-                 word, so neither surface may use it bare. */
-              declined:   { label: 'ARTIST DECLINED', bg: 'rgba(255,51,153,.10)', border: 'rgba(255,51,153,.40)', color: '#FF3399', icon: null },
-              confirmed:  { label: 'BOOKED', bg: 'rgba(0,200,100,.10)', border: 'rgba(255,255,255,.15)', color: '#00C864',
-                icon: <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg> },
-            }[cStatus] || { label: cStatus.toUpperCase(), bg: 'rgba(255,255,255,.04)', border: 'rgba(255,255,255,.15)', color: 'var(--muted)', icon: null };
-            const claimedByArtist = cStatus === 'confirmed' && !!claim?.user_id;
-            return (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontFamily: "'Bebas Neue'", letterSpacing: 1.2, background: chip.bg, border: `1px solid ${chip.border}`, color: chip.color, borderRadius: 6, padding: '3px 10px' }}>
+          {/**
+            * ── 1 · WHO THEY ARE, AND WHERE THEY STAND — one line ────────────
+            *
+            * ⭐ Tags left, status right (owner, 2026-08-16). The act's own five
+            * words and the artist's answer are the two things a host reads
+            * first, so they share the top line rather than stacking.
+            *
+            * ⚠ FIVE tags, matching the act's curated "Your 5 Tags" and the
+            * lineup card's panel. ⛔ No `+N more` — a rail of twenty pills is
+            * browsing, not context.
+            */}
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 9 }}>
+            {(claim?.card_pills?.length || claim?.genre) ? (() => {
+              const usingCardPills = !!claim.card_pills?.length;
+              const raw = usingCardPills ? claim.card_pills : claim.genre;
+              const all = Array.isArray(raw)
+                ? raw
+                : raw.split(/[·,|/]+/).map(g => g.trim()).filter(Boolean);
+              return (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, flex: 1, minWidth: 0 }}>
+                  {all.slice(0, 5).map(g => (
+                    usingCardPills
+                      ? <span key={g} className="glow-pill" style={{ whiteSpace: 'nowrap' }}>{g}</span>
+                      : <span key={g} style={{ fontSize: 10, fontFamily: "'DM Sans',sans-serif", background: 'rgba(0,229,255,.08)', border: '1px solid rgba(0,229,255,.25)', color: '#fff', borderRadius: 20, padding: '2px 10px', whiteSpace: 'nowrap' }}>{g}</span>
+                  ))}
+                </div>
+              );
+            })() : <div style={{ flex: 1 }} />}
+
+            {/* ⚠ The status chip, ⛔ no longer on a line of its own. */}
+            {isHost && (() => {
+              const cStatus = claim?.status || (claim?.user_id ? 'pending' : 'name_added');
+              const chip = {
+                name_added: { label: 'NAME ADDED', bg: 'rgba(255,255,255,.04)', border: 'rgba(255,255,255,.15)', color: 'var(--muted)', icon: null },
+                pending:    { label: 'AWAITING REPLY', bg: 'rgba(255,184,48,.10)', border: 'rgba(255,184,48,.35)', color: '#FFB830', icon: null },
+                offered:    { label: 'AWAITING REPLY', bg: 'rgba(255,184,48,.10)', border: 'rgba(255,184,48,.35)', color: '#FFB830', icon: null },
+                draft:      { label: 'SET TIME NOT SENT', bg: 'rgba(255,255,255,.04)', border: 'rgba(255,255,255,.15)', color: 'var(--muted)', icon: null },
+                /* ⚠ "ARTIST DECLINED", matching the LINEUP tab exactly — the
+                   host declining an APPLICATION is a different event that
+                   shares the word, so ⛔ neither surface may use it bare. */
+                declined:   { label: 'ARTIST DECLINED', bg: 'rgba(255,51,153,.10)', border: 'rgba(255,51,153,.40)', color: '#FF3399', icon: null },
+                confirmed:  { label: 'BOOKED', bg: 'rgba(0,200,100,.10)', border: 'rgba(255,255,255,.15)', color: '#00C864',
+                  icon: <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg> },
+              }[cStatus] || { label: cStatus.toUpperCase(), bg: 'rgba(255,255,255,.04)', border: 'rgba(255,255,255,.15)', color: 'var(--muted)', icon: null };
+              return (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, flexShrink: 0, fontSize: 11, fontFamily: "'Bebas Neue'", letterSpacing: 1.2, background: chip.bg, border: `1px solid ${chip.border}`, color: chip.color, borderRadius: 6, padding: '3px 10px', whiteSpace: 'nowrap' }}>
                   {chip.icon}{chip.label}
                 </span>
-                {claimedByArtist && (
-                  <span style={{ display: 'inline-flex', alignItems: 'center', fontSize: 11, fontFamily: "'Bebas Neue'", letterSpacing: 1.2, background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.15)', color: 'var(--muted)', borderRadius: 6, padding: '3px 10px' }}>
-                    ACCEPTED BY ARTIST
-                  </span>
-                )}
-                {slot.pinned && (
-                  <span style={{ display: 'inline-flex', alignItems: 'center', fontSize: 11, fontFamily: "'Bebas Neue'", letterSpacing: 1.2, background: 'rgba(255,184,48,.10)', border: '1px solid rgba(255,184,48,.35)', color: '#FFB830', borderRadius: 6, padding: '3px 10px' }}>
-                    LOCKED
-                  </span>
-                )}
-              </div>
-            );
-          })()}
-
-          {/* ── 2 · RELATIONSHIP — follow · message · profile ───────────────
-              ⚠ These change YOUR relationship to a person. The slot controls
-              below change THEIR place in your night, which is why the two are
-              separate rows and not one row of six. */}
-          {claim?.user_id && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
-              {session?.user?.id && (
-                <button
-                  onClick={async e => {
-                    e.stopPropagation();
-                    if (followBusy) return;
-                    setFollowBusy(true);
-                    if (followed) {
-                      await supabase.from('follows').delete().eq('user_id', session.user.id).eq('entity_id', claim.user_id);
-                      setFollowed(false);
-                    } else {
-                      const targetProfileId = await resolveProfileId(claim.user_id, 'artist');
-                      // M6 (R6.1): from_profile_id is the follower (Personal);
-                      // target_profile_id is who is being followed. Two ends,
-                      // two columns — never conflate them.
-                      const fromProfileId = await getPersonalProfileId(session.user.id);
-                      await supabase.from('follows').insert({ user_id: session.user.id, from_profile_id: fromProfileId, entity_id: claim.user_id, entity_type: 'artist', entity_name: claim.name, target_profile_id: targetProfileId });
-                      track(EVENTS.FOLLOWED, { entity_type: 'artist' });
-                      setFollowed(true);
-                    }
-                    setFollowBusy(false);
-                  }}
-                  style={{ flexShrink: 0, padding: '7px 14px', borderRadius: 8, cursor: 'pointer', fontFamily: "'Bebas Neue'", fontSize: 12, letterSpacing: 1.5, border: '1.5px solid transparent', background: 'linear-gradient(var(--card),var(--card)) padding-box, linear-gradient(135deg,#00E5FF,#BF5FFF) border-box', color: '#fff', display: 'flex', alignItems: 'center', gap: 5, transition: 'opacity .15s' }}
-                >
-                  {followed
-                    ? <><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg> FOLLOWING</>
-                    : <>+ FOLLOW</>
-                  }
-                </button>
-              )}
-              {/* ⛔ MESSAGE NEEDS AN EXPLICIT SENDER. `openDirectConversation`
-                  takes a FROM profile and this account may hold several —
-                  `profiles.user_id` is shared across a multi-profile account —
-                  so the surface states who it is acting as, or the button is
-                  not offered. */}
-              {viewerProfileId && claim.profile_id && (
-                <button
-                  onClick={async e => {
-                    e.stopPropagation();
-                    if (msgBusy) return;
-                    setMsgBusy(true);
-                    const { conversationId } = await openDirectConversation(viewerProfileId, claim.profile_id);
-                    setMsgBusy(false);
-                    if (conversationId) navigate(`/messages/${conversationId}`);
-                  }}
-                  style={{ flexShrink: 0, padding: '7px 14px', borderRadius: 8, cursor: 'pointer', fontFamily: "'Bebas Neue'", fontSize: 12, letterSpacing: 1.5, border: '1px solid var(--border)', background: 'rgba(255,255,255,.03)', color: 'var(--muted)' }}
-                >{msgBusy ? 'OPENING…' : 'MESSAGE'}</button>
-              )}
-              <button
-                onClick={e => { e.stopPropagation(); navigate(claim.profile_id ? `/profile/${claim.profile_id}?prefer=performer` : `/profile/${claim.user_id}?prefer=performer`); }}
-                style={{ flexShrink: 0, fontSize: 11, fontFamily: "'Bebas Neue'", letterSpacing: 1.5, background: 'none', border: 'none', padding: '5px 12px', cursor: 'pointer', whiteSpace: 'nowrap' }}
-              ><span style={{ background: 'linear-gradient(135deg,#00E5FF,#BF5FFF)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>VIEW PROFILE →</span></button>
-            </div>
-          )}
-
-          {/* ── 3 · CONTEXT — up to five tags, ⛔ no overflow control ────────
-              ⚠ FIVE, matching the act's own curated "Your 5 Tags" and the
-              lineup card's panel. The `+N more` button expanded a rail that
-              could run to twenty pills, which is browsing, not context. */}
-          {(claim?.card_pills?.length || claim?.genre) && (() => {
-            const usingCardPills = !!claim.card_pills?.length;
-            const raw = usingCardPills ? claim.card_pills : claim.genre;
-            const all = Array.isArray(raw)
-              ? raw
-              : raw.split(/[·,|/]+/).map(g => g.trim()).filter(Boolean);
-            return (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginBottom: 14 }}>
-                {all.slice(0, 5).map(g => (
-                  usingCardPills
-                    ? <span key={g} className="glow-pill" style={{ whiteSpace: 'nowrap' }}>{g}</span>
-                    : <span key={g} style={{ fontSize: 10, fontFamily: "'DM Sans',sans-serif", background: 'rgba(0,229,255,.08)', border: '1px solid rgba(0,229,255,.25)', color: '#fff', borderRadius: 20, padding: '2px 10px', whiteSpace: 'nowrap' }}>{g}</span>
-                ))}
-              </div>
-            );
-          })()}
+              );
+            })()}
+          </div>
 
           {isHost && (
             <>
@@ -558,99 +539,152 @@ export default function SlotCard({ slot, claim, onFill, onEdit, onRemove, onPin,
               {/* Confirm dialog */}
               {confirm && (
                 <div onClick={e => e.stopPropagation()} style={{ background: 'rgba(255,45,120,.08)', border: '1px solid rgba(255,45,120,.3)', borderRadius: 10, padding: '12px 14px', marginBottom: 12 }}>
+                  {/**
+                    * ⭐⭐ ONE BUTTON, TWO ANSWERS (owner, 2026-08-16: "replace /
+                    * remove can be one button").
+                    *
+                    * ⚠⚠ They were two buttons in the panel, which spent two
+                    * slots of the action row on the same question — is this act
+                    * staying? ⛔ The question is asked once; the CHOICE moves
+                    * here, where it is already being confirmed.
+                    *
+                    * ⛔ BOTH ARE DESTRUCTIVE AND NEITHER IS THE DEFAULT. Cancel
+                    * sits first and unstyled; the two live options are stated in
+                    * full so nobody presses "yes" to whichever one they had in
+                    * mind. ⚠ REPLACE goes on to a picker, REMOVE does not.
+                    */}
                   <p style={{ margin: '0 0 10px', fontFamily: "'Bebas Neue'", fontSize: 13, letterSpacing: 1.2, color: '#fff' }}>
-                    {confirm === 'remove' ? 'REMOVE this artist from the slot?' : 'REPLACE this artist with someone else?'}
+                    {claim?.name ? `${claim.name} is on this slot.` : 'This slot has an artist.'} What would you like to do?
                   </p>
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button
                       onClick={() => { setConfirm(null); }}
                       style={{ flex: 1, padding: '8px 0', borderRadius: 8, border: '1px solid rgba(255,255,255,.15)', background: 'rgba(255,255,255,.05)', fontFamily: "'Bebas Neue'", fontSize: 12, letterSpacing: 1.2, color: 'var(--muted)', cursor: 'pointer' }}
                     >CANCEL</button>
-                    <button
-                      onClick={() => { setConfirm(null); if (confirm === 'remove') onRemove?.(); else onFill?.(); }}
-                      style={{ flex: 1, padding: '8px 0', borderRadius: 8, border: 'none', background: '#FF2D78', fontFamily: "'Bebas Neue'", fontSize: 12, letterSpacing: 1.2, color: '#fff', cursor: 'pointer' }}
-                    >{confirm === 'remove' ? 'YES, REMOVE' : 'YES, REPLACE'}</button>
-                  </div>
-                </div>
-              )}
-
-              {/**
-                * Manage actions — hidden when set times are locked.
-                *
-                * ⛔⛔ AND EACH ONE IS GATED ON ITS OWN HANDLER (2026-08-16).
-                * ⚠⚠ They used to render from `isHost` alone and call
-                * `onEdit?.()` / `onPin?.()`, so a surface that supplied no
-                * handlers drew three controls — one of them a red REMOVE — that
-                * did NOTHING when pressed. That shipped to the dashboard and
-                * was caught by looking at a screenshot, ⛔ not by any test.
-                *
-                * ⭐⭐ THE RULE: a control exists only where its verb does. That
-                * makes "pass no handler" mean "offer no button", which is what
-                * every caller already assumed it meant.
-                *
-                * ⚠ The column count is derived, ⛔ not a fixed `1fr 1fr 1fr` —
-                * one button in a three-column grid renders a third of a row
-                * wide with two empty gaps beside it.
-                */}
-              {!locked && (onEdit || onPin || onRemove) && (
-                <div style={{ paddingTop: 0, marginBottom: 14 }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: `repeat(${[onEdit, onPin, onRemove].filter(Boolean).length}, minmax(0, 1fr))`, gap: 8 }}>
-                    {onEdit && (
-                      <SlotManageBtn
-                        icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>}
-                        label="EDIT SLOT" sub="Time, duration & details"
-                        accent="#4A9EFF"
-                        onClick={e => { e.stopPropagation(); onEdit(); }}
-                      />
-                    )}
-                    {onPin && (
-                      <SlotManageBtn
-                        icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>}
-                        label={slot.pinned ? 'LOCKED' : 'LOCK SLOT'} sub="Prevent this slot from moving"
-                        accent="#FFB830"
-                        onClick={e => { e.stopPropagation(); onPin(); }}
-                      />
-                    )}
                     {onRemove && (
-                      <SlotManageBtn
-                        icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>}
-                        label="REMOVE" sub="Remove this artist from slot"
-                        onClick={e => { e.stopPropagation(); setConfirm('remove'); }}
-                        danger
-                      />
+                      <button
+                        onClick={() => { setConfirm(null); onRemove(); }}
+                        style={{ flex: 1, padding: '8px 0', borderRadius: 8, border: '1px solid rgba(255,45,120,.5)', background: 'rgba(255,45,120,.12)', fontFamily: "'Bebas Neue'", fontSize: 12, letterSpacing: 1.2, color: '#FF2D78', cursor: 'pointer' }}
+                      >REMOVE</button>
+                    )}
+                    {onFill && (
+                      <button
+                        onClick={() => { setConfirm(null); onFill(); }}
+                        style={{ flex: 1, padding: '8px 0', borderRadius: 8, border: 'none', background: '#FF2D78', fontFamily: "'Bebas Neue'", fontSize: 12, letterSpacing: 1.2, color: '#fff', cursor: 'pointer' }}
+                      >REPLACE</button>
                     )}
                   </div>
                 </div>
               )}
 
               {/**
-                * ── 5 · REPLACEMENT ────────────────────────────────────────
-                * ⭐ LAST, AND ONLY WHERE AN ARTIST IS ATTACHED. It ends the
-                * panel because it is the one action that discards what the rest
-                * of the card describes.
+                * ── 2 · ONE ACTION LINE (owner, 2026-08-16) ──────────────────
                 *
-                * ⚠ Gated on `claim`, ⛔ not on `isConfirmed`. An artist who has
-                * not replied yet, and one who has DECLINED, are both still
-                * attached to the slot — declined especially is the case where a
-                * host most needs to swap somebody in, and it was the case the
-                * old `isConfirmed` gate hid it from.
+                *   EDIT SLOT · REPLACE / REMOVE · MESSAGE · VIEW PROFILE →
                 *
-                * ⛔ Withheld while the set times are LOCKED, exactly like the
-                * three controls above: a locked slot does not change hands.
+                * ⭐ Left to right: what you do to the SLOT, then what you do
+                * with the PERSON. They were two stacked rows; one line does the
+                * same work in half the height.
+                *
+                * ⚠ COLOURED BORDER, WHITE TEXT on the two host buttons — the
+                * colour classifies the action, the white keeps the label
+                * readable. Coloured-on-coloured was the least legible thing in
+                * the old panel.
+                *
+                * ⛔⛔ EACH GATED ON ITS OWN HANDLER. "Pass no handler" means
+                * "offer no button" — that rule is why the dashboard shows EDIT
+                * SLOT alone with no dead REMOVE beside it.
+                *
+                * ⛔ LOCK IS NOT HERE. It is the padlock icon, which both shows
+                * the state and toggles it; a boolean needs neither a full-width
+                * button nor a status chip.
                 */}
-              {claim && !locked && onFill && (
-                <div style={{ marginBottom: 14 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
+                {/**
+                  * ⭐ THE PADLOCK IS THE WHOLE CONTROL — it SHOWS that the slot
+                  * is locked and TOGGLES it. ⛔ The old LOCK SLOT button and the
+                  * LOCKED status chip are both gone; two elements for one
+                  * boolean is what made this panel crowded.
+                  *
+                  * ⚠ First in the line: it governs whether the slot moves at
+                  * all, which is prior to editing it or changing who is on it.
+                  */}
+                {!locked && onPin && (
                   <button
-                    onClick={e => { e.stopPropagation(); setConfirm('replace'); }}
-                    style={{ width: '100%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7, fontSize: 12, fontFamily: "'Bebas Neue'", letterSpacing: 1.5, background: 'rgba(255,45,120,.08)', border: '1px solid rgba(255,45,120,.35)', color: '#fff', borderRadius: 8, padding: '9px 12px', cursor: 'pointer', transition: 'background .15s, border-color .15s' }}
-                    onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,45,120,.2)'; e.currentTarget.style.borderColor = 'rgba(255,45,120,.6)'; }}
-                    onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,45,120,.08)'; e.currentTarget.style.borderColor = 'rgba(255,45,120,.35)'; }}
+                    onClick={e => { e.stopPropagation(); onPin(); }}
+                    title={slot.pinned ? 'Locked — tap to unlock' : 'Lock this slot'}
+                    aria-label={slot.pinned ? 'Locked, tap to unlock' : 'Lock this slot'}
+                    aria-pressed={!!slot.pinned}
+                    style={{ width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, borderRadius: 9, cursor: 'pointer', border: `1px solid ${slot.pinned ? 'rgba(255,184,48,.55)' : 'var(--border)'}`, background: slot.pinned ? 'rgba(255,184,48,.10)' : 'rgba(255,255,255,.03)', color: slot.pinned ? '#FFB830' : 'var(--muted)', transition: 'color .15s, border-color .15s, background .15s' }}
                   >
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
-                    REPLACE ARTIST
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="3" y="11" width="18" height="11" rx="2"/>
+                      {/* ⚠ Shackle CLOSED when pinned, open when not. */}
+                      {slot.pinned ? <path d="M7 11V7a5 5 0 0 1 10 0v4"/> : <path d="M7 11V7a5 5 0 0 1 9.9-1"/>}
+                    </svg>
                   </button>
+                )}
+                {!locked && onEdit && (
+                  <SlotManageBtn
+                    icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>}
+                    label="EDIT SLOT"
+                    accent="#4A9EFF"
+                    onClick={e => { e.stopPropagation(); onEdit(); }}
+                  />
+                )}
+                {/* ⚠ Gated on `claim`: with nobody on the slot there is nobody
+                    to replace or remove. ⛔ An empty row books through its own
+                    onClick, not through here. */}
+                {!locked && claim && (onFill || onRemove) && (
+                  <SlotManageBtn
+                    icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>}
+                    label="REPLACE / REMOVE"
+                    onClick={e => { e.stopPropagation(); setConfirm('choose'); }}
+                    danger
+                  />
+                )}
+
+                {/**
+                  * ⭐ THE PERSON ACTIONS SIT RIGHT (owner, 2026-08-16).
+                  * `marginLeft: auto` splits the line: what you do to the SLOT
+                  * stays left, what you do with the PERSON goes to the far
+                  * edge. ⚠ Their own flex group, so they stay together when the
+                  * row wraps on a narrow screen.
+                  */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginLeft: 'auto' }}>
+
+                {/* ⛔ MESSAGE NEEDS AN EXPLICIT SENDER. `openDirectConversation`
+                    takes a FROM profile and this account may hold several —
+                    `profiles.user_id` is shared across a multi-profile account
+                    — so the surface states who it is acting as, or ⛔ the button
+                    is not offered. */}
+                {claim?.user_id && viewerProfileId && claim.profile_id && (
+                  <button
+                    onClick={async e => {
+                      e.stopPropagation();
+                      if (msgBusy) return;
+                      setMsgBusy(true);
+                      const { conversationId } = await openDirectConversation(viewerProfileId, claim.profile_id);
+                      setMsgBusy(false);
+                      if (conversationId) navigate(`/messages/${conversationId}`);
+                    }}
+                    /* ⭐ THE GRADIENT BORDER (owner, 2026-08-16) — the app's
+                       cyan→violet edge, painted with the two-layer background
+                       trick: a padding-box fill over a border-box gradient.
+                       ⛔ A transparent 1.5px border is REQUIRED for it to show;
+                       drop it and the gradient is hidden under the fill. */
+                    style={{ flexShrink: 0, padding: '7px 12px', borderRadius: 9, cursor: 'pointer', fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1.2, border: '1.5px solid transparent', background: 'linear-gradient(var(--card2),var(--card2)) padding-box, linear-gradient(135deg,#00E5FF,#BF5FFF) border-box', color: '#fff', whiteSpace: 'nowrap' }}
+                  >{msgBusy ? 'OPENING…' : 'MESSAGE'}</button>
+                )}
+
+                {claim?.user_id && (
+                  <button
+                    onClick={e => { e.stopPropagation(); navigate(claim.profile_id ? `/profile/${claim.profile_id}?prefer=performer` : `/profile/${claim.user_id}?prefer=performer`); }}
+                    style={{ flexShrink: 0, fontSize: 10, fontFamily: "'Bebas Neue'", letterSpacing: 1.2, background: 'none', border: 'none', padding: '7px 2px', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                  ><span style={{ background: 'linear-gradient(135deg,#00E5FF,#BF5FFF)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>VIEW PROFILE →</span></button>
+                )}
                 </div>
-              )}
+              </div>
 
               {/* ── ⚠ NOTES ARE HIDDEN BECAUSE THEY NEVER SAVED ──────────────
                   `hostNote` and `artistBrief` below are local state with no
@@ -768,15 +802,25 @@ function SlotManageBtn({ icon, label, sub, onClick, accent = '#888', danger }) {
     '#888':    '136,136,136',
   }[hex] || '136,136,136';
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
+    /* ⚠ `sub` IS OPTIONAL NOW. The caption under each button cost a 9px line
+       plus a 5px gap on every control, and "EDIT SLOT" does not need "Time,
+       duration & details" underneath it. ⛔ Kept as a prop rather than deleted:
+       a future control with a genuinely ambiguous label can still explain
+       itself. */
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: sub ? 4 : 0 }}>
       <button onClick={onClick}
         onMouseEnter={e => { e.currentTarget.style.background = `rgba(${rgb},.2)`; e.currentTarget.style.borderColor = hex; }}
         onMouseLeave={e => { e.currentTarget.style.background = `rgba(${rgb},.07)`; e.currentTarget.style.borderColor = `rgba(${rgb},.35)`; }}
-        style={{ width: '100%', display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, padding: '8px 6px', borderRadius: 10, border: `1px solid rgba(${rgb},.35)`, background: `rgba(${rgb},.07)`, cursor: 'pointer', transition: 'background .15s, border-color .15s' }}>
+        /* ⚠ COLOURED BORDER, WHITE TEXT (owner, 2026-08-16). The hue classifies
+           the action; the label stays white so it is actually readable. ⛔ The
+           old coloured-on-coloured text was the least legible thing here.
+           ⚠ The ICON keeps the accent — it carries the colour without costing
+           legibility. */
+        style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, padding: '7px 11px', borderRadius: 9, border: `1px solid rgba(${rgb},.55)`, background: `rgba(${rgb},.10)`, cursor: 'pointer', whiteSpace: 'nowrap', transition: 'background .15s, border-color .15s' }}>
         <span style={{ color: hex, display: 'flex', alignItems: 'center', flexShrink: 0 }}>{icon}</span>
-        <span style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1.2, color: hex, lineHeight: 1.1 }}>{label}</span>
+        <span style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1.2, color: '#fff', lineHeight: 1.1 }}>{label}</span>
       </button>
-      <span style={{ fontSize: 9, color: 'var(--muted)', lineHeight: 1.3, textAlign: 'center' }}>{sub}</span>
+      {sub && <span style={{ fontSize: 9, color: 'var(--muted)', lineHeight: 1.3, textAlign: 'center' }}>{sub}</span>}
     </div>
   );
 }
