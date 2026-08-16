@@ -2,6 +2,9 @@ import { useState, useEffect, useRef } from 'react';
 import UnclaimedNotice from './UnclaimedNotice';
 import { supabase } from '../lib/supabase';
 import { genreLabels } from '../lib/profileTaxonomy';
+/* ⭐ THE ONE WRITER for putting somebody on a slot. ⛔ This component may not
+   compose its own insert — it did, and it wrote the wrong column. */
+import { assignMemberToSlot } from '../lib/lineupActions';
 
 export default function FillSlotModal({ slot, eventId, eventName = '', hostId, acceptedArtists = [], acceptedProfiles = {}, onFilled, onClose }) {
   const [view,    setView]    = useState('menu');
@@ -9,6 +12,11 @@ export default function FillSlotModal({ slot, eventId, eventName = '', hostId, a
   const [query,   setQuery]   = useState('');
   const [results, setResults] = useState([]);
   const [busy,    setBusy]    = useState(false);
+  /* ⛔⛔ THE FAILURE WAS SILENT. Both fill paths ended `if (!error) onFilled()`,
+     so a write RLS filtered simply left the sheet open with no explanation —
+     indistinguishable from a slow network, and the exact failure mode this
+     codebase keeps being bitten by. */
+  const [err,     setErr]     = useState(null);
   const [name,    setName]    = useState('');
   const [email,   setEmail]   = useState('');
   const [phone,   setPhone]   = useState('');
@@ -45,12 +53,14 @@ export default function FillSlotModal({ slot, eventId, eventName = '', hostId, a
       }).select('id').single();
       memberData = nm;
     }
-    await supabase.from('performances').delete().eq('slot_id', slot.id).eq('event_id', eventId);
-    const { error } = await supabase.from('performances').insert({
-      lineup_member_id: memberData.id, event_id: eventId, slot_id: slot.id, status: 'draft',
+    /* ⛔⛔ ONE WRITER, and it writes `slot_uuid`. This wrote the legacy TEXT
+       `slot_id` column with a UUID, so the L3 trigger could not resolve the FK
+       and the row was invisible to every read. See `assignMemberToSlot`. */
+    const { ok, error } = await assignMemberToSlot(supabase, {
+      slotId: slot.id, eventId, memberId: memberData.id, status: 'draft',
     });
     setBusy(false);
-    if (!error) onFilled();
+    if (ok) onFilled(); else setErr(error);
   }
 
   async function fillManual() {
@@ -59,12 +69,14 @@ export default function FillSlotModal({ slot, eventId, eventName = '', hostId, a
     const { data: memberData } = await supabase.from('lineup_members').insert({
       event_id: eventId, artist_name: name.trim(), status: 'on_bill',
     }).select('id').single();
-    await supabase.from('performances').delete().eq('slot_id', slot.id).eq('event_id', eventId);
-    const { error } = await supabase.from('performances').insert({
-      lineup_member_id: memberData.id, event_id: eventId, slot_id: slot.id, status: 'accepted',
+    /* ⚠ `accepted`, ⛔ not `draft` — a hand-entered act has no account to offer
+       anything to, so writing them down IS the booking. Same rule `toClaim`
+       states for display. */
+    const { ok, error } = await assignMemberToSlot(supabase, {
+      slotId: slot.id, eventId, memberId: memberData.id, status: 'accepted',
     });
     setBusy(false);
-    if (!error) onFilled();
+    if (ok) onFilled(); else setErr(error);
   }
 
   const filtered = acceptedArtists.filter(app => {
@@ -101,6 +113,11 @@ export default function FillSlotModal({ slot, eventId, eventName = '', hostId, a
             </div>
             <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--muted)', fontSize: 24, cursor: 'pointer', padding: 0, lineHeight: 1, flexShrink: 0 }}>×</button>
           </div>
+          {err && (
+            <div style={{ marginTop: 10, padding: '8px 10px', borderRadius: 8, border: '1px solid rgba(255,45,120,.4)', background: 'rgba(255,45,120,.1)', color: '#FF2D78', fontSize: 12 }}>
+              {err}
+            </div>
+          )}
         </div>
 
         {/* Body */}

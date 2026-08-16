@@ -18,7 +18,7 @@ import { findOpenAsksForDate, declineOpenAsks } from '../../lib/dateLockout';
 import { durationLabel } from '../../lib/eventSlots';
 import { memberState, STATE_COLOURS } from '../../lib/hostLineup';
 import { normaliseStatus, rawStatusesFor, PIPELINE_BUCKETS, STATUS_TAB_COLOR } from '../../lib/enquiryUtils';
-import { planUnassign, planMoveToShortlist, planRemoveFromEvent, applyLineupPlan, notifiablePerformances, isReachable } from '../../lib/lineupActions';
+import { planUnassign, planMoveToShortlist, planRemoveFromEvent, executeLineupPlan, assignMemberToSlot } from '../../lib/lineupActions';
 import { planAddToBill, addToBill, findExistingMember } from '../../lib/lineupFromApplication';
 import { PROFILE_CARD_META_COLUMNS } from '../../components/ProfileCard';
 import WorkItemCard, { applicationWorkState, lineupWorkState } from '../../components/WorkItemCard';
@@ -212,35 +212,17 @@ export default function EventHostView({
    * reasoning — ⛔ do not re-derive either here.
    */
   async function runLineupAction(plan, member) {
-    /**
-     * ⚠ WHAT THE PLAN IS ACTUALLY REMOVING, not everything the member holds.
-     * Clearing one slot from the grid must not notify about a second slot they
-     * still have — and `removeArtist` passes exactly one performance for that
-     * reason.
-     */
-    const acting = memberPerfs(member.id).filter(p => plan.deletePerformanceIds.includes(p.id));
-    const sent   = notifiablePerformances(acting);
-    const { ok, error } = await applyLineupPlan(supabase, plan);
-    if (!ok) { setSlotError(error || 'That change was not saved.'); return; }
-
-    /**
-     * ⚠ ONLY IF THEY WERE EVER SENT SOMETHING. A `draft` slot was never
-     * announced, so "you have been removed from a slot" would announce the
-     * booking and cancel it in one message. And a hand-entered act has no
-     * account to write to at all.
-     */
-    if (sent.length && isReachable(member)) {
-      await writeNotification({
-        toUserId:       member.artist_id,
-        toProfileId:    (await resolvePerformerProfileId(member.artist_id)).profileId ?? null,
-        aboutProfileId: event.owner_profile_id ?? null,
-        type:    'slot_removed',
-        message: plan.kind === 'remove-from-bill'
-          ? `You are no longer on the lineup for ${event.name}.`
-          : `Your set time at ${event.name} has been removed. You are still on the lineup.`,
-        data:    { event_id: id, event_name: event.name },
-      });
-    }
+    const { ok, error } = await executeLineupPlan(supabase, plan, {
+      member,
+      // ⚠ Scoped by the executor to what the plan destroys, so handing it
+      // everything the member holds is safe — and `removeArtist` narrows to a
+      // single performance before this, because one slot is not the other.
+      perfs: memberPerfs(member.id),
+      event: { id, name: event.name, owner_profile_id: event.owner_profile_id },
+      notify: writeNotification,
+      resolveProfileId: resolvePerformerProfileId,
+    });
+    if (!ok) { setSlotError(error); return; }
     setConfirmRemove(null);
     queryClient.invalidateQueries({ queryKey: ['event', id] });
   }
@@ -289,7 +271,11 @@ export default function EventHostView({
     setSendingOffers(true);
     const { data: drafts } = await supabase
       .from('performances')
-      .select('id, slot_id, lineup_members(artist_id, artist_profile_id, artist_name)')
+      /* ⚠ `slot_uuid`, ⛔ not the legacy `slot_id`. Nothing resolves this
+         payload field — the accept/decline handlers key on `performance_id` —
+         but new rows no longer populate the legacy column, so carrying it
+         would put a NULL in every future offer notification. */
+      .select('id, slot_uuid, lineup_members(artist_id, artist_profile_id, artist_name)')
       .eq('event_id', id)
       .eq('status', 'draft');
     if (drafts?.length) {
@@ -307,7 +293,7 @@ export default function EventHostView({
           aboutProfileId: event.owner_profile_id ?? null,
           type:    'slot_offer',
           message: `You've been offered a slot at ${event.name}.`,
-          data:    { performance_id: d.id, event_id: id, event_name: event.name, slot_id: d.slot_id },
+          data:    { performance_id: d.id, event_id: id, event_name: event.name, slot_id: d.slot_uuid },
         })));
         await writeNotifications(batchRows);
         // M6 · one update per APPLICANT, narrowed to the profile the host
@@ -472,11 +458,13 @@ export default function EventHostView({
       }).select('id').single();
       memberData = nm;
     }
-    // Replace any existing performance for this slot, then create the new one
-    await supabase.from('performances').delete().eq('slot_id', slot.id).eq('event_id', id);
-    const { data: perf } = await supabase.from('performances').insert({
-      lineup_member_id: memberData.id, event_id: id, slot_id: slot.id, status: 'offered',
-    }).select('id').single();
+    /* ⛔⛔ WAS WRITING `slot_id` (the legacy TEXT key) WITH A UUID, so the row
+       landed with a NULL `slot_uuid` and no surface could see it. One writer
+       now — see `assignMemberToSlot`. */
+    const { ok: assigned, error: assignErr, performance: perf } = await assignMemberToSlot(supabase, {
+      slotId: slot.id, eventId: id, memberId: memberData.id, status: 'offered',
+    });
+    if (!assigned) { setLineupError(assignErr); return; }
     await Promise.all([
       /* Same rule as publishSetTimes: giving somebody a slot IS the host
          saying yes. The slot offer lives on the performance created above. */
@@ -567,19 +555,16 @@ export default function EventHostView({
   async function doAssignMember(slot) {
     if (!assigningMember) return;
     const { member } = assigningMember;
-    /* Replace whatever held this slot, matching FillSlotModal and doAssign —
-       a slot is a place in the running order, and two acts arriving there by
-       different routes is the contested-slot case the picker already warns
-       about. ⚠ Scoped to the event as well as the slot: `slot_id` is the
-       legacy text key and is not unique across events on its own. */
-    await supabase.from('performances').delete().eq('slot_id', slot.id).eq('event_id', id);
-    const { error } = await supabase.from('performances').insert({
-      lineup_member_id: member.id, event_id: id, slot_id: slot.id, status: 'draft',
+    /* ⭐ One writer, shared with FillSlotModal and the application route — see
+       `assignMemberToSlot`. ⛔ This used to write the legacy `slot_id` column
+       with a UUID, which made the assignment invisible. */
+    const { ok: assigned, error: assignErr } = await assignMemberToSlot(supabase, {
+      slotId: slot.id, eventId: id, memberId: member.id, status: 'draft',
     });
     /* ⚠ SURFACED, NOT SWALLOWED — an INSERT blocked by RLS fails loudly (42501)
        while an UPDATE fails silently, and a set time that did not save must not
        look like one that did. */
-    if (error) setSlotError(error.message);
+    if (!assigned) setSlotError(assignErr);
     queryClient.invalidateQueries({ queryKey: ['event', id] });
     setAssigningMember(null);
   }

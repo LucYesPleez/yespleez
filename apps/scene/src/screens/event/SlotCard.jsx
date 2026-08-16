@@ -58,8 +58,17 @@ function HeadphoneIcon() {
  * control, and the one time it appears not to work is indistinguishable from
  * the RLS-filtered silent failure this codebase keeps being bitten by.
  *
- * ⭐ So the dashboard stays TRIAGE — the same rule its LINEUP tab follows by
- * passing no `actions`. Scheduling happens on the event page.
+ * ⭐ THE FIX WAS THE RIGHT ONE AND IT STILL STANDS: every control here renders
+ * only where its HANDLER exists, ⛔ never from `isHost` alone.
+ *
+ * ⚠ UPDATED 2026-08-16 — "the dashboard stays TRIAGE" no longer follows from
+ * it. REMOVE was withheld there because the screen could not act safely: the
+ * planners need the member row and its performances, and the dashboard held a
+ * translated status and a name. `eventSlots.toClaim` now carries
+ * `performance` and `member`, both screens call `executeLineupPlan`, and the
+ * dashboard passes a REAL `onRemove` behind its padlock. ⛔ REPLACE ARTIST is
+ * still withheld there — it needs the artist picker mounted, which is a
+ * surface, not a rule.
  */
 export default function SlotCard({ slot, claim, onFill, onEdit, onRemove, onPin, isHost, isSortable, isActiveSort, isDragOverlay, allMixSlots = [], locked = false, viewerProfileId = null, expandable = true, registerNode }) {
   const [expanded,      setExpanded]      = useState(false);
@@ -135,6 +144,31 @@ export default function SlotCard({ slot, claim, onFill, onEdit, onRemove, onPin,
 
   const { player, setPlayer } = usePlayer();
   const claimStatus   = claim?.status || (claim?.user_id ? 'pending' : 'name_added');
+  /**
+   * ⭐⭐ THE STATUS CHIP LIVES ON THE MINIMISED ROW (owner, 2026-08-16), top
+   * right. It was inside the expanded panel, so "where does this act stand"
+   * — the question a host scans a schedule to answer — required opening every
+   * slot one at a time.
+   *
+   * ⛔ HOSTED ONLY, unchanged. The public page shows an unfilled slot as
+   * unfilled; who has and has not answered is the organiser's business.
+   *
+   * ⚠ ⛔ NOT A SECOND INTERPRETATION OF STATE. It reads `claimStatus`, the
+   * value already derived above, ⛔ never `performance.status` — a chip is
+   * pixels, and the display translation is exactly what it should show.
+   */
+  const chip = {
+    name_added: { label: 'NAME ADDED', bg: 'rgba(255,255,255,.04)', border: 'rgba(255,255,255,.15)', color: 'var(--muted)', icon: null },
+    pending:    { label: 'AWAITING REPLY', bg: 'rgba(255,184,48,.10)', border: 'rgba(255,184,48,.35)', color: '#FFB830', icon: null },
+    offered:    { label: 'AWAITING REPLY', bg: 'rgba(255,184,48,.10)', border: 'rgba(255,184,48,.35)', color: '#FFB830', icon: null },
+    draft:      { label: 'SET TIME NOT SENT', bg: 'rgba(255,255,255,.04)', border: 'rgba(255,255,255,.15)', color: 'var(--muted)', icon: null },
+    /* ⚠ "ARTIST DECLINED", matching the LINEUP tab exactly — the host declining
+       an APPLICATION is a different event that shares the word, so ⛔ neither
+       surface may use it bare. */
+    declined:   { label: 'ARTIST DECLINED', bg: 'rgba(255,51,153,.10)', border: 'rgba(255,51,153,.40)', color: '#FF3399', icon: null },
+    confirmed:  { label: 'BOOKED', bg: 'rgba(0,200,100,.10)', border: 'rgba(255,255,255,.15)', color: '#00C864',
+      icon: <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg> },
+  }[claimStatus] || { label: String(claimStatus).toUpperCase(), bg: 'rgba(255,255,255,.04)', border: 'rgba(255,255,255,.15)', color: 'var(--muted)', icon: null };
   const isConfirmed   = claimStatus === 'confirmed';
   const isDraft       = claimStatus === 'draft';
   const artistName    = claim?.name || '';
@@ -173,6 +207,13 @@ export default function SlotCard({ slot, claim, onFill, onEdit, onRemove, onPin,
     || profileIdentity(String(claim.profile?.type || 'artist').toLowerCase()).defaultImage
     || null
   );
+
+  /**
+   * ⚠ NAMES THE CONTROL THAT OPENS IT, ⛔ not just the fact that something is
+   * shut. "LOCK SET TIMES" is the padlock's own label beside the SET TIMES
+   * heading, so the tooltip and the control agree word for word.
+   */
+  const lockReason = 'Set times are locked. Use LOCK SET TIMES beside the heading to unlock.';
 
   const borderCol = slot.pinned ? '#FFB830' : (isEmpty && !isDraft) ? 'var(--border)' : isDraft ? 'rgba(255,255,255,.18)' : 'var(--neon)';
 
@@ -255,7 +296,12 @@ export default function SlotCard({ slot, claim, onFill, onEdit, onRemove, onPin,
              to the row being dragged — a card cannot land on itself. */
           style={{ border: `1px solid ${isOver && !isDragging ? 'var(--neon2)' : borderCol}`, borderLeft: player?.url && player.url === claim?.mix_link ? '2px solid var(--neon2)' : `1px solid ${isOver && !isDragging ? 'var(--neon2)' : borderCol}`, background: isOver && !isDragging ? 'rgba(0,229,255,.07)' : undefined, borderRadius: isSortable ? (expanded ? '0 10px 0 0' : '0 10px 10px 0') : (expanded ? '10px 10px 0 0' : 10), cursor: 'pointer', marginBottom: 0, flex: 1 }}
           onClick={() => {
-            if (isEmpty && onFill) { onFill(); return; }
+            /* ⛔⛔ `!locked` IS LOAD BEARING NOW. `DaySlots` used to null the
+               handlers while LOCK SET TIMES was shut, so this line could not
+               fire; it passes them through so the panel can show them MUTED,
+               and without this guard tapping an open row would book a slot on
+               a locked schedule — the one write the lock exists to prevent. */
+            if (isEmpty && onFill && !locked) { onFill(); return; }
             /* ⛔ THE READ-ONLY SURFACES STOP HERE — see `expandable` above. The
                panel below is a workspace, and a summary must not open one. */
             if (!expandable) return;
@@ -320,6 +366,14 @@ export default function SlotCard({ slot, claim, onFill, onEdit, onRemove, onPin,
               * `applications.declined` is the HOST declining an application and
               * this is the opposite party. Two systems share the word, so
               * neither surface may use it bare.
+              */}
+            {/**
+              * ⚠⚠ WHY THIS SURVIVES ON THE MINIMISED ROW while the chip states
+              * the same thing in the panel: a declined slot loses its DRAG
+              * HANDLE, and a row that silently loses its grip reads as a
+              * rendering glitch rather than as an answer somebody gave. The
+              * chip is one tap away inside the panel; the missing handle is
+              * visible immediately, so its explanation has to be too.
               */}
             {isHost && claimStatus === 'declined' && (
               <span style={{ fontFamily: "'Bebas Neue'", fontSize: 9, letterSpacing: 1.5, color: '#FF3399', border: '1px solid rgba(255,51,153,.4)', borderRadius: 3, padding: '1px 5px', flexShrink: 0, whiteSpace: 'nowrap' }}>ARTIST DECLINED</span>
@@ -387,55 +441,22 @@ export default function SlotCard({ slot, claim, onFill, onEdit, onRemove, onPin,
             * now with the drawn mark and matched by `WorkItemCard`.
             */}
           {/**
-            * ⭐⭐ THE HEART SITS ABOVE THE CHEVRON (owner, 2026-08-16), ⛔ not in
-            * the panel. Following an artist is about the PERSON, so it belongs
-            * on the row that names them rather than inside the workspace that
-            * schedules them — and it stays reachable without opening anything.
+            * ⚠ THE HEART MOVED INTO THE PANEL (owner, 2026-08-16), so the
+            * column that held it above the chevron is gone — the chevron sits
+            * in this row directly rather than alone inside a wrapper that
+            * exists for a sibling it no longer has.
             *
-            * ⚠ 44px of TARGET, ⛔ no border and no fill: the glyph is the whole
-            * control. Same heart, same size; only the hit area is generous.
+            * ⛔ The trade the move makes, stated rather than discovered:
+            * following an artist requires OPENING the slot.
             */}
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            {claim?.user_id && session?.user?.id && (
-              <button
-                onClick={async e => {
-                  e.stopPropagation();
-                  if (followBusy) return;
-                  setFollowBusy(true);
-                  if (followed) {
-                    await supabase.from('follows').delete().eq('user_id', session.user.id).eq('entity_id', claim.user_id);
-                    setFollowed(false);
-                  } else {
-                    const targetProfileId = await resolveProfileId(claim.user_id, 'artist');
-                    /* M6 (R6.1): from_profile_id is the follower (Personal);
-                       target_profile_id is who is being followed. ⛔ Two ends,
-                       two columns — never conflate them. */
-                    const fromProfileId = await getPersonalProfileId(session.user.id);
-                    await supabase.from('follows').insert({ user_id: session.user.id, from_profile_id: fromProfileId, entity_id: claim.user_id, entity_type: 'artist', entity_name: claim.name, target_profile_id: targetProfileId });
-                    track(EVENTS.FOLLOWED, { entity_type: 'artist' });
-                    setFollowed(true);
-                  }
-                  setFollowBusy(false);
-                }}
-                title={followed ? 'Following' : 'Follow'}
-                aria-label={followed ? 'Following' : 'Follow'}
-                aria-pressed={followed}
-                style={{ width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, border: 'none', background: 'none', padding: 0, cursor: 'pointer', color: followed ? '#FF2D78' : 'rgba(255,255,255,.45)', transition: 'color .15s' }}
-              >
-                <svg width="15" height="15" viewBox="0 0 24 24" fill={followed ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1.1 1L12 21l7.7-7.6 1.1-1a5.5 5.5 0 0 0 0-7.8z"/>
-                </svg>
-              </button>
-            )}
-            {(isHost || isConfirmed) && (
-              <span className={s.slotChevron} aria-hidden="true" style={{ display: 'inline-flex', alignItems: 'center', transform: expanded ? 'rotate(90deg)' : 'none', transition: 'transform .18s' }}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                  strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="9 6 15 12 9 18" />
-                </svg>
-              </span>
-            )}
-          </div>
+          {(isHost || isConfirmed) && (
+            <span className={s.slotChevron} aria-hidden="true" style={{ display: 'inline-flex', alignItems: 'center', flexShrink: 0, transform: expanded ? 'rotate(90deg)' : 'none', transition: 'transform .18s' }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="9 6 15 12 9 18" />
+              </svg>
+            </span>
+          )}
         </div>
         </div>
       </div>
@@ -491,26 +512,58 @@ export default function SlotCard({ slot, claim, onFill, onEdit, onRemove, onPin,
             })() : <div style={{ flex: 1 }} />}
 
             {/* ⚠ The status chip, ⛔ no longer on a line of its own. */}
-            {isHost && (() => {
-              const cStatus = claim?.status || (claim?.user_id ? 'pending' : 'name_added');
-              const chip = {
-                name_added: { label: 'NAME ADDED', bg: 'rgba(255,255,255,.04)', border: 'rgba(255,255,255,.15)', color: 'var(--muted)', icon: null },
-                pending:    { label: 'AWAITING REPLY', bg: 'rgba(255,184,48,.10)', border: 'rgba(255,184,48,.35)', color: '#FFB830', icon: null },
-                offered:    { label: 'AWAITING REPLY', bg: 'rgba(255,184,48,.10)', border: 'rgba(255,184,48,.35)', color: '#FFB830', icon: null },
-                draft:      { label: 'SET TIME NOT SENT', bg: 'rgba(255,255,255,.04)', border: 'rgba(255,255,255,.15)', color: 'var(--muted)', icon: null },
-                /* ⚠ "ARTIST DECLINED", matching the LINEUP tab exactly — the
-                   host declining an APPLICATION is a different event that
-                   shares the word, so ⛔ neither surface may use it bare. */
-                declined:   { label: 'ARTIST DECLINED', bg: 'rgba(255,51,153,.10)', border: 'rgba(255,51,153,.40)', color: '#FF3399', icon: null },
-                confirmed:  { label: 'BOOKED', bg: 'rgba(0,200,100,.10)', border: 'rgba(255,255,255,.15)', color: '#00C864',
-                  icon: <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg> },
-              }[cStatus] || { label: cStatus.toUpperCase(), bg: 'rgba(255,255,255,.04)', border: 'rgba(255,255,255,.15)', color: 'var(--muted)', icon: null };
-              return (
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, flexShrink: 0, fontSize: 11, fontFamily: "'Bebas Neue'", letterSpacing: 1.2, background: chip.bg, border: `1px solid ${chip.border}`, color: chip.color, borderRadius: 6, padding: '3px 10px', whiteSpace: 'nowrap' }}>
-                  {chip.icon}{chip.label}
-                </span>
-              );
-            })()}
+            {isHost && (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, flexShrink: 0, fontSize: 11, fontFamily: "'Bebas Neue'", letterSpacing: 1.2, background: chip.bg, border: `1px solid ${chip.border}`, color: chip.color, borderRadius: 6, padding: '3px 10px', whiteSpace: 'nowrap' }}>
+                {chip.icon}{chip.label}
+              </span>
+            )}
+
+            {/**
+              * ⭐ THE HEART, TOP RIGHT OF THE PANEL, RIGHT OF THE CHIP (owner,
+              * 2026-08-16). ⚠ This REVERSES the earlier "above the chevron, ⛔
+              * not in the panel" from the same day — the note it replaced is
+              * gone rather than left to contradict this one.
+              *
+              * ⚠⚠ IT SITS OUTSIDE THE `isHost` GATE ON PURPOSE. The chip beside
+              * it is host-only; the heart is not, and nesting it there would
+              * have quietly removed following for every non-host viewer. The
+              * ROW renders for everyone, which is why it can live here at all.
+              *
+              * ⚠ 44px of TARGET on 22px of LAYOUT — the negative vertical
+              * margin keeps the generous hit area without making the top line
+              * twice as tall as the chip it sits next to.
+              */}
+            {claim?.user_id && session?.user?.id && (
+              <button
+                onClick={async e => {
+                  e.stopPropagation();
+                  if (followBusy) return;
+                  setFollowBusy(true);
+                  if (followed) {
+                    await supabase.from('follows').delete().eq('user_id', session.user.id).eq('entity_id', claim.user_id);
+                    setFollowed(false);
+                  } else {
+                    const targetProfileId = await resolveProfileId(claim.user_id, 'artist');
+                    /* M6 (R6.1): from_profile_id is the follower (Personal);
+                       target_profile_id is who is being followed. ⛔ Two ends,
+                       two columns — never conflate them. */
+                    const fromProfileId = await getPersonalProfileId(session.user.id);
+                    await supabase.from('follows').insert({ user_id: session.user.id, from_profile_id: fromProfileId, entity_id: claim.user_id, entity_type: 'artist', entity_name: claim.name, target_profile_id: targetProfileId });
+                    track(EVENTS.FOLLOWED, { entity_type: 'artist' });
+                    setFollowed(true);
+                  }
+                  setFollowBusy(false);
+                }}
+                title={followed ? 'Following' : 'Follow'}
+                aria-label={followed ? 'Following' : 'Follow'}
+                aria-pressed={followed}
+                style={{ width: 44, height: 44, margin: '-11px -12px -11px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, border: 'none', background: 'none', padding: 0, cursor: 'pointer', color: followed ? '#FF2D78' : 'rgba(255,255,255,.45)', transition: 'color .15s' }}
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill={followed ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1.1 1L12 21l7.7-7.6 1.1-1a5.5 5.5 0 0 0 0-7.8z"/>
+                </svg>
+              </button>
+            )}
           </div>
 
           {isHost && (
@@ -609,13 +662,32 @@ export default function SlotCard({ slot, claim, onFill, onEdit, onRemove, onPin,
                   * ⚠ First in the line: it governs whether the slot moves at
                   * all, which is prior to editing it or changing who is on it.
                   */}
-                {!locked && onPin && (
+                {/**
+                  * ⚠ VISIBLE BUT MUTED WHEN THE SET TIMES ARE LOCKED (owner,
+                  * 2026-08-16), ⛔ no longer hidden. It was `!locked && onPin`,
+                  * so a shut screen padlock removed this control and left the
+                  * two muted buttons beside it with no lock in sight.
+                  *
+                  * ⭐ ALL THREE NOW MUTE TOGETHER — the row reads as one locked
+                  * group rather than as a gap plus two grey buttons.
+                  */}
+                {onPin && (
                   <button
-                    onClick={e => { e.stopPropagation(); onPin(); }}
-                    title={slot.pinned ? 'Locked — tap to unlock' : 'Lock this slot'}
-                    aria-label={slot.pinned ? 'Locked, tap to unlock' : 'Lock this slot'}
+                    disabled={!!locked}
+                    aria-disabled={!!locked}
+                    onClick={e => { e.stopPropagation(); if (locked) return; onPin(); }}
+                    title={locked ? lockReason : (slot.pinned ? 'Locked — tap to unlock' : 'Lock this slot')}
+                    aria-label={locked ? lockReason : (slot.pinned ? 'Locked, tap to unlock' : 'Lock this slot')}
                     aria-pressed={!!slot.pinned}
-                    style={{ width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, borderRadius: 9, cursor: 'pointer', border: `1px solid ${slot.pinned ? 'rgba(255,184,48,.55)' : 'var(--border)'}`, background: slot.pinned ? 'rgba(255,184,48,.10)' : 'rgba(255,255,255,.03)', color: slot.pinned ? '#FFB830' : 'var(--muted)', transition: 'color .15s, border-color .15s, background .15s' }}
+                    /* ⭐ THE ICON IS WHITE (owner, 2026-08-16) — it was amber
+                       when pinned and muted when not. ⚠ THE CHIP AROUND IT IS
+                       UNTOUCHED while the tab is unlocked: the amber border and
+                       fill still mark a pinned slot, and the shackle still
+                       opens and closes.
+                       ⚠ MUTED, the whole control greys to match EDIT SLOT and
+                       REPLACE / REMOVE. ⛔ The shackle still shows pinned or
+                       not — colour is the redundant half of that signal. */
+                    style={{ width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, borderRadius: 9, cursor: locked ? 'not-allowed' : 'pointer', border: `1px solid ${locked ? 'rgba(255,255,255,.10)' : slot.pinned ? 'rgba(255,184,48,.55)' : 'var(--border)'}`, background: locked ? 'rgba(255,255,255,.03)' : slot.pinned ? 'rgba(255,184,48,.10)' : 'rgba(255,255,255,.03)', color: locked ? 'rgba(255,255,255,.28)' : '#fff', transition: 'color .15s, border-color .15s, background .15s' }}
                   >
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <rect x="3" y="11" width="18" height="11" rx="2"/>
@@ -624,21 +696,44 @@ export default function SlotCard({ slot, claim, onFill, onEdit, onRemove, onPin,
                     </svg>
                   </button>
                 )}
-                {!locked && onEdit && (
+                {/**
+                  * ⭐⭐ A SHUT PADLOCK MUTES THESE, ⛔ it no longer removes them
+                  * (owner, 2026-08-16). They used to be gated on `!locked`, so
+                  * closing the padlock beside the SET TIMES heading DELETED
+                  * them from the panel and the panel changed shape as the lock
+                  * turned. They now stay where the eye left them and simply
+                  * stop being available.
+                  *
+                  * ⛔⛔ ONLY `locked` MUTES — that is LOCK SET TIMES, the
+                  * padlock beside the SET TIMES heading, which governs the
+                  * whole tab.
+                  *
+                  * ⚠⚠ ⛔ NOT `slot.pinned`. I briefly muted on that too and it
+                  * was wrong: pinning holds ONE row in place so a drag cannot
+                  * move it, and it has never stopped anyone editing the slot or
+                  * changing who is on it. Two padlocks sit near each other here
+                  * and they answer different questions — ⛔ do not merge them
+                  * again.
+                  */}
+                {onEdit && (
                   <SlotManageBtn
                     icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>}
                     label="EDIT SLOT"
                     accent="#4A9EFF"
+                    muted={!!locked}
+                    mutedReason={lockReason}
                     onClick={e => { e.stopPropagation(); onEdit(); }}
                   />
                 )}
                 {/* ⚠ Gated on `claim`: with nobody on the slot there is nobody
                     to replace or remove. ⛔ An empty row books through its own
                     onClick, not through here. */}
-                {!locked && claim && (onFill || onRemove) && (
+                {claim && (onFill || onRemove) && (
                   <SlotManageBtn
                     icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>}
                     label="REPLACE / REMOVE"
+                    muted={!!locked}
+                    mutedReason={lockReason}
                     onClick={e => { e.stopPropagation(); setConfirm('choose'); }}
                     danger
                   />
@@ -793,7 +888,18 @@ export default function SlotCard({ slot, claim, onFill, onEdit, onRemove, onPin,
   );
 }
 
-function SlotManageBtn({ icon, label, sub, onClick, accent = '#888', danger }) {
+/**
+ * @param muted ⭐ SHOWN BUT NOT OFFERED (owner, 2026-08-16). A locked slot keeps
+ *   EDIT SLOT and REPLACE / REMOVE on screen instead of removing them, so the
+ *   panel does not change SHAPE as the padlock turns — the controls stay where
+ *   the eye left them and simply stop being available.
+ *
+ * ⛔ IT IS A REAL `disabled`, ⛔ not just grey paint. A control that looks
+ * unavailable and still fires is worse than either state on its own, and this
+ * one destroys performances. The hover lift is dropped with it, or the button
+ * would brighten under the pointer while refusing to act.
+ */
+function SlotManageBtn({ icon, label, sub, onClick, accent = '#888', danger, muted, mutedReason }) {
   const hex = danger ? '#FF2D78' : accent;
   const rgb = {
     '#4A9EFF': '74,158,255',
@@ -801,6 +907,23 @@ function SlotManageBtn({ icon, label, sub, onClick, accent = '#888', danger }) {
     '#FF2D78': '255,45,120',
     '#888':    '136,136,136',
   }[hex] || '136,136,136';
+  if (muted) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: sub ? 4 : 0 }}>
+        <button
+          disabled
+          aria-disabled="true"
+          /* ⚠ The reason, ⛔ not just the fact. A disabled control with no
+             explanation reads as broken. */
+          title={mutedReason || 'Locked. Unlock to make changes.'}
+          style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, padding: '7px 11px', borderRadius: 9, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(255,255,255,.03)', cursor: 'not-allowed', whiteSpace: 'nowrap' }}>
+          <span style={{ color: 'rgba(255,255,255,.28)', display: 'flex', alignItems: 'center', flexShrink: 0 }}>{icon}</span>
+          <span style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1.2, color: 'rgba(255,255,255,.38)', lineHeight: 1.1 }}>{label}</span>
+        </button>
+        {sub && <span style={{ fontSize: 9, color: 'var(--muted)', lineHeight: 1.3, textAlign: 'center' }}>{sub}</span>}
+      </div>
+    );
+  }
   return (
     /* ⚠ `sub` IS OPTIONAL NOW. The caption under each button cost a 9px line
        plus a 5px gap on every control, and "EDIT SLOT" does not need "Time,

@@ -171,3 +171,77 @@ test('a typed-in act reads as confirmed, not as awaiting an answer', () => {
 test('an unknown status ranks last rather than beating a real one', () => {
   assert.ok(rankPerformance({ status: 'weird' }) > rankPerformance({ status: 'declined' }));
 });
+
+/**
+ * ⭐⭐ THE DISPLAY SHAPE IS FROZEN. Step 1 of the canonical-claim refactor ADDED
+ * `performance` and `member` so a decision can read the database's own answer.
+ * ⛔ It must not have CHANGED anything a component already reads — that is the
+ * whole basis for calling it non-breaking.
+ *
+ * This test is the mechanism, not the promise: an accidental rename or drop in
+ * the display half fails here rather than at a blank card in production.
+ */
+const DISPLAY_KEYS = [
+  'id', 'member_id', 'slot_id', 'user_id', 'profile_id',
+  'name', 'genre', 'sound', 'card_pills', 'status',
+];
+
+test('the display half of a claim is unchanged by carrying the raw rows', () => {
+  const member = {
+    id: 'm-1', artist_name: 'Cinii', artist_id: 'u-1', artist_profile_id: 'p-1',
+    genre: 'house', sound: 'deep', card_pills: ['a'],
+  };
+  const p = { id: 'p-1', slot_uuid: 's-1', lineup_member_id: 'm-1', status: 'offered' };
+  const claim = toClaim(p, member);
+
+  assert.deepEqual(
+    Object.fromEntries(DISPLAY_KEYS.map(k => [k, claim[k]])),
+    {
+      id: 'p-1', member_id: 'm-1', slot_id: 's-1', user_id: 'u-1', profile_id: 'p-1',
+      name: 'Cinii', genre: 'house', sound: 'deep', card_pills: ['a'], status: 'offered',
+    },
+  );
+  // ⛔ Nothing beyond the display keys and the two raw rows. A third addition
+  // here is a new interpretation of lineup state and belongs in a lib, not here.
+  assert.deepEqual(
+    Object.keys(claim).sort(),
+    [...DISPLAY_KEYS, 'member', 'performance'].sort(),
+  );
+});
+
+/**
+ * ⛔⛔ THE FICTION MUST NOT REACH A DECISION.
+ *
+ * A hand-entered act displays as `confirmed` although its row says `offered`,
+ * and a real acceptance displays as `confirmed` although its row says
+ * `accepted`. Both are right for pixels and wrong for notifications: acting on
+ * the translated value tells somebody an offer was withdrawn when no offer was
+ * ever made. `claim.performance.status` is what a planner reads.
+ */
+test('the raw status survives the translation that displays it', () => {
+  const typed = { id: 'm-t', artist_name: 'DJ Flames', artist_id: null, artist_profile_id: null };
+  const typedClaim = toClaim({ id: 'p', slot_uuid: 's', status: 'offered' }, typed);
+  assert.equal(typedClaim.status, 'confirmed', 'display: nobody is awaiting a reply');
+  assert.equal(typedClaim.performance.status, 'offered', 'truth: the row still says offered');
+
+  const real = { id: 'm-r', artist_name: 'Cinii', artist_id: 'u-1', artist_profile_id: 'p-1' };
+  const realClaim = toClaim({ id: 'p2', slot_uuid: 's', status: 'accepted' }, real);
+  assert.equal(realClaim.status, 'confirmed');
+  assert.equal(realClaim.performance.status, 'accepted', 'accepted ≠ confirmed downstream');
+});
+
+/**
+ * ⚠ BOTH SURFACES INHERIT IT, because both loaders call `indexPerformances`
+ * rather than building claims themselves. That is the reason this refactor is
+ * one edit instead of two — and the reason a second interpreter would undo it.
+ */
+test('every claim from indexPerformances carries its raw rows, on both paths', () => {
+  const { bySlot, primary } = indexPerformances(sat1Perfs(), sat1Members());
+  const all = [...Object.values(bySlot).flat(), ...Object.values(primary)];
+  assert.ok(all.length > 0);
+  for (const c of all) {
+    assert.ok(c.performance?.id, 'a claim with no performance row cannot be acted on safely');
+    assert.equal(c.performance.slot_uuid, c.slot_id);
+    assert.equal(c.member.id, c.member_id);
+  }
+});

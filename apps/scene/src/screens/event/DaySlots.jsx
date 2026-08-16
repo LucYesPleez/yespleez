@@ -322,10 +322,23 @@ isHost={effectiveIsHost}
                      and THROWS. ⭐ Composes with SlotCard's rule that a control
                      exists only where its verb does, which is what lets the
                      dashboard ask for EDIT SLOT and nothing else. */
-                  onFill={!isLocked && onFill ? () => onFill(slot) : null}
-                  onEdit={!isLocked && onEdit ? () => onEdit(slot) : null}
-                  onRemove={!isLocked && onRemove ? () => onRemove(slot) : null}
-                  onPin={!isLocked && onPin ? () => onPin(slot) : null}
+                  /**
+                   * ⛔⛔ `isLocked` NO LONGER NULLS THESE (owner, 2026-08-16).
+                   *
+                   * ⚠⚠ THIS WAS THE REASON THE MUTED CONTROLS NEVER APPEARED.
+                   * `SlotCard` renders a control only where its handler exists,
+                   * so nulling them here deleted the buttons before that rule
+                   * could grey them — no amount of styling inside `SlotCard`
+                   * could bring back a control it was never given.
+                   *
+                   * ⭐ `locked={isLocked}` is passed too, and THAT is what mutes
+                   * them. The handler says the verb exists; the flag says it is
+                   * not available right now. ⛔ Two different questions.
+                   */
+                  onFill={onFill ? () => onFill(slot) : null}
+                  onEdit={onEdit ? () => onEdit(slot) : null}
+                  onRemove={onRemove ? () => onRemove(slot) : null}
+                  onPin={onPin ? () => onPin(slot) : null}
                   allMixSlots={allMixSlots}
                 />
               ))}
@@ -359,10 +372,13 @@ isHost={effectiveIsHost}
               viewerProfileId={viewerProfileId}
               locked={isLocked}
               /* ⛔ `&& onX` here too — same reason as the sortable branch. */
-              onFill={effectiveIsHost && !isLocked && onFill ? () => onFill(slot) : null}
-              onEdit={effectiveIsHost && !isLocked && onEdit ? () => onEdit(slot) : null}
-              onRemove={effectiveIsHost && !isLocked && onRemove ? () => onRemove(slot) : null}
-              onPin={effectiveIsHost && !isLocked && onPin ? () => onPin(slot) : null}
+              /* ⛔ `isLocked` dropped here too — see the sortable branch above.
+                 ⚠ `effectiveIsHost` STAYS: a non-host has no such verb at all,
+                 which is a different thing from a host who cannot use it yet. */
+              onFill={effectiveIsHost && onFill ? () => onFill(slot) : null}
+              onEdit={effectiveIsHost && onEdit ? () => onEdit(slot) : null}
+              onRemove={effectiveIsHost && onRemove ? () => onRemove(slot) : null}
+              onPin={effectiveIsHost && onPin ? () => onPin(slot) : null}
               allMixSlots={allMixSlots}
             />
           ))

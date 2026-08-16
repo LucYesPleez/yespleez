@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 
 import {
   planUnassign, planRemoveFromBill, planMoveToShortlist, planRemoveFromEvent, applyLineupPlan, restoreToBill,
-  notifiablePerformances, wasEverSent, isReachable,
+  notifiablePerformances, wasEverSent, isReachable, executeLineupPlan, messageFor, assignMemberToSlot,
 } from './lineupActions.js';
 
 /**
@@ -178,4 +178,194 @@ test('applyLineupPlan writes the status the PLAN carries, ⛔ never a hardcoded 
   const upd = calls.find(c => c.op === 'update');
   assert.equal(upd.name, 'lineup_members');
   assert.equal(upd.patch.status, 'shortlisted');
+});
+
+/* ── ⭐⭐ THE ONE EXECUTOR ────────────────────────────────────────────────────
+ *
+ * These pin the rules that used to live inside `EventHostView`, where only one
+ * screen could reach them. The dashboard shipped with no REMOVE rather than a
+ * second copy; now both call this, so a divergence has to fail here first.
+ */
+
+const ev = { id: 'e-1', name: 'Neverland', owner_profile_id: 'p-owner' };
+
+function spyNotify() {
+  const sent = [];
+  const fn = async (row) => { sent.push(row); };
+  fn.sent = sent;
+  return fn;
+}
+const resolveOk = async () => ({ profileId: 'p-artist' });
+
+test('⭐ an OFFERED set time was announced, so removing it tells them', async () => {
+  const notify = spyNotify();
+  const acting = [perfs()[0]];                       // p-1, offered
+  const res = await executeLineupPlan(fakeDb(), planUnassign(madds, acting), {
+    member: madds, perfs: acting, event: ev, notify, resolveProfileId: resolveOk,
+  });
+  assert.equal(res.ok, true);
+  assert.equal(res.notified, true);
+  assert.equal(notify.sent.length, 1);
+  assert.equal(notify.sent[0].toUserId, 'u-1');
+  assert.equal(notify.sent[0].toProfileId, 'p-artist');
+  assert.equal(notify.sent[0].aboutProfileId, 'p-owner');
+});
+
+test('⛔⛔ a DRAFT slot was never announced, so removing it says NOTHING', async () => {
+  const notify = spyNotify();
+  const acting = [perfs()[1]];                       // p-2, draft
+  const res = await executeLineupPlan(fakeDb(), planUnassign(madds, acting), {
+    member: madds, perfs: acting, event: ev, notify, resolveProfileId: resolveOk,
+  });
+  assert.equal(res.ok, true);
+  assert.equal(res.notified, false);
+  assert.equal(notify.sent.length, 0,
+    'announcing a booking and cancelling it in one message');
+});
+
+test('⛔ a hand-entered act has no account, so nothing is written to a null recipient', async () => {
+  const notify = spyNotify();
+  const acting = [{ id: 'p-9', lineup_member_id: 'm-typed', slot_uuid: 's-1', status: 'offered' }];
+  const res = await executeLineupPlan(fakeDb(), planUnassign(typed, acting), {
+    member: typed, perfs: acting, event: ev, notify, resolveProfileId: resolveOk,
+  });
+  assert.equal(res.notified, false);
+  assert.equal(notify.sent.length, 0);
+});
+
+/**
+ * ⚠⚠ THE SCOPING RULE. An act playing two slots keeps the other one, so a
+ * caller may hand over everything the member holds and the executor still only
+ * speaks about what the PLAN destroys.
+ */
+test('⛔ clearing one slot never announces the loss of a second one', async () => {
+  const notify = spyNotify();
+  const all = perfs();
+  const plan = planUnassign(madds, [all[0]]);        // only p-1
+  await executeLineupPlan(fakeDb(), plan, {
+    member: madds, perfs: all, event: ev, notify, resolveProfileId: resolveOk,
+  });
+  assert.equal(notify.sent.length, 1, 'one slot cleared is one thing to say');
+});
+
+test('⛔ a write that RLS filtered is surfaced, and nobody is told it happened', async () => {
+  const notify = spyNotify();
+  const acting = [perfs()[0]];
+  const res = await executeLineupPlan(fakeDb('performances'), planUnassign(madds, acting), {
+    member: madds, perfs: acting, event: ev, notify, resolveProfileId: resolveOk,
+  });
+  assert.equal(res.ok, false);
+  assert.match(res.error, /RLS said no/);
+  assert.equal(notify.sent.length, 0, '⛔ never announce a change that did not save');
+});
+
+/**
+ * ⛔⛔ THE DEAD BRANCH. `EventHostView` tested `kind === 'remove-from-bill'`,
+ * which no planner has ever produced, so EVERY removal claimed "you are still
+ * on the lineup" — including the ones that took somebody off it.
+ */
+test('⛔⛔ taking somebody OFF the lineup does not tell them they are still on it', () => {
+  assert.match(messageFor('unassign', 'Neverland'), /still on the lineup/);
+  assert.doesNotMatch(messageFor('remove-from-event', 'Neverland'), /still on the lineup/);
+  assert.doesNotMatch(messageFor('move-to-shortlist', 'Neverland'), /still on the lineup/);
+  // ⛔ No kind may default to the reassuring message.
+  assert.doesNotMatch(messageFor('something-new', 'Neverland'), /still on the lineup/);
+});
+
+test('the copy carries no em dashes', () => {
+  for (const k of ['unassign', 'move-to-shortlist', 'remove-from-event', 'unknown']) {
+    assert.doesNotMatch(messageFor(k, 'Neverland'), /—/);
+  }
+});
+
+/* ── ⛔⛔ PUTTING SOMEBODY ON A SLOT ──────────────────────────────────────────
+ *
+ * The regression these exist for: every insert site wrote `slot_id` (the
+ * legacy TEXT key) with a UUID. The L3 trigger resolves `slot_uuid` only where
+ * `event_slots.legacy_key = new.slot_id`, and across all 19 readable slots
+ * `legacy_key` is `sat_0`-style and never equals the id — so the row landed
+ * with a NULL `slot_uuid`, and `indexPerformances` skips exactly those.
+ * Filling a slot wrote a performance nobody could see.
+ */
+
+function fakeAssignDb({ failInsert = false, failDelete = false } = {}) {
+  const calls = [];
+  return {
+    calls,
+    from: name => ({
+      delete: () => ({ eq: (c1, v1) => ({ eq: (c2, v2) => {
+        calls.push({ op: 'delete', name, where: { [c1]: v1, [c2]: v2 } });
+        return { error: failDelete ? { message: 'RLS said no' } : null };
+      } }) }),
+      insert: row => ({ select: () => ({ single: async () => {
+        calls.push({ op: 'insert', name, row });
+        return failInsert
+          ? { data: null, error: { message: 'new row violates row-level security policy' } }
+          : { data: { id: 'perf-new', ...row }, error: null };
+      } }) }),
+    }),
+  };
+}
+
+test('⛔⛔ an assignment writes slot_uuid and ⛔ NEVER the legacy slot_id', async () => {
+  const db = fakeAssignDb();
+  const res = await assignMemberToSlot(db, {
+    slotId: 'uuid-slot-1', eventId: 'e-1', memberId: 'm-madds', status: 'offered',
+  });
+  assert.equal(res.ok, true);
+  const ins = db.calls.find(c => c.op === 'insert');
+  assert.equal(ins.row.slot_uuid, 'uuid-slot-1');
+  assert.equal(ins.row.slot_id, undefined,
+    '⛔ writing the legacy text column with a UUID is what made the row invisible');
+  assert.equal(ins.row.status, 'offered');
+});
+
+test('⛔ the replace-the-occupant delete matches on slot_uuid too', async () => {
+  const db = fakeAssignDb();
+  await assignMemberToSlot(db, { slotId: 'uuid-slot-1', eventId: 'e-1', memberId: 'm-1' });
+  const del = db.calls.find(c => c.op === 'delete');
+  assert.equal(del.where.slot_uuid, 'uuid-slot-1',
+    'keyed on slot_id it matched nothing, so the previous occupant was never replaced');
+  assert.equal(del.where.event_id, 'e-1');
+});
+
+/**
+ * ⭐ THE STATUS COMES FROM THE CALLER. A hand-entered act is `accepted` because
+ * writing them down IS the booking; an artist with an account is `offered` or
+ * `draft` because somebody still has to answer.
+ */
+test('⭐ the status is the caller\'s, ⛔ not this function\'s', async () => {
+  for (const status of ['draft', 'offered', 'accepted']) {
+    const db = fakeAssignDb();
+    await assignMemberToSlot(db, { slotId: 's', eventId: 'e', memberId: 'm', status });
+    assert.equal(db.calls.find(c => c.op === 'insert').row.status, status);
+  }
+  // ⚠ The default is the quiet one: a slot nobody has been told about.
+  const db = fakeAssignDb();
+  await assignMemberToSlot(db, { slotId: 's', eventId: 'e', memberId: 'm' });
+  assert.equal(db.calls.find(c => c.op === 'insert').row.status, 'draft');
+});
+
+test('⛔ an insert RLS blocked is surfaced, ⛔ never reported as a fill', async () => {
+  const db = fakeAssignDb({ failInsert: true });
+  const res = await assignMemberToSlot(db, { slotId: 's', eventId: 'e', memberId: 'm' });
+  assert.equal(res.ok, false);
+  assert.match(res.error, /row-level security/);
+  assert.equal(res.performance, null);
+});
+
+test('⛔ a failed delete stops before inserting a SECOND act onto the slot', async () => {
+  const db = fakeAssignDb({ failDelete: true });
+  const res = await assignMemberToSlot(db, { slotId: 's', eventId: 'e', memberId: 'm' });
+  assert.equal(res.ok, false);
+  assert.equal(db.calls.filter(c => c.op === 'insert').length, 0);
+});
+
+test('⛔ an incomplete assignment writes nothing at all', async () => {
+  for (const args of [{ eventId: 'e', memberId: 'm' }, { slotId: 's', memberId: 'm' }, { slotId: 's', eventId: 'e' }]) {
+    const db = fakeAssignDb();
+    const res = await assignMemberToSlot(db, args);
+    assert.equal(res.ok, false);
+    assert.equal(db.calls.length, 0);
+  }
 });

@@ -36,6 +36,10 @@ import { buildHostLineup, STATE_COLOURS } from '../lib/hostLineup';
    no longer WRITES membership, so `planAddToBill`/`addToBill` went with the
    action. Reading the bill is triage; changing it is the workspace. */
 import { findExistingMember } from '../lib/lineupFromApplication';
+/* ⭐⭐ THE SAME EXECUTOR THE EVENT PAGE USES. ⛔ Not a copy of its rules — this
+   screen may not decide what a removal destroys or who hears about it. */
+import { planUnassign, executeLineupPlan } from '../lib/lineupActions';
+import FillSlotModal from '../components/FillSlotModal';
 import DashboardHeader from '../components/DashboardHeader';
 import MyVenueSubmissions from '../components/MyVenueSubmissions';
 import DashboardProfileCard from '../components/DashboardProfileCard';
@@ -116,6 +120,7 @@ export default function HostDashboard({ userId: userIdProp }) {
   const [loadingLineups, setLoadingLineups] = useState(false);
   const [claimsMap,      setClaimsMap]      = useState({});   // eventId → { slotId → claim }
   const [editingSlot,   setEditingSlot]    = useState(null); // { ev, dayIdx, slotIdx, slot }
+  const [fillSlot,      setFillSlot]       = useState(null); // { ev, slot }
   const [following,      setFollowing]      = useState([]);
   const [loadingFollowing, setLoadingFollowing] = useState(false);
   const [followView,    setFollowView]    = useState('portrait');
@@ -278,7 +283,12 @@ export default function HostDashboard({ userId: userIdProp }) {
      */
     async function loadLineups() {
       const { data: evRows } = await supabase.from('events')
-        .select('id, name, config, status').or(ownedByFilter(userId, profile.id))
+        /* ⚠ `owner_profile_id` IS FOR THE NOTIFICATION, not for display. Removing
+           somebody from a slot here writes `aboutProfileId` from it, exactly as
+           the event page does — without it this screen would send the same
+           notification with a null sender and the two surfaces would differ in
+           the database while looking identical on screen. */
+        .select('id, name, config, status, owner_profile_id').or(ownedByFilter(userId, profile.id))
         .order('created_at', { ascending: false });
       if (!evRows?.length) { setLoadingLineups(false); return; }
       const ids = evRows.map(e => e.id);
@@ -483,6 +493,55 @@ export default function HostDashboard({ userId: userIdProp }) {
       g.event.id !== ev.id ? g : { ...g, event: { ...g.event, config: newConfig } }
     ));
     setEditingSlot(null);
+  }
+
+  /**
+   * ⭐ LOCK / UNLOCK A SLOT — the padlock in the set-times panel.
+   *
+   * ⚠ Identical to `EventHostView.togglePin`: one `event_slots` update. ⛔ It
+   * is NOT shared code — the event page invalidates its own query key and this
+   * screen bumps `lineupReload`, which is the whole difference between them.
+   *
+   * ⛔ SURFACED, NEVER SWALLOWED. RLS FILTERS an UPDATE rather than erroring
+   * it, so a blocked write looks exactly like a button that did nothing.
+   */
+  async function toggleSlotPin(slot) {
+    if (!slot?.id) return;
+    const { error } = await supabase.from('event_slots')
+      .update({ pinned: !slot.pinned, updated_at: new Date().toISOString() })
+      .eq('id', slot.id);
+    if (error) { setLineupError(error.message); return; }
+    setLineupReload(n => n + 1);
+  }
+
+  /**
+   * ⭐⭐ CLEAR SET TIME, ON THE DASHBOARD — the same act as on the event page,
+   * because it is literally the same function.
+   *
+   * ⛔ THIS SCREEN OWNS NO RULES. It finds the claim, hands the executor the
+   * plan and the RAW rows the claim now carries, and refreshes. Every decision
+   * about what is destroyed and who is told lives in `lib/lineupActions`.
+   *
+   * ⚠ This could not exist before the claim carried `performance` and `member`:
+   * the screen held a translated status and a name, which is enough to draw a
+   * card and ⛔ not enough to act on one safely.
+   *
+   * ⚠ SCOPED TO THE ONE SLOT — `[claim.performance]`, ⛔ not every performance
+   * the member holds. An act playing two slots keeps the other.
+   */
+  async function removeFromSlot(ev, slot) {
+    const claim = claimsMap[ev.id]?.[slot.id];
+    if (!claim?.performance || !claim.member) return;
+    const perfs = [claim.performance];
+    const { ok, error } = await executeLineupPlan(supabase, planUnassign(claim.member, perfs), {
+      member: claim.member,
+      perfs,
+      event: ev,
+      notify: writeNotification,
+      resolveProfileId: resolvePerformerProfileId,
+    });
+    if (!ok) { setLineupError(error); return; }
+    setLineupReload(n => n + 1);
   }
 
   // Event map for app cards
@@ -1235,6 +1294,24 @@ export default function HostDashboard({ userId: userIdProp }) {
                                 const at = locate(slot);
                                 if (at) setEditingSlot({ ev, ...at, slot });
                               }}
+                              /* ⭐ The padlock. */
+                              onPin={slot => toggleSlotPin(slot)}
+                              /**
+                               * ⭐⭐ REMOVE NOW RENDERS HERE, because the claim
+                               * finally carries what acting on it requires.
+                               *
+                               * ⚠ The note this replaces was correct when it
+                               * was written: the planners need the member row
+                               * and its performances, and this screen held
+                               * neither. `toClaim` now carries both, so the
+                               * verb exists and therefore so does the control.
+                               *
+                               * ⭐ `onFill` followed for the same reason: the
+                               * picker is now mounted here and writes through
+                               * the same `assignMemberToSlot`.
+                               */
+                              onRemove={slot => removeFromSlot(ev, slot)}
+                              onFill={slot => setFillSlot({ ev, slot })}
                               /* ⭐⭐ THIS SCREEN REFRESHES ITSELF. `DaySlots`
                                  invalidates the EVENT PAGE's query key, which
                                  nothing here reads — without this a drag wrote
@@ -1368,6 +1445,30 @@ export default function HostDashboard({ userId: userIdProp }) {
           claim={claimsMap[editingSlot.ev.id]?.[editingSlot.slot.id]}
           onSave={updated => saveSlot(editingSlot.ev, editingSlot.dayIdx, editingSlot.slotIdx, updated)}
           onClose={() => setEditingSlot(null)}
+        />
+      )}
+
+      {/**
+        * ⭐⭐ REPLACE ARTIST, ON THE DASHBOARD — the last piece of set-times
+        * parity. ⛔ It is the SAME COMPONENT and the same writer the event page
+        * uses; this screen contributes a mount point and a refresh, ⛔ no rules.
+        *
+        * ⚠ `acceptedArtists` IS EMPTY HERE, DELIBERATELY. That prop feeds the
+        * "pick from your shortlist" shortcut, which needs the event's
+        * applications and their profiles — data this screen does not load. The
+        * sheet's SEARCH and ADD MANUALLY paths are complete without it, so the
+        * shortcut is ABSENT rather than broken. ⛔ Do not pass the dashboard's
+        * own application list: it is keyed by a different shape, and crossing
+        * the two draws a nameless card rather than raising.
+        */}
+      {fillSlot && (
+        <FillSlotModal
+          slot={fillSlot.slot}
+          eventId={fillSlot.ev.id}
+          eventName={fillSlot.ev.name || ''}
+          hostId={userId}
+          onFilled={() => { setFillSlot(null); setLineupReload(n => n + 1); }}
+          onClose={() => setFillSlot(null)}
         />
       )}
 

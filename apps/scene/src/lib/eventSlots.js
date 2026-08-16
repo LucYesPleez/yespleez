@@ -158,6 +158,19 @@ export function indexPerformances(perfs = [], membersById = {}) {
  * booking is CONFIRMED by the act of writing it down. ⛔ Do not "tidy" that
  * into a plain status passthrough — it would render every hand-entered act as
  * permanently awaiting a reply from nobody.
+ *
+ * ⭐⭐ AND THAT IS EXACTLY WHY THE RAW ROWS ARE CARRIED THROUGH. `status` is a
+ * DISPLAY translation, and it lies on purpose: `!artist_id → 'confirmed'` is a
+ * fiction for hand-entered acts, and `accepted → 'confirmed'` renames a real
+ * value. This function used to discard `p` and `member` after translating, so
+ * no surface downstream could recover what the database actually said — which
+ * is why `HostDashboard` could not decide safely whether a removal needed
+ * notifying, and why `EventHostView` had to keep a parallel `perfsByMember` map
+ * to do its own.
+ *
+ * ⛔ A DECISION READS `claim.performance.status`. `claim.status` is for pixels.
+ * Never send a notification off the translated value: it would tell somebody an
+ * offer was withdrawn when no offer was ever made.
  */
 export function toClaim(p, member) {
   const status = p.status === 'accepted' ? 'confirmed'
@@ -176,5 +189,9 @@ export function toClaim(p, member) {
     sound:      member.sound || null,
     card_pills: member.card_pills || null,
     status,
+    // ⛔ Truth, not display. Keep these last so the shape above still reads as
+    // the claim the components consume.
+    performance: p,
+    member,
   };
 }
