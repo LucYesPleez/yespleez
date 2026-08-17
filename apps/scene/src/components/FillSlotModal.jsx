@@ -8,8 +8,9 @@ import { offerMessage, offerTarget } from '../lib/eventOffer';
 /* ⭐ THE ONE WRITER for putting somebody on a slot. ⛔ This component may not
    compose its own insert — it did, and it wrote the wrong column. */
 import { assignMemberToSlot } from '../lib/lineupActions';
-/* ⛔ THE CAP LIVES WITH THE BILL. This sheet asks; it does not decide. */
-import { billCapacity, billFullMessage } from '../lib/hostLineup';
+/* ⛔ THE CAP LIVES WITH THE BILL, and so does the BOOKING GATE. This sheet asks;
+   it does not decide. */
+import { billCapacity, billFullMessage, placementCanCreateBooking } from '../lib/hostLineup';
 
 /**
  * @param shortlist ⭐⭐ SHORTLIST ENTRIES from `lib/shortlist` — ⛔ NOT a bare
@@ -32,7 +33,11 @@ import { billCapacity, billFullMessage } from '../lib/hostLineup';
  *   application ids and member ids in one map. ⚠ Safe to merge: the two id
  *   spaces are distinct, and each caller already holds both maps.
  */
-export default function FillSlotModal({ slot, eventId, eventName = '', eventDate = '', eventVenue = '', hostId, shortlist = [], shortlistProfiles = {}, onFilled, onClose }) {
+export default function FillSlotModal({ slot, eventId, event = null, eventName = '', eventDate = '', eventVenue = '', hostId, shortlist = [], shortlistProfiles = {}, onFilled, onClose }) {
+  /* ⭐ WHICH CONTRACT THIS EVENT LIVES UNDER, asked once through the one reader.
+     ⛔ Absent event reads as `legacy` (eventProvenance's fail-safe), which is the
+     behaviour every existing event already has. */
+  const canBookByPlacing = placementCanCreateBooking(event);
   const [view,    setView]    = useState('menu');
   const [filter,  setFilter]  = useState('');
   const [query,   setQuery]   = useState('');
@@ -136,6 +141,17 @@ export default function FillSlotModal({ slot, eventId, eventName = '', eventDate
   }
 
   async function fillFromProfile(prof) {
+    /**
+     * ⛔⛔ ASKED BEFORE THE MEMBERSHIP IS WRITTEN, ⛔ never after. On a managed
+     * event a slot cannot create a booking, and inserting the member first and
+     * then being refused by `assignMemberToSlot` would leave an `on_bill` row
+     * with no slot and no acceptance — invisible on every managed surface,
+     * because that model's LINEUP is `accepted` performances.
+     */
+    if (!canBookByPlacing) {
+      setErr('This event books artists by offering them a place and waiting for them to accept, so a set time cannot add somebody new. Offer them the event first.');
+      return;
+    }
     setBusy(true);
     setErr(null);
     // Upsert lineup_member for this artist on this event
@@ -160,6 +176,14 @@ export default function FillSlotModal({ slot, eventId, eventName = '', eventDate
 
   async function fillManual() {
     if (!name.trim()) return;
+    /* ⛔ Same gate, same reason as `fillFromProfile`. ⚠ A hand-typed act IS
+       bookable on a managed event once on the bill (nobody can accept for them,
+       see `canPlaceMember`), but ⛔ the SLOT still may not be what books them:
+       the bill decision comes first, and it is not made from this sheet. */
+    if (!canBookByPlacing) {
+      setErr('This event books artists by offering them a place and waiting for them to accept, so a set time cannot add somebody new. Add them to the lineup first.');
+      return;
+    }
     setBusy(true);
     setErr(null);
     /* ⚠ ALWAYS a new member — a typed-in name has no row to reuse, so this path
@@ -178,10 +202,29 @@ export default function FillSlotModal({ slot, eventId, eventName = '', eventDate
     if (ok) onFilled(); else setErr(error);
   }
 
+  /**
+   * ⭐⭐ ONLY ARTISTS WHO CAN LEGITIMATELY BE SCHEDULED (ratified 2026-08-17).
+   *
+   * ⛔⛔ SET TIMES DOES NOT BOOK. A member entry qualifies only when it is
+   * BOOKED, and `entry.booked` is already `isBooked` computed under this event's
+   * contract by `lib/shortlist` — ⛔ so no second opinion is formed here.
+   *
+   * ⚠⚠ THIS IS THE DOOR BVP CAME THROUGH. They were listed because they were on
+   * the shortlist, picked because the row looked selectable, and placed because
+   * nothing downstream checked. `assignMemberToSlot` now refuses it outright;
+   * this stops the host being offered a choice that will be refused.
+   *
+   * ⚠ An APPLICATION is not booked either, and on a managed event it cannot be
+   * booked by being scheduled — so it is only offered where writing somebody
+   * down has always been the booking. ⛔ Grandfathered behaviour preserved on
+   * legacy and imported; ⛔ the confirmation contract preserved on managed.
+   */
+  const placeable = shortlist.filter(e => e.kind === 'member' ? !!e.booked : canBookByPlacing);
+
   /* ⚠ Filters on the ENTRY, and reads the name the same way the row renders it —
      a filter that looks somewhere else than the label is a filter that hides
      rows the host can see. */
-  const filtered = shortlist.filter(e => {
+  const filtered = placeable.filter(e => {
     const prof = shortlistProfiles[e.id];
     return (prof?.name || e.row?.artist_name || '').toLowerCase().includes(filter.toLowerCase());
   });
@@ -226,10 +269,13 @@ export default function FillSlotModal({ slot, eventId, eventName = '', eventDate
           {view === 'menu' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <MenuOption
-                label={`SHORTLISTED ARTISTS${shortlist.length ? ` (${shortlist.length})` : ''}`}
-                sub="Artists shortlisted for this event"
+                /* ⚠⚠ THE COUNT IS WHAT THE LIST WILL ACTUALLY SHOW. Counting
+                   the whole shortlist promised five and delivered one, and a
+                   number that disagrees with its own list is worse than none. */
+                label={`ARTISTS FOR THIS SLOT${placeable.length ? ` (${placeable.length})` : ''}`}
+                sub="Booked artists who still need a set time"
                 accent
-                disabled={shortlist.length === 0}
+                disabled={placeable.length === 0}
                 onClick={() => setView('accepted')}
               />
               <MenuOption
@@ -253,7 +299,10 @@ export default function FillSlotModal({ slot, eventId, eventName = '', eventDate
             <div>
               <SearchInput value={filter} onChange={setFilter} placeholder="Filter artists…" />
               {filtered.length === 0
-                ? <Empty>No accepted artists match.</Empty>
+                /* ⚠ Says WHY the list is short, ⛔ not merely that it is. A host
+                   looking for somebody they can see on the shortlist needs to
+                   know the lineup comes first. */
+                ? <Empty>{filter ? 'No booked artists match.' : 'Nobody is booked and waiting for a set time. Add an artist to the lineup first.'}</Empty>
                 : filtered.map(e => {
                     const app  = e.row || {};
                     const prof = shortlistProfiles[e.id] || {};

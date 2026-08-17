@@ -1,3 +1,9 @@
+/* ⭐ THE BOOKING GATE lives with the booking rules, ⛔ not here — `canPlaceMember`
+   answers through `isBooked`, so the contract decides. ⚠ `hostLineup` imports
+   only `eventProvenance` and `eventSlots`, both leaves, so this adds no cycle to
+   a file that was otherwise dependency-free. */
+import { canPlaceMember } from './hostLineup';
+
 /**
  * TAKING SOMEBODY OFF A SET TIME, AND TAKING SOMEBODY OFF THE BILL.
  *
@@ -291,6 +297,33 @@ export function messageFor(kind, eventName) {
  */
 export async function assignMemberToSlot(db, { slotId, eventId, memberId, status = 'draft' }) {
   if (!slotId || !eventId || !memberId) return { ok: false, error: 'missing slot, event or member', performance: null };
+
+  /**
+   * ── ⛔⛔ THE BOOKING GATE. SET TIMES SCHEDULES; IT DOES NOT BOOK ────────────
+   *
+   * ⚠⚠ CHECKED HERE, IN THE WRITER, AND ⛔ NOT AT THE BUTTON. Four callers reach
+   * this function: the event page's ASSIGN SET TIME, the fill-slot sheet's three
+   * paths, and the application route. `promoteMemberToBill` learned the same
+   * lesson one level up and its comment states it: a rule enforced on one of two
+   * doors is not enforced. BVP got a set time while `shortlisted` because every
+   * door trusted its caller and this function trusted `memberId`.
+   *
+   * ⚠ IT READS THE DATABASE rather than taking facts as arguments, for exactly
+   * the reason `billHasRoom` does: a caller that can forget to pass the member's
+   * status is a caller that can bypass the rule. ⛔ Three cheap reads on a write
+   * path is the correct trade against an invalid booking.
+   *
+   * ⚠ `maybeSingle` on both: a missing member or an unreadable event must REFUSE
+   * rather than throw. RLS can hide either, and a hidden row is not permission.
+   */
+  const [{ data: member }, { data: perfs }, { data: event }] = await Promise.all([
+    db.from('lineup_members').select('id, status, artist_id, artist_profile_id').eq('id', memberId).maybeSingle(),
+    db.from('performances').select('id, status, slot_uuid').eq('lineup_member_id', memberId),
+    db.from('events').select('id, booking_model').eq('id', eventId).maybeSingle(),
+  ]);
+
+  const gate = canPlaceMember(member, perfs || [], event);
+  if (!gate.ok) return { ok: false, error: gate.reason, refused: gate.code, performance: null };
 
   /* Replace whoever held this slot. A slot is a place in the running order, and
      two acts arriving there by different routes is the contested case the

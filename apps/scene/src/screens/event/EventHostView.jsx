@@ -1653,6 +1653,10 @@ export default function EventHostView({
           hostId={session?.user?.id}
           /* ⭐ THE ENTRIES, ⛔ not the bare rows — the sheet needs `kind` to know
              whether to place a member or create one. See FillSlotModal. */
+          /* ⭐ The event itself, so the sheet can ask ONE reader which booking
+             contract applies. ⛔ Not a booking_model string: a screen passing a
+             raw value is a screen deciding the rule. */
+          event={event}
           shortlist={shortlistRows}
           /* ⚠ Both maps: applications are keyed by application id, members by
              `lineup_members.id`. ⛔ Passing only `appProfiles` is what left a

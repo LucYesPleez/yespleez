@@ -1744,6 +1744,7 @@ export default function HostDashboard({ userId: userIdProp }) {
           eventDate={fillSlot.ev.config?.date || ""}
           eventVenue={fillSlot.ev.config?.venue || ""}
           hostId={userId}
+          event={fillSlot.ev}
           shortlist={fillRows}
           /* ⚠ MERGED, and safe to merge: `appProfiles` is keyed by application
              id and `shortlistProfiles` by `lineup_members.id` — two distinct id

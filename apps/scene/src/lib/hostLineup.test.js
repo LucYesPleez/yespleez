@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { buildHostLineup, memberState, totalOnBill, billCapacity, billFullMessage, isBooked, bookedMembers, bookedUnscheduled, isScheduled, bookedMemberRows } from './hostLineup.js';
+import { buildHostLineup, memberState, totalOnBill, billCapacity, billFullMessage, isBooked, bookedMembers, bookedUnscheduled, isScheduled, bookedMemberRows, canPlaceMember, placementCanCreateBooking, invalidPlacements } from './hostLineup.js';
 
 /**
  * BASS HEAVY IS THE REGRESSION CASE (owner, 2026-08-15).
@@ -323,4 +323,113 @@ test('⚠ the flat adapter and the group form give the same answer', () => {
 test('the adapter tolerates missing inputs', () => {
   assert.deepEqual(bookedMemberRows(null, null, MANAGED_EV), []);
   assert.deepEqual(bookedMemberRows([], {}, LEGACY_EV), []);
+});
+
+/* ── ⭐⭐ SET TIMES SCHEDULES; IT DOES NOT BOOK (ratified 2026-08-17) ────────── */
+
+/* ⚠ Reusing the contract fixtures declared for the `isBooked` tests above — ⛔ a
+   second set of the same three events is how two tests come to disagree about
+   what "managed" means. */
+
+/**
+ * ⚠⚠ THE BVP SHAPE, EXACTLY AS PRODUCTION HELD IT: an artist with an account,
+ * `shortlisted`, holding a draft performance on the 10PM slot of a legacy event.
+ */
+const BVP = { id: 'm-bvp', status: 'shortlisted', artist_id: 'u-bvp', artist_profile_id: 'p-bvp', artist_name: 'BVP' };
+const LUC = { id: 'm-luc', status: 'on_bill', artist_id: null, artist_profile_id: null, artist_name: 'luc' };
+
+test('⛔⛔ a shortlisted artist cannot acquire a slot, on ANY contract', () => {
+  for (const ev of [LEGACY_EV, IMPORTED_EV, MANAGED_EV]) {
+    const g = canPlaceMember(BVP, [], ev);
+    assert.equal(g.ok, false, `allowed on ${ev.booking_model}`);
+    assert.ok(g.reason.length > 20);
+  }
+});
+
+test('⭐ a booked artist can acquire a slot', () => {
+  assert.equal(canPlaceMember(LUC, [], LEGACY_EV).ok, true);
+  assert.equal(canPlaceMember({ ...LUC, artist_id: 'u-1', artist_profile_id: 'p-1' }, [], IMPORTED_EV).ok, true);
+});
+
+/* ⛔⛔ `on_bill` IS NOT A BOOKING ON A MANAGED EVENT. Only the artist's own
+   acceptance is, so scheduling cannot manufacture one. */
+test('⛔⛔ a managed artist cannot bypass offer and acceptance', () => {
+  const m = { id: 'm-x', status: 'on_bill', artist_id: 'u-2', artist_profile_id: 'p-2' };
+  assert.equal(canPlaceMember(m, [], MANAGED_EV).ok, false);
+  assert.equal(canPlaceMember(m, [{ status: 'offered', slot_uuid: null }], MANAGED_EV).ok, false);
+  assert.equal(canPlaceMember(m, [{ status: 'accepted', slot_uuid: null }], MANAGED_EV).ok, true);
+  /* ⚠ And the SAME member is placeable on a legacy event, because there
+     `on_bill` is the whole of the booking. One rule, two right answers. */
+  assert.equal(canPlaceMember(m, [], LEGACY_EV).ok, true);
+});
+
+test('⚠ a hand-typed act with no account is bookable by being on the bill, even on managed', () => {
+  assert.equal(canPlaceMember(LUC, [], MANAGED_EV).ok, true);
+  assert.equal(canPlaceMember({ ...LUC, status: 'shortlisted' }, [], MANAGED_EV).ok, false);
+});
+
+test('⛔ no member row means nothing to schedule', () => {
+  assert.equal(canPlaceMember(null, [], LEGACY_EV).code, 'no_member');
+  assert.equal(canPlaceMember(undefined, [], MANAGED_EV).ok, false);
+});
+
+/* ⛔ NO EM DASHES: these sentences are shown to the host. */
+test('the refusal copy carries no em dashes', () => {
+  for (const ev of [LEGACY_EV, MANAGED_EV]) {
+    assert.equal(canPlaceMember(BVP, [], ev).reason.includes('—'), false);
+  }
+  assert.equal(canPlaceMember(null, [], LEGACY_EV).reason.includes('—'), false);
+});
+
+test('⭐ only legacy and imported let a placement BE the booking', () => {
+  assert.equal(placementCanCreateBooking(LEGACY_EV), true);
+  assert.equal(placementCanCreateBooking(IMPORTED_EV), true);
+  assert.equal(placementCanCreateBooking(MANAGED_EV), false);
+  /* ⚠ Unknown fails safe to legacy, matching eventProvenance. */
+  assert.equal(placementCanCreateBooking(null), true);
+});
+
+/* ── ⭐ THE AUDIT: an invalid existing state must be DETECTED ───────────────── */
+
+test('⚠⚠ the BVP state is detected as an invalid placement', () => {
+  const found = invalidPlacements({
+    members: [BVP, LUC],
+    performances: [
+      { id: 'perf-bvp', lineup_member_id: 'm-bvp', slot_uuid: 'slot-10pm', status: 'draft' },
+    ],
+    event: LEGACY_EV,
+  });
+  assert.equal(found.length, 1);
+  assert.deepEqual(found[0], {
+    performanceId: 'perf-bvp', memberId: 'm-bvp', slotUuid: 'slot-10pm',
+    memberStatus: 'shortlisted', artistName: 'BVP',
+  });
+});
+
+test('⛔ a legitimate bill produces NO findings, and a null slot is not a placement', () => {
+  assert.deepEqual(invalidPlacements({
+    members: [LUC],
+    performances: [
+      { id: 'p1', lineup_member_id: 'm-luc', slot_uuid: 'slot-1', status: 'draft' },
+      /* ⚠ The event-level offer (P4) carries no slot, so it is not a placement
+         and cannot be an invalid one. */
+      { id: 'p2', lineup_member_id: 'm-luc', slot_uuid: null, status: 'offered' },
+    ],
+    event: LEGACY_EV,
+  }), []);
+  assert.deepEqual(invalidPlacements(), []);
+});
+
+/**
+ * ⚠⚠ THE SAME ROWS READ UNDER A MANAGED CONTRACT ARE INVALID, and that is not a
+ * contradiction: it is why the audit takes the event. ⛔ It is also why nothing
+ * migrates an event's contract underneath its bill.
+ */
+test('⚠ the audit answers per contract, so a legacy bill is not judged by managed rules', () => {
+  const rows = {
+    members: [{ id: 'm-1', status: 'on_bill', artist_id: 'u-1', artist_profile_id: 'p-1', artist_name: 'Elbow' }],
+    performances: [{ id: 'p-1', lineup_member_id: 'm-1', slot_uuid: 's-1', status: 'offered' }],
+  };
+  assert.equal(invalidPlacements({ ...rows, event: LEGACY_EV }).length, 0);
+  assert.equal(invalidPlacements({ ...rows, event: MANAGED_EV }).length, 1);
 });

@@ -256,3 +256,99 @@ export function bookedUnscheduled(groups = [], event = null) {
 export function bookedMemberRows(members = [], perfsByMember = {}, event = null) {
   return (members || []).filter(m => isBooked(m, (perfsByMember || {})[m?.id] || [], event));
 }
+
+/**
+ * ── ⭐⭐ SET TIMES DOES NOT BOOK ARTISTS. IT SCHEDULES ARTISTS ALREADY BOOKED ──
+ *
+ * ⛔⛔ THE INVARIANT (ratified 2026-08-17):
+ *
+ *     a performance with `slot_uuid != NULL`
+ *     → its artist is ALREADY legitimately booked for that event.
+ *
+ * ⚠⚠ THE INCIDENT THIS EXISTS FOR. `fillFromMember` placed BVP on the 10PM slot
+ * of Bass Heavy while `lineup_members.status` stayed `shortlisted`. Nothing
+ * refused it, because `assignMemberToSlot` took `memberId` on trust and NO door
+ * checked the booking. The result was an artist holding a set time who was not
+ * on the bill: absent from LINEUP, still listed under SHORTLIST, and occupying a
+ * slot in the running order.
+ *
+ * ⭐ THE CANONICAL FLOW, and this function is its gate:
+ *   SHORTLIST → OFFER → ARTIST ACCEPTS → BOOKED → LINEUP → SET TIMES → NOTIFY
+ *
+ * ⛔ It answers with `isBooked`, so the CONTRACT decides what "booked" means and
+ * ⛔ no new promotion path is invented here:
+ *   legacy / imported   `status = 'on_bill'`
+ *   managed             the artist's own `accepted` performance
+ *
+ * ⚠ THE ONE EXCEPTION, AND IT IS NOT A LOOPHOLE. On a MANAGED event an act with
+ * no account and no profile has nobody who could ever accept, so requiring an
+ * acceptance would make hand-entered acts unbookable. `on_bill` is the whole of
+ * their booking, exactly as `memberState` and `toClaim` already read them.
+ * ⛔ It still requires `on_bill`: a SHORTLISTED hand-typed act is refused like
+ * anybody else.
+ *
+ * @returns {{ok: true} | {ok: false, code: string, reason: string}}
+ *          ⚠ `reason` is shown to the host, so it says what to DO next.
+ */
+export function canPlaceMember(member, perfs = [], event = null) {
+  if (!member?.id) {
+    return { ok: false, code: 'no_member', reason: 'That artist has no lineup row on this event, so there is nothing to schedule.' };
+  }
+  if (isBooked(member, perfs, event)) return { ok: true };
+
+  if (requiresConfirmation(event)
+    && member.status === 'on_bill'
+    && !member.artist_id && !member.artist_profile_id) {
+    return { ok: true };
+  }
+
+  /* ⚠ TWO DIFFERENT ANSWERS, because the way forward is genuinely different.
+     ⛔ NO EM DASHES: this reaches the host as copy. */
+  return requiresConfirmation(event)
+    ? { ok: false, code: 'awaiting_acceptance', reason: 'This artist has not accepted a place at the event yet, so they cannot be given a set time. Offer them the event first.' }
+    : { ok: false, code: 'not_booked', reason: 'This artist is on the shortlist, not the lineup. Add them to the lineup first, then give them a set time.' };
+}
+
+/**
+ * ⭐ MAY PUTTING SOMEBODY ON A SLOT *BE* THEIR BOOKING?
+ *
+ *   legacy / imported   YES. Writing an act into the running order has always
+ *                       been the booking on these events, and ⛔ that
+ *                       grandfathered behaviour is preserved.
+ *   managed             ⛔⛔ NO. Booking is mutual: OFFER → ACCEPT → CONFIRMED.
+ *                       A slot may never create it.
+ *
+ * ⚠ Asked BEFORE any membership row is written, ⛔ never after. Creating the
+ * member and then refusing the placement would leave a booked-looking artist
+ * with no slot, which on a managed event is invisible on every surface.
+ */
+export function placementCanCreateBooking(event) {
+  return !requiresConfirmation(event);
+}
+
+/**
+ * ⭐⭐ THE AUDIT: which existing rows already violate the invariant?
+ *
+ * ⚠ Pure, and takes the rows the screens already load, so it can run anywhere
+ * without a loader of its own. ⛔ It repairs nothing: naming the invalid state
+ * is a different job from deciding what to do about it.
+ */
+export function invalidPlacements({ members = [], performances = [], event = null } = {}) {
+  const byId = {};
+  (members || []).forEach(m => { if (m?.id) byId[m.id] = m; });
+  const perfsOf = id => (performances || []).filter(p => p?.lineup_member_id === id);
+
+  return (performances || [])
+    .filter(p => p?.slot_uuid)
+    .filter(p => {
+      const m = byId[p.lineup_member_id];
+      return !canPlaceMember(m, perfsOf(p.lineup_member_id), event).ok;
+    })
+    .map(p => ({
+      performanceId: p.id,
+      memberId:      p.lineup_member_id,
+      slotUuid:      p.slot_uuid,
+      memberStatus:  byId[p.lineup_member_id]?.status ?? null,
+      artistName:    byId[p.lineup_member_id]?.artist_name ?? null,
+    }));
+}

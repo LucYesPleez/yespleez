@@ -289,11 +289,37 @@ test('the copy carries no em dashes', () => {
  * Filling a slot wrote a performance nobody could see.
  */
 
-function fakeAssignDb({ failInsert = false, failDelete = false } = {}) {
+/**
+ * ⚠⚠ THE FAKE NOW SERVES THE BOOKING GATE'S READS. `assignMemberToSlot` reads
+ * the member, their performances and the event before writing anything, because
+ * a caller that can forget to pass the member's status is a caller that can
+ * bypass the rule (the BVP incident).
+ *
+ * ⚠ The default member is `on_bill` on a `legacy` event — i.e. BOOKED — so the
+ * older tests below keep asserting what they were written to assert.
+ */
+function fakeAssignDb({
+  failInsert = false, failDelete = false,
+  member = { id: 'm-madds', status: 'on_bill', artist_id: 'u-1', artist_profile_id: 'p-1' },
+  memberPerfs = [],
+  event = { id: 'e-1', booking_model: 'legacy' },
+} = {}) {
   const calls = [];
   return {
     calls,
     from: name => ({
+      select: () => ({
+        eq: (col, val) => {
+          calls.push({ op: 'select', name, where: { [col]: val } });
+          const rows = name === 'performances' ? memberPerfs : [];
+          return {
+            /* ⚠ Both shapes: the gate uses `maybeSingle` for the member and the
+               event, and a bare awaited query for the performances list. */
+            maybeSingle: async () => ({ data: name === 'lineup_members' ? member : name === 'events' ? event : null, error: null }),
+            then: (resolve) => resolve({ data: rows, error: null }),
+          };
+        },
+      }),
       delete: () => ({ eq: (c1, v1) => ({ eq: (c2, v2) => {
         calls.push({ op: 'delete', name, where: { [c1]: v1, [c2]: v2 } });
         return { error: failDelete ? { message: 'RLS said no' } : null };
@@ -307,6 +333,89 @@ function fakeAssignDb({ failInsert = false, failDelete = false } = {}) {
     }),
   };
 }
+
+/* ── ⛔⛔ THE BOOKING GATE · SET TIMES SCHEDULES, IT DOES NOT BOOK ───────────── */
+
+/**
+ * ⚠⚠ THE BVP REGRESSION, PINNED. A `shortlisted` member was given the 10PM slot
+ * on Bass Heavy and nothing refused it. ⛔ If this ever goes green-to-red, an
+ * artist can hold a set time without being on the bill again.
+ */
+test('⛔⛔ a SHORTLISTED member cannot be given a set time', async () => {
+  const db = fakeAssignDb({ member: { id: 'm-bvp', status: 'shortlisted', artist_id: 'u-9', artist_profile_id: 'p-9' } });
+  const res = await assignMemberToSlot(db, { slotId: 's-10pm', eventId: 'e-1', memberId: 'm-bvp' });
+  assert.equal(res.ok, false);
+  assert.equal(res.refused, 'not_booked');
+  assert.match(res.error, /shortlist, not the lineup/);
+  assert.equal(db.calls.some(c => c.op === 'insert'), false, 'it wrote a performance anyway');
+  assert.equal(db.calls.some(c => c.op === 'delete'), false,
+    '⛔⛔ WORSE THAN THE INSERT: the replace-delete would have cleared the slot before refusing');
+});
+
+test('⭐ a BOOKED member on a legacy event can be given a set time', async () => {
+  const db = fakeAssignDb({ member: { id: 'm-luc', status: 'on_bill', artist_id: null, artist_profile_id: null } });
+  const res = await assignMemberToSlot(db, { slotId: 's-10pm', eventId: 'e-1', memberId: 'm-luc' });
+  assert.equal(res.ok, true);
+  assert.equal(db.calls.find(c => c.op === 'insert').row.slot_uuid, 's-10pm');
+});
+
+/**
+ * ⛔⛔ THE MANAGED CONTRACT MAY NOT BE BYPASSED. `on_bill` is not a booking
+ * there: only the artist's own acceptance is, so a host cannot book somebody by
+ * scheduling them.
+ */
+test('⛔⛔ a managed event refuses an on_bill member who has NOT accepted', async () => {
+  const db = fakeAssignDb({
+    member: { id: 'm-x', status: 'on_bill', artist_id: 'u-2', artist_profile_id: 'p-2' },
+    memberPerfs: [{ id: 'perf-offer', status: 'offered', slot_uuid: null }],
+    event: { id: 'e-m', booking_model: 'managed' },
+  });
+  const res = await assignMemberToSlot(db, { slotId: 's-1', eventId: 'e-m', memberId: 'm-x' });
+  assert.equal(res.ok, false);
+  assert.equal(res.refused, 'awaiting_acceptance');
+  assert.equal(db.calls.some(c => c.op === 'insert'), false);
+});
+
+test('⭐ a managed event allows it once the artist HAS accepted', async () => {
+  const db = fakeAssignDb({
+    member: { id: 'm-x', status: 'on_bill', artist_id: 'u-2', artist_profile_id: 'p-2' },
+    memberPerfs: [{ id: 'perf-acc', status: 'accepted', slot_uuid: null }],
+    event: { id: 'e-m', booking_model: 'managed' },
+  });
+  const res = await assignMemberToSlot(db, { slotId: 's-1', eventId: 'e-m', memberId: 'm-x' });
+  assert.equal(res.ok, true);
+});
+
+/**
+ * ⚠ A HAND-TYPED ACT HAS NOBODY WHO COULD EVER ACCEPT, so requiring an
+ * acceptance would make them unbookable on a managed event. ⛔ Still `on_bill`
+ * only: shortlisted is refused whoever they are.
+ */
+test('⭐ a managed event allows a hand-typed on_bill act with no account', async () => {
+  const base = { event: { id: 'e-m', booking_model: 'managed' } };
+  const okDb = fakeAssignDb({ ...base, member: { id: 'm-t', status: 'on_bill', artist_id: null, artist_profile_id: null } });
+  assert.equal((await assignMemberToSlot(okDb, { slotId: 's', eventId: 'e-m', memberId: 'm-t' })).ok, true);
+
+  const noDb = fakeAssignDb({ ...base, member: { id: 'm-t', status: 'shortlisted', artist_id: null, artist_profile_id: null } });
+  assert.equal((await assignMemberToSlot(noDb, { slotId: 's', eventId: 'e-m', memberId: 'm-t' })).ok, false);
+});
+
+/* ⚠ RLS can hide a row, and a hidden row is ⛔ NOT permission. */
+test('⛔ a member the reader cannot see is refused, not assumed', async () => {
+  const db = fakeAssignDb({ member: null });
+  const res = await assignMemberToSlot(db, { slotId: 's', eventId: 'e-1', memberId: 'm-gone' });
+  assert.equal(res.ok, false);
+  assert.equal(res.refused, 'no_member');
+});
+
+/**
+ * ⚠⚠ AN UNREADABLE EVENT MUST NOT BECOME `managed`. `bookingModel` fails safe to
+ * `legacy`, so a null event behaves exactly as every existing event does.
+ */
+test('⚠ a null event falls back to legacy rather than blocking a booked member', async () => {
+  const db = fakeAssignDb({ event: null, member: { id: 'm-1', status: 'on_bill', artist_id: 'u', artist_profile_id: 'p' } });
+  assert.equal((await assignMemberToSlot(db, { slotId: 's', eventId: 'e-?', memberId: 'm-1' })).ok, true);
+});
 
 test('⛔⛔ an assignment writes slot_uuid and ⛔ NEVER the legacy slot_id', async () => {
   const db = fakeAssignDb();
