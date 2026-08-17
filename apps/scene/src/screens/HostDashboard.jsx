@@ -1578,7 +1578,9 @@ export default function HostDashboard({ userId: userIdProp }) {
         <FillSlotModal
           slot={fillSlot.slot}
           eventId={fillSlot.ev.id}
-          eventName={fillSlot.ev.name || ''}
+          eventName={fillSlot.ev.name || ""}
+          eventDate={fillSlot.ev.config?.date || ""}
+          eventVenue={fillSlot.ev.config?.venue || ""}
           hostId={userId}
           onFilled={() => { setFillSlot(null); setLineupReload(n => n + 1); }}
           onClose={() => setFillSlot(null)}

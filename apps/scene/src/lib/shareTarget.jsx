@@ -134,6 +134,30 @@ export async function copyLink(target) {
   }
 }
 
+/**
+ * ⭐ THE WHOLE MESSAGE, ⛔ not just the link.
+ *
+ * ⚠ `copyLink` puts a bare URL on the clipboard, which is right for "share this
+ * page" and wrong for an OFFER: the recipient gets a naked link from a number
+ * they may not know. This copies the composed text WITH the link in it, so what
+ * lands in a text message or an Instagram DM reads as something a person wrote.
+ *
+ * ⛔ A THIRD implementation of copying must not appear at a call site. That is
+ * the rule this module exists for, and the reason this lives here rather than
+ * in the sheet that needed it first.
+ */
+export async function copyMessage(target) {
+  const text = target?.preview || target?.url;
+  if (!text) return false;
+  try {
+    await navigator.clipboard.writeText(text);
+    track(EVENTS.SHARED, { resource: target.type ?? null, method: 'copy_message' });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** Whether the platform offers a share sheet at all. */
 export function canNativeShare() {
   return typeof navigator !== 'undefined' && !!navigator.share;

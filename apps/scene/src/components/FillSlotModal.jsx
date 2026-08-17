@@ -2,13 +2,16 @@ import { useState, useEffect, useRef } from 'react';
 import UnclaimedNotice from './UnclaimedNotice';
 import { supabase } from '../lib/supabase';
 import { genreLabels } from '../lib/profileTaxonomy';
+/* ⛔ ONE implementation of each share act, in lib/shareTarget. */
+import { shareUrl, nativeShare, copyMessage, canNativeShare } from '../lib/shareTarget';
+import { offerMessage, offerTarget } from '../lib/eventOffer';
 /* ⭐ THE ONE WRITER for putting somebody on a slot. ⛔ This component may not
    compose its own insert — it did, and it wrote the wrong column. */
 import { assignMemberToSlot } from '../lib/lineupActions';
 /* ⛔ THE CAP LIVES WITH THE BILL. This sheet asks; it does not decide. */
 import { billCapacity, billFullMessage } from '../lib/hostLineup';
 
-export default function FillSlotModal({ slot, eventId, eventName = '', hostId, acceptedArtists = [], acceptedProfiles = {}, onFilled, onClose }) {
+export default function FillSlotModal({ slot, eventId, eventName = '', eventDate = '', eventVenue = '', hostId, acceptedArtists = [], acceptedProfiles = {}, onFilled, onClose }) {
   const [view,    setView]    = useState('menu');
   const [filter,  setFilter]  = useState('');
   const [query,   setQuery]   = useState('');
@@ -20,11 +23,24 @@ export default function FillSlotModal({ slot, eventId, eventName = '', hostId, a
      codebase keeps being bitten by. */
   const [err,     setErr]     = useState(null);
   const [name,    setName]    = useState('');
-  const [email,   setEmail]   = useState('');
-  const [phone,   setPhone]   = useState('');
+  const [copied,  setCopied]  = useState(false);
   const timer = useRef(null);
 
   const timeLabel = [slot.time, slot.ampm].filter(Boolean).join(' ');
+
+  /**
+   * ⚠ THE OFFER POINTS AT THE EVENT, ⛔ never at the slot. `shareUrl` builds the
+   * hash route the app actually serves, so the link opens the event page rather
+   * than the app's front door. ⛔ No slot id and ⛔ no code ride along — see
+   * `lib/eventOffer` for why both were dropped.
+   */
+  const offerArgs = {
+    toName: name.trim(),
+    eventName,
+    date: eventDate,
+    venue: eventVenue,
+    url: shareUrl(`/event/${eventId}`),
+  };
 
   useEffect(() => {
     if (view !== 'search') return;
@@ -122,8 +138,6 @@ export default function FillSlotModal({ slot, eventId, eventName = '', hostId, a
     return (prof?.name || app.artist_name || '').toLowerCase().includes(filter.toLowerCase());
   });
 
-  const hasContact = email.trim() || phone.trim();
-
   return (
     <div
       style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.82)', zIndex: 2000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', paddingBottom: 'var(--yp-safe-bottom)' }}
@@ -177,7 +191,10 @@ export default function FillSlotModal({ slot, eventId, eventName = '', hostId, a
               />
               <MenuOption
                 label="NOT ON YESPLEEZ YET"
-                sub="Enter their name, send an invite via email or SMS"
+                /* ⛔ WAS "send an invite via email or SMS" — a send path that does
+                   not exist and that this platform has ratified it will never
+                   build. See the manual view. */
+                sub="Add them by name, then copy an invite to send yourself"
                 onClick={() => setView('manual')}
               />
             </div>
@@ -262,14 +279,29 @@ export default function FillSlotModal({ slot, eventId, eventName = '', hostId, a
           {/* MANUAL / INVITE */}
           {view === 'manual' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {/**
+                * ⛔⛔ THE EMAIL AND PHONE FIELDS ARE GONE, AND SO IS THE PROMISE.
+                *
+                * ⚠⚠ THEY WERE COLLECTED AND DISCARDED. `fillManual` inserted
+                * `event_id, artist_name, status` and ⛔ NEVER READ `email` or
+                * `phone` — nothing was sent, nothing was even stored. The sheet
+                * said "An invite will be sent" and the button said "FILL SLOT +
+                * SEND INVITE", so the host believed the artist had been told.
+                * ⛔ A promise the app cannot keep is worse than a missing
+                * feature: the artist is never contacted and nobody finds out.
+                *
+                * ⛔⛔ AND IT IS A PROMISE THIS PLATFORM HAS RATIFIED IT WILL
+                * NEVER KEEP. Phone Discovery §6, restated in `InviteRows`:
+                * **YesPleez does not send messages on a user's behalf, ever.**
+                * So the fix is ⛔ not to wire up a mailer — it is to hand off,
+                * exactly as every other invite in the app does: the message is
+                * sent BY the host, FROM their own app, with them looking at it.
+                */}
               <Field label="DJ / ARTIST NAME *" value={name} onChange={setName} placeholder="e.g. DJ Flames" />
-              <Field label="EMAIL (OPTIONAL)" value={email} onChange={setEmail} placeholder="artist@email.com" type="email" />
-              <Field label="PHONE (OPTIONAL)" value={phone} onChange={setPhone} placeholder="+61 400 000 000" type="tel" />
-              {hasContact && (
-                <p style={{ fontSize: 11, color: 'var(--muted)', margin: 0, lineHeight: 1.6 }}>
-                  An invite will be sent. They can claim this slot when they join YesPleez.
-                </p>
-              )}
+              <p style={{ fontSize: 11, color: 'var(--muted)', margin: 0, lineHeight: 1.6 }}>
+                They go straight onto the slot. Nobody is contacted automatically.
+                {' '}You can copy an invite to send them yourself once they are on.
+              </p>
               <button
                 onClick={fillManual}
                 disabled={!name.trim() || busy}
@@ -282,8 +314,63 @@ export default function FillSlotModal({ slot, eventId, eventName = '', hostId, a
                   transition: 'background .15s',
                 }}
               >
-                {busy ? 'SAVING…' : hasContact ? 'FILL SLOT + SEND INVITE' : 'FILL SLOT'}
+                {busy ? 'SAVING…' : 'FILL SLOT'}
               </button>
+
+              {/**
+                * ⭐⭐ THE COPY-TO-PASTE PATH (owner, 2026-08-17: "this should be
+                * a copy to paste in a text").
+                *
+                * ⚠ Native share where the OS has one, clipboard where it does
+                * not, and it SAYS which it did — a control that appears to do
+                * nothing is worse than one that admits it copied. ⛔ A cancelled
+                * share sheet must NOT fall through to copying; dismissing a
+                * share is not a request to put something on the clipboard.
+                *
+                * ⛔ Share mechanics come from `lib/shareTarget`, ⛔ never a
+                * second implementation here — the same rule `InviteRows` states.
+                */}
+              {/**
+                * ⛔⛔ THE OFFER IS FOR THE EVENT, ⛔ NOT THIS SLOT (owner,
+                * 2026-08-17). V1 minted a claim code locked to one slot; that
+                * is dropped deliberately — see `lib/eventOffer`. A link that
+                * promises the 9pm slot cannot stay true while the host is still
+                * moving the running order around.
+                *
+                * ⚠ `copyMessage`, ⛔ not `copyLink`. A bare URL from a number
+                * they may not recognise is not an offer; the composed text is.
+                */}
+              <div style={{ background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.08)', borderRadius: 12, padding: 12 }}>
+                <div style={{ fontFamily: "'Bebas Neue'", fontSize: 11, letterSpacing: 1.4, color: 'var(--muted)', marginBottom: 7 }}>
+                  SEND THEM AN INVITE
+                </div>
+                {/* ⭐ THE MESSAGE IS SHOWN BEFORE IT IS SENT — V1 did this and it
+                    is the whole reason the flow is trustworthy: the host reads
+                    exactly what the artist will read. ⛔ Never a silent copy. */}
+                <p style={{ fontSize: 11.5, color: 'var(--text)', margin: '0 0 9px', lineHeight: 1.55, whiteSpace: 'pre-wrap', opacity: .8 }}>
+                  {offerMessage(offerArgs)}
+                </p>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const target = offerTarget(offerArgs);
+                    /* ⚠ Native first where it exists, and a CANCEL must not fall
+                       through to copying — dismissing a share sheet is not a
+                       request to put something on the clipboard. */
+                    if (canNativeShare()) { await nativeShare(target); return; }
+                    if (await copyMessage(target)) {
+                      setCopied(true);
+                      setTimeout(() => setCopied(false), 1800);
+                    }
+                  }}
+                  style={{ width: '100%', padding: '10px 0', borderRadius: 10, cursor: 'pointer', fontFamily: "'Bebas Neue'", fontSize: 12, letterSpacing: 1.5, border: '1px solid rgba(0,229,255,.35)', background: 'rgba(0,229,255,.06)', color: 'var(--neon2)' }}
+                >
+                  {copied ? 'COPIED' : canNativeShare() ? 'SHARE INVITE' : 'COPY INVITE'}
+                </button>
+                <p style={{ fontSize: 10, color: 'var(--muted)', margin: '7px 0 0', lineHeight: 1.5 }}>
+                  Paste it into a text, Messenger, Instagram, wherever you already talk to them.
+                </p>
+              </div>
             </div>
           )}
         </div>

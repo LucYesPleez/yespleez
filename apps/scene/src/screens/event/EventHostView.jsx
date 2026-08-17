@@ -1517,7 +1517,9 @@ export default function EventHostView({
         <FillSlotModal
           slot={fillSlot.slot}
           eventId={id}
-          eventName={event?.name || ''}
+          eventName={event?.name || ""}
+          eventDate={event?.config?.date || ""}
+          eventVenue={event?.config?.venue || ""}
           hostId={session?.user?.id}
           acceptedArtists={shortList}
           acceptedProfiles={appProfiles}
