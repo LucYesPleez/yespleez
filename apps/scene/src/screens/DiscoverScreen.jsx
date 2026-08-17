@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import EventCard from '../components/EventCard';
 import ProfileCard, { TYPE_STYLES } from '../components/ProfileCard';
@@ -21,6 +21,10 @@ import {
   RADIUS_STEPS, eventCoords, profileCoords, postcodeCoords, withinRadius,
 } from '../lib/geo';
 import { today, dateStr, weekendRange } from '../lib/dates';
+import { readDate } from './event/eventViewModel';
+import {
+  tokenise, rankEvents, rankProfiles, profileOrFilter,
+} from '../lib/discoverSearch';
 
 // Venue-first, matching the shared canonical role order (SCENE_ROLE_ORDER
 // in profileTypes.js). 'event' isn't a profile role, so it stays last.
@@ -142,7 +146,11 @@ function withEventsVisible(items, count) {
  */
 function matchesDate(item, dateFilter) {
   if (!dateFilter) return true;
-  const d = item.config?.date;
+  // ⚠ readDate, NOT `config.date` — a date is stored as `date` OR `start_date`
+  // depending on which generation of the schema wrote the row, so reading one
+  // spelling silently treats the other as undated and drops the event from
+  // every date filter. Same reader the event page uses.
+  const d = readDate(item.config || {});
   if (!d) return false;                 // an undated event cannot match a date ask
   if (dateFilter === 'weekend') {
     const { from, to } = weekendRange();
@@ -345,6 +353,60 @@ async function fetchDefault() {
   ];
 }
 
+/**
+ * Which profile columns a word is matched against.
+ *
+ * ⚠ Kept in step with profileHaystack in lib/discoverSearch: the query fetches
+ * the candidates and the haystack scores them, so a field in one and not the
+ * other either fetches rows that can never score, or scores a field it never
+ * asked the database for.
+ */
+const PROFILE_MATCH_FIELDS = [
+  'name', 'sound', 'genre_string', 'location', 'suburb', 'state', 'bio', 'venue_type',
+];
+
+/**
+ * THE SEARCH CORPUS — every event a visitor is allowed to see, plus the bills.
+ *
+ * Fetched lazily (the first time someone actually searches) and cached for the
+ * screen, so the cost is paid once rather than per keystroke.
+ *
+ * ⚠⚠ POSTGREST CAPS EVERY RESPONSE AT 1,000 ROWS whatever `limit` says. Both
+ * queries below sit far under it today (88 events, ~220 bill rows) and the cap
+ * degrades quietly rather than erroring — an event past the cap would simply
+ * stop being findable. ⭐ If either count approaches 1,000, this has to page or
+ * move server-side; see the note in runSearch.
+ *
+ * ⚠ `status`/`is_public` are belt and braces, not the boundary. RLS is what
+ * actually withholds drafts from anon (SEC-1/SEC-2) — verified 2026-08-17, the
+ * anon key returns the same 88 rows with or without these filters.
+ */
+async function fetchSearchCorpus() {
+  const [evRes, billRes] = await Promise.all([
+    supabase.from('events')
+      // The venue embed carries NAME and SUBURB as well as the geo fields the
+      // default query needs — matching a gig by its room is the whole point.
+      .select('id, name, config, created_at, venue_profile_id, postcode, lat, lng, venue:venue_profile_id(id, name, suburb, location, state, postcode, lat, lng)')
+      .eq('status', 'live')
+      .or('is_public.eq.true,is_public.is.null')
+      .limit(500),
+    // ⚠ `artist_name` IS A PLAIN COLUMN on lineup_members, so this covers
+    // hand-entered acts that have no profile at all — the same names the event
+    // page prints. on_bill only: an offer nobody accepted is not a lineup.
+    supabase.from('lineup_members')
+      .select('event_id, artist_name')
+      .eq('status', 'on_bill')
+      .limit(1000),
+  ]);
+
+  const artistNamesByEvent = {};
+  for (const m of billRes.data || []) {
+    if (!m.event_id || !m.artist_name) continue;
+    (artistNamesByEvent[m.event_id] ||= []).push(m.artist_name);
+  }
+  return { events: evRes.data || [], artistNamesByEvent };
+}
+
 export default function DiscoverScreen() {
   const navigate = useNavigate();
   const { session } = useSession();
@@ -496,8 +558,11 @@ export default function DiscoverScreen() {
     ...defaultPool.filter(r => r._kind === 'event'),
   ], [defaultPool, railSeed]);
 
+  const queryClient = useQueryClient();
+
   const runSearch = useCallback(async (q, t, g, st, pc) => {
     setSearching(true);
+    const tokens = tokenise(q);
     const searches = [];
     const resolvedPostcodes = resolveLocationToPostcodes(pc);
 
@@ -508,8 +573,16 @@ export default function DiscoverScreen() {
         .in('type', t ? [t] : ['artist','host','band','standup','venue'])
         .or('is_live.is.null,is_live.neq.false')
         .order('updated_at', { ascending: false })
-        .limit(30);
-      if (q)  profileQ = profileQ.or(`name.ilike.%${q}%,sound.ilike.%${q}%,genre_string.ilike.%${q}%,location.ilike.%${q}%,bio.ilike.%${q}%,venue_type.ilike.%${q}%`);
+        // Wider than it used to be (30) because the database now returns
+        // ANY-word candidates and rankProfiles does the narrowing — a
+        // two-word query has more to choose from, and the best match must not
+        // fall outside the window before it is ever scored.
+        .limit(60);
+      // ⭐ ONE CLAUSE PER WORD PER FIELD. The old filter interpolated the whole
+      // query string into one ilike, so "techno bellingen" asked for a single
+      // field containing that exact phrase and matched nothing — the genre is
+      // on one column and the town on another.
+      if (tokens.length) profileQ = profileQ.or(profileOrFilter(tokens, PROFILE_MATCH_FIELDS));
       if (st) profileQ = profileQ.or(`state.ilike.%${st}%,location.ilike.%${st}%`);
       if (pc) {
         // Match on suburb/city text OR any resolved postcodes
@@ -517,19 +590,39 @@ export default function DiscoverScreen() {
         if (resolvedPostcodes.length) resolvedPostcodes.forEach(p => locFilters.push(`postcode.eq.${p}`));
         profileQ = profileQ.or(locFilters.join(','));
       }
-      searches.push(profileQ.then(({ data }) => (data || []).map(p => ({ ...p, _kind: 'profile' }))));
+      searches.push(profileQ.then(({ data }) => rankProfiles(data || [], tokens)
+        .map(p => ({ ...p, _kind: 'profile' }))));
     }
 
     if (!t || t === 'event') {
-      let evQ = supabase.from('events')
-        // venue embedded for distance — see the note in fetchDefault
-        .select('id, name, config, created_at, venue_profile_id, postcode, lat, lng, venue:venue_profile_id(postcode, state, lat, lng)')
-        .eq('status', 'live')
-        .or('is_public.eq.true,is_public.is.null')
-        .order('created_at', { ascending: false })
-        .limit(20);
-      if (q) evQ = evQ.ilike('name', `%${q}%`);
-      searches.push(evQ.then(({ data }) => (data || []).map(e => ({ ...e, _kind: 'event' }))));
+      /**
+       * ⭐⭐ EVENTS ARE MATCHED IN THE CLIENT, AGAINST THE WHOLE CORPUS.
+       *
+       * The old query was `ilike('name', …)` — an event was findable only by
+       * its own title, so searching a venue found the venue's profile and none
+       * of its gigs (reported by the owner, 2026-08-17). Everything worth
+       * matching on lives somewhere the database cannot cheaply reach in one
+       * filter: the blurb and genres are inside `config` jsonb, the venue is
+       * behind `venue_profile_id`, and the bill is a different table entirely.
+       *
+       * ⚠ THIS IS ONLY REASONABLE BECAUSE THE CORPUS IS SMALL — 88 live public
+       * events, ~115 kB, measured 2026-08-17. It is fetched ONCE per screen and
+       * reused for every keystroke, which is fewer bytes than the per-keystroke
+       * queries it replaces. ⛔ If events reach the low thousands this has to
+       * move back to the database (a tsvector column, or an RPC); the ranking
+       * in lib/discoverSearch is already pure so only the fetch would change.
+       */
+      const corpus = await queryClient.fetchQuery({
+        queryKey: ['discover', 'searchCorpus'],
+        queryFn:  fetchSearchCorpus,
+        staleTime: 5 * 60 * 1000,
+      });
+      searches.push(Promise.resolve(
+        rankEvents(corpus.events, tokens, {
+          todayStr: today(),
+          artistNamesByEvent: corpus.artistNamesByEvent,
+        }).map(e => ({ ...e, _kind: 'event' })),
+      ));
     }
 
     const groups = await Promise.all(searches);
@@ -541,7 +634,7 @@ export default function DiscoverScreen() {
     // screen runs before reporting a number, or the demand signal claims a
     // result set nobody saw — see applyLocalFilters.
     return all;
-  }, []);
+  }, [queryClient]);
 
   // Debounce search when filters are active
   //
