@@ -325,11 +325,83 @@ export async function assignMemberToSlot(db, { slotId, eventId, memberId, status
   const gate = canPlaceMember(member, perfs || [], event);
   if (!gate.ok) return { ok: false, error: gate.reason, refused: gate.code, performance: null };
 
-  /* Replace whoever held this slot. A slot is a place in the running order, and
-     two acts arriving there by different routes is the contested case the
-     pickers already warn about. */
-  const del = await db.from('performances').delete().eq('slot_uuid', slotId).eq('event_id', eventId);
-  if (del?.error) return { ok: false, error: del.error.message, performance: null };
+  /**
+   * ── ⛔⛔ P6.2.1 · A RESCHEDULE MAY NOT DESTROY A BOOKING ─────────────────────
+   *
+   * ⚠⚠ THIS FUNCTION USED TO `delete … where slot_uuid = destination` AND THEN
+   * INSERT. Three things died with that row:
+   *
+   *   `accepted_at`  the ARTIST's own act. A host moving a set time is ⛔ not
+   *                  permission to erase the fact that somebody agreed to play.
+   *   `status`       an `accepted` row came back as whatever the caller passed,
+   *                  so an agreement was silently downgraded to `draft`.
+   *   `id`           ⛔⛔ REFERENCED FROM OUTSIDE THE TABLE. `publishSetTimes`
+   *                  writes `notifications.data.performance_id`, and the accept
+   *                  and decline handlers key on it. Deleting the row orphans an
+   *                  outstanding offer: the artist taps ACCEPT and the update
+   *                  matches nothing, silently.
+   *
+   * ⭐⭐ SO THE ROW IS UPDATED IN PLACE, and the incumbent is LEFT ALONE (owner,
+   * 2026-08-17). L3 constrains `(slot, member)` rather than the slot alone
+   * precisely because two acts on one slot is real — B2B, and three such slots
+   * exist in production. Removing the previous occupant is its own decision with
+   * its own named control (`planUnassign`), ⛔ never a side effect of placing
+   * somebody else.
+   *
+   * ⭐ THE TARGET, IN ORDER. ⛔ Not an upsert on `(event, member)`: a member may
+   * legitimately hold several slots, so that key would collapse two placements
+   * into one.
+   */
+  /**
+   * ⚠⚠ INTERIM, RATIFIED AS SUCH (owner, 2026-08-17). Assigning a member who
+   * ALREADY holds a different slot ADDS a second placement; it does ⛔ not move
+   * them. That is honest to the schema — L3 permits it and a festival act playing
+   * twice is real — and ⛔ no data is ever lost.
+   *
+   * ⛔⛔ BUT IT CAN SILENTLY DOUBLE-BOOK A HOST WHO MEANT "MOVE". The ratified
+   * destination is an EXPLICIT CHOICE at the point of action: when the member
+   * already holds a slot, the sheet asks "move them here" or "add a second set".
+   * ⛔ Do NOT close this gap by guessing from how many slots they hold — an
+   * invisible rule that is usually right is the shape this codebase keeps being
+   * bitten by. ⭐ Until that UI exists, adding is the safe half of the ambiguity.
+   *
+   * ⚠ A true MOVE already exists and is lossless: `persistReorder` (drag) does
+   * `update slot_uuid` on the row itself.
+   */
+  const mine = (perfs || []).filter(p => p?.id);
+  const onDestination = mine.find(p => p.slot_uuid === slotId);
+  /* ⚠ THE EVENT-LEVEL OFFER (P4) IS THE THING TO PLACE. A row with no slot is an
+     artist who accepted a place at the event; giving them a time must reuse it,
+     or their acceptance is stranded on a row nobody reads. */
+  const unplaced = mine.find(p => !p.slot_uuid);
+  const target   = onDestination || unplaced;
+
+  if (target) {
+    /**
+     * ⛔⛔ `status` IS INSERT-ONLY (owner, 2026-08-17). It records what the
+     * ARTIST has agreed to, so a placement may never rewrite it: that is exactly
+     * how an `accepted` set time became a `draft` again. Moving somebody changes
+     * WHERE they play, ⛔ not WHETHER they said yes. A genuine status transition
+     * is a separate, named act.
+     *
+     * ⚠ `updated_at` is set by hand because ⛔ NO TRIGGER EXISTS on this table.
+     */
+    if (onDestination) {
+      /* ⭐ ALREADY THERE. ⛔ No write at all: re-pressing must not restamp a row
+         or the audit trail records edits that never happened. */
+      return { ok: true, error: null, performance: target, unchanged: true };
+    }
+    const { data, error } = await db.from('performances')
+      .update({ slot_uuid: slotId, updated_at: new Date().toISOString() })
+      .eq('id', target.id)
+      .select('id, status, slot_uuid, lineup_member_id, event_id, accepted_at').single();
+    /* ⚠⚠ AN UPDATE RLS FILTERED RETURNS NO ERROR AND NO ROW. ⛔ A missing row is
+       therefore a FAILURE, not a success: a set time that did not save must not
+       look like one that did. */
+    if (error) return { ok: false, error: error.message, performance: null };
+    if (!data)  return { ok: false, error: 'The set time was not saved. You may not have permission to change this event.', performance: null };
+    return { ok: true, error: null, performance: data };
+  }
 
   const { data, error } = await db.from('performances').insert({
     lineup_member_id: memberId, event_id: eventId, slot_uuid: slotId, status,

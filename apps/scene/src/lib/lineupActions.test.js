@@ -299,7 +299,7 @@ test('the copy carries no em dashes', () => {
  * older tests below keep asserting what they were written to assert.
  */
 function fakeAssignDb({
-  failInsert = false, failDelete = false,
+  failInsert = false, failDelete = false, failUpdate = false,
   member = { id: 'm-madds', status: 'on_bill', artist_id: 'u-1', artist_profile_id: 'p-1' },
   memberPerfs = [],
   event = { id: 'e-1', booking_model: 'legacy' },
@@ -324,6 +324,16 @@ function fakeAssignDb({
         calls.push({ op: 'delete', name, where: { [c1]: v1, [c2]: v2 } });
         return { error: failDelete ? { message: 'RLS said no' } : null };
       } }) }),
+      /* ⚠ P6.2.1 · the writer now UPDATES an existing row rather than replacing
+         it. `failUpdate: 'filtered'` returns no error and NO ROW, which is what
+         RLS actually does and the case that used to read as success. */
+      update: patch => ({ eq: (col, val) => ({ select: () => ({ single: async () => {
+        calls.push({ op: 'update', name, patch, where: { [col]: val } });
+        if (failUpdate === 'filtered') return { data: null, error: null };
+        if (failUpdate) return { data: null, error: { message: 'RLS said no' } };
+        const row = (memberPerfs || []).find(p => p.id === val) || { id: val };
+        return { data: { ...row, ...patch }, error: null };
+      } }) }) }),
       insert: row => ({ select: () => ({ single: async () => {
         calls.push({ op: 'insert', name, row });
         return failInsert
@@ -430,13 +440,20 @@ test('⛔⛔ an assignment writes slot_uuid and ⛔ NEVER the legacy slot_id', a
   assert.equal(ins.row.status, 'offered');
 });
 
-test('⛔ the replace-the-occupant delete matches on slot_uuid too', async () => {
+/**
+ * ⚠⚠ THIS TEST IS REVERSED FROM WHAT IT ONCE ASSERTED (P6.2.1, owner
+ * 2026-08-17). It used to prove the replace-the-occupant DELETE was keyed on
+ * `slot_uuid`. There is no longer a delete: placing somebody may not remove
+ * anybody, because L3 constrains `(slot, member)` rather than the slot alone and
+ * two acts on one slot is real. ⛔ The old assertion is not weakened, it is
+ * WRONG, so it is gone rather than left to contradict this.
+ */
+test('⛔⛔ placing somebody DELETES NOBODY — the incumbent survives', async () => {
   const db = fakeAssignDb();
-  await assignMemberToSlot(db, { slotId: 'uuid-slot-1', eventId: 'e-1', memberId: 'm-1' });
-  const del = db.calls.find(c => c.op === 'delete');
-  assert.equal(del.where.slot_uuid, 'uuid-slot-1',
-    'keyed on slot_id it matched nothing, so the previous occupant was never replaced');
-  assert.equal(del.where.event_id, 'e-1');
+  const res = await assignMemberToSlot(db, { slotId: 'uuid-slot-1', eventId: 'e-1', memberId: 'm-madds' });
+  assert.equal(res.ok, true);
+  assert.equal(db.calls.some(c => c.op === 'delete'), false,
+    'the incumbent lost their row, and with it accepted_at and any pending offer notification');
 });
 
 /**
@@ -464,11 +481,20 @@ test('⛔ an insert RLS blocked is surfaced, ⛔ never reported as a fill', asyn
   assert.equal(res.performance, null);
 });
 
-test('⛔ a failed delete stops before inserting a SECOND act onto the slot', async () => {
-  const db = fakeAssignDb({ failDelete: true });
-  const res = await assignMemberToSlot(db, { slotId: 's', eventId: 'e', memberId: 'm' });
-  assert.equal(res.ok, false);
-  assert.equal(db.calls.filter(c => c.op === 'insert').length, 0);
+/**
+ * ⚠⚠ RETIRED BY P6.2.1, and recorded rather than silently dropped. This proved
+ * that a FAILED delete stopped before the insert, so a slot could not end up with
+ * two acts by accident. ⛔ There is no delete to fail now: a second act on a slot
+ * is legitimate (L3 constrains `(slot, member)`, B2B is real), so the guard has
+ * nothing left to guard. The replacement assertion is
+ * "placing somebody DELETES NOBODY" above.
+ */
+test('⛔ no delete is issued on any assignment path, so nothing can half-fail', async () => {
+  for (const perfsHeld of [[], [{ id: 'p-1', status: 'accepted', slot_uuid: null }], [{ id: 'p-2', status: 'draft', slot_uuid: 'other' }]]) {
+    const db = fakeAssignDb({ memberPerfs: perfsHeld });
+    await assignMemberToSlot(db, { slotId: 's', eventId: 'e-1', memberId: 'm-madds' });
+    assert.equal(db.calls.some(c => c.op === 'delete'), false);
+  }
 });
 
 test('⛔ an incomplete assignment writes nothing at all', async () => {
@@ -543,4 +569,98 @@ test('⛔ an incomplete offer writes nothing at all', async () => {
     assert.equal(res.ok, false);
     assert.equal(db.calls.length, 0);
   }
+});
+
+/* ── ⛔⛔ P6.2.1 · A RESCHEDULE MAY NOT DESTROY A BOOKING ───────────────────── */
+
+const legacyEv = { id: 'e-1', booking_model: 'legacy' };
+const onBill   = { id: 'm-1', status: 'on_bill', artist_id: 'u-1', artist_profile_id: 'p-1' };
+
+/**
+ * ⭐⭐ THE INVARIANT. `accepted_at` is the ARTIST's own act, and a host moving a
+ * set time is not permission to erase it.
+ */
+test('⭐⭐ moving an ACCEPTED artist keeps the row, its id, its status and accepted_at', async () => {
+  const existing = { id: 'perf-keep', status: 'accepted', slot_uuid: null, accepted_at: '2026-08-01T00:00:00.000Z' };
+  const db = fakeAssignDb({ member: onBill, memberPerfs: [existing], event: legacyEv });
+  const res = await assignMemberToSlot(db, { slotId: 'slot-9pm', eventId: 'e-1', memberId: 'm-1', status: 'draft' });
+
+  assert.equal(res.ok, true);
+  assert.equal(db.calls.some(c => c.op === 'insert'), false, 'a new row means the old one was abandoned');
+  const up = db.calls.find(c => c.op === 'update');
+  assert.equal(up.where.id, 'perf-keep', '⛔ the row id must survive: notifications point at it');
+  assert.deepEqual(Object.keys(up.patch).sort(), ['slot_uuid', 'updated_at'],
+    '⛔⛔ status is INSERT-ONLY: a reschedule may not rewrite what the artist agreed to');
+  assert.equal(res.performance.status, 'accepted');
+  assert.equal(res.performance.accepted_at, '2026-08-01T00:00:00.000Z');
+});
+
+/* ⚠ THE EVENT-LEVEL OFFER (P4) IS THE THING TO PLACE — a row with no slot is an
+   artist who accepted a place at the event, and their acceptance must not be
+   stranded on a row nobody reads. */
+test('⚠ an unplaced performance is reused rather than left behind', async () => {
+  const db = fakeAssignDb({ member: onBill, event: legacyEv,
+    memberPerfs: [{ id: 'perf-offer', status: 'accepted', slot_uuid: null }] });
+  await assignMemberToSlot(db, { slotId: 'slot-1', eventId: 'e-1', memberId: 'm-1' });
+  assert.equal(db.calls.find(c => c.op === 'update').patch.slot_uuid, 'slot-1');
+  assert.equal(db.calls.some(c => c.op === 'insert'), false);
+});
+
+/* ⛔ Re-pressing must not restamp a row, or the audit trail records edits that
+   never happened. */
+test('⛔ assigning somebody to the slot they already hold writes NOTHING', async () => {
+  const db = fakeAssignDb({ member: onBill, event: legacyEv,
+    memberPerfs: [{ id: 'perf-same', status: 'offered', slot_uuid: 'slot-1' }] });
+  const res = await assignMemberToSlot(db, { slotId: 'slot-1', eventId: 'e-1', memberId: 'm-1', status: 'draft' });
+  assert.equal(res.ok, true);
+  assert.equal(res.unchanged, true);
+  assert.equal(db.calls.some(c => c.op === 'update' || c.op === 'insert' || c.op === 'delete'), false);
+  assert.equal(res.performance.status, 'offered', 'the caller status must not overwrite it');
+});
+
+/* ⭐ With nothing to reuse it still inserts, and only THEN does the caller's
+   status apply — that is what "insert-only" means. */
+test('⭐ a member with no performances gets a new row carrying the caller status', async () => {
+  const db = fakeAssignDb({ member: onBill, memberPerfs: [], event: legacyEv });
+  await assignMemberToSlot(db, { slotId: 'slot-1', eventId: 'e-1', memberId: 'm-1', status: 'offered' });
+  const ins = db.calls.find(c => c.op === 'insert');
+  assert.equal(ins.row.status, 'offered');
+  assert.equal(ins.row.slot_uuid, 'slot-1');
+});
+
+/**
+ * ⚠⚠ AN UPDATE RLS FILTERED RETURNS NO ERROR AND NO ROW. ⛔ That must be a
+ * failure: this is the exact shape that let 22 events look editable when they
+ * were not.
+ */
+test('⛔⛔ an update that changed nothing is a FAILURE, not a success', async () => {
+  const db = fakeAssignDb({ member: onBill, event: legacyEv, failUpdate: 'filtered',
+    memberPerfs: [{ id: 'perf-x', status: 'draft', slot_uuid: null }] });
+  const res = await assignMemberToSlot(db, { slotId: 'slot-1', eventId: 'e-1', memberId: 'm-1' });
+  assert.equal(res.ok, false);
+  assert.match(res.error, /not saved/);
+});
+
+test('an update error is surfaced too', async () => {
+  const db = fakeAssignDb({ member: onBill, event: legacyEv, failUpdate: true,
+    memberPerfs: [{ id: 'perf-x', status: 'draft', slot_uuid: null }] });
+  assert.equal((await assignMemberToSlot(db, { slotId: 's', eventId: 'e-1', memberId: 'm-1' })).ok, false);
+});
+
+/**
+ * ⚠⚠ THIS PINS THE INTERIM, ⛔ NOT THE FINAL ANSWER (owner, 2026-08-17). A member
+ * may legitimately hold several slots (L3 constrains `(slot, member)` for exactly
+ * that reason), so a second placement INSERTS and the first is untouched: no data
+ * is lost, which is the safe half of a genuinely ambiguous instruction.
+ *
+ * ⛔ The ratified destination is an EXPLICIT CHOICE in the sheet, "move them here"
+ * versus "add a second set". When that lands, this test changes with it — ⛔ and
+ * it must not be closed by inferring intent from the number of slots held.
+ */
+test('⚠ INTERIM · a member already playing one slot gains a second, and keeps the first', async () => {
+  const db = fakeAssignDb({ member: onBill, event: legacyEv,
+    memberPerfs: [{ id: 'perf-a', status: 'accepted', slot_uuid: 'slot-7pm' }] });
+  await assignMemberToSlot(db, { slotId: 'slot-11pm', eventId: 'e-1', memberId: 'm-1', status: 'draft' });
+  assert.equal(db.calls.some(c => c.op === 'update'), false, 'their 7PM set was moved instead of added to');
+  assert.equal(db.calls.find(c => c.op === 'insert').row.slot_uuid, 'slot-11pm');
 });
