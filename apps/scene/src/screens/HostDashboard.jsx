@@ -31,6 +31,7 @@ import { enrichClaims } from '../lib/claimEnrichment';
    drag dots the padlock reveals actually drag. */
 import DaySlots from './event/DaySlots';
 import { buildHostLineup, STATE_COLOURS } from '../lib/hostLineup';
+import { setTimesEnabled } from '../lib/eventSetTimes';
 /* ⚠ `findExistingMember` ONLY. The dashboard still needs to READ whether an
    applicant is on the bill — that is what ACCEPTED · ON THE BILL says — but it
    no longer WRITES membership, so `planAddToBill`/`addToBill` went with the
@@ -1015,7 +1016,30 @@ export default function HostDashboard({ userId: userIdProp }) {
               const evDate      = ev.config?.date ? new Date(ev.config.date).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' }) : null;
               const evExpanded  = lineupExpandMap[ev.id] !== false;
               const toggleExpand = () => setLineupExpandMap(prev => ({ ...prev, [ev.id]: !evExpanded }));
-              const activeTab   = lineupSubTabs[ev.id] || 'LINEUP';
+              /**
+               * ⭐ Does this event have a running order? `lib/eventSetTimes` is
+               * the one reader; `totalSlots` is consulted only for an event
+               * that has never stated a preference, so ⛔ nothing existing
+               * changes shape.
+               */
+              const usesSetTimes = setTimesEnabled(ev, totalSlots);
+
+              /**
+               * ⛔⛔ THE REMEMBERED TAB CAN BE ONE THIS EVENT NO LONGER HAS.
+               * `lineupSubTabs` persists per event across renders and the old
+               * default was LINEUP, so a set-times event would select a tab
+               * absent from its own bar: content below, nothing highlighted
+               * above, which reads as broken rather than as a missing tab.
+               *
+               * ⚠ SWAPPED, ⛔ not reset. LINEUP and SET TIMES occupy the same
+               * position in the workflow, so the host lands where they meant to
+               * be either way. Corrected on READ rather than by an effect —
+               * ⛔ nothing is written, so there is no state to drift.
+               */
+              const storedTab   = lineupSubTabs[ev.id] || 'LINEUP';
+              const activeTab   = usesSetTimes && storedTab === 'LINEUP'     ? 'SET TIMES'
+                                : !usesSetTimes && storedTab === 'SET TIMES' ? 'LINEUP'
+                                : storedTab;
               const setTab      = (tab) => setLineupSubTabs(prev => ({ ...prev, [ev.id]: tab }));
               /* ⚠ Lifted to the group scope because the PADLOCK lives in the
                  tab heading and the cards it governs render further down. ⛔ Two
@@ -1148,7 +1172,20 @@ export default function HostDashboard({ userId: userIdProp }) {
                         onChange={setTab}
                         style={{ marginBottom: 12 }}
                         tabs={[
-                          { key: 'LINEUP',     label: `LINEUP${members.length ? ` (${members.length})` : ''}` },
+                          /**
+                            * ⭐⭐ PIPELINE · SHORTLIST · (SET TIMES or LINEUP)
+                            * — the workflow read forwards (ratified 2026-08-17).
+                            *
+                            * ⛔⛔ NEVER BOTH LINEUP AND SET TIMES: SET TIMES *is*
+                            * the scheduling presentation of the confirmed bill,
+                            * so both is two workspaces over one population.
+                            * ⛔ Change this list and change `EventHostView`'s —
+                            * §11, which was written for exactly this pair and
+                            * then broken by its own author within hours.
+                            */
+                          { key: 'PIPELINE',   label: `PIPELINE${evPipeline.length ? ` (${evPipeline.length})` : ''}` },
+                          { key: 'SHORTLIST',  label: `SHORTLIST${evShortList.length ? ` (${evShortList.length})` : ''}` },
+                          ...(usesSetTimes ? [
                           /**
                             * ⭐⭐ THE PADLOCK SITS IN THE HEADING (owner,
                             * 2026-08-16). `EventTabBar` renders `label` as a
@@ -1197,8 +1234,12 @@ export default function HostDashboard({ userId: userIdProp }) {
                               </span>
                             </span>
                           ) },
-                          { key: 'SHORTLIST',  label: `SHORTLIST${evShortList.length ? ` (${evShortList.length})` : ''}` },
-                          { key: 'PIPELINE',   label: `PIPELINE${evPipeline.length ? ` (${evPipeline.length})` : ''}` },
+                          ] : [
+                            /* ⚠ No running order, so the confirmed bill is the
+                               third tab instead. Same position, same place in
+                               the workflow. */
+                            { key: 'LINEUP', label: `LINEUP${members.length ? ` (${members.length})` : ''}` },
+                          ]),
                           ...(evOrphaned.length
                             ? [{ key: 'NOT BOOKED', label: `NOT BOOKED (${evOrphaned.length})` }]
                             : []),

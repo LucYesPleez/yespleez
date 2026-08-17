@@ -16,6 +16,7 @@ import { resolveProfileId } from '../../lib/resolveProfileId';
 import { scopeToApplicant, fetchApplicantProfiles } from '../../lib/applicantProfiles';
 import { findOpenAsksForDate, declineOpenAsks } from '../../lib/dateLockout';
 import { memberState, STATE_COLOURS, billCapacity, billFullMessage } from '../../lib/hostLineup';
+import { setTimesEnabled } from '../../lib/eventSetTimes';
 import { normaliseStatus, rawStatusesFor, PIPELINE_BUCKETS, STATUS_TAB_COLOR } from '../../lib/enquiryUtils';
 import { planUnassign, planMoveToShortlist, planRemoveFromEvent, executeLineupPlan, assignMemberToSlot } from '../../lib/lineupActions';
 import { planAddToBill, addToBill, findExistingMember } from '../../lib/lineupFromApplication';
@@ -59,7 +60,29 @@ export default function EventHostView({
   const [showManage,    setShowManage]    = useState(false);
   const [appCounts,     setAppCounts]     = useState({ total: 0, shortlisted: 0 });
   const [appsOpen,      setAppsOpen]      = useState(null);
+  /**
+   * ⭐ DOES THIS EVENT HAVE A RUNNING ORDER? One reader, `lib/eventSetTimes`.
+   * ⚠ `totalSlots` is only consulted for an event that has never stated a
+   * preference, which keeps every existing event exactly as it is today.
+   */
+  const usesSetTimes = setTimesEnabled(event, totalSlots);
+
   const [eventTab,      setEventTab]      = useState('LINEUP');
+
+  /**
+   * ⛔⛔ THE ACTIVE TAB CAN BE ONE THAT NO LONGER EXISTS. `eventTab` defaults to
+   * LINEUP and is remembered across renders, so an event that uses set times
+   * would open on a tab absent from its own tab bar — the content would render
+   * with nothing selected above it, which reads as a broken screen rather than
+   * a missing tab.
+   *
+   * ⚠ Swapped rather than reset: LINEUP and SET TIMES are the SAME position in
+   * the workflow, so the host lands where they meant to be either way.
+   */
+  useEffect(() => {
+    if (usesSetTimes  && eventTab === 'LINEUP')    setEventTab('SET_TIMES');
+    if (!usesSetTimes && eventTab === 'SET_TIMES') setEventTab('LINEUP');
+  }, [usesSetTimes, eventTab]);
   const [showEditor,    setShowEditor]    = useState(false);
   const [allApps,       setAllApps]       = useState([]);
   const [appProfiles,   setAppProfiles]   = useState({});
@@ -826,11 +849,32 @@ export default function EventHostView({
            * while such rows exist, says exactly what they are, and disappears
            * for good once they are cleared. ⛔ Do not make it permanent.
            */
+          /**
+            * ⭐⭐ THE ORDER IS THE WORKFLOW, READ FORWARDS (ratified
+            * 2026-08-17): who came to us, who do I want, then where do they go.
+            *
+            *     PIPELINE · SHORTLIST · SET TIMES        set times ON
+            *     PIPELINE · SHORTLIST · LINEUP           set times OFF
+            *
+            * ⛔⛔ NEVER BOTH LINEUP AND SET TIMES. SET TIMES *is* the scheduling
+            * presentation of the confirmed bill, so showing both is two host
+            * workspaces over one population — ⚠ exactly the drift §11 was
+            * written about and then suffered anyway. ⭐ One workspace per event
+            * removes the opportunity rather than documenting it.
+            *
+            * ⚠ "LINEUP" the DATA survives either way; only the TAB is
+            * conditional. `lib/eventSetTimes` is the one thing that decides,
+            * and it falls back to the OLD derivation for any event that has
+            * never stated a preference — so ⛔ nothing existing changes shape.
+            *
+            * ⛔ Change this list and change `HostDashboard`'s — §11.
+            */
           tabs={[
-            { key: 'LINEUP',    label: `LINEUP${lineupMembers.length ? ` (${lineupMembers.length})` : ''}` },
-            { key: 'SET_TIMES', label: 'SET TIMES' },
-            { key: 'SHORTLIST', label: `SHORTLIST${shortList.length ? ` (${shortList.length})` : ''}` },
             { key: 'PIPELINE',  label: `PIPELINE${pipeline.length ? ` (${pipeline.length})` : ''}` },
+            { key: 'SHORTLIST', label: `SHORTLIST${shortList.length ? ` (${shortList.length})` : ''}` },
+            usesSetTimes
+              ? { key: 'SET_TIMES', label: 'SET TIMES' }
+              : { key: 'LINEUP',    label: `LINEUP${lineupMembers.length ? ` (${lineupMembers.length})` : ''}` },
             ...(orphanedAccepted.length
               ? [{ key: 'ACCEPTED', label: `NOT BOOKED (${orphanedAccepted.length})` }]
               : []),
