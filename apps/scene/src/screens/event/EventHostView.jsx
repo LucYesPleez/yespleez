@@ -166,6 +166,32 @@ export default function EventHostView({
   }, [lockoutAsks]);
   const [sendingOffers, setSendingOffers] = useState(false);
   const [confirmUnlock, setConfirmUnlock] = useState(false);
+  /**
+   * ── ⭐⭐ P6.3d-0 · THE EDITING LOCK BECOMES A SESSION LOCK ────────────────────
+   *
+   * ⚠⚠ THERE WERE TWO DIFFERENT LOCKS. The dashboard has a PADLOCK in its tab
+   * heading over component state (`setTimesUnlocked`), and this screen had a
+   * PERSISTED `config.set_times_locked` with ⛔ no padlock at all — its only route
+   * out was EDIT SET TIMES, which runs `unlockSetTimes` and reverts EVERY
+   * outstanding offer to draft. So the two surfaces disagreed about what "locked"
+   * means, and one of them could only be unlocked destructively.
+   *
+   * ⛔⛔ AND THAT IS WHY THIS COMES FIRST. P6.3d-1 deletes both writers of the
+   * persisted flag. Deleting them with no replacement would freeze the ONE event
+   * that has `set_times_locked = true` (Bass Heavy) on this surface forever, while
+   * the dashboard stayed editable — the same event, frozen on one screen and not
+   * the other.
+   *
+   * ⭐ SEEDED FROM THE PERSISTED FLAG, THEN SESSION-ONLY. So the 89 events that
+   * never had the flag behave exactly as they do today (open), the one locked
+   * event opens with the padlock instead of a destructive unlock, and ⛔ nothing
+   * is ever written to `config` again.
+   *
+   * ⚠ `null` means "not yet decided by the host this session": the query's value
+   * can arrive after the first render, so ⛔ it cannot be an eager initial state.
+   */
+  const [unlockedByHost, setUnlockedByHost] = useState(null);
+  const setTimesUnlocked = unlockedByHost === null ? !isLocked : unlockedByHost;
   /* ⭐ P6.3 · one artist at a time, behind a confirm step. */
   const [confirmNotify, setConfirmNotify] = useState(null);
   const [notifying,     setNotifying]     = useState(false);
@@ -987,7 +1013,44 @@ export default function EventHostView({
                  the number of outstanding notices is not a quantity the host
                  acts on, the tab is. ⚠ Derived every render from the claims, so
                  it cannot go stale, and ⛔ it never reads `set_times_locked`. */
-              ? { key: 'SET_TIMES', label: `SET TIMES${anyNoticeOutstanding ? ' !' : ''}` }
+              ? { key: 'SET_TIMES', label: (
+                /**
+                  * ⭐⭐ P6.3d-0 · THE PADLOCK, WHERE THE DASHBOARD ALREADY PUTS IT.
+                  * ⛔ Change one, change both — §11.
+                  *
+                  * ⛔ A `<span role="button">`, ⛔ NOT a `<button>`: the tab itself
+                  * is a button and nesting one inside another is invalid HTML that
+                  * browsers resolve by dropping the inner control.
+                  *
+                  * ⚠ `stopPropagation` or the padlock would also change tab.
+                  * Locking and choosing the tab are two intents on one piece of
+                  * chrome. ⚠ 40px hit area via padding + equal negative margin.
+                  */
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  {`SET TIMES${anyNoticeOutstanding ? ' !' : ''}`}
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    aria-pressed={setTimesUnlocked}
+                    aria-label={setTimesUnlocked ? 'Lock set times' : 'Unlock to edit set times'}
+                    title={setTimesUnlocked ? 'Lock set times' : 'Unlock to edit set times'}
+                    onClick={e => { e.stopPropagation(); setUnlockedByHost(!setTimesUnlocked); }}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); setUnlockedByHost(!setTimesUnlocked); }
+                    }}
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                      padding: 13, margin: -13, border: 'none', background: 'none',
+                      color: setTimesUnlocked ? '#fff' : 'var(--muted)',
+                      cursor: 'pointer', transition: 'color .15s',
+                    }}
+                  >
+                    {setTimesUnlocked
+                      ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>
+                      : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>}
+                  </span>
+                </span>
+              ) }
               : { key: 'LINEUP',    label: `LINEUP${bookedLineup.length ? ` (${bookedLineup.length})` : ''}` },
             { key: 'SHORTLIST', label: `SHORTLIST${shortList.length ? ` (${shortList.length})` : ''}` },
             { key: 'PIPELINE',  label: `PIPELINE${pipeline.length ? ` (${pipeline.length})` : ''}` },
@@ -1945,7 +2008,19 @@ export default function EventHostView({
       hostChrome={hostChrome}
       overlays={overlays}
       host={{
-        effectiveIsHost, showEditor, eventTab, isLocked,
+        effectiveIsHost, showEditor, eventTab,
+        /**
+         * ⭐⭐ P6.3d-0 · THE CARDS NOW READ THE SESSION LOCK, ⛔ not the persisted
+         * flag. `isLocked` (from `config.set_times_locked`) still SEEDS it, so
+         * nothing changes for an event that never had the flag — but the padlock
+         * is now the thing that opens and shuts the schedule, and ⛔ it writes
+         * nothing to the database.
+         *
+         * ⚠ The banner and the legacy SEND button above still read `isLocked`
+         * directly. ⛔ Deliberate: they are deleted in P6.3d-1, and changing them
+         * here would mix a deletion into a preparation.
+         */
+        isLocked: !setTimesUnlocked,
         /* ⛔ WHO A MESSAGE WOULD BE SENT AS. `openDirectConversation` takes a
            FROM profile and this account may hold several, so the surface that
            knows which one it is acting as states it. */
