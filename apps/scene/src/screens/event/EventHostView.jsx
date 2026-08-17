@@ -16,6 +16,7 @@ import { resolveProfileId } from '../../lib/resolveProfileId';
 import { scopeToApplicant, fetchApplicantProfiles } from '../../lib/applicantProfiles';
 import { findOpenAsksForDate, declineOpenAsks } from '../../lib/dateLockout';
 import { memberState, STATE_COLOURS, billCapacity, billFullMessage, bookedMemberRows } from '../../lib/hostLineup';
+import { shortlistEntries } from '../../lib/shortlist';
 import { setTimesEnabled } from '../../lib/eventSetTimes';
 import { normaliseStatus, rawStatusesFor, PIPELINE_BUCKETS, STATUS_TAB_COLOR } from '../../lib/enquiryUtils';
 import { planUnassign, planMoveToShortlist, planRemoveFromEvent, executeLineupPlan, assignMemberToSlot } from '../../lib/lineupActions';
@@ -437,14 +438,32 @@ export default function EventHostView({
    * ⛔ SHORTLIST IS NOT A BIN. Dropping somebody from the event is its own
    * explicit act from this tab; calling this a holding pen is what turns the
    * status into a garbage state.
+   *
+   * ⭐⭐ P5.2 · THE POPULATION NOW COMES FROM `lib/shortlist`, which both host
+   * surfaces share — including the de-duplication against the shortlist AND the
+   * bill that these two screens previously each assembled for themselves.
+   *
+   * ⛔⛔ AND IT IS CONTRACT-AWARE. On a legacy or imported event the list is
+   * exactly what it was: ⛔ the existing bill is NOT injected. Only a managed
+   * event shows booked artists here, at the top, because SHORTLIST is that
+   * model's working surface and P5.1 can remove the LINEUP tab entirely.
    */
-  const shortlistApps = allApps.filter(a =>
-    bucketOf(a) === 'shortlisted'
-    && !findExistingMember(a, shortlistMembers, appProfiles[a.id] || null)
-    && !findExistingMember(a, lineupMembers, appProfiles[a.id] || null));
+  const shortlistRows = shortlistEntries({
+    event,
+    shortlistMembers,
+    billMembers: lineupMembers,
+    perfsByMember,
+    shortlistedApps: allApps.filter(a => bucketOf(a) === 'shortlisted'),
+    appProfiles,
+    /* ⭐⭐ P5.3 · THE GATE. `usesSetTimes` is already this screen's answer from
+       `lib/eventSetTimes` (line 69) and drives the tab strip below, so the
+       shortlist cannot disagree with which tabs exist. */
+    usesSetTimes,
+  });
   /* ⚠ Kept under its old name for the tab COUNT and the header, which have
-     always meant "how many am I considering". It is now both sources. */
-  const shortList  = [...shortlistMembers, ...shortlistApps];
+     always meant "how many am I considering", and for `FillSlotModal`, which
+     takes the raw rows. */
+  const shortList  = shortlistRows.map(e => e.row);
   /**
    * ⚠⚠ `new` AND `seen`. Matching `new` alone meant OPENING an application
    * dropped it out of the queue, because `EnquiryCard` auto-writes `seen` on
@@ -1146,15 +1165,20 @@ export default function EventHostView({
           </button>
           {shortList.length === 0
             ? <p style={{ textAlign: 'center', color: 'var(--muted)', fontSize: 13, padding: '24px 0' }}>Nobody on the shortlist yet. Add artists you are thinking about, then move them to the lineup when you decide.</p>
-            : shortList.map(row => {
+            : shortlistRows.map(({ row, kind, booked, needsSetTime }) => {
               /**
                * ⚠⚠ TWO SHAPES IN ONE LIST. A `lineup_members` row carries
                * `artist_profile_id`; an application carries `from_profile_id`
                * and lives in `appProfiles`. ⛔ Reading one shape's fields off
                * the other silently yields `undefined`, which renders as a card
                * with no name and no picture rather than as an error.
+               *
+               * ⭐ P5.2 · THE KIND IS NOW TOLD, ⛔ no longer sniffed from
+               * `!!row.status`. A booked member arrives here on a managed event
+               * carrying `status='on_bill'`, so the old test was about to start
+               * answering a question it was never asked.
                */
-              const isMember = !!row.status;
+              const isMember = kind === 'member';
               const prof = isMember
                 ? (memberProfiles[row.id] || null)
                 : (appProfiles[row.id] || null);
@@ -1174,8 +1198,39 @@ export default function EventHostView({
                 <WorkItemCard key={row.id} kind="application" item={cardItem}
                   tags={prof?.card_pills || (isMember ? row.card_pills : null)}
                   viewerProfileId={event?.owner_profile_id || null}
-                  stateLabel="SHORTLISTED" stateColor={STATUS_TAB_COLOR.SHORTLISTED}
-                  actions={
+                  /* ⭐⭐ THE CHIP TELLS THE TRUTH ABOUT THE ROW, ⛔ not about the
+                     tab. A booked artist is in this workspace because the host
+                     is still planning around them, ⛔ and labelling them
+                     SHORTLISTED would say the booking had not happened. */
+                  stateLabel={booked ? 'BOOKED' : 'SHORTLISTED'}
+                  stateColor={booked ? STATE_COLOURS.CONFIRMED : STATUS_TAB_COLOR.SHORTLISTED}
+                  /* ⭐⭐ P5.3 · THE WORK, SPELLED THE WAY THE LINEUP TAB SPELLS
+                     IT. `lineupWorkState('ON BILL')` is the owner-ratified
+                     wording ("NEEDS SET TIME", ⛔ not "NO SET TIME") and the lit
+                     row is what makes a tab scannable. ⛔ Not re-worded here:
+                     one phrase, one source. */
+                  subState={needsSetTime ? lineupWorkState('ON BILL').setTime : undefined}
+                  needsAction={!!needsSetTime}
+                  /**
+                   * ⭐⭐ THE BOOKED ROW'S ONE ACTION IS THE WORK IT IS HERE FOR.
+                   *
+                   * ⛔ NOT `ADD TO LINEUP` — they are already on it, and
+                   * `promoteMemberToBill` would rewrite a row that already says
+                   * `on_bill`. ⛔ NOT an exit either: the exits from a booking
+                   * are the named ones in the LINEUP / SET TIMES workspace
+                   * (§12), which refuse once an artist has ACCEPTED. Inventing
+                   * a shortcut out of a booking on this tab is the "two
+                   * outcomes behind one word" defect that section records.
+                   *
+                   * ⭐ ASSIGN SET TIME is the SAME handler the LINEUP tab uses,
+                   * so the act is identical wherever the host reaches it from.
+                   */
+                  actions={booked ? (
+                    <div className="yp-decision-row">
+                      <DecisionBtn tone="accept" icon={CheckIcon} label="ASSIGN SET TIME"
+                        onClick={() => setAssigningMember({ member: row, prof })} />
+                    </div>
+                  ) : (
                     <div className="yp-decision-row">
                       {/* ⭐ THE ONE FORWARD MOVE. Silent, and creates no set
                           time — giving them a slot is the next step, from the
@@ -1204,7 +1259,7 @@ export default function EventHostView({
                             onClick={() => { supabase.from('applications').update({ status: 'declined' }).eq('id', row.id); setAllApps(prev => prev.map(a => a.id === row.id ? { ...a, status: 'declined' } : a)); }} />
                         )}
                     </div>
-                  }
+                  )}
                 />
               );
             })

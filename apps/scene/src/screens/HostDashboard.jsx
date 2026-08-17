@@ -31,6 +31,7 @@ import { enrichClaims } from '../lib/claimEnrichment';
    drag dots the padlock reveals actually drag. */
 import DaySlots from './event/DaySlots';
 import { buildHostLineup, STATE_COLOURS, bookedMembers } from '../lib/hostLineup';
+import { shortlistEntriesFromGroups } from '../lib/shortlist';
 import { setTimesEnabled, withSetTimesEnabled } from '../lib/eventSetTimes';
 /* ⚠ `findExistingMember` ONLY. The dashboard still needs to READ whether an
    applicant is on the bill — that is what ACCEPTED · ON THE BILL says — but it
@@ -1094,12 +1095,26 @@ export default function HostDashboard({ userId: userIdProp }) {
                */
               const evRawMembers = (shortlistMembersByEvent[ev.id] || []);
               const evShortProfiles = shortlistProfiles;
-              const evShortList  = [
-                ...evRawMembers,
-                ...tentativeApps.filter(a => a.event_id === ev.id
-                  && !findExistingMember(a, evRawMembers, appProfiles[a.id] || null)
-                  && !findExistingMember(a, members.map(r => r.member), appProfiles[a.id] || null)),
-              ];
+              /**
+               * ⭐⭐ P5.2 · ONE DERIVATION, SHARED WITH THE EVENT PAGE. Both
+               * screens assembled this inline from their own variables, so the
+               * two exclusions held by coincidence rather than by construction.
+               *
+               * ⛔ Contract-aware: a legacy or imported event's bill is NOT
+               * injected here, so ⛔ nothing about the 90 grandfathered events
+               * changes. Only a managed event lists booked artists, first.
+               */
+              const evShortRows = shortlistEntriesFromGroups({
+                event: ev,
+                shortlistMembers: evRawMembers,
+                billGroups: members,
+                shortlistedApps: tentativeApps.filter(a => a.event_id === ev.id),
+                appProfiles,
+                /* ⭐⭐ P5.3 · THE GATE — this screen's own `usesSetTimes` (line
+                   1057), the same value that decides its tab strip. */
+                usesSetTimes,
+              });
+              const evShortList  = evShortRows.map(e => e.row);
               /**
                * ⭐ ORPHANS ONLY — accepted, and on nobody's bill. ⛔ Not an
                * `acceptedApps` list: ADD TO LINEUP *is* the acceptance now, so a
@@ -1581,13 +1596,16 @@ export default function HostDashboard({ userId: userIdProp }) {
                       {activeTab === 'SHORTLIST' && (
                         evShortList.length === 0
                           ? <p className={s.empty} style={{ fontSize: 12 }}>Nobody on the shortlist for this event.</p>
-                          : <div style={{ marginBottom: 12 }}>{evShortList.map(row => {
+                          : <div style={{ marginBottom: 12 }}>{evShortRows.map(({ row, kind, booked, needsSetTime }) => {
                             /* ⚠⚠ TWO SHAPES IN ONE LIST — a `lineup_members` row
                                carries `status`; an application does not.
                                ⛔ Reading one shape's fields off the other yields
                                `undefined`, which draws a nameless card rather
-                               than raising. */
-                            if (!row.status) {
+                               than raising.
+                               ⭐ P5.2 · the kind is TOLD, ⛔ no longer inferred
+                               from `!row.status`: a booked member reaching this
+                               list carries `on_bill`. */
+                            if (kind === 'application') {
                               return <AppCard key={row.id} app={row} viewerProfileId={profile?.id || null} prof={appProfiles[row.id] || {}} eventName={evtMap[row.event_id]?.name} onRespond={respondApp} onBill={!!findExistingMember(row, members.map(r => r.member), appProfiles[row.id] || null)} />;
                             }
                             const mp = evShortProfiles[row.id] || null;
@@ -1608,7 +1626,16 @@ export default function HostDashboard({ userId: userIdProp }) {
                                and lives on the event page. */
                             return (
                               <WorkItemCard key={row.id} kind="application" item={item}
-                                stateLabel="SHORTLISTED" stateColor={STATUS_TAB_COLOR.SHORTLISTED}
+                                /* ⭐ The chip describes the ROW, not the tab —
+                                   identical rule to the event page. */
+                                stateLabel={booked ? 'BOOKED' : 'SHORTLISTED'}
+                                stateColor={booked ? STATE_COLOURS.CONFIRMED : STATUS_TAB_COLOR.SHORTLISTED}
+                                /* ⭐ P5.3 · the same wording as the event page
+                                   and the LINEUP tab. ⛔ Still NO actions here:
+                                   the dashboard is triage, and assigning a set
+                                   time is a workspace operation. */
+                                subState={needsSetTime ? lineupWorkState('ON BILL').setTime : undefined}
+                                needsAction={!!needsSetTime}
                                 tags={mp?.card_pills || row.card_pills}
                                 viewerProfileId={profile?.id || null} />
                             );
