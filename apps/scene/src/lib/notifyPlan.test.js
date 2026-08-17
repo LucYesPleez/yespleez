@@ -497,3 +497,46 @@ test('⛔⛔ both host loaders select notified_at, notified_slot_uuid AND notifi
     }
   }
 });
+
+/**
+ * ── ⛔⛔ P6.3c-1 · THE LINEUP ROWS MUST READ THE COMMUNICATION STATE ──────────
+ *
+ * ⚠⚠ WHAT WAS WRONG: an artist told about a set time that was then CLEARED stays
+ * `on_bill` with no placement, and the LINEUP row labelled them `NEEDS SET TIME` —
+ * the wording for somebody NEVER scheduled. The host could not tell that a person
+ * was expecting to play. The derivation was right; the row never asked it.
+ *
+ * ⚠ A SOURCE-TEXT CHECK. It cannot prove the pixels, only that both twins consult
+ * `notifyState` for the row's substate — which is precisely what was missing.
+ */
+test('⛔⛔ both LINEUP row twins consult notifyState for the substate', async () => {
+  const { readFileSync } = await import('node:fs');
+  const twins = {
+    'screens/event/EventHostView.jsx': new URL('../screens/event/EventHostView.jsx', import.meta.url),
+    'screens/HostDashboard.jsx':       new URL('../screens/HostDashboard.jsx', import.meta.url),
+  };
+  for (const [name, url] of Object.entries(twins)) {
+    const src = readFileSync(url, 'utf8');
+    assert.ok(src.includes('notifyState('), `${name} does not read the communication state at all`);
+    /* ⛔ The bare scheduling label must not be the whole answer any more. */
+    assert.equal(src.includes('subState={work.setTime}'), false,
+      `${name} still labels a LINEUP row from the scheduling state alone, so REMOVAL NOT SENT reads as NEEDS SET TIME`);
+    assert.ok(src.includes('notice.needsNotice ? notice.label : work.setTime'),
+      `${name} must prefer an outstanding notice over the scheduling label`);
+  }
+});
+
+/**
+ * ⭐ AND THE RULE ITSELF, on the data rather than the source: a cleared set time
+ * after a recorded send is REMOVAL NOT SENT, ⛔ never NEEDS SET TIME.
+ */
+test('⭐ a cleared set time after a send reads REMOVAL NOT SENT, not NEEDS SET TIME', () => {
+  const told = booked(notifiedPatch('slot-8pm', TOLD, SLOT_OFFER));
+  const cleared = notifyState(told, [], LEGACY);
+  assert.equal(cleared.state, REMOVAL_TO_TELL);
+  assert.equal(cleared.label, 'REMOVAL NOT SENT');
+  assert.notEqual(cleared.label, 'NEEDS SET TIME');
+  /* ⛔ And an artist who was never told still reads NEEDS SET TIME, so the fix
+     does not relabel the 139 ordinary rows. */
+  assert.equal(notifyState(booked(), [], LEGACY).label, 'NEEDS SET TIME');
+});

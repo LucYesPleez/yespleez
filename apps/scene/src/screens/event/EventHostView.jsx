@@ -1164,6 +1164,8 @@ export default function EventHostView({
               const badge      = memberState(member, memberPerfs(member.id));
               const badgeColor = STATE_COLOURS[badge];
               const work       = lineupWorkState(badge);
+              /* ⭐ P6.3c-1 · what have we told them? Computed ONCE per row. */
+              const notice     = notifyState(member, memberPerfs(member.id), event);
               const cardItem = {
                 // ProfileCard routes on `id` first and falls back to user_id.
                 // An unclaimed imported profile has no user, so without the id
@@ -1189,7 +1191,25 @@ export default function EventHostView({
                      set time is promoted into the chip instead.
                      ⛔ Change one, change both — HostDashboard has the twin. */
                   stateColor={badgeColor}
-                  subState={work.setTime} needsAction={work.needsAction}
+                  /**
+                   * ⭐⭐ P6.3c-1 · AN OUTSTANDING NOTICE OUTRANKS THE SCHEDULING
+                   * LABEL, because it is the actionable thing.
+                   *
+                   * ⚠⚠ WHAT THIS FIXES: an artist told about a set time that was
+                   * then CLEARED stays `on_bill` with no placement, and this row
+                   * read `NEEDS SET TIME` — the label for somebody never
+                   * scheduled. The host had no way to know a person was expecting
+                   * to play. Same starved-input shape as the missing
+                   * `notified_kind` column: the derivation was right and this
+                   * screen never asked it.
+                   *
+                   * ⛔ ONLY WHEN THERE IS WORK. `needsNotice` is false for CLEAN,
+                   * NOT_RECORDED and an unreachable act, so every other row keeps
+                   * exactly the scheduling wording it has today.
+                   * ⛔ Change one, change both — HostDashboard has the twin.
+                   */
+                  subState={notice.needsNotice ? notice.label : work.setTime}
+                  needsAction={work.needsAction || notice.needsNotice}
                   /* ⚠ `member.card_pills` is the fallback: an imported act can
                      carry tags on the member row with no profile behind it. */
                   tags={prof?.card_pills || member.card_pills}

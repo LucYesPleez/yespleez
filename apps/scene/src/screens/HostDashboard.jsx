@@ -1397,6 +1397,12 @@ export default function HostDashboard({ userId: userIdProp }) {
                                   genre_string: m.member.genre || null,
                                 };
                                 const work = lineupWorkState(m.state);
+                                /* ⭐ P6.3c-1 · the twin of the event page's rule:
+                                   an outstanding notice outranks the scheduling
+                                   label, because it is the actionable thing. ⚠ A
+                                   cleared set time left this reading NEEDS SET
+                                   TIME for somebody who is expecting to play. */
+                                const notice = notifyState(m.member, m.perfs || [], ev);
                                 return (
                                   <WorkItemCard key={m.id} kind="lineup" item={item}
                                     /* ⛔ NO `stateLabel` — see EventHostView's
@@ -1404,7 +1410,8 @@ export default function HostDashboard({ userId: userIdProp }) {
                                        the set time is promoted into the chip.
                                        ⛔ Change one, change both. */
                                     stateColor={STATE_COLOURS[m.state]}
-                                    subState={work.setTime} needsAction={work.needsAction}
+                                    subState={notice.needsNotice ? notice.label : work.setTime}
+                                    needsAction={work.needsAction || notice.needsNotice}
                                     tags={m.profile?.card_pills || m.member.card_pills}
                                     viewerProfileId={profile?.id || null}
                                     /**
