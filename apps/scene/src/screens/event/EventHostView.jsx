@@ -1651,8 +1651,13 @@ export default function EventHostView({
           eventDate={event?.config?.date || ""}
           eventVenue={event?.config?.venue || ""}
           hostId={session?.user?.id}
-          acceptedArtists={shortList}
-          acceptedProfiles={appProfiles}
+          /* ⭐ THE ENTRIES, ⛔ not the bare rows — the sheet needs `kind` to know
+             whether to place a member or create one. See FillSlotModal. */
+          shortlist={shortlistRows}
+          /* ⚠ Both maps: applications are keyed by application id, members by
+             `lineup_members.id`. ⛔ Passing only `appProfiles` is what left a
+             member row's profile empty. */
+          shortlistProfiles={{ ...appProfiles, ...memberProfiles }}
           onFilled={() => { setFillSlot(null); queryClient.invalidateQueries({ queryKey: ['event', id] }); }}
           onClose={() => setFillSlot(null)}
         />

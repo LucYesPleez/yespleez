@@ -11,7 +11,28 @@ import { assignMemberToSlot } from '../lib/lineupActions';
 /* ⛔ THE CAP LIVES WITH THE BILL. This sheet asks; it does not decide. */
 import { billCapacity, billFullMessage } from '../lib/hostLineup';
 
-export default function FillSlotModal({ slot, eventId, eventName = '', eventDate = '', eventVenue = '', hostId, acceptedArtists = [], acceptedProfiles = {}, onFilled, onClose }) {
+/**
+ * @param shortlist ⭐⭐ SHORTLIST ENTRIES from `lib/shortlist` — ⛔ NOT a bare
+ *   row array. Each is `{ id, row, kind, booked }`, and `kind` is the whole
+ *   point: this sheet has to write two DIFFERENT things.
+ *
+ * ⛔⛔ WHY THE SHAPE CHANGED. The prop was `acceptedArtists`, a mixed array of
+ * applications AND member rows, and every row was fed to `fillFromProfile` —
+ * which CREATES membership. For a member already on the bill that is wrong
+ * twice: `acceptedProfiles` is keyed by application id so the profile came back
+ * empty, and `artist_id` is NULL on a hand-typed act, so the lookup missed and
+ * the insert branch ran. ⚠⚠ The observed result on Bass Heavy: picking `luc`
+ * (already `on_bill`, no slot) would either duplicate him or be refused by the
+ * 5/5 cap — being told "the lineup is full" about somebody already in it.
+ *
+ * ⭐ A member needs a PLACEMENT. An applicant needs MEMBERSHIP and then a
+ * placement. One sheet, two writes, chosen by `kind`.
+ *
+ * @param shortlistProfiles profiles for those entries, keyed by ENTRY id —
+ *   application ids and member ids in one map. ⚠ Safe to merge: the two id
+ *   spaces are distinct, and each caller already holds both maps.
+ */
+export default function FillSlotModal({ slot, eventId, eventName = '', eventDate = '', eventVenue = '', hostId, shortlist = [], shortlistProfiles = {}, onFilled, onClose }) {
   const [view,    setView]    = useState('menu');
   const [filter,  setFilter]  = useState('');
   const [query,   setQuery]   = useState('');
@@ -89,6 +110,31 @@ export default function FillSlotModal({ slot, eventId, eventName = '', eventDate
     return true;
   }
 
+  /**
+   * ⭐⭐ ALREADY ON THE BILL — SO THIS IS A PLACEMENT AND NOTHING ELSE.
+   *
+   * ⛔ NO membership write: the row exists, and inserting another is how one act
+   * becomes two.
+   * ⛔ NO cap check: `billHasRoom` counts `on_bill` members, and this member is
+   * already inside that count. Asking would refuse a legitimate placement on a
+   * full bill — the exact "lineup is full" nonsense observed on Bass Heavy,
+   * where the artist being placed was one of the five.
+   *
+   * ⭐ `status: 'draft'` and the same one writer as `doAssignMember` on the
+   * event page, so a set time means the same thing wherever the host reaches it
+   * from. ⛔ Drafting is silent; ⛔ nothing is notified here.
+   */
+  async function fillFromMember(member) {
+    if (!member?.id) { setErr('That artist has no lineup row to place.'); return; }
+    setBusy(true);
+    setErr(null);
+    const { ok, error } = await assignMemberToSlot(supabase, {
+      slotId: slot.id, eventId, memberId: member.id, status: 'draft',
+    });
+    setBusy(false);
+    if (ok) onFilled(); else setErr(error);
+  }
+
   async function fillFromProfile(prof) {
     setBusy(true);
     setErr(null);
@@ -132,10 +178,12 @@ export default function FillSlotModal({ slot, eventId, eventName = '', eventDate
     if (ok) onFilled(); else setErr(error);
   }
 
-  const filtered = acceptedArtists.filter(app => {
-    // M6 · acceptedProfiles is keyed by applications.id (lib/applicantProfiles.js).
-    const prof = acceptedProfiles[app.id];
-    return (prof?.name || app.artist_name || '').toLowerCase().includes(filter.toLowerCase());
+  /* ⚠ Filters on the ENTRY, and reads the name the same way the row renders it —
+     a filter that looks somewhere else than the label is a filter that hides
+     rows the host can see. */
+  const filtered = shortlist.filter(e => {
+    const prof = shortlistProfiles[e.id];
+    return (prof?.name || e.row?.artist_name || '').toLowerCase().includes(filter.toLowerCase());
   });
 
   return (
@@ -178,10 +226,10 @@ export default function FillSlotModal({ slot, eventId, eventName = '', eventDate
           {view === 'menu' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <MenuOption
-                label={`SHORTLISTED ARTISTS${acceptedArtists.length ? ` (${acceptedArtists.length})` : ''}`}
+                label={`SHORTLISTED ARTISTS${shortlist.length ? ` (${shortlist.length})` : ''}`}
                 sub="Artists shortlisted for this event"
                 accent
-                disabled={acceptedArtists.length === 0}
+                disabled={shortlist.length === 0}
                 onClick={() => setView('accepted')}
               />
               <MenuOption
@@ -206,12 +254,13 @@ export default function FillSlotModal({ slot, eventId, eventName = '', eventDate
               <SearchInput value={filter} onChange={setFilter} placeholder="Filter artists…" />
               {filtered.length === 0
                 ? <Empty>No accepted artists match.</Empty>
-                : filtered.map(app => {
-                    const prof = acceptedProfiles[app.id] || {};
+                : filtered.map(e => {
+                    const app  = e.row || {};
+                    const prof = shortlistProfiles[e.id] || {};
                     const n    = prof.name || app.artist_name || 'Unknown';
                     return (
                       <ArtistRow
-                        key={app.id}
+                        key={e.id}
                         avatar={prof.avatar}
                         name={n}
                         /* ⛔⛔ `genreLabels`, ⛔ never the raw column — role keys live
@@ -223,7 +272,12 @@ export default function FillSlotModal({ slot, eventId, eventName = '', eventDate
                         // a shortlisted application wrote a lineup_member with
                         // artist_profile_id UNDEFINED — a new row carrying only
                         // the legacy account key. The resolved profile has it.
-                        onSelect={() => fillFromProfile({ id: prof.id, user_id: app.artist_id, name: n, sound: prof.sound, genre_string: prof.genre_string })}
+                        /* ⭐⭐ THE FORK. A member is PLACED; an applicant is made
+                           a member and then placed. ⛔ One handler for both is
+                           what created a second `luc`. */
+                        onSelect={() => e.kind === 'member'
+                          ? fillFromMember(app)
+                          : fillFromProfile({ id: prof.id, user_id: app.artist_id, name: n, sound: prof.sound, genre_string: prof.genre_string })}
                       />
                     );
                   })

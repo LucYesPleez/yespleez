@@ -1708,15 +1708,35 @@ export default function HostDashboard({ userId: userIdProp }) {
         * parity. ⛔ It is the SAME COMPONENT and the same writer the event page
         * uses; this screen contributes a mount point and a refresh, ⛔ no rules.
         *
-        * ⚠ `acceptedArtists` IS EMPTY HERE, DELIBERATELY. That prop feeds the
-        * "pick from your shortlist" shortcut, which needs the event's
-        * applications and their profiles — data this screen does not load. The
-        * sheet's SEARCH and ADD MANUALLY paths are complete without it, so the
-        * shortcut is ABSENT rather than broken. ⛔ Do not pass the dashboard's
-        * own application list: it is keyed by a different shape, and crossing
-        * the two draws a nameless card rather than raising.
+        * ⚠⚠ THE SHORTLIST USED TO BE WITHHELD HERE, and the note said this
+        * screen did not load the data. ⛔ THAT IS NO LONGER TRUE — P5.2 gave
+        * both surfaces one derivation and P5.3 put booked-unscheduled artists
+        * in it, so everything the shortcut needs is already in scope:
+        * `shortlistMembersByEvent`, the `lineups` groups, `tentativeApps` and
+        * both profile maps.
+        *
+        * ⚠⚠ AND WITHHOLDING IT HAD A COST NOBODY HAD SEEN. On Bass Heavy the
+        * only artist needing a set time is `luc`, who is on the bill with no
+        * slot — so the one useful answer to "fill the 10PM slot" was the one
+        * option greyed out, with no explanation. ⭐ The old note's real warning
+        * was about CROSSING TWO SHAPES; that is now handled where it belongs,
+        * by `kind` inside the sheet.
+        *
+        * ⚠ Computed at the mount point because the sheet lives outside the
+        * per-event map — `fillSlot.ev` names the event, so the entries are
+        * derived for THAT event and no other.
         */}
-      {fillSlot && (
+      {fillSlot && (() => {
+        const g = (lineups || []).find(x => x.event?.id === fillSlot.ev.id);
+        const fillRows = shortlistEntriesFromGroups({
+          event: fillSlot.ev,
+          shortlistMembers: shortlistMembersByEvent[fillSlot.ev.id] || [],
+          billGroups: g?.members || [],
+          shortlistedApps: tentativeApps.filter(a => a.event_id === fillSlot.ev.id),
+          appProfiles,
+          usesSetTimes: setTimesEnabled(fillSlot.ev, g?.totalSlots || 0),
+        });
+        return (
         <FillSlotModal
           slot={fillSlot.slot}
           eventId={fillSlot.ev.id}
@@ -1724,10 +1744,16 @@ export default function HostDashboard({ userId: userIdProp }) {
           eventDate={fillSlot.ev.config?.date || ""}
           eventVenue={fillSlot.ev.config?.venue || ""}
           hostId={userId}
+          shortlist={fillRows}
+          /* ⚠ MERGED, and safe to merge: `appProfiles` is keyed by application
+             id and `shortlistProfiles` by `lineup_members.id` — two distinct id
+             spaces, one lookup, and the sheet reads it by ENTRY id. */
+          shortlistProfiles={{ ...appProfiles, ...shortlistProfiles }}
           onFilled={() => { setFillSlot(null); setLineupReload(n => n + 1); }}
           onClose={() => setFillSlot(null)}
         />
-      )}
+        );
+      })()}
 
       {/**
         * ⭐⭐ THE SAME SHEET THE EVENT PAGE USES — extracted for exactly this.
