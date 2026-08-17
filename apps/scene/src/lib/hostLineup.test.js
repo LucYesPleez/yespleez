@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { buildHostLineup, memberState, totalOnBill, billCapacity, billFullMessage } from './hostLineup.js';
+import { buildHostLineup, memberState, totalOnBill, billCapacity, billFullMessage, isBooked, bookedMembers, bookedUnscheduled, isScheduled } from './hostLineup.js';
 
 /**
  * BASS HEAVY IS THE REGRESSION CASE (owner, 2026-08-15).
@@ -201,4 +201,80 @@ test('the refusal names the number and says what to do about it', () => {
   assert.match(msg, /shortlist/i, 'a refusal with no way out is a dead end');
   assert.doesNotMatch(msg, /—/, 'no em dashes in user-facing copy');
   assert.match(billFullMessage(1), /1 set time\b/, 'singular, not "1 set times"');
+});
+
+/* ── ⭐⭐ P3 · IS THIS ARTIST ACTUALLY BOOKED? ─────────────────────────────── */
+
+const LEGACY_EV   = { booking_model: 'legacy' };
+const IMPORTED_EV = { booking_model: 'imported' };
+const MANAGED_EV  = { booking_model: 'managed' };
+
+const onBill = { id: 'm1', status: 'on_bill', artist_id: 'u1' };
+
+/**
+ * ⛔⛔ THE 90 EXISTING EVENTS MUST NOT MOVE. Their acts were booked before
+ * mutual confirmation existed and are never asked to reconfirm.
+ */
+test('⛔⛔ a legacy or imported bill is authoritative with NO performance at all', () => {
+  for (const ev of [LEGACY_EV, IMPORTED_EV, null, undefined, {}]) {
+    assert.equal(isBooked(onBill, [], ev), true,
+      'on_bill alone is the answer for a grandfathered event');
+  }
+});
+
+test('⭐ a managed event needs the ARTIST to have accepted', () => {
+  assert.equal(isBooked(onBill, [], MANAGED_EV), false, 'the host wanting them is not a booking');
+  assert.equal(isBooked(onBill, [{ status: 'offered' }], MANAGED_EV), false, 'asked is not agreed');
+  assert.equal(isBooked(onBill, [{ status: 'draft' }],   MANAGED_EV), false);
+  assert.equal(isBooked(onBill, [{ status: 'declined' }], MANAGED_EV), false);
+  assert.equal(isBooked(onBill, [{ status: 'accepted' }], MANAGED_EV), true);
+});
+
+/**
+ * ⛔⛔ THE DISPLAY FICTION MUST NOT REACH THIS. `memberState` returns
+ * 'CONFIRMED' for a hand-entered act with no account — right for pixels, ⛔
+ * catastrophic here: it would book somebody who never agreed.
+ */
+test('⛔⛔ a hand-entered act is NOT booked on a managed event', () => {
+  const typed = { id: 'm2', status: 'on_bill', artist_id: null };
+  assert.equal(memberState(typed, [{ status: 'offered' }]), 'CONFIRMED', 'the display fiction');
+  assert.equal(isBooked(typed, [{ status: 'offered' }], MANAGED_EV), false,
+    'but the raw row says offered, and offered is not booked');
+});
+
+/* ⚠ `confirmed` belongs to the APPLICATIONS vocabulary. Mixing the two once
+   left PIPELINE and SHORT LIST empty on every event. */
+test("⚠ 'confirmed' is not a performance status and does not book anybody", () => {
+  assert.equal(isBooked(onBill, [{ status: 'confirmed' }], MANAGED_EV), false);
+});
+
+test('bookedMembers derives the bill from what the screens already load', () => {
+  const groups = [
+    { member: onBill, perfs: [{ status: 'accepted' }] },
+    { member: { id: 'm3', status: 'on_bill' }, perfs: [{ status: 'offered' }] },
+  ];
+  assert.equal(bookedMembers(groups, MANAGED_EV).length, 1);
+  assert.equal(bookedMembers(groups, LEGACY_EV).length, 2, 'legacy keeps both');
+  assert.deepEqual(bookedMembers([], MANAGED_EV), []);
+  assert.deepEqual(bookedMembers(null, MANAGED_EV), []);
+});
+
+/**
+ * ⚠⚠ THIS IS WHY THE LINEUP TAB CAN DISAPPEAR. A booked artist with no set
+ * time appears nowhere in a slot grid; they stay at the top of SHORTLIST.
+ */
+test('⚠⚠ booked with no set time is a real, findable state', () => {
+  const groups = [
+    { member: onBill, perfs: [{ status: 'accepted', slot_uuid: null }] },
+    { member: { id: 'm4', status: 'on_bill' }, perfs: [{ status: 'accepted', slot_uuid: 's-1' }] },
+  ];
+  assert.equal(bookedUnscheduled(groups, MANAGED_EV).length, 1);
+  assert.equal(bookedUnscheduled(groups, MANAGED_EV)[0].member.id, 'm1');
+});
+
+/* ⛔ A null-slot performance is the EVENT-LEVEL OFFER, ⛔ not a placement. */
+test('⛔ a null slot_uuid is not a schedule', () => {
+  assert.equal(isScheduled([{ slot_uuid: null }]), false);
+  assert.equal(isScheduled([]), false);
+  assert.equal(isScheduled([{ slot_uuid: 's-1' }]), true);
 });

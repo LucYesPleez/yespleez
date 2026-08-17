@@ -26,6 +26,7 @@
  * passed in only to fill the SHORT LIST and PIPELINE tabs, which are about
  * applications and nothing else — and they cannot affect which events appear.
  */
+import { requiresConfirmation } from './eventProvenance';
 import { rankPerformance } from './eventSlots';
 
 /**
@@ -179,4 +180,64 @@ export function billCapacity(onBillCount = 0, totalSlots = 0) {
  */
 export function billFullMessage(total) {
   return `This event has ${total} set ${total === 1 ? 'time' : 'times'} and the lineup is already full. Add another set time, or move somebody to the shortlist first.`;
+}
+
+/**
+ * ── ⭐⭐ P3 · IS THIS ARTIST ACTUALLY BOOKED? ────────────────────────────────
+ *
+ * The one question the new model turns on, and it has TWO right answers
+ * depending on which contract the event lives under (`lib/eventProvenance`).
+ *
+ *   legacy / imported   the bill is AUTHORITATIVE AS IT STANDS. Those acts
+ *                       were booked before this model existed, or booked
+ *                       somewhere else entirely. ⛔ They are not asked to
+ *                       reconfirm, and `status = 'on_bill'` remains the answer.
+ *
+ *   managed             booking is MUTUAL. The host offering is not a booking;
+ *                       only the artist's acceptance is —
+ *                       `performances.status = 'accepted'`.
+ *
+ * ⛔⛔ THE RAW ROW, ⛔ NEVER THE DISPLAY STATUS. `memberState` above returns
+ * 'CONFIRMED' for a hand-entered act with no account, because for PIXELS that
+ * is the honest reading — nobody is waiting on a reply. ⛔ Reading that here
+ * would book somebody the artist never agreed to. This function looks only at
+ * `performances.status`, which is what the database was told.
+ *
+ * ⚠ `accepted` is checked ⛔ not `confirmed`: `confirmed` belongs to the
+ * applications vocabulary, and mixing the two is the defect that once left
+ * PIPELINE and SHORT LIST empty on every event.
+ */
+export function isBooked(member, perfs = [], event = null) {
+  if (!requiresConfirmation(event)) return member?.status === 'on_bill';
+  return (perfs || []).some(p => p?.status === 'accepted');
+}
+
+/**
+ * The confirmed bill for an event — LINEUP, derived rather than stored.
+ *
+ * @param groups the shape `buildHostLineup` already returns
+ *               (`{ member, perfs, … }` per artist), so ⛔ this needs no loader
+ *               of its own and cannot disagree with what the screens read.
+ */
+export function bookedMembers(groups = [], event = null) {
+  return (groups || []).filter(g => isBooked(g?.member, g?.perfs, event));
+}
+
+/**
+ * ⭐ BOOKED, BUT NOT YET SCHEDULED — the state that keeps SHORTLIST honest.
+ *
+ * ⚠⚠ THIS IS WHY THE LINEUP TAB CAN DISAPPEAR. A booked artist with no set
+ * time appears nowhere in a slot grid, so without this they would silently
+ * vanish the moment SET TIMES replaced LINEUP. They stay at the top of
+ * SHORTLIST with a BOOKED chip until the host gives them a time.
+ *
+ * ⚠ "Scheduled" means holding a performance with a REAL slot. ⛔ A null-slot
+ * performance is the EVENT-LEVEL OFFER (P4), ⛔ not a placement.
+ */
+export function isScheduled(perfs = []) {
+  return (perfs || []).some(p => p?.slot_uuid);
+}
+
+export function bookedUnscheduled(groups = [], event = null) {
+  return bookedMembers(groups, event).filter(g => !isScheduled(g?.perfs));
 }
