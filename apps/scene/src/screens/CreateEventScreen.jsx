@@ -7,6 +7,7 @@ import { getOwnerProfiles } from "../lib/actingProfile";
 import { track, EVENTS } from "../lib/analytics";
 import { useEventEditorState, rowsToDays } from "@yespleez/event-editor";
 import { loadEventSlots, saveEventSlots } from "../lib/eventSlotWrites";
+import { withSetTimesEnabled } from "../lib/eventSetTimes";
 import VenueCheckSheet, { nearestVenues } from "../components/VenueCheckSheet";
 import EventEditorForm from "./event/SceneEventEditor";
 import { uploadPosterCrop } from "../lib/uploadImage";
@@ -179,7 +180,19 @@ export default function CreateEventScreen() {
      * including the cover/gallery split and the posterCropY write that the
      * editor spent months not persisting.
      */
-    const cfg = ed.toConfig();
+    /**
+     * ⭐⭐ THE SET-TIMES ANSWER IS NOW STORED, ⛔ no longer inferred from
+     * whether slot rows happen to exist (2026-08-17).
+     *
+     * ⚠ The editor already asks the question; this is what makes the answer
+     * survive. Until an event states it, `lib/eventSetTimes` falls back to the
+     * OLD derivation, so ⛔ nothing existing changes shape and ⛔ there is no
+     * backfill.
+     *
+     * ⛔ MERGED into the config the editor produced, ⛔ never replacing it —
+     * `config` also carries days, poster, venue and `set_times_locked`.
+     */
+    const cfg = withSetTimesEnabled(ed.toConfig(), ed.setTimesNeeded);
 
     if (editId) {
       /**

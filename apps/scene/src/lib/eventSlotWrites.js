@@ -58,10 +58,29 @@ export async function saveEventSlots(db, eventId, days, { setTimesNeeded = true 
   const existing = await loadEventSlots(db, eventId);
   const existingById = new Map(existing.map(r => [r.id, r]));
 
-  // ⛔ "Set times not needed" means NO schedule, which is a legitimate answer —
-  // and it must clear the rows, not quietly leave the old ones behind where
-  // only the event page would still see them.
-  const wanted = setTimesNeeded ? daysToRows(days) : [];
+  /**
+   * ⛔⛔ TURNING SET TIMES OFF NO LONGER DELETES THE SCHEDULE (2026-08-17).
+   *
+   * ⚠⚠ It used to: `wanted` became `[]`, so every existing row fell into
+   * `remove` and the whole running order was destroyed — along with, via the
+   * ON DELETE CASCADE on `performances.slot_uuid`, every booking sitting on
+   * those slots. The old note called that "a legitimate answer". It is not:
+   * ⛔ the flag now controls whether the scheduling WORKSPACE is shown, ⛔ not
+   * whether the work survives.
+   *
+   * ⭐ So disabling is REVERSIBLE. Switch it back on and the running order is
+   * exactly where it was left. ⚠ That is also what makes the toggle safe to
+   * put in front of a host who is only trying to tidy their tabs.
+   *
+   * ⛔ RETURNS EARLY. ⛔ Do not fall through to the diff with an empty `wanted`
+   * and merely skip the delete — `keep`/`create` would then rewrite rows this
+   * save has no opinion about.
+   */
+  if (!setTimesNeeded) {
+    return { created: 0, updated: 0, deleted: 0, droppedPerformances: 0, preserved: existing.length };
+  }
+
+  const wanted = daysToRows(days);
 
   const keep    = wanted.filter(r => r.id && existingById.has(r.id));
   const create  = wanted.filter(r => !r.id || !existingById.has(r.id));
