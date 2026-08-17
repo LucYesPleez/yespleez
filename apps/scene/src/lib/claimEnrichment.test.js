@@ -16,7 +16,7 @@ test('⭐ P6.2 · every claim gets a notify state, from the member row the loade
     perfsByMember: { 'm-1': [{ id: 'p-1', status: 'draft', slot_uuid: 's-1' }] },
     event: LEG,
   });
-  assert.equal(claims[0].notify.state, 'NOT_NOTIFIED');
+  assert.equal(claims[0].notify.state, 'NOT_SENT');
   assert.equal(claims[0].notify.needsNotice, true);
   assert.equal(claims[0].notify.label, 'SET TIME NOT SENT');
 });

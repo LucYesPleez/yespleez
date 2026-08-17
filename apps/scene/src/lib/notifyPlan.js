@@ -61,10 +61,33 @@ import { isReachable } from './lineupActions';
 /** ⭐ The state names. ⛔ Compare against these, never against a string. */
 export const NOTHING_TO_SAY   = 'NOTHING_TO_SAY';
 export const NEEDS_SET_TIME   = 'NEEDS_SET_TIME';
-export const NOT_NOTIFIED     = 'NOT_NOTIFIED';
+export const NOT_SENT         = 'NOT_SENT';
+export const NOT_RECORDED     = 'NOT_RECORDED';
 export const CLEAN            = 'CLEAN';
 export const TIME_CHANGED     = 'TIME_CHANGED';
 export const REMOVAL_TO_TELL  = 'REMOVAL_TO_TELL';
+
+/**
+ * ── ⛔⛔ `NOT_NOTIFIED` IS GONE, AND ⛔ MUST NOT COME BACK ────────────────────
+ *
+ * It was the NULL state, and NULL cannot carry that claim. `notified_at IS NULL`
+ * means ⭐ NOT RECORDED BY THIS SYSTEM, which is two different situations:
+ *
+ *   NOT_SENT       ⭐ we KNOW they were never told. The old publish path only
+ *                  ever announced by flipping `draft → offered`, so a placement
+ *                  still sitting at `draft` was provably never announced.
+ *   NOT_RECORDED   ⛔ THE SYSTEM CANNOT ESTABLISH WHAT HAPPENED. An `offered`
+ *                  row looks like proof of a send and is not: §8 item 17 records
+ *                  28 `offered` rows written by ONE backfill script.
+ *
+ * ⚠⚠ AND `accepted_at` IS NOT EVIDENCE FOR THE CURRENT PLACEMENT (owner,
+ * 2026-08-17). It proves the artist received and accepted AN offer, ⛔ not that
+ * they were told about the slot they hold now. So it lands in NOT_RECORDED too.
+ *
+ * ⛔⛔ NOTHING BACKFILLS THESE COLUMNS. Writing `now()` into `notified_at` would
+ * fabricate a fact about a person, and `offered_at` cannot stand in for it —
+ * it defaults to `now()` on insert, so it records when the ROW was made.
+ */
 
 /**
  * ⚠ THE HOST-FACING WORDING, kept beside the rule so every surface says it the
@@ -77,15 +100,29 @@ export const REMOVAL_TO_TELL  = 'REMOVAL_TO_TELL';
 export const NOTIFY_LABELS = {
   [NOTHING_TO_SAY]:  null,
   [NEEDS_SET_TIME]:  'NEEDS SET TIME',
-  [NOT_NOTIFIED]:    'SET TIME NOT SENT',
+  [NOT_SENT]:        'SET TIME NOT SENT',
+  /* ⚠ It says what is true of the RECORD, ⛔ not of the artist. "NOT NOTIFIED"
+     would assert the thing this state exists to refuse to assert. */
+  [NOT_RECORDED]:    'SEND NOT RECORDED',
   [CLEAN]:           'SET TIME SENT',
   [TIME_CHANGED]:    'SET TIME CHANGED',
   [REMOVAL_TO_TELL]: 'REMOVAL NOT SENT',
 };
 
-/** ⭐ Which states are WORK. ⛔ CLEAN and NOTHING_TO_SAY are not. */
+/**
+ * ⭐ Which states are WORK THE HOST MUST DO.
+ *
+ * ⛔⛔ `NOT_RECORDED` IS NOT WORK, and that is the whole point of splitting it
+ * out. It means the system cannot establish what happened historically, and
+ * ⛔ "we do not know" must never be presented as "you must act". Otherwise
+ * `SET TIMES !` lights up on every legacy event with a published schedule and
+ * trains the host to ignore it.
+ *
+ * ⭐ So the bang appears only for a placement we KNOW was never sent, or a change
+ * this system itself recorded and then saw move.
+ */
 export function needsNotice(state) {
-  return state === NOT_NOTIFIED || state === TIME_CHANGED || state === REMOVAL_TO_TELL;
+  return state === NOT_SENT || state === TIME_CHANGED || state === REMOVAL_TO_TELL;
 }
 
 /**
@@ -152,7 +189,27 @@ export function notifyState(member, perfs = [], event = null) {
     return out(notifiedAt ? REMOVAL_TO_TELL : NEEDS_SET_TIME);
   }
 
-  if (!notifiedAt) return out(NOT_NOTIFIED);
+  /**
+   * ── ⭐⭐ NULL MEANS "NOT RECORDED BY THIS SYSTEM", ⛔ NOT "NEVER TOLD" ───────
+   *
+   * ⭐ THE ONE THING THAT IS PROVABLE IS THE NEGATIVE. The old publish path
+   * announced by flipping `draft → offered` and notified in the same act, so a
+   * placement still sitting at `draft` was never announced by anybody. That is
+   * knowledge, and it is the only case that may claim NOT SENT.
+   *
+   * ⚠ ANY draft placement is enough. A member holding one `draft` and one older
+   * `offered` slot has at least one set time that provably never went out, and
+   * ⛔ suppressing that would hide real work behind an unrelated unknown.
+   *
+   * ⛔⛔ EVERYTHING ELSE IS UNKNOWN, AND SAYS SO. `offered` is not proof (28 such
+   * rows came from one backfill script, §8 item 17) and `accepted_at` proves only
+   * that the artist accepted SOME offer, ⛔ not that they were told about the slot
+   * they hold now.
+   */
+  if (!notifiedAt) {
+    const anyDraftPlacement = (perfs || []).some(p => p?.slot_uuid && p?.status === 'draft');
+    return out(anyDraftPlacement ? NOT_SENT : NOT_RECORDED);
+  }
 
   /**
    * ⚠⚠ ONE PLACEMENT AND IT MATCHES IS THE ONLY WAY TO BE CLEAN.

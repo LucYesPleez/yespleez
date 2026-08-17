@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 
 import {
   notifyState, notifyPlan, artistsNeedingNotice, notifiedPatch, placementsOf, needsNotice,
-  NOTHING_TO_SAY, NEEDS_SET_TIME, NOT_NOTIFIED, CLEAN, TIME_CHANGED, REMOVAL_TO_TELL,
+  NOTHING_TO_SAY, NEEDS_SET_TIME, NOT_SENT, NOT_RECORDED, CLEAN, TIME_CHANGED, REMOVAL_TO_TELL,
   NOTIFY_LABELS,
 } from './notifyPlan.js';
 
@@ -45,7 +45,7 @@ test('a null-slot performance is not a set time to communicate', () => {
  */
 test('assigning a time notifies nobody, and IS detectable as not notified', () => {
   const s = notifyState(booked(), [perf('slot-10pm')], LEGACY);
-  assert.equal(s.state, NOT_NOTIFIED);
+  assert.equal(s.state, NOT_SENT);
   assert.equal(s.needsNotice, true);
   assert.equal(s.notifiedAt, null, 'nothing may write notified_at but the send itself');
   assert.equal(s.label, 'SET TIME NOT SENT');
@@ -125,7 +125,7 @@ test('a newly added artist can be notified without touching anybody else', () =>
     perfsByMember: { 'm-elbow': [perf('slot-7pm')], 'm-new': [perf('slot-10pm')] },
     event: LEGACY,
   });
-  assert.deepEqual(plan.map(r => r.state), [CLEAN, NOT_NOTIFIED]);
+  assert.deepEqual(plan.map(r => r.state), [CLEAN, NOT_SENT]);
   assert.deepEqual(artistsNeedingNotice(plan).map(r => r.member.id), ['m-new']);
 
   /* Sending to the new artist patches THEIR row only. The told artist's state is
@@ -159,12 +159,12 @@ test('a shortlisted member with a slot has nothing to say, on every contract', (
 
 test('legacy and imported behaviour is unchanged: on_bill is booked', () => {
   for (const event of [LEGACY, IMPORTED]) {
-    assert.equal(notifyState(booked(), [perf('slot-1')], event).state, NOT_NOTIFIED);
+    assert.equal(notifyState(booked(), [perf('slot-1')], event).state, NOT_SENT);
     assert.equal(notifyState(booked(), [], event).state, NEEDS_SET_TIME);
   }
   /* ⚠ An absent booking_model is the common case (153 rows) and must behave as
      legacy does. */
-  assert.equal(notifyState(booked(), [perf('slot-1')], { id: 'e0' }).state, NOT_NOTIFIED);
+  assert.equal(notifyState(booked(), [perf('slot-1')], { id: 'e0' }).state, NOT_SENT);
 });
 
 /**
@@ -174,7 +174,10 @@ test('legacy and imported behaviour is unchanged: on_bill is booked', () => {
 test('managed confirmation rules remain intact', () => {
   const m = booked();
   assert.equal(notifyState(m, [perf('slot-1', { status: 'offered' })], MANAGED).state, NOTHING_TO_SAY);
-  assert.equal(notifyState(m, [perf('slot-1', { status: 'accepted' })], MANAGED).state, NOT_NOTIFIED);
+  /* ⚠ `accepted` with no recorded send is NOT_RECORDED, ⛔ not NOT_SENT: their
+     acceptance proves they saw SOME offer. What matters here is that the managed
+     contract lets them reach a set-time state at all. */
+  assert.equal(notifyState(m, [perf('slot-1', { status: 'accepted' })], MANAGED).state, NOT_RECORDED);
   /* ⚠ And the hand-typed exception `canPlaceMember` allows: nobody can accept
      for them, so on_bill is the whole of their booking. */
   const typed = booked({ artist_id: null, artist_profile_id: null });
@@ -207,8 +210,8 @@ test('duplicate performances on one slot are one placement', () => {
 
 test('needsNotice is true for exactly the three outstanding states', () => {
   assert.deepEqual(
-    [NOTHING_TO_SAY, NEEDS_SET_TIME, NOT_NOTIFIED, CLEAN, TIME_CHANGED, REMOVAL_TO_TELL].filter(needsNotice),
-    [NOT_NOTIFIED, TIME_CHANGED, REMOVAL_TO_TELL],
+    [NOTHING_TO_SAY, NEEDS_SET_TIME, NOT_SENT, NOT_RECORDED, CLEAN, TIME_CHANGED, REMOVAL_TO_TELL].filter(needsNotice),
+    [NOT_SENT, TIME_CHANGED, REMOVAL_TO_TELL],
   );
 });
 
@@ -258,5 +261,84 @@ test('⚠ a profile without an account is still nobody to tell', () => {
 });
 
 test('⭐ an artist WITH an account is unaffected by the reachability rule', () => {
-  assert.equal(notifyState(booked(), [perf('s1')], LEGACY).state, NOT_NOTIFIED);
+  assert.equal(notifyState(booked(), [perf('s1')], LEGACY).state, NOT_SENT);
+});
+
+/* ── ⭐⭐ NULL IS "NOT RECORDED", ⛔ NOT "NEVER TOLD" (owner, 2026-08-17) ────── */
+
+/**
+ * ⭐ THE NEGATIVE IS THE ONLY PROVABLE HALF. The old publish path announced by
+ * flipping `draft → offered` in the same act, so a placement still at `draft` was
+ * never announced by anybody.
+ */
+test('⭐ a DRAFT placement with no record is NOT_SENT, and that IS work', () => {
+  const s = notifyState(booked(), [perf('s1', { status: 'draft' })], LEGACY);
+  assert.equal(s.state, NOT_SENT);
+  assert.equal(s.needsNotice, true);
+  assert.equal(s.label, 'SET TIME NOT SENT');
+});
+
+/**
+ * ⛔⛔ AN `offered` ROW IS NOT PROOF OF A SEND. §8 item 17: 28 such rows were
+ * written by ONE backfill script. Claiming NOT SENT would be a lie in one
+ * direction and claiming CLEAN a lie in the other.
+ */
+test('⛔⛔ an OFFERED placement with no record is NOT_RECORDED, and is NOT work', () => {
+  const s = notifyState(booked(), [perf('s1', { status: 'offered' })], LEGACY);
+  assert.equal(s.state, NOT_RECORDED);
+  assert.equal(s.needsNotice, false, 'we do not know must never read as you must act');
+  assert.equal(s.label, 'SEND NOT RECORDED');
+});
+
+/**
+ * ⚠⚠ `accepted_at` PROVES THEY ACCEPTED AN OFFER, ⛔ NOT THAT THEY WERE TOLD
+ * ABOUT THE PLACEMENT THEY HOLD NOW (owner). A host can move somebody after
+ * their acceptance, and the acceptance says nothing about the move.
+ */
+test('⚠⚠ an ACCEPTED placement, even with accepted_at, is NOT_RECORDED', () => {
+  const withAccept = perf('s1', { status: 'accepted', accepted_at: '2026-07-09T14:00:00.000Z' });
+  assert.equal(notifyState(booked(), [withAccept], LEGACY).state, NOT_RECORDED);
+  assert.equal(notifyState(booked(), [perf('s1', { status: 'accepted' })], LEGACY).state, NOT_RECORDED);
+});
+
+/* ⚠ ANY draft placement is enough to surface real work: one provably unsent set
+   time must not be hidden behind an unrelated unknown on another slot. */
+test('⚠ a draft placement beside an offered one still reads NOT_SENT', () => {
+  const s = notifyState(booked(), [perf('s1', { status: 'offered' }), perf('s2', { status: 'draft' })], LEGACY);
+  assert.equal(s.state, NOT_SENT);
+  assert.equal(s.needsNotice, true);
+});
+
+/**
+ * ⛔⛔ THE BANG APPEARS ONLY FOR KNOWLEDGE. A legacy event whose schedule was
+ * published under the old model must not light up: that is what trained hosts to
+ * ignore the marker.
+ */
+test('⛔⛔ artistsNeedingNotice excludes NOT_RECORDED entirely', () => {
+  const plan = notifyPlan({
+    members: [booked({ id: 'm-old' }), booked({ id: 'm-new' }), booked({ id: 'm-moved', ...notifiedPatch('s9', TOLD) })],
+    perfsByMember: {
+      'm-old':   [perf('s1', { status: 'offered' })],
+      'm-new':   [perf('s2', { status: 'draft' })],
+      'm-moved': [perf('s8', { status: 'offered' })],
+    },
+    event: LEGACY,
+  });
+  assert.deepEqual(plan.map(r => r.state), [NOT_RECORDED, NOT_SENT, TIME_CHANGED]);
+  assert.deepEqual(artistsNeedingNotice(plan).map(r => r.member.id), ['m-new', 'm-moved']);
+});
+
+/* ⭐ Once this system records a send, the row leaves the unknown for good. */
+test('⭐ a recorded send resolves NOT_RECORDED permanently', () => {
+  const before = notifyState(booked(), [perf('s1', { status: 'offered' })], LEGACY);
+  const after  = notifyState(booked(notifiedPatch('s1', TOLD)), [perf('s1', { status: 'offered' })], LEGACY);
+  assert.equal(before.state, NOT_RECORDED);
+  assert.equal(after.state, CLEAN);
+});
+
+/* ⛔ The removed export must not come back: NULL cannot carry that claim. */
+test('⛔ NOT_NOTIFIED is gone from the module surface', async () => {
+  const mod = await import('./notifyPlan.js');
+  assert.equal('NOT_NOTIFIED' in mod, false);
+  assert.equal(Object.values(mod.NOTIFY_LABELS).includes('NOT NOTIFIED'), false);
 });
