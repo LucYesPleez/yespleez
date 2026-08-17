@@ -276,6 +276,23 @@ export default function CreateEventScreen() {
       is_public:isPublic, applications_open:appsOpen,
       venue_profile_id: resolvedVenueProfileId,
       required_items: requiredItems,
+      /**
+       * ⭐⭐ THE BOOKING CONTRACT, STATED AT CREATION (ratified 2026-08-17).
+       *
+       * ⚠ A MANUALLY CREATED EVENT IS `managed`: artists arrive through
+       * SHORTLIST, the host offers the EVENT, the artist accepts, and only then
+       * are they on the lineup. ⛔ The Gig Importer writes `imported`; ⛔ every
+       * event that existed on 2026-08-17 is `legacy` and is grandfathered.
+       *
+       * ⛔ ONLY ON INSERT. An edit must never rewrite this — changing an
+       * event's contract underneath a bill that was booked under the old one is
+       * the exact damage the whole model is built to avoid.
+       *
+       * ⚠ The column is NULLABLE with ⛔ no default, and `lib/eventProvenance`
+       * reads NULL as `legacy`. So forgetting it here grandfathers an event
+       * rather than downgrading somebody's bill — the safe direction.
+       */
+      booking_model: 'managed',
     }).select('id').single();
     setSaving(false);
     if (err) { setError(err.message); return; }
