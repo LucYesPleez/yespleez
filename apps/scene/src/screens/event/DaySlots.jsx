@@ -20,7 +20,7 @@ import s from '../EventScreen.module.css';
 export default function DaySlots({
   eventId, days, claims, allMixSlots,
   isHost = false, editable = false, isLocked = false, viewerProfileId = null,
-  onFill, onEdit, onRemove, onDemote, onPin, onChanged, onLocalMove,
+  onFill, onEdit, onRemove, onDemote, onPin, onNotify, onChanged, onLocalMove,
 }) {
   /**
    * ⭐⭐ `onChanged` — HOW THE CALLER REFRESHES ITSELF AFTER A DRAG.
@@ -338,6 +338,9 @@ isHost={effectiveIsHost}
                    * not available right now. ⛔ Two different questions.
                    */
                   onFill={onFill ? () => onFill(slot) : null}
+                  /* ⭐ P6.3 · sending is a WORKSPACE act, so only the event page passes this.
+                     ⛔ The dashboard leaves it undefined and the chip stays a chip. */
+                  onNotify={onNotify ? () => onNotify(slot) : null}
                   onEdit={onEdit ? () => onEdit(slot) : null}
                   onRemove={onRemove ? () => onRemove(slot) : null}
                   /* ⭐ CLEAR SET TIME vs MOVE TO SHORTLIST — two outcomes, two
@@ -381,6 +384,7 @@ isHost={effectiveIsHost}
                  ⚠ `effectiveIsHost` STAYS: a non-host has no such verb at all,
                  which is a different thing from a host who cannot use it yet. */
               onFill={effectiveIsHost && onFill ? () => onFill(slot) : null}
+              onNotify={effectiveIsHost && onNotify ? () => onNotify(slot) : null}
               onEdit={effectiveIsHost && onEdit ? () => onEdit(slot) : null}
               onRemove={effectiveIsHost && onRemove ? () => onRemove(slot) : null}
               onDemote={effectiveIsHost && onDemote ? () => onDemote(slot) : null}

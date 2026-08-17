@@ -109,7 +109,12 @@ export function useEventData(id, navigate) {
         /* ⭐ P6.2 · `notified_at` and `notified_slot_uuid` are the communicated
            scheduling state (`lib/notifyPlan`). ⛔ Host-side only: the artist
            surfaces have no need of them and do not select them. */
-        supabase.from('lineup_members').select('id, artist_id, artist_profile_id, artist_name, genre, sound, card_pills, status, notified_at, notified_slot_uuid').eq('event_id', id).in('status', ['on_bill', 'shortlisted']),
+        /* ⛔⛔ ALL THREE COMMUNICATION COLUMNS OR NONE. `notified_kind` was added
+           in P6.3a and NOT added here, so the UI read it as null, decided the kind
+           did not agree, and showed SET TIME CHANGED on a row the derivation calls
+           CLEAN. ⚠ The first real send exposed it. Same lesson as
+           CLAIM_PROFILE_COLUMNS: a trimmed select list is a silent defect. */
+        supabase.from('lineup_members').select('id, artist_id, artist_profile_id, artist_name, genre, sound, card_pills, status, notified_at, notified_slot_uuid, notified_kind').eq('event_id', id).in('status', ['on_bill', 'shortlisted']),
         supabase.from('performances').select('id, lineup_member_id, slot_id, slot_uuid, status').eq('event_id', id),
         supabase.from('event_slots').select('id, event_id, day_index, day_name, position, legacy_key, time, ampm, dur_mins, label, label_color, pinned')
           .eq('event_id', id).order('day_index').order('position'),

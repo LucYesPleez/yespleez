@@ -114,6 +114,9 @@ export default function EventPublicView({
             onEdit={host?.onEdit}
             onRemove={host?.onRemove}
             onPin={host?.onPin}
+            /* ⭐ P6.3 · telling an artist about their set time. ⛔ Absent for a
+               non-host and absent on the dashboard, which is triage. */
+            onNotify={host?.onNotify}
           />
         )}
 

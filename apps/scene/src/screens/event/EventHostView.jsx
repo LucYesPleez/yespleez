@@ -18,6 +18,8 @@ import { findOpenAsksForDate, declineOpenAsks } from '../../lib/dateLockout';
 import { memberState, STATE_COLOURS, billCapacity, billFullMessage, bookedMemberRows } from '../../lib/hostLineup';
 import { shortlistEntries } from '../../lib/shortlist';
 import { notifyState } from '../../lib/notifyPlan';
+/* ⭐ P6.3 · the sender. The rule lives there; this screen only resolves who and reports what happened. */
+import { sendSlotNotice } from '../../lib/notifySender';
 import { setTimesEnabled } from '../../lib/eventSetTimes';
 import { normaliseStatus, rawStatusesFor, PIPELINE_BUCKETS, STATUS_TAB_COLOR } from '../../lib/enquiryUtils';
 import { planUnassign, planMoveToShortlist, planRemoveFromEvent, executeLineupPlan, assignMemberToSlot } from '../../lib/lineupActions';
@@ -164,6 +166,10 @@ export default function EventHostView({
   }, [lockoutAsks]);
   const [sendingOffers, setSendingOffers] = useState(false);
   const [confirmUnlock, setConfirmUnlock] = useState(false);
+  /* ⭐ P6.3 · one artist at a time, behind a confirm step. */
+  const [confirmNotify, setConfirmNotify] = useState(null);
+  const [notifying,     setNotifying]     = useState(false);
+  const [notifyError,   setNotifyError]   = useState('');
 
   // The owner is always the host here — `effectiveIsHost` is the one that can
   // be turned off, by the View-as-Punter preview.
@@ -298,6 +304,57 @@ export default function EventHostView({
         message: `Your application for ${event.name} was accepted. You are on the lineup.`,
         data:    { event_id: id, event_name: event.name, lineup_member_id: memberId },
       });
+    }
+    queryClient.invalidateQueries({ queryKey: ['event', id] });
+  }
+
+  /**
+   * ── ⭐⭐ P6.3 · TELL ONE ARTIST ABOUT ONE SET TIME ───────────────────────────
+   *
+   * ⛔⛔ THE RULE LIVES IN `lib/notifySender`, ⛔ NOT HERE. This function resolves
+   * the recipient from the slot the host tapped and reports the outcome; it makes
+   * no decision about whether a send is allowed, ⛔ writes nothing itself, and
+   * ⛔ never touches `set_times_locked`, `applications` or another artist's row.
+   *
+   * ⚠ `publishSetTimes` below is UNTOUCHED and still the live bulk path. ⛔ This
+   * does not replace it until it has been exercised on a real artist.
+   */
+  const NOTIFY_KIND_FOR = { NOT_SENT: 'slot_offer', TIME_CHANGED: 'slot_changed', REMOVAL_TO_TELL: 'slot_removed' };
+
+  function askToNotify(slot) {
+    const claim  = claims[slot.id];
+    const member = claim && lineupMembers.find(m => m.id === claim.member_id);
+    const kind   = NOTIFY_KIND_FOR[claim?.notify?.state];
+    /* ⛔ A control that cannot act is not a control — but if one is somehow
+       reached, refuse in words rather than sending the wrong thing. */
+    if (!member || !kind) { setNotifyError('There is nothing to tell this artist about.'); return; }
+    setConfirmNotify({ slot, member, kind, claim });
+  }
+
+  async function doNotify() {
+    if (!confirmNotify || notifying) return;
+    const { slot, member, kind } = confirmNotify;
+    setNotifying(true);
+    setNotifyError('');
+    const res = await sendSlotNotice(supabase, {
+      member, event, perfs: perfsByMember[member.id] || [],
+      slotUuid: slot.id, kind,
+      slotLabel: [slot.time, slot.ampm].filter(Boolean).join(' '),
+      /* ⭐ THE TRANSPORT IS INJECTED, so the module holds no client of its own. */
+      notify: row => writeNotifications([row]),
+      resolveProfileId: resolvePerformerProfileId,
+    });
+    setNotifying(false);
+    setConfirmNotify(null);
+    /**
+     * ⚠⚠ SENT BUT NOT RECORDED MUST BE SAID OUT LOUD. The artist has the message
+     * and the system does not know, so the next pass would tell them again. ⛔ It
+     * is not a silent retry and ⛔ not a plain failure.
+     */
+    if (res.sent && !res.recorded) {
+      setNotifyError(`${member.artist_name || 'The artist'} WAS told, but recording it failed. Do not send again until this is checked: ${res.error}`);
+    } else if (!res.ok) {
+      setNotifyError(res.error || 'The notification was not sent.');
     }
     queryClient.invalidateQueries({ queryKey: ['event', id] });
   }
@@ -962,6 +1019,50 @@ export default function EventHostView({
             {showTimesPublicly ? 'TAP TO HIDE' : 'TAP TO ANNOUNCE'}
           </span>
         </button>
+      )}
+
+      {/**
+        * ── ⭐⭐ P6.3 · THE CONFIRM STEP FOR ONE ARTIST ─────────────────────────
+        *
+        * ⛔ A MESSAGE TO A REAL PERSON NEVER GOES ON ONE TAP. It names WHO, WHAT
+        * and WHEN before sending, because the chip that opens this sits inside a
+        * grid the host is also dragging things around in.
+        *
+        * ⚠ It says the artist will be told; ⛔ it does not claim to change their
+        * booking, because a set time move requires no re-acceptance.
+        */}
+      {confirmNotify && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.78)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+          <div style={{ background: '#181825', borderRadius: 16, padding: 24, maxWidth: 360, width: '100%', border: '1px solid rgba(255,255,255,.1)' }}>
+            <div style={{ fontFamily: "'Bebas Neue'", fontSize: 20, letterSpacing: 2, marginBottom: 10 }}>
+              {confirmNotify.kind === 'slot_changed' ? 'TELL THEM IT CHANGED?' : 'SEND THIS SET TIME?'}
+            </div>
+            <p style={{ fontSize: 13, color: 'rgba(255,255,255,.6)', lineHeight: 1.6, margin: '0 0 6px' }}>
+              {confirmNotify.member.artist_name || 'This artist'} will be told they are on at{' '}
+              <strong style={{ color: '#fff' }}>{[confirmNotify.slot.time, confirmNotify.slot.ampm].filter(Boolean).join(' ')}</strong>.
+            </p>
+            <p style={{ fontSize: 12, color: 'rgba(255,255,255,.4)', lineHeight: 1.6, margin: '0 0 20px' }}>
+              Only this artist is notified. Nobody else on the lineup is affected.
+            </p>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => setConfirmNotify(null)} disabled={notifying}
+                style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: '1px solid rgba(255,255,255,.15)', background: 'none', color: 'rgba(255,255,255,.6)', fontFamily: "'Bebas Neue'", fontSize: 13, letterSpacing: 1.5, cursor: 'pointer' }}>CANCEL</button>
+              <button onClick={doNotify} disabled={notifying}
+                style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: 'none', background: '#00E5A0', color: '#0b0b12', fontFamily: "'Bebas Neue'", fontSize: 13, letterSpacing: 1.5, cursor: notifying ? 'default' : 'pointer', opacity: notifying ? .6 : 1 }}>
+                {notifying ? 'SENDING…' : 'SEND'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ⚠⚠ SURFACED, NEVER SWALLOWED — including the "told but not recorded"
+          case, which needs a human rather than a retry. */}
+      {notifyError && (
+        <div style={{ margin: '0 0 12px', padding: '10px 12px', borderRadius: 10, background: 'rgba(255,68,68,.1)', border: '1px solid rgba(255,68,68,.4)', color: '#FF8C8C', fontSize: 12.5, lineHeight: 1.5 }}>
+          {notifyError}
+          <button onClick={() => setNotifyError('')} style={{ marginLeft: 8, background: 'none', border: 'none', color: 'rgba(255,255,255,.5)', cursor: 'pointer', fontSize: 11 }}>DISMISS</button>
+        </div>
       )}
 
       {/* Unlock confirm popup */}
@@ -1774,6 +1875,7 @@ export default function EventHostView({
            knows which one it is acting as states it. */
         viewerProfileId: event?.owner_profile_id || null,
         onFill:   slot          => setFillSlot({ slot }),
+        onNotify: slot          => askToNotify(slot),
         onEdit:   slot => setEditingSlot({ slot }),
         onRemove: slot => removeArtist(slot.id),
         /**

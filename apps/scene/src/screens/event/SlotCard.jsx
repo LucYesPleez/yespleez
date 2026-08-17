@@ -70,7 +70,7 @@ function HeadphoneIcon() {
  * still withheld there — it needs the artist picker mounted, which is a
  * surface, not a rule.
  */
-export default function SlotCard({ slot, claim, onFill, onEdit, onRemove, onDemote, onPin, isHost, isSortable, isActiveSort, isDragOverlay, allMixSlots = [], locked = false, viewerProfileId = null, expandable = true, registerNode }) {
+export default function SlotCard({ slot, claim, onFill, onEdit, onRemove, onDemote, onPin, onNotify, isHost, isSortable, isActiveSort, isDragOverlay, allMixSlots = [], locked = false, viewerProfileId = null, expandable = true, registerNode }) {
   const [expanded,      setExpanded]      = useState(false);
   const [hostNote,      setHostNote]      = useState('');
   const [artistBrief,   setArtistBrief]   = useState('');
@@ -535,10 +535,31 @@ export default function SlotCard({ slot, claim, onFill, onEdit, onRemove, onDemo
               * ⛔ NOT A BUTTON. P6.2 is read-only; nothing here sends.
               */}
             {isHost && claim?.notify?.needsNotice && (
-              <span title="This artist has not been told about this set time"
-                style={{ display: 'inline-flex', alignItems: 'center', flexShrink: 0, fontSize: 10.5, fontFamily: "'Bebas Neue'", letterSpacing: 1.1, background: 'rgba(255,140,66,.14)', border: '1px solid rgba(255,140,66,.5)', color: '#FF8C42', borderRadius: 6, padding: '3px 9px', whiteSpace: 'nowrap' }}>
-                {claim.notify.label}
-              </span>
+              /**
+                * ⭐⭐ P6.3 · THE CHIP IS THE BUTTON when there is somebody to tell.
+                *
+                * ⛔ ONLY WHEN `onNotify` IS GIVEN. The event page passes it; the
+                * DASHBOARD DOES NOT, because that screen is triage and sending a
+                * message is a workspace act. ⚠ Same rule as `onFill`: the handler
+                * says the verb exists here, ⛔ its absence is not a disabled
+                * control but no control at all.
+                *
+                * ⚠ `stopPropagation`, or tapping it would also expand the card.
+                */
+              onNotify ? (
+                <button
+                  onClick={e => { e.stopPropagation(); onNotify(); }}
+                  title="Tell this artist about this set time"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 5, flexShrink: 0, fontSize: 10.5, fontFamily: "'Bebas Neue'", letterSpacing: 1.1, background: 'rgba(255,140,66,.14)', border: '1px solid rgba(255,140,66,.5)', color: '#FF8C42', borderRadius: 6, padding: '4px 9px', whiteSpace: 'nowrap', cursor: 'pointer' }}
+                >
+                  {claim.notify.label} <span aria-hidden style={{ opacity: .8 }}>›</span>
+                </button>
+              ) : (
+                <span title="This artist has not been told about this set time"
+                  style={{ display: 'inline-flex', alignItems: 'center', flexShrink: 0, fontSize: 10.5, fontFamily: "'Bebas Neue'", letterSpacing: 1.1, background: 'rgba(255,140,66,.14)', border: '1px solid rgba(255,140,66,.5)', color: '#FF8C42', borderRadius: 6, padding: '3px 9px', whiteSpace: 'nowrap' }}>
+                  {claim.notify.label}
+                </span>
+              )
             )}
 
             {/**

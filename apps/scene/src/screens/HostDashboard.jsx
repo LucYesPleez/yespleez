@@ -306,7 +306,9 @@ export default function HostDashboard({ userId: userIdProp }) {
            somebody you are only considering. */
         supabase.from('lineup_members')
           /* ⭐ P6.2 · the communicated scheduling state, host-side only. */
-          .select('id, event_id, artist_id, artist_profile_id, artist_name, genre, sound, card_pills, status, notified_at, notified_slot_uuid')
+          /* ⛔⛔ ALL THREE, and for the reason the event page's twin now records:
+             a missing `notified_kind` makes a CLEAN row read as SET TIME CHANGED. */
+          .select('id, event_id, artist_id, artist_profile_id, artist_name, genre, sound, card_pills, status, notified_at, notified_slot_uuid, notified_kind')
           .in('event_id', ids).in('status', ['on_bill', 'shortlisted']),
         // ⚠ `declined` is NO LONGER FILTERED OUT. It was, which meant a slot
         // somebody turned down looked identical to one nobody had been asked

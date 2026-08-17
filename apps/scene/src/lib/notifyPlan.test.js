@@ -463,3 +463,37 @@ test('⛔⛔ every ratified kind is a key in notifMeta', async () => {
   }
   assert.match(src, /slot_changed:\s+\{ label: 'SET TIME CHANGED'/);
 });
+
+/**
+ * ── ⛔⛔ THE LOADERS MUST SELECT ALL THREE COMMUNICATION COLUMNS ──────────────
+ *
+ * ⚠⚠ THIS DEFECT REACHED A REAL SEND (2026-08-17). `notified_kind` was added to
+ * the derivation and NOT to the two host SELECT lists, so the UI read it as null,
+ * decided the kind did not agree, and showed SET TIME CHANGED on a row the pure
+ * derivation called CLEAN. Every unit test passed: the module was right and its
+ * INPUT was starved.
+ *
+ * ⚠ A SOURCE-TEXT CHECK. It cannot prove the query runs, only that the columns are
+ * asked for — which is exactly the failure that happened.
+ */
+test('⛔⛔ both host loaders select notified_at, notified_slot_uuid AND notified_kind', async () => {
+  const { readFileSync } = await import('node:fs');
+  const loaders = {
+    'screens/event/useEventData.js': new URL('../screens/event/useEventData.js', import.meta.url),
+    'screens/HostDashboard.jsx':     new URL('../screens/HostDashboard.jsx', import.meta.url),
+  };
+  for (const [name, url] of Object.entries(loaders)) {
+    const src = readFileSync(url, 'utf8');
+    /* ⚠ A generous window: the `.select(...)` sits on its own line with comments
+       between it and `from('lineup_members')`. A tight window made this test fail
+       on a comment rather than on a missing column. */
+    const selects = [...src.matchAll(/from\('lineup_members'\)[\s\S]{0,600}?\.select\('([^']+)'/g)].map(m => m[1]);
+    const communicating = selects.filter(cols => cols.includes('notified_at'));
+    assert.ok(communicating.length, `${name} no longer reads the communication record at all`);
+    for (const cols of communicating) {
+      for (const col of ['notified_at', 'notified_slot_uuid', 'notified_kind']) {
+        assert.ok(cols.includes(col), `${name} selects notified_at but not ${col}`);
+      }
+    }
+  }
+});
