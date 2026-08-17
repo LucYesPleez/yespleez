@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {
   planUnassign, planRemoveFromBill, planMoveToShortlist, planRemoveFromEvent, applyLineupPlan, restoreToBill,
   notifiablePerformances, wasEverSent, isReachable, executeLineupPlan, messageFor, assignMemberToSlot,
+  planEventOffer, createEventOffer,
 } from './lineupActions.js';
 
 /**
@@ -365,6 +366,71 @@ test('⛔ an incomplete assignment writes nothing at all', async () => {
   for (const args of [{ eventId: 'e', memberId: 'm' }, { slotId: 's', memberId: 'm' }, { slotId: 's', eventId: 'e' }]) {
     const db = fakeAssignDb();
     const res = await assignMemberToSlot(db, args);
+    assert.equal(res.ok, false);
+    assert.equal(db.calls.length, 0);
+  }
+});
+
+/* ── ⭐⭐ P4 · OFFERING A PLACE AT THE EVENT ───────────────────────────────── */
+
+/**
+ * ⛔⛔ NOT A SET-TIME OFFER. "We would like you to play at this event", ⛔ not
+ * "at 9pm". A null `slot_uuid` IS that offer.
+ */
+test('⛔⛔ an event offer carries NO slot', async () => {
+  const db = fakeAssignDb();
+  const res = await createEventOffer(db, { eventId: 'e-1', memberId: 'm-madds' });
+  assert.equal(res.ok, true);
+  const ins = db.calls.find(c => c.op === 'insert');
+  assert.equal(ins.row.slot_uuid, null, 'a slot here would make it a set-time offer');
+  assert.equal(ins.row.event_id, 'e-1');
+  assert.equal(ins.row.lineup_member_id, 'm-madds');
+});
+
+/**
+ * ⚠ `draft` means CREATED BUT NOT SENT, which is exactly what an unnotified
+ * offer is. ⛔ `offered` would claim the artist has already been asked.
+ */
+test("⚠ a fresh offer is 'draft', ⛔ never 'offered'", async () => {
+  const db = fakeAssignDb();
+  await createEventOffer(db, { eventId: 'e-1', memberId: 'm-1' });
+  assert.equal(db.calls.find(c => c.op === 'insert').row.status, 'draft');
+});
+
+/* ⛔⛔ IT DELETES NOTHING. This is not assignMemberToSlot, which replaces a
+   slot's occupant. Nobody is displaced by being offered a place. */
+test('⛔⛔ making an offer displaces nobody', async () => {
+  const db = fakeAssignDb();
+  await createEventOffer(db, { eventId: 'e-1', memberId: 'm-1' });
+  assert.equal(db.calls.filter(c => c.op === 'delete').length, 0);
+});
+
+test('⛔ a second offer to the same member is refused before the round trip', () => {
+  const held = [{ id: 'p-1', slot_uuid: null, status: 'draft' }];
+  const plan = planEventOffer({ id: 'm-1' }, held);
+  assert.equal(plan.ok, false);
+  assert.match(plan.reason, /already been offered/);
+  assert.equal(plan.existing.id, 'p-1');
+});
+
+/* ⛔ Somebody holding a SLOT is past this step; offering them a place would be
+   a second, contradictory offer. */
+test('⛔ an artist who already has a set time is not offered a place', () => {
+  const plan = planEventOffer({ id: 'm-1' }, [{ id: 'p-9', slot_uuid: 's-1', status: 'accepted' }]);
+  assert.equal(plan.ok, false);
+  assert.match(plan.reason, /already have a set time/);
+});
+
+test('a first offer to a shortlisted artist is allowed', () => {
+  assert.equal(planEventOffer({ id: 'm-1' }, []).ok, true);
+  assert.equal(planEventOffer({ id: 'm-1' }, null).ok, true);
+  assert.equal(planEventOffer(null, []).ok, false);
+});
+
+test('⛔ an incomplete offer writes nothing at all', async () => {
+  for (const args of [{ eventId: 'e' }, { memberId: 'm' }, {}]) {
+    const db = fakeAssignDb();
+    const res = await createEventOffer(db, args);
     assert.equal(res.ok, false);
     assert.equal(db.calls.length, 0);
   }

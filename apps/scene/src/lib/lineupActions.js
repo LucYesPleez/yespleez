@@ -343,3 +343,66 @@ export async function restoreToBill(db, memberId) {
  * ⚠ This is consistent with the ratified invariant — applications may FEED
  * membership, but membership does not reach back and rewrite them.
  */
+
+/**
+ * ── ⭐⭐ P4 · OFFERING SOMEBODY A PLACE AT THE EVENT ─────────────────────────
+ *
+ * ⛔⛔ THIS IS NOT A SET-TIME OFFER. The host is saying "we would like you to
+ * play at this event", ⛔ NOT "we would like you to play at 9pm". The running
+ * order is a later, private layer and may not exist yet.
+ *
+ * ⭐ A `performances` row with `slot_uuid = NULL` IS that offer. §2 already
+ * defines this table as the "slot, OFFER and ACCEPTANCE lifecycle", so a
+ * null-slot row reads as *a place at the event, no time yet* — and it inherits
+ * acceptance (`lib/notifActions`, unchanged) and, later, communication.
+ *
+ * ⛔⛔ IT SENDS NOTHING. Creating an offer is PLANNING. The artist hears about
+ * it only through NOTIFY ARTISTS (P7), which is the single communication
+ * boundary. ⛔ Do not add a notification here — that is the leak this whole
+ * model exists to close.
+ *
+ * ⚠ `status: 'draft'` on purpose: in today's vocabulary that means CREATED BUT
+ * NOT SENT, which is exactly what an unnotified offer is. ⛔ Not 'offered' —
+ * that word claims the artist has been asked.
+ */
+export function planEventOffer(member, perfs = []) {
+  if (!member?.id) return { ok: false, reason: 'no member' };
+
+  /**
+   * ⛔ IDEMPOTENT. The button can be double-tapped and two surfaces can offer
+   * the same person. ⚠ A second null-slot row would be a second live offer for
+   * one place — the partial unique index catches it in the database, and this
+   * catches it before the round trip.
+   */
+  const existing = (perfs || []).find(p => !p?.slot_uuid);
+  if (existing) return { ok: false, reason: 'they have already been offered a place', existing };
+
+  /* ⚠ Already holding a SLOT means already past this step. ⛔ Offering a place
+     to somebody who is scheduled would be a second, contradictory offer. */
+  if ((perfs || []).some(p => p?.slot_uuid)) {
+    return { ok: false, reason: 'they already have a set time' };
+  }
+
+  return { ok: true, reason: null, memberId: member.id };
+}
+
+/**
+ * @returns {Promise<{ok, error, performance}>}
+ * ⛔ Writes ONE row. ⛔ Deletes nothing — this is not `assignMemberToSlot`,
+ * which replaces a slot's occupant. Nobody is displaced by an offer.
+ */
+export async function createEventOffer(db, { eventId, memberId }) {
+  if (!eventId || !memberId) return { ok: false, error: 'missing event or member', performance: null };
+
+  const { data, error } = await db.from('performances').insert({
+    lineup_member_id: memberId,
+    event_id: eventId,
+    slot_uuid: null,
+    status: 'draft',
+  }).select('id, status, slot_uuid, lineup_member_id, event_id').single();
+
+  /* ⚠ SURFACED, NEVER SWALLOWED — an INSERT blocked by RLS fails loudly, and a
+     unique violation here means somebody already holds the offer. */
+  if (error) return { ok: false, error: error.message, performance: null };
+  return { ok: true, error: null, performance: data };
+}
