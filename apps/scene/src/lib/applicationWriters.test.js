@@ -81,11 +81,32 @@ test('⛔ no source writes a retired status into applications', () => {
   assert.deepEqual(offenders, [], 'these must use the canonical vocabulary');
 });
 
-test('⭐ the scoping works: performances may still write offered', () => {
-  const code = stripComments(readFileSync(join(SRC, 'screens/event/EventHostView.jsx'), 'utf8'));
-  const perfWrites = statements(code).filter(s => s.table === 'performances');
-  assert.ok(perfWrites.some(s => /status:\s*'offered'/.test(s.body)),
-    'doAssign must still create the performance as an offer - if this fails the booking engine is gone, not fixed');
+/**
+ * ⭐ THE BOOKING ENGINE MUST STILL BE ABLE TO OFFER A SLOT.
+ *
+ * ⚠⚠ REWRITTEN 2026-08-18 (P6.3d-1), AND THE ALARM WAS CORRECT. This asserted a
+ * `performances` write of `status: 'offered'` INSIDE `EventHostView`, which was
+ * `publishSetTimes`. Deleting that function made it fail, exactly as its own
+ * message warned — so the capability was checked rather than the assertion
+ * silenced.
+ *
+ * ⭐ IT MOVED, it did not vanish: `doAssign` still asks for an offer, and the one
+ * writer (`lib/lineupActions.assignMemberToSlot`) performs it. ⛔ The screen no
+ * longer composes a `performances` write of its own, which is the improvement.
+ */
+test('⭐ the booking engine can still offer a slot, through the one writer', () => {
+  const screen = stripComments(readFileSync(join(SRC, 'screens/event/EventHostView.jsx'), 'utf8'));
+  assert.ok(/status:\s*'offered'/.test(screen),
+    'doAssign must still request an OFFER - if this fails the booking engine is gone, not fixed');
+
+  /* ⛔ And the screen must not have grown its own performance write to do it. */
+  const perfWrites = statements(screen).filter(s => s.table === 'performances');
+  assert.deepEqual(perfWrites.filter(s => /status:\s*'offered'/.test(s.body)), [],
+    'the screen is composing its own offered write again instead of using assignMemberToSlot');
+
+  const writer = stripComments(readFileSync(join(SRC, 'lib/lineupActions.js'), 'utf8'));
+  assert.ok(/from\('performances'\)[\s\S]{0,200}insert/.test(writer),
+    'assignMemberToSlot no longer inserts the performance');
 });
 
 test('⛔ no decision handler passes a retired status to respond()', () => {

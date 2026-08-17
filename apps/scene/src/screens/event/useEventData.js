@@ -222,7 +222,10 @@ export function useEventData(id, navigate) {
   const genres     = cfg.genres || '';
 
   const isLocked   = !!cfg.set_times_locked;
-  const draftCount = Object.values(claims).filter(c => c?.status === 'draft').length;
+  /* ⛔ `draftCount` is GONE with publishSetTimes (P6.3d-1). It counted rows for a
+     bulk send that no longer exists, and it disagreed with the action anyway:
+     it read the DISPLAY status, which maps a hand-typed act to 'confirmed', so
+     the button said NOTIFY 3 ARTISTS while the update flipped four rows. */
   const showTimesPublicly = cfg.host_controls_config?.showTimesPublicly === true;
 
   const eventDateStr = cfg.endDate || cfg.date;
@@ -239,7 +242,7 @@ export function useEventData(id, navigate) {
   return {
     loading, event, ownerProfile, venueProfile, coHostProfiles, claims, claimsBySlot, lineupMembers, shortlistMembers, perfsByMember, memberProfiles,
     cfg, days, poster, posterFull, genres,
-    isLocked, draftCount, showTimesPublicly, isPast,
+    isLocked, showTimesPublicly, isPast,
     totalSlots, takenSlots, lineupPct,
     // The full breakdown, for the host's tally. A punter's claims map only ever
     // holds `accepted` rows, so their counts collapse to confirmed/empty on

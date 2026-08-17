@@ -123,7 +123,6 @@ export default function EventScreen() {
         memberProfiles={d.memberProfiles}
         lineupPct={d.lineupPct}
         isLocked={d.isLocked}
-        draftCount={d.draftCount}
       />
     );
   }

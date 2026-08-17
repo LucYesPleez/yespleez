@@ -13,7 +13,9 @@ import { resolvePerformerProfileId } from '../../lib/actingProfile';
 import { writeNotification, writeNotifications } from '../../lib/writeNotification';
 import { track, EVENTS } from '../../lib/analytics';
 import { resolveProfileId } from '../../lib/resolveProfileId';
-import { scopeToApplicant, fetchApplicantProfiles } from '../../lib/applicantProfiles';
+/* ⛔ `scopeToApplicant` left with publishSetTimes (P6.3d-1): it existed to rewrite
+   applications.status in bulk, which a send no longer does. */
+import { fetchApplicantProfiles } from '../../lib/applicantProfiles';
 import { findOpenAsksForDate, declineOpenAsks } from '../../lib/dateLockout';
 import { memberState, STATE_COLOURS, billCapacity, billFullMessage, bookedMemberRows } from '../../lib/hostLineup';
 import { shortlistEntries } from '../../lib/shortlist';
@@ -21,7 +23,7 @@ import { notifyState } from '../../lib/notifyPlan';
 /* ⭐ P6.3 · the sender. The rule lives there; this screen only resolves who and reports what happened. */
 import { sendSlotNotice } from '../../lib/notifySender';
 import { setTimesEnabled } from '../../lib/eventSetTimes';
-import { normaliseStatus, rawStatusesFor, PIPELINE_BUCKETS, STATUS_TAB_COLOR } from '../../lib/enquiryUtils';
+import { normaliseStatus, PIPELINE_BUCKETS, STATUS_TAB_COLOR } from '../../lib/enquiryUtils';
 import { planUnassign, planMoveToShortlist, planRemoveFromEvent, executeLineupPlan, assignMemberToSlot } from '../../lib/lineupActions';
 import { planAddToBill, addToBill, findExistingMember } from '../../lib/lineupFromApplication';
 import { PROFILE_CARD_META_COLUMNS } from '../../components/ProfileCard';
@@ -56,7 +58,7 @@ export default function EventHostView({
   id, event, cfg, session, ownerProfile, venueProfile,
   claims, claimsBySlot = {}, days, lineupMembers, shortlistMembers = [], perfsByMember = {}, memberProfiles,
   poster, posterFull, genres, isPast,
-  showTimesPublicly, totalSlots, takenSlots, lineupPct, isLocked, draftCount,
+  showTimesPublicly, totalSlots, takenSlots, lineupPct, isLocked,
 }) {
   const navigate    = useNavigate();
   const queryClient = useQueryClient();
@@ -164,8 +166,9 @@ export default function EventHostView({
     const t = setTimeout(() => setLockoutArmed(true), 500);
     return () => clearTimeout(t);
   }, [lockoutAsks]);
-  const [sendingOffers, setSendingOffers] = useState(false);
-  const [confirmUnlock, setConfirmUnlock] = useState(false);
+  /* ⛔ `sendingOffers` and `confirmUnlock` are GONE with the bulk publish and the
+     offer-reverting unlock (P6.3d-1). ⛔ Do not reintroduce either: a send is one
+     artist at a time, and nothing may revert an outstanding offer in bulk. */
   /**
    * ── ⭐⭐ P6.3d-0 · THE EDITING LOCK BECOMES A SESSION LOCK ────────────────────
    *
@@ -342,8 +345,10 @@ export default function EventHostView({
    * no decision about whether a send is allowed, ⛔ writes nothing itself, and
    * ⛔ never touches `set_times_locked`, `applications` or another artist's row.
    *
-   * ⚠ `publishSetTimes` below is UNTOUCHED and still the live bulk path. ⛔ This
-   * does not replace it until it has been exercised on a real artist.
+   * ⭐⭐ THIS IS NOW THE ONLY WAY A SET TIME IS SENT (P6.3d-1). `publishSetTimes`
+   * is deleted: it flipped every draft event-wide, notified everyone reachable,
+   * rewrote `applications.status` and locked the event, all behind one press and
+   * with none of its four writes inspected.
    */
   const NOTIFY_KIND_FOR = { NOT_SENT: 'slot_offer', TIME_CHANGED: 'slot_changed', REMOVAL_TO_TELL: 'slot_removed' };
 
@@ -401,74 +406,6 @@ export default function EventHostView({
     } else if (!res.ok) {
       setNotifyError(res.error || 'The notification was not sent.');
     }
-    queryClient.invalidateQueries({ queryKey: ['event', id] });
-  }
-
-  async function publishSetTimes() {
-    if (sendingOffers) return;
-    setSendingOffers(true);
-    const { data: drafts } = await supabase
-      .from('performances')
-      /* ⚠ `slot_uuid`, ⛔ not the legacy `slot_id`. Nothing resolves this
-         payload field — the accept/decline handlers key on `performance_id` —
-         but new rows no longer populate the legacy column, so carrying it
-         would put a NULL in every future offer notification. */
-      .select('id, slot_uuid, lineup_members(artist_id, artist_profile_id, artist_name)')
-      .eq('event_id', id)
-      .eq('status', 'draft');
-    if (drafts?.length) {
-      await supabase.from('performances').update({ status: 'offered' }).eq('event_id', id).eq('status', 'draft');
-      const withArtist = (drafts || []).filter(d => d.lineup_members?.artist_id);
-      if (withArtist.length) {
-        // Batch: one insert, as before. writeNotifications exists so this
-        // stays a single round trip rather than N sequential writes.
-        // §A7 on the batch path too. toProfileId is resolved per recipient
-        // BEFORE the insert so this stays one round trip — mapping it to N
-        // sequential writes would trade the batch for attribution.
-        const batchRows = await Promise.all(withArtist.map(async d => ({
-          toUserId:       d.lineup_members.artist_id,
-          toProfileId:    (await resolvePerformerProfileId(d.lineup_members.artist_id)).profileId ?? null,
-          aboutProfileId: event.owner_profile_id ?? null,
-          type:    'slot_offer',
-          message: `You've been offered a slot at ${event.name}.`,
-          data:    { performance_id: d.id, event_id: id, event_name: event.name, slot_id: d.slot_uuid },
-        })));
-        await writeNotifications(batchRows);
-        // M6 · one update per APPLICANT, narrowed to the profile the host
-        // booked. De-duplicated by profile where there is one, by account only
-        // for members that never got a profile id.
-        const applicants = new Map();
-        withArtist.forEach(d => {
-          const pid = d.lineup_members.artist_profile_id || null;
-          const uid = d.lineup_members.artist_id;
-          applicants.set(pid || uid, { pid, uid });
-        });
-        await Promise.all([...applicants.values()].map(({ pid, uid }) =>
-          scopeToApplicant(
-            /* ⚠ `accepted`, NOT `offered`. Sending someone a set time means the
-               HOST has said yes — that is the host decision this column
-               records. The OFFER itself is `performances.status='offered'` +
-               `offered_at`, which the update above already wrote. */
-            supabase.from('applications').update({ status: 'accepted' }).eq('event_id', id),
-            pid, uid,
-          ).in('status', [...rawStatusesFor('new'), ...rawStatusesFor('shortlisted')])
-        ));
-      }
-    }
-    await supabase.from('events').update({
-      config: { ...(event.config || {}), set_times_locked: true },
-    }).eq('id', id);
-    setSendingOffers(false);
-    queryClient.invalidateQueries({ queryKey: ['event', id] });
-  }
-
-  async function unlockSetTimes() {
-    await supabase.from('performances').update({ status: 'draft' })
-      .eq('event_id', id).eq('status', 'offered');
-    await supabase.from('events').update({
-      config: { ...(event.config || {}), set_times_locked: false },
-    }).eq('id', id);
-    setConfirmUnlock(false);
     queryClient.invalidateQueries({ queryKey: ['event', id] });
   }
 
@@ -650,8 +587,9 @@ export default function EventHostView({
    * ⛔⛔ CREATES A `draft` PERFORMANCE AND NOTIFIES NOBODY.
    *
    * ⚠ This is Q3, not a shortcut: adding to the bill is private, and OFFERING
-   * a slot is the actionable, notifying act. `SEND SET TIMES TO ARTISTS`
-   * promotes drafts and sends them, and it stays the only thing that speaks.
+   * a slot is the actionable, notifying act. The per-artist SEND on the row's
+   * chip is the only thing that speaks (P6.3), and it promotes that one draft
+   * as it sends.
    * Writing `offered` here would notify from a button labelled "assign", which
    * is an automatic transition the owner explicitly ruled out.
    *
@@ -1156,61 +1094,6 @@ export default function EventHostView({
           {notifyError}
           <button onClick={() => setNotifyError('')} style={{ marginLeft: 8, background: 'none', border: 'none', color: 'rgba(255,255,255,.5)', cursor: 'pointer', fontSize: 11 }}>DISMISS</button>
         </div>
-      )}
-
-      {/* Unlock confirm popup */}
-      {confirmUnlock && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.78)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-          <div style={{ background: '#181825', borderRadius: 16, padding: 24, maxWidth: 340, width: '100%', border: '1px solid rgba(255,255,255,.1)' }}>
-            <div style={{ fontFamily: "'Bebas Neue'", fontSize: 20, letterSpacing: 2, marginBottom: 10 }}>EDIT SET TIMES?</div>
-            <p style={{ fontSize: 13, color: 'rgba(255,255,255,.55)', marginBottom: 20, lineHeight: 1.6, margin: '0 0 20px' }}>
-              This will unlock set times and move pending offers back to draft. Artists won't be notified again until you republish.
-            </p>
-            <div style={{ display: 'flex', gap: 10 }}>
-              <button onClick={() => setConfirmUnlock(false)} style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: '1px solid rgba(255,255,255,.15)', background: 'none', color: 'rgba(255,255,255,.6)', fontFamily: "'Bebas Neue'", fontSize: 13, letterSpacing: 1.5, cursor: 'pointer' }}>CANCEL</button>
-              <button onClick={unlockSetTimes} style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: 'none', background: '#FF8C42', color: '#fff', fontFamily: "'Bebas Neue'", fontSize: 13, letterSpacing: 1.5, cursor: 'pointer' }}>YES, UNLOCK</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* SET TIMES locked banner */}
-      {effectiveIsHost && showEditor && eventTab === 'SET_TIMES' && isLocked && (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', marginBottom: 12, borderRadius: 10, background: 'rgba(0,229,160,.07)', border: '1px solid rgba(0,229,160,.28)' }}>
-          {/* Sent and locked. Says nothing about public visibility, which is a
-              separate decision made by the toggle above. */}
-          <span style={{ fontFamily: "'Bebas Neue'", fontSize: 12, letterSpacing: 1.5, color: '#00E5A0' }}>● SET TIMES SENT · LOCKED</span>
-          <button onClick={() => setConfirmUnlock(true)} style={{ fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1, padding: '4px 10px', borderRadius: 6, border: '1px solid rgba(255,255,255,.18)', background: 'none', color: 'rgba(255,255,255,.45)', cursor: 'pointer' }}>EDIT SET TIMES</button>
-        </div>
-      )}
-
-      {/* Publish Set Times — unlocked, draft slots exist */}
-      {effectiveIsHost && showEditor && eventTab === 'SET_TIMES' && !isLocked && draftCount > 0 && (
-        <button
-          onClick={publishSetTimes}
-          disabled={sendingOffers}
-          style={{
-            width: '100%', marginBottom: 12, padding: '11px 14px',
-            borderRadius: 10, cursor: sendingOffers ? 'default' : 'pointer',
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            fontFamily: "'Bebas Neue'", fontSize: 12, letterSpacing: 1.5,
-            border: '1px solid rgba(191,95,255,.45)',
-            background: sendingOffers ? 'rgba(191,95,255,.08)' : 'rgba(191,95,255,.15)',
-            opacity: sendingOffers ? 0.7 : 1, transition: 'all .15s',
-          }}
-        >
-          <span style={{ color: '#BF5FFF' }}>
-            {/* ⚠ "SEND", NOT "PUBLISH". This notifies the artists and locks the
-                running order; it does NOT put anything in front of the public.
-                The control that does is the SET TIMES PUBLIC toggle above, and
-                both were called "publish" — so an organiser pressing this
-                reasonably believed the timetable was now on the event page. */}
-            {sendingOffers ? '● SENDING…' : '● SEND SET TIMES TO ARTISTS'}
-          </span>
-          <span style={{ fontSize: 10, color: 'rgba(191,95,255,.6)', letterSpacing: 1 }}>
-            NOTIFY {draftCount} ARTIST{draftCount !== 1 ? 'S' : ''}
-          </span>
-        </button>
       )}
 
       {/* LINEUP tab */}
