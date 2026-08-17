@@ -36,10 +36,13 @@ test('⚠ a member holding two slots is judged on both, not on the claim in hand
     'reading only this slot would have reported CLEAN');
 });
 
+/* ⚠ THE KIND IS REQUIRED for a claim to read clean since 2026-08-18: matching
+   slots are not enough, because "we told them they were REMOVED from s-1" also
+   matches s-1. */
 test('a notified, unmoved claim carries no outstanding notice', () => {
   const claims = [{ id: 'p-1', member_id: 'm-1', slot_id: 's-1' }];
   attachNotifyState(claims, {
-    members: [bookedMember({ notified_at: '2026-08-17T11:00:00.000Z', notified_slot_uuid: 's-1' })],
+    members: [bookedMember({ notified_at: '2026-08-17T11:00:00.000Z', notified_slot_uuid: 's-1', notified_kind: 'slot_offer' })],
     perfsByMember: { 'm-1': [{ slot_uuid: 's-1' }] },
     event: LEG,
   });

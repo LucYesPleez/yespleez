@@ -58,6 +58,30 @@ import { isBooked } from './hostLineup';
    here, and ⛔ none may be: see the purity clause above. */
 import { isReachable } from './lineupActions';
 
+/**
+ * ── ⭐⭐ THE COMMUNICATION VOCABULARY — RATIFIED, EXACTLY THREE ───────────────
+ *
+ * ⛔⛔ THESE ARE `notifications.type` VALUES, ⛔ NOT A PARALLEL SET. `slot_offer`
+ * and `slot_removed` already existed in `lib/notifMeta` (the canonical registry);
+ * `slot_changed` was added there for this phase. So `notified_kind` holds the
+ * token of the message that was ACTUALLY SENT and can be checked against the
+ * notification row itself.
+ *
+ * ⛔ `slot_cancelled` and `removal` must never exist: they would be second
+ * spellings of `slot_removed`, and two vocabularies for one fact is the defect
+ * that left PIPELINE empty on every event.
+ *
+ * ⚠ `slot_accepted` / `slot_declined` are the ARTIST answering the host. They
+ * belong to `accepted_at`, ⛔ never to a record of what we told them.
+ *
+ * ⚠ A database CHECK enforces the same three. ⛔ Add a fourth here and in the
+ * constraint, or the write fails with 23514.
+ */
+export const SLOT_OFFER   = 'slot_offer';
+export const SLOT_CHANGED = 'slot_changed';
+export const SLOT_REMOVED = 'slot_removed';
+export const NOTIFY_KINDS = [SLOT_OFFER, SLOT_CHANGED, SLOT_REMOVED];
+
 /** ⭐ The state names. ⛔ Compare against these, never against a string. */
 export const NOTHING_TO_SAY   = 'NOTHING_TO_SAY';
 export const NEEDS_SET_TIME   = 'NEEDS_SET_TIME';
@@ -147,11 +171,15 @@ export function placementsOf(perfs = []) {
 export function notifyState(member, perfs = [], event = null) {
   const notifiedAt   = member?.notified_at ?? null;
   const notifiedSlot = member?.notified_slot_uuid ?? null;
+  /* ⭐⭐ THE THIRD FACT: what the artist was actually TOLD, ⛔ not what the system
+     now thinks. It holds the `notifications.type` that was sent, so it is
+     verifiable against the notification itself. */
+  const notifiedKind = member?.notified_kind ?? null;
   const placements   = placementsOf(perfs);
 
   const out = state => ({
     state, label: NOTIFY_LABELS[state], needsNotice: needsNotice(state),
-    placements, notifiedSlotUuid: notifiedSlot, notifiedAt,
+    placements, notifiedSlotUuid: notifiedSlot, notifiedAt, notifiedKind,
   });
 
   /**
@@ -179,14 +207,20 @@ export function notifyState(member, perfs = [], event = null) {
   if (!isReachable(member)) return out(NOTHING_TO_SAY);
 
   if (!placements.length) {
+    if (!notifiedAt) return out(NEEDS_SET_TIME);
     /**
-     * ⭐ TOLD ABOUT A TIME THEY NO LONGER HAVE. This is the state a performance
-     * timestamp could never express, because the row carrying it is gone.
-     * ⚠ `notified_slot_uuid` may itself be NULL here: the slot can be deleted
-     * (ON DELETE SET NULL) while `notified_at` stands. Having been told is what
-     * matters, ⛔ not whether the thing we said still exists.
+     * ⭐⭐ THE TERMINAL STATE THAT DID NOT EXIST. Told they are OFF the slot and
+     * they hold none: there is nothing outstanding, so ⛔ this must stop asking.
+     * Before the third fact, "removal communicated" and "removal still to tell"
+     * were the same row and this nagged forever.
+     *
+     * ⭐⭐ AND IT RESOLVES THE FK AMBIGUITY WITHOUT TOUCHING THE FK.
+     * `notified_slot_uuid` goes NULL both when we tell somebody their slot is
+     * cancelled AND when the slot row is deleted underneath us (ON DELETE SET
+     * NULL). ⚠ The KIND separates them: a cancellation says `slot_removed`, a
+     * deleted slot leaves the kind at whatever we last said, so it stays work.
      */
-    return out(notifiedAt ? REMOVAL_TO_TELL : NEEDS_SET_TIME);
+    return out(notifiedKind === SLOT_REMOVED ? CLEAN : REMOVAL_TO_TELL);
   }
 
   /**
@@ -224,8 +258,23 @@ export function notifyState(member, perfs = [], event = null) {
    * everything is settled when an artist has not heard about one of their sets.
    * ⚠ A multi-placement recording is a schema question and ⛔ not this phase's.
    */
-  const clean = placements.length === 1 && placements[0] === notifiedSlot;
-  return out(clean ? CLEAN : TIME_CHANGED);
+  const slotMatches = placements.length === 1 && placements[0] === notifiedSlot;
+
+  /**
+   * ⛔⛔ MATCHING SLOTS ARE NOT ENOUGH — THE KIND HAS TO AGREE TOO.
+   *
+   * ⚠⚠ THE CASE THIS CATCHES: we told the artist they were REMOVED from 9PM, and
+   * they are now on 9PM again (the host changed their mind). The slots match, so
+   * a slot-only comparison called that CLEAN while the artist believes they are
+   * not playing. ⭐ The last thing we said contradicts the schedule, so it is
+   * work — that is exactly what a third fact is for.
+   *
+   * ⚠ A MISSING KIND (`notified_at` set, kind NULL) also fails to establish
+   * agreement, so it reads as work. ⛔ Conservative on purpose: nothing writes
+   * that shape today, and asking for a notice is the safe error.
+   */
+  const kindAgrees = notifiedKind === SLOT_OFFER || notifiedKind === SLOT_CHANGED;
+  return out(slotMatches && kindAgrees ? CLEAN : TIME_CHANGED);
 }
 
 /**
@@ -262,9 +311,23 @@ export function artistsNeedingNotice(plan = []) {
  * @param slotUuid the placement being communicated, or null when the notice IS
  *                 that they no longer have one.
  */
-export function notifiedPatch(slotUuid, at) {
+export function notifiedPatch(slotUuid, at, kind = SLOT_OFFER) {
+  /**
+   * ⛔⛔ ALL THREE OR NONE. A patch carrying `notified_at` without a kind claims a
+   * communication of unknown type, which is the ambiguity the third fact exists
+   * to remove — and it would make a removal indistinguishable from a deleted
+   * slot again.
+   *
+   * ⚠ THROWS rather than coercing. An unrecognised kind is a programming error,
+   * and the database CHECK would refuse it anyway (23514); failing here names the
+   * cause instead of surfacing a constraint violation from three layers away.
+   */
+  if (!NOTIFY_KINDS.includes(kind)) {
+    throw new Error(`notifiedPatch: unknown kind "${kind}". Expected one of ${NOTIFY_KINDS.join(', ')}.`);
+  }
   return {
     notified_at: at || new Date().toISOString(),
     notified_slot_uuid: slotUuid || null,
+    notified_kind: kind,
   };
 }

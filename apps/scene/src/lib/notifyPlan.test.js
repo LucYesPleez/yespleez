@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import {
   notifyState, notifyPlan, artistsNeedingNotice, notifiedPatch, placementsOf, needsNotice,
   NOTHING_TO_SAY, NEEDS_SET_TIME, NOT_SENT, NOT_RECORDED, CLEAN, TIME_CHANGED, REMOVAL_TO_TELL,
-  NOTIFY_LABELS,
+  NOTIFY_LABELS, NOTIFY_KINDS, SLOT_OFFER, SLOT_CHANGED, SLOT_REMOVED,
 } from './notifyPlan.js';
 
 const LEGACY   = { id: 'e-l', booking_model: 'legacy' };
@@ -55,7 +55,9 @@ test('assigning a time notifies nobody, and IS detectable as not notified', () =
 
 test('an explicit notification records the communicated slot, and reads clean', () => {
   const patch = notifiedPatch('slot-10pm', TOLD);
-  assert.deepEqual(patch, { notified_at: TOLD, notified_slot_uuid: 'slot-10pm' });
+  /* ⭐ THREE facts since 2026-08-18 — the kind is what makes a removal
+     distinguishable from a deleted slot. */
+  assert.deepEqual(patch, { notified_at: TOLD, notified_slot_uuid: 'slot-10pm', notified_kind: 'slot_offer' });
   const s = notifyState(booked(patch), [perf('slot-10pm')], LEGACY);
   assert.equal(s.state, CLEAN);
   assert.equal(s.needsNotice, false);
@@ -229,7 +231,7 @@ test('empty and missing input is answered, not thrown on', () => {
 /* ⛔ The patch never invents a truthy flag, and a removal notice records that
    there is no slot rather than pretending there is one. */
 test('notifiedPatch records the slot, or its absence', () => {
-  assert.deepEqual(notifiedPatch(null, TOLD), { notified_at: TOLD, notified_slot_uuid: null });
+  assert.deepEqual(notifiedPatch(null, TOLD), { notified_at: TOLD, notified_slot_uuid: null, notified_kind: 'slot_offer' });
   const now = notifiedPatch('s1');
   assert.equal(now.notified_slot_uuid, 's1');
   assert.ok(!Number.isNaN(Date.parse(now.notified_at)));
@@ -341,4 +343,123 @@ test('⛔ NOT_NOTIFIED is gone from the module surface', async () => {
   const mod = await import('./notifyPlan.js');
   assert.equal('NOT_NOTIFIED' in mod, false);
   assert.equal(Object.values(mod.NOTIFY_LABELS).includes('NOT NOTIFIED'), false);
+});
+
+/* ── ⭐⭐ THE THIRD FACT · notified_kind (owner, ratified 2026-08-18) ────────── */
+
+/**
+ * ⭐ THE OWNER'S RESOLUTION TABLE, ROW FOR ROW. `notified_kind` records what the
+ * artist was TOLD, so slot equality alone no longer decides.
+ */
+test('⭐⭐ the ratified resolution table', () => {
+  const rows = [
+    // current placement,  last communicated slot, kind,          expected
+    ['8pm',                '8pm',                  SLOT_OFFER,    CLEAN],
+    ['9pm',                '8pm',                  SLOT_OFFER,    TIME_CHANGED],
+    ['9pm',                '8pm',                  SLOT_CHANGED,  TIME_CHANGED],
+    ['9pm',                '9pm',                  SLOT_OFFER,    CLEAN],
+    ['9pm',                '9pm',                  SLOT_CHANGED,  CLEAN],
+    [null,                 '8pm',                  SLOT_OFFER,    REMOVAL_TO_TELL],
+    [null,                 '8pm',                  SLOT_REMOVED,  CLEAN],
+    [null,                 null,                   SLOT_REMOVED,  CLEAN],
+    [null,                 null,                   SLOT_OFFER,    REMOVAL_TO_TELL],
+  ];
+  for (const [current, told, kind, expected] of rows) {
+    const member = booked({ notified_at: TOLD, notified_slot_uuid: told, notified_kind: kind });
+    const perfs  = current ? [perf(current, { status: 'offered' })] : [];
+    assert.equal(notifyState(member, perfs, LEGACY).state, expected,
+      `current=${current} told=${told} kind=${kind}`);
+  }
+});
+
+/**
+ * ⭐⭐ THE TERMINAL STATE. Telling somebody their slot is gone must make the
+ * nagging stop; before the third fact this stayed REMOVAL_TO_TELL forever.
+ */
+test('⭐⭐ a communicated removal is CLEAN, and stops asking', () => {
+  const s = notifyState(booked(notifiedPatch(null, TOLD, SLOT_REMOVED)), [], LEGACY);
+  assert.equal(s.state, CLEAN);
+  assert.equal(s.needsNotice, false);
+});
+
+/**
+ * ⭐⭐ AND THE FK AMBIGUITY IS RESOLVED WITHOUT TOUCHING THE FK. A deleted slot
+ * row sets `notified_slot_uuid` NULL by ON DELETE SET NULL, which looks identical
+ * to a cancellation. ⚠ The KIND separates them.
+ */
+test('⭐⭐ a DELETED slot still needs telling, a CANCELLED one does not', () => {
+  const deleted   = booked({ notified_at: TOLD, notified_slot_uuid: null, notified_kind: SLOT_OFFER });
+  const cancelled = booked({ notified_at: TOLD, notified_slot_uuid: null, notified_kind: SLOT_REMOVED });
+  assert.equal(notifyState(deleted,   [], LEGACY).state, REMOVAL_TO_TELL);
+  assert.equal(notifyState(cancelled, [], LEGACY).state, CLEAN);
+});
+
+/**
+ * ⛔⛔ A ROW THE TABLE DID NOT COVER, and slot equality got it wrong. We told them
+ * they were REMOVED from 9PM and they are on 9PM again: the slots match, but the
+ * last thing we said contradicts the schedule, so the artist believes they are
+ * not playing. ⛔ Mapped to existing WORK rather than a seventh state invented
+ * here.
+ */
+test('⛔⛔ told REMOVED from the slot they now hold again is WORK, not clean', () => {
+  const s = notifyState(booked({ notified_at: TOLD, notified_slot_uuid: '9pm', notified_kind: SLOT_REMOVED }),
+    [perf('9pm', { status: 'offered' })], LEGACY);
+  assert.equal(s.state, TIME_CHANGED);
+  assert.equal(s.needsNotice, true);
+});
+
+/* ⚠ The other uncovered row: `notified_at` set with NO kind cannot establish
+   agreement, so it reads as work. ⛔ Nothing writes that shape today. */
+test('⚠ a recorded send with no kind is not proof of agreement', () => {
+  const s = notifyState(booked({ notified_at: TOLD, notified_slot_uuid: '9pm', notified_kind: null }),
+    [perf('9pm')], LEGACY);
+  assert.equal(s.state, TIME_CHANGED);
+});
+
+test('⭐ the state carries the kind back out for a surface to read', () => {
+  const s = notifyState(booked(notifiedPatch('9pm', TOLD, SLOT_CHANGED)), [perf('9pm')], LEGACY);
+  assert.equal(s.notifiedKind, SLOT_CHANGED);
+  assert.equal(s.state, CLEAN);
+});
+
+/* ── notifiedPatch writes all three facts, or refuses ──────────────────────── */
+
+test('⭐⭐ notifiedPatch carries all three facts', () => {
+  assert.deepEqual(notifiedPatch('9pm', TOLD, SLOT_CHANGED),
+    { notified_at: TOLD, notified_slot_uuid: '9pm', notified_kind: SLOT_CHANGED });
+  /* ⚠ A removal records that there is no slot, ⛔ not a pretend one. */
+  assert.deepEqual(notifiedPatch(null, TOLD, SLOT_REMOVED),
+    { notified_at: TOLD, notified_slot_uuid: null, notified_kind: SLOT_REMOVED });
+  assert.equal(notifiedPatch('9pm', TOLD).notified_kind, SLOT_OFFER, 'the default is the first offer');
+});
+
+/**
+ * ⛔ AN UNKNOWN KIND THROWS. The database CHECK would refuse it with 23514
+ * anyway; failing here names the cause instead of surfacing a constraint
+ * violation from three layers away.
+ */
+test('⛔ notifiedPatch refuses a kind outside the ratified three', () => {
+  for (const bad of ['slot_cancelled', 'removal', 'SLOT_OFFER', '', null]) {
+    assert.throws(() => notifiedPatch('9pm', TOLD, bad), /unknown kind/);
+  }
+  assert.deepEqual(NOTIFY_KINDS, ['slot_offer', 'slot_changed', 'slot_removed']);
+});
+
+/**
+ * ⛔ THE VOCABULARY MUST MATCH THE NOTIFICATION REGISTRY, or notified_kind records
+ * a type the artist's panel cannot render.
+ *
+ * ⚠ A SOURCE-TEXT CHECK, and deliberately so: `notifMeta` is .jsx and node
+ * cannot load it (ERR_UNKNOWN_FILE_EXTENSION), so this cannot import the real
+ * registry. ⛔ It therefore proves the KEYS EXIST and nothing about rendering —
+ * the same limitation as the applications status sweep, and the reason lint and
+ * build still have to run.
+ */
+test('⛔⛔ every ratified kind is a key in notifMeta', async () => {
+  const { readFileSync } = await import('node:fs');
+  const src = readFileSync(new URL('./notifMeta.jsx', import.meta.url), 'utf8');
+  for (const k of NOTIFY_KINDS) {
+    assert.ok(src.includes(`\n  ${k}:`), `${k} is missing from notifMeta`);
+  }
+  assert.match(src, /slot_changed:\s+\{ label: 'SET TIME CHANGED'/);
 });

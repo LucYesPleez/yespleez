@@ -32,6 +32,11 @@ export const TYPE_META = {
   shortlisted:        { label: 'SHORTLISTED',        ...CYAN,   Icon: StarIcon        },
   event_updated:      { label: 'EVENT UPDATED',      ...CYAN,   Icon: PencilIcon      },
   set_times_released: { label: 'SET TIMES',          ...CYAN,   Icon: Clock3Icon      },
+  /* ⭐ P6.3 · the third scheduling communication. `slot_offer` and `slot_removed`
+     already existed; a CHANGE had no type, so nothing could tell an artist their
+     set time had moved. ⚠ AMBER because it needs the artist's attention, ⛔ not
+     RED: their booking is untouched and a move requires ⛔ no re-acceptance. */
+  slot_changed:       { label: 'SET TIME CHANGED',   ...AMBER,  Icon: Clock3Icon      },
   new_follower:       { label: 'NEW FOLLOWER',       ...CYAN,   Icon: UserPlusIcon    },
   venue_followed:     { label: 'VENUE FOLLOWED YOU', ...CYAN,   Icon: Building2Icon   },
   slot_accepted:      { label: 'SLOT ACCEPTED',      ...GREEN,  Icon: CheckCircle2Icon },

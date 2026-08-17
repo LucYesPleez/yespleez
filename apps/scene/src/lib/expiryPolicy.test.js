@@ -123,6 +123,30 @@ function registryTypes() {
   return [...block.matchAll(/^\s{2}([a-z_]+)\s*:\s*\{/gm)].map(m => m[1]);
 }
 
+/**
+ * ⛔⛔ EVERY PARSED POLICY MUST BE A VALUE THE DATABASE ACCEPTS.
+ *
+ * ⚠⚠ THIS TEST EXISTS BECAUSE THE SUITE WENT GREEN OVER INVALID SQL (2026-08-18).
+ * The P6.3 migration wrote `(type, category, policy)` instead of N4's
+ * `(type, policy, note)`, so the prose landed in `policy`. The sweep above found
+ * a classification and was satisfied; Postgres refused the insert with 23514 and
+ * only the owner running it found out.
+ *
+ * ⭐ The allowed set is the CHECK constraint in the baseline:
+ * `policy = ANY (ARRAY['never','event','enquiry'])`. ⛔ Change one, change both.
+ */
+test('⛔ no migration classifies a notification with a policy the CHECK would reject', () => {
+  const ALLOWED = ['never', 'event', 'enquiry'];
+  const offenders = [...policyTypes().entries()]
+    .filter(([, policy]) => !ALLOWED.includes(policy))
+    .map(([type, policy]) => `${type} → "${policy}"`);
+
+  assert.deepEqual(offenders, [],
+    'These would fail with 23514 on the real database. `policy` is the '
+    + `classification (${ALLOWED.join(' | ')}), not a description — the prose belongs in \`note\`:\n  `
+    + offenders.join('\n  '));
+});
+
 test('every notification type is either classified for expiry or deliberately retained', () => {
   const policy = policyTypes();
   const unaccounted = registryTypes()
