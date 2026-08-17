@@ -519,6 +519,29 @@ export default function SlotCard({ slot, claim, onFill, onEdit, onRemove, onDemo
             )}
 
             {/**
+              * ⭐⭐ P6.2 · WHAT HAVE WE ACTUALLY TOLD THIS ARTIST?
+              *
+              * ⚠⚠ A SECOND CHIP, ⛔ NOT a replacement for the one above. They
+              * answer different questions and conflating them is the defect
+              * `lib/notifyPlan` exists to end: the chip on the left is the
+              * artist's ANSWER (draft, awaiting, confirmed), this one is whether
+              * the set time has been COMMUNICATED. An artist can be confirmed on
+              * a time they were told about and then quietly moved.
+              *
+              * ⛔ ONLY WHEN THERE IS WORK. `needsNotice` is false for CLEAN and
+              * for an artist who is not booked, and a chip that says "nothing to
+              * do" on every row is noise that hides the rows that matter.
+              *
+              * ⛔ NOT A BUTTON. P6.2 is read-only; nothing here sends.
+              */}
+            {isHost && claim?.notify?.needsNotice && (
+              <span title="This artist has not been told about this set time"
+                style={{ display: 'inline-flex', alignItems: 'center', flexShrink: 0, fontSize: 10.5, fontFamily: "'Bebas Neue'", letterSpacing: 1.1, background: 'rgba(255,140,66,.14)', border: '1px solid rgba(255,140,66,.5)', color: '#FF8C42', borderRadius: 6, padding: '3px 9px', whiteSpace: 'nowrap' }}>
+                {claim.notify.label}
+              </span>
+            )}
+
+            {/**
               * ⭐ THE HEART, TOP RIGHT OF THE PANEL, RIGHT OF THE CHIP (owner,
               * 2026-08-16). ⚠ This REVERSES the earlier "above the chevron, ⛔
               * not in the panel" from the same day — the note it replaced is

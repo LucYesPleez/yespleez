@@ -231,3 +231,32 @@ test('notifiedPatch records the slot, or its absence', () => {
   assert.equal(now.notified_slot_uuid, 's1');
   assert.ok(!Number.isNaN(Date.parse(now.notified_at)));
 });
+
+/* ── ⛔⛔ NOBODY TO TELL IS NOT THE SAME AS NOT TOLD ────────────────────────── */
+
+/**
+ * ⚠⚠ THIS WAS FOUND IN THE RUNNING UI, ⛔ not here: `fewrf` on Bass Heavy is a
+ * hand-typed act with no account, holding an `accepted` performance on the 11PM
+ * slot, and the chip read SET TIME NOT SENT. There is no recipient, so that is
+ * work the host can never discharge.
+ */
+test('⛔⛔ a hand-typed act with no account has NOTHING to say, however it is scheduled', () => {
+  const typed = booked({ artist_id: null, artist_profile_id: null });
+  for (const p of [[perf('slot-11pm', { status: 'accepted' })], [perf('slot-11pm')], []]) {
+    const s = notifyState(typed, p, LEGACY);
+    assert.equal(s.state, NOTHING_TO_SAY);
+    assert.equal(s.needsNotice, false);
+  }
+});
+
+/* ⚠ An `artist_profile_id` alone is NOT reachable — the same rule
+   `lineupActions.isReachable` encodes, and the reason `profiles.user_id` is not
+   an identity. */
+test('⚠ a profile without an account is still nobody to tell', () => {
+  const s = notifyState(booked({ artist_id: null, artist_profile_id: 'p-1' }), [perf('s1')], LEGACY);
+  assert.equal(s.state, NOTHING_TO_SAY);
+});
+
+test('⭐ an artist WITH an account is unaffected by the reachability rule', () => {
+  assert.equal(notifyState(booked(), [perf('s1')], LEGACY).state, NOT_NOTIFIED);
+});

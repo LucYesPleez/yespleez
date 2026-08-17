@@ -31,6 +31,8 @@
  * image when an act has no picture; the four link columns feed the mix player;
  * `genre_string`/`sound` feed the descriptor line.
  */
+import { notifyState } from './notifyPlan';
+
 export const CLAIM_PROFILE_COLUMNS =
   'id, user_id, type, avatar, avatar_thumb, mix_link, soundcloud, mixcloud, '
   + 'instagram, facebook, youtube, website, genre_string, sound';
@@ -99,4 +101,37 @@ export async function enrichClaims(db, claims = []) {
   }
 
   return list;
+}
+
+/**
+ * ── ⭐⭐ P6.2 · WHAT HAVE WE TOLD THE ACT ON THIS SLOT? ──────────────────────
+ *
+ * ⚠⚠ ATTACHED HERE FOR THE REASON THIS MODULE EXISTS. `SlotCard` is canonical
+ * across the event page and the dashboard, and the two screens behaved
+ * differently for an afternoon because their claims were assembled twice. A
+ * notification chip computed in one surface and not the other would be the same
+ * bug wearing a new hat.
+ *
+ * ⛔ PURE, and ⛔ no database read: every fact it needs is already loaded. It
+ * attaches `claim.notify` in place, exactly as `enrichClaims` attaches profiles.
+ *
+ * ⚠ `perfsByMember`, ⛔ NOT `claim.performance` alone. A member may hold several
+ * slots, and the state depends on ALL their placements — judging from one row
+ * would call a two-slot act settled on the strength of half their bookings.
+ *
+ * ⛔ It decides nothing and sends nothing. `lib/notifyPlan` owns the rule.
+ */
+export function attachNotifyState(claims = [], { members = [], perfsByMember = {}, event = null } = {}) {
+  const byId = {};
+  (members || []).forEach(m => { if (m?.id) byId[m.id] = m; });
+
+  (claims || []).forEach(c => {
+    /* ⚠ The member row from the LOADER, which carries `notified_at` and
+       `notified_slot_uuid`. `claim.member` came through `toClaim` and holds the
+       same row, but reading the map keeps one source when a caller enriches a
+       claim list assembled elsewhere. */
+    const member = byId[c?.member_id] || c?.member || null;
+    c.notify = notifyState(member, (perfsByMember || {})[c?.member_id] || [], event);
+  });
+  return claims;
 }

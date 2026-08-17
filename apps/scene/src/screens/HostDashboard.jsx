@@ -26,12 +26,13 @@ import { memberProfileKeys, indexMemberProfiles } from './event/lineupProfiles';
    is how the old row came to print "1.5 hrsm". */
 import { groupSlotsIntoDays, indexPerformances } from '../lib/eventSlots';
 /* ⭐ THE ONE definition of a dressed claim — shared with `useEventData`. */
-import { enrichClaims } from '../lib/claimEnrichment';
+import { enrichClaims, attachNotifyState } from '../lib/claimEnrichment';
 /* ⛔ `DaySlots`, ⛔ NOT `SlotCard` directly — it owns the DndContext, so the
    drag dots the padlock reveals actually drag. */
 import DaySlots from './event/DaySlots';
 import { buildHostLineup, STATE_COLOURS, bookedMembers } from '../lib/hostLineup';
 import { shortlistEntriesFromGroups } from '../lib/shortlist';
+import { notifyState } from '../lib/notifyPlan';
 import { setTimesEnabled, withSetTimesEnabled } from '../lib/eventSetTimes';
 /* ⚠ `findExistingMember` ONLY. The dashboard still needs to READ whether an
    applicant is on the bill — that is what ACCEPTED · ON THE BILL says — but it
@@ -304,7 +305,8 @@ export default function HostDashboard({ userId: userIdProp }) {
            array: `buildHostLineup` is the BILL and a shortlisted member is
            somebody you are only considering. */
         supabase.from('lineup_members')
-          .select('id, event_id, artist_id, artist_profile_id, artist_name, genre, sound, card_pills, status')
+          /* ⭐ P6.2 · the communicated scheduling state, host-side only. */
+          .select('id, event_id, artist_id, artist_profile_id, artist_name, genre, sound, card_pills, status, notified_at, notified_slot_uuid')
           .in('event_id', ids).in('status', ['on_bill', 'shortlisted']),
         // ⚠ `declined` is NO LONGER FILTERED OUT. It was, which meant a slot
         // somebody turned down looked identical to one nobody had been asked
@@ -365,12 +367,21 @@ export default function HostDashboard({ userId: userIdProp }) {
       // slotId → who is on it, for the SET TIMES strip. Deterministic now; the
       // old map took whichever row the planner returned last.
       const cm = {};
+      /* ⭐ P6.2 · every performance per member, once for the whole list.
+         `lineup_member_id` is unique across events, so one map serves them all
+         and ⛔ no event can see another's rows. */
+      const perfsByMember = {};
+      (perfsData || []).forEach(p => { (perfsByMember[p.lineup_member_id] ||= []).push(p); });
       groups.forEach(g => {
         const membersById = {};
         g.members.forEach(r => { membersById[r.member.id] = r; });
+        const evMembers = (membersData || []).filter(m => m.event_id === g.event.id);
         const { primary } = indexPerformances(perfsData || [], Object.fromEntries(
-          (membersData || []).filter(m => m.event_id === g.event.id).map(m => [m.id, m])));
+          evMembers.map(m => [m.id, m])));
         if (Object.keys(primary).length) cm[g.event.id] = primary;
+        /* ⭐ P6.2 · the communicated state, attached by the SAME module the
+           event page uses. ⚠ Per event, with that event's own contract. */
+        attachNotifyState(Object.values(primary), { members: evMembers, perfsByMember, event: g.event });
       });
 
       /**
@@ -1129,6 +1140,8 @@ export default function HostDashboard({ userId: userIdProp }) {
                  `Object.keys(claims).length`, which counted an unanswered offer
                  as a booked slot. */
               const evClaims    = claimsMap[ev.id] || {};
+              /* ⭐ P6.2 · does this event owe anybody a notice? */
+              const evAnyNotice = Object.values(evClaims).some(c => c?.notify?.needsNotice);
 
               return (
                 <div key={ev.id} className={s.lineupGroup}>
@@ -1285,7 +1298,11 @@ export default function HostDashboard({ userId: userIdProp }) {
                             */
                           { key: 'SET TIMES',  label: (
                             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                              SET TIMES
+                              {/* ⭐ P6.2 · `!` when an artist has not been told,
+                                  read from the same `claim.notify` the slot
+                                  cards render. ⛔ Change this, change the event
+                                  page's twin — §11. */}
+                              {evAnyNotice ? 'SET TIMES !' : 'SET TIMES'}
                               <span
                                 role="button"
                                 tabIndex={0}
@@ -1634,7 +1651,14 @@ export default function HostDashboard({ userId: userIdProp }) {
                                    and the LINEUP tab. ⛔ Still NO actions here:
                                    the dashboard is triage, and assigning a set
                                    time is a workspace operation. */
-                                subState={needsSetTime ? lineupWorkState('ON BILL').setTime : undefined}
+                                /* ⭐ P6.2 · NEEDS SET TIME vs REMOVAL NOT SENT.
+                                   ⛔ Same rule as the event page: only
+                                   `notified_at` separates never scheduled from
+                                   told about a time they no longer have. */
+                                subState={needsSetTime
+                                  ? (notifyState(row, members.find(r2 => r2.member?.id === row.id)?.perfs || [], ev).label
+                                     || lineupWorkState('ON BILL').setTime)
+                                  : undefined}
                                 needsAction={!!needsSetTime}
                                 tags={mp?.card_pills || row.card_pills}
                                 viewerProfileId={profile?.id || null} />

@@ -15,7 +15,7 @@ import { supabase } from '../../lib/supabase';
 import { memberProfileKeys, indexMemberProfiles } from './lineupProfiles';
 import { PROFILE_CARD_META_COLUMNS } from '../../components/ProfileCard';
 import { groupSlotsIntoDays, indexPerformances } from '../../lib/eventSlots';
-import { enrichClaims } from '../../lib/claimEnrichment';
+import { enrichClaims, attachNotifyState } from '../../lib/claimEnrichment';
 import { tallySlots } from './slotTally';
 
 export const EVENT_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -106,7 +106,10 @@ export function useEventData(id, navigate) {
         /* ⚠ BOTH STATUSES IN ONE READ so shortlist cards resolve profiles in the
            same pass. They are split immediately below — ⛔ nothing downstream may
            receive the mixed array. */
-        supabase.from('lineup_members').select('id, artist_id, artist_profile_id, artist_name, genre, sound, card_pills, status').eq('event_id', id).in('status', ['on_bill', 'shortlisted']),
+        /* ⭐ P6.2 · `notified_at` and `notified_slot_uuid` are the communicated
+           scheduling state (`lib/notifyPlan`). ⛔ Host-side only: the artist
+           surfaces have no need of them and do not select them. */
+        supabase.from('lineup_members').select('id, artist_id, artist_profile_id, artist_name, genre, sound, card_pills, status, notified_at, notified_slot_uuid').eq('event_id', id).in('status', ['on_bill', 'shortlisted']),
         supabase.from('performances').select('id, lineup_member_id, slot_id, slot_uuid, status').eq('event_id', id),
         supabase.from('event_slots').select('id, event_id, day_index, day_name, position, legacy_key, time, ampm, dur_mins, label, label_color, pinned')
           .eq('event_id', id).order('day_index').order('position'),
@@ -136,6 +139,9 @@ export function useEventData(id, navigate) {
          for an entire afternoon. ⛔ Do not re-inline it. */
       const claimList = Object.values(claimsBySlot).flat();
       await enrichClaims(supabase, claimList);
+      /* ⭐ P6.2 · the same dressing step, for the communicated state. ⚠ Needs
+         EVERY performance per member, built just below, so it runs after that
+         map rather than beside `enrichClaims`. */
       /**
        * Member → EVERY performance they hold.
        *
@@ -148,6 +154,7 @@ export function useEventData(id, navigate) {
        */
       const perfsByMember = {};
       (perfsData || []).forEach(p => { (perfsByMember[p.lineup_member_id] ||= []).push(p); });
+      attachNotifyState(claimList, { members: billMembers, perfsByMember, event: ev });
       // M5.1 (D2): member profiles resolve by artist_profile_id (deterministic
       // for multi-profile owners), legacy artist_id join only for rows without
       // one. ⚠ Both the fetch and the key live in lineupProfiles.js and are

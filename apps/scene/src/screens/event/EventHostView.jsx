@@ -17,6 +17,7 @@ import { scopeToApplicant, fetchApplicantProfiles } from '../../lib/applicantPro
 import { findOpenAsksForDate, declineOpenAsks } from '../../lib/dateLockout';
 import { memberState, STATE_COLOURS, billCapacity, billFullMessage, bookedMemberRows } from '../../lib/hostLineup';
 import { shortlistEntries } from '../../lib/shortlist';
+import { notifyState } from '../../lib/notifyPlan';
 import { setTimesEnabled } from '../../lib/eventSetTimes';
 import { normaliseStatus, rawStatusesFor, PIPELINE_BUCKETS, STATUS_TAB_COLOR } from '../../lib/enquiryUtils';
 import { planUnassign, planMoveToShortlist, planRemoveFromEvent, executeLineupPlan, assignMemberToSlot } from '../../lib/lineupActions';
@@ -75,6 +76,9 @@ export default function EventHostView({
    * right for pixels and would book somebody who never agreed.
    */
   const bookedLineup = bookedMemberRows(lineupMembers, perfsByMember, event);
+  /* ⭐ P6.2 · is any artist owed a notice? Read from the SAME `claim.notify`
+     the slot cards render, so the tab and the rows can never disagree. */
+  const anyNoticeOutstanding = Object.values(claims || {}).some(c => c?.notify?.needsNotice);
 
   const [eventTab,      setEventTab]      = useState('LINEUP');
 
@@ -903,7 +907,11 @@ export default function EventHostView({
                ⛔ and it keeps the default landing tab first, which is what both
                surfaces already fall back to. */
             usesSetTimes
-              ? { key: 'SET_TIMES', label: 'SET TIMES' }
+              /* ⭐⭐ P6.2 · `!` MEANS SOMEBODY HAS NOT BEEN TOLD. ⛔ Not a count:
+                 the number of outstanding notices is not a quantity the host
+                 acts on, the tab is. ⚠ Derived every render from the claims, so
+                 it cannot go stale, and ⛔ it never reads `set_times_locked`. */
+              ? { key: 'SET_TIMES', label: `SET TIMES${anyNoticeOutstanding ? ' !' : ''}` }
               : { key: 'LINEUP',    label: `LINEUP${bookedLineup.length ? ` (${bookedLineup.length})` : ''}` },
             { key: 'SHORTLIST', label: `SHORTLIST${shortList.length ? ` (${shortList.length})` : ''}` },
             { key: 'PIPELINE',  label: `PIPELINE${pipeline.length ? ` (${pipeline.length})` : ''}` },
@@ -1209,7 +1217,17 @@ export default function EventHostView({
                      wording ("NEEDS SET TIME", ⛔ not "NO SET TIME") and the lit
                      row is what makes a tab scannable. ⛔ Not re-worded here:
                      one phrase, one source. */
-                  subState={needsSetTime ? lineupWorkState('ON BILL').setTime : undefined}
+                  /**
+                   * ⭐⭐ P6.2 · A BOOKED ARTIST WITH NO SET TIME IS ONE OF TWO
+                   * DIFFERENT SITUATIONS, and only `notified_at` can tell them
+                   * apart: never scheduled (NEEDS SET TIME) versus told about a
+                   * time they no longer have (REMOVAL NOT SENT). ⛔ Calling both
+                   * "needs set time" hides an artist who is expecting to play.
+                   */
+                  subState={needsSetTime
+                    ? (notifyState(row, perfsByMember[row.id] || [], event).label
+                       || lineupWorkState('ON BILL').setTime)
+                    : undefined}
                   needsAction={!!needsSetTime}
                   /**
                    * ⭐⭐ THE BOOKED ROW'S ONE ACTION IS THE WORK IT IS HERE FOR.

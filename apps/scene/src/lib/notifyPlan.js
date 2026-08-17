@@ -54,6 +54,9 @@
  * statuses and lock the event behind a single press.
  */
 import { isBooked } from './hostLineup';
+/* ⭐ ONLY the pure `isReachable` predicate. ⛔ No writer from that module is used
+   here, and ⛔ none may be: see the purity clause above. */
+import { isReachable } from './lineupActions';
 
 /** ⭐ The state names. ⛔ Compare against these, never against a string. */
 export const NOTHING_TO_SAY   = 'NOTHING_TO_SAY';
@@ -121,6 +124,22 @@ export function notifyState(member, perfs = [], event = null) {
    * a booking that does not exist.
    */
   if (!isBooked(member, perfs, event)) return out(NOTHING_TO_SAY);
+
+  /**
+   * ⛔⛔ NOBODY TO TELL IS NOT THE SAME AS NOT TOLD.
+   *
+   * ⚠⚠ FOUND IN THE REAL UI, ⛔ not in a test: `fewrf` on Bass Heavy is a
+   * hand-typed act with no account, and this function reported SET TIME NOT SENT
+   * against them. There is no recipient, so that chip is work the host can never
+   * discharge, and it would sit there forever inviting a send that
+   * `writeNotifications` correctly refuses to address.
+   *
+   * ⭐ `isReachable` is the EXISTING definition and is imported rather than
+   * restated: `lineupActions` already refuses to write to a null recipient for
+   * this exact reason, and two spellings of "can we tell them" is how the two
+   * would drift. ⛔ Only that pure predicate is used; ⛔ no writer is reached.
+   */
+  if (!isReachable(member)) return out(NOTHING_TO_SAY);
 
   if (!placements.length) {
     /**
