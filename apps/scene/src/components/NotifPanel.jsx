@@ -228,6 +228,9 @@ export default function NotifPanel({ onClose }) {
 function PanelRow({ notif, userId, onUpdate, onDismiss, isLast, rootRef }) {
   const [busy, setBusy]           = useState(false);
   const [responded, setResponded] = useState(!!notif.responded_at);
+  /* ⚠ Why an answer did not land. ⛔ Not a toast: it belongs on the row the
+     artist just tapped, next to the buttons that are still live. */
+  const [answerError, setAnswerError] = useState('');
   const [dismissing, setDismissing] = useState(false);
   const meta = getNotifMeta(notif.type, notif.message);
   const { Icon } = meta;
@@ -235,22 +238,28 @@ function PanelRow({ notif, userId, onUpdate, onDismiss, isLast, rootRef }) {
   const message = cleanMessage(notif.message);
   const isUnread = !notif.read;
 
-  async function handleAcceptSlot() {
+  /**
+   * ── ⛔⛔ AN ANSWER THAT DID NOT LAND IS NOT AN ANSWER ────────────────────────
+   *
+   * ⚠⚠ Both of these used to `markResponded` unconditionally. So when the
+   * performance had been deleted — which an ordinary edit to the running order
+   * does, via ON DELETE CASCADE — the artist saw their offer marked answered, the
+   * host was told they had accepted, and NOTHING was recorded.
+   *
+   * ⛔ `markResponded` only on success. ⚠ On failure the row stays actionable and
+   * says why, because the artist may need to chase the host.
+   */
+  async function answerSlot(fn) {
     if (!userId || busy) return;
-    setBusy(true);
-    await acceptSlotOffer(data, userId);
+    setBusy(true); setAnswerError('');
+    const res = await fn(data, userId);
+    if (!res?.ok) { setAnswerError(res?.error || 'That did not go through. Try again.'); setBusy(false); return; }
     await markResponded(notif.id);
     onUpdate(notif.id, { responded_at: new Date().toISOString() });
     setResponded(true); setBusy(false);
   }
-  async function handleDeclineSlot() {
-    if (!userId || busy) return;
-    setBusy(true);
-    await declineSlotOffer(data, userId);
-    await markResponded(notif.id);
-    onUpdate(notif.id, { responded_at: new Date().toISOString() });
-    setResponded(true); setBusy(false);
-  }
+  const handleAcceptSlot  = () => answerSlot(acceptSlotOffer);
+  const handleDeclineSlot = () => answerSlot(declineSlotOffer);
   async function handleAcceptInvite() {
     if (!userId || busy) return;
     setBusy(true);
@@ -357,6 +366,14 @@ function PanelRow({ notif, userId, onUpdate, onDismiss, isLast, rootRef }) {
           <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
             <button onClick={handleAcceptSlot} disabled={busy} style={actionBtn(meta.col, false)}>{busy ? '…' : '✓ ACCEPT'}</button>
             <button onClick={handleDeclineSlot} disabled={busy} style={actionBtn(null, true)}>{busy ? '…' : '✕ DECLINE'}</button>
+          </div>
+        )}
+        {/* ⚠⚠ WHY IT DID NOT GO THROUGH. The buttons above stay live: the artist
+            may need to chase the host, and ⛔ pretending the offer is answered is
+            what this replaces. */}
+        {answerError && (
+          <div style={{ marginTop: 8, padding: '7px 9px', borderRadius: 8, background: 'rgba(255,68,68,.1)', border: '1px solid rgba(255,68,68,.35)', color: '#FF8C8C', fontSize: 11.5, lineHeight: 1.45 }}>
+            {answerError}
           </div>
         )}
         {actionable && notif.type === 'event_invite' && (

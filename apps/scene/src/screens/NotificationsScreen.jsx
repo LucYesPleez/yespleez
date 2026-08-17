@@ -174,6 +174,8 @@ export default function NotificationsScreen() {
 function NotifRow({ notif, userId, onUpdate, onDismiss, rootRef }) {
   const [busy, setBusy]           = useState(false);
   const [responded, setResponded] = useState(!!notif.responded_at);
+  /* ⚠ Why an answer did not land, on the row the artist just tapped. */
+  const [answerError, setAnswerError] = useState('');
   const [dismissing, setDismissing] = useState(false);
   const meta = getNotifMeta(notif.type, notif.message);
   const { Icon } = meta;
@@ -181,22 +183,23 @@ function NotifRow({ notif, userId, onUpdate, onDismiss, rootRef }) {
   const message = cleanMessage(notif.message);
   const isUnread = !notif.read;
 
-  async function handleAcceptSlot() {
+  /**
+   * ⛔⛔ AN ANSWER THAT DID NOT LAND IS NOT AN ANSWER. ⛔ Change one, change both —
+   * `NotifPanel` has the twin of this. Marking responded unconditionally told the
+   * artist their offer was answered and the host that they had accepted, while
+   * nothing was recorded, whenever the performance had been deleted.
+   */
+  async function answerSlot(fn) {
     if (!userId || busy) return;
-    setBusy(true);
-    await acceptSlotOffer(data, userId);
+    setBusy(true); setAnswerError('');
+    const res = await fn(data, userId);
+    if (!res?.ok) { setAnswerError(res?.error || 'That did not go through. Try again.'); setBusy(false); return; }
     await markResponded(notif.id);
     onUpdate(notif.id, { responded_at: new Date().toISOString() });
     setResponded(true); setBusy(false);
   }
-  async function handleDeclineSlot() {
-    if (!userId || busy) return;
-    setBusy(true);
-    await declineSlotOffer(data, userId);
-    await markResponded(notif.id);
-    onUpdate(notif.id, { responded_at: new Date().toISOString() });
-    setResponded(true); setBusy(false);
-  }
+  const handleAcceptSlot  = () => answerSlot(acceptSlotOffer);
+  const handleDeclineSlot = () => answerSlot(declineSlotOffer);
   async function handleAcceptInvite() {
     if (!userId || busy) return;
     setBusy(true);
@@ -312,6 +315,13 @@ function NotifRow({ notif, userId, onUpdate, onDismiss, rootRef }) {
           <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
             <button onClick={handleAcceptSlot} disabled={busy} style={actionBtn(meta.col, false)}>{busy ? '…' : '✓ ACCEPT SLOT'}</button>
             <button onClick={handleDeclineSlot} disabled={busy} style={actionBtn(null, true)}>{busy ? '…' : '✕ DECLINE'}</button>
+          </div>
+        )}
+        {/* ⚠⚠ WHY IT DID NOT GO THROUGH, beside buttons that stay live. ⛔ Change
+            one, change both — NotifPanel has the twin. */}
+        {answerError && (
+          <div style={{ marginTop: 10, padding: '8px 10px', borderRadius: 8, background: 'rgba(255,68,68,.1)', border: '1px solid rgba(255,68,68,.35)', color: '#FF8C8C', fontSize: 12, lineHeight: 1.45 }}>
+            {answerError}
           </div>
         )}
         {actionable && notif.type === 'event_invite' && (

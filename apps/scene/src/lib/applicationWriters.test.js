@@ -157,3 +157,53 @@ test('accepting an invite creates a shortlisted application', () => {
   assert.match(invite, /from\('applications'\)\s*\.insert\(/, 'it still creates the application');
   assert.match(invite, /status:\s*'shortlisted'/);
 });
+
+/**
+ * ── ⛔⛔ AN OFFER WHOSE SET TIME IS GONE MUST NOT ANSWER SILENTLY ─────────────
+ *
+ * ⚠⚠ FOUND IN A REAL INBOX. The update was issued and its result DISCARDED, so
+ * once the performance had been deleted — which deleting its SLOT does, via ON
+ * DELETE CASCADE — the artist tapped ACCEPT and three things lied at once: the
+ * offer showed as answered, the HOST was told the artist accepted, and nothing
+ * was recorded.
+ *
+ * ⚠ SOURCE-TEXT CHECKS, so they prove the WIRING and not the behaviour. That is
+ * still the shape of the defect: the check simply was not there.
+ */
+test('⛔⛔ the slot answer verifies the write landed before telling the host', () => {
+  const code = stripComments(readFileSync(join(SRC, 'lib/notifActions.js'), 'utf8'));
+  for (const name of ['acceptSlotOffer', 'declineSlotOffer']) {
+    const start = code.indexOf(`export async function ${name}`);
+    const body  = code.slice(start, code.indexOf('export async function', start + 10));
+
+    /* ⭐ The update must ask what it changed. */
+    assert.match(body, /\.select\('id'\)/, `${name} discards its result again`);
+    /* ⛔ An empty result is a FAILURE, not a success. RLS filters an UPDATE
+       rather than erroring it, so this is the only signal. */
+    assert.match(body, /!rows\?\.length/, `${name} does not treat an empty result as a failure`);
+    assert.match(body, /code:\s*'gone'/, `${name} must name the gone case`);
+
+    /* ⛔⛔ AND THE HOST IS NOT TOLD. The `gone` return must come BEFORE the host
+       notification, or an acceptance that was never recorded is announced. */
+    assert.ok(body.indexOf("code: 'gone'") < body.indexOf('data.host_id'),
+      `${name} notifies the host before checking the write landed`);
+  }
+});
+
+/**
+ * ⛔ AND NEITHER SURFACE MAY MARK A FAILED ANSWER AS ANSWERED. Both used to call
+ * `markResponded` unconditionally. ⛔ Change one, change both.
+ */
+test('⛔⛔ neither notification surface marks a failed answer as responded', () => {
+  for (const file of ['components/NotifPanel.jsx', 'screens/NotificationsScreen.jsx']) {
+    const src = stripComments(readFileSync(join(SRC, file), 'utf8'));
+    assert.equal(/await acceptSlotOffer\([^)]*\);\s*await markResponded/.test(src), false,
+      `${file} marks responded without checking the result`);
+    assert.equal(/await declineSlotOffer\([^)]*\);\s*await markResponded/.test(src), false,
+      `${file} marks responded without checking the result`);
+    /* ⭐ The guard, and the reason it stays actionable: the artist may need to
+       chase the host. */
+    assert.match(src, /if \(!res\?\.ok\)/, `${file} does not inspect the answer's result`);
+    assert.match(src, /answerError/, `${file} does not tell the artist why it failed`);
+  }
+});

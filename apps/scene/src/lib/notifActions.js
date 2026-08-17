@@ -117,11 +117,41 @@ async function hostNoticeIdentities(hostUserId, artistUserId) {
  * `performances.status = 'accepted'` + `accepted_at` is now the whole record of
  * the artist agreeing, which is what every surface should read.
  */
+/**
+ * ── ⛔⛔ AN OFFER WHOSE SET TIME IS GONE MUST SAY SO ─────────────────────────
+ *
+ * ⚠⚠ THE DEFECT THIS CLOSES, found in a real inbox. The update was issued and
+ * its result DISCARDED, so when the performance no longer existed the artist
+ * tapped ACCEPT, nothing was recorded, and three things then lied:
+ *
+ *   the artist    saw the offer marked responded, so they believed they were in
+ *   the host      was notified "X accepted the slot" for a slot that does not
+ *                 exist and an acceptance that was never written
+ *   the record    stayed empty, so no surface could show the acceptance
+ *
+ * ⭐ A performance is deleted whenever its SLOT is deleted (ON DELETE CASCADE),
+ * so an outstanding offer is orphaned by an ordinary edit to the running order.
+ * ⛔ That is not an exotic case and it must not fail silently.
+ *
+ * ⚠ AN EMPTY RESULT IS NOT PROOF OF DELETION: RLS filters an UPDATE rather than
+ * erroring it, so it may also mean "not yours to answer". ⛔ The message must not
+ * assert which — it says the set time is no longer available and stops.
+ *
+ * @returns {Promise<{ok: boolean, code?: string, error?: string}>}
+ */
 export async function acceptSlotOffer(data, userId) {
-  if (data.performance_id) {
-    await supabase.from('performances')
-      .update({ status: 'accepted', accepted_at: new Date().toISOString() })
-      .eq('id', data.performance_id);
+  if (!data.performance_id) {
+    return { ok: false, code: 'no_performance', error: 'This offer does not name a set time, so it cannot be accepted.' };
+  }
+  const { data: rows, error } = await supabase.from('performances')
+    .update({ status: 'accepted', accepted_at: new Date().toISOString() })
+    .eq('id', data.performance_id)
+    .select('id');
+  if (error)        return { ok: false, code: 'write_failed', error: error.message };
+  /* ⛔⛔ AND THE HOST IS NOT TOLD. Announcing an acceptance that was never
+     recorded is worse than the silence it replaces. */
+  if (!rows?.length) {
+    return { ok: false, code: 'gone', error: 'That set time is no longer available. The host may have changed the running order.' };
   }
   if (data.host_id) {
     await writeNotification({
@@ -132,6 +162,7 @@ export async function acceptSlotOffer(data, userId) {
       data:    { event_id: data.event_id, slot_id: data.slot_id, artist_user_id: userId },
     });
   }
+  return { ok: true };
 }
 
 /**
@@ -145,9 +176,19 @@ export async function acceptSlotOffer(data, userId) {
  * precise than the old behaviour, because it says WHICH slot was turned down
  * rather than quietly demoting the whole application.
  */
+/* ⛔ SAME RULE ON THE WAY OUT — see `acceptSlotOffer`. A decline that recorded
+   nothing must not tell the host the artist declined. */
 export async function declineSlotOffer(data, userId) {
-  if (data.performance_id) {
-    await supabase.from('performances').update({ status: 'declined' }).eq('id', data.performance_id);
+  if (!data.performance_id) {
+    return { ok: false, code: 'no_performance', error: 'This offer does not name a set time, so it cannot be declined.' };
+  }
+  const { data: rows, error } = await supabase.from('performances')
+    .update({ status: 'declined' })
+    .eq('id', data.performance_id)
+    .select('id');
+  if (error)        return { ok: false, code: 'write_failed', error: error.message };
+  if (!rows?.length) {
+    return { ok: false, code: 'gone', error: 'That set time is no longer available, so there is nothing to decline.' };
   }
   if (data.host_id) {
     await writeNotification({
@@ -158,6 +199,7 @@ export async function declineSlotOffer(data, userId) {
       data:    { event_id: data.event_id, slot_id: data.slot_id, artist_user_id: userId },
     });
   }
+  return { ok: true };
 }
 
 /**
