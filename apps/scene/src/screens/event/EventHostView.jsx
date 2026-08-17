@@ -328,18 +328,37 @@ export default function EventHostView({
     /* ⛔ A control that cannot act is not a control — but if one is somehow
        reached, refuse in words rather than sending the wrong thing. */
     if (!member || !kind) { setNotifyError('There is nothing to tell this artist about.'); return; }
-    setConfirmNotify({ slot, member, kind, claim });
+    setConfirmNotify({ member, kind, slotUuid: slot.id, slotLabel: [slot.time, slot.ampm].filter(Boolean).join(' ') });
+  }
+
+  /**
+   * ── ⭐⭐ P6.3c-3 · THE REMOVAL FALLBACK ──────────────────────────────────────
+   *
+   * ⚠⚠ WHY A CONTROL EXISTS AT ALL. `executeLineupPlan` announces a removal as it
+   * happens and records it (P6.3c-2), so this is ⛔ NOT the normal path. It is for
+   * the cases that path cannot reach: the send FAILED, or the placement vanished
+   * without going through a plan at all — deleting a slot in the editor takes its
+   * performances with it, silently. Both leave a truthful `REMOVAL_TO_TELL`: an
+   * artist who believes they are playing and has not been told otherwise.
+   *
+   * ⛔ THERE IS NO SLOT TO POINT AT, which is the whole state. The slot we record
+   * is the one we last TOLD them about, and `notified_slot_uuid` may itself be
+   * NULL because deleting the slot row nulls the FK — the KIND is what carries
+   * the meaning, not the slot.
+   */
+  function askToSendRemoval(member) {
+    if (!member?.id) { setNotifyError('There is nothing to tell this artist about.'); return; }
+    setConfirmNotify({ member, kind: 'slot_removed', slotUuid: member.notified_slot_uuid || null, slotLabel: null });
   }
 
   async function doNotify() {
     if (!confirmNotify || notifying) return;
-    const { slot, member, kind } = confirmNotify;
+    const { member, kind, slotUuid, slotLabel } = confirmNotify;
     setNotifying(true);
     setNotifyError('');
     const res = await sendSlotNotice(supabase, {
       member, event, perfs: perfsByMember[member.id] || [],
-      slotUuid: slot.id, kind,
-      slotLabel: [slot.time, slot.ampm].filter(Boolean).join(' '),
+      slotUuid, kind, slotLabel,
       /* ⭐ THE TRANSPORT IS INJECTED, so the module holds no client of its own. */
       notify: row => writeNotifications([row]),
       resolveProfileId: resolvePerformerProfileId,
@@ -1035,11 +1054,22 @@ export default function EventHostView({
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.78)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
           <div style={{ background: '#181825', borderRadius: 16, padding: 24, maxWidth: 360, width: '100%', border: '1px solid rgba(255,255,255,.1)' }}>
             <div style={{ fontFamily: "'Bebas Neue'", fontSize: 20, letterSpacing: 2, marginBottom: 10 }}>
-              {confirmNotify.kind === 'slot_changed' ? 'TELL THEM IT CHANGED?' : 'SEND THIS SET TIME?'}
+              {confirmNotify.kind === 'slot_removed'  ? 'TELL THEM IT IS OFF?'
+                : confirmNotify.kind === 'slot_changed' ? 'TELL THEM IT CHANGED?'
+                : 'SEND THIS SET TIME?'}
             </div>
+            {/**
+              * ⚠ A REMOVAL IS A DIFFERENT SENTENCE, ⛔ not the same one with a
+              * blank where the time goes. And it says what stays true: they are
+              * still on the lineup, because `REMOVAL_TO_TELL` only exists for a
+              * member who is still booked.
+              */}
             <p style={{ fontSize: 13, color: 'rgba(255,255,255,.6)', lineHeight: 1.6, margin: '0 0 6px' }}>
-              {confirmNotify.member.artist_name || 'This artist'} will be told they are on at{' '}
-              <strong style={{ color: '#fff' }}>{[confirmNotify.slot.time, confirmNotify.slot.ampm].filter(Boolean).join(' ')}</strong>.
+              {confirmNotify.kind === 'slot_removed'
+                ? <>{confirmNotify.member.artist_name || 'This artist'} will be told their set time has been{' '}
+                    <strong style={{ color: '#fff' }}>removed</strong>. They stay on the lineup.</>
+                : <>{confirmNotify.member.artist_name || 'This artist'} will be told they are on at{' '}
+                    <strong style={{ color: '#fff' }}>{confirmNotify.slotLabel}</strong>.</>}
             </p>
             <p style={{ fontSize: 12, color: 'rgba(255,255,255,.4)', lineHeight: 1.6, margin: '0 0 20px' }}>
               Only this artist is notified. Nobody else on the lineup is affected.
@@ -1308,6 +1338,11 @@ export default function EventHostView({
                * answering a question it was never asked.
                */
               const isMember = kind === 'member';
+              /* ⭐ P6.3c-3 · what have we told them? Computed ONCE per row, and
+                 meaningful only for a member — an application has no record. */
+              const rowNotice = isMember
+                ? notifyState(row, perfsByMember[row.id] || [], event)
+                : { state: null, label: null, needsNotice: false };
               const prof = isMember
                 ? (memberProfiles[row.id] || null)
                 : (appProfiles[row.id] || null);
@@ -1346,8 +1381,7 @@ export default function EventHostView({
                    * "needs set time" hides an artist who is expecting to play.
                    */
                   subState={needsSetTime
-                    ? (notifyState(row, perfsByMember[row.id] || [], event).label
-                       || lineupWorkState('ON BILL').setTime)
+                    ? (rowNotice.label || lineupWorkState('ON BILL').setTime)
                     : undefined}
                   needsAction={!!needsSetTime}
                   /**
@@ -1368,6 +1402,28 @@ export default function EventHostView({
                     <div className="yp-decision-row">
                       <DecisionBtn tone="accept" icon={CheckIcon} label="ASSIGN SET TIME"
                         onClick={() => setAssigningMember({ member: row, prof })} />
+                      {/**
+                        * ⭐⭐ P6.3c-3 · THE REMOVAL FALLBACK, and ⛔ ONLY for
+                        * `REMOVAL_TO_TELL`.
+                        *
+                        * ⚠⚠ THIS IS NOT THE NORMAL PATH. A removal announces
+                        * itself and records it (P6.3c-2). This control exists for
+                        * the cases that cannot reach: the send FAILED, or the
+                        * placement vanished without a plan — deleting a slot in
+                        * the editor takes its performances with it, silently.
+                        *
+                        * ⛔ NEVER SHOWN FOR `NEEDS SET TIME`. An artist who was
+                        * never told has nothing to be told about, and a removal
+                        * notice would announce a booking and cancel it at once.
+                        *
+                        * ⭐ It goes through the SAME `sendSlotNotice` and the same
+                        * confirm step as every other notice. ⛔ No second removal
+                        * implementation.
+                        */}
+                      {rowNotice.state === 'REMOVAL_TO_TELL' && (
+                        <DecisionBtn tone="neutral" icon={XIcon} label="SEND REMOVAL NOTICE"
+                          onClick={() => askToSendRemoval(row)} />
+                      )}
                     </div>
                   ) : (
                     <div className="yp-decision-row">

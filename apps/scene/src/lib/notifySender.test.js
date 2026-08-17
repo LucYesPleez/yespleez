@@ -329,6 +329,32 @@ test('⛔⛔ a send never touches applications, events or any other member', asy
   assert.equal(JSON.stringify(db.calls).includes('set_times_locked'), false);
 });
 
+/**
+ * ── ⛔⛔ P6.3c-3 · THE REMOVAL FALLBACK IS GATED, AND IS NOT A SECOND SENDER ──
+ *
+ * ⚠ A SOURCE-TEXT CHECK, so it proves wiring rather than pixels. What it protects
+ * is the pair of rules most easily lost in a later edit: the control appears ONLY
+ * for `REMOVAL_TO_TELL`, and it goes through THIS module rather than growing a
+ * removal implementation of its own.
+ *
+ * ⛔ Shown for `NEEDS SET TIME` it would announce a booking and cancel it in one
+ * message, to somebody who was never told anything.
+ */
+test('⛔⛔ the removal control is gated on REMOVAL_TO_TELL and routes through sendSlotNotice', async () => {
+  const { readFileSync } = await import('node:fs');
+  const src = readFileSync(new URL('../screens/event/EventHostView.jsx', import.meta.url), 'utf8');
+
+  assert.ok(src.includes('SEND REMOVAL NOTICE'), 'the fallback control is gone');
+  assert.ok(/rowNotice\.state === 'REMOVAL_TO_TELL' && \(/.test(src),
+    'the control must be gated on REMOVAL_TO_TELL, never on needsSetTime');
+  assert.ok(src.includes('askToSendRemoval'), 'the control must go through the confirm step');
+  /* ⛔ ONE sender. If a screen ever writes `type: 'slot_removed'` itself, the
+     recording contract has been forked. */
+  assert.equal(/type:\s*'slot_removed'/.test(src), false,
+    'EventHostView composes its own removal notification instead of using sendSlotNotice');
+  assert.ok(src.includes('sendSlotNotice'), 'the screen must use the one sender');
+});
+
 /* ── the record is what the derivation then reads ──────────────────────────── */
 
 /**
