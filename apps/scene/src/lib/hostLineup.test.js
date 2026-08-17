@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { buildHostLineup, memberState, totalOnBill, billCapacity, billFullMessage, isBooked, bookedMembers, bookedUnscheduled, isScheduled } from './hostLineup.js';
+import { buildHostLineup, memberState, totalOnBill, billCapacity, billFullMessage, isBooked, bookedMembers, bookedUnscheduled, isScheduled, bookedMemberRows } from './hostLineup.js';
 
 /**
  * BASS HEAVY IS THE REGRESSION CASE (owner, 2026-08-15).
@@ -277,4 +277,50 @@ test('⛔ a null slot_uuid is not a schedule', () => {
   assert.equal(isScheduled([{ slot_uuid: null }]), false);
   assert.equal(isScheduled([]), false);
   assert.equal(isScheduled([{ slot_uuid: 's-1' }]), true);
+});
+
+/* ── P5.1 · the flat-shape adapter ────────────────────────────────────────── */
+
+/**
+ * ⛔⛔ THE PROOF THAT PRODUCTION DOES NOT MOVE. All 90 events are `legacy`, and
+ * the flat list the event page holds is ALREADY filtered to `on_bill` — so the
+ * derivation must return that same list, unchanged and in order.
+ */
+test('⛔⛔ on a legacy event the derived LINEUP is the existing LINEUP', () => {
+  const members = [
+    { id: 'm1', status: 'on_bill' },
+    { id: 'm2', status: 'on_bill' },
+    { id: 'm3', status: 'on_bill' },
+  ];
+  const out = bookedMemberRows(members, {}, LEGACY_EV);
+  assert.deepEqual(out, members, 'identical rows, identical order, nothing dropped');
+  assert.deepEqual(bookedMemberRows(members, {}, IMPORTED_EV), members);
+  assert.deepEqual(bookedMemberRows(members, {}, null), members, 'and for an unknown contract');
+});
+
+test('⭐ on a managed event only the artist’s acceptance counts', () => {
+  const members = [{ id: 'm1', status: 'on_bill' }, { id: 'm2', status: 'on_bill' }];
+  const perfsByMember = { m1: [{ status: 'accepted' }], m2: [{ status: 'offered' }] };
+  const out = bookedMemberRows(members, perfsByMember, MANAGED_EV);
+  assert.equal(out.length, 1);
+  assert.equal(out[0].id, 'm1');
+});
+
+/* ⚠ The two shapes must agree — that is the whole point of the adapter. */
+test('⚠ the flat adapter and the group form give the same answer', () => {
+  const members = [{ id: 'm1', status: 'on_bill' }, { id: 'm2', status: 'on_bill' }];
+  const perfsByMember = { m1: [{ status: 'accepted' }], m2: [] };
+  const groups = members.map(m => ({ member: m, perfs: perfsByMember[m.id] || [] }));
+  for (const ev of [LEGACY_EV, MANAGED_EV, IMPORTED_EV]) {
+    assert.deepEqual(
+      bookedMemberRows(members, perfsByMember, ev).map(m => m.id),
+      bookedMembers(groups, ev).map(g => g.member.id),
+      'one rule, two shapes',
+    );
+  }
+});
+
+test('the adapter tolerates missing inputs', () => {
+  assert.deepEqual(bookedMemberRows(null, null, MANAGED_EV), []);
+  assert.deepEqual(bookedMemberRows([], {}, LEGACY_EV), []);
 });

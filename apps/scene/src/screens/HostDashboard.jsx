@@ -30,8 +30,8 @@ import { enrichClaims } from '../lib/claimEnrichment';
 /* ⛔ `DaySlots`, ⛔ NOT `SlotCard` directly — it owns the DndContext, so the
    drag dots the padlock reveals actually drag. */
 import DaySlots from './event/DaySlots';
-import { buildHostLineup, STATE_COLOURS } from '../lib/hostLineup';
-import { setTimesEnabled } from '../lib/eventSetTimes';
+import { buildHostLineup, STATE_COLOURS, bookedMembers } from '../lib/hostLineup';
+import { setTimesEnabled, withSetTimesEnabled } from '../lib/eventSetTimes';
 /* ⚠ `findExistingMember` ONLY. The dashboard still needs to READ whether an
    applicant is on the bill — that is what ACCEPTED · ON THE BILL says — but it
    no longer WRITES membership, so `planAddToBill`/`addToBill` went with the
@@ -624,6 +624,37 @@ export default function HostDashboard({ userId: userIdProp }) {
     setLineupReload(n => n + 1);
   }
 
+  /**
+   * ⭐⭐ DOES THIS EVENT HAVE A RUNNING ORDER? Flipped from the event card
+   * header (owner, 2026-08-17).
+   *
+   * ⛔⛔ IT CANNOT LIVE IN EITHER TAB. Put it inside LINEUP and switching set
+   * times ON removes that tab, taking the control with it — you could turn it
+   * on and then have to hunt for how to turn it off. A control that destroys
+   * itself on use is worse than one that is a click further away. The header
+   * exists in BOTH states, which is the whole requirement.
+   *
+   * ⚠ ⛔ NOT the padlock beside SET TIMES. That governs whether the schedule can
+   * be EDITED; this governs whether the event HAS one. Two lock-ish controls in
+   * one tab row would be genuinely hard to tell apart.
+   *
+   * ⭐⭐ SAFE ONLY BECAUSE OF P2. Disabling used to DELETE every `event_slots`
+   * row and cascade the bookings on them, so a one-tap toggle here would have
+   * been a loaded gun. `saveEventSlots` now leaves the rows alone, so this is
+   * reversible and the running order survives being switched off and on.
+   *
+   * ⛔ MERGE, ⛔ never replace: `config` also carries days, poster and venue.
+   */
+  async function toggleEventSetTimes(ev, next) {
+    const { error } = await supabase.from('events')
+      .update({ config: withSetTimesEnabled(ev.config, next) })
+      .eq('id', ev.id);
+    /* ⛔ SURFACED — RLS filters an UPDATE rather than erroring it, so a blocked
+       write looks exactly like a toggle that did nothing. */
+    if (error) { setLineupError(error.message); return; }
+    setLineupReload(n => n + 1);
+  }
+
   // Event map for app cards
   const evtMap = Object.fromEntries(events.map(e => [e.id, e]));
 
@@ -1024,6 +1055,9 @@ export default function HostDashboard({ userId: userIdProp }) {
                */
               const usesSetTimes = setTimesEnabled(ev, totalSlots);
 
+              /* ⭐ THE CONFIRMED BILL (P5.1) — one rule, group shape. */
+              const bookedLineup = bookedMembers(members, ev);
+
               /**
                * ⛔⛔ THE REMEMBERED TAB CAN BE ONE THIS EVENT NO LONGER HAS.
                * `lineupSubTabs` persists per event across renders and the old
@@ -1114,6 +1148,32 @@ export default function HostDashboard({ userId: userIdProp }) {
                           <circle cx="12" cy="12" r="3"/><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7z"/>
                         </svg>
                       </button>
+                      {/**
+                        * ⭐ SET TIMES ON / OFF, in the header because the header
+                        * exists in BOTH states — see `toggleEventSetTimes`.
+                        *
+                        * ⚠ IT SAYS WHAT IT CONTROLS, ⛔ not just "on". The tab
+                        * row directly below reshuffles when this is pressed, so
+                        * the label has to name the thing that is about to move.
+                        *
+                        * ⚠ Cyan when on, muted when off — the same on/off
+                        * vocabulary the padlock uses, ⛔ without a second lock
+                        * glyph to confuse it with.
+                        */}
+                      <button
+                        onClick={() => toggleEventSetTimes(ev, !usesSetTimes)}
+                        aria-pressed={usesSetTimes}
+                        title={usesSetTimes
+                          ? 'This event has a running order. Turn off to show LINEUP instead.'
+                          : 'This event has no running order. Turn on to schedule set times.'}
+                        style={{
+                          background: 'none', borderRadius: 8, padding: '4px 10px', cursor: 'pointer',
+                          fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1.5, flexShrink: 0,
+                          border: `1px solid ${usesSetTimes ? 'rgba(0,229,255,.45)' : 'rgba(255,255,255,.15)'}`,
+                          color: usesSetTimes ? 'var(--neon2)' : 'var(--muted)',
+                          transition: 'border-color .15s, color .15s',
+                        }}
+                      >{usesSetTimes ? 'SET TIMES ON' : 'SET TIMES OFF'}</button>
                       {/* ⛔ STRAIGHT TO THE EDITOR, ⛔ not to the event page.
                           "Edit" that lands somewhere you then have to press
                           MANAGE EVENT from is not an edit button. */}
@@ -1183,8 +1243,9 @@ export default function HostDashboard({ userId: userIdProp }) {
                             * §11, which was written for exactly this pair and
                             * then broken by its own author within hours.
                             */
-                          { key: 'PIPELINE',   label: `PIPELINE${evPipeline.length ? ` (${evPipeline.length})` : ''}` },
-                          { key: 'SHORTLIST',  label: `SHORTLIST${evShortList.length ? ` (${evShortList.length})` : ''}` },
+                          /* ⚠ SWAPPED (owner, 2026-08-17): the WORKSPACE leads,
+                             PIPELINE moves to the end. ⛔ Change this order and
+                             change EventHostView's — §11. */
                           ...(usesSetTimes ? [
                           /**
                             * ⭐⭐ THE PADLOCK SITS IN THE HEADING (owner,
@@ -1238,8 +1299,10 @@ export default function HostDashboard({ userId: userIdProp }) {
                             /* ⚠ No running order, so the confirmed bill is the
                                third tab instead. Same position, same place in
                                the workflow. */
-                            { key: 'LINEUP', label: `LINEUP${members.length ? ` (${members.length})` : ''}` },
+                            { key: 'LINEUP', label: `LINEUP${bookedLineup.length ? ` (${bookedLineup.length})` : ''}` },
                           ]),
+                          { key: 'SHORTLIST',  label: `SHORTLIST${evShortList.length ? ` (${evShortList.length})` : ''}` },
+                          { key: 'PIPELINE',   label: `PIPELINE${evPipeline.length ? ` (${evPipeline.length})` : ''}` },
                           ...(evOrphaned.length
                             ? [{ key: 'NOT BOOKED', label: `NOT BOOKED (${evOrphaned.length})` }]
                             : []),
@@ -1247,8 +1310,19 @@ export default function HostDashboard({ userId: userIdProp }) {
                       />
 
                       <div>
+                      {/**
+                        * ⭐⭐ P5.1 · THE SAME DERIVATION AS THE EVENT PAGE.
+                        * `bookedMembers` and that screen's `bookedMemberRows`
+                        * are two adapters over ONE rule (`isBooked`), because
+                        * this surface holds `buildHostLineup` groups and that
+                        * one holds a flat list. ⛔ Two shapes, ⛔ never two rules.
+                        *
+                        * ⚠⚠ A NO-OP ON ALL 90 PRODUCTION EVENTS: every one is
+                        * `legacy`, so the answer is `on_bill` — which is what
+                        * `members` already is.
+                        */}
                       {activeTab === 'LINEUP' && (
-                        members.length === 0
+                        bookedLineup.length === 0
                           /* ⚠ "No confirmed artists yet. Accept applications to
                              build your lineup." was the old copy, and it was
                              wrong twice: it described the bill as a by-product
@@ -1275,7 +1349,7 @@ export default function HostDashboard({ userId: userIdProp }) {
                                 * the event page. This is the summary that tells
                                 * you whether to go there.
                                 */}
-                              {members.map(m => {
+                              {bookedLineup.map(m => {
                                 const item = m.profile || {
                                   /* ⛔ Not "Unknown". A member always has a
                                      name — the old card fell back to Unknown

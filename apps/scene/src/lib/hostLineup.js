@@ -241,3 +241,18 @@ export function isScheduled(perfs = []) {
 export function bookedUnscheduled(groups = [], event = null) {
   return bookedMembers(groups, event).filter(g => !isScheduled(g?.perfs));
 }
+
+/**
+ * ⭐⭐ THE SAME RULE, FOR THE OTHER SHAPE (P5.1).
+ *
+ * ⚠⚠ THE TWO HOST SURFACES HOLD THIS DATA DIFFERENTLY. `HostDashboard` has the
+ * `{ member, perfs }` groups `buildHostLineup` returns; `EventHostView` has a
+ * FLAT member array plus a separate `perfsByMember` map. ⛔ That is not a reason
+ * to write the rule twice — both funnel into `isBooked`, so there is exactly one
+ * definition of "booked" and an adapter for each shape.
+ *
+ * ⛔ THE RAW MEMBER AND PERFORMANCE ROWS, ⛔ never a display status.
+ */
+export function bookedMemberRows(members = [], perfsByMember = {}, event = null) {
+  return (members || []).filter(m => isBooked(m, (perfsByMember || {})[m?.id] || [], event));
+}

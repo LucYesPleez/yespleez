@@ -15,7 +15,7 @@ import { track, EVENTS } from '../../lib/analytics';
 import { resolveProfileId } from '../../lib/resolveProfileId';
 import { scopeToApplicant, fetchApplicantProfiles } from '../../lib/applicantProfiles';
 import { findOpenAsksForDate, declineOpenAsks } from '../../lib/dateLockout';
-import { memberState, STATE_COLOURS, billCapacity, billFullMessage } from '../../lib/hostLineup';
+import { memberState, STATE_COLOURS, billCapacity, billFullMessage, bookedMemberRows } from '../../lib/hostLineup';
 import { setTimesEnabled } from '../../lib/eventSetTimes';
 import { normaliseStatus, rawStatusesFor, PIPELINE_BUCKETS, STATUS_TAB_COLOR } from '../../lib/enquiryUtils';
 import { planUnassign, planMoveToShortlist, planRemoveFromEvent, executeLineupPlan, assignMemberToSlot } from '../../lib/lineupActions';
@@ -66,6 +66,14 @@ export default function EventHostView({
    * preference, which keeps every existing event exactly as it is today.
    */
   const usesSetTimes = setTimesEnabled(event, totalSlots);
+
+  /**
+   * ⭐ THE CONFIRMED BILL (P5.1). ⚠ Derived from the RAW member and performance
+   * rows via `isBooked`, ⛔ never from a display status — `memberState` calls a
+   * hand-entered act 'CONFIRMED' because nobody is waiting on a reply, which is
+   * right for pixels and would book somebody who never agreed.
+   */
+  const bookedLineup = bookedMemberRows(lineupMembers, perfsByMember, event);
 
   const [eventTab,      setEventTab]      = useState('LINEUP');
 
@@ -870,11 +878,16 @@ export default function EventHostView({
             * ⛔ Change this list and change `HostDashboard`'s — §11.
             */
           tabs={[
-            { key: 'PIPELINE',  label: `PIPELINE${pipeline.length ? ` (${pipeline.length})` : ''}` },
-            { key: 'SHORTLIST', label: `SHORTLIST${shortList.length ? ` (${shortList.length})` : ''}` },
+            /* ⚠ SWAPPED (owner, 2026-08-17): the WORKSPACE leads and PIPELINE
+               moves to the end. The order below reads outward from where the
+               host actually works rather than forward through the funnel —
+               ⛔ and it keeps the default landing tab first, which is what both
+               surfaces already fall back to. */
             usesSetTimes
               ? { key: 'SET_TIMES', label: 'SET TIMES' }
-              : { key: 'LINEUP',    label: `LINEUP${lineupMembers.length ? ` (${lineupMembers.length})` : ''}` },
+              : { key: 'LINEUP',    label: `LINEUP${bookedLineup.length ? ` (${bookedLineup.length})` : ''}` },
+            { key: 'SHORTLIST', label: `SHORTLIST${shortList.length ? ` (${shortList.length})` : ''}` },
+            { key: 'PIPELINE',  label: `PIPELINE${pipeline.length ? ` (${pipeline.length})` : ''}` },
             ...(orphanedAccepted.length
               ? [{ key: 'ACCEPTED', label: `NOT BOOKED (${orphanedAccepted.length})` }]
               : []),
@@ -982,14 +995,32 @@ export default function EventHostView({
       {/* LINEUP tab */}
       {effectiveIsHost && showEditor && eventTab === 'LINEUP' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {lineupMembers.length === 0
+          {/**
+            * ⭐⭐ P5.1 · LINEUP IS DERIVED, ⛔ no longer read straight off
+            * `status = 'on_bill'`. `lib/hostLineup.isBooked` is the one rule and
+            * it has two right answers:
+            *
+            *   legacy / imported  the bill is authoritative as it stands, so
+            *                      `on_bill` IS the answer. ⛔ Nobody reconfirms.
+            *   managed            only the artist's acceptance books them.
+            *
+            * ⚠⚠ ON EVERY EVENT IN PRODUCTION THIS IS A NO-OP. All 90 are
+            * `legacy`, and `lineupMembers` is already filtered to `on_bill` —
+            * so the derivation returns the identical rows in the identical
+            * order. Tested in `hostLineup.test.js`.
+            *
+            * ⚠ `bookedMemberRows` exists because this screen holds a FLAT list
+            * plus `perfsByMember`, while the dashboard holds groups. ⛔ Two
+            * shapes, ⛔ but ONE rule — both adapters call `isBooked`.
+            */}
+          {bookedLineup.length === 0
             ? (
               <div style={{ textAlign: 'center', padding: '48px 16px' }}>
                 <div style={{ fontFamily: "'Bebas Neue'", fontSize: 18, letterSpacing: 3, color: 'rgba(255,255,255,.18)', marginBottom: 8 }}>NO ONE ON THE BILL YET</div>
                 <div style={{ fontSize: 13, color: 'rgba(255,255,255,.13)' }}>Shortlist artists and assign them a slot to build your lineup.</div>
               </div>
             )
-            : lineupMembers.map(member => {
+            : bookedLineup.map(member => {
               // Keyed by the member row, not by artist_id — an imported member
               // has a profile and no artist_id, and the old lookup returned
               // null for every one of them.
