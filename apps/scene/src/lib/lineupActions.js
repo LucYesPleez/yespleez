@@ -3,6 +3,9 @@
    only `eventProvenance` and `eventSlots`, both leaves, so this adds no cycle to
    a file that was otherwise dependency-free. */
 import { canPlaceMember } from './hostLineup';
+/* ⭐ P6.3c-2 · the removal notice now RECORDS what it sent. ⛔ Only the pure patch
+   builder and the kind constant are used; the derivation stays where it is. */
+import { notifiedPatch, SLOT_REMOVED } from './notifyPlan';
 
 /**
  * TAKING SOMEBODY OFF A SET TIME, AND TAKING SOMEBODY OFF THE BILL.
@@ -207,6 +210,46 @@ export async function applyLineupPlan(db, plan) {
  * @param opts.resolveProfileId  injected `userId → { profileId }`, for tests
  * @returns {Promise<{ok: boolean, error: ?string, notified: boolean}>}
  */
+/**
+ * ── ⭐⭐ P6.3c-2 · SHOULD TAKING THIS SET TIME AWAY BE ANNOUNCED? ─────────────
+ *
+ * ⛔⛔ `performances.status` IS NO LONGER THE AUTHORITATIVE EVIDENCE. The whole
+ * purpose of P6 was to stop deriving communication history from booking status,
+ * and `unlockSetTimes` proves why: it reverts `offered → draft` event-wide, so a
+ * status-only gate goes SILENT about a removal the artist was genuinely told
+ * about.
+ *
+ * ⭐ THE CLEAN RULE, which this becomes once no ambiguous rows remain:
+ *
+ *     notified_at exists AND the placement is being removed → send
+ *
+ * ⚠⚠ THE MIGRATION EXCEPTION, ratified as an exception and ⛔ NOT as a rule
+ * (owner, 2026-08-18). Five legacy placements are `offered`/`accepted` with NO
+ * record, and the old model probably did tell those artists. So:
+ *
+ *     notified_at set                        → send   (we KNOW we told them)
+ *     no record + offered/accepted           → send   (we do NOT know, and a
+ *                                                      removal notice is the
+ *                                                      SAFE error)
+ *     no record + draft                      → silent (we KNOW we never did)
+ *
+ * ⛔⛔ THE MIDDLE BRANCH IS NOT "STATUS IS EVIDENCE AGAIN". It is "when we cannot
+ * establish whether they were told, telling them twice is recoverable and leaving
+ * them believing they are playing is not". ⛔ NOT_RECORDED is still converted
+ * neither to "was told" nor to "wasn't told".
+ *
+ * ⭐ IT SELF-RETIRES: any row that ever gets a recorded send leaves the ambiguous
+ * branch for good, so the exception disappears with no migration.
+ */
+export function removalNeedsNotice(member, acting = []) {
+  /* ⛔ Nobody to tell. Same rule every notification path applies. */
+  if (!isReachable(member)) return false;
+  /* ⛔ Nothing was placed, so there is no set time to take away. */
+  if (!(acting || []).some(p => p?.slot_uuid)) return false;
+  if (member?.notified_at) return true;
+  return notifiablePerformances(acting).length > 0;
+}
+
 export async function executeLineupPlan(db, plan, opts = {}) {
   const { member, perfs = [], event, notify, resolveProfileId } = opts;
   if (!plan) return { ok: false, error: 'no plan', notified: false };
@@ -217,24 +260,62 @@ export async function executeLineupPlan(db, plan, opts = {}) {
    * the loss of the second. The caller scopes `perfs` for that reason.
    */
   const acting = (perfs || []).filter(p => plan.deletePerformanceIds.includes(p.id));
-  const sent   = notifiablePerformances(acting);
 
   const { ok, error } = await applyLineupPlan(db, plan);
   // ⚠ SURFACED, NEVER SWALLOWED — RLS filters a write rather than erroring it.
   if (!ok) return { ok: false, error: error || 'That change was not saved.', notified: false };
 
-  if (!sent.length || !isReachable(member)) return { ok: true, error: null, notified: false };
+  if (!removalNeedsNotice(member, acting)) return { ok: true, error: null, notified: false };
 
   const { profileId } = resolveProfileId ? await resolveProfileId(member.artist_id) : { profileId: null };
-  await notify?.({
+  /**
+   * ⛔⛔ THE RESULT IS INSPECTED. This used to be a bare `await notify?.(...)`
+   * with the return value discarded, so a removal notice that never left reported
+   * `notified: true`. ⛔ Nothing may be RECORDED on the strength of a send that
+   * failed — that is the whole ordering invariant of P6.3.
+   */
+  const sendError = await notify?.({
     toUserId:       member.artist_id,
     toProfileId:    profileId ?? null,
     aboutProfileId: event?.owner_profile_id ?? null,
-    type:    'slot_removed',
+    type:    SLOT_REMOVED,
     message: messageFor(plan.kind, event?.name),
     data:    { event_id: event?.id, event_name: event?.name },
   });
-  return { ok: true, error: null, notified: true };
+  if (sendError) {
+    return { ok: true, error: null, notified: false, notifyError: sendError.message || String(sendError) };
+  }
+
+  /**
+   * ── ⭐⭐ P6.3c-2 · RECORD WHAT WAS ACTUALLY SENT ────────────────────────────
+   *
+   * ⚠ THE TIMESTAMP COMES FROM AFTER THE SUCCESSFUL SEND (owner), ⛔ never from
+   * the planner: `notifiedPatch` stamps it here, at the moment we know a message
+   * went, exactly as the offer path does.
+   *
+   * ⭐ THE SLOT WE RECORD is what we last TOLD them about if we know it, falling
+   * back to the placement this plan destroyed. ⛔ Not the current placement:
+   * there is not one, which is the point.
+   *
+   * ⚠⚠ THE RECORD SURVIVES AN UNBOOKING, DELIBERATELY (owner). After
+   * move-to-shortlist or remove-from-event the member is no longer booked, so
+   * `notifyPlan` reads NOTHING_TO_SAY and this row becomes HISTORY rather than
+   * work — it answers "what was the last scheduling thing we sent them". ⛔ It is
+   * not cleared, and ⛔ booking state still takes precedence in the derivation.
+   */
+  const toldAbout = member?.notified_slot_uuid
+    || acting.find(p => p?.slot_uuid)?.slot_uuid
+    || null;
+  const { error: recErr } = await db.from('lineup_members')
+    .update(notifiedPatch(toldAbout, undefined, SLOT_REMOVED))
+    .eq('id', member.id);
+
+  /* ⚠⚠ SENT BUT NOT RECORDED, and it must be said. The artist HAS been told, so
+     ⛔ this is not a failure of the removal — but the record now disagrees with
+     reality and the row will keep asking to be told. */
+  return recErr
+    ? { ok: true, error: null, notified: true, recordError: recErr.message }
+    : { ok: true, error: null, notified: true, recorded: true };
 }
 
 /**

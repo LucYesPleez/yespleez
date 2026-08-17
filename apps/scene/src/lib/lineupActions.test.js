@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import {
   planUnassign, planRemoveFromBill, planMoveToShortlist, planRemoveFromEvent, applyLineupPlan, restoreToBill,
   notifiablePerformances, wasEverSent, isReachable, executeLineupPlan, messageFor, assignMemberToSlot,
-  planEventOffer, createEventOffer,
+  planEventOffer, createEventOffer, removalNeedsNotice,
 } from './lineupActions.js';
 
 /**
@@ -663,4 +663,154 @@ test('⚠ INTERIM · a member already playing one slot gains a second, and keeps
   await assignMemberToSlot(db, { slotId: 'slot-11pm', eventId: 'e-1', memberId: 'm-1', status: 'draft' });
   assert.equal(db.calls.some(c => c.op === 'update'), false, 'their 7PM set was moved instead of added to');
   assert.equal(db.calls.find(c => c.op === 'insert').row.slot_uuid, 'slot-11pm');
+});
+
+/* ── ⭐⭐ P6.3c-2 · THE REMOVAL NOTICE RECORDS WHAT IT SENT ─────────────────── */
+
+const reachable = (over = {}) => ({ id: 'm-r', artist_id: 'u-1', artist_name: 'Madds', notified_at: null, notified_slot_uuid: null, ...over });
+const placed = (over = {}) => ({ id: 'p-1', slot_uuid: 's-8pm', status: 'offered', ...over });
+
+function planDb({ failRecord = false } = {}) {
+  const calls = [];
+  return {
+    calls,
+    from: name => ({
+      delete: () => ({ in: (col, ids) => { calls.push({ op: 'delete', name, ids }); return { error: null }; } }),
+      update: fields => ({ eq: (col, val) => {
+        calls.push({ op: 'update', name, fields, id: val });
+        const failing = failRecord && name === 'lineup_members' && fields.notified_kind;
+        return { error: failing ? { message: 'RLS said no' } : null };
+      } }),
+    }),
+  };
+}
+const okNotify   = async () => null;
+const failNotify = async () => ({ message: 'transport died' });
+
+/**
+ * ⭐ WE KNOW WE TOLD THEM: the RECORD decides, ⛔ not the status. ⚠ This is the
+ * case a status-only gate got wrong after an unlock, which reverts offered to
+ * draft and would have gone silent about a removal the artist was told about.
+ */
+test('⭐ a recorded send means the removal IS announced, even from a draft row', () => {
+  const m = reachable({ notified_at: '2026-08-17T11:00:00.000Z', notified_slot_uuid: 's-8pm' });
+  assert.equal(removalNeedsNotice(m, [placed({ status: 'draft' })]), true);
+});
+
+/**
+ * ⚠⚠ THE MIGRATION EXCEPTION, and ⛔ NOT "status is evidence again". Five legacy
+ * placements are offered/accepted with no record: we cannot establish whether
+ * they were told, and a removal notice is the SAFE error.
+ */
+test('⚠ no record + offered or accepted still announces, as the safe error', () => {
+  for (const status of ['offered', 'accepted']) {
+    assert.equal(removalNeedsNotice(reachable(), [placed({ status })]), true, status);
+  }
+});
+
+/* ⭐ AND WE KNOW WHEN WE NEVER TOLD THEM. A draft was never announced, so
+   ⛔ announcing its removal announces the booking and cancels it in one message. */
+test('⛔ no record + draft is SILENT', () => {
+  assert.equal(removalNeedsNotice(reachable(), [placed({ status: 'draft' })]), false);
+});
+
+test('⛔ nobody to tell, and nothing placed, are both silent', () => {
+  assert.equal(removalNeedsNotice({ id: 'm-t', artist_id: null }, [placed()]), false);
+  assert.equal(removalNeedsNotice(reachable(), [{ id: 'p-x', slot_uuid: null, status: 'accepted' }]), false,
+    'an event-level offer is not a set time to take away');
+  assert.equal(removalNeedsNotice(reachable(), []), false);
+});
+
+test('⭐⭐ a successful removal notice records all three facts', async () => {
+  const db = planDb();
+  const m = reachable();
+  const res = await executeLineupPlan(db, planUnassign(m, [placed()]), {
+    member: m, perfs: [placed()], event: { id: 'e-1', name: 'Bass Heavy' }, notify: okNotify,
+  });
+  assert.equal(res.notified, true);
+  assert.equal(res.recorded, true);
+  const rec = db.calls.find(c => c.name === 'lineup_members' && c.fields.notified_kind);
+  assert.equal(rec.id, 'm-r');
+  assert.equal(rec.fields.notified_kind, 'slot_removed');
+  assert.equal(rec.fields.notified_slot_uuid, 's-8pm', 'the slot they were told they have lost');
+  assert.ok(!Number.isNaN(Date.parse(rec.fields.notified_at)));
+});
+
+/**
+ * ⛔⛔ THE ORDERING INVARIANT, ON THIS PATH TOO. The notify result used to be
+ * discarded, so a notice that never left reported notified: true.
+ */
+test('⛔⛔ a FAILED removal notice records nothing and does not claim to have sent', async () => {
+  const db = planDb();
+  const m = reachable();
+  const res = await executeLineupPlan(db, planUnassign(m, [placed()]), {
+    member: m, perfs: [placed()], event: { id: 'e-1' }, notify: failNotify,
+  });
+  assert.equal(res.notified, false);
+  assert.match(res.notifyError, /transport died/);
+  assert.equal(db.calls.some(c => c.fields?.notified_kind), false);
+});
+
+/* ⚠⚠ Sent but not recorded is surfaced: the artist HAS been told, so this is not
+   a failed removal, but the record now disagrees with reality. */
+test('⚠⚠ a failed record is reported without denying the send', async () => {
+  const m = reachable();
+  const res = await executeLineupPlan(planDb({ failRecord: true }), planUnassign(m, [placed()]), {
+    member: m, perfs: [placed()], event: { id: 'e-1' }, notify: okNotify,
+  });
+  assert.equal(res.notified, true);
+  assert.equal(res.recorded, undefined);
+  assert.match(res.recordError, /RLS said no/);
+});
+
+/* ⭐ What we last TOLD them outranks the row being deleted, when they differ. */
+test('⭐ the recorded slot prefers what was actually communicated', async () => {
+  const db = planDb();
+  const m = reachable({ notified_at: '2026-08-17T11:00:00.000Z', notified_slot_uuid: 's-told' });
+  await executeLineupPlan(db, planUnassign(m, [placed({ slot_uuid: 's-moved-to' })]), {
+    member: m, perfs: [placed({ slot_uuid: 's-moved-to' })], event: { id: 'e-1' }, notify: okNotify,
+  });
+  assert.equal(db.calls.find(c => c.fields?.notified_kind).fields.notified_slot_uuid, 's-told');
+});
+
+/**
+ * ⚠⚠ THE RECORD SURVIVES AN UNBOOKING (owner, ratified). After move-to-shortlist
+ * or remove-from-event the member is no longer booked, so the derivation reads
+ * NOTHING_TO_SAY and the row is HISTORY, ⛔ not work. ⛔ It is never cleared.
+ */
+test('⭐⭐ all three plans record, and booking state still takes precedence after', async () => {
+  const { notifyState } = await import('./notifyPlan.js');
+  const cases = [
+    ['unassign',          planUnassign,        'on_bill',     'CLEAN'],
+    ['move-to-shortlist', planMoveToShortlist, 'shortlisted', 'NOTHING_TO_SAY'],
+    ['remove-from-event', planRemoveFromEvent, 'removed',     'NOTHING_TO_SAY'],
+  ];
+  for (const [kind, plan, status, expected] of cases) {
+    const db = planDb();
+    const m = reachable();
+    const res = await executeLineupPlan(db, plan(m, [placed()]), {
+      member: m, perfs: [placed()], event: { id: 'e-1' }, notify: okNotify,
+    });
+    assert.equal(res.recorded, true, kind);
+    const patch = db.calls.find(c => c.fields?.notified_kind).fields;
+    const after = { ...m, ...patch, status };
+    assert.equal(notifyState(after, [], { booking_model: 'legacy' }).state, expected,
+      `${kind}: a historical record must not become actionable work once unbooked`);
+    assert.equal(after.notified_kind, 'slot_removed', `${kind}: the record was cleared`);
+  }
+});
+
+/* ⛔ The record writes nothing else, on any path. */
+test('⛔ the removal record never writes accepted_at, a lock, or another table', async () => {
+  const db = planDb();
+  const m = reachable();
+  await executeLineupPlan(db, planUnassign(m, [placed()]), {
+    member: m, perfs: [placed()], event: { id: 'e-1' }, notify: okNotify,
+  });
+  const written = JSON.stringify(db.calls.map(c => c.fields || {}));
+  for (const forbidden of ['accepted_at', 'set_times_locked']) {
+    assert.equal(written.includes(forbidden), false, `it wrote ${forbidden}`);
+  }
+  assert.equal(db.calls.some(c => c.name === 'applications'), false);
+  assert.equal(db.calls.some(c => c.name === 'events'), false);
 });
