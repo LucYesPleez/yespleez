@@ -348,6 +348,16 @@ test('⛔⛔ the removal control is gated on REMOVAL_TO_TELL and routes through 
   assert.ok(/rowNotice\.state === 'REMOVAL_TO_TELL' && \(/.test(src),
     'the control must be gated on REMOVAL_TO_TELL, never on needsSetTime');
   assert.ok(src.includes('askToSendRemoval'), 'the control must go through the confirm step');
+  /**
+   * ⭐ P6.3c-3b · REACHABLE ON BOTH TABS, because which surface shows the artist
+   * depends on the EVENT SHAPE: with set times ON they are in SHORTLIST and there
+   * is no LINEUP tab; with set times OFF the reverse. ⛔ Two call sites of ONE
+   * verb, ⛔ not two implementations.
+   */
+  assert.equal((src.match(/SEND REMOVAL NOTICE/g) || []).length, 2,
+    'the fallback must be reachable from the SHORTLIST booked row AND the LINEUP row');
+  assert.equal((src.match(/askToSendRemoval\(/g) || []).length, 3,
+    'both controls plus the one definition — a third caller means a new path to audit');
   /* ⛔ ONE sender. If a screen ever writes `type: 'slot_removed'` itself, the
      recording contract has been forked. */
   assert.equal(/type:\s*'slot_removed'/.test(src), false,

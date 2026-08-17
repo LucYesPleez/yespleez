@@ -1212,6 +1212,31 @@ export default function EventHostView({
                             onClick={() => runLineupAction(planUnassign(member, memberPerfs(member.id)), member)} />
                         )}
                       {/**
+                        * ⭐⭐ P6.3c-3b · THE REMOVAL FALLBACK REACHES THIS TAB TOO,
+                        * because on a SET-TIMES-OFF event this is the ONLY surface
+                        * the artist appears on.
+                        *
+                        * ⚠⚠ THE GAP THIS CLOSES. P5.3 injects a booked artist with
+                        * no set time into SHORTLIST only when the event USES set
+                        * times — correctly, or 121 already-visible artists would
+                        * flood 37 shortlists. So with set times OFF a
+                        * `REMOVAL_TO_TELL` member showed the honest label here
+                        * (P6.3c-1) and had ⛔ nowhere to act on it.
+                        *
+                        * ⚠ THE TWO CONTROLS NEVER BOTH APPEAR: with set times ON
+                        * there is no LINEUP tab and the artist is in SHORTLIST;
+                        * with set times OFF there is no SHORTLIST row. ⛔ Same
+                        * verb, same confirm, same `sendSlotNotice` — the surface
+                        * differs because the event shape does.
+                        *
+                        * ⛔ Still ONLY for `REMOVAL_TO_TELL`. ⛔ Never for NEEDS
+                        * SET TIME, which would announce a booking and cancel it.
+                        */}
+                      {notice.state === 'REMOVAL_TO_TELL' && (
+                        <DecisionBtn tone="neutral" icon={XIcon} label="SEND REMOVAL NOTICE"
+                          onClick={() => askToSendRemoval(member)} />
+                      )}
+                      {/**
                         * ⭐⭐ THE ONLY EXIT FROM THE LINEUP (ratified 2026-08-16).
                         * `REMOVE FROM BILL` is gone from this tab — changing
                         * your mind returns somebody to SHORTLIST, and dropping
