@@ -5,6 +5,7 @@ import { useSession } from '../App';
 import { getNotifMeta, cleanMessage } from '../lib/notifMeta';
 import { acceptSlotOffer, declineSlotOffer, acceptInvite, declineInvite, dismissNotification, markResponded } from '../lib/notifActions';
 import { conversationNotificationTypes } from '../lib/conversationNotifications';
+import { findOrphanedOffers } from '../lib/orphanedOffers';
 import useSeenNotifications from '../hooks/useSeenNotifications';
 
 export default function NotifPanel({ onClose }) {
@@ -13,6 +14,9 @@ export default function NotifPanel({ onClose }) {
   const [notifs, setNotifs]   = useState([]);
   const [loading, setLoading] = useState(true);
   const [limit, setLimit]     = useState(10);
+  /* ⛔ An offer whose set time no longer exists — see lib/orphanedOffers.js.
+     Derived at read time; NOTHING is written to the notification. */
+  const [orphaned, setOrphaned] = useState(() => new Set());
   const ref = useRef(null);
   // DEF-4 — a row is read once it has been on screen for a moment, not once it
   // has been fetched. See lib/markNotificationsRead.js for what this replaced.
@@ -44,7 +48,11 @@ export default function NotifPanel({ onClose }) {
         .not('type', 'in', `(${convTypes.join(',')})`)
         .order('created_at', { ascending: false })
         .limit(60);
-      setNotifs(data || []);
+      const rows = data || [];
+      /* ⭐ ONE batched read for the whole list, before it renders — so an offer
+         whose set time is gone never shows an ACCEPT button at all. */
+      setOrphaned(await findOrphanedOffers(rows));
+      setNotifs(rows);
       setLoading(false);
     })();
   }, [session]);
@@ -197,6 +205,7 @@ export default function NotifPanel({ onClose }) {
             userId={session?.user?.id}
             onUpdate={updateNotif}
             onDismiss={removeNotif}
+            orphaned={orphaned.has(n.id)}
             isLast={i === visible.length - 1 && !hasMore}
             rootRef={n.read ? undefined : observe(n.id)}
           />
@@ -225,7 +234,7 @@ export default function NotifPanel({ onClose }) {
   );
 }
 
-function PanelRow({ notif, userId, onUpdate, onDismiss, isLast, rootRef }) {
+function PanelRow({ notif, userId, onUpdate, onDismiss, isLast, rootRef, orphaned = false }) {
   const [busy, setBusy]           = useState(false);
   const [responded, setResponded] = useState(!!notif.responded_at);
   /* ⚠ Why an answer did not land. ⛔ Not a toast: it belongs on the row the
@@ -280,7 +289,11 @@ function PanelRow({ notif, userId, onUpdate, onDismiss, isLast, rootRef }) {
     setResponded(true); setBusy(false);
   }
 
-  const actionable = !responded && (notif.type === 'slot_offer' || notif.type === 'event_invite');
+  const answerable = notif.type === 'slot_offer' || notif.type === 'event_invite';
+  /* ⛔ AN OFFER WHOSE SET TIME NO LONGER EXISTS IS HISTORY, NOT WORK. The
+     message and its timestamp stay exactly as written — only the answer goes.
+     See lib/orphanedOffers.js for why this is derived rather than stamped. */
+  const actionable = !responded && answerable && !orphaned;
 
   /**
    * ⚠ AN UNANSWERED OFFER CANNOT BE DISMISSED, and that is not timidity.
@@ -380,6 +393,14 @@ function PanelRow({ notif, userId, onUpdate, onDismiss, isLast, rootRef }) {
           <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
             <button onClick={handleAcceptInvite} disabled={busy} style={{ ...actionBtn(null, false), background: 'linear-gradient(135deg,#00E5FF,#BF5FFF)', color: '#0a0a14' }}>{busy ? '…' : '✓ ACCEPT'}</button>
             <button onClick={handleDeclineInvite} disabled={busy} style={actionBtn(null, true)}>{busy ? '…' : '✕ DECLINE'}</button>
+          </div>
+        )}
+        {/* ⛔ It does NOT say the host withdrew it. A cascade delete and an
+            RLS-hidden row look identical from the artist's side, and the
+            `slot_removed` notice may or may not have followed. */}
+        {orphaned && !responded && answerable && (
+          <div style={{ marginTop: 8, fontSize: 11.5, color: 'rgba(255,255,255,.35)', fontFamily: "'DM Sans',sans-serif", lineHeight: 1.45 }}>
+            This set time no longer exists.
           </div>
         )}
         {responded && (notif.type === 'slot_offer' || notif.type === 'event_invite') && (

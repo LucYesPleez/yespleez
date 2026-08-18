@@ -10,12 +10,17 @@ import {
   conversationNotificationTypes, KNOWN_CONVERSATION_TYPES,
 } from '../lib/conversationNotifications';
 import useSeenNotifications from '../hooks/useSeenNotifications';
+import { findOrphanedOffers } from '../lib/orphanedOffers';
 
 export default function NotificationsScreen() {
   const { session } = useSession();
   const [notifs, setNotifs]   = useState([]);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState(false);
+  /* ⛔ An offer whose set time no longer exists — see lib/orphanedOffers.js.
+     Derived on every load; NOTHING is written to the notification.
+     ⛔ Change one, change both — NotifPanel has the twin. */
+  const [orphaned, setOrphaned] = useState(() => new Set());
   // Arriving via the cog in NotifPanel opens preferences directly, rather than
   // landing on the list and making the user find MANAGE. Keyed on the location
   // object so clicking the cog while ALREADY on this screen still opens them —
@@ -65,7 +70,13 @@ export default function NotificationsScreen() {
       .order('created_at', { ascending: false })
       .limit(60);
     if (cancelled.current) return;
-    setNotifs(data || []);
+    const rows = data || [];
+    /* ⭐ ONE batched read for the whole list, before it renders — so an offer
+       whose set time is gone never shows an ACCEPT button at all. */
+    const stale = await findOrphanedOffers(rows);
+    if (cancelled.current) return;
+    setOrphaned(stale);
+    setNotifs(rows);
     setLoading(false);
   }
 
@@ -154,7 +165,7 @@ export default function NotificationsScreen() {
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {visible.map(n => (
-            <NotifRow key={n.id} notif={n} userId={session?.user?.id} onUpdate={updateNotif} onDismiss={removeNotif} rootRef={n.read ? undefined : observe(n.id)} />
+            <NotifRow key={n.id} notif={n} userId={session?.user?.id} onUpdate={updateNotif} onDismiss={removeNotif} orphaned={orphaned.has(n.id)} rootRef={n.read ? undefined : observe(n.id)} />
           ))}
         </div>
 
@@ -171,7 +182,7 @@ export default function NotificationsScreen() {
   );
 }
 
-function NotifRow({ notif, userId, onUpdate, onDismiss, rootRef }) {
+function NotifRow({ notif, userId, onUpdate, onDismiss, rootRef, orphaned = false }) {
   const [busy, setBusy]           = useState(false);
   const [responded, setResponded] = useState(!!notif.responded_at);
   /* ⚠ Why an answer did not land, on the row the artist just tapped. */
@@ -220,7 +231,11 @@ function NotifRow({ notif, userId, onUpdate, onDismiss, rootRef }) {
     setResponded(true); setBusy(false);
   }
 
-  const actionable = !responded && (notif.type === 'slot_offer' || notif.type === 'event_invite');
+  const answerable = notif.type === 'slot_offer' || notif.type === 'event_invite';
+  /* ⛔ AN OFFER WHOSE SET TIME NO LONGER EXISTS IS HISTORY, NOT WORK. The
+     message and its timestamp stay exactly as written — only the answer goes.
+     See lib/orphanedOffers.js. ⛔ Change one, change both. */
+  const actionable = !responded && answerable && !orphaned;
 
   // An unanswered offer cannot be dismissed — this row is its only surface.
   // See the fuller note in NotifPanel.
@@ -328,6 +343,14 @@ function NotifRow({ notif, userId, onUpdate, onDismiss, rootRef }) {
           <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
             <button onClick={handleAcceptInvite} disabled={busy} style={{ ...actionBtn(null, false), background: 'linear-gradient(135deg,#00E5FF,#BF5FFF)', color: '#0a0a14' }}>{busy ? '…' : '✓ ACCEPT'}</button>
             <button onClick={handleDeclineInvite} disabled={busy} style={actionBtn(null, true)}>{busy ? '…' : '✕ DECLINE'}</button>
+          </div>
+        )}
+        {/* ⛔ It does NOT say the host withdrew it. A cascade delete and an
+            RLS-hidden row look identical from the artist's side, and the
+            `slot_removed` notice may or may not have followed. */}
+        {orphaned && !responded && answerable && (
+          <div style={{ marginTop: 10, fontSize: 12, color: 'rgba(255,255,255,.35)', fontFamily: "'DM Sans',sans-serif", lineHeight: 1.45 }}>
+            This set time no longer exists.
           </div>
         )}
         {responded && (notif.type === 'slot_offer' || notif.type === 'event_invite') && (
