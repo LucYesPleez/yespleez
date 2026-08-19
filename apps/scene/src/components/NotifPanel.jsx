@@ -315,24 +315,31 @@ function PanelRow({ notif, userId, onUpdate, onDismiss, isLast, rootRef, orphane
     onDismiss(notif.id);
   }
 
+  /* ⚠ NO COLOURED UNREAD TINT (owner, 2026-08-19) — the twin of the change on
+     NotificationsScreen's card, made for the same reason. Unread is said by
+     the dot and by the message weight; painting the row in the type's hue said
+     both things in one wash and neither of them clearly. */
   return (
-    <div ref={rootRef} style={{ display: 'flex', gap: 12, padding: '12px 16px', borderBottom: isLast ? 'none' : '1px solid rgba(255,255,255,.05)', background: isUnread ? `rgba(${meta.rgb},.04)` : 'transparent' }}>
+    <div ref={rootRef} style={{ display: 'flex', gap: 12, padding: '12px 16px', borderBottom: isLast ? 'none' : '1px solid rgba(255,255,255,.05)', background: 'transparent' }}>
 
       {/* ⚠ NO RING, NO TINTED DISC — THE MARK ITSELF (owner, 2026-08-14). The
           40px circle spent most of its area on a border and a background wash,
           leaving an 18px glyph floating in the middle of it; at that size the
           difference between a calendar and a calendar-with-a-magnifier is not
-          readable. The icon now fills the same 40px slot, so the column width
-          and every row's alignment are unchanged while the drawing roughly
-          doubles.
+          readable.
 
-          ⚠ THE COLOUR STILL CARRIES THE MEANING. It moved from the ring to the
-          stroke, which is where it now does the work — see lib/notifMeta.jsx
-          for the semantic mapping. The unread row tint (`rgba(meta.rgb,.04)`
-          on the row) is untouched, so "unread" is still said by the row and
-          "what kind" by the icon; the disc was saying neither. */}
-      <div style={{ flexShrink: 0, width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: 2 }}>
-        <Icon color={meta.col} size={34} />
+          ⚠ THEN IT WENT TOO FAR THE OTHER WAY (owner, 2026-08-19). Filling the
+          whole 40px slot at a 2px stroke made the glyph the largest and
+          heaviest thing in a row whose text is 13px, and the screen read as a
+          toy. It is now 20px at 1.5, in a 24px slot, and the row's ~14px of
+          reclaimed width goes to the message.
+
+          ⚠ THE COLOUR STILL CARRIES THE MEANING, through `meta.ico` rather
+          than `meta.col` — the unread row tint is gone, so the glyph is now on
+          bare ground and full saturation was shouting. See lib/notifMeta.jsx
+          for both the semantic mapping and why there are two colours. */}
+      <div style={{ flexShrink: 0, width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: 1 }}>
+        <Icon color={meta.ico} size={20} />
       </div>
 
       {/* Body */}
@@ -343,9 +350,19 @@ function PanelRow({ notif, userId, onUpdate, onDismiss, isLast, rootRef, orphane
               the label carry it too made every row read as a coloured block
               and cost the headings their legibility. One carrier of the code
               per row is enough. */}
-          <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 10, letterSpacing: 1.5, color: '#fff' }}>
-            {meta.label}
-          </span>
+          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', columnGap: 7, rowGap: 2, minWidth: 0 }}>
+            <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 10, letterSpacing: 1.5, color: '#fff' }}>
+              {meta.label}
+            </span>
+            {/* ⭐ THE EVENT SITS BESIDE THE HEADING, and wraps whole or not at
+                all — the twin of NotificationsScreen's header; the fuller note
+                is there. ⛔ Change one, change both. */}
+            {data.event_name && (
+              <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 10, letterSpacing: 1, color: `rgba(${meta.rgb},.7)`, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>
+                {data.event_name}
+              </span>
+            )}
+          </div>
           <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
             <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, color: 'rgba(255,255,255,.28)', whiteSpace: 'nowrap' }}>
               {getTimeAgo(notif.created_at)}
@@ -369,11 +386,8 @@ function PanelRow({ notif, userId, onUpdate, onDismiss, isLast, rootRef, orphane
           {message}
         </div>
 
-        {data.event_name && (
-          <div style={{ fontSize: 11, color: `rgba(${meta.rgb},.7)`, fontFamily: "'Bebas Neue',sans-serif", letterSpacing: 1, marginTop: 3 }}>
-            {data.event_name}
-          </div>
-        )}
+        {/* ⛔ THE EVENT NAME USED TO REPEAT HERE — it moved up beside the
+            heading. Do not restore this block. */}
 
         {actionable && notif.type === 'slot_offer' && (
           <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>

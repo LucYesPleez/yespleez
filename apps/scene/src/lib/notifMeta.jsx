@@ -8,14 +8,24 @@
 // matching dark shade for each hue and the next surface that needs a filled
 // chip will want it — but do not assume it is live; grep before relying on it.
 
-const GREEN   = { col: '#00E5A0', rgb: '0,229,160',   bg: '#0d2b22' };
-const AMBER   = { col: '#F59E0B', rgb: '245,158,11',  bg: '#2b2010' };
-const CYAN    = { col: '#00E5FF', rgb: '0,229,255',   bg: '#0a2530' };
-const PINK    = { col: '#FF3399', rgb: '255,51,153',  bg: '#2b0d1a' };
-const PURPLE  = { col: '#BF5FFF', rgb: '191,95,255',  bg: '#1a0d2b' };
-const RED     = { col: '#FF4444', rgb: '255,68,68',   bg: '#2b0d0d' };
-const ORANGE  = { col: '#FF8C42', rgb: '255,140,66',  bg: '#2b1800' };
-const MUTED   = { col: '#9B9BAA', rgb: '155,155,170', bg: '#1a1a2a' };
+/* ⚠ `ico` IS THE GLYPH COLOUR, and it is NOT `col`. Both lists dropped the
+   coloured row tint (owner, 2026-08-19), which leaves the glyph as the loudest
+   thing on an otherwise neutral card. At full saturation a 20px stroke of
+   #FF4444 reads as an error dialog rather than a category mark, so `ico` is
+   each hue blended 85% toward the card ground.
+
+   ⛔ It is not "the dim version" — `col` is still used at full strength where
+   the colour has to be seen at a few pixels (the unread dot, the ACCEPT
+   button fill), and `rgb` still carries the event name. Three carriers, three
+   jobs. Changing one to match another is how the row goes flat. */
+const GREEN   = { col: '#00E5A0', ico: '#03C68B', rgb: '0,229,160',   bg: '#0d2b22' };
+const AMBER   = { col: '#F59E0B', ico: '#D3890C', rgb: '245,158,11',  bg: '#2b2010' };
+const CYAN    = { col: '#00E5FF', ico: '#03C6DC', rgb: '0,229,255',   bg: '#0a2530' };
+const PINK    = { col: '#FF3399', ico: '#DC2E85', rgb: '255,51,153',  bg: '#2b0d1a' };
+const PURPLE  = { col: '#BF5FFF', ico: '#A554DC', rgb: '191,95,255',  bg: '#1a0d2b' };
+const RED     = { col: '#FF4444', ico: '#DC3D3D', rgb: '255,68,68',   bg: '#2b0d0d' };
+const ORANGE  = { col: '#FF8C42', ico: '#DC7A3B', rgb: '255,140,66',  bg: '#2b1800' };
+const MUTED   = { col: '#9B9BAA', ico: '#878794', rgb: '155,155,170', bg: '#1a1a2a' };
 
 export const TYPE_META = {
   new_application:    { label: 'NEW APPLICATION',   ...AMBER,  Icon: InboxIcon       },
@@ -36,7 +46,7 @@ export const TYPE_META = {
      already existed; a CHANGE had no type, so nothing could tell an artist their
      set time had moved. ⚠ AMBER because it needs the artist's attention, ⛔ not
      RED: their booking is untouched and a move requires ⛔ no re-acceptance. */
-  slot_changed:       { label: 'SET TIME CHANGED',   ...AMBER,  Icon: Clock3Icon      },
+  slot_changed:       { label: 'SET TIME CHANGED',   ...AMBER,  Icon: CalendarClockIcon },
   new_follower:       { label: 'NEW FOLLOWER',       ...CYAN,   Icon: UserPlusIcon    },
   venue_followed:     { label: 'VENUE FOLLOWED YOU', ...CYAN,   Icon: Building2Icon   },
   slot_accepted:      { label: 'SLOT ACCEPTED',      ...GREEN,  Icon: CheckCircle2Icon },
@@ -44,11 +54,22 @@ export const TYPE_META = {
   booking_confirmed:  { label: 'BOOKING CONFIRMED',  ...GREEN,  Icon: CheckCircle2Icon },
   payment_received:   { label: 'PAYMENT RECEIVED',   ...GREEN,  Icon: WalletIcon      },
   profile_claimed:    { label: 'PROFILE VERIFIED',   ...GREEN,  Icon: CheckCircle2Icon },
-  slot_declined:      { label: 'SLOT DECLINED',      ...RED,    Icon: XCircleIcon     },
-  slot_removed:       { label: 'REMOVED FROM SLOT',  ...RED,    Icon: XCircleIcon     },
-  invite_declined:    { label: 'INVITE DECLINED',    ...RED,    Icon: XCircleIcon     },
-  booking_cancelled:  { label: 'BOOKING CANCELLED',  ...RED,    Icon: XCircleIcon     },
-  application_declined:{ label: 'DECLINED',          ...RED,    Icon: XCircleIcon     },
+  /* ⚠ AN X IN A CIRCLE IS THE ERROR GLYPH, and none of these five is an error
+     (owner, 2026-08-19). All five shared it, so a slot being withdrawn, an
+     artist saying no and an application not going through all read as
+     "something went wrong" — the first two are ordinary booking outcomes and
+     the third is a decision that went against you, not a fault.
+
+     ⭐ THE ICON NAMES THE OBJECT, NOT THE FEELING. A calendar with a cross
+     says a placement is gone; a document with a cross says a submission is
+     closed. The RED still says it is a negative outcome. ⛔ Do not fold these
+     back onto one shape to tidy the table — an application is not a calendar
+     placement, and that is the whole distinction. */
+  slot_declined:      { label: 'SLOT DECLINED',      ...RED,    Icon: CalendarX2Icon  },
+  slot_removed:       { label: 'REMOVED FROM SLOT',  ...RED,    Icon: CalendarX2Icon  },
+  invite_declined:    { label: 'INVITE DECLINED',    ...RED,    Icon: CalendarX2Icon  },
+  booking_cancelled:  { label: 'BOOKING CANCELLED',  ...RED,    Icon: CalendarX2Icon  },
+  application_declined:{ label: 'DECLINED',          ...RED,    Icon: FileX2Icon      },
   /* D2 · a festival released its decision. Written by a database trigger on
      festival_applications, so these arrive no matter which app releases —
      see 20260807000000_d2_festival_outcome_notification.sql.
@@ -101,9 +122,18 @@ export function cleanMessage(message = '') {
 
 // ── Icon components (Lucide-style SVGs, stroke-based) ──────────────────────
 
+/* ⚠ 1.5, NOT 2 (owner, 2026-08-19). The stroke is a property of the DRAWING,
+   so it lives here rather than at each call site — both lists want the same
+   weight and a per-surface override is how they drift apart.
+
+   ⚠ It matters more than the size did. These are rendered around 20px from a
+   24 viewBox, so a 2px stroke lands near 1.7 device pixels of ink on a glyph
+   the width of two letters; the shapes filled in and every icon read as a
+   heavy blob. ⛔ Do not raise it to "make the icon visible" — if an icon needs
+   to shout, the colour and the label are already doing that job. */
 function Icon({ children, color, size = 18 }) {
   return (
-    <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
       {children}
     </svg>
   );
@@ -124,8 +154,16 @@ export function StarIcon({ color, size }) {
 export function CheckCircle2Icon({ color, size }) {
   return <Icon color={color} size={size}><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></Icon>;
 }
-export function XCircleIcon({ color, size }) {
-  return <Icon color={color} size={size}><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></Icon>;
+/* ⛔ XCircleIcon IS GONE ON PURPOSE — it was the error glyph on five booking
+   outcomes. See the note on the red group above before adding it back. */
+export function CalendarX2Icon({ color, size }) {
+  return <Icon color={color} size={size}><path d="M8 2v4"/><path d="M16 2v4"/><path d="M21 13V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h8"/><path d="M3 10h18"/><path d="m17 22 5-5"/><path d="m17 17 5 5"/></Icon>;
+}
+export function FileX2Icon({ color, size }) {
+  return <Icon color={color} size={size}><path d="M4 22h14a2 2 0 0 0 2-2V7l-5-5H6a2 2 0 0 0-2 2v4"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="m3 12.5 5 5"/><path d="m8 12.5-5 5"/></Icon>;
+}
+export function CalendarClockIcon({ color, size }) {
+  return <Icon color={color} size={size}><path d="M21 7.5V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h4.5"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/><circle cx="16.5" cy="16.5" r="5.5"/><path d="M16.5 14.2v2.5l1.6 1"/></Icon>;
 }
 export function MegaphoneIcon({ color, size }) {
   return <Icon color={color} size={size}><path d="m3 11 18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></Icon>;

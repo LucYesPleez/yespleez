@@ -249,33 +249,67 @@ function NotifRow({ notif, userId, onUpdate, onDismiss, rootRef, orphaned = fals
     onDismiss(notif.id);
   }
 
+  /* ⚠ THE CARD IS NEUTRAL — no tinted background, no coloured border (owner,
+     2026-08-19). Every row used to paint itself in its own hue at .05/.2, so a
+     screen of five unread notifications was five differently-coloured panels
+     and the list read as decoration rather than a list.
+
+     ⚠ UNREAD IS STILL SAID, twice: the dot beside the timestamp and the
+     heavier message weight below. ⛔ Do not bring the tint back to make unread
+     "clearer" — it was never saying unread on its own, it was saying unread
+     AND type in the same paint, which is why neither landed. */
   return (
     <div ref={rootRef} style={{
       display: 'flex',
       gap: 14,
       padding: '14px 16px',
       borderRadius: 14,
-      background: isUnread ? `rgba(${meta.rgb},.05)` : 'rgba(255,255,255,.03)',
-      border: `1px solid ${isUnread ? `rgba(${meta.rgb},.2)` : 'rgba(255,255,255,.07)'}`,
+      background: 'rgba(255,255,255,.03)',
+      border: '1px solid rgba(255,255,255,.07)',
     }}>
 
-      {/* ⚠ NO RING, NO TINTED DISC — the icon fills the slot. Same change and
-          same reasoning as NotifPanel's row; the two lists must not drift,
+      {/* ⚠ A 20px GLYPH IN A 24px SLOT, no ring and no container. Same change
+          and same reasoning as NotifPanel's row; the two lists must not drift,
           because they render the same notifications and a reader moving
-          between them would read the difference as meaning something. */}
-      <div style={{ flexShrink: 0, width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: 2 }}>
-        <Icon color={meta.col} size={38} />
+          between them would read the difference as meaning something.
+
+          ⚠ IT WAS 38px AT 2px STROKE, which put a drawing the height of both
+          text lines beside them and made the row's loudest element the part
+          carrying the least information. A hairline box around it was tried
+          and rejected: at 32px it sits 16px inside the card's own border and
+          the two rectangles fight. `meta.ico`, not `meta.col` — see notifMeta. */}
+      <div style={{ flexShrink: 0, width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: 1 }}>
+        <Icon color={meta.ico} size={20} />
       </div>
 
       {/* Body */}
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 4 }}>
-          {/* White heading, coloured icon — matches NotifPanel; see the note
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, marginBottom: 4 }}>
+          {/* ⭐ THE EVENT SITS BESIDE THE HEADING — "NEW MESSAGE · ECHO VALLEY
+              2026" (owner, 2026-08-19). It used to hang below the message,
+              which put the thing that tells you WHICH event this is about
+              after the sentence that assumes you already know.
+
+              ⚠ IT WRAPS WHOLE OR NOT AT ALL. `flexWrap` on the pair plus
+              `nowrap` on the name means a long event name drops to its own
+              line intact; ⛔ a plain inline span would break it mid-name and
+              leave "ECHO" on one line and "VALLEY 2026" on the next. The
+              ellipsis only comes into play if the name alone is wider than the
+              card, which is the one case where there is nowhere else to go.
+
+              White heading, coloured event — matches NotifPanel; see the note
               there. The two surfaces show the same rows and must not diverge. */}
-          <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 11, letterSpacing: 1.5, color: '#fff' }}>
-            {meta.label}
-          </span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', columnGap: 8, rowGap: 2, minWidth: 0 }}>
+            <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 11, letterSpacing: 1.5, color: '#fff' }}>
+              {meta.label}
+            </span>
+            {data.event_name && (
+              <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 11, letterSpacing: 1, color: `rgba(${meta.rgb},.75)`, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>
+                {data.event_name}
+              </span>
+            )}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
             <span style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, color: 'rgba(255,255,255,.28)' }}>
               {getTimeAgo(notif.created_at)}
             </span>
@@ -303,11 +337,9 @@ function NotifRow({ notif, userId, onUpdate, onDismiss, rootRef, orphaned = fals
           {message}
         </div>
 
-        {data.event_name && (
-          <div style={{ fontSize: 11, color: `rgba(${meta.rgb},.75)`, fontFamily: "'Bebas Neue',sans-serif", letterSpacing: 1, marginTop: 4 }}>
-            {data.event_name}
-          </div>
-        )}
+        {/* ⛔ THE EVENT NAME USED TO REPEAT HERE. It moved up beside the
+            heading — do not restore this block, two copies of the same name in
+            one card is what the move was for. */}
 
         {notif.type === 'event_invite' && (data.proposed_date || data.proposed_fee) && (
           <div style={{ marginTop: 10, padding: '8px 12px', background: 'rgba(255,255,255,.04)', borderRadius: 8, display: 'flex', gap: 20 }}>
