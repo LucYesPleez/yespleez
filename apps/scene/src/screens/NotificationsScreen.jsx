@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { notifDestination } from '../lib/notifDestination';
 import { supabase } from '../lib/supabase';
 import { useSession } from '../App';
 import { getNotifMeta, cleanMessage } from '../lib/notifMeta';
@@ -188,11 +189,17 @@ function NotifRow({ notif, userId, onUpdate, onDismiss, rootRef, orphaned = fals
   /* ⚠ Why an answer did not land, on the row the artist just tapped. */
   const [answerError, setAnswerError] = useState('');
   const [dismissing, setDismissing] = useState(false);
+  const navigate = useNavigate();
   const meta = getNotifMeta(notif.type, notif.message);
   const { Icon } = meta;
   const data = notif.data || {};
   const message = cleanMessage(notif.message);
   const isUnread = !notif.read;
+  /* ⭐ WHERE THIS ROW LEADS, or null. ⛔ Not a `switch` here and another in
+     NotifPanel — see lib/notifDestination.js for why that shape is banned.
+     ⛔⛔ NULL MEANS INERT, and inert must not LOOK clickable: no pointer, no
+     handler, no dead tap. That is the rendering contract. */
+  const destination = notifDestination(notif);
 
   /**
    * ⛔⛔ AN ANSWER THAT DID NOT LAND IS NOT AN ANSWER. ⛔ Change one, change both —
@@ -258,15 +265,47 @@ function NotifRow({ notif, userId, onUpdate, onDismiss, rootRef, orphaned = fals
      heavier message weight below. ⛔ Do not bring the tint back to make unread
      "clearer" — it was never saying unread on its own, it was saying unread
      AND type in the same paint, which is why neither landed. */
+  /**
+   * ⛔⛔ A CONTROL INSIDE THE ROW IS NOT THE ROW. DISMISS, ACCEPT and DECLINE
+   * all sit within the clickable area, and without this guard every one of
+   * them would ALSO navigate — declining an offer would answer it and then
+   * throw the artist onto the event page, and dismissing would leave the list
+   * entirely.
+   *
+   * ⭐ ONE GUARD, READ FROM THE EVENT, rather than a `stopPropagation` on each
+   * button. The per-button version works until someone adds the next button
+   * and forgets, and nothing fails when they do — the row simply starts doing
+   * two things at once. This cannot be forgotten, because it asks the DOM.
+   */
+  function handleRowClick(e) {
+    if (!destination) return;
+    if (e.target.closest('button')) return;
+    navigate(destination);
+  }
+
   return (
-    <div ref={rootRef} style={{
-      display: 'flex',
-      gap: 14,
-      padding: '14px 16px',
-      borderRadius: 14,
-      background: 'rgba(255,255,255,.03)',
-      border: '1px solid rgba(255,255,255,.07)',
-    }}>
+    <div
+      ref={rootRef}
+      onClick={destination ? handleRowClick : undefined}
+      /* ⚠ role/tabIndex ONLY WHEN THERE IS SOMEWHERE TO GO — a focus stop that
+         does nothing is the keyboard version of a dead tap. The nested
+         ACCEPT/DECLINE buttons inside a role="link" are a known trade-off:
+         invalid nesting, but mouse-only rows would strand keyboard users on a
+         list where every other surface can be reached. */
+      role={destination ? 'link' : undefined}
+      tabIndex={destination ? 0 : undefined}
+      onKeyDown={destination ? (e => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleRowClick(e); }
+      }) : undefined}
+      style={{
+        display: 'flex',
+        gap: 14,
+        padding: '14px 16px',
+        borderRadius: 14,
+        background: 'rgba(255,255,255,.03)',
+        border: '1px solid rgba(255,255,255,.07)',
+        cursor: destination ? 'pointer' : 'default',
+      }}>
 
       {/* ⚠ A 20px GLYPH IN A 24px SLOT, no ring and no container. Same change
           and same reasoning as NotifPanel's row; the two lists must not drift,

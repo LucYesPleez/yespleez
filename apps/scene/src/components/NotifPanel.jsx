@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useSession } from '../App';
 import { getNotifMeta, cleanMessage } from '../lib/notifMeta';
+import { notifDestination } from '../lib/notifDestination';
 import { acceptSlotOffer, declineSlotOffer, acceptInvite, declineInvite, dismissNotification, markResponded } from '../lib/notifActions';
 import { conversationNotificationTypes } from '../lib/conversationNotifications';
 import { findOrphanedOffers } from '../lib/orphanedOffers';
@@ -206,6 +207,10 @@ export default function NotifPanel({ onClose }) {
             onUpdate={updateNotif}
             onDismiss={removeNotif}
             orphaned={orphaned.has(n.id)}
+            /* ⚠ THE PANEL CLOSES BEFORE IT NAVIGATES. It is a dropdown over the
+               app, so leaving it open would land the reader on the destination
+               with the list still covering it. */
+            onOpen={to => { onClose(); navigate(to); }}
             isLast={i === visible.length - 1 && !hasMore}
             rootRef={n.read ? undefined : observe(n.id)}
           />
@@ -234,7 +239,7 @@ export default function NotifPanel({ onClose }) {
   );
 }
 
-function PanelRow({ notif, userId, onUpdate, onDismiss, isLast, rootRef, orphaned = false }) {
+function PanelRow({ notif, userId, onUpdate, onDismiss, onOpen, isLast, rootRef, orphaned = false }) {
   const [busy, setBusy]           = useState(false);
   const [responded, setResponded] = useState(!!notif.responded_at);
   /* ⚠ Why an answer did not land. ⛔ Not a toast: it belongs on the row the
@@ -246,6 +251,10 @@ function PanelRow({ notif, userId, onUpdate, onDismiss, isLast, rootRef, orphane
   const data = notif.data || {};
   const message = cleanMessage(notif.message);
   const isUnread = !notif.read;
+  /* ⭐ WHERE THIS ROW LEADS, or null — the twin of NotificationsScreen's row.
+     ⛔ Change one, change both, and ⛔ neither of them gets its own `switch`;
+     see lib/notifDestination.js. */
+  const destination = notifDestination(notif);
 
   /**
    * ── ⛔⛔ AN ANSWER THAT DID NOT LAND IS NOT AN ANSWER ────────────────────────
@@ -315,12 +324,30 @@ function PanelRow({ notif, userId, onUpdate, onDismiss, isLast, rootRef, orphane
     onDismiss(notif.id);
   }
 
+  /* ⛔⛔ A CONTROL INSIDE THE ROW IS NOT THE ROW — the twin of the guard on
+     NotificationsScreen's row, where the fuller note is. One read of the
+     event, ⛔ not a `stopPropagation` per button that the next button forgets. */
+  function handleRowClick(e) {
+    if (!destination) return;
+    if (e.target.closest('button')) return;
+    onOpen(destination);
+  }
+
   /* ⚠ NO COLOURED UNREAD TINT (owner, 2026-08-19) — the twin of the change on
      NotificationsScreen's card, made for the same reason. Unread is said by
      the dot and by the message weight; painting the row in the type's hue said
      both things in one wash and neither of them clearly. */
   return (
-    <div ref={rootRef} style={{ display: 'flex', gap: 12, padding: '12px 16px', borderBottom: isLast ? 'none' : '1px solid rgba(255,255,255,.05)', background: 'transparent' }}>
+    <div
+      ref={rootRef}
+      onClick={destination ? handleRowClick : undefined}
+      role={destination ? 'link' : undefined}
+      tabIndex={destination ? 0 : undefined}
+      onKeyDown={destination ? (e => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleRowClick(e); }
+      }) : undefined}
+      style={{ display: 'flex', gap: 12, padding: '12px 16px', borderBottom: isLast ? 'none' : '1px solid rgba(255,255,255,.05)', background: 'transparent', cursor: destination ? 'pointer' : 'default' }}
+    >
 
       {/* ⚠ NO RING, NO TINTED DISC — THE MARK ITSELF (owner, 2026-08-14). The
           40px circle spent most of its area on a border and a background wash,
