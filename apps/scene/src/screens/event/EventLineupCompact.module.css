@@ -1,11 +1,11 @@
-/* § 6b · Lineup, compact — one or two acts, stated beside the event info.
+/* § 6b · Lineup, compact — one or two acts, beside the event info.
    See EventLineupCompact.jsx for why this exists. */
 
 .compact {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  margin-top: 4px;
+  margin-top: 6px;
 }
 
 /* ⛔⛔ NARROW WIDTHS ONLY. From 1024px the layout's two-column band applies and
@@ -26,96 +26,20 @@
   padding-top: 2px;
 }
 
-.rows {
+/* ⚠ `justify-content: flex-start` is load-bearing with ONE card: the row must
+   keep its empty half rather than centring a lone card into the middle of it.
+   The card is half-width on purpose, and a centred one reads as a layout that
+   could not decide. The gap must match GAP_PX in the component. */
+.cards {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.row {
-  display: flex;
-  align-items: center;
+  justify-content: flex-start;
+  align-items: flex-start;
   gap: 10px;
-  width: 100%;
-  padding: 8px 11px 8px 8px;
-  border: 1px solid rgba(255, 255, 255, .09);
-  border-radius: 11px;
-  background: rgba(255, 255, 255, .03);
-  /* The button reset — a <button> here would otherwise arrive with the
-     platform's own font, colour and centring. */
-  font: inherit;
-  color: inherit;
-  text-align: left;
-  appearance: none;
-}
-
-/* ⛔ THE POINTER ONLY WHERE THERE IS SOMEWHERE TO GO. A hand-typed act has no
-   profile to open, and its row renders as a <div> — see the component. */
-.rowOpenable { cursor: pointer; }
-
-@media (hover: hover) {
-  .rowOpenable:hover {
-    background: rgba(255, 255, 255, .06);
-    border-color: rgba(255, 255, 255, .16);
-  }
-}
-
-.avatar {
-  width: 40px;
-  height: 40px;
-  flex: 0 0 40px;
-  border-radius: 8px;
-  object-fit: cover;
-  display: block;
-}
-
-.avatarFallback {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(135deg, #1b1b2e, #2a2a44);
-  font-family: 'Bebas Neue', sans-serif;
-  font-size: 17px;
-  color: rgba(255, 255, 255, .5);
-}
-
-/* min-width:0 so a long name ellipses instead of pushing the chevron out. */
-.text {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  flex: 1 1 auto;
-}
-
-.name {
-  font-family: 'Bebas Neue', sans-serif;
-  font-size: 15px;
-  letter-spacing: .7px;
-  line-height: 1.1;
-  color: #fff;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.place {
-  font-size: 10.5px;
-  color: rgba(255, 255, 255, .35);
-  margin-top: 1px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.chev {
-  display: flex;
-  flex: 0 0 auto;
-  color: rgba(255, 255, 255, .28);
 }
 
 /* ── The other half of the same decision ────────────────────────────────
    Wraps the FULL Lineup section in EventPage. Below 1024px a bill of one or
-   two is already stated by `.compact` above, beside the event info, so the
+   two is already shown by `.compact` above, beside the event info, so the
    stacked section must not render it a second time.
 
    ⚠ `display: contents` at desktop, ⛔ NOT `block`. The band height-matches
