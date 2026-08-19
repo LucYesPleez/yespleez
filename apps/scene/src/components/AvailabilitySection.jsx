@@ -1,11 +1,14 @@
 import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
-import { formatDisplayDate } from '../lib/dates';
+import { formatDisplayDate, today } from '../lib/dates';
 import { indexByDate, buildMarkers, summariseDate, statusesPresent, dotColour } from '../lib/enquiryCalendar';
 import AvailabilityCalendar from './AvailabilityCalendar';
 import { CalendarIconBtn } from './DecisionButtons';
 
-const TODAY = () => new Date().toISOString().split('T')[0];
+/* ⛔⛔ WAS `new Date().toISOString().split('T')[0]` — the UTC date, which east of
+   Greenwich is YESTERDAY until mid-morning. ⚠ Every AU user before ~10am was
+   offered a past day as today. See lib/dates.js. */
+const TODAY = () => today();
 
 /**
  * ⚠ PROFILE-KEYED. `profileId` is required; `userId` is written for RLS and

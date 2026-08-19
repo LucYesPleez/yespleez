@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase';
 import { getPersonalProfileId, getOwnerProfiles } from '../lib/actingProfile';
 import { writeNotification } from '../lib/writeNotification';
 import { track, EVENTS } from '../lib/analytics';
+import { today } from '../lib/dates';
 import { useSession, usePlayer } from '../App';
 import { useParticipation } from '../components/ParticipationGate';
 import EventCard from '../components/EventCard';
@@ -387,9 +388,11 @@ export default function ProfileScreen() {
     if (!profile?.id || !BOOKABLE_TYPES.includes(profile.type)) { setPerfAvailDates(null); return; }
     let cancelled = false;
     (async () => {
-      const today = new Date().toISOString().split('T')[0];
+      /* ⛔⛔ WAS the UTC date. It is the `gte` bound on an availability QUERY, so
+         every AU morning it fetched from YESTERDAY. See lib/dates.js. */
+      const todayStr = today();
       const { data: rows } = await supabase.from('artist_availability')
-        .select('available_date').eq('profile_id', profile.id).gte('available_date', today).order('available_date');
+        .select('available_date').eq('profile_id', profile.id).gte('available_date', todayStr).order('available_date');
       if (!cancelled) setPerfAvailDates(new Set((rows || []).map(r => r.available_date)));
     })();
     return () => { cancelled = true; };
@@ -1268,11 +1271,13 @@ export default function ProfileScreen() {
                 onClick={async () => {
                   setAvailOpen(true);
                   if (!availDates) {
-                    const today = new Date().toISOString().split('T')[0];
+                    /* ⛔⛔ WAS the UTC date — the `gte` bound on the VENUE
+                       availability query. See lib/dates.js. */
+                    const todayStr = today();
                     // M5: availability keys on profile_id, event overlay on the
                     // attribution column — never the route param.
                     const [availRes, evRes] = await Promise.all([
-                      supabase.from('venue_availability').select('available_date').eq('profile_id', profile.id).gte('available_date', today).order('available_date'),
+                      supabase.from('venue_availability').select('available_date').eq('profile_id', profile.id).gte('available_date', todayStr).order('available_date'),
                       supabase.from('events').select('config').eq('venue_profile_id', profile.id).eq('status', 'live'),
                     ]);
                     setAvailDates(new Set((availRes.data || []).map(r => r.available_date)));
@@ -1357,7 +1362,10 @@ export default function ProfileScreen() {
 
           {/* Events sheet */}
           {(() => {
-            const todayStr = new Date().toISOString().split('T')[0];
+            /* ⛔⛔ WAS the UTC date, and it is the UPCOMING / PAST split — so an
+               event happening TODAY fell into PAST for every AU user until
+               mid-morning. See lib/dates.js. */
+            const todayStr = today();
             const upcoming = events.filter(ev => (ev.config?.date || '9999') >= todayStr).sort((a, b) => (a.config?.date || '').localeCompare(b.config?.date || ''));
             const past     = events.filter(ev => (ev.config?.date || '9999') <  todayStr).sort((a, b) => (b.config?.date || '').localeCompare(a.config?.date || ''));
             const list     = showPast ? filterPastEvents(past, pastGigSearch) : upcoming;

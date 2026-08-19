@@ -5,7 +5,7 @@ import { useEvents } from '../lib/useEvents';
 import { trackFiltered } from '../lib/analytics';
 import { eventCoords, postcodeCoords, withinRadius } from '../lib/geo';
 import { resolveLocationToPostcodes } from '../lib/auLocations';
-import { today, dateStr, weekendRange, formatDisplayDate } from '../lib/dates';
+import { today, dateStr, weekendRange, formatDisplayDate, localDateStr } from '../lib/dates';
 import FeaturedEventCard from '../components/FeaturedEventCard';
 import HeartBtn from '../components/HeartBtn';
 import { HEART_OVERLAY_STYLE, HEART_BARE_STYLE } from '../components/heartStyles';
@@ -249,7 +249,13 @@ export default function WhatsOnScreen() {
     for (let i = 0; i < 3; i++) {
       const d = new Date(fri);
       d.setDate(d.getDate() + i);
-      dates.add(d.toISOString().slice(0, 10));
+      /* ⚠ THIS ONE WAS NOT BROKEN, AND THAT IS THE PROBLEM. The anchor is
+         `wr.from + 'T12:00:00'` — local NOON — so the UTC slice landed on the
+         right day for every timezone within ±12h. ⛔ Correct only by an
+         invariant nobody stated, one edit away from silently becoming the same
+         defect as the other four. `localDateStr` says what is meant, and the
+         output is unchanged. */
+      dates.add(localDateStr(d));
     }
     return dates;
   }, [wr]);

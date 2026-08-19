@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { today } from '../lib/dates';
 
 // Shared availability calendar modal (11C.2). Extracted from two previously
 // duplicated, drifted implementations: ProfileScreen's venue "VENUE
@@ -43,7 +44,11 @@ export function CalendarGrid({
 }) {
   const availSet = toSet(availableDates);
   const eventSet = toSet(eventDates);
-  const todayStr = new Date().toISOString().split('T')[0];
+  /* ⛔⛔ WAS `new Date().toISOString().split('T')[0]` — the UTC date, so every
+     morning in AEST it read as YESTERDAY and today's cell lost its marker.
+     ⚠ The rule is about UTC, ⛔ not about the word `toISOString`: `.split('T')[0]`
+     and `.slice(0,10)` are the same defect wearing different spellings. */
+  const todayStr = today();
   const yr = month.getFullYear(), mo = month.getMonth();
   const firstDay = new Date(yr, mo, 1).getDay();
   const daysInMonth = new Date(yr, mo + 1, 0).getDate();
