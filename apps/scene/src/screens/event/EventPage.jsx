@@ -95,6 +95,12 @@ export default function EventPage({
     [event, ownerProfile, coHostProfiles, venueProfile, lineupMembers, memberProfiles],
   );
 
+  /* ⭐ ONE act pairs with the title and info; ⛔ two do not — see the identity
+     slot below. Asked through `isCompactLineup` so this cannot disagree with
+     the component about which mode is showing. */
+  const soloBeside = isCompactLineup(v.lineup.artists, v.lineup.withheld)
+    && v.lineup.artists.length === 1;
+
   const collectables = useMemo(
     () => buildCollectables({
       ownerProfile, venueProfile,
@@ -125,8 +131,13 @@ export default function EventPage({
     <EventPageLayout
       hero={<EventHero {...v.hero} alt={v.name} />}
 
+      /* ⭐ ONE ACT SITS BESIDE THE TITLE AND INFO (owner, 2026-08-20). Stacked,
+         the identity read as two disconnected chunks. ⛔ Only for ONE act: two
+         cards in a column that narrow are a pair of stamps, so a pair keeps the
+         full-width row beneath the info where they can be read. */
       identity={
-        <>
+        <div className={soloBeside ? compactStyles.identityRow : undefined}>
+          <div className={soloBeside ? compactStyles.identityMain : undefined}>
           <EventIdentity
             {...v.identity}
             favourited={favourited}
@@ -135,6 +146,7 @@ export default function EventPage({
             // canFavourite=false now means only the host's own preview.
             onToggleFavourite={canFavourite && onToggleFavourite ? onToggleFavourite : null}
           />
+          </div>
           {/* ⭐ A BILL OF ONE OR TWO IS STATED HERE, with the date and the venue
               (owner, 2026-08-20) — ⛔ not given a section of its own below the
               whole summary, where one act became a full-width portrait and the
@@ -149,8 +161,9 @@ export default function EventPage({
             artists={v.lineup.artists}
             withheld={v.lineup.withheld}
             onOpenArtist={a => openProfile({ id: a.id, type: a.type })}
+            beside={soloBeside}
           />
-        </>
+        </div>
       }
 
       decision={

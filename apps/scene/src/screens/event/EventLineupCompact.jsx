@@ -54,18 +54,31 @@ export function isCompactLineup(artists = [], withheld = false) {
 const GAP_PX = 10;
 const CARD_WIDTH = `calc((100% - ${GAP_PX}px) / 2)`;
 
-export default function EventLineupCompact({ artists = [], withheld = false, onOpenArtist = null }) {
+/**
+ * ⭐ `beside` — ONE act sits in a column NEXT TO the title and info rather than
+ * under it (owner, 2026-08-20). Stacked, the identity read as two disconnected
+ * chunks: title, date, venue, then a gap, then a card.
+ *
+ * ⛔ ONLY EVER FOR ONE ACT. Two cards in a column that narrow are a pair of
+ * stamps; two acts keep the full-width row beneath the info, where they have
+ * room to be read. The caller decides, and `EventPage` is the only caller.
+ *
+ * ⚠ In this mode the card fills its column (100%), ⛔ not the half-row width —
+ * the column IS the half-row, so halving it again would make the act tiny.
+ */
+export default function EventLineupCompact({ artists = [], withheld = false, onOpenArtist = null, beside = false }) {
   if (!isCompactLineup(artists, withheld)) return null;
+  const soloBeside = beside && artists.length === 1;
 
   return (
-    <section className={s.compact} aria-label="Lineup">
+    <section className={`${s.compact} ${soloBeside ? s.besideCol : ''}`} aria-label="Lineup">
       <div className={s.label}>PLAYING</div>
       <div className={s.cards}>
         {artists.map(a => (
           <PortraitCard
             key={a.id ?? a.name}
             profile={{ type: 'artist', ...a }}
-            width={CARD_WIDTH}
+            width={soloBeside ? '100%' : CARD_WIDTH}
             height="auto"        /* 3:4 derived from the width — see PortraitCard */
             showType={false}     /* every card here is on the bill; the label adds nothing */
             /* ⛔ NOT CLICKABLE WITHOUT A DESTINATION. A hand-typed act carries

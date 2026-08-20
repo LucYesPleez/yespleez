@@ -37,6 +37,40 @@
   gap: 10px;
 }
 
+/* ── ONE ACT, BESIDE THE TITLE AND INFO ─────────────────────────────────
+   The identity was reading as two disconnected chunks: title, date, venue,
+   then a gap, then a card underneath. Side by side they read as one block.
+
+   ⚠ The row lives on a wrapper in EventPage rather than here, because it has
+   to contain BOTH children — this file owns the column, that file owns the
+   pairing. */
+.identityRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+/* min-width:0 so a long event title wraps inside its column instead of
+   pushing the artist off the edge. */
+.identityMain {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.besideCol {
+  flex: 0 0 118px;
+  margin-top: 2px;
+}
+
+/* ⚠ At the narrowest widths the pair stops being a pair. Below ~360px the
+   title has too little room beside a 118px column, so the card returns to its
+   own row underneath — where it is still half-width, not full-bleed. */
+@media (max-width: 359px) {
+  .identityRow { display: block; }
+  .besideCol   { margin-top: 8px; }
+  .besideCol .cards > * { width: calc((100% - 10px) / 2) !important; }
+}
+
 /* ── The other half of the same decision ────────────────────────────────
    Wraps the FULL Lineup section in EventPage. Below 1024px a bill of one or
    two is already shown by `.compact` above, beside the event info, so the
