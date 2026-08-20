@@ -3,10 +3,10 @@
 // ⭐⭐ SAME CARDS, SAME INTERACTION, NEW DATA SOURCE (owner, 2026-08-20).
 // This renders `SlotCard` — the card the app already has, with its artist
 // imagery, time and duration block, label pill and chevron — and it stays
-// INTERACTIVE. ⛔ There is no public card design, no read-only variant, and
-// ⛔⛔ NO REDUCED-WIDTH CARD ANYWHERE (owner, same day): an earlier draft laid
-// multi-stage out as a sideways grid of 236px columns, and the owner stopped
-// it on sight. The schedule scrolls DOWN the page at full width.
+// INTERACTIVE. ⛔ There is no public card design and no read-only variant.
+// ⭐⭐ MULTI-STAGE GOES SIDEWAYS (owner, 2026-08-20, second ruling) — time
+// across the screen, stages anchored down the side, the SAME full card in
+// every occupied cell. Single-stage stays a full-width vertical list.
 //
 // ⭐⭐ EVERY DAY IS ON THE PAGE, IN ORDER (owner, 2026-08-20). Saturday flows
 // straight into Sunday under a day heading — ⛔ the days are NOT tabbed panels.
@@ -35,6 +35,7 @@
 
 import { useRef, useState, useEffect, Fragment } from 'react';
 import { scheduleShape } from '../../lib/scheduleModel';
+import { timeAxis, cellsForStage } from '../../lib/schedulePortrait';
 import SlotCard from './SlotCard';
 import s from './SchedulePortrait.module.css';
 
@@ -129,46 +130,95 @@ export default function SchedulePortrait({ resolved, allMixSlots = [] }) {
             </div>
           )}
 
-          {(day.stages || []).map(stage => {
-            /* ⚠ A stage with nothing on THIS day contributes nothing here — a
-               heading over an empty stretch is a visual hole, and a vertical
-               stack has no columns that need holding open. */
-            if (!stage.slots?.length) return null;
-            return (
-              <Fragment key={stage.id ?? 'implicit'}>
-                {/* ⭐ Stage headings exist only on a multi-stage event —
-                    `shape.showStages` is the resolver's own answer, and one
-                    named stage is still single-stage. */}
-                {shape.showStages && (
-                  <div className={s.stageDivider}>
-                    <span
-                      className={s.stageName}
-                      style={stage.accent ? { '--accent': stage.accent } : undefined}
-                    >{stage.name}</span>
-                    <div className={s.stageLine} />
-                  </div>
-                )}
-                {stage.slots.map(entry => (
-                  <div className={s.row} key={entry.slot.id}>
-                    {/* ⭐ ONE CARD, EVERYWHERE, FULL WIDTH. `isHost={false}`
-                        removes the host operations because `SlotCard` renders
-                        a control only where its handler exists and none are
-                        passed. ⛔ That is NOT read-only: the row expands, the
-                        mix plays, and VIEW PROFILE reaches the artist when one
-                        exists. */}
-                    <SlotCard
-                      slot={entry.slot}
-                      claim={entry.claim}
-                      isHost={false}
-                      allMixSlots={allMixSlots}
-                    />
-                  </div>
-                ))}
-              </Fragment>
-            );
-          })}
+          {/* ⭐⭐ TWO LAYOUTS, ONE PER DAY, chosen by the resolver's own shape:
+              single-stage = the chronological list; multi-stage = the sideways
+              grid (owner, 2026-08-20, second ruling: "I want the set times to
+              go sideways across the screen for multi-stage"). Days themselves
+              ALWAYS stack vertically — only TIME goes sideways. */}
+          {shape.showStages
+            ? <StageGridDay day={day} allMixSlots={allMixSlots} />
+            : <TimelineDay day={day} allMixSlots={allMixSlots} />}
         </Fragment>
       ))}
     </section>
+  );
+}
+
+/** ⭐ THE CARD, once, for both layouts — `isHost={false}` removes the host
+    operations because `SlotCard` renders a control only where its handler
+    exists and none are passed. ⛔ NOT read-only: the row expands, the mix
+    plays, and VIEW PROFILE reaches the artist when one exists. */
+function Card({ entry, allMixSlots }) {
+  return (
+    <SlotCard
+      slot={entry.slot}
+      claim={entry.claim}
+      isHost={false}
+      allMixSlots={allMixSlots}
+    />
+  );
+}
+
+/** SINGLE STAGE — the chronological list. Full-width cards, the page's own
+    scroll, ⛔ nothing added around them. */
+function TimelineDay({ day, allMixSlots }) {
+  const entries = (day?.stages?.[0]?.slots) || [];
+  return (
+    <>
+      {entries.map(entry => (
+        <div className={s.row} key={entry.slot.id}>
+          <Card entry={entry} allMixSlots={allMixSlots} />
+        </div>
+      ))}
+    </>
+  );
+}
+
+/**
+ * MULTI STAGE — time across the top, stages down the side, scrolling sideways
+ * through the evening. The stage column is STICKY so the reader never loses
+ * which row they are on while time moves.
+ *
+ * ⚠ 236px minimum per time column is physical necessity, not taste — the
+ * narrowest a full SlotCard still reads. Same card, same interaction.
+ */
+function StageGridDay({ day, allMixSlots }) {
+  const axis = timeAxis(day);
+  return (
+    <div className={s.gridScroll}>
+      <div className={s.grid} style={{ '--cols': axis.length }}>
+        <div className={`${s.gridCell} ${s.stageHead} ${s.axisHead}`} />
+        {axis.map(col => (
+          <div className={`${s.gridCell} ${s.axisHead}`} key={col.key}>
+            <span className={s.timeNum}>{col.time}</span>
+            <span className={s.timeAmPm}>{col.ampm}</span>
+          </div>
+        ))}
+
+        {/* ⚠⚠ CELLS ARE DIRECT GRID CHILDREN — ⛔ never wrapped in a row div.
+            A wrapper makes each stage its own formatting context, so the
+            columns stop sharing a track and the sticky stage cell has nothing
+            to stick within. */}
+        {(day?.stages || []).map(stage => (
+          <Fragment key={stage.id ?? 'implicit'}>
+            <div
+              className={`${s.gridCell} ${s.stageHead}`}
+              style={stage.accent ? { '--accent': stage.accent } : undefined}
+            >
+              <span className={s.stageName}>{stage.name}</span>
+            </div>
+            {cellsForStage(stage, axis).map((entry, i) => (
+              <div className={s.gridCell} key={axis[i].key}>
+                {/* ⚠ A GAP IS NOT AN OPEN SLOT: nothing is scheduled on this
+                    stage at this time, so the cell holds nothing at all. */}
+                {entry
+                  ? <Card entry={entry} allMixSlots={allMixSlots} />
+                  : <div className={s.gap} aria-hidden="true" />}
+              </div>
+            ))}
+          </Fragment>
+        ))}
+      </div>
+    </div>
   );
 }

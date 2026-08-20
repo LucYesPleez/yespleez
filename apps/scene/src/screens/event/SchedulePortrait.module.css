@@ -102,30 +102,105 @@
 
 .row > * { flex: 1 1 auto; min-width: 0; }
 
-/* ── Stage sections (multi-stage events only) ───────────────────────────
-   The same divider idiom the day headings in the host grid use: a small
-   Bebas label and a hairline running out to the right. The stage's accent
-   colours the NAME only — a coloured rule plus a coloured name plus coloured
-   cards is three carriers for one fact. */
+/* ── Multi stage: time across, stages down, scrolling sideways ──────────
+   ⭐⭐ RESTORED ON THE OWNER'S WORD (2026-08-20, second ruling): "I want the
+   set times to go sideways across the screen for multi-stage." The earlier
+   deletion over-read the half-size-cards objection — that objection was about
+   the SINGLE-STAGE list and about days being tabbed away, both of which stay
+   fixed. Multi-stage IS the sideways grid: time across the top, stages
+   anchored down the side, the app's own SlotCard in every occupied cell.
 
-.stageDivider {
+   ⛔ NO VISIBLE SCROLLBAR — standing UI law. The part-column peeking past the
+   right edge is what says "there is more evening", the same way the lineup
+   rail does it. Days still stack vertically: each day's grid sits under its
+   day heading, and only TIME scrolls sideways. */
+.gridScroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.gridScroll::-webkit-scrollbar { display: none; }
+
+/* `--cols` is set inline from the resolved time axis. The stage column is
+   `auto` so a long stage name is not truncated into meaninglessness.
+   ⚠ 236px minimum per time column is PHYSICAL NECESSITY, not taste: it is the
+   narrowest a full SlotCard still reads — time block, name, label. The owner's
+   rule for condensed views: a density variant only if column width forces it,
+   same visual language, still interactive. */
+.grid {
+  display: grid;
+  grid-template-columns: auto repeat(var(--cols), minmax(236px, 1fr));
+  gap: 6px;
+  min-width: min-content;
+}
+
+.gridCell { min-width: 0; }
+
+.axisHead {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, .08);
+}
+
+.timeNum {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 19px;
+  letter-spacing: .5px;
+  line-height: 1;
+  color: #fff;
+}
+
+.timeAmPm {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 10px;
+  letter-spacing: 1.4px;
+  color: rgba(255, 255, 255, .35);
+  margin-top: 2px;
+}
+
+/* ⚠⚠ STICKY, AND THIS IS THE WHOLE MECHANISM of the grid. The reader must not
+   lose which stage they are looking at while the evening scrolls past. It needs
+   its own background or the cells slide visibly underneath it. */
+.stageHead {
+  position: sticky;
+  left: 0;
+  z-index: 2;
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-top: 6px;
+  padding: 0 10px 0 0;
+  background: linear-gradient(90deg, var(--bg, #0a0a14) 82%, transparent);
+  /* ⚠⚠ `max-content`, and it OVERRIDES `.gridCell { min-width: 0 }` above.
+     That rule exists so a long act name can ellipsis inside a time cell, but
+     applied here it collapsed the `auto` stage track to its own padding — 10px
+     — while the stage name overflowed at 53px and painted across the first
+     time column. The sticky gradient hid the collision, so the grid looked
+     merely cramped rather than broken. ⛔ Do not "tidy" this back to 0. */
+  min-width: max-content;
 }
 
 .stageName {
   font-family: 'Bebas Neue', sans-serif;
-  font-size: 12px;
-  letter-spacing: 1.8px;
+  font-size: 11px;
+  letter-spacing: 1.4px;
   line-height: 1.15;
   color: var(--accent, rgba(255, 255, 255, .55));
   white-space: nowrap;
 }
 
-.stageLine {
-  flex: 1 1 auto;
-  height: 1px;
-  background: rgba(255, 255, 255, .08);
+/* ⚠ A GAP IS NOT AN OPEN SLOT — nothing is scheduled on this stage at this
+   time, so the cell says nothing at all. An empty card here would advertise a
+   slot the organiser never created. */
+.gap {
+  height: 100%;
+  min-height: 44px;
+  border-radius: 10px;
+  background: repeating-linear-gradient(
+    -45deg,
+    rgba(255, 255, 255, .02) 0 6px,
+    transparent 6px 12px
+  );
 }

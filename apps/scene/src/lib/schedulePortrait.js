@@ -4,15 +4,12 @@
  * S3 · pure logic over the object `resolveSchedule` returns.
  * ⛔ Nothing here reshapes the schedule — one scheduling model, many views.
  *
- * ⚠⚠ NO PORTRAIT CONSUMER, AND THAT IS DELIBERATE (owner, 2026-08-20). The
- * portrait projection was drafted as a sideways grid of reduced-width cells
- * aligned to this axis, and the owner stopped it on sight — the public
- * timetable is a vertical stack of the app's own full-width cards, which
- * needs no axis and no cell alignment. These functions stay because the
- * LANDSCAPE projection (brief §6: stages side by side, time running
- * vertically) is the ratified consumer of exactly this machinery, and their
- * tests are its spec. ⛔ If landscape ships without them, delete this file —
- * do not let it linger as a third idea of what a schedule is.
+ * ⭐ CONSUMED BY THE PORTRAIT MULTI-STAGE GRID (owner, 2026-08-20, second
+ * ruling: "I want the set times to go sideways across the screen for
+ * multi-stage") and, when it lands, by the LANDSCAPE projection (brief §6) —
+ * both align stages to one shared time axis; they differ only in which axis
+ * runs which way. ⚠ Single-stage portrait deliberately uses NONE of this: a
+ * chronological stack of full-width cards needs no axis and no cell alignment.
  *
  * ⚠⚠ THESE LIVE IN A `.js` MODULE, ⛔ NOT INSIDE A `.jsx` COMPONENT: node's
  * test runner cannot import JSX, so anything declared beside markup can only
