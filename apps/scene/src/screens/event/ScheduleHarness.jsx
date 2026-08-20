@@ -16,14 +16,11 @@
 // yet, and `event_stages` is empty in production. It is labelled as such below
 // so nobody reads it as evidence about real data.
 
-import { useEffect, useState, Fragment } from 'react';
+import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { resolveSchedule } from '../../lib/scheduleModel';
-import { timeAxis, cellsForStage } from '../../lib/schedulePortrait';
 import { groupSlotsIntoDays, indexPerformances } from '../../lib/eventSlots';
-import PortraitCard from '../../components/PortraitCard';
 import SchedulePortrait from './SchedulePortrait';
-import g from './SchedulePortrait.module.css';
 
 /** The only production event that has a schedule (19 slots, 2 days). */
 const SOLSTICE = '55512cb8-72e8-446c-9fff-f195d7e002c3';
@@ -34,8 +31,8 @@ const FESTIVAL_STAGES = [
   { id: 'c', name: 'CHILL ZONE',   position: 2, accent: '#BF5FFF' },
 ];
 
-/* Real production avatar thumbs, harness-only, so the portrait-cell comparison
-   is judged with faces rather than fallbacks. Names are the fixture's. */
+/* Real production avatar thumbs, harness-only, so the fixture's SlotCards are
+   judged with faces rather than fallbacks. Names are the fixture's. */
 const AV = 'https://doqzxvppibuzieajqkxm.supabase.co/storage/v1/object/public/avatars/artist_avatars/';
 const FIXTURE_AVATARS = {
   LUCIOUS:  AV + '94a88288-43aa-445b-abb8-7dc895804b51_thumb.jpg',
@@ -80,56 +77,6 @@ function festivalFixture() {
     });
   }
   return { slots, stages: FESTIVAL_STAGES, claims, eventDate: '2026-10-03' };
-}
-
-/**
- * HARNESS-ONLY · the multi-stage grid with PORTRAIT cards in the cells, for
- * the owner to judge against the SlotCard version above it. Same axis, same
- * sticky stage column, same gap rule — only the cell changes. ⛔ Not a
- * production surface; if ratified, this shape moves into SchedulePortrait as
- * the grid's cell and this copy dies.
- *
- * The trade on the table: the axis column already says the time, so the cell
- * can drop SlotCard's time block and carry just the act — photo and name at
- * 118px, the lineup rail's own width, which fits roughly twice as much of the
- * evening on screen. Lost in exchange: duration, label pill, the expanding
- * panel and the mix button. A tap goes straight to the artist.
- */
-function PortraitCellsGrid({ resolved }) {
-  const day = resolved.days?.[0];
-  if (!day) return null;
-  const axis = timeAxis(day);
-  return (
-    <div className={g.gridScroll}>
-      <div className={g.grid} style={{ '--cols': axis.length, gridTemplateColumns: `auto repeat(${axis.length}, minmax(118px, 1fr))` }}>
-        <div className={`${g.gridCell} ${g.stageHead} ${g.axisHead}`} />
-        {axis.map(col => (
-          <div className={`${g.gridCell} ${g.axisHead}`} key={col.key}>
-            <span className={g.timeNum}>{col.time}</span>
-            <span className={g.timeAmPm}>{col.ampm}</span>
-          </div>
-        ))}
-        {(day.stages || []).map(stage => (
-          <Fragment key={stage.id ?? 'implicit'}>
-            <div className={`${g.gridCell} ${g.stageHead}`} style={stage.accent ? { '--accent': stage.accent } : undefined}>
-              <span className={g.stageName}>{stage.name}</span>
-            </div>
-            {cellsForStage(stage, axis).map((entry, i) => (
-              <div className={g.gridCell} key={axis[i].key}>
-                {entry ? (
-                  <PortraitCard
-                    profile={{ type: 'artist', id: entry.claim?.profile_id, name: entry.claim?.name, avatar_thumb: entry.claim?.profile?.avatar_thumb }}
-                    width="100%" height="auto" showType={false}
-                    onClick={() => window.alert(`open artist: ${entry.claim?.name}`)}
-                  />
-                ) : <div className={g.gap} aria-hidden="true" />}
-              </div>
-            ))}
-          </Fragment>
-        ))}
-      </div>
-    </div>
-  );
 }
 
 export default function ScheduleHarness() {
@@ -198,17 +145,6 @@ export default function ScheduleHarness() {
           </div>
           <SchedulePortrait resolved={resolved} />
 
-          {which === 'festival' && (
-            <>
-              <div style={{ margin: '30px 0 10px', fontFamily: "'Bebas Neue',sans-serif", fontSize: 13, letterSpacing: 2, color: '#00E5FF' }}>
-                VARIANT · PORTRAIT CARDS IN THE CELLS
-              </div>
-              <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: 11, color: 'rgba(255,255,255,.35)', marginBottom: 12, lineHeight: 1.5 }}>
-                The axis already says the time, so the cell carries just the act — 118px, the lineup rail's width. Trade: no duration, label, panel or mix button; a tap goes straight to the artist.
-              </div>
-              <PortraitCellsGrid resolved={resolved} />
-            </>
-          )}
           {/* ⚠ Proof the host path is untouched: the same rows through the OLD
               grouping, which DaySlots still consumes. If this stops matching
               the projection's day/slot counts, the two readers have diverged. */}
