@@ -1901,12 +1901,10 @@ export default function EventHostView({
              of a surface no reader ever gets. It renders the public timetable
              now — ⛔ the editing grid on the tab above is untouched.
 
-             ⚠ `onOpenArtist={null}` deliberately: a preview should not navigate
-             the host away from their own event page. The cards are inert here
-             and read as cards, ⛔ not as dead controls, because the component
-             only makes a card tappable when it is given a handler. */
+⚠  — the preview shows the cards, ⛔ not a
+             continue-playing rail built from the host's own page. */
           setTimes={showTimesPublicly && totalSlots > 0
-            ? <SchedulePortrait resolved={schedule} onOpenArtist={null} />
+            ? <SchedulePortrait resolved={schedule} allMixSlots={[]} />
             : null}
         />
         {overlays}

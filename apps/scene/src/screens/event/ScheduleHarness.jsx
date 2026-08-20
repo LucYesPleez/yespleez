@@ -49,7 +49,17 @@ function festivalFixture() {
         id, event_id: 'fixture', day_index: 0, day_name: 'SATURDAY', position: i,
         time, ampm, dur_mins: 60, label: '', label_color: null, pinned: false, stage_id: st,
       });
-      if (who) claims[id] = { status: 'confirmed', name: who, profile_id: null, profile: null };
+      /* ⚠ ONE ACT CARRIES A REAL PROFILE ID, deliberately. Every act on the one
+         production event with a schedule is hand-typed — `artist_profile_id`
+         and `artist_id` are NULL on all 20 — so VIEW PROFILE correctly never
+         renders there, and the interaction could not be checked at all. This
+         act is MADSPiN BABY's actual profile, so the card has somewhere to go
+         and the route can be proven rather than assumed. */
+      if (who) claims[id] = {
+        status: 'confirmed', name: who, profile: null,
+        profile_id: (st === 'm' && i === 0) ? '99488e7a-3fbf-4834-b2f8-8c9815c89429' : null,
+        user_id:    (st === 'm' && i === 0) ? '99488e7a-3fbf-4834-b2f8-8c9815c89429' : null,
+      };
     });
   }
   return { slots, stages: FESTIVAL_STAGES, claims, eventDate: '2026-10-03' };

@@ -1,31 +1,33 @@
 /**
- * ── THE PORTRAIT PROJECTION'S RULES ─────────────────────────────────────────
+ * ── THE SCHEDULE'S TIME-AXIS RULES ──────────────────────────────────────────
  *
- * S3 · pure logic for the public portrait timetable. It reads the object
- * `resolveSchedule` returns and answers the four questions the view has to ask.
- * ⛔ It never reshapes the schedule — one scheduling model, many views.
+ * S3 · pure logic over the object `resolveSchedule` returns.
+ * ⛔ Nothing here reshapes the schedule — one scheduling model, many views.
  *
- * ⚠⚠ THESE LIVE IN A `.js` MODULE, ⛔ NOT INSIDE THE `.jsx` COMPONENT, and the
- * reason is testability: node's test runner cannot import JSX, so anything
- * declared beside the markup can only ever be checked by a source-text test —
- * and a source-text test never compiles or renders what it claims to verify.
- * Rules that must not change by accident belong where they can be executed.
+ * ⚠⚠ NO PORTRAIT CONSUMER, AND THAT IS DELIBERATE (owner, 2026-08-20). The
+ * portrait projection was drafted as a sideways grid of reduced-width cells
+ * aligned to this axis, and the owner stopped it on sight — the public
+ * timetable is a vertical stack of the app's own full-width cards, which
+ * needs no axis and no cell alignment. These functions stay because the
+ * LANDSCAPE projection (brief §6: stages side by side, time running
+ * vertically) is the ratified consumer of exactly this machinery, and their
+ * tests are its spec. ⛔ If landscape ships without them, delete this file —
+ * do not let it linger as a third idea of what a schedule is.
+ *
+ * ⚠⚠ THESE LIVE IN A `.js` MODULE, ⛔ NOT INSIDE A `.jsx` COMPONENT: node's
+ * test runner cannot import JSX, so anything declared beside markup can only
+ * ever be checked by a source-text test — and a source-text test never
+ * compiles or renders what it claims to verify.
+ *
+ * ⛔⛔ THERE IS NO `publicCell` HERE, AND THAT IS ALSO DELIBERATE. It used to
+ * decide what a punter may see — draft reads as open, unconfirmed reads as
+ * PENDING, only a confirmed act is named. Those rules are REAL and still hold,
+ * but they live in `SlotCard`, the card every surface renders. Restating them
+ * here gave one question two answers, and the day the two disagreed the page
+ * would leak a name the card was hiding, or hide one it was showing.
+ *
+ * ⭐ The projection decides WHERE a card goes. The card decides WHAT it says.
  */
-
-import { scheduleShape } from './scheduleModel';
-
-/**
- * ⭐ WHICH PORTRAIT LAYOUT — read from the resolver's own shape, ⛔ never from
- * a second count taken here. `scheduleShape` is the one place that decides.
- *
- *   'timeline' — one stage: a chronological list, time down the left. That is
- *                the whole of a pub gig's schedule and it should look like it.
- *   'grid'     — many stages: time across the top, stages down the side,
- *                scrolling sideways through the evening.
- */
-export function portraitMode(resolved) {
-  return scheduleShape(resolved).showStages ? 'grid' : 'timeline';
-}
 
 /** The column key for a slot. ⚠ The printed label IS the identity of a column. */
 export function timeKey(slot) {
@@ -43,7 +45,7 @@ export function timeKey(slot) {
  * ordering — the resolver has already sorted by it, so first-seen is correct.
  *
  * ⚠ Columns are keyed by the LABEL, so two stages starting at 9:00 PM share one
- * column. That sharing is the entire point of the grid.
+ * column. That sharing is the entire point of an axis.
  */
 export function timeAxis(day) {
   const seen = new Map();
@@ -71,36 +73,4 @@ export function cellsForStage(stage, axis) {
     if (!byKey.has(k)) byKey.set(k, entry);
   }
   return (axis || []).map(col => byKey.get(col.key) || null);
-}
-
-/**
- * ⛔⛔ WHAT THE PUBLIC IS ALLOWED TO SEE IN A CELL — the existing rule, carried
- * over from `SlotCard` intact, ⛔ not reinvented:
- *
- *   · a DRAFT placement is an OPEN SLOT to the public. The host is still
- *     thinking, nobody has been told, and announcing it here would leak a
- *     decision that has not been made.
- *   · anything not CONFIRMED shows PENDING, ⛔ never the artist's name. An
- *     offer is not an announcement.
- *   · only a CONFIRMED act is named, and only a named act can be tapped.
- *
- * ⚠ The returned cell carries NO claim unless the act is confirmed, so a name
- * that must not be shown cannot reach the DOM by a later mistake in the markup.
- *
- * ⚠ `toClaim` already translates `accepted` → `confirmed`, and forces
- * `confirmed` for an act with no account behind it — a hand-typed name is not
- * waiting on anybody's answer.
- *
- * A missing entry is a GAP, ⛔ which is not an OPEN slot: nothing is scheduled
- * on that stage at that time, and an OPEN label would advertise a slot the
- * organiser never created.
- */
-export function publicCell(entry) {
-  if (!entry) return { kind: 'gap' };
-  const claim = entry.claim;
-  if (!claim || claim.status === 'draft' || claim.status === 'declined') {
-    return { kind: 'open', slot: entry.slot };
-  }
-  if (claim.status !== 'confirmed') return { kind: 'pending', slot: entry.slot };
-  return { kind: 'act', slot: entry.slot, claim };
 }

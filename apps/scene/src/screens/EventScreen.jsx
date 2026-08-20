@@ -17,7 +17,6 @@ import ApplyButton from './event/ApplyButton';
 import FestivalApply from './event/FestivalApply';
 import { applicationsBelongToFestival } from '../lib/festivalPortal';
 import SchedulePortrait from './event/SchedulePortrait';
-import { profileUrl } from '../lib/profileResolution';
 import EventHostView from './event/EventHostView';
 import { useParticipation } from '../components/ParticipationGate';
 import { isEventManager } from '../lib/eventOwnership';
@@ -161,13 +160,15 @@ export default function EventScreen() {
       ? <FestivalApply eventId={id} userId={session.user.id} festivalName={d.ownerProfile?.name} />
       : <ApplyButton eventId={id} userId={session.user.id} ownerProfile={d.ownerProfile} />;
 
-  /* ⚠⚠ THE SET-TIMES MIX PLAYER IS NOT IN THE PUBLIC PROJECTION (S3).
-     `allMixSlots` fed `DaySlots`'s play button and its continue-playing rail;
-     the timetable has no audio. ⛔ Not an oversight and ⛔ not a silent drop —
-     no public page can reach that player today, because every event that has
-     slots keeps them private, so nothing regresses for a reader. It IS a
-     capability the old surface had, and it belongs with the rest of the touch
-     interactions in S4. Recorded here so it cannot be quietly forgotten. */
+  /* ⭐ THE MIX RAIL SURVIVES THE PROJECTION, because the projection renders the
+     app's own `SlotCard` rather than a public card of its own — so the play
+     button and its continue-playing list come with it. ⚠ Built from the
+     RESOLVED schedule now, ⛔ not from `days`: one source, and it stays right
+     for a multi-stage bill where `days[].slots` would flatten the stages. */
+  const allMixSlots = (d.schedule?.days || []).flatMap(day =>
+    (day.stages || []).flatMap(stage => (stage.slots || [])
+      .filter(e => e.claim?.mix_link && e.claim?.status === 'confirmed')
+      .map(e => ({ url: e.claim.mix_link, artistName: e.claim.name }))));
 
   return (
     <EventPage
@@ -194,9 +195,12 @@ export default function EventScreen() {
       canSend={!!session?.user?.id}
       applyAction={applyAction}
       /**
-       * ⭐⭐ S3 · THE PUBLIC SCHEDULE IS ITS OWN PROJECTION NOW, ⛔ no longer
-       * `DaySlots` with every host control nulled. A punter was being shown the
-       * host's editing surface stripped of its verbs; this is a timetable.
+       * ⭐⭐ S3 · SAME CARDS, SAME INTERACTION, NEW DATA SOURCE. The public
+       * timetable is a PROJECTION of the resolved schedule that renders the
+       * app's own `SlotCard` — ⛔ not a public card, ⛔ not a read-only one.
+       * The host's operations are absent because no handlers are passed, which
+       * is a different thing from the card being inert: it still expands, the
+       * mix still plays, and VIEW PROFILE still reaches the artist.
        *
        * ⚠ `d.schedule` is resolved ONCE in `useEventData` — ⛔ this screen does
        * not group rows for itself. The host editor keeps `DaySlots` and the
@@ -206,18 +210,7 @@ export default function EventScreen() {
        * organiser may announce a bill with the running order still withheld.
        */
       setTimes={d.showTimesPublicly && d.totalSlots > 0
-        ? <SchedulePortrait
-            resolved={d.schedule}
-            /* ⚠ Routed through `profileUrl`, the same helper `EventPage` uses
-               for the lineup — ⛔ not a hand-built `/profile/${id}`, which is
-               how two surfaces start disagreeing about where a profile lives.
-               A claim with no `profile_id` is never tappable (see the component),
-               so this cannot be called with nothing to open. */
-            onOpenArtist={c => {
-              const url = profileUrl({ id: c.profile_id, type: c.profile?.type || 'artist' });
-              if (url) navigate(url);
-            }}
-          />
+        ? <SchedulePortrait resolved={d.schedule} allMixSlots={allMixSlots} />
         : null}
     />
   );

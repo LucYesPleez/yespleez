@@ -1,7 +1,15 @@
 /* § 7 · SET TIMES — public portrait projection.
-   See SchedulePortrait.jsx for the architecture. This stylesheet draws a
-   TIMETABLE, ⛔ not an admin table: the schedule is the visual hero, and the
-   chrome around it stays quiet. */
+   See SchedulePortrait.jsx for the architecture.
+
+   ⛔⛔ NO CARD STYLES LIVE HERE. The card is SlotCard, which owns its own
+   appearance on every surface — a stylesheet here that restyled it would be
+   exactly the bespoke public treatment this projection exists to avoid.
+
+   ⛔⛔ NO GRID, NO SIDEWAYS SCROLL, NO REDUCED COLUMNS (owner, 2026-08-20).
+   An earlier draft laid multi-stage out as a horizontally scrolling grid of
+   236px cells; the owner stopped it on sight. The schedule is a vertical
+   stack of full-width cards — the page's own scroll — with stage headings
+   between sections when the event actually has more than one stage. */
 
 .schedule {
   display: flex;
@@ -55,218 +63,69 @@
   border-color: #fff;
 }
 
-/* ── Single stage: the chronological timeline ───────────────────────── */
+/* ── Day sections ───────────────────────────────────────────────────────
+   ⭐ EVERY DAY IS ON THE PAGE — Saturday flows into Sunday under this
+   heading; the chips above jump and track, ⛔ they never filter. */
 
-.timeline {
-  display: flex;
-  flex-direction: column;
-}
-
-/* ⚠ A RULE BETWEEN ROWS, not a card each. Boxing every row is what made the
-   old schedule read as a list of records; a hairline lets the eye run down the
-   times, which is how a timetable is actually read. */
-.row {
-  display: flex;
-  align-items: stretch;
-  gap: 14px;
-  padding: 10px 0;
-  border-top: 1px solid rgba(255, 255, 255, .07);
-}
-
-.row:first-child { border-top: none; }
-
-.time {
-  flex: 0 0 58px;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  justify-content: center;
-  /* Bebas sits high in its line box — the app's standing note in index.css. */
-  padding-top: 2px;
-}
-
-.timeNum {
-  font-family: 'Bebas Neue', sans-serif;
-  font-size: 19px;
-  letter-spacing: .5px;
-  line-height: 1;
-  color: #fff;
-}
-
-.timeAmPm {
-  font-family: 'Bebas Neue', sans-serif;
-  font-size: 10px;
-  letter-spacing: 1.4px;
-  color: rgba(255, 255, 255, .35);
-  margin-top: 2px;
-}
-
-.rowCard { flex: 1 1 auto; min-width: 0; }
-
-/* ── Multi stage: time across, stages down, scrolling sideways ──────── */
-
-/* ⛔ NO VISIBLE SCROLLBAR — standing UI law. The part-column peeking past the
-   right edge is what says "there is more evening", the same way the lineup
-   rail does it. */
-.gridScroll {
-  overflow-x: auto;
-  overflow-y: hidden;
-  scrollbar-width: none;
-  -webkit-overflow-scrolling: touch;
-}
-
-.gridScroll::-webkit-scrollbar { display: none; }
-
-/* `--cols` is set inline from the resolved time axis. The stage column is
-   `auto` so a long stage name is not truncated into meaninglessness. */
-.grid {
-  display: grid;
-  grid-template-columns: auto repeat(var(--cols), minmax(118px, 1fr));
-  gap: 6px;
-  min-width: min-content;
-}
-
-.gridCell { min-width: 0; }
-
-.axisHead {
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-  padding-bottom: 6px;
-  border-bottom: 1px solid rgba(255, 255, 255, .08);
-}
-
-/* ⚠⚠ STICKY, AND THIS IS THE WHOLE MECHANISM of the grid. The reader must not
-   lose which stage they are looking at while the evening scrolls past. It needs
-   its own background or the cells slide visibly underneath it. */
-.stageHead {
-  position: sticky;
-  left: 0;
-  z-index: 2;
+.dayDivider {
   display: flex;
   align-items: center;
-  padding: 0 10px 0 0;
-  background: linear-gradient(90deg, var(--bg, #0a0a14) 82%, transparent);
-  /* ⚠⚠ `max-content`, and it OVERRIDES `.gridCell { min-width: 0 }` above.
-     That rule exists so a long act name can ellipsis inside a time cell, but
-     applied here it collapsed the `auto` stage track to its own padding — 10px
-     — while the stage name overflowed at 53px and painted across the first
-     time column. The sticky gradient hid the collision, so the grid looked
-     merely cramped rather than broken. ⛔ Do not "tidy" this back to 0. */
-  min-width: max-content;
+  gap: 10px;
+  margin-top: 8px;
+  /* ⚠ Where a chip-jump LANDS: just under the app's fixed header. Must stay
+     in step with DAY_REACHED_PX in the component, or a jump lands on a day
+     whose chip does not light. */
+  scroll-margin-top: 96px;
+}
+
+.dayName {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 13px;
+  letter-spacing: 2px;
+  line-height: 1.15;
+  color: #fff;
+  white-space: nowrap;
+}
+
+.dayLine {
+  flex: 1 1 auto;
+  height: 1px;
+  background: rgba(255, 255, 255, .1);
+}
+
+/* ── Rows ───────────────────────────────────────────────────────────── */
+
+/* ⚠ NO RULE, NO PADDING, NO SECOND TIME COLUMN. The card already draws its
+   own time block and its own edge — anything added here would be chrome
+   wrapped around chrome. The stack's rhythm is the parent's own 12px gap. */
+.row { display: flex; }
+
+.row > * { flex: 1 1 auto; min-width: 0; }
+
+/* ── Stage sections (multi-stage events only) ───────────────────────────
+   The same divider idiom the day headings in the host grid use: a small
+   Bebas label and a hairline running out to the right. The stage's accent
+   colours the NAME only — a coloured rule plus a coloured name plus coloured
+   cards is three carriers for one fact. */
+
+.stageDivider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
 }
 
 .stageName {
   font-family: 'Bebas Neue', sans-serif;
-  font-size: 11px;
-  letter-spacing: 1.4px;
+  font-size: 12px;
+  letter-spacing: 1.8px;
   line-height: 1.15;
   color: var(--accent, rgba(255, 255, 255, .55));
   white-space: nowrap;
 }
 
-/* ── The act card ───────────────────────────────────────────────────── */
-
-.card {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  width: 100%;
-  padding: 8px 10px;
-  border: 1px solid rgba(255, 255, 255, .08);
-  border-radius: 10px;
-  background: rgba(255, 255, 255, .03);
-  font: inherit;
-  color: inherit;
-  text-align: left;
-  appearance: none;
-}
-
-.cardCompact { padding: 7px 8px; }
-
-.cardOpenable { cursor: pointer; }
-
-@media (hover: hover) {
-  .cardOpenable:hover {
-    background: rgba(255, 255, 255, .06);
-    border-color: rgba(255, 255, 255, .16);
-  }
-}
-
-/* An open or pending cell is quieter than a booked one: dashed, unfilled, and
-   it must never read as an act. */
-.cardQuiet {
-  background: none;
-  border-style: dashed;
-  border-color: rgba(255, 255, 255, .09);
-  justify-content: flex-start;
-}
-
-.quietText {
-  font-family: 'Bebas Neue', sans-serif;
-  font-size: 10px;
-  letter-spacing: 1.4px;
-  color: rgba(255, 255, 255, .25);
-}
-
-/* ⚠ A GAP IS NOT AN OPEN SLOT. Nothing is scheduled on this stage at this
-   time, so the cell says nothing at all — an OPEN label here would advertise a
-   slot the organiser never created. */
-.gap {
-  height: 100%;
-  min-height: 40px;
-  border-radius: 10px;
-  background: repeating-linear-gradient(
-    -45deg,
-    rgba(255, 255, 255, .02) 0 6px,
-    transparent 6px 12px
-  );
-}
-
-.avatar {
-  width: 32px;
-  height: 32px;
-  flex: 0 0 32px;
-  border-radius: 7px;
-  object-fit: cover;
-  display: block;
-}
-
-.avatarFallback {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(135deg, #1b1b2e, #2a2a44);
-  font-family: 'Bebas Neue', sans-serif;
-  font-size: 14px;
-  color: rgba(255, 255, 255, .5);
-}
-
-.cardText {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
+.stageLine {
   flex: 1 1 auto;
-}
-
-.name {
-  font-family: 'Bebas Neue', sans-serif;
-  font-size: 14px;
-  letter-spacing: .6px;
-  line-height: 1.15;
-  color: #fff;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.label {
-  font-family: 'Bebas Neue', sans-serif;
-  font-size: 9.5px;
-  letter-spacing: 1.2px;
-  color: rgba(255, 255, 255, .32);
-  margin-top: 2px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  height: 1px;
+  background: rgba(255, 255, 255, .08);
 }

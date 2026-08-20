@@ -70,6 +70,61 @@ function HeadphoneIcon() {
  * still withheld there — it needs the artist picker mounted, which is a
  * surface, not a rule.
  */
+/**
+ * ⭐⭐ THE PERSON ACTIONS — MESSAGE and VIEW PROFILE.
+ *
+ * ⛔⛔ NAVIGATING TO AN ACT IS NOT A HOST OPERATION (owner, 2026-08-20). This
+ * pair used to live INSIDE the `isHost` block, so a punter reading the running
+ * order could expand a card and find no way to reach the artist at all — the
+ * timetable was a dead end for the only people it is published for.
+ *
+ * ⭐ ONE DEFINITION, TWO PLACEMENTS. The host renders it inside the slot's
+ * action row (person actions right, slot actions left); the public renders it
+ * on its own. ⛔ Not copied into both — a styled control duplicated across two
+ * surfaces is a control that drifts.
+ *
+ * ⚠ MESSAGE SELF-GATES and therefore stays host-only WITHOUT an `isHost` test:
+ * it needs `viewerProfileId`, which only a managing surface supplies, because
+ * `openDirectConversation` takes a FROM profile and this account may hold
+ * several. ⛔ Do not "simplify" that into an isHost check — the sender is the
+ * real requirement, and the day a punter surface gains one it should work.
+ */
+function PersonActions({ claim, viewerProfileId, navigate, msgBusy, setMsgBusy, align = 'auto' }) {
+  if (!claim?.user_id && !claim?.profile_id) return null;
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginLeft: align === 'auto' ? 'auto' : undefined }}>
+      {claim?.user_id && viewerProfileId && claim.profile_id && (
+        <button
+          onClick={async e => {
+            e.stopPropagation();
+            if (msgBusy) return;
+            setMsgBusy(true);
+            const { conversationId } = await openDirectConversation(viewerProfileId, claim.profile_id);
+            setMsgBusy(false);
+            if (conversationId) navigate(`/messages/${conversationId}`);
+          }}
+          /* ⭐ THE GRADIENT BORDER (owner, 2026-08-16) — the app's cyan→violet
+             edge, painted with the two-layer background trick: a padding-box
+             fill over a border-box gradient. ⛔ A transparent 1.5px border is
+             REQUIRED for it to show; drop it and the gradient is hidden under
+             the fill. */
+          style={{ flexShrink: 0, padding: '7px 12px', borderRadius: 9, cursor: 'pointer', fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1.2, border: '1.5px solid transparent', background: 'linear-gradient(var(--card2),var(--card2)) padding-box, linear-gradient(135deg,#00E5FF,#BF5FFF) border-box', color: '#fff', whiteSpace: 'nowrap' }}
+        >{msgBusy ? 'OPENING…' : 'MESSAGE'}</button>
+      )}
+
+      {/* ⚠ `profile_id` FIRST, account second — the profile is the real
+          reference and `user_id` is null for the many imported acts nobody has
+          claimed. An act with neither is not rendered at all (guard above). */}
+      {(claim?.profile_id || claim?.user_id) && (
+        <button
+          onClick={e => { e.stopPropagation(); navigate(claim.profile_id ? `/profile/${claim.profile_id}?prefer=performer` : `/profile/${claim.user_id}?prefer=performer`); }}
+          style={{ flexShrink: 0, fontSize: 10, fontFamily: "'Bebas Neue'", letterSpacing: 1.2, background: 'none', border: 'none', padding: '7px 2px', cursor: 'pointer', whiteSpace: 'nowrap' }}
+        ><span style={{ background: 'linear-gradient(135deg,#00E5FF,#BF5FFF)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>VIEW PROFILE →</span></button>
+      )}
+    </div>
+  );
+}
+
 export default function SlotCard({ slot, claim, onFill, onEdit, onRemove, onDemote, onPin, onNotify, isHost, isSortable, isActiveSort, isDragOverlay, allMixSlots = [], locked = false, viewerProfileId = null, expandable = true, registerNode }) {
   const [expanded,      setExpanded]      = useState(false);
   const [hostNote,      setHostNote]      = useState('');
@@ -511,6 +566,20 @@ export default function SlotCard({ slot, claim, onFill, onEdit, onRemove, onDemo
               );
             })() : <div style={{ flex: 1 }} />}
 
+            {/* ⭐⭐ THE PUNTER'S WAY INTO THE ACT (owner, 2026-08-20). The same
+                control the host gets, in the same place on the line — ⛔ not a
+                simplified public variant. Without it the published timetable
+                was a dead end: a reader could open a card and find no route to
+                the artist. MESSAGE self-gates on `viewerProfileId`, which a
+                public surface does not supply, so a punter gets VIEW PROFILE
+                alone without an `isHost` test being needed here. */}
+            {!isHost && (
+              <PersonActions
+                claim={claim} viewerProfileId={viewerProfileId} navigate={navigate}
+                msgBusy={msgBusy} setMsgBusy={setMsgBusy}
+              />
+            )}
+
             {/* ⚠ The status chip, ⛔ no longer on a line of its own. */}
             {isHost && (
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, flexShrink: 0, fontSize: 11, fontFamily: "'Bebas Neue'", letterSpacing: 1.2, background: chip.bg, border: `1px solid ${chip.border}`, color: chip.color, borderRadius: 6, padding: '3px 10px', whiteSpace: 'nowrap' }}>
@@ -815,39 +884,10 @@ export default function SlotCard({ slot, claim, onFill, onEdit, onRemove, onDemo
                   * edge. ⚠ Their own flex group, so they stay together when the
                   * row wraps on a narrow screen.
                   */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginLeft: 'auto' }}>
-
-                {/* ⛔ MESSAGE NEEDS AN EXPLICIT SENDER. `openDirectConversation`
-                    takes a FROM profile and this account may hold several —
-                    `profiles.user_id` is shared across a multi-profile account
-                    — so the surface states who it is acting as, or ⛔ the button
-                    is not offered. */}
-                {claim?.user_id && viewerProfileId && claim.profile_id && (
-                  <button
-                    onClick={async e => {
-                      e.stopPropagation();
-                      if (msgBusy) return;
-                      setMsgBusy(true);
-                      const { conversationId } = await openDirectConversation(viewerProfileId, claim.profile_id);
-                      setMsgBusy(false);
-                      if (conversationId) navigate(`/messages/${conversationId}`);
-                    }}
-                    /* ⭐ THE GRADIENT BORDER (owner, 2026-08-16) — the app's
-                       cyan→violet edge, painted with the two-layer background
-                       trick: a padding-box fill over a border-box gradient.
-                       ⛔ A transparent 1.5px border is REQUIRED for it to show;
-                       drop it and the gradient is hidden under the fill. */
-                    style={{ flexShrink: 0, padding: '7px 12px', borderRadius: 9, cursor: 'pointer', fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1.2, border: '1.5px solid transparent', background: 'linear-gradient(var(--card2),var(--card2)) padding-box, linear-gradient(135deg,#00E5FF,#BF5FFF) border-box', color: '#fff', whiteSpace: 'nowrap' }}
-                  >{msgBusy ? 'OPENING…' : 'MESSAGE'}</button>
-                )}
-
-                {claim?.user_id && (
-                  <button
-                    onClick={e => { e.stopPropagation(); navigate(claim.profile_id ? `/profile/${claim.profile_id}?prefer=performer` : `/profile/${claim.user_id}?prefer=performer`); }}
-                    style={{ flexShrink: 0, fontSize: 10, fontFamily: "'Bebas Neue'", letterSpacing: 1.2, background: 'none', border: 'none', padding: '7px 2px', cursor: 'pointer', whiteSpace: 'nowrap' }}
-                  ><span style={{ background: 'linear-gradient(135deg,#00E5FF,#BF5FFF)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>VIEW PROFILE →</span></button>
-                )}
-                </div>
+                <PersonActions
+                  claim={claim} viewerProfileId={viewerProfileId} navigate={navigate}
+                  msgBusy={msgBusy} setMsgBusy={setMsgBusy}
+                />
               </div>
 
               {/* ── ⚠ NOTES ARE HIDDEN BECAUSE THEY NEVER SAVED ──────────────

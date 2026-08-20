@@ -1,16 +1,20 @@
 /**
- * The portrait projection — S3.
+ * The time-axis rules — S3.
  *
- * ⚠⚠ THESE TEST THE PROJECTION'S RULES, ⛔ not its markup. The rules are pure
- * functions exported from the component for exactly this reason: what the
- * public may see in a cell, how the time axis is ordered, and how a stage's
- * row aligns to it are decisions that must not change by accident. Rendering
- * is verified by driving the real interface, ⛔ never by a source-text test.
+ * ⚠⚠ THESE ARE THE LANDSCAPE PROJECTION'S SPEC (see schedulePortrait.js: the
+ * portrait stack has no axis, deliberately). They test the RULES, ⛔ not any
+ * markup — rendering is verified by driving the real interface, ⛔ never by a
+ * source-text test.
+ *
+ * ⛔ THE PUBLIC-VISIBILITY TESTS MOVED OUT WITH THE RULE THEY COVERED.
+ * Draft-reads-as-open, unconfirmed-reads-as-PENDING and only-confirmed-is-named
+ * are SlotCard's, because SlotCard is the card every surface renders. ⛔ Do not
+ * restate them here: two answers to one question is the defect.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { resolveSchedule } from './scheduleModel.js';
-import { portraitMode, timeAxis, timeKey, cellsForStage, publicCell } from './schedulePortrait.js';
+import { timeAxis, timeKey, cellsForStage } from './schedulePortrait.js';
 
 const slot = (o = {}) => ({
   id: o.id || `u${o.position ?? 0}-${o.day_index ?? 0}-${o.stage_id ?? 'x'}`,
@@ -24,34 +28,6 @@ const slot = (o = {}) => ({
   label_color: null,
   pinned: false,
   stage_id: 'stage_id' in o ? o.stage_id : null,
-});
-
-const claim = (o = {}) => ({
-  status: o.status ?? 'confirmed',
-  name: o.name ?? 'MADSPiN BABY',
-  profile_id: 'profile_id' in o ? o.profile_id : 'p1',
-  profile: o.profile ?? { avatar_thumb: null },
-});
-
-// ── Which layout ─────────────────────────────────────────────────────────
-
-test('single stage gets the timeline; multi stage gets the grid', () => {
-  const one = resolveSchedule({ slots: [slot()] });
-  assert.equal(portraitMode(one), 'timeline');
-
-  const many = resolveSchedule({
-    slots: [slot({ stage_id: 'a' }), slot({ stage_id: 'b' })],
-    stages: [{ id: 'a', name: 'MAIN', position: 0 }, { id: 'b', name: 'SECOND', position: 1 }],
-  });
-  assert.equal(portraitMode(many), 'grid');
-});
-
-test('⛔ one NAMED stage still gets the timeline, not a one-column grid', () => {
-  const r = resolveSchedule({
-    slots: [slot({ stage_id: 'a' })],
-    stages: [{ id: 'a', name: 'MAIN ROOM', position: 0 }],
-  });
-  assert.equal(portraitMode(r), 'timeline');
 });
 
 // ── The time axis ────────────────────────────────────────────────────────
@@ -115,62 +91,7 @@ test('timeKey is stable for a slot missing its ampm', () => {
   assert.equal(timeKey(null), '');
 });
 
-// ── ⛔⛔ WHAT THE PUBLIC MAY SEE ──────────────────────────────────────────
-
-test('⛔⛔ a DRAFT placement is an OPEN slot to the public — the name never leaks', () => {
-  const cell = publicCell({ slot: slot(), claim: claim({ status: 'draft', name: 'SECRET HEADLINER' }) });
-  assert.equal(cell.kind, 'open');
-  assert.equal(cell.claim, undefined, 'no claim on the cell means no name can reach the DOM');
-});
-
-test('⛔ an OFFERED act shows PENDING, ⛔ never its name — an offer is not an announcement', () => {
-  const cell = publicCell({ slot: slot(), claim: claim({ status: 'offered', name: 'NOT YET' }) });
-  assert.equal(cell.kind, 'pending');
-  assert.equal(cell.claim, undefined);
-});
-
-test('a DECLINED placement reads as open, not as a person who said no', () => {
-  assert.equal(publicCell({ slot: slot(), claim: claim({ status: 'declined' }) }).kind, 'open');
-});
-
-test('only a CONFIRMED act is named', () => {
-  const cell = publicCell({ slot: slot(), claim: claim({ status: 'confirmed', name: 'ELBOW' }) });
-  assert.equal(cell.kind, 'act');
-  assert.equal(cell.claim.name, 'ELBOW');
-});
-
-test('an empty slot is open, and a missing entry is a GAP — ⛔ they are different', () => {
-  assert.equal(publicCell({ slot: slot(), claim: null }).kind, 'open');
-  assert.equal(publicCell(null).kind, 'gap');
-});
-
-// ── The production shape ─────────────────────────────────────────────────
-
-test('⭐ Solstice Soirée resolves to a two-day single-stage timeline', () => {
-  const sat = Array.from({ length: 8 }, (_, i) =>
-    slot({ id: `sat_${i}`, day_index: 0, day_name: 'SATURDAY', position: i, time: `${i + 4}:00` }));
-  const sun = Array.from({ length: 11 }, (_, i) =>
-    slot({ id: `sun_${i}`, day_index: 1, day_name: 'SUNDAY', position: i, time: `${i + 10}:00` }));
-
-  const r = resolveSchedule({
-    slots: [...sat, ...sun],
-    claims: { sat_0: claim({ name: 'SUNSET ACT' }) },
-    eventDate: '2026-06-20',
-  });
-
-  assert.equal(portraitMode(r), 'timeline');
-  assert.equal(r.days.length, 2);
-  assert.equal(r.days[0].stages[0].slots.length, 8);
-  assert.equal(r.days[1].stages[0].slots.length, 11);
-
-  const first = publicCell(r.days[0].stages[0].slots[0]);
-  assert.equal(first.kind, 'act');
-  assert.equal(first.claim.name, 'SUNSET ACT');
-
-  // Every other Saturday slot is unbooked and must read as open, not broken.
-  const rest = r.days[0].stages[0].slots.slice(1).map(e => publicCell(e).kind);
-  assert.ok(rest.every(k => k === 'open'), 'unbooked slots are open, ⛔ never absent');
-});
+// ── The festival shape (landscape's case) ────────────────────────────────
 
 test('⭐ the festival shape aligns three stages across a shared axis', () => {
   const stages = [
@@ -186,13 +107,11 @@ test('⭐ the festival shape aligns three stages across a shared axis', () => {
   });
 
   const r = resolveSchedule({ slots, stages });
-  assert.equal(portraitMode(r), 'grid');
-
   const day = r.days[0];
   const axis = timeAxis(day);
   assert.equal(axis.length, 4, 'four time columns');
 
-  // Every stage row is the same width as the axis — that is what keeps the
+  // Every stage row is the same width as the axis — that is what keeps a
   // grid readable when a stage stops early or starts late.
   for (const st of day.stages) {
     assert.equal(cellsForStage(st, axis).length, 4);
