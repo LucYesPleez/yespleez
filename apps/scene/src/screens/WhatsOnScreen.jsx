@@ -6,6 +6,8 @@ import { trackFiltered } from '../lib/analytics';
 import { eventCoords, postcodeCoords, withinRadius } from '../lib/geo';
 import { resolveLocationToPostcodes } from '../lib/auLocations';
 import { today, dateStr, weekendRange, formatDisplayDate, localDateStr } from '../lib/dates';
+import { selectFeaturedEvent, replayHistory, FAIRNESS_WINDOW_DAYS } from '../lib/featuredEvent';
+import { useFeaturedAllocations } from '../lib/useFeaturedAllocations';
 import FeaturedEventCard from '../components/FeaturedEventCard';
 import HeartBtn from '../components/HeartBtn';
 import { HEART_OVERLAY_STYLE, HEART_BARE_STYLE } from '../components/heartStyles';
@@ -298,7 +300,55 @@ export default function WhatsOnScreen() {
     [category, inRange],
   );
 
-  const featuredEvent  = useMemo(() => events.find(ev => ev.config?.featured) || null, [events]);
+  /**
+   * ── THE FEATURED HERO ────────────────────────────────────────────────
+   *
+   * ⛔ This used to be `events.find(ev => ev.config?.featured)`. That took the
+   * whole section dark from 16 Aug 2026: the one hand-set pick was dated
+   * 15 Aug, `useEvents` drops anything before today, so `find` returned
+   * undefined and the heading, the card and any fallback all vanished with it.
+   * Nothing logged it. See lib/featuredEvent.js for the replacement's rules.
+   *
+   * ⚠ THE LEDGER IS SHARED; ONLY THE PICK IS CONTEXTUAL. `replayHistory` is
+   * deliberately called with NO viewer location, so every client derives the
+   * identical fairness history. If replay took the viewer's origin, two people
+   * would disagree about how much exposure an event has had, and "fairly
+   * distributed" would mean nothing. Location enters only in the live call
+   * below, where it re-ranks today's candidates.
+   */
+  const fairnessFrom = useMemo(() => dateStr(-FAIRNESS_WINDOW_DAYS), []);
+  const { allocations } = useFeaturedAllocations(fairnessFrom);
+
+  /**
+   * ⚠⚠ THE REPLAY NEEDS THE RECENT PAST, AND THIS IS WHY IT GETS ITS OWN POOL.
+   *
+   * `events` above starts at TODAY. Replaying the last 30 days over a
+   * today-onwards list means every past day is contested only by events that
+   * have not happened yet — so the gigs coming up this week absorb a month of
+   * allocations they never actually held, and the hero jumps to whatever is
+   * furthest away. Measured on the live catalogue: it pushed the pick from a
+   * gig 3 days out to one 14 days out.
+   *
+   * ⭐ This second call is FREE. `useEvents` fetches one cached query keyed
+   * ['events','all'] and filters by date in JS, so asking for a wider window
+   * costs a filter, not a round trip.
+   */
+  const { events: featuredPool } = useEvents(fairnessFrom, null);
+  const featuredHistory = useMemo(() => (
+    allocations.length
+      ? allocations
+      : replayHistory({ events: featuredPool, fromIso: fairnessFrom, toIso: dateStr(-1) })
+  ), [allocations, featuredPool, fairnessFrom]);
+
+  const featured = useMemo(() => selectFeaturedEvent({
+    events: featuredPool,
+    todayIso: todayIso,
+    history: featuredHistory,
+    originCoords,
+    originPostcode,
+    radiusKm,
+  }), [featuredPool, todayIso, featuredHistory, originCoords, originPostcode, radiusKm]);
+  const featuredEvent = featured.event;
   const tonightEvents  = useMemo(() => events.filter(ev => ev.config?.date === todayIso && passes(ev)), [events, todayIso, passes]);
   // `> todayIso` not `!== todayIso`: mid-weekend the range opens on a Friday that has already
   // been, so this drops the nights gone as well as tonight (TONIGHT owns tonight).
@@ -573,7 +623,12 @@ export default function WhatsOnScreen() {
               {/* The featured hero was the ONE event card in the app you could
                   not save from — every other card here and on My Scene carries
                   the heart, and this is the most prominent gig on the page. */}
+              {/* ⛔ A PAID PLACEMENT IS NEVER DRESSED AS AN ORGANIC ONE. The
+                  badge is this app's existing disclosure convention, so a
+                  promoted pick says so in the same place every other card
+                  states its reason. */}
               <FeaturedEventCard event={featuredEvent} onClick={() => openEvent(featuredEvent)}
+                label={featured.selectionType === 'promoted' ? 'PROMOTED' : 'FEATURED'}
                 cornerAction={<HeartBtn event={featuredEvent} style={HEART_OVERLAY_STYLE} />} />
             </div>
           )}
@@ -663,7 +718,15 @@ export default function WhatsOnScreen() {
             </div>
           )}
 
-          {!featuredEvent && !loading && (
+          {/* ⛔ THIS USED TO READ `!featuredEvent && !loading`, WHICH IS A
+              DIFFERENT QUESTION. "Is one event featured?" is not "are there
+              any events?", and once the hand-set featured pick expired on
+              15 Aug 2026 this line printed "No upcoming events." at the foot
+              of a page listing nineteen of them. Ask what is actually being
+              asserted: nothing rendered above. */}
+          {!loading && !featuredEvent && tonightEvents.length === 0
+            && weekendEvents.length === 0 && comingUpAll.length === 0
+            && unplaceableEvents.length === 0 && (
             <p className={s.empty}>No upcoming events.</p>
           )}
         </div>
