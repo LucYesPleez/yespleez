@@ -16,7 +16,8 @@ import EventPage from './event/EventPage';
 import ApplyButton from './event/ApplyButton';
 import FestivalApply from './event/FestivalApply';
 import { applicationsBelongToFestival } from '../lib/festivalPortal';
-import DaySlots from './event/DaySlots';
+import SchedulePortrait from './event/SchedulePortrait';
+import { profileUrl } from '../lib/profileResolution';
 import EventHostView from './event/EventHostView';
 import { useParticipation } from '../components/ParticipationGate';
 import { isEventManager } from '../lib/eventOwnership';
@@ -100,6 +101,10 @@ export default function EventScreen() {
     id, event, cfg: d.cfg,
     poster: d.poster, posterFull: d.posterFull, genres: d.genres, isPast: d.isPast,
     claims: d.claims, days: d.days,
+    /* ⭐ The resolved schedule travels with the rest, so the host's
+       view-as-punter preview shows the punter's timetable rather than the
+       editor's grid. ⛔ Neither surface resolves its own. */
+    schedule: d.schedule,
     showTimesPublicly: d.showTimesPublicly,
     totalSlots: d.totalSlots, takenSlots: d.takenSlots, tally: d.tally,
     ownerProfile: d.ownerProfile, venueProfile: d.venueProfile,
@@ -156,11 +161,13 @@ export default function EventScreen() {
       ? <FestivalApply eventId={id} userId={session.user.id} festivalName={d.ownerProfile?.name} />
       : <ApplyButton eventId={id} userId={session.user.id} ownerProfile={d.ownerProfile} />;
 
-  // Mixes attached to confirmed slots, for the set-times player. Lifted from
-  // EventPublicView, where it was computed for exactly this.
-  const allMixSlots = d.days.flatMap(day => (day.slots || [])
-    .filter(sl => d.claims[sl.id]?.mix_link && d.claims[sl.id]?.status === 'confirmed')
-    .map(sl => ({ url: d.claims[sl.id].mix_link, artistName: d.claims[sl.id].name })));
+  /* ⚠⚠ THE SET-TIMES MIX PLAYER IS NOT IN THE PUBLIC PROJECTION (S3).
+     `allMixSlots` fed `DaySlots`'s play button and its continue-playing rail;
+     the timetable has no audio. ⛔ Not an oversight and ⛔ not a silent drop —
+     no public page can reach that player today, because every event that has
+     slots keeps them private, so nothing regresses for a reader. It IS a
+     capability the old surface had, and it belongs with the rest of the touch
+     interactions in S4. Recorded here so it cannot be quietly forgotten. */
 
   return (
     <EventPage
@@ -186,14 +193,30 @@ export default function EventScreen() {
       canFavourite={true}
       canSend={!!session?.user?.id}
       applyAction={applyAction}
+      /**
+       * ⭐⭐ S3 · THE PUBLIC SCHEDULE IS ITS OWN PROJECTION NOW, ⛔ no longer
+       * `DaySlots` with every host control nulled. A punter was being shown the
+       * host's editing surface stripped of its verbs; this is a timetable.
+       *
+       * ⚠ `d.schedule` is resolved ONCE in `useEventData` — ⛔ this screen does
+       * not group rows for itself. The host editor keeps `DaySlots` and the
+       * `[{name, slots}]` shape it has always taken, untouched.
+       *
+       * ⚠ The gate is unchanged: published set times AND at least one slot. An
+       * organiser may announce a bill with the running order still withheld.
+       */
       setTimes={d.showTimesPublicly && d.totalSlots > 0
-        ? <DaySlots
-            eventId={id}
-            days={d.days}
-            claims={d.claims}
-            allMixSlots={allMixSlots}
-            isHost={false}
-            editable={false}
+        ? <SchedulePortrait
+            resolved={d.schedule}
+            /* ⚠ Routed through `profileUrl`, the same helper `EventPage` uses
+               for the lineup — ⛔ not a hand-built `/profile/${id}`, which is
+               how two surfaces start disagreeing about where a profile lives.
+               A claim with no `profile_id` is never tappable (see the component),
+               so this cannot be called with nothing to open. */
+            onOpenArtist={c => {
+              const url = profileUrl({ id: c.profile_id, type: c.profile?.type || 'artist' });
+              if (url) navigate(url);
+            }}
           />
         : null}
     />

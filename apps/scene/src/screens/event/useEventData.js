@@ -10,10 +10,12 @@
 // `if (!event) return null` early return, so they never saw a null event. A
 // hook cannot return early, so each one is written to hold its shipped value
 // when the event exists and a harmless empty when it does not.
+import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../../lib/supabase';
 import { memberProfileKeys, indexMemberProfiles } from './lineupProfiles';
 import { PROFILE_CARD_META_COLUMNS } from '../../components/ProfileCard';
+import { resolveSchedule } from '../../lib/scheduleModel';
 import { groupSlotsIntoDays, indexPerformances } from '../../lib/eventSlots';
 import { enrichClaims, attachNotifyState } from '../../lib/claimEnrichment';
 import { tallySlots } from './slotTally';
@@ -102,7 +104,7 @@ export function useEventData(id, navigate) {
        * SELECTed only so a row can be traced back to the blob it came from; ⛔
        * nothing may key on it again.
        */
-      const [{ data: membersData }, { data: perfsData }, { data: slotRows }] = await Promise.all([
+      const [{ data: membersData }, { data: perfsData }, { data: slotRows }, { data: stageRows }] = await Promise.all([
         /* ⚠ BOTH STATUSES IN ONE READ so shortlist cards resolve profiles in the
            same pass. They are split immediately below — ⛔ nothing downstream may
            receive the mixed array. */
@@ -116,8 +118,16 @@ export function useEventData(id, navigate) {
            CLAIM_PROFILE_COLUMNS: a trimmed select list is a silent defect. */
         supabase.from('lineup_members').select('id, artist_id, artist_profile_id, artist_name, genre, sound, card_pills, status, notified_at, notified_slot_uuid, notified_kind').eq('event_id', id).in('status', ['on_bill', 'shortlisted']),
         supabase.from('performances').select('id, lineup_member_id, slot_id, slot_uuid, status').eq('event_id', id),
-        supabase.from('event_slots').select('id, event_id, day_index, day_name, position, legacy_key, time, ampm, dur_mins, label, label_color, pinned')
+        /* ⚠ `stage_id` IS IN THIS LIST OR THE SCHEDULE IS SINGLE-STAGE FOREVER.
+           A trimmed select is a silent defect — the same lesson `notified_kind`
+           taught two lines up. The resolver reads a missing stage_id as "no
+           stage", which is indistinguishable from a genuine single-stage event. */
+        supabase.from('event_slots').select('id, event_id, day_index, day_name, position, legacy_key, time, ampm, dur_mins, label, label_color, pinned, stage_id')
           .eq('event_id', id).order('day_index').order('position'),
+        /* S2/S3 · the stage axis. ⚠ Zero rows is the NORMAL case and means a
+           single-stage event, ⛔ not missing data — see scheduleModel.js. */
+        supabase.from('event_stages').select('id, event_id, name, position, accent')
+          .eq('event_id', id).order('position'),
       ]);
       /* ⛔⛔ THE BILL IS `on_bill` ONLY. A shortlisted member is somebody you are
          CONSIDERING; they must never reach the lineup, the tally, the public page
@@ -186,6 +196,10 @@ export function useEventData(id, navigate) {
       return {
         event: ev, ownerProfile, venueProfile, coHostProfiles,
         claims: map, claimsBySlot, slotDays,
+        /* ⭐ The RAW rows travel too, because the schedule is resolved once in
+           the hook body where `cfg.date` is available. ⛔ A consumer must never
+           resolve its own — one scheduling model, many views. */
+        slotRows: slotRows || [], stageRows: stageRows || [],
         lineupMembers: billMembers, shortlistMembers: shortMembers, perfsByMember, memberProfiles,
       };
     },
@@ -228,6 +242,31 @@ export function useEventData(id, navigate) {
      the button said NOTIFY 3 ARTISTS while the update flipped four rows. */
   const showTimesPublicly = cfg.host_controls_config?.showTimesPublicly === true;
 
+  /**
+   * ⭐⭐ THE SCHEDULE, RESOLVED ONCE, HERE. Every set-times surface reads this
+   * object rather than grouping rows for itself — S2's canonical model with its
+   * stage axis. ⛔ `days` above stays exactly as it was: the host editor's
+   * `DaySlots` takes `[{name, slots}]` and keeps taking it, so the editing path
+   * is untouched by the public projection landing.
+   *
+   * ⚠ `cfg.date`, ⛔ not `cfg.endDate` — the resolver derives day N as the
+   * START date plus N. Handing it the end date would date every day of a
+   * two-day event from the wrong end.
+   */
+  /* ⚠ Depends on `data?.claims`, ⛔ NOT the `claims` const above: that one is
+     `data?.claims || {}`, and the fallback mints a fresh object on every render,
+     so the memo would rebuild the whole schedule each time and never be a memo
+     at all. The raw value is stable for as long as the query data is. */
+  const schedule = useMemo(
+    () => resolveSchedule({
+      slots: data?.slotRows || [],
+      stages: data?.stageRows || [],
+      claims: data?.claims || {},
+      eventDate: cfg.date || null,
+    }),
+    [data?.slotRows, data?.stageRows, data?.claims, cfg.date],
+  );
+
   const eventDateStr = cfg.endDate || cfg.date;
   const isPast = eventDateStr ? new Date(eventDateStr + 'T23:59:59') < new Date() : false;
 
@@ -243,6 +282,8 @@ export function useEventData(id, navigate) {
     loading, event, ownerProfile, venueProfile, coHostProfiles, claims, claimsBySlot, lineupMembers, shortlistMembers, perfsByMember, memberProfiles,
     cfg, days, poster, posterFull, genres,
     isLocked, showTimesPublicly, isPast,
+    /* ⭐ The canonical schedule (S2/S3). Consumers project it; ⛔ none resolves its own. */
+    schedule,
     totalSlots, takenSlots, lineupPct,
     // The full breakdown, for the host's tally. A punter's claims map only ever
     // holds `accepted` rows, so their counts collapse to confirmed/empty on

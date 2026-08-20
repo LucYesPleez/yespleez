@@ -49,7 +49,7 @@ import { planAddArtistToShortlist, addArtistToShortlist } from '../../lib/shortl
 import EventTabBar from '../../components/EventTabBar';
 import EventPublicView from './EventPublicView';
 import EventPage from './EventPage';
-import DaySlots from './DaySlots';
+import SchedulePortrait from './SchedulePortrait';
 import SlotEditModal from './SlotEditModal';
 import { EditIcon, InboxIcon, LockIcon, UnlockIcon, CopyIcon, TrashIcon, ManageSection, ManageItem } from './manageMenu';
 import s from '../EventScreen.module.css';
@@ -58,7 +58,7 @@ export default function EventHostView({
   id, event, cfg, session, ownerProfile, venueProfile,
   claims, claimsBySlot = {}, days, lineupMembers, shortlistMembers = [], perfsByMember = {}, memberProfiles,
   poster, posterFull, genres, isPast,
-  showTimesPublicly, totalSlots, takenSlots, lineupPct, isLocked,
+  showTimesPublicly, totalSlots, takenSlots, lineupPct, isLocked, schedule,
 }) {
   const navigate    = useNavigate();
   const queryClient = useQueryClient();
@@ -1896,8 +1896,17 @@ export default function EventHostView({
           lineupMembers={lineupMembers}
           memberProfiles={memberProfiles}
           canFavourite={false}
+          /* ⭐ VIEW AS PUNTER MUST SHOW WHAT A PUNTER SEES (S3). This was the
+             host's own DaySlots grid with its verbs nulled, so the preview was
+             of a surface no reader ever gets. It renders the public timetable
+             now — ⛔ the editing grid on the tab above is untouched.
+
+             ⚠ `onOpenArtist={null}` deliberately: a preview should not navigate
+             the host away from their own event page. The cards are inert here
+             and read as cards, ⛔ not as dead controls, because the component
+             only makes a card tappable when it is given a handler. */
           setTimes={showTimesPublicly && totalSlots > 0
-            ? <DaySlots eventId={id} days={effectiveDays} claims={claims} allMixSlots={[]} isHost={false} editable={false} />
+            ? <SchedulePortrait resolved={schedule} onOpenArtist={null} />
             : null}
         />
         {overlays}
