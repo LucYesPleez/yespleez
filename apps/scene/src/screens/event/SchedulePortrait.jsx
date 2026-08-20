@@ -4,9 +4,11 @@
 // This renders `SlotCard` — the card the app already has, with its artist
 // imagery, time and duration block, label pill and chevron — and it stays
 // INTERACTIVE. ⛔ There is no public card design and no read-only variant.
-// ⭐⭐ MULTI-STAGE GOES SIDEWAYS (owner, 2026-08-20, second ruling) — time
-// across the screen, stages anchored down the side, the SAME full card in
-// every occupied cell. Single-stage stays a full-width vertical list.
+// ⭐⭐ MULTI-STAGE IS THE STAGE PAGER (owner, 2026-08-20, ratified from the
+// harness prototype): each stage is the approved vertical timeline, stages
+// swipe sideways as snap pages with the neighbour peeking, and rows align by
+// TIME across stages so the peek is the comparison. Single-stage stays the
+// full-width vertical list. The time-column grid this replaced is dead.
 //
 // ⭐⭐ EVERY DAY IS ON THE PAGE, IN ORDER (owner, 2026-08-20). Saturday flows
 // straight into Sunday under a day heading — ⛔ the days are NOT tabbed panels.
@@ -131,12 +133,12 @@ export default function SchedulePortrait({ resolved, allMixSlots = [] }) {
           )}
 
           {/* ⭐⭐ TWO LAYOUTS, ONE PER DAY, chosen by the resolver's own shape:
-              single-stage = the chronological list; multi-stage = the sideways
-              grid (owner, 2026-08-20, second ruling: "I want the set times to
-              go sideways across the screen for multi-stage"). Days themselves
-              ALWAYS stack vertically — only TIME goes sideways. */}
+              single-stage = the chronological list; multi-stage = the STAGE
+              PAGER (ratified from the harness prototype, owner 2026-08-20).
+              Days themselves ALWAYS stack vertically — each day carries its
+              own pager, and only STAGES go sideways. */}
           {shape.showStages
-            ? <StageGridDay day={day} allMixSlots={allMixSlots} />
+            ? <StagePager day={day} allMixSlots={allMixSlots} />
             : <TimelineDay day={day} allMixSlots={allMixSlots} />}
         </Fragment>
       ))}
@@ -175,50 +177,111 @@ function TimelineDay({ day, allMixSlots }) {
 }
 
 /**
- * MULTI STAGE — time across the top, stages down the side, scrolling sideways
- * through the evening. The stage column is STICKY so the reader never loses
- * which row they are on while time moves.
+ * MULTI STAGE — THE STAGE PAGER (⭐⭐ ratified from the harness prototype,
+ * owner, 2026-08-20: "the festival fixture is how I want the normal set times
+ * to be standard if there's multiple stages"). It replaced a sideways grid of
+ * time columns, which is dead — ⛔ do not bring it back.
  *
- * ⚠ 236px minimum per time column is physical necessity, not taste — the
- * narrowest a full SlotCard still reads. Same card, same interaction.
+ * Each stage is the SAME vertical timeline single-stage gets — full-width
+ * SlotCards, top to bottom. Stages sit side by side as SNAP PAGES at 86%
+ * width, so ~12% of the neighbour peeks at the edge: the app's own part-card
+ * idiom doing the "you can swipe" hinting. No arrows, no tutorial.
+ *
+ * ⭐⭐ ONE CSS GRID, ⛔ NOT THREE INDEPENDENT COLUMNS. Every stage's card for a
+ * given time shares a GRID ROW, so rows align across stages and THE PEEK IS
+ * THE COMPARISON: the sliver beside MAIN's 9:00 card is what is on next door
+ * at 9:00, and a swipe lands you at the same moment of the night. That
+ * alignment is the whole answer to "what's on the other stage right now" —
+ * ⛔ do not swap this for per-stage scrollers, which lose it.
+ *
+ * ⚠ A TRUE GAP IS NOT AN OPEN SLOT. A stage with no slot at an axis time
+ * holds its row open with a quiet hatched spacer naming the time — that is
+ * "the organiser scheduled nothing here", information, not filler. An OPEN
+ * SLOT is a real slot with nobody booked and renders as the card saying so.
+ *
+ * ⭐ Stage chips ride above, under the day chips' own law: lit by the
+ * sideways SCROLL (not the click), tap to jump, ⛔ never a filter.
  */
-function StageGridDay({ day, allMixSlots }) {
+function StagePager({ day, allMixSlots }) {
+  const scrollerRef = useRef(null);
+  const [activeStage, setActiveStage] = useState(0);
+  const stages = (day?.stages || []).filter(Boolean);
   const axis = timeAxis(day);
+  const cellsByStage = stages.map(st => cellsForStage(st, axis));
+
+  const jumpTo = i => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    const col = el.firstElementChild?.getBoundingClientRect().width || 0;
+    el.scrollTo({ left: i * (col + PAGER_GAP_PX), behavior: 'smooth' });
+  };
+  const onScroll = e => {
+    const el = e.currentTarget;
+    const col = el.firstElementChild?.getBoundingClientRect().width || 1;
+    const i = Math.round(el.scrollLeft / (col + PAGER_GAP_PX));
+    setActiveStage(prev => (prev === i ? prev : i));
+  };
+
   return (
-    <div className={s.gridScroll}>
-      <div className={s.grid} style={{ '--cols': axis.length }}>
-        <div className={`${s.gridCell} ${s.stageHead} ${s.axisHead}`} />
-        {axis.map(col => (
-          <div className={`${s.gridCell} ${s.axisHead}`} key={col.key}>
-            <span className={s.timeNum}>{col.time}</span>
-            <span className={s.timeAmPm}>{col.ampm}</span>
+    <>
+      <div className={s.days}>
+        {stages.map((st, i) => (
+          <button
+            key={st.id ?? 'implicit'}
+            className={`${s.dayBtn} ${i === activeStage ? s.dayBtnOn : ''}`}
+            aria-current={i === activeStage ? 'true' : undefined}
+            /* The stage's accent carries the identity while unlit; the lit
+               chip goes plain so "where you are" reads the same for stages
+               as it does for days. */
+            style={i !== activeStage && st.accent ? { color: st.accent } : undefined}
+            onClick={() => jumpTo(i)}
+          >
+            {st.name}
+          </button>
+        ))}
+      </div>
+
+      <div
+        ref={scrollerRef}
+        onScroll={onScroll}
+        className={s.pager}
+        style={{ gridTemplateColumns: `repeat(${stages.length}, 86%)` }}
+      >
+        {/* Row 0 — the stage headings, and the snap targets. ⚠ CELLS ARE
+            DIRECT GRID CHILDREN, ⛔ never wrapped per stage: a wrapper gives
+            each stage its own formatting context and the rows stop sharing
+            heights, which silently deletes the time alignment. */}
+        {stages.map(st => (
+          <div key={'h' + (st.id ?? 'implicit')} className={s.stagePageHead}>
+            <span
+              className={s.stageName}
+              style={st.accent ? { '--accent': st.accent } : undefined}
+            >{st.name}</span>
+            <div className={s.stageLine} />
           </div>
         ))}
 
-        {/* ⚠⚠ CELLS ARE DIRECT GRID CHILDREN — ⛔ never wrapped in a row div.
-            A wrapper makes each stage its own formatting context, so the
-            columns stop sharing a track and the sticky stage cell has nothing
-            to stick within. */}
-        {(day?.stages || []).map(stage => (
-          <Fragment key={stage.id ?? 'implicit'}>
-            <div
-              className={`${s.gridCell} ${s.stageHead}`}
-              style={stage.accent ? { '--accent': stage.accent } : undefined}
-            >
-              <span className={s.stageName}>{stage.name}</span>
-            </div>
-            {cellsForStage(stage, axis).map((entry, i) => (
-              <div className={s.gridCell} key={axis[i].key}>
-                {/* ⚠ A GAP IS NOT AN OPEN SLOT: nothing is scheduled on this
-                    stage at this time, so the cell holds nothing at all. */}
-                {entry
-                  ? <Card entry={entry} allMixSlots={allMixSlots} />
-                  : <div className={s.gap} aria-hidden="true" />}
-              </div>
-            ))}
+        {axis.map((col, rowIdx) => (
+          <Fragment key={col.key}>
+            {stages.map((st, sIdx) => {
+              const entry = cellsByStage[sIdx][rowIdx];
+              return entry ? (
+                <div key={(st.id ?? 'implicit') + col.key}>
+                  <Card entry={entry} allMixSlots={allMixSlots} />
+                </div>
+              ) : (
+                <div key={(st.id ?? 'implicit') + col.key} className={`${s.gap} ${s.gapCell}`}>
+                  <span className={s.gapLabel}>{col.time} {col.ampm} · NOTHING ON</span>
+                </div>
+              );
+            })}
           </Fragment>
         ))}
       </div>
-    </div>
+    </>
   );
 }
+
+/** ⚠ Must match the pager's column-gap in the stylesheet — the snap math and
+    the chip scroll-spy both divide by column + gap. */
+const PAGER_GAP_PX = 10;

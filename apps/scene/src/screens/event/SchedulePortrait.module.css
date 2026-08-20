@@ -102,98 +102,64 @@
 
 .row > * { flex: 1 1 auto; min-width: 0; }
 
-/* ── Multi stage: time across, stages down, scrolling sideways ──────────
-   ⭐⭐ RESTORED ON THE OWNER'S WORD (2026-08-20, second ruling): "I want the
-   set times to go sideways across the screen for multi-stage." The earlier
-   deletion over-read the half-size-cards objection — that objection was about
-   the SINGLE-STAGE list and about days being tabbed away, both of which stay
-   fixed. Multi-stage IS the sideways grid: time across the top, stages
-   anchored down the side, the app's own SlotCard in every occupied cell.
+/* ── Multi stage: THE STAGE PAGER ────────────────────────────────────────
+   ⭐⭐ RATIFIED FROM THE HARNESS PROTOTYPE (owner, 2026-08-20: "the festival
+   fixture is how I want the normal set times to be standard if there's
+   multiple stages"). Each stage is the approved vertical timeline; stages
+   swipe sideways as snap pages. It replaced a time-column grid — dead,
+   ⛔ do not bring it back.
 
-   ⛔ NO VISIBLE SCROLLBAR — standing UI law. The part-column peeking past the
-   right edge is what says "there is more evening", the same way the lineup
-   rail does it. Days still stack vertically: each day's grid sits under its
-   day heading, and only TIME scrolls sideways. */
-.gridScroll {
+   ⭐⭐ ONE GRID, so every stage's card for a given time shares a ROW and the
+   peek beside the current stage is a truthful "what's on next door right
+   now". Column width 86%: the ~12% remainder is the neighbour's cards sliced
+   by the edge — the app's own part-card idiom doing the "you can swipe"
+   hinting. ⛔ NO VISIBLE SCROLLBAR — standing UI law.
+
+   ⚠ column-gap must equal PAGER_GAP_PX in the component: the snap maths and
+   the chip scroll-spy both divide by column + gap. */
+.pager {
+  display: grid;
+  column-gap: 10px;
+  row-gap: 8px;
   overflow-x: auto;
   overflow-y: hidden;
+  scroll-snap-type: x mandatory;
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
 }
 
-.gridScroll::-webkit-scrollbar { display: none; }
+.pager::-webkit-scrollbar { display: none; }
 
-/* `--cols` is set inline from the resolved time axis. The stage column is
-   `auto` so a long stage name is not truncated into meaninglessness.
-   ⚠ 236px minimum per time column is PHYSICAL NECESSITY, not taste: it is the
-   narrowest a full SlotCard still reads — time block, name, label. The owner's
-   rule for condensed views: a density variant only if column width forces it,
-   same visual language, still interactive. */
-.grid {
-  display: grid;
-  grid-template-columns: auto repeat(var(--cols), minmax(236px, 1fr));
-  gap: 6px;
-  min-width: min-content;
-}
-
-.gridCell { min-width: 0; }
-
-.axisHead {
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-  padding-bottom: 6px;
-  border-bottom: 1px solid rgba(255, 255, 255, .08);
-}
-
-.timeNum {
-  font-family: 'Bebas Neue', sans-serif;
-  font-size: 19px;
-  letter-spacing: .5px;
-  line-height: 1;
-  color: #fff;
-}
-
-.timeAmPm {
-  font-family: 'Bebas Neue', sans-serif;
-  font-size: 10px;
-  letter-spacing: 1.4px;
-  color: rgba(255, 255, 255, .35);
-  margin-top: 2px;
-}
-
-/* ⚠⚠ STICKY, AND THIS IS THE WHOLE MECHANISM of the grid. The reader must not
-   lose which stage they are looking at while the evening scrolls past. It needs
-   its own background or the cells slide visibly underneath it. */
-.stageHead {
-  position: sticky;
-  left: 0;
-  z-index: 2;
+/* The heading row's cells are the SNAP TARGETS — one per stage, all sharing
+   the grid's first row, each aligned to the page start. */
+.stagePageHead {
+  scroll-snap-align: start;
   display: flex;
   align-items: center;
-  padding: 0 10px 0 0;
-  background: linear-gradient(90deg, var(--bg, #0a0a14) 82%, transparent);
-  /* ⚠⚠ `max-content`, and it OVERRIDES `.gridCell { min-width: 0 }` above.
-     That rule exists so a long act name can ellipsis inside a time cell, but
-     applied here it collapsed the `auto` stage track to its own padding — 10px
-     — while the stage name overflowed at 53px and painted across the first
-     time column. The sticky gradient hid the collision, so the grid looked
-     merely cramped rather than broken. ⛔ Do not "tidy" this back to 0. */
-  min-width: max-content;
+  gap: 10px;
+  min-width: 0;
 }
 
 .stageName {
   font-family: 'Bebas Neue', sans-serif;
-  font-size: 11px;
-  letter-spacing: 1.4px;
+  font-size: 12px;
+  letter-spacing: 1.8px;
   line-height: 1.15;
   color: var(--accent, rgba(255, 255, 255, .55));
   white-space: nowrap;
 }
 
-/* ⚠ A GAP IS NOT AN OPEN SLOT — nothing is scheduled on this stage at this
-   time, so the cell says nothing at all. An empty card here would advertise a
-   slot the organiser never created. */
+.stageLine {
+  flex: 1 1 auto;
+  height: 1px;
+  background: rgba(255, 255, 255, .08);
+}
+
+/* ⚠ A TRUE GAP IS NOT AN OPEN SLOT. This is "the organiser scheduled nothing
+   on this stage at this time" — it holds the row open so the time alignment
+   across stages survives, and it NAMES the time so a sparse stage still reads
+   as a schedule. An open slot is a real slot with nobody booked and renders
+   as SlotCard saying so. */
 .gap {
   height: 100%;
   min-height: 44px;
@@ -203,4 +169,18 @@
     rgba(255, 255, 255, .02) 0 6px,
     transparent 6px 12px
   );
+}
+
+.gapCell {
+  display: flex;
+  align-items: center;
+  padding-left: 12px;
+}
+
+.gapLabel {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 10px;
+  letter-spacing: 1.4px;
+  color: rgba(255, 255, 255, .18);
+  white-space: nowrap;
 }
