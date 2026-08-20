@@ -23,9 +23,21 @@ import { deriveEventStatus, STATUS_LABEL } from './eventStatus';
 import { HeartIcon, CalendarIcon, ClockIcon, PinIcon } from './eventIcons';
 import s from './EventSummary.module.css';
 
+/**
+ * ⭐ `aside` — a short bill's act, placed beside the WHEN and WHERE rather than
+ * beside the whole block (owner, 2026-08-20).
+ *
+ * ⚠⚠ IT SITS UNDER THE TITLE, AND THAT IS THE POINT. Pairing the act with the
+ * entire identity narrowed the headline into a column and dragged the Favourite
+ * in from the far right with it. The title keeps the full width; only the
+ * date/venue/genre rows share their row with the act.
+ *
+ * ⛔ Nothing about the no-aside case changes: without one, the meta and genres
+ * render exactly as they always have, with no extra wrapper.
+ */
 export default function EventIdentity({
   name, when = {}, where = {}, genres = [], now,
-  favourited = false, onToggleFavourite = null,
+  favourited = false, onToggleFavourite = null, aside = null,
 }) {
   const status = deriveEventStatus(when, now);
 
@@ -60,6 +72,11 @@ export default function EventIdentity({
         )}
       </div>
 
+      {/* ⚠ The wrapper exists ONLY when there is an aside to pair with. Without
+          one the meta and genres stay direct children of `.identity`, so the
+          column gap that has always spaced them is untouched. */}
+      <div className={aside ? s.bodyRow : s.bodyPlain}>
+      <div className={aside ? s.bodyMain : s.bodyPlain}>
       {(dateLabel || placeLabel) && (
         <div className={s.meta}>
           {dateLabel && (
@@ -95,6 +112,9 @@ export default function EventIdentity({
           {genres.map(g => <span className={s.genre} key={g}>{g}</span>)}
         </div>
       )}
+      </div>
+      {aside && <div className={s.bodyAside}>{aside}</div>}
+      </div>
     </div>
   );
 }

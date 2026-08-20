@@ -23,7 +23,6 @@ import EventIdentity from './EventIdentity';
 import EventSummaryCard from './EventSummaryCard';
 import EventLineup from './EventLineup';
 import EventLineupCompact, { isCompactLineup } from './EventLineupCompact';
-import compactStyles from './EventLineupCompact.module.css';
 import EventVenue from './EventVenue';
 import EventVenueCard from './EventVenueCard';
 import EventDetails from './EventDetails';
@@ -136,8 +135,7 @@ export default function EventPage({
          cards in a column that narrow are a pair of stamps, so a pair keeps the
          full-width row beneath the info where they can be read. */
       identity={
-        <div className={soloBeside ? compactStyles.identityRow : undefined}>
-          <div className={soloBeside ? compactStyles.identityMain : undefined}>
+        <>
           <EventIdentity
             {...v.identity}
             favourited={favourited}
@@ -145,25 +143,32 @@ export default function EventPage({
             // heart LIVE (it opens the ParticipationGate) rather than absent.
             // canFavourite=false now means only the host's own preview.
             onToggleFavourite={canFavourite && onToggleFavourite ? onToggleFavourite : null}
+            /* ⭐ ONE act rides INSIDE the identity, beside the date and venue —
+               ⛔ not beside the whole block, which narrowed the headline and
+               pulled the Favourite in off the right edge. A pair is not passed
+               here: two cards belong in their own row below, with room to be
+               read. */
+            aside={soloBeside ? (
+              <EventLineupCompact
+                artists={v.lineup.artists}
+                withheld={v.lineup.withheld}
+                onOpenArtist={a => openProfile({ id: a.id, type: a.type })}
+                beside
+              />
+            ) : null}
           />
-          </div>
-          {/* ⭐ A BILL OF ONE OR TWO IS STATED HERE, with the date and the venue
-              (owner, 2026-08-20) — ⛔ not given a section of its own below the
-              whole summary, where one act became a full-width portrait and the
-              largest thing on the page.
-
-              ⚠ It renders at NARROW WIDTHS ONLY; its stylesheet hides it from
-              1024px, where the layout's two-column band already puts the real
-              Lineup to the right of the title as a 2-across grid. The pairing
-              the owner wanted has always existed on desktop — this is the
-              stacked case catching up with it. */}
-          <EventLineupCompact
-            artists={v.lineup.artists}
-            withheld={v.lineup.withheld}
-            onOpenArtist={a => openProfile({ id: a.id, type: a.type })}
-            beside={soloBeside}
-          />
-        </div>
+          {/* ⭐ A PAIR gets its own row under the whole identity — ⛔ never the
+              aside above, where a 150px column would leave two acts as stamps.
+              ⚠ Rendered only when the solo case did NOT claim them, so the bill
+              can never be stated twice. */}
+          {!soloBeside && (
+            <EventLineupCompact
+              artists={v.lineup.artists}
+              withheld={v.lineup.withheld}
+              onOpenArtist={a => openProfile({ id: a.id, type: a.type })}
+            />
+          )}
+        </>
       }
 
       decision={
@@ -188,20 +193,21 @@ export default function EventPage({
          in the primary column — it is the artist's version of GET TICKETS. */
       quickActions={applyAction}
 
-      /* ⛔ ONE BILL PER SCREEN. When the compact strip above is the one showing,
-         this section is hidden below 1024px rather than removed — at desktop it
-         is still the right-hand column and nothing about it changes. Both sides
-         ask `isCompactLineup`, so they cannot disagree about which is on. */
+      /* ⛔⛔ A SHORT BILL DOES NOT SPLIT THE BAND (owner, 2026-08-20). One or two
+         acts are stated beside the title and info instead, so this slot is
+         EMPTY for them — and `Band`'s R5 rule then gives the surviving column
+         the full width, which is what returns the title to full width and the
+         Favourite to the far right.
+
+         ⚠ Before this, a bill of ONE forced the two-column split: the title was
+         squeezed into a 358px column, the heart came in with it, and the right
+         column ran the full height of the summary to hold a single card at the
+         top of it. The 2-across grid stays exactly as it is for a real bill.
+
+         ⭐ Both sides ask `isCompactLineup`, so the page and the component
+         cannot disagree about which arrangement is showing. */
       lineup={
-        isCompactLineup(v.lineup.artists, v.lineup.withheld) ? (
-          <div className={compactStyles.fullOnly}>
-            <EventLineup
-              artists={v.lineup.artists}
-              withheld={v.lineup.withheld}
-              onOpenArtist={a => openProfile({ id: a.id, type: a.type })}
-            />
-          </div>
-        ) : (
+        isCompactLineup(v.lineup.artists, v.lineup.withheld) ? null : (
           <EventLineup
             artists={v.lineup.artists}
             withheld={v.lineup.withheld}

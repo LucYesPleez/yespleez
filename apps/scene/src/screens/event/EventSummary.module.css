@@ -379,3 +379,40 @@
 }
 
 .reveal:hover { text-decoration: underline; }
+
+/* ── A short bill's act, beside the WHEN and WHERE ───────────────────────
+   Added 2026-08-20. See the `aside` note in EventIdentity.jsx: the title keeps
+   the full width and only these rows share their row with the act, so the
+   Favourite stays at the far right of the headline where it belongs. */
+
+/* ⚠ `display: contents` — the no-aside case must lay out EXACTLY as before.
+   The wrappers still render (one branch, not two markup paths), but they
+   contribute no box, so `.identity`'s column gap still spaces the meta and
+   genres directly. ⛔ Do not turn this into a second JSX branch: two markup
+   paths for one component is how the two of them drift. */
+.bodyPlain { display: contents; }
+
+.bodyRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.bodyMain {
+  display: flex;
+  flex-direction: column;
+  /* Matches `.identity`'s own gap so the rows keep their existing rhythm. */
+  gap: 7px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.bodyAside {
+  flex: 0 0 auto;
+}
+
+/* ⚠ Below ~360px the aside row releases: a title has too little room beside
+   a card column on the smallest phones, so the act drops under the info. */
+@media (max-width: 359px) {
+  .bodyRow { display: block; }
+}

@@ -8,14 +8,14 @@
   margin-top: 6px;
 }
 
-/* ⛔⛔ NARROW WIDTHS ONLY. From 1024px the layout's two-column band applies and
-   the real Lineup is already sitting to the right of the title and info as a
-   2-across grid of portrait cards. Rendering this as well would state the bill
-   twice on the same screen. ⛔ Do not change this breakpoint without changing
-   the one in EventPageLayout.module.css — they are the same decision. */
-@media (min-width: 1024px) {
-  .compact { display: none; }
-}
+/* ⛔⛔ THIS IS THE ARRANGEMENT AT EVERY WIDTH FOR A SHORT BILL (owner,
+   2026-08-20). It used to hide itself from 1024px and hand over to the layout's
+   two-column band — but for ONE act that band squeezed the title into a 358px
+   column, dragged the Favourite in from the far right with it, and ran a
+   full-height column to hold a single card at the top of it. `EventPage` now
+   leaves the lineup slot EMPTY for a short bill, so the band does not split at
+   all and this states the act instead. ⛔ The 2-across grid is untouched for a
+   real bill of three or more. */
 
 .label {
   font-family: 'Bebas Neue', sans-serif;
@@ -37,28 +37,12 @@
   gap: 10px;
 }
 
-/* ── ONE ACT, BESIDE THE TITLE AND INFO ─────────────────────────────────
-   The identity was reading as two disconnected chunks: title, date, venue,
-   then a gap, then a card underneath. Side by side they read as one block.
-
-   ⚠ The row lives on a wrapper in EventPage rather than here, because it has
-   to contain BOTH children — this file owns the column, that file owns the
-   pairing. */
-.identityRow {
-  display: flex;
-  align-items: flex-start;
-  gap: 14px;
-}
-
-/* min-width:0 so a long event title wraps inside its column instead of
-   pushing the artist off the edge. */
-.identityMain {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
+/* ⚠⚠ A WIDTH, ⛔ NOT A FLEX-BASIS. This column is a child of EventIdentity's
+   `.bodyAside`, which is a plain block — a flex-basis there does nothing at all
+   and the card collapsed to 38px. It reads as a flex item only if its PARENT is
+   the flex container, and its parent is not. */
 .besideCol {
-  flex: 0 0 118px;
+  width: 118px;
   margin-top: 2px;
 }
 
@@ -66,23 +50,19 @@
    title has too little room beside a 118px column, so the card returns to its
    own row underneath — where it is still half-width, not full-bleed. */
 @media (max-width: 359px) {
-  .identityRow { display: block; }
-  .besideCol   { margin-top: 8px; }
+  /* ⚠ On the smallest phones the pair stops being a pair: EventIdentity
+     releases its aside row, and the column returns to a half-width card in
+     its own row rather than a full-bleed one. */
+  .besideCol { margin-top: 6px; }
   .besideCol .cards > * { width: calc((100% - 10px) / 2) !important; }
 }
 
-/* ── The other half of the same decision ────────────────────────────────
-   Wraps the FULL Lineup section in EventPage. Below 1024px a bill of one or
-   two is already shown by `.compact` above, beside the event info, so the
-   stacked section must not render it a second time.
-
-   ⚠ `display: contents` at desktop, ⛔ NOT `block`. The band height-matches
-   its columns and `.lineup` sets `height: 100%` against them; an ordinary
-   wrapper would become the thing being matched and the grid would size to a
-   div with no height of its own. `contents` makes the box disappear from
-   layout entirely and lets the section keep its real parent. */
-.fullOnly { display: none; }
-
+/* ⚠⚠ THE CARDS ARE CAPPED ON A WIDE SCREEN, and this is the whole reason the
+   giant card was a problem in the first place. Without a cap, a full-width
+   summary column at desktop makes a lone half-row card ~410px — bigger than
+   the one that started this work. The pairing column grows a little because it
+   can, the stacked pair stops growing entirely. */
 @media (min-width: 1024px) {
-  .fullOnly { display: contents; }
+  .besideCol { width: 150px; }
+  .cards     { max-width: 380px; }
 }
