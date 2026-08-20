@@ -117,6 +117,7 @@ export default function EventLineup({
   const [order, setOrder] = useState(BILL);
   const [overflowing, setOverflowing] = useState(false);
   const [moreBelow, setMoreBelow] = useState(false);
+  const [moreRight, setMoreRight] = useState(false);
   const railRef = useRef(null);
   const wrapRef = useRef(null);
   const drag = useDragScroll('event-lineup');
@@ -139,8 +140,14 @@ export default function EventLineup({
   // artists hidden behind the clip.
   const measure = useCallback(() => {
     const rail = railRef.current;
-    if (!rail) { setOverflowing(false); setMoreBelow(false); return; }
+    if (!rail) { setOverflowing(false); setMoreBelow(false); setMoreRight(false); return; }
     const wide = rail.scrollWidth - rail.clientWidth > 4;
+    /* ⭐ THE END OF THE RAIL IS SHOWN, NOT DIMMED (owner, 2026-08-20): at the
+       last card the fade and the chevron disappear, so the carousel visibly
+       ENDS instead of the final artist sitting under a gradient forever. The
+       stylesheet already promised this ('only present while there is actually
+       more to the right') — the render gate just never kept the promise. */
+    setMoreRight(wide && rail.scrollLeft + rail.clientWidth < rail.scrollWidth - 4);
     const tall = rail.scrollHeight - rail.clientHeight > 4;
     setOverflowing(wide || tall);
     // Whether the fade should show: there is more below AND we are not already
@@ -231,7 +238,10 @@ export default function EventLineup({
           ))}
         </div>
 
-        {overflowing && <>
+        {/* ⭐ Gated on moreRight, ⛔ not overflowing: at the end of the rail
+            both cues vanish so the last card is fully visible, uninterrupted.
+            The grid mode is unaffected — its stylesheet hides both anyway. */}
+        {moreRight && <>
           <div className={s.fade} />
           <button className={s.arrow} onClick={() => page(1)} aria-label="Scroll lineup">
             <ChevronIcon />
