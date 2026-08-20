@@ -147,19 +147,55 @@ region has supply.
 
 ---
 
-## 4 · Open, and needing a ruling
+## 4 · Manual allocations from Studio (fe2, 2026-08-21)
 
-1. **Apply `fe1`.** Until then the ledger 404s (fails soft, 1 request in production,
-   2 in dev via StrictMode) and fairness runs on replay only.
-2. **Who writes the ledger.** Writes are service_role only — an anon/authenticated
-   INSERT grant would be a lever on the ranking, not merely bad data. So nothing
-   writes it yet. Options: Studio records the daily allocation, or the grant is
-   opened with the trust model stated. **This is the main unfinished piece.**
-3. **Popularity.** Do we instrument Get Tickets and Directions clicks with event
+Studio's **Featured Events** screen (`featured.html`, routes `/studio/featured/*`)
+lets an administrator take the slot for **1–7 days**, default 3, on one slider.
+
+**It writes the same day-rows the automatic allocator writes.** A 7-day manual
+allocation is seven rows sharing an `allocation_id`, so the engine's
+`summariseExposure()` counts seven days and fairness charges for all of them
+afterwards. ⛔ There is deliberately no separate manual-feature table: exposure
+the engine cannot see is exposure nobody is accountable for.
+
+**The unique index became partial** — `unique (featured_date) where status =
+'active'`. fe1's plain unique said "one featured event per day", which is right,
+but it also meant a superseded row and its replacement could not coexist, so
+changing the featured event would have required deleting history. Now a
+removed row sits beside its replacement and nothing is ever deleted.
+
+**What an administrator may override:** the RANKING — the fairness penalty, the
+cooldown and the horizon. ⛔ **Never the validity gates.** A draft, private or
+finished event stays out of the hero however it was chosen; the SQL function
+refuses it and `selectFeaturedEvent` re-checks on render, because a manual pick
+silently pointing at a dead event is the original defect wearing a new hat.
+
+**Removal cancels only what has not happened.** Elapsed days stay `active` —
+that exposure really occurred. `requested_days` is stored alongside because
+after a cancellation the original intent is not recoverable from the surviving
+rows, which is what lets the history read "ran 1 day of 3".
+
+**Status is derived, never stored.** The table holds only `active` / `removed`;
+scheduled vs current vs ended is a question about today's date, and this project
+has no cron to flip a stored flag when a day rolls over.
+
+**Writes stay off the client.** `feature_event_manually` and
+`remove_featured_allocation` are SECURITY DEFINER with EXECUTE revoked from anon
+and authenticated; the table grant is still SELECT-only. Verified: anon calling
+the function gets `42501`, which is grant-level and never reaches a policy.
+
+## 5 · Open, and needing a ruling
+
+1. **Popularity.** Do we instrument Get Tickets and Directions clicks with event
    attribution — breaching `analytics-vision §8` — or leave the factor reserved?
    Recommend: leave it reserved. The constitutional rule does not need it.
-4. **Category context.** The hero ignores the category chips, as it always has.
+2. **Automatic allocations are still not recorded.** Only manual ones write to
+   the ledger; the automatic selector's daily pick is still derived by replay.
+   That is why fairness between purely-automatic days remains a reconstruction.
+3. **Category context.** The hero ignores the category chips, as it always has.
    Respecting them risks a dark slot; a soft factor would add an eighth weight.
-   Deliberately out of V1 scope.
+   Deliberately out of scope.
+4. **Studio's event rows are not keyboard reachable** (plain divs, matching
+   `venues.html`). A house-wide gap, not introduced here.
 5. **`profiles.config.featured_event_id`** is a separate per-profile pin on My Scene.
    Untouched, and not to be conflated.

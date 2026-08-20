@@ -35,14 +35,27 @@ export function useFeaturedAllocations(fromIso) {
     queryFn: async () => {
       let q = supabase
         .from('featured_allocation')
-        .select('event_id, featured_date')
+        .select('event_id, featured_date, selection_type, allocation_id, status')
+        // ⭐⭐ REMOVED ROWS ARE HISTORY, NOT EXPOSURE. A cancelled future day
+        // never happened, so charging the event for it would penalise an act
+        // for a run an administrator called off. The rows stay in the table as
+        // the record of what was scheduled; they simply do not reach the
+        // engine. ⛔ Never fix this by deleting the row instead.
+        .eq('status', 'active')
         .order('featured_date', { ascending: true });
       if (fromIso) q = q.gte('featured_date', fromIso);
       const { data, error } = await q;
       if (error) return [];              // pre-migration, or no read grant yet
       return (data || [])
         .filter(r => r.event_id && r.featured_date)
-        .map(r => ({ eventId: r.event_id, date: r.featured_date }));
+        .map(r => ({
+          eventId: r.event_id,
+          date: r.featured_date,
+          // Carried so `allocationForToday()` can tell a human decision from
+          // one this engine made itself.
+          selectionType: r.selection_type,
+          allocationId: r.allocation_id,
+        }));
     },
   });
 

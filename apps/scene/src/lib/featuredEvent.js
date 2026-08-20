@@ -253,6 +253,34 @@ export function editorialOverride(event, todayIso) {
   return { reason: raw.reason ?? null, by: raw.by ?? null, legacy: false };
 }
 
+// ── AN ALLOCATION ALREADY ON THE LEDGER OWNS THE DAY ─────────────────
+
+/**
+ * Selection types that, once written to the ledger for a given day, OWN that
+ * day. Both are deliberate human acts: a Studio administrator featuring an
+ * event, or an editorial pick. `organic` and `promoted` are outputs of this
+ * engine, so letting them own a day would make the engine argue with itself.
+ */
+export const ALLOCATION_OWNED_TYPES = ['manual', 'editorial'];
+
+/**
+ * The allocation that owns today, if one has been recorded.
+ *
+ * ⭐⭐ THIS IS WHAT STOPS THE ALGORITHM FIGHTING AN ADMINISTRATOR. Once Studio
+ * has written a manual allocation, the slot is spoken for until its last day
+ * elapses or someone removes it — the automatic selector does not get to
+ * reconsider on the next page load.
+ *
+ * ⚠ `history` entries are `{eventId, date, selectionType?}`. The type is
+ * OPTIONAL and absent on a replayed history, which is correct: a replay
+ * reconstructs what the algorithm would have chosen, and the algorithm never
+ * produces a manual allocation.
+ */
+export function allocationForToday(history = [], todayIso) {
+  return history.find(h =>
+    h && h.date === todayIso && ALLOCATION_OWNED_TYPES.includes(h.selectionType)) || null;
+}
+
 // ── ELIGIBILITY ──────────────────────────────────────────────────────
 
 /**
@@ -265,8 +293,18 @@ export function editorialOverride(event, todayIso) {
  * whose only live values are draft/live/completed. `status === 'live'` is the
  * strongest statement available; a cancellation gate cannot be written until
  * the state exists.
+ *
+ * ⚠ `ignoreCooldown` / `ignoreHorizon` exist for an allocation that a human
+ * has already committed to. An administrator may override the RANKING — the
+ * fairness penalty and how far ahead the slot normally reaches — but ⛔ never
+ * the validity gates. A draft, a private event or a finished one stays out of
+ * the hero however it was chosen, which is exactly the failure that took this
+ * section dark in the first place.
  */
-export function eligibilityFailure(event, { todayIso, horizonDays, history = [] }) {
+export function eligibilityFailure(event, {
+  todayIso, horizonDays, history = [],
+  ignoreCooldown = false, ignoreHorizon = false,
+}) {
   if (!event) return 'missing';
   if (event.status !== 'live') return 'not_live';
   if (event.is_public === false) return 'not_public';
@@ -280,10 +318,12 @@ export function eligibilityFailure(event, { todayIso, horizonDays, history = [] 
 
   if (!eventCardImage(event)) return 'no_image';
 
-  if (start > addDays(todayIso, horizonDays)) return 'beyond_horizon';
+  if (!ignoreHorizon && start > addDays(todayIso, horizonDays)) return 'beyond_horizon';
 
-  const exposure = summariseExposure(history, event.id, todayIso);
-  if (inCooldown(exposure, todayIso)) return 'cooldown';
+  if (!ignoreCooldown) {
+    const exposure = summariseExposure(history, event.id, todayIso);
+    if (inCooldown(exposure, todayIso)) return 'cooldown';
+  }
 
   return null;
 }
@@ -489,9 +529,43 @@ export function selectFeaturedEvent({
     event: null, selectionType: null, score: 0,
     factors: {}, weights: {}, penalty: 0,
     horizonDays: FEATURED_HORIZON_DAYS, usedFallback: false,
-    candidates: 0, rejected: {},
+    candidates: 0, rejected: {}, allocationId: null,
   };
   if (!todayIso) return empty;
+
+  /**
+   * ⭐⭐ AN ALLOCATION ON THE LEDGER WINS BEFORE ANY RANKING HAPPENS.
+   *
+   * A Studio administrator has already decided this day. Ranking it against
+   * the field would mean the algorithm could quietly overrule them on the next
+   * page load, which is the opposite of an override.
+   *
+   * ⚠ It still passes the VALIDITY gates. If the allocated event has been
+   * unpublished, cancelled or has simply finished, this falls through to the
+   * automatic selector rather than rendering a dead hero — a manual pick must
+   * never be able to reproduce the outage this module was written to fix.
+   */
+  const owned = allocationForToday(history, todayIso);
+  if (owned) {
+    const ev = events.find(e => e && e.id === owned.eventId);
+    const why = ev ? eligibilityFailure(ev, {
+      todayIso, horizonDays: FEATURED_HORIZON_DAYS, history,
+      ignoreCooldown: true, ignoreHorizon: true,
+    }) : 'missing';
+    if (ev && !why) {
+      return {
+        ...scoreEvent(ev, ctx),
+        event: ev,
+        selectionType: owned.selectionType,
+        reason: owned.reason ?? null,
+        allocationId: owned.allocationId ?? null,
+        horizonDays: FEATURED_HORIZON_DAYS,
+        usedFallback: false,
+        candidates: 1,
+        rejected: {},
+      };
+    }
+  }
 
   // ⭐ TWO PASSES, AND THE SECOND IS THE WHOLE POINT. A fortnight with nothing
   // eligible must not blank the hero — reaching further is strictly better
@@ -551,6 +625,7 @@ export function selectFeaturedEvent({
     weights: winner.weights,
     penalty: winner.penalty,
     reason: winner.override?.reason ?? null,
+    allocationId: null,
     horizonDays, usedFallback,
     candidates: eligible.length,
     rejected,

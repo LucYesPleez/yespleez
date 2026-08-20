@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   selectFeaturedEvent, scoreEvent, qualityScore, discoveryScore,
   summariseExposure, inCooldown, editorialOverride, eligibilityFailure,
-  replayHistory, fairnessPenalty,
+  replayHistory, fairnessPenalty, allocationForToday,
   FEATURED_WEIGHTS, FEATURED_HORIZON_DAYS, FEATURED_FALLBACK_HORIZON_DAYS,
   MAX_CONSECUTIVE_ALLOCATIONS, QUALITY_FIELDS,
 } from './featuredEvent.js';
@@ -509,7 +509,107 @@ test('exposure summarises total, recent and current run separately', () => {
   assert.equal(ex.lastDate, day(-1));
 });
 
-// ── 12 · CONTRACT SHAPE ──────────────────────────────────────────────
+// ── 12 · A LEDGER ALLOCATION OWNS THE DAY (Studio manual override) ───
+
+/** N consecutive day-rows for one event, as feature_event_manually writes them. */
+function allocation(eventId, days, { from = 0, selectionType = 'manual', allocationId = 'alloc-1' } = {}) {
+  return Array.from({ length: days }, (_, i) => ({
+    eventId, date: day(from + i), selectionType, allocationId,
+  }));
+}
+
+test('⭐⭐ an active manual allocation owns the slot, beating a stronger organic pick', () => {
+  const strong = ev({ id: 'aaa', cfg: { date: day(1) } });          // best proximity
+  const chosen = ev({ id: 'zzz', cfg: { date: day(9) } });
+  assert.equal(pick([strong, chosen]).event.id, 'aaa', 'without an allocation the algorithm picks freely');
+
+  const out = pick([strong, chosen], { history: allocation('zzz', 3) });
+  assert.equal(out.event.id, 'zzz');
+  assert.equal(out.selectionType, 'manual');
+  assert.equal(out.allocationId, 'alloc-1');
+});
+
+test('the automatic selector resumes the day after the allocation ends', () => {
+  const strong = ev({ id: 'aaa', cfg: { date: day(1) } });
+  const chosen = ev({ id: 'zzz', cfg: { date: day(9) } });
+  // A 3-day allocation that started 3 days ago covers days -3, -2, -1 - not today.
+  const expired = allocation('zzz', 3, { from: -3 });
+  assert.equal(allocationForToday(expired, TODAY), null);
+  const out = pick([strong, chosen], { history: expired });
+  assert.equal(out.event.id, 'aaa', 'the slot returns to the algorithm');
+  assert.equal(out.selectionType, 'organic');
+});
+
+test('⛔ an allocated event that is no longer showable falls through, it does not go dark', () => {
+  const gone = ev({ id: 'zzz', cfg: { date: day(-4) } });           // finished since
+  const live = ev({ id: 'aaa', cfg: { date: day(2) } });
+  const out = pick([gone, live], { history: allocation('zzz', 3) });
+  assert.equal(out.event.id, 'aaa', 'a manual pick must never reproduce the original outage');
+
+  // Same for one that was unpublished after being featured.
+  const hidden = ev({ id: 'zzz', is_public: false, cfg: { date: day(2) } });
+  assert.equal(pick([hidden, live], { history: allocation('zzz', 3) }).event.id, 'aaa');
+});
+
+test('⚠ an allocation overrides the RANKING gates but not the VALIDITY gates', () => {
+  // Cooldown: normally excluded outright, but an admin has overruled fairness.
+  const cooling = [];
+  for (let i = 1; i <= MAX_CONSECUTIVE_ALLOCATIONS; i++) cooling.push({ eventId: 'zzz', date: day(-i) });
+  const worn = ev({ id: 'zzz', cfg: { date: day(2) } });
+  const other = ev({ id: 'aaa', cfg: { date: day(1) } });
+  assert.equal(pick([worn, other], { history: cooling }).event.id, 'aaa', 'cooldown bites normally');
+  assert.equal(
+    pick([worn, other], { history: [...cooling, ...allocation('zzz', 1)] }).event.id, 'zzz',
+    'but an administrator may spend the cooldown');
+
+  // Horizon: an admin may feature something further out than the slot reaches.
+  const distant = ev({ id: 'zzz', cfg: { date: day(60) } });
+  const near    = ev({ id: 'aaa', cfg: { date: day(1) } });
+  assert.equal(pick([distant, near]).event.id, 'aaa');
+  assert.equal(pick([distant, near], { history: allocation('zzz', 1) }).event.id, 'zzz');
+});
+
+test('⭐⭐ a 7-day manual allocation costs the event SEVEN days of exposure', () => {
+  // This is the whole reason manual allocations live in the same ledger.
+  const hist = allocation('zzz', 7, { from: -7 });
+  const ex = summariseExposure(hist, 'zzz', TODAY);
+  assert.equal(ex.total, 7);
+  assert.equal(ex.recent, 7, 'all seven sit inside the fairness window');
+  assert.ok(fairnessPenalty(ev({ id: 'zzz' }), { history: hist, todayIso: TODAY }) > 0);
+
+  // And one day costs one day - the duration has to actually matter.
+  const oneDay = summariseExposure(allocation('yyy', 1, { from: -7 }), 'yyy', TODAY);
+  assert.equal(oneDay.total, 1);
+  assert.ok(ex.total > oneDay.total * 6, 'seven days must weigh far more than one');
+});
+
+test('an organic ledger entry does NOT own the day - only a human decision does', () => {
+  // Otherwise the engine would be bound by its own previous answer and could
+  // never re-rank, which is the opposite of what the ledger is for.
+  const strong = ev({ id: 'aaa', cfg: { date: day(1) } });
+  const past   = ev({ id: 'zzz', cfg: { date: day(9) } });
+  const hist   = allocation('zzz', 1, { selectionType: 'organic' });
+  assert.equal(allocationForToday(hist, TODAY), null);
+  assert.equal(pick([strong, past], { history: hist }).event.id, 'aaa');
+});
+
+test('⚠ a replayed history carries no selectionType, and must not own the day', () => {
+  const strong = ev({ id: 'aaa', cfg: { date: day(1) } });
+  const other  = ev({ id: 'zzz', cfg: { date: day(9) } });
+  const replayed = [{ eventId: 'zzz', date: TODAY }];      // no selectionType
+  assert.equal(allocationForToday(replayed, TODAY), null);
+  assert.equal(pick([strong, other], { history: replayed }).event.id, 'aaa');
+});
+
+test('an editorial allocation owns the day the same way a manual one does', () => {
+  const strong = ev({ id: 'aaa', cfg: { date: day(1) } });
+  const chosen = ev({ id: 'zzz', cfg: { date: day(9) } });
+  const out = pick([strong, chosen], { history: allocation('zzz', 2, { selectionType: 'editorial' }) });
+  assert.equal(out.event.id, 'zzz');
+  assert.equal(out.selectionType, 'editorial');
+});
+
+// ── 13 · CONTRACT SHAPE ──────────────────────────────────────────────
 
 test('the declared weights sum to 1, so renormalisation is the only rescaling', () => {
   const sum = Object.values(FEATURED_WEIGHTS).reduce((a, b) => a + b, 0);
