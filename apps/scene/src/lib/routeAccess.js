@@ -55,6 +55,10 @@ export const ROUTE_ACCESS = Object.freeze({
   '/auth':                    { access: ACCESS.PUBLIC },
   '/access-required':         { access: ACCESS.PUBLIC },
   '/dev/event-layout':        { access: ACCESS.PUBLIC, devOnly: true },
+  /* S3 · the public schedule projection, against real production rows. PUBLIC
+     because it renders exactly what a signed-out punter may read — that is the
+     point of it — and it writes nothing. */
+  '/dev/schedule':            { access: ACCESS.PUBLIC, devOnly: true },
 
   // O3 · post-signup only. ACCOUNT because it acts on behalf of an account;
   // a guest who types the URL is sent to What's On by the screen itself.

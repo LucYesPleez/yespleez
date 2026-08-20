@@ -28,6 +28,7 @@ import DiscoverScreen from './screens/DiscoverScreen';
 import MySceneScreen from './screens/MySceneScreen';
 import EventScreen from './screens/EventScreen';
 import EventLayoutHarness from './screens/event/EventLayoutHarness';
+import ScheduleHarness from './screens/event/ScheduleHarness';
 import CreateEventScreen from './screens/CreateEventScreen';
 import ApplicationsScreen from './screens/ApplicationsScreen';
 import NotificationsScreen from './screens/NotificationsScreen';
@@ -306,6 +307,12 @@ function Shell({ session, onSignOut }) {
             production bundle by the import.meta.env.DEV guard. */}
         {import.meta.env.DEV && (
           <Route path="/dev/event-layout"     element={<EventLayoutHarness />} />
+        )}
+        {/* DEV ONLY — the public schedule projection (S3), against the real
+            Solstice rows. The event-layout harness above does not cover set
+            times, and the one event that has a schedule keeps it private. */}
+        {import.meta.env.DEV && (
+          <Route path="/dev/schedule"         element={<ScheduleHarness />} />
         )}
         <Route path="/create-event"           element={<CreateEventScreen />} />
         <Route path="/event/:id/applications" element={<ApplicationsScreen />} />
