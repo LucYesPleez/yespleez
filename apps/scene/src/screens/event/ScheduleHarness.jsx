@@ -16,11 +16,14 @@
 // yet, and `event_stages` is empty in production. It is labelled as such below
 // so nobody reads it as evidence about real data.
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, Fragment } from 'react';
 import { supabase } from '../../lib/supabase';
 import { resolveSchedule } from '../../lib/scheduleModel';
+import { timeAxis, cellsForStage } from '../../lib/schedulePortrait';
 import { groupSlotsIntoDays, indexPerformances } from '../../lib/eventSlots';
 import SchedulePortrait from './SchedulePortrait';
+import SlotCard from './SlotCard';
+import g from './SchedulePortrait.module.css';
 
 /** The only production event that has a schedule (19 slots, 2 days). */
 const SOLSTICE = '55512cb8-72e8-446c-9fff-f195d7e002c3';
@@ -77,6 +80,108 @@ function festivalFixture() {
     });
   }
   return { slots, stages: FESTIVAL_STAGES, claims, eventDate: '2026-10-03' };
+}
+
+/**
+ * PROTOTYPE A · THE STAGE PAGER, TIME-ALIGNED (owner-requested, 2026-08-20).
+ *
+ * ⛔ HARNESS-ONLY. Production's SchedulePortrait is untouched; if this is
+ * ratified it replaces the sideways grid there and this copy dies.
+ *
+ * The design under evaluation:
+ *   · Each stage is the vertical timeline the owner already approved —
+ *     full-width SlotCards, top to bottom.
+ *   · Stages sit side by side as SNAP PAGES; ~12% of the neighbour peeks at
+ *     the edge as the "you can swipe" hint — the app's own part-card idiom.
+ *   · ⭐⭐ ONE CSS GRID, ⛔ not three independent columns: every stage's card
+ *     for a given time sits in the same GRID ROW, so rows align across stages
+ *     and the PEEK IS THE COMPARISON — the sliver beside MAIN's 9:00 card is
+ *     what is on next door at 9:00. A stage with nothing at that time holds
+ *     the row open with a quiet hatched spacer carrying the time.
+ *   · Stage chips above: lit by the sideways SCROLL, tap to jump — the same
+ *     say-where-you-are-never-gate law as the day chips.
+ */
+function StagePagerA({ resolved, allMixSlots = [] }) {
+  const scrollerRef = useRef(null);
+  const [activeStage, setActiveStage] = useState(0);
+  const day = resolved.days?.[0];
+  if (!day) return null;
+  const stages = (day.stages || []).filter(st => st);
+  const axis = timeAxis(day);
+  const cellsByStage = stages.map(st => cellsForStage(st, axis));
+
+  const jumpTo = i => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    const col = el.firstElementChild?.getBoundingClientRect().width || 0;
+    el.scrollTo({ left: i * (col + 10), behavior: 'smooth' });
+  };
+  const onScroll = e => {
+    const el = e.currentTarget;
+    const col = el.firstElementChild?.getBoundingClientRect().width || 1;
+    const i = Math.round(el.scrollLeft / (col + 10));
+    setActiveStage(prev => (prev === i ? prev : i));
+  };
+
+  return (
+    <div>
+      <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
+        {stages.map((st, i) => (
+          <button key={st.id} onClick={() => jumpTo(i)}
+            aria-current={i === activeStage ? 'true' : undefined}
+            style={{
+              fontFamily: "'Bebas Neue',sans-serif", fontSize: 11, letterSpacing: 1.4,
+              padding: '6px 13px', borderRadius: 999, cursor: 'pointer',
+              border: '1px solid ' + (i === activeStage ? '#fff' : 'rgba(255,255,255,.1)'),
+              background: i === activeStage ? '#fff' : 'none',
+              color: i === activeStage ? '#0a0a14' : (st.accent || 'rgba(255,255,255,.45)'),
+            }}>{st.name}</button>
+        ))}
+      </div>
+
+      <div
+        ref={scrollerRef}
+        onScroll={onScroll}
+        className={g.gridScroll}
+        style={{
+          display: 'grid',
+          gridTemplateColumns: `repeat(${stages.length}, 86%)`,
+          columnGap: 10, rowGap: 8,
+          scrollSnapType: 'x mandatory',
+        }}
+      >
+        {/* Row 0 — the stage headings, and the snap targets. */}
+        {stages.map(st => (
+          <div key={'h' + st.id} style={{ scrollSnapAlign: 'start', display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 12, letterSpacing: 1.8, color: st.accent || 'rgba(255,255,255,.55)', whiteSpace: 'nowrap' }}>{st.name}</span>
+            <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,.08)' }} />
+          </div>
+        ))}
+
+        {/* One grid row per axis time; the tallest card sets the row, so the
+            rows line up across every stage. */}
+        {axis.map((col, rowIdx) => (
+          <Fragment key={col.key}>
+            {stages.map((st, sIdx) => {
+              const entry = cellsByStage[sIdx][rowIdx];
+              return entry ? (
+                <div key={st.id + col.key}>
+                  <SlotCard slot={entry.slot} claim={entry.claim} isHost={false} allMixSlots={allMixSlots} />
+                </div>
+              ) : (
+                <div key={st.id + col.key} className={g.gap}
+                  style={{ display: 'flex', alignItems: 'center', paddingLeft: 12 }}>
+                  <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 10, letterSpacing: 1.4, color: 'rgba(255,255,255,.18)' }}>
+                    {col.time} {col.ampm} · NOTHING ON
+                  </span>
+                </div>
+              );
+            })}
+          </Fragment>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 export default function ScheduleHarness() {
@@ -143,7 +248,18 @@ export default function ScheduleHarness() {
             {resolved.isMultiStage ? `${resolved.stageCount} stages` : 'single stage'}
             {resolved.unstagedOnStagedEvent > 0 && ` · ⚠ ${resolved.unstagedOnStagedEvent} unstaged`}
           </div>
-          <SchedulePortrait resolved={resolved} />
+          {/* Festival shows PROTOTYPE A (the direction under evaluation);
+              Solstice keeps the shipped projection. */}
+          {which === 'festival' ? (
+            <>
+              <div style={{ margin: '4px 0 10px', fontFamily: "'Bebas Neue',sans-serif", fontSize: 13, letterSpacing: 2, color: '#00E5FF' }}>
+                PROTOTYPE A · SWIPE BETWEEN STAGES, ROWS ALIGNED BY TIME
+              </div>
+              <StagePagerA resolved={resolved} />
+            </>
+          ) : (
+            <SchedulePortrait resolved={resolved} />
+          )}
 
           {/* ⚠ Proof the host path is untouched: the same rows through the OLD
               grouping, which DaySlots still consumes. If this stops matching
