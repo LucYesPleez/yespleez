@@ -171,11 +171,40 @@ export async function fetchDistributableLogos(profileIds) {
   // empty shelf is the correct degraded state — R1, absent is absent.
   if (error || !data) return {};
 
+  /**
+   * ⛔⛔ SIGNED URLS, NOT getPublicUrl — the bucket is PRIVATE (owner found the
+   * broken logos 2026-08-20). `getPublicUrl` never errors: it string-builds a
+   * URL for ANY path against the `/object/public/` endpoint, which answers
+   * "Bucket not found" for a private bucket — so every logo rendered as a
+   * broken image while the code read as if it worked. ⛔ The fix is NOT making
+   * the bucket public: it holds riders and insurance documents, and a public
+   * bucket flag is bucket-wide. The storage SELECT policy already lets anon
+   * sign LOGO_PACK objects (verified live, control-probed), which is exactly
+   * the world-readable-logos intent with the boundary intact.
+   *
+   * ⚠ ONE BATCH CALL, not one per row — createSignedUrls signs the lot.
+   * ⚠ The hour TTL outlives any page view; these are deliberately public
+   * logos, so the signed-URL-outlives-the-grant concern does not apply.
+   */
+  const paths = data.map(r => r.storage_path);
+  const { data: signed, error: signErr } = await supabase.storage
+    .from(ASSETS_BUCKET)
+    .createSignedUrls(paths, 3600);
+  if (signErr || !signed) return {};
+
+  const urlByPath = {};
+  for (const s of signed) {
+    if (s?.signedUrl && !s.error) urlByPath[s.path] = s.signedUrl;
+  }
+
   const out = {};
   for (const row of data) {
-    const { data: pub } = supabase.storage.from(ASSETS_BUCKET).getPublicUrl(row.storage_path);
-    if (!pub?.publicUrl) continue;
-    (out[row.profile_id] ||= []).push({ id: row.id, url: pub.publicUrl, file_name: row.file_name });
+    const url = urlByPath[row.storage_path];
+    /* A row whose object cannot be signed is a broken record, and R4 says
+       broken must never render as sparse — it is dropped here, loudly absent
+       rather than a dead <img>. */
+    if (!url) continue;
+    (out[row.profile_id] ||= []).push({ id: row.id, url, file_name: row.file_name });
   }
   return out;
 }
