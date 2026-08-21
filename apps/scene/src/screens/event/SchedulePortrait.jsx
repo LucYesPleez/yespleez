@@ -389,9 +389,18 @@ function SetStrip({ live, claim }) {
  * time columns, which is dead — ⛔ do not bring it back.
  *
  * Each stage is the SAME vertical timeline single-stage gets — full-width
- * SlotCards, top to bottom. Stages sit side by side as SNAP PAGES at 82%
+ * SlotCards, top to bottom. Stages sit side by side as SNAP PAGES at 92%
  * width, CENTRED, so the neighbour peeks at BOTH edges: the app's own
  * part-card idiom doing the "you can swipe" hinting. No arrows, no tutorial.
+ *
+ * ⚠⚠ THE NUMBER HAS MOVED THREE TIMES AND THE END PAGES ARE WHY. Centring
+ * splits the remainder in two, so it is tempting to widen the gap for a fatter
+ * double peek — it was briefly 82% for exactly that. But the FIRST and LAST
+ * stage have nothing on one side, so their WHOLE remainder lands on the other:
+ * 82% put 84px of the next stage on page one, 86% put 64px, and the owner
+ * wanted it smaller again both times. At 92% the sliver is a hint rather than
+ * a visible card edge. ⛔ Read any change to this number off an END page,
+ * never off a middle one.
  *
  * ⭐⭐ A MIDDLE STAGE IS SLICED ON BOTH SIDES (owner, 2026-08-21). Start-aligned
  * pages only ever peeked to the right, so standing on SECOND STAGE of three
@@ -562,7 +571,7 @@ function StagePager({ day, allMixSlots, now }) {
         onMouseMove={dragScroll.onMouseMove}
         onMouseLeave={onMouseLeave}
         className={`${s.pager} ${single ? s.pagerSingle : ''}`}
-        style={{ gridTemplateColumns: single ? '100%' : `repeat(${stages.length}, 82%)` }}
+        style={{ gridTemplateColumns: single ? '100%' : `repeat(${stages.length}, 92%)` }}
       >
         {/* Row 0 — the stage headings, and the snap targets. ⚠ CELLS ARE
             DIRECT GRID CHILDREN, ⛔ never wrapped per stage: a wrapper gives

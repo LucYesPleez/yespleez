@@ -129,10 +129,13 @@
    lib/scheduleNow). ⛔ A finished event must NOT render as a wall of grey
    forever — that reads as data failing to load, not as history.
 
-   ⚠ TRANSFORM, ⛔ NOT WIDTH OR PADDING. A card that swells by changing its box
-   would change its GRID ROW's height, and every other stage's row on the pager
-   moves with it — the time alignment is the whole reason the peek is worth
-   looking at. A transform paints bigger and lays out identically. */
+   ⛔⛔ NOTHING HERE MAY CHANGE A CARD'S SIZE. Every card on every stage is the
+   same box; the playing one is distinguished by LIGHT alone. Two reasons, and
+   both were learned the hard way: a card that grows changes its GRID ROW's
+   height, which drags every other stage's row out of the time alignment the
+   peek exists for; and a card that grows pushes its own glow into the
+   scroller's clip box and loses the edges of it. ⛔ Not width, ⛔ not padding,
+   and ⛔ not a transform either. */
 /* ── THE BOTTOM STRIP: PROGRESS, PHASE, AND THE FOLLOW OFFER ─────────────
    ⚠⚠ EVERY PIECE BELOW IS ABSOLUTELY POSITIONED, and that is structural rather
    than cosmetic: on the pager each stage shares a GRID ROW, so a card that
@@ -286,8 +289,8 @@
    dimmer instead of glowing. ⛔ Do not "tidy" them out of a frame.
    ⛔ The scale is NOT animated — the card holds its size; only the light moves. */
 @keyframes onNowPulse {
-  0%, 100% { filter: saturate(1.25) brightness(1.06) drop-shadow(0 0 10px rgba(255, 45, 120, .22)); }
-  50%      { filter: saturate(1.25) brightness(1.06) drop-shadow(0 0 22px rgba(255, 45, 120, .52)); }
+  0%, 100% { filter: saturate(1.25) brightness(1.06) drop-shadow(0 0 8px rgba(255, 45, 120, .24)); }
+  50%      { filter: saturate(1.25) brightness(1.06) drop-shadow(0 0 14px rgba(255, 45, 120, .55)); }
 }
 
 /* ⭐⭐ THE FILTERS DRESS THE CARD, ⛔ NOT THE WRAPPER (owner, 2026-08-21: "lift
@@ -299,12 +302,20 @@
    full strength.
    ⚠ THE TRANSFORM STAYS ON THE WRAPPER, deliberately: the progress bar has to
    scale WITH the card it measures, or the bar and the card edge come apart. */
+/* ⭐⭐ EVERY CARD IS THE SAME SIZE (owner, 2026-08-21: "make sure stage 1 2 and
+   3 set cards are all the same size and the glow issue will go away").
+   ⚠⚠ THE SWELL IS GONE, AND THAT IS THE FIX FOR THE CLIPPED GLOW, not a
+   compromise on it. `scale(1.025)` put the playing card 5.5px past its cell on
+   each side, so its shadow needed 5.5 + 14 = 19.5px of room inside a 16px clip
+   box and lost the last few pixels to a straight edge. Same-size cards leave
+   the glow the whole gutter, and the card is still unmistakable — it is the
+   lit, pulsing one. ⛔ Do not reintroduce the scale to make it "pop"; that is
+   what cost the glow its edges. */
 .playing {
-  transform: scale(1.025);
-  /* ⚠ Above its neighbours, or the swell is clipped by the next card's edge. */
+  /* ⚠ Above its neighbours so the glow paints over the next card rather than
+     under it — the shadow still reaches past this box even without the swell. */
   position: relative;
   z-index: 1;
-  transition: transform .35s ease;
 }
 
 /* ── THE HANDOVER BETWEEN STATES ─────────────────────────────────────────
@@ -351,18 +362,18 @@
      ⚠ Kept as the STATIC state as well as the animation's midpoint — it is what
      shows when motion is reduced, and what the card transitions from. */
   filter: saturate(1.25) brightness(1.06)
-          drop-shadow(0 0 16px rgba(255, 45, 120, .30));
+          drop-shadow(0 0 12px rgba(255, 45, 120, .34));
   animation: onNowPulse 3s ease-in-out infinite;
   transition: filter .35s ease;
 }
 
-/* ⭐⭐ THE SET ON THE PAGE YOU ARE ON IS THE ONE THAT SWELLS (owner,
-   2026-08-21: "make only the set time for the screen you're on swell").
+/* ⭐⭐ THE SET ON THE PAGE YOU ARE ON IS THE LOUD ONE (owner, 2026-08-21: "make
+   only the set time for the screen you're on swell").
    A neighbouring stage's 9PM act is also playing, and it still says so — it
-   keeps the vibrancy — but it does NOT swell, because a card growing in the
-   sliver at the edge of the screen is movement in the corner of your eye
-   pulling at a page you are not looking at. ⛔ It is not a different truth,
-   it is the same truth at the volume of a peek. */
+   keeps the vibrancy — but it gets no glow and no pulse, because light moving
+   in the sliver at the edge of the screen pulls at a page you are not looking
+   at. ⛔ It is not a different truth, it is the same truth at the volume of a
+   peek. ⚠ The swell this once used is gone; see `.playing`. */
 .playingAside > :first-child {
   filter: saturate(1.25) brightness(1.06);
   transition: filter .35s ease;
@@ -390,12 +401,9 @@
   .playing > :first-child,
   .playingAside > :first-child,
   .played > :first-child { transition: none; }
-  /* ⛔ No swell and ⛔ no pulse — a repeating animation is exactly what this
-     preference is asking about. The static glow above stays, so the card is
-     still the one lit up; it simply stops moving. */
-  .playing { transform: none; }
-  /* ⛔ No pulse, and ⛔ no fade at the handover either — the state still
-     changes, it just changes without performing. */
+  /* ⛔ No pulse, and ⛔ no fade at the handover either — a repeating animation
+     is exactly what this preference is asking about. The static glow stays, so
+     the card is still the one lit up; it simply stops moving. */
   .playing > :first-child,
   .playing.enterPlaying > :first-child,
   .played.enterPlayed > :first-child { animation: none; }
@@ -416,9 +424,12 @@
 
    ⭐⭐ ONE GRID, so every stage's card for a given time shares a ROW and the
    peek beside the current stage is a truthful "what's on next door right
-   now". Column width 82%: the ~18% remainder is the neighbour's cards sliced
+   now". Column width 86%: the ~14% remainder is the neighbour's cards sliced
    by the edge — the app's own part-card idiom doing the "you can swipe"
    hinting. ⛔ NO VISIBLE SCROLLBAR — standing UI law.
+   ⚠ The width lives in the component (it is built with the stage count) and
+   the reason for 86% rather than 82% is documented there: on an END page the
+   whole remainder falls on one side.
 
    ⭐⭐ THE PAGE SNAPS TO CENTRE, ⛔ NOT TO START (owner, 2026-08-21). A start
    aligned page sits flush left, so a stage with a neighbour on EITHER SIDE
@@ -435,20 +446,24 @@
      swaps this for `grabbing` while a drag is live, the same as every rail. */
   cursor: grab;
 
-  /* ⭐⭐ ROOM FOR THE SWELL (owner, 2026-08-21: "you can't see the edge of the
-     card that's playing").
-     ⚠⚠ A scroll container CLIPS AT ITS PADDING BOX, and the playing card scales
-     to 1.025 — measured, that is 5px past its cell on each side. With no
-     padding, the card sitting against the scroller's edge lost its own border
-     to the clip, so the one card the eye is meant to land on was the one with a
-     missing edge.
+  /* ⭐⭐ ROOM FOR THE SWELL AND THE GLOW (owner, 2026-08-21: "you can't see the
+     edge of the card that's playing", then "it cuts the pink glow off
+     vertically, I can see the direct cut line").
+     ⚠⚠ A scroll container CLIPS AT ITS PADDING BOX. Two things reach past the
+     card: the 1.025 swell (5px a side, measured) and the GLOW, which is a
+     22px-blur drop-shadow. 6px of padding covered the first and sliced the
+     second into a straight vertical line down each edge — the giveaway that a
+     soft shadow is being clipped rather than fading out.
+     ⚠ 16px is the page's own gutter, which is the most this can take without
+     the schedule pushing into the page's margins; the glow's blur was brought
+     under that number to match, rather than the padding chasing the glow.
      ⚠ The negative margin cancels the padding VISUALLY: every card stays
      exactly where it was and the schedule does not shift; all the padding does
      is give the scaled edges somewhere to be drawn. ⛔ Do not remove one of the
      two — the padding alone insets the whole schedule, the margin alone pushes
      it into the page gutter. */
-  padding: 6px;
-  margin: -6px;
+  padding: 16px;
+  margin: -16px;
   column-gap: 10px;
   row-gap: 8px;
   overflow-x: auto;
