@@ -10,10 +10,6 @@ import { selectFeaturedEvent, replayHistory, FAIRNESS_WINDOW_DAYS } from '../lib
 import { useFeaturedAllocations } from '../lib/useFeaturedAllocations';
 import { useTentativeDates } from '../lib/useTentativeDates';
 import { useProfileLocation } from '../lib/useProfileLocation';
-import { useLocalActs } from '../lib/useLocalActs';
-import { buildLocals } from '../lib/locals';
-import PortraitCard from '../components/PortraitCard';
-import FollowHeartBtn from '../components/FollowHeartBtn';
 import { useSession } from '../App';
 import FeaturedEventCard from '../components/FeaturedEventCard';
 import HeartBtn from '../components/HeartBtn';
@@ -64,25 +60,6 @@ const COMING_UP_PEEK_H     = Math.round(COMING_UP_ROW_H * 5.5);
 
 /* Matches ANNOUNCED_CAP in lib/sceneFloor.js, where this section used to live. */
 const JUST_ANNOUNCED_CAP = 8;
-
-/**
- * LOCALS, split by what someone actually is.
- *
- * ⭐ One mixed rail made you scan past four DJs to find whether any VENUE near
- * you has anything on. These are three different questions and they now get
- * three answers, each with its own radius ladder and its own cap — so a busy
- * category cannot crowd a quiet one out of the ten slots.
- *
- * Labels follow lib/profileTypes.js rather than being invented here: 'host' is
- * captioned HOST / PROMOTER there, so PROMOTERS is the app's own word. The
- * three performing types collapse into ARTISTS because the distinction between
- * a DJ, a band and a comic is already on each card.
- */
-const LOCAL_GROUPS = [
-  { key: 'artists',   title: 'ARTISTS',   types: ['artist', 'band', 'standup'] },
-  { key: 'venues',    title: 'VENUES',    types: ['venue'] },
-  { key: 'promoters', title: 'PROMOTERS', types: ['host'] },
-];
 
 const DATE_TABS = [
   { id: 'TONIGHT',   label: 'TONIGHT',    sub: "What's on now" },
@@ -279,10 +256,7 @@ export default function WhatsOnScreen() {
   const weekendDrag2 = useDragScroll('whatson-weekend-2');
   const announcedDrag = useDragScroll('whatson-just-announced');
   /* ⚠ One useDragScroll per rail, named rather than mapped: hooks must run in
-     the same order every render, so they cannot come out of LOCAL_GROUPS.map. */
-  const artistsDrag   = useDragScroll('whatson-locals-artists');
-  const venuesDrag    = useDragScroll('whatson-locals-venues');
-  const promotersDrag = useDragScroll('whatson-locals-promoters');
+     the same order every render, so they can never come out of a .map(). */
 
   const stripDays = useMemo(() => buildDateStrip(stripMonth.year, stripMonth.month), [stripMonth]);
 
@@ -498,31 +472,6 @@ export default function WhatsOnScreen() {
       .sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''))
       .slice(0, JUST_ANNOUNCED_CAP);
   }, [events, category]);
-  /**
-   * LOCALS — the people and places with something coming up, moved from My Scene.
-   *
-   * ⭐ Its noun is a PERSON, not an event, but the question it answers is
-   * "who is playing around here" — which is discovery, and discovery lives
-   * here now. ⛔ It is NOT a directory: an act with nothing booked does not
-   * appear, and Discover remains the place to browse every profile.
-   *
-   * ⚠ The pool is filtered to acts on THESE events, so it narrows with the
-   * date and category filters above rather than showing the same faces
-   * whatever you are looking at.
-   */
-  const localActs = useLocalActs(events);
-  const localGroups = useMemo(() => LOCAL_GROUPS.map(g => ({
-    ...g,
-    locals: buildLocals({
-      profiles: localActs.filter(pr => g.types.includes(String(pr.type || '').toLowerCase())),
-      originCoords,
-      radiusKm,
-      isoDate: todayIso,
-      withinRadius,
-    }),
-  })), [localActs, originCoords, radiusKm, todayIso]);
-  const localDrags = { artists: artistsDrag, venues: venuesDrag, promoters: promotersDrag };
-  const anyLocals = localGroups.some(g => g.locals.items.length > 0);
   /* Scroll whenever the rows overflow the window. 5 is the count that FITS;
      the sixth is the half-row peek that says the list continues. Below that
      there is nothing to scroll and no fade is wanted. */
@@ -918,52 +867,9 @@ export default function WhatsOnScreen() {
             </div>
           )}
 
-          {/* ⛔ NO SUBHEADING HERE. "With something on" describes the FILTER,
-              and the filter is our business, not the reader's — owner,
-              2026-08-21: "thats just for me and the algorithm". A rail of acts
-              who all have gigs coming up needs no caption saying so; it just
-              needs to be true, which useLocalActs enforces.
-
-              LOCALS — three rails, because "who is playing", "which rooms
-              have something on" and "who is putting nights on" are three
-              questions. Each hides independently when empty. */}
-          {anyLocals && (
-            <div className={s.sectionBlock}>
-              <div className={s.sectionRow}>
-                <span data-tour="whatson-section" className={s.sectionTitle}>LOCALS</span>
-                <div className={s.gradientLine} />
-              </div>
-              {localGroups.map(g => g.locals.items.length > 0 && (
-                <div key={g.key} style={{ marginTop: 14 }}>
-                  <div className={s.sectionRow} style={{ marginBottom: 6 }}>
-                    <span className={s.sectionSub}>{g.title}</span>
-                    <div className={s.gradientLine} />
-                  </div>
-                  {/* ⚠ THE REACH IS DECLARED, PER RAIL. When there are not enough
-                      near you the rail borrows from further afield rather than
-                      running nearly empty — owner, 2026-08-03: "it has to say
-                      that". Without this the section showed a profile in Cairns
-                      under a heading that says LOCALS. Each rail reaches on its
-                      own, so the line has to be per rail too. */}
-                  {g.locals.expanded && (
-                    <p className={s.empty} style={{ textAlign: 'left', margin: '0 0 8px' }}>
-                      {g.locals.localCount === 0
-                        ? 'None nearby yet, so these are from further afield.'
-                        : `Only ${g.locals.localCount} nearby, so the rest are from further afield.`}
-                    </p>
-                  )}
-                  <div className={s.weekendScroll} ref={localDrags[g.key].ref}
-                    onMouseDown={localDrags[g.key].onMouseDown} onMouseMove={localDrags[g.key].onMouseMove}
-                    onMouseUp={localDrags[g.key].onMouseUp} onMouseLeave={localDrags[g.key].onMouseLeave}>
-                    {g.locals.items.map(pr => (
-                      <PortraitCard key={pr.id ?? pr.user_id} profile={pr}
-                        followAction={<FollowHeartBtn profile={pr} />} />
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+          {/* ⛔ LOCALS IS GONE FROM THIS SCREEN (owner, 2026-08-21) — it lives on
+              Discover now, under RECENTLY ADDED EVENTS, as components/LocalsRails.
+              Third home; the component note carries the lineage. */}
           {/* ⛔ THIS USED TO READ `!featuredEvent && !loading`, WHICH IS A
               DIFFERENT QUESTION. "Is one event featured?" is not "are there
               any events?", and once the hand-set featured pick expired on

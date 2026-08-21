@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import EventCard from '../components/EventCard';
+import LocalsRails from '../components/LocalsRails';
 import ProfileCard, { TYPE_STYLES } from '../components/ProfileCard';
 import PortraitCard from '../components/PortraitCard';
 import FollowHeartBtn from '../components/FollowHeartBtn';
@@ -902,6 +903,14 @@ export default function DiscoverScreen() {
                     <span className={s.viewMoreText}>VIEW MORE</span>
                   </button>
                 </>
+              )}
+              {/* ⭐ LOCALS — moved here from What's On (owner, 2026-08-21:
+                  "under the recently added events"). The pool is THIS page's
+                  event list, so the rails still only show people with
+                  something coming up — Discover's search stays the directory,
+                  and this stays the shortlist. */}
+              {isDefault && events.length > 0 && (
+                <LocalsRails events={events} originCoords={originCoords} radiusKm={radiusKm} />
               )}
 
               {!isDefault && items.length === 0 && (

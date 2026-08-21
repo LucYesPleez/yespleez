@@ -1,0 +1,68 @@
+/* LOCALS rails — see LocalsRails.jsx.
+   ⚠ The values MATCH the screen section chrome (WhatsOnScreen.module.css) so
+   the section reads native wherever it is mounted. If the app's section idiom
+   changes, change it there and here together — the component cannot import a
+   screen's module without chaining itself to that screen. */
+
+.sectionBlock {
+  margin-bottom: 28px;
+}
+
+.sectionRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.sectionTitle {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 22px;
+  letter-spacing: 2px;
+  display: inline-block;
+  background: var(--yp-title-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  /* ⭐ The subs run quieter than the hero — same ramp, turned down. One
+     opacity, ⛔ never a second set of colours. */
+  opacity: .72;
+}
+
+.sectionSub {
+  display: inline-block;
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  font-family: 'Bebas Neue', sans-serif;
+  vertical-align: middle;
+  background: var(--yp-accent-gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  opacity: 0.7;
+}
+
+.gradientLine {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(to right, #00E5FF, #BF5FFF, transparent);
+}
+
+/* ⛔ NO VISIBLE SCROLLBAR — standing UI law; the part-card peek is the cue. */
+.rail {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 4px;
+}
+
+.rail::-webkit-scrollbar { display: none; }
+
+.reach {
+  color: var(--muted);
+  font-size: 14px;
+  text-align: left;
+  margin: 0 0 8px;
+}
