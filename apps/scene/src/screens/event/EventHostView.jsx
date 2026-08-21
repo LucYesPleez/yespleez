@@ -51,7 +51,8 @@ import EventPublicView from './EventPublicView';
 import EventPage from './EventPage';
 import SchedulePortrait from './SchedulePortrait';
 import SlotEditModal from './SlotEditModal';
-import { EditIcon, InboxIcon, LockIcon, UnlockIcon, CopyIcon, TrashIcon, ManageSection, ManageItem } from './manageMenu';
+import { EditIcon, InboxIcon, LockIcon, UnlockIcon, CopyIcon, TrashIcon, QrIcon, ManageSection, ManageItem } from './manageMenu';
+import QrCodeCreator from '../../components/QrCodeCreator';
 import s from '../EventScreen.module.css';
 
 export default function EventHostView({
@@ -145,6 +146,8 @@ export default function EventHostView({
   const [searchParams] = useSearchParams();
   const [viewAsPunter,  setViewAsPunter]  = useState(searchParams.get('view') === 'public');
   const [goLiveConfirm, setGoLiveConfirm] = useState(false);
+  /* QR1 · which destination the generator opens on, or null when it is shut. */
+  const [qrFor,         setQrFor]         = useState(null);
   // Everyone still queued for a date that has just been locked in. null until
   // a publish finds some — see the Go Live handler and lib/dateLockout.
   const [lockoutAsks,   setLockoutAsks]   = useState(null);
@@ -1568,12 +1571,29 @@ export default function EventHostView({
               <ManageItem icon={<InboxIcon />} label="View Applications" onClick={() => { setShowManage(false); navigate(`/event/${id}/applications`); }} />
               <ManageItem icon={appsOpen ? <LockIcon /> : <UnlockIcon />} label={appsOpen ? 'Close Applications' : 'Open Applications'} onClick={() => { toggleAppsOpen(); setShowManage(false); }} />
             </ManageSection>
+            {/* ⭐ QR1 · the event-level entry to the shared generator. ⛔ There
+                is no event-specific QR code here — this opens the ONE
+                generator with a destination pre-selected, so the poster an
+                organiser makes from an event page is the same object, in the
+                same library, as one made from their dashboard. */}
+            <ManageSection label="Promote">
+              <ManageItem icon={<QrIcon />} label="Event QR Code" onClick={() => { setShowManage(false); setQrFor('event'); }} />
+              <ManageItem icon={<QrIcon />} label="Set Times QR Code" onClick={() => { setShowManage(false); setQrFor('set-times'); }} />
+            </ManageSection>
             <ManageSection label="Management">
               <ManageItem icon={<CopyIcon />} label="Duplicate Event" onClick={() => setShowManage(false)} muted />
               <ManageItem icon={<TrashIcon />} label="Delete Event" onClick={() => setShowManage(false)} danger />
             </ManageSection>
           </div>
         </div>
+      )}
+
+      {qrFor && (
+        <QrCodeCreator
+          userId={session?.user?.id}
+          initial={{ destinationType: qrFor, destinationId: id }}
+          onClose={() => setQrFor(null)}
+        />
       )}
     </>
   );

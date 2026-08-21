@@ -67,6 +67,12 @@ export default function EventScreen() {
     url:     shareUrl(`/event/${event.id ?? id}`),
     preview: event.blurb || event.description || undefined,
     access:  'public',
+    /* ⭐ QR1 · the screen declares its QR DESTINATION as well as its link. The
+       two are different addresses on purpose: the link is where you are, the
+       QR is the `/q/` route that survives being printed. ⛔ ShareSheet does not
+       derive this — a sheet that guessed a destination would eventually guess
+       a wrong one onto a poster. */
+    qr:      { type: 'event', id: event.id ?? id },
   } : null);
 
   // EP-01: the heart is now REACHED. `toggleLike` was written for this and had

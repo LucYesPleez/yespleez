@@ -20,6 +20,7 @@ import NotificationBar from '../components/NotificationBar';
 import DashboardStats from '../components/DashboardStats';
 import { bucketEvents, effectiveDate, UPCOMING, DRAFT, ARCHIVE } from '../lib/eventBuckets';
 import EventsSection from '../components/EventsSection';
+import QrCodesSection from '../components/QrCodesSection';
 import { useDragScroll } from '../hooks/useDragScroll';
 import s from './VenueDashboard.module.css';
 import { PROFILE_TYPES } from '../lib/profileTypes';
@@ -400,6 +401,11 @@ export default function VenueDashboard({ userId: userIdProp }) {
           />
         )}
       </div>
+
+      {/* ⭐ QR1 · QR codes live INSIDE the dashboard, beside the events and
+          enquiries they belong to. ⛔ Not a top-level area, and the bottom
+          navigation is untouched — it is permanent. */}
+      <QrCodesSection ownedProfiles={profile ? [profile] : []} userId={userId} accent="#00E5A0" />
 
       {/* Following —
           ⛔ NO WRAPPER MARGIN. The gap is FollowingSection's own

@@ -56,6 +56,7 @@ import { fetchOutgoingEnquiries } from '../lib/outgoingPipeline';
 import { withDirection, normaliseStatus, rawStatusesFor, PIPELINE_BUCKETS, STATUS_TAB_COLOR } from '../lib/enquiryUtils';
 import { bucketEvents, eventBucket, defaultBucket, effectiveDate, BUCKETS, UPCOMING, DRAFT, ARCHIVE } from '../lib/eventBuckets';
 import EventsSection from '../components/EventsSection';
+import QrCodesSection from '../components/QrCodesSection';
 import EventTabBar from '../components/EventTabBar';
 import SectionCollapseButton from '../components/SectionCollapseButton';
 import { useDragScroll } from '../hooks/useDragScroll';
@@ -1702,6 +1703,16 @@ export default function HostDashboard({ userId: userIdProp }) {
           </div>
         )}
       </div>
+
+      {/* ⭐ QR1 · the same section the venue dashboard renders, from the same
+          component and the same engine. ⛔ There is no host-specific QR
+          implementation — the menu it offers is derived from what this account
+          holds, which is where Venue drops out and What's On stays. */}
+      <QrCodesSection
+        ownedProfiles={profile ? [profile] : []}
+        userId={userId}
+        accent={PROFILE_TYPES.host.accent}
+      />
 
       {/* ── FOLLOWING — always at bottom ──
           ⛔ NO WRAPPER MARGIN. The gap is FollowingSection's own

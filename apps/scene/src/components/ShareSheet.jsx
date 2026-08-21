@@ -1,5 +1,8 @@
 import { useState } from 'react';
 import { nativeShare, copyLink, canNativeShare } from '../lib/shareTarget';
+import QrPreview from './QrPreview';
+import { qrUrl, posterKicker } from '../lib/qrDestinations';
+import { exportPdf, exportPng } from '../lib/qr/qrExport';
 
 /**
  * SHARE SHEET — the generic presentation of whatever the current screen
@@ -11,6 +14,15 @@ import { nativeShare, copyLink, canNativeShare } from '../lib/shareTarget';
  *   Native share sheet   where the platform provides one
  *   Copy Link            always
  *   QR Code              DEFERRED — see below
+ *
+ * ⚠⚠ THIS SHEET IS NOT MOUNTED ANYWHERE (verified 2026-08-21). The header's
+ * share icon was removed by the owner on 2026-08-04 and nothing renders
+ * `<ShareSheet>` since; the surfaces worth sharing carry their own control and
+ * call `nativeShare`/`copyLink` directly. ⛔ So the QR row below is READY, not
+ * SHIPPED — do not count it as a QR entry point. The live ones are the QR CODES
+ * section on the venue and host dashboards, and PROMOTE in an event's manage
+ * menu. If this sheet is ever mounted again the row works immediately, because
+ * the screens already declare `qr: {type, id}` on their share targets.
  *
  * ── QR IS RESERVED, NOT BUILT ────────────────────────────────────────
  *
@@ -24,6 +36,8 @@ import { nativeShare, copyLink, canNativeShare } from '../lib/shareTarget';
  */
 export default function ShareSheet({ target, onClose }) {
   const [copied, setCopied] = useState(false);
+  const [showQr, setShowQr] = useState(false);
+  const qrUrlFor = target?.qr ? qrUrl(target.qr.type, target.qr.id) : null;
   if (!target) return null;
 
   const isPrivate = target.access === 'private';
@@ -95,16 +109,61 @@ export default function ShareSheet({ target, onClose }) {
           {copied ? 'Link copied' : 'Copy link'}
         </button>
 
-        {/* Reserved, deliberately disabled — see the header note. */}
-        <button
-          type="button"
-          disabled
-          title="QR codes are not available yet"
-          style={{ ...rowStyle, cursor: 'not-allowed', color: 'var(--muted)', opacity: 0.6 }}
-        >
-          QR code
-          <span style={{ marginLeft: 'auto', fontSize: 11, letterSpacing: 1 }}>SOON</span>
-        </button>
+        {/* ⭐⭐ THE RESERVED SLOT, NOW REAL (QR1). The encoder is in-repo and
+            zero-dependency, and the objection recorded in this file's header —
+            that a hand-rolled encoder is subtly wrong in ways that are hard to
+            see — is answered by `lib/qr/qrEncode.test.js`, which decodes every
+            symbol back with an independent reader rather than asserting on the
+            writer's own output.
+
+            ⚠ A code is offered only where the screen DECLARED a destination.
+            A share target carries a URL; a QR carries a `/q/` address, and
+            ⛔ this sheet does not get to guess one. Screens that have not
+            declared `qr` keep the disabled row, which stays honest. */}
+        {qrUrlFor ? (
+          <>
+            <button type="button" style={rowStyle} onClick={() => setShowQr(v => !v)}>
+              {showQr ? 'Hide QR code' : 'QR code'}
+            </button>
+            {showQr && (
+              <div style={{ marginBottom: 8 }}>
+                <QrPreview
+                  url={qrUrlFor}
+                  title={target.title}
+                  kicker={posterKicker(target.qr.type)}
+                  size={200}
+                />
+                <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                  {[['PDF', exportPdf], ['PNG', exportPng]].map(([label, fn]) => (
+                    <button
+                      key={label}
+                      type="button"
+                      onClick={() => fn({
+                        url: qrUrlFor,
+                        title: target.title,
+                        kicker: posterKicker(target.qr.type),
+                        destinationType: target.qr.type,
+                      })}
+                      style={{ ...rowStyle, justifyContent: 'center', marginBottom: 0, flex: 1 }}
+                    >
+                      Download {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
+        ) : (
+          <button
+            type="button"
+            disabled
+            title="This page does not have a QR destination"
+            style={{ ...rowStyle, cursor: 'not-allowed', color: 'var(--muted)', opacity: 0.6 }}
+          >
+            QR code
+            <span style={{ marginLeft: 'auto', fontSize: 11, letterSpacing: 1 }}>NOT FOR THIS</span>
+          </button>
+        )}
 
         <button
           type="button"

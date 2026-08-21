@@ -27,6 +27,9 @@ import WhatsOnScreen from './screens/WhatsOnScreen';
 import DiscoverScreen from './screens/DiscoverScreen';
 import MySceneScreen from './screens/MySceneScreen';
 import EventScreen from './screens/EventScreen';
+import SetTimesScreen from './screens/SetTimesScreen';
+import QrDestinationScreen from './screens/QrDestinationScreen';
+import QrHarness from './screens/QrHarness';
 import EventLayoutHarness from './screens/event/EventLayoutHarness';
 import ScheduleHarness from './screens/event/ScheduleHarness';
 import CreateEventScreen from './screens/CreateEventScreen';
@@ -292,6 +295,16 @@ function Shell({ session, onSignOut }) {
         <Route path="/discover"  element={<DiscoverScreen />} />
         <Route path="/my-scene"  element={<MySceneScreen />} />
         <Route path="/event/:id"              element={<EventScreen />} />
+        {/* ⭐⭐ QR1 · the Set Times QR's destination. A separate printed object
+            from the Event QR — see screens/SetTimesScreen for why this is a
+            route and not a scroll position. PUBLIC: a poster is read by
+            strangers, and the organiser's publish gate still decides what it
+            shows. */}
+        <Route path="/event/:id/set-times"    element={<SetTimesScreen />} />
+        {/* ⭐⭐ QR1 · where every scanned YesPleez code lands. ⛔ PERMANENT —
+            addresses of this shape are printed on paper. Types may be added;
+            none may be renamed or removed. lib/qrDestinations owns the map. */}
+        <Route path="/q/:type/:id"            element={<QrDestinationScreen />} />
         {/* /auth is a routed surface, not the app's front door. It is an
             INTERRUPTION in an existing journey: every SIGN IN affordance
             navigates here and AuthScreen sends the visitor back where they
@@ -313,6 +326,11 @@ function Shell({ session, onSignOut }) {
             times, and the one event that has a schedule keeps it private. */}
         {import.meta.env.DEV && (
           <Route path="/dev/schedule"         element={<ScheduleHarness />} />
+        )}
+        {/* DEV ONLY — the QR surfaces, which otherwise only exist behind a
+            venue or host dashboard. Same reason ScheduleHarness exists. */}
+        {import.meta.env.DEV && (
+          <Route path="/dev/qr"               element={<QrHarness />} />
         )}
         <Route path="/create-event"           element={<CreateEventScreen />} />
         <Route path="/event/:id/applications" element={<ApplicationsScreen />} />

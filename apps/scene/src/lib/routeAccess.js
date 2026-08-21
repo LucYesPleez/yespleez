@@ -50,6 +50,13 @@ export const ROUTE_ACCESS = Object.freeze({
   '/':                        { access: ACCESS.PUBLIC },
   '/discover':                { access: ACCESS.PUBLIC },
   '/event/:id':               { access: ACCESS.PUBLIC },
+  /* QR1 · both are printed-code destinations, so both are read by strangers
+     standing in front of a poster. ⛔ Neither may become ACCOUNT: a sign-in
+     wall behind a QR is the participation wall O1 removed, by another door.
+     What each surface actually shows is still decided by RLS and, for set
+     times, by the organiser's publish switch. */
+  '/event/:id/set-times':     { access: ACCESS.PUBLIC },
+  '/q/:type/:id':             { access: ACCESS.PUBLIC },
   '/profile/:id':             { access: ACCESS.PUBLIC },
   '/my-scene':                { access: ACCESS.PUBLIC },
   '/auth':                    { access: ACCESS.PUBLIC },
@@ -59,6 +66,9 @@ export const ROUTE_ACCESS = Object.freeze({
      because it renders exactly what a signed-out punter may read — that is the
      point of it — and it writes nothing. */
   '/dev/schedule':            { access: ACCESS.PUBLIC, devOnly: true },
+  /* QR1 · the QR surfaces, which otherwise live only behind a venue or host
+     dashboard. Reads production ids and writes nothing. */
+  '/dev/qr':                  { access: ACCESS.PUBLIC, devOnly: true },
 
   // O3 · post-signup only. ACCOUNT because it acts on behalf of an account;
   // a guest who types the URL is sent to What's On by the screen itself.

@@ -222,6 +222,38 @@ export default function ProfileScreen() {
 
   const profile     = data?.profile || null;
   const events      = data?.events  || [];
+
+  /**
+   * ⭐ QR1 · a scanned What's On code lands here with `?focus=whats-on` and is
+   * scrolled to the gig list.
+   *
+   * ⚠ IT WAITS FOR THE EVENTS. The section does not exist in the DOM until they
+   * have loaded, so scrolling on mount would scroll to nothing and the reader
+   * would be left at the top of a profile wondering what the code did.
+   *
+   * ⛔ A HINT, NEVER THE ADDRESS. Identity is in the path; a scanner that drops
+   * the query string still lands on the right venue, one scroll away.
+   */
+  const focusParam = searchParams.get('focus');
+  const whatsOnFocused = useRef(false);
+  useEffect(() => {
+    /**
+     * ⚠⚠ ONCE, AND KEYED ON THE STRING. `useSearchParams` hands back a NEW
+     * URLSearchParams every render, so an effect that depends on the object
+     * re-runs on every render — and a cleanup that cancels a pending timer
+     * then cancels it forever while the profile is still loading. Measured:
+     * the scroll never happened. The ref makes it fire once; the string
+     * dependency stops the identity churn.
+     */
+    if (focusParam !== 'whats-on' || !events.length || whatsOnFocused.current) return undefined;
+    const t = setTimeout(() => {
+      const el = document.getElementById('section-whats-on');
+      if (!el) return;
+      whatsOnFocused.current = true;
+      window.scrollTo({ top: window.scrollY + el.getBoundingClientRect().top - 72, behavior: 'smooth' });
+    }, 160);
+    return () => clearTimeout(t);
+  }, [focusParam, events.length]);
   // M5: unclaimed state is a property of the row, not of which table answered.
   // M15: this test is now the canonical predicate — the same one every other
   // surface uses. `profile` here comes from profileResolution's select('*'),
@@ -1373,7 +1405,12 @@ export default function ProfileScreen() {
             const setAll   = showPast ? setShowAllPast : setShowAllUp;
             if (!upcoming.length && !past.length) return null;
             return (
-              <div style={{ marginTop: 10, position: 'relative', padding: '30px 0 20px', marginLeft: -16, marginRight: -16, paddingLeft: 16, paddingRight: 16, background: 'linear-gradient(to bottom, transparent 0%, rgba(10,10,20,.7) 20%, rgba(10,10,20,.7) 80%, transparent 100%)' }}>
+              /* ⭐ QR1 · `section-whats-on` is the landing point of a venue's
+                 permanent What's On QR (`/q/whats-on/{profileId}`), which
+                 arrives as `?focus=whats-on` and scrolls here. ⛔ The id is part
+                 of a printed destination now — renaming it silently breaks
+                 every code already on a wall into a plain profile visit. */
+              <div id="section-whats-on" style={{ marginTop: 10, position: 'relative', padding: '30px 0 20px', marginLeft: -16, marginRight: -16, paddingLeft: 16, paddingRight: 16, background: 'linear-gradient(to bottom, transparent 0%, rgba(10,10,20,.7) 20%, rgba(10,10,20,.7) 80%, transparent 100%)' }}>
                 {/* Tab pills + see all */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
                   <div style={{ display: 'flex', gap: 8 }}>
