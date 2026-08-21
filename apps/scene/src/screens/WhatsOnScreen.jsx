@@ -38,25 +38,18 @@ const DAY_NAMES   = ['S','M','T','W','T','F','S'];
 
    ⚠ 89px is MEASURED, not guessed: a 64px thumb, 12px padding top and bottom,
    and the 1px rule. If .comingRow's padding or thumb changes, this changes. */
-/* ⭐ TWO WAYS TO SEE MORE, AND BOTH HAVE TO WORK FROM THE FIRST RENDER.
+/* ⭐ ONE WAY TO SEE MORE: the button appends the next 20 rows, in place.
 
-   Loading exactly what the window shows made scrolling a lie: six rows in a
-   5.5-row window gives 44px of travel, so the ONLY way forward was the button,
-   and a scroll region that barely moves reads as broken. Owner, 2026-08-21:
-   "scroll events that arent visible into the window ... i want both options".
-
-   So the WINDOW stays 5.5 rows — the section is still short on the page — but
-   the LOAD is deep enough to scroll through immediately. The button then
-   handles anything past that depth. ⛔ Do not set this back to the row count
-   that fits; the gap between them IS the scrollable part.
+   ⛔ DO NOT PUT THE 5.5-ROW SCROLL WINDOW BACK (owner, 2026-08-22: "add more
+   show less button doesnt do anything"). With a fixed-height box around the
+   list, ADD MORE appended rows below the fold of the box, so pressing it
+   changed nothing you could see. The page scrolls; the section does not.
 
    ⚠ Every loaded row stays in the DOM. Fine into the low hundreds, and
    useEvents caps at 200 anyway; past that the answer is windowing, ⛔ not a
    bigger number here. */
 const COMING_UP_INITIAL    = 20;
-const COMING_UP_STEP       = 10;
-const COMING_UP_ROW_H      = 89;
-const COMING_UP_PEEK_H     = Math.round(COMING_UP_ROW_H * 5.5);
+const COMING_UP_STEP       = 20;
 
 /* Matches ANNOUNCED_CAP in lib/sceneFloor.js, where this section used to live. */
 const JUST_ANNOUNCED_CAP = 8;
@@ -441,15 +434,8 @@ export default function WhatsOnScreen() {
 
   useEffect(() => { setComingUpShown(COMING_UP_INITIAL); }, [category, postcode, radius, selectedDate]);
 
-  /* ⭐ TWO LIMITS, DOING DIFFERENT JOBS. The WINDOW (5.5 rows) keeps the
-     section short on the page; the PAGE SIZE keeps the DOM short. You scroll
-     through what is loaded and press ADD MORE for the rest — so the button
-     never scrolls away, because it sits outside the scrolling box.
-
-     ⚠ At the opening count the scroll travels only the half row, which is the
-     peek and not a fault. Once ADD MORE has been pressed there is real
-     distance to move. First press adds 6, every press after adds 10.
-     Owner, 2026-08-21. */
+  /* ONE limit: how many rows are rendered. ADD MORE raises it by 20 and the
+     new rows appear directly under the last one. */
   const comingUpEvents = useMemo(() => comingUpAll.slice(0, comingUpShown), [comingUpAll, comingUpShown]);
   const comingUpHasMore = comingUpAll.length > comingUpEvents.length;
   /**
@@ -472,11 +458,6 @@ export default function WhatsOnScreen() {
       .sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''))
       .slice(0, JUST_ANNOUNCED_CAP);
   }, [events, category]);
-  /* Scroll whenever the rows overflow the window. 5 is the count that FITS;
-     the sixth is the half-row peek that says the list continues. Below that
-     there is nothing to scroll and no fade is wanted. */
-  const comingUpScrolls = comingUpEvents.length > 5;
-
   /* Back to the fortnight wording the section shipped with (owner, 2026-08-02). */
   const comingUpSub    = 'NEXT TWO WEEKS';
   const comingUpTabSub = 'Next 2 weeks';
@@ -832,36 +813,25 @@ export default function WhatsOnScreen() {
                 <div className={s.gradientLine} />
                 <button className={s.viewAll}>View all ›</button>
               </div>
-              {/* ⛔ NO VISIBLE SCROLLBAR — see .comingUpScroll. The fade is the
-                  affordance that says the list continues. */}
-              <div className={comingUpScrolls ? s.comingUpScroll : undefined}
-                style={comingUpScrolls ? { maxHeight: COMING_UP_PEEK_H } : undefined}>
+              {/* ⛔ NO INNER SCROLL WINDOW. It capped the section at 5.5 rows,
+                  so ADD MORE appended rows nobody could see and the button
+                  read as broken (owner, 2026-08-22). The list grows in place;
+                  the page scrolls, not a box inside it. */}
+              <div>
                 {comingUpEvents.map(ev => (
                   <ComingUpRow key={ev.id} event={ev} onClick={() => openEvent(ev)} />
                 ))}
               </div>
-              {/* ⚠ OUTSIDE the scrolling box on purpose: inside it, the control
-                  that loads more would itself have to be scrolled to.
-
-                  ⭐ THE CONTROL NEVER LEAVES. It used to vanish once everything
-                  was loaded, so the row it lived in collapsed and the section
-                  changed shape under you at the exact moment you had finished
-                  reading it. Owner, 2026-08-21: "add more button stays".
-
-                  ⛔ It does not stay INERT, though — a button that does nothing
-                  reads as broken. At the end of the list it becomes the way
-                  back, which is the same View all / View less pairing My
-                  Scene's diary uses. It only hides when the whole list already
-                  fits the window, because then there is nothing to add and
-                  nothing to fold away. */}
-              {(comingUpHasMore || comingUpScrolls) && (
+              {/* ⛔ NO INERT / "Show less" STATE. A control that is present but
+                  changes nothing reads as broken, which is exactly the report
+                  this replaced. Once everything is shown there is nothing to
+                  add, so the button goes. */}
+              {comingUpHasMore && (
                 <button
                   className={s.addMore}
-                  onClick={() => setComingUpShown(comingUpHasMore
-                    ? (n => n + COMING_UP_STEP)
-                    : COMING_UP_INITIAL)}
+                  onClick={() => setComingUpShown(n => n + COMING_UP_STEP)}
                 >
-                  <span className={s.addMoreLabel}>{comingUpHasMore ? 'Add more' : 'Show less'}</span>
+                  <span className={s.addMoreLabel}>Add more</span>
                 </button>
               )}
             </div>
