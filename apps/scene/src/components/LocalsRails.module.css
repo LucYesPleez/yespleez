@@ -6,6 +6,54 @@
 
 .sectionBlock {
   margin-bottom: 28px;
+  /* ⭐ Space ABOVE the section (owner, 2026-08-21) — clear air between the
+     event list's VIEW MORE and this heading, so LOCALS reads as its own
+     chapter rather than the tail of the list above it. */
+  margin-top: 34px;
+}
+
+/* The title row: LOCALS alone on the left, ⛔ no line beside it (owner,
+   2026-08-21); the radius select and MORE sit on the right edge. */
+.headerRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.headerControls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Matches What's On's radius select — the control the owner asked for, as it
+   was there. color-scheme: dark so the native popup renders on-theme (the
+   app's standing convention for native controls). */
+.radiusSelect {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 11px;
+  letter-spacing: 1px;
+  padding: 5px 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, .14);
+  background: rgba(255, 255, 255, .05);
+  color: rgba(255, 255, 255, .75);
+  color-scheme: dark;
+  cursor: pointer;
+}
+
+.moreBtn {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 11px;
+  letter-spacing: 1.4px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, .14);
+  background: none;
+  color: rgba(255, 255, 255, .6);
+  cursor: pointer;
 }
 
 .sectionRow {

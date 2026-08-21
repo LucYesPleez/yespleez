@@ -18,7 +18,7 @@
 // "who is putting nights on" are three questions. Each hides independently
 // when empty; the whole section renders nothing when all three are.
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useEvents } from '../lib/useEvents';
 import { useProfileLocation } from '../lib/useProfileLocation';
 import { useSession } from '../App';
@@ -64,7 +64,12 @@ export default function LocalsRails() {
   const { events } = useEvents(todayIso, null);
   const profilePostcode = useProfileLocation(session?.user?.id);
   const originCoords = useMemo(() => postcodeCoords(profilePostcode), [profilePostcode]);
-  const radiusKm = profilePostcode ? 50 : null;
+  /* ⭐ THE RADIUS IS THE READER'S, exactly as What's On offers it (owner,
+     2026-08-21: "add the radius settings as it was") — same steps, same 50km
+     default, seeded from the profile's postcode. */
+  const [radius, setRadius] = useState('50');
+  const [showAll, setShowAll] = useState(false);
+  const radiusKm = profilePostcode ? Number(radius) : null;
   const artistsDrag   = useDragScroll('locals-artists');
   const venuesDrag    = useDragScroll('locals-venues');
   const promotersDrag = useDragScroll('locals-promoters');
@@ -73,24 +78,56 @@ export default function LocalsRails() {
   /* ⚠ The pool is acts attached to any UPCOMING event — the component's own
      list above, ⛔ never the host screen's filtered one. */
   const localActs = useLocalActs(events);
-  const groups = useMemo(() => LOCAL_GROUPS.map(g => ({
-    ...g,
-    locals: buildLocals({
+  const groups = useMemo(() => LOCAL_GROUPS.map(g => {
+    const locals = buildLocals({
       profiles: localActs.filter(pr => g.types.includes(String(pr.type || '').toLowerCase())),
       originCoords,
       radiusKm,
       isoDate: todayIso,
+      /* MORE opens the whole local pool; the default window stays the ladder's. */
+      limit: showAll ? 500 : undefined,
       withinRadius,
-    }),
-  })), [localActs, originCoords, radiusKm, todayIso]);
+    });
+    /**
+     * ⭐⭐ STRICT LOCALS ON THIS SURFACE (owner, 2026-08-21: "so only locals
+     * are actually showing up there — I can currently see Sydney"). The
+     * ladder's borrowed rung is DROPPED rather than disclosed: `farIds` marks
+     * exactly the cards borrowed from beyond the radius, so they are filtered
+     * out and the reach line never renders. ⚠ This supersedes the 2026-08-03
+     * "it may reach further but it must say so" ruling FOR THIS SECTION ONLY —
+     * the ladder itself is unchanged for any surface that still wants reach.
+     * ⚠ Unplaceable profiles stay: unknown ≠ far, the standing law.
+     *
+     * ⭐ IMAGES LEAD (owner, same message: "profiles with images being used
+     * mostly"): a stable partition, not a re-sort — cards with a photo keep
+     * their ladder-and-rotation order at the front, the photoless keep theirs
+     * behind. Determinism survives: same day, same faces, same order.
+     */
+    const strict = locals.items.filter(p => !locals.farIds.has(p.id ?? p.user_id));
+    const withImg = strict.filter(p => p.avatar_thumb || p.avatar);
+    const without = strict.filter(p => !(p.avatar_thumb || p.avatar));
+    return { ...g, locals: { ...locals, items: [...withImg, ...without], expanded: false } };
+  }), [localActs, originCoords, radiusKm, todayIso, showAll]);
 
   if (!groups.some(g => g.locals.items.length > 0)) return null;
 
   return (
     <div className={s.sectionBlock}>
-      <div className={s.sectionRow}>
+      {/* ⛔ NO LINE beside LOCALS (owner, 2026-08-21) — the title stands alone,
+          with the radius and MORE on the right edge. The sub-heading rows keep
+          their lines; only the parent lost its. */}
+      <div className={s.headerRow}>
         <span data-tour="locals-section" className={s.sectionTitle}>LOCALS</span>
-        <div className={s.gradientLine} />
+        <span className={s.headerControls}>
+          {!!profilePostcode && (
+            <select className={s.radiusSelect} value={radius} onChange={e => setRadius(e.target.value)}>
+              {['0', '5', '25', '50', '100', '200'].map(r => <option key={r} value={r}>{r} km</option>)}
+            </select>
+          )}
+          <button className={s.moreBtn} onClick={() => setShowAll(v => !v)}>
+            {showAll ? 'LESS' : 'MORE'}
+          </button>
+        </span>
       </div>
       {groups.map(g => g.locals.items.length > 0 && (
         <div key={g.key} style={{ marginTop: 14 }}>
@@ -98,19 +135,9 @@ export default function LocalsRails() {
             <span className={s.sectionSub}>{g.title}</span>
             <div className={s.gradientLine} />
           </div>
-          {/* ⚠ THE REACH IS DECLARED, PER RAIL. When there are not enough near
-              you the rail borrows from further afield rather than running
-              nearly empty — owner, 2026-08-03: "it has to say that". Without
-              this the section showed a profile in Cairns under a heading that
-              says LOCALS. Each rail reaches on its own, so the line is per
-              rail too. */}
-          {g.locals.expanded && (
-            <p className={s.reach}>
-              {g.locals.localCount === 0
-                ? 'None nearby yet, so these are from further afield.'
-                : `Only ${g.locals.localCount} nearby, so the rest are from further afield.`}
-            </p>
-          )}
+          {/* ⛔ The reach line is GONE with the borrowed rung it described —
+              strict locals never show a card from beyond the radius, so there
+              is nothing to disclose. See the strict-locals note above. */}
           <div className={s.rail} ref={drags[g.key].ref}
             onMouseDown={drags[g.key].onMouseDown} onMouseMove={drags[g.key].onMouseMove}
             onMouseUp={drags[g.key].onMouseUp} onMouseLeave={drags[g.key].onMouseLeave}>
