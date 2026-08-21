@@ -15,18 +15,26 @@
   margin-bottom: 12px;
 }
 
+/* ⚠⚠ LITERAL GRADIENTS, ⛔ NEVER var(--yp-…). The first cut clipped these
+   headings to WhatsOnScreen.module.css's custom properties — which are scoped
+   to THAT screen's container — so on Discover the text clipped to nothing and
+   every heading rendered INVISIBLE: rails with no names over them (owner,
+   2026-08-21: "where's the headings?"). A self-sufficient component paints
+   with its own colours.
+
+   ⭐ THE RAMP IS DISCOVER'S (owner: "use the discover gradient") — the same
+   135deg cyan→violet its own section heads use, at their 18px scale, so
+   LOCALS sits native beside RECENTLY ADDED EVENTS. */
 .sectionTitle {
   font-family: 'Bebas Neue', sans-serif;
-  font-size: 22px;
+  font-size: 18px;
   letter-spacing: 2px;
   display: inline-block;
-  background: var(--yp-title-gradient);
+  background: linear-gradient(135deg, #00E5FF, #BF5FFF);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
-  /* ⭐ The subs run quieter than the hero — same ramp, turned down. One
-     opacity, ⛔ never a second set of colours. */
-  opacity: .72;
+  white-space: nowrap;
 }
 
 .sectionSub {
@@ -35,10 +43,11 @@
   letter-spacing: 1.5px;
   font-family: 'Bebas Neue', sans-serif;
   vertical-align: middle;
-  background: var(--yp-accent-gradient);
+  background: linear-gradient(135deg, #00E5FF, #BF5FFF);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+  /* The subs run quieter than the title — same ramp, turned down. */
   opacity: 0.7;
 }
 
