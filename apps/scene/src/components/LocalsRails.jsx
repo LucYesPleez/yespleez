@@ -19,6 +19,10 @@
 // when empty; the whole section renders nothing when all three are.
 
 import { useMemo } from 'react';
+import { useEvents } from '../lib/useEvents';
+import { useProfileLocation } from '../lib/useProfileLocation';
+import { useSession } from '../App';
+import { postcodeCoords } from '../lib/geo';
 import { useLocalActs } from '../lib/useLocalActs';
 import { buildLocals } from '../lib/locals';
 import { withinRadius } from '../lib/geo';
@@ -41,15 +45,33 @@ const LOCAL_GROUPS = [
   { key: 'promoters', title: 'PROMOTERS', types: ['host'] },
 ];
 
-export default function LocalsRails({ events = [], originCoords = null, radiusKm = null }) {
+/**
+ * ⭐⭐ SELF-SUFFICIENT, and that is the fix (owner, 2026-08-21: 'I want the
+ * locals section from where it was and how it was to show exactly the same
+ * in Discover'). The first mount on Discover fed it DISCOVER's data — the
+ * recently-added event list and the search filters' radius — so different
+ * people appeared and the section was not the one the owner ratified.
+ *
+ * It now carries What's On's own recipe with it: ⭐ ALL upcoming events
+ * (useEvents from today), ⭐ origin seeded from the PROFILE's postcode,
+ * ⭐ 50km default radius — the ladder in lib/locals.js does the rest. Mount
+ * it anywhere and it is the same section. ⛔ Do not reintroduce props for the
+ * pool or the radius; a host screen's filters are that screen's business.
+ */
+export default function LocalsRails() {
   const todayIso = today();
+  const { session } = useSession() || {};
+  const { events } = useEvents(todayIso, null);
+  const profilePostcode = useProfileLocation(session?.user?.id);
+  const originCoords = useMemo(() => postcodeCoords(profilePostcode), [profilePostcode]);
+  const radiusKm = profilePostcode ? 50 : null;
   const artistsDrag   = useDragScroll('locals-artists');
   const venuesDrag    = useDragScroll('locals-venues');
   const promotersDrag = useDragScroll('locals-promoters');
   const drags = { artists: artistsDrag, venues: venuesDrag, promoters: promotersDrag };
 
-  /* ⚠ The pool is filtered to acts on THESE events, so the section narrows
-     with whatever list its host screen is showing. */
+  /* ⚠ The pool is acts attached to any UPCOMING event — the component's own
+     list above, ⛔ never the host screen's filtered one. */
   const localActs = useLocalActs(events);
   const groups = useMemo(() => LOCAL_GROUPS.map(g => ({
     ...g,

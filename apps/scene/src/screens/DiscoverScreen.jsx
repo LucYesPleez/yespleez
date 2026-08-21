@@ -910,7 +910,7 @@ export default function DiscoverScreen() {
                   something coming up — Discover's search stays the directory,
                   and this stays the shortlist. */}
               {isDefault && events.length > 0 && (
-                <LocalsRails events={events} originCoords={originCoords} radiusKm={radiusKm} />
+                <LocalsRails />
               )}
 
               {!isDefault && items.length === 0 && (
