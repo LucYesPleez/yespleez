@@ -12,49 +12,15 @@
   margin-top: 34px;
 }
 
-/* The title row: LOCALS alone on the left, ⛔ no line beside it (owner,
-   2026-08-21); the radius select and MORE sit on the right edge. */
+/* The title row: LOCALS alone. ⛔ No line beside it, ⛔ no radius select and
+   ⛔ no SHOW ALL (owner, 2026-08-21) — all three were removed the evening they
+   were added. The section curates; the header is not a cockpit. */
 .headerRow {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
   margin-bottom: 12px;
 }
 
-.headerControls {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-/* Matches What's On's radius select — the control the owner asked for, as it
-   was there. color-scheme: dark so the native popup renders on-theme (the
-   app's standing convention for native controls). */
-.radiusSelect {
-  font-family: 'Bebas Neue', sans-serif;
-  font-size: 11px;
-  letter-spacing: 1px;
-  padding: 5px 8px;
-  border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, .14);
-  background: rgba(255, 255, 255, .05);
-  color: rgba(255, 255, 255, .75);
-  color-scheme: dark;
-  cursor: pointer;
-}
-
-.moreBtn {
-  font-family: 'Bebas Neue', sans-serif;
-  font-size: 11px;
-  letter-spacing: 1.4px;
-  padding: 5px 12px;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, .14);
-  background: none;
-  color: rgba(255, 255, 255, .6);
-  cursor: pointer;
-}
 
 .sectionRow {
   display: flex;

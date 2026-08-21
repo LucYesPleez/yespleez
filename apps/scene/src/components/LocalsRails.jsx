@@ -18,7 +18,7 @@
 // "who is putting nights on" are three questions. Each hides independently
 // when empty; the whole section renders nothing when all three are.
 
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { useEvents } from '../lib/useEvents';
 import { useProfileLocation } from '../lib/useProfileLocation';
 import { useSession } from '../App';
@@ -64,12 +64,12 @@ export default function LocalsRails() {
   const { events } = useEvents(todayIso, null);
   const profilePostcode = useProfileLocation(session?.user?.id);
   const originCoords = useMemo(() => postcodeCoords(profilePostcode), [profilePostcode]);
-  /* ⭐ THE RADIUS IS THE READER'S, exactly as What's On offers it (owner,
-     2026-08-21: "add the radius settings as it was") — same steps, same 50km
-     default, seeded from the profile's postcode. */
-  const [radius, setRadius] = useState('50');
-  const [showAll, setShowAll] = useState(false);
-  const radiusKm = profilePostcode ? Number(radius) : null;
+  /* ⭐ FIXED 50km, ⛔ NO CONTROLS (owner, 2026-08-21: the radius select and
+     SHOW ALL were added on request and removed on sight the same day —
+     "show all can also go, and the radius". The section curates; it does not
+     ask the reader to operate it). The strict-locals rule keeps its teeth:
+     the radius still applies, there is just nothing to fiddle. */
+  const radiusKm = profilePostcode ? 50 : null;
   const artistsDrag   = useDragScroll('locals-artists');
   const venuesDrag    = useDragScroll('locals-venues');
   const promotersDrag = useDragScroll('locals-promoters');
@@ -84,8 +84,6 @@ export default function LocalsRails() {
       originCoords,
       radiusKm,
       isoDate: todayIso,
-      /* MORE opens the whole local pool; the default window stays the ladder's. */
-      limit: showAll ? 500 : undefined,
       withinRadius,
     });
     /**
@@ -129,27 +127,19 @@ export default function LocalsRails() {
     const withImg = strict.filter(p => p.avatar_thumb || p.avatar);
     const without = strict.filter(p => !(p.avatar_thumb || p.avatar));
     return { ...g, locals: { ...locals, items: [...withImg, ...without], expanded: false } };
-  }), [localActs, originCoords, radiusKm, todayIso, showAll]);
+  }), [localActs, originCoords, radiusKm, todayIso]);
 
   if (!groups.some(g => g.locals.items.length > 0)) return null;
 
   return (
     <div className={s.sectionBlock}>
-      {/* ⛔ NO LINE beside LOCALS (owner, 2026-08-21) — the title stands alone,
-          with the radius and MORE on the right edge. The sub-heading rows keep
-          their lines; only the parent lost its. */}
+      {/* ⛔ NO LINE beside LOCALS, ⛔ NO RADIUS SELECT, ⛔ NO SHOW ALL (owner,
+          2026-08-21). All three were added on request and removed the same
+          evening — the radius and the toggle lasted one look. The title
+          stands alone: this section CURATES, it does not ask the reader to
+          operate it. The sub-heading rows keep their lines. */}
       <div className={s.headerRow}>
         <span data-tour="locals-section" className={s.sectionTitle}>LOCALS</span>
-        <span className={s.headerControls}>
-          {!!profilePostcode && (
-            <select className={s.radiusSelect} value={radius} onChange={e => setRadius(e.target.value)}>
-              {['0', '5', '25', '50', '100', '200'].map(r => <option key={r} value={r}>{r} km</option>)}
-            </select>
-          )}
-          <button className={s.moreBtn} onClick={() => setShowAll(v => !v)}>
-            {showAll ? 'LESS' : 'MORE'}
-          </button>
-        </span>
       </div>
       {groups.map(g => g.locals.items.length > 0 && (
         <div key={g.key} style={{ marginTop: 14 }}>
