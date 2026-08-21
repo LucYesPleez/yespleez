@@ -195,6 +195,22 @@
 
 .stripDayActive .stripDot { background: #FF2D78; }
 
+/* ⭐ A PENCILLED-IN NIGHT MUST NOT LOOK LIKE A LISTED ONE.
+   Same 4px footprint so the strip stays even, but HOLLOW and violet against
+   the solid pink of a real event. A tentative date is somebody saying "this
+   might happen"; drawing it identically to an announced gig would make the
+   calendar assert something nobody has committed to. */
+.stripDotTentative {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: transparent;
+  border: 1px solid #BF5FFF;
+  flex-shrink: 0;
+}
+
+.stripDayActive .stripDotTentative { border-color: #fff; }
+
 /* Month picker modal */
 .pickerOverlay {
   position: fixed;

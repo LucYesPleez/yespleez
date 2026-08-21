@@ -58,6 +58,75 @@ function timeAgo(iso) {
 /** Stable fallback for query-data arrays — see the destructuring block. */
 const EMPTY = [];
 
+/**
+ * A date the user added themselves, in the COMING UP diary.
+ *
+ * ⚠ NOT an EventCard, on purpose. A personal date has no poster, no lineup and
+ * no event page, so pushing it through EventCard would give it a tap target
+ * that leads nowhere and a picture frame with nothing to put in it. The purple
+ * treatment is the same one the day view already uses for these, so the two
+ * places agree about what a personal entry looks like.
+ *
+ * `variant="scroll"` matches EventCard's portrait tile width so the rail stays
+ * even; the default is a full-width row for the list view.
+ */
+function PersonalDateCard({ pe, variant, onRemove, armed, onArm, busy }) {
+  const scroll = variant === 'scroll';
+  const d = pe.event_date ? new Date(pe.event_date + 'T12:00:00') : null;
+  const day = d ? d.toLocaleDateString('en-AU', { day: 'numeric' }) : '';
+  const mon = d ? d.toLocaleDateString('en-AU', { month: 'short' }).toUpperCase() : '';
+  return (
+    <div style={{
+      background: 'rgba(191,95,255,.08)', border: '1px solid rgba(191,95,255,.25)',
+      borderRadius: 12, padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12,
+      ...(scroll ? { flex: '0 0 195px', width: 195, minHeight: 201, alignItems: 'flex-start', flexDirection: 'column' } : {}),
+    }}>
+      <div style={{ flexShrink: 0, textAlign: 'center', minWidth: 38 }}>
+        <div style={{ fontFamily: "'Bebas Neue'", fontSize: 19, lineHeight: 1, color: '#BF5FFF' }}>{day}</div>
+        <div style={{ fontSize: 9, letterSpacing: 1, color: 'var(--muted)' }}>{mon}</div>
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontFamily: "'Bebas Neue'", fontSize: 15, letterSpacing: 1, color: 'var(--text)' }}>{pe.title}</div>
+        {pe.time_start && <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>{pe.time_start}</div>}
+        {pe.notes && <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 3 }}>{pe.notes}</div>}
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+        <span style={{
+          fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1, color: '#BF5FFF',
+          border: '1px solid rgba(191,95,255,.4)', borderRadius: 6, padding: '2px 8px',
+        }}>
+          {pe.is_private ? 'PRIVATE' : 'MY DATE'}
+        </span>
+        {/* ⚠ TWO TAPS TO DESTROY, and the control is its OWN target rather
+            than an overlay on the card. A destructive button sitting under
+            another tap target is exactly the defect 1,072 green tests once
+            sailed past. The armed state says what will happen, in words. */}
+        {onRemove && (
+          <button
+            className="yp-tap44"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (armed) onRemove(pe.id);
+              else onArm(pe.id);
+            }}
+            disabled={busy}
+            aria-label={armed ? `Confirm removing ${pe.title}` : `Remove ${pe.title} from your scene`}
+            style={{
+              background: armed ? 'rgba(255,77,106,.16)' : 'none',
+              border: `1px solid ${armed ? 'rgba(255,77,106,.5)' : 'var(--border)'}`,
+              borderRadius: 6, color: armed ? '#FF4D6A' : 'var(--muted)',
+              fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1,
+              padding: '2px 8px', cursor: busy ? 'default' : 'pointer', opacity: busy ? .5 : 1,
+            }}
+          >
+            {busy ? '…' : armed ? 'REMOVE?' : '✕'}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /** Must match the `gap` on .hScroll — the dot index is derived from it. */
 const SPOTLIGHT_RAIL_GAP = 12;
 
@@ -127,6 +196,11 @@ export default function MySceneScreen() {
   const [addEventNotes,   setAddEventNotes]   = useState('');
   const [addEventPrivate, setAddEventPrivate] = useState(true);
   const [addEventSaving,  setAddEventSaving]  = useState(false);
+  const [addEventError,   setAddEventError]   = useState('');
+  /* Which personal date is one tap from being removed, and which is mid-delete.
+     Held by id, not a boolean, so arming one card cannot arm every card. */
+  const [confirmDeletePe, setConfirmDeletePe] = useState(null);
+  const [deletingPe,      setDeletingPe]      = useState(null);
   const [dayArtists,       setDayArtists]       = useState([]);
   const [discoverProfiles, setDiscoverProfiles] = useState(_discoverCache);
   const [profileConfig,  setProfileConfig]  = useState({});
@@ -309,6 +383,13 @@ export default function MySceneScreen() {
         punterPostcode: profRes.data?.[0]?.postcode || '',
         punterGenreString: profRes.data?.[0]?.genre_string || '',
         personalEvents: peRes.data   || [],
+        /* ⚠⚠ CARRIED, NOT SWALLOWED. `peRes.data || []` on its own turned a
+           500 into "you have nothing on", and that is exactly how the RLS
+           recursion in pe1 hid for seven weeks: eleven saved rows, a calendar
+           insisting NOTHING ANNOUNCED YET, and no error anywhere. An empty
+           list and a failed read are different facts and the screen has to be
+           able to tell them apart. ⛔ Do not collapse this back into `|| []`. */
+        personalEventsError: peRes.error?.message || null,
         playingEvents:  claimEvRes.data || [],
         followProfiles: followProfileMap,
         updatedFollows,
@@ -326,6 +407,7 @@ export default function MySceneScreen() {
   const myEvents       = data?.myEvents       || EMPTY;
   const playingEvents  = data?.playingEvents  || EMPTY;
   const personalEvents = data?.personalEvents || EMPTY;
+  const personalEventsError = data?.personalEventsError || null;
 
 
   // Sync followProfiles + updatedFollows from query result (computed inside queryFn)
@@ -601,11 +683,17 @@ export default function MySceneScreen() {
       if (followedEventIds.has(ev.id) || appMap[ev.id]) sceneDaySet.add(day);
     }
   });
-  // Personal events always get a scene dot
+  /* ⭐ A DATE YOU PENCILLED IN GETS ITS OWN DOT, not the scene one.
+     It used to join `sceneDaySet`, so your own tentative night was drawn
+     exactly like a gig that is actually on — the calendar asserted something
+     nobody had announced, on the one screen where you go to check what you
+     have committed to. Hollow violet here, hollow violet on What's On: one
+     fact, one appearance. */
+  const personalDaySet = new Set();
   personalEvents.forEach(pe => {
     const ds = pe.event_date;
     if (ds && ds.slice(0, 7) === `${y}-${String(m + 1).padStart(2, '0')}`) {
-      sceneDaySet.add(parseInt(ds.slice(8, 10)));
+      personalDaySet.add(parseInt(ds.slice(8, 10)));
     }
   });
 
@@ -759,6 +847,35 @@ export default function MySceneScreen() {
   });
   upcomingEvents.sort((a, b) => (a.ev.config?.date || '').localeCompare(b.ev.config?.date || ''));
 
+  /* ── YOUR OWN DATES BELONG IN THE SAME DIARY ──────────────────────────
+   *
+   * ⭐⭐ COMING UP's ratified job is "every commitment you have, in order,
+   * however far out". A date you added yourself IS a commitment — it is the
+   * one thing on this page you personally promised to be at. Until now it
+   * appeared NOWHERE except as a dot on the calendar strip and a row inside
+   * the day view, so the only way to see it was to already know which day to
+   * tap. That is not a diary, it is a memory test.
+   *
+   * ⛔ AND IT IS DELIBERATELY NOT ITS OWN SECTION. A separate "MY DATES"
+   * heading would split "what have I got on?" across two lists, which is
+   * precisely the duplication that killed SAVED vs YOUR UPCOMING. One
+   * question, one place to look — that is what makes it usable for spotting a
+   * clash. Rule 6: a new section must carry a reason no existing one can, and
+   * this one cannot.
+   *
+   * ⚠ A personal date is a DIFFERENT NOUN from a catalogue event: no poster,
+   * no lineup, no event page. It gets its own card rather than being forced
+   * through EventCard, so a tap never promises a destination that isn't there.
+   */
+  const upcomingPersonal = personalEvents
+    .filter(pe => pe.event_date && pe.event_date >= todayStr)
+    .map(pe => ({ kind: 'personal', pe, date: pe.event_date }));
+
+  const upcomingDiary = [
+    ...upcomingEvents.map(item => ({ kind: 'event', ...item, date: item.ev.config?.date || '' })),
+    ...upcomingPersonal,
+  ].sort((a, b) => a.date.localeCompare(b.date));
+
   // PAST EVENTS: attended/hosted/played events before today
   const pastEventsSet = new Set();
   const pastEvents = [];
@@ -871,13 +988,21 @@ export default function MySceneScreen() {
     setAddEventTime('');
     setAddEventNotes('');
     setAddEventPrivate(true);
+    setAddEventError('');
     setShowAddEvent(true);
   }
 
   async function savePersonalEvent() {
     if (!addEventTitle.trim() || !uid || addEventSaving) return;
     setAddEventSaving(true);
-    await supabase.from('personal_events').insert({
+    setAddEventError('');
+    /* ⛔⛔ THE ERROR USED TO BE DISCARDED. supabase-js RESOLVES with `{error}`
+       rather than throwing, so a bare `await insert(...)` followed by closing
+       the sheet reports success for a write that never happened. Nothing here
+       failed in the end — the recursion was on the READ — but the next person
+       to hit an RLS or constraint change would have watched the sheet close
+       over a lost entry, which is the same silence twice. */
+    const { error } = await supabase.from('personal_events').insert({
       user_id:    uid,
       title:      addEventTitle.trim(),
       event_date: addEventDate,
@@ -886,7 +1011,38 @@ export default function MySceneScreen() {
       is_private: addEventPrivate,
     });
     setAddEventSaving(false);
+    if (error) {
+      // The sheet STAYS OPEN, so the typing is not lost with the entry.
+      setAddEventError(error.message || 'That could not be saved. Please try again.');
+      return;
+    }
     setShowAddEvent(false);
+    queryClient.invalidateQueries({ queryKey: ['myScene', uid] });
+  }
+
+  /**
+   * Remove a date you added yourself.
+   *
+   * ⚠ `.eq('user_id', uid)` is belt AND braces. `pe_delete` already restricts
+   * this to your own rows, but a client filter that agrees with the policy
+   * costs nothing and means a future policy edit cannot quietly widen what
+   * this button reaches.
+   *
+   * ⛔ The error is surfaced, not swallowed — the same discipline the save now
+   * follows. A delete that silently fails leaves the row on screen after the
+   * next refetch and reads as the button being broken.
+   */
+  async function deletePersonalEvent(id) {
+    if (!uid || deletingPe) return;
+    setDeletingPe(id);
+    const { error } = await supabase.from('personal_events').delete().eq('id', id).eq('user_id', uid);
+    setDeletingPe(null);
+    setConfirmDeletePe(null);
+    if (error) {
+      showToast('That could not be removed. Please try again.');
+      return;
+    }
+    showToast('Removed from your scene.');
     queryClient.invalidateQueries({ queryKey: ['myScene', uid] });
   }
 
@@ -956,6 +1112,7 @@ export default function MySceneScreen() {
               const isSel   = ds === selDate;
               const hasEvs  = eventDaySet.has(day);
               const isScene = sceneDaySet.has(day);
+              const isPersonal = personalDaySet.has(day);
               const dow = ['S','M','T','W','T','F','S'][new Date(ds).getDay()];
               const dotColor = isSel ? '#fff' : '#FF2D78';
               return (
@@ -963,9 +1120,15 @@ export default function MySceneScreen() {
                   onClick={() => !loading && selectDate(ds)}>
                   <div className={s.dayName}>{dow}</div>
                   <div className={s.dayNum}>{day}</div>
+                  {/* ⚠ A REAL EVENT WINS THE DOT. On a day carrying both, the
+                      solid dot is the true statement and a second mark would
+                      only add noise — a night you pencilled in changes nothing
+                      about whether a gig is on. Same precedence What's On uses. */}
                   {(hasEvs || isScene)
                     ? <div className={s.dot} style={{ background: dotColor }} />
-                    : <div className={s.dotEmpty} />
+                    : isPersonal
+                      ? <div className={s.dotTentative} style={isSel ? { borderColor: '#fff' } : undefined} />
+                      : <div className={s.dotEmpty} />
                   }
                 </button>
               );
@@ -1051,8 +1214,19 @@ export default function MySceneScreen() {
             {/* Private — bordered card */}
             <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', border:'1px solid var(--border)', borderRadius:12, padding:'12px 14px', marginBottom:20 }}>
               <div>
+                {/* ⚠ THIS CAPTION NOW DESCRIBES A REAL BOUNDARY. Until pe2 the
+                    toggle only changed a badge, so "Only you can see this" was
+                    true of both states and the switch was decoration. It now
+                    decides whether the DATE (and title) appear as a hollow dot
+                    on the public What's On calendar. ⛔ Never soften this copy
+                    to the point where someone could share a night without
+                    realising: the off state is genuinely public. */}
                 <p style={{ fontFamily:"'Bebas Neue'", fontSize:15, letterSpacing:1, color:'var(--text)' }}>PRIVATE</p>
-                <p style={{ fontSize:11, color:'var(--muted)', marginTop:1 }}>Only you can see this</p>
+                <p style={{ fontSize:11, color:'var(--muted)', marginTop:1 }}>
+                  {addEventPrivate
+                    ? 'Only you can see this'
+                    : 'Shown on the public calendar as a pencilled-in night. Your notes stay private.'}
+                </p>
               </div>
               <button
                 onClick={() => setAddEventPrivate(v => !v)}
@@ -1061,6 +1235,10 @@ export default function MySceneScreen() {
                 <span style={{ position:'absolute', top:3, left: addEventPrivate ? 24 : 3, width:22, height:22, borderRadius:'50%', background:'#fff', transition:'left .2s' }} />
               </button>
             </div>
+
+            {addEventError && (
+              <p style={{ fontSize:12, color:'#FF4D6A', marginBottom:10 }}>{addEventError}</p>
+            )}
 
             <button
               onClick={savePersonalEvent}
@@ -1129,8 +1307,12 @@ export default function MySceneScreen() {
                 myEvents.forEach(ev => {
                   if (ev.config?.date?.startsWith(pickerMonthStr)) pickerSceneDays.add(parseInt(ev.config.date.slice(8,10)));
                 });
+                /* ⭐ Own set, same reason as the strip above: a pencilled-in
+                   night must not be drawn as a gig that is on. ⛔ Do not fold
+                   this back into pickerSceneDays. */
+                const pickerPersonalDays = new Set();
                 personalEvents.forEach(pe => {
-                  if (pe.event_date?.startsWith(pickerMonthStr)) pickerSceneDays.add(parseInt(pe.event_date.slice(8,10)));
+                  if (pe.event_date?.startsWith(pickerMonthStr)) pickerPersonalDays.add(parseInt(pe.event_date.slice(8,10)));
                 });
                 const pickerEventDays = new Set();
                 datedEvents.forEach(ev => {
@@ -1147,6 +1329,7 @@ export default function MySceneScreen() {
                   const isSel   = iso === selDate;
                   const isScene = pickerSceneDays.has(d);
                   const hasEvs  = pickerEventDays.has(d);
+                  const isPersonal = pickerPersonalDays.has(d);
                   const dotColor = isSel ? '#fff' : '#FF2D78';
                   cells.push(
                     <button key={d}
@@ -1157,13 +1340,18 @@ export default function MySceneScreen() {
                         loadDayArtists(iso);
                       }}
                       style={{
-                        background: isSel ? '#BF5FFF' : isToday ? 'rgba(191,95,255,.15)' : (isScene || hasEvs) ? 'var(--card2)' : 'transparent',
+                        /* ⚠ `isPersonal` joins each of these three. A day you
+                           pencilled in has something on it, so greying it out
+                           and giving it a default cursor said the opposite —
+                           and it was reachable all along, since the click
+                           handler below has never been guarded. */
+                        background: isSel ? '#BF5FFF' : isToday ? 'rgba(191,95,255,.15)' : (isScene || hasEvs || isPersonal) ? 'var(--card2)' : 'transparent',
                         border: isToday && !isSel ? '1px solid #BF5FFF' : '1px solid transparent',
                         borderRadius: 8,
-                        color: isSel ? '#fff' : isToday ? '#BF5FFF' : (isScene || hasEvs) ? 'var(--text)' : 'var(--muted)',
+                        color: isSel ? '#fff' : isToday ? '#BF5FFF' : (isScene || hasEvs || isPersonal) ? 'var(--text)' : 'var(--muted)',
                         fontFamily:"'Bebas Neue'",
                         fontSize: 14,
-                        cursor: (isScene || hasEvs || isToday) ? 'pointer' : 'default',
+                        cursor: (isScene || hasEvs || isPersonal || isToday) ? 'pointer' : 'default',
                         display: 'flex',
                         flexDirection: 'column',
                         alignItems: 'center',
@@ -1175,7 +1363,9 @@ export default function MySceneScreen() {
                       {d}
                       {(isScene || hasEvs)
                         ? <span style={{ width:4, height:4, borderRadius:'50%', background: dotColor, display:'block', flexShrink:0 }} />
-                        : <span style={{ width:4, height:4, display:'block' }} />
+                        : isPersonal
+                          ? <span style={{ width:4, height:4, borderRadius:'50%', background:'transparent', border:`1px solid ${isSel ? '#fff' : '#BF5FFF'}`, boxSizing:'border-box', display:'block', flexShrink:0 }} />
+                          : <span style={{ width:4, height:4, display:'block' }} />
                       }
                     </button>
                   );
@@ -1193,16 +1383,16 @@ export default function MySceneScreen() {
           {selDate && (
             <div className={s.dayView}>
 
+              {/* ⚠ WAS A HAND-ROLLED COPY of the same row PersonalDateCard
+                  draws. Two spellings of one thing is how the badge here came
+                  to read MY SCENE while the diary said MY DATE, and only one
+                  of them would ever have gained the remove control. One
+                  component, both places. */}
               {dayPersonalEvents.map(pe => (
-                <div key={pe.id} style={{ display:'flex', alignItems:'center', gap:12, background:'rgba(191,95,255,.08)', border:'1px solid rgba(191,95,255,.25)', borderRadius:12, padding:'12px 14px', marginBottom:8 }}>
-                  <div style={{ flex:1, minWidth:0 }}>
-                    <div style={{ fontFamily:"'Bebas Neue'", fontSize:15, letterSpacing:1, color:'var(--text)' }}>{pe.title}</div>
-                    {pe.time_start && <div style={{ fontSize:11, color:'var(--muted)', marginTop:2 }}>{pe.time_start}</div>}
-                    {pe.notes && <div style={{ fontSize:12, color:'var(--muted)', marginTop:3 }}>{pe.notes}</div>}
-                  </div>
-                  <span style={{ fontFamily:"'Bebas Neue'", fontSize:10, letterSpacing:1, color:'#BF5FFF', border:'1px solid rgba(191,95,255,.4)', borderRadius:6, padding:'2px 8px', flexShrink:0 }}>
-                    {pe.is_private ? 'PRIVATE' : 'MY SCENE'}
-                  </span>
+                <div key={pe.id} style={{ marginBottom: 8 }}>
+                  <PersonalDateCard pe={pe}
+                    onRemove={deletePersonalEvent} onArm={setConfirmDeletePe}
+                    armed={confirmDeletePe === pe.id} busy={deletingPe === pe.id} />
                 </div>
               ))}
               {dayEvents.length === 0 && dayPersonalEvents.length === 0 && (() => {
@@ -1217,8 +1407,25 @@ export default function MySceneScreen() {
 
                 return (
                   <>
-                    {/* Nothing announced */}
-                    <div style={{ fontFamily:"'Bebas Neue'", fontSize:19, letterSpacing:2, color:'var(--muted)', textAlign:'center', marginBottom:24 }}>NOTHING ANNOUNCED YET</div>
+                    {/* ⚠⚠ ABSENT IS NOT THE SAME FACT AS UNKNOWN. If the
+                        personal-events read FAILED, this day is not empty —
+                        we simply could not look. Saying NOTHING ANNOUNCED YET
+                        over a failed query is what let the pe1 RLS recursion
+                        hide for seven weeks while eleven saved entries sat in
+                        the table. Rendering Contract: absent ≠ withheld ≠
+                        unknown. */}
+                    {personalEventsError ? (
+                      <div style={{ fontFamily:"'Bebas Neue'", fontSize:19, letterSpacing:2, color:'#FF4D6A', textAlign:'center', marginBottom:8 }}>
+                        YOUR OWN ENTRIES COULD NOT BE LOADED
+                      </div>
+                    ) : (
+                      <div style={{ fontFamily:"'Bebas Neue'", fontSize:19, letterSpacing:2, color:'var(--muted)', textAlign:'center', marginBottom:24 }}>NOTHING ANNOUNCED YET</div>
+                    )}
+                    {personalEventsError && (
+                      <div style={{ fontSize:12, color:'var(--muted)', textAlign:'center', marginBottom:24 }}>
+                        Anything you have saved to this day is safe, it just cannot be shown right now.
+                      </div>
+                    )}
 
                     {/* Nearby nights */}
                     {nearby.length > 0 && (
@@ -1351,7 +1558,7 @@ export default function MySceneScreen() {
                   SAVED is this one: a hearted event is an attendance intent,
                   so it belongs in the diary badged ATTENDING rather than in a
                   second list of the same rows under another name. */}
-              {(upcomingEvents.length > 0 || pastEvents.length > 0) && (
+              {(upcomingDiary.length > 0 || pastEvents.length > 0) && (
               <div className={s.v1Section}>
                 <div className={s.v1Head} style={{ marginBottom:8 }}>
                   <div className={s.followTabs} style={{ margin:0 }}>
@@ -1360,7 +1567,7 @@ export default function MySceneScreen() {
                       onClick={() => { setSavedTab('saved'); setSavedLimit(3); setEventsExpanded(false); }}
                     >
                       COMING UP
-                      {upcomingEvents.length > 0 && <span className={s.followCountBadge}>{upcomingEvents.length}</span>}
+                      {upcomingDiary.length > 0 && <span className={s.followCountBadge}>{upcomingDiary.length}</span>}
                     </button>
                     <button
                       className={'yp-tap44 ' + s.followTab + (savedTab === 'past' ? ' ' + s.followTabActive : '')}
@@ -1375,7 +1582,7 @@ export default function MySceneScreen() {
                       two icons mean the same thing everywhere on this page:
                       ▦ portrait cards, ☰ list rows. Sits in the heading row
                       immediately left of View all. */}
-                  {savedTab === 'saved' && upcomingEvents.length > 0 && (
+                  {savedTab === 'saved' && upcomingDiary.length > 0 && (
                     <div style={{ display:'flex', background:'var(--card2)', borderRadius:8, overflow:'hidden', border:'1px solid var(--border)', flexShrink:0 }}>
                       {[['portrait','▦'],['landscape','☰']].map(([v, icon]) => (
                         <button key={v} onClick={() => setUpcomingView(v)}
@@ -1389,13 +1596,16 @@ export default function MySceneScreen() {
                     // rail has no cap — it already shows everything — so the
                     // control is inert there rather than lying about it.
                     const hasMore = savedTab === 'saved'
-                      ? upcomingView === 'landscape' && upcomingEvents.length >= 4
+                      ? upcomingView === 'landscape' && upcomingDiary.length >= 4
                       : pastEvents.length > 3;
                     return <span className={hasMore ? s.seeAll : s.seeAllMuted} onClick={() => hasMore && setEventsExpanded(v => !v)}>{eventsExpanded ? 'View less' : 'View all >'}</span>;
                   })()}
                 </div>
                 {savedTab === 'saved' ? (
-                  upcomingEvents.length === 0 ? <div className={s.empty}>Nothing coming up yet — tap the ♥ on any gig below.</div> : (
+                  /* ⛔ NO EM DASH. Ratified UI law, and this string predates it.
+                     The copy also names BOTH ways in now: a heart on a listed
+                     gig, or your own date via + on the calendar. */
+                  upcomingDiary.length === 0 ? <div className={s.empty}>Nothing coming up yet. Tap the ♥ on any gig below, or + on the calendar to add your own date.</div> : (
                     <>
                       {upcomingView === 'portrait' ? (
                         /* A horizontal rail, not a wrapped grid: the scroll
@@ -1407,16 +1617,24 @@ export default function MySceneScreen() {
                         <div className={s.hScroll} ref={upcomingDrag.ref}
                           onMouseDown={upcomingDrag.onMouseDown} onMouseMove={upcomingDrag.onMouseMove}
                           onMouseUp={upcomingDrag.onMouseUp} onMouseLeave={upcomingDrag.onMouseLeave}>
-                          {upcomingEvents.map(({ ev, badge, badgeColor }) => (
-                            <EventCard key={ev.id} variant="scroll" event={ev} badge={badge} badgeColor={badgeColor} onClick={() => navigate(`/event/${ev.id}`)}
-                              cornerAction={<HeartBtn event={ev} style={HEART_STYLE} />} />
+                          {upcomingDiary.map(item => item.kind === 'personal' ? (
+                            <PersonalDateCard key={'pe-' + item.pe.id} pe={item.pe} variant="scroll"
+                              onRemove={deletePersonalEvent} onArm={setConfirmDeletePe}
+                              armed={confirmDeletePe === item.pe.id} busy={deletingPe === item.pe.id} />
+                          ) : (
+                            <EventCard key={item.ev.id} variant="scroll" event={item.ev} badge={item.badge} badgeColor={item.badgeColor} onClick={() => navigate(`/event/${item.ev.id}`)}
+                              cornerAction={<HeartBtn event={item.ev} style={HEART_STYLE} />} />
                           ))}
                         </div>
                       ) : (
-                        <div style={{ display:'flex', flexDirection:'column', gap:6, marginTop:10, ...(!eventsExpanded && upcomingEvents.length >= 4 ? { maxHeight:315, overflowY:'scroll', scrollbarWidth:'none', WebkitOverflowScrolling:'touch', maskImage:'linear-gradient(to bottom, black 75%, transparent 100%)', WebkitMaskImage:'linear-gradient(to bottom, black 75%, transparent 100%)' } : { overflowY:'visible' }) }}>
-                          {upcomingEvents.map(({ ev, badge, badgeColor }) => (
-                            <EventCard key={ev.id} event={ev} badge={badge} badgeColor={badgeColor} onClick={() => navigate(`/event/${ev.id}`)}
-                              cornerAction={<HeartBtn event={ev} style={HEART_STYLE} />} />
+                        <div style={{ display:'flex', flexDirection:'column', gap:6, marginTop:10, ...(!eventsExpanded && upcomingDiary.length >= 4 ? { maxHeight:315, overflowY:'scroll', scrollbarWidth:'none', WebkitOverflowScrolling:'touch', maskImage:'linear-gradient(to bottom, black 75%, transparent 100%)', WebkitMaskImage:'linear-gradient(to bottom, black 75%, transparent 100%)' } : { overflowY:'visible' }) }}>
+                          {upcomingDiary.map(item => item.kind === 'personal' ? (
+                            <PersonalDateCard key={'pe-' + item.pe.id} pe={item.pe}
+                              onRemove={deletePersonalEvent} onArm={setConfirmDeletePe}
+                              armed={confirmDeletePe === item.pe.id} busy={deletingPe === item.pe.id} />
+                          ) : (
+                            <EventCard key={item.ev.id} event={item.ev} badge={item.badge} badgeColor={item.badgeColor} onClick={() => navigate(`/event/${item.ev.id}`)}
+                              cornerAction={<HeartBtn event={item.ev} style={HEART_STYLE} />} />
                           ))}
                         </div>
                       )}

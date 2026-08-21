@@ -191,6 +191,22 @@
 
 .dotEmpty { height: 7px; }
 
+/* ⭐ A DATE YOU PENCILLED IN IS NOT A GIG THAT IS ON.
+   Same footprint as .dot so the strip stays even, but HOLLOW and violet —
+   the identical treatment What's On uses for a tentative night, because the
+   same fact should not have two appearances across two screens. A solid dot
+   means something is announced; this one means someone intends it. */
+.dotTentative {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  margin: 2px auto 0;
+  background: transparent;
+  border: 1px solid #BF5FFF;
+  box-sizing: border-box;
+  flex-shrink: 0;
+}
+
 /* ── Day view ── */
 .dayView {
   max-width: 680px;

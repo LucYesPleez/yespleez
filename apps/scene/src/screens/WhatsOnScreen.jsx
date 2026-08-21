@@ -8,6 +8,7 @@ import { resolveLocationToPostcodes } from '../lib/auLocations';
 import { today, dateStr, weekendRange, formatDisplayDate, localDateStr } from '../lib/dates';
 import { selectFeaturedEvent, replayHistory, FAIRNESS_WINDOW_DAYS } from '../lib/featuredEvent';
 import { useFeaturedAllocations } from '../lib/useFeaturedAllocations';
+import { useTentativeDates } from '../lib/useTentativeDates';
 import FeaturedEventCard from '../components/FeaturedEventCard';
 import HeartBtn from '../components/HeartBtn';
 import { HEART_OVERLAY_STYLE, HEART_BARE_STYLE } from '../components/heartStyles';
@@ -230,6 +231,10 @@ export default function WhatsOnScreen() {
   // REAL EVENTS ONLY. The demo merge that used to pad this screen is gone — a thin scene now
   // shows as thin. Every card here is a record someone can actually open.
   const events = realEvents;
+
+  /* Nights someone has pencilled in but not listed. Dots only — see
+     lib/useTentativeDates.js for why they never become cards. */
+  const { tentative, tentativeDaySet } = useTentativeDates();
 
   const eventDaySet = useMemo(() => {
     const set = new Set();
@@ -494,6 +499,11 @@ export default function WhatsOnScreen() {
             const isToday    = iso === todayIso;
             const isSelected = iso === selectedDate;
             const hasEvent   = eventDaySet.has(iso);
+            /* ⚠ A LISTED GIG ALWAYS WINS THE DOT. When a night has both, the
+               solid dot is the true statement and the hollow one would only
+               add noise — a tentative date beside a confirmed one changes
+               nothing about whether something is on. */
+            const hasTentative = !hasEvent && tentativeDaySet.has(iso);
             return (
               <button key={iso} data-today={isToday}
                 className={isSelected ? s.stripDayActive : isToday ? s.stripDayToday : s.stripDay}
@@ -501,6 +511,7 @@ export default function WhatsOnScreen() {
                 <span className={s.stripDayName}>{day}</span>
                 <span className={s.stripDayNum}>{d}</span>
                 {hasEvent && <span className={s.stripDot} />}
+                {hasTentative && <span className={s.stripDotTentative} title="Someone has pencilled in a night" />}
               </button>
             );
           })}
@@ -598,6 +609,34 @@ export default function WhatsOnScreen() {
             ? <div className={s.emptyDay}><div className={s.emptyDayTitle}>NOTHING ANNOUNCED YET</div><div className={s.emptyDaySub}>No events for this date.</div></div>
             : dateFiltered.map(ev => <ComingUpRow key={ev.id} event={ev} onClick={() => openEvent(ev)} />)
           }
+
+          {/* ── PENCILLED IN ────────────────────────────────────────────
+              ⛔ TEXT, NEVER A CARD. Owner, 2026-08-21: "i dont want event
+              cards until they make an actual event for it." A card carries a
+              poster frame, a tap target and an implied event page, and this
+              has none of the three — it is one promoter saying a night might
+              be theirs. Rendering it as a listing would announce something
+              nobody has announced.
+
+              ⚠ Title only. `notes` never leaves the database (see the pe2
+              view), so there is nothing here to leak. */}
+          {(() => {
+            const pencilled = tentative.filter(t => t.event_date === selectedDate);
+            if (!pencilled.length) return null;
+            return (
+              <div style={{ marginTop: dateFiltered.length ? 18 : 0, padding: '12px 14px', border: '1px dashed rgba(185,128,255,.35)', borderRadius: 12 }}>
+                <div style={{ fontFamily: "'Bebas Neue'", fontSize: 12, letterSpacing: 2, color: '#BF5FFF', marginBottom: 6 }}>
+                  PENCILLED IN
+                </div>
+                {pencilled.map(t => (
+                  <div key={t.id} style={{ fontSize: 13, color: 'var(--text)', marginBottom: 2 }}>{t.title}</div>
+                ))}
+                <div style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 6 }}>
+                  Not yet announced. Details may change or may never be listed.
+                </div>
+              </div>
+            );
+          })()}
         </div>
       )}
 
