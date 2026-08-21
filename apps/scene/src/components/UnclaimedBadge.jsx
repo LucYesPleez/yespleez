@@ -30,6 +30,24 @@ import { isProfileUnclaimed } from '../lib/profileClaim';
  *   so it disappears on claim with no call-site condition.
  */
 export default function UnclaimedBadge({ profile }) {
-  if (!isProfileUnclaimed(profile)) return null;
-  return <span className={s.badge}>UNCLAIMED</span>;
+  /**
+   * ⛔⛔ HIDDEN EVERYWHERE (owner, 2026-08-21: "hide the unclaimed chip from
+   * everywhere that has one"). This OVERRIDES v1.0 §09's labelling
+   * requirement as a product decision — the pill read as a mark against the
+   * act on every card, and most of the catalogue is imported and unclaimed,
+   * so whole rails wore it.
+   *
+   * ⚠ HIDDEN, ⛔ NOT DELETED. The eight call sites stay wired and the
+   * predicate still runs, so restoring the label is deleting ONE line here —
+   * and the claim FLOW is untouched: UnclaimedNotice ("Is this you?") and the
+   * ClaimDialog still do their jobs on the profile page. Only the public
+   * label is gone.
+   */
+  void profile; void isProfileUnclaimed; void s; // imports stay live for the restore
+  return null;
 }
+
+/* The original body, verbatim, for the restore:
+     if (!isProfileUnclaimed(profile)) return null;
+     return <span className={s.badge}>UNCLAIMED</span>;
+*/
