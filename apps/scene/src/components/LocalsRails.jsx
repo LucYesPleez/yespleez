@@ -22,7 +22,8 @@ import { useMemo } from 'react';
 import { useEvents } from '../lib/useEvents';
 import { useProfileLocation } from '../lib/useProfileLocation';
 import { useSession } from '../App';
-import { postcodeCoords, profileCoords } from '../lib/geo';
+import { postcodeCoords } from '../lib/geo';
+import { resolveLocationToPostcodes } from '../lib/auLocations';
 import { useLocalActs } from '../lib/useLocalActs';
 import { buildLocals } from '../lib/locals';
 import { withinRadius } from '../lib/geo';
@@ -64,12 +65,17 @@ export default function LocalsRails() {
   const { events } = useEvents(todayIso, null);
   const profilePostcode = useProfileLocation(session?.user?.id);
   const originCoords = useMemo(() => postcodeCoords(profilePostcode), [profilePostcode]);
-  /* ⭐ FIXED 50km, ⛔ NO CONTROLS (owner, 2026-08-21: the radius select and
-     SHOW ALL were added on request and removed on sight the same day —
-     "show all can also go, and the radius". The section curates; it does not
-     ask the reader to operate it). The strict-locals rule keeps its teeth:
-     the radius still applies, there is just nothing to fiddle. */
-  const radiusKm = profilePostcode ? 50 : null;
+  /**
+   * ⭐ RADIUS 0, FIXED, ⛔ NO CONTROLS (owner, 2026-08-21: "put it to 0", after
+   * "show all can also go, and the radius" removed the select).
+   *
+   * ⚠⚠ 0 IS NOT "WITHIN ZERO KILOMETRES" — it is SAME POSTCODE (`sameArea` in
+   * lib/geo). Everything here is a postcode centroid, so a literal 0km test
+   * would match only identical centroids anyway; the step is defined as an
+   * exact-area match so the tightest setting is honest about what it does.
+   * ⚠ It therefore needs POSTCODES, not coords — see the strict filter below.
+   */
+  const radiusKm = profilePostcode ? 0 : null;
   const artistsDrag   = useDragScroll('locals-artists');
   const venuesDrag    = useDragScroll('locals-venues');
   const promotersDrag = useDragScroll('locals-promoters');
@@ -110,24 +116,40 @@ export default function LocalsRails() {
      */
     const strict = locals.items.filter(p => {
       if (locals.farIds.has(p.id ?? p.user_id)) return false;
-      if (originCoords && radiusKm) {
-        const c = profileCoords(p);
-        if (!c || !withinRadius(originCoords, c, radiusKm)) return false;
-        /* ⚠⚠ THE CARD MUST SAY THE TOWN, coords are not enough. Cash Savage —
-           a Melbourne band — carried postcode 2454 because the importer
-           stamps acts with the GIG's postcode, so they passed the geo test
-           while wearing no town at all. The owner's rule is about what the
-           reader can SEE ("if it doesn't say they're from Bellingen…"), so a
-           profile with no displayed location does not belong here, however
-           local its data claims to be. */
-        if (!String(p.location || p.suburb || '').trim()) return false;
+      /* ⚠⚠ `radiusKm !== null`, ⛔ NOT a truthiness check. Zero is a REAL
+         setting here (same postcode) and `if (radiusKm)` skips it silently —
+         the whole filter would switch itself off at its own tightest step and
+         the section would quietly show the world. */
+      if (radiusKm !== null) {
+        /**
+         * ⛔⛔ THE TOWN ON THE CARD IS THE TEST — ⛔ NOT the postcode, and ⛔ not
+         * the coords derived from it. The importer stamps every imported act
+         * with the GIG's postcode, so `profiles.postcode` asserts locality it
+         * has not earned:
+         *   · Cash Savage & The Last Drinks — Melbourne — postcode 2454, no town
+         *   · Flowers For Jayne             — Sydney    — postcode 2454, town "Sydney"
+         * Both passed a coords/postcode test while one of them SAYS Sydney on
+         * its face. The owner's rule is about what the reader can see ("if it
+         * doesn't say they're from Bellingen they shouldn't be there"), so the
+         * displayed town is resolved back to postcodes and THAT is measured.
+         *
+         * ⚠ A town that cannot be resolved is not local: unresolvable means
+         * unproven, and this section demands proof.
+         */
+        const town = String(p.location || p.suburb || '').trim();
+        if (!town) return false;
+        const codes = resolveLocationToPostcodes(town);
+        if (!codes.length) return false;
+        const near = codes.some(pc =>
+          withinRadius(originCoords, postcodeCoords(pc), radiusKm, profilePostcode, pc));
+        if (!near) return false;
       }
       return true;
     });
     const withImg = strict.filter(p => p.avatar_thumb || p.avatar);
     const without = strict.filter(p => !(p.avatar_thumb || p.avatar));
     return { ...g, locals: { ...locals, items: [...withImg, ...without], expanded: false } };
-  }), [localActs, originCoords, radiusKm, todayIso]);
+  }), [localActs, originCoords, radiusKm, todayIso, profilePostcode]);
 
   if (!groups.some(g => g.locals.items.length > 0)) return null;
 
