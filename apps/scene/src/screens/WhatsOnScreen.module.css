@@ -555,6 +555,17 @@
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
+  /* ⭐ THE SUBS RUN QUIETER THAN THE HERO (owner, 2026-08-21: "pull back on the
+     vibrancy, they're a bit too bright"). At full strength a 22px section
+     heading competes with the giant title above it and with the artwork below,
+     and the page ends up with three things all shouting.
+
+     ⚠ DONE AS ONE OPACITY, ⛔ NOT AS A SECOND SET OF COLOURS. A dimmed copy of
+     the ramp is exactly the drift this file's own header warns about — the
+     hero and the subs were already two gradients pretending to be one once.
+     This stays the SAME ramp, turned down, so retuning the palette retunes
+     both and there is one number to move if it is still too hot. */
+  opacity: .72;
 }
 
 .sectionRow {

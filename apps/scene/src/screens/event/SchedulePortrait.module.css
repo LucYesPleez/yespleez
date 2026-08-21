@@ -39,11 +39,28 @@
 
 /* ── Day picker ─────────────────────────────────────────────────────── */
 
+/* ⭐⭐ THE CHIP RAIL — one row at ANY count (owner, 2026-08-21).
+   ⚠⚠ It used to `flex-wrap: wrap`, which meant the chips pushed the schedule
+   further down the page with every stage or day added: five fit on a 488px row,
+   so seven stages was two rows and twenty was four. ⛔ Do not put the wrap back
+   — the control must never displace the thing it labels.
+   ⛔ NO VISIBLE SCROLLBAR, standing UI law. */
 .days {
   display: flex;
   gap: 6px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  cursor: grab;
 }
+
+.days::-webkit-scrollbar { display: none; }
+
+/* ⚠ Chips keep their own width in a nowrap row — without this flex squeezes
+   them all onto one line and every label truncates instead of scrolling. */
+.days > * { flex: 0 0 auto; }
 
 .dayBtn {
   font-family: 'Bebas Neue', sans-serif;
@@ -100,6 +117,294 @@
    wrapped around chrome. The stack's rhythm is the parent's own 12px gap. */
 .row { display: flex; }
 
+/* ── WHERE THE NIGHT IS UP TO ────────────────────────────────────────────
+   Owner, 2026-08-21: "the set that's playing swells a bit and shows a bit of
+   vibrancy, the sets that have already played can be muted, upcoming normal."
+
+   ⭐⭐ UPCOMING HAS NO RULE, AND THAT IS THE POINT. It is the page's own
+   weight — the same card a reader sees at any other time. Only the two
+   departures from normal are written down, so "normal" cannot drift.
+
+   ⚠⚠ THE STATES ARE ONLY WORN WHILE THE NIGHT IS RUNNING (`nightIsRunning` in
+   lib/scheduleNow). ⛔ A finished event must NOT render as a wall of grey
+   forever — that reads as data failing to load, not as history.
+
+   ⚠ TRANSFORM, ⛔ NOT WIDTH OR PADDING. A card that swells by changing its box
+   would change its GRID ROW's height, and every other stage's row on the pager
+   moves with it — the time alignment is the whole reason the peek is worth
+   looking at. A transform paints bigger and lays out identically. */
+/* ── THE BOTTOM STRIP: PROGRESS, PHASE, AND THE FOLLOW OFFER ─────────────
+   ⚠⚠ EVERY PIECE BELOW IS ABSOLUTELY POSITIONED, and that is structural rather
+   than cosmetic: on the pager each stage shares a GRID ROW, so a card that
+   grew a label would push its neighbours out of alignment and break the peek.
+   Overlaying costs no layout, so a card with a follow offer is exactly as tall
+   as a card with nothing. */
+.live {
+  position: relative;
+}
+
+/* The 3px rule along the bottom edge, inset so it sits inside the card's own
+   rounded corners rather than poking out of them.
+   ⚠⚠ PRESENT ONLY WHILE A SET IS PLAYING — the component decides that, and the
+   reason is written there: an empty track on a card that has not started is a
+   claim about a set in progress, and it is false. */
+.track {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 4px;
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, .12);
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.fill {
+  height: 100%;
+  border-radius: 2px;
+  background: linear-gradient(90deg, #FF2D78, #00E5FF);
+  /**
+   * ⭐⭐ IT CREEPS, ⛔ IT DOES NOT STEP. The clock ticks once a MINUTE, which on
+   * a 20-minute set is a 5% jump every tick — visible, and it reads as the bar
+   * being broken rather than as time passing. A 60s LINEAR transition is
+   * exactly the tick cadence, so each new target is walked to over the minute
+   * it covers and the fill moves continuously.
+   * ⚠ It does not run on first paint (a freshly mounted element has nothing to
+   * transition from), so a set joined mid-flight draws at its true position
+   * rather than sweeping up to it.
+   * ⚠ The trade: after a backgrounded tab wakes, the bar takes up to a minute
+   * to walk to the caught-up value instead of snapping. Chosen deliberately —
+   * a smooth catch-up is a better lie than a jump, and it is right within 60s.
+   */
+  transition: width 60s linear;
+}
+
+/* GETTING READY / STARTING / ENDING. ⚠ Small, and out of the way of the artist
+   name the card centres — this annotates the card, it does not compete. */
+.phase {
+  position: absolute;
+  right: 13px;
+  bottom: 10px;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 9px;
+  letter-spacing: 1.6px;
+  color: #fff;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: rgba(0, 0, 0, .55);
+  pointer-events: none;
+}
+
+/* ⚠ Getting ready is the one that happens on an UPCOMING card, which has no
+   glow to carry it, so it gets the accent to be findable at a glance. */
+.phaseReady {
+  color: #00E5FF;
+}
+
+/* ⭐⭐ THE OFFER TO FOLLOW THE ACT THAT JUST CAME OFF. It sits where the phase
+   label sat, because it is the same slot in the reader's attention: the last
+   thing this card has to say. ⛔ It never appears on a card whose act has no
+   profile — see `followTarget`. */
+/* ⭐ ON THE RIGHT, VERTICALLY CENTRED (owner, 2026-08-21). Centred in the card
+   it landed on top of the artist's face and read as a dialog dropped on the
+   row; on the right it sits in the space the chevron already occupies on every
+   other card, which is where a card's action belongs on this surface. */
+.followOffer {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 12px;
+  /* ⚠ INERT except for the button. The overlay covers the whole card, so
+     without this it would swallow the tap that expands the row. */
+  pointer-events: none;
+}
+
+/* The 1px gradient edge, built as a parent behind the button — the way
+   ProfileScreen builds the same control. ⛔ Not `border-color` (a gradient is
+   not a colour) and ⛔ not `border-image` (it drops the corner radius).
+   ⭐⭐ THE SCHEDULE'S OWN RAMP, ⛔ not the profile page's cyan-to-violet. Pink
+   to cyan is what the progress bar on this same strip already runs, and what
+   the cards' own neon borders are drawn from — the profile ramp read as
+   borrowed from another screen, because it was. */
+.followEdge {
+  display: inline-block;
+  padding: 1px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #FF2D78, #00E5FF);
+  pointer-events: auto;
+}
+
+/* ⚠ The profile page's own follow button, at the size a card can carry: same
+   family, same letter-spacing, same dark fill under gradient text.
+   ⚠ `--follow-ramp` retunes the LABEL to match the edge — the token exists on
+   FollowHeartBtn precisely so this surface does not need its own button. */
+.followBtn {
+  --follow-ramp: linear-gradient(135deg, #FF2D78, #00E5FF);
+  display: block;
+  border: none;
+  border-radius: 9px;
+  background: rgba(12, 12, 22, .92);
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 12px;
+  letter-spacing: 1.5px;
+  color: #fff;
+  padding: 5px 12px;
+  cursor: pointer;
+  transition: filter .15s;
+}
+
+.followBtn:hover { filter: brightness(1.25); }
+
+/* ⭐⭐ WHAT IS STILL TO COME LOSES THE PINK (owner, 2026-08-21). During a night
+   the neon border is the loudest thing on an upcoming card, and it competes
+   with the set actually on stage — three or four cards all outlined in the
+   accent, one of them playing, and the eye has to hunt.
+
+   ⚠⚠ DONE BY REDEFINING `--neon` FOR THIS SUBTREE, ⛔ not by overriding a
+   border. `SlotCard` writes its border INLINE (`borderCol`, which no class can
+   beat without `!important`), and it reads `var(--neon)` exactly ONCE — for
+   that border, which also feeds the time block's divider. So retuning the token
+   here changes precisely those two things and nothing else, and the day
+   SlotCard's border logic changes, this follows it instead of fighting it.
+
+   ⛔ Only while the night is RUNNING. Outside that window no state class is
+   applied at all, so an upcoming event keeps its normal pink. */
+.upcoming {
+  --neon: rgba(255, 255, 255, .16);
+}
+
+/* ⭐⭐ THE GLOW BREATHES ON A 3s CYCLE (owner, 2026-08-21).
+   ⚠ ONE SLOW CYCLE, ⛔ not a flash. Three seconds out and back is about the
+   rhythm of breathing — it reads as alive at the edge of vision and survives
+   being looked at for a whole set, which a quicker pulse does not.
+   ⚠⚠ THE SATURATE AND BRIGHTNESS ARE REPEATED IN EVERY KEYFRAME, deliberately:
+   `filter` is ONE property, so a keyframe naming only the drop-shadow would
+   drop the other two for the length of the animation and the card would flicker
+   dimmer instead of glowing. ⛔ Do not "tidy" them out of a frame.
+   ⛔ The scale is NOT animated — the card holds its size; only the light moves. */
+@keyframes onNowPulse {
+  0%, 100% { filter: saturate(1.25) brightness(1.06) drop-shadow(0 0 10px rgba(255, 45, 120, .22)); }
+  50%      { filter: saturate(1.25) brightness(1.06) drop-shadow(0 0 22px rgba(255, 45, 120, .52)); }
+}
+
+/* ⭐⭐ THE FILTERS DRESS THE CARD, ⛔ NOT THE WRAPPER (owner, 2026-08-21: "lift
+   the offer out of the mute").
+   ⚠⚠ A `filter` applies to every descendant and CANNOT be undone by a child, so
+   with the mute on the wrapper the follow offer was dimmed along with the
+   artwork — an ACTION greyed out by a treatment meant for the card behind it.
+   Targeting the card element itself leaves the strip, and the offer in it, at
+   full strength.
+   ⚠ THE TRANSFORM STAYS ON THE WRAPPER, deliberately: the progress bar has to
+   scale WITH the card it measures, or the bar and the card edge come apart. */
+.playing {
+  transform: scale(1.025);
+  /* ⚠ Above its neighbours, or the swell is clipped by the next card's edge. */
+  position: relative;
+  z-index: 1;
+  transition: transform .35s ease;
+}
+
+/* ── THE HANDOVER BETWEEN STATES ─────────────────────────────────────────
+   Owner, 2026-08-21: a set fades ON as it starts; as it finishes it fades out
+   completely and snaps back in muted.
+
+   ⚠⚠ THE KEYFRAMES CARRY THE FILTER AS WELL AS THE OPACITY, and that is the
+   whole trick for the finish: the `.played` mute lands on the element the
+   instant the class changes, so an opacity-only fade would dim an ALREADY
+   muted card. Holding the lit filter through the fade-out means the card you
+   watch disappear is the one that was playing, and the muted one is what snaps
+   back. ⛔ Do not reduce these to opacity.
+
+   ⚠ Applied by a transient class the component removes after ENTER_MS, and
+   only on a REAL state change — ⛔ never on mount. See `Card`. */
+@keyframes enterPlaying {
+  /* A beat at nothing, so the arrival reads as a cut rather than a cross-fade
+     from the upcoming card that was there a moment ago. */
+  0%, 12% { opacity: 0; }
+  100%    { opacity: 1; }
+}
+
+@keyframes enterPlayed {
+  0%   { opacity: 1; filter: saturate(1.25) brightness(1.06); }
+  45%  { opacity: 0; filter: saturate(1.25) brightness(1.06); }
+  /* ⚠ One percent later, ⛔ not a transition — "snap back on" is the point. */
+  46%  { opacity: 1; filter: saturate(.5) brightness(.72) opacity(.75); }
+  100% { opacity: 1; filter: saturate(.5) brightness(.72) opacity(.75); }
+}
+
+/* ⚠ Two animations, ⛔ not one: the pulse must keep running underneath, and a
+   bare `animation:` on a more specific selector would replace it. */
+.playing.enterPlaying > :first-child {
+  animation: enterPlaying .9s ease-out, onNowPulse 3s ease-in-out infinite;
+}
+
+.played.enterPlayed > :first-child {
+  animation: enterPlayed .9s ease-out;
+}
+
+.playing > :first-child {
+  /* ⚠ The card's own art is already colourful; this lifts it rather than
+     recolouring it, so a playing set reads as the same card turned up.
+     ⚠ Kept as the STATIC state as well as the animation's midpoint — it is what
+     shows when motion is reduced, and what the card transitions from. */
+  filter: saturate(1.25) brightness(1.06)
+          drop-shadow(0 0 16px rgba(255, 45, 120, .30));
+  animation: onNowPulse 3s ease-in-out infinite;
+  transition: filter .35s ease;
+}
+
+/* ⭐⭐ THE SET ON THE PAGE YOU ARE ON IS THE ONE THAT SWELLS (owner,
+   2026-08-21: "make only the set time for the screen you're on swell").
+   A neighbouring stage's 9PM act is also playing, and it still says so — it
+   keeps the vibrancy — but it does NOT swell, because a card growing in the
+   sliver at the edge of the screen is movement in the corner of your eye
+   pulling at a page you are not looking at. ⛔ It is not a different truth,
+   it is the same truth at the volume of a peek. */
+.playingAside > :first-child {
+  filter: saturate(1.25) brightness(1.06);
+  transition: filter .35s ease;
+}
+
+/* ⚠ Muted, ⛔ not hidden and ⛔ not disabled. The set still happened, its card
+   still expands and its artist is still reachable — it has simply stopped
+   being the thing you are looking for.
+   ⛔ ON THE CARD, NOT THE WRAPPER: the follow offer rides above this and must
+   not be muted with it. See the note on `.playing`. */
+.played > :first-child {
+  /* ⚠⚠ THE FADE IS INSIDE THE FILTER (`opacity()`), ⛔ not a separate `opacity`
+     declaration. `SlotCard` writes its own opacity INLINE, and an inline style
+     beats a class — so the standalone property silently did nothing once this
+     rule moved off the wrapper and onto the card. As a filter function it is
+     part of `filter`, which the card does not set, so it applies. */
+  filter: saturate(.5) brightness(.72) opacity(.75);
+  transition: filter .35s ease;
+}
+
+/* ⚠ Someone who has asked for stillness still gets the INFORMATION — the
+   mute and the lift are static, only the movement between states goes. */
+@media (prefers-reduced-motion: reduce) {
+  .playing,
+  .playing > :first-child,
+  .playingAside > :first-child,
+  .played > :first-child { transition: none; }
+  /* ⛔ No swell and ⛔ no pulse — a repeating animation is exactly what this
+     preference is asking about. The static glow above stays, so the card is
+     still the one lit up; it simply stops moving. */
+  .playing { transform: none; }
+  /* ⛔ No pulse, and ⛔ no fade at the handover either — the state still
+     changes, it just changes without performing. */
+  .playing > :first-child,
+  .playing.enterPlaying > :first-child,
+  .played.enterPlayed > :first-child { animation: none; }
+  /* ⚠ The bar still moves, because it is INFORMATION rather than decoration —
+     it is the only thing saying how far through the set is. It just stops
+     creeping and steps with the clock instead. */
+  .fill { transition: none; }
+}
+
 .row > * { flex: 1 1 auto; min-width: 0; }
 
 /* ── Multi stage: THE STAGE PAGER ────────────────────────────────────────
@@ -111,14 +416,39 @@
 
    ⭐⭐ ONE GRID, so every stage's card for a given time shares a ROW and the
    peek beside the current stage is a truthful "what's on next door right
-   now". Column width 86%: the ~12% remainder is the neighbour's cards sliced
+   now". Column width 82%: the ~18% remainder is the neighbour's cards sliced
    by the edge — the app's own part-card idiom doing the "you can swipe"
    hinting. ⛔ NO VISIBLE SCROLLBAR — standing UI law.
 
-   ⚠ column-gap must equal PAGER_GAP_PX in the component: the snap maths and
-   the chip scroll-spy both divide by column + gap. */
+   ⭐⭐ THE PAGE SNAPS TO CENTRE, ⛔ NOT TO START (owner, 2026-08-21). A start
+   aligned page sits flush left, so a stage with a neighbour on EITHER SIDE
+   showed only the one to its right — the middle stage of three lost half the
+   comparison the peek exists to give. Centred, a middle stage is sliced on
+   both edges, and the first and last stage clamp against the scroller's own
+   ends, peeking only the way there is actually something to see.
+
+   ⚠ Snap positions are no longer a multiple of column + gap, so the component
+   reads them off the heading cells' own geometry rather than computing them. */
 .pager {
   display: grid;
+  /* ⭐ The pager is pushable by hand on a mouse as well as a finger; the hook
+     swaps this for `grabbing` while a drag is live, the same as every rail. */
+  cursor: grab;
+
+  /* ⭐⭐ ROOM FOR THE SWELL (owner, 2026-08-21: "you can't see the edge of the
+     card that's playing").
+     ⚠⚠ A scroll container CLIPS AT ITS PADDING BOX, and the playing card scales
+     to 1.025 — measured, that is 5px past its cell on each side. With no
+     padding, the card sitting against the scroller's edge lost its own border
+     to the clip, so the one card the eye is meant to land on was the one with a
+     missing edge.
+     ⚠ The negative margin cancels the padding VISUALLY: every card stays
+     exactly where it was and the schedule does not shift; all the padding does
+     is give the scaled edges somewhere to be drawn. ⛔ Do not remove one of the
+     two — the padding alone insets the whole schedule, the margin alone pushes
+     it into the page gutter. */
+  padding: 6px;
+  margin: -6px;
   column-gap: 10px;
   row-gap: 8px;
   overflow-x: auto;
@@ -130,10 +460,22 @@
 
 .pager::-webkit-scrollbar { display: none; }
 
+/* ⭐ ONE PAGE: the pub gig. Full width, and ⛔ no snap — with a single column
+   there is nothing to snap between, and leaving `mandatory` on a scroller that
+   cannot scroll is a rule with no subject that the next reader has to work out.
+   The row rhythm matches the list this replaced, so a single-stage event looks
+   exactly as it always did. */
+.pagerSingle {
+  scroll-snap-type: none;
+  overflow-x: hidden;
+  row-gap: 12px;
+  cursor: default;
+}
+
 /* The heading row's cells are the SNAP TARGETS — one per stage, all sharing
-   the grid's first row, each aligned to the page start. */
+   the grid's first row, each centred in the scroller. */
 .stagePageHead {
-  scroll-snap-align: start;
+  scroll-snap-align: center;
   display: flex;
   align-items: center;
   gap: 10px;

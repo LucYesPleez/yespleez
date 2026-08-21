@@ -1,0 +1,228 @@
+/**
+ * Where the night is up to — S3.
+ *
+ * ⚠⚠ THESE TEST THE RULES, ⛔ not the treatment. That a playing set swells and
+ * a played one is muted is verified by driving the real interface; what is
+ * checked here is WHICH set is playing, which is the part with a midnight in
+ * it. A source-text test never compiles or renders what it claims to verify.
+ *
+ * ⚠ Instants are built with the LOCAL-TIME constructor throughout, for the same
+ * reason the module is: `new Date('2026-08-21')` is UTC and would move every
+ * expectation in this file by a day east of Greenwich.
+ */
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { resolveSchedule } from './scheduleModel.js';
+import {
+  clockMinutes, axisOffsets, dayMidnight, slotStates, nightIsRunning, readSlot, phaseLabel,
+  PLAYED, PLAYING, UPCOMING, READY, STARTING, MIDSET, ENDING, FINISHED,
+} from './scheduleNow.js';
+
+const slot = (o = {}) => ({
+  id: o.id || `s${o.position ?? 0}-${o.stage_id ?? 'x'}`,
+  day_index: o.day_index ?? 0,
+  day_name: 'SATURDAY',
+  position: o.position ?? 0,
+  time: o.time ?? '7:00',
+  ampm: 'ampm' in o ? o.ampm : 'PM',
+  dur_mins: o.dur_mins ?? 60,
+  label: '',
+  label_color: null,
+  pinned: false,
+  stage_id: 'stage_id' in o ? o.stage_id : null,
+});
+
+const EVENT_DATE = '2026-08-22';                       // a Saturday
+/** Local wall clock on the event's own day, ⛔ never a UTC string. */
+const at = (h, m = 0, plusDays = 0) =>
+  new Date(2026, 7, 22 + plusDays, h, m).getTime();
+
+// ── Reading the clock ────────────────────────────────────────────────────
+
+test('⚠ 12 wraps in both directions: 12:30 AM is half past midnight, 12:30 PM is midday', () => {
+  assert.equal(clockMinutes('12:30', 'AM'), 30);
+  assert.equal(clockMinutes('12:30', 'PM'), 12 * 60 + 30);
+  assert.equal(clockMinutes('1:00', 'AM'), 60);
+  assert.equal(clockMinutes('11:30', 'PM'), 23 * 60 + 30);
+});
+
+test('⛔ a missing meridiem is UNKNOWN, ⛔ never a guess', () => {
+  // "1:00" alone is either end of the day. Guessing moves a set 12 hours.
+  assert.equal(clockMinutes('1:00', ''), null);
+  assert.equal(clockMinutes('7:00', null), null);
+  assert.equal(clockMinutes('nonsense', 'PM'), null);
+});
+
+// ── The rollover ─────────────────────────────────────────────────────────
+
+test('⭐⭐ the night rolls over at the point the clock goes BACKWARDS', () => {
+  const { days } = resolveSchedule({
+    slots: [
+      slot({ position: 0, time: '10:00', ampm: 'PM' }),
+      slot({ position: 1, time: '11:30', ampm: 'PM' }),
+      slot({ position: 2, time: '1:00', ampm: 'AM' }),
+    ],
+    performances: [], members: [], eventDate: EVENT_DATE,
+  });
+  const off = axisOffsets(days[0]);
+  assert.equal(off.get('10:00 PM'), 22 * 60);
+  assert.equal(off.get('11:30 PM'), 23 * 60 + 30);
+  // 1:00 AM is 25h into the night, ⛔ not 1h — it is tomorrow.
+  assert.equal(off.get('1:00 AM'), 25 * 60);
+});
+
+test('⭐ the rollover is shared across stages, so one printed time is one instant', () => {
+  const { days } = resolveSchedule({
+    slots: [
+      slot({ position: 0, time: '10:00', ampm: 'PM', stage_id: 'a' }),
+      slot({ position: 1, time: '1:00', ampm: 'AM', stage_id: 'a' }),
+      // CHILL runs ONLY at 1 AM. On its own walk it would never roll over.
+      slot({ position: 2, time: '1:00', ampm: 'AM', stage_id: 'b' }),
+    ],
+    performances: [], members: [],
+    stages: [{ id: 'a', name: 'MAIN', position: 0 }, { id: 'b', name: 'CHILL', position: 1 }],
+    eventDate: EVENT_DATE,
+  });
+  assert.equal(axisOffsets(days[0]).get('1:00 AM'), 25 * 60);
+});
+
+test('⛔⛔ a day starts at LOCAL midnight, ⛔ never at a UTC parse of its date', () => {
+  const d = dayMidnight('2026-08-23');
+  assert.equal(d.getFullYear(), 2026);
+  assert.equal(d.getMonth(), 7);
+  assert.equal(d.getDate(), 23);
+  assert.equal(d.getHours(), 0);          // ⚠ midnight LOCAL, not 10am after a UTC parse
+  assert.equal(dayMidnight(''), null);
+});
+
+test('⭐ day 2 of a festival uses the DAY\'s own date, ⛔ not date + index twice', () => {
+  // `resolveSchedule` already put 2026-08-23 on day 1. If this module re-added
+  // the index the second day would run 24h late and never light up.
+  const { days } = resolveSchedule({
+    slots: [slot({ id: 'd1', day_index: 1, time: '9:00', ampm: 'PM' })],
+    performances: [], members: [], eventDate: EVENT_DATE,
+  });
+  assert.equal(days[0].date, '2026-08-23');
+  assert.equal(slotStates(days[0], at(21, 30, 1)).get('d1').state, PLAYING);
+});
+
+// ── The three states ─────────────────────────────────────────────────────
+
+const night = () => resolveSchedule({
+  slots: [
+    slot({ id: 'early', position: 0, time: '8:00', ampm: 'PM', dur_mins: 60 }),
+    slot({ id: 'onnow', position: 1, time: '9:00', ampm: 'PM', dur_mins: 60 }),
+    slot({ id: 'later', position: 2, time: '10:00', ampm: 'PM', dur_mins: 60 }),
+    slot({ id: 'closer', position: 3, time: '1:00', ampm: 'AM', dur_mins: 60 }),
+  ],
+  performances: [], members: [], eventDate: EVENT_DATE,
+}).days[0];
+
+test('⭐⭐ played · playing · upcoming, at 9:30 PM', () => {
+  const st = slotStates(night(), at(21, 30));
+  assert.equal(st.get('early').state, PLAYED);
+  assert.equal(st.get('onnow').state, PLAYING);
+  assert.equal(st.get('later').state, UPCOMING);
+  assert.equal(st.get('closer').state, UPCOMING);
+});
+
+test('⚠⚠ the 1 AM closer is PLAYING at 1:30 AM on the NEXT calendar day', () => {
+  const st = slotStates(night(), at(1, 30, 1));
+  assert.equal(st.get('closer').state, PLAYING);
+  assert.equal(st.get('later').state, PLAYED);
+});
+
+test('⚠ a set is PLAYED the instant it ends, ⛔ not a minute later', () => {
+  const st = slotStates(night(), at(22, 0));
+  assert.equal(st.get('later').state, PLAYING);         // 10:00 starts
+  assert.equal(st.get('onnow').state, PLAYED);          // 9:00–10:00 is over
+});
+
+test('⭐⭐ before doors and after the last set, NOTHING is marked', () => {
+  // ⛔ Otherwise every finished event on the site is a wall of grey forever.
+  assert.equal(slotStates(night(), at(17, 0)).size, 0);
+  assert.equal(slotStates(night(), at(4, 0, 1)).size, 0);
+  assert.equal(nightIsRunning(night(), at(21, 0)), true);
+  assert.equal(nightIsRunning(night(), at(17, 0)), false);
+});
+
+test('⛔ an unplaceable night is UNMARKED, ⛔ never "already played"', () => {
+  const d = resolveSchedule({
+    slots: [slot({ id: 'x', time: '9:00', ampm: '' })],
+    performances: [], members: [], eventDate: '',
+  }).days[0];
+  assert.equal(slotStates(d, at(21, 0)).size, 0);
+});
+
+test('⚠ concurrent stages are ALL playing — ⛔ nothing picks a winner', () => {
+  const d = resolveSchedule({
+    slots: [
+      slot({ id: 'm9', position: 0, time: '9:00', ampm: 'PM', stage_id: 'a' }),
+      slot({ id: 'c9', position: 1, time: '9:00', ampm: 'PM', stage_id: 'b' }),
+    ],
+    performances: [], members: [],
+    stages: [{ id: 'a', name: 'MAIN', position: 0 }, { id: 'b', name: 'CHILL', position: 1 }],
+    eventDate: EVENT_DATE,
+  }).days[0];
+  const st = slotStates(d, at(21, 30));
+  assert.equal(st.get('m9').state, PLAYING);
+  assert.equal(st.get('c9').state, PLAYING);
+});
+
+// ── The phases of a set, and the follow window ───────────────────────────
+
+/** A one-hour set, 9:00–10:00 PM, as a bare window. */
+const HOUR = { start: at(21, 0), end: at(22, 0) };
+
+test('⭐⭐ GETTING READY covers the 20 minutes before the start, ⛔ not a second more', () => {
+  assert.equal(readSlot(HOUR, at(20, 39)).phase, null);        // 21 min out
+  assert.equal(readSlot(HOUR, at(20, 40)).phase, READY);       // exactly 20
+  assert.equal(readSlot(HOUR, at(20, 59)).phase, READY);
+  // ⚠ Still UPCOMING throughout — getting ready is not playing.
+  assert.equal(readSlot(HOUR, at(20, 45)).state, UPCOMING);
+  assert.equal(readSlot(HOUR, at(20, 45)).progress, 0);
+});
+
+test('⭐ STARTING is the first 10 minutes, ENDING the last 10, and the middle is unnamed', () => {
+  assert.equal(readSlot(HOUR, at(21, 0)).phase, STARTING);
+  assert.equal(readSlot(HOUR, at(21, 9)).phase, STARTING);
+  assert.equal(readSlot(HOUR, at(21, 10)).phase, MIDSET);
+  assert.equal(readSlot(HOUR, at(21, 49)).phase, MIDSET);
+  assert.equal(readSlot(HOUR, at(21, 50)).phase, ENDING);
+  assert.equal(readSlot(HOUR, at(21, 59)).phase, ENDING);
+  // ⛔ The middle gets no words — the bar is already saying it.
+  assert.equal(phaseLabel(MIDSET), null);
+  assert.equal(phaseLabel(READY), 'GETTING READY');
+});
+
+test('⚠⚠ a SHORT set cannot be starting and ending at once', () => {
+  // 15 minutes: two 10-minute edges would overlap for 5 of them.
+  const short = { start: at(21, 0), end: at(21, 15) };
+  assert.equal(readSlot(short, at(21, 0)).phase, STARTING);
+  assert.equal(readSlot(short, at(21, 7)).phase, STARTING);    // still first half
+  assert.equal(readSlot(short, at(21, 8)).phase, ENDING);      // flips at the midpoint
+  assert.equal(readSlot(short, at(21, 14)).phase, ENDING);
+});
+
+test('⭐ progress measures THE SET, 0 before and 1 after', () => {
+  assert.equal(readSlot(HOUR, at(20, 45)).progress, 0);
+  assert.equal(readSlot(HOUR, at(21, 15)).progress, 0.25);
+  assert.equal(readSlot(HOUR, at(21, 30)).progress, 0.5);
+  assert.equal(readSlot(HOUR, at(22, 30)).progress, 1);
+});
+
+test('⭐⭐ the follow offer is a WINDOW after the set, ⛔ not every played card', () => {
+  assert.equal(readSlot(HOUR, at(22, 0)).phase, FINISHED);     // the instant it ends
+  assert.equal(readSlot(HOUR, at(22, 14)).phase, FINISHED);
+  assert.equal(readSlot(HOUR, at(22, 15)).phase, null);        // 15 min: gone
+  // ⚠ Still PLAYED either way — losing the offer is not losing the state.
+  assert.equal(readSlot(HOUR, at(22, 30)).state, PLAYED);
+});
+
+test('⛔ a zero-length slot is never PLAYING and never claims progress', () => {
+  // `dur` unreadable upstream: it has a start, so it can be next and then past.
+  const zero = { start: at(21, 0), end: at(21, 0) };
+  assert.equal(readSlot(zero, at(20, 50)).state, UPCOMING);
+  assert.equal(readSlot(zero, at(21, 0)).state, PLAYED);
+  assert.equal(readSlot(zero, at(21, 0)).progress, 1);
+});

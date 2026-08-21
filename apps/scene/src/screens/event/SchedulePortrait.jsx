@@ -38,6 +38,10 @@
 import { useRef, useState, useEffect, Fragment } from 'react';
 import { scheduleShape } from '../../lib/scheduleModel';
 import { timeAxis, cellsForStage } from '../../lib/schedulePortrait';
+import { useDragScroll } from '../../hooks/useDragScroll';
+import { useNowMinute } from '../../hooks/useNowMinute';
+import { slotStates, phaseLabel, PLAYING, PLAYED, FINISHED, READY } from '../../lib/scheduleNow';
+import FollowHeartBtn from '../../components/FollowHeartBtn';
 import SlotCard from './SlotCard';
 import s from './SchedulePortrait.module.css';
 
@@ -46,6 +50,75 @@ function dayLabel(d) {
   return d.name || d.date || `DAY ${d.dayIndex + 1}`;
 }
 
+/**
+ * ⭐⭐ THE CHIPS ARE A RAIL, ⛔ NOT A WRAPPING BLOCK (owner, 2026-08-21).
+ *
+ * ⚠⚠ WHY: wrapped chips push the schedule DOWN THE PAGE as they multiply.
+ * Measured at 488px, five fit on a row — so seven stages is two rows, twenty is
+ * four, and on a 375px phone seven is already two. A rail is 28px at any count.
+ * That is the difference between a festival with 40 stages being cramped and
+ * being unusable, and it costs one line of CSS plus the app's own drag hook.
+ *
+ * ⛔ THE TRADE-OFF IS REAL AND WAS TAKEN DELIBERATELY: a rail hides names off
+ * the edge, where wrapping showed every one at once. For three stages wrapping
+ * did read better. It loses the moment the chips start shoving the thing they
+ * label off the screen — which is the whole job of the control.
+ *
+ * ⭐ ONE COMPONENT FOR DAYS AND STAGES, because they follow one law: lit by the
+ * SCROLL rather than the click, tap to JUMP, ⛔ never a filter that hides.
+ */
+function ChipRail({ items, activeIndex, onPick }) {
+  const drag = useDragScroll();
+  const railRef = drag.ref;
+
+  /* ⚠ THE LIT CHIP IS SCROLLED INTO VIEW, and that is what makes a long strip
+     usable rather than merely compact — otherwise "where you are" is the one
+     chip you cannot see. ⛔ Done by writing `scrollLeft`, NOT by
+     `scrollIntoView`: that walks every scrollable ancestor and would drag the
+     whole page sideways or bump it vertically while the reader is mid-schedule. */
+  useEffect(() => {
+    const el = railRef.current;
+    const chip = el?.children?.[activeIndex];
+    if (!el || !chip) return;
+    const box = el.getBoundingClientRect();
+    const cb = chip.getBoundingClientRect();
+    /* ⚠ Only when it is actually out of view. Re-centring a chip that is
+       already visible makes the strip twitch on every scroll tick. */
+    if (cb.left < box.left || cb.right > box.right) {
+      el.scrollLeft += (cb.left + cb.width / 2) - (box.left + box.width / 2);
+    }
+  }, [activeIndex, items.length, railRef]);
+
+  return (
+    <div
+      ref={railRef}
+      className={s.days}
+      onMouseDown={drag.onMouseDown}
+      onMouseUp={drag.onMouseUp}
+      onMouseMove={drag.onMouseMove}
+      onMouseLeave={drag.onMouseLeave}
+    >
+      {items.map((it, i) => (
+        <button
+          key={it.key}
+          className={`${s.dayBtn} ${i === activeIndex ? s.dayBtnOn : ''}`}
+          aria-current={i === activeIndex ? 'true' : undefined}
+          /* The accent carries identity while unlit; the lit chip goes plain so
+             "where you are" reads the same for stages as it does for days. */
+          style={i !== activeIndex && it.accent ? { color: it.accent } : undefined}
+          onClick={() => onPick(i)}
+        >
+          {it.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/* ⚠ Must match the two enter animations in the stylesheet: the class comes off
+   after this, and pulling it early would cut the animation mid-fade. */
+const ENTER_MS = 900;
+
 /* Where a day heading counts as "reached": just under the app's fixed header.
    ⚠ Must stay in step with `scroll-margin-top` in the stylesheet, or a jump
    lands on a day whose chip does not light. */
@@ -53,6 +126,17 @@ const DAY_REACHED_PX = 96;
 
 export default function SchedulePortrait({ resolved, allMixSlots = [] }) {
   const shape = scheduleShape(resolved);
+  /**
+   * ⭐⭐ WHERE THE NIGHT IS UP TO (owner, 2026-08-21): the set that is PLAYING
+   * swells and takes some vibrancy, the sets that have PLAYED are muted, and
+   * everything still to come stays at the page's normal weight.
+   *
+   * ⭐ THE EMPHASIS MOVING IS THE WHOLE BEHAVIOUR. ⛔ Nothing auto-scrolls: the
+   * page does not chase the reader down the running order while they are
+   * looking at the late sets. The rules live in `lib/scheduleNow` and the
+   * treatment lives in the stylesheet; this only holds the clock.
+   */
+  const now = useNowMinute();
   const dayRefs = useRef({});
   const days = resolved?.days || [];
 
@@ -99,23 +183,16 @@ export default function SchedulePortrait({ resolved, allMixSlots = [] }) {
       </div>
 
       {shape.showDayPicker && (
-        <div className={s.days}>
-          {days.map(d => (
-            <button
-              key={d.dayIndex}
-              className={`${s.dayBtn} ${d.dayIndex === activeDay ? s.dayBtnOn : ''}`}
-              aria-current={d.dayIndex === activeDay ? 'true' : undefined}
-              /* ⭐ A JUMP, ⛔ NOT A FILTER. It scrolls the day's heading into
-                 view; every other day stays exactly where it was. The lit
-                 state comes from the SCROLL, not the click — so it stays
-                 honest when the reader scrolls there themselves. */
-              onClick={() => dayRefs.current[d.dayIndex]
-                ?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-            >
-              {dayLabel(d)}
-            </button>
-          ))}
-        </div>
+        /* ⭐ A JUMP, ⛔ NOT A FILTER. It scrolls the day's heading into view;
+           every other day stays exactly where it was. The lit state comes from
+           the SCROLL, not the click — so it stays honest when the reader
+           scrolls there themselves. */
+        <ChipRail
+          items={days.map(d => ({ key: d.dayIndex, label: dayLabel(d) }))}
+          activeIndex={days.findIndex(d => d.dayIndex === activeDay)}
+          onPick={i => dayRefs.current[days[i]?.dayIndex]
+            ?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+        />
       )}
 
       {days.map(day => (
@@ -137,9 +214,13 @@ export default function SchedulePortrait({ resolved, allMixSlots = [] }) {
               PAGER (ratified from the harness prototype, owner 2026-08-20).
               Days themselves ALWAYS stack vertically — each day carries its
               own pager, and only STAGES go sideways. */}
-          {shape.showStages
-            ? <StagePager day={day} allMixSlots={allMixSlots} />
-            : <TimelineDay day={day} allMixSlots={allMixSlots} />}
+          {/* ⭐⭐ ONE LAYOUT, ⛔ NOT TWO (owner, 2026-08-21: "I want this view to
+              be the main normal view"). The pager IS set times now. A
+              single-stage event is simply a pager with one page — same cards,
+              same drag, same live states — so there is no second layout that
+              can drift away from this one, and every feature added here lands
+              on a pub gig and a festival at the same moment. */}
+          <StagePager day={day} allMixSlots={allMixSlots} now={now} />
         </Fragment>
       ))}
     </section>
@@ -149,32 +230,157 @@ export default function SchedulePortrait({ resolved, allMixSlots = [] }) {
 /** ⭐ THE CARD, once, for both layouts — `isHost={false}` removes the host
     operations because `SlotCard` renders a control only where its handler
     exists and none are passed. ⛔ NOT read-only: the row expands, the mix
-    plays, and VIEW PROFILE reaches the artist when one exists. */
-function Card({ entry, allMixSlots }) {
+    plays, and VIEW PROFILE reaches the artist when one exists.
+
+    ⭐⭐ THE LIVE STATE IS WORN BY A WRAPPER, ⛔ NOT PASSED INTO `SlotCard`.
+    SlotCard is the card every surface renders, host editor included, and it is
+    already 1,000 lines deciding what a punter may see. Where the night is up
+    to is not its question — a wrapper can swell and mute the finished card
+    without a third state entering the one component both paths share. */
+function Card({ entry, allMixSlots, state, live }) {
+  /**
+   * ⭐⭐ THE HANDOVER BETWEEN STATES IS ANIMATED (owner, 2026-08-21): a set
+   * FADES ON as it starts, and as it finishes it fades out completely and
+   * snaps back in muted. The change is the moment worth noticing — a card that
+   * simply swapped treatment between two renders was a fact you had to catch.
+   *
+   * ⚠⚠ ONLY ON A REAL CHANGE, ⛔ NEVER ON MOUNT. Open a schedule mid-evening
+   * and half the bill is already played; animating those on arrival would fire
+   * a dozen fades at once and read as the page breaking. `prev` starts equal to
+   * the current state, so the first paint is always silent.
+   *
+   * ⚠ Keyed on the LIVE state (`live.state`), ⛔ not the css class — the class
+   * also flips between `playing` and `playingAside` when you swipe stages, and
+   * that is a change of viewpoint, not a change in the night.
+   */
+  const phase = live?.state;
+  const prev = useRef(phase);
+  const [enter, setEnter] = useState(null);
+  useEffect(() => {
+    if (prev.current === phase) return undefined;
+    const from = prev.current;
+    prev.current = phase;
+    if (!from || !phase) return undefined;      // into or out of a running night
+    setEnter(phase === PLAYING ? 'enterPlaying' : phase === PLAYED ? 'enterPlayed' : null);
+    const t = setTimeout(() => setEnter(null), ENTER_MS);
+    return () => clearTimeout(t);
+  }, [phase]);
+
   return (
-    <SlotCard
-      slot={entry.slot}
-      claim={entry.claim}
-      isHost={false}
-      allMixSlots={allMixSlots}
-    />
+    <div className={`${live ? s.live : ''} ${state ? s[state] : ''} ${enter ? s[enter] : ''}`.trim() || undefined}>
+      <SlotCard
+        slot={entry.slot}
+        claim={entry.claim}
+        isHost={false}
+        allMixSlots={allMixSlots}
+      />
+      {live && <SetStrip live={live} claim={entry.claim} />}
+    </div>
   );
 }
 
-/** SINGLE STAGE — the chronological list. Full-width cards, the page's own
-    scroll, ⛔ nothing added around them. */
-function TimelineDay({ day, allMixSlots }) {
-  const entries = (day?.stages?.[0]?.slots) || [];
+/**
+ * ⭐ THE PROFILE A FOLLOW WOULD ATTACH TO, or null.
+ *
+ * ⚠⚠ NULL IS A REAL ANSWER. Most acts on a bill are HAND-TYPED — a name an
+ * organiser wrote, with no account and no profile — and there is nobody there
+ * to follow. Per the Rendering Contract that is ABSENT, ⛔ not broken: the
+ * offer simply does not appear. ⛔ Never render a follow control that cannot
+ * complete.
+ *
+ * ⚠ `profile_id` is the CANONICAL key and `user_id` the legacy join key;
+ * `FollowHeartBtn` needs both and knows what to do with them. ⛔ Do not
+ * collapse them here — see the dual-keyspace note in that component.
+ */
+function followTarget(claim) {
+  if (!claim?.profile_id) return null;
+  return {
+    ...(claim.profile || {}),
+    id: claim.profile_id,
+    user_id: claim.user_id ?? claim.profile?.user_id ?? null,
+  };
+}
+
+/**
+ * ⭐⭐ THE STRIP ALONG THE BOTTOM OF A CARD (owner, 2026-08-21): a 3px progress
+ * bar, the phase in words, and — for a quarter of an hour after the set — the
+ * offer to follow the act that just came off.
+ *
+ * ⚠⚠ IT OVERLAYS, ⛔ it does not stack. Adding a row under the card would change
+ * that card's height, and on the pager every stage shares a grid row — so one
+ * card growing a label would push its neighbours' rows out of alignment and
+ * break the one thing the peek is for. Absolutely positioned inside the
+ * wrapper, it costs no layout at all.
+ *
+ * ⚠ Only rendered while the night is running (the caller passes `live` only
+ * then), so ⛔ no bars appear on an event that finished last March.
+ */
+function SetStrip({ live, claim }) {
+  const label = phaseLabel(live.phase);
+  const target = live.phase === FINISHED ? followTarget(claim) : null;
   return (
     <>
-      {entries.map(entry => (
-        <div className={s.row} key={entry.slot.id}>
-          <Card entry={entry} allMixSlots={allMixSlots} />
+      {/**
+        * ⭐⭐ THE BAR MEASURES ACTIVE PLAYING TIME, SO IT EXISTS ONLY WHILE A SET
+        * IS PLAYING (owner, 2026-08-21, correcting the first cut).
+        *
+        * ⚠⚠ ⛔ NOT at 0% on an upcoming card, ⛔ not at 0% during GETTING READY,
+        * ⛔ not at 100% on a finished one, and ⛔ not during the follow window.
+        * An empty track on a card that has not started reads as "this set is at
+        * zero percent" — which is a claim about a set in progress, and it is
+        * false. A track that is absent says the only true thing: there is no
+        * playing time to measure yet.
+        *
+        * ⚠ On a multi-stage night there is one bar PER STAGE that has something
+        * on, including stages you are only peeking at — they are each genuinely
+        * playing, and the peek must not lie about that.
+        */}
+      {live.state === PLAYING && (
+        <div className={s.track} aria-hidden="true">
+          <div className={s.fill} style={{ width: `${Math.round(live.progress * 100)}%` }} />
         </div>
-      ))}
+      )}
+
+      {target ? (
+        /* ⚠ The press must not reach the card. A card's own click expands it,
+           and a follow that also opened the row would read as two things
+           happening for one tap. */
+        /**
+         * ⭐⭐ THE PROFILE PAGE'S FOLLOW BUTTON, CENTRED ON THE CARD (owner,
+         * 2026-08-21). ⛔ Not the heart: this is an OFFER made in a fifteen
+         * minute window to somebody who may never have seen the artist before,
+         * so it has to say what it does. The heart is the right mark where the
+         * reader already knows the act; here the words are the point.
+         *
+         * ⚠ The overlay fills the card and is INERT (`pointer-events: none`) —
+         * only the button itself takes the press, so the rest of the card still
+         * expands and the artwork behind stays reachable.
+         */
+        <span
+          className={s.followOffer}
+          onClick={e => e.stopPropagation()}
+          onMouseDown={e => e.stopPropagation()}
+        >
+          {/* ⚠ The gradient EDGE is a 1px parent behind the button, the same
+              way ProfileScreen builds it — a gradient cannot be a border-color,
+              and border-image loses the radius. */}
+          <span className={s.followEdge}>
+            <FollowHeartBtn profile={target} variant="label" className={s.followBtn} />
+          </span>
+        </span>
+      ) : label ? (
+        <span className={`${s.phase} ${live.phase === READY ? s.phaseReady : ''}`}>{label}</span>
+      ) : null}
     </>
   );
 }
+
+/* ⛔ `TimelineDay` IS GONE (2026-08-21), and ⛔ do not reintroduce it. It was
+   the separate single-stage list, and having two layouts meant every change to
+   the schedule had to be made twice or made once and forgotten: the drag, the
+   centred peek and the live states all landed on the pager first. A single
+   stage now renders through `StagePager`, which drops its own chrome when
+   there is only one page — see `single` in there. */
 
 /**
  * MULTI STAGE — THE STAGE PAGER (⭐⭐ ratified from the harness prototype,
@@ -183,9 +389,15 @@ function TimelineDay({ day, allMixSlots }) {
  * time columns, which is dead — ⛔ do not bring it back.
  *
  * Each stage is the SAME vertical timeline single-stage gets — full-width
- * SlotCards, top to bottom. Stages sit side by side as SNAP PAGES at 86%
- * width, so ~12% of the neighbour peeks at the edge: the app's own part-card
- * idiom doing the "you can swipe" hinting. No arrows, no tutorial.
+ * SlotCards, top to bottom. Stages sit side by side as SNAP PAGES at 82%
+ * width, CENTRED, so the neighbour peeks at BOTH edges: the app's own
+ * part-card idiom doing the "you can swipe" hinting. No arrows, no tutorial.
+ *
+ * ⭐⭐ A MIDDLE STAGE IS SLICED ON BOTH SIDES (owner, 2026-08-21). Start-aligned
+ * pages only ever peeked to the right, so standing on SECOND STAGE of three
+ * hid MAIN entirely and the peek answered half the question it exists for.
+ * The ends clamp themselves — stage one peeks right only, because to its left
+ * there is genuinely nothing.
  *
  * ⭐⭐ ONE CSS GRID, ⛔ NOT THREE INDEPENDENT COLUMNS. Every stage's card for a
  * given time shares a GRID ROW, so rows align across stages and THE PEEK IS
@@ -202,56 +414,164 @@ function TimelineDay({ day, allMixSlots }) {
  * ⭐ Stage chips ride above, under the day chips' own law: lit by the
  * sideways SCROLL (not the click), tap to jump, ⛔ never a filter.
  */
-function StagePager({ day, allMixSlots }) {
-  const scrollerRef = useRef(null);
+function StagePager({ day, allMixSlots, now }) {
+  /* ⚠ ONE MAP FOR THE WHOLE DAY, so every stage answers from the same instant.
+     Computed here rather than per cell: `playStates` walks the shared axis to
+     work out the midnight rollover, and calling it per card would redo that
+     walk for every slot on the page. */
+  const states = slotStates(day, now);
+
+  /**
+   * ⭐ THE SWELL BELONGS TO THE PAGE YOU ARE ON. A playing set on a stage you
+   * are only peeking at keeps its vibrancy but drops the scale — see
+   * `.playingAside`. ⛔ It is not downgraded to "upcoming": it IS on now, and
+   * saying otherwise in the peek would make the sliver lie.
+   *
+   * ⚠ Single-stage falls through as active (`activeStage` is 0 and so is its
+   * only column), so a pub gig is unaffected by any of this.
+   */
+  const cellState = (slotId, stageIdx) => {
+    const st = states.get(slotId)?.state;
+    return st === PLAYING && stageIdx !== activeStage ? 'playingAside' : st;
+  };
+  /**
+   * ⭐⭐ THE PAGER DRAGS WITH THE MOUSE (owner, 2026-08-21), through the app's
+   * OWN rail drag — ⛔ not a second implementation. `useDragScroll` already
+   * carries the two rules that took real time to get right: 1:1 tracking
+   * (`DRAG_SPEED = 1`, moved twice, see the hook) and the capture-phase click
+   * swallow, without which letting go of a drag OPENS whichever SlotCard
+   * happens to sit under the cursor. A stage page is full of tappable cards,
+   * so that second rule is not optional here.
+   *
+   * ⚠ Its `ref` is a CALLBACK ref that also exposes `.current`, which is why it
+   * can replace the plain `useRef` this used to hold.
+   */
+  const dragScroll = useDragScroll();
+  const scrollerRef = dragScroll.ref;
   const [activeStage, setActiveStage] = useState(0);
   const stages = (day?.stages || []).filter(Boolean);
+  /**
+   * ⭐⭐ ONE PAGE DROPS THE PAGER'S CHROME ENTIRELY. A pub gig gets exactly what
+   * it had: full-width cards down the page, no chips, no stage heading, no
+   * snap and nothing to swipe. ⛔ NOT a narrow column with empty gutters —
+   * there is no neighbour to peek at, so the peek would be dead space
+   * advertising a swipe that does nothing.
+   *
+   * ⚠ SINGLE MEANS ONE PAGE, ⛔ not "unnamed". Naming your one room does not
+   * earn festival chrome — the same rule `scheduleModel`'s `isMultiStage`
+   * already states, restated because the temptation here is to show the name
+   * just because there is one.
+   */
+  const single = stages.length <= 1;
   const axis = timeAxis(day);
   const cellsByStage = stages.map(st => cellsForStage(st, axis));
 
+  /**
+   * ⭐⭐ POSITIONS ARE READ OFF THE HEADING CELLS, ⛔ NOT COMPUTED (2026-08-21).
+   * Pages snap to CENTRE now, so a page's resting scrollLeft is no longer
+   * `i * (column + gap)` — and at the two ends it is not even that, because
+   * the scroller clamps: the first stage cannot centre, it sits against the
+   * start. Any formula would therefore disagree with the browser exactly where
+   * the disagreement is invisible, on the ends. The heading cells are the snap
+   * targets, so their own measured geometry is the truth.
+   *
+   * ⚠⚠ MEASURED WITH `getBoundingClientRect`, ⛔ NEVER `offsetLeft`. `offsetLeft`
+   * is relative to the nearest POSITIONED ancestor, which is not this scroller —
+   * it read 152px too far here, and scroll-snap silently corrected the landing
+   * afterwards, so the jump looked right while the number was wrong. The chip
+   * scroll-spy has no snap to save it and would simply light the wrong stage.
+   */
+  const headAt = (el, i) => el.querySelectorAll(`.${s.stagePageHead}`)[i] || null;
+
+  /** How far a cell's centre sits from the scroller's centre, in pixels now. */
+  const offCentre = (el, cell) => {
+    const box = el.getBoundingClientRect();
+    const cb = cell.getBoundingClientRect();
+    return (cb.left + cb.width / 2) - (box.left + box.width / 2);
+  };
+
   const jumpTo = i => {
     const el = scrollerRef.current;
-    if (!el) return;
-    const col = el.firstElementChild?.getBoundingClientRect().width || 0;
-    el.scrollTo({ left: i * (col + PAGER_GAP_PX), behavior: 'smooth' });
+    const head = el && headAt(el, i);
+    if (!el || !head) return;
+    /* ⚠ Centre the page; the browser clamps this at both ends by itself, which
+       is what makes the first and last stage sit flush rather than overscroll. */
+    el.scrollTo({ left: el.scrollLeft + offCentre(el, head), behavior: 'smooth' });
   };
+
   const onScroll = e => {
     const el = e.currentTarget;
-    const col = el.firstElementChild?.getBoundingClientRect().width || 1;
-    const i = Math.round(el.scrollLeft / (col + PAGER_GAP_PX));
-    setActiveStage(prev => (prev === i ? prev : i));
+    const heads = el.querySelectorAll(`.${s.stagePageHead}`);
+    if (!heads.length) return;
+    /* The lit chip is whichever stage's centre is nearest the scroller's own
+       centre — the same "where you are" reading the day chips use. */
+    let best = 0;
+    let bestGap = Infinity;
+    heads.forEach((h, i) => {
+      const gap = Math.abs(offCentre(el, h));
+      if (gap < bestGap) { bestGap = gap; best = i; }
+    });
+    setActiveStage(prev => (prev === best ? prev : best));
   };
+
+  /**
+   * ⭐⭐ SNAP IS SUSPENDED FOR THE LENGTH OF A DRAG, AND ⛔ ONLY A DRAG.
+   *
+   * ⚠⚠ This is the one thing the twelve existing rails never had to solve, and
+   * it is not optional: `scroll-snap-type: x mandatory` re-snaps after every
+   * write to `scrollLeft`, so the hook's 1:1 tracking gets yanked back to the
+   * current page on every mousemove and the pager reads as immovable. Turning
+   * snap off for the drag lets the hand move the schedule freely.
+   *
+   * ⭐ RESTORING IT IS THE RELEASE ANIMATION. The moment `mandatory` comes back
+   * the browser settles to the nearest page itself — so letting go anywhere
+   * lands on a whole stage, centred, with no easing code of our own and no
+   * half-stage resting state to design around.
+   */
+  const suspendSnap = () => {
+    const el = scrollerRef.current;
+    if (el) el.style.scrollSnapType = 'none';
+  };
+  const restoreSnap = () => {
+    const el = scrollerRef.current;
+    if (el) el.style.scrollSnapType = '';
+  };
+
+  const onMouseDown = e => { suspendSnap(); dragScroll.onMouseDown(e); };
+  const onMouseUp = e => { dragScroll.onMouseUp(e); restoreSnap(); };
+  /* ⚠ Leaving the scroller ends the drag (the hook's own rule), so snap has to
+     come back here too — otherwise dragging out of the pager leaves it
+     permanently unsnapped and every later swipe rests mid-stage. */
+  const onMouseLeave = e => { dragScroll.onMouseLeave(e); restoreSnap(); };
 
   return (
     <>
-      <div className={s.days}>
-        {stages.map((st, i) => (
-          <button
-            key={st.id ?? 'implicit'}
-            className={`${s.dayBtn} ${i === activeStage ? s.dayBtnOn : ''}`}
-            aria-current={i === activeStage ? 'true' : undefined}
-            /* The stage's accent carries the identity while unlit; the lit
-               chip goes plain so "where you are" reads the same for stages
-               as it does for days. */
-            style={i !== activeStage && st.accent ? { color: st.accent } : undefined}
-            onClick={() => jumpTo(i)}
-          >
-            {st.name}
-          </button>
-        ))}
-      </div>
+      {!single && (
+        <ChipRail
+          items={stages.map(st => ({ key: st.id ?? 'implicit', label: st.name, accent: st.accent }))}
+          activeIndex={activeStage}
+          onPick={jumpTo}
+        />
+      )}
 
       <div
         ref={scrollerRef}
         onScroll={onScroll}
-        className={s.pager}
-        style={{ gridTemplateColumns: `repeat(${stages.length}, 86%)` }}
+        onMouseDown={onMouseDown}
+        onMouseUp={onMouseUp}
+        onMouseMove={dragScroll.onMouseMove}
+        onMouseLeave={onMouseLeave}
+        className={`${s.pager} ${single ? s.pagerSingle : ''}`}
+        style={{ gridTemplateColumns: single ? '100%' : `repeat(${stages.length}, 82%)` }}
       >
         {/* Row 0 — the stage headings, and the snap targets. ⚠ CELLS ARE
             DIRECT GRID CHILDREN, ⛔ never wrapped per stage: a wrapper gives
             each stage its own formatting context and the rows stop sharing
-            heights, which silently deletes the time alignment. */}
-        {stages.map(st => (
+            heights, which silently deletes the time alignment.
+            ⚠ Skipped entirely when single: there is nothing to label and
+            nothing to snap to, and an empty heading row would open the
+            schedule with a blank band. */}
+        {single ? null : stages.map(st => (
           <div key={'h' + (st.id ?? 'implicit')} className={s.stagePageHead}>
             <span
               className={s.stageName}
@@ -267,7 +587,12 @@ function StagePager({ day, allMixSlots }) {
               const entry = cellsByStage[sIdx][rowIdx];
               return entry ? (
                 <div key={(st.id ?? 'implicit') + col.key}>
-                  <Card entry={entry} allMixSlots={allMixSlots} />
+                  <Card
+                    entry={entry}
+                    allMixSlots={allMixSlots}
+                    state={cellState(entry.slot.id, sIdx)}
+                    live={states.get(entry.slot.id)}
+                  />
                 </div>
               ) : (
                 <div key={(st.id ?? 'implicit') + col.key} className={`${s.gap} ${s.gapCell}`}>
@@ -282,6 +607,7 @@ function StagePager({ day, allMixSlots }) {
   );
 }
 
-/** ⚠ Must match the pager's column-gap in the stylesheet — the snap math and
-    the chip scroll-spy both divide by column + gap. */
-const PAGER_GAP_PX = 10;
+/* ⛔ `PAGER_GAP_PX` is gone deliberately. It mirrored the stylesheet's
+   column-gap so the pager could COMPUTE where each page rests, and a constant
+   that has to agree with a stylesheet is a constant that will one day not.
+   Positions are read off the heading cells now — see `jumpTo`. */

@@ -20,6 +20,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { resolveSchedule } from '../../lib/scheduleModel';
 import { groupSlotsIntoDays, indexPerformances } from '../../lib/eventSlots';
+import { today } from '../../lib/dates';
 import SchedulePortrait from './SchedulePortrait';
 
 /** The only production event that has a schedule (19 slots, 2 days). */
@@ -30,6 +31,31 @@ const FESTIVAL_STAGES = [
   { id: 's', name: 'SECOND STAGE', position: 1, accent: '#FF3399' },
   { id: 'c', name: 'CHILL ZONE',   position: 2, accent: '#BF5FFF' },
 ];
+
+/**
+ * ⭐ THE FIXTURE'S STAGE COUNT — ⛔ change this ONE number, there is no control.
+ *
+ * ⚠ Owner, 2026-08-21: "I don't need chips for the amount of stages there is.
+ * I was simply saying make sure I can keep adding stages if needed." So the
+ * picker that briefly lived here is gone; what stays is the CAPACITY. Set this
+ * to 7, 20 or 40 and the fixture builds that many, which is all the scale
+ * question ever needed.
+ *
+ * ⚠ Beyond the three hand-written stages the names go generic. That is honest:
+ * these are stages that exist to be COUNTED, ⛔ not to be believed as a real
+ * festival's programming.
+ */
+const FIXTURE_STAGE_COUNT = 3;
+
+const SCALE_ACCENTS = ['#00E5FF', '#FF3399', '#BF5FFF', '#00E5A0', '#FFB830', '#FF6B6B'];
+
+function stagesForCount(n) {
+  return Array.from({ length: n }, (_, i) => (
+    i < FESTIVAL_STAGES.length
+      ? FESTIVAL_STAGES[i]
+      : { id: `x${i}`, name: `STAGE ${i + 1}`, position: i, accent: SCALE_ACCENTS[i % SCALE_ACCENTS.length] }
+  ));
+}
 
 /* Real production avatar thumbs, harness-only, so the fixture's SlotCards are
    judged with faces rather than fallbacks. Names are the fixture's. */
@@ -44,45 +70,109 @@ const FIXTURE_AVATARS = {
   NOMAD:    AV + 'fd28d3b5-87c9-4950-b5ff-2934e437f093_thumb.webp?v=1786680226711',
 };
 
-function festivalFixture() {
-  const times = [['7:00', 'PM'], ['8:00', 'PM'], ['9:00', 'PM'], ['10:00', 'PM'], ['11:00', 'PM']];
-  const names = {
+/**
+ * ⭐⭐ THE LIVE PLAY STATES, DEMONSTRABLE AT ANY HOUR (owner, 2026-08-21: "show
+ * me a demo of the live play state").
+ *
+ * ⚠⚠ THE TIMES ARE ANCHORED TO NOW, ⛔ the clock is NOT faked. Patching
+ * `Date.now` proves nothing about the app — it proves something about the patch,
+ * and it dies on the next reload. This builds a night that is genuinely
+ * happening: two sets finished, one on stage, two to come. Everything the page
+ * then does, it does with the real clock and the real rules.
+ *
+ * ⭐⭐ TWENTY-MINUTE SETS ON A TWENTY-MINUTE GRID, and the arithmetic is the
+ * whole point: it puts EVERY phase on the screen at once. Anchored to the
+ * current 20-minute boundary, the five rows land as
+ *
+ *     -40 → -20   over and out of the follow window
+ *     -20 →   0   JUST finished, so the FOLLOW offer is showing
+ *       0 →  20   playing: STARTING for ten minutes, then ENDING for ten
+ *      20 →  40   exactly 20 minutes out, so GETTING READY
+ *      40 →  60   still to come, unmarked
+ *
+ * ⚠ A 20-minute set makes the edges meet in the middle (`EDGE_MINS` is capped
+ * at half a set), which is why there is no unnamed midsection to sit through
+ * while you are looking at it.
+ *
+ * ⚠ If the last rows cross midnight the printed times go backwards, which is
+ * not a bug to work around — it is the rollover rule getting demonstrated for
+ * free, and the reason the axis reads `position` rather than the clock.
+ */
+export const LIVE_DEMO_DUR_MINS = 20;
+
+function liveDemoTimes() {
+  const n = new Date();
+  const anchor = n.getHours() * 60 + Math.floor(n.getMinutes() / 20) * 20;
+  return [-40, -20, 0, 20, 40].map(off => {
+    const mins = (anchor + off + 24 * 60) % (24 * 60);
+    const hour = Math.floor(mins / 60);
+    const ampm = hour < 12 ? 'AM' : 'PM';
+    const h12 = hour % 12 === 0 ? 12 : hour % 12;
+    return [`${h12}:${String(mins % 60).padStart(2, '0')}`, ampm];
+  });
+}
+
+function festivalFixture(stageCount = FIXTURE_STAGE_COUNT, live = false) {
+  const times = live
+    ? liveDemoTimes()
+    : [['7:00', 'PM'], ['8:00', 'PM'], ['9:00', 'PM'], ['10:00', 'PM'], ['11:00', 'PM']];
+  const base = {
     m: ['LUCIOUS', 'FEWRF', 'ELBOW', 'MADDS', 'DADDY LONGLEGS'],
     s: ['KODEX', 'SYNAPTIK', 'SUBSTRATE', 'REKON'],
     c: ['NOMAD', null, 'MOSSY', null, 'KAIJU'],
   };
+  const stageRows = stagesForCount(stageCount);
+  const names = { ...base };
+  /* ⚠ The generated stages cycle the three real bills, one row offset each, so
+     a wide fixture is not three identical columns repeated — the peek has
+     something to actually compare. */
+  stageRows.slice(3).forEach((st, i) => {
+    const from = [base.m, base.s, base.c][i % 3];
+    names[st.id] = from.map((n, r) => ((r + i) % 4 === 3 ? null : n));
+  });
   const slots = [];
   const claims = {};
-  for (const st of ['m', 's', 'c']) {
+  for (const st of stageRows.map(x => x.id)) {
     times.forEach(([time, ampm], i) => {
       const who = names[st][i];
       if (who === undefined) return;
       const id = `${st}${i}`;
       slots.push({
         id, event_id: 'fixture', day_index: 0, day_name: 'SATURDAY', position: i,
-        time, ampm, dur_mins: 60, label: '', label_color: null, pinned: false, stage_id: st,
+        time, ampm, dur_mins: live ? LIVE_DEMO_DUR_MINS : 60, label: '', label_color: null, pinned: false, stage_id: st,
       });
       /* ⚠ ONE ACT CARRIES A REAL PROFILE ID, deliberately. Every act on the one
          production event with a schedule is hand-typed — `artist_profile_id`
          and `artist_id` are NULL on all 20 — so VIEW PROFILE correctly never
          renders there, and the interaction could not be checked at all. This
          act is MADSPiN BABY's actual profile, so the card has somewhere to go
-         and the route can be proven rather than assumed. */
+         and the route can be proven rather than assumed.
+
+         ⚠ ROW 1 GETS IT TOO IN THE LIVE DEMO, because row 1 is the set that
+         JUST finished and the follow offer only appears where there is somebody
+         to follow. Without this the demo would show the offer never appearing
+         and prove nothing — ⛔ which is not the same as the offer being broken,
+         and is exactly the confusion a fixture exists to prevent. */
+      const followable = st === 'm' && (i === 0 || (live && i === 1));
       if (who) claims[id] = {
         status: 'confirmed', name: who,
         profile: FIXTURE_AVATARS[who] ? { avatar_thumb: FIXTURE_AVATARS[who] } : null,
-        profile_id: (st === 'm' && i === 0) ? '99488e7a-3fbf-4834-b2f8-8c9815c89429' : null,
-        user_id:    (st === 'm' && i === 0) ? '99488e7a-3fbf-4834-b2f8-8c9815c89429' : null,
+        profile_id: followable ? '99488e7a-3fbf-4834-b2f8-8c9815c89429' : null,
+        user_id:    followable ? '99488e7a-3fbf-4834-b2f8-8c9815c89429' : null,
       };
     });
   }
-  return { slots, stages: FESTIVAL_STAGES, claims, eventDate: '2026-10-03' };
+  /* ⛔⛔ `today()` from lib/dates, ⛔ NEVER `toISOString().slice(0,10)`. That is
+     the UTC date and reads as YESTERDAY every AU morning — which here would put
+     the whole demo a day behind the clock it is meant to be demonstrating. */
+  return { slots, stages: stageRows, claims, eventDate: live ? today() : '2026-10-03' };
 }
 
 export default function ScheduleHarness() {
   const [live, setLive] = useState(null);
   const [err, setErr] = useState('');
   const [which, setWhich] = useState('solstice');
+
 
   useEffect(() => {
     let cancelled = false;
@@ -115,13 +205,18 @@ export default function ScheduleHarness() {
     return () => { cancelled = true; };
   }, []);
 
-  const source = which === 'festival' ? festivalFixture() : live;
+  const source = which === 'solstice' ? live : festivalFixture(FIXTURE_STAGE_COUNT, which === 'tonight');
   const resolved = source ? resolveSchedule(source) : null;
 
   return (
     <div style={{ padding: '80px 16px 60px', maxWidth: 520, margin: '0 auto' }}>
       <div style={{ display: 'flex', gap: 8, marginBottom: 18 }}>
-        {[['solstice', 'SOLSTICE (LIVE DATA)'], ['festival', 'FESTIVAL (FIXTURE)']].map(([k, label]) => (
+        {[
+          ['solstice', 'SOLSTICE (LIVE DATA)'],
+          ['festival', 'FESTIVAL (FIXTURE)'],
+          /* ⭐ The play-state demo: the same fixture, running RIGHT NOW. */
+          ['tonight', 'ON NOW (DEMO)'],
+        ].map(([k, label]) => (
           <button key={k} onClick={() => setWhich(k)}
             style={{
               fontFamily: "'Bebas Neue',sans-serif", fontSize: 11, letterSpacing: 1.4,

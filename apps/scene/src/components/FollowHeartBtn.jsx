@@ -38,7 +38,32 @@ import { HeartGlyph, HEART_BARE_STYLE } from './heartStyles';
  * that result cost: months of silently failing event saves, and three "new
  * follower" notifications for a follow that never happened.
  */
-export default function FollowHeartBtn({ profile, style, className, onChange, onError }) {
+/**
+ * ⭐⭐ THE GRADIENT TEXT OF THE PROFILE PAGE'S OWN FOLLOW BUTTON, so the `label`
+ * variant is the same control the reader already met there rather than a
+ * lookalike. ⚠ Inline for the same reason ProfileScreen does it inline: a
+ * clipped-text gradient cannot be expressed as a plain colour token.
+ */
+const FOLLOW_LABEL_GRADIENT = {
+  /* ⚠ A TOKEN WITH THE PROFILE PAGE'S RAMP AS ITS DEFAULT, so a surface with
+     its own palette can retune it (`--follow-ramp`) without a second copy of
+     this button existing. ⛔ Do not hardcode the ramp back. */
+  backgroundImage: 'var(--follow-ramp, linear-gradient(135deg, #00E5FF, #BF5FFF))',
+  WebkitBackgroundClip: 'text',
+  backgroundClip: 'text',
+  WebkitTextFillColor: 'transparent',
+};
+
+/**
+ * @param variant  'heart' (default) — the uniform in-my-scene mark.
+ *                 'label'  — "+ FOLLOW" / "✓ FOLLOWING", the profile page's
+ *                 wording, for surfaces where a bare heart does not say what
+ *                 it would do. ⭐⭐ SAME COMPONENT EITHER WAY: the two-keyspace
+ *                 read, the self check, the participation gate and the write
+ *                 are the part that must never be reimplemented — only the
+ *                 chrome differs, and the caller supplies that.
+ */
+export default function FollowHeartBtn({ profile, style, className, onChange, onError, variant = 'heart' }) {
   const { session } = useSession();
   const requestParticipation = useParticipation();
   const pid = profile?.id;
@@ -132,9 +157,18 @@ export default function FollowHeartBtn({ profile, style, className, onChange, on
       /* Liked styles last so they win over the caller's `style` — the same
          ordering bug HeartBtn documents, where a base border silently beat the
          saved-state one. */
-      style={{ ...HEART_BARE_STYLE, ...style, ...(followed ? { color: 'var(--neon)' } : {}) }}
+      /* ⚠ The bare-heart reset is for the HEART. A label variant carries the
+         caller's own chrome, and stripping background and border here would
+         quietly undo it. */
+      style={variant === 'label'
+        ? style
+        : { ...HEART_BARE_STYLE, ...style, ...(followed ? { color: 'var(--neon)' } : {}) }}
     >
-      <HeartGlyph filled={followed} />
+      {variant === 'label'
+        ? <span style={followed ? undefined : FOLLOW_LABEL_GRADIENT}>
+            {followed ? '✓ FOLLOWING' : '+ FOLLOW'}
+          </span>
+        : <HeartGlyph filled={followed} />}
     </button>
   );
 }
