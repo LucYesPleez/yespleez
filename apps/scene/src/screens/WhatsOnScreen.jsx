@@ -27,9 +27,40 @@ import { useDragScroll } from '../hooks/useDragScroll';
 const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 const DAY_NAMES   = ['S','M','T','W','T','F','S'];
 
-/* COMING UP shows 20 rows at a time and grows by 20 on ADD MORE (owner, 2026-08-02). The
-   underlying list is NOT date-capped — the page size is a reading limit, not a scope limit. */
-const COMING_UP_PAGE = 20;
+/* ⚠ The underlying list is NOT date-capped — the page size below is a reading
+   limit, not a scope limit. */
+/* COMING UP opens SHORT and grows on demand (owner, 2026-08-21).
+
+   ⭐ SIX ROWS ARE RENDERED SO THAT FIVE AND A BIT ARE SEEN. The container is
+   clipped to 5.5 rows, so the sixth is half-visible under a fade — the list
+   says 'there is more' by showing some of it, which no button on its own can
+   do. ⛔ Do not 'fix' the half row: it IS the affordance.
+
+   The first press adds 6, every press after adds 10. Someone who taps once is
+   usually still scanning; someone who taps twice has decided to read the lot,
+   and making them tap six more times to get there is the actual annoyance.
+
+   ⚠ 89px is MEASURED, not guessed: a 64px thumb, 12px padding top and bottom,
+   and the 1px rule. If .comingRow's padding or thumb changes, this changes. */
+/* ⭐ TWO WAYS TO SEE MORE, AND BOTH HAVE TO WORK FROM THE FIRST RENDER.
+
+   Loading exactly what the window shows made scrolling a lie: six rows in a
+   5.5-row window gives 44px of travel, so the ONLY way forward was the button,
+   and a scroll region that barely moves reads as broken. Owner, 2026-08-21:
+   "scroll events that arent visible into the window ... i want both options".
+
+   So the WINDOW stays 5.5 rows — the section is still short on the page — but
+   the LOAD is deep enough to scroll through immediately. The button then
+   handles anything past that depth. ⛔ Do not set this back to the row count
+   that fits; the gap between them IS the scrollable part.
+
+   ⚠ Every loaded row stays in the DOM. Fine into the low hundreds, and
+   useEvents caps at 200 anyway; past that the answer is windowing, ⛔ not a
+   bigger number here. */
+const COMING_UP_INITIAL    = 20;
+const COMING_UP_STEP       = 10;
+const COMING_UP_ROW_H      = 89;
+const COMING_UP_PEEK_H     = Math.round(COMING_UP_ROW_H * 5.5);
 
 /* Matches ANNOUNCED_CAP in lib/sceneFloor.js, where this section used to live. */
 const JUST_ANNOUNCED_CAP = 8;
@@ -219,7 +250,9 @@ export default function WhatsOnScreen() {
   }, [profilePostcode]);
   /* How many COMING UP rows are on screen. Grows by a page on ADD MORE, and resets whenever the
      filters change — a fresh filter is a fresh list, so it starts at the top again. */
-  const [comingUpShown,   setComingUpShown]   = useState(COMING_UP_PAGE);
+  /* How many COMING UP rows are LOADED. The window shows 5.5 of them whatever
+     this is; ADD MORE lengthens the scroll rather than the page. */
+  const [comingUpShown, setComingUpShown] = useState(COMING_UP_INITIAL);
   const [monthPickerOpen, setMonthPickerOpen] = useState(false);
   const [pickerMonth,     setPickerMonth]     = useState(() => new Date(today()).getMonth());
   const [pickerYear,      setPickerYear]      = useState(() => new Date(today()).getFullYear());
@@ -431,9 +464,20 @@ export default function WhatsOnScreen() {
   }).sort((a, b) => (a.config?.date || '').localeCompare(b.config?.date || '')),
     [events, weekendDates, todayIso, passes]);
 
-  useEffect(() => { setComingUpShown(COMING_UP_PAGE); }, [category, postcode, radius, selectedDate]);
 
+  useEffect(() => { setComingUpShown(COMING_UP_INITIAL); }, [category, postcode, radius, selectedDate]);
+
+  /* ⭐ TWO LIMITS, DOING DIFFERENT JOBS. The WINDOW (5.5 rows) keeps the
+     section short on the page; the PAGE SIZE keeps the DOM short. You scroll
+     through what is loaded and press ADD MORE for the rest — so the button
+     never scrolls away, because it sits outside the scrolling box.
+
+     ⚠ At the opening count the scroll travels only the half row, which is the
+     peek and not a fault. Once ADD MORE has been pressed there is real
+     distance to move. First press adds 6, every press after adds 10.
+     Owner, 2026-08-21. */
   const comingUpEvents = useMemo(() => comingUpAll.slice(0, comingUpShown), [comingUpAll, comingUpShown]);
+  const comingUpHasMore = comingUpAll.length > comingUpEvents.length;
   /**
    * JUST ANNOUNCED — freshly added to the gig guide, moved here from My Scene.
    *
@@ -479,7 +523,10 @@ export default function WhatsOnScreen() {
   })), [localActs, originCoords, radiusKm, todayIso]);
   const localDrags = { artists: artistsDrag, venues: venuesDrag, promoters: promotersDrag };
   const anyLocals = localGroups.some(g => g.locals.items.length > 0);
-  const comingUpHasMore = comingUpAll.length > comingUpEvents.length;
+  /* Scroll whenever the rows overflow the window. 5 is the count that FITS;
+     the sixth is the half-row peek that says the list continues. Below that
+     there is nothing to scroll and no fade is wanted. */
+  const comingUpScrolls = comingUpEvents.length > 5;
 
   /* Back to the fortnight wording the section shipped with (owner, 2026-08-02). */
   const comingUpSub    = 'NEXT TWO WEEKS';
@@ -836,30 +883,54 @@ export default function WhatsOnScreen() {
                 <div className={s.gradientLine} />
                 <button className={s.viewAll}>View all ›</button>
               </div>
-              {comingUpEvents.map(ev => (
-                <ComingUpRow key={ev.id} event={ev} onClick={() => openEvent(ev)} />
-              ))}
-              {/* Only rendered when there is genuinely more to reveal — a button that does
-                  nothing reads as a broken list. */}
-              {comingUpHasMore && (
+              {/* ⛔ NO VISIBLE SCROLLBAR — see .comingUpScroll. The fade is the
+                  affordance that says the list continues. */}
+              <div className={comingUpScrolls ? s.comingUpScroll : undefined}
+                style={comingUpScrolls ? { maxHeight: COMING_UP_PEEK_H } : undefined}>
+                {comingUpEvents.map(ev => (
+                  <ComingUpRow key={ev.id} event={ev} onClick={() => openEvent(ev)} />
+                ))}
+              </div>
+              {/* ⚠ OUTSIDE the scrolling box on purpose: inside it, the control
+                  that loads more would itself have to be scrolled to.
+
+                  ⭐ THE CONTROL NEVER LEAVES. It used to vanish once everything
+                  was loaded, so the row it lived in collapsed and the section
+                  changed shape under you at the exact moment you had finished
+                  reading it. Owner, 2026-08-21: "add more button stays".
+
+                  ⛔ It does not stay INERT, though — a button that does nothing
+                  reads as broken. At the end of the list it becomes the way
+                  back, which is the same View all / View less pairing My
+                  Scene's diary uses. It only hides when the whole list already
+                  fits the window, because then there is nothing to add and
+                  nothing to fold away. */}
+              {(comingUpHasMore || comingUpScrolls) && (
                 <button
                   className={s.addMore}
-                  onClick={() => setComingUpShown(n => n + COMING_UP_PAGE)}
+                  onClick={() => setComingUpShown(comingUpHasMore
+                    ? (n => n + COMING_UP_STEP)
+                    : COMING_UP_INITIAL)}
                 >
-                  Add more
+                  <span className={s.addMoreLabel}>{comingUpHasMore ? 'Add more' : 'Show less'}</span>
                 </button>
               )}
             </div>
           )}
 
-          {/* LOCALS — three rails, because "who is playing", "which rooms
+          {/* ⛔ NO SUBHEADING HERE. "With something on" describes the FILTER,
+              and the filter is our business, not the reader's — owner,
+              2026-08-21: "thats just for me and the algorithm". A rail of acts
+              who all have gigs coming up needs no caption saying so; it just
+              needs to be true, which useLocalActs enforces.
+
+              LOCALS — three rails, because "who is playing", "which rooms
               have something on" and "who is putting nights on" are three
               questions. Each hides independently when empty. */}
           {anyLocals && (
             <div className={s.sectionBlock}>
               <div className={s.sectionRow}>
                 <span data-tour="whatson-section" className={s.sectionTitle}>LOCALS</span>
-                <span className={s.sectionSub}>WITH SOMETHING ON</span>
                 <div className={s.gradientLine} />
               </div>
               {localGroups.map(g => g.locals.items.length > 0 && (

@@ -1,4 +1,15 @@
+/* ⭐ THE TITLE GRADIENT, DEFINED ONCE.
+   Every heading on this screen is a shade of the same idea, so the ramp lives
+   in one custom property rather than being retyped per rule. It was already
+   drifting: the hero ran pink → violet → cyan at 90deg while the subs ran cyan
+   → violet at 135deg, so the page had two gradients pretending to be one.
+   ⛔ Do not paste the literal into a new rule — extend from here. */
 .screen {
+  --yp-title-gradient: linear-gradient(90deg, #FF2D78 0%, #9D4EDD 50%, #00E5FF 100%);
+  /* The accent ramp, for everything BESIDE a heading rather than the heading
+     itself: the date range, FRESHLY ADDED, View all, the pills. Owner,
+     2026-08-21: only the white heading text takes the title ramp. */
+  --yp-accent-gradient: linear-gradient(135deg, #00E5FF, #BF5FFF);
   min-height: 100dvh;
   overflow-y: auto;
   padding-bottom: calc(72px + env(safe-area-inset-bottom, 16px));
@@ -18,7 +29,7 @@
   font-size: clamp(51px, 12.9vw, 79px);
   line-height: 0.92;
   letter-spacing: 4px;
-  background: linear-gradient(90deg, #FF2D78 0%, #9D4EDD 50%, #00E5FF 100%);
+  background: var(--yp-title-gradient);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -535,8 +546,15 @@
   font-family: 'Bebas Neue', sans-serif;
   font-size: 22px;
   letter-spacing: 2px;
-  color: var(--text);
-  display: inline;
+  /* ⚠ `display: inline` CANNOT CARRY A CLIPPED BACKGROUND. An inline box is
+     split across line boxes and the gradient is painted per fragment, so a
+     heading that wrapped would restart the ramp mid-phrase. inline-block keeps
+     one box, and these headings never wrap anyway. */
+  display: inline-block;
+  background: var(--yp-title-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
 .sectionRow {
@@ -567,7 +585,7 @@
   background-clip: text;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
-  background-image: linear-gradient(135deg, #00E5FF, #BF5FFF);
+  background-image: var(--yp-accent-gradient);
 }
 
 .sectionSub {
@@ -576,7 +594,7 @@
   letter-spacing: 1.5px;
   font-family: 'Bebas Neue', sans-serif;
   vertical-align: middle;
-  background: linear-gradient(135deg, #00E5FF, #BF5FFF);
+  background: var(--yp-accent-gradient);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -584,7 +602,7 @@
 }
 
 .viewAll {
-  background: linear-gradient(135deg, #00E5FF, #BF5FFF);
+  background: var(--yp-accent-gradient);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -618,6 +636,41 @@
 }
 
 .addMore:hover { border-color: var(--neon2); }
+
+/* COMING UP scrolls INSIDE the section rather than growing the page.
+
+   ⛔ NO VISIBLE SCROLLBAR — ratified UI law. `scrollbar-width: none` covers
+   Firefox, the ::-webkit-scrollbar rule covers the rest; without both, one
+   engine draws a bar down the middle of the page and the section reads as a
+   embedded frame.
+
+   ⚠ The bottom fade is the affordance, and it stays on while scrolling: it is
+   what says the list continues. The height holds at 5.5 rows however many
+   events are loaded, so ADD MORE lengthens the scroll rather than pushing
+   LOCALS off the bottom of the screen.
+
+   ⚠ -webkit-overflow-scrolling keeps momentum on iOS; without it the list
+   stops dead under a finger and feels broken next to the page's own scroll. */
+.comingUpScroll {
+  overflow-y: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  mask-image: linear-gradient(to bottom, black 78%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, black 78%, transparent 100%);
+}
+
+.comingUpScroll::-webkit-scrollbar { display: none; }
+
+/* ⚠ THE LABEL IS A SEPARATE ELEMENT ON PURPOSE. `background-clip: text` on the
+   button would clip its own card background to the letterforms, leaving the
+   control with no surface at all. The span carries the gradient; the button
+   keeps its card and border. */
+.addMoreLabel {
+  background: var(--yp-accent-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
 
 /* ── Featured card ── */
 
