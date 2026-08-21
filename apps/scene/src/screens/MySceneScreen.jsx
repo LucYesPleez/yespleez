@@ -17,14 +17,12 @@ import ProfileCard from '../components/ProfileCard';
 import { SkeletonRow, SkeletonEventCard } from '../components/Skeleton';
 import s from './MySceneScreen.module.css';
 import { useDragScroll } from '../hooks/useDragScroll';
-import { haversineKm, profileCoords, postcodeCoords, isKnownPostcode, withinRadius } from '../lib/geo';
-import { buildLocals, LOCALS_TYPES } from '../lib/locals';
+import { haversineKm, profileCoords, postcodeCoords, isKnownPostcode } from '../lib/geo';
 import { useEvents } from '../lib/useEvents';
 import { weekendRange, dateStr, today } from '../lib/dates';
-import { trackFiltered } from '../lib/analytics';
 import { getPersonalProfileId } from '../lib/actingProfile';
 import {
-  buildSceneFloor, SCENE_RADIUS_STEPS, SCENE_CATEGORIES, DEFAULT_SCENE_RADIUS,
+  SCENE_RADIUS_STEPS, SCENE_CATEGORIES, DEFAULT_SCENE_RADIUS,
   toggleSceneGenre, isValidSceneToken,
 } from '../lib/sceneFloor';
 import { buildSpotlight } from '../lib/spotlight';
@@ -233,7 +231,6 @@ export default function MySceneScreen() {
       return Array.isArray(g) ? g.filter(isValidSceneToken) : [];
     } catch { return []; }
   });
-  const [radiusOpen, setRadiusOpen] = useState(false);
   const [spotIndex,  setSpotIndex]  = useState(0);
   const [spotPaused, setSpotPaused] = useState(false);
   const prefersReducedMotion = useMemo(
@@ -251,10 +248,6 @@ export default function MySceneScreen() {
    * favourites, QR follows — so nothing depends on this being open. */
   const [tuneOpen, setTuneOpen] = useState(false);
   const [expandedCat, setExpandedCat] = useState(null);
-  // Events saved from the floor THIS visit. They stay on the floor with a
-  // filled heart + SAVED pill instead of vanishing mid-tap — the card changing
-  // in place is the feedback that a relationship was created.
-  const [justSaved, setJustSaved] = useState(() => new Set());
   const [toast, setToast] = useState(null);
   const toastTimer = useRef(null);
   const [savedTab,        setSavedTab]        = useState('saved');
@@ -265,12 +258,6 @@ export default function MySceneScreen() {
   const [pastLimit,       setPastLimit]       = useState(3);
   const [eventsExpanded,  setEventsExpanded]  = useState(false);
   const [pastEventSearch, setPastEventSearch] = useState('');
-  /* YOUR AREA carries the same pair. It defaults to 'portrait' — unlike
-     COMING UP's 'landscape' — because the floor is a BROWSING surface: the
-     poster is the reason you stop on a card, and the rail is what the section
-     has always been. The list is the opt-in density view, not the entry point. */
-  const [areaView,        setAreaView]        = useState('portrait');
-  const [areaExpanded,    setAreaExpanded]    = useState(false);
 
   // Distance helpers now live in lib/geo.js — this screen held the app's only
   // working implementation and Discover/What's On need the same one. Behaviour
@@ -290,10 +277,6 @@ export default function MySceneScreen() {
   const upcomingDrag   = useDragScroll('myscene-upcoming-portrait');
   const spotlightDrag  = useDragScroll();
   const genreDrag      = useDragScroll('myscene-genre-chips');
-  const aroundDrag     = useDragScroll('myscene-around-you');
-  const announcedDrag  = useDragScroll('myscene-just-announced');
-  const localsDrag     = useDragScroll('myscene-locals');
-  const weekendDrag    = useDragScroll('myscene-this-weekend');
 
   const uid = session?.user?.id;
   const queryClient = useQueryClient();
@@ -509,13 +492,13 @@ export default function MySceneScreen() {
     queryClient.invalidateQueries({ queryKey: ['myScene', uid] });
   }
 
+  /* ⚠ THE `justSaved` SET WENT WITH THE FLOOR. It existed so a card hearted
+     on Your Area stayed put wearing a SAVED pill instead of vanishing mid-tap.
+     Your Area now lives on What's On, and nothing here reads that flag any
+     more, so tracking it would be state kept warm for no reader. The toast and
+     the refetch are unchanged — Spotlight's heart still calls this. */
   function onFloorHeart(ev, liked) {
-    if (liked) {
-      setJustSaved(prev => new Set(prev).add(ev.id));
-      showToast('Saved to My Scene — find it under COMING UP.');
-    } else {
-      setJustSaved(prev => { const n = new Set(prev); n.delete(ev.id); return n; });
-    }
+    if (liked) showToast('Saved to My Scene — find it under COMING UP.');
     queryClient.invalidateQueries({ queryKey: ['myScene', uid] });
   }
 
@@ -594,83 +577,24 @@ export default function MySceneScreen() {
   // Same source + cache as What's On (useEvents), REAL events only — the demo
   // merge What's On does is deliberately absent here. Selection rules live in
   // lib/sceneFloor.js where they are tested; this screen only renders.
-  const { events: catalogueEvents, loading: floorLoading } = useEvents(todayStr, dateStr(180));
+  const { events: catalogueEvents } = useEvents(todayStr, dateStr(180));
   const wr = useMemo(() => weekendRange(), []);
   const newSinceIso = useMemo(() => new Date(Date.now() - 14 * 86400000).toISOString(), []);
   const originPostcode = /^\d{4}$/.test(userPostcode) && isKnownPostcode(userPostcode) ? userPostcode : '';
   const originCoords = useMemo(() => originPostcode ? postcodeCoords(originPostcode) : null, [originPostcode]);
-  const floorExclude = useMemo(() => {
-    // Events already in a personal section aren't re-pitched — EXCEPT ones
-    // saved from the floor this visit, which stay put with a filled heart.
-    const ids = new Set();
-    follows.forEach(f => { if (f.entity_type === 'event' && !justSaved.has(f.entity_id)) ids.add(f.entity_id); });
-    myEvents.forEach(ev => ids.add(ev.id));
-    playingEvents.forEach(ev => ids.add(ev.id));
-    apps.forEach(a => { if (a.event_id) ids.add(a.event_id); });
-    return ids;
-  }, [follows, myEvents, playingEvents, apps, justSaved]);
-  // Followed profiles boost Your Area — favourites lead the section
-  // (deterministic ordering rule, not a score; see buildSceneFloor).
+  // Followed profiles and venues, for Spotlight's FAVOURITE VENUE / FAVOURITE
+  // HOST rules. These also used to order Your Area, which now lives on
+  // What's On; Spotlight is the remaining consumer.
   const favProfileIds = useMemo(
     () => new Set(follows.filter(f => f.entity_type !== 'event' && f.target_profile_id).map(f => f.target_profile_id)),
     [follows]);
   const favUserIds = useMemo(
     () => new Set(follows.filter(f => f.entity_type !== 'event' && f.entity_id).map(f => f.entity_id)),
     [follows]);
-  const floor = useMemo(() => buildSceneFloor({
-    events: catalogueEvents, todayIso: todayStr,
-    weekendFrom: wr.from, weekendTo: wr.to, newSinceIso,
-    originCoords, originPostcode, radiusKm: sceneRadius, genres: sceneGenres,
-    excludeEventIds: floorExclude, favProfileIds, favUserIds,
-  }), [catalogueEvents, todayStr, wr, newSinceIso, originCoords, originPostcode, sceneRadius, sceneGenres, floorExclude, favProfileIds, favUserIds]);
-
-  /* ── LOCALS — the people and places, rotated daily ──────────────────────
-     Selection lives in lib/locals.js where it is tested; this screen fetches
-     and renders. The candidate pull is deliberately wide and cheap (one page
-     of live profiles, newest activity first) because the ladder, not the
-     query, decides what surfaces. */
-  const [localsPool, setLocalsPool] = useState(EMPTY);
-  useEffect(() => {
-    let alive = true;
-    supabase.from('profiles')
-      .select('id,user_id,name,type,avatar,avatar_thumb,location,suburb,state,postcode,lat,lng,sound,genre_string,venue_type,claim_status,updated_at')
-      .in('type', LOCALS_TYPES)
-      .or('is_live.is.null,is_live.neq.false')
-      .order('updated_at', { ascending: false })
-      .limit(200)
-      .then(({ data }) => { if (alive) setLocalsPool(data || EMPTY); });
-    return () => { alive = false; };
-  }, []);
-
-  const locals = useMemo(() => buildLocals({
-    profiles: localsPool,
-    originCoords,
-    // The user's own profiles all carry their user_id, so one value excludes
-    // every one of them without a second query.
-    excludeIds: uid ? [uid] : [],
-    radiusKm: sceneRadius,
-    isoDate: todayStr,
-    withinRadius,
-  }), [localsPool, originCoords, uid, sceneRadius, todayStr]);
 
   // The curated fallback that used to live here is now the `spotlight` rule in
   // lib/spotlight.js's table — with its own longer horizon, so a quiet
   // fortnight still leaves a heartbeat.
-
-  // A2/A3 · demand from the floor, same shape as What's On: the location and
-  // radius keys are APPLIED (they genuinely filtered), and the radius sent is
-  // the one that actually ran — the ladder's usedRadius, not the request.
-  useEffect(() => {
-    if (!uid || floorLoading) return;   // a count taken mid-fetch is a lie
-    const t = setTimeout(() => {
-      trackFiltered({
-        surface: 'my_scene',
-        ...(originPostcode ? { location: originPostcode, radiusKm: floor.aroundYou.usedRadius || undefined } : {}),
-        results: floor.aroundYou.count,
-      });
-    }, 400);
-    return () => clearTimeout(t);
-  }, [uid, floorLoading, originPostcode, floor.aroundYou.usedRadius, floor.aroundYou.count]);
 
   // Which days have events
   const eventDaySet = new Set();
@@ -732,20 +656,6 @@ export default function MySceneScreen() {
     const rest = spotlight.items.filter(i => i.event.id !== pinnedEvent?.id);
     return (pinnedEvent ? [{ event: pinnedEvent, badge: 'FEATURED', ruleKey: 'pinned' }, ...rest] : rest).slice(0, 5);
   }, [spotlight, pinnedEvent]);
-
-  /**
-   * The badge a FLOOR card carries — only its own just-saved state.
-   *
-   * ⚠ FAVOURITE VENUE / HOST deliberately do NOT appear here (owner, 2026-07-31).
-   * Two reasons it was wrong on these cards: EventCard's badge REPLACES the
-   * genre pills, so the reason chip cost the card its "Techno / Live Band"
-   * line — a bad trade on a browsing surface — and the section heading
-   * already carries the explanation. Favourites still lead the ordering, and
-   * the reason is still stated where it has room: the Spotlight hero badge.
-   */
-  function cardReason(ev) {
-    return justSaved.has(ev.id) ? { badge: 'SAVED', color: '#FF2D78' } : null;
-  }
 
   /** Which Spotlight card is centred, for the position dots. */
   function onSpotlightScroll(e) {
@@ -1982,214 +1892,6 @@ export default function MySceneScreen() {
                 )}
               </div>
 
-              {/* YOUR AREA — the distance label IS the radius control */}
-              <div className={s.v1Section}>
-                <div className={s.v1Head}>
-                  <div className={s.sectionHead}>YOUR AREA</div>
-                  <div className={s.gradientLine} />
-                  {/* Same control, same place, same icons as COMING UP and
-                      FOLLOWING carry — three sections, one toggle, so ▦ and ☰
-                      mean exactly one thing across this page. Hidden entirely
-                      when there is nothing to switch between. */}
-                  {originPostcode && floor.aroundYou.items.length > 0 && (
-                    <div style={{ display:'flex', background:'var(--card2)', borderRadius:8, overflow:'hidden', border:'1px solid var(--border)', flexShrink:0 }}>
-                      {[['portrait','▦'],['landscape','☰']].map(([v, icon]) => (
-                        <button key={v} onClick={() => setAreaView(v)}
-                          aria-label={v === 'portrait' ? 'Card view' : 'List view'}
-                          style={{ background: areaView===v ? 'rgba(0,229,255,.18)' : 'none', border:'none', color: areaView===v ? 'var(--neon2)' : 'var(--muted)', padding:'4px 9px', cursor:'pointer', fontSize:12, lineHeight:1, transition:'background .15s, color .15s' }}>{icon}</button>
-                      ))}
-                    </div>
-                  )}
-                  {originPostcode && floor.aroundYou.items.length > 0 && (() => {
-                    // Identical rule to COMING UP's: "View all" lifts the
-                    // LIST's height cap, and the rail has no cap to lift — so
-                    // in portrait the control is muted and inert rather than
-                    // present and lying.
-                    const hasMore = areaView === 'landscape' && floor.aroundYou.items.length >= 4;
-                    return <span className={hasMore ? s.seeAll : s.seeAllMuted} onClick={() => hasMore && setAreaExpanded(v => !v)}>{areaExpanded ? 'View less' : 'View all >'}</span>;
-                  })()}
-                </div>
-                {originPostcode ? (
-                  <>
-                    <div style={{ display:'flex', alignItems:'center', gap:8, marginTop:6, position:'relative' }}>
-                      <span style={{ fontFamily:"'Bebas Neue'", fontSize:13, letterSpacing:1.5, color:'var(--muted)' }}>
-                        {floor.aroundYou.count} {floor.aroundYou.count === 1 ? 'EVENT' : 'EVENTS'}
-                      </span>
-                      <span style={{ color:'var(--muted)', fontSize:11 }}>•</span>
-                      <button onClick={() => setRadiusOpen(v => !v)}
-                        // 87×17 measured — the last undersized control on this
-                        // screen outside the two left for a redesign.
-                        className="yp-tap44"
-                        aria-label="Change search radius"
-                        aria-expanded={radiusOpen}
-                        style={{ background:'none', border:'none', cursor:'pointer', fontFamily:"'Bebas Neue'", fontSize:13, letterSpacing:1.5, color:'var(--neon2)', display:'flex', alignItems:'center', gap:4, padding:0 }}>
-                        {sceneRadius === null ? 'ANYWHERE' : `WITHIN ${sceneRadius} KM`}
-                        <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M6 9l6 6 6-6"/></svg>
-                      </button>
-                      {radiusOpen && (
-                        <>
-                          <div style={{ position:'fixed', inset:0, zIndex:699 }} onClick={() => setRadiusOpen(false)} />
-                          <div style={{ position:'absolute', top:'calc(100% + 6px)', left:0, zIndex:700, background:'var(--card)', border:'1px solid var(--border)', borderRadius:12, padding:6, minWidth:150, boxShadow:'0 10px 30px rgba(0,0,0,.5)' }}>
-                            {SCENE_RADIUS_STEPS.map(r => {
-                              const sel = r === sceneRadius;
-                              return (
-                                <button key={String(r)}
-                                  onClick={() => { setSceneRadius(r); persistScenePrefs({ radiusKm: r }); setRadiusOpen(false); }}
-                                  style={{ display:'flex', alignItems:'center', gap:8, width:'100%', background: sel ? 'rgba(0,229,255,.12)' : 'none', border:'none', borderRadius:8, padding:'9px 12px', cursor:'pointer', fontFamily:"'Bebas Neue'", fontSize:14, letterSpacing:1.5, color: sel ? 'var(--neon2)' : 'var(--text)', textAlign:'left' }}>
-                                  <span style={{ width:6, height:6, borderRadius:'50%', background: sel ? 'var(--neon2)' : 'var(--border)', flexShrink:0 }} />
-                                  {r === null ? 'ANYWHERE' : `${r} KM`}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </>
-                      )}
-                    </div>
-                    {/* Honest fallback lines — the selection is remembered, the
-                        list only borrows a wider net. Never "0 EVENTS". */}
-                    {floor.aroundYou.count > 0 && floor.aroundYou.usedRadius !== floor.aroundYou.requestedRadius && (
-                      <div style={{ fontSize:12, color:'var(--muted)', marginTop:6 }}>
-                        {`None within ${floor.aroundYou.requestedRadius} km — showing ${floor.aroundYou.count} ${floor.aroundYou.usedRadius === null ? 'from across the whole guide' : `within ${floor.aroundYou.usedRadius} km`}.`}
-                      </div>
-                    )}
-                    {floor.aroundYou.genresRelaxed && (
-                      <div style={{ fontSize:12, color:'var(--muted)', marginTop:4 }}>None matching your genres yet — showing everything nearby.</div>
-                    )}
-                    {floor.aroundYou.items.length > 0 ? (
-                      areaView === 'portrait' ? (
-                        <div className={s.hScroll} ref={aroundDrag.ref} onMouseDown={aroundDrag.onMouseDown} onMouseMove={aroundDrag.onMouseMove} onMouseUp={aroundDrag.onMouseUp} onMouseLeave={aroundDrag.onMouseLeave}>
-                          {floor.aroundYou.items.map(ev => (
-                            <EventCard key={ev.id} variant="scroll" event={ev}
-                              badge={cardReason(ev)?.badge} badgeColor={cardReason(ev)?.color}
-                              onClick={() => navigate(`/event/${ev.id}`)}
-                              cornerAction={<HeartBtn event={ev} style={HEART_STYLE} onChange={liked => onFloorHeart(ev, liked)} onError={onFloorHeartError} />}
-                            />
-                          ))}
-                        </div>
-                      ) : (
-                        /* ✅ The list rows now carry the heart too (owner,
-                           2026-08-01), in the same bottom-right corner the
-                           portrait cards use. EventCard renders it as a sibling
-                           overlay here because this variant is a <button> —
-                           see the note in EventCard.jsx. The floor's rule that
-                           every card is a save affordance now holds in BOTH
-                           views, which it did not when this toggle shipped. */
-                        <div style={{ display:'flex', flexDirection:'column', gap:6, marginTop:10, ...(!areaExpanded && floor.aroundYou.items.length >= 4 ? { maxHeight:315, overflowY:'scroll', scrollbarWidth:'none', WebkitOverflowScrolling:'touch', maskImage:'linear-gradient(to bottom, black 75%, transparent 100%)', WebkitMaskImage:'linear-gradient(to bottom, black 75%, transparent 100%)' } : { overflowY:'visible' }) }}>
-                          {floor.aroundYou.items.map(ev => (
-                            <EventCard key={ev.id} event={ev}
-                              badge={cardReason(ev)?.badge} badgeColor={cardReason(ev)?.color}
-                              onClick={() => navigate(`/event/${ev.id}`)}
-                              cornerAction={<HeartBtn event={ev} style={HEART_STYLE} onChange={liked => onFloorHeart(ev, liked)} onError={onFloorHeartError} />}
-                            />
-                          ))}
-                        </div>
-                      )
-                    ) : !floorLoading && (
-                      <div className={s.empty}>Nothing announced out there yet — the newest gigs are just below.</div>
-                    )}
-                  </>
-                ) : (
-                  <div style={{ marginTop:8 }}>
-                    <div style={{ fontSize:12, color:'var(--muted)', marginBottom:8 }}>Set your postcode to see gigs near you.</div>
-                    <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                      <input
-                        value={userPostcode}
-                        onChange={e => {
-                          const v = e.target.value.replace(/\D/g, '').slice(0, 4);
-                          setUserPostcode(v);
-                          if (v.length === 4 && isKnownPostcode(v)) persistScenePrefs({ postcode: v });
-                          else localStorage.setItem('_userPostcode', v);
-                        }}
-                        placeholder="Postcode"
-                        maxLength={4}
-                        inputMode="numeric"
-                        style={{ width:110, background:'rgba(0,229,255,.06)', border:`1px solid ${userPostcode.length === 4 && !isKnownPostcode(userPostcode) ? 'rgba(255,45,120,.5)' : 'rgba(0,229,255,.35)'}`, borderRadius:10, padding:'9px 12px', color:'#fff', fontFamily:"'DM Sans',sans-serif", fontSize:14, outline:'none', caretColor:'#fff' }}
-                      />
-                      {userPostcode.length === 4 && !isKnownPostcode(userPostcode) && (
-                        <span style={{ fontSize:11, color:'#FF2D78' }}>Postcode not recognised</span>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* JUST ANNOUNCED — no geo, so thin location coverage can never
-                  empty the whole floor. */}
-              {floor.justAnnounced.items.length > 0 && (
-                <div className={s.v1Section}>
-                  <div className={s.v1Head}>
-                    <div className={s.sectionHead}>JUST ANNOUNCED</div>
-                    <div className={s.gradientLine} />
-                  </div>
-                  <div style={{ fontSize:12, color:'var(--muted)', marginTop:2 }}>Freshly added to the gig guide.</div>
-                  <div className={s.hScroll} ref={announcedDrag.ref} onMouseDown={announcedDrag.onMouseDown} onMouseMove={announcedDrag.onMouseMove} onMouseUp={announcedDrag.onMouseUp} onMouseLeave={announcedDrag.onMouseLeave}>
-                    {floor.justAnnounced.items.map(ev => (
-                      <EventCard key={ev.id} variant="scroll" event={ev}
-                        badge={cardReason(ev)?.badge} badgeColor={cardReason(ev)?.color}
-                        onClick={() => navigate(`/event/${ev.id}`)}
-                        cornerAction={<HeartBtn event={ev} style={HEART_STYLE} onChange={liked => onFloorHeart(ev, liked)} onError={onFloorHeartError} />}
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* LOCALS — the only section here whose noun is a PERSON rather
-                  than an event, and the only one showing people the user has
-                  NOT chosen. That is the reason no existing section carries
-                  (my-scene-philosophy rule 6): Spotlight is forward-looking
-                  events, FOLLOWING is people already chosen, Discover needs
-                  intent. Hides when empty like everything else. */}
-              {locals.items.length > 0 && (
-                <div className={s.v1Section}>
-                  <div className={s.v1Head}>
-                    <div className={s.sectionHead}>LOCALS</div>
-                    <div className={s.gradientLine} />
-                  </div>
-                  <div style={{ fontSize:12, color:'var(--muted)', marginTop:2 }}>Discover your local scene.</div>
-                  {/* ⚠ THE REACH IS DECLARED. When there are not enough profiles
-                      near you the rail borrows from further afield rather than
-                      running nearly empty — owner, 2026-08-03: "if there's no new
-                      gigs I'd rather it push out into nearby events, but it has to
-                      say that." Without this line the section showed a profile in
-                      Cairns under a heading that says LOCALS. Same wording shape as
-                      YOUR AREA's borrowed-radius line above. */}
-                  {locals.expanded && (
-                    <div style={{ fontSize:12, color:'var(--muted)', marginTop:4 }}>
-                      {locals.localCount === 0
-                        ? 'Nobody nearby yet — showing profiles from further afield.'
-                        : `Only ${locals.localCount} nearby — the rest are from further afield.`}
-                    </div>
-                  )}
-                  <div className={s.hScroll} ref={localsDrag.ref} onMouseDown={localsDrag.onMouseDown} onMouseMove={localsDrag.onMouseMove} onMouseUp={localsDrag.onMouseUp} onMouseLeave={localsDrag.onMouseLeave}>
-                    {locals.items.map(p => (
-                      <PortraitCard key={p.id ?? p.user_id} profile={p}
-                        followAction={<FollowHeartBtn profile={p} />} />
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* THIS WEEKEND — hides when no events fall Fri–Sun, same law
-                  as What's On. */}
-              {floor.thisWeekend.items.length > 0 && (
-                <div className={s.v1Section}>
-                  <div className={s.v1Head}>
-                    <div className={s.sectionHead}>THIS WEEKEND</div>
-                    <div className={s.gradientLine} />
-                  </div>
-                  <div style={{ fontSize:12, color:'var(--muted)', marginTop:2 }}>Friday to Sunday.</div>
-                  <div className={s.hScroll} ref={weekendDrag.ref} onMouseDown={weekendDrag.onMouseDown} onMouseMove={weekendDrag.onMouseMove} onMouseUp={weekendDrag.onMouseUp} onMouseLeave={weekendDrag.onMouseLeave}>
-                    {floor.thisWeekend.items.map(ev => (
-                      <EventCard key={ev.id} variant="scroll" event={ev}
-                        badge={cardReason(ev)?.badge} badgeColor={cardReason(ev)?.color}
-                        onClick={() => navigate(`/event/${ev.id}`)}
-                        cornerAction={<HeartBtn event={ev} style={HEART_STYLE} onChange={liked => onFloorHeart(ev, liked)} onError={onFloorHeartError} />}
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
 
               {/* Sign out removed from My Scene — this is a browsing surface,
                   not an account screen. The invite card's SIGN IN action above

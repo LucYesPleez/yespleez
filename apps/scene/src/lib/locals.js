@@ -34,6 +34,49 @@ export const LOCALS_TYPES = ['artist', 'band', 'standup', 'venue', 'host'];
 
 export const LOCALS_LIMIT = 10;
 
+/**
+ * The profiles attached to at least one of these events.
+ *
+ * ⭐ LOCALS EARNS ITS PLACE BY HAVING SOMETHING ON. Owner, 2026-08-21: "only
+ * artists that have events coming up. if they dont have events listed they
+ * dont get listed in this section". A rail of acts with nothing booked is a
+ * directory, and the place to browse every profile is Discover — this section
+ * answers "who is playing around here", which is a different question.
+ *
+ * Three ways a profile is attached, and all three count: it is the venue, it
+ * owns the event, or it is on the bill. ⚠ Lineup rows carry BOTH
+ * `artist_profile_id` and the legacy `artist_id`, and profiles are matched on
+ * `id` OR `user_id`, because this codebase has two keyspaces for the same act
+ * (see the follows dual-keyspace note). Reading only one of each would drop
+ * acts that are genuinely booked.
+ *
+ * @param events      event rows, already narrowed to the window that matters
+ * @param lineupRows  `lineup_members` rows for those events
+ * @returns Set of profile ids AND user ids — test membership with either
+ */
+export function linkedProfileIds(events = [], lineupRows = []) {
+  const eventIds = new Set((events || []).map(e => e && e.id).filter(Boolean));
+  const ids = new Set();
+  (events || []).forEach(e => {
+    if (!e) return;
+    if (e.venue_profile_id) ids.add(e.venue_profile_id);
+    if (e.owner_profile_id) ids.add(e.owner_profile_id);
+    if (e.host_id) ids.add(e.host_id);
+  });
+  (lineupRows || []).forEach(m => {
+    if (!m || !eventIds.has(m.event_id)) return;
+    if (m.artist_profile_id) ids.add(m.artist_profile_id);
+    if (m.artist_id) ids.add(m.artist_id);
+  });
+  return ids;
+}
+
+/** Keep only profiles that `linkedProfileIds` vouches for. ⛔ Never mutates. */
+export function withUpcomingEvents(profiles = [], linked) {
+  if (!linked || !linked.size) return [];
+  return (profiles || []).filter(p => p && (linked.has(p.id) || linked.has(p.user_id)));
+}
+
 /** Days since epoch for a YYYY-MM-DD string — the rotation clock. Parsed as
  *  UTC noon so a timezone offset can never shift which day this is. */
 export function localsDayIndex(isoDate) {

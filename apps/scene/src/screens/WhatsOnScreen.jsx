@@ -9,6 +9,12 @@ import { today, dateStr, weekendRange, formatDisplayDate, localDateStr } from '.
 import { selectFeaturedEvent, replayHistory, FAIRNESS_WINDOW_DAYS } from '../lib/featuredEvent';
 import { useFeaturedAllocations } from '../lib/useFeaturedAllocations';
 import { useTentativeDates } from '../lib/useTentativeDates';
+import { useProfileLocation } from '../lib/useProfileLocation';
+import { useLocalActs } from '../lib/useLocalActs';
+import { buildLocals } from '../lib/locals';
+import PortraitCard from '../components/PortraitCard';
+import FollowHeartBtn from '../components/FollowHeartBtn';
+import { useSession } from '../App';
 import FeaturedEventCard from '../components/FeaturedEventCard';
 import HeartBtn from '../components/HeartBtn';
 import { HEART_OVERLAY_STYLE, HEART_BARE_STYLE } from '../components/heartStyles';
@@ -24,6 +30,28 @@ const DAY_NAMES   = ['S','M','T','W','T','F','S'];
 /* COMING UP shows 20 rows at a time and grows by 20 on ADD MORE (owner, 2026-08-02). The
    underlying list is NOT date-capped — the page size is a reading limit, not a scope limit. */
 const COMING_UP_PAGE = 20;
+
+/* Matches ANNOUNCED_CAP in lib/sceneFloor.js, where this section used to live. */
+const JUST_ANNOUNCED_CAP = 8;
+
+/**
+ * LOCALS, split by what someone actually is.
+ *
+ * ⭐ One mixed rail made you scan past four DJs to find whether any VENUE near
+ * you has anything on. These are three different questions and they now get
+ * three answers, each with its own radius ladder and its own cap — so a busy
+ * category cannot crowd a quiet one out of the ten slots.
+ *
+ * Labels follow lib/profileTypes.js rather than being invented here: 'host' is
+ * captioned HOST / PROMOTER there, so PROMOTERS is the app's own word. The
+ * three performing types collapse into ARTISTS because the distinction between
+ * a DJ, a band and a comic is already on each card.
+ */
+const LOCAL_GROUPS = [
+  { key: 'artists',   title: 'ARTISTS',   types: ['artist', 'band', 'standup'] },
+  { key: 'venues',    title: 'VENUES',    types: ['venue'] },
+  { key: 'promoters', title: 'PROMOTERS', types: ['host'] },
+];
 
 const DATE_TABS = [
   { id: 'TONIGHT',   label: 'TONIGHT',    sub: "What's on now" },
@@ -166,6 +194,29 @@ export default function WhatsOnScreen() {
   const [category,        setCategory]        = useState('ALL');
   const [postcode,        setPostcode]        = useState('');
   const [radius,          setRadius]          = useState('50');
+  /**
+   * ⭐ THE PROFILE'S POSTCODE IS THE DEFAULT SEARCH AREA.
+   *
+   * What's On used to open with no location at all, so the person most likely
+   * to want local events — someone who has already told us where they live —
+   * had to type their own postcode in to get them. The profile answers that
+   * question once, for the whole app, and ⛔ there is deliberately no What's On
+   * specific location store to drift out of step with it.
+   *
+   * ⚠ SEEDS ONCE, AND NEVER FIGHTS THE TYPING. `seededRef` latches the moment
+   * a value lands, so a late-arriving profile row cannot yank the field back to
+   * the home town while somebody is halfway through looking somewhere else.
+   * ⛔ Signed out this stays blank, which shows the whole guide — browsing must
+   * never require a location.
+   */
+  const { session } = useSession() || {};
+  const profilePostcode = useProfileLocation(session?.user?.id);
+  const seededRef = useRef(false);
+  useEffect(() => {
+    if (seededRef.current || !profilePostcode) return;
+    seededRef.current = true;
+    setPostcode(prev => prev || profilePostcode);
+  }, [profilePostcode]);
   /* How many COMING UP rows are on screen. Grows by a page on ADD MORE, and resets whenever the
      filters change — a fresh filter is a fresh list, so it starts at the top again. */
   const [comingUpShown,   setComingUpShown]   = useState(COMING_UP_PAGE);
@@ -193,6 +244,12 @@ export default function WhatsOnScreen() {
   const chipsDrag    = useDragScroll('whatson-filter-chips');
   const weekendDrag1 = useDragScroll('whatson-weekend-1');
   const weekendDrag2 = useDragScroll('whatson-weekend-2');
+  const announcedDrag = useDragScroll('whatson-just-announced');
+  /* ⚠ One useDragScroll per rail, named rather than mapped: hooks must run in
+     the same order every render, so they cannot come out of LOCAL_GROUPS.map. */
+  const artistsDrag   = useDragScroll('whatson-locals-artists');
+  const venuesDrag    = useDragScroll('whatson-locals-venues');
+  const promotersDrag = useDragScroll('whatson-locals-promoters');
 
   const stripDays = useMemo(() => buildDateStrip(stripMonth.year, stripMonth.month), [stripMonth]);
 
@@ -284,18 +341,25 @@ export default function WhatsOnScreen() {
   const radiusKm     = originPostcode ? Number(radius) : null;
 
   /**
-   * ⚠ THREE OUTCOMES, NOT TWO: near / far / UNKNOWN.
+   * ⚠ UNKNOWN IS STILL NOT FAR — it is now simply INCLUDED.
    *
-   * An event whose venue has no postcode is not far away — its distance is
-   * simply unknown, and treating unknown as "exclude" would have hidden 21 of
-   * 30 live events on the day this shipped. They are collected separately and
-   * rendered under their own heading, so the screen never implies a location
-   * it does not have.
+   * An event whose venue has no postcode is not far away, its distance is
+   * merely unknown, and dropping it would have hidden 21 of 30 live events on
+   * the day the radius shipped. Those events used to be quarantined under a
+   * LOCATION UNAVAILABLE heading, which announced a gap in our data as though
+   * it were a property of the gig: "Return 2 Resonance, Coffs Hinterland" is a
+   * perfectly real night out, and "Coffs Hinterland" is a region rather than a
+   * suburb, so it resolves to no postcode and never will.
+   *
+   * They now flow into the ordinary sections. ⚠ THE HONEST COST: an unplaced
+   * event shows for EVERY search area, because we cannot say it is outside one.
+   * At this catalogue size that is plainly better than hiding it; the real fix
+   * is a postcode on the event, not a filter here.
    */
   const inRange = useCallback((ev) => {
     if (!radiusKm || !originCoords) return 'near';        // no radius = everything is "near"
     const c = eventCoords(ev, ev.venue);
-    if (!c) return 'unknown';
+    if (!c) return 'near';        // unplaceable, so never excluded by distance
     const pc = ev.venue_profile_id ? ev.venue?.postcode : ev.postcode;
     return withinRadius(originCoords, c, radiusKm, originPostcode, pc) ? 'near' : 'far';
   }, [radiusKm, originCoords, originPostcode]);
@@ -370,20 +434,56 @@ export default function WhatsOnScreen() {
   useEffect(() => { setComingUpShown(COMING_UP_PAGE); }, [category, postcode, radius, selectedDate]);
 
   const comingUpEvents = useMemo(() => comingUpAll.slice(0, comingUpShown), [comingUpAll, comingUpShown]);
+  /**
+   * JUST ANNOUNCED — freshly added to the gig guide, moved here from My Scene.
+   *
+   * ⭐ This is event DISCOVERY, so it belongs on the browsing surface. My Scene
+   * is the user's own scene; a gig nobody has heard of yet is exactly what they
+   * have no relationship with.
+   *
+   * ⚠ DELIBERATELY NOT LOCATION FILTERED, which is the rule it arrived with:
+   * venue coverage is thin, so a radius would empty this section on precisely
+   * the newest rows, which are the least likely to have a placed venue yet.
+   * The category chip still applies — that is a stated intent, not a guess
+   * about geography.
+   */
+  const justAnnounced = useMemo(() => {
+    const newSince = new Date(Date.now() - 14 * 86400000).toISOString();
+    return events
+      .filter(ev => matchesCategory(ev, category) && ev.created_at && ev.created_at >= newSince)
+      .sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''))
+      .slice(0, JUST_ANNOUNCED_CAP);
+  }, [events, category]);
+  /**
+   * LOCALS — the people and places with something coming up, moved from My Scene.
+   *
+   * ⭐ Its noun is a PERSON, not an event, but the question it answers is
+   * "who is playing around here" — which is discovery, and discovery lives
+   * here now. ⛔ It is NOT a directory: an act with nothing booked does not
+   * appear, and Discover remains the place to browse every profile.
+   *
+   * ⚠ The pool is filtered to acts on THESE events, so it narrows with the
+   * date and category filters above rather than showing the same faces
+   * whatever you are looking at.
+   */
+  const localActs = useLocalActs(events);
+  const localGroups = useMemo(() => LOCAL_GROUPS.map(g => ({
+    ...g,
+    locals: buildLocals({
+      profiles: localActs.filter(pr => g.types.includes(String(pr.type || '').toLowerCase())),
+      originCoords,
+      radiusKm,
+      isoDate: todayIso,
+      withinRadius,
+    }),
+  })), [localActs, originCoords, radiusKm, todayIso]);
+  const localDrags = { artists: artistsDrag, venues: venuesDrag, promoters: promotersDrag };
+  const anyLocals = localGroups.some(g => g.locals.items.length > 0);
   const comingUpHasMore = comingUpAll.length > comingUpEvents.length;
 
   /* Back to the fortnight wording the section shipped with (owner, 2026-08-02). */
   const comingUpSub    = 'NEXT TWO WEEKS';
   const comingUpTabSub = 'Next 2 weeks';
-
-  /** Upcoming events that match the category but cannot be placed. */
-  const unplaceableEvents = useMemo(() => {
-    if (!radiusKm || !originCoords) return [];
-    return events.filter(ev => {
-      const d = ev.config?.date;
-      return d && d >= todayIso && matchesCategory(ev, category) && inRange(ev) === 'unknown';
-    }).sort((a, b) => (a.config?.date || '').localeCompare(b.config?.date || ''));
-  }, [events, todayIso, category, radiusKm, originCoords, inRange]);
 
   // A3 · DEMAND, from the highest-traffic surface in the app.
   //
@@ -707,6 +807,25 @@ export default function WhatsOnScreen() {
               </div>
             </div>
           )}
+          {/* JUST ANNOUNCED — moved out of My Scene. See the memo above for
+              why it carries no radius. */}
+          {justAnnounced.length > 0 && (
+            <div className={s.sectionBlock}>
+              <div className={s.sectionRow}>
+                <span data-tour="whatson-section" className={s.sectionTitle}>JUST ANNOUNCED</span>
+                <span className={s.sectionSub}>FRESHLY ADDED</span>
+                <div className={s.gradientLine} />
+              </div>
+              <div className={s.weekendScroll} ref={announcedDrag.ref}
+                onMouseDown={announcedDrag.onMouseDown} onMouseMove={announcedDrag.onMouseMove}
+                onMouseUp={announcedDrag.onMouseUp} onMouseLeave={announcedDrag.onMouseLeave}>
+                {justAnnounced.map(ev => (
+                  <PortraitEventCard key={ev.id} event={ev} onClick={() => openEvent(ev)} />
+                ))}
+              </div>
+            </div>
+          )}
+
 
           {/* COMING UP */}
           {comingUpEvents.length > 0 && (
@@ -733,30 +852,47 @@ export default function WhatsOnScreen() {
             </div>
           )}
 
-          {/* ⚠ LOCATION UNAVAILABLE — shown, never silently dropped.
-              These match the category and are upcoming, but their venue has no
-              postcode, so the distance filter has nothing to test. Excluding
-              them would be the app asserting they are far away, which it does
-              not know. On the day this shipped that would have hidden 21 of 30
-              live events and read as an empty scene. */}
-          {unplaceableEvents.length > 0 && (
+          {/* LOCALS — three rails, because "who is playing", "which rooms
+              have something on" and "who is putting nights on" are three
+              questions. Each hides independently when empty. */}
+          {anyLocals && (
             <div className={s.sectionBlock}>
               <div className={s.sectionRow}>
-                <span data-tour="whatson-section" className={s.sectionTitle}>LOCATION UNAVAILABLE</span>
-                <span className={s.sectionSub}>DISTANCE UNKNOWN</span>
+                <span data-tour="whatson-section" className={s.sectionTitle}>LOCALS</span>
+                <span className={s.sectionSub}>WITH SOMETHING ON</span>
                 <div className={s.gradientLine} />
               </div>
-              <p className={s.empty} style={{ textAlign: 'left', margin: '0 0 8px' }}>
-                {unplaceableEvents.length === 1
-                  ? 'This event has no venue location set, so we can’t tell how far away it is.'
-                  : `${unplaceableEvents.length} events have no venue location set, so we can’t tell how far away they are.`}
-              </p>
-              {unplaceableEvents.slice(0, 50).map(ev => (
-                <ComingUpRow key={ev.id} event={ev} onClick={() => openEvent(ev)} />
+              {localGroups.map(g => g.locals.items.length > 0 && (
+                <div key={g.key} style={{ marginTop: 14 }}>
+                  <div className={s.sectionRow} style={{ marginBottom: 6 }}>
+                    <span className={s.sectionSub}>{g.title}</span>
+                    <div className={s.gradientLine} />
+                  </div>
+                  {/* ⚠ THE REACH IS DECLARED, PER RAIL. When there are not enough
+                      near you the rail borrows from further afield rather than
+                      running nearly empty — owner, 2026-08-03: "it has to say
+                      that". Without this the section showed a profile in Cairns
+                      under a heading that says LOCALS. Each rail reaches on its
+                      own, so the line has to be per rail too. */}
+                  {g.locals.expanded && (
+                    <p className={s.empty} style={{ textAlign: 'left', margin: '0 0 8px' }}>
+                      {g.locals.localCount === 0
+                        ? 'None nearby yet, so these are from further afield.'
+                        : `Only ${g.locals.localCount} nearby, so the rest are from further afield.`}
+                    </p>
+                  )}
+                  <div className={s.weekendScroll} ref={localDrags[g.key].ref}
+                    onMouseDown={localDrags[g.key].onMouseDown} onMouseMove={localDrags[g.key].onMouseMove}
+                    onMouseUp={localDrags[g.key].onMouseUp} onMouseLeave={localDrags[g.key].onMouseLeave}>
+                    {g.locals.items.map(pr => (
+                      <PortraitCard key={pr.id ?? pr.user_id} profile={pr}
+                        followAction={<FollowHeartBtn profile={pr} />} />
+                    ))}
+                  </div>
+                </div>
               ))}
             </div>
           )}
-
           {/* ⛔ THIS USED TO READ `!featuredEvent && !loading`, WHICH IS A
               DIFFERENT QUESTION. "Is one event featured?" is not "are there
               any events?", and once the hand-set featured pick expired on
@@ -765,7 +901,7 @@ export default function WhatsOnScreen() {
               asserted: nothing rendered above. */}
           {!loading && !featuredEvent && tonightEvents.length === 0
             && weekendEvents.length === 0 && comingUpAll.length === 0
-            && unplaceableEvents.length === 0 && (
+            && justAnnounced.length === 0 && (
             <p className={s.empty}>No upcoming events.</p>
           )}
         </div>

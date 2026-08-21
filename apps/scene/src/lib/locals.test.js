@@ -22,7 +22,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildLocals, localsDayIndex, LOCALS_TYPES } from './locals.js';
+import { buildLocals, localsDayIndex, LOCALS_TYPES, linkedProfileIds, withUpcomingEvents } from './locals.js';
 
 /** Distance stub. ⚠ It receives the COORDS profileCoords() returned, not the
  *  profile row — so it must decide from lat/lng alone. (An earlier version of
@@ -216,4 +216,49 @@ test('with no origin set there is no reach to declare', () => {
   const r = buildLocals({ profiles, originCoords: null, radiusKm: null, withinRadius, isoDate: '2026-08-02', limit: 10 });
   assert.equal(r.items.length, 3);
   assert.equal(r.expanded, false, 'without a location nothing is KNOWN to be distant');
+});
+
+// ── LOCALS ONLY LISTS ACTS WITH SOMETHING ON (2026-08-21) ────────────
+//
+// Owner: "only artists that have events coming up. if they dont have events
+// listed they dont get listed in this section". Without this the rail is a
+// directory, which is Discover's job.
+
+test('a profile with no upcoming event is not a local', () => {
+  const linked = linkedProfileIds([{ id: 'e1', venue_profile_id: 'v1' }], []);
+  const kept = withUpcomingEvents(
+    [{ id: 'v1', name: 'The Federal' }, { id: 'p9', name: 'Nobody Booked' }], linked);
+  assert.deepEqual(kept.map(p => p.name), ['The Federal']);
+});
+
+test('all three ways of being attached count', () => {
+  const events = [{ id: 'e1', venue_profile_id: 'v1', owner_profile_id: 'o1', host_id: 'h1' }];
+  const linked = linkedProfileIds(events, [{ event_id: 'e1', artist_profile_id: 'a1' }]);
+  ['v1', 'o1', 'h1', 'a1'].forEach(id => assert.ok(linked.has(id), id + ' should be linked'));
+});
+
+test('⚠ BOTH lineup keyspaces count — artist_profile_id AND legacy artist_id', () => {
+  const linked = linkedProfileIds(
+    [{ id: 'e1' }],
+    [{ event_id: 'e1', artist_profile_id: 'a1' }, { event_id: 'e1', artist_id: 'u2' }]);
+  assert.ok(linked.has('a1'));
+  assert.ok(linked.has('u2'), 'a legacy row must not drop a genuinely booked act');
+  // And a profile matches on EITHER of its own two ids.
+  assert.equal(withUpcomingEvents([{ id: 'x', user_id: 'u2' }], linked).length, 1);
+});
+
+test('a lineup row for an event outside the window is ignored', () => {
+  const linked = linkedProfileIds([{ id: 'e1' }], [{ event_id: 'eOTHER', artist_profile_id: 'a9' }]);
+  assert.equal(linked.has('a9'), false);
+});
+
+test('no events means no locals, not every local', () => {
+  assert.deepEqual(withUpcomingEvents([{ id: 'a' }, { id: 'b' }], linkedProfileIds([], [])), []);
+});
+
+test('filtering does not mutate the profiles it was given', () => {
+  const profiles = [{ id: 'v1' }, { id: 'p9' }];
+  const before = JSON.stringify(profiles);
+  withUpcomingEvents(profiles, linkedProfileIds([{ id: 'e1', venue_profile_id: 'v1' }], []));
+  assert.equal(JSON.stringify(profiles), before);
 });
