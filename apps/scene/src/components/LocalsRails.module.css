@@ -22,15 +22,17 @@
    2026-08-21: "where's the headings?"). A self-sufficient component paints
    with its own colours.
 
-   ⭐ THE RAMP IS DISCOVER'S (owner: "use the discover gradient") — the same
-   135deg cyan→violet its own section heads use, at their 18px scale, so
-   LOCALS sits native beside RECENTLY ADDED EVENTS. */
+   ⭐ THE RAMP IS DISCOVER'S HERO — lavender to yellow (owner, 2026-08-21:
+   "discover is the lavender to yellow"). First cut used the section heads'
+   cyan→violet; the owner corrected it to the page's IDENTITY ramp, the one
+   the DISCOVER title and its chrome run (90deg #BF5FFF → #ffb830). Subs wear
+   the same ramp quieter; the rule line stays the app-wide section line. */
 .sectionTitle {
   font-family: 'Bebas Neue', sans-serif;
   font-size: 18px;
   letter-spacing: 2px;
   display: inline-block;
-  background: linear-gradient(135deg, #00E5FF, #BF5FFF);
+  background: linear-gradient(90deg, #BF5FFF 0%, #ffb830 100%);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -43,7 +45,7 @@
   letter-spacing: 1.5px;
   font-family: 'Bebas Neue', sans-serif;
   vertical-align: middle;
-  background: linear-gradient(135deg, #00E5FF, #BF5FFF);
+  background: linear-gradient(90deg, #BF5FFF 0%, #ffb830 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
