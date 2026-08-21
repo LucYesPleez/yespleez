@@ -22,7 +22,7 @@ import { useMemo, useState } from 'react';
 import { useEvents } from '../lib/useEvents';
 import { useProfileLocation } from '../lib/useProfileLocation';
 import { useSession } from '../App';
-import { postcodeCoords } from '../lib/geo';
+import { postcodeCoords, profileCoords } from '../lib/geo';
 import { useLocalActs } from '../lib/useLocalActs';
 import { buildLocals } from '../lib/locals';
 import { withinRadius } from '../lib/geo';
@@ -96,14 +96,36 @@ export default function LocalsRails() {
      * out and the reach line never renders. ⚠ This supersedes the 2026-08-03
      * "it may reach further but it must say so" ruling FOR THIS SECTION ONLY —
      * the ladder itself is unchanged for any surface that still wants reach.
-     * ⚠ Unplaceable profiles stay: unknown ≠ far, the standing law.
+     *
+     * ⭐⭐ AND THE UNPLACEABLE GO TOO (owner, 2026-08-21, second ruling: "if it
+     * doesn't say they're from Bellingen they shouldn't be there"). A profile
+     * with no location cannot prove it is local, and on a section titled
+     * LOCALS the owner wants proof — Cash Savage wore no town for exactly
+     * this reason. ⚠ Supersedes unknown ≠ far ON THIS SURFACE ONLY, and only
+     * while an origin exists: signed out there is no radius and no locality
+     * claim, so the whole-state view stays as What's On always showed it.
      *
      * ⭐ IMAGES LEAD (owner, same message: "profiles with images being used
      * mostly"): a stable partition, not a re-sort — cards with a photo keep
      * their ladder-and-rotation order at the front, the photoless keep theirs
      * behind. Determinism survives: same day, same faces, same order.
      */
-    const strict = locals.items.filter(p => !locals.farIds.has(p.id ?? p.user_id));
+    const strict = locals.items.filter(p => {
+      if (locals.farIds.has(p.id ?? p.user_id)) return false;
+      if (originCoords && radiusKm) {
+        const c = profileCoords(p);
+        if (!c || !withinRadius(originCoords, c, radiusKm)) return false;
+        /* ⚠⚠ THE CARD MUST SAY THE TOWN, coords are not enough. Cash Savage —
+           a Melbourne band — carried postcode 2454 because the importer
+           stamps acts with the GIG's postcode, so they passed the geo test
+           while wearing no town at all. The owner's rule is about what the
+           reader can SEE ("if it doesn't say they're from Bellingen…"), so a
+           profile with no displayed location does not belong here, however
+           local its data claims to be. */
+        if (!String(p.location || p.suburb || '').trim()) return false;
+      }
+      return true;
+    });
     const withImg = strict.filter(p => p.avatar_thumb || p.avatar);
     const without = strict.filter(p => !(p.avatar_thumb || p.avatar));
     return { ...g, locals: { ...locals, items: [...withImg, ...without], expanded: false } };
