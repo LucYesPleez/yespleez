@@ -150,7 +150,13 @@
    pulses the same way: the two states are one countdown, and the movement is
    what says "this is happening", in both halves of it. */
 .statusSoon {
-  background: var(--pink);
+  /* ⛔ `--pink` DOES NOT EXIST IN THIS APP. The house pink is `--neon`
+     (#ff2d78); Studio is the one that calls it `--pink`. An undefined custom
+     property makes `background` resolve to nothing, so the pill rendered with
+     TRANSPARENT background and dark text — invisible, with a clean console and
+     a green test suite. Caught by reading the computed style on the live page,
+     not by anything that could have failed a build. */
+  background: var(--neon);
   color: #1a0410;
 }
 
