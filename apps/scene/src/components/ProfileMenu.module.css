@@ -4,6 +4,10 @@
   position: relative;
   display: flex;
   align-items: center;
+  /* Part of the shrink chain that lets .name ellipsize — see the note there.
+     ⛔ The bell is a sibling INSIDE this wrap and must never shrink; it has
+     flex-shrink: 0 of its own. */
+  min-width: 0;
 }
 
 /* ONE target. The name and the avatar are halves of a single button, so every
@@ -22,7 +26,13 @@
      --yp-header-height, which the event page's padding-top and every overlay's
      `top` are built on. A taller control moves all of them. */
   height: 44px;
+  /* ⭐ THE LEFT PADDING IS THE CLEARANCE FROM BETA the owner asked for: the
+     name starts here and never touches the badge, however long it is. */
   padding: 0 6px 0 14px;
+  /* Shrink chain — see .name. The control gives up width; the avatar and the
+     44px hit height do not. */
+  min-width: 0;
+  flex: 0 1 auto;
   /* ⛔ NO BORDER, NO FILL (owner, 2026-08-04: "i dont want the border around my
      profile pic and name, just invisible padding that size for the button").
      The 44px is a HIT AREA, not a shape: the name and avatar read as they
@@ -48,13 +58,29 @@
   outline-offset: 2px;
 }
 
+/* ⭐⭐ THE NAME IS THE ONLY THING IN THE HEADER THAT YIELDS.
+   Owner, 2026-08-22, from a tester's phone: a two-part name pushed the avatar
+   and bell onto a second line. `max-width: 120px` was the old defence and it
+   was the wrong SHAPE of defence — 120px is a guess about one phone. Measured
+   at 375px: back 36 + wordmark 70 + BETA 42 + gaps 18 + padding 16 leaves 193
+   for the cluster, and name 120 + avatar and padding 60 + bell 44 wants 224.
+   A fixed cap cannot know that; shrinking can.
+
+   So: 120px is now a CEILING, not a width. The name takes what is left after
+   every fixed item has been paid, and spends the rest on an ellipsis. ⛔ Do
+   not give it a min-width — a floor is the wrapping bug coming back on the
+   narrow phone nobody tested, which is exactly how this arrived.
+
+   ⚠ `min-width: 0` here AND on every flex ancestor (.control, .wrap,
+   GlobalHeader's .actions). A flex item's automatic minimum size is its
+   CONTENT, so a single missing `min-width: 0` anywhere up that chain refuses
+   to shrink and the ellipsis never appears. */
 .name {
   font-family: 'Bebas Neue', sans-serif;
   font-size: 15px;
   letter-spacing: 0.06em;
-  /* A long display name must not push the header into wrapping — the bar
-     measures itself into --yp-header-height and everything reserving space for
-     it would move. */
+  flex: 0 1 auto;
+  min-width: 0;
   max-width: 120px;
   overflow: hidden;
   text-overflow: ellipsis;

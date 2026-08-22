@@ -45,12 +45,17 @@
   will-change: transform;
   display: flex;
   align-items: center;
-  /* Safety net for the smallest phones now that back + logo + BETA + 3 icons
-     all compete for one row: wrapping (not clipping) is the failure mode if
-     that ever gets too tight. Costs nothing at comfortable widths — the
-     header's own height is already reactive (see the ResizeObserver below),
-     so a wrapped second line doesn't need any extra plumbing to lay out. */
-  flex-wrap: wrap;
+  /* ⛔⛔ NEVER `wrap` AGAIN (owner, 2026-08-22). Wrapping WAS the safety net
+     here, and the net turned out to be the injury: on a tester's phone a
+     two-part display name pushed the avatar and bell onto a second line, and
+     the whole bar changed shape. A header that reflows is worse than a name
+     that abbreviates.
+
+     ⚠ This only holds because exactly ONE item can shrink. Every fixed item
+     below carries `flex-shrink: 0`, and ProfileMenu's .name absorbs the
+     difference with an ellipsis. Adding a new item without `flex-shrink: 0`
+     re-opens this as CLIPPING, which is worse than the wrap it replaced. */
+  flex-wrap: nowrap;
   gap: 12px;
   z-index: 199;
   pointer-events: none;
@@ -158,6 +163,7 @@
 }
 
 .backBtn {
+  flex-shrink: 0;
   background: none;
   border: none;
   padding: 6px;
@@ -172,6 +178,7 @@
    with 12px of clearance to the wordmark between them. */
 
 .ypTag {
+  flex-shrink: 0;
   display: inline-block;
   font-family: 'Bebas Neue', sans-serif;
   font-size: 11px;
@@ -212,6 +219,7 @@
    to an outlined tag, not extra size. Remove this whole block (and its use
    in GlobalHeader.jsx) once the beta program ends. */
 .betaTag {
+  flex-shrink: 0;
   display: inline-block;
   font-family: 'Bebas Neue', sans-serif;
   font-size: 11px;
@@ -230,6 +238,7 @@
 }
 
 .actions {
+  min-width: 0;
   margin-left: auto;
   display: flex;
   align-items: center;
@@ -237,6 +246,9 @@
 }
 
 .iconBtn {
+  /* An icon has no ellipsis to fall back on: squeezing one squeezes a touch
+     target. Only the name yields — see .header's nowrap note. */
+  flex-shrink: 0;
   position: relative;
   background: none;
   border: none;
