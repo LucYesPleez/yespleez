@@ -222,7 +222,22 @@ export default function EventLineup({
       <div className={s.railWrap + (moreBelow ? " " + s.moreBelow : "")} ref={wrapRef}>
         <div
           className={s.rail}
-          ref={el => { railRef.current = el; drag.ref.current = el; }}
+          /* ⛔⛔ CALL THE CALLBACK — `drag.ref` IS A FUNCTION, NOT A REF OBJECT.
+             This read `drag.ref.current = el`, which sets the property and
+             never runs the callback, so everything useDragScroll installs on
+             mount silently did not exist on this rail:
+
+               · the first-visit BUMP that teaches the rail scrolls (owner,
+                 2026-08-22: "make lineup carousel bounce so people know it
+                 scrolls" — it was always meant to, and never once did)
+               · the drag-is-not-a-click guard, so dragging the bill and
+                 releasing over a card opened that artist
+
+             ⚠ THE HOOK'S OWN COMMENT NAMES THE TRAP: it exposes `.current` on
+             the callback deliberately, for readers like MySceneScreen — which
+             is exactly what made assigning to it look correct here.
+             ⭐ `drag.ref(el)` sets `.current` itself, so nothing else is lost. */
+          ref={el => { railRef.current = el; drag.ref(el); }}
           onMouseDown={drag.onMouseDown}
           onMouseUp={drag.onMouseUp}
           onMouseMove={drag.onMouseMove}
