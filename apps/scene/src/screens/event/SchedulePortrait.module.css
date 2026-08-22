@@ -483,7 +483,18 @@
 .pagerSingle {
   scroll-snap-type: none;
   overflow-x: hidden;
-  row-gap: 12px;
+  /* ⭐⭐ ZERO, BECAUSE THE CARD ALREADY SPACES ITSELF (owner, 2026-08-22: the
+     gap on the live event page must match the dashboard editor).
+     ⚠⚠ TWO SPACINGS FOR ONE RHYTHM. `SlotCard` carries its own
+     `margin-bottom: 8` inline, so a row-gap here ADDS to it: the public page
+     ran at 88 + 8 + 12 = 108 per row while the dashboard — same component, no
+     pager — ran at 88 + 8 = 96. The comment above this rule claimed the rhythm
+     already matched the list it replaced; it did not, and nothing measured it.
+     ⛔ Do not put a row-gap back. If the spacing between set times should
+     change, change it in SlotCard, where BOTH surfaces read it.
+     ⚠ Single-stage renders no heading row (see SchedulePortrait), so this gap
+     only ever sat between cards — there is nothing else here for it to space. */
+  row-gap: 0;
   cursor: default;
 }
 
