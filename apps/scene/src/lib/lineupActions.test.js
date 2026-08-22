@@ -883,11 +883,31 @@ test('an empty plan writes nothing at all', async () => {
 
 test('applying stamps accepted_at, because a filled slot is counted by acceptance', async () => {
   let payload = null, scopedIds = null;
-  const db = { from: () => ({ update(p) { payload = p; return { in(_c, ids) { scopedIds = ids; return { error: null }; } }; } }) };
+  const db = { from: () => ({ update(p) { payload = p; return { in(_c, ids) { scopedIds = ids; return { select: () => ({ data: ids.map(id => ({ id })), error: null }) }; } }; } }) };
   const res = await applyPublishSetTimes(db, { promoteIds: ['p-1', 'p-2'] });
   assert.equal(res.ok, true);
   assert.equal(res.published, 2);
   assert.equal(payload.status, 'accepted');
   assert.ok(payload.accepted_at, 'slotTally counts by acceptance; a null stamp reads as unanswered');
   assert.deepEqual(scopedIds, ['p-1', 'p-2'], 'scoped by id — never by event+status');
+});
+
+/* ⛔⛔ RLS FILTERS AN UPDATE RATHER THAN ERRORING IT. These two pin the check
+   that was missing when this shipped on 2026-08-22: a write the database
+   silently declined reported success, the same class of bug that left 22
+   events un-editable with a clean console. */
+test('a write the database silently refused is a FAILURE, not a success', async () => {
+  const db = { from: () => ({ update: () => ({ in: () => ({ select: () => ({ data: [], error: null }) }) }) }) };
+  const res = await applyPublishSetTimes(db, { promoteIds: ['p-1', 'p-2'] });
+  assert.equal(res.ok, false, 'zero rows back must never read as published');
+  assert.equal(res.published, 0);
+  assert.match(res.error, /permissions/i);
+});
+
+test('a partial write names how many actually landed', async () => {
+  const db = { from: () => ({ update: () => ({ in: () => ({ select: () => ({ data: [{ id: 'p-1' }], error: null }) }) }) }) };
+  const res = await applyPublishSetTimes(db, { promoteIds: ['p-1', 'p-2', 'p-3'] });
+  assert.equal(res.ok, false);
+  assert.equal(res.published, 1);
+  assert.match(res.error, /Only 1 of 3/);
 });

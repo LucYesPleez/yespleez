@@ -667,10 +667,40 @@ export async function applyPublishSetTimes(db, plan) {
   const ids = plan?.promoteIds || [];
   if (!ids.length) return { ok: true, error: null, published: 0 };
 
-  const { error } = await db.from('performances')
+  /**
+   * ⛔⛔ `.select()` IS THE VERIFICATION, NOT A CONVENIENCE. RLS FILTERS AN
+   * UPDATE RATHER THAN ERRORING IT: a policy that forbids this write returns
+   * `error: null` and touches nothing, so trusting the absence of an error
+   * reports success over a database that did not move. That is exactly how 22
+   * events sat un-editable without anyone noticing (see the slot editor's
+   * error banner), and this function shipped with the same hole on
+   * 2026-08-22 — the comment warning about it was there, the check was not.
+   *
+   * ⚠ COUNT THE ROWS BACK. Returning fewer than asked is a PARTIAL write:
+   * some slots published, some blocked, and the host must be told which
+   * rather than left comparing the grid against the public page by eye.
+   */
+  const { data, error } = await db.from('performances')
     .update({ status: 'accepted', accepted_at: new Date().toISOString() })
-    .in('id', ids);
+    .in('id', ids)
+    .select('id');
 
   if (error) return { ok: false, error: error.message, published: 0 };
-  return { ok: true, error: null, published: ids.length };
+
+  const published = (data || []).length;
+  if (published === 0) {
+    return {
+      ok: false,
+      published: 0,
+      error: 'The database refused the change and reported nothing. This is usually a permissions rule on the event.',
+    };
+  }
+  if (published < ids.length) {
+    return {
+      ok: false,
+      published,
+      error: `Only ${published} of ${ids.length} could be published. The rest were refused by a permissions rule.`,
+    };
+  }
+  return { ok: true, error: null, published };
 }
