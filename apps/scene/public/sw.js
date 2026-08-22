@@ -66,7 +66,7 @@
  * Hand-maintained on purpose: sw.js is served verbatim from public/ and never
  * passes through Vite, so no build-time value can be injected here.
  */
-const SW_BUILD = '2026-08-22 · index.html not cached';
+const SW_BUILD = '2026-08-22b · fallback stamped';
 
 /**
  * ⏱ TEMPORARY — WHAT HAPPENS TO A PUSH ON THIS DEVICE?
@@ -176,20 +176,55 @@ async function networkFirstShell(request) {
   try {
     const fresh = await fetch(request);
     if (fresh && fresh.ok) cache.put(SHELL_URL, fresh.clone());
+    /* ⛔ THE SUCCESS PATH IS RETURNED UNTOUCHED, deliberately. Rebuilding it to
+       add a header would put this worker in the way of every document the app
+       ever loads, to label the case that is already obvious. Absence of the
+       header below IS the network answer. */
+    lastShell = { source: 'network', at: new Date().toISOString() };
     return fresh;
   } catch {
     // Offline. This branch is also what Chromium's installability check
     // exercises when it probes start_url with the network disabled.
     const cached = await cache.match(SHELL_URL);
-    if (cached) return cached;
+    if (cached) {
+      /**
+       * ⭐⭐ A FALLBACK LOAD SAYS SO (owner, 2026-08-22: "stamp the fallback so
+       * we can tell").
+       *
+       * ⚠⚠ THIS BRANCH IS INDISTINGUISHABLE FROM A NORMAL LOAD WITHOUT IT, and
+       * that cost real time: the cached shell can be an OLDER BUILD, so the app
+       * boots looking current while running code from a previous deploy, and
+       * every question after that ("did it ship?", "is the CSS live?") gets a
+       * confidently wrong answer. It fires on ANY fetch failure — a dead venue
+       * signal, yes, but also one aborted request.
+       *
+       * ⚠ The body is streamed through as-is; only headers are added, so the
+       * document itself is byte-identical to what was cached.
+       */
+      const headers = new Headers(cached.headers);
+      headers.set('X-YP-Shell', 'cache');
+      lastShell = { source: 'cache', at: new Date().toISOString() };
+      return new Response(cached.body, { status: cached.status, statusText: cached.statusText, headers });
+    }
+    lastShell = { source: 'offline-page', at: new Date().toISOString() };
     return new Response(
       '<!doctype html><meta charset="utf-8"><title>YesPleez — offline</title>' +
       '<body style="background:#0a0a0f;color:#fff;font-family:system-ui;display:grid;' +
       'place-items:center;height:100vh;margin:0"><p>You are offline.</p></body>',
-      { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } },
+      { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8', 'X-YP-Shell': 'offline-page' } },
     );
   }
 }
+
+/**
+ * How the last document was served, for the ⓘ panel to ask about.
+ *
+ * ⚠⚠ IN MEMORY, AND THE WORKER IS KILLED WHEN IDLE — so `null` means "this
+ * worker has not served a document since it started", ⛔ NOT "nothing has gone
+ * wrong". The header on the response is the durable evidence; this is the
+ * version you can read from a phone with no DevTools attached.
+ */
+let lastShell = null;
 
 /**
  * Keep the asset cache from growing without limit.
@@ -420,6 +455,11 @@ self.addEventListener('message', (event) => {
   event.ports?.[0]?.postMessage({
     build: SW_BUILD,
     cacheVersion: CACHE_VERSION,
+    /* ⚠ null means this worker has not served a document since it started —
+       a worker is killed when idle — ⛔ NOT "nothing has gone wrong". The
+       X-YP-Shell header on the response is the durable evidence; this is the
+       copy you can read from a phone with no DevTools attached. */
+    lastShell,
     contactJoinPush: typeof contactNameFor === 'function',
   });
 });
