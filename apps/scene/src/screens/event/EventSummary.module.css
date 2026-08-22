@@ -145,6 +145,19 @@
   animation: yp-ev-pulse 2s ease-in-out infinite;
 }
 
+/* ⭐ THE HOUR BEFORE THE DOORS — pink, so it is unmistakably a DIFFERENT state
+   from ON NOW rather than a lighter version of it (owner, 2026-08-22). The dot
+   pulses the same way: the two states are one countdown, and the movement is
+   what says "this is happening", in both halves of it. */
+.statusSoon {
+  background: var(--pink);
+  color: #1a0410;
+}
+
+.statusSoon .statusDot {
+  animation: yp-ev-pulse 2s ease-in-out infinite;
+}
+
 .statusPast {
   background: rgba(255, 255, 255, 0.08);
   color: var(--muted);
@@ -156,7 +169,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .statusOnNow .statusDot { animation: none; }
+  .statusOnNow .statusDot,
+  .statusSoon .statusDot { animation: none; }
 }
 
 /* TAXONOMY — the SAME pill already used on Featured and Spotlight cards

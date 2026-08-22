@@ -52,7 +52,10 @@ export default function EventIdentity({
   return (
     <div className={s.identity}>
       {status && (
-        <span className={`${s.statusPill} ${status === 'on-now' ? s.statusOnNow : s.statusPast}`}>
+        <span className={`${s.statusPill} ${
+          status === 'on-now'        ? s.statusOnNow
+            : status === 'starting-soon' ? s.statusSoon
+            : s.statusPast}`}>
           <span className={s.statusDot} />
           {STATUS_LABEL[status]}
         </span>
