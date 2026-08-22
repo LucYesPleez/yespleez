@@ -582,6 +582,17 @@
   text-overflow: ellipsis;
 }
 
+/* ⭐ Applied to an ACT's name only — ⛔ never to "Open slot". See SlotCard.
+   ⚠ A TRANSFORM, ⛔ not an uppercased string: the ellipsis, the nowrap and any
+   copy of this name elsewhere all still work off what the act actually calls
+   itself. Nothing downstream can tell this happened, which is the point. */
+.djNameCaps {
+  text-transform: uppercase;
+  /* Caps set tighter than mixed case at the same tracking; a touch of letter
+     spacing keeps them from reading as one block at 19px. */
+  letter-spacing: 0.02em;
+}
+
 .djPills {
   display: flex;
   flex-wrap: wrap;

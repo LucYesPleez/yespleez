@@ -392,7 +392,17 @@ export default function SlotCard({ slot, claim, onFill, onEdit, onRemove, onDemo
         <div className={s.slotInfo}>
           <div className={s.djNameRow}>
             <HeadphoneIcon />
-            <span className={s.djName} style={{ color: isEmpty ? 'var(--muted)' : publicName === 'PENDING' ? 'var(--muted)' : isDraft ? 'rgba(255,255,255,.6)' : 'var(--text)', fontStyle: isEmpty ? 'italic' : 'normal' }}>
+            {/* ⭐ THE ACT'S NAME IS SET IN CAPS (owner, 2026-08-22) — the same
+                weight the LINEUP cards read at, where the caps come from Bebas
+                Neue being an all-caps face rather than from a transform.
+                ⛔ THE CAPS ARE A TREATMENT, ⛔ NOT THE DATA. `6ixy` and `Jemz¥`
+                are how those acts spell themselves, and uppercasing the stored
+                name would push a display choice into every surface that reads
+                it — a message, a search result, a claim request.
+                ⛔ AND NOT ON "Open slot", which is italic lowercase on purpose:
+                it names an ABSENCE rather than an act, and shouting it would
+                make an empty slot the loudest row on the bill. */}
+            <span className={`${s.djName} ${isEmpty ? '' : s.djNameCaps}`} style={{ color: isEmpty ? 'var(--muted)' : publicName === 'PENDING' ? 'var(--muted)' : isDraft ? 'rgba(255,255,255,.6)' : 'var(--text)', fontStyle: isEmpty ? 'italic' : 'normal' }}>
               {isEmpty ? 'Open slot' : publicName}
             </span>
             {/* Identity before slot status, same order as every other surface.
