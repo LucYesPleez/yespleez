@@ -346,9 +346,17 @@
    exposure (1.06→1.14), which cost nothing outside the card's own box.
    ⛔ Do not raise the blur past 16 without moving the pager's padding AND its
    negative margin together. */
+/* ⚠⚠ A PULSE IS CONTRAST, ⛔ NOT PEAK BRIGHTNESS. The brightening pass took the
+   trough up with the peak (.24→.42 against .55→.9) and the owner reported the
+   glow had "stopped pulsing" — twice — on an animation that measurement showed
+   was running the whole time. A bright floor the eye adapts to, swinging to a
+   bright peak, reads as a steady light. The peak stays where the brightening
+   put it; the FLOOR comes back down, so the breath is visible again.
+   ⛔ Do not raise the 0%/100% frame to make the resting card look richer: that
+   is precisely the change that made the pulse disappear. */
 @keyframes onNowPulse {
-  0%, 100% { filter: saturate(1.25) brightness(1.06) drop-shadow(0 0 10px rgba(255, 45, 120, .42)); }
-  50%      { filter: saturate(1.3) brightness(1.14) drop-shadow(0 0 16px rgba(255, 45, 120, .9)); }
+  0%, 100% { filter: saturate(1.15) brightness(1.02) drop-shadow(0 0 6px rgba(255, 45, 120, .22)); }
+  50%      { filter: saturate(1.3) brightness(1.14) drop-shadow(0 0 16px rgba(255, 45, 120, .95)); }
 }
 
 /* ⭐⭐ THE FILTERS DRESS THE CARD, ⛔ NOT THE WRAPPER (owner, 2026-08-21: "lift
