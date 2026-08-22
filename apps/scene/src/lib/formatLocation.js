@@ -22,8 +22,28 @@ function clean(val) {
   return str.replace(/^[,\s]+|[,\s]+$/g, '');
 }
 
+/**
+ * ⭐⭐ THE TOWN THIS PROFILE SHOWS ON ITS FACE — and the only correct answer to
+ * "where does this card say it is from".
+ *
+ * ⛔⛔ THE ORDER IS `suburb` FIRST. See the note above: a venue keeps its STREET
+ * ADDRESS in `location`, so `location || suburb` reads "3/5 Church St" for a
+ * venue whose card plainly says Bellingen.
+ *
+ * ⚠⚠ THAT IS NOT HYPOTHETICAL. LocalsRails wrote its own `location || suburb`
+ * and filtered LOCALS on it: at radius 0 every Bellingen venue with a street
+ * address — the Brewing Co, the Memorial Hall, the Golf Club — failed to
+ * resolve and vanished, leaving the single venue whose `location` happened to
+ * be null. A signed-in local saw one venue; signed out, with no filter, the
+ * same page showed five. Exported so there is ONE reading of this question and
+ * a filter can never disagree with the card it is filtering.
+ */
+export function displayTown({ suburb, location } = {}) {
+  return clean(suburb) || clean(location);
+}
+
 export function formatLocation({ suburb, location, state, postcode } = {}) {
-  const town = clean(suburb) || clean(location);
+  const town = displayTown({ suburb, location });
   const st   = clean(state);
   const pc   = clean(postcode);
 

@@ -24,6 +24,7 @@ import { useProfileLocation } from '../lib/useProfileLocation';
 import { useSession } from '../App';
 import { postcodeCoords } from '../lib/geo';
 import { resolveLocationToPostcodes } from '../lib/auLocations';
+import { displayTown } from '../lib/formatLocation';
 import { useLocalActs } from '../lib/useLocalActs';
 import { buildLocals } from '../lib/locals';
 import { withinRadius } from '../lib/geo';
@@ -136,7 +137,16 @@ export default function LocalsRails() {
          * ⚠ A town that cannot be resolved is not local: unresolvable means
          * unproven, and this section demands proof.
          */
-        const town = String(p.location || p.suburb || '').trim();
+        /* ⛔⛔ `displayTown`, ⛔ NOT `p.location || p.suburb`. This read the
+           two fields in the wrong order and so measured a VENUE'S STREET
+           ADDRESS: "3/5 Church St" resolves to no postcode, so the Brewing Co,
+           the Memorial Hall and the Golf Club were all dropped from a section
+           their cards say Bellingen on. One venue survived — the only one whose
+           `location` was null, falling through to `suburb` by accident.
+           ⭐ The helper is what the CARD renders through, which is what makes
+           the rule above ("the town on the card is the test") true rather than
+           merely stated. */
+        const town = displayTown(p);
         if (!town) return false;
         const codes = resolveLocationToPostcodes(town);
         if (!codes.length) return false;
