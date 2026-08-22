@@ -1,3 +1,8 @@
+// ⚠⚠ FIRST IMPORT, DELIBERATELY. It reads the password-recovery token out of
+// the URL before HashRouter can read that same hash as a route and before the
+// Supabase client can race it. See lib/passwordRecovery.js — ⛔ do not sort
+// this into the list below.
+import './lib/passwordRecovery.js'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'

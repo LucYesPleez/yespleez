@@ -19,6 +19,7 @@ const queryClient = new QueryClient({
   },
 });
 import AuthScreen from './screens/AuthScreen';
+import ResetPasswordScreen from './screens/ResetPasswordScreen';
 import StartScreen from './screens/StartScreen';
 import BottomNav from './components/BottomNav';
 import UpdateBanner from './components/UpdateBanner';
@@ -312,6 +313,11 @@ function Shell({ session, onSignOut }) {
             rendered ABOVE the router as a wall — is gone, and
             routeAccess.test.js keeps it gone. */}
         <Route path="/auth"                   element={<AuthScreen />} />
+        {/* ⭐ WHERE A RESET LINK LANDS. Signed OUT is its normal state — the
+            whole point is that the person cannot sign in — so this route must
+            never sit behind a session gate. lib/passwordRecovery puts the
+            browser here before the router reads the hash. */}
+        <Route path="/reset-password"         element={<ResetPasswordScreen />} />
         {/* O3 · the one post-signup question. Reached ONLY as the destination
             postAuthDestination picks for a fresh signup with no returnIntent
             — never on sign-in, and never when an intent is waiting. */}

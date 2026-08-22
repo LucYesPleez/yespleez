@@ -5,6 +5,7 @@ import { useSession } from '../App';
 import { resumeIntent } from '../lib/intentActions';
 import { postAuthDestination } from '../lib/postAuthDestination';
 import { track, EVENTS } from '../lib/analytics';
+import { PUBLIC_ORIGIN } from '../lib/qrDestinations';
 import s from './AuthScreen.module.css';
 
 /**
@@ -145,7 +146,20 @@ export default function AuthScreen() {
     setError('');
     setLoading(true);
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email);
+      /**
+       * ⛔ NEVER `window.location.origin` — the same rule the QR destinations
+       * carry. A reset link is minted wherever the sender happens to be, and a
+       * preview deployment or a phone on the LAN would bake ITS hostname into
+       * an email that has to work tomorrow, from a different device.
+       *
+       * ⚠ The redirect must ALSO be allowlisted under Authentication → URL
+       * Configuration in Supabase. GoTrue does not refuse an unlisted
+       * redirect; it quietly substitutes the Site URL, which is the failure
+       * that reads as "the link goes to the login page".
+       */
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: PUBLIC_ORIGIN + '/',
+      });
       if (error) throw error;
       setResetSent(true);
     } catch (err) {
@@ -171,8 +185,11 @@ export default function AuthScreen() {
       {/* Forgot password form */}
       {forgotMode ? (
         <form className={s.form} onSubmit={handleReset}>
+          {/* ⚠ THE HOUR IS THE PART PEOPLE NEED. A reset link expires, and
+              someone who opens it the next morning gets a refusal with no
+              explanation unless the sending screen said so. */}
           {resetSent ? (
-            <p className={s.resetMsg}>Check your email for a reset link.</p>
+            <p className={s.resetMsg}>Check your email for a reset link. It works for one hour.</p>
           ) : (
             <>
               <p className={s.forgotDesc}>Enter your email and we'll send you a link to reset your password.</p>
@@ -299,8 +316,12 @@ export default function AuthScreen() {
  * `tabIndex={-1}` keeps it out of the tab order: tabbing from password should
  * reach the next field, not a display toggle. `aria-label` is what a screen
  * reader gets instead, and it names the ACTION rather than the state.
+ *
+ * ⭐ EXPORTED for ResetPasswordScreen, which is the third password field in the
+ * app and must offer the same eye as the other two — the same reason it was
+ * extracted at the second.
  */
-function EyeToggle({ shown, onToggle }) {
+export function EyeToggle({ shown, onToggle }) {
   return (
     <button
       type="button"

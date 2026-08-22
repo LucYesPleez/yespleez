@@ -60,6 +60,11 @@ export const ROUTE_ACCESS = Object.freeze({
   '/profile/:id':             { access: ACCESS.PUBLIC },
   '/my-scene':                { access: ACCESS.PUBLIC },
   '/auth':                    { access: ACCESS.PUBLIC },
+  /* ⛔ PUBLIC IS NOT A SLIP HERE. Someone completing a password reset is by
+     definition unable to sign in, so an ACCOUNT class would lock the door
+     against the only people who need it. The recovery token, not a session,
+     is what authorises the change, and updateUser is checked by GoTrue. */
+  '/reset-password':          { access: ACCESS.PUBLIC },
   '/access-required':         { access: ACCESS.PUBLIC },
   '/dev/event-layout':        { access: ACCESS.PUBLIC, devOnly: true },
   /* S3 · the public schedule projection, against real production rows. PUBLIC
