@@ -66,7 +66,7 @@
  * Hand-maintained on purpose: sw.js is served verbatim from public/ and never
  * passes through Vite, so no build-time value can be injected here.
  */
-const SW_BUILD = '2026-07-27b · push forensics';
+const SW_BUILD = '2026-08-22 · index.html not cached';
 
 /**
  * ⏱ TEMPORARY — WHAT HAPPENS TO A PUSH ON THIS DEVICE?
@@ -120,7 +120,15 @@ function logPush(stage, detail) {
   } catch { /* same */ }
 }
 
-const CACHE_VERSION = 'v1';
+/* ⚠ BUMPED TO v2 (2026-08-22) TO THROW AWAY POLLUTED CACHES. Every tab that
+   ran the previous worker has dead `/index.html?_v=…` probes in yp-assets-v1,
+   crowding out the real bundle. `activate` deletes every yp- cache it does not
+   own, so renaming them is the cheapest possible repair: one extra download
+   each, once, and no migration code to keep forever.
+   ⛔ Do not bump this for an ordinary deploy — asset names are content-hashed,
+   so a new build reuses the cache correctly. Bump it only when what is IN the
+   cache is wrong. */
+const CACHE_VERSION = 'v2';
 const SHELL_CACHE   = `yp-shell-${CACHE_VERSION}`;
 const ASSET_CACHE   = `yp-assets-${CACHE_VERSION}`;
 const OWNED_CACHES  = [SHELL_CACHE, ASSET_CACHE];
@@ -257,6 +265,27 @@ self.addEventListener('fetch', (event) => {
   // but a stale registration from a previous session must not intercept
   // Vite's module graph and make HMR look broken.
   if (url.pathname.startsWith('/@') || url.pathname.startsWith('/src/') || url.pathname.startsWith('/node_modules/')) return;
+
+  /**
+   * ⛔⛔ THE DOCUMENT IS NEVER CACHED OUTSIDE A NAVIGATION. `lib/appUpdate`
+   * asks "is a newer build deployed?" by fetching `/index.html?_v=<now>` with
+   * `cache: 'no-store'` — but `no-store` speaks to the HTTP cache, ⛔ NOT to
+   * this worker, which intercepts either way. That request is not a
+   * navigation, so it fell through to `staleWhileRevalidate` and was WRITTEN
+   * INTO THE ASSET CACHE.
+   *
+   * ⚠⚠ MEASURED, 2026-08-22: three checks put three permanent entries in
+   * `yp-assets-v1`. The timestamp makes every probe URL unique, so not one of
+   * them is ever read again — and the cache FIFO-trims at 40, so a tab left
+   * open feeds its own probes in at one every 30 minutes and EVICTS the real
+   * bundle, css and audio this cache exists to hold. The check itself still
+   * worked, which is why it was invisible.
+   *
+   * ⛔ Passing through, ⛔ not caching-with-an-exception: the update check must
+   * reach the network or its silence means "up to date" when it is not, and
+   * `no-store` only does its job once this worker stops answering for it.
+   */
+  if (url.pathname === '/index.html') return;
 
   if (request.mode === 'navigate') {
     event.respondWith(networkFirstShell(request));
