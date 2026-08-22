@@ -279,6 +279,42 @@
   --neon: rgba(255, 255, 255, .16);
 }
 
+/* ⭐⭐ ONLY THE SET ON STAGE IS FULL SIZE (owner, 2026-08-22: "when the event is
+   running, make the other cards 10% smaller").
+
+   ⚠⚠ THE OTHERS SHRINK — ⛔ THE PLAYING CARD DOES NOT GROW. Read the note on
+   `.playing` before touching this: `scale(1.025)` on the playing card is what
+   pushed its shadow 5.5px past its cell and cost the glow its edges to a
+   straight clip line. Scaling DOWN is the same emphasis with the opposite
+   risk profile — a smaller card cannot overflow anything — so the playing card
+   keeps the whole 16px gutter for its glow. ⛔ Do not "simplify" this into a
+   swell on `.playing`; that is the exact change that was reverted.
+
+   ⚠ ON THE WRAPPER, matching the rule stated on `.playing`: a transform on the
+   card alone would leave the progress bar at full width across a shrunken card.
+
+   ⚠ Transform does not affect layout, so every slot keeps its row height and
+   the times stay on their own baseline — the shrink reads as the card stepping
+   back, ⛔ not as the schedule reflowing.
+
+   ⛔ Only while the night is RUNNING, because these classes only exist then.
+   Before doors and after the last set every card is full size, as before. */
+.played,
+.upcoming {
+  transform: scale(.9);
+  /* The handover is a moment worth seeing: as one set ends and the next
+     starts, one card steps back while the other comes forward. Same .35s the
+     filters use, so the size and the light move together. */
+  transition: transform .35s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* ⚠ The SIZE stays — it is information, not decoration. Only the movement
+     between sizes goes. */
+  .played,
+  .upcoming { transition: none; }
+}
+
 /* ⭐⭐ THE GLOW BREATHES ON A 3s CYCLE (owner, 2026-08-21).
    ⚠ ONE SLOW CYCLE, ⛔ not a flash. Three seconds out and back is about the
    rhythm of breathing — it reads as alive at the edge of vision and survives
@@ -369,12 +405,10 @@
 .playing > :first-child {
   /* ⚠ The card's own art is already colourful; this lifts it rather than
      recolouring it, so a playing set reads as the same card turned up.
-     ⚠ Kept as the STATIC state as well as the animation's midpoint — it is what
-     shows when motion is reduced, and what the card transitions from. */
-  /* ⚠ Lifted with the keyframes above — this is the STATIC state, so it is
-     what a reduced-motion reader sees and what the card transitions from. If
-     it stayed at the old .34 the pulse would appear to start from a dimmer
-     card than the one that was sitting there. */
+     ⚠ THE STATIC STATE as well as the animation's midpoint — it is what shows
+     when motion is reduced, and what the card transitions from. Lifted with
+     the keyframes above (was .34): left behind, the pulse would appear to
+     start from a dimmer card than the one already sitting there. */
   filter: saturate(1.25) brightness(1.06)
           drop-shadow(0 0 14px rgba(255, 45, 120, .5));
   animation: onNowPulse 3s ease-in-out infinite;
