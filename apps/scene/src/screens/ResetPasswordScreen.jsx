@@ -135,6 +135,21 @@ export default function ResetPasswordScreen() {
           <button className={s.btnPrimary} type="submit" disabled={loading}>
             {loading ? '…' : 'SAVE NEW PASSWORD'}
           </button>
+          {/* ⭐⭐ THE WAY OUT, SAID OUT LOUD (owner, 2026-08-22: "it said i need
+              to make a new password but i dont want to").
+              Nothing was ever forced — the password changes only on submit, and
+              the nav was right there — but a screen that states one instruction
+              and offers one button READS as a demand. Someone who clicked the
+              link by accident, or changed their mind, or is looking at a link
+              they did not request, needs to be told they can walk away.
+              ⛔ NOT a sign-out. The recovery token already established a
+              session, and dropping it would punish curiosity with a locked
+              door. Leaving keeps them signed in, exactly as arriving did. */}
+          <p style={{ textAlign: 'center', marginTop: 10 }}>
+            <span className={s.authLink} onClick={() => navigate('/', { replace: true })}>
+              Keep my current password
+            </span>
+          </p>
         </form>
       ) : (
         <form className={s.form} onSubmit={e => { e.preventDefault(); navigate('/auth', { replace: true }); }}>
