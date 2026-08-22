@@ -308,6 +308,18 @@
   transition: transform .35s ease;
 }
 
+/* ⭐ HALFWAY, for the set on either side of the one on stage (owner,
+   2026-08-22). .95 is the midpoint of the .9 above and the playing card's 1.
+   ⚠ TWO CLASSES, so it beats the single-class rule above on specificity rather
+   than on source order — ⛔ a bare `.neighbour` would tie with `.upcoming` and
+   depend on which happened to be written last.
+   ⛔ Still never above 1: see `.playing`. The focus is made by everything else
+   stepping back, never by the playing card growing past its clip box. */
+.played.neighbour,
+.upcoming.neighbour {
+  transform: scale(.95);
+}
+
 @media (prefers-reduced-motion: reduce) {
   /* ⚠ The SIZE stays — it is information, not decoration. Only the movement
      between sizes goes. */

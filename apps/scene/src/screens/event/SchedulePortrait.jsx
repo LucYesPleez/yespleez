@@ -237,7 +237,7 @@ export default function SchedulePortrait({ resolved, allMixSlots = [] }) {
     already 1,000 lines deciding what a punter may see. Where the night is up
     to is not its question — a wrapper can swell and mute the finished card
     without a third state entering the one component both paths share. */
-function Card({ entry, allMixSlots, state, live }) {
+function Card({ entry, allMixSlots, state, live, neighbour = false }) {
   /**
    * ⭐⭐ THE HANDOVER BETWEEN STATES IS ANIMATED (owner, 2026-08-21): a set
    * FADES ON as it starts, and as it finishes it fades out completely and
@@ -266,8 +266,12 @@ function Card({ entry, allMixSlots, state, live }) {
     return () => clearTimeout(t);
   }, [phase]);
 
+  /* ⚠ `neighbour` rides ALONGSIDE the state class, ⛔ it does not replace one:
+     the card either side of the stage is still upcoming or played and keeps
+     every treatment that comes with that. The extra class only moves its
+     scale halfway. */
   return (
-    <div className={`${live ? s.live : ''} ${state ? s[state] : ''} ${enter ? s[enter] : ''}`.trim() || undefined}>
+    <div className={`${live ? s.live : ''} ${state ? s[state] : ''} ${neighbour ? s.neighbour : ''} ${enter ? s[enter] : ''}`.trim() || undefined}>
       <SlotCard
         slot={entry.slot}
         claim={entry.claim}
@@ -443,6 +447,8 @@ function StagePager({ day, allMixSlots, now }) {
     const st = states.get(slotId)?.state;
     return st === PLAYING && stageIdx !== activeStage ? 'playingAside' : st;
   };
+
+
   /**
    * ⭐⭐ THE PAGER DRAGS WITH THE MOUSE (owner, 2026-08-21), through the app's
    * OWN rail drag — ⛔ not a second implementation. `useDragScroll` already
@@ -474,6 +480,34 @@ function StagePager({ day, allMixSlots, now }) {
   const single = stages.length <= 1;
   const axis = timeAxis(day);
   const cellsByStage = stages.map(st => cellsForStage(st, axis));
+
+  /**
+   * ⭐⭐ THE TWO CARDS EITHER SIDE OF THE STAGE SIT HALFWAY (owner, 2026-08-22).
+   * Playing is full size, its neighbours 95%, everything else 90% — the night
+   * reads as a run of sets with a focus, ⛔ not one card and a wall.
+   *
+   * ⚠ COMPUTED PER STAGE, ON THE ROW, ⛔ not with a CSS sibling selector. Each
+   * card sits in its own grid cell wrapper, so `.playing + .upcoming` never
+   * matches, and `:has()` would have to reach across two levels to say
+   * something this component already knows: which row is playing.
+   *
+   * ⚠ A ROW neighbour, so it holds across a gap cell — the 10pm slot beside a
+   * playing 9pm reads as "up next" whether or not the grid drew a NOTHING ON
+   * row between them. ⛔ Do not swap this for DOM adjacency.
+   *
+   * ⚠ -1 when nothing is playing on that stage, so `rowIdx ± 1` can never
+   * accidentally match row 0 before doors.
+   *
+   * ⛔ MUST STAY BELOW `cellsByStage` — it reads it, and a const referenced
+   * above its declaration is a temporal dead zone crash, not a warning.
+   */
+  const playingRowByStage = stages.map((_st, sIdx) =>
+    cellsByStage[sIdx].findIndex(cell => cell && states.get(cell.slot.id)?.state === PLAYING));
+
+  const isNeighbour = (rowIdx, stageIdx) => {
+    const playingRow = playingRowByStage[stageIdx];
+    return playingRow >= 0 && Math.abs(rowIdx - playingRow) === 1;
+  };
 
   /**
    * ⭐⭐ POSITIONS ARE READ OFF THE HEADING CELLS, ⛔ NOT COMPUTED (2026-08-21).
@@ -600,6 +634,7 @@ function StagePager({ day, allMixSlots, now }) {
                     entry={entry}
                     allMixSlots={allMixSlots}
                     state={cellState(entry.slot.id, sIdx)}
+                    neighbour={isNeighbour(rowIdx, sIdx)}
                     live={states.get(entry.slot.id)}
                   />
                 </div>
