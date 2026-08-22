@@ -288,9 +288,19 @@
    drop the other two for the length of the animation and the card would flicker
    dimmer instead of glowing. ⛔ Do not "tidy" them out of a frame.
    ⛔ The scale is NOT animated — the card holds its size; only the light moves. */
+/* ⭐ BRIGHTER (owner, 2026-08-22) — and brightened in the two dimensions that
+   are free to move, ⛔ not in the blur radius.
+   ⚠⚠ 16px IS A HARD CEILING ON THE BLUR. The pager gives the schedule 16px of
+   padding with a matching -16px margin for exactly one reason: a scroll
+   container clips at its padding box, and a shadow wider than that comes back
+   as the straight vertical cut line the owner reported. So the extra light
+   comes from ALPHA (.24→.42 at rest, .55→.9 at the peak) and a touch of
+   exposure (1.06→1.14), which cost nothing outside the card's own box.
+   ⛔ Do not raise the blur past 16 without moving the pager's padding AND its
+   negative margin together. */
 @keyframes onNowPulse {
-  0%, 100% { filter: saturate(1.25) brightness(1.06) drop-shadow(0 0 8px rgba(255, 45, 120, .24)); }
-  50%      { filter: saturate(1.25) brightness(1.06) drop-shadow(0 0 14px rgba(255, 45, 120, .55)); }
+  0%, 100% { filter: saturate(1.25) brightness(1.06) drop-shadow(0 0 10px rgba(255, 45, 120, .42)); }
+  50%      { filter: saturate(1.3) brightness(1.14) drop-shadow(0 0 16px rgba(255, 45, 120, .9)); }
 }
 
 /* ⭐⭐ THE FILTERS DRESS THE CARD, ⛔ NOT THE WRAPPER (owner, 2026-08-21: "lift
@@ -361,8 +371,12 @@
      recolouring it, so a playing set reads as the same card turned up.
      ⚠ Kept as the STATIC state as well as the animation's midpoint — it is what
      shows when motion is reduced, and what the card transitions from. */
+  /* ⚠ Lifted with the keyframes above — this is the STATIC state, so it is
+     what a reduced-motion reader sees and what the card transitions from. If
+     it stayed at the old .34 the pulse would appear to start from a dimmer
+     card than the one that was sitting there. */
   filter: saturate(1.25) brightness(1.06)
-          drop-shadow(0 0 12px rgba(255, 45, 120, .34));
+          drop-shadow(0 0 14px rgba(255, 45, 120, .5));
   animation: onNowPulse 3s ease-in-out infinite;
   transition: filter .35s ease;
 }
