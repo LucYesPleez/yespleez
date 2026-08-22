@@ -592,3 +592,85 @@ export async function createEventOffer(db, { eventId, memberId }) {
   if (error) return { ok: false, error: error.message, performance: null };
   return { ok: true, error: null, performance: data };
 }
+
+/**
+ * ── ⭐⭐ PUBLISH SET TIMES — the acts nobody can ask ─────────────────────────
+ *
+ * ⛔⛔ THIS IS NOT THE OLD `publishSetTimes`, AND MUST NEVER GROW INTO IT. That
+ * one flipped statuses, wrote notifications, rewrote application statuses and
+ * locked the event, all behind one press; it was dismantled deliberately and
+ * `notifyPlan.js` names the collapse. This plan promotes performances and ⛔
+ * does nothing else: no notification, no `applications` write, no
+ * `set_times_locked`, no member status change.
+ *
+ * ── WHY IT EXISTS (owner, 2026-08-22, from a live event) ────────────────────
+ *
+ * "Back to the Clitoverse" had all four slots assigned and every one of them
+ * read "Open slot" to the public. The four acts were hand-entered against
+ * unclaimed profiles: `artist_id` NULL, so `isReachable` is false, so no offer
+ * could ever be sent and nobody existed to accept one. The performances sat at
+ * `draft`, RLS shows the public only `accepted` rows, and the set times were
+ * therefore unpublishable BY ANY ROUTE IN THE APP.
+ *
+ * ⚠ `toClaim` already carried the rule — "there is no account to send an offer
+ * to and no one to accept it, so the booking is CONFIRMED by the act of
+ * writing it down" — but that was a DISPLAY translation the host saw and the
+ * database never agreed with. This is the same rule, written down where the
+ * public read can see it.
+ *
+ * ⛔⛔ REACHABLE ARTISTS ARE NEVER TOUCHED. Someone with an account gets asked,
+ * and their answer is theirs to give: promoting their draft here would publish
+ * a booking they have not agreed to and put a name on a public bill without
+ * consent. That is the whole reason this filters rather than sweeps.
+ *
+ * @param members  lineup_members rows for the event
+ * @param perfs    performances rows for the event
+ * @returns {{ promoteIds: string[], skippedReachable: number, names: string[] }}
+ */
+export function planPublishSetTimes(members = [], perfs = []) {
+  const byId = new Map((members || []).map(m => [m.id, m]));
+
+  const promote = (perfs || []).filter(p => {
+    /* A set time, not a bare place-offer: a null slot is "you are on the
+       bill", which has nothing to publish. */
+    if (!p?.slot_uuid) return false;
+    if (p.status !== 'draft') return false;
+    const member = byId.get(p.lineup_member_id);
+    return !!member && !isReachable(member);
+  });
+
+  const skippedReachable = (perfs || []).filter(p =>
+    p?.slot_uuid && p.status === 'draft' && isReachable(byId.get(p.lineup_member_id))).length;
+
+  return {
+    promoteIds: promote.map(p => p.id),
+    skippedReachable,
+    /* Named, not counted, because the confirmation says WHO goes public — a
+       number cannot be checked against the bill by the person pressing it. */
+    names: promote.map(p => byId.get(p.lineup_member_id)?.artist_name).filter(Boolean),
+  };
+}
+
+/**
+ * Apply a plan from `planPublishSetTimes`.
+ *
+ * ⚠ `accepted_at` IS STAMPED, because the column means "when this became a
+ * booking" and every reader downstream tests it. ⛔ Leaving it null would make
+ * a published set time look like an unanswered offer to `slotTally`, which
+ * counts filled slots by acceptance.
+ *
+ * ⛔ ONE UPDATE, SCOPED BY ID. Never `.eq('event_id', …).eq('status','draft')`
+ * — that would sweep in a reachable artist's draft the instant one is created
+ * between the plan and the write.
+ */
+export async function applyPublishSetTimes(db, plan) {
+  const ids = plan?.promoteIds || [];
+  if (!ids.length) return { ok: true, error: null, published: 0 };
+
+  const { error } = await db.from('performances')
+    .update({ status: 'accepted', accepted_at: new Date().toISOString() })
+    .in('id', ids);
+
+  if (error) return { ok: false, error: error.message, published: 0 };
+  return { ok: true, error: null, published: ids.length };
+}

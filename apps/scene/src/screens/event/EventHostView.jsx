@@ -24,7 +24,7 @@ import { notifyState } from '../../lib/notifyPlan';
 import { sendSlotNotice } from '../../lib/notifySender';
 import { setTimesEnabled } from '../../lib/eventSetTimes';
 import { normaliseStatus, PIPELINE_BUCKETS, STATUS_TAB_COLOR } from '../../lib/enquiryUtils';
-import { planUnassign, planMoveToShortlist, planRemoveFromEvent, executeLineupPlan, assignMemberToSlot } from '../../lib/lineupActions';
+import { planUnassign, planMoveToShortlist, planRemoveFromEvent, executeLineupPlan, assignMemberToSlot, planPublishSetTimes, applyPublishSetTimes } from '../../lib/lineupActions';
 import { planAddToBill, addToBill, findExistingMember } from '../../lib/lineupFromApplication';
 import { PROFILE_CARD_META_COLUMNS } from '../../components/ProfileCard';
 import WorkItemCard, { applicationWorkState, lineupWorkState } from '../../components/WorkItemCard';
@@ -85,6 +85,13 @@ export default function EventHostView({
      the slot cards render, so the tab and the rows can never disagree. */
   const anyNoticeOutstanding = Object.values(claims || {}).some(c => c?.notify?.needsNotice);
 
+  /* ⭐ WHICH SET TIMES THE PUBLIC STILL CANNOT SEE. Derived from the RAW member
+     and performance rows, ⛔ never from `claim.status` — that translation calls
+     a hand-entered act 'confirmed' for display, which is precisely the belief
+     that hid this problem: the host saw a filled slot and the public saw
+     "Open slot". See planPublishSetTimes. */
+  const publishPlan = planPublishSetTimes(lineupMembers, Object.values(perfsByMember || {}).flat());
+
   const [eventTab,      setEventTab]      = useState('LINEUP');
 
   /**
@@ -129,6 +136,8 @@ export default function EventHostView({
    * the error is what makes that class of failure visible if it ever returns.
    */
   const [slotError,     setSlotError]     = useState('');
+  const [publishError,  setPublishError]  = useState('');
+  const [publishing,    setPublishing]    = useState(false);
   /* Taking somebody off a bill is irreversible-looking and affects a real
      person, so it states exactly what it will do and waits. */
   const [confirmRemove, setConfirmRemove] = useState(null);
@@ -1042,6 +1051,74 @@ export default function EventHostView({
             {showTimesPublicly ? 'TAP TO HIDE' : 'TAP TO ANNOUNCE'}
           </span>
         </button>
+      )}
+
+      {/**
+        * ── ⭐⭐ PUBLISH SET TIMES — the acts nobody can ask ───────────────────
+        *
+        * ⛔⛔ NOT THE OLD `publishSetTimes`. That one flipped statuses, wrote
+        * notifications, rewrote applications and locked the event on one press,
+        * and was dismantled for it. This promotes drafts and does nothing else.
+        *
+        * ⚠ IT APPEARS ONLY WHEN THERE IS SOMETHING TO PUBLISH, and what it can
+        * publish is only ever acts with no account. Owner, 2026-08-22: an event
+        * with all four slots assigned read "Open slot" to the public on every
+        * one of them, because hand-entered acts have nobody who can accept and
+        * the public read only ever sees accepted rows.
+        *
+        * ⛔ SEPARATE FROM THE TOGGLE ABOVE, WHICH IS A DIFFERENT QUESTION.
+        * "Are set times public?" is about the SECTION; this is about whether a
+        * particular slot has a name in it. An event can announce its running
+        * order and still show four empty slots — that pair is exactly what
+        * produced the report.
+        */}
+      {effectiveIsHost && showEditor && eventTab === 'SET_TIMES' && publishPlan.promoteIds.length > 0 && (
+        <div style={{ marginBottom: 16, padding: '12px 14px', borderRadius: 10, border: '1px solid rgba(0,229,160,.3)', background: 'rgba(0,229,160,.08)' }}>
+          <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,.75)', lineHeight: 1.5, marginBottom: 10 }}>
+            {publishPlan.promoteIds.length === 1
+              ? `${publishPlan.names[0] || 'One act'} has a set time the public cannot see yet.`
+              : `${publishPlan.promoteIds.length} set times are not visible to the public yet.`}
+            <div style={{ fontSize: 11.5, color: 'rgba(255,255,255,.45)', marginTop: 4 }}>
+              {/* ⚠ Says WHY, because "publish" on a slot that already looks
+                  filled to the host is otherwise an unexplained button. */}
+              {publishPlan.names.join(', ')} {publishPlan.names.length === 1 ? 'has' : 'have'} no
+              account on YesPleez, so nobody can accept the slot. Publishing puts
+              {publishPlan.names.length === 1 ? ' the name' : ' those names'} on the public running order.
+              {publishPlan.skippedReachable > 0 && (
+                <> {publishPlan.skippedReachable} other set {publishPlan.skippedReachable === 1 ? 'time is' : 'times are'} waiting
+                on the artist to answer and {publishPlan.skippedReachable === 1 ? 'is' : 'are'} not affected.</>
+              )}
+            </div>
+          </div>
+          {publishError && (
+            <div role="alert" style={{ fontSize: 12, color: '#FF2D78', marginBottom: 8 }}>
+              Nothing was published. {publishError}
+            </div>
+          )}
+          <button
+            onClick={async () => {
+              setPublishError('');
+              setPublishing(true);
+              const { ok, error } = await applyPublishSetTimes(supabase, publishPlan);
+              setPublishing(false);
+              /* ⚠ RLS FILTERS AN UPDATE RATHER THAN ERRORING IT — the same trap
+                 the slot editor carries above. A silent no-op must not read as
+                 success, so the refetch is what proves it, not the button. */
+              if (!ok) { setPublishError(error || 'The publish did not go through.'); return; }
+              queryClient.invalidateQueries({ queryKey: ['event', id] });
+            }}
+            disabled={publishing}
+            style={{
+              width: '100%', padding: '9px 14px', borderRadius: 8,
+              cursor: publishing ? 'default' : 'pointer',
+              fontFamily: "'Bebas Neue'", fontSize: 12.5, letterSpacing: 1.5,
+              border: 'none', background: '#00E5A0', color: '#04231a',
+              opacity: publishing ? 0.6 : 1,
+            }}
+          >
+            {publishing ? 'PUBLISHING…' : `PUBLISH ${publishPlan.promoteIds.length === 1 ? 'THIS SET TIME' : `${publishPlan.promoteIds.length} SET TIMES`}`}
+          </button>
+        </div>
       )}
 
       {/**

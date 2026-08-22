@@ -5,6 +5,7 @@ import {
   planUnassign, planRemoveFromBill, planMoveToShortlist, planRemoveFromEvent, applyLineupPlan, restoreToBill,
   notifiablePerformances, wasEverSent, isReachable, executeLineupPlan, messageFor, assignMemberToSlot,
   planEventOffer, createEventOffer, removalNeedsNotice,
+  planPublishSetTimes, applyPublishSetTimes,
 } from './lineupActions.js';
 
 /**
@@ -813,4 +814,80 @@ test('⛔ the removal record never writes accepted_at, a lock, or another table'
   }
   assert.equal(db.calls.some(c => c.name === 'applications'), false);
   assert.equal(db.calls.some(c => c.name === 'events'), false);
+});
+
+/* ── PUBLISH SET TIMES ──────────────────────────────────────────────────────
+ *
+ * Live case, 2026-08-22: an event with four assigned slots showed "Open slot"
+ * on all four to the public. Every act was hand-entered against an unclaimed
+ * profile, so `artist_id` was NULL, no offer could be sent, nobody could
+ * accept, and RLS shows the public only accepted rows. These tests pin the two
+ * halves of the rule: publish the unaskable, ⛔ never the askable.
+ */
+const pubMembers = [
+  { id: 'm-hand',  artist_name: '6ixy',   artist_id: null },
+  { id: 'm-hand2', artist_name: 'Jemzy',  artist_id: null },
+  { id: 'm-real',  artist_name: 'Wyldcard', artist_id: 'u-1' },
+];
+
+test('publishes a draft set time for an act with no account', () => {
+  const plan = planPublishSetTimes(pubMembers, [
+    { id: 'p-1', lineup_member_id: 'm-hand', slot_uuid: 's-1', status: 'draft' },
+  ]);
+  assert.deepEqual(plan.promoteIds, ['p-1']);
+  assert.deepEqual(plan.names, ['6ixy']);
+});
+
+test('⛔⛔ NEVER publishes a reachable artist — their answer is theirs to give', () => {
+  const plan = planPublishSetTimes(pubMembers, [
+    { id: 'p-1', lineup_member_id: 'm-hand', slot_uuid: 's-1', status: 'draft' },
+    { id: 'p-2', lineup_member_id: 'm-real', slot_uuid: 's-2', status: 'draft' },
+  ]);
+  assert.deepEqual(plan.promoteIds, ['p-1'], 'a booking nobody agreed to must not go public');
+  assert.equal(plan.skippedReachable, 1);
+});
+
+test('⛔ a bare place-offer has no set time to publish', () => {
+  // slot_uuid null is "you are on the bill", not a scheduled set.
+  const plan = planPublishSetTimes(pubMembers, [
+    { id: 'p-1', lineup_member_id: 'm-hand', slot_uuid: null, status: 'draft' },
+  ]);
+  assert.deepEqual(plan.promoteIds, []);
+});
+
+test('already-accepted and offered rows are left alone', () => {
+  const plan = planPublishSetTimes(pubMembers, [
+    { id: 'p-1', lineup_member_id: 'm-hand',  slot_uuid: 's-1', status: 'accepted' },
+    { id: 'p-2', lineup_member_id: 'm-hand2', slot_uuid: 's-2', status: 'offered' },
+  ]);
+  assert.deepEqual(plan.promoteIds, []);
+});
+
+test('a performance whose member is missing is not published', () => {
+  // A row pointing at a member that is not on the bill is unexplained; ⛔ a
+  // publish button is not the place to resolve it.
+  const plan = planPublishSetTimes(pubMembers, [
+    { id: 'p-1', lineup_member_id: 'm-gone', slot_uuid: 's-1', status: 'draft' },
+  ]);
+  assert.deepEqual(plan.promoteIds, []);
+});
+
+test('an empty plan writes nothing at all', async () => {
+  let called = false;
+  const db = { from() { called = true; return {}; } };
+  const res = await applyPublishSetTimes(db, { promoteIds: [] });
+  assert.equal(res.ok, true);
+  assert.equal(res.published, 0);
+  assert.equal(called, false, 'an empty publish must not touch the database');
+});
+
+test('applying stamps accepted_at, because a filled slot is counted by acceptance', async () => {
+  let payload = null, scopedIds = null;
+  const db = { from: () => ({ update(p) { payload = p; return { in(_c, ids) { scopedIds = ids; return { error: null }; } }; } }) };
+  const res = await applyPublishSetTimes(db, { promoteIds: ['p-1', 'p-2'] });
+  assert.equal(res.ok, true);
+  assert.equal(res.published, 2);
+  assert.equal(payload.status, 'accepted');
+  assert.ok(payload.accepted_at, 'slotTally counts by acceptance; a null stamp reads as unanswered');
+  assert.deepEqual(scopedIds, ['p-1', 'p-2'], 'scoped by id — never by event+status');
 });
