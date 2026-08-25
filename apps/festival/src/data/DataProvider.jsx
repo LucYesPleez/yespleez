@@ -4,6 +4,7 @@ import { festivalRepository } from './supabase/festivalRepository';
 import { categoryRepository } from './supabase/categoryRepository';
 import { applicationRepository } from './supabase/applicationRepository';
 import { eventConfigRepository } from './supabase/eventConfigRepository';
+import { publicLandingRepository } from './supabase/publicLandingRepository';
 
 /**
  * THE SWAP POINT.
@@ -31,11 +32,14 @@ const DEFAULT_REPOSITORIES = {
   categories: categoryRepository,
   applications: applicationRepository,
   // ⛔ `apply` IS GONE — deleted with the public apply screen, 2026-08-07.
-  // Applying happens in Scene now; this app has no public surface. The
-  // organiser's half of an application stays, because configuring what is
-  // asked is an organiser's job.
+  // Applying happens in Scene now. The organiser's half of an application
+  // stays, because configuring what is asked is an organiser's job.
   // The organiser's half of an application: dates, departments, what is open.
   eventConfig: eventConfigRepository,
+  // ⭐ The landing page's ANONYMOUS reads (owner, 2026-08-26). Presentation
+  // only — it writes nothing, and applying still happens in Scene. This is
+  // not `apply` coming back; see publicLandingRepository's header.
+  publicLanding: publicLandingRepository,
 };
 
 export default function DataProvider({ repositories, children }) {

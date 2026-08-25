@@ -2,54 +2,74 @@ import { useState } from 'react';
 import { SectionCard, Button, Callout } from '../design-system';
 import { TextInput, Row } from '../design-system/Form';
 import { sceneEventUrl } from '../config/scene';
+import { landingUrl } from '../config/landing';
 
 /**
- * THE APPLICATION LINK.
+ * THE PUBLIC LINKS.
  *
- * ⭐ The gateway to the entire product. Until an organiser can copy this and
- * paste it into an email, a poster or their own website, nobody can enter the
- * system at all — every other thing the portal does happens after someone has
- * followed this URL.
+ * ⭐ The gateway to the entire product. Until an organiser can copy these and
+ * paste them into an email, a poster or their own website, nobody can enter
+ * the system at all — every other thing the portal does happens after someone
+ * has followed one of these URLs.
  *
- * ⭐ IT POINTS AT SCENE NOW, not at this app. Owner's ruling 2026-08-06: a
- * festival's event opens the normal Scene event page, and the public never needs
- * to know a Festival app exists. This repo's own `/apply/:eventId` has been
- * deleted — it was a second public surface writing the same table.
+ * Two links with two jobs (owner, 2026-08-26):
  *
- * ⚠ It was built from `window.location` and could not stay that way once the
- * destination moved to a different origin. See config/scene.js, which restates
- * the hardcoded-host warning this comment used to carry.
+ *   LANDING PAGE  this app's `/f/:eventId` — the festival's front door. What
+ *                 goes on the website and the poster: identity, dates, open
+ *                 categories, and APPLY actions that lead to Scene.
+ *   EVENT PAGE    Scene's `/event/:id` — where applying actually happens
+ *                 (owner's ruling 2026-08-06: exactly ONE public apply
+ *                 surface, and it is Scene's).
  *
- * ⚠ Scoped to an EVENT ID passed in, never to "the current event". A festival
- * with three events has three links, and a card that quietly showed one of them
- * would be handing out the wrong year's URL.
+ * ⚠ Both are scoped to an EVENT ID passed in, never to "the current event". A
+ * festival with three events has three of each, and a card that quietly showed
+ * one of them would be handing out the wrong year's URL.
  */
 
 export default function ApplicationLink({ eventId, applicationsOpen = true }) {
-  const [copied, setCopied] = useState(false);
   if (!eventId) return null;
 
-  const url = sceneEventUrl(eventId);
+  const landing = landingUrl(eventId);
+  const scene = sceneEventUrl(eventId);
+
+  return (
+    <SectionCard
+      title="Public links"
+      subtitle="The landing page is your front door for websites and posters. Applying itself happens on the Scene event page, which the landing page links to."
+    >
+      <LinkRow
+        label="Festival landing page"
+        url={landing}
+      />
+      <LinkRow
+        label="Event page in Scene"
+        url={scene}
+      />
+
+      {!applicationsOpen && (
+        <Callout tone="warn" title="Applications are closed">
+          Both links work, but they will tell visitors applications are closed until a
+          category is open on this event.
+        </Callout>
+      )}
+    </SectionCard>
+  );
+}
+
+function LinkRow({ label, url }) {
+  const [copied, setCopied] = useState(false);
 
   async function copy() {
     await navigator.clipboard.writeText(url);
     setCopied(true);
-    // Long enough to read, short enough that the button is not left lying about
-    // a clipboard whose contents have since been replaced.
+    // Long enough to read, short enough that the button is not left lying
+    // about a clipboard whose contents have since been replaced.
     setTimeout(() => setCopied(false), 2000);
   }
 
   return (
-    <SectionCard
-      title="Application link"
-      /* ⚠ The old copy promised "they sign in on the page itself and come
-         straight back", which was true of this app's apply page and is not true
-         of Scene's. Describing a flow the destination does not have is how an
-         organiser ends up reassuring an applicant about something that will not
-         happen to them. */
-      subtitle="Your event's public page in Scene. Anyone with this link can see the event and apply."
-    >
-      <TextInput label="Public link" readOnly value={url} onFocus={e => e.target.select()} />
+    <>
+      <TextInput label={label} readOnly value={url} onFocus={e => e.target.select()} />
       <Row>
         <Button variant="primary" icon={copied ? 'check' : 'external'} onClick={copy}>
           {copied ? 'Copied' : 'Copy link'}
@@ -58,13 +78,6 @@ export default function ApplicationLink({ eventId, applicationsOpen = true }) {
           Open
         </Button>
       </Row>
-
-      {!applicationsOpen && (
-        <Callout tone="warn" title="Applications are closed">
-          The link works, but it will tell visitors applications are closed until a category
-          is open on this event.
-        </Callout>
-      )}
-    </SectionCard>
+    </>
   );
 }

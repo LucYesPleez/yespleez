@@ -21,3 +21,5 @@ export {
   MIN_CROP_COVERAGE,
   MAX_SLIDES,
 } from './heroMedia.js';
+
+export { heroMediaInputsFromConfig } from './configMedia.js';

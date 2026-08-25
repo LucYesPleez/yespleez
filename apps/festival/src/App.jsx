@@ -20,6 +20,7 @@ import EventEditorScreen from './screens/EventEditorScreen';
 import SettingsScreen from './screens/SettingsScreen';
 import MessagesScreen from './screens/MessagesScreen';
 import { HelpScreen } from './screens/stubs';
+import FestivalLandingScreen from './public/FestivalLandingScreen';
 
 /**
  * Routing.
@@ -32,12 +33,17 @@ import { HelpScreen } from './screens/stubs';
  * single source of truth. The category is in the URL so a view is shareable
  * and survives a reload — that is UI state, not application state.
  *
- * ⛔ THIS APP HAS NO PUBLIC FACE, and `/apply/:eventId` is gone. It used to sit
- * outside the gate as "the public face of the whole product". Owner's ruling,
- * 2026-08-06: a festival's event opens the normal Scene event page, and the
- * public never needs to know a Festival app exists. Two public surfaces writing
- * `festival_applications` was one too many — see config/scene.js. Every route
- * below is the organiser's workspace and requires a session.
+ * ⭐ THIS APP HAS EXACTLY ONE PUBLIC SURFACE: `/f/:eventId`, the festival
+ * landing page (owner, 2026-08-26). It PRESENTS a festival — identity, dates,
+ * open categories — and every APPLY on it hands the visitor to Scene's event
+ * page. It writes nothing.
+ *
+ * ⛔ What SURVIVES of the 2026-08-06 ruling is the part that mattered:
+ * `/apply/:eventId` stays gone, and there is still exactly ONE public surface
+ * writing `festival_applications` — Scene's. A landing page that grows a form
+ * is that deleted second apply surface coming back; see config/scene.js and
+ * publicLandingRepository. Every OTHER route below is the organiser's
+ * workspace and requires a session.
  */
 /**
  * ⭐ THE BETA ALLOWLIST — who may use the ORGANISER side at all.
@@ -94,6 +100,12 @@ export default function App() {
       <DataProvider>
         <HashRouter>
           <Routes>
+            {/* ⭐ THE ONE PUBLIC ROUTE — outside the Gate on purpose, inside
+                DataProvider because its reads follow the same repository law
+                as everything else. Anonymous by design; see the screen's
+                header before adding anything that writes or signs in. */}
+            <Route path="/f/:eventId" element={<FestivalLandingScreen />} />
+
             {/* Gate wraps the SHELL, not each screen: AppShell renders the
                 Outlet, so the child routes below still resolve normally. */}
             {/* ⭐ THE COMPANION — the same six rooms at mobile density, behind

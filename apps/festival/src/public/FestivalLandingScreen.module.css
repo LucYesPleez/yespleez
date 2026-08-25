@@ -1,0 +1,418 @@
+/* THE FESTIVAL LANDING PAGE.
+ *
+ * A public, scrolling page in an app whose shell never scrolls — base.css
+ * locks `body`, so `.page` is its own full-viewport scroll container rather
+ * than a change to the global rule. The global no-visible-scrollbars law
+ * applies to it like every other scroller.
+ *
+ * ⭐ THE FESTIVAL'S IDENTITY DOMINATES. The page borrows the platform's type
+ * (Bebas Neue + DM Sans) and its dark ground, and takes PURPLE as its single
+ * accent — the same treatment Scene gives festival application cards, so the
+ * funnel reads as one thing from poster to apply. Scene's pink and cyan stay
+ * out of it except the quiet footer; YesPleez must not visually compete with
+ * the festival.
+ *
+ * ⚠ Bebas Neue has ONE weight. Every display rule states font-weight: 400,
+ * or a heading element faux-bolds it and stops matching the platform.
+ */
+
+.page {
+  position: fixed;
+  inset: 0;
+  overflow-y: auto;
+  background: var(--dark);
+  color: var(--text);
+  font-family: 'DM Sans', sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Hero ─────────────────────────────────────────────────────────────── */
+
+.hero {
+  position: relative;
+  min-height: min(78dvh, 780px);
+  display: flex;
+  align-items: flex-end;
+  isolation: isolate;
+  overflow: hidden;
+}
+
+.heroMedia {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  background-size: cover;
+  background-repeat: no-repeat;
+}
+
+/* The typographic hero: what a festival with no imagery yet gets. It has to
+   look chosen, not broken — a page that visibly misses its poster punishes
+   the festival for a field being empty. */
+.heroFallback {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  background:
+    radial-gradient(120% 90% at 85% 0%, color-mix(in srgb, var(--purple) 17%, transparent), transparent 60%),
+    radial-gradient(110% 80% at 8% 100%, color-mix(in srgb, var(--neon2) 7%, transparent), transparent 55%),
+    var(--dark);
+}
+
+/* Legibility over any artwork, and the seam into the page: the hero always
+   resolves to the page's own ground at its foot. */
+.heroScrim {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(180deg,
+    rgba(10, 10, 15, .30) 0%,
+    rgba(10, 10, 15, .52) 55%,
+    var(--dark) 100%);
+}
+
+.heroContent {
+  width: 100%;
+  max-width: 1060px;
+  margin: 0 auto;
+  padding: 128px 24px 60px;
+}
+
+.title {
+  font-family: 'Bebas Neue', sans-serif;
+  font-weight: 400;
+  font-size: clamp(54px, 9vw, 110px);
+  line-height: .96;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: #fff;
+  margin: 0;
+  text-wrap: balance;
+}
+
+.tagline {
+  margin: 14px 0 0;
+  font-size: clamp(16px, 2.2vw, 20px);
+  line-height: 1.5;
+  color: rgba(232, 232, 240, .88);
+  max-width: 58ch;
+}
+
+.metaRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 22px;
+  margin-top: 18px;
+}
+
+.metaItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  letter-spacing: .3px;
+  color: rgba(232, 232, 240, .92);
+}
+
+.cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 28px;
+  padding: 15px 28px 12px;
+  border-radius: 999px;
+  font-family: 'Bebas Neue', sans-serif;
+  font-weight: 400;
+  font-size: 19px;
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
+  color: #fff;
+  background: linear-gradient(135deg,
+    color-mix(in srgb, var(--purple) 85%, #fff 0%),
+    color-mix(in srgb, var(--purple) 55%, #1a0e30));
+  border: 1px solid color-mix(in srgb, var(--purple) 65%, transparent);
+  box-shadow: 0 8px 32px color-mix(in srgb, var(--purple) 30%, transparent);
+  transition: filter var(--yp-fast) var(--yp-ease);
+}
+
+.cta:hover { filter: brightness(1.1); }
+
+/* ── Body sections ────────────────────────────────────────────────────── */
+
+.body {
+  max-width: 1060px;
+  margin: 0 auto;
+  padding: 16px 24px 48px;
+  display: flex;
+  flex-direction: column;
+  gap: 56px;
+}
+
+.section { min-width: 0; }
+
+.h2 {
+  font-family: 'Bebas Neue', sans-serif;
+  font-weight: 400;
+  font-size: 27px;
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
+  color: rgba(232, 232, 240, .95);
+  margin: 0 0 16px;
+}
+
+.lede {
+  margin: 0 0 20px;
+  font-size: 15px;
+  line-height: 1.55;
+  color: rgba(232, 232, 240, .75);
+  max-width: 64ch;
+}
+
+.closedNote {
+  margin: 0;
+  font-size: 15px;
+  color: rgba(232, 232, 240, .7);
+}
+
+/* ── Category cards ───────────────────────────────────────────────────── */
+
+/* auto-fill, not auto-fit: one open category must not stretch into a
+   full-width banner pretending to be three. */
+.catGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+/* The same purple card language Scene's apply flow wears, so the visitor
+   lands on Scene and recognises where they are. */
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px;
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--purple) 5%, transparent);
+  border: 1px solid color-mix(in srgb, var(--purple) 24%, transparent);
+}
+
+.cardHead {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.cardIcon {
+  width: 42px;
+  height: 42px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--purple) 14%, transparent);
+  color: var(--purple);
+}
+
+.cardTitle {
+  font-family: 'Bebas Neue', sans-serif;
+  font-weight: 400;
+  font-size: 23px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: #fff;
+  margin: 0;
+}
+
+.cardLine {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: rgba(232, 232, 240, .75);
+}
+
+.deptList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.dept {
+  font-size: 12px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: rgba(232, 232, 240, .7);
+}
+
+.closes {
+  margin: 0;
+  font-size: 12px;
+  letter-spacing: .4px;
+  color: var(--gold);
+}
+
+.applyBtn {
+  margin-top: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 13px 18px 10px;
+  border-radius: 12px;
+  font-family: 'Bebas Neue', sans-serif;
+  font-weight: 400;
+  font-size: 17px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: #fff;
+  background: color-mix(in srgb, var(--purple) 26%, transparent);
+  border: 1px solid var(--purple);
+  transition: background var(--yp-fast) var(--yp-ease);
+}
+
+.applyBtn:hover { background: color-mix(in srgb, var(--purple) 40%, transparent); }
+
+.finePrint {
+  margin: 16px 0 0;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--muted);
+  max-width: 64ch;
+}
+
+/* ── About · Location · Dates ─────────────────────────────────────────── */
+
+.para {
+  margin: 0 0 14px;
+  font-size: 15px;
+  line-height: 1.65;
+  color: rgba(232, 232, 240, .82);
+  white-space: pre-line;
+  max-width: 72ch;
+}
+
+.para:last-child { margin-bottom: 0; }
+
+.locationLine {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font-size: 15px;
+  color: rgba(232, 232, 240, .88);
+}
+
+.mapLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 12px;
+  font-size: 13px;
+  letter-spacing: .3px;
+  color: var(--purple);
+}
+
+.mapLink:hover { text-decoration: underline; }
+
+.dates {
+  margin: 0;
+  border-top: 1px solid var(--border);
+  max-width: 560px;
+}
+
+.dateRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 16px;
+  padding: 13px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.dateLabel {
+  font-size: 13px;
+  color: rgba(232, 232, 240, .65);
+}
+
+.dateValue {
+  margin: 0;
+  font-size: 14px;
+  color: #fff;
+  text-align: right;
+}
+
+/* ── Footer ───────────────────────────────────────────────────────────── */
+
+.footer {
+  border-top: 1px solid var(--border);
+}
+
+.footerInner {
+  max-width: 1060px;
+  margin: 0 auto;
+  padding: 26px 24px 40px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.siteLink {
+  font-size: 14px;
+  color: rgba(232, 232, 240, .85);
+}
+
+.siteLink:hover { text-decoration: underline; }
+
+.powered {
+  font-size: 12px;
+  letter-spacing: .4px;
+  color: var(--muted);
+}
+
+.powered a { color: rgba(232, 232, 240, .75); }
+.powered a:hover { text-decoration: underline; }
+
+/* ── Not available ────────────────────────────────────────────────────── */
+
+.missing {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.missingInner {
+  text-align: center;
+  max-width: 420px;
+}
+
+.missingTitle {
+  font-family: 'Bebas Neue', sans-serif;
+  font-weight: 400;
+  font-size: 26px;
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
+  color: rgba(232, 232, 240, .95);
+  margin: 0 0 10px;
+}
+
+.missingNote {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--muted);
+}
+
+/* ── Small screens ────────────────────────────────────────────────────── */
+
+@media (max-width: 640px) {
+  .hero { min-height: min(70dvh, 640px); }
+  .heroContent { padding: 96px 18px 44px; }
+  .body { padding: 12px 18px 40px; gap: 44px; }
+  .footerInner { padding: 22px 18px 34px; }
+  .dateRow { gap: 12px; }
+}
