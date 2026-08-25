@@ -10,76 +10,15 @@ import MessengerSearch from '../components/MessengerSearch';
 import MessagingIdentity, { ALL_PROFILES } from '../components/MessagingIdentity';
 import ProfileLink from '../components/ProfileLink';
 import AccountInviteSheet from '../components/AccountInviteSheet';
-import {
-  listConversations, listParticipants, actableProfileIds, unreadCount, latestMessages,
-} from '../lib/messaging';
 import { profileIdentity } from '../lib/profileTypes';
-
-const inboxKey = userId => ['inbox', userId];
-
-/**
- * The fetch waterfall this screen has always run: conversations →
- * participants → which are mine → one unread count per conversation →
- * latest message per conversation → decorate. Unchanged logic, just no
- * longer re-run from a cold `useState([])` on every mount — `useQuery`
- * below serves cached data immediately and revalidates in the background.
- */
-async function fetchInboxRows() {
-  const { conversations } = await listConversations();
-  const ids = conversations.map(c => c.id);
-
-  const { participants } = await listParticipants(ids);
-
-  // §A4 — ask, never compute. One rpc per DISTINCT profile, not per row.
-  const { mine } = await actableProfileIds(participants.map(p => p.profile_id));
-
-  // §5.6 — the database counts; this screen only displays.
-  const counts = await Promise.all(
-    ids.map(id => unreadCount(id).then(r => [id, r.count])),
-  );
-  const countBy = Object.fromEntries(counts);
-
-  const { byConversation: latest } = await latestMessages(ids);
-
-  const decorated = conversations.map(c => {
-    const mates = participants.filter(p => p.conversation_id === c.id);
-    // §2.2 — a conversation is a relationship; show the OTHER party.
-    // Which of MY profiles is in this thread. Without it, three
-    // conversations with the same artist render as three identical rows.
-    // When BOTH participants are yours the thread is really note-keeping,
-    // so Personal is treated as "you" and the industry profile as the
-    // recipient. Deterministic, unlike "whichever row came back first" —
-    // and it means the same thread never renders swapped between loads.
-    const asRow = mates.find(p => mine.has(p.profile_id) && p.profiles?.type === 'punter')
-               ?? mates.find(p => mine.has(p.profile_id));
-    const asProfile = asRow?.profiles ?? null;
-
-    // The other party is "everyone except the profile I am sending as" —
-    // NOT "everyone I cannot act as". A user can legitimately message
-    // between two of their OWN profiles (Personal → Dusky Waters), and the
-    // ownership-based version returns an empty set for those, rendering
-    // the row as "Unknown".
-    const others = mates.filter(p => p.profile_id !== asRow?.profile_id);
-    // Archived is per-participant, so it is MY participant row that decides.
-    const isArchived = mates.some(p => mine.has(p.profile_id) && p.archived_at);
-    const last = latest[c.id];
-    return {
-      ...c, others, asProfile, isArchived,
-      unread: countBy[c.id] ?? 0,
-      // "You:" when the last word was yours — otherwise a preview reads as
-      // though the other person said it, which is actively misleading when
-      // you are waiting on a reply.
-      preview: last
-        ? { text: last.body, mine: mine.has(last.from_profile_id), kind: last.kind }
-        : null,
-    };
-  });
-
-  // Archived sinks, but is never removed — and its unread still counts.
-  decorated.sort((a, b) => Number(a.isArchived) - Number(b.isArchived));
-  return decorated;
-}
-
+/* The realtime handler below still re-reads ONE count from the database
+   (§5.6 — the DB counts, this screen displays), so the rpc stays imported
+   here even though the list fetch itself has moved. */
+import { unreadCount } from '../lib/messaging';
+/* ⚠ THE KEY AND THE FETCH MOVED to lib/inboxQuery.js — App warms this cache at
+   open, and it must not have to import a screen to do it. Same key, same
+   waterfall; this screen is still the only thing that renders it. */
+import { inboxKey, fetchInboxRows } from '../lib/inboxQuery';
 /**
  * INBOX — the conversation list.
  *

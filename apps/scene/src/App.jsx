@@ -7,6 +7,7 @@ import { reconcilePushState } from './lib/push';
 import { clearActingProfileCache } from './lib/actingProfile';
 import { initAnalytics, setAnalyticsUser, trackScreenView } from './lib/analytics';
 import { startMessaging } from './lib/messagingReliability';
+import { prefetchInbox } from './lib/inboxQuery';
 import { preloadUiSounds, playMessageArrive, armAudioUnlock } from './lib/uiSound';
 
 const queryClient = new QueryClient({
@@ -497,6 +498,32 @@ export default function App() {
 
     return () => subscription.unsubscribe();
   }, []);
+
+  /**
+   * WARM THE INBOX as soon as there is a session to warm it for.
+   *
+   * Messages is the slowest first paint in the app — a five-step waterfall
+   * (conversations → participants → which are mine → an unread count each →
+   * latest message each) — and the first tap is the one visit with nothing in
+   * cache, so it is the visit that shows LOADING… longest. Worse, a cold
+   * Messages screen reads as "you have no messages", which is a lie the app
+   * tells exactly once, to everyone, on the tap where they are deciding
+   * whether this part of the app has anything in it.
+   *
+   * Own effect, keyed on the USER — not folded into the open effect above,
+   * which runs once with `[]` deps before `getSession()` has resolved. This one
+   * fires the moment a session appears, whether that is a restored session at
+   * launch or a fresh sign-in, and again if the user switches account.
+   *
+   * ⛔ NOT gated on the route, and ⛔ not a subscription: it fills the cache
+   * once and stops. prefetchInbox declines when there is no user or when the
+   * key already holds data, so a guest pays nothing and StrictMode's second
+   * pass is free. Everything after the first visit was already instant from
+   * staleTime; this only moves the first one out of the user's way.
+   */
+  useEffect(() => {
+    prefetchInbox(queryClient, session?.user?.id);
+  }, [session?.user?.id]);
 
   /**
    * ⚠ RECONCILE PUSH ON EVERY LAUNCH, not only when the notifications screen

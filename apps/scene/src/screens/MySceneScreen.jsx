@@ -20,11 +20,7 @@ import { useDragScroll } from '../hooks/useDragScroll';
 import { haversineKm, profileCoords, postcodeCoords, isKnownPostcode } from '../lib/geo';
 import { useEvents } from '../lib/useEvents';
 import { weekendRange, dateStr, today } from '../lib/dates';
-import { getPersonalProfileId } from '../lib/actingProfile';
-import {
-  SCENE_RADIUS_STEPS, SCENE_CATEGORIES, DEFAULT_SCENE_RADIUS,
-  toggleSceneGenre, isValidSceneToken,
-} from '../lib/sceneFloor';
+import { SCENE_RADIUS_STEPS, DEFAULT_SCENE_RADIUS } from '../lib/sceneFloor';
 import { buildSpotlight } from '../lib/spotlight';
 import PastEventsSearch, { filterPastEvents } from '../components/PastEventsSearch';
 import { PROFILE_TYPES, SCENE_ROLE_ORDER } from '../lib/profileTypes';
@@ -216,38 +212,42 @@ export default function MySceneScreen() {
      to one town, nothing more. It STARTS at home because that is the useful
      default, but it is never written back: see the note at the input. */
   const [followPostcode,  setFollowPostcode]  = useState(() => localStorage.getItem('_userPostcode') || '');
-  // ── Catalogue-floor prefs (Stage A) ──
-  // localStorage is the instant-boot cache; the punter profile row is the
-  // cross-device source of truth and wins whenever it has a value.
+  /* ── Scene radius — a HEADLESS preference ──
+   * No picker renders it any more: it is read from localStorage and the punter
+   * profile, and its only reader is Spotlight's nearby check. Nothing on this
+   * screen writes it now that YOUR SCENE is gone. Keep it that way, or give it
+   * a control — a preference with a writer nobody can reach is the state
+   * YOUR SCENE was removed for. */
   const [sceneRadius, setSceneRadius] = useState(() => {
     const raw = localStorage.getItem('_sceneRadiusKm');
     if (raw === 'any') return null; // null = Anywhere
     const n = parseInt(raw, 10);
     return SCENE_RADIUS_STEPS.includes(n) ? n : DEFAULT_SCENE_RADIUS;
   });
-  const [sceneGenres, setSceneGenres] = useState(() => {
-    try {
-      const g = JSON.parse(localStorage.getItem('_sceneGenres') || '[]');
-      return Array.isArray(g) ? g.filter(isValidSceneToken) : [];
-    } catch { return []; }
-  });
   const [spotIndex,  setSpotIndex]  = useState(0);
   const [spotPaused, setSpotPaused] = useState(false);
   const prefersReducedMotion = useMemo(
     () => !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches, []);
-  /* YOUR SCENE is COLLAPSED BY DEFAULT — always, including for a punter who
-   * has tuned nothing. It used to open itself when there were no genres yet,
-   * which put a full editor in the middle of the page and made the lower half
-   * read as feed → configuration → feed. Owner, 2026-07-31: "I don't think
-   * the lower half is wrong anymore — I think it's carrying too much visual
-   * weight."
+  /* ⚠ YOUR SCENE IS GONE (2026-08-24) — and with it the FOR YOU divider it
+   * headed, the genre editor, and the favourite venue/host groups.
    *
-   * The summary is not a settings preview: it is the user's scene stated back
-   * to them, which is worth seeing daily. The editor is a place you choose to
-   * go. Scene-building otherwise happens contextually — hearts on cards,
-   * favourites, QR follows — so nothing depends on this being open. */
-  const [tuneOpen, setTuneOpen] = useState(false);
-  const [expandedCat, setExpandedCat] = useState(null);
+   * It had been collapsed by default for a while (owner, 2026-07-31: "carrying
+   * too much visual weight"), but the real reason is that it stopped
+   * introducing anything: FOR YOU was the mouth of the catalogue floor, and
+   * the floor moved to What's On. What was left was a settings card wearing a
+   * feed's divider.
+   *
+   * The two halves died for different reasons, and both matter:
+   *   FAVOURITES were a second writer for `follows` — the same relationship a
+   *     card heart, a QR follow or a profile's follow button creates, listed
+   *     one section above in FOLLOWING. One relationship, one writer.
+   *   GENRES had exactly one reader (Spotlight's fav_genre rule) and exactly
+   *     one writer (this editor). Both are deleted together. `genre_string`
+   *     stays in the DB — it is an ARTIST/HOST column that punters merely
+   *     borrowed, and existing punter values are harmless data, not debt.
+   *
+   * ⛔ Do not restore this as a declared-taste editor. If genre attention comes
+   * back it is DERIVED from what the user saves and follows. */
   const [toast, setToast] = useState(null);
   const toastTimer = useRef(null);
   const [savedTab,        setSavedTab]        = useState('saved');
@@ -276,7 +276,6 @@ export default function MySceneScreen() {
      rails keep their bump; this one earns its discoverability. */
   const upcomingDrag   = useDragScroll('myscene-upcoming-portrait');
   const spotlightDrag  = useDragScroll();
-  const genreDrag      = useDragScroll('myscene-genre-chips');
 
   const uid = session?.user?.id;
   const queryClient = useQueryClient();
@@ -291,11 +290,11 @@ export default function MySceneScreen() {
         supabase.from('events').select('id,name,config,created_at').eq('host_id', uid).order('created_at', { ascending: false }),
         // MI1 · avatar comes from the SAME punter row as the name, so the face
         // in this pill and the face in Messages are one value, not two that
-        // happen to agree. postcode + genre_string carry the scene-floor prefs
-        // (existing columns — scene_radius_km alone needs the Stage A
-        // migration and is fetched separately so its absence can't 400 this
-        // whole query).
-        supabase.from('profiles').select('name,avatar_thumb,avatar,postcode,genre_string').eq('user_id', uid).eq('type', 'punter').limit(1),
+        // happen to agree. `postcode` is the scene origin; genre_string is NOT
+        // read any more (YOUR SCENE was its only writer and reader for
+        // punters). scene_radius_km needs the Stage A migration and is fetched
+        // separately so its absence can't 400 this whole query.
+        supabase.from('profiles').select('name,avatar_thumb,avatar,postcode').eq('user_id', uid).eq('type', 'punter').limit(1),
         supabase.from('lineup_members').select('event_id').eq('artist_id', uid).eq('status', 'on_bill'),
         supabase.from('personal_events').select('*').eq('user_id', uid),
       ]);
@@ -364,7 +363,6 @@ export default function MySceneScreen() {
         myEvents:       myEvRes.data || [],
         punterName:     profRes.data?.[0]?.name || '',
         punterPostcode: profRes.data?.[0]?.postcode || '',
-        punterGenreString: profRes.data?.[0]?.genre_string || '',
         personalEvents: peRes.data   || [],
         /* ⚠⚠ CARRIED, NOT SWALLOWED. `peRes.data || []` on its own turned a
            500 into "you have nothing on", and that is exactly how the RLS
@@ -400,20 +398,16 @@ export default function MySceneScreen() {
     if (data.updatedFollows) setUpdatedFollows(data.updatedFollows);
   }, [data]);
 
-  // ── Scene-floor prefs · profile wins over the localStorage cache ──
-  // Every local change also writes the profile (persistScenePrefs), so
-  // adopting the profile value here is last-write-wins across devices, not a
-  // clobber. An empty genre_string is "cleared everywhere" and stays cleared.
+  // ── Scene origin · the profile postcode seeds the localStorage cache ──
+  // Read-only now: nothing on this screen writes the punter's postcode since
+  // YOUR SCENE went, so the profile is simply the cross-device source and the
+  // local copy is the instant-boot cache.
   useEffect(() => {
     if (!data) return;
     const pc = String(data.punterPostcode || '');
     if (/^\d{4}$/.test(pc) && pc !== userPostcode) {
       setUserPostcode(pc);
       localStorage.setItem('_userPostcode', pc);
-    }
-    if (data.punterGenreString) {
-      const parsed = data.punterGenreString.split(',').map(t => t.trim()).filter(isValidSceneToken);
-      if (parsed.length) setSceneGenres(parsed);
     }
   }, [data]);
 
@@ -430,24 +424,11 @@ export default function MySceneScreen() {
       });
   }, [uid]);
 
-  function persistScenePrefs({ postcode, radiusKm, genres }) {
-    if (postcode !== undefined) localStorage.setItem('_userPostcode', postcode);
-    if (radiusKm !== undefined) localStorage.setItem('_sceneRadiusKm', radiusKm === null ? 'any' : String(radiusKm));
-    if (genres   !== undefined) localStorage.setItem('_sceneGenres', JSON.stringify(genres));
-    if (!uid) return;
-    const upd = {};
-    if (postcode !== undefined) upd.postcode = postcode || null;
-    if (genres   !== undefined) upd.genre_string = genres.join(', ');
-    if (Object.keys(upd).length) {
-      supabase.from('profiles').update(upd).eq('user_id', uid).eq('type', 'punter').then(() => {});
-    }
-    if (radiusKm !== undefined) {
-      // Stored as 0 when "Anywhere" — NULL must keep meaning "never set".
-      // Until the Stage A migration adds the column this update errors, which
-      // is fine: localStorage above already carries the preference.
-      supabase.from('profiles').update({ scene_radius_km: radiusKm === null ? 0 : radiusKm }).eq('user_id', uid).eq('type', 'punter').then(() => {});
-    }
-  }
+  /* ⚠ `persistScenePrefs` WENT WITH YOUR SCENE. It wrote postcode, radius and
+     genre_string on the punter profile, and every one of its callers lived in
+     that editor. The reads above stay — the prefs still arrive from the
+     profile — but this screen no longer writes any of them. Restoring a writer
+     means restoring a control the user can see, not this helper alone. */
 
   function showToast(msg) {
     setToast(msg);
@@ -455,34 +436,12 @@ export default function MySceneScreen() {
     toastTimer.current = setTimeout(() => setToast(null), 2400);
   }
 
-  // Favourite venues/hosts ARE follows — one relationship store, so the
-  // Following section, Your Area's favourite-first ordering and Stage B's
-  // "Your People" all read the same rows. Write pattern mirrors
-  // ProfileScreen.doFollow (M5 dual-write, M6 attribution, error surfaced).
-  async function addFavourite(profile) {
-    const fromProfileId = await getPersonalProfileId(uid);
-    const legacyEntityId = profile.user_id ?? profile.id;
-    const { error } = await supabase.from('follows').insert({
-      user_id: uid, from_profile_id: fromProfileId,
-      entity_id: legacyEntityId, entity_type: profile.type, entity_name: profile.name,
-      target_profile_id: profile.id,
-    });
-    if (error) {
-      console.error('[favourite] insert rejected —', `code=${error.code}`, `message=${error.message}`, `details=${error.details}`);
-      return;
-    }
-    showToast(`${profile.name} added to your scene.`);
-    queryClient.invalidateQueries({ queryKey: ['myScene', uid] });
-  }
-
-  async function removeFavourite(f) {
-    const { error } = await supabase.from('follows').delete().eq('user_id', uid).eq('entity_id', f.entity_id);
-    if (error) {
-      console.error('[favourite] delete rejected —', `code=${error.code}`, `message=${error.message}`);
-      return;
-    }
-    queryClient.invalidateQueries({ queryKey: ['myScene', uid] });
-  }
+  /* ⚠ `addFavourite` / `removeFavourite` WENT WITH YOUR SCENE — deliberately.
+     Favourite venues and hosts were never a second store; they wrote the same
+     `follows` rows a card heart, a QR follow and ProfileScreen.doFollow write.
+     One relationship deserves one writer, and the three that remain are all
+     contextual — you follow a venue while looking at the venue. Adding a
+     follow from a search box inside a settings panel was the odd one out. */
 
   /* A profile heart on FOLLOWING is almost always an UNfollow — the list is,
      by definition, people you already follow. Refetch so the row leaves rather
@@ -644,10 +603,9 @@ export default function MySceneScreen() {
     ].filter(Boolean)),
     savedEventIds:   new Set(follows.filter(f => f.entity_type === 'event').map(f => f.entity_id)),
     favProfileIds, favUserIds,
-    genres: sceneGenres,
     originCoords, originPostcode, radiusKm: sceneRadius,
     weekendFrom: wr.from, weekendTo: wr.to, newSinceIso,
-  }), [catalogueEvents, todayStr, myEvents, playingEvents, apps, follows, favProfileIds, favUserIds, sceneGenres, originCoords, originPostcode, sceneRadius, wr, newSinceIso]);
+  }), [catalogueEvents, todayStr, myEvents, playingEvents, apps, follows, favProfileIds, favUserIds, originCoords, originPostcode, sceneRadius, wr, newSinceIso]);
 
   // A manual pin still outranks everything — an explicit choice by the user
   // beats any rule we could infer — so it is prepended and deduped rather
@@ -1655,7 +1613,7 @@ export default function MySceneScreen() {
                         <div className={s.empty}>
                           {followRoleFilter
                             ? `No ${TYPE_LABELS[followRoleFilter] || followRoleFilter}s in your following list.`
-                            : 'Nothing followed yet — add favourite venues & hosts in YOUR SCENE below, or follow anyone from their profile.'
+                            : 'Nothing followed yet. Follow a venue, host or act from their profile and they will show up here.'
                           }
                         </div>
                       ) : followView === 'portrait' ? (
@@ -1752,146 +1710,13 @@ export default function MySceneScreen() {
                 })()}
               </div>
 
-              {/* ══ THE DISCOVERY HALF — Stage A (my-scene-anti-stagnation) ══
-                  Personal sections above, discovery below: one clear mental
-                  model. Real events, personalised by radius + genres +
-                  favourites, never placeholders. Every card carries the save
-                  heart, so every tap converts a catalogue item into a
-                  relationship that feeds the personal half. */}
-              {/* FOR YOU — deliberately NOT "Discover": that word already
-                  names a bottom-nav destination, and everything below this
-                  line is personalised rather than browsed. */}
-              <div style={{ display:'flex', alignItems:'center', gap:12, margin:'26px 0 0' }}>
-                <div style={{ flex:1, height:1, background:'linear-gradient(to right, transparent, rgba(0,229,255,.45))' }} />
-                <span style={{ fontFamily:"'Bebas Neue'", fontSize:13, letterSpacing:3, color:'var(--muted)' }}>FOR YOU</span>
-                <div style={{ flex:1, height:1, background:'linear-gradient(to left, transparent, rgba(191,95,255,.45))' }} />
-              </div>
-
-              {/* YOUR SCENE — a statement of identity, not a settings panel.
-                  Collapsed to a summary by default; EDIT unfolds the same
-                  progressive editor (categories → genres, favourite venues &
-                  hosts) and Done folds it back. The editor is a place you
-                  choose to go, so it never sits between two feeds. */}
-              <div className={s.v1Section}>
-                <div className={s.v1Head}>
-                  <div className={s.sectionHead}>YOUR SCENE</div>
-                  <div className={s.gradientLine} />
-                  {tuneOpen && (
-                    <span className={s.seeAll} onClick={() => { setTuneOpen(false); setExpandedCat(null); }}>Done</span>
-                  )}
-                </div>
-
-                {!tuneOpen ? (
-                  /* THE SUMMARY IS THE POINT — the user's scene said back to
-                     them, which is worth seeing every day. Read it as "this is
-                     your scene", never as "here are your settings". */
-                  <div onClick={() => setTuneOpen(true)}
-                    style={{ cursor:'pointer', border:'1px solid var(--border)', borderRadius:12, padding:'12px 14px', marginTop:10, display:'flex', alignItems:'center', gap:12 }}>
-                    <div style={{ flex:1, minWidth:0 }}>
-                      {SCENE_CATEGORIES.map(cat => {
-                        const inCat = sceneGenres.includes(cat.key)
-                          ? ['All ' + cat.label]
-                          : cat.genres.filter(g => sceneGenres.includes(g));
-                        if (!inCat.length) return null;
-                        return (
-                          <div key={cat.key} style={{ marginBottom:5 }}>
-                            <div style={{ fontFamily:"'Bebas Neue'", fontSize:14, letterSpacing:1, color:'var(--text)' }}>{cat.label.toUpperCase()}</div>
-                            <div style={{ fontSize:12, color:'var(--muted)', marginTop:1 }}>{inCat.join(' • ')}</div>
-                          </div>
-                        );
-                      })}
-                      {(() => {
-                        const places = profileFollows
-                          .filter(f => f.entity_type === 'venue' || f.entity_type === 'host')
-                          .map(f => f.entity_name).filter(Boolean);
-                        if (!places.length) return null;
-                        // Capped: this is a summary, and an unbounded list of
-                        // every favourite is the visual weight this section
-                        // was collapsed to shed. The full list lives one tap
-                        // away in the editor, and in FOLLOWING above.
-                        const SHOWN = 4;
-                        const rest = places.length - SHOWN;
-                        return (
-                          <div style={{ fontSize:12, color:'var(--muted)', marginTop: sceneGenres.length ? 6 : 0 }}>
-                            {places.slice(0, SHOWN).join(' • ')}
-                            {rest > 0 && <span style={{ opacity:.7 }}>{` +${rest} more`}</span>}
-                          </div>
-                        );
-                      })()}
-                      {sceneGenres.length === 0 && profileFollows.length === 0 && (
-                        /* Invitation, not a nag: hearts and QR follows build
-                           this on their own, so nothing here is required. */
-                        <div style={{ fontSize:12, color:'var(--muted)' }}>
-                          Your scene builds itself as you save gigs and favourite venues — or set it up here.
-                        </div>
-                      )}
-                    </div>
-                    <span style={{ fontFamily:"'Bebas Neue'", fontSize:13, letterSpacing:1.5, color:'var(--neon2)', flexShrink:0 }}>EDIT →</span>
-                  </div>
-                ) : (
-                  <>
-                    {sceneGenres.length === 0 && (
-                      <div style={{ fontSize:12, color:'var(--muted)', marginTop:4 }}>Choose what you're into — we'll shape this page around it.</div>
-                    )}
-                    {/* Category chips */}
-                    <div style={{ display:'flex', gap:8, flexWrap:'wrap', padding:'10px 0 2px' }}>
-                      {SCENE_CATEGORIES.map(cat => {
-                        const hasSel = sceneGenres.includes(cat.key) || cat.genres.some(g => sceneGenres.includes(g));
-                        const isOpen = expandedCat === cat.key;
-                        return (
-                          <button key={cat.key}
-                            className={`${s.radiusPill} ${(hasSel || isOpen) ? s.radiusPillActive : ''}`}
-                            style={{ flexShrink:0, whiteSpace:'nowrap' }}
-                            onClick={() => setExpandedCat(isOpen ? null : cat.key)}>
-                            {cat.label.toUpperCase()}{isOpen ? ' ▴' : ' ▾'}
-                          </button>
-                        );
-                      })}
-                    </div>
-                    {/* Expanded category → its genres, led by an ALL chip */}
-                    {expandedCat && (() => {
-                      const cat = SCENE_CATEGORIES.find(c => c.key === expandedCat);
-                      if (!cat) return null;
-                      const applyToggle = (token, addedLabel) => {
-                        const wasOn = sceneGenres.includes(token);
-                        const next = toggleSceneGenre(sceneGenres, token, cat.key);
-                        setSceneGenres(next);
-                        persistScenePrefs({ genres: next });
-                        if (!wasOn) showToast(`Showing more ${addedLabel} gigs.`);
-                      };
-                      return (
-                        <div ref={genreDrag.ref} onMouseDown={genreDrag.onMouseDown} onMouseMove={genreDrag.onMouseMove} onMouseUp={genreDrag.onMouseUp} onMouseLeave={genreDrag.onMouseLeave}
-                          style={{ display:'flex', gap:8, overflowX:'auto', padding:'8px 0 6px', WebkitOverflowScrolling:'touch', scrollbarWidth:'none', cursor:'grab' }}>
-                          <button className={`${s.radiusPill} ${sceneGenres.includes(cat.key) ? s.radiusPillActive : ''}`}
-                            style={{ flexShrink:0, whiteSpace:'nowrap' }}
-                            onClick={() => applyToggle(cat.key, cat.label)}>
-                            ALL {cat.label.toUpperCase()}
-                          </button>
-                          {cat.genres.map(g => (
-                            <button key={g} className={`${s.radiusPill} ${sceneGenres.includes(g) ? s.radiusPillActive : ''}`}
-                              style={{ flexShrink:0, whiteSpace:'nowrap' }}
-                              onClick={() => applyToggle(g, g)}>
-                              {g.toUpperCase()}
-                            </button>
-                          ))}
-                        </div>
-                      );
-                    })()}
-                    {/* Favourite venues & hosts — follows in a Tune coat */}
-                    <FavouriteGroup
-                      label="FAVOURITE VENUES" type="venue"
-                      follows={profileFollows.filter(f => f.entity_type === 'venue')}
-                      onAdd={addFavourite} onRemove={removeFavourite}
-                    />
-                    <FavouriteGroup
-                      label="FAVOURITE HOSTS" type="host"
-                      follows={profileFollows.filter(f => f.entity_type === 'host')}
-                      onAdd={addFavourite} onRemove={removeFavourite}
-                    />
-                  </>
-                )}
-              </div>
-
+              {/* ⚠ THE FOR YOU DIVIDER AND YOUR SCENE STOOD HERE (removed
+                  2026-08-24). FOR YOU headed the catalogue floor — AROUND YOU,
+                  JUST ANNOUNCED, THIS WEEKEND — and when the floor moved to
+                  What's On the divider was left introducing a settings card.
+                  FOLLOWING is now the last section, which is the honest shape:
+                  My Scene is the personal half, What's On is the discovery
+                  half. See the note beside the removed tune state above. */}
 
               {/* Sign out removed from My Scene — this is a browsing surface,
                   not an account screen. The invite card's SIGN IN action above
@@ -1908,66 +1733,6 @@ export default function MySceneScreen() {
           {toast}
         </div>
       )}
-    </div>
-  );
-}
-
-/**
- * TUNE YOUR SCENE · favourites group — a follows writer in a Tune coat.
- * Lists the current follows of one type as removable chips, with a search to
- * add more. Not a second favourites store: onAdd/onRemove write the same
- * `follows` rows the Following section and Your Area's ordering read.
- */
-function FavouriteGroup({ label, type, follows, onAdd, onRemove }) {
-  const [q, setQ] = useState('');
-  const [results, setResults] = useState([]);
-  const followedIds = new Set(follows.map(f => f.target_profile_id).filter(Boolean));
-
-  useEffect(() => {
-    const term = q.trim();
-    if (term.length < 2) { setResults([]); return; }
-    let dead = false;
-    const t = setTimeout(() => {
-      supabase.from('profiles')
-        .select('id,user_id,name,type,suburb,location')
-        .eq('type', type)
-        .ilike('name', `%${term}%`)
-        .order('name')
-        .limit(6)
-        .then(({ data: rows }) => { if (!dead) setResults(rows || []); });
-    }, 250);
-    return () => { dead = true; clearTimeout(t); };
-  }, [q, type]);
-
-  return (
-    <div style={{ marginTop: 14 }}>
-      <div style={{ fontFamily:"'Bebas Neue'", fontSize:13, letterSpacing:1.5, color:'var(--muted)', marginBottom:8 }}>{label}</div>
-      {follows.length > 0 && (
-        <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:8 }}>
-          {follows.map(f => (
-            <span key={f.entity_id} style={{ display:'inline-flex', alignItems:'center', gap:6, border:'1px solid rgba(0,229,255,.4)', borderRadius:16, padding:'5px 10px', fontSize:12, color:'var(--text)' }}>
-              {f.entity_name || 'Unknown'}
-              <button onClick={() => onRemove(f)} title="Remove" style={{ background:'none', border:'none', color:'var(--muted)', cursor:'pointer', padding:0, fontSize:13, lineHeight:1 }}>×</button>
-            </span>
-          ))}
-        </div>
-      )}
-      <input
-        value={q}
-        onChange={e => setQ(e.target.value)}
-        placeholder={`+ Add ${type === 'venue' ? 'a venue' : 'a host or promoter'}`}
-        style={{ width:'100%', boxSizing:'border-box', background:'rgba(255,255,255,.06)', border:'1px solid rgba(255,255,255,.12)', borderRadius:10, padding:'9px 12px', color:'#fff', fontFamily:"'DM Sans',sans-serif", fontSize:13, outline:'none' }}
-      />
-      {results.filter(p => !followedIds.has(p.id)).map(p => (
-        <div key={p.id} onClick={() => { onAdd(p); setQ(''); setResults([]); }}
-          style={{ display:'flex', alignItems:'center', gap:10, padding:'9px 12px', background:'var(--card2)', border:'1px solid var(--border)', borderRadius:10, marginTop:6, cursor:'pointer' }}>
-          <div style={{ flex:1, minWidth:0 }}>
-            <div style={{ fontSize:13, color:'var(--text)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{p.name}</div>
-            {(p.suburb || p.location) && <div style={{ fontSize:11, color:'var(--muted)' }}>{p.suburb || p.location}</div>}
-          </div>
-          <span style={{ fontFamily:"'Bebas Neue'", fontSize:12, letterSpacing:1, color:'var(--neon2)', flexShrink:0 }}>+ ADD</span>
-        </div>
-      ))}
     </div>
   );
 }

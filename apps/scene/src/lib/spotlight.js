@@ -1,5 +1,5 @@
 import { eventCoords, withinRadius } from './geo';
-import { eventMatchesGenres, favouriteReason } from './sceneFloor';
+import { favouriteReason } from './sceneFloor';
 
 /**
  * SPOTLIGHT — the heartbeat of My Scene.
@@ -107,12 +107,14 @@ export const SPOTLIGHT_RULES = [
     key: 'fav_host', badge: 'FAVOURITE HOST', cap: 2, horizonDays: DEFAULT_HORIZON_DAYS,
     match: (ev, c) => favouriteReason(ev, c.favProfileIds, c.favUserIds) === 'host',
   },
-  {
-    // Nearby is part of the claim: a psytrance gig 900 km away has not earned
-    // attention just for being psytrance. With no origin set, genre alone.
-    key: 'fav_genre', badge: 'FAVOURITE GENRE', cap: 1, horizonDays: DEFAULT_HORIZON_DAYS,
-    match: (ev, c) => c.genres.length > 0 && eventMatchesGenres(ev, c.genres) && c.isNearby(ev),
-  },
+  /* ⚠ THE `fav_genre` RULE IS GONE (2026-08-24). It matched on the punter's
+     declared genres, and YOUR SCENE — the only surface that could ever write
+     `profiles.genre_string` for a punter — was removed with it. A rule whose
+     input nothing can set does not fail quietly, it never fires: better to
+     delete the row than leave the table claiming a capability it lost.
+     If genre attention returns it should be DERIVED (the genres of the events
+     you save and the acts you follow), not declared — see the derived-state
+     law. The `genres` context key and eventMatchesGenres went with it. */
   {
     // The reason here is the ANNOUNCEMENT, not the date — so this rule orders
     // by created_at and looks further ahead than the default. A festival that
@@ -156,7 +158,7 @@ export function buildSpotlight({
   events, todayIso,
   myEventIds, playingEventIds, savedEventIds,
   favProfileIds, favUserIds,
-  genres = [], originCoords, originPostcode, radiusKm,
+  originCoords, originPostcode, radiusKm,
   weekendFrom, weekendTo, newSinceIso,
   limit = SPOTLIGHT_LIMIT,
 }) {
@@ -166,7 +168,7 @@ export function buildSpotlight({
     savedEventIds:  savedEventIds  || new Set(),
     favProfileIds:  favProfileIds  || new Set(),
     favUserIds:     favUserIds     || new Set(),
-    genres, weekendFrom, weekendTo, newSinceIso,
+    weekendFrom, weekendTo, newSinceIso,
     // Same "unknown is not far" rule the floor uses: an event we cannot place
     // is not claimed to be nearby. With no radius set, nearby is vacuously true.
     isNearby: (ev) => {

@@ -192,27 +192,22 @@ test('favouriteReason distinguishes venue from host, and venue is the more speci
   assert.equal(favouriteReason({ host_id: 'u-2' }, new Set(), new Set(['u-1'])), null);
 });
 
-// ── 7 · GENRE RULE IS ALSO A PROXIMITY CLAIM ─────────────────────────
+// ── 7 · THE GENRE RULE IS GONE, AND STAYS GONE ───────────────────────
 
-test('FAVOURITE GENRE will not claim a gig 900km away, and an unplaceable one is not called nearby', () => {
-  // Announced long ago, so JUST ANNOUNCED cannot pick these up instead and
-  // mask which rule actually fired.
+/* The two tests that stood here proved fav_genre was also a proximity claim.
+   The rule was deleted with YOUR SCENE — the only surface that could write a
+   punter's genres — so what needs guarding now is the ABSENCE. A caller still
+   passing `genres` (an old bundle, a copied call site) must not resurrect the
+   badge; it should be ignored, not honoured. */
+test('a passed genres list can no longer produce a FAVOURITE GENRE card', () => {
   const old = '2020-01-01T00:00:00Z';
-  const near  = ev({ date: '2026-01-08', genres: 'Techno', kmNorth: 10,  created: old });
-  const far   = ev({ date: '2026-01-07', genres: 'Techno', kmNorth: 900, created: old });
-  const ghost = { ...ev({ date: '2026-01-06', genres: 'Techno', created: old }), lat: null, lng: null };
+  const near = ev({ date: '2026-01-08', genres: 'Techno', kmNorth: 10, created: old });
   const { items } = buildSpotlight({
-    ...BASE, events: [far, ghost, near], genres: ['Techno'],
+    ...BASE, events: [near], genres: ['Techno'],
     originCoords: BELL, originPostcode: '2454', radiusKm: 50,
   });
-  const claimed = items.filter(i => i.ruleKey === 'fav_genre').map(i => i.event.id);
-  assert.deepEqual(claimed, [near.id], 'only the genuinely nearby gig may claim the genre reason');
-});
-
-test('with no radius set, genre alone qualifies', () => {
-  const far = ev({ date: '2026-01-07', genres: 'Techno', kmNorth: 900, created: '2020-01-01T00:00:00Z' });
-  const { items } = buildSpotlight({ ...BASE, events: [far], genres: ['Techno'] });
-  assert.deepEqual(items.map(i => i.badge), ['FAVOURITE GENRE']);
+  assert.equal(items.filter(i => i.ruleKey === 'fav_genre').length, 0);
+  assert.ok(!items.some(i => i.badge === 'FAVOURITE GENRE'));
 });
 
 // ── 8 · JUST ANNOUNCED ORDERS BY THE ANNOUNCEMENT ────────────────────
