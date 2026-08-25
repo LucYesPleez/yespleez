@@ -9,6 +9,7 @@ import PostcodePrompt from '../components/PostcodePrompt';
 import { normalizeSocialValue } from '../lib/socialLinks';
 import { PROFILE_TYPES } from '../lib/profileTypes';
 import ProfileAssetsSection from '../components/ProfileAssetsSection';
+import ClaimSuggestion from '../components/ClaimSuggestion';
 import RequirementChecklist, { toggleRequirement } from '@yespleez/requirements/checklist';
 
 
@@ -320,6 +321,10 @@ export default function VenueProfileScreen() {
           <div className={s.sectionTitle} style={SECTION_TITLE_STYLE}><GH>VENUE NAME</GH></div>
           <div className={s.field}>
             <input className={s.input} value={name} onChange={e => setName(e.target.value)} placeholder="e.g. The Metro Theatre" />
+            {/* ⭐ Venues are the MOST imported type of all — nearly every one
+                in the catalogue arrived from a listing, unclaimed, carrying its
+                whole event history. Suggests only. */}
+            <ClaimSuggestion name={name} type="venue" />
           </div>
         </div>
 

@@ -8,6 +8,7 @@ import ProfileFormShell from '../components/ProfileFormShell';
 import SectionBlock from '../components/SectionBlock';
 import ProfileAssetsSection from '../components/ProfileAssetsSection';
 import SocialSection from '../components/SocialSection';
+import ClaimSuggestion from '../components/ClaimSuggestion';
 import { MAIN_GENRES, SUBGENRES, VIBES, VISIBLE_ARTIST_ROLES } from '../lib/profileTaxonomy';
 import { normalizeSocialValue, ensureHttps } from '../lib/socialLinks';
 import { PROFILE_TYPES } from '../lib/profileTypes';
@@ -359,6 +360,10 @@ export default function ArtistProfileScreen() {
             <Section title="WHO YOU ARE">
               <Field label={<>DJ / ARTIST NAME <span className={s.fieldHint}>25 chars max</span></>}>
                 <input className={s.input} value={name} onChange={e => setName(e.target.value)} placeholder="What you perform as" maxLength={25} autoComplete="off" />
+                {/* Most of this catalogue was imported, so an act signing up
+                    usually already exists here unclaimed — with their gigs and
+                    followers on a row they do not own. Suggests only. */}
+                <ClaimSuggestion name={name} type="artist" />
               </Field>
               <div className={s.row}>
                 <div style={{ flex: 1 }}>

@@ -331,6 +331,38 @@ const CHAT_BG_PARALLAX = 0.175;
 const composerBleed = () => COMPOSER_HEIGHT;
 
 /**
+ * ⚠⚠ COMPOSER_HEIGHT IS THE COLLAPSED HEIGHT, AND THE COMPOSER GROWS.
+ *
+ * The field autosizes from one line up to FIELD_MAX_H (five lines), so the bar
+ * is 64px empty and up to ~147px with a long draft in it. Every use of
+ * `composerBleed()` reserved the 64 — so as soon as a message ran to two lines
+ * the newest messages slid UNDER the bar and stayed there, and the reader had
+ * to scroll up to see what they had just written. Measured, 2026-08-25.
+ *
+ * ⭐ So the reserved space is MEASURED from the live element rather than
+ * computed from constants. `composerBleed()` remains the floor: it is what the
+ * first paint uses, before any element exists to observe.
+ */
+function useComposerHeight() {
+  const ref = useRef(null);
+  const [height, setHeight] = useState(composerBleed());
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof ResizeObserver === 'undefined') return undefined;
+    // Never below the collapsed height: a transient 0 during mount would pull
+    // the padding out from under the thread for a frame and make it jump.
+    const apply = () => setHeight(Math.max(composerBleed(), Math.round(el.getBoundingClientRect().height)));
+    apply();
+    const ro = new ResizeObserver(apply);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  return [ref, height];
+}
+
+/**
  * HOW FAR THE WALLPAPER CAN DRIFT — and therefore how much image is needed.
  *
  * The image can only travel as far as it has spare height above `restBottom`,
@@ -425,6 +457,8 @@ export default function ConversationView({ conversationId, compact = false, onMi
    * preference; this view only gets out of its way.
    */
   const [stageRaised] = useVoiceyStage();
+  // The composer's LIVE height — it grows with the draft. See useComposerHeight.
+  const [composerRef, composerH] = useComposerHeight();
   /**
    * Latest moment any OTHER participant read this thread — the EQ receipt's
    * top rung. ONE timestamp for the whole conversation, not a flag per message:
@@ -796,6 +830,24 @@ export default function ConversationView({ conversationId, compact = false, onMi
     const id = requestAnimationFrame(() => { el.scrollTop = el.scrollHeight; });
     return () => cancelAnimationFrame(id);
   }, [stageRaised]);
+
+  /**
+   * ⭐ THE SAME RULE FOR THE COMPOSER GROWING. Reserving space stops the bar
+   * COVERING the newest message; it does not move the reader down to it. Typing
+   * a second line pushes the thread up by exactly the padding that was just
+   * added, so the message you are replying to slides out of view while you
+   * write — which is the half of this defect that survives the padding fix.
+   *
+   * ⛔ Only when already at the bottom, the same guard the effects above use:
+   * someone reading history must not be yanked to the newest message because
+   * their own draft grew a line.
+   */
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || !atBottomRef.current) return;
+    const id = requestAnimationFrame(() => { el.scrollTop = el.scrollHeight; });
+    return () => cancelAnimationFrame(id);
+  }, [composerH]);
 
   /**
    * Tell the other side a rung has been reached.
@@ -1792,6 +1844,10 @@ export default function ConversationView({ conversationId, compact = false, onMi
           // last message still comes to rest above the composer rather than
           // underneath it. Margin moves the box; padding protects what is in
           // it — they are not cancelling each other out.
+          // ⚠ THE MARGIN STAYS ON THE COLLAPSED HEIGHT. It positions the BOX so
+          // the wallpaper runs on behind the bar; growing it with the draft
+          // would drag the picture every time a line was typed. Only the
+          // PADDING — which protects the content — follows the live height.
           marginBottom: -composerBleed(),
           /**
            * ⚠⚠ THE RAISED STAGE ADDS TO THIS, OR MESSAGES HIDE BEHIND IT.
@@ -1805,9 +1861,13 @@ export default function ConversationView({ conversationId, compact = false, onMi
            * the wallpaper stays painted on this box and keeps running behind
            * everything, while the CONTENT stops where the panel starts.
            */
+          // ⭐ `composerH`, not `composerBleed()` — the LIVE bar height. A draft
+          // that runs to five lines makes the bar ~147px against a collapsed
+          // 64, and reserving the collapsed figure is what put freshly sent
+          // messages behind it.
           padding: stageRaised
-            ? `22px 18px calc(${composerBleed() + 8}px + ${stageClearance(COMPOSER_HEIGHT)})`
-            : `22px 18px ${composerBleed() + 8}px`,
+            ? `22px 18px calc(${composerH + 8}px + ${stageClearance(COMPOSER_HEIGHT)})`
+            : `22px 18px ${composerH + 8}px`,
           // THE MESSAGE LIST OWNS VERTICAL SCROLLING, AND KEEPS IT.
           //
           // `contain` stops the scroll CHAINING outward when the thread reaches
@@ -1977,6 +2037,15 @@ export default function ConversationView({ conversationId, compact = false, onMi
         />
       )}
 
+      {/* Wrapped only to be MEASURED. Composer takes no ref of its own, and
+          adding one would be API surface for a layout concern that belongs to
+          the thread rather than to the bar.
+          ⚠ `flexShrink: 0` — this wrapper becomes the flex item in the column
+          above, so without it the bar would be allowed to compress when the
+          thread is tall, which is exactly the bug being fixed.
+          ⛔ NOT `display: contents`: a contents box has no geometry, so the
+          observer would measure zero and the padding would collapse. */}
+      <div ref={composerRef} style={{ flexShrink: 0 }}>
       <Composer
         draft={draft}
         onDraftChange={onDraftChange}
@@ -1994,6 +2063,7 @@ export default function ConversationView({ conversationId, compact = false, onMi
         inputRef={inputRef}
         onInputEvent={rememberSelection}
       />
+      </div>
     </div>
   );
 }

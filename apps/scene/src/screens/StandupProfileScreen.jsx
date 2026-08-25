@@ -10,6 +10,7 @@ import ProfileFormShell from '../components/ProfileFormShell';
 import SectionBlock from '../components/SectionBlock';
 import ProfileAssetsSection from '../components/ProfileAssetsSection';
 import SocialSection from '../components/SocialSection';
+import ClaimSuggestion from '../components/ClaimSuggestion';
 import { VISIBLE_PERFORMANCE_ROLES, SHARED_PERFORMANCE_TAGS, ROLE_TAGS } from '../lib/profileTaxonomy';
 import { PROFILE_TYPES } from '../lib/profileTypes';
 import { normalizeSocialValue, ensureHttps } from '../lib/socialLinks';
@@ -299,6 +300,9 @@ export default function StandupProfileScreen() {
             <Section title="WHO YOU ARE">
               <Field label="YOUR NAME / ACT NAME">
                 <input className={s.input} value={name} onChange={e => setName(e.target.value)} placeholder="Your name or stage name" autoComplete="off" />
+                {/* Imported comedians already exist here unclaimed, with their
+                    gigs and followers attached. Suggests only. */}
+                <ClaimSuggestion name={name} type="standup" />
               </Field>
               <div className={s.row}>
                 <Field label="SET LENGTH (MINS)">

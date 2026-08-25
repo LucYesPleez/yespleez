@@ -10,6 +10,7 @@ import ProfileFormShell from '../components/ProfileFormShell';
 import SectionBlock from '../components/SectionBlock';
 import ProfileAssetsSection from '../components/ProfileAssetsSection';
 import SocialSection from '../components/SocialSection';
+import ClaimSuggestion from '../components/ClaimSuggestion';
 import { BAND_GENRES, BAND_SUBGENRES, BAND_VIBES } from '../lib/profileTaxonomy';
 import { PROFILE_TYPES } from '../lib/profileTypes';
 import { normalizeSocialValue, ensureHttps } from '../lib/socialLinks';
@@ -291,6 +292,9 @@ export default function BandProfileScreen() {
             <Section title="WHO YOU ARE">
               <Field label="BAND / ACT NAME">
                 <input className={s.input} value={name} onChange={e => setName(e.target.value)} placeholder="Your band or act name" />
+                {/* Imported bands already exist here unclaimed, with their
+                    gigs and followers attached. Suggests only. */}
+                <ClaimSuggestion name={name} type="band" />
               </Field>
               <Field label="BAND TYPE">
                 <input className={s.input} value={bandType} onChange={e => setBandType(e.target.value)} placeholder="e.g. Rock Band, Duo, Solo Artist, Ensemble" />

@@ -238,6 +238,53 @@ function Shell({ session, onSignOut }) {
     else navigator.clearAppBadge().catch(() => {});
   }, [unreadCount, messagesBadge]);
 
+  /**
+   * ⚠⚠ A DELIVERED NOTIFICATION OUTLIVES THE THING IT ANNOUNCED.
+   *
+   * The badge above is the Badging API, and it was already correct: both
+   * counts start at 0, so opening the app clears it. But the service worker
+   * also calls `showNotification`, and a toast nobody dismissed does not go
+   * anywhere — it sits in the OS notification centre, and Windows puts its own
+   * count on the taskbar icon. Measured 2026-08-25: the database reported ZERO
+   * unread of either kind while the icon showed 3.
+   *
+   * ⭐ So being in the app is what dismisses them. If the window is visible the
+   * person is here; a notification saying "come and look" has done its job and
+   * is now just an unread count that no amount of reading can clear.
+   *
+   * ⛔ ONLY WHILE VISIBLE. Closing them from a backgrounded tab would delete
+   * the announcement before it had been seen, which is the opposite failure and
+   * a worse one — the notification is the only thing that reaches someone who
+   * is not looking.
+   *
+   * ⚠ Not gated on `session`: toasts delivered before a sign-out are exactly
+   * the ones with nobody left to read them.
+   */
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !navigator.serviceWorker) return undefined;
+
+    async function dismissDelivered() {
+      if (document.visibilityState !== 'visible') return;
+      try {
+        const reg = await navigator.serviceWorker.getRegistration();
+        if (!reg?.getNotifications) return;
+        const live = await reg.getNotifications();
+        live.forEach(n => n.close());
+      } catch { /* cosmetic — never let this break app start */ }
+    }
+
+    dismissDelivered();
+    document.addEventListener('visibilitychange', dismissDelivered);
+    // `focus` as well as visibilitychange: a desktop PWA that is already
+    // visible but behind another window fires only focus when it comes
+    // forward, and that is the moment the user has actually arrived.
+    window.addEventListener('focus', dismissDelivered);
+    return () => {
+      document.removeEventListener('visibilitychange', dismissDelivered);
+      window.removeEventListener('focus', dismissDelivered);
+    };
+  }, []);
+
   function handleTabPress(tabId) {
     if (tabId === 'industry') {
       setIndustryOpen(true);

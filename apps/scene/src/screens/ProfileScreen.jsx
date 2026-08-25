@@ -1378,13 +1378,38 @@ export default function ProfileScreen() {
 
           {/* Claim this profile — unclaimed profiles only (keyed on the row's
               claim state since M5; claiming is spec §7's manual-review flow) */}
+          {/**
+            * ⭐⭐ THIS IS AN OFFER, NOT A FOOTNOTE (owner, 2026-08-26).
+            *
+            * It was 12px at 32% white with a 15% underline — quieter than the
+            * disclaimers around it, on the one control that hands somebody
+            * back their own history. An unclaimed profile carries the act's
+            * gigs and the audience already following them; the person it
+            * belongs to has to be able to SEE the way in.
+            *
+            * ⚠ Louder, not shouty. It reads as an invitation the owner can act
+            * on, and stays ignorable by the ninety-nine visitors who are not
+            * them — a full-width banner would tax every one of those to serve
+            * the one.
+            */}
           {isUnclaimed && (
             <div style={{ textAlign: 'center', marginTop: -4, marginBottom: 14 }}>
               {profile.claim_status === 'pending'
-                ? <span style={{ fontSize: 12, color: 'rgba(255,255,255,.28)', fontFamily: "'DM Sans', sans-serif", letterSpacing: 0.2 }}>Claim under review</span>
+                ? <span style={{ fontSize: 13, color: 'rgba(255,255,255,.42)', fontFamily: "'DM Sans', sans-serif", letterSpacing: 0.2 }}>Claim under review</span>
                 : <button
                     onClick={() => setClaimOpen(true)}
-                    style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,.32)', fontSize: 12, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", letterSpacing: 0.2, textDecoration: 'underline', textDecorationColor: 'rgba(255,255,255,.15)', padding: '6px 2px' }}
+                    style={{
+                      background: 'rgba(255,184,48,.09)',
+                      border: '1px solid rgba(255,184,48,.36)',
+                      borderRadius: 999,
+                      color: '#FFB830',
+                      fontSize: 14,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      fontFamily: "'DM Sans', sans-serif",
+                      letterSpacing: 0.2,
+                      padding: '9px 18px',
+                    }}
                   >
                     Is this you? Claim this profile
                   </button>

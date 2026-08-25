@@ -10,6 +10,7 @@ import SectionBlock from '../components/SectionBlock';
 import ProfileAssetsSection from '../components/ProfileAssetsSection';
 import RequirementChecklist, { toggleRequirement } from '@yespleez/requirements/checklist';
 import SocialSection from '../components/SocialSection';
+import ClaimSuggestion from '../components/ClaimSuggestion';
 import { HOST_GENRES, ALL_GENRES, SUBGENRES, HOST_CATEGORIES, VISIBLE_HOST_CATEGORIES } from '../lib/profileTaxonomy';
 import { PROFILE_TYPES } from '../lib/profileTypes';
 import { normalizeSocialValue } from '../lib/socialLinks';
@@ -277,6 +278,14 @@ export default function HostProfileScreen() {
             <div style={{ flex: 1 }}>
               <Field label="PROMOTER / COMPANY NAME">
                 <input className={s.input} value={name} onChange={e => setName(e.target.value)} placeholder="e.g. YesPleez" autoComplete="off" />
+                {/* ⭐ Directly under the field, because the moment worth
+                    catching is while the name is being typed — after the form
+                    is saved there are two of them and the public follows the
+                    wrong one. Suggests only; claiming stays on the profile
+                    page behind §07's review flow.
+                    ⚠ No excludeId needed: this host's own row is CLAIMED (it
+                    has a user_id), and only unclaimed rows are ever offered. */}
+                <ClaimSuggestion name={name} type="host" />
               </Field>
             </div>
             <div style={{ width: 110 }}>

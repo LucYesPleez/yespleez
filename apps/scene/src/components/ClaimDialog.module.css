@@ -173,6 +173,32 @@
   /* Native controls render light on dark themes without this. */
   color-scheme: dark;
 }
+/**
+ * ⚠⚠ THE OPEN DROPDOWN IS NOT STYLED BY THE RULE ABOVE.
+ *
+ * `.select` sets a TRANSLUCENT background (rgba white 5%), which is right for
+ * the closed control sitting on the sheet. The popup list is drawn by the
+ * platform, and it takes those same values literally — 5% white over whatever
+ * the OS paints behind it, with text at a contrast nobody chose. On Windows
+ * Chrome the options came out charcoal on charcoal and were, in the owner's
+ * words, barely readable. `color-scheme: dark` alone does not fix it: it tells
+ * the platform which palette to use, not what THIS control's colours are.
+ *
+ * ⭐ So the options get OPAQUE colours of their own. A list you are choosing an
+ * answer from has to be legible before it is on-brand.
+ */
+.select option {
+  background-color: #1a1a24;
+  color: #f0f0f0;
+}
+/* The row under the cursor, stated rather than left to the platform's accent —
+   which on some Windows themes is a mid grey that loses the text again. */
+.select option:checked,
+.select option:hover {
+  background-color: #2a2a38;
+  color: #ffffff;
+}
+
 .select:focus,
 .textarea:focus {
   outline: none;
