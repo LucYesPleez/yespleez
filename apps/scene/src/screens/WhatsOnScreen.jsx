@@ -6,7 +6,7 @@ import { trackFiltered } from '../lib/analytics';
 import { eventCoords, postcodeCoords, withinRadius } from '../lib/geo';
 import { resolveLocationToPostcodes } from '../lib/auLocations';
 import { today, dateStr, weekendRange, formatDisplayDate, localDateStr } from '../lib/dates';
-import { selectFeaturedEvent, replayHistory, FAIRNESS_WINDOW_DAYS } from '../lib/featuredEvent';
+import { selectFeaturedEvents, replayHistory, FAIRNESS_WINDOW_DAYS, FEATURED_SLOTS } from '../lib/featuredEvent';
 import { useFeaturedAllocations } from '../lib/useFeaturedAllocations';
 import { useTentativeDates } from '../lib/useTentativeDates';
 import { useProfileLocation } from '../lib/useProfileLocation';
@@ -53,6 +53,11 @@ const COMING_UP_STEP       = 20;
 
 /* Matches ANNOUNCED_CAP in lib/sceneFloor.js, where this section used to live. */
 const JUST_ANNOUNCED_CAP = 8;
+
+/* The hero rotation. Same numbers as My Scene's Spotlight rail — a reader
+   moving between the two screens meets one rhythm, not two. */
+const FEATURED_RAIL_GAP = 12;
+const FEATURED_AUTOPLAY_MS = 3000;
 
 const DATE_TABS = [
   { id: 'TONIGHT',   label: 'TONIGHT',    sub: "What's on now" },
@@ -248,6 +253,15 @@ export default function WhatsOnScreen() {
   const weekendDrag1 = useDragScroll('whatson-weekend-1');
   const weekendDrag2 = useDragScroll('whatson-weekend-2');
   const announcedDrag = useDragScroll('whatson-just-announced');
+  const featuredDrag  = useDragScroll('whatson-featured');
+  /* The hero rotation's position, and whether a hand is on it. Mirrors My
+     Scene's Spotlight rail exactly — same scroll handler, same autoplay,
+     same dots — because it is the same interaction and a second dialect of
+     it would be one more thing to keep in step. */
+  const [featIndex,  setFeatIndex]  = useState(0);
+  const [featPaused, setFeatPaused] = useState(false);
+  const prefersReducedMotion = useMemo(
+    () => !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches, []);
   /* ⚠ One useDragScroll per rail, named rather than mapped: hooks must run in
      the same order every render, so they can never come out of a .map(). */
 
@@ -409,15 +423,59 @@ export default function WhatsOnScreen() {
       : replayHistory({ events: featuredPool, fromIso: fairnessFrom, toIso: dateStr(-1) })
   ), [allocations, featuredPool, fairnessFrom]);
 
-  const featured = useMemo(() => selectFeaturedEvent({
+  /**
+   * THREE CARDS, NOT ONE (fe3, 2026-08-24).
+   *
+   * Studio's queue takes as many of the three positions as it holds live
+   * allocations for today; the ranking engine backfills the rest. ⛔ The
+   * section is never manual-only: an empty queue must not be an empty hero,
+   * which is the failure this whole module exists to prevent.
+   */
+  const featuredPicks = useMemo(() => selectFeaturedEvents({
     events: featuredPool,
     todayIso: todayIso,
     history: featuredHistory,
     originCoords,
     originPostcode,
     radiusKm,
+    limit: FEATURED_SLOTS,
   }), [featuredPool, todayIso, featuredHistory, originCoords, originPostcode, radiusKm]);
-  const featuredEvent = featured.event;
+
+  /** Which hero card is centred, for the position dots. */
+  function onFeaturedScroll(e) {
+    const el = e.currentTarget;
+    const first = el.firstElementChild;
+    if (!first) return;
+    const step = first.getBoundingClientRect().width + FEATURED_RAIL_GAP;
+    const idx = Math.max(0, Math.min(featuredPicks.length - 1, Math.round(el.scrollLeft / step)));
+    setFeatIndex(prev => (prev === idx ? prev : idx));
+  }
+
+  function scrollFeaturedTo(i) {
+    const el = featuredDrag.ref.current;
+    const card = el?.children?.[i];
+    if (!el || !card) return;
+    // From the live boxes, not offsetLeft — these cards' offsetParent is not
+    // the rail, so offsetLeft measures against the wrong element.
+    el.scrollTo({ left: el.scrollLeft + card.getBoundingClientRect().left - el.getBoundingClientRect().left, behavior: 'smooth' });
+  }
+
+  /**
+   * Autoplay, keyed on the INDEX so the timer restarts on every movement —
+   * including the reader's. It advances a beat after things go still and never
+   * yanks a rail a hand is already moving. Paused on hover/touch, off entirely
+   * under prefers-reduced-motion.
+   *
+   * ⚠ MUST STAY BELOW `featuredPicks` — a dep array is evaluated during render,
+   * and reading a const declared later throws before the screen can paint. My
+   * Scene learned this the hard way with the identical rail.
+   */
+  useEffect(() => {
+    if (featuredPicks.length < 2 || featPaused || prefersReducedMotion) return;
+    const n = featuredPicks.length;
+    const t = setTimeout(() => scrollFeaturedTo((featIndex + 1) % n), FEATURED_AUTOPLAY_MS);
+    return () => clearTimeout(t);
+  }, [featIndex, featPaused, featuredPicks.length, prefersReducedMotion]);
   const tonightEvents  = useMemo(() => events.filter(ev => ev.config?.date === todayIso && passes(ev)), [events, todayIso, passes]);
   // `> todayIso` not `!== todayIso`: mid-weekend the range opens on a Friday that has already
   // been, so this drops the nights gone as well as tonight (TONIGHT owns tonight).
@@ -733,9 +791,13 @@ export default function WhatsOnScreen() {
               (conditional block, `sectionTitle` span, this attribute) and
               the tour picks it up with no code change on its side. */}
           {/* FEATURED EVENT */}
-          {featuredEvent && (
+          {featuredPicks.length > 0 && (
             <div className={s.sectionBlock}>
-              <div style={{ marginBottom: 12 }}><span data-tour="whatson-section" className={s.sectionTitle}>FEATURED EVENT</span></div>
+              <div style={{ marginBottom: 12 }}>
+                <span data-tour="whatson-section" className={s.sectionTitle}>
+                  {featuredPicks.length > 1 ? 'FEATURED EVENTS' : 'FEATURED EVENT'}
+                </span>
+              </div>
               {/* The featured hero was the ONE event card in the app you could
                   not save from — every other card here and on My Scene carries
                   the heart, and this is the most prominent gig on the page. */}
@@ -743,9 +805,45 @@ export default function WhatsOnScreen() {
                   badge is this app's existing disclosure convention, so a
                   promoted pick says so in the same place every other card
                   states its reason. */}
-              <FeaturedEventCard event={featuredEvent} onClick={() => openEvent(featuredEvent)}
-                label={featured.selectionType === 'promoted' ? 'PROMOTED' : 'FEATURED'}
-                cornerAction={<HeartBtn event={featuredEvent} style={HEART_OVERLAY_STYLE} />} />
+              {/* ⚠ snap is PROXIMITY, not mandatory — useDragScroll writes
+                  scrollLeft on every mousemove and mandatory snapping fights
+                  that write for the whole drag. Same reasoning as Spotlight. */}
+              <div style={{ position:'relative' }}
+                onMouseEnter={() => setFeatPaused(true)}
+                onMouseLeave={() => setFeatPaused(false)}
+                onTouchStart={() => setFeatPaused(true)}>
+                <div className={s.weekendScroll} style={{ scrollSnapType:'x proximity', gap: FEATURED_RAIL_GAP }}
+                  ref={featuredDrag.ref} onScroll={onFeaturedScroll}
+                  onMouseDown={featuredDrag.onMouseDown} onMouseMove={featuredDrag.onMouseMove}
+                  onMouseUp={featuredDrag.onMouseUp} onMouseLeave={featuredDrag.onMouseLeave}>
+                  {featuredPicks.map(pick => (
+                    <FeaturedEventCard key={pick.event.id} event={pick.event}
+                      onClick={() => openEvent(pick.event)}
+                      label={pick.selectionType === 'promoted' ? 'PROMOTED' : 'FEATURED'}
+                      rail solo={featuredPicks.length === 1}
+                      cornerAction={<HeartBtn event={pick.event} style={HEART_OVERLAY_STYLE} />} />
+                  ))}
+                </div>
+              </div>
+              {/* Position dots — the rail says how much there is before you
+                  touch it, and on a desktop mouse they are the only way to
+                  move it other than dragging. */}
+              {featuredPicks.length > 1 && (
+                <div style={{ display:'flex', justifyContent:'center', alignItems:'center', gap:7, marginTop:8 }}>
+                  {featuredPicks.map((pick, i) => (
+                    <button key={pick.event.id}
+                      onClick={() => scrollFeaturedTo(i)}
+                      aria-label={`Featured ${i + 1} of ${featuredPicks.length}`}
+                      style={{
+                        width: i === featIndex ? 20 : 7, height: 7, padding: 0,
+                        borderRadius: 4, border: 'none', cursor: 'pointer',
+                        background: i === featIndex ? 'var(--neon2)' : 'rgba(255,255,255,.22)',
+                        transition: 'width .22s ease, background .22s ease',
+                      }}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
@@ -846,7 +944,7 @@ export default function WhatsOnScreen() {
               15 Aug 2026 this line printed "No upcoming events." at the foot
               of a page listing nineteen of them. Ask what is actually being
               asserted: nothing rendered above. */}
-          {!loading && !featuredEvent && tonightEvents.length === 0
+          {!loading && featuredPicks.length === 0 && tonightEvents.length === 0
             && weekendEvents.length === 0 && comingUpAll.length === 0
             && justAnnounced.length === 0 && (
             <p className={s.empty}>No upcoming events.</p>

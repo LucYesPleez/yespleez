@@ -93,6 +93,39 @@ export const FEATURED_HORIZON_DAYS = 14;
  */
 export const FEATURED_FALLBACK_HORIZON_DAYS = 90;
 
+/**
+ * ⭐⭐ THE HERO IS THREE CARDS, ON A STAGGERED CYCLE (fe3).
+ *
+ * One hero meant one event's week and everyone else's absence. Three cards
+ * that all turned over together would be the same problem three times: the
+ * reader opens the app and the entire section is unrecognisable. So the slots
+ * are OFFSET — each runs for a lifespan, and the starts are staggered — which
+ * means roughly every second day exactly ONE card changes and the other two
+ * are where the reader left them.
+ *
+ * ⭐⭐ 3 SLOTS × 2 DAYS = 6, AND THAT IS WHY THE LIFESPAN IS 6. The three
+ * numbers below are one equation, not three preferences:
+ *
+ *     SLOT_LIFESPAN_DAYS = FEATURED_SLOTS × SLOT_STAGGER_DAYS
+ *
+ * Hold it and exactly one card changes every second day, forever, with no gap
+ * and no day where two turn over together. Break it and the cycle still works
+ * but drifts: at 5 days each slot sits empty for a day every cycle (organic
+ * backfills it, so it is invisible rather than broken), and the replacements
+ * bunch up — 6, 8, 10, 11, 13, 15. Owner's decision, 2026-08-24: 6.
+ *
+ * ⛔ Do not change one of these without the other two. The failure is silent:
+ * the rotation keeps running and simply stops being a rotation.
+ *
+ * ⛔ These are the ROTATION's numbers, not a cap on what the ledger accepts —
+ * the SQL function still permits 1..7 days. Studio holds its own copy in
+ * featured-rules.js because neither repo can import from the other; keep them
+ * equal, and there is a test on each side that says so.
+ */
+export const FEATURED_SLOTS = 3;
+export const SLOT_LIFESPAN_DAYS = 6;
+export const SLOT_STAGGER_DAYS = 2;
+
 /** Consecutive daily allocations one event may hold before it must stand down. */
 export const MAX_CONSECUTIVE_ALLOCATIONS = 3;
 
@@ -281,6 +314,26 @@ export function allocationForToday(history = [], todayIso) {
     h && h.date === todayIso && ALLOCATION_OWNED_TYPES.includes(h.selectionType)) || null;
 }
 
+/**
+ * Every human-owned allocation holding a slot today, in SLOT ORDER.
+ *
+ * ⭐ Slot order, not score order and not insertion order. The slot is a
+ * POSITION: card 2 stays card 2 while cards 1 and 3 turn over around it. Sort
+ * by anything else and a rotation designed so one card changes at a time
+ * becomes a reshuffle of all three.
+ *
+ * ⚠ `slot` is absent on pre-fe3 rows and on a replayed history. Those sort
+ * last rather than being dropped — an allocation that predates the column is
+ * still a day somebody was featured, and losing it here would understate
+ * exposure in exactly the direction that lets one event colonise the slot.
+ */
+export function allocationsForToday(history = [], todayIso) {
+  return history
+    .filter(h => h && h.date === todayIso && ALLOCATION_OWNED_TYPES.includes(h.selectionType))
+    .sort((a, b) => (a.slot ?? 99) - (b.slot ?? 99) ||
+      String(a.allocationId || '').localeCompare(String(b.allocationId || '')));
+}
+
 // ── ELIGIBILITY ──────────────────────────────────────────────────────
 
 /**
@@ -308,6 +361,28 @@ export function eligibilityFailure(event, {
   if (!event) return 'missing';
   if (event.status !== 'live') return 'not_live';
   if (event.is_public === false) return 'not_public';
+
+  /**
+   * ⭐⭐ THE EXCLUSION GATE — regular nights are the events this slot is worst at.
+   *
+   * A weekly residency is exactly what the ranking rewards: it has an image, a
+   * time, a venue, genres and a blurb, so it scores near the top on quality
+   * (23% of the renormalised weight) forever. It is also the LEAST useful thing
+   * to feature, because it is on again next week and the week after. Exposure
+   * spent on it is exposure not spent on the one-off it exists to lift.
+   *
+   * ⚠⚠ THE FLAG IS ON THE EVENT, THE RULE IS NOT. The importer creates a NEW
+   * ROW for each week of a regular night, so an exclusion that lived on an
+   * event id would have to be re-applied every week forever. Studio holds the
+   * RULE (venue + title pattern, in featured-exclusions.json) and stamps
+   * `config.featured_excluded` onto every row it matches, including each new
+   * week's as it arrives. This gate only reads the stamp.
+   *
+   * ⛔ A gate only SUBTRACTS. Excluding an event removes it from the hero and
+   * from nothing else: it still appears in the guide, in search, in Spotlight
+   * and on its own page. This is not a shadowban and must never become one.
+   */
+  if (event.config?.featured_excluded) return 'excluded';
 
   const start = event.config?.date;
   if (!start) return 'no_date';
@@ -630,6 +705,107 @@ export function selectFeaturedEvent({
     candidates: eligible.length,
     rejected,
   };
+}
+
+/**
+ * THE HERO ROTATION — up to `limit` events for the three-card slot.
+ *
+ * ⭐⭐ MANUAL PICKS FIRST, ORGANIC BACKFILL AFTER. Studio's queue takes as many
+ * positions as it has live allocations for today; the ranking engine fills
+ * whatever is left. That is the whole reason curation is optional: an empty
+ * queue is not an empty hero, it is three organic picks — and the section
+ * cannot repeat the six-day blackout it was written to fix, whatever an
+ * operator does or forgets to do.
+ *
+ * ⚠ NEVER THE SAME EVENT TWICE. An event holding a manual slot is removed from
+ * the candidate set before backfilling, so it cannot also win organically and
+ * occupy two of three cards.
+ *
+ * ⚠ A SHORT RESULT IS HONEST. With two eligible events this returns two, not
+ * two plus a repeat — the rail's length is a readout of how much the catalogue
+ * actually offers, the same rule Spotlight follows.
+ *
+ * @returns {Array} winners in slot order, each the shape selectFeaturedEvent
+ *                  returns (event, selectionType, score, factors, …).
+ */
+export function selectFeaturedEvents({ limit = FEATURED_SLOTS, ...opts } = {}) {
+  const { events = [], history = [], todayIso } = opts;
+  if (!todayIso) return [];
+
+  /**
+   * ⭐⭐ POSITIONS, NOT A LIST. The array is `limit` slots wide from the start
+   * and every pick lands in the slot it was ALLOCATED to.
+   *
+   * This used to push manual picks into a plain list and then append organic
+   * ones, which quietly broke the promise the whole design rests on — that the
+   * app chooses for a position ONLY where nobody has chosen for it. Feature
+   * something into slot 3, leave 1 and 2 empty, and it rendered FIRST, with
+   * the automatic picks behind it: the operator's chosen position was silently
+   * reassigned, and Studio said "slot 3" about a card sitting in position 1.
+   *
+   * Addressing the slots directly makes the promise structural. A held slot is
+   * simply not offered to the backfill; an unheld one is.
+   */
+  const slots = new Array(limit).fill(null);
+  const taken = new Set();
+
+  // 1 · The ledger's own, each into ITS OWN slot. Every one still passes the
+  // VALIDITY gates: a manual pick whose event has been unpublished or has
+  // simply finished leaves its position EMPTY — and therefore backfilled —
+  // rather than being rendered as a dead card.
+  for (const owned of allocationsForToday(history, todayIso)) {
+    if (taken.has(owned.eventId)) continue;
+    // A pre-fe3 row has no slot. Position 1 is what it always was: the one and
+    // only hero. ⚠ Clamped, so a slot number beyond the rotation's width can
+    // never write past the end of the array.
+    const idx = Math.min(Math.max((owned.slot ?? 1) - 1, 0), limit - 1);
+    if (slots[idx]) continue;                 // first claim on a position wins
+    const ev = events.find(e => e && e.id === owned.eventId);
+    const why = ev ? eligibilityFailure(ev, {
+      todayIso, horizonDays: FEATURED_HORIZON_DAYS, history,
+      ignoreCooldown: true, ignoreHorizon: true,
+    }) : 'missing';
+    if (ev && !why) {
+      slots[idx] = {
+        ...scoreEvent(ev, opts),
+        event: ev,
+        selectionType: owned.selectionType,
+        reason: owned.reason ?? null,
+        allocationId: owned.allocationId ?? null,
+        slot: idx + 1,
+        horizonDays: FEATURED_HORIZON_DAYS,
+        usedFallback: false,
+        candidates: 1,
+        rejected: {},
+      };
+      taken.add(ev.id);
+    }
+  }
+
+  // 2 · Backfill, position by position, and ONLY where nothing was chosen.
+  // Today's owned rows are dropped from the history handed to the selector —
+  // otherwise it would hand back a manual pick it has already placed. Every
+  // EARLIER day stays, so fairness still charges for exposure already had.
+  const historyForBackfill = history.filter(h =>
+    !(h && h.date === todayIso && ALLOCATION_OWNED_TYPES.includes(h.selectionType)));
+
+  for (let i = 0; i < limit; i++) {
+    if (slots[i]) continue;                   // ⛔ chosen — the app keeps out
+    const next = selectFeaturedEvent({
+      ...opts,
+      events: events.filter(e => e && !taken.has(e.id)),
+      history: historyForBackfill,
+    });
+    if (!next.event) break;                   // ⛔ never pad — see Spotlight r2
+    slots[i] = { ...next, slot: i + 1 };
+    taken.add(next.event.id);
+  }
+
+  // ⚠ Holes are CLOSED for rendering, but only at the very end. A slot nothing
+  // could fill (the catalogue ran dry) must not leave a gap in the rail — the
+  // rail is short, which is honest, rather than three cards with a blank in the
+  // middle. The `slot` on each pick still names the position it was chosen for.
+  return slots.filter(Boolean);
 }
 
 /**

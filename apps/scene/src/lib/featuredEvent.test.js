@@ -4,8 +4,9 @@ import {
   selectFeaturedEvent, scoreEvent, qualityScore, discoveryScore,
   summariseExposure, inCooldown, editorialOverride, eligibilityFailure,
   replayHistory, fairnessPenalty, allocationForToday,
+  allocationsForToday, selectFeaturedEvents,
   FEATURED_WEIGHTS, FEATURED_HORIZON_DAYS, FEATURED_FALLBACK_HORIZON_DAYS,
-  MAX_CONSECUTIVE_ALLOCATIONS, QUALITY_FIELDS,
+  MAX_CONSECUTIVE_ALLOCATIONS, QUALITY_FIELDS, FEATURED_SLOTS,
 } from './featuredEvent.js';
 
 /**
@@ -641,4 +642,181 @@ test('a winner reports its working, so any pick can be explained', () => {
   assert.equal(typeof out.factors.proximity, 'number');
   assert.equal(typeof out.penalty, 'number');
   assert.equal(out.candidates, 1);
+});
+
+// ── 9 · THREE SLOTS, EXCLUSIONS, AND ORGANIC BACKFILL (fe3) ──────────
+//
+// The hero became a rotation of three. Two promises carry the whole design and
+// both fail silently if broken:
+//
+//   · the section NEVER goes dark. It went dark for six days in Aug 2026 and
+//     nothing logged it. A manual queue that owned the slot outright would be
+//     that defect rebuilt, so an empty or expired queue must backfill.
+//   · a regular night never takes a card. It scores well precisely because it
+//     is well-made, and it is on again next week — the worst possible use of
+//     the most prominent slot in the app.
+
+test('⭐⭐ an empty queue still fills all three cards — the slot never goes dark', () => {
+  const events = [ev(), ev(), ev(), ev()];
+  const out = selectFeaturedEvents({ events, todayIso: TODAY, history: [] });
+  assert.equal(out.length, FEATURED_SLOTS);
+  assert.ok(out.every(p => p.selectionType === 'organic'));
+  // MUTATION GUARD: the same call with nothing eligible returns nothing rather
+  // than padding — a short rail is honest, a padded one is a lie.
+  const dead = selectFeaturedEvents({
+    events: [ev({ cfg: { date: day(-3) } })], todayIso: TODAY, history: [],
+  });
+  assert.deepEqual(dead, []);
+});
+
+test('manual picks take the first cards and organic fills the rest', () => {
+  const mine = ev({ id: 'mine' });
+  const events = [mine, ev(), ev(), ev()];
+  const history = [{ eventId: 'mine', date: TODAY, selectionType: 'manual', slot: 1, allocationId: 'a1' }];
+  const out = selectFeaturedEvents({ events, todayIso: TODAY, history });
+  assert.equal(out.length, 3);
+  assert.equal(out[0].event.id, 'mine');
+  assert.equal(out[0].selectionType, 'manual');
+  assert.ok(out.slice(1).every(p => p.selectionType === 'organic'));
+});
+
+test('⛔ a manual pick never occupies two cards at once', () => {
+  const mine = ev({ id: 'mine', cfg: { date: day(0) } });   // also the best organic pick
+  const events = [mine, ev(), ev()];
+  const history = [{ eventId: 'mine', date: TODAY, selectionType: 'manual', slot: 1, allocationId: 'a1' }];
+  const out = selectFeaturedEvents({ events, todayIso: TODAY, history });
+  assert.equal(out.filter(p => p.event.id === 'mine').length, 1);
+});
+
+test('⚠⚠ a manual pick whose event died is BACKFILLED, never rendered dead', () => {
+  // The exact shape of the Aug 2026 outage: a pick pointing at an event that
+  // is no longer showable. It must vanish from the rotation, not blank a card.
+  const gone = ev({ id: 'gone', status: 'draft' });
+  const events = [gone, ev(), ev(), ev()];
+  const history = [{ eventId: 'gone', date: TODAY, selectionType: 'manual', slot: 1, allocationId: 'a1' }];
+  const out = selectFeaturedEvents({ events, todayIso: TODAY, history });
+  assert.equal(out.length, 3);
+  assert.ok(!out.some(p => p.event.id === 'gone'));
+});
+
+test('slot order is POSITION order, so one card changes at a time', () => {
+  const history = [
+    { eventId: 'c', date: TODAY, selectionType: 'manual', slot: 3, allocationId: 'a3' },
+    { eventId: 'a', date: TODAY, selectionType: 'manual', slot: 1, allocationId: 'a1' },
+    { eventId: 'b', date: TODAY, selectionType: 'manual', slot: 2, allocationId: 'a2' },
+  ];
+  assert.deepEqual(allocationsForToday(history, TODAY).map(h => h.eventId), ['a', 'b', 'c']);
+  // A pre-fe3 row has no slot. It sorts LAST rather than being dropped: it is
+  // still a day somebody was featured, and losing it understates exposure.
+  const legacy = [{ eventId: 'old', date: TODAY, selectionType: 'manual', allocationId: 'a0' }, ...history];
+  assert.deepEqual(allocationsForToday(legacy, TODAY).map(h => h.eventId), ['a', 'b', 'c', 'old']);
+});
+
+test('⭐⭐ an excluded event is barred from the hero, and its reason is nameable', () => {
+  const residency = ev({ id: 'weekly', cfg: { featured_excluded: true, date: day(0) } });
+  const oneOff = ev({ id: 'oneoff', cfg: { date: day(3) } });
+  const out = selectFeaturedEvent({ events: [residency, oneOff], todayIso: TODAY, history: [] });
+  assert.equal(out.event.id, 'oneoff', 'the nearer excluded gig must not win');
+  assert.equal(out.rejected.excluded, 1, 'and the gate says why, without a debugger');
+  // MUTATION GUARD: without the stamp the residency wins on proximity, which
+  // is exactly the problem the exclusion exists to solve.
+  const unstamped = ev({ id: 'weekly2', cfg: { date: day(0) } });
+  assert.equal(selectFeaturedEvent({ events: [unstamped, oneOff], todayIso: TODAY, history: [] }).event.id, 'weekly2');
+});
+
+test('⛔ an exclusion cannot be overridden by an editorial pick or a manual slot', () => {
+  // A gate only SUBTRACTS, and an administrator may override the RANKING, never
+  // the gates. Both channels must respect it or "never feature this" is advice.
+  const banned = ev({ id: 'banned', cfg: { featured_excluded: true, featured: true } });
+  const other = ev({ id: 'other' });
+  assert.equal(selectFeaturedEvent({ events: [banned, other], todayIso: TODAY, history: [] }).event.id, 'other');
+
+  const history = [{ eventId: 'banned', date: TODAY, selectionType: 'manual', slot: 1, allocationId: 'a1' }];
+  const out = selectFeaturedEvents({ events: [banned, other], todayIso: TODAY, history });
+  assert.ok(!out.some(p => p.event.id === 'banned'), 'not even a hand-written allocation gets past it');
+});
+
+// ── 10 · THE APP CHOOSES ONLY WHERE NOBODY HAS ──────────────────────
+//
+// The promise the whole three-slot design rests on, stated per POSITION and
+// not merely per set. Every failure here is silent: the hero still shows three
+// plausible cards, they are just not in the places they were put.
+
+test('⭐⭐ a pick in slot 3 STAYS in slot 3 — the app fills 1 and 2 around it', () => {
+  const mine = ev({ id: 'mine' });
+  const events = [mine, ev(), ev(), ev()];
+  const history = [{ eventId: 'mine', date: TODAY, selectionType: 'manual', slot: 3, allocationId: 'a3' }];
+  const out = selectFeaturedEvents({ events, todayIso: TODAY, history });
+
+  assert.equal(out.length, 3);
+  assert.equal(out[2].event.id, 'mine', 'the chosen position is the rendered position');
+  assert.equal(out[2].slot, 3);
+  assert.ok(out.slice(0, 2).every(p => p.selectionType === 'organic'));
+  // MUTATION GUARD: the same pick in slot 1 must land FIRST, or this test
+  // would pass against code that simply always puts manual picks last.
+  const first = selectFeaturedEvents({
+    events, todayIso: TODAY,
+    history: [{ eventId: 'mine', date: TODAY, selectionType: 'manual', slot: 1, allocationId: 'a1' }],
+  });
+  assert.equal(first[0].event.id, 'mine');
+});
+
+test('two picks keep their own positions, and the gap between them is filled', () => {
+  const a = ev({ id: 'a' });
+  const c = ev({ id: 'c' });
+  const events = [a, c, ev(), ev()];
+  const out = selectFeaturedEvents({
+    events, todayIso: TODAY,
+    history: [
+      { eventId: 'a', date: TODAY, selectionType: 'manual', slot: 1, allocationId: 'x' },
+      { eventId: 'c', date: TODAY, selectionType: 'manual', slot: 3, allocationId: 'y' },
+    ],
+  });
+  assert.deepEqual(out.map(p => p.event.id === 'a' ? 'a' : p.event.id === 'c' ? 'c' : 'auto'),
+    ['a', 'auto', 'c'], 'the app fills the middle and nothing else');
+});
+
+test('⛔ the app never overwrites a chosen position, even with a better event', () => {
+  // The manual pick is deliberately the WEAKEST candidate: far away, minimal
+  // listing. If the ranking could reach into a held slot it would replace it,
+  // and "I chose this" would mean "unless the algorithm disagrees".
+  const weak = ev({ id: 'weak', cfg: { date: day(40), time: undefined, venue: undefined, genres: undefined, bio: undefined, ticketLink: undefined } });
+  const strong = ev({ id: 'strong', cfg: { date: day(1) } });
+  const out = selectFeaturedEvents({
+    events: [weak, strong, ev(), ev()], todayIso: TODAY,
+    history: [{ eventId: 'weak', date: TODAY, selectionType: 'manual', slot: 2, allocationId: 'w' }],
+  });
+  assert.equal(out[1].event.id, 'weak', 'a held position is not up for reconsideration');
+  assert.ok(out.some(p => p.event.id === 'strong'), 'the better event still gets a free slot');
+});
+
+test('⚠ a dead manual pick frees its position for the app, rather than holding it empty', () => {
+  const gone = ev({ id: 'gone', status: 'draft' });
+  const out = selectFeaturedEvents({
+    events: [gone, ev(), ev(), ev()], todayIso: TODAY,
+    history: [{ eventId: 'gone', date: TODAY, selectionType: 'manual', slot: 2, allocationId: 'g' }],
+  });
+  assert.equal(out.length, 3, 'three cards, not two with a hole');
+  assert.ok(!out.some(p => p.event.id === 'gone'));
+  assert.ok(out.every(p => p.selectionType === 'organic'));
+});
+
+test('a pre-fe3 allocation has no slot and takes position 1, as it always was', () => {
+  const legacy = ev({ id: 'legacy' });
+  const out = selectFeaturedEvents({
+    events: [legacy, ev(), ev()], todayIso: TODAY,
+    history: [{ eventId: 'legacy', date: TODAY, selectionType: 'manual', allocationId: 'L' }],
+  });
+  assert.equal(out[0].event.id, 'legacy');
+  assert.equal(out[0].slot, 1);
+});
+
+test('⚠ a slot number beyond the rotation cannot write past the end', () => {
+  const mine = ev({ id: 'mine' });
+  const out = selectFeaturedEvents({
+    events: [mine, ev(), ev()], todayIso: TODAY,
+    history: [{ eventId: 'mine', date: TODAY, selectionType: 'manual', slot: 9, allocationId: 'z' }],
+  });
+  assert.equal(out.length, 3);
+  assert.equal(out[2].event.id, 'mine', 'clamped into the last position, never dropped');
 });

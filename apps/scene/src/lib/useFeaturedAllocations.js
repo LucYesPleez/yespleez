@@ -35,7 +35,11 @@ export function useFeaturedAllocations(fromIso) {
     queryFn: async () => {
       let q = supabase
         .from('featured_allocation')
-        .select('event_id, featured_date, selection_type, allocation_id, status')
+        // ⚠ `slot` arrives with fe3. On a pre-fe3 database PostgREST answers
+        // 400 for an unknown column and the catch below turns that into `[]` —
+        // losing the ledger, not the page. Worth the risk: naming it here is
+        // what lets the three-card rotation keep its POSITIONS stable.
+        .select('event_id, featured_date, selection_type, allocation_id, slot, status')
         // ⭐⭐ REMOVED ROWS ARE HISTORY, NOT EXPOSURE. A cancelled future day
         // never happened, so charging the event for it would penalise an act
         // for a run an administrator called off. The rows stay in the table as
@@ -54,6 +58,9 @@ export function useFeaturedAllocations(fromIso) {
           // Carried so `allocationForToday()` can tell a human decision from
           // one this engine made itself.
           selectionType: r.selection_type,
+          // Null on a pre-fe3 row — `allocationsForToday` sorts those last
+          // rather than dropping them.
+          slot: r.slot ?? null,
           allocationId: r.allocation_id,
         }));
     },
