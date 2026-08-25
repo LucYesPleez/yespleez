@@ -236,6 +236,18 @@
 }
 .headLink:hover { color: var(--text); text-decoration: underline; }
 
+/* The signed-in address. Quieter than the Edit Profile link above it: that one
+   is an action, this is only ever read. Ellipsis rather than wrap — the menu
+   has a fixed width and a long address would otherwise widen or wrap it. */
+.headEmail {
+  margin-top: 2px;
+  font-size: 11.5px;
+  color: var(--faint, rgba(255, 255, 255, .38));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .rule {
   height: 1px;
   margin: 4px 6px;

@@ -214,10 +214,36 @@ export default function MessengerIdentityScreen() {
           PROFILE PIC
         </div>
 
-        <div style={{ color: 'var(--muted)', fontSize: 13, lineHeight: 1.5, marginBottom: 20 }}>
+        <div style={{ color: 'var(--muted)', fontSize: 13, lineHeight: 1.5, marginBottom: 14 }}>
           How you appear in Messenger and when someone finds you by number.
           This is not a public profile.
         </div>
+
+        {/**
+          * WHICH ACCOUNT AM I SIGNED IN AS? — the question no screen answered.
+          *
+          * ⭐ It belongs at the TOP, beside the identity this screen is about,
+          * not at the bottom with the actions: a person opens this asking "is
+          * this the right account?" and the answer has to arrive before they
+          * start editing, not after they have saved something to the wrong one.
+          *
+          * ⭐ NO LABEL (owner, 2026-08-25). An email address is self-evidently
+          * an email address; "SIGNED IN AS" in front of it was a caption on a
+          * photograph of a cat. It sits under the line explaining what this
+          * screen is, where the only question left is which account.
+          *
+          * ⛔ NOT AN INPUT. Changing an auth email is a GoTrue flow with a
+          * confirmation round trip to both addresses; a box here would look
+          * like it saved with DISPLAY NAME and quietly do nothing.
+          */}
+        {session?.user?.email && (
+          <div title={session.user.email} style={{
+            fontSize: 12.5, color: 'var(--muted)', marginBottom: 20,
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          }}>
+            {session.user.email}
+          </div>
+        )}
 
         {profileId && (
           <AvatarUpload

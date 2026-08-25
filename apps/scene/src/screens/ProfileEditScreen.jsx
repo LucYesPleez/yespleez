@@ -116,6 +116,24 @@ export default function ProfileEditScreen() {
         </div>
       )}
 
+      {/**
+        * WHICH ACCOUNT AM I? — the question this screen could not answer.
+        *
+        * ⭐ The email belongs to the ACCOUNT, not to the profile being edited.
+        * One sign-in carries every role in the tabs above, so it sits OUTSIDE
+        * the form: inside it, among the fields, it would read as this profile's
+        * address and imply each role has its own.
+        *
+        * ⭐ NO LABEL (owner, 2026-08-25). An email address announces itself.
+        *
+        * ⛔ NOT EDITABLE. Changing an auth email is a GoTrue flow with a
+        * confirmation round trip to both addresses; an input here would look
+        * like it saved with the rest of the form and quietly do nothing.
+        */}
+      {session?.user?.email && (
+        <div className={s.accountEmail} title={session.user.email}>{session.user.email}</div>
+      )}
+
       <div className={s.form}>
         {/* Avatar */}
         <div className={s.avatarSection}>

@@ -465,6 +465,23 @@ export default function ProfileMenu({ session, unreadCount = 0, onSignOut, onOpe
                 <button type="button" className={s.headLink} onClick={() => go('/me')}>
                   Edit Profile
                 </button>
+                {/**
+                  * WHICH ACCOUNT AM I? — answered where the account already is.
+                  *
+                  * ⭐ No label. An email address is self-evidently an email
+                  * address, and sitting in the account header under the display
+                  * name there is nothing else it could be. "SIGNED IN AS" in
+                  * front of it was a caption on a photograph of a cat.
+                  *
+                  * ⛔ Not a button and not a field: it is the one line here that
+                  * is only ever read. Changing an auth email is a GoTrue flow
+                  * with confirmations to both addresses, not an inline edit.
+                  */}
+                {session?.user?.email && (
+                  <div className={s.headEmail} title={session.user.email}>
+                    {session.user.email}
+                  </div>
+                )}
               </div>
             </div>
 
