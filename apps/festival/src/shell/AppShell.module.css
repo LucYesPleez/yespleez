@@ -55,11 +55,20 @@
    a fixed frame so the toolbar and pagination never leave the screen. */
 .scroll { overflow-y: auto; }
 
-@media (max-width: 1024px) {
-  .shell {
-    grid-template-areas:
-      'topbar'
-      'body';
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
+/* ⛔⛔ THERE IS NO NARROW-VIEWPORT RULE HERE, AND THAT IS DELIBERATE.
+ *
+ * A `@media (max-width: 1024px)` block used to redefine the areas as
+ * 'topbar' / 'body' — dropping `sidebar` from the template while `Sidebar`
+ * carried on rendering with `grid-area: sidebar`. ⚠⚠ A grid item naming an
+ * area the template no longer declares is placed in IMPLICIT tracks, so the
+ * sidebar was not hidden: it was auto-placed to the RIGHT of the content and
+ * pushed BELOW it. Measured at 898px: `grid-template-columns` computed as
+ * `666px 0px 232px` against `232px 1448px` at 1680px.
+ *
+ * ⭐ IT WAS ALSO ANSWERING A QUESTION THIS APP ANSWERS ELSEWHERE. Mobile is
+ * `CompanionShell` at /companion, with its own bottom nav, built precisely
+ * because "a docked inspector and a persistent sidebar have no mobile
+ * equivalent". ⛔ Do not make this shell responsive — it is the DESKTOP
+ * workspace, and below its width the answer is the Companion, not a
+ * rearrangement of a layout whose two fixed regions total 612px.
+ */

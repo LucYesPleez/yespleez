@@ -8,7 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "lint": "oxlint",
-    "test": "node --test src/companion/priorities.test.mjs src/public/landingModel.test.mjs"
+    "test": "node --test src/companion/priorities.test.mjs src/public/landingModel.test.mjs src/config/columns.test.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.1",

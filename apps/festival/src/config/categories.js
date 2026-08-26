@@ -89,7 +89,21 @@ export const CATEGORIES = [
     asksAvailability: true,
     asksDepartments: true,
     intent: 'open_call',
-    columns: ['applicant', 'skills', 'availability', 'stage', 'status', 'date'],
+    /**
+     * ⚠⚠ WAS `['applicant','skills','availability','stage','status','date']`
+     * and FOUR of those six rendered a permanent dash (measured 2026-08-27).
+     *
+     * ⛔ `skills` is gone because the platform decided never to collect it —
+     * this file's own header says skills live on `profiles` and are never
+     * re-asked, so the column reserved 160px for something no volunteer can
+     * ever have. ⛔ `stage` is gone because NOTHING writes it, for any
+     * category. A column that cannot hold a value is a permanent visual hole,
+     * and here it read as "they didn't answer".
+     *
+     * ⭐ `departments` replaces them: which departments this volunteer
+     * offered, which is the fact an organiser allocates on.
+     */
+    columns: ['applicant', 'departments', 'availability', 'status', 'date'],
   },
   {
     key: 'market_stall',

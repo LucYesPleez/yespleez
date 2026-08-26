@@ -1,4 +1,4 @@
-import { Icon, StatusBadge, Popover, MenuItem, MenuDivider } from '../design-system';
+import { Icon, StatusBadge, Popover, MenuItem } from '../design-system';
 import { columnClass } from './columnClass';
 import s from './ApplicationsTable.module.css';
 
@@ -22,7 +22,9 @@ function Cell({ column, application }) {
    * that order, is what lets one renderer serve every category without the
    * table knowing which fields belong where.
    */
-  const value = application[column.key] ?? application.answers?.[column.key];
+  const value = column.value
+    ? column.value(application)
+    : application[column.key] ?? application.answers?.[column.key];
 
   if (column.cell === 'applicant') {
     return (
@@ -104,13 +106,15 @@ export default function ApplicationsRow({ application, columns, active, ticked, 
         >
           {({ close }) => (
             <>
+              {/* ⛔⛔ SHORTLIST / ACCEPT / DECLINE / MESSAGE WERE HERE AND DID
+                  NOTHING — every one was `onClick={close}`, and they looked
+                  identical to the inspector buttons that genuinely decide.
+                  An organiser could believe they had declined someone.
+                  ⭐ A dead control is worse than a missing one: the decision
+                  surface is the inspector, which this now opens. ⛔ Do not
+                  restore them without wiring them to `applications.decide`. */}
               <MenuItem label="Open in inspector" icon="inbox"
                 onClick={() => { onSelect(application); close(); }} />
-              <MenuItem label="Message applicant" icon="messages" onClick={close} />
-              <MenuDivider />
-              <MenuItem label="Shortlist" icon="star"  onClick={close} />
-              <MenuItem label="Accept"    icon="check" onClick={close} />
-              <MenuItem label="Decline"   icon="cross" danger onClick={close} />
             </>
           )}
         </Popover>

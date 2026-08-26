@@ -1,0 +1,65 @@
+/* The submitted answers. Reading, not editing — so this is a list of facts,
+   ⛔ not a form laid out to look like one. */
+
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.heading {
+  margin: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-family: 'Bebas Neue', sans-serif;
+  font-weight: 400;          /* ⚠ Bebas has ONE weight */
+  font-size: 13px;
+  letter-spacing: 1.6px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.count {
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--text);
+}
+
+.chips {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* Sixteen of these can appear at once, so they stay quiet: this is a record
+   of what someone offered, not a set of controls. */
+.chip {
+  font-size: 12px;
+  line-height: 1.2;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--card2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.value {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text);
+}

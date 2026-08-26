@@ -1,5 +1,6 @@
 import { EmptyState } from '../../design-system';
 import ProfileTab from './ProfileTab';
+import ApplicationTab from './ApplicationTab';
 import StubTab from './StubTab';
 
 /**
@@ -31,12 +32,7 @@ export const INSPECTOR_TABS = [
   {
     key: 'application',
     label: 'Application',
-    Component: () => (
-      <StubTab
-        title="Submitted answers"
-        note="The question set exactly as it was answered, frozen at submission — never re-read from the applicant's live profile."
-      />
-    ),
+    Component: ApplicationTab,
   },
   {
     key: 'media',
