@@ -1,4 +1,5 @@
 import { soundcloudAdapter, mixcloudAdapter } from './mediaProviders';
+import { resolveSoundcloud } from './soundcloudResolve';
 
 /**
  * THE DEMO MIX PROVIDER ARCHITECTURE.
@@ -99,6 +100,29 @@ export const PROVIDERS = [
       `https://w.soundcloud.com/player/?url=${encodeURIComponent(url)}`
       + '&color=%2300e5ff&auto_play=true&hide_related=true&show_comments=false'
       + '&show_user=false&show_reposts=false&show_teaser=false',
+
+    /**
+     * ⭐⭐ "IF IT PLAYS ON SOUNDCLOUD, IT PLAYS HERE."
+     *
+     * SoundCloud's own share button hands out `on.soundcloud.com` links, so
+     * that is what most people paste — and the widget cannot resolve them.
+     * Measured 2026-08-26 against the exact URL the app builds:
+     *
+     *   …/player/?url=https://on.soundcloud.com/d9H1MbeRsJFLkSOqjg   → 404
+     *   …/player/?url=https://soundcloud.com/8ballaudio/enlil-…      → 200
+     *
+     * The iframe mounted, sized correctly, auto_play set — and loaded a 404.
+     * Nothing on the page looked broken, which is why it went unreported.
+     *
+     * ⛔ THE APP CANNOT FOLLOW THE REDIRECT ITSELF. It is cross-origin and
+     * opaque to fetch. SoundCloud's oEmbed endpoint resolves it and answers
+     * `access-control-allow-origin: *`, returning a canonical
+     * `api.soundcloud.com/tracks/N` the widget always accepts.
+     *
+     * ⚠ Returns the input unchanged on any failure, so a link that works today
+     * keeps working if this endpoint ever goes away.
+     */
+    resolveEmbed: url => resolveSoundcloud(url).then(r => r.url),
 
     attach({ el, url, on }) {
       let widget = null;

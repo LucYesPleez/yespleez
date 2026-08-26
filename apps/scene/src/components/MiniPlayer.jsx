@@ -39,8 +39,22 @@ const WAVE_CSS = `
   @keyframes yp-bar4 { 0%,100%{height:10px} 50%{height:4px}  }
 `;
 
-/** How long the progress bar takes to fill. Presentation only. */
-const CLIP_MS = 90 * 1000;
+/**
+ * ⭐⭐ A DEMO MIX IS A PREVIEW: TWENTY MINUTES, THEN IT STOPS.
+ *
+ * Owner's rule, 2026-08-26, and it is ONE rule for every surface — profile,
+ * Set Times, dashboard. ⛔ Not per-context: there is a single global player
+ * (App.jsx mounts one and every surface calls `setPlayer`), so a cap that
+ * applied "only in Set Times" would have to be threaded through the launch
+ * site and would be silently absent anywhere that forgot.
+ *
+ * ⚠⚠ THIS WAS `CLIP_MS = 90 * 1000` AND IT CAPPED NOTHING. Its own comment
+ * said "Presentation only": it filled the progress bar in ninety seconds and
+ * then sat at 100% while an hour-long set played on. The bar announced a
+ * limit the player did not enforce, which is the worst of both — a promise
+ * on screen and no rule behind it.
+ */
+const PREVIEW_MS = 20 * 60 * 1000;
 
 export default function MiniPlayer({ url, artistName, hasNext, onClose, onFinish, onNext }) {
   const [trackTitle, setTrackTitle] = useState('');
@@ -68,11 +82,40 @@ export default function MiniPlayer({ url, artistName, hasNext, onClose, onFinish
   // the resumable `source` is only for the manager's park/resume. They are
   // different verbs — "play this" vs "un-park what was interrupted".
   const adapterRef = useRef(null);
-  const startRef   = useRef(Date.now());
 
   // The single question this component asks about providers.
   const provider = providerFor(url);
-  const embedUrl = provider ? provider.embedUrl(url) : null;
+
+  /**
+   * ⭐ SOME ADDRESSES NEED ASKING ABOUT BEFORE THEY CAN BE PLAYED.
+   *
+   * A provider may declare `resolveEmbed` when the address a person pastes is
+   * not always the address its player accepts — SoundCloud's share links are
+   * the case that forced this. ⛔ THIS COMPONENT STILL DOES NOT KNOW WHICH
+   * PROVIDER THAT IS: it calls an optional hook and uses whatever comes back.
+   * Adding `isSoundcloud` here instead was the obvious fix and would have been
+   * the first crack in the rule at the top of this file.
+   *
+   * ⚠ PLAYABLE FIRST, RESOLVED SECOND. The raw URL renders immediately, so the
+   * common case — an address that already works — never waits on a network
+   * call. The state only moves if the provider returns something different.
+   */
+  const [playable, setPlayable] = useState(url);
+
+  useEffect(() => {
+    setPlayable(url);
+    const resolve = provider?.resolveEmbed;
+    if (!resolve) return undefined;
+    let dead = false;
+    Promise.resolve(resolve(url))
+      .then(next => { if (!dead && next && next !== url) setPlayable(next); })
+      .catch(() => { /* the raw url stays — never worse than before */ });
+    return () => { dead = true; };
+  }, [url, provider]);
+
+  // ⚠ The provider is chosen from the ORIGINAL url — what it is does not change
+  // when the address is canonicalised — but the EMBED is built from `playable`.
+  const embedUrl = provider ? provider.embedUrl(playable) : null;
 
   /**
    * Attach the provider, register the source, and tear both down together.
@@ -149,16 +192,58 @@ export default function MiniPlayer({ url, artistName, hasNext, onClose, onFinish
     return () => clearTimeout(t);
   }, [url]);
 
-  // Progress bar. Presentation only — it is a clip timer, not a playhead.
   const playingRef = useRef(false);
   useEffect(() => { playingRef.current = playing; }, [playing]);
 
+  /**
+   * THE PREVIEW ALLOWANCE — and the bar that reports it.
+   *
+   * ⚠⚠ PLAYED TIME, NOT WALL-CLOCK TIME. The old bar measured
+   * `Date.now() - start`, which was harmless while nothing depended on it and
+   * is wrong the moment it stops playback: pause for half an hour, press play,
+   * and a wall-clock cap would cut the track off instantly. Only the ticks
+   * that elapse WHILE PLAYING are counted, so twenty minutes means twenty
+   * minutes of listening.
+   *
+   * ⚠ `tickRef` advances on EVERY tick including paused ones — that is what
+   * discards paused time rather than banking it.
+   */
+  const playedRef  = useRef(0);
+  const tickRef    = useRef(Date.now());
+  const cappedRef  = useRef(false);
+  // The prop is a fresh closure on every render of App; a ref keeps this
+  // interval from firing a stale one when the playlist has moved on.
+  const finishRef  = useRef(onFinish);
+  useEffect(() => { finishRef.current = onFinish; });
+
   useEffect(() => {
-    startRef.current = Date.now();
+    playedRef.current = 0;
+    tickRef.current   = Date.now();
+    cappedRef.current = false;
+    setProgress(0);
+
     const id = setInterval(() => {
-      if (!playingRef.current) return;
-      setProgress(Math.min((Date.now() - startRef.current) / CLIP_MS * 100, 100));
+      const now   = Date.now();
+      const delta = now - tickRef.current;
+      tickRef.current = now;
+      if (!playingRef.current || cappedRef.current) return;
+
+      playedRef.current += delta;
+      setProgress(Math.min(playedRef.current / PREVIEW_MS * 100, 100));
+      if (playedRef.current < PREVIEW_MS) return;
+
+      /* ⭐ Reaching the allowance is treated exactly as the media ending on its
+         own — same `onFinish`, so a playlist advances and a single mix closes
+         the player, rather than the cap inventing a third outcome.
+         ⛔ `cappedRef` because the interval keeps ticking until this effect is
+         torn down, and firing finish twice would skip a track. */
+      cappedRef.current = true;
+      adapterRef.current?.pause();
+      if (sessionRef.current) releaseAudio(sessionRef.current);
+      setPlaying(false);
+      finishRef.current?.();
     }, 500);
+
     return () => clearInterval(id);
   }, [url]);
 
