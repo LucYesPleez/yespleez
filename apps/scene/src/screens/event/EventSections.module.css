@@ -97,9 +97,28 @@
    supplies the border, the fill and the divider above it. The actions carry no
    border of their own: they used to, which made the row read as three
    unrelated buttons rather than one grouped utility section. */
+/* ⚠ WRAPS since 2026-08-26 so a festival's APPLY can bring a disclosure panel
+   into this row: the panel is `flex: 1 0 100%` and therefore takes its own
+   line beneath the buttons. ⛔ Without wrapping it would be squeezed in as a
+   fifth cell. Nothing changes for a row of plain actions. */
 .quickActions {
   display: flex;
+  flex-wrap: wrap;
 }
+
+/* ⚠⚠ THE BUTTONS NEED A REAL MINIMUM FOR THE PANEL TO WRAP AT ALL, and this
+   is not a cosmetic nicety. `.quickAction` is `flex: 1 1 0` with `min-width:
+   0`, so its hypothetical size is ZERO — a `flex-basis: 100%` panel then fits
+   on the SAME line by itself, no wrap happens, and every button shrinks to 0px
+   wide while the buttons stretch to the panel's full height. Measured exactly
+   that before this rule existed.
+
+   Any positive minimum forces the break. 40px is well under the narrowest real
+   cell (83px with four buttons in a 358px column) so it never affects a row
+   that fits, and the equal-width sharing is untouched: free space is still
+   distributed by `flex-grow` from a zero basis. ⛔ Scoped to rows that carry a
+   panel — a plain utility row keeps exactly the sizing it has always had. */
+.quickActionsWithPanel > .quickAction { min-width: 40px; }
 
 /* Matched to the status row above it — same axis, same type, same padding, so
    the two rows read as one control surface rather than two.

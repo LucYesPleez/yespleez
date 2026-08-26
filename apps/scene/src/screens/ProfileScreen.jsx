@@ -9,6 +9,8 @@ import { today } from '../lib/dates';
 import { useSession, usePlayer } from '../App';
 import { useParticipation } from '../components/ParticipationGate';
 import EventCard from '../components/EventCard';
+import DateBox from '../components/DateBox';
+import FestivalApply from './event/FestivalApply';
 import { eventCategoryBadges } from '../lib/eventBadges';
 import { eventCardImage } from '../lib/eventImage';
 import s from './ProfileScreen.module.css';
@@ -172,11 +174,18 @@ export default function ProfileScreen() {
         // never the auth-only host_id.
         const eRes = await supabase.from('events').select('id,name,config').eq('venue_profile_id', ownedProfile.id).in('status', ['live','completed']).order('created_at', { ascending: false }).limit(100);
         events = eRes.data || [];
-      } else if (ownedProfile.type === 'host') {
+      } else if (ownedProfile.type === 'host' || ownedProfile.type === 'festival') {
         // 11C.6: a host's HOSTED events — events.host_id is the promoter's
         // account (see CreateEventScreen / HostDashboard). NOT lineup_members:
         // a host doesn't perform, so the performer query below returned nothing,
         // leaving every host's event sections empty.
+        //
+        // ⭐ A FESTIVAL READS THE SAME WAY (2026-08-26). It owns its events via
+        // `owner_profile_id` and is never on a bill, so the performer query
+        // below returned nothing for it too — measured: Echo Valley owns one
+        // live event and has ZERO `lineup_members` rows, so its profile showed
+        // no events at all. Same defect as the host one this branch was
+        // written for, and the same fix.
         //
         // Phase 16 §14 — ask the PROFILE-shaped question, not the account one.
         // `host_id` is AUTHORSHIP (which human created the row, O-R4). An
@@ -190,7 +199,11 @@ export default function ProfileScreen() {
         // owner_profile_id was populated still appear.
         const ownerFilters = ['owner_profile_id.eq.' + ownedProfile.id];
         if (ownedProfile.user_id) ownerFilters.push('host_id.eq.' + ownedProfile.user_id);
-        const eRes = await supabase.from('events').select('id,name,config')
+        // ⚠ `applications_open` rides along so a festival profile can offer
+        // APPLICATIONS OPEN without a second query. It is the organiser's
+        // master switch only — whether anything is actually accepting people
+        // is decided by the open CATEGORIES, which FestivalApply reads.
+        const eRes = await supabase.from('events').select('id,name,config,applications_open')
           .or(ownerFilters.join(','))
           .in('status', ['live','completed'])
           .order('created_at', { ascending: false }).limit(100);
@@ -222,6 +235,25 @@ export default function ProfileScreen() {
 
   const profile     = data?.profile || null;
   const events      = data?.events  || [];
+
+  /**
+   * ⭐ THE EVENT A VISITOR CAN APPLY TO — a festival profile only.
+   *
+   * A festival is an organisation that runs for years; only an OCCURRENCE
+   * takes applications, so the profile's button has to name one. The soonest
+   * upcoming event with the organiser's switch on wins.
+   *
+   * ⚠ `applications_open` is the master switch and NOT the whole answer: an
+   * event can have it on with no category open, in which case nobody can
+   * actually apply. FestivalApply resolves that (it renders nothing when no
+   * applyable category is open), which is why the button is not gated on the
+   * flag alone here.
+   */
+  const applyEvent = profile?.type === 'festival'
+    ? events
+        .filter(ev => ev.applications_open && (ev.config?.date || '9999') >= today())
+        .sort((a, b) => (a.config?.date || '').localeCompare(b.config?.date || ''))[0] || null
+    : null;
 
   /**
    * ⭐ QR1 · a scanned What's On code lands here with `?focus=whats-on` and is
@@ -1111,6 +1143,55 @@ export default function ProfileScreen() {
             </div>
           )}
 
+          {/* ⭐⭐ APPLICATIONS OPEN — THE PAGE'S PRIMARY ACTION (owner,
+              2026-08-26: "it's just kind of a big deal"). It sits FIRST in the
+              column, immediately under the identity, and is the one FILLED
+              control on the page — Follow and Message stay outlined further
+              down, which is what makes this one read as the answer to "what am
+              I meant to do here".
+
+              ⚠ It was beneath Follow and Message, in the same colours, and the
+              owner was right that it disappeared: the most valuable thing a
+              festival profile offers was wearing a utility's clothes.
+
+              ⚠ Renders NOTHING when the festival has no event taking
+              applications, so a between-rounds festival simply shows its
+              tagline. ⛔ Never a disabled button announcing that applications
+              are closed — a dead control for a state nobody can act on. */}
+          {applyEvent && (
+            <FestivalApply
+              eventId={applyEvent.id}
+              userId={session?.user?.id ?? null}
+              renderTrigger={({ open, toggle, panelId }) => (
+                <button
+                  type="button"
+                  className={s.applyCta}
+                  onClick={toggle}
+                  aria-expanded={open}
+                  aria-controls={panelId}
+                  style={{
+                    /* ⚠ TWO LAYERS, and the top one is not decoration. The
+                       wash deepens along the same 135° axis as the colour, so
+                       it lands hardest on the bright end of the gradient —
+                       which is what lets the white label read evenly across
+                       the whole button instead of fading out on one side. */
+                    background: `linear-gradient(135deg, rgba(0,0,0,.20), rgba(0,0,0,.46)), linear-gradient(135deg, ${col}, ${grad2})`,
+                    boxShadow: `0 10px 32px rgba(${rgb},.30)`,
+                  }}
+                >
+                  <span className={s.applyCtaDot} aria-hidden="true" />
+                  Applications open
+                  <span className={`${s.applyCtaChev} ${open ? s.applyCtaChevOpen : ''}`} aria-hidden="true">
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                         strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="6 9 12 15 18 9" />
+                    </svg>
+                  </span>
+                </button>
+              )}
+            />
+          )}
+
           {/* Demo mix / sound
               ⚠ AN ALLOWLIST, AND IT MUST STAY ONE. This read
               `!isHost && !isVenue` — correct while five types existed, and
@@ -1181,8 +1262,11 @@ export default function ProfileScreen() {
           {/* Bio - non-venue only. Same de-chromed treatment as Genres: no
               card box, just a label and body text, with a standalone "READ
               MORE" line (not an inline "...see more") below the preview. */}
+          {/* ⚠ `marginTop` — a buffer above the heading (owner, 2026-08-26).
+              ABOUT was butting up against whatever sat above it, which on a
+              festival is the applications panel. */}
           {profile.bio && !isVenue && (
-            <div style={{ marginBottom: 12 }}>
+            <div style={{ marginTop: 26, marginBottom: 12 }}>
               <div className={s.cardLabel} style={{ color: 'rgba(232,232,240,.5)' }}>ABOUT</div>
               <div className={s.bioText}>
                 {profile.bio.length <= 150 || bioExpanded ? profile.bio : `${profile.bio.slice(0, 150).trimEnd()}…`}
@@ -1289,6 +1373,7 @@ export default function ProfileScreen() {
                 />
               )}
             </div>
+
             {/* N2 · action-time disclosure. Follow is the ONE action reachable
                 against an unclaimed profile — the button above is gated on
                 `followBusy || !session`, never on claim state — so following
@@ -1476,9 +1561,6 @@ export default function ProfileScreen() {
                         const genreList = (cfg.genres || '').split(',').map(g => g.trim()).filter(Boolean).slice(0, 2);
                         const dateObj = cfg.date ? new Date(cfg.date + 'T12:00:00') : null;
                         const dateStr = dateObj ? dateObj.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' }) : '';
-                        const dateDay = dateObj ? dateObj.toLocaleDateString('en-AU', { weekday: 'short' }).toUpperCase() : '';
-                        const dateNum = dateObj ? dateObj.getDate() : '';
-                        const dateMon = dateObj ? dateObj.toLocaleDateString('en-AU', { month: 'short' }).toUpperCase() : '';
                         return (
                           <div key={ev.id} onClick={() => navigate(`/event/${ev.id}`)} style={{ position: 'relative', flexShrink: 0, width: 148, borderRadius: 12, overflow: 'hidden', background: '#0e0e18', cursor: 'pointer', display: 'flex', flexDirection: 'column', transition: 'transform .2s' }}
                             onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-3px)'}
@@ -1487,10 +1569,12 @@ export default function ProfileScreen() {
                             {/* Image area */}
                             <div style={{ position: 'relative', height: 155, background: poster ? `url(${poster}) center/cover` : 'linear-gradient(135deg,#1a0533,#2d1b69)', flexShrink: 0 }}>
                               <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 80, background: 'linear-gradient(to bottom, transparent, #0e0e18)' }} />
-                              {dateObj && <div style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,.82)', backdropFilter: 'blur(4px)', borderRadius: 8, padding: '4.5px 8px', textAlign: 'center', minWidth: 35 }}>
-                                <div style={{ fontFamily: "'Bebas Neue'", fontSize: 11, color: 'rgba(255,255,255,.7)', letterSpacing: .5 }}>{dateDay}</div>
-                                <div style={{ fontFamily: "'Bebas Neue'", fontSize: 22, color: '#fff', lineHeight: 1 }}>{dateNum}</div>
-                                <div style={{ fontFamily: "'Bebas Neue'", fontSize: 11, color: 'rgba(255,255,255,.7)', letterSpacing: .5 }}>{dateMon}</div>
+                              {/* ⭐ The SHARED pill, not a fourth inline copy of it. This
+                                  was a near-duplicate of DateBox, which is why a past
+                                  event's year pill appeared on event cards and not here.
+                                  `portrait` reproduces this card's exact metrics. */}
+                              {cfg.date && <div style={{ position: 'absolute', top: 8, right: 8 }}>
+                                <DateBox date={cfg.date} size="portrait" />
                               </div>}
                               {(() => { const badges = eventCategoryBadges(cfg, ev.name); return badges.length > 0 && (
                                 <div style={{ position: 'absolute', top: 8, left: 8, display: 'flex', gap: 4, flexWrap: 'wrap' }}>

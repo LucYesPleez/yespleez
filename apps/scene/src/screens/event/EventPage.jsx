@@ -59,6 +59,11 @@ export default function EventPage({
   // handlers and write paths that this page has no business knowing about.
   // 3 events have applications open; 2 publish set times.
   applyAction = null,
+  /* A festival's APPLY, which joins SHARE / SEND / MY SCENE in the summary
+     card's utility row. Separate from `applyAction` on purpose: Scene's own
+     APPLY TO PLAY is a full-width form and stays where it has always been
+     (see `quickActions` below). */
+  summaryAction = null,
   setTimes = null,
 }) {
   const navigate = useNavigate();
@@ -184,6 +189,7 @@ export default function EventPage({
           onSendToChat={(canSend ?? canFavourite) ? () => setSendOpen(true) : null}
           onAddToScene={canFavourite && onToggleFavourite ? onToggleFavourite : null}
           websiteUrl={null}
+          extraAction={summaryAction}
         />
       }
 

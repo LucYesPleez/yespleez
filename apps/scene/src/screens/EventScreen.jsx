@@ -146,10 +146,17 @@ export default function EventScreen() {
   // them. `showTimesPublicly` is the organiser's decision and is honoured here
   // exactly as it was — a bill can be announced with the running order still
   // under wraps.
-  // A signed-out visitor cannot apply. This used to also check `!isGuest`,
-  // which was redundant even then (a session always cleared the guest flag);
-  // with guest-as-a-state deleted, the session IS the whole question.
-  const canApply = !!event.applications_open && !!session?.user?.id;
+  // A signed-out visitor cannot apply — but on a FESTIVAL's event the section
+  // still renders: FestivalApply carries its own signed-out branch ("Sign in
+  // to apply.") and its category/config reads are anon-readable, so gating it
+  // on the session left an anonymous visitor (the festival landing page's
+  // whole audience) with no sign that applications exist at all.
+  // Scene's own ApplyButton keeps the session gate. That gate used to also
+  // check `!isGuest`, which was redundant even then (a session always cleared
+  // the guest flag); with guest-as-a-state deleted, the session IS the whole
+  // question for that path.
+  const isFestivalEvent = applicationsBelongToFestival(d.ownerProfile);
+  const canApply = !!event.applications_open && (isFestivalEvent || !!session?.user?.id);
 
   /**
    * ⛔ ONE APPLICATION PIPELINE. A festival's event hands off to the Festival
@@ -161,10 +168,21 @@ export default function EventScreen() {
    * independently, and both must consult the same rule — a fix applied to one
    * of two apply paths is not a fix. festivalPortal.test.js enforces it.
    */
-  const applyAction = !canApply ? null
-    : applicationsBelongToFestival(d.ownerProfile)
-      ? <FestivalApply eventId={id} userId={session.user.id} festivalName={d.ownerProfile?.name} />
-      : <ApplyButton eventId={id} userId={session.user.id} ownerProfile={d.ownerProfile} />;
+  /**
+   * ⭐ THE TWO PATHS ALSO SIT IN DIFFERENT PLACES ON THE PAGE (owner,
+   * 2026-08-26). A festival's joins SHARE / SEND / MY SCENE in the summary
+   * card's utility row, wearing that row's own button style. Scene's own APPLY
+   * TO PLAY is a full-width form and stays in the decisions column beside GET
+   * TICKETS, which is what it has always been the artist's version of.
+   *
+   * ⛔ Exactly one of these is ever non-null, so the page can never offer both.
+   */
+  const summaryAction = canApply && isFestivalEvent
+    ? <FestivalApply inline eventId={id} userId={session?.user?.id ?? null} />
+    : null;
+
+  const applyAction = !canApply || isFestivalEvent ? null
+    : <ApplyButton eventId={id} userId={session.user.id} ownerProfile={d.ownerProfile} />;
 
   /* ⭐ THE MIX RAIL SURVIVES THE PROJECTION, because the projection renders the
      app's own `SlotCard` rather than a public card of its own — so the play
@@ -200,6 +218,7 @@ export default function EventScreen() {
       canFavourite={true}
       canSend={!!session?.user?.id}
       applyAction={applyAction}
+      summaryAction={summaryAction}
       /**
        * ⭐⭐ S3 · SAME CARDS, SAME INTERACTION, NEW DATA SOURCE. The public
        * timetable is a PROJECTION of the resolved schedule that renders the

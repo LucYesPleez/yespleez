@@ -333,3 +333,75 @@
   border-bottom: 1px solid var(--border);
 }
 
+
+/* ⭐⭐ APPLICATIONS OPEN — a festival's PRIMARY action.
+ *
+ * Owner, 2026-08-26: "it needs to grab more attention… being down low like
+ * that and the same colour isn't good. it needs to take hierarchy somewhere…
+ * it's just kind of a big deal."
+ *
+ * So it is the one FILLED control on the page, at the top of the column
+ * directly under the tagline, while Follow and Message stay outlined below.
+ * ⭐ THE HIERARCHY IS THE POINT: one filled primary, two outline secondaries.
+ * ⛔ Do not give Follow or Message a fill — the moment two controls are filled
+ * this one stops being the answer to "what am I supposed to do here".
+ *
+ * ⛔⛔ NO KEYFRAME ANIMATION, DELIBERATELY. A pulsing dot was drafted and cut:
+ * this codebase's own rule is that a looping animation reads as live playback
+ * or recording ("it must come to rest" — see .yp-eq in index.css), and a
+ * profile page that throbs forever is the version nobody can look away from
+ * for the wrong reason. Fill, size, position and a colour glow carry it.
+ *
+ * The gradient and its glow are set INLINE: they are the festival's own
+ * colours, resolved per profile at runtime.
+ */
+.applyCta {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 11px;
+  /* Bebas sits high in its line box — more top than bottom reads centred. */
+  padding: 17px 20px 14px;
+  margin-bottom: 16px;
+  border: none;
+  border-radius: 14px;
+  cursor: pointer;
+  font-family: 'Bebas Neue', sans-serif;
+  font-weight: 400;          /* ⚠ Bebas has ONE weight; stating it stops faux-bold */
+  font-size: 22px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  line-height: 1;
+  /* ⚠ WHITE INK (owner, 2026-08-26) — WHICH IS WHY THE FILL CARRIES A SCRIM.
+     White on the raw gradient measured about 1.5:1 at the cyan end, which is
+     barely readable; the inline background layers a dark wash that deepens
+     TOWARDS that end, taking both ends to roughly 4.9:1. ⛔ Remove the scrim
+     and this label stops being legible on half its own button. */
+  color: #fff;
+  transition: filter var(--yp-fast, .14s) var(--yp-ease),
+              transform var(--yp-fast, .14s) var(--yp-ease);
+}
+
+.applyCta:hover  { filter: brightness(1.07); }
+.applyCta:active { transform: scale(.99); }
+
+/* A static marker, not a beacon. It says "open" beside the word OPEN. */
+.applyCtaDot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #fff;
+  opacity: .75;
+  flex-shrink: 0;
+}
+
+.applyCtaChev {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  opacity: .7;
+  transition: transform var(--yp-medium, .2s) var(--yp-ease);
+}
+
+.applyCtaChevOpen { transform: rotate(180deg); }

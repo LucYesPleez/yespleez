@@ -42,13 +42,27 @@ import { localDateStr } from './dates';
  * are listed. The other ten have no eligible profile type in the Portal either,
  * so copying them would duplicate ten pieces of nothing.
  */
+/**
+ * ⭐ `short` — the TILE label, and it is not the same job as `label`.
+ *
+ * The tiles are a grid of equal boxes: one word each, read at a glance, and
+ * there will eventually be seven of them. `label` still names the category in
+ * the detail beneath, where there is room for "Volunteer Crew" and where the
+ * longer form is the one that answers "what am I applying for".
+ *
+ * ⚠ "Vollys" is the owner's word and the scene's own (2026-08-26). ⛔ Do not
+ * "correct" it to Volunteers — the audience is Australian festival crew, and
+ * this is how they say it.
+ */
 const APPLICABLE_CATEGORIES = {
   music: {
     label: 'Performers',
+    short: 'Music',
     appliesAs: ['artist', 'band'],
     blurb: 'DJs, live acts and bands',
   },
   volunteer: {
+    short: 'Vollys',
     // ⭐ `punter`, not a `volunteer` profile type — every account already has a
     // punter identity from registration, so there is nothing to create first.
     // Ratified: "one registered punter can have any or even all roles."

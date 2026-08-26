@@ -77,11 +77,14 @@ export default function EventPublicView({
             ⛔ A FESTIVAL'S EVENT NEVER GETS SCENE'S APPLY UI. Scene writes
             `applications`; the Portal reads `festival_applications`. Rendering
             both would let someone apply into a table the organiser's dashboard
-            never reads, with no error to show for it. See lib/festivalPortal. */}
-        {!effectiveIsHost && !!userId && event.applications_open && (
+            never reads, with no error to show for it. See lib/festivalPortal.
+            ⭐ FestivalApply renders signed out too — its reads are
+            anon-readable and it carries its own "Sign in to apply." branch,
+            so only Scene's ApplyButton needs the session. */}
+        {!effectiveIsHost && event.applications_open && (
           applicationsBelongToFestival(ownerProfile)
-            ? <FestivalApply eventId={id} userId={userId} festivalName={ownerProfile?.name} />
-            : <ApplyButton eventId={id} userId={userId} ownerProfile={ownerProfile} />
+            ? <FestivalApply eventId={id} userId={userId} />
+            : !!userId && <ApplyButton eventId={id} userId={userId} ownerProfile={ownerProfile} />
         )}
 
         {hostChrome}

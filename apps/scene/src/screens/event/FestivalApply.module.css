@@ -1,0 +1,342 @@
+/* APPLYING TO A FESTIVAL — one button, then a disclosure.
+ *
+ * ⭐ THE SECTION IS COLLAPSED BY DEFAULT (owner, 2026-08-26). Every category
+ * used to render its whole apply form inline, so a two-category festival put
+ * sixteen day chips and six department chips on the event page before anyone
+ * had said they wanted to volunteer. The page reads as a form to fill in
+ * rather than an event to look at.
+ *
+ * Two levels, and each one answers a different question:
+ *   trigger   IS this festival taking applications?
+ *   category  WHAT can I apply for?
+ *   detail    what does THIS one need from me?
+ *
+ * ⛔ The detail belongs to one category at a time. Two open at once is the
+ * wall this replaced.
+ */
+
+.wrap {
+  margin-bottom: 16px;
+}
+
+/* ── The trigger ──────────────────────────────────────────────────────── */
+
+.trigger {
+  width: 100%;
+  min-height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 13px 16px;
+  text-align: left;
+  border-radius: 14px;
+  cursor: pointer;
+  background: color-mix(in srgb, var(--purple) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--purple) 42%, transparent);
+  transition: background .14s ease, border-color .14s ease;
+}
+
+.trigger:hover {
+  background: color-mix(in srgb, var(--purple) 18%, transparent);
+}
+
+/* Open, the trigger is the head of a panel rather than a lone control. */
+.triggerOpen {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+  border-bottom-color: transparent;
+}
+
+.triggerText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+/* ⚠ Bebas Neue has ONE weight. Stating 400 keeps it from faux-bolding and
+   drifting away from every other title in the app. */
+.triggerTitle {
+  font-family: 'Bebas Neue', sans-serif;
+  font-weight: 400;
+  font-size: 20px;
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
+  line-height: 1.1;
+  background: linear-gradient(135deg, #BF5FFF, #00E5FF);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  width: fit-content;
+}
+
+
+.chev {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  color: var(--purple);
+  transition: transform .2s ease;
+}
+
+.chevOpen { transform: rotate(180deg); }
+
+/* ── In the summary card's utility row ────────────────────────────────────
+ * ⭐ APPLY SITS WITH SHARE, SEND AND MY SCENE (owner, 2026-08-26), wearing
+ * `.quickAction` from EventSections — ⛔ NOT a copy of it. Size, font,
+ * letter-spacing, colour, hover and the divider between siblings are all
+ * inherited, so the row cannot drift into two species of button.
+ *
+ * The ONLY thing added is the open state: while the panel is showing, the
+ * control that opened it stops looking dormant. ⛔ Nothing here may set size,
+ * font or spacing — that is the shared class's job.
+ */
+.quickActionOn {
+  color: var(--purple);
+}
+
+/* ⚠ SPLIT IN TWO: the LOOK is `panelBase`, and the flex behaviour that puts
+ * it on its own line inside a button row is `panelInRow`. They were one class
+ * until the profile page needed the same panel in a flex COLUMN, where
+ * `flex: 1 0 100%` means 100% of the HEIGHT, not the width. ⛔ Do not merge
+ * them back.
+ */
+.panelBase {
+  margin-top: 10px;
+  /* ⛔ NO BORDER (owner, 2026-08-26). The outline drew a second box around a
+     grid of boxes, so the tiles were competing with a frame instead of being
+     the thing you look at. The faint tint alone is enough to group them. */
+  border-radius: 12px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--purple) 5%, transparent);
+  /* The row is Bebas at 14px; the panel is prose and controls again. */
+  text-align: left;
+}
+
+/* ⚠ `order: 1` keeps it last whatever its DOM position among the row's
+   buttons, so a 100%-basis item can never wrap a sibling button under it. */
+.panelInRow {
+  order: 1;
+  flex: 1 0 100%;
+}
+
+
+/* ── The panel of categories ──────────────────────────────────────────── */
+
+.panel {
+  border: 1px solid color-mix(in srgb, var(--purple) 42%, transparent);
+  border-top: none;
+  border-radius: 0 0 14px 14px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--purple) 5%, transparent);
+}
+
+/* ── The categories, as tiles ─────────────────────────────────────────────
+ * ⭐ ONE TILE PER THING YOU CAN APPLY FOR (owner, 2026-08-26) — a list of
+ * rows read as settings; a grid of equal boxes reads as a choice.
+ *
+ * ⚠⚠ `auto-fit` IS LOAD-BEARING FOR "SAME SIZE BOXES", and it holds at both
+ * counts the owner named. TWO tiles collapse the empty tracks and take half
+ * the width each. SEVEN make four tracks (4 × 130 ≤ the panel's width), so the
+ * last row carries three tiles that stay ONE TRACK WIDE and leave the fourth
+ * slot empty — ⛔ they do NOT stretch to fill it. Every tile is 1fr of the
+ * same track count either way.
+ * ⛔ Do not swap this for `auto-fill`: at two tiles it keeps the empty tracks
+ * and strands both boxes in the left half of the panel.
+ */
+.catGrid {
+  display: grid;
+  /* ⚠ 200px, not 130: the tile is a ROW now (glyph, then title over subtext),
+     so a track has to be wide enough for the subtext to sit beside the icon
+     rather than under it. Two tiles take half the panel each; seven make
+     three tracks and lay out 3 / 3 / 1 with the short row staying one track
+     wide. On a phone it drops to a single full-width column, which is the
+     only width where this layout has room for all three parts. */
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 10px;
+  padding: 12px 14px 14px;
+}
+
+.tile {
+  /* ⚠ SIZED TO FOLLOW AND MESSAGE (owner, 2026-08-26) — those measure 55px,
+     and these sit at 56. A stacked tile at 100px tall read as a feature card;
+     at this height it reads as a control, which is what it is.
+     ⭐ A ROW, not a stack: glyph on the left, title beside it, subtext under
+     the title. That is what buys the height back while keeping the subtext. */
+  min-height: 56px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 11px;
+  padding: 9px 13px;
+  text-align: left;
+  border-radius: 14px;
+  cursor: pointer;
+  /* A lit top edge over a darker body: the tile catches light rather than
+     sitting flat, which is most of what reads as "premium" at this size. */
+  background: linear-gradient(160deg, rgba(255, 255, 255, .06), rgba(255, 255, 255, .015));
+  border: 1px solid rgba(255, 255, 255, .10);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06);
+  transition: border-color .16s ease, background .16s ease, transform .16s ease;
+}
+
+.tile:hover {
+  border-color: color-mix(in srgb, var(--purple) 55%, transparent);
+  background: linear-gradient(160deg, rgba(255, 255, 255, .09), rgba(255, 255, 255, .03));
+  transform: translateY(-1px);
+}
+
+.tileOn {
+  border-color: var(--purple);
+  background: color-mix(in srgb, var(--purple) 16%, transparent);
+  transform: none;
+}
+
+.tileIcon {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  color: rgba(255, 255, 255, .55);
+  transition: color .16s ease;
+}
+
+/* ⚠ `min-width: 0` is what lets a long subtext shrink inside the row instead
+   of pushing the tile wider than its grid track. */
+.tileText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.tile:hover .tileIcon,
+.tileOn .tileIcon { color: var(--purple); }
+
+.tileLabel {
+  font-family: 'Bebas Neue', sans-serif;
+  font-weight: 400;          /* ⚠ Bebas has ONE weight */
+  font-size: 16px;
+  letter-spacing: 1.8px;
+  text-transform: uppercase;
+  line-height: 1;
+  color: #fff;
+}
+
+/* What this category is actually for. ⚠ Wraps rather than truncating, and the
+   grid stretches every tile to the tallest — so a two-line subtext beside a
+   one-line one still leaves the set the same size. ⛔ No ellipsis: the whole
+   job of this line is to say which category is yours, and "DJs, live acts a…"
+   does not do that. */
+.tileBlurb {
+  font-size: 11.5px;
+  line-height: 1.3;
+  color: rgba(255, 255, 255, .6);
+}
+
+/* The applicant's own state, carried on the row so it is legible without
+   opening anything. Colour comes from the outcome, never from the label. */
+.status {
+  /* Pushed to the tile's right edge, away from the title it is not part of. */
+  margin-left: auto;
+  flex-shrink: 0;
+  font-family: 'Bebas Neue', sans-serif;
+  font-weight: 400;
+  font-size: 11px;
+  letter-spacing: 1px;
+  white-space: nowrap;
+}
+
+/* ── One category's detail ────────────────────────────────────────────── */
+
+/* Beneath the grid, never inside a tile: the tiles are the choice and stay a
+   clean row of equal boxes, while what a category asks for varies wildly (a
+   volunteer picks days and departments, an act picks a profile). */
+.detail {
+  padding: 0 16px 16px;
+}
+
+.detailHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+  padding-top: 2px;
+  border-top: 1px solid color-mix(in srgb, var(--purple) 22%, transparent);
+}
+
+.detailTitle {
+  font-family: 'Bebas Neue', sans-serif;
+  font-weight: 400;
+  font-size: 17px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: #fff;
+  padding-top: 10px;
+}
+
+
+.note {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.select {
+  width: 100%;
+  margin-bottom: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--card2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 13px;
+  outline: none;
+}
+
+.field {
+  border: none;
+  padding: 0;
+  margin: 0 0 12px;
+}
+
+.legend {
+  font-size: 12px;
+  color: var(--muted);
+  padding: 0;
+  margin-bottom: 7px;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* 36px minimum: a chip you cannot reliably hit is a chip that costs someone
+   their application. */
+.chip {
+  min-height: 36px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 12px;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  transition: background .14s ease, border-color .14s ease, color .14s ease;
+}
+
+.chipOn {
+  background: color-mix(in srgb, var(--purple) 22%, transparent);
+  border-color: var(--purple);
+  color: #fff;
+}
+
+.error {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: #ff6b6b;
+}

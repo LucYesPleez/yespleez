@@ -48,6 +48,9 @@ export default function EventSummaryCard({
   onAddToScene = null,
   websiteUrl = null,
   sticky = true,
+  /* A festival's APPLY, which joins the utility row rather than standing as a
+     band of its own. See EventQuickActions' `extra`. */
+  extraAction = null,
 }) {
   // A count of zero is not an achievement (R3). Absent and zero both show
   // nothing rather than "0 going".
@@ -58,7 +61,7 @@ export default function EventSummaryCard({
   const body = typeof description === 'string' ? description.trim() : '';
   const showDescription = !!body;
 
-  const showActions = !!(onShare || onSendToChat || onAddToScene || websiteUrl);
+  const showActions = !!(onShare || onSendToChat || onAddToScene || websiteUrl || extraAction);
 
   // R1 · absent. No band survived, so there is no card.
   if (!showStatus && !showDescription && !showActions) return null;
@@ -96,6 +99,7 @@ export default function EventSummaryCard({
             onSendToChat={onSendToChat}
             onAddToScene={onAddToScene}
             websiteUrl={websiteUrl}
+            extra={extraAction}
           />
         </div>
       )}

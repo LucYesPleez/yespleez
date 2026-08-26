@@ -17,6 +17,15 @@ export default function EventQuickActions({
   onSendToChat = null,
   onAddToScene = null,
   websiteUrl = null,
+  /**
+   * ⭐ `extra` — a festival's APPLY (owner, 2026-08-26), which renders itself
+   * with this row's own `.quickAction` class so it cannot drift from the
+   * others. ⚠ It may render a FRAGMENT whose second child is a full-width
+   * disclosure panel; `.quickActions` wraps so that panel takes its own line
+   * beneath the row. ⛔ Do not wrap this in a div — it would become one flex
+   * cell containing both, and the panel would be squeezed into the row.
+   */
+  extra = null,
 }) {
   // Share never depends on event data — there is always something to share.
   const actions = [];
@@ -53,10 +62,10 @@ export default function EventQuickActions({
   // event's own site.
   if (websiteUrl) actions.push({ key: 'web', label: 'WEBSITE', Icon: GlobeIcon, href: websiteUrl });
 
-  if (!actions.length) return null;
+  if (!actions.length && !extra) return null;
 
   return (
-    <div className={s.quickActions}>
+    <div className={`${s.quickActions} ${extra ? s.quickActionsWithPanel : ''}`}>
       {/* size 15 matches the icons in the status row above. */}
       {actions.map(({ key, label, Icon, onClick, href }) =>
         href ? (
@@ -69,6 +78,7 @@ export default function EventQuickActions({
           </button>
         )
       )}
+      {extra}
     </div>
   );
 }
