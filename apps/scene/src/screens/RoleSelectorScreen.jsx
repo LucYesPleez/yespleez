@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { PROFILE_TYPES, hexToRgb } from '../lib/profileTypes';
 import { CATEGORY_BADGES } from '../lib/eventBadges';
 import { visibleRoles } from '../lib/roleVisibility';
+import { openExternalRole } from '../lib/roleHandoff';
 // ⭐ ONE definition of where the Portal is, shared with the apply hand-off on
 // festival-owned events. It was briefly declared here as well; two copies of a
 // URL is how the card and the hand-off end up pointing at different places.
@@ -218,13 +219,11 @@ export default function RoleSelectorScreen({ session }) {
   function handlePick(role) {
     // An external role is a different APP, not a mode of this one. It gets no
     // entry in `yp_active_roles` — that list drives which industry dashboards
-    // this app offers, and the Portal is not one of them. A new tab rather than
-    // a redirect, so a half-finished thing in Scene is not thrown away by
-    // clicking a card that says "open".
-    if (role.external) {
-      window.open(role.path, '_blank', 'noopener,noreferrer');
-      return;
-    }
+    // this app offers, and the Portal is not one of them. The hand-off itself
+    // (new tab, noopener) lives in lib/roleHandoff, shared with IndustryPanel:
+    // the check was once written here alone, and the panel's FESTIVAL row fed
+    // the Portal URL to the router — which rendered nothing.
+    if (openExternalRole(role)) return;
 
     activateRole(role.id);
     // Send to dedicated setup screen if profile not yet created

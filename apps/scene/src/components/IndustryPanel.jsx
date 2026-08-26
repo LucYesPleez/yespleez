@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { ROLES } from '../screens/RoleSelectorScreen';
 import { visibleRoles } from '../lib/roleVisibility';
+import { openExternalRole } from '../lib/roleHandoff';
 import { supabase } from '../lib/supabase';
 import AccountInvite from './AccountInvite';
 import s from './IndustryPanel.module.css';
@@ -89,7 +90,16 @@ export default function IndustryPanel({ open, onClose, onNavigate, session }) {
                     <button
                       key={role.id}
                       className={s.card}
-                      onClick={() => onNavigate(role.path)}
+                      onClick={() => {
+                        // FESTIVAL leaves the app (see its ROLES entry) — fed
+                        // to the router instead, its absolute URL is a path no
+                        // route matches and the tap reads as doing nothing.
+                        // The sheet still closes: onNavigate closes it for
+                        // every internal row, and a tap that left it standing
+                        // under the new tab would be the one inconsistent row.
+                        if (openExternalRole(role)) { onClose(); return; }
+                        onNavigate(role.path);
+                      }}
                     >
                       <span className={s.cardIcon} style={{ color: '#fff' }}>{role.icon}</span>
                       <div className={s.cardBody}>
