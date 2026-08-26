@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { claimAudio, releaseAudio, forgetAudio } from '../lib/mediaSession';
 import { createResumableSource } from '../lib/mediaProviders';
 import { providerFor } from '../lib/demoMixProviders';
+import { isPastCap, previewProgress } from '../lib/previewCap';
 
 /**
  * THE MINI PLAYER — orchestration and presentation. Nothing else.
@@ -40,23 +41,59 @@ const WAVE_CSS = `
 `;
 
 /**
- * ⭐⭐ A DEMO MIX IS A PREVIEW: TWENTY MINUTES, THEN IT STOPS.
+ * ⭐⭐ A DEMO MIX IS THE FIRST TWENTY MINUTES OF A SET.
  *
- * Owner's rule, 2026-08-26, and it is ONE rule for every surface — profile,
- * Set Times, dashboard. ⛔ Not per-context: there is a single global player
- * (App.jsx mounts one and every surface calls `setPlayer`), so a cap that
- * applied "only in Set Times" would have to be threaded through the launch
- * site and would be silently absent anywhere that forgot.
+ * Owner's rule, and it is ONE rule for every surface — profile, Set Times,
+ * dashboard. ⛔ Not per-context: there is a single global player (App.jsx
+ * mounts one and every surface calls `setPlayer`), so a cap that applied "only
+ * in Set Times" would have to be threaded through the launch site and would be
+ * silently absent anywhere that forgot.
  *
- * ⚠⚠ THIS WAS `CLIP_MS = 90 * 1000` AND IT CAPPED NOTHING. Its own comment
- * said "Presentation only": it filled the progress bar in ninety seconds and
- * then sat at 100% while an hour-long set played on. The bar announced a
- * limit the player did not enforce, which is the worst of both — a promise
- * on screen and no rule behind it.
+ * ⚠⚠ IT IS A POSITION, NOT AN ALLOWANCE — and those are different rules that
+ * look identical until somebody drags the scrubber.
+ *
+ * The first version counted twenty minutes of LISTENING. Skip to 1:15:00 and it
+ * played happily on, because almost none of the allowance had been spent — so
+ * anyone could hear a whole 92-minute set in twenty minutes of dragging. That
+ * measures time spent, not ground covered, and the thing being previewed is the
+ * SET.
+ *
+ * Now the playhead itself is the limit: past 20:00 it stops, however it got
+ * there. And a mix SHORTER than twenty minutes simply ends — the player follows
+ * the track's own finish rather than sitting on a spent allowance waiting for
+ * time that will never be played.
+ *
+ * ⚠⚠ AND BEFORE THAT IT WAS `CLIP_MS = 90 * 1000`, WHICH CAPPED NOTHING. Its
+ * own comment said "Presentation only": it filled the progress bar in ninety
+ * seconds and then sat at 100% while an hour-long set played on — a promise on
+ * screen with no rule behind it. Three versions, and only this one is a limit.
  */
-const PREVIEW_MS = 20 * 60 * 1000;
+/* ⭐ PREVIEW_MS and the two predicates live in lib/previewCap.js — extracted so
+   the rule can be tested without a widget, since the preview pane cannot play
+   media at all. This component wires them up and owns nothing about the rule. */
 
-export default function MiniPlayer({ url, artistName, hasNext, onClose, onFinish, onNext }) {
+/**
+ * How often the playhead is checked against the cap.
+ *
+ * ⚠ 500ms is the overshoot budget, not a performance knob. A seek lands
+ * wherever the finger left it, so the stop happens on the next tick — up to
+ * half a second past 20:00. Tightening this buys nothing a listener can hear
+ * and costs a widget round trip twice as often.
+ */
+const CAP_POLL_MS = 500;
+
+/**
+ * How far in the playhead has to be before BACK means "restart this one".
+ *
+ * ⭐ The convention every music player shares, and it is worth naming because
+ * it is one button doing two jobs: near the start, back means the PREVIOUS
+ * track; past that, it means the beginning of THIS one. Three seconds is long
+ * enough to cover "wrong track, undo" and short enough that nobody who wants
+ * the start of the current mix has to press twice.
+ */
+const RESTART_BEFORE_MS = 3000;
+
+export default function MiniPlayer({ url, artistName, hasNext, hasPrev, onClose, onFinish, onNext, onPrev }) {
   const [trackTitle, setTrackTitle] = useState('');
   const [thumb,      setThumb]      = useState('');
   const [progress,   setProgress]   = useState(0);
@@ -192,24 +229,27 @@ export default function MiniPlayer({ url, artistName, hasNext, onClose, onFinish
     return () => clearTimeout(t);
   }, [url]);
 
-  const playingRef = useRef(false);
-  useEffect(() => { playingRef.current = playing; }, [playing]);
+  /* ⚠ `playingRef` WENT WITH THE ALLOWANCE. It existed so the old cap could
+     count only the ticks that elapsed while playing. The cap is now the
+     PLAYHEAD, which the provider reports whether it is playing or paused, so
+     nothing needs to mirror `playing` into a ref any more. */
 
   /**
-   * THE PREVIEW ALLOWANCE — and the bar that reports it.
+   * THE PREVIEW CAP — the playhead against 20:00, and the bar that reports it.
    *
-   * ⚠⚠ PLAYED TIME, NOT WALL-CLOCK TIME. The old bar measured
-   * `Date.now() - start`, which was harmless while nothing depended on it and
-   * is wrong the moment it stops playback: pause for half an hour, press play,
-   * and a wall-clock cap would cut the track off instantly. Only the ticks
-   * that elapse WHILE PLAYING are counted, so twenty minutes means twenty
-   * minutes of listening.
+   * ⭐⭐ THE PLAYHEAD IS THE LIMIT, so it does not matter how the listener got
+   * there. Playing straight through, dragging the scrubber, or skipping in
+   * chunks all reach 20:00 and all stop, because the thing being previewed is
+   * the first twenty minutes of the SET — not twenty minutes of somebody's
+   * attention.
    *
-   * ⚠ `tickRef` advances on EVERY tick including paused ones — that is what
-   * discards paused time rather than banking it.
+   * ⛔ A SHORT MIX IS NOT HELD OPEN. A seven-minute demo ends at seven minutes
+   * via the provider's own FINISH event; nothing here waits out the remaining
+   * thirteen. That is why this watches only the ceiling and never the floor.
+   *
+   * ⚠ It runs whether or not the widget says it is playing. A seek can move the
+   * playhead while paused, and the position is the rule.
    */
-  const playedRef  = useRef(0);
-  const tickRef    = useRef(Date.now());
   const cappedRef  = useRef(false);
   // The prop is a fresh closure on every render of App; a ref keeps this
   // interval from firing a stale one when the playlist has moved on.
@@ -217,35 +257,88 @@ export default function MiniPlayer({ url, artistName, hasNext, onClose, onFinish
   useEffect(() => { finishRef.current = onFinish; });
 
   useEffect(() => {
-    playedRef.current = 0;
-    tickRef.current   = Date.now();
     cappedRef.current = false;
     setProgress(0);
 
-    const id = setInterval(() => {
-      const now   = Date.now();
-      const delta = now - tickRef.current;
-      tickRef.current = now;
-      if (!playingRef.current || cappedRef.current) return;
-
-      playedRef.current += delta;
-      setProgress(Math.min(playedRef.current / PREVIEW_MS * 100, 100));
-      if (playedRef.current < PREVIEW_MS) return;
-
-      /* ⭐ Reaching the allowance is treated exactly as the media ending on its
-         own — same `onFinish`, so a playlist advances and a single mix closes
-         the player, rather than the cap inventing a third outcome.
-         ⛔ `cappedRef` because the interval keeps ticking until this effect is
-         torn down, and firing finish twice would skip a track. */
+    /**
+     * ⚠ THE STOP IS FACTORED OUT because two different things trigger it and
+     * they must be indistinguishable downstream: reaching the cap is treated
+     * exactly as the media ending on its own — same `onFinish`, so a playlist
+     * advances to the next demo and a single mix closes the player, rather
+     * than the cap inventing a third outcome.
+     *
+     * ⛔ `cappedRef` guards it because the interval keeps ticking until this
+     * effect is torn down, and firing finish twice would skip a track.
+     */
+    function stopAtCap() {
+      if (cappedRef.current) return;
       cappedRef.current = true;
+      setProgress(100);
       adapterRef.current?.pause();
       if (sessionRef.current) releaseAudio(sessionRef.current);
       setPlaying(false);
       finishRef.current?.();
-    }, 500);
+    }
+
+    const id = setInterval(() => {
+      if (cappedRef.current) return;
+      const adapter = adapterRef.current;
+      if (!adapter?.getPosition) return;
+
+      // ⚠ getPosition may answer synchronously or with a promise, depending on
+      // the provider — an `<audio>` element knows now, a widget calls back.
+      // Normalised here so the rule reads the same for both.
+      Promise.resolve(adapter.getPosition()).then(ms => {
+        // ⭐ The rule itself lives in lib/previewCap.js and is tested there.
+        // This pane cannot play media (position and duration both read 0), so
+        // a test driving the real widget would pass while enforcing nothing.
+        setProgress(previewProgress(ms));
+        if (isPastCap(ms)) stopAtCap();
+      }).catch(() => { /* a position we cannot read is not a reason to stop */ });
+    }, CAP_POLL_MS);
 
     return () => clearInterval(id);
   }, [url]);
+
+  /**
+   * BACK — the beginning of this one, or the last one played.
+   *
+   * ⭐ ONE BUTTON, TWO JOBS, decided by the playhead. Within the first few
+   * seconds it means "wrong track, go back"; after that it means "start this
+   * again". Every music player works this way, and splitting it into two
+   * controls would put a rewind button next to a previous button and make the
+   * reader choose between them every time.
+   *
+   * ⚠ AND IT ALWAYS DOES SOMETHING. With no history, back is a restart rather
+   * than a dead control — a disabled button at the start of a queue is the one
+   * moment the reader is most likely to press it.
+   *
+   * ⚠ Restarting also clears the cap: the twenty minutes are counted from the
+   * playhead, so a mix started again from zero is not already spent.
+   */
+  function goBack() {
+    const adapter = adapterRef.current;
+    if (!adapter) return;
+
+    const restart = () => {
+      cappedRef.current = false;
+      setProgress(0);
+      adapter.seekTo?.(0);
+    };
+
+    if (!hasPrev) { restart(); return; }
+
+    // ⚠ The position decides, so it has to be read before choosing — and it may
+    // answer late. A position we cannot read falls back to the PREVIOUS track,
+    // because that is the branch the reader cannot reach any other way.
+    Promise.resolve(adapter.getPosition?.() ?? 0)
+      .then(ms => {
+        const pos = Number(ms);
+        if (Number.isFinite(pos) && pos > RESTART_BEFORE_MS) restart();
+        else onPrev?.();
+      })
+      .catch(() => onPrev?.());
+  }
 
   function togglePlay() {
     const source  = sessionRef.current;
@@ -318,6 +411,16 @@ export default function MiniPlayer({ url, artistName, hasNext, onClose, onFinish
             }} />
           ))}
         </div>
+
+        {/* Back — restart, or the previous demo. ⚠ Never disabled: with no
+            history it restarts, so the control always answers. */}
+        <button onClick={goBack}
+          title={hasPrev ? 'Back to the start, or the previous demo' : 'Back to the start'}
+          aria-label={hasPrev ? 'Back to the start, or the previous demo' : 'Back to the start'}
+          style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', padding: '0 4px', flexShrink: 0, display: 'flex', alignItems: 'center' }}>
+          {/* The mirror of the skip glyph beside play, so the pair reads as a pair. */}
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="19,3 9,12 19,21"/><rect x="4" y="3" width="3" height="18"/></svg>
+        </button>
 
         {/* Play / pause */}
         <button onClick={togglePlay} style={{ background: 'none', border: 'none', color: 'var(--neon2)', cursor: 'pointer', padding: '0 4px', flexShrink: 0, display: 'flex', alignItems: 'center' }}>

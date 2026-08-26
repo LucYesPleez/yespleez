@@ -25,6 +25,7 @@ import StartScreen from './screens/StartScreen';
 import BottomNav from './components/BottomNav';
 import UpdateBanner from './components/UpdateBanner';
 import MiniPlayer from './components/MiniPlayer';
+import { advance, rewind, hasNext as hasNextDemo, hasPrev as hasPrevDemo } from './lib/playerQueue';
 import WhatsOnScreen from './screens/WhatsOnScreen';
 import DiscoverScreen from './screens/DiscoverScreen';
 import MySceneScreen from './screens/MySceneScreen';
@@ -447,22 +448,17 @@ function Shell({ session, onSignOut }) {
           <MiniPlayer
             url={player.url}
             artistName={player.artistName}
-            hasNext={!!(player?.playlist?.length)}
+            hasNext={hasNextDemo(player)}
+            hasPrev={hasPrevDemo(player)}
             onClose={() => setPlayer(null)}
-            onFinish={() => {
-              if (player?.playlist?.length) {
-                const [next, ...rest] = player.playlist;
-                setPlayer({ ...next, playlist: rest });
-              } else {
-                setPlayer(null);
-              }
-            }}
-            onNext={() => {
-              if (player?.playlist?.length) {
-                const [next, ...rest] = player.playlist;
-                setPlayer({ ...next, playlist: rest });
-              }
-            }}
+            /* ⭐ The queue's arithmetic lives in lib/playerQueue.js, where
+               "forward and back are exact inverses" is a tested property
+               rather than a claim. ⚠ `advance` returns null when the queue is
+               empty, which is the same outcome as a single mix finishing:
+               close the player. */
+            onFinish={() => setPlayer(advance(player))}
+            onNext={() => { if (hasNextDemo(player)) setPlayer(advance(player)); }}
+            onPrev={() => setPlayer(rewind(player))}
           />
         </div>
       )}
