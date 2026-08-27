@@ -620,3 +620,26 @@
   color: rgba(255, 255, 255, .18);
   white-space: nowrap;
 }
+
+/* ── THE 15-MINUTE GRID ───────────────────────────────────────────────────────
+   ⭐ ONE INTERVAL = 15 MINUTES, so an hour is 4 of these and a set is as tall
+   as it is long.
+
+   ⚠⚠ 32px HERE, 26px ON THE HOST SCHEDULE, and that is not an oversight. The
+   public card is genuinely taller — it carries the follow control and the live
+   state strip — so at 26px a full hour needed 128px and could not fit its own
+   four intervals, and ITS rows stretched while a half-hour slot's did not. The
+   proportions then quietly stopped being proportions. ⛔ Do not lower this
+   without re-measuring a full card here.
+
+   ⛔ THE CELL RULES ARE NOT HERE. They reach inside SlotCard, and CSS modules
+   hash per file, so they live beside the card in EventScreen.module.css and
+   this component imports them. */
+.pager {
+  --slot-interval: 32px;
+  /* ⛔⛔ NO ROW GAP. A gap between intervals ACCUMULATES down the page — a
+     30 minute set came out 2x32+8=72px and an hour 4x32+3x8=152px, so a half
+     hour was 0.474 of an hour instead of half. The 6px between cards lives
+     INSIDE the cell instead, where it costs every card the same. */
+  row-gap: 0;
+}

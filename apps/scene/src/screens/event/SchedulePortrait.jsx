@@ -37,7 +37,7 @@
 
 import { useRef, useState, useEffect, Fragment } from 'react';
 import { scheduleShape } from '../../lib/scheduleModel';
-import { timeAxis, cellsForStage } from '../../lib/schedulePortrait';
+import { slotGrid, stageGaps } from '../../lib/schedulePortrait';
 import { useDragScroll } from '../../hooks/useDragScroll';
 import { useNowMinute } from '../../hooks/useNowMinute';
 import { slotStates, phaseLabel, PLAYING, PLAYED, FINISHED, READY } from '../../lib/scheduleNow';
@@ -45,6 +45,12 @@ import FollowHeartBtn from '../../components/FollowHeartBtn';
 import SlotCard from './SlotCard';
 import { dayDateLabel } from '../../lib/eventDays';
 import s from './SchedulePortrait.module.css';
+/* ⚠⚠ SlotCard's OWN stylesheet. The grid-cell rules reach INSIDE the card —
+   `.timeBlock`, `.slotInfo`, `.slot` — and CSS modules hash per FILE, so a copy
+   of those selectors written here compiles to names that match nothing and
+   silently does nothing. ⛔ Do not duplicate them; use the ones that live
+   beside the card they describe. */
+import es from '../EventScreen.module.css';
 
 /**
  * ⭐⭐ A NAMED DAY STILL SHOWS ITS DATE. This used to be `name || date`, so the
@@ -155,6 +161,23 @@ export default function SchedulePortrait({ resolved, allMixSlots = [] }) {
   const days = resolved?.days || [];
 
   /**
+   * ⭐⭐ THE STAGE IS AN EVENT-WIDE CHOICE, ⛔ NOT A PER-DAY ONE. Every day shows
+   * the same stages in the same order, so one index positions all of them and
+   * the rooms line up under each other down the page.
+   *
+   * `from` records WHICH day reported the change, so that day is left alone
+   * while the others follow it — without it the pager under the hand gets
+   * scrolled by its own broadcast and the days fight each other.
+   */
+  const [stage, setStage] = useState({ index: 0, from: null });
+  const stageSync = {
+    index: stage.index,
+    from: stage.from,
+    set: (index, from) => setStage(prev => (
+      prev.index === index && prev.from === from ? prev : { index, from })),
+  };
+
+  /**
    * ⭐ THE CHIP SAYS WHERE YOU ARE, ⛔ IT NEVER DECIDES WHAT YOU SEE (owner,
    * 2026-08-20 — "the chip for Sunday can be there to let you know you're
    * looking at Sunday, but I don't want that to be the only way to see it").
@@ -234,7 +257,7 @@ export default function SchedulePortrait({ resolved, allMixSlots = [] }) {
               same drag, same live states — so there is no second layout that
               can drift away from this one, and every feature added here lands
               on a pub gig and a festival at the same moment. */}
-          <StagePager day={day} allMixSlots={allMixSlots} now={now} />
+          <StagePager day={day} allMixSlots={allMixSlots} now={now} sync={stageSync} />
         </Fragment>
       ))}
     </section>
@@ -441,7 +464,7 @@ function SetStrip({ live, claim }) {
  * ⭐ Stage chips ride above, under the day chips' own law: lit by the
  * sideways SCROLL (not the click), tap to jump, ⛔ never a filter.
  */
-function StagePager({ day, allMixSlots, now }) {
+function StagePager({ day, allMixSlots, now, sync }) {
   /* ⚠ ONE MAP FOR THE WHOLE DAY, so every stage answers from the same instant.
      Computed here rather than per cell: `playStates` walks the shared axis to
      work out the midnight rollover, and calling it per card would redo that
@@ -477,7 +500,18 @@ function StagePager({ day, allMixSlots, now }) {
    */
   const dragScroll = useDragScroll();
   const scrollerRef = dragScroll.ref;
-  const [activeStage, setActiveStage] = useState(0);
+  /* ⭐⭐ ONE STAGE ACROSS THE WHOLE EVENT, ⛔ not one per day. Swiping any day
+     moves every day, so the rooms stay stacked under one another and the
+     festival reads down a single column. A per-day stage meant page 2 was the
+     DJ stage on Friday and the workshops on Sunday. */
+  const activeStage = sync.index;
+  const dayKey = day.dayIndex;
+  /* ⛔⛔ A PAGER MOVED BY THE SYNC MUST NEVER BROADCAST, or the days oscillate:
+     a synced pager fires  mid-animation, reports the OLD page, and
+     drags the one under the hand back. ⛔ Not a timer — a smooth scroll has no
+     fixed duration. */
+  const programmatic = useRef(false);
+  const takeOver = () => { programmatic.current = false; };
   const stages = (day?.stages || []).filter(Boolean);
   /**
    * ⭐⭐ ONE PAGE DROPS THE PAGER'S CHROME ENTIRELY. A pub gig gets exactly what
@@ -492,8 +526,13 @@ function StagePager({ day, allMixSlots, now }) {
    * just because there is one.
    */
   const single = stages.length <= 1;
-  const axis = timeAxis(day);
-  const cellsByStage = stages.map(st => cellsForStage(st, axis));
+  /* ⭐⭐ THE SAME GEOMETRY AS THE HOST SCHEDULE. A continuous 15-minute grid,
+     stages merged by real clock time. ⛔ NOT a row per start time: that gave
+     every act the same height whatever its length, ordered the axis by
+     first-seen so disjoint stages read out of order, and had to invent a
+     "nothing on" cell wherever one stage started at an hour another did not. */
+  const grid = slotGrid(day, 15);
+  const gaps = stageGaps(grid, { includeTrailing: false });
 
   /**
    * ⭐⭐ THE TWO CARDS EITHER SIDE OF THE STAGE SIT HALFWAY (owner, 2026-08-22).
@@ -516,7 +555,7 @@ function StagePager({ day, allMixSlots, now }) {
    * above its declaration is a temporal dead zone crash, not a warning.
    */
   const playingRowByStage = stages.map((_st, sIdx) =>
-    cellsByStage[sIdx].findIndex(cell => cell && states.get(cell.slot.id)?.state === PLAYING));
+    grid.stages[sIdx].findIndex(c => states.get(c.entry.slot.id)?.state === PLAYING));
 
   const isNeighbour = (rowIdx, stageIdx) => {
     const playingRow = playingRowByStage[stageIdx];
@@ -548,6 +587,7 @@ function StagePager({ day, allMixSlots, now }) {
   };
 
   const jumpTo = i => {
+    sync.set(i, dayKey);
     const el = scrollerRef.current;
     const head = el && headAt(el, i);
     if (!el || !head) return;
@@ -568,7 +608,11 @@ function StagePager({ day, allMixSlots, now }) {
       const gap = Math.abs(offCentre(el, h));
       if (gap < bestGap) { bestGap = gap; best = i; }
     });
-    setActiveStage(prev => (prev === best ? prev : best));
+    if (programmatic.current) {
+      if (best === sync.index) programmatic.current = false;
+      return;
+    }
+    if (best !== sync.index) sync.set(best, dayKey);
   };
 
   /**
@@ -594,7 +638,18 @@ function StagePager({ day, allMixSlots, now }) {
     if (el) el.style.scrollSnapType = '';
   };
 
-  const onMouseDown = e => { suspendSnap(); dragScroll.onMouseDown(e); };
+  useEffect(() => {
+    if (sync.from === dayKey) return;
+    const el = scrollerRef.current;
+    const head = el && headAt(el, sync.index);
+    if (!el || !head) return;
+    if (Math.abs(offCentre(el, head)) < 2) { programmatic.current = false; return; }
+    programmatic.current = true;
+    el.scrollTo({ left: el.scrollLeft + offCentre(el, head), behavior: 'smooth' });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sync.index, sync.from, dayKey]);
+
+  const onMouseDown = e => { suspendSnap(); takeOver(); dragScroll.onMouseDown(e); };
   const onMouseUp = e => { dragScroll.onMouseUp(e); restoreSnap(); };
   /* ⚠ Leaving the scroller ends the drag (the hook's own rule), so snap has to
      come back here too — otherwise dragging out of the pager leaves it
@@ -619,7 +674,10 @@ function StagePager({ day, allMixSlots, now }) {
         onMouseMove={dragScroll.onMouseMove}
         onMouseLeave={onMouseLeave}
         className={`${s.pager} ${single ? s.pagerSingle : ''}`}
-        style={{ gridTemplateColumns: single ? '100%' : `repeat(${stages.length}, 92%)` }}
+        style={{
+          gridTemplateColumns: single ? '100%' : `repeat(${stages.length}, 92%)`,
+          gridTemplateRows: `auto repeat(${grid.rows}, minmax(var(--slot-interval), auto))`,
+        }}
       >
         {/* Row 0 — the stage headings, and the snap targets. ⚠ CELLS ARE
             DIRECT GRID CHILDREN, ⛔ never wrapped per stage: a wrapper gives
@@ -638,26 +696,56 @@ function StagePager({ day, allMixSlots, now }) {
           </div>
         ))}
 
-        {axis.map((col, rowIdx) => (
-          <Fragment key={col.key}>
-            {stages.map((st, sIdx) => {
-              const entry = cellsByStage[sIdx][rowIdx];
-              return entry ? (
-                <div key={(st.id ?? 'implicit') + col.key}>
-                  <Card
-                    entry={entry}
-                    allMixSlots={allMixSlots}
-                    state={cellState(entry.slot.id, sIdx)}
-                    neighbour={isNeighbour(rowIdx, sIdx)}
-                    live={states.get(entry.slot.id)}
-                  />
-                </div>
-              ) : (
-                <div key={(st.id ?? 'implicit') + col.key} className={`${s.gap} ${s.gapCell}`}>
-                  <span className={s.gapLabel}>{col.time} {col.ampm} · NOTHING ON</span>
-                </div>
-              );
-            })}
+        {/* ⭐ AN EMPTY STRETCH IS A BLANK CARD, ⛔ not a labelled filler row.
+            ⛔ NOT after the last act: once a stage has closed there is nothing
+            more to say, and a blank under the close reads as time still to
+            fill. A stage that never ran at all keeps its blank. */}
+        {gaps.map((runs, i) => runs.map(run => (
+          <div
+            key={'gap' + i + '-' + run.row}
+            aria-hidden="true"
+            className={es.stagePageFill}
+            style={{ gridColumn: i + 1, gridRow: `${run.row + 1} / span ${run.span}` }}
+          />
+        )))}
+
+        {stages.map((st, sIdx) => (
+          <Fragment key={'c' + (st.id ?? 'implicit')}>
+            {grid.stages[sIdx].map((cell, i) => (
+              <div
+                key={cell.entry.slot.id}
+                /* ⭐ Same two degrees of short as the host schedule: under an
+                   hour the padding gives way, half an hour or less also drops
+                   AM/PM and the length. ⛔ Not a pixel test — change the
+                   interval and these still mean "under an hour". */
+                className={[
+                  es.stagePageCell,
+                  /* ⭐ This projection stacks: the card, then its expanded
+                     panel, DOWN the page. ⛔ Never sideways over the next
+                     stage. The host has a drag grip beside its card and states
+                     the opposite. */
+                  es.stagePageCellStacked,
+                  cell.span < 4 ? es.stagePageCellShort : '',
+                  cell.span <= 2 ? es.stagePageCellTiny : '',
+                ].filter(Boolean).join(' ')}
+                /* ⭐ `+ 1` for the heading row. The span is the set's real
+                   length, so a 90 minute act is genuinely taller than an hour
+                   one and the running order reads as a shape. */
+                style={{
+                  gridRow: `${cell.row + 1} / span ${cell.span}`,
+                  gridColumn: sIdx + 1,
+                  minHeight: `calc(var(--slot-interval) * ${cell.span})`,
+                }}
+              >
+                <Card
+                  entry={cell.entry}
+                  allMixSlots={allMixSlots}
+                  state={cellState(cell.entry.slot.id, sIdx)}
+                  neighbour={isNeighbour(i, sIdx)}
+                  live={states.get(cell.entry.slot.id)}
+                />
+              </div>
+            ))}
           </Fragment>
         ))}
       </div>

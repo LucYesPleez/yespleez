@@ -800,10 +800,23 @@
    grip ON TOP of the card, dots in the corner instead of a bar down the side.
    ⭐ It only needs to STRETCH; its own direction is its business. */
 .stagePageCell > * > * {
+  /* ⛔⛔ NO `display` AND NO `flex-direction` HERE. This wrapper is a DIFFERENT
+     SHAPE in the two projections and neither direction serves both:
+       host   [grip][card]        a row, and forcing a column stacks the drag
+                                  grip on top with its dots in the corner
+       public [card][expanded]    a column, and forcing a row threw the expanded
+                                  panel out SIDEWAYS over the next stage
+     ⭐ Each projection states its own, below. This only makes it STRETCH. */
   flex: 1 1 auto;
   min-height: 0;
   box-sizing: border-box;
 }
+
+/* ⭐ The public projection: card, then its expanded panel, DOWN the page. */
+.stagePageCellStacked > * > * { display: flex; flex-direction: column; }
+
+/* The card itself fills the row it now sits in. */
+.stagePageCell > * > * > * { flex: 1 1 auto; min-width: 0; }
 .stagePageCell .slot { flex: 1 1 auto; box-sizing: border-box; }
 
 /* ⚠ The background image follows the card rather than its own natural size, or
