@@ -815,8 +815,12 @@
 /* ⭐ The public projection: card, then its expanded panel, DOWN the page. */
 .stagePageCellStacked > * > * { display: flex; flex-direction: column; }
 
-/* The card itself fills the row it now sits in. */
-.stagePageCell > * > * > * { flex: 1 1 auto; min-width: 0; }
+/* ⛔⛔ STACKED ONLY. This gives every child of that wrapper `flex: 1`, and on
+   the HOST the wrapper is [grip][card] — so the drag GRIP grew to half the
+   card, leaving a wide blank strip down the left of every set with the time
+   and the name shoved into the right half.
+   ⭐ In the public column the card is the only child that needs it. */
+.stagePageCellStacked > * > * > * { flex: 1 1 auto; min-width: 0; }
 .stagePageCell .slot { flex: 1 1 auto; box-sizing: border-box; }
 
 /* ⚠ The background image follows the card rather than its own natural size, or
