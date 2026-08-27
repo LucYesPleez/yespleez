@@ -114,6 +114,9 @@ export function rowsToDays(rows = []) {
           label: r.label || '',
           ...(r.label_color ? { labelColor: r.label_color } : {}),
           ...(r.pinned ? { pinned: true } : {}),
+          /* ⭐ THE SLOT'S STAGE. Absent on a single-stage event, where every slot
+             belongs to the implicit stage and `stage_id` is NULL by design. */
+          ...(r.stage_id ? { stageId: r.stage_id } : {}),
         };
       }),
     }));
@@ -147,6 +150,12 @@ export function daysToRows(days = []) {
         label:       sl.label || null,
         label_color: sl.labelColor || null,
         pinned:      !!sl.pinned,
+        /* ⛔ CARRIED FAITHFULLY, never defaulted. On an event WITH stages every
+           slot must have one (mixed NULL/non-NULL inside one event is the
+           invalid state S2d prevents at the write layer), and the form is what
+           guarantees a new slot is born on the active stage. Writing a default
+           here would paper over a form bug by silently moving somebody's set. */
+        stage_id:    sl.stageId || null,
       });
     });
   });
@@ -315,4 +324,103 @@ export function toConfig(v) {
       showTimesPublicly: v.showTimesPublicly,
     },
   };
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   THE DATE RANGE AND THE DAYS ARE ONE THING
+   ═══════════════════════════════════════════════════════════════════════════
+   ⭐⭐ ONE REAL EVENT REPRESENTS ONE CONTINUOUS EVENT (ratified 2026-08-27).
+   A Friday-to-Sunday festival is ONE event with three days inside it, ⛔ never
+   three events.
+
+   ⚠⚠ WHY THESE EXIST. The editor offered START DATE and "End date (opt)" as one
+   control, and a hand-built `days` array as a completely separate one, with no
+   relationship between them. A day was an ORDINAL with a typed-in name and NO
+   DATE — the organiser typed "Saturday" into DAY 2 and hoped. So an event could
+   be saved claiming a three-day range while holding two days of slots, and
+   nothing anywhere noticed. Neverland Weekender is the production row that did
+   exactly that: `endDate` 28→30 August, two `day_index` values.
+
+   These helpers are PURE and take date strings, so a test can freeze the clock.
+   ⛔ Never `new Date()` with no argument here: a 10-char slice of a UTC
+   timestamp reads as YESTERDAY every Australian morning.
+*/
+
+/** Days of the week, indexed to `Date.getDay()`. Display only. */
+const DOW = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+const MON = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+
+function isoDay(v) { return typeof v === 'string' && v.length >= 10 ? v.slice(0, 10) : ''; }
+
+/**
+ * How many days the event occupies. Always at least 1 — an event with no end
+ * date is a one-day event, not a zero-day one.
+ *
+ * ⚠ AN END DATE BEFORE THE START IS IGNORED, not obeyed. Production holds
+ * hand-edited rows, and a backwards range must not be able to produce a span of
+ * zero or a negative one, which would empty the running order on next save.
+ */
+export function spanDays(startDate, endDate) {
+  const start = isoDay(startDate);
+  const end = isoDay(endDate);
+  if (!start) return 1;
+  if (!end || end <= start) return 1;
+  // Local noon on both ends: the only anchor that survives a DST boundary in
+  // every Australian timezone. Midnight loses an hour and rounds a day away.
+  const a = new Date(start + 'T12:00:00');
+  const b = new Date(end + 'T12:00:00');
+  return Math.round((b - a) / 86400000) + 1;
+}
+
+/** The real calendar date of day N (0-based) of the event, as YYYY-MM-DD. */
+export function dayDate(startDate, dayIndex = 0) {
+  const start = isoDay(startDate);
+  if (!start || !(dayIndex >= 0)) return '';
+  const d = new Date(start + 'T12:00:00');
+  d.setDate(d.getDate() + dayIndex);
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  return `${d.getFullYear()}-${m}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+/** "FRI 28 AUG" for a day card's badge. Empty when there is no start date yet. */
+export function dayDateLabel(startDate, dayIndex = 0) {
+  const iso = dayDate(startDate, dayIndex);
+  if (!iso) return '';
+  const d = new Date(iso + 'T12:00:00');
+  return `${DOW[d.getDay()]} ${d.getDate()} ${MON[d.getMonth()]}`;
+}
+
+/**
+ * Compare the running order against the date range.
+ *
+ * ⛔ THIS NEVER DELETES A DAY, and that is deliberate. Shrinking the range
+ * would otherwise silently destroy a day's slots — and a slot can hold a BOOKED
+ * artist (`slot_uuid != NULL` means the artist is already booked). Surplus days
+ * are REPORTED so the organiser decides. Growing the range is additive and
+ * safe, so `reconcileDays` fills the gap.
+ *
+ * @returns { span, dayCount, missing, surplus, matches }
+ */
+export function dayRangeCheck(days = [], startDate = '', endDate = '') {
+  const span = spanDays(startDate, endDate);
+  const dayCount = (days || []).length;
+  return {
+    span,
+    dayCount,
+    missing: Math.max(0, span - dayCount),
+    surplus: Math.max(0, dayCount - span),
+    matches: dayCount === span,
+  };
+}
+
+/**
+ * Return `days` grown to cover the date range. Additive ONLY — see above.
+ * Existing days keep their identity, their name and their slots.
+ */
+export function reconcileDays(days = [], startDate = '', endDate = '') {
+  const { missing } = dayRangeCheck(days, startDate, endDate);
+  if (!missing) return days || [];
+  const next = [...(days || [])];
+  for (let i = 0; i < missing; i++) next.push({ id: makeId(), name: '', slots: [] });
+  return next;
 }

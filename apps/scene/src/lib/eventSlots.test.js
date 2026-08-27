@@ -245,3 +245,125 @@ test('every claim from indexPerformances carries its raw rows, on both paths', (
     assert.equal(c.member.id, c.member_id);
   }
 });
+
+/* ⭐⭐ A DAY CARRIES ITS DATE (Phase 3, 2026-08-27). The host path grouped slots
+   into days that were bare ORDINALS, so a lineup spanning a festival could not
+   say which calendar day any of it was on. */
+test('groupSlotsIntoDays attaches each day its own date', () => {
+  const rows = [
+    { day_index: 0, position: 0, time: '3:00', ampm: 'PM' },
+    { day_index: 1, position: 0, time: '3:00', ampm: 'PM' },
+    { day_index: 2, position: 0, time: '3:00', ampm: 'PM' },
+  ];
+  const days = groupSlotsIntoDays(rows, ['2026-08-28', '2026-08-29', '2026-08-30']);
+  assert.equal(days.length, 3);
+  assert.equal(days[0].date, '2026-08-28');
+  assert.equal(days[1].date, '2026-08-29');
+  assert.equal(days[2].date, '2026-08-30');
+});
+
+test('⚠ dates are OPTIONAL — a caller without the event row gets the old shape', () => {
+  const days = groupSlotsIntoDays([{ day_index: 0, position: 0, time: '8:00', ampm: 'PM' }]);
+  assert.equal(days.length, 1);
+  assert.equal(days[0].date, '', 'empty, never undefined — the label falls back to the ordinal');
+  assert.equal(days[0].dayIndex, 0);
+});
+
+test('⚠ a day beyond the dates supplied still renders, it just claims no date', () => {
+  // The Neverland shape: a range that covers fewer days than the slots do.
+  const rows = [{ day_index: 0, position: 0 }, { day_index: 1, position: 0 }];
+  const days = groupSlotsIntoDays(rows, ['2026-08-28']);
+  assert.equal(days.length, 2, 'the extra day is NOT dropped');
+  assert.equal(days[1].date, '');
+});
+
+/* ⭐⭐ STAGES ARE PAGES INSIDE A DAY — S2e, 2026-08-27, and the ratified
+   multi-stage design: each stage is a vertical timeline, stages sit side by
+   side as snap pages, rows align by TIME so the peek is the comparison.
+
+   ⚠⚠ The bug this replaced: `position` is per (day, stage), so a two-stage day
+   holds two slots at position 0. Sorting a day's slots by position alone
+   INTERLEAVED the rooms, and the host's set times read 4:30, 5:00 (DJ), 6:00
+   (DJ), then back to 5:00 (Live). */
+const STAGES = [{ id: 'A', name: 'LIVE STAGE', position: 0 }, { id: 'B', name: 'DJ STAGE', position: 1 }];
+
+test('a two-stage day becomes one day with TWO stage pages', () => {
+  const rows = [
+    { day_index: 0, position: 0, time: '4:30', ampm: 'PM', stage_id: 'A' },
+    { day_index: 0, position: 0, time: '5:00', ampm: 'PM', stage_id: 'B' },
+    { day_index: 0, position: 1, time: '5:00', ampm: 'PM', stage_id: 'A' },
+  ];
+  const out = groupSlotsIntoDays(rows, ['2026-08-28'], STAGES);
+  assert.equal(out.length, 1, 'ONE day, not one section per stage');
+  assert.deepEqual(out[0].stages.map(s => s.name), ['LIVE STAGE', 'DJ STAGE']);
+  assert.deepEqual(out[0].stages[0].slots.map(s => s.time), ['4:30', '5:00']);
+  assert.deepEqual(out[0].stages[1].slots.map(s => s.time), ['5:00']);
+});
+
+test('⛔ pages follow STAGE POSITION, not the order rows arrive in', () => {
+  const rows = [
+    { day_index: 0, position: 0, time: '9:00', ampm: 'PM', stage_id: 'B' },
+    { day_index: 0, position: 0, time: '8:00', ampm: 'PM', stage_id: 'A' },
+  ];
+  const out = groupSlotsIntoDays(rows, [], [STAGES[1], STAGES[0]]);
+  assert.deepEqual(out[0].stages.map(s => s.name), ['LIVE STAGE', 'DJ STAGE']);
+});
+
+test('⭐⭐ EVERY DAY CARRIES EVERY STAGE, so the pages line up under each other', () => {
+  // The Neverland shape: workshops run on Sunday only. Both days must still
+  // offer both pages in the same order, or one swipe desynchronises the days —
+  // which is exactly what omitting the empty ones did.
+  const rows = [
+    { day_index: 0, position: 0, time: '8:00', ampm: 'PM', stage_id: 'A' },
+    { day_index: 1, position: 0, time: '10:00', ampm: 'AM', stage_id: 'B' },
+  ];
+  const out = groupSlotsIntoDays(rows, [], STAGES);
+  assert.deepEqual(out.map(d => d.stages.map(s => s.name)),
+    [['LIVE STAGE', 'DJ STAGE'], ['LIVE STAGE', 'DJ STAGE']]);
+  assert.deepEqual(out[0].stages[1].slots, [], 'the day it does not run is EMPTY, not absent');
+  assert.deepEqual(out[1].stages[0].slots, []);
+});
+
+test('⚠ an empty stage adds nothing to the day\'s own slot list', () => {
+  const rows = [{ day_index: 0, position: 0, time: '8:00', ampm: 'PM', stage_id: 'A' }];
+  const out = groupSlotsIntoDays(rows, [], STAGES);
+  assert.equal(out[0].slots.length, 1, 'a page with no slots must not inflate the day');
+});
+
+test('⚠⚠ `slots` STILL HOLDS THE WHOLE DAY — hostLineup and friends read it', () => {
+  const rows = [
+    { day_index: 0, position: 0, time: '4:30', ampm: 'PM', stage_id: 'A' },
+    { day_index: 0, position: 0, time: '5:00', ampm: 'PM', stage_id: 'B' },
+  ];
+  const out = groupSlotsIntoDays(rows, [], STAGES);
+  assert.equal(out[0].slots.length, 2, 'a nested-only shape would break them SILENTLY');
+  assert.deepEqual(out[0].slots.map(s => s.time), ['4:30', '5:00'], 'in stage order');
+});
+
+test('⚠⚠ ONE stage is NOT paged — a single-stage event keeps the old shape exactly', () => {
+  const rows = [{ day_index: 0, position: 0, time: '8:00', ampm: 'PM', stage_id: 'A' }];
+  const out = groupSlotsIntoDays(rows, [], [STAGES[0]]);
+  assert.equal('stages' in out[0], false, 'no stage chrome at all on a single-stage event');
+  assert.deepEqual(out[0].slots.map(s => s.time), ['8:00']);
+});
+
+test('an event with NO stages is untouched, and still sorts by position', () => {
+  const rows = [
+    { day_index: 0, position: 1, time: '9:00', ampm: 'PM' },
+    { day_index: 0, position: 0, time: '8:00', ampm: 'PM' },
+  ];
+  const out = groupSlotsIntoDays(rows, []);
+  assert.equal('stages' in out[0], false);
+  assert.deepEqual(out[0].slots.map(s => s.time), ['8:00', '9:00']);
+});
+
+test('⚠ a slot with NO stage on a staged event still renders, as a trailing page', () => {
+  const rows = [
+    { day_index: 0, position: 0, time: '8:00', ampm: 'PM', stage_id: 'A' },
+    { day_index: 0, position: 0, time: '11:00', ampm: 'PM' },
+  ];
+  const out = groupSlotsIntoDays(rows, [], STAGES);
+  const last = out[0].stages[out[0].stages.length - 1];
+  assert.equal(last.id, null);
+  assert.deepEqual(last.slots.map(s => s.time), ['11:00']);
+});

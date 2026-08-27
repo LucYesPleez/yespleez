@@ -17,6 +17,7 @@ import { memberProfileKeys, indexMemberProfiles } from './lineupProfiles';
 import { PROFILE_CARD_META_COLUMNS } from '../../components/ProfileCard';
 import { resolveSchedule } from '../../lib/scheduleModel';
 import { groupSlotsIntoDays, indexPerformances } from '../../lib/eventSlots';
+import { eventDates } from '../../lib/eventDays';
 import { enrichClaims, attachNotifyState } from '../../lib/claimEnrichment';
 import { tallySlots } from './slotTally';
 
@@ -140,7 +141,9 @@ export function useEventData(id, navigate) {
       const membersById = {};
       billMembers.forEach(m => { membersById[m.id] = m; });
       const { bySlot: claimsBySlot, primary: map } = indexPerformances(perfsData, membersById);
-      const slotDays = groupSlotsIntoDays(slotRows);
+      // ⭐ The event's own dates, so each day of a multi-day event knows which
+      // calendar day it is. DERIVED from the event row, ⛔ never stored on a slot.
+      const slotDays = groupSlotsIntoDays(slotRows, eventDates(ev), stageRows || []);
       // M5.1 (D1): socials resolve by the slot's own profile id — deterministic
       // for multi-profile owners (replaces undefined row-order behaviour);
       // legacy user_id join kept only for rows without a profile id.

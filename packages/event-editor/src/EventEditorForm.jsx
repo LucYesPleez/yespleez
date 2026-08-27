@@ -20,7 +20,7 @@ import s from "./EventEditor.module.css";
  */
 import RequirementChecklist, { toggleRequirement } from "@yespleez/requirements/checklist";
 import { DEFAULT_CROP_Y, MAX_SLIDES } from "@yespleez/event-presentation";
-import { makeId, generateSlots } from "./eventEditorModel.js";
+import { makeId, generateSlots, dayDateLabel, dayRangeCheck, reconcileDays, spanDays } from "./eventEditorModel.js";
 
 /**
  * THE EVENT EDITOR — one implementation, however many applications.
@@ -335,25 +335,97 @@ function SlotRow({ slot, onUpdate, onRemove }) {
 }
 
 /* ── Day Card ─────────────────────────────────────────────────────────────── */
-function DayCard({ day, dayIndex, totalDays, onUpdateName, onRemoveDay, onUpdateSlot, onRemoveSlot, onAddSlot, onInsertSlot }) {
+function DayCard({ day, dayIndex, totalDays, dateLabel, activeStageId, onUpdateName, onRemoveDay, onUpdateSlot, onRemoveSlot, onAddSlot, onInsertSlot }) {
   return (
     <div className={s.dayCard}>
       <div className={s.dayCardHeader}>
-        <span className={s.dayBadge}>DAY {dayIndex+1}</span>
-        <input className={s.dayNameInput} value={day.name} onChange={e => onUpdateName(day.id, e.target.value)} placeholder="e.g. Saturday" />
+        {/* ⭐ THE BADGE CARRIES THE REAL DATE. "DAY 2" alone was an ordinal with
+            nothing behind it, so the organiser typed "Saturday" into the name
+            and hoped. With the date on the badge the name is free to be what it
+            is for: the day's TITLE, "The Jazz Doof". The placeholder says so. */}
+        <span className={s.dayBadge}>DAY {dayIndex+1}{dateLabel ? ` · ${dateLabel}` : ''}</span>
+        <input className={s.dayNameInput} value={day.name} onChange={e => onUpdateName(day.id, e.target.value)} placeholder="Name this day (optional)" />
         {totalDays > 1 && (
           <button className={s.removeDayBtn} onClick={() => onRemoveDay(day.id)}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           </button>
         )}
       </div>
-      {day.slots.map((slot, si) => (
+      {/* ⚠⚠ THE ORIGINAL INDEX IS CARRIED THROUGH THE FILTER. `onInsertSlot`
+          takes a position in the day's FULL slot array, so filtering first and
+          mapping second would insert a slot into the wrong place the moment a
+          day held more than one stage — silently, and only on multi-stage
+          events. Pair the index BEFORE filtering, never after.
+          ⛔ No filtering at all on a single-stage event: `activeStageId` is
+          null, every slot belongs to the implicit stage, and the day reads
+          exactly as it always did. */}
+      {day.slots
+        .map((slot, si) => ({ slot, si }))
+        .filter(({ slot }) => !activeStageId || (slot.stageId || null) === activeStageId)
+        .map(({ slot, si }) => (
         <div key={slot.id}>
           <SlotRow slot={slot} onUpdate={(f,v) => onUpdateSlot(day.id,slot.id,f,v)} onRemove={() => onRemoveSlot(day.id,slot.id)} />
           <button className={s.insertSlotBtn} onClick={() => onInsertSlot(day.id, si+1)}>+ insert slot here</button>
         </div>
       ))}
       <button className={s.addSlotInDayBtn} onClick={() => onAddSlot(day.id)}>+ Add Slot</button>
+    </div>
+  );
+}
+
+/* ── Stages ──────────────────────────────────────────────────────────────── */
+/**
+ * ⭐⭐ TURNING ON A SECOND STAGE. An event with ZERO stages is a single-stage
+ * event, renders no stage chrome anywhere, and that is where every event starts
+ * and where most stay. Adding the FIRST stage adopts the running order that
+ * already exists onto it, in one transaction, so the event never sits in the
+ * invalid in-between where some slots have a stage and some do not.
+ *
+ * ⛔ THE CHIPS ARE A FILTER HERE, which is the OPPOSITE of what the same chips
+ * do on the public schedule, where they are quick-jumps that never hide. The
+ * difference is deliberate and worth keeping: a reader wants the whole night in
+ * one scroll, an organiser wants to build one room at a time without another
+ * room's slots interleaved by time in front of them.
+ *
+ * ⛔ A stage still holding slots cannot be removed. ON DELETE RESTRICT, so that
+ * removing a stage can never quietly unbook the artists standing on it.
+ */
+function StageStrip({ stages, activeStageId, onPick, onAdd, onRename, onDelete, busy }) {
+  if (!stages?.length) {
+    return (
+      <div className={s.stageEmpty}>
+        <span>One stage. Add another if this event runs rooms side by side.</span>
+        <button type="button" className={s.stageAddBtn} disabled={busy} onClick={onAdd}>+ ADD A STAGE</button>
+      </div>
+    );
+  }
+  const active = stages.find(x => x.id === activeStageId);
+  return (
+    <div className={s.stageStrip}>
+      <div className={s.stageChips}>
+        {stages.map(st => (
+          <button
+            key={st.id}
+            type="button"
+            className={`${s.stageChip} ${st.id === activeStageId ? s.stageChipOn : ''}`}
+            onClick={() => onPick(st.id)}
+          >
+            {st.name}
+          </button>
+        ))}
+        <button type="button" className={s.stageAddBtn} disabled={busy} onClick={onAdd}>+ STAGE</button>
+      </div>
+      {active && (
+        <div className={s.stageTools}>
+          <input
+            className={s.stageNameInput}
+            value={active.name || ''}
+            onChange={e => onRename(active.id, e.target.value)}
+            placeholder="Stage name"
+          />
+          <button type="button" className={s.stageDeleteBtn} onClick={() => onDelete(active.id)}>REMOVE</button>
+        </div>
+      )}
     </div>
   );
 }
@@ -414,6 +486,12 @@ function DayCard({ day, dayIndex, totalDays, onUpdateName, onRemoveDay, onUpdate
 export default function EventEditorForm({
   ed, editId, userId,
   categories, labelProfileType, components, adornments = {}, actions = null,
+  /* ⭐⭐ STAGES ARE OPTIONAL AND INJECTED. The package holds the SHAPE of a
+     multi-stage running order; ⛔ it never learns where stages are stored or
+     how the first one adopts the existing slots — that is a transaction in the
+     consumer's database. Omit these and the editor is single-stage, which is
+     what it has always been. */
+  stages = [], onCreateStage = null, onRenameStage = null, onDeleteStage = null,
 }) {
   const { ImageUploadButton, CoHostPicker, VenuePicker, ArtistsSection } = components;
   const {
@@ -432,6 +510,9 @@ export default function EventEditorForm({
     cropMode, setCropMode, mediaTab, setMediaTab, cropBusy,
     cropError, fullView, setFullView,
     setTimesNeeded, setSetTimesNeeded, days, setDays,
+    /* ⭐ Which stage a NEW slot is born on. Owned by the state hook because
+       `addSlot`/`insertSlot` live there and they are what stamp it. */
+    activeStageId, setActiveStageId,
     slotsCollapsed, setSlotsCollapsed,
     requirementsOpen, setRequirementsOpen,
     owners, setOwners, ownerId, setOwnerId, coHosts, setCoHosts,
@@ -448,6 +529,38 @@ export default function EventEditorForm({
     addDay, removeDay, updateDayName,
     addSlot, insertSlot, updateSlot, removeSlot,
   } = ed;
+
+  /* ⭐⭐ ONE REAL EVENT REPRESENTS ONE CONTINUOUS EVENT. The date range and the
+     running order are two views of the SAME fact, so the form compares them
+     rather than letting them drift. See eventEditorModel.js for why this was
+     not free before: a day was an ordinal with no date attached to it. */
+  const eventSpanDays = spanDays(startDate, endDate);
+  const dayRange = dayRangeCheck(days, startDate, endDate);
+  /* Additive only. ⛔ Shrinking the range must never delete a day here: a slot
+     can hold an artist who is already booked, and unbooking someone is not a
+     side effect a date picker gets to have. */
+  const fillMissingDays = () => setDays(reconcileDays(days, startDate, endDate));
+
+  /* ⚠ THE ACTIVE STAGE FOLLOWS THE DATA. Stages arrive asynchronously, and a
+     stage can be removed while it is the selected one; either way the strip
+     must never be left pointing at a stage that is not there, because
+     `activeStageId` is also what every NEW slot is stamped with. */
+  useEffect(() => {
+    if (!stages.length) { if (activeStageId) setActiveStageId(null); return; }
+    if (!stages.some(st => st.id === activeStageId)) setActiveStageId(stages[0].id);
+  }, [stages, activeStageId, setActiveStageId]);
+
+  const [stageBusy, setStageBusy] = useState(false);
+  const handleAddStage = async () => {
+    if (!onCreateStage || stageBusy) return;
+    setStageBusy(true);
+    try {
+      const created = await onCreateStage();
+      if (created?.id) setActiveStageId(created.id);
+    } finally {
+      setStageBusy(false);
+    }
+  };
 
   return (
     <>
@@ -622,9 +735,28 @@ export default function EventEditorForm({
             <CalendarPicker value={startDate} onChange={setStartDate} placeholder="Start date" />
           </Field>
           <Field label="END DATE (MULTI-DAY)" flex>
-            <CalendarPicker value={endDate} onChange={setEndDate} placeholder="End date (opt)" />
+            <CalendarPicker value={endDate} onChange={setEndDate} placeholder="Last day (optional)" />
           </Field>
         </div>
+        {/* ⭐⭐ SAY THE SPAN OUT LOUD. A festival that runs Friday to Sunday is
+            ONE event with three days inside it, and this is where the organiser
+            finds out the app understands that. Without it, "End date (opt)"
+            read as a detail worth skipping, and skipping it was the first step
+            towards creating one event per day. ⛔ No em dashes in this copy. */}
+        {startDate && (
+          <div className={s.spanNote}>
+            {eventSpanDays > 1
+              ? `This event runs ${eventSpanDays} days. Keep it as one event and add each day below.`
+              : 'One day. Add a last day above if it runs longer.'}
+          </div>
+        )}
+
+        {/* ⭐⭐ IS THIS ALREADY AN EVENT? Rendered by the consumer, because
+            finding the candidates means reading the database and ⛔ no database
+            knowledge belongs in this package. The RULES are shared
+            (`duplicateEvents.js`); only the fetching differs.
+            ⛔⛔ Whatever it renders WARNS and never blocks. */}
+        {adornments.duplicateWarning?.({ id: editId, name, startDate, endDate, venue, venueProfileId })}
 
         {/* VENUE has moved to its own section above CO-HOSTS. */}
 
@@ -1063,7 +1195,31 @@ export default function EventEditorForm({
 
         {setTimesNeeded && (
           <>
-            <QuickGenerator onGenerate={(d) => { setDays(d); setSlotsCollapsed(false); }} />
+            {/* ⭐⭐ THE GENERATOR BUILDS ONTO THE ACTIVE STAGE, and on a
+                multi-stage event it ADDS rather than replaces. Generating a
+                grid for Stage 2 must not wipe Stage 1's running order, which is
+                exactly what a plain `setDays(d)` would do — and every slot it
+                minted would carry no stage, the invalid state S2d prevents at
+                the write layer. ⛔ Single-stage behaviour is untouched: no
+                active stage means replace, as it always did. */}
+            <QuickGenerator onGenerate={(generated) => {
+              setSlotsCollapsed(false);
+              if (!activeStageId) { setDays(generated); return; }
+              const stamp = sl => ({ ...sl, stageId: activeStageId });
+              setDays(prev => {
+                const merged = generated.map((gd, i) => {
+                  const existing = prev[i];
+                  // Slots already on OTHER stages survive; this stage is rebuilt.
+                  const others = (existing?.slots || []).filter(sl => sl.stageId !== activeStageId);
+                  return existing
+                    ? { ...existing, slots: [...others, ...gd.slots.map(stamp)] }
+                    : { ...gd, slots: gd.slots.map(stamp) };
+                });
+                // ⚠ Days beyond what the generator produced are KEPT. It was
+                // asked for N days, not told the event has only N.
+                return [...merged, ...prev.slice(generated.length)];
+              });
+            }} />
             <button
               type="button"
               onClick={() => setSlotsCollapsed(v => !v)}
@@ -1084,8 +1240,45 @@ export default function EventEditorForm({
               </svg>
             </button>
             {!slotsCollapsed && <>
+              {/* ⭐⭐ THE RANGE AND THE RUNNING ORDER DESCRIBE THE SAME EVENT.
+                  They were two unrelated controls, so an event could claim a
+                  three-day range while holding two days of slots and nothing
+                  objected. This states the disagreement and offers the fix.
+                  ⛔ It never removes a day: a slot can hold a booked artist, so
+                  a surplus day is the organiser's call, not the form's. */}
+              {!dayRange.matches && (
+                <div className={s.dayRangeNotice}>
+                  <span>
+                    {dayRange.missing > 0
+                      ? `Your dates cover ${dayRange.span} days but the running order has ${dayRange.dayCount}.`
+                      : `The running order has ${dayRange.dayCount} days but your dates cover ${dayRange.span}.`}
+                  </span>
+                  {dayRange.missing > 0 && (
+                    <button type="button" className={s.dayRangeFixBtn} onClick={fillMissingDays}>
+                      ADD {dayRange.missing} DAY{dayRange.missing !== 1 ? 'S' : ''}
+                    </button>
+                  )}
+                </div>
+              )}
+              {/* ⭐⭐ STAGES. Rendered only when the consumer supplies the
+                  handlers — an editor embedded somewhere with no stage support
+                  simply never sees the strip, and every event stays
+                  single-stage, exactly as before. */}
+              {onCreateStage && (
+                <StageStrip
+                  stages={stages}
+                  activeStageId={activeStageId}
+                  busy={stageBusy}
+                  onPick={setActiveStageId}
+                  onAdd={handleAddStage}
+                  onRename={onRenameStage}
+                  onDelete={onDeleteStage}
+                />
+              )}
               {days.map((day, di) => (
                 <DayCard key={day.id} day={day} dayIndex={di} totalDays={days.length}
+                  dateLabel={dayDateLabel(startDate, di)}
+                  activeStageId={activeStageId}
                   onUpdateName={updateDayName} onRemoveDay={removeDay}
                   onUpdateSlot={updateSlot} onRemoveSlot={removeSlot}
                   onAddSlot={addSlot} onInsertSlot={insertSlot} />

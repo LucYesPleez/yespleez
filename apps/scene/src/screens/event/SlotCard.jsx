@@ -22,10 +22,12 @@ import { usePlayer, useSession } from '../../App';
 // ReferenceError on the first tap. Caught by `oxlint --deny no-undef`.
 import { getPersonalProfileId } from '../../lib/actingProfile';
 import { resolveProfileId } from '../../lib/resolveProfileId';
+import { unfollowProfile } from '../../lib/participation';
 import { track, EVENTS } from '../../lib/analytics';
 import { openDirectConversation } from '../../lib/messaging';
 import UnclaimedBadge from '../../components/UnclaimedBadge';
 import { profileIdentity } from '../../lib/profileTypes';
+import { actPills } from '../../lib/actPills';
 import { parseDurMins, fmtDur, labelColor, stripEmoji } from './slotUtils';
 import s from '../EventScreen.module.css';
 
@@ -232,6 +234,21 @@ export default function SlotCard({ slot, claim, onFill, onEdit, onRemove, onDemo
   const rawDur     = parseDurMins(slot.dur ?? slot.duration);
   const durLabel   = fmtDur(rawDur > 0 ? rawDur : 60);
   const cleanLabel = slot.label ? stripEmoji(slot.label) : null;
+  /**
+   * ⭐⭐ AN INFO CARD: a slot with a LABEL and no act. A welcome to country, a
+   * stage close, a changeover, a workshop block. The time is SPOKEN FOR, so it
+   * is ⛔ not an open slot, and there is no performer, so it is ⛔ not an act.
+   *
+   * ⚠⚠ NAMED ONCE, ON PURPOSE. This condition was written inline in three
+   * places — the heading, the label chip and the headphones — and a fourth
+   * surface would have made a fourth copy and drifted. ⛔ Do not re-derive it;
+   * read this.
+   *
+   * ⭐ It is EDITABLE like any other slot: its time, length and wording are the
+   * host's to change. What it has no use for is REPLACE / REMOVE and the person
+   * actions, and those gate themselves on `claim`, which it does not have.
+   */
+  const isInfoCard = isEmpty && !!cleanLabel;
   const col        = slot.labelColor || (cleanLabel ? labelColor(cleanLabel) : '#FFB830');
 
   // Single descriptor pill matching v1: sound > card_pills > genre
@@ -391,7 +408,13 @@ export default function SlotCard({ slot, claim, onFill, onEdit, onRemove, onDemo
         </div>
         <div className={s.slotInfo}>
           <div className={s.djNameRow}>
-            <HeadphoneIcon />
+            {/* ⛔ NOT ON A PROGRAMME ITEM. Headphones say "an act plays here",
+                and a welcome to country or a stage close is not an act — the
+                icon claimed a performer where there is none.
+                ⚠ An OPEN slot keeps it: that row is waiting for an act, and the
+                icon is what says so. The test is a LABEL standing in for a
+                name, ⛔ not emptiness. */}
+            {!isInfoCard && <HeadphoneIcon />}
             {/* ⭐ THE ACT'S NAME IS SET IN CAPS (owner, 2026-08-22) — the same
                 weight the LINEUP cards read at, where the caps come from Bebas
                 Neue being an all-caps face rather than from a transform.
@@ -402,8 +425,25 @@ export default function SlotCard({ slot, claim, onFill, onEdit, onRemove, onDemo
                 ⛔ AND NOT ON "Open slot", which is italic lowercase on purpose:
                 it names an ABSENCE rather than an act, and shouting it would
                 make an empty slot the loudest row on the bill. */}
-            <span className={`${s.djName} ${isEmpty ? '' : s.djNameCaps}`} style={{ color: isEmpty ? 'var(--muted)' : publicName === 'PENDING' ? 'var(--muted)' : isDraft ? 'rgba(255,255,255,.6)' : 'var(--text)', fontStyle: isEmpty ? 'italic' : 'normal' }}>
-              {isEmpty ? 'Open slot' : publicName}
+            {/* ⭐⭐ A LABELLED SLOT WITH NO ACT IS NOT AN OPEN SLOT. A welcome to
+                country, a changeover, a stage close: the time is SPOKEN FOR, so
+                calling it open invites a host to book over a ceremony and tells
+                a reader nothing is happening when something is.
+                ⛔ It is also NOT an act. No artwork, no DRAFT chip and no route
+                to a profile, because there is no artist behind it — those all
+                key off `claim`, which is absent, so this needs no exception.
+                ⚠ Upright and unmuted, unlike "Open slot": the italic lowercase
+                is reserved for a genuine absence. */}
+            <span
+              className={`${s.djName} ${isEmpty && !isInfoCard ? '' : s.djNameCaps}`}
+              style={{
+                color: isEmpty && !isInfoCard ? 'var(--muted)'
+                  : publicName === 'PENDING' ? 'var(--muted)'
+                    : isDraft && !isEmpty ? 'rgba(255,255,255,.6)' : 'var(--text)',
+                fontStyle: isEmpty && !isInfoCard ? 'italic' : 'normal',
+              }}
+            >
+              {isInfoCard ? cleanLabel : isEmpty ? 'Open slot' : publicName}
             </span>
             {/* Identity before slot status, same order as every other surface.
                 .djNameRow is already flex with a 6px gap and .djName carries
@@ -461,7 +501,11 @@ export default function SlotCard({ slot, claim, onFill, onEdit, onRemove, onDemo
               {descriptor}
             </span>
           )}
-          {cleanLabel && (
+          {/* ⚠ ⛔ NOT WHEN THE LABEL IS ALREADY THE NAME. On a slot with no act
+              the label IS the heading, and the chip repeated it directly
+              underneath. The chip exists to annotate an act ("Sunset Set" under
+              a DJ), so it only earns its place when there is an act to annotate. */}
+          {cleanLabel && !isInfoCard && (
             <div style={{ marginTop: 5 }}>
               <span style={{ display: 'inline-block', fontFamily: "'Bebas Neue',sans-serif", fontSize: 9, letterSpacing: 2, color: col, border: `1px solid ${col}`, padding: '2px 8px', borderRadius: 2 }}>
                 {cleanLabel}
@@ -526,7 +570,16 @@ export default function SlotCard({ slot, claim, onFill, onEdit, onRemove, onDemo
         </div>
       </div>
 
-      {expanded && !isEmpty && (isHost || isConfirmed || claim) && (
+      {/* ⭐⭐ AN INFO CARD OPENS TOO, for its host. It was inert: expanding a
+          stage close showed nothing at all, so its time, length and wording
+          could not be changed from the schedule where you are looking at them.
+          ⚠ `isHost` alone — a punter has nothing to do with a stage close, and
+          the `isConfirmed || claim` arms are about an ACT's own view of its
+          booking, which an info card has none of.
+          ⛔ The controls inside need no new gates: EDIT SLOT asks only for
+          `onEdit`, while REPLACE / REMOVE and the person actions already gate
+          on `claim` and so stay away by themselves. */}
+      {expanded && (isInfoCard ? isHost : !isEmpty && (isHost || isConfirmed || claim)) && (
         <div style={{ background: 'var(--card2)', border: `1px solid ${borderCol}`, borderTop: 'none', borderRadius: '0 0 10px 10px', padding: '10px 13px' }}>
 
           {/**
@@ -559,12 +612,16 @@ export default function SlotCard({ slot, claim, onFill, onEdit, onRemove, onDemo
             * browsing, not context.
             */}
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 9 }}>
-            {(claim?.card_pills?.length || claim?.genre) ? (() => {
-              const usingCardPills = !!claim.card_pills?.length;
-              const raw = usingCardPills ? claim.card_pills : claim.genre;
-              const all = Array.isArray(raw)
-                ? raw
-                : raw.split(/[·,|/]+/).map(g => g.trim()).filter(Boolean);
+            {(() => {
+              /* ⛔⛔ `actPills`, ⛔ NOT a split here. This read
+                 `claim.genre.split(/[·,|/]+/)` and printed the pieces, so a DJ
+                 whose `genre_string` holds the role key `dj_prod` got a pill
+                 reading literally `dj_prod`. `genre_string` carries ROLE KEYS
+                 as well as genres and only `genreLabels()` knows the
+                 difference. ⚠ An empty result is normal and renders nothing. */
+              const all = actPills(claim);
+              if (!all.length) return <div style={{ flex: 1 }} />;
+              const usingCardPills = !!claim?.card_pills?.length;
               return (
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, flex: 1, minWidth: 0 }}>
                   {all.slice(0, 5).map(g => (
@@ -574,7 +631,7 @@ export default function SlotCard({ slot, claim, onFill, onEdit, onRemove, onDemo
                   ))}
                 </div>
               );
-            })() : <div style={{ flex: 1 }} />}
+            })()}
 
             {/* ⭐⭐ THE PUNTER'S WAY INTO THE ACT (owner, 2026-08-20). The same
                 control the host gets, in the same place on the line — ⛔ not a
@@ -590,8 +647,12 @@ export default function SlotCard({ slot, claim, onFill, onEdit, onRemove, onDemo
               />
             )}
 
-            {/* ⚠ The status chip, ⛔ no longer on a line of its own. */}
-            {isHost && (
+            {/* ⚠ The status chip, ⛔ no longer on a line of its own.
+                ⛔ AND NOT ON AN INFO CARD. Every value it can show is about an
+                ACT — "NAME ADDED", "AWAITING REPLY", "BOOKED" — and with no
+                claim it fell through to `name_added`, so a stage close
+                announced that a name had been added to it. */}
+            {isHost && !isInfoCard && (
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, flexShrink: 0, fontSize: 11, fontFamily: "'Bebas Neue'", letterSpacing: 1.2, background: chip.bg, border: `1px solid ${chip.border}`, color: chip.color, borderRadius: 6, padding: '3px 10px', whiteSpace: 'nowrap' }}>
                 {chip.icon}{chip.label}
               </span>
@@ -663,7 +724,21 @@ export default function SlotCard({ slot, claim, onFill, onEdit, onRemove, onDemo
                   if (followBusy) return;
                   setFollowBusy(true);
                   if (followed) {
-                    await supabase.from('follows').delete().eq('user_id', session.user.id).eq('entity_id', claim.user_id);
+                    /* ⚠ BOTH KEYSPACES. This deleted on `entity_id` alone, and
+                       the follow branch below writes BOTH `entity_id` and
+                       `target_profile_id` — so an unfollow left the canonical
+                       row behind and the artist stayed on the follower's list.
+                       `unfollowProfile` spans both, exactly as ProfileScreen's
+                       and the card heart's unfollow already did; going through
+                       the shared function also keeps the `followedProfiles`
+                       cache in step, which the hand-rolled delete never did. */
+                    const targetProfileId = await resolveProfileId(claim.user_id, 'artist');
+                    await unfollowProfile(session.user.id, {
+                      id: targetProfileId || claim.user_id,
+                      user_id: claim.user_id,
+                      type: 'artist',
+                      name: claim.name,
+                    });
                     setFollowed(false);
                   } else {
                     const targetProfileId = await resolveProfileId(claim.user_id, 'artist');

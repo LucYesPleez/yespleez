@@ -58,26 +58,101 @@ export function rankPerformance(p) {
  * days keep index 0 and 2 — the numbers are identity, not display, and a
  * renderer that needs "Day 2" counts what it was given.
  */
-export function groupSlotsIntoDays(rows = []) {
+/**
+ * @param rows   `event_slots` rows
+ * @param dates  the event's own dates in order, from `eventDays.eventDates()`.
+ *
+ * ⭐⭐ A DAY CARRIES ITS DATE. `dates[dayIndex]` is attached to each day as
+ * `date`, so the schedule, the day chips and the set-times grid can say
+ * "SAT 29 AUG" instead of "DAY 2". A day used to be a bare ORDINAL, which meant
+ * an artist reading a festival's running order had to COUNT to work out which
+ * calendar day their set was on.
+ *
+ * ⚠ DERIVED, ⛔ never stored. `event_slots` has no date column and does not need
+ * one: the day's date is the event's start date plus `day_index`. Storing it
+ * would give the schedule a second opinion the moment an organiser moves the
+ * event, and the stored copy would be the one that lied.
+ *
+ * ⚠ `dates` is OPTIONAL and defaults to empty, so a caller that has not been
+ * given the event row yet still gets the shape it always got. `date` is then
+ * '' and every label falls back to the ordinal, exactly as before.
+ */
+export function groupSlotsIntoDays(rows = [], dates = [], stages = []) {
   const byDay = new Map();
   for (const r of rows || []) {
     if (!r) continue;
     const idx = r.day_index ?? 0;
-    if (!byDay.has(idx)) byDay.set(idx, { dayIndex: idx, name: r.day_name || '', slots: [] });
+    if (!byDay.has(idx)) byDay.set(idx, { dayIndex: idx, name: r.day_name || '', date: dates?.[idx] || '', slots: [] });
     // ⚠ The first row wins the day's name rather than the last: every row in a
     // day carries the same denormalised `day_name`, and if they ever disagree
     // (a partial write), taking the first makes the result stable instead of
     // dependent on row order.
     byDay.get(idx).slots.push(r);
   }
-  return [...byDay.values()]
-    .sort((a, b) => a.dayIndex - b.dayIndex)
-    .map(d => ({
-      ...d,
-      slots: d.slots
-        .sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
-        .map(toRenderSlot),
-    }));
+
+  const byPosition = (a, b) => (a.position ?? 0) - (b.position ?? 0);
+  const days = [...byDay.values()].sort((a, b) => a.dayIndex - b.dayIndex);
+
+  /* ⚠⚠ A SINGLE-STAGE EVENT IS UNCHANGED, and that matters more than the new
+     behaviour: almost every event has no stages at all, and this function feeds
+     the host's set-times grid, the dashboard and the public day list. */
+  const ordered = (stages || []).slice().sort(byPosition);
+  if (ordered.length < 2) {
+    return days.map(d => ({ ...d, slots: d.slots.sort(byPosition).map(toRenderSlot) }));
+  }
+
+  /**
+   * ⭐⭐ ONE SECTION PER (DAY, STAGE). The consumer keeps rendering a flat list
+   * of sections and needs no stage logic of its own, which is what lets the
+   * host's drag-and-drop stay exactly as it was — a reorder is now within one
+   * stage, which is the only reorder that ever made sense.
+   *
+   * ⚠⚠ IT ALSO FIXES AN ORDERING BUG, and that is the visible half. `position`
+   * is per (day, stage), so a two-stage day holds two slots at position 0, two
+   * at position 1, and so on. Sorting a day's slots by position alone therefore
+   * INTERLEAVED the stages: Friday read 4:30 Welcome, 5:00 Rieperluv (DJ),
+   * 6:00 Qi Fields (DJ), 5:00 Afi James (Live) — times jumping backwards down
+   * the page with nothing on screen to explain why.
+   *
+   * ⛔ A STAGE WITH NO SLOTS ON A DAY IS OMITTED, never rendered empty. That is
+   * how a festival whose workshops run only on Sunday reads correctly, rather
+   * than showing two blank rooms every other day.
+   */
+  return days.map(d => {
+    const rest = d.slots.slice();
+    const dayStages = [];
+    /**
+     * ⭐⭐ EVERY DAY CARRIES EVERY STAGE, INCLUDING THE ONES IT DOES NOT RUN.
+     *
+     * ⚠⚠ THIS IS WHAT MAKES THE PAGER LINE UP. The stage pages must be the SAME
+     * SET in the SAME ORDER on every day, or page 2 is the DJ stage on Friday
+     * and the workshops on Sunday, and one swipe desynchronises the festival.
+     * Omitting the empty ones was tried first and did exactly that: swiping
+     * Saturday moved Saturday while Sunday sat still.
+     *
+     * ⛔ An empty stage is NOT a missing stage. It renders as that day's column
+     * of "nothing on" against the shared time axis, which is the honest answer
+     * to "what is happening in the gallery on Friday" and keeps the rooms
+     * stacked under one another where the eye expects them.
+     */
+    for (const st of ordered) {
+      const mine = rest.filter(r => r.stage_id === st.id).sort(byPosition);
+      dayStages.push({ id: st.id, name: st.name || '', accent: st.accent || null, slots: mine.map(toRenderSlot) });
+    }
+    /* ⚠ Slots belonging to NO stage on an event that HAS stages are an invalid
+       state (S2d prevents it at the write layer). They are carried anyway, as a
+       trailing unnamed page: a reader that silently drops rows it disapproves
+       of makes a real booking vanish with no trace. */
+    const unstaged = rest.filter(r => !r.stage_id).sort(byPosition);
+    if (unstaged.length) {
+      dayStages.push({ id: null, name: '', accent: null, slots: unstaged.map(toRenderSlot) });
+    }
+    /* ⚠⚠ `slots` STAYS, as every one of the day's slots in stage order. It is
+       what `hostLineup` and the other consumers already read, and a nested-only
+       shape would have broken them silently — they would simply have found
+       nothing rather than erroring. ⛔ Do not remove it to tidy the object. */
+    return { ...d, stages: dayStages, slots: dayStages.flatMap(st => st.slots) };
+  });
 }
 
 /**
@@ -99,6 +174,9 @@ export function toRenderSlot(row) {
     label:      row.label || '',
     labelColor: row.label_color || null,
     pinned:     !!row.pinned,
+    /* ⭐ The slot's stage, so a consumer can group or label without going back
+       to the raw rows. Null on a single-stage event: that IS the implicit stage. */
+    stageId:    row.stage_id || null,
   };
 }
 

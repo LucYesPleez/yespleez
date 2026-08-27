@@ -14,7 +14,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { resolveSchedule } from './scheduleModel.js';
-import { timeAxis, timeKey, cellsForStage } from './schedulePortrait.js';
+import {timeAxis, timeKey, cellsForStage, offCentre, nearestCentred, mergedTimeAxis, slotGrid, stageGaps } from './schedulePortrait.js';
 
 const slot = (o = {}) => ({
   id: o.id || `u${o.position ?? 0}-${o.day_index ?? 0}-${o.stage_id ?? 'x'}`,
@@ -118,4 +118,202 @@ test('⭐ the festival shape aligns three stages across a shared axis', () => {
   }
   const chill = cellsForStage(day.stages.find(x => x.name === 'CHILL ZONE'), axis);
   assert.deepEqual(chill.map(c => (c ? c.slot.id : null)), ['c0', null, 'c2', null]);
+});
+
+/* ⭐ PAGER GEOMETRY. Pure measurement, so a fake element with a rect is enough
+   — and that is the point of taking elements rather than selectors. */
+const el = (left, width) => ({ getBoundingClientRect: () => ({ left, width }) });
+
+test('offCentre is 0 when the cell is centred in the scroller', () => {
+  assert.equal(offCentre(el(0, 400), el(150, 100)), 0);
+});
+
+test('offCentre is negative when the cell sits LEFT of centre', () => {
+  assert.ok(offCentre(el(0, 400), el(0, 100)) < 0);
+  assert.ok(offCentre(el(0, 400), el(300, 100)) > 0);
+});
+
+test('offCentre survives a missing element rather than throwing', () => {
+  assert.equal(offCentre(null, el(0, 10)), 0);
+  assert.equal(offCentre(el(0, 10), null), 0);
+});
+
+test('⭐ nearestCentred picks the page closest to the middle', () => {
+  const scroller = el(0, 400);
+  //            page 0 far left    page 1 centred     page 2 far right
+  const cells = [el(-300, 100), el(150, 100), el(600, 100)];
+  assert.equal(nearestCentred(scroller, cells), 1);
+});
+
+test('⚠ nearestCentred answers 0 for an empty list, never undefined', () => {
+  assert.equal(nearestCentred(el(0, 400), []), 0);
+  assert.equal(nearestCentred(el(0, 400), null), 0);
+});
+
+test('nearestCentred breaks a tie toward the EARLIER page, deterministically', () => {
+  const scroller = el(0, 400);
+  const cells = [el(100, 100), el(200, 100)];   // both 50px off centre
+  assert.equal(nearestCentred(scroller, cells), 0);
+});
+
+/* ⭐⭐ THE MERGED AXIS — stages that do not run in parallel. */
+const st = (name, times) => ({ name, slots: times.map(([time, ampm]) => ({ slot: { time, ampm } })) });
+
+test('⭐⭐ DISJOINT STAGES INTERLEAVE BY CLOCK — the morning is not stranded below the evening', () => {
+  // Neverland's Saturday: workshops 10:00 AM to 1:00 PM, live 2:00 PM on.
+  const day = { stages: [
+    st('LIVE', [['2:00', 'PM'], ['3:00', 'PM'], ['10:30', 'PM']]),
+    st('WORKSHOPS', [['10:00', 'AM'], ['11:00', 'AM'], ['12:00', 'PM']]),
+  ] };
+  assert.deepEqual(mergedTimeAxis(day).map(c => `${c.time} ${c.ampm}`),
+    ['10:00 AM', '11:00 AM', '12:00 PM', '2:00 PM', '3:00 PM', '10:30 PM']);
+});
+
+test('⛔⛔ 12:00 AM STAYS LAST — a night crosses midnight, it does not restart', () => {
+  const day = { stages: [st('DJ', [['10:30', 'PM'], ['12:00', 'AM']])] };
+  assert.deepEqual(mergedTimeAxis(day).map(c => `${c.time} ${c.ampm}`),
+    ['10:30 PM', '12:00 AM'], 'a naive clock sort would put midnight first and rewrite the night');
+});
+
+test('⚠ a stage that runs past midnight still merges after one that ends at 11', () => {
+  const day = { stages: [
+    st('DJ',   [['9:00', 'PM'], ['12:00', 'AM'], ['1:00', 'AM']]),
+    st('LIVE', [['9:30', 'PM'], ['11:00', 'PM']]),
+  ] };
+  assert.deepEqual(mergedTimeAxis(day).map(c => `${c.time} ${c.ampm}`),
+    ['9:00 PM', '9:30 PM', '11:00 PM', '12:00 AM', '1:00 AM']);
+});
+
+test('two stages starting at the same printed time share ONE column', () => {
+  const day = { stages: [st('A', [['9:00', 'PM']]), st('B', [['9:00', 'PM']])] };
+  assert.equal(mergedTimeAxis(day).length, 1);
+});
+
+test('12 PM is noon and 12 AM is midnight, not both zero', () => {
+  const day = { stages: [st('A', [['11:00', 'AM'], ['12:00', 'PM'], ['1:00', 'PM']])] };
+  assert.deepEqual(mergedTimeAxis(day).map(c => `${c.time} ${c.ampm}`),
+    ['11:00 AM', '12:00 PM', '1:00 PM']);
+});
+
+test('an empty day yields an empty axis rather than throwing', () => {
+  assert.deepEqual(mergedTimeAxis({ stages: [] }), []);
+  assert.deepEqual(mergedTimeAxis(null), []);
+  assert.deepEqual(mergedTimeAxis({ stages: [{ slots: [] }] }), []);
+});
+
+/* ⭐⭐ THE 15-MINUTE GRID. Length on the page is length in the room. */
+const sg = (name, slots) => ({ name, slots: slots.map(([time, ampm, dur]) => ({ slot: { time, ampm, dur } })) });
+
+test('⭐⭐ AN HOUR IS 4 INTERVALS AND 90 MINUTES IS 6', () => {
+  const day = { stages: [sg('LIVE', [['5:00', 'PM', 60], ['6:00', 'PM', 90]])] };
+  const g = slotGrid(day);
+  assert.deepEqual(g.stages[0].map(c => c.span), [4, 6]);
+  assert.deepEqual(g.stages[0].map(c => c.row), [1, 5], 'the 6pm set starts where the 5pm one ends');
+});
+
+test('⭐ a 30 minute set is 2 intervals, and the next act starts at row 3', () => {
+  const day = { stages: [sg('LIVE', [['4:30', 'PM', 30], ['5:00', 'PM', 60]])] };
+  const g = slotGrid(day);
+  assert.deepEqual(g.stages[0].map(c => [c.row, c.span]), [[1, 2], [3, 4]]);
+});
+
+test('⭐⭐ STAGES SHARE ONE ORIGIN, so a later room starts further down', () => {
+  // Workshops open at 10am; the live stage starts at 2pm, 16 intervals later.
+  const day = { stages: [
+    sg('WORKSHOPS', [['10:00', 'AM', 60]]),
+    sg('LIVE', [['2:00', 'PM', 60]]),
+  ] };
+  const g = slotGrid(day);
+  assert.equal(g.stages[0][0].row, 1);
+  assert.equal(g.stages[1][0].row, 17);
+  assert.equal(g.rows, 20, '10am to 3pm is five hours of intervals');
+});
+
+test('⛔⛔ A SET PAST MIDNIGHT GOES AFTER, not twenty two hours before', () => {
+  const day = { stages: [sg('DJ', [['10:30', 'PM', 90], ['12:00', 'AM', 60]])] };
+  const g = slotGrid(day);
+  assert.deepEqual(g.stages[0].map(c => [c.row, c.span]), [[1, 6], [7, 4]]);
+});
+
+test('⚠ a zero or missing duration falls back to an hour rather than collapsing', () => {
+  const day = { stages: [sg('LIVE', [['5:00', 'PM', 0], ['6:00', 'PM', undefined]])] };
+  assert.deepEqual(slotGrid(day).stages[0].map(c => c.span), [4, 4]);
+});
+
+test('⚠ a set shorter than the interval still occupies one', () => {
+  const day = { stages: [sg('LIVE', [['5:00', 'PM', 5]])] };
+  assert.equal(slotGrid(day).stages[0][0].span, 1);
+});
+
+test('an empty day has no rows and throws nothing', () => {
+  assert.equal(slotGrid({ stages: [] }).rows, 0);
+  assert.equal(slotGrid(null).rows, 0);
+  assert.deepEqual(slotGrid({ stages: [{ slots: [] }] }).stages, [[]]);
+});
+
+test('the interval is configurable, and 30 minutes halves every span', () => {
+  const day = { stages: [sg('LIVE', [['5:00', 'PM', 60]])] };
+  assert.equal(slotGrid(day, 30).stages[0][0].span, 2);
+});
+
+/* ⭐ EMPTY RUNS — one card per stretch of nothing, ⛔ not one per interval. */
+test('a gap between two sets is ONE run, not several intervals', () => {
+  const day = { stages: [sg('LIVE', [['5:00', 'PM', 60], ['7:00', 'PM', 60]])] };
+  const g = slotGrid(day);
+  assert.deepEqual(stageGaps(g), [[{ row: 5, span: 4 }]], 'the quiet hour is one card');
+});
+
+test('back-to-back sets leave NO run at all', () => {
+  const day = { stages: [sg('LIVE', [['5:00', 'PM', 60], ['6:00', 'PM', 60]])] };
+  assert.deepEqual(stageGaps(slotGrid(day)), [[]]);
+});
+
+test('⭐⭐ A STAGE THAT RUNS LATER IS EMPTY UNTIL IT STARTS', () => {
+  // Workshops 10am; the live stage opens at noon, 8 intervals later.
+  const day = { stages: [
+    sg('WORKSHOPS', [['10:00', 'AM', 60]]),
+    sg('LIVE', [['12:00', 'PM', 60]]),
+  ] };
+  const gaps = stageGaps(slotGrid(day));
+  assert.deepEqual(gaps[0], [{ row: 5, span: 8 }], 'workshops are quiet after 11');
+  assert.deepEqual(gaps[1], [{ row: 1, span: 8 }], 'live is quiet before noon');
+});
+
+test('a stage with nothing at all is one run covering the day', () => {
+  const day = { stages: [sg('LIVE', [['5:00', 'PM', 60]]), sg('DJ', [])] };
+  const g = slotGrid(day);
+  assert.deepEqual(stageGaps(g)[1], [{ row: 1, span: g.rows }]);
+});
+
+test('an empty day yields no runs rather than throwing', () => {
+  assert.deepEqual(stageGaps(slotGrid({ stages: [] })), []);
+  assert.deepEqual(stageGaps(null), []);
+});
+
+test('⛔ NO BLANK AFTER THE LAST ACT when trailing runs are off', () => {
+  // A stage that closes at 6pm has nothing more to say; a blank under the
+  // stage close reads as time still to fill.
+  const day = { stages: [
+    sg('LIVE', [['5:00', 'PM', 60]]),
+    sg('DJ', [['5:00', 'PM', 120]]),
+  ] };
+  const g = slotGrid(day);
+  assert.deepEqual(stageGaps(g, { includeTrailing: false })[0], [],
+    'LIVE ends an hour early and gets NO trailing blank');
+  assert.deepEqual(stageGaps(g)[0], [{ row: 5, span: 4 }], 'and the default still returns it');
+});
+
+test('⭐ THE BLANK BEFORE A STAGE OPENS SURVIVES', () => {
+  const day = { stages: [
+    sg('WORKSHOPS', [['10:00', 'AM', 60]]),
+    sg('LIVE', [['11:00', 'AM', 60]]),
+  ] };
+  const gaps = stageGaps(slotGrid(day), { includeTrailing: false });
+  assert.deepEqual(gaps[1], [{ row: 1, span: 4 }], 'LIVE is blank until it opens');
+});
+
+test('⚠⚠ A STAGE THAT NEVER RAN KEEPS ITS BLANK — it is not a trailing gap', () => {
+  const day = { stages: [sg('LIVE', [['5:00', 'PM', 60]]), sg('DJ', [])] };
+  const g = slotGrid(day);
+  assert.deepEqual(stageGaps(g, { includeTrailing: false })[1], [{ row: 1, span: g.rows }]);
 });

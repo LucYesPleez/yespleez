@@ -99,3 +99,30 @@ test('empty input is empty output, not a phantom day', () => {
   assert.deepEqual(daysToRows([]), []);
   assert.deepEqual(daysToRows([{ name: '', slots: [] }]), []);
 });
+
+/* ⭐⭐ THE STAGE AXIS (S2e, 2026-08-27). A stage is an entity; a slot points at
+   one. ⛔ An event with no stages keeps NULL, which is the implicit stage. */
+test('a slot carries its stage in both directions', () => {
+  const rows = [{ id: 'a1b2c3d4-0000-4000-8000-000000000001', day_index: 0, position: 0,
+    time: '8:00', ampm: 'PM', dur_mins: 60, stage_id: 'stage-uuid-1' }];
+  const days = rowsToDays(rows);
+  assert.equal(days[0].slots[0].stageId, 'stage-uuid-1');
+  assert.equal(daysToRows(days)[0].stage_id, 'stage-uuid-1', 'and it survives the round trip');
+});
+
+test('⛔ a single-stage event keeps NULL — that IS the implicit stage', () => {
+  const days = rowsToDays([{ day_index: 0, position: 0, time: '8:00', ampm: 'PM', dur_mins: 60 }]);
+  assert.equal('stageId' in days[0].slots[0], false, 'no key at all rather than an empty one');
+  assert.equal(daysToRows(days)[0].stage_id, null);
+});
+
+test('⚠ two stages inside one day both survive, with their own slots', () => {
+  const rows = [
+    { day_index: 0, position: 0, time: '3:00', ampm: 'PM', dur_mins: 60, stage_id: 'A' },
+    { day_index: 0, position: 1, time: '3:00', ampm: 'PM', dur_mins: 60, stage_id: 'B' },
+  ];
+  const out = daysToRows(rowsToDays(rows));
+  assert.equal(out.length, 2);
+  assert.deepEqual(out.map(r => r.stage_id), ['A', 'B']);
+  assert.deepEqual(out.map(r => r.day_index), [0, 0], 'one DAY, two STAGES');
+});

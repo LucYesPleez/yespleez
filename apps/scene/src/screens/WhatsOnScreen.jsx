@@ -18,6 +18,7 @@ import EventCard from '../components/EventCard';
 import s from './WhatsOnScreen.module.css';
 import { eventCategoryBadges } from '../lib/eventBadges';
 import { eventCardImage } from '../lib/eventImage';
+import { eventRunsOn, eventRunsOnAny, eventDates } from '../lib/eventDays';
 import { useDragScroll } from '../hooks/useDragScroll';
 
 const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -307,16 +308,21 @@ export default function WhatsOnScreen() {
      lib/useTentativeDates.js for why they never become cards. */
   const { tentative, tentativeDaySet } = useTentativeDates();
 
+  /* ⭐⭐ EVERY DAY THE EVENT OCCUPIES, not just the day it opens. A three-day
+     festival marks three dots on the picker; it used to mark one, and the other
+     two days looked empty while it was running. See lib/eventDays.js. */
   const eventDaySet = useMemo(() => {
     const set = new Set();
-    events.forEach(ev => { if (ev.config?.date) set.add(ev.config.date); });
+    events.forEach(ev => eventDates(ev).forEach(d => set.add(d)));
     return set;
   }, [events]);
 
-  // When a specific date is selected, filter to just that date
+  // When a specific date is selected, filter to the events RUNNING on it —
+  // ⛔ not the events that START on it. Picking the Saturday of a Fri–Sun
+  // festival used to return nothing.
   const dateFiltered = useMemo(() => {
     if (!selectedDate) return events;
-    return events.filter(ev => ev.config?.date === selectedDate);
+    return events.filter(ev => eventRunsOn(ev, selectedDate));
   }, [events, selectedDate]);
 
   // Weekend range (Fri/Sat/Sun)
@@ -476,18 +482,37 @@ export default function WhatsOnScreen() {
     const t = setTimeout(() => scrollFeaturedTo((featIndex + 1) % n), FEATURED_AUTOPLAY_MS);
     return () => clearTimeout(t);
   }, [featIndex, featPaused, featuredPicks.length, prefersReducedMotion]);
-  const tonightEvents  = useMemo(() => events.filter(ev => ev.config?.date === todayIso && passes(ev)), [events, todayIso, passes]);
-  // `> todayIso` not `!== todayIso`: mid-weekend the range opens on a Friday that has already
-  // been, so this drops the nights gone as well as tonight (TONIGHT owns tonight).
-  const weekendEvents  = useMemo(() => events.filter(ev => weekendDates.has(ev.config?.date) && ev.config?.date > todayIso && passes(ev)), [events, weekendDates, todayIso, passes]);
+  /* ⭐⭐ THE THREE LANES BELOW ASK "IS IT ON?", ⛔ NEVER "DOES IT START?".
+     A festival running Friday to Sunday is on all three days. Matching the
+     start date alone listed it on Friday and dropped it on Saturday, which is
+     why organisers were splitting one festival into one event per day.
+     The lanes stay MUTUALLY EXCLUSIVE, in this order of precedence:
+       TONIGHT      runs today (including a festival that opened yesterday)
+       THIS WEEKEND runs on a weekend day still to come, and not today
+       COMING UP    everything else upcoming
+     ⛔ Without that precedence a Fri–Sun festival starting today would appear
+     in all three at once — three cards for the one event, which is the very
+     duplication this work exists to end. */
+  const tonightEvents  = useMemo(() => events.filter(ev => eventRunsOn(ev, todayIso) && passes(ev)), [events, todayIso, passes]);
+  // Weekend days STILL TO COME. Mid-weekend the range opens on a Friday that has
+  // already been, so the nights gone drop out here rather than in each filter.
+  const futureWeekendDates = useMemo(
+    () => new Set([...weekendDates].filter(d => d > todayIso)),
+    [weekendDates, todayIso]);
+  const weekendEvents  = useMemo(() => events.filter(ev =>
+    eventRunsOnAny(ev, futureWeekendDates) && !eventRunsOn(ev, todayIso) && passes(ev)),
+    [events, futureWeekendDates, todayIso, passes]);
   /* ⚠ NOT DATE-CAPPED (owner, 2026-08-02). This used to cut at `d <= dateStr(14)` so the list
      could run dry while events existed just past the fortnight. The full upcoming list is kept
      here; only how much of it is ON SCREEN is limited, and ADD MORE lifts that limit. */
   const comingUpAll = useMemo(() => events.filter(ev => {
     const d = ev.config?.date;
-    return d && d !== todayIso && !weekendDates.has(d) && passes(ev);
+    // Held by an earlier lane? Then it is not "coming up" — see the precedence
+    // note above. Both checks span the whole run, not just the opening day.
+    if (!d || eventRunsOn(ev, todayIso) || eventRunsOnAny(ev, futureWeekendDates)) return false;
+    return passes(ev);
   }).sort((a, b) => (a.config?.date || '').localeCompare(b.config?.date || '')),
-    [events, weekendDates, todayIso, passes]);
+    [events, futureWeekendDates, todayIso, passes]);
 
 
   useEffect(() => { setComingUpShown(COMING_UP_INITIAL); }, [category, postcode, radius, selectedDate]);

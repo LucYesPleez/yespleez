@@ -1,4 +1,5 @@
 import { EventEditorForm } from '@yespleez/event-editor';
+import DuplicateEventWarning from '../../components/DuplicateEventWarning';
 import { getEventBadges, CATEGORY_BADGES, CATEGORY_CHOICES, OPEN_MIC_BADGE, sameCategory } from '../../lib/eventBadges';
 import { PROFILE_TYPES } from '../../lib/profileTypes';
 import ImageUploadButton from '../../components/ImageUploadButton';
@@ -68,13 +69,27 @@ const adornments = {
 };
 
 export default function SceneEventEditor(props) {
+  /* ⭐⭐ "IS THIS ALREADY AN EVENT?" Built here rather than in the module-level
+     `adornments` above because it needs the SESSION, and the shared editor must
+     never learn who is asking. The package supplies the candidate; Scene runs
+     the query and owns the notice. ⛔⛔ It warns, it never blocks. */
+  const withDuplicateCheck = {
+    ...adornments,
+    duplicateWarning: candidate => (
+      <DuplicateEventWarning
+        {...candidate}
+        userId={props.userId}
+        hostProfileId={props.ed?.ownerId || null}
+      />
+    ),
+  };
   return (
     <EventEditorForm
       {...props}
       categories={categories}
       labelProfileType={labelProfileType}
       components={components}
-      adornments={adornments}
+      adornments={withDuplicateCheck}
     />
   );
 }

@@ -43,11 +43,25 @@ import { useNowMinute } from '../../hooks/useNowMinute';
 import { slotStates, phaseLabel, PLAYING, PLAYED, FINISHED, READY } from '../../lib/scheduleNow';
 import FollowHeartBtn from '../../components/FollowHeartBtn';
 import SlotCard from './SlotCard';
+import { dayDateLabel } from '../../lib/eventDays';
 import s from './SchedulePortrait.module.css';
 
-/** ⚠ Name first, date second, ordinal last — never "Day undefined". */
+/**
+ * ⭐⭐ A NAMED DAY STILL SHOWS ITS DATE. This used to be `name || date`, so the
+ * moment an organiser titled a day "The Jazz Doof" the date DISAPPEARED, and a
+ * three-day festival's chips read as three titles with nothing to place them on
+ * a calendar. The name answers "what is this day", the date answers "when" —
+ * two questions, and the second one is the one an artist checking their set
+ * time actually needs.
+ *
+ * ⚠ Ordinal last, never "Day undefined". A day with neither a name nor a date
+ * (a single-day event, or a row loaded before the event row arrived) keeps the
+ * old label exactly.
+ */
 function dayLabel(d) {
-  return d.name || d.date || `DAY ${d.dayIndex + 1}`;
+  const date = dayDateLabel(d.date);
+  if (d.name && date) return `${d.name} · ${date}`;
+  return d.name || date || `DAY ${d.dayIndex + 1}`;
 }
 
 /**

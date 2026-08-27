@@ -689,3 +689,146 @@
   transition: background .15s, border-color .15s;
 }
 .deleteBtn:hover { background: rgba(140,30,50,0.35); border-color: rgba(180,50,70,0.55); }
+
+/* ── The date range and the running order agree ──────────────────────────────
+   ⭐⭐ ONE REAL EVENT REPRESENTS ONE CONTINUOUS EVENT. `.spanNote` states the
+   span under the date row; `.dayRangeNotice` appears only when the running
+   order disagrees with it. ⛔ The notice is ORANGE, not red: nothing is broken
+   and nothing is blocked, the two halves have simply drifted apart. The same
+   orange the schedule already uses for "not told about this set time yet". */
+.spanNote {
+  margin: -8px 0 14px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.dayRangeNotice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  background: rgba(255, 140, 66, .12);
+  border: 1px solid rgba(255, 140, 66, .45);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: #FF8C42;
+}
+
+.dayRangeFixBtn {
+  flex-shrink: 0;
+  background: rgba(255, 140, 66, .18);
+  border: 1px solid rgba(255, 140, 66, .55);
+  border-radius: 8px;
+  color: #FF8C42;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 12px;
+  letter-spacing: 1.4px;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: background .15s, border-color .15s;
+}
+
+.dayRangeFixBtn:hover { background: rgba(255, 140, 66, .3); border-color: #FF8C42; }
+
+/* ── Stages ──────────────────────────────────────────────────────────────────
+   ⭐⭐ An event with no stages shows `.stageEmpty` only: one quiet line and an
+   invitation. ⛔ The strip must never imply an event OUGHT to have stages —
+   almost none do, and a room-by-room control shouted at a pub gig is noise. */
+.stageEmpty {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.stageStrip { margin-bottom: 12px; }
+
+/* ⛔ A RAIL, NOT A WRAPPING BLOCK — the same law the public schedule's chips
+   follow. Wrapped chips push the running order down the page as stages
+   multiply; a rail is one row at any count. */
+.stageChips {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding-bottom: 2px;
+}
+.stageChips::-webkit-scrollbar { display: none; }
+
+.stageChip {
+  flex-shrink: 0;
+  background: var(--card2);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  color: var(--muted);
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 12px;
+  letter-spacing: 1.3px;
+  padding: 5px 13px;
+  cursor: pointer;
+  transition: color .15s, border-color .15s, background .15s;
+}
+
+.stageChipOn {
+  color: var(--neon2);
+  border-color: var(--neon2);
+  background: rgba(0, 229, 255, .14);
+}
+
+.stageAddBtn {
+  flex-shrink: 0;
+  background: none;
+  border: 1px dashed var(--border);
+  border-radius: 14px;
+  color: var(--muted);
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 12px;
+  letter-spacing: 1.3px;
+  padding: 5px 13px;
+  cursor: pointer;
+}
+.stageAddBtn:hover:not(:disabled) { border-color: var(--neon2); color: var(--neon2); }
+.stageAddBtn:disabled { opacity: .5; cursor: default; }
+
+.stageTools {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.stageNameInput {
+  flex: 1;
+  min-width: 0;
+  background: var(--card2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: inherit;
+  font-size: 13px;
+  padding: 7px 10px;
+}
+
+/* ⛔ Muted, not red. Removing a stage is refused outright while it holds slots,
+   so this is never the destructive control it would look like in red. */
+.stageDeleteBtn {
+  flex-shrink: 0;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--muted);
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 11.5px;
+  letter-spacing: 1.3px;
+  padding: 7px 11px;
+  cursor: pointer;
+}
+.stageDeleteBtn:hover { border-color: #FF8C42; color: #FF8C42; }

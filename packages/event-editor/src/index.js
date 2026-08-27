@@ -33,4 +33,25 @@ export {
   // owns the reading and writing, as it already does for poster uploads.
   rowsToDays,
   daysToRows,
+  /* ⭐⭐ THE DATE RANGE AND THE RUNNING ORDER ARE ONE THING. A Fri–Sun festival
+     is ONE event with three days inside it. These let a consumer state the span,
+     date each day, and see when the two halves have drifted apart.
+     ⛔ `reconcileDays` only ever ADDS: a slot can hold a booked artist, so
+     removing a day is always the organiser's decision, never the form's. */
+  spanDays,
+  dayDate,
+  dayDateLabel,
+  dayRangeCheck,
+  reconcileDays,
 } from './eventEditorModel.js';
+
+/* ⭐⭐ IS THIS ALREADY AN EVENT? Warns when somebody is about to create a second
+   row describing an event that already exists. ⛔⛔ It WARNS, it never blocks:
+   two different gigs at one venue on one night are completely normal.
+   ⛔ No database knowledge travels with it — the consumer fetches candidates. */
+export {
+  findRelatedEvents,
+  namesLookRelated,
+  normaliseEventName,
+  REASON as DUPLICATE_REASON,
+} from './duplicateEvents.js';

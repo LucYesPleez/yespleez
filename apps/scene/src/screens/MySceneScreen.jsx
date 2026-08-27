@@ -470,8 +470,18 @@ export default function MySceneScreen() {
   }
 
   // Lazy-load avatars for followed profiles after main data is ready.
-  // M5.1 (D5): fetch by the resolved profiles' own ids; the avatar map stays
-  // keyed by user_id — the consumers' lookup key.
+  //
+  // ⚠ KEYED ON `r.id`, THE PROFILE'S OWN ID. It was keyed on `r.user_id`, which
+  // is not an identity: it is NULL on most profiles and SHARED by every profile
+  // belonging to one account. Both cases collapse many profiles onto a single
+  // map entry, so the last row written won and every profile in that bucket
+  // rendered the same avatar. Three DJ profiles on one account showed one face
+  // on the Following rail while opening any of them showed the right photo —
+  // the profile screen loads by `id`, which is never ambiguous.
+  //
+  // M5.1 (D5) had already moved the FETCH onto `id` and left the KEY behind,
+  // which is why the select below reads correctly and the lookup did not. The
+  // consumers were changed with it; `followAvatars` is keyed by profile id.
   useEffect(() => {
     if (!data?.followProfiles) return;
     const pids = [...new Set(Object.values(data.followProfiles).map(p => p.id).filter(Boolean))];
@@ -479,7 +489,7 @@ export default function MySceneScreen() {
     supabase.from('profiles').select('id,user_id,avatar').in('id', pids).then(({ data: rows }) => {
       if (!rows) return;
       const map = {};
-      rows.forEach(r => { if (r.avatar) map[r.user_id] = r.avatar; });
+      rows.forEach(r => { if (r.avatar) map[r.id] = r.avatar; });
       setFollowAvatars(map);
     });
   }, [data?.followProfiles]);
@@ -766,8 +776,33 @@ export default function MySceneScreen() {
   const dayEvents = selDate ? datedEvents.filter(ev => ev.config?.date === selDate) : [];
   const dayPersonalEvents = selDate ? personalEvents.filter(pe => pe.event_date === selDate) : [];
 
-  // Profile follows
-  const profileFollows = follows.filter(f => f.entity_type !== 'event');
+  // Profile follows.
+  //
+  // ⚠ DEDUPED BY THE RESOLVED PROFILE, NOT BY FOLLOW ROW. `follows` has TWO
+  // KEYSPACES: a modern row carries `target_profile_id` (a profile id) and a
+  // legacy row carries `entity_id` (a user_id). The same target can therefore
+  // hold more than one row — followed once from a card heart, once from a QR
+  // scan, once from the profile screen — and both keyspaces resolve to the one
+  // profile. This list renders ONE CARD PER ROW, so YesPleez appeared three
+  // times on a following list of five, identical name, town and bio.
+  //
+  // Deduping here rather than at the renderer keeps the count badge, the type
+  // filters and all three views (portrait, list, View all) agreeing on one
+  // number. Following answers "who am I following", and that is a set of
+  // PEOPLE — a second row about the same profile is bookkeeping, not a follow.
+  //
+  // Falls back to the row's own ids until `followProfiles` has loaded, so the
+  // first paint is never emptier than the data.
+  const profileFollows = (() => {
+    const seen = new Set();
+    return follows.filter(f => {
+      if (f.entity_type === 'event') return false;
+      const key = followProfiles[f.entity_id]?.id || f.target_profile_id || f.entity_id;
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  })();
   const availableTypes = [...new Set(profileFollows.map(f => f.entity_type).filter(Boolean))];
   const filteredFollows = followRoleFilter
     ? profileFollows.filter(f => f.entity_type === followRoleFilter)
@@ -1595,7 +1630,7 @@ export default function MySceneScreen() {
                           identity. Same fix as FollowingSection; see the note there.
                           The AVATAR lookup beside it is a different map and stays on
                           user_id by its own design (see the loader around :445). */}
-                      {updatedFollows.map(p => <PortraitCard key={p.id} profile={{ ...p, avatar: followAvatars[p.user_id] || p.avatar }} />)}
+                      {updatedFollows.map(p => <PortraitCard key={p.id} profile={{ ...p, avatar: followAvatars[p.id] || p.avatar }} />)}
                     </div>
                   ) : (
                     <div className={s.empty}>No updates since your last visit.</div>
@@ -1629,7 +1664,7 @@ export default function MySceneScreen() {
                         <div ref={followingDrag.ref} onMouseDown={followingDrag.onMouseDown} onMouseMove={followingDrag.onMouseMove} onMouseUp={followingDrag.onMouseUp} onMouseLeave={followingDrag.onMouseLeave} style={{ display:'flex', gap:10, overflowX:'auto', paddingBottom:8, WebkitOverflowScrolling:'touch', scrollbarWidth:'none', cursor:'grab' }}>
                           {filteredFollows.map(f => {
                             const p = followProfiles[f.entity_id];
-                            return p ? <PortraitCard key={f.entity_id} profile={{ ...p, avatar: followAvatars[p.user_id] || p.avatar }}
+                            return p ? <PortraitCard key={p.id} profile={{ ...p, avatar: followAvatars[p.id] || p.avatar }}
                               followAction={<FollowHeartBtn profile={p} onChange={onFollowHeart} />} /> : null;
                           })}
                         </div>
@@ -1637,7 +1672,7 @@ export default function MySceneScreen() {
                         <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
                           {filteredFollows.map(f => {
                             const p = followProfiles[f.entity_id];
-                            return p ? <ProfileCard key={f.entity_id} item={{ ...p, avatar: followAvatars[p.user_id] || p.avatar }}
+                            return p ? <ProfileCard key={p.id} item={{ ...p, avatar: followAvatars[p.id] || p.avatar }}
                               followAction={<FollowHeartBtn profile={p} onChange={onFollowHeart} />} /> : null;
                           })}
                         </div>
@@ -1711,7 +1746,7 @@ export default function MySceneScreen() {
                         ? <div className={s.empty}>{followRadius && !postcodeValid ? 'Enter a valid postcode to filter by distance.' : 'No results.'}</div>
                         : <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(150px,1fr))', gap:10 }}>
                             {/* `p.id` — see the Updates rail above. */}
-                            {visible.map(p => <PortraitCard key={p.id} profile={{ ...p, avatar: followAvatars[p.user_id] || p.avatar }} />)}
+                            {visible.map(p => <PortraitCard key={p.id} profile={{ ...p, avatar: followAvatars[p.id] || p.avatar }} />)}
                           </div>
                       }
                     </div>

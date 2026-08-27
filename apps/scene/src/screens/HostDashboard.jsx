@@ -25,6 +25,7 @@ import { memberProfileKeys, indexMemberProfiles } from './event/lineupProfiles';
    its own duration formatting through `fmtDur`. ⛔ Two formatters for one value
    is how the old row came to print "1.5 hrsm". */
 import { groupSlotsIntoDays, indexPerformances } from '../lib/eventSlots';
+import { eventDates } from '../lib/eventDays';
 /* ⭐ THE ONE definition of a dressed claim — shared with `useEventData`. */
 import { enrichClaims, attachNotifyState } from '../lib/claimEnrichment';
 /* ⛔ `DaySlots`, ⛔ NOT `SlotCard` directly — it owns the DndContext, so the
@@ -300,7 +301,7 @@ export default function HostDashboard({ userId: userIdProp }) {
       if (!evRows?.length) { setLoadingLineups(false); return; }
       const ids = evRows.map(e => e.id);
 
-      const [{ data: membersData }, { data: perfsData }, { data: slotRows }] = await Promise.all([
+      const [{ data: membersData }, { data: perfsData }, { data: slotRows }, { data: stageRows }] = await Promise.all([
         /* ⚠ BOTH STATUSES IN ONE READ, split immediately below — the same shape
            `useEventData` uses. ⛔ Nothing downstream may receive the mixed
            array: `buildHostLineup` is the BILL and a shortlisted member is
@@ -317,9 +318,17 @@ export default function HostDashboard({ userId: userIdProp }) {
         // from "never sent".
         supabase.from('performances')
           .select('id, lineup_member_id, slot_uuid, status, event_id').in('event_id', ids),
+        /* ⚠ `stage_id` IS SELECTED. Without it every slot looks unstaged here,
+           and the dashboard renders a multi-stage festival as one interleaved
+           list of times — which is exactly how this screen read before. */
         supabase.from('event_slots')
-          .select('id, event_id, day_index, day_name, position, legacy_key, time, ampm, dur_mins, label, label_color, pinned')
+          .select('id, event_id, day_index, day_name, position, legacy_key, time, ampm, dur_mins, label, label_color, pinned, stage_id')
           .in('event_id', ids).order('day_index').order('position'),
+        /* The stages themselves, for their names and their order. An event with
+           none is single-stage and this returns nothing, which is the norm. */
+        supabase.from('event_stages')
+          .select('id, event_id, name, position, accent')
+          .in('event_id', ids).order('position'),
       ]);
 
       /**
@@ -345,9 +354,20 @@ export default function HostDashboard({ userId: userIdProp }) {
       const byUid = {}; (mUid.data || []).forEach(p => { byUid[p.user_id] = p; });
       const memberProfiles = indexMemberProfiles(membersData, byPid, byUid);
 
+      /* ⭐ Each event's own dates, so a day of a multi-day event knows which
+         calendar day it is on the host's lineup too, not only on the event page.
+         DERIVED per event from the row already loaded above; ⛔ a slot never
+         stores a date, or it would disagree the moment the event moves. */
+      const datesByEvent = {};
+      (evRows || []).forEach(e => { datesByEvent[e.id] = eventDates(e); });
       const slotsByEvent = {};
       (slotRows || []).forEach(r => { (slotsByEvent[r.event_id] ||= []).push(r); });
-      Object.keys(slotsByEvent).forEach(k => { slotsByEvent[k] = groupSlotsIntoDays(slotsByEvent[k]); });
+      /* ⭐ Stages, per event. A multi-stage event's running order is then one
+         section per (day, stage) rather than every room's times interleaved
+         into a single list. */
+      const stagesByEvent = {};
+      (stageRows || []).forEach(r => { (stagesByEvent[r.event_id] ||= []).push(r); });
+      Object.keys(slotsByEvent).forEach(k => { slotsByEvent[k] = groupSlotsIntoDays(slotsByEvent[k], datesByEvent[k], stagesByEvent[k]); });
 
       /* ⛔⛔ THE BILL IS `on_bill` ONLY. `buildHostLineup` builds the LINEUP, the
          counts and the set-times strip; a shortlisted member reaching it would

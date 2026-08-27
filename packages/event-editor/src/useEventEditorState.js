@@ -227,18 +227,32 @@ export function useEventEditorState({ userId, uploadPosterCrop } = {}) {
   }
 
   // ── Days and slots ───────────────────────────────────────────────────
+
+  /**
+   * ⭐⭐ THE STAGE A NEW SLOT IS BORN ON. Null on a single-stage event, which is
+   * every event until somebody adds a stage, and the slot then carries no
+   * `stageId` at all — that IS the implicit stage.
+   *
+   * ⛔⛔ IT LIVES HERE, NOT IN THE FORM, because `addSlot` and `insertSlot` are
+   * here and they are what has to stamp it. On an event WITH stages, a slot
+   * with no stage is the invalid state S2d prevents at the write layer, so the
+   * stamp cannot be an afterthought applied by whoever happens to render.
+   */
+  const [activeStageId, setActiveStageId] = useState(null);
+  const stageStamp = () => (activeStageId ? { stageId: activeStageId } : {});
+
   function addDay() { setDays(p => [...p, { id: makeId(), name: '', slots: [] }]); }
   function removeDay(id) { setDays(p => p.filter(d => d.id !== id)); }
   function updateDayName(id, name) { setDays(p => p.map(d => d.id === id ? { ...d, name } : d)); }
   // 1 hr to match the Quick Generator's own default (19:00–23:00 @ 60 min) — a
   // manually added slot shouldn't default to a different length than the
   // generated ones sitting next to it.
-  function addSlot(dayId) { setDays(p => p.map(d => d.id !== dayId ? d : { ...d, slots: [...d.slots, { id: makeId(), hh: '8', mm: '00', ampm: 'PM', dur: 60, label: '' }] })); }
+  function addSlot(dayId) { setDays(p => p.map(d => d.id !== dayId ? d : { ...d, slots: [...d.slots, { id: makeId(), hh: '8', mm: '00', ampm: 'PM', dur: 60, label: '', ...stageStamp() }] })); }
   function insertSlot(dayId, at) {
     setDays(p => p.map(d => {
       if (d.id !== dayId) return d;
       const slots = [...d.slots];
-      slots.splice(at, 0, { id: makeId(), hh: '8', mm: '00', ampm: 'PM', dur: 60, label: '' });
+      slots.splice(at, 0, { id: makeId(), hh: '8', mm: '00', ampm: 'PM', dur: 60, label: '', ...stageStamp() });
       return { ...d, slots };
     }));
   }
@@ -341,6 +355,7 @@ export function useEventEditorState({ userId, uploadPosterCrop } = {}) {
 
     // actions
     startCropDrag, keepCrop,
+    activeStageId, setActiveStageId,
     addDay, removeDay, updateDayName,
     addSlot, insertSlot, updateSlot, removeSlot,
 

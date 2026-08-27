@@ -691,3 +691,196 @@
   color: rgba(232,232,240,.85);
   white-space: pre-wrap;
 }
+
+/* ── HOST STAGE PAGER ─────────────────────────────────────────────────────────
+   ⭐⭐ Stages side by side as snap pages, neighbour peeking, rows aligned by
+   time. The multi-stage design ratified 2026-08-20, rendered for the HOST.
+
+   ⛔⛔ THIS IS NOT SchedulePortrait's STYLESHEET AND MUST NOT BECOME IT. That is
+   the read-only projection and it stays untouched. The two share their temporal
+   GEOMETRY (lib/schedulePortrait.js) and nothing else — no markup, no classes.
+   ⚠ If these ever need to look identical, that is a decision to make once and
+   deliberately, ⛔ not by quietly copying values between the two files. */
+.stagePager {
+  /* ⭐ ONE INTERVAL = 15 MINUTES. An hour is 4 of these, so a normal card is
+     4 x 24px. ⛔ Change this and every card changes height together, which is
+     the point: the grid is the only thing deciding how tall a set looks. */
+  /* ⚠⚠ BIG ENOUGH THAT A FULL CARD FITS ITS OWN FOUR INTERVALS. At 24px an
+     hour card needed 102px for its content, so ITS rows stretched to 25.5px
+     while a 30 minute slot's rows stayed at 24 — and the short card came out
+     UNDER half the tall one instead of exactly half. ⛔ Do not lower this
+     without re-measuring a full card: the proportions silently stop being
+     proportions, and nothing errors. */
+  --slot-interval: 26px;
+  display: grid;
+  /* ⛔ NO ROW GAP. A gap between intervals would add up down the page and the
+     columns would drift apart. Cards space themselves inside their cell. */
+  row-gap: 0;
+  column-gap: 10px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  /* ⭐ CENTRE, not start: it is what makes the neighbour peek on BOTH sides.
+     The browser clamps at the ends by itself, so the first and last stage sit
+     flush rather than overscrolling. */
+  scroll-snap-type: x mandatory;
+  padding-bottom: 4px;
+  cursor: grab;
+  /* ⛔ NO VISIBLE SCROLLBAR — the app's standing rule. */
+  scrollbar-width: none;
+}
+.stagePager::-webkit-scrollbar { display: none; }
+.stagePager:active { cursor: grabbing; }
+
+/* ⚠ The heading cells are the SNAP TARGETS, and their measured geometry is what
+   `centreOn` and `nearestCentred` read. ⛔ Do not move snapping onto the cards:
+   the rows would each become a target and the pager would snap vertically. */
+.stagePageHead {
+  scroll-snap-align: center;
+  padding: 2px 0 6px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 2px;
+}
+
+.stagePageName {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 13px;
+  letter-spacing: 1.6px;
+  color: var(--neon2);
+}
+
+/* ⭐ A slot's cell. It fills the intervals the set runs for, so the CARD is
+   what stretches. ⛔ The bottom padding is inside the span deliberately: it is
+   the gap between stacked cards, and putting it in a grid row-gap instead
+   would accumulate down the page and pull the columns out of alignment. */
+.stagePageCell {
+  min-height: 0;
+  padding-bottom: 6px;
+  box-sizing: border-box;
+}
+/* ⚠⚠ THE WHOLE CHAIN STRETCHES, ⛔ not just the first child. SlotCard renders
+   two unnamed wrappers before its own `.slot`, and each one that does not
+   stretch stops the height there. Measured: a 90 minute card sat at 88px in a
+   144px cell, so it read as an hour with a half-hour break after it, and a 30
+   minute card overflowed its 48px cell into the act below. ⛔ Do not shorten
+   this to a single selector. */
+/* ⚠⚠ FLEX STRETCH, ⛔ not a percentage height. The cell knows its own height
+   (set in px from the span); each wrapper then stretches to whatever the cell
+   actually is. A percentage would resolve against an indefinite row and be
+   ignored, which is how every card quietly reverted to its natural 88px.
+   ⭐  also lets an EXPANDED card grow past the cell and take
+   the row with it, instead of rendering over the act below. */
+/* ⚠ ABOVE THE HATCH. The backdrop occupies the same grid area, so without a
+   stacking order the cards would paint under it. */
+.stagePageCell { display: flex; flex-direction: column; position: relative; z-index: 1; }
+
+/* ⭐ AN EMPTY STRETCH. Card-shaped and blank: the same radius and the same
+   footprint as the slots either side, so a quiet hour sits IN the running order
+   rather than behind it.
+   ⛔ NO TEXT AND NO TIME. The cards either side already say when the gap is,
+   and a blank card that labels itself is the "nothing on" filler this grid was
+   built to remove. */
+.stagePageFill {
+  border-radius: 10px;
+  pointer-events: none;
+  margin-bottom: 6px;
+  background: rgba(255, 255, 255, .02);
+  border: 1px solid rgba(255, 255, 255, .05);
+  box-sizing: border-box;
+}
+.stagePageCell > * {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  box-sizing: border-box;
+}
+
+/* ⛔⛔ NO `flex-direction` ON THIS ONE. It is the row that holds the DRAG GRIP
+   beside the card — `[grip][card]` — and forcing it to a column stacked the
+   grip ON TOP of the card, dots in the corner instead of a bar down the side.
+   ⭐ It only needs to STRETCH; its own direction is its business. */
+.stagePageCell > * > * {
+  flex: 1 1 auto;
+  min-height: 0;
+  box-sizing: border-box;
+}
+.stagePageCell .slot { flex: 1 1 auto; box-sizing: border-box; }
+
+/* ⚠ The background image follows the card rather than its own natural size, or
+   a stretched card shows a band of empty panel below the artwork. */
+.stagePageCell .slotBgImg { height: 100%; object-fit: cover; }
+
+/* The chip rail. ⭐ Says WHERE YOU ARE and jumps; ⛔ it is never a filter that
+   hides a stage — every stage stays on the page, one swipe away. */
+.stageChips {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  margin-bottom: 8px;
+}
+.stageChips::-webkit-scrollbar { display: none; }
+
+.stageChip {
+  flex: 0 0 auto;
+  background: var(--card2);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  color: var(--muted);
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 12px;
+  letter-spacing: 1.3px;
+  padding: 5px 13px;
+  cursor: pointer;
+  transition: color .15s, border-color .15s, background .15s;
+}
+
+.stageChipOn {
+  color: var(--neon2);
+  border-color: var(--neon2);
+  background: rgba(0, 229, 255, .14);
+}
+
+/* ── A SET SHORTER THAN AN HOUR ───────────────────────────────────────────────
+   ⭐⭐ THE CARD GETS SHORT, SO ITS CONTENTS CENTRE AND THE LENGTH DROPS OFF.
+   A 30 minute set is 42px tall, and `.timeBlock` alone measured 86px with its
+   own padding while `.slotInfo` measured 70px — both overflowed the card and
+   the name sat hard against the top edge with the time clipped beside it.
+
+   ⛔ THE FIX IS NOT A SMALLER FONT. The name and the time stay exactly as legible
+   as on every other card; only the padding gives way, and what is dropped is the
+   one thing already stated by the card's own height. */
+/* ⛔ AM/PM GOES TOO, with the length. On a card this short the two small lines
+   under the time crowded it, and neither earns its place: the run of times down
+   the column already says which half of the day this is. */
+/* ⛔ ONLY ON THE TINY ONES. AM/PM and the length come off when there is
+   genuinely no room — half an hour or less. ⚠⚠ This used to key off ,
+   which stripped the length from a 40 MINUTE set too; at 3 intervals that card
+   is 78px and has room for all three lines. */
+/* ⛔ AM/PM GOES ON ANYTHING UNDER AN HOUR. The run of times down the column
+   already says which half of the day it is, and on a short card the second
+   small line under the time is the first thing that crowds it. */
+.stagePageCellShort .timeAmPm { display: none; }
+
+/* ⛔ THE LENGTH ONLY GOES ON THE TINY ONES, where there is genuinely no room.
+   ⚠⚠ It used to go at  too, which stripped it from a 40 MINUTE set; at
+   3 intervals that card is 78px and the length fits with space over. */
+.stagePageCellTiny .timeDur { display: none; }
+
+.stagePageCellShort .timeBlock {
+  /* ⚠ Horizontal padding KEPT, vertical padding gone. The columns either side
+     must stay in line with the full-height cards above and below. */
+  padding-top: 0;
+  padding-bottom: 0;
+  justify-content: center;
+}
+
+.stagePageCellShort .slotInfo {
+  padding-top: 0;
+  padding-bottom: 0;
+  display: flex;
+  align-items: center;
+  /* ⚠ One line only at this height. ⛔ Wrapping would push the name back out of
+     the card, which is the problem this rule exists to solve. */
+  min-height: 0;
+}

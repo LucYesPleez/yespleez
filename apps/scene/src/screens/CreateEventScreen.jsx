@@ -12,6 +12,7 @@ import VenueCheckSheet, { nearestVenues } from "../components/VenueCheckSheet";
 import EventEditorForm from "./event/SceneEventEditor";
 import { uploadPosterCrop } from "../lib/uploadImage";
 import { submitVenueRequest, venueRequestFromConfig } from "../lib/venueSubmissions";
+import { loadEventStages, createEventStage, renameEventStage, deleteEventStage, nextStageName, nextStageAccent } from '../lib/eventStages';
 
 /**
  * SCENE’S EVENT SCREEN — plumbing only.
@@ -36,6 +37,7 @@ export default function CreateEventScreen() {
   /* ⚠ An unreadable running order is stated, never guessed at — see the load
      effect. A form that silently shows the wrong schedule will save it. */
   const [slotLoadError, setSlotLoadError] = useState('');
+  const [stages, setStages] = useState([]);
 
   /**
    * ⭐⭐ ALL FORM STATE LIVES IN THE SHARED HOOK, so Festival Companion renders
@@ -136,6 +138,15 @@ export default function CreateEventScreen() {
         ed.setDays([]); ed.setSetTimesNeeded(false);
       }
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editId]);
+
+  /* ⭐ An event's stages, when editing. ⛔ Separate from the load above: stages
+     are rows the organiser creates and removes live, not part of the config
+     blob, and this list is re-read after each of those actions. */
+  useEffect(() => {
+    if (!editId) { setStages([]); return; }
+    refreshStages(editId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editId]);
 
@@ -375,6 +386,71 @@ export default function CreateEventScreen() {
    * to the Lineup with no set time, which is where the LINEUP surface shows
    * them. That is the ratified model, not a silent loss.
    */
+  /**
+   * ⭐⭐ STAGES — the database half. The editor holds the SHAPE of a multi-stage
+   * running order; ⛔ it must never learn where stages live, so the reading, the
+   * creating and the removing are all here.
+   *
+   * ⛔⛔ A STAGE EXISTS THE MOMENT IT IS ADDED, not when the form is saved. It
+   * has to: `event_slots.stage_id` is a foreign key, so a slot cannot point at a
+   * stage that has no row yet, and the FIRST stage adopts the event's existing
+   * slots inside the RPC's transaction. That means stages are only offered on an
+   * event that has already been created once — there is no event id to hang
+   * them on before that, and inventing a local one would put the adoption on the
+   * wrong side of the save.
+   */
+  async function refreshStages(id = editId) {
+    if (!id) return;
+    try { setStages(await loadEventStages(supabase, id)); }
+    catch (e) { setError(`Could not load this event's stages: ${e.message}`); }
+  }
+
+  async function handleCreateStage() {
+    if (!editId) {
+      setError('Save the event first, then you can add a second stage to it.');
+      return null;
+    }
+    try {
+      const created = await createEventStage(
+        supabase, editId, nextStageName(stages), nextStageAccent(stages));
+      await refreshStages();
+      /* ⭐ The FIRST stage adopted every existing slot inside the RPC, so the
+         form's copy of those slots is now stale — it still thinks they have no
+         stage, and saving would write NULL straight back over the adoption.
+         Stamp them here rather than re-reading the whole running order. */
+      if (stages.length === 0 && created?.id) {
+        ed.setDays(ds => ds.map(d => ({
+          ...d, slots: (d.slots || []).map(sl => ({ ...sl, stageId: sl.stageId || created.id })),
+        })));
+      }
+      return created;
+    } catch (e) {
+      setError(`Could not add that stage: ${e.message}`);
+      return null;
+    }
+  }
+
+  async function handleRenameStage(stageId, name) {
+    // Optimistic: the input must stay responsive while typing.
+    setStages(p => p.map(st => (st.id === stageId ? { ...st, name } : st)));
+    try { await renameEventStage(supabase, stageId, name); }
+    catch (e) { setError(`Could not rename that stage: ${e.message}`); refreshStages(); }
+  }
+
+  async function handleDeleteStage(stageId) {
+    /* ⛔ REFUSED WHILE IT HOLDS SLOTS. Checked against the FORM's slots, not the
+       database's, so a slot the organiser has just dragged onto this stage
+       counts even though it is not saved yet. The database refuses too
+       (ON DELETE RESTRICT); this is the half that can explain why. */
+    const held = (ed.days || []).flatMap(d => d.slots || []).filter(sl => sl.stageId === stageId);
+    if (held.length) {
+      setError(`That stage still has ${held.length} slot${held.length === 1 ? '' : 's'}. Move or remove them first.`);
+      return;
+    }
+    try { await deleteEventStage(supabase, stageId, []); await refreshStages(); }
+    catch (e) { setError(`Could not remove that stage: ${e.message}`); }
+  }
+
   async function persistSlots(eventId) {
     if (!eventId || slotLoadError) return;
     try {
@@ -446,6 +522,13 @@ export default function CreateEventScreen() {
           ed={ed}
           editId={editId}
           userId={session?.user?.id}
+          /* ⭐⭐ STAGES. The editor holds the shape; Scene owns the rows. ⛔ An
+             event with none of these is single-stage and shows no stage chrome
+             at all, which is every event until somebody adds one. */
+          stages={stages}
+          onCreateStage={handleCreateStage}
+          onRenameStage={handleRenameStage}
+          onDeleteStage={handleDeleteStage}
           actions={
             <>
               {/* ⚠ An unreadable running order, said out loud. The schedule

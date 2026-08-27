@@ -4,7 +4,12 @@
 // "host dragging them around" is entirely in the props: without `editable`
 // there is no DndContext at all, and without `isHost` every action handler is
 // null. Nothing here reads session or host state directly.
-import { useState, useRef, useLayoutEffect } from 'react';
+import { useState, useRef, useLayoutEffect, Fragment } from 'react';
+/* ⭐ SHARED TEMPORAL GEOMETRY, and nothing else. The public schedule grows its
+   own markup from these same functions, so the two projections cannot disagree
+   about which row a set belongs on. ⛔ No component is shared between them. */
+import { slotGrid, stageGaps, nearestCentred, centreOn } from '../../lib/schedulePortrait';
+import { useDragScroll } from '../../hooks/useDragScroll';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragOverlay,
@@ -16,6 +21,267 @@ import {
 import { supabase } from '../../lib/supabase';
 import SlotCard from './SlotCard';
 import s from '../EventScreen.module.css';
+
+/**
+ * ⭐⭐ THE HOST'S STAGE PAGER. Stages sit SIDE BY SIDE as snap pages with the
+ * neighbour peeking, and rows align by TIME across them so the peek is the
+ * comparison — the multi-stage design ratified 2026-08-20.
+ *
+ * ⛔⛔ THIS IS THE HOST PROJECTION, ⛔ NOT `SchedulePortrait`. That component is
+ * the ratified READ-ONLY projection and stays untouched: it hardwires
+ * `isHost={false}`, while every host verb and the whole drag-and-drop live
+ * here. Threading host editing through the public schedule would make the
+ * punter's page responsible for the organiser's behaviour.
+ *
+ * ⭐ WHAT IS GENUINELY SHARED is the temporal geometry, and only that:
+ * `timeAxis`, `cellsForStage` and the three measurement helpers in
+ * `lib/schedulePortrait.js`. So the two projections cannot disagree about which
+ * row a 9:00 PM set belongs on, while sharing no markup and no stylesheet.
+ *
+ * ⚠⚠ CELLS ARE DIRECT GRID CHILDREN, ⛔ never wrapped per stage. A wrapper gives
+ * each stage its own formatting context, the rows stop sharing heights, and the
+ * time alignment silently disappears — the layout still looks plausible, which
+ * is what makes it dangerous.
+ */
+function StagePages({ stages, renderCell, dayKey, sync }) {
+  const drag = useDragScroll();
+  const scrollerRef = drag.ref;
+  const active = sync.index;
+
+  /**
+   * ⚠⚠ TWO SHAPES MEET HERE, and this is the whole adapter.
+   *
+   * `timeAxis` and `cellsForStage` were written for `resolveSchedule`, whose
+   * stage slots are ENTRIES — `{ slot, claim }`. This component's stages come
+   * from `groupSlotsIntoDays`, whose slots are the render slots themselves.
+   * Passing the latter straight in read `entry.slot.time` off a plain slot and
+   * threw `Cannot read properties of undefined`.
+   *
+   * ⭐ Wrapping here rather than changing the shared functions keeps the public
+   * projection's contract exactly as it was. ⛔ Do not "simplify" this by
+   * making the geometry tolerate two shapes — one of them would then be
+   * undocumented, and the next caller would pick the wrong one.
+   */
+  const paged = stages.map(st => ({
+    ...st,
+    slots: (st.slots || []).map(sl => (sl && sl.slot ? sl : { slot: sl })),
+  }));
+  /**
+   * ⭐⭐ A CONTINUOUS 15-MINUTE GRID, ⛔ not a row per start time. Each card
+   * occupies the intervals it actually runs for — an hour is 4, ninety minutes
+   * is 6 — so the running order reads as a shape and length on the page is
+   * length in the room.
+   *
+   * ⚠ It also removes every "nothing on" filler. Those existed only to hold
+   * columns aligned when one stage started at an hour another did not; on a
+   * continuous grid an empty interval is simply empty.
+   */
+  const grid = slotGrid({ stages: paged }, 15);
+  /* ⭐ The stretches with nothing programmed, ONE card per stretch.
+     ⛔ NOT after the last act: a blank under the stage close reads as time
+     still to fill. A stage that never ran at all keeps its blank. */
+  const gaps = stageGaps(grid, { includeTrailing: false });
+
+  const heads = () => Array.from(
+    scrollerRef.current?.querySelectorAll(`.${s.stagePageHead}`) || []);
+
+  const jumpTo = i => {
+    sync.set(i, dayKey);
+    centreOn(scrollerRef.current, heads()[i]);
+  };
+
+  /**
+   * ⭐⭐ ONE STAGE ACROSS THE WHOLE EVENT. Swiping any day moves every day, so
+   * the rooms stay stacked under one another and the festival reads down a
+   * single column. ⛔ A per-day stage would mean page 2 is the DJ stage on
+   * Friday and the workshops on Sunday, which is what "only Saturday moved"
+   * looked like.
+   */
+  /**
+   * ⛔⛔ A PAGER BEING SCROLLED BY THE SYNC MUST NEVER BROADCAST. This is the
+   * whole cure for the pagers bouncing back and forth.
+   *
+   * ⚠⚠ WHAT WENT WRONG: excluding only the INITIATOR is not enough. The other
+   * days smooth-scroll, their own `onScroll` fires part-way through that
+   * animation, and mid-flight the nearest page is still the OLD one — so they
+   * broadcast it, `from` flips to them, the day under the hand stops being
+   * excluded, and it gets dragged back. Then it re-broadcasts. That is the
+   * oscillation, and it is self-sustaining.
+   *
+   * ⭐ So a programmatic scroll is flagged, and the flag suppresses broadcasting
+   * until the page actually arrives. ⛔ Do not replace this with a timer: the
+   * smooth scroll has no fixed duration, and a timeout either cuts it off or
+   * leaves the pager mute.
+   */
+  const programmatic = useRef(false);
+
+  const onScroll = () => {
+    const next = nearestCentred(scrollerRef.current, heads());
+    if (programmatic.current) {
+      if (next === sync.index) programmatic.current = false;   // arrived
+      return;
+    }
+    if (next !== sync.index) sync.set(next, dayKey);
+  };
+
+  /* ⭐ THE HAND ALWAYS WINS. Touching a pager cancels its programmatic flag, so
+     a sync that is still settling can never swallow a real swipe — and a flag
+     left stranded by an interrupted animation cannot mute the pager forever. */
+  const takeOver = () => { programmatic.current = false; };
+
+  /**
+   * ⚠⚠ THE INITIATOR IS EXCLUDED, and that is what stops a feedback loop. The
+   * day under the hand is already where it should be; scrolling it again from
+   * here fights the drag, and its own `onScroll` would then re-broadcast and
+   * yank every other day back. ⛔ Never sync the pager that reported the change.
+   */
+  useLayoutEffect(() => {
+    if (sync.from === dayKey) return;
+    const el = scrollerRef.current;
+    const head = heads()[sync.index];
+    if (!el || !head) return;
+    if (nearestCentred(el, heads()) === sync.index) { programmatic.current = false; return; }
+    programmatic.current = true;
+    centreOn(el, head);
+  }, [sync.index, sync.from, dayKey]);   // eslint-disable-line react-hooks/exhaustive-deps
+
+  /**
+   * ⭐⭐ SNAP IS SUSPENDED FOR THE LENGTH OF A DRAG, AND ⛔ ONLY A DRAG.
+   * `scroll-snap-type: x mandatory` re-snaps after every write to `scrollLeft`,
+   * so the drag hook's 1:1 tracking gets yanked back on every mousemove and the
+   * pager reads as immovable. ⭐ Restoring it IS the release animation: the
+   * browser settles to the nearest page itself, so there is no easing code of
+   * our own and no half-stage resting state to design around.
+   */
+  const suspend = () => { if (scrollerRef.current) scrollerRef.current.style.scrollSnapType = 'none'; };
+  const restore = () => { if (scrollerRef.current) scrollerRef.current.style.scrollSnapType = ''; };
+
+  return (
+    <>
+      <div className={s.stageChips}>
+        {stages.map((st, i) => (
+          <button
+            key={st.id ?? 'implicit'}
+            type="button"
+            className={`${s.stageChip} ${i === active ? s.stageChipOn : ''}`}
+            aria-current={i === active ? 'true' : undefined}
+            onClick={() => jumpTo(i)}
+          >
+            {st.name || 'STAGE'}
+          </button>
+        ))}
+      </div>
+
+      <div
+        ref={scrollerRef}
+        onScroll={onScroll}
+        /* ⭐ Every way a human can start moving this thing clears the flag:
+           mouse, finger and wheel. ⛔ Missing one of them leaves that input
+           unable to change the stage while a sync is settling. */
+        onWheel={takeOver}
+        onTouchStart={takeOver}
+        onPointerDown={takeOver}
+        onMouseDown={e => { suspend(); takeOver(); drag.onMouseDown(e); }}
+        onMouseUp={e => { drag.onMouseUp(e); restore(); }}
+        onMouseMove={drag.onMouseMove}
+        /* ⚠ Leaving the scroller ends the drag (the hook's own rule), so snap
+           has to come back here too, or dragging out leaves it permanently
+           unsnapped and every later swipe rests mid-stage. */
+        onMouseLeave={e => { drag.onMouseLeave(e); restore(); }}
+        className={s.stagePager}
+        /* ⚠⚠ EVERY CELL IS PLACED EXPLICITLY, so there is no auto-flow to fight
+           and no filler to invent. Row 1 is the headings; the slot rows are the
+           day's intervals. ⛔ Do not add `grid-auto-flow`: a card that failed to
+           set its own row would then silently land wherever there was space. */
+        style={{
+          gridTemplateColumns: `repeat(${stages.length}, 88%)`,
+          /* ⚠⚠ `minmax(interval, auto)`, ⛔ NOT a fixed interval. An interval is
+             the MINIMUM height of a row, not its ceiling. With a fixed height an
+             expanded card had nowhere to grow and rendered ON TOP of the act
+             below it.
+             ⭐ Rows are shared by every column, so a row that grows pushes the
+             rest of the schedule down in ALL stages at once — the alignment
+             survives expansion instead of being broken by it. */
+          gridTemplateRows: `auto repeat(${grid.rows}, minmax(var(--slot-interval), auto))`,
+        }}
+      >
+        {stages.map((st, i) => (
+          <div
+            key={'h' + (st.id ?? 'implicit')}
+            className={s.stagePageHead}
+            style={{ gridRow: 1, gridColumn: i + 1 }}
+          >
+            <span className={s.stagePageName}>{st.name || 'STAGE'}</span>
+          </div>
+        ))}
+
+        {/* ⭐⭐ AN EMPTY STRETCH IS AN EMPTY CARD, ⛔ not a texture behind the column.
+            A quiet two hours reads as one blank card sitting in the running
+            order, the same shape as the cards either side of it.
+            ⛔ ONE PER STRETCH, ⛔ never one per interval — eight stacked tiles
+            for a quiet two hours is the 'nothing on' filler this grid removed.
+            ⛔ It carries NO time and NO text: the cards either side already say
+            when the gap is. */}
+        {gaps.map((runs, i) => runs.map(run => (
+          <div
+            key={'gap' + i + '-' + run.row}
+            aria-hidden="true"
+            className={s.stagePageFill}
+            style={{ gridColumn: i + 1, gridRow: `${run.row + 1} / span ${run.span}` }}
+          />
+        )))}
+
+        {stages.map((st, sIdx) => (
+          <Fragment key={'c' + (st.id ?? 'implicit')}>
+            {grid.stages[sIdx].map(cell => (
+              <div
+                key={cell.entry.slot.id}
+                /**
+                 * ⭐ TWO DEGREES OF SHORT, because they are two different
+                 * problems. ⛔ Not a fixed pixel height: change
+                 * `--slot-interval` and these still mean "under an hour" and
+                 * "half an hour or less".
+                 *
+                 *   short (< 4 intervals)  the padding gives way and the
+                 *                          contents centre. Everything is still
+                 *                          said.
+                 *   tiny  (<= 2 intervals) there is genuinely no room, so AM/PM
+                 *                          and the length come off.
+                 *
+                 * ⚠⚠ ONE RULE WAS NOT ENOUGH. `span < 4` stripped the length
+                 * from a 40 minute set as well as a 30 minute one, and a 40
+                 * minute card is 3 intervals with room to spare.
+                 */
+                className={[
+                  s.stagePageCell,
+                  cell.span < 4 ? s.stagePageCellShort : '',
+                  cell.span <= 2 ? s.stagePageCellTiny : '',
+                ].filter(Boolean).join(' ')}
+                /* ⭐ `+ 1` for the heading row. ⛔ The span is the set's real
+                   length: a 90 minute act is genuinely taller than an hour one,
+                   which is the whole point of the grid. */
+                /* ⚠⚠ THE HEIGHT IS SET IN PIXELS HERE, ⛔ not with `height: 100%`.
+                   The rows are `minmax(interval, auto)` so a card can grow when
+                   it expands — which makes the row height INDEFINITE, and a
+                   percentage height against an indefinite parent is ignored. The
+                   cards silently fell back to their natural 88px and every set
+                   looked an hour long again. A `calc` off the interval is the
+                   same number, expressed so it always resolves. */
+                style={{
+                  gridRow: `${cell.row + 1} / span ${cell.span}`,
+                  gridColumn: sIdx + 1,
+                  minHeight: `calc(var(--slot-interval) * ${cell.span})`,
+                }}
+              >
+                {renderCell(cell.entry.slot)}
+              </div>
+            ))}
+          </Fragment>
+        ))}
+      </div>
+    </>
+  );
+}
 
 export default function DaySlots({
   eventId, days, claims, allMixSlots,
@@ -150,8 +416,101 @@ export default function DaySlots({
   const effectiveIsHost = isHost;
   const showEditor = editable;
 
+  /**
+   * ⭐⭐ THE STAGE IS AN EVENT-WIDE CHOICE, ⛔ NOT A PER-DAY ONE. Every day
+   * renders the same stages in the same order, so one index positions all of
+   * them and the rooms line up under each other down the page.
+   *
+   * `from` records WHICH day reported the change, so that day can be left alone
+   * while the others follow it. Without it the pager under the hand gets
+   * scrolled by its own broadcast.
+   */
+  const [stageSync, setStageSync] = useState({ index: 0, from: null });
+  const sync = {
+    index: stageSync.index,
+    from: stageSync.from,
+    set: (index, from) => setStageSync(prev => (
+      prev.index === index && prev.from === from ? prev : { index, from })),
+  };
+
+  /**
+   * ⭐⭐ ONE BLOCK PER (DAY, STAGE). `groupSlotsIntoDays` nests stages inside a
+   * day — the shape `resolveSchedule` uses and the shape the ratified stage
+   * PAGER needs — while this component still renders a flat list of blocks and
+   * therefore needs no stage logic of its own. That is what keeps its
+   * drag-and-drop, its FLIP measuring and its reorder untouched.
+   *
+   * ⚠ A day with no `stages` (every single-stage event, which is almost all of
+   * them) passes through as itself, so nothing about those changes at all.
+   *
+   * ⚠⚠ THIS IS NOT THE PAGER YET. Ratified 2026-08-20: stages sit SIDE BY SIDE
+   * as snap pages with the neighbour peeking, rows aligned by time. These are
+   * stacked blocks. They read correctly and in the right order; they are not
+   * the approved layout, and ⛔ this note stays until they are.
+   */
   return days.map((day, di) => {
     const slots = day.slots || [];
+
+    /**
+     * ⭐⭐ THE STAGES OF THIS DAY, as pages. `groupSlotsIntoDays` nests them
+     * inside the day; ⛔ this never reconstructs them from `stage_id`.
+     *
+     * ⚠ A day with no stages becomes ONE unnamed page, so everything below has
+     * a single shape to render and the single-stage path is not a branch that
+     * can drift — it is the same code with one page.
+     */
+    const stages = day.stages?.length
+      ? day.stages
+      : [{ id: null, name: '', accent: null, slots }];
+    const single = stages.length <= 1;
+
+    /**
+     * ⭐⭐ ONE DEFINITION OF A HOST SLOT CARD, spread at every call site.
+     *
+     * ⚠⚠ IT USED TO BE INLINED TWICE, and the pager would have made three. The
+     * two copies had already drifted — the read-only branch guards its handlers
+     * with `effectiveIsHost &&` and the sortable branch does not — and this file
+     * already carries a note that inlining at a call site is where both of its
+     * handler defects lived. ⛔ Do not expand this back out.
+     *
+     * ⛔⛔ `&& onX` IS LOAD BEARING. Wrapping a handler that was never passed
+     * hands SlotCard a truthy function, so the button renders and pressing it
+     * calls `undefined(slot)` and THROWS. ⭐ It composes with SlotCard's rule
+     * that a control exists only where its verb does, which is what lets the
+     * dashboard ask for EDIT SLOT and nothing else.
+     *
+     * ⛔⛔ `isLocked` DOES NOT NULL THESE (owner, 2026-08-16). SlotCard renders a
+     * control only where its handler exists, so nulling them here deleted the
+     * buttons before the muting rule could grey them. `locked` is passed
+     * separately: the handler says the verb EXISTS, the flag says it is not
+     * available right now. ⛔ Two different questions.
+     */
+    const hostSlotProps = slot => ({
+      slot,
+      claim: claims[slot.id],
+      isHost: effectiveIsHost,
+      viewerProfileId,
+      locked: isLocked,
+      allMixSlots,
+      onFill:   effectiveIsHost && onFill   ? () => onFill(slot)   : null,
+      /* ⭐ P6.3 · sending is a WORKSPACE act, so only the event page passes this.
+         ⛔ The dashboard leaves it undefined and the chip stays a chip. */
+      onNotify: effectiveIsHost && onNotify ? () => onNotify(slot) : null,
+      onEdit:   effectiveIsHost && onEdit   ? () => onEdit(slot)   : null,
+      onRemove: effectiveIsHost && onRemove ? () => onRemove(slot) : null,
+      /* ⭐ CLEAR SET TIME vs MOVE TO SHORTLIST — two outcomes, two handlers.
+         ⛔ Never one prop with a flag. */
+      onDemote: effectiveIsHost && onDemote ? () => onDemote(slot) : null,
+      onPin:    effectiveIsHost && onPin    ? () => onPin(slot)    : null,
+    });
+
+    /** The extras only the draggable rendering needs. */
+    const sortableProps = slot => ({
+      isSortable: !isLocked && !slot.pinned && !!claims[slot.id] && claims[slot.id].status !== 'declined',
+      isActiveSort: slot.id === activeSlotId,
+      /* ⭐ Hands the row element up so FLIP can measure it. */
+      registerNode: el => { nodeRefs.current[slot.id] = el; },
+    });
     /* ⛔ `sortableIds` is gone with SortableContext. Each slot registers itself
        as a droppable in SlotCard, so no list of ids is needed here. */
     const activeSlot = activeSlotId ? slots.find(sl => sl.id === activeSlotId) : null;
@@ -282,6 +641,16 @@ export default function DaySlots({
 
     return (
       <div key={di} className={s.daySection}>
+        {/* ⭐⭐ THE SECTION NAMES ITS DAY AND ITS STAGE. `groupSlotsIntoDays`
+            emits one section per (day, stage) on a multi-stage event, so this
+            renders "FRIDAY · LIVE STAGE" without the component needing any
+            stage logic of its own. ⛔ The stage name is not optional chrome:
+            without it two identical-looking lists of times sit under one
+            heading and nothing on screen says which room is which.
+            ⚠ A single-stage event has no `stageName` and is untouched. */}
+        {/* ⭐ THE DAY NAMES ITSELF; the STAGES are pages beneath it. ⛔ The stage
+            no longer belongs in this heading — it moved into the pager, which
+            is what turns "two identical lists of times" into two rooms. */}
         {day.name && (
           <div className={s.dayDivider}>
             <span className={s.dayName}>{day.name}</span>
@@ -309,47 +678,22 @@ export default function DaySlots({
             onDragCancel={() => setActiveSlotId(null)}
           >
             <>
-              {slots.map(slot => (
-                <SlotCard key={slot.id} slot={slot} claim={claims[slot.id]}
-isHost={effectiveIsHost}
-                  viewerProfileId={viewerProfileId}
-                  locked={isLocked}
-                  isSortable={!isLocked && !slot.pinned && !!claims[slot.id] && claims[slot.id].status !== 'declined'}
-                  isActiveSort={slot.id === activeSlotId}
-                  /* ⭐ Hands the row element up so FLIP can measure it. */
-                  registerNode={el => { nodeRefs.current[slot.id] = el; }}
-                  /* ⛔⛔ `&& onX` — ⛔ NOT just `!isLocked`. Wrapping a handler
-                     that was never passed hands SlotCard a truthy function, so
-                     the button renders and pressing it calls `undefined(slot)`
-                     and THROWS. ⭐ Composes with SlotCard's rule that a control
-                     exists only where its verb does, which is what lets the
-                     dashboard ask for EDIT SLOT and nothing else. */
-                  /**
-                   * ⛔⛔ `isLocked` NO LONGER NULLS THESE (owner, 2026-08-16).
-                   *
-                   * ⚠⚠ THIS WAS THE REASON THE MUTED CONTROLS NEVER APPEARED.
-                   * `SlotCard` renders a control only where its handler exists,
-                   * so nulling them here deleted the buttons before that rule
-                   * could grey them — no amount of styling inside `SlotCard`
-                   * could bring back a control it was never given.
-                   *
-                   * ⭐ `locked={isLocked}` is passed too, and THAT is what mutes
-                   * them. The handler says the verb exists; the flag says it is
-                   * not available right now. ⛔ Two different questions.
-                   */
-                  onFill={onFill ? () => onFill(slot) : null}
-                  /* ⭐ P6.3 · sending is a WORKSPACE act, so only the event page passes this.
-                     ⛔ The dashboard leaves it undefined and the chip stays a chip. */
-                  onNotify={onNotify ? () => onNotify(slot) : null}
-                  onEdit={onEdit ? () => onEdit(slot) : null}
-                  onRemove={onRemove ? () => onRemove(slot) : null}
-                  /* ⭐ CLEAR SET TIME vs MOVE TO SHORTLIST — two outcomes, two
-                     handlers. ⛔ Never one prop with a flag. */
-                  onDemote={onDemote ? () => onDemote(slot) : null}
-                  onPin={onPin ? () => onPin(slot) : null}
-                  allMixSlots={allMixSlots}
-                />
-              ))}
+              {single
+                ? slots.map(slot => (
+                  <SlotCard key={slot.id} {...hostSlotProps(slot)} {...sortableProps(slot)} />
+                ))
+                /* ⚠ THE PAGER SITS INSIDE THE SAME `DndContext`. Each cell's
+                   SlotCard registers its own droppable, so an act can be
+                   dragged onto any slot on any stage of this day — which is
+                   what a host moving somebody between rooms actually needs. */
+                : <StagePages
+                    stages={stages}
+                    dayKey={day.dayIndex ?? di}
+                    sync={sync}
+                    renderCell={slot => (
+                      <SlotCard key={slot.id} {...hostSlotProps(slot)} {...sortableProps(slot)} />
+                    )}
+                  />}
             </>
             {/**
               * ⛔⛔ `dropAnimation={null}` — ⛔ do NOT restore the 180ms return.
@@ -373,25 +717,19 @@ isHost={effectiveIsHost}
               ) : null}
             </DragOverlay>
           </DndContext>
-        ) : (
+        ) : single ? (
           slots.map(slot => (
-            <SlotCard key={slot.id} slot={slot} claim={claims[slot.id]}
-isHost={effectiveIsHost}
-              viewerProfileId={viewerProfileId}
-              locked={isLocked}
-              /* ⛔ `&& onX` here too — same reason as the sortable branch. */
-              /* ⛔ `isLocked` dropped here too — see the sortable branch above.
-                 ⚠ `effectiveIsHost` STAYS: a non-host has no such verb at all,
-                 which is a different thing from a host who cannot use it yet. */
-              onFill={effectiveIsHost && onFill ? () => onFill(slot) : null}
-              onNotify={effectiveIsHost && onNotify ? () => onNotify(slot) : null}
-              onEdit={effectiveIsHost && onEdit ? () => onEdit(slot) : null}
-              onRemove={effectiveIsHost && onRemove ? () => onRemove(slot) : null}
-              onDemote={effectiveIsHost && onDemote ? () => onDemote(slot) : null}
-              onPin={effectiveIsHost && onPin ? () => onPin(slot) : null}
-              allMixSlots={allMixSlots}
-            />
+            <SlotCard key={slot.id} {...hostSlotProps(slot)} />
           ))
+        ) : (
+          /* ⚠ The same pager without the drag context. A viewer who cannot edit
+             still needs to know which room a set is in. */
+          <StagePages
+            stages={stages}
+            dayKey={day.dayIndex ?? di}
+            sync={sync}
+            renderCell={slot => <SlotCard key={slot.id} {...hostSlotProps(slot)} />}
+          />
         )}
       </div>
     );
