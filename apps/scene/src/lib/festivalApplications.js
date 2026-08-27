@@ -202,6 +202,123 @@ export async function myFestivalApplications(eventId) {
 }
 
 /**
+ * EVERY festival application this account has made, across all events.
+ *
+ * ⚠ A DIFFERENT QUESTION FROM `myFestivalApplications`, not a wider version of
+ * it. That one asks "have I applied to THIS event" and needs the event handed
+ * to it; this one asks "what have I applied for" and must therefore CARRY the
+ * event, because the caller does not know it yet. Hence `event_id` and
+ * `event_name` in the result — an application that cannot name its festival is
+ * not a list entry, it is a mystery.
+ *
+ * ⭐ SAME MASK, ENFORCED IN THE SAME PLACE. `my_festival_applications_all` is
+ * SECURITY DEFINER and repeats the CASE character for character. ⛔ Do not
+ * reach for the table here either; the reason has not changed.
+ *
+ * ⚠ `eventName` may be null — an application outlives its event (LEFT JOIN, on
+ * purpose). Render that honestly; ⛔ do not substitute "Unknown festival".
+ *
+ * @returns {Promise<Array<{eventId, eventName, eventDate, categoryKey, status, outcomeReleasedAt, submittedAt}>>}
+ */
+export async function myFestivalApplicationsAll() {
+  const { data, error } = await supabase.rpc('my_festival_applications_all');
+  if (error) return [];
+  return (data || []).map(r => ({
+    eventId: r.event_id,
+    eventName: r.event_name ?? null,
+    eventDate: r.event_date ?? null,
+    categoryKey: r.category_key,
+    status: r.status,
+    outcomeReleasedAt: r.outcome_released_at ?? null,
+    submittedAt: r.submitted_at ?? null,
+  }));
+}
+
+/**
+ * The label a category wears in a LIST, where no event is in view.
+ *
+ * ⚠ NOT `short`, which is the tile word inside one event's apply grid. In My
+ * Scene the same string has to survive beside an artist application and a
+ * market stall, so it names the thing in full: "Vollys" reads as a section,
+ * "Volunteer Crew" reads as what you applied to be.
+ *
+ * ⭐ AN UNKNOWN KEY IS NOT AN ERROR. Scene deliberately does not know about
+ * market stalls, decor or theme camps ([[role discovery scope]]) — but a person
+ * can hold an application in a category Scene has never heard of, and hiding it
+ * would be the same silence this whole surface exists to end. So it falls back
+ * to the key itself rather than dropping the row.
+ */
+export function categoryLabel(key) {
+  return APPLICABLE_CATEGORIES[key]?.label
+    ?? String(key || '').replace(/_/g, ' ').replace(/^./, c => c.toUpperCase());
+}
+
+/**
+ * ⭐⭐ THE SECTION AN APPLICATION BELONGS TO IN MY SCENE.
+ *
+ * My Scene answers "what am I doing"; Industry answers "what roles do I have"
+ * ([[project_progressive_role_activation]]). So these are groupings of
+ * ACTIVITY, and the ratified list is Artist · Vollys · Markets · Workshops ·
+ * Other — role-shaped from the first day, even while only two can be filled.
+ *
+ * ⛔ Do not collapse this to "everything in one list because only Vollys works
+ * today". The grouping is the thing that survives dozens of participation
+ * types; adding it later means re-teaching the shape to people who learned a
+ * flat list.
+ */
+const SECTION_ORDER = ['artist', 'volly', 'market', 'workshop', 'other'];
+
+const SECTION_LABEL = {
+  artist: 'ARTIST',
+  volly: 'VOLLYS',
+  market: 'MARKETS',
+  workshop: 'WORKSHOPS',
+  other: 'OTHER',
+};
+
+const CATEGORY_SECTION = {
+  music: 'artist',
+  volunteer: 'volly',
+  market_stall: 'market',
+  food_vendor: 'market',
+  workshop: 'workshop',
+};
+
+export function applicationSection(categoryKey) {
+  return CATEGORY_SECTION[categoryKey] ?? 'other';
+}
+
+/**
+ * Group applications into the My Scene sections, newest first inside each.
+ *
+ * ⭐ ONLY NON-EMPTY SECTIONS COME BACK. My Scene is attention, ⛔ never a
+ * directory — an empty ARTIST heading on the screen of someone who has only
+ * ever volunteered is a promise of content that does not exist.
+ *
+ * @param {Array} applications from `myFestivalApplicationsAll`
+ * @returns {Array<{key, label, applications}>}
+ */
+export function groupApplications(applications = []) {
+  const byKey = new Map();
+  for (const a of applications) {
+    const k = applicationSection(a.categoryKey);
+    if (!byKey.has(k)) byKey.set(k, []);
+    byKey.get(k).push(a);
+  }
+  return SECTION_ORDER
+    .filter(k => byKey.has(k))
+    .map(k => ({
+      key: k,
+      label: SECTION_LABEL[k],
+      applications: byKey.get(k).sort(
+        // ⚠ A null `submittedAt` sorts LAST rather than crashing the compare.
+        // A draft has none, and one bad row must not scramble the list.
+        (x, y) => String(y.submittedAt ?? '').localeCompare(String(x.submittedAt ?? '')),
+      ),
+    }));
+}
+
+/**
  * What an applicant is told about their own application.
  *
  * ⛔ NEVER INVENT A STATE THE DATABASE DID NOT RETURN. The mask is the contract:

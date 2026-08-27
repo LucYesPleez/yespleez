@@ -13,6 +13,7 @@ import HeartBtn from '../components/HeartBtn';
 import { HEART_OVERLAY_STYLE, HEART_BARE_STYLE } from '../components/heartStyles';
 import FollowHeartBtn from '../components/FollowHeartBtn';
 import PortraitCard from '../components/PortraitCard';
+import FestivalApplicationsSection from '../components/FestivalApplicationsSection';
 import ProfileCard from '../components/ProfileCard';
 import { SkeletonRow, SkeletonEventCard } from '../components/Skeleton';
 import s from './MySceneScreen.module.css';
@@ -1526,6 +1527,14 @@ export default function MySceneScreen() {
                 )}
               </div>
               )}
+
+              {/* APPLICATIONS — what you have applied for, across festivals.
+                  ⭐ ABOVE FOLLOWING and BELOW COMING UP on purpose: a pending
+                  application is a thing of YOURS awaiting an answer, so it
+                  outranks a list of people you watch, and it is not yet a
+                  commitment, so it does not belong in the diary. ⛔ It renders
+                  nothing at all when there is nothing — see the component. */}
+              <FestivalApplicationsSection />
 
               {/* FOLLOWING & UPDATES — tabbed. ALWAYS visible (owner call,
                   Stage A review §5): following needs an obvious destination
