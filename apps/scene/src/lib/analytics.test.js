@@ -180,13 +180,14 @@ test('the name allow-list is read from the NEWEST migration that redefines it', 
   // database no longer has — passing while proving nothing.
   //
   // ⚠ MOVED FROM A3 TO O2 (2026-08-12) when gate_shown/intent_resumed were
-  // added. Updating this expectation is the documented response to a newer
-  // migration redefining the list; ⛔ do not pin the contract tests above to
-  // a fixed file instead.
+  // added, and FROM O2 TO AV5 (2026-08-28) when the business observation
+  // events arrived. Updating this expectation is the documented response to
+  // a newer migration redefining the list; ⛔ do not pin the contract tests
+  // above to a fixed file instead.
   const file = migrationDefining('name');
   assert.ok(
-    file.endsWith('20260812000000_o2_gate_funnel_events.sql'),
-    `expected the live name allow-list to come from O2, got ${file}. If a ` +
+    file.endsWith('20260828000007_av5_business_events.sql'),
+    `expected the live name allow-list to come from AV5, got ${file}. If a ` +
     'later migration redefines it, update this expectation — but do not ' +
     'pin the contract tests to a fixed file.',
   );

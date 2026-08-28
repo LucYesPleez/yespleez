@@ -185,5 +185,8 @@ export async function addToBill(db, plan) {
     if (sErr) return { ok: true, error: `On the bill, but the application status was not updated: ${sErr.message}`, memberId: data?.id ?? null };
   }
 
-  return { ok: true, error: null, memberId: data?.id ?? null };
+  // `accepted` says whether this add-to-bill WAS an accept decision, so the
+  // CALLER can observe it (AV5's application_accepted) — this module stays
+  // free of the analytics/supabase imports, per its injected-db contract.
+  return { ok: true, error: null, memberId: data?.id ?? null, accepted: plan.statusUpdate === 'accepted' };
 }

@@ -7,6 +7,7 @@ import { profileUrl } from '../lib/profileResolution';
 import { fetchApplicantProfiles } from '../lib/applicantProfiles';
 import { ensureHttps } from '../lib/socialLinks';
 import { normaliseStatus } from '../lib/enquiryUtils';
+import { track, EVENTS } from '../lib/analytics';
 import { genreLabels } from '../lib/profileTaxonomy';
 import ProfileAvatar from '../components/ProfileAvatar';
 import UnclaimedBadge from '../components/UnclaimedBadge';
@@ -70,6 +71,10 @@ export default function ApplicationsScreen() {
 
   async function respond(appId, status, artistId) {
     await supabase.from('applications').update({ status }).eq('id', appId);
+    // AV5: observe the host decision at its authoritative write.
+    // applications.status stays the truth; this row only records that the
+    // transition happened. Ids are opaque props — no FK, by taxonomy rule.
+    if (status === 'accepted') track(EVENTS.APPLICATION_ACCEPTED, { event_id: eventId, via: 'applications_screen' });
     setApps(prev => prev.map(a => a.id === appId ? { ...a, status } : a));
     if (!artistId) return;
     const evLabel = eventName ? ` for ${eventName}` : '';

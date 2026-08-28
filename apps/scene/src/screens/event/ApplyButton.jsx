@@ -206,7 +206,12 @@ export default function ApplyButton({ eventId, userId, ownerProfile }) {
   return (
     <div style={{ marginBottom: 16 }}>
       {!open ? (
-        <button className={s.applyBtn} onClick={() => setOpen(true)}>APPLY TO PLAY</button>
+        <button className={s.applyBtn} onClick={() => {
+          setOpen(true);
+          // AV5: intent, before any application row exists. The funnel's
+          // opened→applied conversion lives on this one line.
+          track(EVENTS.APPLICATION_STARTED, { event_id: eventId });
+        }}>APPLY TO PLAY</button>
       ) : (
         <div className={s.applyForm}>
           <p style={{ fontFamily: "'Bebas Neue'", fontSize: 14, letterSpacing: 2, marginBottom: 8 }}>YOUR APPLICATION</p>

@@ -324,9 +324,13 @@ export default function EventHostView({
     const plan = planAddToBill(app, appProfiles[app.id] || null, lineupMembers, { totalSlots });
     if (!plan.ok) { setSlotError(plan.reason); return; }
 
-    const { ok, error, memberId } = await addToBill(supabase, plan);
+    const { ok, error, memberId, accepted } = await addToBill(supabase, plan);
     if (!ok) { setSlotError(error || 'Could not add them to the bill.'); return; }
     if (error) setSlotError(error);   // added, but the status write failed
+    // AV5: add-to-bill IS an accept decision — observed here at the caller
+    // (the lib keeps its injected-db purity), same event name as the
+    // ApplicationsScreen path, distinguished by `via`.
+    if (accepted && !error) track(EVENTS.APPLICATION_ACCEPTED, { event_id: event?.id, via: 'add_to_bill' });
 
     if (plan.statusUpdate) {
       setAllApps(prev => prev.map(a => a.id === app.id ? { ...a, status: plan.statusUpdate } : a));
@@ -409,6 +413,12 @@ export default function EventHostView({
     });
     setNotifying(false);
     setConfirmNotify(null);
+    // AV5: the artist was TOLD — the release moment the funnel observes.
+    // The P6 notification boundary stays the truth; `kind` says which
+    // notice went out. Fires only on a fully recorded send.
+    if (res.ok && res.sent && res.recorded) {
+      track(EVENTS.APPLICATION_RELEASED, { event_id: event?.id, kind });
+    }
     /**
      * ⚠⚠ SENT BUT NOT RECORDED MUST BE SAID OUT LOUD. The artist has the message
      * and the system does not know, so the next pass would tell them again. ⛔ It

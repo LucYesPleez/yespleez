@@ -75,6 +75,15 @@ export const EVENTS = Object.freeze({
   // they measure the conversion moment that was a silent dead tap until now.
   GATE_SHOWN:               'gate_shown',
   INTENT_RESUMED:           'intent_resumed',
+  // AV5 — business observations. The products stay authoritative
+  // (applications.status, the P6 notification boundary, the participation
+  // log); these rows only observe that a transition happened. Ids ride in
+  // props as opaque facts. ⛔ 'applied' remains THE submission event — no
+  // application_submitted alias exists. See docs/analytics-taxonomy.md.
+  APPLICATION_STARTED:      'application_started',
+  APPLICATION_ACCEPTED:     'application_accepted',
+  APPLICATION_RELEASED:     'application_released',
+  PARTICIPATION_RECORDED:   'participation_recorded',
 });
 
 /**
@@ -697,6 +706,76 @@ function trackInstallSignals() {
  * flicking to another app and back does not.
  */
 const IDLE_WINDOW_MS = 30 * 60 * 1000;
+/**
+ * CAMPAIGN ATTRIBUTION (AV4) — the moment an arrival becomes evidence.
+ *
+ * A QR code or campaign link carries `?src=bar_qr` (+ optional m/c/pl/cr).
+ * The SCAN writes nothing — the QR law holds; this records the touch at app
+ * load, into `attribution_touches`, under the same three rules as track():
+ * never throw, never block, no PII. Params are token-sanitised so poster
+ * typos and injection never enter the vocabulary.
+ *
+ * ⚠ HashRouter: params can sit before the hash (…/?src=x#/e/rel) or inside
+ * it (…/#/e/rel?src=x). Both are read; the hash wins on conflict because it
+ * is what a printed link most likely carries.
+ *
+ * Once per session (sessionStorage flag): a reload is not a second arrival.
+ * A rescan in a NEW session records again — that is a genuine re-arrival.
+ *
+ * ⚠ This helper migrates to @yespleez/analytics-client in the shared-client
+ * phase; until then this is its one home. Do not copy it elsewhere.
+ */
+const TOUCH_KEY = 'yp_touch_recorded';
+const TOUCH_MEDIUMS = ['qr', 'link', 'share', 'other'];
+
+function parseTouchParams() {
+  try {
+    const hash = window.location.hash || '';
+    const qIdx = hash.indexOf('?');
+    const fromHash = new URLSearchParams(qIdx === -1 ? '' : hash.slice(qIdx + 1));
+    const fromSearch = new URLSearchParams(window.location.search || '');
+    const get = (k) => fromHash.get(k) || fromSearch.get(k) || null;
+    const token = (v) => {
+      if (typeof v !== 'string') return null;
+      const t = v.trim().slice(0, 64);
+      return /^[\w-]+$/.test(t) ? t : null;
+    };
+    const source = token(get('src'));
+    if (!source) return null;
+    let medium = token(get('m'));
+    if (!TOUCH_MEDIUMS.includes(medium)) {
+      medium = source.endsWith('_qr') ? 'qr' : source.endsWith('_share') ? 'share' : 'link';
+    }
+    const path = qIdx === -1 ? hash.replace(/^#/, '') : hash.slice(1, qIdx);
+    return {
+      source, medium,
+      campaign: token(get('c')), placement: token(get('pl')), creative: token(get('cr')),
+      destination_key: path || '/',
+    };
+  } catch { return null; }
+}
+
+function recordAttributionTouch() {
+  try {
+    if (readSession(TOUCH_KEY)) return;
+    const parsed = parseTouchParams();
+    if (!parsed) return;
+    writeSession(TOUCH_KEY, '1');
+    supabase.from('attribution_touches').insert({
+      device_id: deviceId(),
+      session_id: sessionId(),
+      user_id: currentUserId,
+      ...parsed,
+      platform: platform(),
+    }).then(
+      ({ error }) => {
+        if (error && import.meta.env?.DEV) console.warn('[analytics] touch', error.message);
+      },
+      () => {},
+    );
+  } catch { /* rule 1 */ }
+}
+
 let lastOpenAt = 0;
 
 function pingOpen(reason) {
@@ -726,6 +805,7 @@ export async function initAnalytics() {
 
   pingOpen('load');
   trackInstallSignals();
+  recordAttributionTouch();
 
   try {
     document.addEventListener('visibilitychange', () => {
