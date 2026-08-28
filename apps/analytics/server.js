@@ -24,6 +24,7 @@ import express from 'express';
 import { requireLocal } from './lib/local.js';
 import { makeDb } from './lib/db.js';
 import { mountIdentityRoutes } from './lib/routes-identity.js';
+import { mountMetricsRoutes } from './lib/routes-metrics.js';
 
 const PORT = Number(process.env.ANALYTICS_PORT || 4100);
 const SUPABASE_URL = process.env.SUPABASE_URL || '';
@@ -45,7 +46,7 @@ const db = CONFIGURED ? makeDb({ url: SUPABASE_URL, serviceKey: SERVICE_KEY }) :
 app.get('/api/health', async (req, res) => {
   const out = {
     service: 'yespleez-analytics',
-    phase: 'AV1',
+    phase: 'AV3',
     configured: CONFIGURED,
   };
   if (!CONFIGURED) {
@@ -77,7 +78,10 @@ app.get('/api/segments', async (req, res) => {
   }
 });
 
-if (CONFIGURED) mountIdentityRoutes(app, db);
+if (CONFIGURED) {
+  mountIdentityRoutes(app, db);
+  mountMetricsRoutes(app, db);
+}
 
 app.use((req, res) => res.status(404).json({ error: 'Unknown route. The API lives under /api/.' }));
 

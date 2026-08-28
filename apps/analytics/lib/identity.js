@@ -32,6 +32,42 @@ export const SEGMENTS = Object.freeze({
 export const STORABLE_SEGMENTS = Object.freeze([SEGMENTS.INTERNAL, SEGMENTS.BETA, SEGMENTS.TEST]);
 
 /**
+ * Populations a report can ask for. `all` is genuinely unfiltered —
+ * the D6 lesson: a view that promises everything must deliver it.
+ */
+export const POPULATIONS = Object.freeze(['public', 'internal', 'beta', 'test', 'all']);
+
+/**
+ * ⭐⭐ THE CANONICAL CLASSIFIER. The only one. The live summary and the
+ * historical snapshot rebuild both import THIS function; a second
+ * implementation anywhere is audit defect D4 reborn, and a guard test
+ * greps for one.
+ *
+ * Resolution order, exactly as ratified:
+ *   1. user_id present → that account's segment (or public by absence).
+ *      An attributed row NEVER consults the device map — the account is
+ *      the person and always wins.
+ *   2. user_id absent → the derived device segment, which by
+ *      construction (deriveDeviceSegments) can only ever be 'internal'.
+ *   3. otherwise public. Unknown never silently becomes internal.
+ *
+ * @param row      {user_id, device_id}
+ * @param segments {users: {user_id: segment}, devices: {device_id: 'internal'}}
+ */
+export function classify(row, segments) {
+  const s = segments || {};
+  if (row?.user_id) return (s.users || {})[row.user_id] ?? SEGMENTS.PUBLIC;
+  const byDevice = row?.device_id ? (s.devices || {})[row.device_id] : null;
+  return byDevice === SEGMENTS.INTERNAL ? SEGMENTS.INTERNAL : SEGMENTS.PUBLIC;
+}
+
+/** Does this population include this row? */
+export function inPopulation(row, segments, population) {
+  if (population === 'all') return true;
+  return classify(row, segments) === population;
+}
+
+/**
  * The derived device→segment map.
  *
  * @param links        [{device_id, user_id}] — analytics.identity_links
