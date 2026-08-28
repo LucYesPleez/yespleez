@@ -86,6 +86,41 @@ test('⭐ the rollover is shared across stages, so one printed time is one insta
   assert.equal(axisOffsets(days[0]).get('1:00 AM'), 25 * 60);
 });
 
+test('⛔⛔ a later stage introducing an EARLIER time does not roll the night over', () => {
+  /**
+   * ⚠⚠ NEVERLAND, LIVE (owner, 2026-08-28: "2 stages so 2 slots should be lit
+   * up"). `timeAxis` lists stage A's times then stage B's, so the walk saw
+   * 11:30 PM followed by B's 7:30 PM, called that a midnight rollover, and put
+   * the DJ stage's 7:30 set on TOMORROW. At 7:46 PM only the live stage lit.
+   *
+   * ⛔ A stage's position among other stages must never move it in time.
+   */
+  const { days } = resolveSchedule({
+    slots: [
+      slot({ position: 0, time: '7:00',  ampm: 'PM', stage_id: 'a' }),
+      slot({ position: 1, time: '11:30', ampm: 'PM', stage_id: 'a' }),
+      // Listed second, and its first time is EARLIER than A's last.
+      slot({ position: 2, time: '7:30',  ampm: 'PM', stage_id: 'b', dur_mins: 90 }),
+      slot({ position: 3, time: '12:00', ampm: 'AM', stage_id: 'b' }),
+    ],
+    performances: [], members: [],
+    stages: [{ id: 'a', name: 'LIVE', position: 0 }, { id: 'b', name: 'DJ', position: 1 }],
+    eventDate: EVENT_DATE,
+  });
+  const off = axisOffsets(days[0]);
+  assert.equal(off.get('7:30 PM'), 19 * 60 + 30, '7:30 PM is tonight, ⛔ not tomorrow');
+  // ⭐ And the REAL rollover still fires: midnight closes the DJ stage.
+  assert.equal(off.get('12:00 AM'), 24 * 60);
+
+  // ⭐⭐ The point of the whole thing: at 7:46 PM BOTH rooms are playing.
+  const states = slotStates(days[0], at(19, 46));
+  const playing = days[0].stages
+    .flatMap(st => (st.slots || []).map(e => [st.name, states.get(e.slot.id)?.state]))
+    .filter(([, s]) => s === PLAYING)
+    .map(([name]) => name);
+  assert.deepEqual(playing, ['LIVE', 'DJ']);
+});
+
 test('⛔⛔ a day starts at LOCAL midnight, ⛔ never at a UTC parse of its date', () => {
   const d = dayMidnight('2026-08-23');
   assert.equal(d.getFullYear(), 2026);

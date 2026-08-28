@@ -978,3 +978,40 @@
      the card, which is the problem this rule exists to solve. */
   min-height: 0;
 }
+
+/* ── FOLLOW, IN THE EXPANDED CARD'S ACTION ROW ───────────────────────────
+   ⭐⭐ Owner, 2026-08-28: a follow beside VIEW PROFILE on every card, ⛔ not
+   only in the fifteen minutes after a set.
+
+   ⭐ IT WEARS MESSAGE'S CHROME, ⛔ not the schedule strip's pink-to-cyan pill.
+   That pill is the live OFFER — a thing that appears for a quarter of an hour
+   and has to interrupt. This is a standing control in a row of standing
+   controls, so it matches the gradient-edged button it sits beside: same
+   family, same 10px Bebas, same cyan-to-violet edge painted with the two-layer
+   background trick (padding-box fill over a border-box gradient).
+   ⚠ The transparent 1.5px border is REQUIRED — drop it and the gradient hides
+   under the fill.
+
+   ⚠ `--follow-ramp` retunes FollowHeartBtn's own label gradient to this edge.
+   The token exists on that component precisely so a surface never needs to
+   fork the button. */
+.slotFollowBtn {
+  --follow-ramp: linear-gradient(135deg, #00E5FF, #BF5FFF);
+  flex-shrink: 0;
+  padding: 7px 12px;
+  border-radius: 9px;
+  border: 1.5px solid transparent;
+  background:
+    linear-gradient(var(--card2), var(--card2)) padding-box,
+    linear-gradient(135deg, #00E5FF, #BF5FFF) border-box;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 10px;
+  letter-spacing: 1.2px;
+  line-height: 1;
+  white-space: nowrap;
+  color: #fff;
+  cursor: pointer;
+  transition: filter .15s;
+}
+
+.slotFollowBtn:hover { filter: brightness(1.25); }

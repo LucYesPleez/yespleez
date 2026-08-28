@@ -1,0 +1,100 @@
+/* § 6b · The full lineup, full screen
+   Opened by SEE ALL in EventLineup. Spec: docs/event-page-layout-spec.md § 6 */
+
+/* ⭐⭐ FULL SCREEN, AND IT IS PORTALED (see LineupSheet.jsx).
+   `position: fixed` is trapped by any ancestor with a `transform`, and the
+   event page has several. Rendering into <body> is what makes `inset: 0` mean
+   the VIEWPORT rather than some card halfway down the page. */
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;              /* ⛔ BELOW the bottom nav's 9999 — see below */
+  background: var(--bg);      /* opaque: this replaces the page, it does not veil it */
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── ⛔⛔ THE BOTTOM NAV STAYS VISIBLE AND STAYS REACHABLE ──────────────
+   The nav is permanent (z-index 9999, mounted after Routes). This sheet sits
+   UNDER it deliberately, so opening the full bill never removes the way out of
+   the screen. The scroller then reserves that height at its foot, or the last
+   row of portraits sits behind the nav and reads as clipped. */
+.head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px 12px;
+  padding-top: max(14px, env(safe-area-inset-top, 0px));
+  border-bottom: 1px solid var(--border);
+}
+
+.title {
+  font-family: 'Bebas Neue', sans-serif;
+  /* ⚠ 400: Bebas Neue has ONE weight and an h-tag faux-bolds it out of step
+     with every other title in the app. */
+  font-weight: 400;
+  font-size: 26px;
+  letter-spacing: 1.6px;
+  margin: 0;
+  line-height: 1;
+}
+
+.count {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 14px;
+  letter-spacing: 1.4px;
+  color: var(--muted);
+  margin-right: auto;
+}
+
+.close {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 14px;
+  letter-spacing: 1.8px;
+  color: var(--text);
+  background: rgba(255, 255, 255, .06);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 9px 16px;
+  cursor: pointer;
+}
+
+.scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;        /* ⛔ no visible scrollbars, anywhere */
+  -webkit-overflow-scrolling: touch;
+}
+
+.scroll::-webkit-scrollbar { display: none; }
+
+/* ⭐⭐ THE WHOLE SCREEN FULL OF PORTRAITS (owner, 2026-08-28).
+   `auto-fill` with a floor, ⛔ not a fixed column count: the same rule gives
+   two across on a phone and six on a desktop without a single media query, and
+   a bill of any length fills the width it is given instead of running down one
+   side of it. */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+  gap: 12px;
+  padding: 14px 16px;
+  /* The nav's height plus the player's, kept live by BottomNav.jsx. */
+  padding-bottom: calc(var(--yp-safe-bottom, 67px) + 20px);
+}
+
+@media (min-width: 1024px) {
+  .grid {
+    grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+    gap: 16px;
+    padding: 20px 24px calc(var(--yp-safe-bottom, 67px) + 28px);
+    max-width: 1400px;
+    margin: 0 auto;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .head { padding-left: 24px; padding-right: 24px; }
+}

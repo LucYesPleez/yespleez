@@ -299,35 +299,6 @@
   text-overflow: ellipsis;
 }
 
-/* ── Expanded · the whole bill at once ───────────────────────────────
-   ⭐ SEE ALL OPENS IN PLACE (owner, 2026-08-28). There is no full-lineup route
-   to send anyone to, and inventing one to show thirty cards would take a
-   reader off the event page to look at a part of it.
-
-   ⚠ THE WRAPPER MUST UNCLIP TOO. `.railWrap` hides its overflow so the rail can
-   scroll inside it; leaving that in place would grow the rail behind a clip and
-   show exactly as much as before. ⛔ Both, or neither.
-
-   ⚠ `height: auto` overrides the desktop grid's `height: 100%`, which exists to
-   match the column beside it. Expanded, the section is allowed to be taller
-   than that column — that is the point of asking. */
-.expanded { overflow: visible; }
-
-.expanded .rail {
-  display: flex;
-  flex-wrap: wrap;
-  align-content: flex-start;
-  align-items: flex-start;
-  gap: 10px;
-  height: auto;
-  overflow: visible;
-}
-
-/* ⛔ No horizontal cues while expanded — there is no "more to the right" when
-   everything is already on the page. */
-.expanded .fade,
-.expanded .arrow { display: none; }
-
 /* ── Full lineup entry ───────────────────────────────────────────────
    Only when the rail actually overflows. Offering "view all" for a bill that
    is entirely on screen is a link to what the reader is already looking at.
@@ -357,16 +328,6 @@
 }
 
 .viewAll:hover { color: var(--neon2); border-color: var(--neon2); background: rgba(0, 229, 255, 0.07); }
-
-/* Open is a STATE, and it is stated the same way the sort chip states its own. */
-.viewAllOn { color: var(--neon2); border-color: rgba(0, 229, 255, 0.45); background: rgba(0, 229, 255, 0.1); }
-
-/* The same chevron, turned to point back the way it came. ⛔ Not a second icon
-   — one glyph, one meaning, rotated. */
-.chevronUp {
-  display: inline-flex;
-  transform: rotate(-90deg);
-}
 
 /* ── R1 · withheld ───────────────────────────────────────────────────
    Announced, never hidden. An organiser holding their bill back has made a

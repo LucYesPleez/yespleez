@@ -105,25 +105,54 @@ export function clockMinutes(time, ampm) {
  * numeric sort files 1:00 AM before 4:00 PM and rewrites the evening, and then
  * the rollover it is meant to detect can never happen.
  *
- * ⭐ COMPUTED ON THE SHARED AXIS, ⛔ NOT PER STAGE. If each stage rolled over
- * on its own walk, a stage that happens to run 9PM → 1AM and one that runs
- * 1AM only would disagree about which day 1:00 AM is, and the same printed
- * time would be two different instants on one grid row. The axis is what makes
- * the row a row, so the axis is what carries the day offset.
+ * ⛔⛔ THE WALK IS PER STAGE. THE ANSWER IS SHARED. Both halves matter, and
+ * getting the first one wrong is what broke Neverland (owner, 2026-08-28: "2
+ * stages so 2 slots should be lit up").
+ *
+ * ⚠⚠ WHY THE WALK CANNOT BE THE AXIS. `timeAxis` lists each stage's times in
+ * turn, first seen wins — it is a set of COLUMNS, and its order is stage
+ * order, ⛔ not running order. Walking it, Neverland's Friday read:
+ *
+ *     4:30 PM · 5 · 6 · 7 · 8 · 9 · 10:30 · 11:30 PM   (LIVE, in order)
+ *     7:30 PM                                          (DJ's first new time)
+ *     12:00 AM
+ *
+ * The clock "went backwards" at 7:30 PM purely because a second room was
+ * appended after the first room's midnight, so the rollover fired and the DJ
+ * stage's 7:30 set was placed on SATURDAY. At 7:46 PM on the Friday, LIVE
+ * STAGE lit up and DJ STAGE could not: its set was a day away. ⛔ A stage's
+ * position among other stages must never move it in time.
+ *
+ * ⭐ One STAGE, though, is a room's night in running order, and there a clock
+ * that goes backwards genuinely means midnight passed. So each stage carries
+ * its own rollover.
+ *
+ * ⭐⭐ THEN THE ROW IS RECONCILED, which is the half the shared axis was right
+ * about: one printed time is ONE instant on the grid, or the same 1:00 AM is
+ * two different moments depending which room you read it in. Where stages
+ * disagree the LATER reading wins — a night moves forward, so a room listing
+ * only 1:00 AM inside a night that crossed midnight means that 1:00 AM, not
+ * the one seventeen hours before the doors opened.
  *
  * Returns a Map of column key → minutes from the day's own midnight, which may
- * exceed 24h.
+ * exceed 24h. ⚠ Null for a time nobody can read: UNKNOWN, ⛔ never a guess.
  */
 export function axisOffsets(day) {
   const out = new Map();
-  let carry = 0;
-  let prev = null;
-  for (const col of timeAxis(day)) {
-    const mins = clockMinutes(col.time, col.ampm);
-    if (mins == null) { out.set(col.key, null); continue; }
-    if (prev != null && mins < prev) carry += 24 * 60;
-    prev = mins;
-    out.set(col.key, mins + carry);
+  for (const col of timeAxis(day)) out.set(col.key, null);
+
+  for (const stage of day?.stages || []) {
+    let carry = 0;
+    let prev = null;
+    for (const entry of stage?.slots || []) {
+      const mins = clockMinutes(entry?.slot?.time, entry?.slot?.ampm);
+      if (mins == null) continue;                        // UNKNOWN: left null
+      if (prev != null && mins < prev) carry += 24 * 60;
+      prev = mins;
+      const key = timeKey(entry.slot);
+      const seen = out.get(key);
+      out.set(key, seen == null ? mins + carry : Math.max(seen, mins + carry));
+    }
   }
   return out;
 }

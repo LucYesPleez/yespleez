@@ -255,9 +255,29 @@
    grew a label would push its neighbours out of alignment and break the peek.
    Overlaying costs no layout, so a card with a follow offer is exactly as tall
    as a card with nothing. */
+/* ⭐⭐ THE WRAPPER'S BOX MUST BE THE CARD'S BOX (owner, 2026-08-28: "the
+   progress bars are supposed to be inside the card").
+
+   ⚠⚠ SlotCard carries its own `marginBottom: 8` as an INLINE style, and this
+   wrapper is a flex container, so the margin was inside the wrapper's height:
+   98px of wrapper around a 90px card. Every overlay in the strip is positioned
+   against the wrapper, so all three sat 8px low — the 3px bar (`bottom: 4px`)
+   landed 1px BELOW the card entirely and read as a rule under the row, and
+   `.followOffer`'s `inset: 0` centred itself in a box taller than the card.
+
+   ⭐ So the spacing moves out to the wrapper and the card's own margin is
+   zeroed. The footprint is identical — 90 + 8 either way — and ⛔ nothing else
+   that renders a SlotCard is touched, which is why this is scoped to `.live`
+   rather than done in SlotCard.
+
+   ⚠ `!important` is load bearing, ⛔ not laziness: the margin it overrides is
+   an inline style, and no amount of selector weight beats that. */
 .live {
   position: relative;
+  margin-bottom: 8px;
 }
+
+.live > :first-child { margin-bottom: 0 !important; }
 
 /* The 3px rule along the bottom edge, inset so it sits inside the card's own
    rounded corners rather than poking out of them.
@@ -326,10 +346,30 @@
    it landed on top of the artist's face and read as a dialog dropped on the
    row; on the right it sits in the space the chevron already occupies on every
    other card, which is where a card's action belongs on this surface. */
-.followOffer {
+/* ⛔⛔ THE DOUBLED CLASS IS LOAD BEARING (owner, 2026-08-28: "what is this
+   follow button doing"). `EventScreen.module.css` lays the stage page's cells
+   out with
+
+       .stagePageCellStacked > * > *      { display: flex; flex-direction: column }
+       .stagePageCellStacked > * > * > *  { flex: 1 1 auto }
+
+   which is written for the wrapper's IN-FLOW children — `[card][expanded
+   panel]`, down the page. ⚠⚠ On a live card the wrapper also holds the
+   OVERLAYS, so the offer was turned into a column box and the gradient edge
+   inside it was told to grow: a 24px pill stretched to the full 90px card, and
+   `justify-content: flex-end` then read as "bottom" instead of "right". That is
+   the gradient slab.
+
+   ⛔ Those rules cannot simply be narrowed — their own comments record two
+   projections that need them (`[grip][card]` on the host, `[card][panel]` in
+   public). The overlay is out of flow, so flex has no business here at all;
+   `.followOffer.followOffer` is one specificity step above them and says so.
+   ⛔ Do not "tidy" the repetition away. */
+.followOffer.followOffer {
   position: absolute;
   inset: 0;
   display: flex;
+  flex-direction: row;
   align-items: center;
   justify-content: flex-end;
   padding-right: 12px;
@@ -345,29 +385,44 @@
    to cyan is what the progress bar on this same strip already runs, and what
    the cards' own neon borders are drawn from — the profile ramp read as
    borrowed from another screen, because it was. */
-.followEdge {
-  display: inline-block;
+/* ⛔ DOUBLED FOR THE SAME REASON as `.followOffer` above — the cell rule gives
+   every grandchild `flex: 1 1 auto`, and a gradient edge that grows is the
+   slab. It wraps a pill: it takes the pill's size and nothing more. */
+.followEdge.followEdge {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-self: center;
   padding: 1px;
-  border-radius: 10px;
+  border-radius: 999px;
   background: linear-gradient(135deg, #FF2D78, #00E5FF);
   pointer-events: auto;
+  /* ⭐ Lifted off the artwork it sits on. The card behind is a photograph, and
+     a 1px gradient edge alone disappears into a bright one. */
+  box-shadow: 0 2px 10px rgba(0, 0, 0, .45);
 }
 
 /* ⚠ The profile page's own follow button, at the size a card can carry: same
    family, same letter-spacing, same dark fill under gradient text.
    ⚠ `--follow-ramp` retunes the LABEL to match the edge — the token exists on
    FollowHeartBtn precisely so this surface does not need its own button. */
-.followBtn {
+.followBtn.followBtn {
   --follow-ramp: linear-gradient(135deg, #FF2D78, #00E5FF);
   display: block;
+  flex: 0 0 auto;
   border: none;
-  border-radius: 9px;
+  /* ⭐ A PILL, matching the edge that frames it. The old 9px on a 24px control
+     read as a slightly rounded box and sat oddly against the card's own 10px
+     corners; fully round says "tap me" and nothing else on this surface is
+     shaped like it. */
+  border-radius: 999px;
   background: rgba(12, 12, 22, .92);
   font-family: 'Bebas Neue', sans-serif;
   font-size: 12px;
   letter-spacing: 1.5px;
+  line-height: 1;
+  white-space: nowrap;
   color: #fff;
-  padding: 5px 12px;
+  padding: 7px 14px;
   cursor: pointer;
   transition: filter .15s;
 }

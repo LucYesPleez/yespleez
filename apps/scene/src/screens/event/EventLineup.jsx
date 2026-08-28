@@ -33,6 +33,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useDragScroll } from '../../hooks/useDragScroll';
 import PortraitCard from '../../components/PortraitCard';
 import { resolveLineup, sortLineup, BILL, AZ } from './lineupDisplay';
+import LineupSheet from './LineupSheet';
 import s from './EventLineup.module.css';
 
 function SortIcon() {
@@ -118,9 +119,12 @@ export default function EventLineup({
   const [overflowing, setOverflowing] = useState(false);
   const [moreBelow, setMoreBelow] = useState(false);
   const [moreRight, setMoreRight] = useState(false);
-  /* ⭐ Owned here, not by the page: there is no full-lineup route, so "see all"
-     is this section growing to hold everything. See the button below. */
-  const [expanded, setExpanded] = useState(false);
+  /* ⭐⭐ SEE ALL OPENS A FULL-SCREEN SHEET (owner, 2026-08-28), it no longer
+     grows this section. ⚠⚠ The in-place expand was unfixable on desktop, where
+     EventPageLayout places this column ABSOLUTELY so a long bill cannot drag
+     the band's height: unclipped, the grid overhung its own section by 2,424px
+     and painted over Set Times, the venue band and the poster. See LineupSheet. */
+  const [sheetOpen, setSheetOpen] = useState(false);
   const railRef = useRef(null);
   const wrapRef = useRef(null);
   const drag = useDragScroll('event-lineup');
@@ -218,16 +222,16 @@ export default function EventLineup({
           * to scroll past the cards they could not see to find the way to see
           * them. Up here it is visible the moment the section is.
           *
-          * ⛔⛔ `|| expanded` IS LOAD-BEARING. Expanding removes the overflow
-          * that revealed the button, so gating on `overflowing` alone unmounts
-          * the only way back and leaves every card open with no way to close.
+          * ⭐ The old `|| expanded` guard is gone with the expand itself: the
+          * sheet carries its own CLOSE, so the button no longer has to survive
+          * its own effect on the overflow that reveals it.
           *
           * ⭐ `onViewAll` still wins when a caller supplies one (the layout
           * harness does), so this adds a default rather than replacing a
           * contract.
           */}
         {/* ⚠ SORT FIRST, SEE ALL OUTERMOST (owner, 2026-08-28). SEE ALL is the
-            one that changes the section's SIZE, so it sits at the edge where a
+            one that leaves the section entirely, so it sits at the edge where a
             thumb reaches it; the sort chip stays nearer the heading it
             qualifies. */}
         <div className={s.headActions}>
@@ -241,20 +245,19 @@ export default function EventLineup({
               {order === AZ ? 'A–Z' : 'BILL'}
             </button>
           )}
-          {(overflowing || expanded) && (
+          {overflowing && (
             <button
-              className={s.viewAll + (expanded ? ' ' + s.viewAllOn : '')}
-              onClick={() => (onViewAll ? onViewAll() : setExpanded(v => !v))}
-              aria-expanded={onViewAll ? undefined : expanded}
+              className={s.viewAll}
+              onClick={() => (onViewAll ? onViewAll() : setSheetOpen(true))}
             >
-              {expanded ? 'SHOW LESS' : 'SEE ALL'}
-              <span className={expanded ? s.chevronUp : undefined}><ChevronIcon /></span>
+              SEE ALL
+              <ChevronIcon />
             </button>
           )}
         </div>
       </div>
 
-      <div className={s.railWrap + (moreBelow && !expanded ? " " + s.moreBelow : "") + (expanded ? " " + s.expanded : "")} ref={wrapRef}>
+      <div className={s.railWrap + (moreBelow ? " " + s.moreBelow : "")} ref={wrapRef}>
         <div
           className={s.rail}
           /* ⛔⛔ CALL THE CALLBACK — `drag.ref` IS A FUNCTION, NOT A REF OBJECT.
@@ -298,6 +301,13 @@ export default function EventLineup({
           </button>
         </>}
       </div>
+
+      {/* ⭐ `shown`, ⛔ not `list`: the sheet opens in whatever order the reader
+          had chosen, so pressing A–Z and then SEE ALL does not silently throw
+          the sort away. */}
+      {sheetOpen && (
+        <LineupSheet artists={shown} onOpenArtist={onOpenArtist} onClose={() => setSheetOpen(false)} />
+      )}
 
     </section>
   );

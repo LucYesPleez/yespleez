@@ -26,6 +26,7 @@ import { unfollowProfile } from '../../lib/participation';
 import { track, EVENTS } from '../../lib/analytics';
 import { openDirectConversation } from '../../lib/messaging';
 import UnclaimedBadge from '../../components/UnclaimedBadge';
+import FollowHeartBtn from '../../components/FollowHeartBtn';
 import { profileIdentity } from '../../lib/profileTypes';
 import { stageDefaultImage } from '../../lib/stageDefaultImage';
 import { actPills } from '../../lib/actPills';
@@ -113,6 +114,36 @@ function PersonActions({ claim, viewerProfileId, navigate, msgBusy, setMsgBusy, 
              the fill. */
           style={{ flexShrink: 0, padding: '7px 12px', borderRadius: 9, cursor: 'pointer', fontFamily: "'Bebas Neue'", fontSize: 10, letterSpacing: 1.2, border: '1.5px solid transparent', background: 'linear-gradient(var(--card2),var(--card2)) padding-box, linear-gradient(135deg,#00E5FF,#BF5FFF) border-box', color: '#fff', whiteSpace: 'nowrap' }}
         >{msgBusy ? 'OPENING…' : 'MESSAGE'}</button>
+      )}
+
+      {/**
+        * ⭐⭐ FOLLOW, BESIDE VIEW PROFILE (owner, 2026-08-28). Reaching an act
+        * and keeping an act are the two things a reader wants from an expanded
+        * card, so they sit together rather than the second one living only in
+        * the fifteen minute window after the set.
+        *
+        * ⛔ `FollowHeartBtn`, ⛔ NOT a second implementation. It owns the
+        * follow/unfollow write across BOTH keyspaces and the `followedProfiles`
+        * cache — the dual-keyspace trap this file's own heart was once bitten
+        * by. `variant="label"` because a bare heart between two worded controls
+        * reads as decoration.
+        *
+        * ⚠ GATED ON `profile_id`, ⛔ not `user_id`. Most acts on a bill are
+        * profiles nobody has claimed an account for; gating on the account is
+        * what makes the panel's existing heart invisible on almost every card.
+        */}
+      {claim?.profile_id && (
+        <FollowHeartBtn
+          profile={{
+            ...(claim.profile || {}),
+            id: claim.profile_id,
+            user_id: claim.user_id ?? claim.profile?.user_id ?? null,
+            type: claim.profile?.type || 'artist',
+            name: claim.name,
+          }}
+          variant="label"
+          className={s.slotFollowBtn}
+        />
       )}
 
       {/* ⚠ `profile_id` FIRST, account second — the profile is the real
