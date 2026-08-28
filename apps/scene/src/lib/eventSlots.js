@@ -137,7 +137,7 @@ export function groupSlotsIntoDays(rows = [], dates = [], stages = []) {
      */
     for (const st of ordered) {
       const mine = rest.filter(r => r.stage_id === st.id).sort(byPosition);
-      dayStages.push({ id: st.id, name: st.name || '', accent: st.accent || null, slots: mine.map(toRenderSlot) });
+      dayStages.push({ id: st.id, name: st.name || '', accent: st.accent || null, slots: mine.map(r => toRenderSlot(r, st.name)) });
     }
     /* ⚠ Slots belonging to NO stage on an event that HAS stages are an invalid
        state (S2d prevents it at the write layer). They are carried anyway, as a
@@ -145,7 +145,7 @@ export function groupSlotsIntoDays(rows = [], dates = [], stages = []) {
        of makes a real booking vanish with no trace. */
     const unstaged = rest.filter(r => !r.stage_id).sort(byPosition);
     if (unstaged.length) {
-      dayStages.push({ id: null, name: '', accent: null, slots: unstaged.map(toRenderSlot) });
+      dayStages.push({ id: null, name: '', accent: null, slots: unstaged.map(r => toRenderSlot(r, null)) });
     }
     /* ⚠⚠ `slots` STAYS, as every one of the day's slots in stage order. It is
        what `hostLineup` and the other consumers already read, and a nested-only
@@ -164,7 +164,7 @@ export function groupSlotsIntoDays(rows = [], dates = [], stages = []) {
  * slot to the UI again. It is carried through for tracing a row back to the
  * blob it came from, and for nothing else.
  */
-export function toRenderSlot(row) {
+export function toRenderSlot(row, stageName = null) {
   return {
     id:         row.id,
     legacyKey:  row.legacy_key || null,
@@ -177,6 +177,11 @@ export function toRenderSlot(row) {
     /* ⭐ The slot's stage, so a consumer can group or label without going back
        to the raw rows. Null on a single-stage event: that IS the implicit stage. */
     stageId:    row.stage_id || null,
+    /* ⭐ The stage's NAME, carried beside its id so a card can ask what kind of
+       room it is in without being handed the stage list. ⚠ Only the grouping
+       functions know it — a bare `toRenderSlot(row)` legitimately has no stage
+       in scope and passes null, which reads as "no stage opinion". */
+    stageName:  stageName || null,
   };
 }
 

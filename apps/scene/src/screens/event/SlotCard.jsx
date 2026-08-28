@@ -27,6 +27,7 @@ import { track, EVENTS } from '../../lib/analytics';
 import { openDirectConversation } from '../../lib/messaging';
 import UnclaimedBadge from '../../components/UnclaimedBadge';
 import { profileIdentity } from '../../lib/profileTypes';
+import { stageDefaultImage } from '../../lib/stageDefaultImage';
 import { actPills } from '../../lib/actPills';
 import { parseDurMins, fmtDur, labelColor, stripEmoji } from './slotUtils';
 import s from '../EventScreen.module.css';
@@ -276,6 +277,19 @@ export default function SlotCard({ slot, claim, onFill, onEdit, onRemove, onDemo
   const slotImg = !claim ? null : (
     claim.profile?.avatar_thumb || claim.profile?.avatar
     || claim.avatar_thumb || claim.avatar
+    /**
+     * ⭐ THE STAGE ANSWERS BEFORE THE TYPE DOES — but only ever after the act's
+     * own picture. A workshop leader who HAS a photograph keeps it; the stage
+     * default is for the hand-entered acts that have none, which on a workshops
+     * or gallery stage is most of them (`artist_id` and `artist_profile_id` are
+     * both null on every one of Neverland's).
+     *
+     * ⚠⚠ WITHOUT THIS THE NEXT LINE RAN AND A YOGA CLASS WORE A DJ'S PHOTO.
+     * `profileIdentity('artist')` is the fallback for an act with no profile,
+     * and it is right for a music stage and confidently wrong for this one.
+     * ⛔ Do not reorder these two.
+     */
+    || stageDefaultImage(slot?.stageName)
     || profileIdentity(String(claim.profile?.type || 'artist').toLowerCase()).defaultImage
     || null
   );

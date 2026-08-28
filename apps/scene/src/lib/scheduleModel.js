@@ -149,7 +149,7 @@ export function resolveSchedule({ slots = [], stages = [], claims = {}, eventDat
           }
         }
         bucket.slots.push({
-          slot:  toRenderSlot(r),
+          slot:  toRenderSlot(r, bucket.name),
           claim: claims?.[r.id] ?? null,
         });
       }

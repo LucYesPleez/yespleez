@@ -34,7 +34,13 @@
 import { notifyState } from './notifyPlan';
 
 export const CLAIM_PROFILE_COLUMNS =
-  'id, user_id, type, avatar, avatar_thumb, mix_link, soundcloud, mixcloud, '
+  /* ⭐⭐ `name` IS IN THIS LIST BECAUSE ITS ABSENCE WAS A VISIBLE BUG (owner,
+     2026-08-28). A profile was renamed in Studio; the set-times card kept the
+     OLD name while showing the NEW picture — the same act rendered half-current
+     and half-stale, because the picture came from this row and the name came
+     from `lineup_members.artist_name`, frozen at booking. ⛔ The column list is
+     part of the contract: this is exactly the failure the header warns about. */
+  'id, user_id, name, type, avatar, avatar_thumb, mix_link, soundcloud, mixcloud, '
   + 'instagram, facebook, youtube, website, genre_string, sound';
 
 /**
@@ -93,6 +99,29 @@ export async function enrichClaims(db, claims = []) {
     if (p.facebook)   claim.facebook   = p.facebook;
     if (p.youtube)    claim.youtube    = p.youtube;
     if (p.website)    claim.website    = p.website;
+
+    /**
+     * ⭐⭐ THE PROFILE'S NAME WINS, ⛔ and this is the ONE lift that works that
+     * way round. Everything above defers to the claim's own copy; a name does
+     * not, because a linked act IS that profile and renaming it is the person
+     * saying what they are called now.
+     *
+     * ⚠⚠ THE BUG (owner, 2026-08-28): a profile renamed in Studio showed the
+     * NEW picture and the OLD name on the same set-times card — the picture
+     * comes from this row, the name came from `lineup_members.artist_name`,
+     * denormalised at booking and never revisited. "Changed everywhere but the
+     * set times."
+     *
+     * ⛔ NOT APPLIED WHEN THERE IS NO PROFILE. A hand-entered act's typed name
+     * is all there is, and `if (!p) continue` above has already left it alone.
+     *
+     * ⚠ This follows the convention `EventHostView` already uses in two places
+     * (`prof?.name || member.artist_name`); `toClaim` was the one assembler
+     * that could not, because it never sees a profile. ⭐ The snapshot is still
+     * on `claim.member.artist_name` for anything that genuinely wants what the
+     * act was BILLED as on the night.
+     */
+    if (p.name) claim.name = p.name;
 
     /* ⛔ Only when the claim has nothing of its own: a `lineup_members` row
        denormalises these at booking time and that copy wins. */
