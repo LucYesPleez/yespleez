@@ -150,11 +150,40 @@ function makeDataCodewords(bytes, ver, ecl) {
 /**
  * Split into blocks, compute Reed-Solomon parity, interleave.
  *
- * ⚠ THE INTERLEAVE IS NOT A SIMPLE ZIP. Short blocks are one codeword shorter
- * than long ones, and the missing position is skipped rather than padded — the
- * `i === shortLen - eccLen && j < numShort` guard. Get this wrong and the
- * symbol still LOOKS like a QR code and still scans as garbage on half the
- * versions, which is the failure mode the round-trip test exists to catch.
+ * ⛔⛔ THIS SHIPPED BROKEN, AND IT IS THE WORST KIND OF BROKEN: every symbol it
+ * produced looked like a perfect QR code and NO scanner could read one. A phone
+ * camera would not even draw its detection box. It was live in production and
+ * cost the owner a real event.
+ *
+ * The old version concatenated each block's data and parity into one array and
+ * walked that with a skip rule meant for short blocks:
+ *
+ *     if (i === shortLen - eccLen && j < numShort) skip
+ *
+ * ⚠⚠ `numShort` is `numBlocks - raw % numBlocks`, so when the block count
+ * DIVIDES the codeword count evenly — every version with one block, and many
+ * others — `numShort === numBlocks` and that condition is true for every block.
+ * The skip fired where nothing needed skipping and dropped one byte per block:
+ * the FIRST PARITY BYTE. v1-M emitted 25 codewords where the spec wants 26, and
+ * the parity a decoder checks was nonsense. Measured against a reference
+ * encoder: data codewords identical, parity shifted left by one with a 00
+ * pushed in at the end.
+ *
+ * ⛔ AND THE TEST AGREED WITH IT, because the round-trip decoder de-interleaved
+ * with the same wrong rule and never verified parity — a decoder that shares the
+ * encoder's mistake proves only that the mistake is consistent. See the syndrome
+ * check in qrEncode.test.js, which is the thing that would have caught this.
+ *
+ * ── ⭐ THE RULE, STATED SO IT CANNOT BE GOT WRONG AGAIN ──────────────────
+ *
+ * Data and parity are interleaved as TWO SEPARATE PASSES, and they are never
+ * concatenated per block:
+ *
+ *   1. every block's data codeword 0, then every block's 1, ... A short block
+ *      simply has no codeword at the last data index, so it contributes nothing
+ *      there. That is the only skip, and it falls out of `i < block.length`.
+ *   2. then every block's parity codeword 0, then 1, ... Parity blocks are ALL
+ *      the same length, so ⛔ there is never a skip in this pass.
  */
 function addEccAndInterleave(data, ver, ecl) {
   const numBlocks = ECC_BLOCKS[ecl][ver];
@@ -164,21 +193,23 @@ function addEccAndInterleave(data, ver, ecl) {
   const shortLen = Math.floor(raw / numBlocks);
 
   const generator = rsGenerator(eccLen);
-  const blocks = [];
+  const dataBlocks = [];
+  const eccBlocks = [];
   for (let i = 0, k = 0; i < numBlocks; i++) {
     const len = shortLen - eccLen + (i < numShort ? 0 : 1);
     const dat = data.slice(k, k + len);
     k += len;
-    blocks.push([...dat, ...rsRemainder(dat, generator)]);
+    dataBlocks.push(dat);
+    eccBlocks.push(rsRemainder(dat, generator));
   }
 
   const result = [];
-  for (let i = 0; i < blocks[0].length + 1; i++) {
-    for (let j = 0; j < blocks.length; j++) {
-      if (i < blocks[j].length && !(i === shortLen - eccLen && j < numShort)) {
-        result.push(blocks[j][i]);
-      }
-    }
+  const maxData = Math.max(...dataBlocks.map(b => b.length));
+  for (let i = 0; i < maxData; i++) {
+    for (const block of dataBlocks) if (i < block.length) result.push(block[i]);
+  }
+  for (let i = 0; i < eccLen; i++) {
+    for (const block of eccBlocks) result.push(block[i]);
   }
   return result;
 }

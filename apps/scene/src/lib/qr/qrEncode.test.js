@@ -26,11 +26,71 @@ import {
  * string back. ⛔ If this file is ever "simplified" into golden-matrix
  * assertions, the encoder loses the only check that means anything.
  *
- * ⚠ Reed-Solomon parity is computed but not VERIFIED here: these matrices have
- * no errors in them, so there is nothing for it to correct. Parity being wrong
- * would not fail this test, it would fail on a scuffed poster. That is the one
- * gap, and it is why the acceptance step is still "scan a printed one".
+ * ⛔⛔ AND IT VERIFIES THE PARITY, BECAUSE NOT DOING SO SHIPPED A BROKEN
+ * ENCODER TO PRODUCTION.
+ *
+ * This file used to say: "Reed-Solomon parity is computed but not VERIFIED
+ * here: these matrices have no errors in them, so there is nothing for it to
+ * correct." That reasoning is wrong, and it cost a real event. A scanner does
+ * not skip the parity when a symbol is clean — it computes the syndromes and
+ * REJECTS the symbol when they do not vanish. So an encoder with correct data
+ * and broken parity produces codes that look perfect, round-trip through a
+ * decoder like this one, and cannot be read by any phone on earth. The camera
+ * does not even draw its detection box.
+ *
+ * The bug was in `addEccAndInterleave`: a skip meant for short blocks fired
+ * whenever the block count divided the codeword count evenly, dropping the
+ * first parity byte of every block. This decoder agreed with it because it, too,
+ * only read the data codewords.
+ *
+ * ⭐ `syndromes()` below is the check that closes it, and it is written to share
+ * as little as possible with the encoder — its own field multiply, by a
+ * different algorithm.
  */
+
+/* ── the parity check ────────────────────────────────────────────────────── */
+
+/**
+ * GF(256) multiply, deliberately written a different way from the encoder's.
+ *
+ * ⭐ The encoder walks the bits of `y` from the top down; this is peasant
+ * multiplication from the bottom up. Same field, same polynomial (0x11D),
+ * independent arithmetic — so a bug in one does not hide in the other.
+ */
+function gfMul(a, b) {
+  let r = 0;
+  while (b > 0) {
+    if (b & 1) r ^= a;
+    a = ((a << 1) ^ ((a & 0x80) ? 0x11d : 0)) & 0xff;
+    b >>= 1;
+  }
+  return r;
+}
+
+/**
+ * The syndromes of one block's codewords: the codeword polynomial evaluated at
+ * the generator's roots. **Every one must be zero** for a decoder to accept the
+ * block.
+ *
+ * ⛔ This is the property nothing was checking. It is what a scanner computes
+ * before it will look at a single byte of payload.
+ *
+ * ⚠ THE ROOTS START AT α⁰, NOT α¹ — QR's generator is built as
+ * (x−α⁰)(x−α¹)…(x−α^(n−1)), which is the convention `rsGenerator` follows.
+ * Written the other way this check reports every syndrome zero except the last,
+ * which reads exactly like a real parity fault and is not one.
+ */
+function syndromes(codewords, eccLen) {
+  const out = [];
+  let x = 1;                                          // α⁰
+  for (let i = 0; i < eccLen; i++) {
+    let s = 0;
+    for (const c of codewords) s = gfMul(s, x) ^ c;   // Horner
+    out.push(s);
+    x = gfMul(x, 2);                                  // α^(i+1)
+  }
+  return out;
+}
 
 /* ── the decoder ─────────────────────────────────────────────────────────── */
 
@@ -90,20 +150,34 @@ function decode(sym) {
     cw.push(b);
   }
 
-  // De-interleave. Data codewords only; parity is not needed for a clean read.
+  /**
+   * De-interleave, in the two passes the spec describes: all data, then all
+   * parity. ⛔⛔ THE OLD VERSION OF THIS READ ONLY THE DATA and stopped, which
+   * is precisely why it agreed with an encoder that was dropping the first
+   * parity byte of every block. A decoder that shares the encoder's mistake
+   * proves only that the mistake is consistent.
+   */
   const numBlocks = TABLES.ECC_BLOCKS[ecl][ver];
   const eccLen = TABLES.ECC_CODEWORDS[ecl][ver];
   const raw = Math.floor(rawDataModules(ver) / 8);
   const numShort = numBlocks - (raw % numBlocks);
   const shortLen = Math.floor(raw / numBlocks);
-  const blocks = Array.from({ length: numBlocks }, () => []);
+
+  const dataLens = [];
+  for (let j = 0; j < numBlocks; j++) dataLens.push(shortLen - eccLen + (j < numShort ? 0 : 1));
+  const maxData = Math.max(...dataLens);
+
+  const dataBlocks = Array.from({ length: numBlocks }, () => []);
+  const eccBlocks = Array.from({ length: numBlocks }, () => []);
   let idx = 0;
-  for (let i = 0; i < shortLen + 1; i++) {
-    for (let j = 0; j < numBlocks; j++) {
-      if (i < shortLen - eccLen + (j < numShort ? 0 : 1)) blocks[j].push(cw[idx++]);
-    }
+  for (let i = 0; i < maxData; i++) {
+    for (let j = 0; j < numBlocks; j++) if (i < dataLens[j]) dataBlocks[j].push(cw[idx++]);
   }
-  const data = [].concat(...blocks);
+  for (let i = 0; i < eccLen; i++) {
+    for (let j = 0; j < numBlocks; j++) eccBlocks[j].push(cw[idx++]);
+  }
+  const data = [].concat(...dataBlocks);
+  const blocks = dataBlocks.map((d, j) => [...d, ...eccBlocks[j]]);
 
   let p = 0;
   const rd = (n) => {
@@ -116,7 +190,7 @@ function decode(sym) {
   const len = rd(ver <= 9 ? 8 : 16);
   const bytes = [];
   for (let i = 0; i < len; i++) bytes.push(rd(8));
-  return { text: new TextDecoder().decode(Uint8Array.from(bytes)), ecl, mask, version: ver };
+  return { text: new TextDecoder().decode(Uint8Array.from(bytes)), ecl, mask, version: ver, blocks };
 }
 
 /* ── the round trip ──────────────────────────────────────────────────────── */
@@ -153,6 +227,60 @@ test('⭐⭐ every symbol decodes back to what went in, at every EC level', () =
     }
   }
   assert.ok(checked >= 30, `expected the full matrix of payloads x levels, ran ${checked}`);
+});
+
+/**
+ * ⛔⛔ THE ONE THAT WOULD HAVE CAUGHT IT.
+ *
+ * Correct data with broken parity gives a symbol that looks perfect, passes the
+ * round trip above, and is unreadable by every scanner in existence. Measured
+ * against a reference encoder when it happened: data codewords byte-identical,
+ * parity shifted left by one with a 00 pushed in at the end.
+ *
+ * ⚠ THE COUNT MATTERS AS MUCH AS THE VALUES. The old interleaver emitted 25
+ * codewords where v1-M wants 26, so assert the block is the full length before
+ * trusting a syndrome computed over it.
+ */
+test('⛔⛔ every block\'s Reed-Solomon parity is valid, at every version', () => {
+  let blocksChecked = 0;
+  for (const payload of PAYLOADS) {
+    for (const ecl of ['L', 'M', 'Q', 'H']) {
+      let sym;
+      try { sym = encodeQR(payload, ecl); } catch { continue; }
+
+      const eccLen = TABLES.ECC_CODEWORDS[ecl][sym.version];
+      const numBlocks = TABLES.ECC_BLOCKS[ecl][sym.version];
+      const raw = Math.floor(rawDataModules(sym.version) / 8);
+      const { blocks } = decode(sym);
+
+      assert.equal(blocks.length, numBlocks, `v${sym.version}-${ecl}: wrong block count`);
+      assert.equal(
+        blocks.reduce((n, b) => n + b.length, 0), raw,
+        `v${sym.version}-${ecl}: ${blocks.reduce((n, b) => n + b.length, 0)} codewords, spec wants ${raw}`,
+      );
+
+      blocks.forEach((block, j) => {
+        const s = syndromes(block, eccLen);
+        assert.ok(s.every(v => v === 0),
+          `v${sym.version}-${ecl} block ${j}: syndromes ${s.join(',')} — a scanner would reject this`);
+        blocksChecked++;
+      });
+    }
+  }
+  assert.ok(blocksChecked > 100, `expected many blocks, checked ${blocksChecked}`);
+});
+
+/** The parity check must be capable of failing, or it is decoration. */
+test('⚠ the syndrome check actually detects corrupt parity', () => {
+  const sym = encodeQR('hello world', 'M');
+  const { blocks } = decode(sym);
+  const eccLen = TABLES.ECC_CODEWORDS.M[sym.version];
+  assert.ok(syndromes(blocks[0], eccLen).every(v => v === 0), 'the clean block should pass');
+
+  const corrupted = [...blocks[0]];
+  corrupted[corrupted.length - 1] ^= 0x01;          // flip one bit of parity
+  assert.ok(!syndromes(corrupted, eccLen).every(v => v === 0),
+    'a flipped parity bit went undetected — the check proves nothing');
 });
 
 test('the symbol is the size its version claims, and the finders are where they must be', () => {
