@@ -83,3 +83,18 @@ test('the error path never includes the service key', async () => {
     (e) => !String(e.message).includes('SECRET-KEY')
   );
 });
+
+test('a return=minimal write with an empty body is success, not a phantom error', async () => {
+  // the shared stub cannot produce a truly empty body — emulate one:
+  const empty = async () => ({ ok: true, status: 201, headers: { get: () => null }, json: async () => { throw new Error('no body'); }, text: async () => '' });
+  const db = makeDb({ url: 'https://x.supabase.co', serviceKey: 'K', fetchImpl: empty });
+  const out = await db.write('account_segments', { body: { user_id: 'u' }, prefer: 'return=minimal' });
+  assert.deepEqual(out, []);
+});
+
+test('write refuses to touch raw usage_events — the immutability guard is structural', async () => {
+  const f = stubFetch([{ status: 201, body: [] }]);
+  const db = makeDb({ url: 'https://x.supabase.co', serviceKey: 'K', fetchImpl: f });
+  await assert.rejects(() => db.write('usage_events', { body: {}, schema: 'public' }), /immutable/);
+  assert.equal(f.calls.length, 0, 'the request must never leave the process');
+});

@@ -131,8 +131,11 @@ export function makeDb({ url, serviceKey, fetchImpl = fetch }) {
       const text = await res.text().catch(() => '');
       throw new Error('PostgREST ' + res.status + ' on ' + method + ' ' + path.split('?')[0] + ': ' + text.slice(0, 200));
     }
-    if (res.status === 204) return [];
-    return res.json();
+    // `return=minimal` answers 201/204 with an EMPTY body — res.json()
+    // throws on it and turns a successful write into a phantom error.
+    const text = await res.text();
+    if (!text) return [];
+    return JSON.parse(text);
   }
 
   return { read, readAll, write, checkExposure };
