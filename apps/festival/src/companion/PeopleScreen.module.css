@@ -1,0 +1,103 @@
+/* ⭐ The same page frame as Home, deliberately — a room the organiser walks
+   into should not change measure, padding or heading size just because it
+   holds different nouns. */
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px 16px 24px;
+  max-width: 640px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.head { display: flex; flex-direction: column; gap: 2px; }
+
+.title {
+  font-family: 'Bebas Neue', sans-serif;
+  /* ⚠ Bebas Neue has ONE weight. ⛔ Do not add font-weight to an h1 here: the
+     browser fakes the bold and the title stops matching every other title in
+     the product. */
+  font-weight: 400;
+  font-size: 30px;
+  letter-spacing: 1.4px;
+  line-height: 1.05;
+  color: var(--text);
+  margin: 0;
+}
+
+.sub { font-size: 13px; color: var(--muted); margin: 0; }
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 11px 13px;
+  border-radius: 12px;
+  background: var(--card);
+  border: 1px solid var(--border);
+}
+
+.avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: linear-gradient(135deg, var(--neon), var(--neon2));
+  opacity: .55;
+}
+
+/* ⭐ min-width:0 so a long name TRUNCATES instead of shoving the role chips
+   off the row. The chips are the operational content; a name that pushes them
+   out of view makes the roster unreadable exactly when it is busiest. */
+.body { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+
+.name {
+  font-size: 14px;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ⛔ Not styled as an error. An erased or unclaimed account is an ordinary
+   state of the record, not a fault to be flagged in red. */
+.nameless { color: var(--muted); font-style: italic; }
+
+.meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.roles {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+/* ⭐ A role and its status are ONE unit and must wrap together. Letting them
+   separate would leave "Volunteer" on one line and "Confirmed" under an
+   unrelated "Artist" — a roster that states the wrong status for a role is
+   worse than one that wraps awkwardly. */
+.role { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+
+/* Two roles plus two statuses do not fit beside a name on a phone, so the
+   chips move under it rather than being squeezed. */
+@media (max-width: 460px) {
+  .row { align-items: flex-start; flex-wrap: wrap; }
+  .roles { justify-content: flex-start; width: 100%; padding-left: 45px; }
+}

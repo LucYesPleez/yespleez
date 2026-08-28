@@ -5,6 +5,7 @@ import { categoryRepository } from './supabase/categoryRepository';
 import { applicationRepository } from './supabase/applicationRepository';
 import { eventConfigRepository } from './supabase/eventConfigRepository';
 import { publicLandingRepository } from './supabase/publicLandingRepository';
+import { peopleRepository } from './supabase/peopleRepository';
 
 /**
  * THE SWAP POINT.
@@ -40,6 +41,9 @@ const DEFAULT_REPOSITORIES = {
   // only — it writes nothing, and applying still happens in Scene. This is
   // not `apply` coming back; see publicLandingRepository's header.
   publicLanding: publicLandingRepository,
+  // ⭐ The roster: PARTICIPATION, never accepted applications. People is the
+  // first screen that would be wrong without it.
+  people: peopleRepository,
 };
 
 export default function DataProvider({ repositories, children }) {
