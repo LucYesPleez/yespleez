@@ -128,7 +128,7 @@ export default function EventScreen() {
         claimsBySlot={d.claimsBySlot}
         session={session}
         lineupMembers={d.lineupMembers}
-      shortlistMembers={d.shortlistMembers}
+        shortlistMembers={d.shortlistMembers}
         perfsByMember={d.perfsByMember}
         memberProfiles={d.memberProfiles}
         lineupPct={d.lineupPct}
@@ -201,6 +201,8 @@ export default function EventScreen() {
       coHostProfiles={d.coHostProfiles}
       venueProfile={d.venueProfile}
       lineupMembers={d.lineupMembers}
+      /* ⚠ For the bill's ORDER only — workshop and gallery acts read last. */
+      schedule={d.schedule}
       shortlistMembers={d.shortlistMembers}
       memberProfiles={d.memberProfiles}
       favourited={like.liked}

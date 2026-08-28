@@ -45,6 +45,9 @@ export default function EventPage({
   coHostProfiles = [],
   venueProfile = null,
   lineupMembers = [],
+  /* ⚠ Read ONLY to place workshop and gallery acts at the end of the bill —
+     a lineup_members row knows nothing about stages, the SLOT does. */
+  schedule = null,
   memberProfiles = {},
   favourited = false,
   onToggleFavourite = null,
@@ -95,8 +98,8 @@ export default function EventPage({
   // rather than per render so the status pill and "last checked" cannot
   // disagree with each other mid-page.
   const v = useMemo(
-    () => buildEventView({ event, ownerProfile, coHostProfiles, venueProfile, lineupMembers, memberProfiles }),
-    [event, ownerProfile, coHostProfiles, venueProfile, lineupMembers, memberProfiles],
+    () => buildEventView({ event, ownerProfile, coHostProfiles, venueProfile, lineupMembers, memberProfiles, schedule }),
+    [event, ownerProfile, coHostProfiles, venueProfile, lineupMembers, memberProfiles, schedule],
   );
 
   /* ⭐ ONE act pairs with the title and info; ⛔ two do not — see the identity

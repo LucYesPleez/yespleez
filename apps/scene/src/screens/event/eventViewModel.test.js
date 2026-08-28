@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  buildEventView, buildVenue, buildLineup, buildDetails, buildSources,
+  buildEventView, buildVenue, buildLineup, spreadEvenly, buildDetails, buildSources,
   readClock, readGenres, readDate, readEndDate, readTickets, readDateConfidence,
   relativeTime, buildCollectables,
 } from './eventViewModel.js';
@@ -460,4 +460,118 @@ test('a withheld venue gives up its navigation coords too', () => {
     venueProfile: { id: 'v1', type: 'venue', name: 'X', suburb: 'Bellingen', state: 'NSW', postcode: '2454', lat: -30.4531, lng: 152.8987 },
   });
   assert.equal(view.venue.navCoords, null);
+});
+
+
+/* ── ⭐⭐ WORKSHOPS ARE SPREAD THROUGH THE BILL ──────────────────────────
+   ⚠⚠ This has been wrong in BOTH directions. The classes originally led the
+   rail (BILL order is whatever order the rows arrived in); moving the block to
+   the end produced the mirror image — a run of classes with no music in it,
+   reading as an appendix rather than part of the bill. Spread evenly, they are
+   what they are: part of the same weekend. */
+
+test('spreadEvenly deals the extras through, opening and closing on main', () => {
+  const main = ['a', 'b', 'c', 'd', 'e', 'f'];
+  const out = spreadEvenly(main, ['X', 'Y']);
+  assert.equal(out[0], 'a', '⛔ the rail must not open on an extra');
+  assert.equal(out[out.length - 1], 'f', '⛔ nor close on one');
+  assert.equal(out.length, 8, 'nothing is dropped');
+  // Both groups keep their own order.
+  assert.deepEqual(out.filter(v => v === 'X' || v === 'Y'), ['X', 'Y']);
+  assert.deepEqual(out.filter(v => v !== 'X' && v !== 'Y'), main);
+});
+
+test("⛔ nobody is dropped when there are more extras than main", () => {
+  const out = spreadEvenly(['a'], ['X', 'Y', 'Z']);
+  assert.equal(out.length, 4, 'a card is never dropped to make the spacing tidy');
+  assert.deepEqual(out.filter(v => v !== 'a'), ['X', 'Y', 'Z']);
+});
+
+test('spreadEvenly mutates neither input', () => {
+  const main = ['a', 'b'], extras = ['X'];
+  spreadEvenly(main, extras);
+  assert.deepEqual(main, ['a', 'b']);
+  assert.deepEqual(extras, ['X']);
+});
+
+const scheduleWith = (stageName, ...memberIds) => ({
+  days: [{ stages: [
+    { name: 'DJ STAGE', slots: [{ claim: { member_id: 'm-dj' } }] },
+    { name: stageName,  slots: memberIds.map(id => ({ claim: { member_id: id } })) },
+  ] }],
+});
+
+test('a workshop act is dealt into the bill, not parked at either end', () => {
+  const members = [
+    { id: 'w1', artist_name: 'Yoga' },
+    { id: 'm1', artist_name: 'Band One' },
+    { id: 'm2', artist_name: 'Band Two' },
+    { id: 'm3', artist_name: 'Band Three' },
+    { id: 'm4', artist_name: 'Band Four' },
+  ];
+  const { artists } = buildLineup({
+    lineupMembers: members,
+    schedule: scheduleWith('WORKSHOPS & GALLERY', 'w1'),
+  });
+  const names = artists.map(a => a.name);
+  assert.equal(names[0], 'Band One', 'the bill opens on music');
+  assert.equal(names[names.length - 1], 'Band Four', 'and closes on music');
+  const at = names.indexOf('Yoga');
+  assert.ok(at > 0 && at < names.length - 1, `Yoga should sit inside the bill, was ${at}`);
+});
+
+test('⛔ the music keeps its own order while the classes are dealt in', () => {
+  const members = [
+    { id: 'w1', artist_name: 'Yoga' },
+    { id: 'm1', artist_name: 'Zzz Last Alphabetically' },
+    { id: 'm2', artist_name: 'Aaa First Alphabetically' },
+    { id: 'w2', artist_name: 'Qigong' },
+  ];
+  const { artists } = buildLineup({
+    lineupMembers: members,
+    schedule: scheduleWith('WORKSHOPS & GALLERY', 'w1', 'w2'),
+  });
+  const names = artists.map(a => a.name);
+  assert.deepEqual(
+    names.filter(n => !/Yoga|Qigong/.test(n)),
+    ['Zzz Last Alphabetically', 'Aaa First Alphabetically'],
+    'a spread is not a sort',
+  );
+  assert.deepEqual(names.filter(n => /Yoga|Qigong/.test(n)), ['Yoga', 'Qigong']);
+});
+
+test('⛔ no schedule reorders nobody', () => {
+  const members = [{ id: 'a', artist_name: 'One' }, { id: 'b', artist_name: 'Two' }];
+  assert.deepEqual(buildLineup({ lineupMembers: members }).artists.map(a => a.name), ['One', 'Two']);
+  assert.deepEqual(
+    buildLineup({ lineupMembers: members, schedule: { days: [] } }).artists.map(a => a.name),
+    ['One', 'Two'],
+  );
+});
+
+test('⛔ a workshop on the bill does not wear a DJ photograph', () => {
+  // ⚠⚠ Measured live 2026-08-28: Yoga, Portal Cat, Qigong and Arnold Alskar all
+  // rendered defaultdj.webp on the lineup rail. `type` is 'artist' for every act
+  // with no profile, and PortraitCard draws that type's default — the same
+  // defect already fixed on the set-times card, still live on this surface.
+  const { artists } = buildLineup({
+    lineupMembers: [
+      { id: 'w1', artist_name: 'Yoga' },
+      { id: 'm1', artist_name: 'Band One' },
+      { id: 'm2', artist_name: 'Band Two' },
+    ],
+    schedule: scheduleWith('WORKSHOPS & GALLERY', 'w1'),
+  });
+  assert.equal(artists.find(a => a.name === 'Yoga').avatar, '/defaultworkshop.jpg');
+  assert.equal(artists.find(a => a.name === 'Band One').avatar, null,
+    '⛔ a band with no picture still resolves through its own type default');
+});
+
+test("⛔ an act's own picture always wins over the stage default", () => {
+  const { artists } = buildLineup({
+    lineupMembers: [{ id: 'w1', artist_name: 'Yoga' }, { id: 'm1', artist_name: 'Band' }],
+    memberProfiles: { w1: { id: 'p1', avatar_thumb: '/real-face.webp' } },
+    schedule: scheduleWith('WORKSHOPS & GALLERY', 'w1'),
+  });
+  assert.equal(artists.find(a => a.name === 'Yoga').avatar, '/real-face.webp');
 });

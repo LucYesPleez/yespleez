@@ -852,10 +852,18 @@
   transition: color .15s, border-color .15s, background .15s;
 }
 
+/* ⭐ The same lit treatment as the day rail's chip — gradient outline, white
+   text, no fill. ⛔ Two selection languages for two chip rails that sit within
+   a few hundred pixels of each other read as two different KINDS of control.
+   See SchedulePortrait.module.css `.dayBtnOn` for why the two background layers
+   are needed; here the padding-box layer is `--card2`, the chip's own resting
+   colour, because that is what sits behind this rail. */
 .stageChipOn {
-  color: var(--neon2);
-  border-color: var(--neon2);
-  background: rgba(0, 229, 255, .14);
+  color: #fff;
+  border: 1px solid transparent;
+  background:
+    linear-gradient(var(--card2), var(--card2)) padding-box,
+    linear-gradient(90deg, var(--neon), var(--neon2)) border-box;
 }
 
 /* ── A SET SHORTER THAN AN HOUR ───────────────────────────────────────────────

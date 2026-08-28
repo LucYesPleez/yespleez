@@ -21,6 +21,7 @@
 
 import { DEFAULT_CROP_Y } from '@yespleez/event-presentation';
 import { postcodeCoords } from '../../lib/geo';
+import { isWorkshopStage, WORKSHOP_IMAGE } from '../../lib/stageDefaultImage';
 
 /* ── config readers ──────────────────────────────────────────────────
    One place per field, listing every spelling it has ever had. New writers
@@ -171,8 +172,92 @@ export function buildVenue({ event = {}, cfg = {}, venueProfile = null } = {}) {
 /* ── the bill ────────────────────────────────────────────────────────
    Members are already ordered by the organiser (BILL, the resting order), and
    `memberProfiles` is keyed by lineup_members.id — see lineupProfiles.js. */
-export function buildLineup({ lineupMembers = [], memberProfiles = {}, cfg = {} } = {}) {
-  const artists = (lineupMembers || [])
+/**
+ * ⭐⭐ WHICH MEMBERS ARE ON A WORKSHOP OR GALLERY STAGE, from the schedule.
+ *
+ * ⚠ The lineup rows themselves cannot answer this: a `lineup_members` row knows
+ * nothing about stages. The link is the SLOT an act holds, so the canonical
+ * schedule is the only thing that can say it, and the bill asks it rather than
+ * inventing a second opinion.
+ *
+ * ⚠ Absent schedule = empty set, and the bill keeps the order it always had.
+ * ⛔ A missing schedule must never silently reorder anybody.
+ */
+function workshopMemberIds(schedule) {
+  const ids = new Set();
+  for (const day of schedule?.days || []) {
+    for (const stage of day.stages || []) {
+      if (!isWorkshopStage(stage.name)) continue;
+      for (const entry of stage.slots || []) {
+        const id = entry?.claim?.member_id;
+        if (id) ids.add(id);
+      }
+    }
+  }
+  return ids;
+}
+
+/**
+ * ⭐ Deal `extras` evenly into `main`, keeping both orders.
+ *
+ * ⚠ THE GAPS ARE COMPUTED FROM THE COUNTS, ⛔ not a fixed "every 4th". On
+ * Neverland that is 26 music acts and 7 classes, so a class lands roughly every
+ * three or four cards; on an event with two classes and thirty bands it spaces
+ * them just as evenly, and on one with more classes than music it still reads
+ * as one mixed bill rather than two blocks.
+ *
+ * ⚠ Positions come from `(i + 1) * main.length / (extras.length + 1)`, which
+ * puts a gap AFTER the last extra as well as before the first — so the rail
+ * neither opens nor closes on a run of classes.
+ *
+ * @returns {Array} a new array; ⛔ neither input is mutated.
+ */
+export function spreadEvenly(main = [], extras = []) {
+  if (!extras.length) return [...main];
+  if (!main.length) return [...extras];
+
+  const step = main.length / (extras.length + 1);
+  const out = [];
+  let next = 0;
+
+  for (let i = 0; i < main.length; i++) {
+    out.push(main[i]);
+    while (next < extras.length && (i + 1) >= Math.round((next + 1) * step)) {
+      out.push(extras[next++]);
+    }
+  }
+  /* ⚠ Anything the loop could not place still goes in. More extras than main
+     means several share a boundary, and ⛔ a card must never be dropped to make
+     the spacing tidy. */
+  while (next < extras.length) out.push(extras[next++]);
+  return out;
+}
+
+export function buildLineup({ lineupMembers = [], memberProfiles = {}, cfg = {}, schedule = null } = {}) {
+  /**
+   * ⭐⭐ WORKSHOPS AND GALLERY ARE SPREAD THROUGH THE BILL (owner, 2026-08-28).
+   *
+   * ⚠⚠ THIS HAS NOW BEEN WRONG IN BOTH DIRECTIONS, and the middle is the
+   * answer. They originally LED the rail — seven yoga, qigong and jewellery
+   * cards before a single band — because BILL order is whatever order the rows
+   * arrived in. Moving the block to the END fixed that and created the mirror
+   * image: a run of classes with no music in it, which reads as an appendix
+   * rather than part of the bill.
+   *
+   * ⭐ Spread evenly, they are what they actually are: part of the same
+   * weekend, meeting a reader wherever they stop scrolling. Neither group gets
+   * a wall of its own.
+   *
+   * ⚠ STABLE WITHIN EACH GROUP, ⛔ not a sort. The music keeps its order and
+   * the classes keep theirs; only the interleaving is new.
+   */
+  const later = workshopMemberIds(schedule);
+  const all = lineupMembers || [];
+  const ordered = later.size
+    ? spreadEvenly(all.filter(m => !later.has(m?.id)), all.filter(m => later.has(m?.id)))
+    : all;
+
+  const artists = ordered
     .filter(m => m && (m.artist_name || memberProfiles[m.id]?.name))
     .map(m => {
       const p = memberProfiles[m.id] || null;
@@ -182,7 +267,23 @@ export function buildLineup({ lineupMembers = [], memberProfiles = {}, cfg = {} 
         id:       p?.id || m.artist_profile_id || m.id,
         name:     p?.name || m.artist_name,
         location: p?.location || null,
-        avatar:   p?.avatar_thumb || p?.avatar || null,
+        /**
+         * ⭐⭐ A WORKSHOP ON THE BILL WEARS THE WORKSHOP PICTURE, ⛔ not a DJ's.
+         *
+         * ⚠⚠ THE SAME DEFECT AS THE SET-TIMES CARD, STILL LIVE HERE (measured
+         * 2026-08-28: Yoga w/ Crystal Rose, Portal Cat, Qigong and Arnold
+         * Alskar all rendered `defaultdj.webp` on the lineup rail). `type` below
+         * is 'artist' for every act with no profile, and `PortraitCard` draws
+         * that type's default — right for a band nobody has photographed,
+         * confidently wrong for a yoga class.
+         *
+         * ⛔ ONLY WHEN THE ACT HAS NO PICTURE OF ITS OWN, and only for the
+         * stages that say so — the same one predicate the set-times card asks.
+         * ⚠ Fixing it on one surface and not the other is how the two started
+         * disagreeing in the first place.
+         */
+        avatar:   p?.avatar_thumb || p?.avatar
+                  || (later.has(m?.id) ? WORKSHOP_IMAGE : null),
         type:     p?.type || 'artist',
       };
     });
@@ -319,6 +420,10 @@ export function buildEventView({
   coHostProfiles = [],
   lineupMembers = [],
   memberProfiles = {},
+  /* ⚠ Optional: the canonical schedule, read ONLY to decide where workshop and
+     gallery acts sit in the bill. Absent leaves the bill order untouched, so
+     every existing caller and test keeps its exact current output. */
+  schedule = null,
   now = new Date(),
 } = {}) {
   const cfg = event.config || {};
@@ -398,7 +503,7 @@ export function buildEventView({
       description: first(cfg.bio, cfg.description) || '',
     },
 
-    lineup: buildLineup({ lineupMembers, memberProfiles, cfg }),
+    lineup: buildLineup({ lineupMembers, memberProfiles, cfg, schedule }),
 
     venue,
 

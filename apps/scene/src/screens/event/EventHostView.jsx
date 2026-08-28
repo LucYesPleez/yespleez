@@ -1991,6 +1991,7 @@ export default function EventHostView({
           ownerProfile={ownerProfile}
           venueProfile={venueProfile}
           lineupMembers={lineupMembers}
+          schedule={schedule}
           memberProfiles={memberProfiles}
           canFavourite={false}
           /* ⭐ VIEW AS PUNTER MUST SHOW WHAT A PUNTER SEES (S3). This was the

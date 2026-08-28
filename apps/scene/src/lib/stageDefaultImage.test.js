@@ -42,3 +42,16 @@ test('no stage at all is not an error', () => {
   assert.equal(stageDefaultImage(undefined), null);
   assert.equal(stageDefaultImage(''), null);
 });
+
+/* ── The bill's order ──────────────────────────────────────────────────
+   ⭐ The image default and the LINEUP order are two consequences of one fact,
+   so they must never be able to disagree — the picture saying "workshop" while
+   the ordering says "music". One predicate, asked twice. */
+test('the same stages that lend the picture are the ones that read last', async () => {
+  const { isWorkshopStage } = await import('./stageDefaultImage.js');
+  assert.equal(isWorkshopStage('WORKSHOPS & GALLERY'), true);
+  assert.equal(isWorkshopStage('ART GALLERY'), true);
+  assert.equal(isWorkshopStage('LIVE STAGE'), false);
+  assert.equal(isWorkshopStage('DJ STAGE'), false);
+  assert.equal(isWorkshopStage(null), false, 'a single-stage event has no stage opinion');
+});

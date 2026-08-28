@@ -33,8 +33,10 @@
  * until they are two stages; a second pattern that can never match is a lie
  * about what the app knows.
  */
+export const WORKSHOP_IMAGE = '/defaultworkshop.jpg';
+
 const STAGE_DEFAULTS = [
-  { test: /workshop|gallery/i, image: '/defaultworkshop.jpg' },
+  { test: /workshop|gallery/i, image: WORKSHOP_IMAGE },
 ];
 
 /**
@@ -45,4 +47,21 @@ export function stageDefaultImage(stageName) {
   if (!stageName) return null;
   const hit = STAGE_DEFAULTS.find(d => d.test.test(stageName));
   return hit ? hit.image : null;
+}
+
+/**
+ * ⭐⭐ IS THIS A WORKSHOP / GALLERY STAGE? Asked by the LINEUP rail, which lists
+ * these acts AFTER the music (owner, 2026-08-28) — a reader scanning the bill is
+ * looking for who is playing, and seven yoga and jewellery classes at the front
+ * answer a question they did not ask.
+ *
+ * ⛔ ONE PLACE KNOWS WHICH STAGES THESE ARE. The image default and the bill
+ * order are two consequences of the same fact, and a second regex somewhere
+ * else is how they start disagreeing — the picture saying "workshop" while the
+ * order says "music". ⛔ Do not inline `/workshop|gallery/i` anywhere again.
+ *
+ * ⚠ Same weakness as the image: it reads the stage's NAME. See the header.
+ */
+export function isWorkshopStage(stageName) {
+  return stageDefaultImage(stageName) === WORKSHOP_IMAGE;
 }

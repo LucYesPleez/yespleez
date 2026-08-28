@@ -118,6 +118,9 @@ export default function EventLineup({
   const [overflowing, setOverflowing] = useState(false);
   const [moreBelow, setMoreBelow] = useState(false);
   const [moreRight, setMoreRight] = useState(false);
+  /* ⭐ Owned here, not by the page: there is no full-lineup route, so "see all"
+     is this section growing to hold everything. See the button below. */
+  const [expanded, setExpanded] = useState(false);
   const railRef = useRef(null);
   const wrapRef = useRef(null);
   const drag = useDragScroll('event-lineup');
@@ -207,19 +210,51 @@ export default function EventLineup({
       <div className={s.head}>
         <h2 className={s.heading}>LINEUP</h2>
         <span className={s.count}>{list.length}</span>
-        {sortable && (
-          <button
-            className={s.sort + (order === AZ ? ' ' + s.sortOn : '')}
-            onClick={() => setOrder(o => (o === AZ ? BILL : AZ))}
-            aria-pressed={order === AZ}
-          >
-            <SortIcon />
-            {order === AZ ? 'A–Z' : 'BILL'}
-          </button>
-        )}
+        {/**
+          * ⭐⭐ SEE ALL LIVES IN THE HEADING ROW (owner, 2026-08-28).
+          *
+          * ⚠⚠ IT USED TO SIT UNDER THE RAIL, which put the control that reveals
+          * a long bill BELOW the long bill — on the desktop grid the reader had
+          * to scroll past the cards they could not see to find the way to see
+          * them. Up here it is visible the moment the section is.
+          *
+          * ⛔⛔ `|| expanded` IS LOAD-BEARING. Expanding removes the overflow
+          * that revealed the button, so gating on `overflowing` alone unmounts
+          * the only way back and leaves every card open with no way to close.
+          *
+          * ⭐ `onViewAll` still wins when a caller supplies one (the layout
+          * harness does), so this adds a default rather than replacing a
+          * contract.
+          */}
+        {/* ⚠ SORT FIRST, SEE ALL OUTERMOST (owner, 2026-08-28). SEE ALL is the
+            one that changes the section's SIZE, so it sits at the edge where a
+            thumb reaches it; the sort chip stays nearer the heading it
+            qualifies. */}
+        <div className={s.headActions}>
+          {sortable && (
+            <button
+              className={s.sort + (order === AZ ? ' ' + s.sortOn : '')}
+              onClick={() => setOrder(o => (o === AZ ? BILL : AZ))}
+              aria-pressed={order === AZ}
+            >
+              <SortIcon />
+              {order === AZ ? 'A–Z' : 'BILL'}
+            </button>
+          )}
+          {(overflowing || expanded) && (
+            <button
+              className={s.viewAll + (expanded ? ' ' + s.viewAllOn : '')}
+              onClick={() => (onViewAll ? onViewAll() : setExpanded(v => !v))}
+              aria-expanded={onViewAll ? undefined : expanded}
+            >
+              {expanded ? 'SHOW LESS' : 'SEE ALL'}
+              <span className={expanded ? s.chevronUp : undefined}><ChevronIcon /></span>
+            </button>
+          )}
+        </div>
       </div>
 
-      <div className={s.railWrap + (moreBelow ? " " + s.moreBelow : "")} ref={wrapRef}>
+      <div className={s.railWrap + (moreBelow && !expanded ? " " + s.moreBelow : "") + (expanded ? " " + s.expanded : "")} ref={wrapRef}>
         <div
           className={s.rail}
           /* ⛔⛔ CALL THE CALLBACK — `drag.ref` IS A FUNCTION, NOT A REF OBJECT.
@@ -264,12 +299,6 @@ export default function EventLineup({
         </>}
       </div>
 
-      {overflowing && onViewAll && (
-        <button className={s.viewAll} onClick={onViewAll}>
-          VIEW FULL LINEUP
-          <ChevronIcon />
-        </button>
-      )}
     </section>
   );
 }

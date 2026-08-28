@@ -74,10 +74,27 @@
   cursor: pointer;
 }
 
+/* ⭐⭐ THE LIT CHIP IS A GRADIENT OUTLINE, ⛔ not a white slab (owner,
+   2026-08-28: "make them not stand out so much"). A solid white pill was the
+   brightest thing on the page — brighter than the acts it was meant to help you
+   find — so the control shouted louder than the content.
+
+   ⚠⚠ TWO BACKGROUND LAYERS, AND THE FIRST ONE MUST BE OPAQUE. `border-image`
+   cannot do a gradient on a rounded border, so the pill paints the page colour
+   clipped to padding-box over the gradient clipped to border-box; the border's
+   1px is the only place the gradient shows. ⛔ A transparent first layer lets
+   the gradient flood the whole chip, which is the filled pill again in
+   different colours.
+
+   ⚠ `--bg` must match what is actually behind the rail. If this chip ever moves
+   onto a card, that layer changes to the card's colour or it draws a dark
+   rectangle over it. */
 .dayBtnOn {
-  color: #0a0a14;
-  background: #fff;
-  border-color: #fff;
+  color: #fff;
+  border: 1px solid transparent;
+  background:
+    linear-gradient(var(--bg), var(--bg)) padding-box,
+    linear-gradient(90deg, var(--neon), var(--neon2)) border-box;
 }
 
 /* ── Day sections ───────────────────────────────────────────────────────
