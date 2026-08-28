@@ -9,6 +9,17 @@
  *
  * Adding a seventh destination is an architecture decision, not a tweak. The
  * Scene app's five permanent tabs are governed the same way.
+ *
+ * ⚠⚠ AND IT IS CURRENTLY SEVEN, KNOWINGLY. The ratified spec is SIX — Home ·
+ * Applications · People · Event · Comms · Settings — where Comms is Messages
+ * and Announcements MERGED, because two of six slots for one verb was too
+ * many. This list never got that merge, so when People arrived (2026-08-28)
+ * there was no free slot and the owner chose to add it as a seventh rather
+ * than restructure two working screens in the same change.
+ *
+ * ⛔ SO THIS IS A KNOWN DEBT, not a new architecture. The fix is not "remove
+ * People"; it is the reconciliation the spec already ratified — merge Messages
+ * and Announcements into one Comms room and this returns to six on its own.
  */
 
 // ⚠ No counts here. A sidebar badge means "N things await YOUR decision", and
@@ -17,6 +28,9 @@
 export const NAVIGATION = [
   { key: 'overview',      label: 'Overview',      to: '/overview',      icon: 'dashboard' },
   { key: 'applications',  label: 'Applications',  to: '/applications',  icon: 'inbox' },
+  // ⭐ People sits DIRECTLY AFTER Applications because that is the pipeline:
+  // Applied → Accepted, one flow, two stages. ⛔ Not at the end of the list.
+  { key: 'people',        label: 'People',        to: '/people',        icon: 'volunteer' },
   { key: 'messages',      label: 'Messages',      to: '/messages',      icon: 'messages' },
   { key: 'announcements', label: 'Announcements', to: '/announcements', icon: 'announcements' },
   { key: 'festival',      label: 'Festival',      to: '/festival',      icon: 'profile' },

@@ -11,6 +11,7 @@ import AppShell from './shell/AppShell';
 import CompanionShell from './companion/CompanionShell';
 import CompanionHome from './companion/HomeScreen';
 import CompanionPeople from './companion/PeopleScreen';
+import PeopleScreen from './screens/PeopleScreen';
 import CompanionMore from './companion/MoreScreen';
 import OverviewScreen from './screens/OverviewScreen';
 import ApplicationsScreen from './screens/ApplicationsScreen';
@@ -126,6 +127,7 @@ export default function App() {
               <Route path="/overview" element={<OverviewScreen />} />
               <Route path="/applications" element={<ApplicationsScreen />} />
               <Route path="/applications/:category" element={<ApplicationsScreen />} />
+              <Route path="/people" element={<PeopleScreen />} />
               <Route path="/messages" element={<MessagesScreen />} />
               <Route path="/announcements" element={<AnnouncementsScreen />} />
               <Route path="/festival" element={<FestivalScreen />} />

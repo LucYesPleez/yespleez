@@ -1,0 +1,133 @@
+/* PEOPLE — the desktop workspace frame.
+
+   ⭐ THE SAME FRAME AS APPLICATIONS, deliberately: a fixed shell where only
+   the rows scroll, so the heading never leaves the screen. An organiser
+   working a roster and an organiser working an inbox are doing the same kind
+   of work, and the room should not change shape between them. */
+
+/* ⚠ CONTAINER, NOT VIEWPORT. Inside the three-pane shell this pane is roughly
+   1026px at a 1920px viewport, because the sidebar takes 232 and the docked
+   inspector 380. Viewport media queries keep wide layouts alive in a narrow
+   pane and columns overflow with no warning. */
+.workspace {
+  container-type: inline-size;
+  container-name: pane;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  margin: var(--fp-gutter);
+  overflow: hidden;
+}
+
+.header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px 16px 13px;
+  flex-shrink: 0;
+}
+
+.titleGroup { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+
+.title {
+  font-family: 'Bebas Neue', sans-serif;
+  /* ⚠ Bebas Neue has ONE weight — an h1 would faux-bold it and stop matching
+     every other title in the product. */
+  font-weight: 400;
+  font-size: 19px;
+  letter-spacing: 2px;
+  color: var(--text);
+  white-space: nowrap;
+  margin: 0;
+}
+
+.count { font-size: 12.5px; color: var(--muted); white-space: nowrap; }
+.sub { font-size: 12.5px; color: var(--muted); margin: 0; }
+
+.wrap {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  position: relative;
+}
+
+.pad { padding: 16px; }
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  /* Header and rows must agree on widths at any row count; content-sized
+     columns make a long list visibly twitch as it renders. */
+  table-layout: fixed;
+}
+
+.head th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  text-align: left;
+  padding: 11px 14px;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 11px;
+  letter-spacing: 1.8px;
+  font-weight: 400;
+  color: var(--muted);
+  background: var(--card2);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+  user-select: none;
+}
+
+.row {
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+}
+/* ⛔ NO POINTER CURSOR AND NO HOVER TINT. Applications' rows are clickable
+   because they open the inspector; a People row opens nothing yet. A row that
+   looks clickable and does nothing is worse than a plain one. */
+
+.row td { padding: 10px 14px; vertical-align: middle; }
+
+.colAvatar { width: 52px; }
+.colPerson { width: 42%; }
+.colRoles  { width: auto; }
+
+.avatar {
+  display: block;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--neon), var(--neon2));
+  opacity: .55;
+}
+
+.name {
+  display: block;
+  font-size: 13.5px;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ⛔ Not styled as an error. An erased or unclaimed account is an ordinary
+   state of the record, not a fault to flag in red. */
+.nameless { color: var(--muted); font-style: italic; }
+
+.meta { display: block; font-size: 12px; color: var(--muted); }
+
+.roles { display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* ⭐ A role and its status are ONE unit and must wrap together. Separating
+   them would leave "Volunteer" on one line and "Confirmed" under an unrelated
+   "Artist" — stating the wrong status for a role is worse than wrapping
+   awkwardly. */
+.role { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+
+/* The pane, not the window. Below this the roles column has no room beside a
+   name, so it takes its own line. */
+@container pane (max-width: 620px) {
+  .colPerson { width: 60%; }
+  .roles { justify-content: flex-start; }
+}
