@@ -22,7 +22,8 @@
     "@yespleez/requirements": "*",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
-    "react-router-dom": "^7.18.0"
+    "react-router-dom": "^7.18.0",
+    "@yespleez/analytics-client": "*"
   },
   "devDependencies": {
     "@types/react": "^19.2.17",

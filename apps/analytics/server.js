@@ -21,6 +21,7 @@
  */
 
 import express from 'express';
+import { fileURLToPath } from 'node:url';
 import { requireLocal } from './lib/local.js';
 import { makeDb } from './lib/db.js';
 import { mountIdentityRoutes } from './lib/routes-identity.js';
@@ -36,6 +37,10 @@ const CONFIGURED = Boolean(SUPABASE_URL && SERVICE_KEY);
 const app = express();
 app.use(express.json({ limit: '256kb' }));
 app.use(requireLocal);
+
+// The UI: one static page reading only /api/*. Same local gate as the
+// API — the page without its data would just be an empty room.
+app.use(express.static(fileURLToPath(new URL('./public', import.meta.url))));
 
 const db = CONFIGURED ? makeDb({ url: SUPABASE_URL, serviceKey: SERVICE_KEY }) : null;
 

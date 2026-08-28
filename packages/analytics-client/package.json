@@ -1,0 +1,14 @@
+{
+  "name": "@yespleez/analytics-client",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "The platform's one collector: device/session identity, usage events, campaign touches. The consumer injects its Supabase client — this package never creates one.",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "scripts": {
+    "test": "node --test \"src/**/*.test.js\"",
+    "lint": "oxlint"
+  }
+}

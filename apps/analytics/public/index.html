@@ -1,0 +1,361 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>YesPleez Analytics</title>
+<style>
+/* ─────────────────────────────────────────────────────────────────────
+   YESPLEEZ ANALYTICS — the reading room for the platform's evidence.
+   A local tool: dark, dense, numbers-first. Every figure on this page
+   comes from /api/*; the page computes NOTHING (the arithmetic lives in
+   the tested modules behind the API — two definitions of a metric is
+   how dashboards learn to lie).
+   ───────────────────────────────────────────────────────────────────── */
+:root{
+  --bg:#101418; --panel:#161C22; --sunk:#1D242C; --line:#2A333D; --line2:#3A4550;
+  --ink:#E6ECF1; --dim:#93A1AD; --faint:#5E6C78;
+  --teal:#4FC8BF; --teal-soft:#12312F;
+  --gold:#E0B24E; --red:#E08A6B; --green:#7FBB92;
+  --mono:"IBM Plex Mono","Consolas",monospace;
+  --sans:"IBM Plex Sans","Segoe UI",sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:14px;line-height:1.5}
+header{display:flex;align-items:baseline;gap:18px;padding:18px 24px 0;flex-wrap:wrap}
+h1{font-size:17px;margin:0;letter-spacing:.02em}
+h1 b{color:var(--teal)}
+#health{font-family:var(--mono);font-size:11px;color:var(--faint)}
+#health.bad{color:var(--red)}
+nav{display:flex;gap:2px;padding:14px 24px 0;border-bottom:1px solid var(--line);flex-wrap:wrap}
+nav button{background:none;border:none;border-bottom:2px solid transparent;color:var(--dim);font:inherit;font-size:13px;padding:8px 14px;cursor:pointer;letter-spacing:.04em}
+nav button:hover{color:var(--ink)}
+nav button.on{color:var(--teal);border-bottom-color:var(--teal)}
+main{padding:20px 24px 60px;max-width:1280px}
+section{display:none}
+section.on{display:block}
+.controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:18px}
+select,input[type=text]{background:var(--sunk);border:1px solid var(--line2);color:var(--ink);font-family:var(--mono);font-size:12px;padding:6px 9px;border-radius:3px}
+button.act{background:var(--teal-soft);border:1px solid var(--teal);color:var(--teal);font-family:var(--mono);font-size:11.5px;letter-spacing:.05em;padding:6px 12px;border-radius:3px;cursor:pointer}
+button.act:hover{filter:brightness(1.2)}
+button.quiet{background:none;border:1px solid var(--line2);color:var(--dim)}
+.note{font-family:var(--mono);font-size:11px;color:var(--faint);margin:8px 0}
+.warn{color:var(--gold)}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(158px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);margin-bottom:18px}
+.card{background:var(--panel);padding:14px 16px}
+.card .n{font-family:var(--mono);font-size:26px;font-weight:600;letter-spacing:-.02em;display:block;font-variant-numeric:tabular-nums}
+.card .k{font-size:11.5px;color:var(--dim);display:block;margin-top:3px;line-height:1.3}
+.card.hero .n{color:var(--teal)}
+.tablewrap{overflow-x:auto;border:1px solid var(--line);margin-bottom:20px}
+table{border-collapse:collapse;width:100%;font-size:12.5px;min-width:560px}
+th{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);font-weight:500;text-align:left;padding:8px 12px;background:var(--sunk);border-bottom:1px solid var(--line2);white-space:nowrap}
+td{padding:8px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+tr:last-child td{border-bottom:none}
+td.num,th.num{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+td.mono{font-family:var(--mono);font-size:11px;color:var(--dim);word-break:break-all}
+.seg{font-family:var(--mono);font-size:10px;letter-spacing:.07em;text-transform:uppercase;padding:2px 7px;border-radius:2px}
+.seg.internal{background:var(--teal-soft);color:var(--teal)}
+.seg.beta{background:#2E2513;color:var(--gold)}
+.seg.test{background:#2c2330;color:#c39ad1}
+.seg.public{background:var(--sunk);color:var(--dim)}
+.chip{font-family:var(--mono);font-size:10px;background:var(--sunk);border:1px solid var(--line2);color:var(--dim);padding:1px 6px;border-radius:2px;margin-right:4px}
+h2{font-size:14px;letter-spacing:.05em;text-transform:uppercase;color:var(--dim);margin:26px 0 10px;font-weight:600}
+.stagebar{display:flex;align-items:center;gap:10px;margin:6px 0}
+.stagebar .lbl{font-family:var(--mono);font-size:11px;width:150px;color:var(--dim);text-align:right}
+.stagebar .bar{height:20px;background:var(--teal);opacity:.85;min-width:2px}
+.stagebar .val{font-family:var(--mono);font-size:11px;color:var(--ink)}
+.split{font-family:var(--mono);font-size:10px;color:var(--faint)}
+dialog{background:var(--panel);color:var(--ink);border:1px solid var(--line2);border-radius:4px;padding:20px;min-width:340px}
+dialog::backdrop{background:rgba(0,0,0,.6)}
+dialog label{display:block;font-size:12px;color:var(--dim);margin:10px 0 4px}
+dialog input,dialog select{width:100%}
+.row-actions{display:flex;gap:6px}
+#toast{position:fixed;bottom:18px;right:18px;background:var(--panel);border:1px solid var(--teal);color:var(--ink);padding:10px 16px;border-radius:4px;font-size:12.5px;display:none;max-width:420px}
+</style>
+</head>
+<body>
+<header>
+  <h1>YES<b>PLEEZ</b> ANALYTICS</h1>
+  <span id="health">connecting…</span>
+</header>
+<nav id="tabs"></nav>
+<main id="main"></main>
+<div id="toast"></div>
+
+<script>
+'use strict';
+/* One tiny fetch layer. Every number rendered came out of it. */
+const api = async (path, opts) => {
+  const res = await fetch('/api' + path, opts && {
+    method: opts.method || 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: opts.body ? JSON.stringify(opts.body) : undefined,
+  });
+  const body = await res.json();
+  if (!res.ok) throw new Error(body.error || res.status);
+  return body;
+};
+const el = (t, cls, text) => { const d = document.createElement(t); if (cls) d.className = cls; if (text != null) d.textContent = text; return d; };
+const fmt = (n) => n == null ? '—' : Number(n).toLocaleString();
+const toast = (msg, ms = 3200) => { const t = document.getElementById('toast'); t.textContent = msg; t.style.display = 'block'; clearTimeout(t._h); t._h = setTimeout(() => { t.style.display = 'none'; }, ms); };
+const short = (u) => (u || '').slice(0, 8) + '…';
+
+const TABS = [
+  ['overview', 'OVERVIEW'], ['people', 'PEOPLE'], ['teams', 'TEAMS'],
+  ['campaigns', 'CAMPAIGNS'], ['weeks', 'WEEKS'],
+];
+const POPS = ['public', 'internal', 'beta', 'test', 'all'];
+const state = { tab: 'overview', days: '7', population: 'public', weekPop: 'public' };
+
+/* ── shell ─────────────────────────────────────────────────────────── */
+const nav = document.getElementById('tabs');
+const main = document.getElementById('main');
+for (const [id, label] of TABS) {
+  const b = el('button', null, label);
+  b.onclick = () => { state.tab = id; render(); };
+  b.dataset.tab = id;
+  nav.appendChild(b);
+}
+async function health() {
+  const h = document.getElementById('health');
+  try {
+    const s = await api('/health');
+    if (!s.configured) { h.textContent = '⚠ ' + s.reason; h.className = 'bad'; return; }
+    if (s.schema && !s.schema.ok) { h.textContent = '⚠ ' + s.schema.reason; h.className = 'bad'; return; }
+    h.textContent = 'service ok · phase ' + s.phase; h.className = '';
+  } catch (e) { h.textContent = '⚠ service unreachable on :4100 — ' + e.message; h.className = 'bad'; }
+}
+
+function render() {
+  nav.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.tab === state.tab));
+  main.textContent = '';
+  ({ overview, people, teams, campaigns, weeks })[state.tab]();
+}
+
+/* ── OVERVIEW — the canonical figures, names and denominators intact ── */
+async function overview() {
+  const c = el('div', 'controls');
+  const days = el('select'); ['7', '30', '90', 'all'].forEach((d) => days.add(new Option(d === 'all' ? 'all history' : 'last ' + d + ' days', d, false, d === state.days)));
+  const pop = el('select'); POPS.forEach((p) => pop.add(new Option(p, p, false, p === state.population)));
+  days.onchange = () => { state.days = days.value; render(); };
+  pop.onchange = () => { state.population = pop.value; render(); };
+  c.append(days, pop);
+  main.appendChild(c);
+  const box = el('div'); box.textContent = 'loading…'; main.appendChild(box);
+  try {
+    const s = await api('/summary?days=' + state.days + '&population=' + state.population);
+    box.textContent = '';
+    const m = s.metrics;
+    const cards = el('div', 'cards');
+    const card = (n, k, hero) => { const d = el('div', 'card' + (hero ? ' hero' : '')); d.append(el('span', 'n', fmt(n)), el('span', 'k', k)); return d; };
+    cards.append(
+      card(m.reach, 'reach = people + visitors', true),
+      card(m.authenticated_people, 'authenticated people'),
+      card(m.anonymous_visitors, 'anonymous visitors (never signed in)'),
+      card(m.devices, 'devices — not people'),
+      card(m.sessions, 'sessions (distinct) · ' + m.sessions_null_rows + ' rows without id'),
+      card(m.events, 'events'),
+    );
+    box.appendChild(cards);
+    const note = el('p', 'note', s.window + ' · classification: ' + s.classification.internal_accounts +
+      ' internal account(s), ' + s.classification.internal_devices + ' internal device(s)' +
+      (s.complete ? '' : ' · ⚠ PARTIAL READ — these figures undercount'));
+    if (!s.complete) note.classList.add('warn');
+    box.appendChild(note);
+    box.appendChild(el('h2', null, 'events by name'));
+    const wrap = el('div', 'tablewrap'); const t = el('table');
+    t.innerHTML = '<thead><tr><th>event</th><th class="num">count</th></tr></thead>';
+    const tb = el('tbody');
+    Object.entries(m.by_name).sort((a, b) => b[1] - a[1]).forEach(([k, v]) => {
+      const tr = el('tr'); tr.append(el('td', 'mono', k), el('td', 'num', fmt(v))); tb.appendChild(tr);
+    });
+    t.appendChild(tb); wrap.appendChild(t); box.appendChild(wrap);
+  } catch (e) { box.textContent = ''; box.appendChild(el('p', 'note warn', e.message)); }
+}
+
+/* ── PEOPLE — every account, its segment, and THE writer ───────────── */
+async function people() {
+  const box = el('div'); box.textContent = 'loading…'; main.appendChild(box);
+  try {
+    const { people: rows, rawComplete } = await api('/people');
+    box.textContent = '';
+    if (!rawComplete) box.appendChild(el('p', 'note warn', '⚠ raw read incomplete — device/event counts undercount'));
+    box.appendChild(el('p', 'note', rows.length + ' account(s), busiest first. Changing a segment reclassifies EVERY device this account uses, on any network — the segment select is the entire mechanism.'));
+    const wrap = el('div', 'tablewrap'); const t = el('table');
+    t.innerHTML = '<thead><tr><th>account</th><th>segment</th><th>source</th><th>teams</th><th class="num">events</th><th class="num">devices</th><th>first seen</th><th>last seen</th></tr></thead>';
+    const tb = el('tbody');
+    for (const p of rows) {
+      const tr = el('tr');
+      const idTd = el('td', 'mono', short(p.user_id)); idTd.title = p.user_id + (p.note ? ' — ' + p.note : '');
+      const segTd = el('td');
+      const sel = el('select');
+      ['public', 'internal', 'beta', 'test'].forEach((s) => sel.add(new Option(s, s, false, s === p.segment)));
+      sel.onchange = async () => {
+        try {
+          const out = await api('/people/' + p.user_id + '/segment', { method: 'PUT', body: { segment: sel.value } });
+          toast(short(p.user_id) + ' → ' + sel.value + (out.mirrored === false ? ' · ⚠ legacy mirror failed: ' + out.mirrorError : ''));
+        } catch (e) { toast('⚠ ' + e.message); }
+      };
+      segTd.appendChild(sel);
+      const srcTd = el('td'); if (p.source) srcTd.appendChild(el('span', 'seg ' + p.segment, p.source));
+      const teamTd = el('td'); p.teams.forEach((tm) => teamTd.appendChild(el('span', 'chip', tm.name || short(tm.team_id))));
+      tr.append(idTd, segTd, srcTd, teamTd,
+        el('td', 'num', fmt(p.events)), el('td', 'num', fmt(p.devices)),
+        el('td', 'mono', (p.first_seen || '').slice(0, 10)), el('td', 'mono', (p.last_seen || '').slice(0, 10)));
+      tb.appendChild(tr);
+    }
+    t.appendChild(tb); wrap.appendChild(t); box.appendChild(wrap);
+  } catch (e) { box.textContent = ''; box.appendChild(el('p', 'note warn', e.message)); }
+}
+
+/* ── TEAMS — membership; classification stays its own axis ─────────── */
+async function teams() {
+  const box = el('div'); box.textContent = 'loading…'; main.appendChild(box);
+  try {
+    const { teams: rows } = await api('/teams');
+    box.textContent = '';
+    const c = el('div', 'controls');
+    const mk = el('button', 'act', '+ NEW TEAM');
+    mk.onclick = async () => {
+      const name = prompt('Team name'); if (!name) return;
+      const def = prompt("Default segment for new members — internal, beta, test, or blank for public", '');
+      try {
+        await api('/teams', { body: { name, default_segment: def || undefined } });
+        toast('Team created'); render();
+      } catch (e) { toast('⚠ ' + e.message); }
+    };
+    c.appendChild(mk); box.appendChild(c);
+    box.appendChild(el('p', 'note', 'A team NEVER classifies by existing: a default materialises an explicit segment row at member-add, and a directly-set segment always wins. Removal is soft and touches nobody’s classification.'));
+    for (const tm of rows) {
+      box.appendChild(el('h2', null, tm.name + (tm.default_segment ? ' · default ' + tm.default_segment : ' · default public') + (tm.former ? ' · ' + tm.former + ' former' : '')));
+      const wrap = el('div', 'tablewrap'); const t = el('table');
+      t.innerHTML = '<thead><tr><th>member</th><th>role</th><th>added</th><th></th></tr></thead>';
+      const tb = el('tbody');
+      for (const m of tm.members) {
+        const tr = el('tr');
+        const rm = el('button', 'act quiet', 'remove');
+        rm.onclick = async () => {
+          try { const out = await api('/teams/' + tm.id + '/members/' + m.user_id, { method: 'DELETE' }); toast(out.note); render(); }
+          catch (e) { toast('⚠ ' + e.message); }
+        };
+        const act = el('td', 'row-actions'); act.appendChild(rm);
+        tr.append(el('td', 'mono', short(m.user_id)), el('td', null, m.role || '—'), el('td', 'mono', (m.added_at || '').slice(0, 10)), act);
+        tb.appendChild(tr);
+      }
+      const addTr = el('tr'); const addTd = el('td'); addTd.colSpan = 4;
+      const uid = el('input'); uid.type = 'text'; uid.placeholder = 'account uuid'; uid.size = 40;
+      const role = el('input'); role.type = 'text'; role.placeholder = 'role (optional)'; role.size = 14;
+      const add = el('button', 'act', 'ADD');
+      add.onclick = async () => {
+        try {
+          const out = await api('/teams/' + tm.id + '/members', { body: { user_id: uid.value.trim(), role: role.value.trim() || undefined } });
+          toast(out.materialised_segment ? 'Added · classified ' + out.materialised_segment + ' (team default)' : 'Added · classification untouched');
+          render();
+        } catch (e) { toast('⚠ ' + e.message); }
+      };
+      addTd.append(uid, document.createTextNode(' '), role, document.createTextNode(' '), add);
+      addTr.appendChild(addTd); tb.appendChild(addTr);
+      t.appendChild(tb); wrap.appendChild(t); box.appendChild(wrap);
+    }
+    if (!rows.length) box.appendChild(el('p', 'note', 'No teams yet.'));
+  } catch (e) { box.textContent = ''; box.appendChild(el('p', 'note warn', e.message)); }
+}
+
+/* ── CAMPAIGNS — touches coalesced, funnel by named strengths ──────── */
+async function campaigns() {
+  const box = el('div'); box.textContent = 'loading…'; main.appendChild(box);
+  try {
+    const { campaigns: rows, raw_touches } = await api('/campaigns');
+    box.textContent = '';
+    box.appendChild(el('p', 'note', raw_touches + ' raw touch(es). A touch is recorded by the app load, never the scan; params: ?src= &m= &c= &pl= &cr='));
+    const wrap = el('div', 'tablewrap'); const t = el('table');
+    t.innerHTML = '<thead><tr><th>source</th><th>medium</th><th>campaign</th><th>placement</th><th class="num">touches</th><th class="num">devices</th><th class="num">sessions</th><th>span</th><th></th></tr></thead>';
+    const tb = el('tbody');
+    for (const g of rows) {
+      const tr = el('tr');
+      const fun = el('button', 'act quiet', 'funnel');
+      fun.onclick = () => showFunnel(box, g.source);
+      const act = el('td'); act.appendChild(fun);
+      tr.append(el('td', 'mono', g.source), el('td', 'mono', g.medium), el('td', 'mono', g.campaign || '—'),
+        el('td', 'mono', g.placement || '—'), el('td', 'num', fmt(g.touches)), el('td', 'num', fmt(g.devices)),
+        el('td', 'num', fmt(g.sessions)), el('td', 'mono', g.first_seen.slice(0, 10) + ' → ' + g.last_seen.slice(0, 10)), act);
+      tb.appendChild(tr);
+    }
+    t.appendChild(tb); wrap.appendChild(t); box.appendChild(wrap);
+    if (!rows.length) box.appendChild(el('p', 'note', 'No touches yet. Put ?src=bar_qr on a link or QR destination and the first arrival lands here.'));
+    box.appendChild(el('div')).id = 'funnelbox';
+  } catch (e) { box.textContent = ''; box.appendChild(el('p', 'note warn', e.message)); }
+}
+
+async function showFunnel(box, source) {
+  const fb = document.getElementById('funnelbox');
+  fb.textContent = 'computing funnel…';
+  try {
+    const f = await api('/funnels?source=' + encodeURIComponent(source));
+    fb.textContent = '';
+    fb.appendChild(el('h2', null, 'funnel · ' + source + ' · last ' + f.window_days + ' days'));
+    fb.appendChild(el('p', 'note', f.touches + ' touches on ' + f.touch_devices + ' device(s). ' + f.note));
+    const stages = [{ stage: 'touch', attributed_events: f.touches, by_strength: null }].concat(f.stages);
+    const max = Math.max(...stages.map((s) => s.attributed_events), 1);
+    for (const s of stages) {
+      const row = el('div', 'stagebar');
+      row.appendChild(el('span', 'lbl', s.stage));
+      const bar = el('div', 'bar'); bar.style.width = Math.round(320 * s.attributed_events / max) + 'px';
+      row.appendChild(bar);
+      row.appendChild(el('span', 'val', fmt(s.attributed_events)));
+      if (s.by_strength) {
+        row.appendChild(el('span', 'split',
+          'session ' + s.by_strength['session-attributed'] + ' · device ' + s.by_strength['device-attributed'] +
+          ' · person ' + s.by_strength['person-attributed'] +
+          (s.ios_caveat ? ' · ⚠ iOS lower bound' : '')));
+      }
+      fb.appendChild(row);
+    }
+  } catch (e) { fb.textContent = ''; fb.appendChild(el('p', 'note warn', e.message)); }
+}
+
+/* ── WEEKS — the v2 historical series; versions never chart together ─ */
+async function weeks() {
+  const c = el('div', 'controls');
+  const pop = el('select'); POPS.forEach((p) => pop.add(new Option(p, p, false, p === state.weekPop)));
+  pop.onchange = () => { state.weekPop = pop.value; render(); };
+  const rebuild = el('button', 'act', 'REBUILD FROM RAW');
+  rebuild.onclick = async () => {
+    const reason = prompt('A rebuild rewrites reporting history from raw events. State the reason (recorded on every row):');
+    if (!reason) return;
+    rebuild.disabled = true; rebuild.textContent = 'REBUILDING…';
+    try { const out = await api('/snapshots/rebuild', { body: { reason } }); toast(out.weeks + ' week(s), ' + out.rows_written + ' artefact(s), v1 untouched'); render(); }
+    catch (e) { toast('⚠ ' + e.message); rebuild.disabled = false; rebuild.textContent = 'REBUILD FROM RAW'; }
+  };
+  c.append(pop, rebuild);
+  main.appendChild(c);
+  const box = el('div'); box.textContent = 'loading…'; main.appendChild(box);
+  try {
+    const { snapshots } = await api('/snapshots');
+    box.textContent = '';
+    const rows = snapshots.filter((s) => s.population === state.weekPop);
+    box.appendChild(el('p', 'note', 'SCHEMA_VERSION 2 · Sydney weeks, Monday start · a week in progress is not history and is absent, not zero. v1 artefacts are retained separately and never chart with these.'));
+    const wrap = el('div', 'tablewrap'); const t = el('table');
+    t.innerHTML = '<thead><tr><th>week</th><th class="num">events</th><th class="num">people</th><th class="num">visitors</th><th class="num">devices</th><th class="num">sessions</th><th class="num">opens</th><th class="num">applied</th><th class="num">messages</th><th>generated</th></tr></thead>';
+    const tb = el('tbody');
+    for (const s of rows) {
+      const m = s.metrics; const tr = el('tr');
+      tr.append(el('td', 'mono', s.week_start + ' → ' + s.week_end),
+        el('td', 'num', fmt(m.events)), el('td', 'num', fmt(m.authenticated_people)),
+        el('td', 'num', fmt(m.anonymous_visitors)), el('td', 'num', fmt(m.devices)),
+        el('td', 'num', fmt(m.sessions)),
+        el('td', 'num', fmt(m.by_name?.opened_app)), el('td', 'num', fmt(m.by_name?.applied)),
+        el('td', 'num', fmt(m.by_name?.sent_message)),
+        el('td', 'mono', (s.generated_at || '').slice(0, 10)));
+      tb.appendChild(tr);
+    }
+    t.appendChild(tb); wrap.appendChild(t); box.appendChild(wrap);
+    if (!rows.length) box.appendChild(el('p', 'note', 'No v2 snapshots for this population yet — run the rebuild.'));
+  } catch (e) { box.textContent = ''; box.appendChild(el('p', 'note warn', e.message)); }
+}
+
+health();
+render();
+</script>
+</body>
+</html>

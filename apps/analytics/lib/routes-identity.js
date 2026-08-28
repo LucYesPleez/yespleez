@@ -29,27 +29,10 @@ export function mountIdentityRoutes(app, db) {
     return map;
   }
 
-  /** Mirror one classification change into the legacy public table. */
-  async function mirrorLegacy(userId, segment, note) {
-    try {
-      if (segment === SEGMENTS.PUBLIC) {
-        await db.write('analytics_account_segments?user_id=eq.' + userId,
-          { method: 'DELETE', schema: 'public', prefer: 'return=minimal' });
-      } else {
-        await db.write('analytics_account_segments?on_conflict=user_id', {
-          method: 'POST', schema: 'public',
-          body: { user_id: userId, segment, note: note ?? null, updated_at: new Date().toISOString() },
-          prefer: 'resolution=merge-duplicates,return=minimal',
-        });
-      }
-      return { mirrored: true };
-    } catch (e) {
-      // The canonical write already succeeded; a mirror failure is a
-      // REPORTED divergence, never a silent one — Studio's snapshots
-      // would quietly disagree otherwise.
-      return { mirrored: false, mirrorError: e.message };
-    }
-  }
+  // The legacy mirror is GONE (Phase G): Studio's snapshot generator and
+  // analytics page are retired, nothing reads
+  // public.analytics_account_segments any more, and AV7 drops it.
+  // One classification store, one writer — D3 closed for good.
 
   // ── PEOPLE ────────────────────────────────────────────────────────
 
@@ -133,8 +116,7 @@ export function mountIdentityRoutes(app, db) {
           prefer: 'resolution=merge-duplicates,return=minimal',
         });
       }
-      const mirror = await mirrorLegacy(userId, segment, note);
-      res.json({ user_id: userId, segment, source: segment === SEGMENTS.PUBLIC ? null : 'direct', ...mirror });
+      res.json({ user_id: userId, segment, source: segment === SEGMENTS.PUBLIC ? null : 'direct' });
     } catch (e) {
       console.error('[analytics] ' + e.message);
       res.status(502).json({ error: e.message });
@@ -201,7 +183,6 @@ export function mountIdentityRoutes(app, db) {
       let materialised = null;
       if (rowToAdd) {
         await db.write('account_segments', { body: rowToAdd, prefer: 'return=minimal' });
-        await mirrorLegacy(user_id, rowToAdd.segment, rowToAdd.note);
         materialised = rowToAdd.segment;
       }
       res.status(201).json({ team_id: teamId, user_id, materialised_segment: materialised });

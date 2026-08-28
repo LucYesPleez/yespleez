@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '../data/supabase/client';
 import { SessionContext } from './sessionContext';
+// Analytics v2 (Phase G): the portal's collector starts with the session,
+// exactly as Scene's does — attribution before the first ping, and the
+// account kept current on every auth change.
+import { initAnalytics, setAnalyticsUser } from '../lib/analytics';
 
 /**
  * THE SESSION.
@@ -27,10 +31,16 @@ export default function SessionProvider({ children }) {
       setLoading(false);
     });
 
+    // The collector awaits the session itself before its first ping, so
+    // starting it here (not after getSession resolves) loses nothing and
+    // records the landing page even for a visit that never authenticates.
+    initAnalytics();
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, next) => {
       if (!active) return;
       setSession(next ?? null);
       setLoading(false);
+      setAnalyticsUser(next?.user?.id ?? null);
     });
 
     return () => { active = false; subscription.unsubscribe(); };

@@ -16,7 +16,8 @@
     "@yespleez/event-presentation": "*",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
-    "react-router-dom": "^7.9.6"
+    "react-router-dom": "^7.9.6",
+    "@yespleez/analytics-client": "*"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^5.1.2",
