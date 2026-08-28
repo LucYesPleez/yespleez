@@ -58,6 +58,27 @@ test('the public list still carries what a profile page renders', () => {
   }
 });
 
+/**
+ * ⛔⛔ A COLUMN THAT DOES NOT EXIST BREAKS THE WHOLE SELECT.
+ *
+ * The first version of this list carried `studio_local_id`, invented by
+ * extracting column names with a regex over a `select=*` response — which also
+ * matched keys inside jsonb values. PostgREST answers such a select with 42703,
+ * so BOTH branches of `resolveProfileRoute` failed and every public profile
+ * page on production read "Profile not found".
+ *
+ * ⚠ This test cannot reach the database, so it pins the count and the known
+ * phantom instead. ⭐ The real guard is the anonymous probe after deploying.
+ */
+test('⛔ the invented column is gone and the count matches the table', () => {
+  assert.ok(!PUBLIC_PROFILE_COLUMNS.includes('studio_local_id'),
+    'studio_local_id is not a column on profiles — it came from a jsonb value');
+  assert.equal(
+    PUBLIC_PROFILE_COLUMNS.length + PRIVATE_PROFILE_COLUMNS.length, 83,
+    'profiles has 83 columns; public + private must account for all of them',
+  );
+});
+
 test('the select string is a comma list PostgREST can take', () => {
   assert.equal(PUBLIC_PROFILE_SELECT.split(', ').length, PUBLIC_PROFILE_COLUMNS.length);
   assert.doesNotMatch(PUBLIC_PROFILE_SELECT, /\*/, 'a star would defeat the whole point');
