@@ -11,8 +11,33 @@
 
 import { deriveDeviceSegments, POPULATIONS } from './identity.js';
 import { aggregate } from './metrics.js';
+import { dailySeries } from './daily.js';
+import WEEKS from './weeks.cjs';
 
 export function mountMetricsRoutes(app, db) {
+
+  /** Shared read: window rows + current classification, once. */
+  async function windowContext(sinceISO, untilISO) {
+    const window =
+      'usage_events?select=name,device_id,user_id,session_id,display_mode,platform,created_at' +
+      (sinceISO ? '&created_at=gte.' + encodeURIComponent(sinceISO) : '') +
+      '&created_at=lte.' + encodeURIComponent(untilISO) +
+      '&order=id.asc';
+    const [events, segs, links] = await Promise.all([
+      db.readAll(window, { schema: 'public' }),
+      db.readAll('account_segments?select=user_id,segment&order=user_id.asc'),
+      db.readAll('identity_links?select=device_id,user_id&order=id.asc'),
+    ]);
+    const users = {};
+    segs.rows.forEach((r) => { users[r.user_id] = r.segment; });
+    return {
+      events,
+      segments: { users, devices: deriveDeviceSegments(links.rows, users) },
+      linkedDevices: new Set(links.rows.map((l) => l.device_id)),
+      complete: events.complete && segs.complete && links.complete,
+      internalAccounts: Object.values(users).filter((s) => s === 'internal').length,
+    };
+  }
 
   app.get('/api/summary', async (req, res) => {
     const population = POPULATIONS.includes(req.query.population) ? req.query.population : 'public';
@@ -56,6 +81,41 @@ export function mountMetricsRoutes(app, db) {
           internal_devices: Object.keys(segments.devices).length,
         },
         ...aggregate(events.rows, { population, segments, linkedDevices }),
+      });
+    } catch (e) {
+      console.error('[analytics] ' + e.message);
+      res.status(502).json({ error: e.message });
+    }
+  });
+
+  /**
+   * The daily series: canonical metrics per SYDNEY calendar day.
+   * Days are derived, never stored — weeks remain the permanent
+   * artefacts, so there is no second history to drift. Quiet days
+   * appear as zero rows, not gaps.
+   */
+  app.get('/api/daily', async (req, res) => {
+    const population = POPULATIONS.includes(req.query.population) ? req.query.population : 'public';
+    const days = Math.min(120, Math.max(1, Number(req.query.days) || 14));
+    try {
+      const now = new Date();
+      const toDay = WEEKS.localDate(now);
+      const fromDay = WEEKS.localDate(new Date(now.getTime() - (days - 1) * 86400000));
+      // Fetch one extra UTC day either side, then let the Sydney
+      // bucketing decide — the timezone boundary, not the query, owns
+      // which day an event belongs to.
+      const since = new Date(now.getTime() - (days + 1) * 86400000).toISOString();
+      const ctx = await windowContext(since, now.toISOString());
+      res.json({
+        population,
+        from: fromDay,
+        to: toDay,
+        zone: WEEKS.ZONE,
+        complete: ctx.complete,
+        days: dailySeries(ctx.events.rows, {
+          population, segments: ctx.segments, linkedDevices: ctx.linkedDevices,
+          fromDay, toDay,
+        }),
       });
     } catch (e) {
       console.error('[analytics] ' + e.message);

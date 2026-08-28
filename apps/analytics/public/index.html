@@ -101,7 +101,7 @@ const toast = (msg, ms = 3200) => { const t = document.getElementById('toast'); 
 const short = (u) => (u || '').slice(0, 8) + '…';
 
 const TABS = [
-  ['overview', 'OVERVIEW'], ['people', 'PEOPLE'], ['teams', 'TEAMS'],
+  ['overview', 'OVERVIEW'], ['daily', 'DAILY'], ['people', 'PEOPLE'], ['teams', 'TEAMS'],
   ['campaigns', 'CAMPAIGNS'], ['weeks', 'WEEKS'],
 ];
 const POPS = ['public', 'internal', 'beta', 'test', 'all'];
@@ -129,7 +129,7 @@ async function health() {
 function render() {
   nav.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.tab === state.tab));
   main.textContent = '';
-  ({ overview, people, teams, campaigns, weeks })[state.tab]();
+  ({ overview, daily, people, teams, campaigns, weeks })[state.tab]();
 }
 
 /* ── OVERVIEW — the canonical figures, names and denominators intact ── */
@@ -169,6 +169,41 @@ async function overview() {
     Object.entries(m.by_name).sort((a, b) => b[1] - a[1]).forEach(([k, v]) => {
       const tr = el('tr'); tr.append(el('td', 'mono', k), el('td', 'num', fmt(v))); tb.appendChild(tr);
     });
+    t.appendChild(tb); wrap.appendChild(t); box.appendChild(wrap);
+  } catch (e) { box.textContent = ''; box.appendChild(el('p', 'note warn', e.message)); }
+}
+
+/* ── DAILY — the same canonical metrics, per Sydney calendar day ───── */
+async function daily() {
+  const c = el('div', 'controls');
+  const days = el('select'); ['7', '14', '30', '60', '90'].forEach((d) => days.add(new Option('last ' + d + ' days', d, false, d === (state.dailyDays || '14'))));
+  const pop = el('select'); POPS.forEach((p) => pop.add(new Option(p, p, false, p === state.population)));
+  days.onchange = () => { state.dailyDays = days.value; render(); };
+  pop.onchange = () => { state.population = pop.value; render(); };
+  c.append(days, pop);
+  main.appendChild(c);
+  const box = el('div'); box.textContent = 'loading…'; main.appendChild(box);
+  try {
+    const s = await api('/daily?days=' + (state.dailyDays || '14') + '&population=' + state.population);
+    box.textContent = '';
+    box.appendChild(el('p', 'note', s.from + ' → ' + s.to + ' · ' + s.zone + ' calendar days · a quiet day is a zero row, never a gap' + (s.complete ? '' : ' · ⚠ PARTIAL READ')));
+    const rows = s.days.slice().reverse(); // newest first for reading
+    const maxE = Math.max(...rows.map((d) => d.metrics.events), 1);
+    const wrap = el('div', 'tablewrap'); const t = el('table');
+    t.innerHTML = '<thead><tr><th>day</th><th></th><th class="num">events</th><th class="num">people</th><th class="num">visitors</th><th class="num">devices</th><th class="num">sessions</th><th class="num">opens</th><th class="num">applied</th></tr></thead>';
+    const tb = el('tbody');
+    for (const d of rows) {
+      const m = d.metrics; const tr = el('tr');
+      const barTd = el('td'); const bar = el('div');
+      bar.style.cssText = 'height:12px;background:var(--teal);opacity:.7;min-width:1px;width:' + Math.round(140 * m.events / maxE) + 'px';
+      barTd.appendChild(bar);
+      tr.append(el('td', 'mono', d.day + ' ' + d.weekday), barTd,
+        el('td', 'num', fmt(m.events)), el('td', 'num', fmt(m.authenticated_people)),
+        el('td', 'num', fmt(m.anonymous_visitors)), el('td', 'num', fmt(m.devices)),
+        el('td', 'num', fmt(m.sessions)),
+        el('td', 'num', fmt(m.by_name?.opened_app || 0)), el('td', 'num', fmt(m.by_name?.applied || 0)));
+      tb.appendChild(tr);
+    }
     t.appendChild(tb); wrap.appendChild(t); box.appendChild(wrap);
   } catch (e) { box.textContent = ''; box.appendChild(el('p', 'note warn', e.message)); }
 }
