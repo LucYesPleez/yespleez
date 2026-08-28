@@ -1,0 +1,16 @@
+{
+  "name": "analytics",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "YesPleez Analytics v2 — the reader and interpreter of the platform's usage evidence. Never in the write path.",
+  "scripts": {
+    "dev": "node --env-file-if-exists=.env server.js",
+    "start": "node --env-file-if-exists=.env server.js",
+    "test": "node --test \"test/**/*.test.js\"",
+    "lint": "oxlint"
+  },
+  "dependencies": {
+    "express": "^4.21.2"
+  }
+}
