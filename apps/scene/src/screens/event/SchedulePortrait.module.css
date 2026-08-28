@@ -23,6 +23,39 @@
   gap: 9px;
 }
 
+/* ⭐ THE WHOLE HEADING IS THE CONTROL (owner, 2026-08-28) — a small chevron
+   beside a large inert label is the target people miss. It resets the button
+   back to looking like the heading it replaced: ⛔ no chrome, no box, full
+   width so the press lands anywhere along the row. */
+.headBtn {
+  width: 100%;
+  background: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  align-items: center;   /* the chevron centres on the row; the text baseline stays */
+}
+
+.headChev {
+  /* ⚠ Pushed to the far edge so the arrow sits where a disclosure arrow is
+     looked for, not tucked against the count. */
+  margin-left: auto;
+  display: inline-flex;
+  color: var(--muted, rgba(255, 255, 255, .5));
+  transition: transform var(--yp-medium, .2s), color var(--yp-medium, .2s);
+}
+
+.headBtn:hover .headChev { color: var(--neon2, #00e5ff); }
+
+.headChevOpen {
+  transform: rotate(90deg);
+  color: var(--neon2, #00e5ff);
+}
+
 .heading {
   font-family: 'Bebas Neue', sans-serif;
   font-size: 15px;

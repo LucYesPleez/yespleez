@@ -135,6 +135,17 @@ function ChipRail({ items, activeIndex, onPick }) {
   );
 }
 
+/* The disclosure arrow on the SET TIMES heading. Points right when closed and
+   is rotated by the stylesheet when open — ⛔ one glyph, not two icons. */
+function ChevronIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 6l6 6-6 6" />
+    </svg>
+  );
+}
+
 /* ⚠ Must match the two enter animations in the stylesheet: the class comes off
    after this, and pulling it early would cut the animation mid-fade. */
 const ENTER_MS = 900;
@@ -169,6 +180,12 @@ export default function SchedulePortrait({ resolved, allMixSlots = [] }) {
    * while the others follow it — without it the pager under the hand gets
    * scrolled by its own broadcast and the days fight each other.
    */
+  /**
+   * ⭐ CLOSED UNTIL ASKED FOR. See the heading button below — a festival's
+   * timetable is the longest thing on the page and pushes the rest of the
+   * event past where anyone scrolls.
+   */
+  const [open, setOpen] = useState(false);
   const [stage, setStage] = useState({ index: 0, from: null });
   const stageSync = {
     index: stage.index,
@@ -213,13 +230,38 @@ export default function SchedulePortrait({ resolved, allMixSlots = [] }) {
 
   return (
     <section className={s.schedule}>
-      <div className={s.head}>
+      {/**
+        * ⭐⭐ SET TIMES OPENS ON A PRESS (owner, 2026-08-28), and starts CLOSED.
+        *
+        * ⚠⚠ A FESTIVAL SCHEDULE IS THE LONGEST THING ON THE PAGE. Neverland is
+        * 38 slots across three days and three stages, and open by default it
+        * pushed everything beneath it — the venue, presented-by, the rest of
+        * the event — past where anyone scrolls. The reader who wants the
+        * timetable asks for it; the reader who wants the event should not have
+        * to scroll a timetable to reach the end of the page.
+        *
+        * ⭐ THE COUNT STAYS VISIBLE WHILE CLOSED. "SET TIMES 38" is the reason
+        * to press it; a bare heading gives nobody a reason. ⛔ Never hide the
+        * count to tidy the row.
+        *
+        * ⚠ The whole HEADING is the control, not a separate chevron beside it —
+        * a small target next to a large inert label is the shape people miss.
+        */}
+      <button
+        type="button"
+        className={s.head + ' ' + s.headBtn}
+        onClick={() => setOpen(o => !o)}
+        aria-expanded={open}
+      >
         <h2 className={s.heading}>SET TIMES</h2>
         {/* The whole event's count — every day is on this page. */}
         <span className={s.count}>{resolved.slotCount}</span>
-      </div>
+        <span className={s.headChev + (open ? ' ' + s.headChevOpen : '')} aria-hidden="true">
+          <ChevronIcon />
+        </span>
+      </button>
 
-      {shape.showDayPicker && (
+      {open && shape.showDayPicker && (
         /* ⭐ A JUMP, ⛔ NOT A FILTER. It scrolls the day's heading into view;
            every other day stays exactly where it was. The lit state comes from
            the SCROLL, not the click — so it stays honest when the reader
@@ -232,7 +274,12 @@ export default function SchedulePortrait({ resolved, allMixSlots = [] }) {
         />
       )}
 
-      {days.map(day => (
+      {/* ⛔ NOT RENDERED WHILE CLOSED, ⛔ not hidden with CSS. A 38-slot
+          schedule builds every SlotCard and every stage pager; keeping that
+          mounted behind `display:none` would pay the whole cost for something
+          nobody asked to see, and the pagers would be measuring a zero-width
+          box. */}
+      {open && days.map(day => (
         <Fragment key={day.dayIndex}>
           {/* ⚠ The divider only when there is a second day to divide from —
               a single-night gig gets no heading over its own schedule. */}
