@@ -104,5 +104,36 @@ export function makeDb({ url, serviceKey, fetchImpl = fetch }) {
     }
   }
 
-  return { read, readAll, checkExposure };
+  /**
+   * Write to a table. PostgREST addresses a WRITE's schema with
+   * `Content-Profile` (Accept-Profile only steers reads).
+   *
+   * Writes exist for the SERVICE'S OWN tables — classification, teams,
+   * links. ⛔ Raw usage_events is never a valid target: the raw store
+   * is written by clients under the A1 policy and read here, full stop.
+   * The guard is structural, not advisory.
+   */
+  async function write(path, { method = 'POST', body, schema = 'analytics', prefer } = {}) {
+    if (/^usage_events\b/.test(path)) {
+      throw new Error('Refusing to write usage_events: raw events are immutable from this service.');
+    }
+    const h = headers(schema, {
+      'Content-Type': 'application/json',
+      Prefer: prefer ?? 'return=representation',
+    });
+    if (schema && schema !== 'public') h['Content-Profile'] = schema;
+    const res = await fetchImpl(base + path, {
+      method,
+      headers: h,
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new Error('PostgREST ' + res.status + ' on ' + method + ' ' + path.split('?')[0] + ': ' + text.slice(0, 200));
+    }
+    if (res.status === 204) return [];
+    return res.json();
+  }
+
+  return { read, readAll, write, checkExposure };
 }
