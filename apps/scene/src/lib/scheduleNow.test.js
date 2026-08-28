@@ -15,6 +15,7 @@ import assert from 'node:assert/strict';
 import { resolveSchedule } from './scheduleModel.js';
 import {
   clockMinutes, axisOffsets, dayMidnight, slotStates, nightIsRunning, readSlot, phaseLabel,
+  focusDayIndex,
   PLAYED, PLAYING, UPCOMING, READY, STARTING, MIDSET, ENDING, FINISHED,
 } from './scheduleNow.js';
 
@@ -260,4 +261,53 @@ test('⛔ a zero-length slot is never PLAYING and never claims progress', () => 
   assert.equal(readSlot(zero, at(20, 50)).state, UPCOMING);
   assert.equal(readSlot(zero, at(21, 0)).state, PLAYED);
   assert.equal(readSlot(zero, at(21, 0)).progress, 1);
+});
+
+/* ── ⭐⭐ WHICH DAY THE SCHEDULE OPENS ON ────────────────────────────────
+   ⚠⚠ The peek used to open on `days[0]`, so on the Saturday of a three-day
+   festival it showed FRIDAY — a night already over — and the reader had to
+   scroll past it to reach the day they were standing in (owner, 2026-08-28). */
+
+const FEST = [
+  { dayIndex: 0, date: '2026-08-28' },
+  { dayIndex: 1, date: '2026-08-29' },
+  { dayIndex: 2, date: '2026-08-30' },
+];
+
+test('mid-festival it opens on TODAY, not on day one', () => {
+  assert.equal(focusDayIndex(FEST, '2026-08-29'), 1);
+  assert.equal(focusDayIndex(FEST, '2026-08-30'), 2);
+});
+
+test('before it starts, the next day still to come', () => {
+  // A reader planning ahead wants day one, and that is what "next" resolves to.
+  assert.equal(focusDayIndex(FEST, '2026-08-01'), 0);
+  assert.equal(focusDayIndex(FEST, '2026-08-28'), 0);
+});
+
+test('⛔ once it is over it opens on the LAST day, not the first', () => {
+  // The final night is the most recent thing that happened. Opening a finished
+  // festival on its opening day is the same mistake in the other direction.
+  assert.equal(focusDayIndex(FEST, '2026-09-05'), 2);
+});
+
+test('a one-day event always resolves to its only day', () => {
+  const one = [{ dayIndex: 0, date: '2026-08-28' }];
+  for (const d of ['2026-08-01', '2026-08-28', '2026-12-25']) {
+    assert.equal(focusDayIndex(one, d), 0);
+  }
+});
+
+test('⛔ dayIndex is the identity, not the array position', () => {
+  // Days keep their index when one is deleted — the gap is deliberate.
+  const gapped = [{ dayIndex: 0, date: '2026-08-28' }, { dayIndex: 2, date: '2026-08-30' }];
+  assert.equal(focusDayIndex(gapped, '2026-08-30'), 2);
+});
+
+test('no days, and dateless days, do not throw', () => {
+  assert.equal(focusDayIndex([], '2026-08-29'), null);
+  assert.equal(focusDayIndex(null, '2026-08-29'), null);
+  // Dates were never set on this event; the last day is as good an answer as
+  // any and stays consistent with the all-past case.
+  assert.equal(focusDayIndex([{ dayIndex: 0 }, { dayIndex: 1 }], '2026-08-29'), 1);
 });

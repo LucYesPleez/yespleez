@@ -6,6 +6,7 @@ import { resolvePerformerProfileId } from '../lib/actingProfile';
 import { writeNotification, inferToProfileId } from '../lib/writeNotification';
 import { useSession } from '../App';
 import { today, formatDisplayDate } from '../lib/dates';
+import { eventRunsOn } from '../lib/eventDays';
 import { withDirection } from '../lib/enquiryUtils';
 import s from './ArtistDashboard.module.css';
 import EventCard from '../components/EventCard';
@@ -534,7 +535,10 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
   function availabilityFor(offer) {
     const d = offer.proposed_date || offer.date_requested;
     if (!d) return { status: 'unknown' };
-    const clash = [...upcomingGigs, ...pastGigs].find(g => g.config?.date === d);
+    /* ⭐ SAME MULTI-DAY RULE AS EVERY OTHER SURFACE. An artist playing a
+       three-day festival is BUSY on all three, and asking only about its start
+       date told them they were free on the Saturday of a gig they are at. */
+    const clash = [...upcomingGigs, ...pastGigs].find(g => eventRunsOn(g, d));
     return clash ? { status: 'clash', clashWith: clash.name } : { status: 'free' };
   }
 

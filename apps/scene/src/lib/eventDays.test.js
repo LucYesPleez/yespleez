@@ -92,3 +92,41 @@ test('⛔ a runaway endDate is CAPPED rather than expanded into thousands of day
   // but it is not this module's job to hide it from a date inside the range.
   assert.equal(eventRunsOn(ev('2026-08-28', '2036-08-28'), '2030-01-01'), true);
 });
+
+/* ── ⭐⭐ THE LIST'S OWN RANGE FILTER ────────────────────────────────────
+   ⚠⚠ `useEvents` compared `config.date` — the START day — against `fromDate`,
+   so Neverland Weekender (28–30 Aug) was dropped at midnight on the 29th,
+   BEFORE any eventRunsOn filter downstream could see it. TONIGHT and SUNDAY
+   were empty of it while the featured carousel still carried it. A list cannot
+   show what its source has already discarded. */
+
+const inWindow = (ev, from, to) => {
+  const span = eventSpan(ev);
+  if (!span) return false;
+  if (from && span.end < from) return false;
+  if (to && span.start > to) return false;
+  return true;
+};
+
+const FEST = { config: { date: '2026-08-28', endDate: '2026-08-30' } };
+const ONE_NIGHT = { config: { date: '2026-08-28' } };
+
+test('a running festival survives a window that opens after it started', () => {
+  // The Saturday and the Sunday of a Fri–Sun festival.
+  assert.equal(inWindow(FEST, '2026-08-29', '2026-12-31'), true);
+  assert.equal(inWindow(FEST, '2026-08-30', '2026-12-31'), true);
+});
+
+test('⛔ it drops the day after it actually ends, not the day after it starts', () => {
+  assert.equal(inWindow(FEST, '2026-08-31', '2026-12-31'), false);
+});
+
+test('a one-night gig is unchanged', () => {
+  assert.equal(inWindow(ONE_NIGHT, '2026-08-28', '2026-12-31'), true);
+  assert.equal(inWindow(ONE_NIGHT, '2026-08-29', '2026-12-31'), false);
+});
+
+test('an event beginning after the window shuts is excluded', () => {
+  assert.equal(inWindow(FEST, '2026-01-01', '2026-08-27'), false);
+  assert.equal(inWindow(FEST, '2026-01-01', '2026-08-28'), true);
+});

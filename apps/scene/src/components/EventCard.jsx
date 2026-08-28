@@ -119,7 +119,7 @@ export default function EventCard({ event, badge: badgeOverride, badgeColor, onC
           )}
           {chip.dayNum && (
             <div style={{ position:'absolute', top:8, right:8 }}>
-              <DateBox date={date} size="sm" />
+              <DateBox date={date} endDate={cfg.endDate || cfg.end_date || null} size="sm" />
             </div>
           )}
         </div>
@@ -212,7 +212,7 @@ export default function EventCard({ event, badge: badgeOverride, badgeColor, onC
           the 12px gap below is now guaranteed rather than coincidental. */}
       {chip.dayNum && (
         <div style={{ position:'absolute', top:'50%', left:12, transform:'translateY(-50%)', zIndex:2, width:DATE_BOX_W, display:'grid', overflow:'hidden' }}>
-          <DateBox date={date} size="md" />
+          <DateBox date={date} endDate={cfg.endDate || cfg.end_date || null} size="md" />
         </div>
       )}
       <div className={s.cardRow}>

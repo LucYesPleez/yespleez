@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from './supabase';
+import { eventSpan } from './eventDays';
 
 // Fetches all upcoming events once and filters in JS — cached for 3 min via React Query
 export function useEvents(fromDate, toDate) {
@@ -40,11 +41,30 @@ export function useEvents(fromDate, toDate) {
     },
   });
 
+  /**
+   * ⭐⭐ A RANGE OVERLAP, ⛔ NOT A START-DATE COMPARISON (owner, 2026-08-29:
+   * "the event should be showing in tonight and sunday because it goes for 3
+   * days and is playing on those dates").
+   *
+   * ⚠⚠ THIS WAS `d < fromDate`, READ OFF `config.date` — the day the event
+   * STARTS. So Neverland Weekender, running 28–30 August, vanished from What's
+   * On at midnight on the 29th: it was dropped HERE, before any of the
+   * downstream `eventRunsOn` filters could see it, which is why TONIGHT and
+   * SUNDAY were both empty of it while the FEATURED carousel still carried it.
+   *
+   * ⛔ The downstream filters were never the problem, and fixing them was not
+   * enough — a list cannot show what its source has already discarded.
+   *
+   * ⭐ `eventSpan` is the one reader of an event's first and last day, shared
+   * with `eventRunsOn`. ⛔ Do not compare `config.endDate` by hand here; that is
+   * how this surface and What's On came to disagree in the first place.
+   */
   const events = (data || []).filter(ev => {
-    const d = ev.config?.date;
-    if (!d) return false;
-    if (fromDate && d < fromDate) return false;
-    if (toDate   && d > toDate)   return false;
+    const span = eventSpan(ev);
+    if (!span) return false;
+    /* Gone before the window opens, or not begun by the time it shuts. */
+    if (fromDate && span.end   < fromDate) return false;
+    if (toDate   && span.start > toDate)   return false;
     return true;
   });
 

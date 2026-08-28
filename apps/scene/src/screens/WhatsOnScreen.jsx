@@ -18,7 +18,13 @@ import EventCard from '../components/EventCard';
 import s from './WhatsOnScreen.module.css';
 import { eventCategoryBadges } from '../lib/eventBadges';
 import { eventCardImage } from '../lib/eventImage';
-import { eventRunsOn, eventRunsOnAny, eventDates } from '../lib/eventDays';
+/* ⚠ `eventRunsOnAny` is no longer imported here — the weekend lane asks it
+   through `runsOnDatesAhead` below, so there is one place that knows what a
+   dated section means. */
+import { eventRunsOn, eventDates } from '../lib/eventDays';
+/* ⭐ The lane rules, as pure predicates over the canonical span — see
+   lib/eventLanes for why precedence was removed. */
+import { runsToday, runsOnDatesAhead, runsBeyond, lastCoveredDate } from '../lib/eventLanes';
 import { useDragScroll } from '../hooks/useDragScroll';
 
 const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -493,26 +499,33 @@ export default function WhatsOnScreen() {
      ⛔ Without that precedence a Fri–Sun festival starting today would appear
      in all three at once — three cards for the one event, which is the very
      duplication this work exists to end. */
-  const tonightEvents  = useMemo(() => events.filter(ev => eventRunsOn(ev, todayIso) && passes(ev)), [events, todayIso, passes]);
+  const tonightEvents  = useMemo(() => events.filter(ev => runsToday(ev, todayIso) && passes(ev)), [events, todayIso, passes]);
   // Weekend days STILL TO COME. Mid-weekend the range opens on a Friday that has
   // already been, so the nights gone drop out here rather than in each filter.
   const futureWeekendDates = useMemo(
     () => new Set([...weekendDates].filter(d => d > todayIso)),
     [weekendDates, todayIso]);
+  /* ⛔⛔ NO `!eventRunsOn(ev, todayIso)` HERE ANY MORE (owner, 2026-08-29). That
+     clause was lane precedence, and it removed a running festival from a day it
+     is actually playing: on the Saturday of Neverland's Fri–Sun run the event
+     sat in TONIGHT and was struck out of SUNDAY. ⭐ A dated section asks only
+     "does it run on this date". See lib/eventLanes. */
   const weekendEvents  = useMemo(() => events.filter(ev =>
-    eventRunsOnAny(ev, futureWeekendDates) && !eventRunsOn(ev, todayIso) && passes(ev)),
-    [events, futureWeekendDates, todayIso, passes]);
+    runsOnDatesAhead(ev, futureWeekendDates) && passes(ev)),
+    [events, futureWeekendDates, passes]);
   /* ⚠ NOT DATE-CAPPED (owner, 2026-08-02). This used to cut at `d <= dateStr(14)` so the list
      could run dry while events existed just past the fortnight. The full upcoming list is kept
      here; only how much of it is ON SCREEN is limited, and ADD MORE lifts that limit. */
-  const comingUpAll = useMemo(() => events.filter(ev => {
-    const d = ev.config?.date;
-    // Held by an earlier lane? Then it is not "coming up" — see the precedence
-    // note above. Both checks span the whole run, not just the opening day.
-    if (!d || eventRunsOn(ev, todayIso) || eventRunsOnAny(ev, futureWeekendDates)) return false;
-    return passes(ev);
-  }).sort((a, b) => (a.config?.date || '').localeCompare(b.config?.date || '')),
-    [events, futureWeekendDates, todayIso, passes]);
+  const lastCovered = useMemo(
+    () => lastCoveredDate(todayIso, futureWeekendDates), [todayIso, futureWeekendDates]);
+  /* ⚠ COMING UP IS NOT A DATED SECTION, so its question is "does this event run
+     on any day BEYOND the ones already shown above" — ⛔ not "has it appeared
+     already". A Sat–Wed festival is genuinely still to come after the weekend
+     and belongs here as well; a Fri–Sun one has no day left and does not. */
+  const comingUpAll = useMemo(() => events.filter(ev =>
+    runsBeyond(ev, lastCovered) && passes(ev))
+    .sort((a, b) => (a.config?.date || '').localeCompare(b.config?.date || '')),
+    [events, lastCovered, passes]);
 
 
   useEffect(() => { setComingUpShown(COMING_UP_INITIAL); }, [category, postcode, radius, selectedDate]);

@@ -1606,7 +1606,7 @@ export default function ProfileScreen() {
                                   event's year pill appeared on event cards and not here.
                                   `portrait` reproduces this card's exact metrics. */}
                               {cfg.date && <div style={{ position: 'absolute', top: 8, right: 8 }}>
-                                <DateBox date={cfg.date} size="portrait" />
+                                <DateBox date={cfg.date} endDate={cfg.endDate || cfg.end_date || null} size="portrait" />
                               </div>}
                               {(() => { const badges = eventCategoryBadges(cfg, ev.name); return badges.length > 0 && (
                                 <div style={{ position: 'absolute', top: 8, left: 8, display: 'flex', gap: 4, flexWrap: 'wrap' }}>

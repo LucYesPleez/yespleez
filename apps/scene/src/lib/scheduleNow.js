@@ -298,3 +298,44 @@ export function phaseLabel(phase) {
     [ENDING]: 'ENDING',
   }[phase] || null;
 }
+
+/**
+ * ⭐⭐ WHICH DAY THE SCHEDULE SHOULD OPEN ON (owner, 2026-08-28: "users
+ * shouldn't have to scroll past Friday time slots to get to today").
+ *
+ * ⚠⚠ THE PEEK USED TO PICK `days[0]`, so on the Saturday of a three-day
+ * festival it opened on Friday — the day that had already happened — and the
+ * reader had to scroll a finished night to reach the one they were standing in.
+ *
+ * The rule, in order:
+ *   1. TODAY, if the event is running on it.
+ *   2. Otherwise the NEXT day still to come — before the festival starts, that
+ *      is day one, which is what a reader planning ahead wants.
+ *   3. Otherwise the LAST day. The whole event is over; its final night is the
+ *      most recent thing that happened, and ⛔ opening a finished festival on
+ *      its first day would be the same mistake in the other direction.
+ *
+ * ⚠ Compared as `YYYY-MM-DD` STRINGS against the LOCAL date, ⛔ never
+ * `toISOString()` — that is UTC, which reads as yesterday every Australian
+ * morning and would open the schedule on the wrong day for half the day.
+ *
+ * @param days  the resolved schedule's days, each with a `date` string
+ * @param todayStr `dates.today()` — passed in so this stays pure and testable
+ * @returns the chosen day's `dayIndex`, or null when there are no days
+ */
+export function focusDayIndex(days = [], todayStr = '') {
+  const list = (days || []).filter(Boolean);
+  if (!list.length) return null;
+
+  const onToday = list.find(d => d.date && d.date === todayStr);
+  if (onToday) return onToday.dayIndex;
+
+  const upcoming = list.find(d => d.date && d.date > todayStr);
+  if (upcoming) return upcoming.dayIndex;
+
+  /* ⚠ Every day is in the past — or none of them carries a date at all, which
+     is a real state on an event whose dates were never set. The last day is the
+     honest answer to the first case; for the second, `list[0]` would be as
+     arbitrary as anything, so the LAST stays consistent with it. */
+  return list[list.length - 1].dayIndex;
+}

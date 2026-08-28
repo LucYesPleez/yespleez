@@ -56,7 +56,7 @@ export default function FeaturedEventCard({ event, onClick, label = 'FEATURED', 
       <div className={s.badge} style={badgeColor ? { background: badgeColor } : undefined}>{label}</div>
       {/* Top-right, the corner the heart used to hold. */}
       {cfg.date && (
-        <div className={s.dateBox}><DateBox date={cfg.date} size="md" /></div>
+        <div className={s.dateBox}><DateBox date={cfg.date} endDate={cfg.endDate || cfg.end_date || null} size="md" /></div>
       )}
       {cornerAction && (
         <div className={s.corner} onClick={e => e.stopPropagation()}>{cornerAction}</div>

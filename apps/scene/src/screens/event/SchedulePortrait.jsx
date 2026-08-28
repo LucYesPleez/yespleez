@@ -40,7 +40,8 @@ import { scheduleShape } from '../../lib/scheduleModel';
 import { slotGrid, stageGaps } from '../../lib/schedulePortrait';
 import { useDragScroll } from '../../hooks/useDragScroll';
 import { useNowMinute } from '../../hooks/useNowMinute';
-import { slotStates, phaseLabel, PLAYING, PLAYED, FINISHED, READY } from '../../lib/scheduleNow';
+import { slotStates, phaseLabel, focusDayIndex, PLAYING, PLAYED, FINISHED, READY } from '../../lib/scheduleNow';
+import { today } from '../../lib/dates';
 import FollowHeartBtn from '../../components/FollowHeartBtn';
 import SlotCard from './SlotCard';
 import { dayDateLabel } from '../../lib/eventDays';
@@ -203,10 +204,21 @@ export default function SchedulePortrait({ resolved, allMixSlots = [] }) {
    */
   const peekDays = (() => {
     if (!days.length) return [];
+    /* ⭐ A day with a set actually PLAYING wins outright — that is the most
+       precise answer to "what is on", and it beats the calendar on a night
+       that runs past midnight. */
     const liveDay = days.find(d => (d.stages || []).some(st =>
       Object.values(slotStates((st.slots || []).map(e => e.slot || e), now) || {})
         .some(v => v === PLAYING)));
-    return [liveDay || days[0]];
+    if (liveDay) return [liveDay];
+    /**
+     * ⛔⛔ NOT `days[0]` (owner, 2026-08-28). On the Saturday of a three-day
+     * festival that opened the schedule on FRIDAY — a night that had already
+     * finished — and the reader had to scroll past it to reach the day they
+     * were standing in. See `focusDayIndex` for the full rule.
+     */
+    const idx = focusDayIndex(days, today());
+    return [days.find(d => d.dayIndex === idx) || days[0]];
   })();
 
   /**

@@ -20,7 +20,23 @@ import { today } from '../lib/dates';
 //
 // ⛔ UPCOMING EVENTS ARE UNTOUCHED. A date in the future is unambiguous by
 // context — nobody reads "SAT 2 DEC" on a what's-on card as two years away.
-export default function DateBox({ date, size = 'md' }) {
+/**
+ * @param endDate ⭐⭐ OPTIONAL, AND IT DECIDES "PAST" (owner, 2026-08-28: a
+ *   multi-day event should read as ON while it is running).
+ *
+ *   ⚠⚠ MEASURED ON THE 29th: Neverland runs 28–30 August, and on the Saturday
+ *   its card sat in TONIGHT wearing the PAST pill — "2026 · 28 · AUG" — beside
+ *   an upcoming gig reading "SAT 29 AUG". The event was on that night.
+ *
+ *   ⭐ `eventBuckets` has said this since it was written: "endDate FIRST. A
+ *   festival running Fri–Sun is not over on Saturday." This is the same rule,
+ *   finally asked by the pill as well.
+ *
+ *   ⛔ The FACE still shows the START date. The pill answers "when does this
+ *   begin"; the range belongs to the card's own date line, and putting three
+ *   days inside a 35px box is not a thing this component can do.
+ */
+export default function DateBox({ date, endDate = null, size = 'md' }) {
   if (!date) return null;
   const d = new Date(date + 'T12:00:00');
   const dayName = d.toLocaleDateString('en-AU', { weekday: 'short' }).toUpperCase();
@@ -30,7 +46,9 @@ export default function DateBox({ date, size = 'md' }) {
   // ⛔ String comparison against the LOCAL today, never `toISOString()` — that
   // is the UTC date, which reads as yesterday every Australian morning and
   // would put a year pill on an event happening today.
-  const isPast = date < today();
+  /* ⚠ The LAST day decides, not the first — see the `endDate` note above. An
+     event with no end date is a one-day event and behaves exactly as before. */
+  const isPast = (endDate || date) < today();
   /**
    * ⭐ THE FULL YEAR, ⛔ not "’26" (owner, 2026-08-28). It reads as a year at a
    * glance where an apostrophe-two-digit form reads as a fragment.

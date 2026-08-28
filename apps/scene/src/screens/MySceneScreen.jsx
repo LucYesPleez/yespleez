@@ -21,6 +21,11 @@ import { useDragScroll } from '../hooks/useDragScroll';
 import { haversineKm, profileCoords, postcodeCoords, isKnownPostcode } from '../lib/geo';
 import { useEvents } from '../lib/useEvents';
 import { weekendRange, dateStr, today } from '../lib/dates';
+/* ⭐⭐ THE ONE MULTI-DAY RULE. A festival is ON every day it runs, ⛔ not only
+   its start date — What's On has asked `eventRunsOn` since it was written and
+   this screen was still comparing `config.date` for equality, so Neverland
+   vanished from the calendar on its own Saturday. */
+import { eventRunsOn, eventDates } from '../lib/eventDays';
 import { SCENE_RADIUS_STEPS, DEFAULT_SCENE_RADIUS } from '../lib/sceneFloor';
 import { buildSpotlight } from '../lib/spotlight';
 import PastEventsSearch, { filterPastEvents } from '../components/PastEventsSearch';
@@ -566,12 +571,24 @@ export default function MySceneScreen() {
   // lib/spotlight.js's table — with its own longer horizon, so a quiet
   // fortnight still leaves a heartbeat.
 
-  // Which days have events
+  /**
+   * Which days have events.
+   *
+   * ⭐⭐ EVERY DAY THE EVENT RUNS, ⛔ not just its start date. This read
+   * `ev.config.date` alone, so Neverland — 28 to 30 August — put ONE dot on the
+   * 28th and left its own Saturday and Sunday blank on the calendar.
+   *
+   * ⚠ `eventDates` is the same reader What's On has always used for its day
+   * picker's dots. ⛔ Do not slice the date string here again; a second opinion
+   * about which days an event occupies is how these two surfaces disagreed in
+   * the first place.
+   */
   const eventDaySet = new Set();
   const sceneDaySet = new Set();
+  const monthPrefix = `${y}-${String(m + 1).padStart(2, '0')}`;
   datedEvents.forEach(ev => {
-    const ds = ev.config.date;
-    if (ds.slice(0, 7) === `${y}-${String(m + 1).padStart(2, '0')}`) {
+    for (const ds of eventDates(ev)) {
+      if (ds.slice(0, 7) !== monthPrefix) continue;
       const day = parseInt(ds.slice(8, 10));
       eventDaySet.add(day);
       if (followedEventIds.has(ev.id) || appMap[ev.id]) sceneDaySet.add(day);
@@ -773,7 +790,7 @@ export default function MySceneScreen() {
   const filteredPastEvents = filterPastEvents(pastEvents, pastEventSearch);
 
   // Events for selected day
-  const dayEvents = selDate ? datedEvents.filter(ev => ev.config?.date === selDate) : [];
+  const dayEvents = selDate ? datedEvents.filter(ev => eventRunsOn(ev, selDate)) : [];
   const dayPersonalEvents = selDate ? personalEvents.filter(pe => pe.event_date === selDate) : [];
 
   // Profile follows.
@@ -821,7 +838,7 @@ export default function MySceneScreen() {
     setSelDate(next);
     if (next) {
       loadDayArtists(next);
-      const dayEvs = datedEvents.filter(ev => ev.config?.date === ds);
+      const dayEvs = datedEvents.filter(ev => eventRunsOn(ev, ds));
       if (!dayEvs.length) loadDiscoverProfiles();
       else setDiscoverProfiles([]);
     } else {
@@ -848,7 +865,7 @@ export default function MySceneScreen() {
 
   async function loadDayArtists(dateStr) {
     setDayArtists([]);
-    const dayEvs = datedEvents.filter(ev => ev.config?.date === dateStr);
+    const dayEvs = datedEvents.filter(ev => eventRunsOn(ev, dateStr));
     if (!dayEvs.length) return;
     const evIds = dayEvs.map(ev => ev.id);
     const { data: membersData } = await supabase.from('lineup_members').select('event_id, artist_name, genre, sound, artist_id, artist_profile_id').in('event_id', evIds).eq('status', 'on_bill');
@@ -1220,7 +1237,11 @@ export default function MySceneScreen() {
                 });
                 const pickerEventDays = new Set();
                 datedEvents.forEach(ev => {
-                  if (ev.config?.date?.startsWith(pickerMonthStr)) pickerEventDays.add(parseInt(ev.config.date.slice(8,10)));
+                  /* ⭐ Same rule as the month grid above — every day the event
+                     runs, not only the one it starts on. */
+                  for (const ds of eventDates(ev)) {
+                    if (ds.startsWith(pickerMonthStr)) pickerEventDays.add(parseInt(ds.slice(8, 10)));
+                  }
                 });
 
                 const firstDay = new Date(pickerYear, pickerMonth, 1).getDay();
