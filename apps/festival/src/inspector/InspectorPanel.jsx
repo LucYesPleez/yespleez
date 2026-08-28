@@ -6,6 +6,7 @@ import { INSPECTOR_TABS, getTab } from './tabs/registry';
 import InspectorTabs from './InspectorTabs';
 import ProfileHeader from './ProfileHeader';
 import ActionButtons from './ActionButtons';
+import { DECISIONS } from './decisions';
 import { useInspectorWidth } from './useInspectorWidth';
 import s from './InspectorPanel.module.css';
 
@@ -32,8 +33,12 @@ import s from './InspectorPanel.module.css';
  * `decidedAt` and leaves `outcomeReleasedAt` null, so the applicant still reads
  * "In review" until the organiser deliberately tells everyone. Anything that
  * sets both in one click has broken hold-and-release.
+ *
+ * ⭐ `DECISIONS` lives in `./decisions` and is imported by both this file and
+ * the decision row. The row uses it to know which status is already held; this
+ * file uses it to know what a press means. Two copies would let the button say
+ * "Accepted" while the press wrote something else.
  */
-const DECISIONS = { shortlist: 'shortlisted', accept: 'accepted', decline: 'declined' };
 
 export default function InspectorPanel({ selection, onClose }) {
   const [tabKey, setTabKey] = useState('profile');
@@ -103,7 +108,7 @@ export default function InspectorPanel({ selection, onClose }) {
           </div>
 
           <div className={s.actions}>
-            <ActionButtons onAction={onAction} busy={busy} unavailable={['message']} />
+            <ActionButtons onAction={onAction} busy={busy} unavailable={['message']} status={selection.status} />
             {error && <Callout tone="danger" title="Not saved">{error}</Callout>}
           </div>
 

@@ -13,3 +13,19 @@
 @container inspector (max-width: 420px) {
   .row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* ⭐⭐ THE STATUS ALREADY HELD — a state, not a dimmed action.
+   `.btn:disabled` drops a control to opacity .45, which reads as "unavailable,
+   try later". On the decision that has already been made that is exactly the
+   wrong message: it invites a second press on a decision a real person has
+   already been told about. So the current state overrides the disabled dimming
+   entirely and wears its own tone at rest — the one place in this row where
+   colour does not wait for hover, because it is reporting rather than offering.
+   `--tone` comes from the sibling tone class on the same element. */
+.current:disabled {
+  opacity: 1;
+  cursor: default;
+  color: var(--tone);
+  background: color-mix(in srgb, var(--tone) 14%, var(--card));
+  border-color: color-mix(in srgb, var(--tone) 45%, var(--border));
+}
