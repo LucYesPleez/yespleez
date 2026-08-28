@@ -536,6 +536,38 @@
 .slotLabelInput:focus { color: var(--text); }
 .slotLabelInput::placeholder { color: rgba(255,255,255,0.25); }
 
+/* ⭐ Quick picks for the label field. Deliberately quiet: they sit under an
+   OPTIONAL field on a row whose real job is the time, and a row of bright
+   chips there would outshout the schedule itself. */
+.slotLabelPicks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 6px;
+}
+
+.slotLabelPick {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 10.5px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.03);
+  color: rgba(255,255,255,0.45);
+  cursor: pointer;
+  transition: color .15s, border-color .15s, background .15s;
+}
+
+.slotLabelPick:hover { color: var(--text); border-color: rgba(255,255,255,0.28); }
+
+/* Lit when the field already holds exactly this. ⚠ Pressing it again clears
+   it — see the handler; a chip that cannot be turned off reads as broken. */
+.slotLabelPickOn {
+  color: var(--neon2, #00e5ff);
+  border-color: rgba(0,229,255,0.45);
+  background: rgba(0,229,255,0.1);
+}
+
 /* ── Insert slot button ── */
 .insertSlotBtn {
   width: 100%;

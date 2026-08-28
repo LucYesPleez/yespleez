@@ -28,6 +28,26 @@ export function labelColor(label) {
   for (let i = 0; i < label.length; i++) hash = (hash * 31 + label.charCodeAt(i)) & 0xFFFFFF;
   return LABEL_PALETTE[Math.abs(hash) % LABEL_PALETTE.length];
 }
+/**
+ * ⭐⭐ IS THIS A WELCOME TO COUNTRY? Asked for ONE reason: it is the only marker
+ * on a running order that must not be dimmed (owner, 2026-08-28 — "stage close
+ * can be muted, that's not as important; welcome to country is").
+ *
+ * ⚠ MATCHED ON MEANING, ⛔ not on an exact string. Organisers write "Welcome to
+ * Country", "Welcome to Country / Choir" (Neverland's own), "Welcome & Smoking
+ * Ceremony". A rule that only fired on one spelling would be a rule that
+ * usually does not fire.
+ *
+ * ⚠ Acknowledgement of Country counts, both spellings: it is the same act of
+ * respect, and an organiser who writes one rather than the other did not mean
+ * anything by the choice.
+ */
+const WELCOME_RE = /\b(welcome|acknowledge?ment)\s+(to|of)\s+country\b/i;
+
+export function isWelcomeToCountry(label) {
+  return WELCOME_RE.test(String(label || ''));
+}
+
 export function stripEmoji(str) {
   return str?.replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu, '').trim() || '';
 }

@@ -29,7 +29,7 @@ import UnclaimedBadge from '../../components/UnclaimedBadge';
 import { profileIdentity } from '../../lib/profileTypes';
 import { stageDefaultImage } from '../../lib/stageDefaultImage';
 import { actPills } from '../../lib/actPills';
-import { parseDurMins, fmtDur, labelColor, stripEmoji } from './slotUtils';
+import { parseDurMins, fmtDur, labelColor, stripEmoji, isWelcomeToCountry } from './slotUtils';
 import s from '../EventScreen.module.css';
 
 /**
@@ -250,6 +250,7 @@ export default function SlotCard({ slot, claim, onFill, onEdit, onRemove, onDemo
    * actions, and those gate themselves on `claim`, which it does not have.
    */
   const isInfoCard = isEmpty && !!cleanLabel;
+  const isWelcome  = isWelcomeToCountry(cleanLabel);
   const col        = slot.labelColor || (cleanLabel ? labelColor(cleanLabel) : '#FFB830');
 
   // Single descriptor pill matching v1: sound > card_pills > genre
@@ -375,7 +376,21 @@ export default function SlotCard({ slot, claim, onFill, onEdit, onRemove, onDemo
           </div>
         )}
         <div
-          className={s.slot + (isEmpty ? ' ' + s.slotEmpty : '')}
+          /**
+           * ⭐⭐ ONE EXCEPTION TO THE DIMMING, AND ONLY ONE (owner, 2026-08-28):
+           * "stage close can be muted, that's not as important; welcome to
+           * country is".
+           *
+           * ⚠ So this is NOT `!isInfoCard`. Every other marker — stage open,
+           * stage close, doors — keeps `.slotEmpty`'s 55%, because they are
+           * scaffolding around the programme rather than part of it. A welcome
+           * to country is the programme, and it was being greyed out beside the
+           * acts it opens for.
+           *
+           * ⛔ Do not widen this to all markers to make the rule tidier; the
+           * narrowness IS the rule.
+           */
+          className={s.slot + (isEmpty && !isWelcome ? ' ' + s.slotEmpty : '')}
           /* ⭐ `isOver` is the ONLY drag feedback now that nothing slides: the
              slot under the pointer lights up, so the destination is visible
              BEFORE you let go rather than explained afterwards. ⛔ Not applied

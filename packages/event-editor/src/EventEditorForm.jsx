@@ -330,6 +330,33 @@ function SlotRow({ slot, onUpdate, onRemove }) {
       )}
       <input className={s.slotLabelInput} value={slot.label} onChange={e => onUpdate('label', e.target.value)}
         placeholder='Special label e.g. "Sunset Set" (optional)' />
+      {/**
+        * ⭐ QUICK PICKS FOR THE MOMENTS EVERY RUNNING ORDER HAS (owner,
+        * 2026-08-28). The field already accepted these — an organiser just had
+        * to type "Welcome to Country" by hand on every event, which is how the
+        * same moment ends up spelled three ways across a festival.
+        *
+        * ⛔ THEY FILL THE FIELD, they do not replace it. This stays free text:
+        * the moment it becomes a closed list, "Smoking Ceremony" and "Kids'
+        * Disco" become impossible. ⚠ Same three presets as the set-times
+        * grid's MARK THE TIME sheet — ⛔ two lists that drift are worse than
+        * none.
+        */}
+      <div className={s.slotLabelPicks}>
+        {['Welcome to Country', 'Stage open', 'Stage close'].map(p => (
+          <button
+            key={p}
+            type="button"
+            className={s.slotLabelPick + (slot.label === p ? ' ' + s.slotLabelPickOn : '')}
+            /* ⚠ A second press CLEARS it. Without that the only way out of a
+               preset is to select the text and delete it, and a chip that can
+               be turned on but not off reads as broken. */
+            onClick={() => onUpdate('label', slot.label === p ? '' : p)}
+          >
+            {p}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }

@@ -287,6 +287,19 @@ export function useEventData(id, navigate) {
     isLocked, showTimesPublicly, isPast,
     /* ⭐ The canonical schedule (S2/S3). Consumers project it; ⛔ none resolves its own. */
     schedule,
+    /**
+     * ⚠⚠ THE RAW `event_slots` ROWS, and they are NOT the same thing as
+     * `days`/`schedule`. Both of those carry RENDER slots, which deliberately
+     * drop `position` — an ordering fact, not a display one — so a caller that
+     * needs to place a new row cannot use them.
+     *
+     * ⛔ IT WAS NOT EXPORTED, and that read as an empty list rather than as an
+     * error: the host's "add a slot" filtered `[]`, found nothing to sit before
+     * and refused, with a message that sounded like a real answer about the
+     * event. ⭐ Found by driving it, ⛔ not by any test — the value was
+     * `undefined` and every consumer had a default.
+     */
+    slotRows: data?.slotRows || [],
     totalSlots, takenSlots, lineupPct,
     // The full breakdown, for the host's tally. A punter's claims map only ever
     // holds `accepted` rows, so their counts collapse to confirmed/empty on

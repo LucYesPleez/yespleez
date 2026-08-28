@@ -53,13 +53,14 @@ import SchedulePortrait from './SchedulePortrait';
 import SlotEditModal from './SlotEditModal';
 import { EditIcon, InboxIcon, LockIcon, UnlockIcon, CopyIcon, TrashIcon, QrIcon, ManageSection, ManageItem } from './manageMenu';
 import QrCodeCreator from '../../components/QrCodeCreator';
+import { addSlotBefore } from '../../lib/eventSlots';
 import s from '../EventScreen.module.css';
 
 export default function EventHostView({
   id, event, cfg, session, ownerProfile, venueProfile,
   claims, claimsBySlot = {}, days, lineupMembers, shortlistMembers = [], perfsByMember = {}, memberProfiles,
   poster, posterFull, genres, isPast,
-  showTimesPublicly, totalSlots, takenSlots, lineupPct, isLocked, schedule,
+  showTimesPublicly, totalSlots, takenSlots, lineupPct, isLocked, schedule, slots: slotRows = [],
 }) {
   const navigate    = useNavigate();
   const queryClient = useQueryClient();
@@ -1926,7 +1927,27 @@ export default function EventHostView({
              member row's profile empty. */
           shortlistProfiles={{ ...appProfiles, ...memberProfiles }}
           onFilled={() => { setFillSlot(null); queryClient.invalidateQueries({ queryKey: ['event', id] }); }}
-          onClose={() => setFillSlot(null)}
+          /**
+           * ⭐⭐ A SLOT THIS SHEET CREATED IS REMOVED IF NOTHING GOES IN IT.
+           *
+           * ⚠⚠ MEASURED, ⛔ not theorised (2026-08-28): pressing the sliver and
+           * closing the sheet left `position: -2, label: ''` sitting on the
+           * live event — an empty row at the top of a stage that reads as a
+           * glitch, and that nothing in the UI offers a way to remove.
+           *
+           * ⛔ ONLY the one it created (`fillSlot.created`). A slot the host
+           * reached by tapping an EXISTING empty slot is part of their
+           * schedule, and closing a sheet must never delete it. That flag is
+           * the entire difference between tidying up after yourself and
+           * deleting somebody's work.
+           */
+          onClose={async () => {
+            const created = fillSlot?.created ? fillSlot.slot?.id : null;
+            setFillSlot(null);
+            if (!created) return;
+            await supabase.from('event_slots').delete().eq('id', created);
+            queryClient.invalidateQueries({ queryKey: ['event', id] });
+          }}
         />
       )}
 
@@ -2040,6 +2061,40 @@ export default function EventHostView({
         viewerProfileId: event?.owner_profile_id || null,
         onFill:   slot          => setFillSlot({ slot }),
         onNotify: slot          => askToNotify(slot),
+        /**
+         * ⭐⭐ ADD A SLOT, then hand it straight to the sheet that fills it.
+         *
+         * ⚠ TWO STEPS, ONE GESTURE. The row has to exist before anything can be
+         * put in it — `event_slots` is the only place a slot lives — so this
+         * inserts an empty one and immediately opens the fill sheet on it. That
+         * sheet already offers everything: an artist whose set starts earlier
+         * than anything booked, or MARK THE TIME for a welcome or a stage open.
+         *
+         * ⛔ Do not stop after the insert and leave the host to find the new row
+         * themselves — a bare empty slot appearing at the top of a stage reads
+         * as a glitch rather than as the thing they just asked for.
+         *
+         * ⛔ THE ROWS, ⛔ not the rendered slots. `addSlotBefore` reads
+         * `position`, which `toRenderSlot` deliberately does not carry — it is
+         * an ordering fact, not a display one.
+         */
+        onAddSlot: async (stage, day) => {
+          const stageId = stage?.id ?? null;
+          const rows = (slotRows || []).filter(r =>
+            (r.day_index ?? 0) === (day?.dayIndex ?? 0) && (r.stage_id ?? null) === stageId);
+          const res = await addSlotBefore(supabase, {
+            eventId: id,
+            stageSlots: rows,
+            dayIndex: day?.dayIndex ?? 0,
+            dayName: day?.name || '',
+            stageId,
+          });
+          if (!res.ok) { setNotifyError(res.error); return; }
+          await queryClient.invalidateQueries({ queryKey: ['event', id] });
+          /* ⭐ `created` marks this slot as THIS SHEET'S — closing without
+             filling removes it again. See onClose. */
+          setFillSlot({ slot: { id: res.slot.id, time: res.slot.time, ampm: res.slot.ampm }, created: true });
+        },
         onEdit:   slot => setEditingSlot({ slot }),
         onRemove: slot => removeArtist(slot.id),
         /**

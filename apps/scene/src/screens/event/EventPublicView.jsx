@@ -120,6 +120,9 @@ export default function EventPublicView({
             /* ⭐ P6.3 · telling an artist about their set time. ⛔ Absent for a
                non-host and absent on the dashboard, which is triage. */
             onNotify={host?.onNotify}
+            /* ⭐ Host-only by construction: a punter view passes no handler, so
+               the + never renders for a reader. */
+            onAddSlot={host?.onAddSlot}
           />
         )}
 

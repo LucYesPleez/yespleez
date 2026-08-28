@@ -110,6 +110,9 @@ export default function EventScreen() {
        view-as-punter preview shows the punter's timetable rather than the
        editor's grid. ⛔ Neither surface resolves its own. */
     schedule: d.schedule,
+    /* ⚠ The RAW event_slots rows. The host needs `position` to place a marker
+       before the first slot, and `toRenderSlot` deliberately drops it. */
+    slots: d.slotRows,
     showTimesPublicly: d.showTimesPublicly,
     totalSlots: d.totalSlots, takenSlots: d.takenSlots, tally: d.tally,
     ownerProfile: d.ownerProfile, venueProfile: d.venueProfile,

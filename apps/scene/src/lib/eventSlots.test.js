@@ -367,3 +367,47 @@ test('⚠ a slot with NO stage on a staged event still renders, as a trailing pa
   assert.equal(last.id, null);
   assert.deepEqual(last.slots.map(s => s.time), ['11:00']);
 });
+
+/* ── ⭐ ADD A MARKER ───────────────────────────────────────────────────
+   A welcome to country, doors, a smoking ceremony: a slot that marks a moment
+   and books nobody. It goes at the TOP of a stage's day, because `position` is
+   a dense integer per (day, stage) and a mid-list insert would have to renumber
+   every row after it — a multi-row write with no transaction, which on failure
+   leaves two slots sharing a position and silently scrambles the order. */
+test('the marker sorts before every existing slot without renumbering any', async () => {
+  const { addSlotBefore } = await import('./eventSlots.js');
+  let inserted = null;
+  const db = { from: () => ({ insert(row) { inserted = row; return { select: () => ({ maybeSingle: async () => ({ data: { id: 'new', ...row } }) }) }; } }) };
+
+  const res = await addSlotBefore(db, {
+    eventId: 'e1', dayIndex: 0, dayName: 'Friday', stageId: 'st1',
+    stageSlots: [
+      { position: 0, time: '5:00', ampm: 'PM' },
+      { position: 1, time: '6:00', ampm: 'PM' },
+    ],
+    label: 'Welcome to Country',
+  });
+
+  assert.equal(res.ok, true);
+  assert.equal(inserted.position, -1, 'min(position) - 1, so no existing row moves');
+  assert.equal(inserted.time, '5:00', 'the time is copied from the slot it precedes, not invented');
+  assert.equal(inserted.ampm, 'PM');
+  assert.equal(inserted.label, 'Welcome to Country');
+  assert.equal(inserted.dur_mins, 15, 'a moment, not a headline-length set');
+});
+
+test('⛔ a marker is refused when there is nothing to precede', async () => {
+  const { addSlotBefore } = await import('./eventSlots.js');
+  const res = await addSlotBefore({ from: () => { throw new Error('must not write'); } },
+    { eventId: 'e1', stageSlots: [] });
+  assert.equal(res.ok, false, 'no slots means no position to compute — it must not guess one');
+});
+
+test('the label is trimmed, and a blank one is stored as empty', async () => {
+  const { addSlotBefore } = await import('./eventSlots.js');
+  let inserted = null;
+  const db = { from: () => ({ insert(row) { inserted = row; return { select: () => ({ maybeSingle: async () => ({ data: row }) }) }; } }) };
+  await addSlotBefore(db, { eventId: 'e1', stageSlots: [{ position: 3 }], label: '  Doors  ' });
+  assert.equal(inserted.label, 'Doors');
+  assert.equal(inserted.position, 2, 'relative to THIS stage\'s lowest position, not zero');
+});

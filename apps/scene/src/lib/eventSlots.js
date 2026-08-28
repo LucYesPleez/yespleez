@@ -164,6 +164,59 @@ export function groupSlotsIntoDays(rows = [], dates = [], stages = []) {
  * slot to the UI again. It is carried through for tracing a row back to the
  * blob it came from, and for nothing else.
  */
+/**
+ * ⭐⭐ ADD A SLOT AT THE TOP OF A STAGE'S DAY. One INSERT, and ⛔ nothing else is
+ * touched.
+ *
+ * ⭐ IT IS AN EMPTY SLOT, ⛔ not a marker. The sheet that opens next decides
+ * what goes in it — an artist whose set starts earlier than anything booked, a
+ * welcome to country, doors, a smoking ceremony. ⛔ Do not bake a label choice
+ * in here: this function's job is that a row exists at the right position, and
+ * the moment it also decides MEANING there are two places that answer "what is
+ * this slot".
+ *
+ * ⚠⚠ IT GOES BEFORE THE FIRST SLOT, AND ONLY THERE, ON PURPOSE. `position` is a
+ * dense integer per (day, stage) — 0, 1, 2 with no gaps — so inserting BETWEEN
+ * two slots means renumbering every row after it. That is a multi-row write
+ * with no transaction from the client: interrupted, it leaves two slots sharing
+ * a position, and equal positions sort arbitrarily, which silently scrambles a
+ * running order. ⛔ Do not add a mid-list insert here; it needs an RPC that can
+ * renumber atomically.
+ *
+ * ⭐ `min(position) - 1` needs no renumbering at all. Positions are only ever
+ * READ in sort order, never as an index, so a negative one is ordinary.
+ *
+ * ⚠ THE TIME IS COPIED FROM THE SLOT IT PRECEDES, not invented. A marker with
+ * no time renders a blank where every neighbour states one; the host can edit
+ * it afterwards, and a sensible starting value beats an empty box.
+ *
+ * @returns {Promise<{ok: boolean, slot?: object, error?: string}>}
+ */
+export async function addSlotBefore(db, { eventId, stageSlots = [], dayIndex, dayName, stageId = null, label = '' }) {
+  if (!eventId) return { ok: false, error: 'No event.' };
+  if (!stageSlots.length) return { ok: false, error: 'Nothing to put it before yet.' };
+
+  const positions = stageSlots.map(r => r.position ?? 0);
+  const first = stageSlots.reduce((a, b) => ((a.position ?? 0) <= (b.position ?? 0) ? a : b));
+
+  const { data, error } = await db.from('event_slots').insert({
+    event_id:  eventId,
+    day_index: dayIndex ?? 0,
+    day_name:  dayName || '',
+    stage_id:  stageId,
+    position:  Math.min(...positions) - 1,
+    time:      first.time || '',
+    ampm:      first.ampm || '',
+    /* ⚠ Short by default. A marker is a moment, not a set, and a 60-minute
+       welcome to country would draw a card the size of a headline slot. */
+    dur_mins:  15,
+    label:     String(label || '').trim(),
+  }).select().maybeSingle();
+
+  if (error) return { ok: false, error: error.message || 'That could not be added.' };
+  return { ok: true, slot: data };
+}
+
 export function toRenderSlot(row, stageName = null) {
   return {
     id:         row.id,

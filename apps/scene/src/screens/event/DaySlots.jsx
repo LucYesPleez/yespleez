@@ -43,7 +43,7 @@ import s from '../EventScreen.module.css';
  * time alignment silently disappears — the layout still looks plausible, which
  * is what makes it dangerous.
  */
-function StagePages({ stages, renderCell, dayKey, sync }) {
+function StagePages({ stages, renderCell, dayKey, sync, onAddSlot }) {
   const drag = useDragScroll();
   const scrollerRef = drag.ref;
   const active = sync.index;
@@ -212,6 +212,29 @@ function StagePages({ stages, renderCell, dayKey, sync }) {
             style={{ gridRow: 1, gridColumn: i + 1 }}
           >
             <span className={s.stagePageName}>{st.name || 'STAGE'}</span>
+            {/**
+              * ⭐⭐ A SLIVER, ⛔ not a button sitting in the heading (owner,
+              * 2026-08-28). A `+` beside the stage name read as chrome on the
+              * label and competed with it; this is a thin strip along the top
+              * of the column that says what it does only when you go near it.
+              *
+              * ⭐ One per stage, because a slot belongs to a ROOM: the earlier
+              * set, or the welcome, happens on the live stage and not in the
+              * gallery.
+              */}
+            {/* ⛔ `showEditor` IS NOT IN SCOPE HERE — this is StagePages, and
+                the flag lives in DaySlots. The gate is applied where the
+                handler is HANDED OVER (see both call sites), so a null prop is
+                what turns the sliver off. */}
+            {onAddSlot && (
+              <button
+                type="button"
+                className={s.addSliver}
+                onClick={() => onAddSlot(st)}
+              >
+                <span className={s.addSliverLabel}>+ ADD A SLOT</span>
+              </button>
+            )}
           </div>
         ))}
 
@@ -286,7 +309,7 @@ function StagePages({ stages, renderCell, dayKey, sync }) {
 export default function DaySlots({
   eventId, days, claims, allMixSlots,
   isHost = false, editable = false, isLocked = false, viewerProfileId = null,
-  onFill, onEdit, onRemove, onDemote, onPin, onNotify, onChanged, onLocalMove,
+  onFill, onEdit, onRemove, onDemote, onPin, onNotify, onChanged, onLocalMove, onAddSlot,
 }) {
   /**
    * ⭐⭐ `onChanged` — HOW THE CALLER REFRESHES ITSELF AFTER A DRAG.
@@ -679,9 +702,20 @@ export default function DaySlots({
           >
             <>
               {single
-                ? slots.map(slot => (
-                  <SlotCard key={slot.id} {...hostSlotProps(slot)} {...sortableProps(slot)} />
-                ))
+                ? <>
+                    {/* ⭐ A single-stage day has no stage heading to hang the
+                        sliver on, so it leads the list — which is where it
+                        points anyway: the new slot lands before the first. */}
+                    {onAddSlot && showEditor && (
+                      <button type="button" className={s.addSliver + " " + s.addSliverWide}
+                        onClick={() => onAddSlot(stages[0] || null, day)}>
+                        <span className={s.addSliverLabel}>+ ADD A SLOT</span>
+                      </button>
+                    )}
+                    {slots.map(slot => (
+                      <SlotCard key={slot.id} {...hostSlotProps(slot)} {...sortableProps(slot)} />
+                    ))}
+                  </>
                 /* ⚠ THE PAGER SITS INSIDE THE SAME `DndContext`. Each cell's
                    SlotCard registers its own droppable, so an act can be
                    dragged onto any slot on any stage of this day — which is
@@ -689,6 +723,7 @@ export default function DaySlots({
                 : <StagePages
                     stages={stages}
                     dayKey={day.dayIndex ?? di}
+                    onAddSlot={onAddSlot && showEditor ? st => onAddSlot(st, day) : null}
                     sync={sync}
                     renderCell={slot => (
                       <SlotCard key={slot.id} {...hostSlotProps(slot)} {...sortableProps(slot)} />
@@ -727,6 +762,7 @@ export default function DaySlots({
           <StagePages
             stages={stages}
             dayKey={day.dayIndex ?? di}
+            onAddSlot={onAddSlot && showEditor ? st => onAddSlot(st, day) : null}
             sync={sync}
             renderCell={slot => <SlotCard key={slot.id} {...hostSlotProps(slot)} />}
           />

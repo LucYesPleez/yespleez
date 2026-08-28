@@ -40,6 +40,10 @@ export default function FillSlotModal({ slot, eventId, event = null, eventName =
   const canBookByPlacing = placementCanCreateBooking(event);
   const [view,    setView]    = useState('menu');
   const [filter,  setFilter]  = useState('');
+  /* The free-text marker. ⚠ Separate from `filter` and `query` — a search box
+     and a label field sharing one state is how a half-typed artist name ends up
+     written onto a slot as its title. */
+  const [labelText, setLabelText] = useState('');
   const [query,   setQuery]   = useState('');
   const [results, setResults] = useState([]);
   const [busy,    setBusy]    = useState(false);
@@ -113,6 +117,34 @@ export default function FillSlotModal({ slot, eventId, event = null, eventName =
     const cap = billCapacity(onBill || 0, slots || 0);
     if (cap.full) { setErr(billFullMessage(cap.total)); setBusy(false); return false; }
     return true;
+  }
+
+  /**
+   * ⭐⭐ MARK THE TIME — write `event_slots.label`, and ⛔ book nobody.
+   *
+   * ⚠⚠ THIS IS THE ONE FILL PATH THAT CREATES NO PERFORMANCE AND NO MEMBER. A
+   * welcome to country is not an act with an empty name; SlotCard already
+   * renders a labelled slot as its own thing ("the time is SPOKEN FOR"), and
+   * inventing a nameless `lineup_members` row to carry it would put a ghost on
+   * the bill, in the tally, and in every count that reads the lineup.
+   *
+   * ⛔ NOTHING IS NOTIFIED. There is nobody to notify — that is the point.
+   */
+  async function saveLabel(text) {
+    const label = String(text || '').trim();
+    if (!label) { setErr('Give the slot something to say.'); return; }
+    setBusy(true);
+    setErr(null);
+    const { error } = await supabase
+      .from('event_slots')
+      .update({ label })
+      .eq('id', slot.id);
+    setBusy(false);
+    /* ⚠ REPORTED, NOT SWALLOWED — the failure this modal's header warns about:
+       both fill paths once ended `if (!error) onFilled()` and said nothing when
+       there WAS one. */
+    if (error) { setErr(error.message || 'That could not be saved.'); return; }
+    onFilled();
   }
 
   /**
@@ -291,6 +323,79 @@ export default function FillSlotModal({ slot, eventId, event = null, eventName =
                 sub="Add them by name, then copy an invite to send yourself"
                 onClick={() => setView('manual')}
               />
+              {/**
+                * ⭐⭐ NOT EVERY SLOT IS AN ACT (owner, 2026-08-28). A welcome to
+                * country, the doors opening, a stage closing — the time is
+                * SPOKEN FOR, and SlotCard has always known how to draw that:
+                * `event_slots.label` is what "STAGE CLOSE" and "WELCOME TO
+                * COUNTRY / CHOIR" already render from on Neverland.
+                *
+                * ⚠⚠ NOTHING IN THE APP HAS EVER WRITTEN THAT COLUMN. Every
+                * label in production arrived through the importer, so a host
+                * building an event by hand could not mark a moment at all —
+                * their only options were three flavours of "book an artist".
+                */}
+              <MenuOption
+                label="MARK THE TIME"
+                sub="Welcome to Country, stage open or close, or your own words"
+                onClick={() => setView('label')}
+              />
+            </div>
+          )}
+
+          {/* MARK THE TIME */}
+          {view === 'label' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {/**
+                * ⭐ THE PRESETS ARE A HEAD START, ⛔ not a closed vocabulary.
+                * They are the three that recur on real running orders, and the
+                * free field beneath is the actual feature — an organiser's
+                * event says whatever their event says. ⛔ Do not turn this into
+                * an enum: the moment it is one, "Smoking Ceremony" and "Kids'
+                * Disco" become impossible.
+                */}
+              {['Welcome to Country', 'Stage open', 'Stage close'].map(preset => (
+                <MenuOption
+                  key={preset}
+                  label={preset.toUpperCase()}
+                  sub="Marks the time on the running order"
+                  disabled={busy}
+                  onClick={() => saveLabel(preset)}
+                />
+              ))}
+
+              <div style={{ marginTop: 4 }}>
+                <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 6, letterSpacing: 1, fontFamily: "'Bebas Neue'" }}>
+                  OR YOUR OWN WORDS
+                </div>
+                <input
+                  value={labelText}
+                  onChange={e => setLabelText(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter' && labelText.trim()) saveLabel(labelText); }}
+                  placeholder="e.g. Smoking ceremony, Doors, Raffle draw"
+                  maxLength={60}
+                  style={{
+                    width: '100%', boxSizing: 'border-box', background: 'var(--card2)',
+                    border: '1px solid var(--border)', borderRadius: 10, padding: '11px 13px',
+                    color: 'var(--text)', fontSize: 14, outline: 'none',
+                  }}
+                />
+                <button
+                  onClick={() => saveLabel(labelText)}
+                  /* ⛔ A blank label is not a marker, it is an empty slot that
+                     LOOKS filled — the one outcome this must not produce. */
+                  disabled={busy || !labelText.trim()}
+                  style={{
+                    marginTop: 10, width: '100%', padding: '12px', borderRadius: 10, border: 'none',
+                    cursor: busy || !labelText.trim() ? 'default' : 'pointer',
+                    opacity: busy || !labelText.trim() ? 0.4 : 1,
+                    fontFamily: "'Bebas Neue'", fontSize: 14, letterSpacing: 1.4, color: '#0a0a0f',
+                    background: 'linear-gradient(135deg, var(--neon2), var(--purple))',
+                  }}
+                >
+                  MARK THIS SLOT
+                </button>
+              </div>
             </div>
           )}
 

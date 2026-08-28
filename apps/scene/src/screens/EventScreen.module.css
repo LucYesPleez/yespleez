@@ -858,6 +858,59 @@
    See SchedulePortrait.module.css `.dayBtnOn` for why the two background layers
    are needed; here the padding-box layer is `--card2`, the chip's own resting
    colour, because that is what sits behind this rail. */
+/* ── Add a slot · the sliver ─────────────────────────────────────────
+   ⭐⭐ A THIN STRIP, ⛔ not a button (owner, 2026-08-28: "a small slither button
+   that asks you if you want to add a slot"). It sits along the top of a stage's
+   column and is almost nothing until you go near it, at which point it says
+   what it does. A `+` sitting in the stage heading read as chrome on the label
+   and competed with the name it was next to.
+
+   ⭐ It adds a SLOT, not a marker — an artist starting earlier than anything
+   booked, a welcome, doors. The sheet it opens is what decides.
+
+   ⚠ HOST-ONLY by construction: the handler is only passed by the host view, so
+   a punter's schedule never renders one. */
+/* ⭐⭐ EDITOR-ONLY, AND THEREFORE ALWAYS LEGIBLE (owner, 2026-08-28). The
+   hide-until-hover version existed to keep the control out of a reader's way;
+   once it only exists while the editor is ON, there is no reader to keep it
+   away from — so it states itself permanently and quietly instead of making an
+   organiser go hunting along a 7px strip.
+
+   ⛔ NO hover-to-reveal, and ⛔ no touch special-case. Both were solving the
+   same problem, which the editor gate removed. */
+.addSliver {
+  display: block;
+  width: 100%;
+  height: 20px;
+  padding: 0;
+  margin: 2px 0;
+  border: 0;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, .05);
+  cursor: pointer;
+  overflow: hidden;
+  transition: background .14s ease, color .14s ease;
+}
+
+.addSliverLabel {
+  display: block;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 10px;
+  letter-spacing: 1.4px;
+  line-height: 20px;
+  color: var(--muted);
+}
+
+.addSliver:hover,
+.addSliver:focus-visible { background: rgba(0, 229, 255, .1); }
+
+.addSliver:hover .addSliverLabel,
+.addSliver:focus-visible .addSliverLabel { color: var(--neon2); }
+
+/* The single-stage form: same sliver, leading the list where there is no stage
+   heading to sit under. */
+.addSliverWide { margin: 0 0 8px; }
+
 .stageChipOn {
   color: #fff;
   border: 1px solid transparent;
