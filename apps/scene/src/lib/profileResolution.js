@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { PUBLIC_PROFILE_SELECT } from './publicProfileColumns';
 
 // M5 — the shared profile-resolution module. One platform-wide way to build
 // profile URLs and resolve /profile/:id route params.
@@ -26,10 +27,17 @@ export async function resolveProfileRoute(routeId, { typeFilter, preferPerformer
     return query.neq('type', 'punter');
   };
 
-  let res = await applyTypeFilter(supabase.from('profiles').select('*').eq('id', routeId)).limit(1);
+  // ⛔⛔ NOT `select('*')`, AND THE REASON IS NOT TIDINESS. This is the ONE
+  // anonymous path that reads a whole profile row, so `*` handed a signed-out
+  // stranger every column on the table — `email`, `emergency_phone`, `abn`.
+  // ⚠ It also breaks the moment those columns are revoked from `anon`:
+  // Postgres errors on `SELECT *` when one column is denied rather than
+  // omitting it, so this narrowing must ship BEFORE the revoke, not after.
+  // ⭐ The list is derived from the table, so nothing the page renders is lost.
+  let res = await applyTypeFilter(supabase.from('profiles').select(PUBLIC_PROFILE_SELECT).eq('id', routeId)).limit(1);
   if (res.data?.[0]) return { profile: res.data[0], isLegacyHit: false };
 
-  res = await applyTypeFilter(supabase.from('profiles').select('*').eq('user_id', routeId)).limit(1);
+  res = await applyTypeFilter(supabase.from('profiles').select(PUBLIC_PROFILE_SELECT).eq('user_id', routeId)).limit(1);
   if (res.data?.[0]) return { profile: res.data[0], isLegacyHit: true };
 
   return { profile: null, isLegacyHit: false };
