@@ -102,7 +102,7 @@ const short = (u) => (u || '').slice(0, 8) + '…';
 
 const TABS = [
   ['overview', 'OVERVIEW'], ['daily', 'DAILY'], ['people', 'PEOPLE'], ['teams', 'TEAMS'],
-  ['campaigns', 'CAMPAIGNS'], ['weeks', 'WEEKS'],
+  ['campaigns', 'CAMPAIGNS'], ['areas', 'AREAS'], ['weeks', 'WEEKS'],
 ];
 const POPS = ['public', 'internal', 'beta', 'test', 'all'];
 const state = { tab: 'overview', days: '7', population: 'public', weekPop: 'public' };
@@ -129,7 +129,7 @@ async function health() {
 function render() {
   nav.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.tab === state.tab));
   main.textContent = '';
-  ({ overview, daily, people, teams, campaigns, weeks })[state.tab]();
+  ({ overview, daily, people, teams, campaigns, areas, weeks })[state.tab]();
 }
 
 /* ── OVERVIEW — the canonical figures, names and denominators intact ── */
@@ -347,6 +347,50 @@ async function showFunnel(box, source) {
       fb.appendChild(row);
     }
   } catch (e) { fb.textContent = ''; fb.appendChild(el('p', 'note warn', e.message)); }
+}
+
+/* ── AREAS — demand geography: what places people ASK for ──────────── */
+async function areas() {
+  const c = el('div', 'controls');
+  const days = el('select'); ['7', '30', '90', 'all'].forEach((d) => days.add(new Option(d === 'all' ? 'all history' : 'last ' + d + ' days', d, false, d === (state.areaDays || '30'))));
+  const pop = el('select'); POPS.forEach((p) => pop.add(new Option(p, p, false, p === state.population)));
+  days.onchange = () => { state.areaDays = days.value; render(); };
+  pop.onchange = () => { state.population = pop.value; render(); };
+  c.append(days, pop);
+  main.appendChild(c);
+  const box = el('div'); box.textContent = 'loading…'; main.appendChild(box);
+  try {
+    const s = await api('/areas?days=' + (state.areaDays || '30') + '&population=' + state.population);
+    box.textContent = '';
+    box.appendChild(el('p', 'note', s.window + ' · ' + fmt(s.searches) + ' filter action(s), ' + fmt(s.searches_with_region) +
+      ' carried a place. This is DEMAND — what areas people ask the scene for — never visitor location: no IP, no geo, by design.'));
+    const maxN = Math.max(...s.regions.map((r) => r.applied + r.asked), 1);
+    box.appendChild(el('h2', null, 'regions asked for'));
+    const wrap = el('div', 'tablewrap'); const t = el('table');
+    t.innerHTML = '<thead><tr><th>region</th><th></th><th class="num">applied</th><th class="num">asked, unmet</th><th class="num">devices</th></tr></thead>';
+    const tb = el('tbody');
+    for (const r of s.regions) {
+      const tr = el('tr');
+      const barTd = el('td'); const bar = el('div');
+      bar.style.cssText = 'height:12px;background:var(--teal);opacity:.7;min-width:1px;width:' + Math.round(160 * (r.applied + r.asked) / maxN) + 'px';
+      barTd.appendChild(bar);
+      const askedTd = el('td', 'num', fmt(r.asked));
+      if (r.asked) { askedTd.style.color = 'var(--gold)'; askedTd.title = 'asked for but the filter could not apply — a coverage gap, not zero interest'; }
+      tr.append(el('td', 'mono', r.region), barTd, el('td', 'num', fmt(r.applied)), askedTd, el('td', 'num', fmt(r.devices)));
+      tb.appendChild(tr);
+    }
+    t.appendChild(tb); wrap.appendChild(t); box.appendChild(wrap);
+    if (!s.regions.length) box.appendChild(el('p', 'note', 'No region filters in this window yet.'));
+    if (s.unresolved) box.appendChild(el('p', 'note warn', fmt(s.unresolved) + ' search(es) named a place the suburb vocabulary does not know — a SUBURB_MAP gap worth closing. The text itself is never recorded.'));
+    if (s.states.length) {
+      box.appendChild(el('h2', null, 'state facet'));
+      const w2 = el('div', 'tablewrap'); const t2 = el('table');
+      t2.innerHTML = '<thead><tr><th>state</th><th class="num">filters</th></tr></thead>';
+      const tb2 = el('tbody');
+      s.states.forEach((r) => { const tr = el('tr'); tr.append(el('td', 'mono', r.state), el('td', 'num', fmt(r.count))); tb2.appendChild(tr); });
+      t2.appendChild(tb2); w2.appendChild(t2); box.appendChild(w2);
+    }
+  } catch (e) { box.textContent = ''; box.appendChild(el('p', 'note warn', e.message)); }
 }
 
 /* ── WEEKS — the v2 historical series; versions never chart together ─ */

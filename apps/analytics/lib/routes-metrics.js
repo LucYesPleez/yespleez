@@ -12,6 +12,7 @@
 import { deriveDeviceSegments, POPULATIONS } from './identity.js';
 import { aggregate } from './metrics.js';
 import { dailySeries } from './daily.js';
+import { areaBreakdown } from './areas.js';
 import WEEKS from './weeks.cjs';
 
 export function mountMetricsRoutes(app, db) {
@@ -116,6 +117,44 @@ export function mountMetricsRoutes(app, db) {
           population, segments: ctx.segments, linkedDevices: ctx.linkedDevices,
           fromDay, toDay,
         }),
+      });
+    } catch (e) {
+      console.error('[analytics] ' + e.message);
+      res.status(502).json({ error: e.message });
+    }
+  });
+
+  /**
+   * Area demand: the region facets of `filtered` events — what places
+   * people ASK for. ⛔ Not visitor location: the platform stores no IP
+   * and no geo, by A1's ratified design, and this route exists so that
+   * question has an honest answer instead of a tempting gap. `props`
+   * must be selected here — the summary reads deliberately skip it.
+   */
+  app.get('/api/areas', async (req, res) => {
+    const population = POPULATIONS.includes(req.query.population) ? req.query.population : 'public';
+    const all = req.query.days === 'all';
+    const days = all ? null : Math.min(3650, Math.max(1, Number(req.query.days) || 30));
+    try {
+      const since = all ? null : new Date(Date.now() - days * 86400000).toISOString();
+      const [events, segs, links] = await Promise.all([
+        db.readAll(
+          'usage_events?select=name,device_id,user_id,props,created_at&name=eq.filtered' +
+          (since ? '&created_at=gte.' + encodeURIComponent(since) : '') +
+          '&order=id.asc',
+          { schema: 'public' }
+        ),
+        db.readAll('account_segments?select=user_id,segment&order=user_id.asc'),
+        db.readAll('identity_links?select=device_id,user_id&order=id.asc'),
+      ]);
+      const users = {};
+      segs.rows.forEach((r) => { users[r.user_id] = r.segment; });
+      const segments = { users, devices: deriveDeviceSegments(links.rows, users) };
+      res.json({
+        population,
+        window: all ? 'all history' : 'last ' + days + ' days',
+        complete: events.complete,
+        ...areaBreakdown(events.rows, { population, segments }),
       });
     } catch (e) {
       console.error('[analytics] ' + e.message);
