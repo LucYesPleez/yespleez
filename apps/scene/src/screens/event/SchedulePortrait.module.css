@@ -23,38 +23,53 @@
   gap: 9px;
 }
 
-/* ⭐ THE WHOLE HEADING IS THE CONTROL (owner, 2026-08-28) — a small chevron
-   beside a large inert label is the target people miss. It resets the button
-   back to looking like the heading it replaced: ⛔ no chrome, no box, full
-   width so the press lands anywhere along the row. */
+/* ⭐⭐ THE WIDE GRADIENT BUTTON (owner, 2026-08-28: "must be really obvious").
+   ⛔ Not a heading you can press — a heading that looks like a heading reads as
+   a label, and a label is not something anybody tries to click. This is the
+   app's own primary CTA treatment, taken from `.stickyPrimary` in
+   EventSections.module.css: full width, 135deg cyan→purple, dark text, Bebas.
+
+   ⚠ THE SAME BUTTON IN BOTH STATES. It stays gradient while open so the way to
+   minimise is exactly as findable as the way that opened it; only the chevron
+   turns. ⛔ Do not soften it once open — the reader who wants the page back is
+   the one who most needs to find it. */
 .headBtn {
   width: 100%;
-  background: none;
-  border: 0;
-  padding: 0;
-  margin: 0;
-  font: inherit;
-  color: inherit;
-  text-align: left;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 13px 15px;
+  border: none;
+  border-radius: 11px;
   cursor: pointer;
-  align-items: center;   /* the chevron centres on the row; the text baseline stays */
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 15px;
+  letter-spacing: 0.11em;
+  color: #0a0a0f;
+  background: linear-gradient(135deg, var(--neon2), var(--purple));
+  text-align: left;
 }
+
+/* ⚠ The heading and count are dark ON the gradient — they inherit from the
+   button rather than keeping the white they wear as a bare section heading. */
+.headBtn .heading,
+.headBtn .count {
+  color: inherit;
+  font-size: inherit;
+  letter-spacing: inherit;
+}
+
+.headBtn .count { opacity: .65; }
 
 .headChev {
   /* ⚠ Pushed to the far edge so the arrow sits where a disclosure arrow is
      looked for, not tucked against the count. */
   margin-left: auto;
   display: inline-flex;
-  color: var(--muted, rgba(255, 255, 255, .5));
-  transition: transform var(--yp-medium, .2s), color var(--yp-medium, .2s);
+  transition: transform var(--yp-medium, .2s);
 }
 
-.headBtn:hover .headChev { color: var(--neon2, #00e5ff); }
-
-.headChevOpen {
-  transform: rotate(90deg);
-  color: var(--neon2, #00e5ff);
-}
+.headChevOpen { transform: rotate(90deg); }
 
 .heading {
   font-family: 'Bebas Neue', sans-serif;

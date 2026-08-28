@@ -249,7 +249,10 @@ export default function SchedulePortrait({ resolved, allMixSlots = [] }) {
         */}
       <button
         type="button"
-        className={s.head + ' ' + s.headBtn}
+        /* ⛔ `.headBtn` ALONE, no longer `.head` beside it. The two set the same
+           flex properties to different values and the winner was down to source
+           order — `.headBtn` states the whole layout itself. */
+        className={s.headBtn}
         onClick={() => setOpen(o => !o)}
         aria-expanded={open}
       >
