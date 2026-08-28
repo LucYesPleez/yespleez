@@ -593,6 +593,22 @@
   letter-spacing: 0.02em;
 }
 
+/* ⭐⭐ A MARKER'S HEADING IS SMALLER THAN AN ACT'S (owner, 2026-08-28: too big
+   on a phone).
+
+   ⚠ A LABEL IS PROSE, AN ACT IS A NAME. "AFI JAMES" is two short words; a
+   marker is a phrase — "Welcome to Country", "Contact Improvisation w/ Nicholas
+   Gilchrist" — and at 375px the first of those already reached the card's edge
+   with `/ Choir` removed. ⛔ The fix is NOT to shrink `.djName`: that would take
+   every artist name down with it to solve a problem only the labels have.
+
+   ⚠ It still ellipsises rather than wrapping, exactly as an act does — one line
+   is what keeps the card a fixed height against the time grid. */
+.slotLabelHeading {
+  font-size: 15px;
+  letter-spacing: 0.04em;
+}
+
 .djPills {
   display: flex;
   flex-wrap: wrap;

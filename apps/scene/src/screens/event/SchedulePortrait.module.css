@@ -23,53 +23,64 @@
   gap: 9px;
 }
 
-/* ⭐⭐ THE WIDE GRADIENT BUTTON (owner, 2026-08-28: "must be really obvious").
-   ⛔ Not a heading you can press — a heading that looks like a heading reads as
-   a label, and a label is not something anybody tries to click. This is the
-   app's own primary CTA treatment, taken from `.stickyPrimary` in
-   EventSections.module.css: full width, 135deg cyan→purple, dark text, Bebas.
+/* ⭐⭐ SET TIMES CARRIES THE SAME WEIGHT AS LINEUP (owner, 2026-08-28). They are
+   peer sections of the event page, and this one had been reading as a smaller,
+   lesser thing at 15px beneath a 20px LINEUP.
+   ⚠ MEASURED off EventLineup's own `.heading`: 20px, 0.09em. ⛔ If that one
+   changes, this follows it — two section headings at different sizes is a
+   hierarchy nobody meant to state.
 
-   ⚠ THE SAME BUTTON IN BOTH STATES. It stays gradient while open so the way to
-   minimise is exactly as findable as the way that opened it; only the chevron
-   turns. ⛔ Do not soften it once open — the reader who wants the page back is
-   the one who most needs to find it. */
+   ⛔ NO UNDERLINE, no border, no fill. This has now been a filled slab, a
+   gradient outline and a gradient rule; each one made a HEADING compete with
+   the content it introduces. It is a heading. */
 .headBtn {
   width: 100%;
   display: flex;
   align-items: center;
   gap: 9px;
-  padding: 13px 15px;
-  border: none;
-  border-radius: 11px;
+  padding: 4px 2px 8px;
+  border: 0;
+  border-radius: 0;
   cursor: pointer;
   font-family: 'Bebas Neue', sans-serif;
-  font-size: 15px;
-  letter-spacing: 0.11em;
-  color: #0a0a0f;
-  background: linear-gradient(135deg, var(--neon2), var(--purple));
+  font-size: 20px;
+  letter-spacing: 0.09em;
+  color: #fff;
+  background: none;
   text-align: left;
 }
 
-/* ⚠ The heading and count are dark ON the gradient — they inherit from the
-   button rather than keeping the white they wear as a bare section heading. */
-.headBtn .heading,
-.headBtn .count {
+.headBtn .heading {
   color: inherit;
   font-size: inherit;
   letter-spacing: inherit;
 }
 
-.headBtn .count { opacity: .65; }
+/* ⛔ The COUNT does NOT inherit — LINEUP's is 11px and muted beside its 20px
+   heading, and inheriting would blow it up to match the title. */
 
-.headChev {
-  /* ⚠ Pushed to the far edge so the arrow sits where a disclosure arrow is
-     looked for, not tucked against the count. */
+/* ⭐ Matches the LINEUP section's SEE ALL chip: same size, same border, same
+   lit hover. ⛔ Two peer sections must not state "there is more" in two
+   different visual languages. */
+.headAction {
   margin-left: auto;
-  display: inline-flex;
-  transition: transform var(--yp-medium, .2s);
+  flex: 0 0 auto;
+  padding: 4px 9px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, .03);
+  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: .12em;
+  white-space: nowrap;
+  transition: color .15s, border-color .15s, background .15s;
 }
 
-.headChevOpen { transform: rotate(90deg); }
+.headBtn:hover .headAction {
+  color: var(--neon2);
+  border-color: var(--neon2);
+  background: rgba(0, 229, 255, .07);
+}
 
 .heading {
   font-family: 'Bebas Neue', sans-serif;
@@ -146,19 +157,56 @@
 }
 
 /* ── Day sections ───────────────────────────────────────────────────────
-   ⭐ EVERY DAY IS ON THE PAGE — Saturday flows into Sunday under this
-   heading; the chips above jump and track, ⛔ they never filter. */
+   ⭐ EVERY DAY IS ON THE PAGE, IN ORDER — Saturday flows into Sunday under this
+   heading. ⛔ It is a SIGNPOST, not a control: it was briefly a collapsible
+   toggle and that turned the section into an index of day names with nothing
+   under them (owner, 2026-08-28). ⛔ Do not make it pressable again.
+   ⚠ Expanded view only — the peek shows one day and never names it. */
+
+/* ⭐ The invisible day anchor. It draws NOTHING — the chips name the day — but
+   it is what a chip jump scrolls to and what the lit-chip tracking measures.
+   ⚠ scroll-margin-top must match DAY_REACHED_PX in the component. */
+.daySection { scroll-margin-top: 96px; }
 
 .dayDivider {
   display: flex;
   align-items: center;
   gap: 10px;
   margin-top: 8px;
-  /* ⚠ Where a chip-jump LANDS: just under the app's fixed header. Must stay
-     in step with DAY_REACHED_PX in the component, or a jump lands on a day
-     whose chip does not light. */
-  scroll-margin-top: 96px;
 }
+
+/* ⭐⭐ THE PEEK (owner, 2026-08-28). Collapsed no longer means EMPTY: the
+   section shows a window of about four and a bit sets, scrolled to whatever is
+   on now, with the one before it above and the next below.
+
+   ⚠⚠ WHY A PEEK AND NOT NOTHING: "what's on right now" is the question a
+   schedule is opened for, and a reader who wants only that should not have to
+   press anything. The expander is for the whole running order.
+
+   ⚠ 500px ≈ 4.4 × a one-hour card, MEASURED at 114px on the stage grid. ⛔ Not
+   a slot COUNT: cards are sized by duration, so four 15-minute markers and four
+   90-minute sets are wildly different heights and no fixed count can mean the
+   same thing on both.
+
+   ⛔ IT SCROLLS. The peek is a window onto the whole day, not a truncation —
+   everything is reachable inside it without expanding. */
+.peek {
+  max-height: 500px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  /* NO VISIBLE SCROLLBARS, standing UI law. */
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  /* ⚠ The peek's own scroll must not drag the page once it bottoms out. */
+  overscroll-behavior: contain;
+  position: relative;
+  /* ⭐ The bottom edge fades rather than cutting a card in half — the cut is
+     what tells a reader there is more, and a hard slice reads as a bug. */
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 34px), transparent);
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 34px), transparent);
+}
+
+.peek::-webkit-scrollbar { display: none; }
 
 .dayName {
   font-family: 'Bebas Neue', sans-serif;
@@ -633,12 +681,22 @@
 
 /* The heading row's cells are the SNAP TARGETS — one per stage, all sharing
    the grid's first row, each centred in the scroller. */
+/* ⭐ Air between the day rail and the stage rail. ⛔ Without it the two read as
+   one six-chip strip instead of two questions — which day, then which room. */
+.stageRail { margin-top: 12px; }
+
+/* ⚠⚠ THE PAGER'S RULER, AND IT IS NOW EMPTY. The stage name was removed from it
+   (owner, 2026-08-28) because the chip rail above already names every stage —
+   but `headAt` and the snap centring both measure this element to work out
+   which page is in view. ⛔ Do not delete it, and ⛔ do not let it collapse to
+   nothing: `min-height` is also the padding above the first card of the day. */
 .stagePageHead {
   scroll-snap-align: center;
   display: flex;
   align-items: center;
   gap: 10px;
   min-width: 0;
+  min-height: 10px;
 }
 
 .stageName {
@@ -690,18 +748,32 @@
    ⭐ ONE INTERVAL = 15 MINUTES, so an hour is 4 of these and a set is as tall
    as it is long.
 
-   ⚠⚠ 32px HERE, 26px ON THE HOST SCHEDULE, and that is not an oversight. The
-   public card is genuinely taller — it carries the follow control and the live
-   state strip — so at 26px a full hour needed 128px and could not fit its own
-   four intervals, and ITS rows stretched while a half-hour slot's did not. The
-   proportions then quietly stopped being proportions. ⛔ Do not lower this
-   without re-measuring a full card here.
+   ⚠⚠ 26px, MATCHING THE HOST SCHEDULE (owner, 2026-08-28: "they're massive
+   now"). It was 32px, and the note here said 26 could not work because the
+   public card carries the follow control and the live strip, so an hour needed
+   128px, overflowed its four intervals, and stretched its rows while a
+   half-hour slot's stayed put.
+
+   ⭐ RE-MEASURED BEFORE CHANGING IT, exactly as that note demanded, and the
+   failure it describes no longer happens — the card has slimmed since:
+
+       32px   1 hour 114px   1.5 hours 178px   ratio 1.561
+       26px   1 hour  90px   1.5 hours 142px   ratio 1.578
+
+   At 26px a one-hour card is 90px inside a 104px cell: it FITS, nothing
+   stretches, and the ratio moves 0.017 against an ideal 1.5 — the same small
+   error 32px already carried, which comes from the 6px inset each card holds
+   rather than from the interval.
+
+   ⛔ THE WARNING STANDS FOR NEXT TIME: measure a real card here before lowering
+   this again. The moment a card needs more than 4 × this value, the grid starts
+   lying about how long a set is.
 
    ⛔ THE CELL RULES ARE NOT HERE. They reach inside SlotCard, and CSS modules
    hash per file, so they live beside the card in EventScreen.module.css and
    this component imports them. */
 .pager {
-  --slot-interval: 32px;
+  --slot-interval: 26px;
   /* ⛔⛔ NO ROW GAP. A gap between intervals ACCUMULATES down the page — a
      30 minute set came out 2x32+8=72px and an hour 4x32+3x8=152px, so a half
      hour was 0.474 of an hour instead of half. The 6px between cards lives

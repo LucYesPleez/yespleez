@@ -464,7 +464,9 @@ export default function SlotCard({ slot, claim, onFill, onEdit, onRemove, onDemo
                 ⚠ Upright and unmuted, unlike "Open slot": the italic lowercase
                 is reserved for a genuine absence. */}
             <span
-              className={`${s.djName} ${isEmpty && !isInfoCard ? '' : s.djNameCaps}`}
+              /* ⭐ An info card's heading is a LABEL, not a name — see
+                 `.slotLabelHeading`. ⛔ Only the marker cards take it. */
+              className={`${s.djName} ${isEmpty && !isInfoCard ? '' : s.djNameCaps}${isInfoCard ? ' ' + s.slotLabelHeading : ''}`}
               style={{
                 color: isEmpty && !isInfoCard ? 'var(--muted)'
                   : publicName === 'PENDING' ? 'var(--muted)'

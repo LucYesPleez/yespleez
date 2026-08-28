@@ -135,24 +135,18 @@ function ChipRail({ items, activeIndex, onPick }) {
   );
 }
 
-/* The disclosure arrow on the SET TIMES heading. Points right when closed and
-   is rotated by the stylesheet when open — ⛔ one glyph, not two icons. */
-function ChevronIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-      strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M9 6l6 6-6 6" />
-    </svg>
-  );
-}
+/* ⛔ THE DISCLOSURE CHEVRON WENT WITH THE DAY TOGGLES (2026-08-28). SET TIMES
+   says VIEW ALL / SHOW LESS in words now — collapsed is a PEEK rather than
+   nothing, so an arrow was answering "is there anything here" when the question
+   is "do you want the rest of it". */
 
 /* ⚠ Must match the two enter animations in the stylesheet: the class comes off
    after this, and pulling it early would cut the animation mid-fade. */
 const ENTER_MS = 900;
 
-/* Where a day heading counts as "reached": just under the app's fixed header.
-   ⚠ Must stay in step with `scroll-margin-top` in the stylesheet, or a jump
-   lands on a day whose chip does not light. */
+/* Where a day section counts as "reached": just under the app's fixed header.
+   ⚠ Must stay in step with the day section's own scroll-margin-top, or a chip
+   jump lands on a day whose chip does not light. */
 const DAY_REACHED_PX = 96;
 
 export default function SchedulePortrait({ resolved, allMixSlots = [] }) {
@@ -186,6 +180,54 @@ export default function SchedulePortrait({ resolved, allMixSlots = [] }) {
    * event past where anyone scrolls.
    */
   const [open, setOpen] = useState(false);
+
+  /**
+   * ⭐⭐ WHICH DAYS ARE OPEN. Closed to start, so opening SET TIMES gives an
+   * INDEX of days rather than the whole festival again.
+   *
+   * ⚠ A SET OF THE OPEN ONES, ⛔ not a single "which day is open". Two days may
+   * be open at once: an artist comparing Friday's late sets with Saturday's
+   * early ones is the ordinary reason somebody opens a schedule at all, and an
+   * accordion that shuts one to open another would fight them.
+   *
+   * ⛔ Keyed on `dayIndex`, ⛔ never on position in the array — the index is
+   * identity (a deleted day leaves a gap, deliberately; see groupSlotsIntoDays).
+   */
+
+  /**
+   * ⭐ WHICH DAY THE PEEK SHOWS: the one with something live on it, else the
+   * first. ⛔ Never all of them — peeking at three days is not a peek.
+   *
+   * ⚠ Found by asking the SAME `slotStates` the cards use, so the peek cannot
+   * disagree with the card it scrolls to about which set is on.
+   */
+  const peekDays = (() => {
+    if (!days.length) return [];
+    const liveDay = days.find(d => (d.stages || []).some(st =>
+      Object.values(slotStates((st.slots || []).map(e => e.slot || e), now) || {})
+        .some(v => v === PLAYING)));
+    return [liveDay || days[0]];
+  })();
+
+  /**
+   * ⭐⭐ THE PEEK OPENS ON WHAT IS ON NOW, with the set before it above.
+   *
+   * ⚠ `scrollTop`, ⛔ NOT `scrollIntoView`: that walks every scrollable
+   * ancestor and would yank the whole page to the schedule the moment an event
+   * page loads. The same trap the chip rail's own comment warns about.
+   *
+   * ⚠ One card's height above the live one, so the previous set is visible —
+   * "what just finished" is half of reading where a night is up to.
+   */
+  const peekRef = useRef(null);
+  useEffect(() => {
+    if (open) return;                       // expanded: the page's own scroll
+    const box = peekRef.current;
+    const liveEl = box?.querySelector(`.${s.live}`);
+    if (!box || !liveEl) return;
+    const top = liveEl.offsetTop - box.offsetTop;
+    box.scrollTop = Math.max(0, top - liveEl.getBoundingClientRect().height);
+  }, [open, now, peekDays.length]);
   const [stage, setStage] = useState({ index: 0, from: null });
   const stageSync = {
     index: stage.index,
@@ -198,14 +240,13 @@ export default function SchedulePortrait({ resolved, allMixSlots = [] }) {
    * ⭐ THE CHIP SAYS WHERE YOU ARE, ⛔ IT NEVER DECIDES WHAT YOU SEE (owner,
    * 2026-08-20 — "the chip for Sunday can be there to let you know you're
    * looking at Sunday, but I don't want that to be the only way to see it").
-   * Every day is always on the page; the highlighted chip just tracks the
-   * scroll. The last day whose heading has passed the header line is current.
+   * Every day is always on the page; the lit chip just tracks the scroll.
+   *
+   * ⚠ IT MEASURES THE DAY SECTIONS, which are now invisible wrappers — the day
+   * headings that used to be the anchor are gone (owner, 2026-08-28: no white
+   * day-and-date text). ⛔ Do not remove those wrappers; this reads them.
    */
   const [activeDay, setActiveDay] = useState(days[0]?.dayIndex ?? 0);
-  /* ⚠ Depends on `resolved?.days`, ⛔ not the `days` const above — that one
-     carries a `|| []` fallback which mints a fresh array whenever the schedule
-     is absent, so the effect would re-subscribe every render. Same lesson as
-     the schedule memo in useEventData. */
   useEffect(() => {
     const list = resolved?.days || [];
     if (list.length < 2) return undefined;
@@ -259,57 +300,83 @@ export default function SchedulePortrait({ resolved, allMixSlots = [] }) {
         <h2 className={s.heading}>SET TIMES</h2>
         {/* The whole event's count — every day is on this page. */}
         <span className={s.count}>{resolved.slotCount}</span>
-        <span className={s.headChev + (open ? ' ' + s.headChevOpen : '')} aria-hidden="true">
-          <ChevronIcon />
-        </span>
+        {/**
+          * ⭐⭐ A WORD, ⛔ NOT A CHEVRON (owner, 2026-08-28). Collapsed, this
+          * section is not empty any more — it shows a peek — so a disclosure
+          * arrow was describing the wrong thing: the question is not "is there
+          * something here", it is "do you want the rest of it".
+          *
+          * ⭐ VIEW ALL / SHOW LESS, matching the LINEUP section's own control
+          * directly above. Two peer sections whose "there is more" button reads
+          * differently is two conventions on one page.
+          */}
+        <span className={s.headAction}>{open ? 'SHOW LESS' : 'VIEW ALL'}</span>
       </button>
 
+      {/**
+        * ⛔⛔ THE DAY CHIP RAIL WAS REMOVED (owner, 2026-08-28: "why does it
+        * say it twice here").
+        *
+        * ⚠⚠ IT BECAME A DUPLICATE THE MOMENT DAYS COLLAPSED. The rail existed
+        * to JUMP past a wall of cards to a day heading; with every day shut to
+        * a single row, the headings ARE that index — the same three labels,
+        * directly beneath the same three labels, doing the same thing.
+        *
+        * ⭐⭐ AND IT IS BACK, AS THE ONLY ONE (owner, 2026-08-28). The rail was
+        * removed when the days were collapsible headings, because then the two
+        * genuinely were the same control. With the headings gone the rail is
+        * the day navigation — compact, one row at any count, and it never
+        * repeats itself beneath the schedule.
+        *
+        * ⛔ EXPANDED ONLY. The peek shows one day and does not name it.
+        */}
       {open && shape.showDayPicker && (
-        /* ⭐ A JUMP, ⛔ NOT A FILTER. It scrolls the day's heading into view;
-           every other day stays exactly where it was. The lit state comes from
-           the SCROLL, not the click — so it stays honest when the reader
-           scrolls there themselves. */
         <ChipRail
           items={days.map(d => ({ key: d.dayIndex, label: dayLabel(d) }))}
           activeIndex={days.findIndex(d => d.dayIndex === activeDay)}
+          /* ⭐ A JUMP, ⛔ NOT A FILTER. Every day stays on the page; this
+             scrolls to one. The lit state comes from the SCROLL rather than the
+             click, so it stays honest when the reader scrolls there themselves. */
           onPick={i => dayRefs.current[days[i]?.dayIndex]
             ?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
         />
       )}
 
-      {/* ⛔ NOT RENDERED WHILE CLOSED, ⛔ not hidden with CSS. A 38-slot
-          schedule builds every SlotCard and every stage pager; keeping that
-          mounted behind `display:none` would pay the whole cost for something
-          nobody asked to see, and the pagers would be measuring a zero-width
-          box. */}
-      {open && days.map(day => (
-        <Fragment key={day.dayIndex}>
-          {/* ⚠ The divider only when there is a second day to divide from —
-              a single-night gig gets no heading over its own schedule. */}
-          {days.length > 1 && (
-            <div
-              className={s.dayDivider}
-              ref={el => { dayRefs.current[day.dayIndex] = el; }}
-            >
-              <span className={s.dayName}>{dayLabel(day)}</span>
-              <div className={s.dayLine} />
-            </div>
-          )}
+      {/**
+        * ⭐⭐ COLLAPSED IS A PEEK, ⛔ NOT EMPTY (owner, 2026-08-28). Closed, the
+        * section shows a ~4-and-a-bit window scrolled to whatever is on now;
+        * open, it shows the whole running order.
+        *
+        * ⚠ ONE DAY IN THE PEEK — the day that is actually happening, or the
+        * first. Peeking at three days at once is not a peek, and the day
+        * dividers are an index for the expanded view rather than something to
+        * scroll past to reach four cards.
+        */}
+      <div className={open ? undefined : s.peek} ref={peekRef}>
+      {(open ? days : peekDays).map(day => (
+        <div
+          key={day.dayIndex}
+          /* ⛔⛔ NO DAY HEADING (owner, 2026-08-28: "dont have the white text
+             for day and date"). The CHIPS above name the day; a heading here
+             said it a second time, in the same words, directly underneath —
+             which is what "why does it say it twice" was about.
 
-          {/* ⭐⭐ TWO LAYOUTS, ONE PER DAY, chosen by the resolver's own shape:
-              single-stage = the chronological list; multi-stage = the STAGE
-              PAGER (ratified from the harness prototype, owner 2026-08-20).
-              Days themselves ALWAYS stack vertically — each day carries its
-              own pager, and only STAGES go sideways. */}
+             ⭐ THE ANCHOR SURVIVES. The chips JUMP to a day and the lit chip
+             tracks the scroll, so each day still needs a position on the page
+             even with nothing drawn at it. ⛔ Do not flatten this wrapper away
+             — the rail goes dead without it. */
+          ref={el => { dayRefs.current[day.dayIndex] = el; }}
+          className={s.daySection}
+        >
           {/* ⭐⭐ ONE LAYOUT, ⛔ NOT TWO (owner, 2026-08-21: "I want this view to
               be the main normal view"). The pager IS set times now. A
               single-stage event is simply a pager with one page — same cards,
               same drag, same live states — so there is no second layout that
-              can drift away from this one, and every feature added here lands
-              on a pub gig and a festival at the same moment. */}
+              can drift away from this one. */}
           <StagePager day={day} allMixSlots={allMixSlots} now={now} sync={stageSync} />
-        </Fragment>
+        </div>
       ))}
+      </div>
     </section>
   );
 }
@@ -708,12 +775,17 @@ function StagePager({ day, allMixSlots, now, sync }) {
 
   return (
     <>
+      {/* ⭐ The stage rail sits under the DAY rail, and the two need air between
+          them — without it they read as one six-item strip of chips rather than
+          two questions (which day, which room). */}
       {!single && (
-        <ChipRail
-          items={stages.map(st => ({ key: st.id ?? 'implicit', label: st.name, accent: st.accent }))}
-          activeIndex={activeStage}
-          onPick={jumpTo}
-        />
+        <div className={s.stageRail}>
+          <ChipRail
+            items={stages.map(st => ({ key: st.id ?? 'implicit', label: st.name, accent: st.accent }))}
+            activeIndex={activeStage}
+            onPick={jumpTo}
+          />
+        </div>
       )}
 
       <div
@@ -736,14 +808,19 @@ function StagePager({ day, allMixSlots, now, sync }) {
             ⚠ Skipped entirely when single: there is nothing to label and
             nothing to snap to, and an empty heading row would open the
             schedule with a blank band. */}
+        {/**
+          * ⛔⛔ THE STAGE NAME IS NOT DRAWN HERE (owner, 2026-08-28: "remove
+          * where it says the stage names here"). The CHIP RAIL above already
+          * names every stage and lights the one you are on — this row repeated
+          * it directly underneath, in the same words, for every stage at once.
+          *
+          * ⭐ THE ELEMENT STAYS, EMPTY. `headAt` and the pager's centring both
+          * measure `.stagePageHead` to work out which page is in view and where
+          * to snap — remove the div and swiping stages stops tracking. ⛔ Do
+          * not delete it to tidy the markup; it is the pager's ruler.
+          */}
         {single ? null : stages.map(st => (
-          <div key={'h' + (st.id ?? 'implicit')} className={s.stagePageHead}>
-            <span
-              className={s.stageName}
-              style={st.accent ? { '--accent': st.accent } : undefined}
-            >{st.name}</span>
-            <div className={s.stageLine} />
-          </div>
+          <div key={'h' + (st.id ?? 'implicit')} className={s.stagePageHead} aria-hidden="true" />
         ))}
 
         {/* ⭐ AN EMPTY STRETCH IS A BLANK CARD, ⛔ not a labelled filler row.

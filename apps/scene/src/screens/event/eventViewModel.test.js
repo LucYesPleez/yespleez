@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  buildEventView, buildVenue, buildLineup, spreadEvenly, buildDetails, buildSources,
+  buildEventView, buildVenue, buildLineup, spreadEvenly, firstSlotClock, buildDetails, buildSources,
   readClock, readGenres, readDate, readEndDate, readTickets, readDateConfidence,
   relativeTime, buildCollectables,
 } from './eventViewModel.js';
@@ -574,4 +574,62 @@ test("⛔ an act's own picture always wins over the stage default", () => {
     schedule: scheduleWith('WORKSHOPS & GALLERY', 'w1'),
   });
   assert.equal(artists.find(a => a.name === 'Yoga').avatar, '/real-face.webp');
+});
+
+/* ── ⭐ ON NOW WAITS FOR THE FIRST SET ──────────────────────────────────
+   ⚠⚠ Neverland has no `cfg.time`, so the status pill fell back to its
+   date-granular rule and read ON NOW from midnight while the first act was at
+   4:30 PM. The event knew when it started; nothing had asked the schedule. */
+
+const sched = (...times) => ({
+  days: [{ stages: [{ slots: times.map(([time, ampm]) => ({ slot: { time, ampm } })) }] }],
+});
+
+test("the FIRST slot in the organiser's order is the start", () => {
+  assert.equal(firstSlotClock(sched(['4:30', 'PM'], ['5:00', 'PM'])), '4:30pm');
+});
+
+test('⛔⛔ a midnight STAGE CLOSE is not the start of the night', () => {
+  // Neverland's Friday DJ stage ends at 12:00 AM. Midnight is the smallest
+  // number on a 24-hour clock, so picking the earliest TIME chose the end of
+  // the night and the page read '28 Aug 2026 – 30 Aug 2026 · 12:00am'.
+  assert.equal(firstSlotClock(sched(['5:00', 'PM'], ['12:00', 'AM'])), '5:00pm');
+});
+
+test('⚠ it looks across EVERY stage, not just the first', () => {
+  // A festival whose workshops open at 10am while live music starts at 2pm
+  // starts at 10 — measured on Neverland's own Saturday.
+  const s = { days: [{ stages: [
+    { slots: [{ slot: { time: '2:00', ampm: 'PM' } }] },
+    { slots: [{ slot: { time: '10:00', ampm: 'AM' } }] },
+  ] }] };
+  assert.equal(firstSlotClock(s), '10:00am');
+});
+
+test('⛔ no schedule invents no hour', () => {
+  assert.equal(firstSlotClock(null), null);
+  assert.equal(firstSlotClock({ days: [] }), null);
+  assert.equal(firstSlotClock(sched()), null);
+});
+
+test('⛔ an unparseable time is skipped, not guessed at', () => {
+  assert.equal(firstSlotClock(sched(['later', ''], ['8:00', 'PM'])), '8:00pm');
+});
+
+test("⛔ a typed door time still wins over the schedule", () => {
+  // Doors at 6 with the first set at 7 is a real hour, and the organiser meant
+  // it. The schedule must not overrule the person.
+  const v = buildEventView({
+    event: { config: { date: '2026-08-28', time: '6:00', ampm: 'PM' } },
+    schedule: sched(['7:00', 'PM']),
+  });
+  assert.equal(v.identity.when.startTime, '6:00pm');
+});
+
+test('with no typed time the schedule supplies it', () => {
+  const v = buildEventView({
+    event: { config: { date: '2026-08-28' } },
+    schedule: sched(['4:30', 'PM']),
+  });
+  assert.equal(v.identity.when.startTime, '4:30pm');
 });

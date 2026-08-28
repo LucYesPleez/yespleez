@@ -22,6 +22,7 @@
 import { DEFAULT_CROP_Y } from '@yespleez/event-presentation';
 import { postcodeCoords } from '../../lib/geo';
 import { isWorkshopStage, WORKSHOP_IMAGE } from '../../lib/stageDefaultImage';
+import { parseClock } from './eventStatus';
 
 /* ── config readers ──────────────────────────────────────────────────
    One place per field, listing every spelling it has ever had. New writers
@@ -233,6 +234,56 @@ export function spreadEvenly(main = [], extras = []) {
   return out;
 }
 
+/**
+ * ⭐ THE EARLIEST SLOT ON THE EVENT'S FIRST DAY, as a clock STRING.
+ *
+ * ⚠⚠ A STRING, ⛔ not minutes — `when.startTime` is `readClock`'s "4:30pm" form
+ * everywhere else, and `deriveEventStatus` runs its own `parseClock` over it.
+ * Returning minutes here type-checks fine and then silently fails to parse,
+ * which is exactly the class of bug this whole file exists to prevent. ⭐ Caught
+ * by a test, ⛔ not by the build.
+ *
+ * ⚠ ACROSS EVERY STAGE of that day, ⛔ not just the first. A festival whose
+ * workshops open at 10am while the live stage starts at 2pm STARTS at 10.
+ *
+ * ⚠ Null when there is no schedule or nothing parses — the caller then keeps
+ * the date-granular behaviour rather than inventing an hour.
+ */
+export function firstSlotClock(schedule) {
+  const day = schedule?.days?.[0];
+  if (!day) return null;
+  let best = null;      // { mins, clock }
+  for (const stage of day.stages || []) {
+    /**
+     * ⛔⛔ THE FIRST SLOT BY THE ORGANISER'S ORDER, ⛔ NOT the earliest clock on
+     * the day. This is the whole trap, and it shipped for a minute before the
+     * page showed it: Neverland's Friday DJ stage ends with a STAGE CLOSE at
+     * 12:00 AM, and midnight is the smallest number on a 24-hour clock — so
+     * "earliest time" picked the END of Friday night and the page read
+     * "28 Aug 2026 – 30 Aug 2026 · 12:00am".
+     *
+     * ⭐ `position` already encodes what the organiser means by first, and it is
+     * the same ordering the schedule renders in. A night that runs past
+     * midnight keeps its late slots at the END of the day where they belong.
+     */
+    /* ⚠ The first slot that HAS a readable time, walking the order — ⛔ not
+       simply `slots[0]`. A slot with no time is rare but real, and one of those
+       at the top of a stage should not blank the whole stage. */
+    let mins = null, clock = null;
+    for (const entry of stage.slots || []) {
+      const slot = entry?.slot || entry;
+      clock = readClock(slot?.time, slot?.ampm);
+      /* ⚠ Compared by the PARSED value, ⛔ never by the string — "10:00am" sorts
+         before "4:30pm" alphabetically and after it on a clock. */
+      mins = clock ? parseClock(clock) : null;
+      if (mins != null) break;
+    }
+    if (mins == null) continue;
+    if (!best || mins < best.mins) best = { mins, clock };
+  }
+  return best ? best.clock : null;
+}
+
 export function buildLineup({ lineupMembers = [], memberProfiles = {}, cfg = {}, schedule = null } = {}) {
   /**
    * ⭐⭐ WORKSHOPS AND GALLERY ARE SPREAD THROUGH THE BILL (owner, 2026-08-28).
@@ -433,7 +484,20 @@ export function buildEventView({
   const when = {
     date:      readDate(cfg),
     endDate:   readEndDate(cfg),
-    startTime: readClock(cfg.time, cfg.ampm),
+    /**
+     * ⭐⭐ THE FIRST SET TIME COUNTS AS THE START (owner, 2026-08-28: "ON NOW
+     * shouldn't be saying ON NOW until the first set time starts").
+     *
+     * ⚠⚠ NEVERLAND HAS NO `cfg.time`, so `deriveEventStatus` fell back to its
+     * date-granular rule and said ON NOW from midnight — while the first act
+     * was at 4:30 PM. The event DID know when it started; nothing had asked the
+     * schedule.
+     *
+     * ⛔ CONFIG STILL WINS when it is set. An organiser who typed a door time
+     * meant it: doors at 6 with the first set at 7 is a real hour, and the
+     * schedule must not overrule the person.
+     */
+    startTime: readClock(cfg.time, cfg.ampm) ?? firstSlotClock(schedule),
     endTime:   readClock(cfg.end_time || cfg.endTime, cfg.end_ampm || cfg.endAmpm),
     confidence: readDateConfidence(cfg),
   };
