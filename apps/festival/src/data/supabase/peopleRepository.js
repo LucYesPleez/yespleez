@@ -65,4 +65,63 @@ export const peopleRepository = {
     if (error) throw error;
     return (data ?? []).map(toModel);
   },
+
+  /**
+   * Find a registered person to add.
+   *
+   * ⛔⛔ A FESTIVAL PARTICIPANT IS A REGISTERED YESPLEEZ USER — ratified by the
+   * owner 2026-08-29. There is no name-only person, so this search is the ONLY
+   * way into the roster besides an accepted application. Someone who is not
+   * registered registers first.
+   *
+   * ⚠⚠ IT SELECTS NO `user_id`, DELIBERATELY. `profiles.user_id` is currently
+   * readable by anon, which lets anyone correlate every identity behind one
+   * account — reported 2026-08-29 and not yet closed. ⛔ Do not build on that
+   * exposure: the account is resolved server-side by `add_event_participant`,
+   * and this app never holds one.
+   *
+   * ⚠ An UNCLAIMED profile cannot be filtered out here for the same reason —
+   * telling claimed from unclaimed needs `user_id`. So it can be offered and
+   * then refused by name at the point of adding. ⭐ That is the honest order:
+   * the refusal states what to do, rather than the row silently not appearing
+   * and leaving the organiser hunting for a person they can see exists.
+   */
+  async search(query) {
+    const q = (query ?? '').trim();
+    // ⛔ An empty search is NOT "everyone". A roster search that lists the whole
+    // platform by default invites adding the first plausible name.
+    if (q.length < 2) return [];
+
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id, name, type, location')
+      .ilike('name', `%${q}%`)
+      .order('name')
+      .limit(12);
+    if (error) throw error;
+    return (data ?? []).map(r => ({
+      id: r.id,
+      name: r.name,
+      type: r.type,
+      location: r.location ?? null,
+    }));
+  },
+
+  /**
+   * ⭐ The organiser picks a PROFILE and a ROLE; the server resolves the
+   * account. ⛔ Idempotent by (event, person, type) — adding twice must not
+   * produce two rows, which is exactly how someone gets chased twice.
+   */
+  async add({ profileId, participantType }) {
+    const { current } = await getFestivalContext();
+    if (!current) throw new Error('No event selected');
+
+    const { data, error } = await supabase.rpc('add_event_participant', {
+      p_event_id: current.id,
+      p_profile_id: profileId,
+      p_participant_type: participantType,
+    });
+    if (error) throw error;
+    return data;
+  },
 };

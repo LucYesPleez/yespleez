@@ -1,8 +1,10 @@
-import { EmptyState, LoadingState, Callout, Tag, ParticipationBadge } from '../design-system';
+import { useState } from 'react';
+import { Button, EmptyState, LoadingState, Callout, Tag, ParticipationBadge } from '../design-system';
 import { useRepositories } from '../data/dataContext';
 import { useShell } from '../shell/shellContext';
 import { useQuery } from '../data/useQuery';
 import { participantType } from '../config/participantTypes';
+import AddPerson from './AddPerson';
 import s from './PeopleWorkspace.module.css';
 
 /**
@@ -39,22 +41,28 @@ import s from './PeopleWorkspace.module.css';
  *     a plain "Ready when: …". The checks do not exist; a column that always
  *     said "Ready" would be a lie on every row. ⛔ Nobody ever marks a person
  *     Ready.
- *   ⛔ ADD PERSON — the spec's PRIMARY action, because it is what proves
- *     participation does not secretly depend on applications.
  *   ⛔ No filters, no search, no paging. ⚠ When they arrive they are ARGUMENTS
  *     TO A QUERY, never operations on the array this component was handed.
  */
 export default function PeopleWorkspace() {
   const { people } = useRepositories();
   const { dataVersion } = useShell();
+  const [adding, setAdding] = useState(false);
+  // ⭐ A local counter, so adding someone re-reads the roster without touching
+  // the shell's own invalidation signal. ⛔ The shell owns one piece of state
+  // and this is not it.
+  const [added, setAdded] = useState(0);
 
   // ⚠ `dataVersion` in the deps for the same reason Applications has it: an
   // acceptance taken in the inspector WRITES a participation row, so this
   // roster must re-read rather than keep showing the event as it was.
-  const { data, loading, error } = useQuery(() => people.list(), [people, dataVersion]);
+  const { data, loading, error } = useQuery(
+    () => people.list(),
+    [people, dataVersion, added],
+  );
 
   const roster = data ?? [];
-  const showEmpty = !loading && !error && roster.length === 0;
+  const showEmpty = !loading && !error && roster.length === 0 && !adding;
 
   return (
     <section className={s.workspace}>
@@ -69,8 +77,19 @@ export default function PeopleWorkspace() {
             </span>
           )}
         </div>
-        <p className={s.sub}>Everyone who is part of this event.</p>
+        {/* ⭐⭐ THE PRIMARY ACTION OF THE ROOM, and styled as the only one. It is
+            what proves participation does not depend on applications. */}
+        <Button variant="primary" size="sm" icon="plus" onClick={() => setAdding(v => !v)}>
+          Add person
+        </Button>
       </header>
+
+      {adding && (
+        <AddPerson
+          onClose={() => setAdding(false)}
+          onAdded={() => { setAdding(false); setAdded(n => n + 1); }}
+        />
+      )}
 
       <div className={s.wrap}>
         {error ? (
@@ -104,7 +123,11 @@ export default function PeopleWorkspace() {
             <EmptyState
               icon="volunteer"
               title="Nobody yet"
-              body="People will appear here once you accept your first application. You’ll also be able to add crew and staff directly, without an application."
+              /* ⚠ THIS COPY PROMISED ADD PERSON IN THE FUTURE TENSE while the
+                 button was missing. It exists now, so the sentence describes
+                 what is on screen — ⛔ a promise left in place after the thing
+                 ships reads as a feature that never arrived. */
+              body="People appear here when you accept an application, or when you add someone directly."
             />
           </div>
         )}

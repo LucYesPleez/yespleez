@@ -49,8 +49,43 @@ const PEOPLE = [
   },
 ];
 
+/**
+ * ⚠ THE SEARCHABLE SET INCLUDES AN UNCLAIMED PROFILE, on purpose. `Zeganjah`
+ * has no account behind it, and the Supabase implementation cannot filter those
+ * out — telling claimed from unclaimed needs `user_id`, which this app
+ * deliberately never reads. So the refusal happens at ADD time, and the fixture
+ * must be able to produce it or that path is never exercised.
+ */
+const SEARCHABLE = [
+  { id: 'pr1', name: 'Lucious',  type: 'artist', location: 'Bellingen', claimed: true },
+  { id: 'pr9', name: 'Luc',      type: 'punter', location: null,        claimed: true },
+  { id: 'pr7', name: 'Zeganjah', type: 'artist', location: null,        claimed: false },
+];
+
 export const peopleRepository = {
   async list() {
     return settle(PEOPLE);
+  },
+
+  async search(query) {
+    const q = (query ?? '').trim().toLowerCase();
+    // ⛔ An empty search is not "everyone" — same rule as the real one.
+    if (q.length < 2) return settle([]);
+    return settle(
+      SEARCHABLE
+        .filter(p => p.name.toLowerCase().includes(q))
+        // eslint-disable-next-line no-unused-vars -- `claimed` is stripped on purpose: the real search cannot see it either
+        .map(({ claimed: _claimed, ...rest }) => rest),
+    );
+  },
+
+  async add({ profileId }) {
+    const profile = SEARCHABLE.find(p => p.id === profileId);
+    // ⭐ The SAME sentence the database raises. A fixture that fails with
+    // different words trains the UI against an error it will never see.
+    if (profile && !profile.claimed) {
+      throw new Error('add_event_participant: that profile is not claimed by a registered account yet');
+    }
+    return settle('new-participation-id');
   },
 };

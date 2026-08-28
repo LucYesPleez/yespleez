@@ -1,0 +1,102 @@
+/* ADD PERSON — an inline panel inside the workspace, ⛔ never a modal.
+   The product states consequences beside the control rather than in a dialog
+   after the click, and the only docked pane it has is the inspector. */
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  margin: 0 16px 12px;
+  padding: 14px 15px 15px;
+  border-radius: 12px;
+  background: var(--card2);
+  border: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+
+.title {
+  font-family: 'Bebas Neue', sans-serif;
+  /* ⚠ Bebas Neue has ONE weight — a heading element would faux-bold it. */
+  font-weight: 400;
+  font-size: 16px;
+  letter-spacing: 1.6px;
+  color: var(--text);
+  margin: 0;
+}
+
+.lede { font-size: 12.5px; color: var(--muted); margin: 0; max-width: 62ch; }
+
+.search { display: flex; align-items: flex-end; gap: 9px; }
+.search > *:first-child { flex: 1; min-width: 0; }
+
+/* ⛔ Not styled as an error: nobody matching a search is an ordinary answer. */
+.none { font-size: 12.5px; color: var(--muted); margin: 0; }
+
+.results {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.result {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  text-align: left;
+  padding: 8px 10px;
+  border-radius: 9px;
+  border: 1px solid transparent;
+  background: transparent;
+  cursor: pointer;
+  transition: background var(--yp-fast) var(--yp-ease);
+}
+.result:hover { background: rgba(255, 255, 255, .04); }
+.result:focus-visible { outline: 2px solid var(--neon2); outline-offset: -2px; }
+
+/* ⭐ The picked row keeps a border AND a tint. A tint alone disappears against
+   a hover on a neighbouring row, and the organiser is about to write a record
+   about a real person — which one is selected must never be a guess. */
+.resultPicked {
+  background: color-mix(in srgb, var(--neon) 10%, transparent);
+  border-color: color-mix(in srgb, var(--neon) 40%, transparent);
+}
+
+.resultName { font-size: 13.5px; color: var(--text); }
+.resultMeta { font-size: 12px; color: var(--muted); }
+
+.confirm {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding-top: 11px;
+  border-top: 1px solid var(--border);
+}
+
+.roles { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; min-width: 0; }
+.rolesLabel { font-size: 12.5px; color: var(--muted); }
+.roleChoices { display: flex; gap: 6px; flex-wrap: wrap; }
+
+.roleBtn {
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  border-radius: 999px;
+  opacity: .6;
+  transition: opacity var(--yp-fast) var(--yp-ease);
+}
+.roleBtn:hover { opacity: .85; }
+.roleBtn:focus-visible { outline: 2px solid var(--neon2); outline-offset: 2px; }
+/* ⭐ The chosen role is at full strength and wears its own tone; the others are
+   dimmed. One of these is always selected, so there is no "nothing chosen"
+   state to design for. */
+.roleOn { opacity: 1; }
