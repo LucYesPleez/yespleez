@@ -51,6 +51,22 @@ const HOST_CAT_KEYS = new Set(HOST_CATEGORIES.map(c => c.key));
 // they never get the enquire action.
 const BOOKABLE_TYPES = ['artist', 'band', 'standup'];
 
+/**
+ * ⭐⭐ THE HERO PHOTO'S RESTING ZOOM — ONE SOURCE OF TRUTH.
+ *
+ * ⚠⚠ IT WAS TWO, AND THE PHOTO VISIBLY JUMPED. The element rendered at a
+ * hard-coded `124%` while the scroll handler's own resting value was 168% on
+ * phones (144% on desktop). Nothing reconciled them, so a profile opened at
+ * 124%, sat there looking correct, and snapped to 168% the instant the reader
+ * scrolled a single pixel — a photo that lurches as soon as you touch it.
+ *
+ * ⛔ Never write this number anywhere else. The render and the scroll handler
+ * must ask the same function or they will drift apart again.
+ */
+function heroRestZoom() {
+  return window.innerWidth < 640 ? 168 : 144;
+}
+
 export default function ProfileScreen() {
   const { id }    = useParams();
   const navigate  = useNavigate();
@@ -335,7 +351,7 @@ export default function ProfileScreen() {
       // On desktop the frame is capped at 680px wide, so 144% already renders the
       // image tall enough that its foot falls off-screen; it keeps the original.
       // Both ease back to a framed 104% over one viewport of scroll.
-      const base = window.innerWidth < 640 ? 168 : 144;
+      const base = heroRestZoom();
       el.style.backgroundSize = `${base - progress * (base - 104)}% auto`;
     }
     handleScroll();
@@ -345,7 +361,20 @@ export default function ProfileScreen() {
       window.removeEventListener('scroll', handleScroll);
       window.removeEventListener('resize', handleScroll);
     };
-  }, []);
+    /**
+     * ⚠⚠ KEYED ON THE AVATAR, ⛔ NOT `[]`.
+     *
+     * With an empty dependency list this ran exactly once, on mount — before
+     * the profile query had returned, so `heroUrl` was still falsy, the hero
+     * element did not exist yet, and `handleScroll`'s own `if (!el) return`
+     * threw the call away. Nothing ever re-applied it. The photo then sat at
+     * whatever the render hard-coded until the reader's first scroll event
+     * finally reached the handler, and jumped.
+     *
+     * Re-running when the avatar resolves is what makes the initial call land
+     * on an element that is actually there.
+     */
+  }, [profile?.avatar_hero, profile?.avatar_thumb, profile?.avatar]);
 
   // Load follow state once profile is known (M5: keyed on the resolved
   // profile, covering both the legacy entity_id keyspace and the canonical
@@ -1055,7 +1084,10 @@ export default function ProfileScreen() {
           style={{
             backgroundImage: `url(${heroUrl})`,
             ...(hasRealAvatar
-              ? { backgroundSize: '124% auto' }
+              /* ⭐ The SAME resting zoom the scroll handler settles on, so the
+                 first paint and the first scroll agree. ⛔ Never a literal here
+                 — see heroRestZoom. */
+              ? { backgroundSize: `${heroRestZoom()}% auto` }
               // Default (no photo yet — §09 requires a generic avatar pre-claim).
               // Was `auto 80%`, which sizes by HEIGHT: fine at phone width, but
               // .heroImg is capped at max-width 680px, so on desktop a portrait
