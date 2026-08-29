@@ -275,8 +275,26 @@ export default function SchedulePortrait({ resolved, allMixSlots = [] }) {
     // ⚠ Nothing on stage (before doors, between days, or the data is still
     // resolving) — leave the peek at the top and try again on the next tick.
     if (!box || !liveEl) return;
+    /**
+     * ⛔⛔ MEASURED FROM RECTS, ⛔ NEVER `offsetTop` — AND THIS IS THE SECOND
+     * HALF OF THE SAME DEFECT. `offsetTop` is relative to the nearest
+     * POSITIONED ancestor, and on a multi-stage event that is
+     * `.stagePageCell`, not the peek. The playing card reported `offsetTop: 0`,
+     * so `offsetTop - box.offsetTop` computed **-1264**, clamped to 0, and the
+     * peek opened at the very top of a 1574px list — the blank screen the
+     * owner reported, and the reason "it depends on the stages" was the right
+     * diagnosis.
+     *
+     * ⭐ Rects are independent of the offsetParent chain, so this holds for the
+     * single-stage list and the stage pager alike. ⚠ `+ box.scrollTop` because
+     * a rect is viewport-relative and the box may already be scrolled.
+     */
+    const top = liveEl.getBoundingClientRect().top
+      - box.getBoundingClientRect().top
+      + box.scrollTop;
+
     box.scrollTop = peekScrollTop(
-      liveEl.offsetTop - box.offsetTop,
+      top,
       liveEl.getBoundingClientRect().height,
       box.clientHeight,
       PEEK_FADE_PX,
