@@ -37,7 +37,7 @@
 
 import { useRef, useState, useEffect, Fragment } from 'react';
 import { scheduleShape } from '../../lib/scheduleModel';
-import { slotGrid, stageGaps } from '../../lib/schedulePortrait';
+import { slotGrid, stageGaps, peekScrollTop } from '../../lib/schedulePortrait';
 import { useDragScroll } from '../../hooks/useDragScroll';
 import { useNowMinute } from '../../hooks/useNowMinute';
 import { slotStates, phaseLabel, focusDayIndex, PLAYING, PLAYED, FINISHED, READY } from '../../lib/scheduleNow';
@@ -150,6 +150,12 @@ const ENTER_MS = 900;
    jump lands on a day whose chip does not light. */
 const DAY_REACHED_PX = 96;
 
+/* ⚠ MUST MATCH `.peek`'s mask in SchedulePortrait.module.css. The peek fades
+   its bottom edge rather than slicing a card in half, so the window a reader
+   actually sees is shorter than the element. Centring against `clientHeight`
+   without this puts the live card visibly low. */
+const PEEK_FADE_PX = 34;
+
 export default function SchedulePortrait({ resolved, allMixSlots = [] }) {
   const shape = scheduleShape(resolved);
   /**
@@ -222,23 +228,60 @@ export default function SchedulePortrait({ resolved, allMixSlots = [] }) {
   })();
 
   /**
-   * ⭐⭐ THE PEEK OPENS ON WHAT IS ON NOW, with the set before it above.
+   * ⭐⭐ THE PEEK OPENS WITH WHAT IS ON NOW IN THE MIDDLE (owner, 2026-08-29).
    *
    * ⚠ `scrollTop`, ⛔ NOT `scrollIntoView`: that walks every scrollable
    * ancestor and would yank the whole page to the schedule the moment an event
    * page loads. The same trap the chip rail's own comment warns about.
    *
-   * ⚠ One card's height above the live one, so the previous set is visible —
-   * "what just finished" is half of reading where a night is up to.
+   * ⭐ CENTRED, ⛔ no longer one card down from the top. Centring answers both
+   * halves of "where is the night up to" at once — the set that just finished
+   * sits above and the one coming next sits below, without the reader moving.
+   * The old top-anchored position showed the previous set but pushed what is
+   * NEXT to the faded bottom edge.
+   *
+   * ⚠ THE VISUAL CENTRE IS NOT THE GEOMETRIC ONE. `.peek` fades its bottom
+   * 34px behind a mask, so a card centred in `clientHeight` reads as sitting
+   * low. The usable window is the box minus that fade.
+   *
+   * ⛔⛔ ONCE, ⛔ NOT EVERY MINUTE. `now` ticks each minute and this used to
+   * re-anchor on every tick, so a reader who had scrolled the peek to look at
+   * the late sets was dragged back. The component's own law is that nothing
+   * chases the reader down the running order — so this positions the FIRST
+   * time it can find a live card, and then leaves the peek alone until it is
+   * collapsed and reopened.
    */
   const peekRef = useRef(null);
+  const centred = useRef(false);
+  useEffect(() => { if (open) centred.current = false; }, [open]);
   useEffect(() => {
     if (open) return;                       // expanded: the page's own scroll
+    if (centred.current) return;            // already positioned for this view
     const box = peekRef.current;
-    const liveEl = box?.querySelector(`.${s.live}`);
+    /**
+     * ⛔⛔ `.playing`, ⛔ NOT `.live` — AND THIS WAS A REAL DEFECT, not a
+     * refinement. `live` is the state OBJECT handed to every card while the
+     * night is running, so `s.live` is on the played and upcoming cards too.
+     * `querySelector` therefore returned the FIRST card of the night, and the
+     * peek has been anchoring on that since it was written — its `scrollTop`
+     * measured 0 with a set genuinely on stage. The comment above it claimed
+     * "opens on what is on now" the whole time.
+     *
+     * ⭐ THE TELL, for next time: a class named for a CONDITION that is applied
+     * unconditionally. `_live_` appeared on cards reading PLAYED and UPCOMING
+     * in the same list.
+     */
+    const liveEl = box?.querySelector(`.${s.playing}`);
+    // ⚠ Nothing on stage (before doors, between days, or the data is still
+    // resolving) — leave the peek at the top and try again on the next tick.
     if (!box || !liveEl) return;
-    const top = liveEl.offsetTop - box.offsetTop;
-    box.scrollTop = Math.max(0, top - liveEl.getBoundingClientRect().height);
+    box.scrollTop = peekScrollTop(
+      liveEl.offsetTop - box.offsetTop,
+      liveEl.getBoundingClientRect().height,
+      box.clientHeight,
+      PEEK_FADE_PX,
+    );
+    centred.current = true;
   }, [open, now, peekDays.length]);
   const [stage, setStage] = useState({ index: 0, from: null });
   const stageSync = {

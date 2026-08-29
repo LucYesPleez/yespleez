@@ -292,3 +292,29 @@ export function stageGaps(grid, { includeTrailing = true } = {}) {
     return runs;
   });
 }
+
+/**
+ * ⭐⭐ WHERE THE PEEK SCROLLS SO THE CURRENT SET SITS IN THE MIDDLE.
+ *
+ * Pure, so the behaviour can be proven without a browser. ⚠ The component
+ * cannot: `.peek` is 500px of a real page, and in the dev harness only ~16px of
+ * it is ever scrollable — measuring there proves nothing either way.
+ *
+ * ⚠⚠ `fade` IS NOT DECORATION. `.peek` masks its bottom edge so a card is never
+ * sliced in half, which means the window a reader SEES is shorter than the
+ * element. Centring against the full height puts the live card visibly low.
+ *
+ * ⛔ Never returns a negative scrollTop: near the top of a list the card simply
+ * cannot reach the middle, and clamping is the honest answer — the alternative
+ * is a browser silently clamping it anyway and the maths lying about where the
+ * card ended up.
+ *
+ * @param {number} cardTop  the card's offsetTop, relative to the box
+ * @param {number} cardH    the card's height
+ * @param {number} boxH     the scroll container's clientHeight
+ * @param {number} fade     px of masked, unreadable edge at the bottom
+ */
+export function peekScrollTop(cardTop, cardH, boxH, fade = 0) {
+  const usable = Math.max(0, boxH - fade);
+  return Math.max(0, cardTop - Math.max(0, (usable - cardH) / 2));
+}

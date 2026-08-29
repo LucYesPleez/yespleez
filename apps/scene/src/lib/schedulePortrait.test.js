@@ -14,7 +14,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { resolveSchedule } from './scheduleModel.js';
-import {timeAxis, timeKey, cellsForStage, offCentre, nearestCentred, mergedTimeAxis, slotGrid, stageGaps } from './schedulePortrait.js';
+import {timeAxis, timeKey, cellsForStage, offCentre, nearestCentred, mergedTimeAxis, slotGrid, stageGaps, peekScrollTop } from './schedulePortrait.js';
 
 const slot = (o = {}) => ({
   id: o.id || `u${o.position ?? 0}-${o.day_index ?? 0}-${o.stage_id ?? 'x'}`,
@@ -316,4 +316,34 @@ test('⚠⚠ A STAGE THAT NEVER RAN KEEPS ITS BLANK — it is not a trailing gap
   const day = { stages: [sg('LIVE', [['5:00', 'PM', 60]]), sg('DJ', [])] };
   const g = slotGrid(day);
   assert.deepEqual(stageGaps(g, { includeTrailing: false })[1], [{ row: 1, span: g.rows }]);
+});
+
+// ── peekScrollTop — the current set sits in the middle of the peek ──────────
+/**
+ * ⛔⛔ THE DEFECT THIS SHIPPED WITH, recorded so it is not reintroduced: the
+ * peek selected `.live` to find "what is on now". `live` is the state OBJECT
+ * handed to EVERY card while the night is running, so the class was on the
+ * played and upcoming cards too and `querySelector` returned the FIRST card of
+ * the night. Measured in the harness: `_live_` on 14 cards, `_playing_` on 1.
+ * ⭐ The tell is a class named for a condition but applied unconditionally.
+ */
+test('peekScrollTop centres the card in the readable window', () => {
+  // 500px box, 34px of it faded => 466 readable, centre at 233.
+  // A 120px card centred there starts at 173, so a card at 400 scrolls 227.
+  assert.equal(peekScrollTop(400, 120, 500, 34), 227);
+});
+
+test('⚠ the fade is accounted for — centring on the full height sits low', () => {
+  assert.notEqual(peekScrollTop(400, 120, 500, 34), peekScrollTop(400, 120, 500, 0));
+  assert.equal(peekScrollTop(400, 120, 500, 0), 210);
+});
+
+test('⛔ never negative — a card near the top cannot reach the middle', () => {
+  assert.equal(peekScrollTop(0, 120, 500, 34), 0);
+  assert.equal(peekScrollTop(40, 120, 500, 34), 0);
+});
+
+test('a card taller than the window still lands at its own top', () => {
+  // ⛔ No negative offset that would push the card's start off screen.
+  assert.equal(peekScrollTop(300, 600, 500, 34), 300);
 });
