@@ -390,6 +390,10 @@ export default function VenueDashboard({ userId: userIdProp }) {
             <EnquiryPanel
               enquiries={allEnquiries}
               viewerProfile={profile}
+              /* ⭐ A venue owns events, so it may be offered ADD TO EVENT on an
+                 accepted enquiry. ⚠ The account id, because this dashboard's
+                 own events are keyed on `events.host_id`. */
+              viewerUserId={userId}
               onRespond={handleEnquiryRespond}
               onClear={handleClearEnquiry}
               onPlayDemo={setPlayer}

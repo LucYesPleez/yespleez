@@ -30,6 +30,7 @@ import ds from '../screens/DiscoverScreen.module.css';
 import DateBox from './DateBox';
 import { DecisionBtn, DetailBtn, StarIcon, CheckIcon, XIcon } from './DecisionButtons';
 import EnquiryDossierSheet from './EnquiryDossierSheet';
+import ShortlistToEventSheet from './ShortlistToEventSheet';
 import { PROFILE_TYPES } from '../lib/profileTypes';
 import { genreLabels } from '../lib/profileTaxonomy';
 
@@ -149,6 +150,18 @@ const NEXT_STEPS = {
   incoming: {
     new:         'Awaiting your review — shortlist or respond when ready.',
     shortlisted: "You've shortlisted this — accept or decline when ready.",
+    /**
+     * ⭐ ACCEPTED NOW HAS A NEXT STEP, and it is the venue's (owner, ratified
+     * 2026-08-31 — see the role-ownership rule below the map).
+     *
+     * ⚠ THIS REVERSES the 2026-08-15 "a settled incoming enquiry gets no
+     * footer", and the reasoning still holds for the part it covered: the
+     * strip must not restate the chip. It does not — acceptance is the moment
+     * a date becomes a commitment nobody has written down, and the answer to
+     * "what happens next" stops being nothing. The copy names the ACT, never
+     * the state.
+     */
+    accepted:    'Next: add this act to an event.',
     declined:    'You declined this.',
   },
   /**
@@ -163,19 +176,39 @@ const NEXT_STEPS = {
   outgoing: {
     awaiting:    'Waiting for a response.',
     interested:  "They're interested — waiting on them to confirm.",
-    accepted:    'Accepted — waiting on them to finalise the booking.',
+    /* ⛔⛔ THE PERFORMER IS NOT RESPONSIBLE FOR THE EVENT. This says who holds
+       the next move and stops — ⛔ no CREATE EVENT, and nothing implying the
+       act should produce the night they were booked for. Messaging remains
+       their real action, and it is already on the card. */
+    accepted:    'Waiting for the host to add you to an event.',
     booked:      'Booked and confirmed.',
     declined:    'This was declined.',
   },
 };
 
-export default function EnquiryCard({ enq, viewerProfile, onRespond, onPlayDemo, onClear }) {
+/**
+ * ⛔⛔ ONLY A VENUE OR A HOST/PROMOTER MAY BE OFFERED "ADD TO EVENT".
+ *
+ * RATIFIED 2026-08-31: an accepted enquiry does NOT transfer event ownership.
+ * The party who operates the event creates it; the performer is added to it.
+ *
+ * ⚠ THE GATE IS THE VIEWER'S TYPE, ⛔ not the direction. An artist CAN hold an
+ * incoming enquiry — a venue inviting them writes `initiated_by: 'venue'`, which
+ * is incoming to the act — so a direction-only test would hand a DJ an event
+ * picker and quietly make them a promoter, which is the exact thing the rule
+ * forbids.
+ */
+const EVENT_OWNER_TYPES = new Set(['venue', 'host']);
+
+export default function EnquiryCard({ enq, viewerProfile, viewerUserId, onRespond, onPlayDemo, onClear }) {
   const [busy, setBusy]       = useState(false);
   const [profile, setProfile] = useState(enq.profile || null);
   const [expanded, setExpanded] = useState(false);
   // The dossier — the full, readable view. See EnquiryDossierSheet for why
   // the depth lives there rather than growing this card.
   const [sheetOpen, setSheetOpen] = useState(false);
+  // The event picker for an accepted act — see canAddToEvent below.
+  const [addToEventOpen, setAddToEventOpen] = useState(false);
   const expandRef = useRef(null);
 
 
@@ -211,6 +244,14 @@ export default function EnquiryCard({ enq, viewerProfile, onRespond, onPlayDemo,
   // `declined` keeps muted ink: it is the one status that should recede.
   const statusInk     = displayStatus === 'declined' ? 'var(--muted)' : '#fff';
   const nextStepsCopy = NEXT_STEPS[enqDir]?.[displayStatus] || '';
+
+  /* ⭐ The action that matches the incoming copy. ⛔ Requires a resolved
+     profile: `ShortlistToEventSheet` adds a real reference, and an act with no
+     profile row has nothing to add. */
+  const canAddToEvent = enqDir === 'incoming'
+    && displayStatus === 'accepted'
+    && EVENT_OWNER_TYPES.has(viewerProfile?.type)
+    && !!profile?.id;
 
   async function respond(status) {
     if (busy) return;
@@ -511,9 +552,43 @@ export default function EnquiryCard({ enq, viewerProfile, onRespond, onPlayDemo,
           background: 'rgba(255,255,255,.02)',
           border: `1px solid rgba(${accentRgb},.35)`, borderTop: 'none',
           borderRadius: expanded ? 0 : '0 0 14px 14px',
+          display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
         }}>
-          {nextStepsCopy}
+          <span style={{ flex: 1, minWidth: 140 }}>{nextStepsCopy}</span>
+          {/* ⛔⛔ ON THE FACE, ⛔ never inside the disclosure. The expander is
+              for inspecting the ACT; this is the reader's own next move, and
+              burying a decision in an expander is the defect that shipped
+              twice already — ADD TO BILL lived inside one and the owner
+              opened the tab, saw no button, and nothing happened. */}
+          {canAddToEvent && (
+            <button
+              type="button"
+              onClick={() => setAddToEventOpen(true)}
+              className="yp-tap44"
+              style={{
+                flexShrink: 0, background: `linear-gradient(135deg, ${accent}, ${accentPt?.accent2 || accent})`,
+                color: '#0a0a14', border: 'none', borderRadius: 8,
+                fontFamily: "'Bebas Neue'", fontSize: 12, letterSpacing: 1.4,
+                padding: '6px 14px', cursor: 'pointer',
+              }}
+            >ADD TO EVENT</button>
+          )}
         </div>
+      )}
+
+      {/* ⭐ THE EXISTING ARTIST → EVENT PATH, ⛔ not a second booking route.
+          It is already scoped to the events this viewer owns or manages
+          (`ownedByFilter`), already excludes past events, and already carries
+          the shortlist planner's guards. ⚠ It adds to the SHORTLIST, which is
+          how an act enters an event in the funnel — the bill is the next
+          deliberate step, and it stays deliberate. */}
+      {addToEventOpen && (
+        <ShortlistToEventSheet
+          artist={profile}
+          userId={viewerUserId}
+          hostProfileId={viewerProfile?.id}
+          onClose={() => setAddToEventOpen(false)}
+        />
       )}
 
       {expanded && profile && (

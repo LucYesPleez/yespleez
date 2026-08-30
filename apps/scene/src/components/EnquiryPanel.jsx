@@ -26,7 +26,15 @@ const SORTS = [
   { key: 'applied',   label: 'ENQUIRY DATE', hint: 'When the enquiry arrived, newest first' },
 ];
 
-export default function EnquiryPanel({ enquiries = [], viewerProfile, onRespond, onPlayDemo, onClear }) {
+/**
+ * ⚠ `viewerUserId` IS OPTIONAL AND ITS ABSENCE IS THE POINT. It exists so the
+ * accepted-enquiry event picker can find the events this account hosts
+ * (`events.host_id` — how the venue dashboard already loads its own). A screen
+ * that must never offer event creation simply does not pass it, so the
+ * capability is absent rather than merely hidden — the same discipline the
+ * availability calendar uses for its private `markers`.
+ */
+export default function EnquiryPanel({ enquiries = [], viewerProfile, viewerUserId, onRespond, onPlayDemo, onClear }) {
   const [dirTab,    setDirTab]    = useState('INCOMING');
   const [statusTab, setStatusTab] = useState('NEW');
   const [search,    setSearch]    = useState('');
@@ -248,7 +256,7 @@ export default function EnquiryPanel({ enquiries = [], viewerProfile, onRespond,
             No enquiries{search ? ' match your search' : ' here yet'}.
           </p>
         : filtered.map(enq => (
-            <EnquiryCard key={enq.id} enq={enq} viewerProfile={viewerProfile} onRespond={handleRespond} onPlayDemo={onPlayDemo} onClear={onClear} />
+            <EnquiryCard key={enq.id} enq={enq} viewerProfile={viewerProfile} viewerUserId={viewerUserId} onRespond={handleRespond} onPlayDemo={onPlayDemo} onClear={onClear} />
           ))
       }
       </div>

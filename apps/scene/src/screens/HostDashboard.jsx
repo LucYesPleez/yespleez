@@ -954,7 +954,10 @@ export default function HostDashboard({ userId: userIdProp }) {
             the fact that it needs attention. */}
         {showEnquiries && (loadingApps
           ? <p className={s.empty}>Loading applications…</p>
-          : <EnquiryPanel enquiries={panelEnquiries} viewerProfile={profile} onRespond={handleEnquiryRespond} onClear={handleClearEnquiry} />
+          /* ⭐ A host/promoter owns events too, so the same ADD TO EVENT path
+             is theirs. ⛔ The artist dashboard passes no `viewerUserId` — see
+             EnquiryPanel's note on why the absence is the boundary. */
+          : <EnquiryPanel enquiries={panelEnquiries} viewerProfile={profile} viewerUserId={userId} onRespond={handleEnquiryRespond} onClear={handleClearEnquiry} />
         )}
 
         {/* ⚠ ON DEMAND, NEVER RESIDENT. An earlier pass rendered this calendar
