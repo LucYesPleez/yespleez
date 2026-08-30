@@ -6,6 +6,7 @@ import { resolveProfileId } from '../lib/resolveProfileId';
 import { formatLocation } from '../lib/formatLocation';
 import { profileIdentity } from '../lib/profileTypes';
 import { genreLabels } from '../lib/profileTaxonomy';
+import { isArchived } from '../lib/eventBuckets';
 import ArtistPicker from './ArtistPicker';
 
 const SLOT_ROLES = ['Opener', 'Support', 'Headline'];
@@ -93,10 +94,14 @@ export default function InviteSheet({ artist, events = [], venueUserId, venuePro
    * caller degrades rather than shows an empty picker.
    */
   const senderEvents = (events || []).filter(e =>
-    !senderId                                   // nothing chosen yet: show all
+    // ⛔ You cannot invite an artist to a past event (owner, 2026-08-31).
+    // "Is this past" is asked of eventBuckets/deriveEventStatus, never
+    // re-derived here; an undated event is not past and stays offerable.
+    !isArchived(e)
+    && (!senderId                               // nothing chosen yet: show all
     || !('owner_profile_id' in e)               // un-migrated caller (venue dashboard)
     || e.owner_profile_id == null               // legacy event, owned by nobody
-    || e.owner_profile_id === senderId);
+    || e.owner_profile_id === senderId));
   const [eventId,   setEventId]   = useState('');
   /* ⚠ TEXT, AND ONLY TEXT (owner, 2026-08-14). ArtistPicker below searches
      real profiles so the promoter can find the act and get the name right,
@@ -588,7 +593,17 @@ export default function InviteSheet({ artist, events = [], venueUserId, venuePro
                 disabled={!canSend}
                 style={{ width: '100%', fontFamily: "'Bebas Neue'", fontSize: 16, letterSpacing: 2, padding: '14px', borderRadius: 12, border: 'none', background: !canSend ? 'rgba(255,255,255,.08)' : `linear-gradient(135deg, ${accent}, ${accent2})`, color: !canSend ? 'rgba(255,255,255,.35)' : '#0a0a14', cursor: !canSend ? 'not-allowed' : 'pointer', transition: 'opacity .15s', fontWeight: 700 }}
               >{sending ? 'SENDING…' : 'SEND INVITATION'}</button>
-              {!message.trim() && <div style={{ fontSize: 11, color: 'rgba(255,255,255,.3)', marginTop: 8, textAlign: 'center' }}>Add a pitch to send</div>}
+              {/* ⚠ THE HINT NAMES WHATEVER IS MISSING (owner, 2026-08-31). It
+                  used to cover only the pitch, so a filled form with no sender
+                  chosen sat disabled with no explanation. One line, first gap
+                  in reading order: sender at the top, then pitch, then date. */}
+              {!canSend && !sending && (
+                <div style={{ fontSize: 11, color: 'rgba(255,255,255,.3)', marginTop: 8, textAlign: 'center' }}>
+                  {!senderId ? 'Choose who this offer comes from to send'
+                    : !message.trim() ? 'Add a pitch to send'
+                    : 'Pick a date to send'}
+                </div>
+              )}
             </>
           )}
         </div>
