@@ -40,7 +40,13 @@ import ProfileCard from './ProfileCard';
  */
 export default function EnquiryDossierSheet({ enq, viewerProfile, onClose, onRespond, onPlayDemo }) {
   const navigate = useNavigate();
-  const { openConversation } = useConversationUi();
+  /* ⛔⛔ `open`, RENAMED — the context has no `openConversation` key.
+     Destructuring it plain yielded `undefined`, so REPLY and MESSAGE closed
+     the sheet (that line runs first) and then threw
+     "openConversation is not a function" into an async void: no dock, no
+     chat, no error on screen. Every other call site already renames `open`;
+     this was the one that did not. */
+  const { open: openConversation } = useConversationUi();
   const [busy,    setBusy]    = useState(false);
   const [msgBusy, setMsgBusy] = useState(false);
 
