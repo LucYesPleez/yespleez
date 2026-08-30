@@ -38,12 +38,25 @@ const toSet = v => (v instanceof Set ? v : new Set(v || []));
  */
 export function CalendarGrid({
   month, availableDates, eventDates, markers,
+  /**
+   * ⭐ Dates the VIEWER has already enquired about, as a Set of YYYY-MM-DD.
+   *
+   * ⛔ NOT `markers`, deliberately, and this is the whole reason it is its own
+   * prop: passing `markers` flips `tappable` to "any date with a handler", which
+   * would let someone tap a date this venue never offered. A dot must never
+   * change what a tap means.
+   *
+   * ⚠ It is the viewer's OWN activity, so it discloses nothing about anyone
+   * else — the privacy note above still holds.
+   */
+  enquiredDates,
   mode = 'view', readOnly = false, onSelectDate, selectedDate,
   accent = '#00E5FF', accentRgb = '0,229,255',
   compact = false,
 }) {
   const availSet = toSet(availableDates);
   const eventSet = toSet(eventDates);
+  const enqSet   = toSet(enquiredDates);
   /* ⛔⛔ WAS `new Date().toISOString().split('T')[0]` — the UTC date, so every
      morning in AEST it read as YESTERDAY and today's cell lost its marker.
      ⚠ The rule is about UTC, ⛔ not about the word `toISOString`: `.split('T')[0]`
@@ -56,7 +69,11 @@ export function CalendarGrid({
 
   // One definition, used by real cells AND by the trailing spacers below, so
   // the two are guaranteed to be the same height.
-  const showsDotRow = mode === 'view' || hasMarkers;
+  /* ⚠ ENQUIRED DATES EARN THE ROW IN EDIT MODE TOO. A private or empty
+     calendar renders in EDIT mode, where every future date is tappable — which
+     is precisely where "you already asked about this one" is worth knowing,
+     because the second attempt is refused by the unique constraint. */
+  const showsDotRow = mode === 'view' || hasMarkers || enqSet.size > 0;
   const cellPad  = showsDotRow ? '7px 2px 4px' : '7px 2px';
   const cellFont = compact ? 12 : 13;
 
@@ -66,6 +83,7 @@ export function CalendarGrid({
     const ds = `${yr}-${String(mo + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
     const isPast   = ds < todayStr;
     const hasEvent = mode === 'view' && eventSet.has(ds);
+    const enquired = enqSet.has(ds);
     const isAvail  = !hasEvent && availSet.has(ds);
     const isToday  = ds === todayStr;
     const dots     = markers?.[ds] || [];
@@ -110,9 +128,16 @@ export function CalendarGrid({
               <span key={i} style={{ width: 4, height: 4, borderRadius: '50%', background: c, display: 'block' }} />
             ))}
           </span>
-        ) : mode === 'view' ? (hasEvent
-          ? <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#FF2D78', marginTop: 2, display: 'block' }} />
-          : <span style={{ height: 7, display: 'block' }} />
+        ) : showsDotRow ? (
+          /* ⚠ EXACTLY 7px TALL, WITH NO MARGIN — the same box whether it holds
+             two dots, one or none. The old pair was a 5px dot at marginTop 2
+             (7 total) beside a bare 7px spacer, and the six-row law below
+             depends on the two staying identical. A row with its own margin
+             would make every marked month 2px taller than an unmarked one. */
+          <span style={{ display: 'flex', gap: 3, alignItems: 'center', justifyContent: 'center', height: 7 }}>
+            {hasEvent && <span title="Event booked" style={{ width: 5, height: 5, borderRadius: '50%', background: '#FF2D78', display: 'block' }} />}
+            {enquired && <span title="You enquired" style={{ width: 5, height: 5, borderRadius: '50%', background: '#FFD700', display: 'block' }} />}
+          </span>
         ) : null}
       </div>
     );
@@ -154,7 +179,7 @@ export function CalendarGrid({
             filled it — and the header still moved, just less. */}
         {hasMarkers
           ? <span style={{ minHeight: 7, marginTop: 2, display: 'block' }} />
-          : mode === 'view' ? <span style={{ height: 7, display: 'block' }} /> : null}
+          : showsDotRow ? <span style={{ height: 7, display: 'block' }} /> : null}
       </div>
     );
   }
@@ -211,6 +236,8 @@ export default function AvailabilityCalendar({
    */
   markers,
   selectedDate,
+  /** Dates the viewer has already enquired about — see CalendarGrid. */
+  enquiredDates,
 }) {
   const [internalMonth, setInternalMonth] = useState(firstOfCurrentMonth);
   const month    = controlledMonth || internalMonth;
@@ -234,10 +261,25 @@ export default function AvailabilityCalendar({
           onSelectDate={onSelectDate}
           markers={markers}
           selectedDate={selectedDate}
+          enquiredDates={enquiredDates}
           accent={accent}
           accentRgb={accentRgb}
         />
         {footer}
+        {/* ⭐ DONE, at the bottom where the thumb already is. The × exists and
+            stays, but it sits in the top-right corner of a full-height sheet —
+            the far end of the screen from a calendar you have just finished
+            reading. ⛔ Not a primary action: closing changes nothing, so it
+            must not wear the colour that sending does. */}
+        <button
+          onClick={onClose}
+          style={{
+            marginTop: 20, width: '100%', padding: '14px',
+            background: 'rgba(255,255,255,.06)', border: '1px solid rgba(255,255,255,.14)',
+            borderRadius: 12, color: 'var(--text)', cursor: 'pointer',
+            fontFamily: "'Bebas Neue'", fontSize: 15, letterSpacing: 2,
+          }}
+        >DONE</button>
       </div>
     </div>
   );

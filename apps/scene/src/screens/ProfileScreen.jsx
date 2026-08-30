@@ -88,6 +88,16 @@ export default function ProfileScreen() {
   const [availOpen,     setAvailOpen]     = useState(false);
   const [availDates,    setAvailDates]    = useState(null);
   const [eventDates,    setEventDates]    = useState(new Set());
+  /**
+   * ⭐ Dates THIS ACCOUNT has already enquired to THIS VENUE about.
+   *
+   * ⚠ Keyed on the pair the UNIQUE constraint uses — `venue_user_id` +
+   * `applicant_user_id`, ⛔ not profile ids. A second enquiry for a date is
+   * rejected however many acts the account owns, so a dot keyed on the acting
+   * PROFILE would promise a date that is in fact already spent. The dot means
+   * exactly "asking again here is not possible", which is the useful fact.
+   */
+  const [enquiredDates, setEnquiredDates] = useState(new Set());
   const [availMonth,    setAvailMonth]    = useState(() => { const d = new Date(); d.setDate(1); return d; });
   // 11C.3: read-only public performer availability (artist/band/standup).
   const [perfAvailOpen,  setPerfAvailOpen]  = useState(false);
@@ -779,6 +789,13 @@ export default function ProfileScreen() {
     }
     // Only ever reached on a real success — every failure returned above.
     setEnquirySending(false);
+    /* ⭐ The dot appears the moment the enquiry exists, ⛔ without a refetch.
+       The calendar is still mounted underneath this sheet, so a reader who
+       closes it lands straight back on the month they were reading and the day
+       they just asked about is marked. ⚠ Added HERE, after every failure path
+       has returned — a dot for an enquiry that was refused is the same lie the
+       duplicate handling above exists to prevent. */
+    setEnquiredDates(prev => new Set(prev).add(pickerDate));
     setEnquiryProf(null); setPickerDate(null); setEnquiryNote(''); setEnquiryError('');
   }
 
@@ -1425,13 +1442,23 @@ export default function ProfileScreen() {
                     const todayStr = today();
                     // M5: availability keys on profile_id, event overlay on the
                     // attribution column — never the route param.
-                    const [availRes, evRes] = await Promise.all([
+                    const [availRes, evRes, enqRes] = await Promise.all([
                       supabase.from('venue_availability').select('available_date').eq('profile_id', profile.id).gte('available_date', todayStr).order('available_date'),
                       supabase.from('events').select('config').eq('venue_profile_id', profile.id).eq('status', 'live'),
+                      /* ⚠ NO `gte(todayStr)` HERE, unlike availability above: a
+                         past enquiry still explains why that day is marked, and
+                         the grid only paints dots on days it draws anyway.
+                         ⛔ Guarded on a session — a guest has no enquiries and
+                         `applicant_user_id.eq.undefined` is a 400. */
+                      session?.user?.id
+                        ? supabase.from('venue_enquiries').select('date_requested')
+                            .eq('venue_user_id', profile.user_id).eq('applicant_user_id', session.user.id)
+                        : Promise.resolve({ data: [] }),
                     ]);
                     setAvailDates(new Set((availRes.data || []).map(r => r.available_date)));
                     const evDays = new Set((evRes.data || []).map(e => e.config?.date).filter(Boolean));
                     setEventDates(evDays);
+                    setEnquiredDates(new Set((enqRes.data || []).map(r => r.date_requested).filter(Boolean)));
                   }
                 }}
               >
@@ -1689,6 +1716,7 @@ export default function ProfileScreen() {
               ? "Availability isn't published yet. Pick the date you're asking about."
               : undefined}
           onSelectDate={openEnquiry}
+          enquiredDates={enquiredDates}
           month={availMonth}
           onMonthChange={setAvailMonth}
           footer={
@@ -1712,6 +1740,16 @@ export default function ProfileScreen() {
                     <span style={{ width: 14, height: 14, borderRadius: '50%', background: '#FF2D78', flexShrink: 0 }} />
                     <span style={{ fontSize: 12, color: 'var(--muted)', fontFamily: "'Bebas Neue'", letterSpacing: 1 }}>EVENT BOOKED</span>
                   </div>
+                  {/* ⛔ ONLY WHEN THERE IS ONE. A key naming a dot the reader
+                      cannot see anywhere on the calendar is noise, and it would
+                      also tell a first-time enquirer about a state they have
+                      never been in. */}
+                  {enquiredDates.size > 0 && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ width: 14, height: 14, borderRadius: '50%', background: '#FFD700', flexShrink: 0 }} />
+                      <span style={{ fontSize: 12, color: 'var(--muted)', fontFamily: "'Bebas Neue'", letterSpacing: 1 }}>YOU ENQUIRED</span>
+                    </div>
+                  )}
                 </div>
               )}
             </>
