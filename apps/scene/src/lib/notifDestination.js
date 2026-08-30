@@ -26,6 +26,39 @@
  * would be dead code that implies the row can appear.
  */
 
+/* ⚠ ALIASED. This file already owns a local `PROFILE_TYPES` — the set of
+   notification types that route to a profile — and the two are different
+   things entirely. Importing the registry under its own name shadowed it and
+   the module would not even parse. */
+import { PROFILE_TYPES as PROFILE_REGISTRY } from './profileTypes';
+
+/**
+ * ⭐ A DECISION ON AN ENQUIRY, WHICH USUALLY NAMES NO EVENT.
+ *
+ * A venue answering a date enquiry writes `booking_confirmed` (or shortlisted /
+ * declined) with an `enquiry_id` and NO `event_id` — a direct enquiry has no
+ * event to open. Those rows resolved to null and were therefore inert: the
+ * enquirer read "You're booked!" and had nowhere to press.
+ *
+ * ⛔ The answer is NOT to invent an event route. It is the reader's own
+ * enquiries section, which is where the accepted row actually lives.
+ *
+ * ⚠ `event_id` still wins when the enquiry names one — a booking FOR an event
+ * is better served by that event's page, and only this branch's absence of one
+ * makes the dashboard the most specific place to land.
+ */
+const ENQUIRY_DECISION_TYPES = new Set([
+  'booking_confirmed', 'booking_cancelled', 'shortlisted', 'application_declined',
+]);
+
+/** Which tab of the enquiries panel the decision belongs to. */
+const ENQUIRY_TAB = {
+  booking_confirmed: 'BOOKED',
+  booking_cancelled: 'OUTGOING',
+  shortlisted:       'OUTGOING',
+  application_declined: 'OUTGOING',
+};
+
 /** `/event/:id` — the notice is about one event, and the row names it. */
 const EVENT_TYPES = new Set([
   'slot_offer', 'slot_changed', 'slot_removed', 'slot_accepted', 'slot_declined',
@@ -64,9 +97,21 @@ export function notifDestination(notif) {
   if (APPLICATION_TYPES.has(type)) {
     return data.event_id ? `/event/${data.event_id}/applications` : null;
   }
-  if (EVENT_TYPES.has(type)) {
-    return data.event_id ? `/event/${data.event_id}` : null;
+  // An event, when the row names one — the most specific place to land.
+  if (EVENT_TYPES.has(type) && data.event_id) return `/event/${data.event_id}`;
+
+  /* ⭐ Otherwise a decision on a direct enquiry goes to the reader's own
+     enquiries section. ⛔ `dashPath` comes from the profile-type registry,
+     never a restated map — a venue and a festival both correctly have nowhere
+     to send an applicant, and the registry already says so (null). */
+  if (ENQUIRY_DECISION_TYPES.has(type) && data.enquiry_id) {
+    const dash = PROFILE_REGISTRY[data.applicant_type]?.dashPath;
+    if (!dash) return null;
+    const tab = ENQUIRY_TAB[type];
+    return `${dash}?section=enquiries${tab ? `&tab=${tab}` : ''}`;
   }
+
+  if (EVENT_TYPES.has(type)) return null;
   if (PROFILE_TYPES.has(type)) {
     /* ⚠ `about_profile_id` is nullable BY DESIGN under U4 — the system refuses
        to guess which of several profiles acted. ⛔ That is a correct answer, so

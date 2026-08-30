@@ -236,7 +236,17 @@ export default function VenueDashboard({ userId: userIdProp }) {
         aboutProfileId: profile?.id ?? null,
         type:    notif.type,
         message: notif.message,
-        data:    { event_name: eventName, venue_name: venueName, enquiry_id: id },
+        /* ⭐ `applicant_type` and `event_id` are here so the row can NAME its
+           own destination — notifDestination derives the link from what the
+           row carries and must never guess. Without them a booking notice was
+           inert: the enquirer read "You're booked!" with nowhere to press.
+           ⚠ `event_id` is usually null (a direct date enquiry has no event),
+           which is why the type alone could never answer this. */
+        data:    {
+          event_name: eventName, venue_name: venueName, enquiry_id: id,
+          applicant_type: enq.applicant_type ?? null,
+          event_id: enq.event_id ?? null,
+        },
       });
     }
   }

@@ -61,6 +61,7 @@ import QrCodesSection from '../components/QrCodesSection';
 import EventTabBar from '../components/EventTabBar';
 import SectionCollapseButton from '../components/SectionCollapseButton';
 import { useDragScroll } from '../hooks/useDragScroll';
+import { useDashboardLanding } from '../lib/useDashboardLanding';
 import { ownedByFilter } from '../lib/eventOwnership';
 
 /* ⚠ `ownedByFilter` MOVED to lib/eventOwnership (2026-08-16) — the Discover
@@ -851,6 +852,12 @@ export default function HostDashboard({ userId: userIdProp }) {
     const rect = el.getBoundingClientRect();
     window.scrollTo({ top: window.scrollY + rect.top - window.innerHeight * 0.35, behavior: 'smooth' });
   }
+
+  /* ⭐ A promoter enquires about rooms too, so a venue's decision lands here
+     exactly as it lands on a performer's dashboard. ⚠ No tab to set: this
+     screen's enquiry panel does not carry the direction tabs the artist one
+     does, and the hook's `tab` is a hint a screen may ignore. */
+  useDashboardLanding(({ elementId }) => scrollToSection(elementId));
 
   // Host has no card_pills/"5 tags" concept — its closest curated selection
   // is "what do you host?" (selected categories), not the full flat

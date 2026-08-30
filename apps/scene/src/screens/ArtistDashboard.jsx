@@ -11,6 +11,7 @@ import { withDirection } from '../lib/enquiryUtils';
 import s from './ArtistDashboard.module.css';
 import EventCard from '../components/EventCard';
 import { useDragScroll } from '../hooks/useDragScroll';
+import { useDashboardLanding } from '../lib/useDashboardLanding';
 import DashboardHeader from '../components/DashboardHeader';
 import PastEventsSearch, { filterPastEvents } from '../components/PastEventsSearch';
 import DashboardProfileCard from '../components/DashboardProfileCard';
@@ -597,6 +598,14 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
     const rect = el.getBoundingClientRect();
     window.scrollTo({ top: window.scrollY + rect.top - window.innerHeight * 0.35, behavior: 'smooth' });
   }
+
+  /* ⭐ Arriving from a notification: `?section=enquiries&tab=BOOKED` lands on
+     the section the notice is ABOUT, not merely on this screen. Same two
+     actions the stat tiles already perform, so a link and a tap agree. */
+  useDashboardLanding(({ elementId, tab }) => {
+    if (tab) setEnqDirTab(tab);
+    scrollToSection(elementId);
+  });
 
   return (
     <div className={s.screen}>

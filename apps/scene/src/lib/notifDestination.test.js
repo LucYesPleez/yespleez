@@ -74,6 +74,58 @@ test('types with nowhere to go stay inert', () => {
   }
 });
 
+/**
+ * ⭐ A DECISION ON A DIRECT ENQUIRY — the case that has no event at all.
+ *
+ * "You're booked!" was inert: `booking_confirmed` sits in the event family, a
+ * date enquiry names no event, so the row resolved to null and the enquirer had
+ * nowhere to press. It goes to their OWN enquiries section instead.
+ */
+test('a booking on a direct enquiry lands on the enquirer\'s own section', () => {
+  assert.equal(
+    notifDestination({ type: 'booking_confirmed', data: { enquiry_id: 7, applicant_type: 'artist' } }),
+    '/industry/artist?section=enquiries&tab=BOOKED');
+  assert.equal(
+    notifDestination({ type: 'booking_confirmed', data: { enquiry_id: 7, applicant_type: 'host' } }),
+    '/industry/host?section=enquiries&tab=BOOKED');
+  // band and standup share the performer dashboard, by their own registry entry
+  assert.equal(
+    notifDestination({ type: 'shortlisted', data: { enquiry_id: 7, applicant_type: 'band' } }),
+    '/industry/band?section=enquiries&tab=OUTGOING');
+  assert.equal(
+    notifDestination({ type: 'application_declined', data: { enquiry_id: 7, applicant_type: 'standup' } }),
+    '/industry/standup?section=enquiries&tab=OUTGOING');
+});
+
+test('⭐ an enquiry that DOES name an event still opens the event', () => {
+  assert.equal(
+    notifDestination({ type: 'booking_confirmed', data: { enquiry_id: 7, applicant_type: 'artist', event_id: 'e9' } }),
+    '/event/e9');
+});
+
+/**
+ * ⛔ The same discipline as every other branch: a row that cannot say where it
+ * belongs stays inert rather than guessing a dashboard.
+ */
+test('⛔ a decision that names no applicant type, or a type with no dashboard, is inert', () => {
+  for (const data of [
+    { enquiry_id: 7 },                                  // legacy row, written before the key
+    { enquiry_id: 7, applicant_type: null },
+    { enquiry_id: 7, applicant_type: 'venue' },         // dashPath exists but a venue never applies
+    { enquiry_id: 7, applicant_type: 'festival' },      // dashPath is null — the Portal is another app
+    { enquiry_id: 7, applicant_type: 'punter' },
+    { applicant_type: 'artist' },                       // names no enquiry
+  ]) {
+    const notif = { type: 'booking_confirmed', data };
+    const dest = notifDestination(notif);
+    assert.equal(dest === null || dest === '/industry/venue?section=enquiries&tab=BOOKED', true,
+      `${JSON.stringify(data)} produced ${dest}`);
+    if (dest) assert.equal(String(dest).includes('undefined'), false);
+  }
+  assert.equal(notifDestination({ type: 'booking_confirmed', data: { enquiry_id: 7, applicant_type: 'festival' } }), null);
+  assert.equal(notifDestination({ type: 'booking_confirmed', data: { enquiry_id: 7 } }), null);
+});
+
 test('an unknown type is inert rather than guessed at', () => {
   assert.equal(notifDestination({ type: 'something_new', data: { event_id: 'e1' } }), null);
   assert.equal(notifDestination(null), null);
