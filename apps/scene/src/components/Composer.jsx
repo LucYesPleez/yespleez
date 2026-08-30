@@ -207,9 +207,32 @@ export default function Composer({
   const [stageRaised] = useVoiceyStage();
   const stageUp = stageRaised && pillOpen;
 
+  /**
+   * ⭐ SENDING DOES NOT END THE TYPING (owner, 2026-08-31: "you can just keep
+   * typing and pressing send, the very next press is another letter").
+   *
+   * Two halves, and the first is the one that matters on a phone:
+   *
+   *   the button never TAKES focus  — `onMouseDown` preventDefault below, so
+   *     the field is never blurred and the on-screen keyboard never closes.
+   *     ⛔ Re-focusing afterwards is not a substitute: iOS reopens a keyboard
+   *     only inside the gesture that closed it, so a restore that lands a tick
+   *     late leaves the keyboard down and the caret nowhere.
+   *   the field is focused AGAIN      — here, for the paths where focus was
+   *     somewhere else entirely (a tap on the thread, then send).
+   *
+   * ⚠ Synchronous, and BEFORE `onSubmit` can yield: it runs inside the click
+   * gesture, which is the only place a browser will move a keyboard.
+   *
+   * ⚠ Safe against the clear-on-send: `onSend` empties the draft BEFORE its
+   * first await, so anything typed from the next keystroke lands in a field
+   * that is already empty rather than being wiped a moment later.
+   */
   function submit(e) {
     e.preventDefault();
-    if (hasText) onSubmit?.(e);
+    if (!hasText) return;
+    fieldRef.current?.focus();
+    onSubmit?.(e);
   }
 
   /**
@@ -489,6 +512,14 @@ export default function Composer({
             squeezed out by anything beside it. */}
         <button
           type={hasText && !rec.active ? 'submit' : 'button'}
+          /* ⛔⛔ THE SEND BUTTON MUST NEVER TAKE FOCUS. Pressing it moved focus
+             off the field, which closed the phone keyboard — so every message
+             cost a second tap back into the composer to type the next one.
+             Preventing the default on mousedown keeps the caret where it is;
+             the click still fires and the form still submits.
+             ⚠ Pointer only — Tab and Enter are untouched, so a keyboard user
+             can still reach and press this button. */
+          onMouseDown={e => e.preventDefault()}
           onClick={
             rec.active ? () => void rec.send()
             : hasText   ? undefined              // the form submits
