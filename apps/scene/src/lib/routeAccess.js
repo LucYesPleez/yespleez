@@ -78,6 +78,9 @@ export const ROUTE_ACCESS = Object.freeze({
   // O3 · post-signup only. ACCOUNT because it acts on behalf of an account;
   // a guest who types the URL is sent to What's On by the screen itself.
   '/start':                   { access: ACCESS.ACCOUNT },
+  /* Poster Wall — the user's own archive; a guest has no history to hang.
+     The My Scene teaser strip is what advertises it to everyone. */
+  '/poster-wall':             { access: ACCESS.ACCOUNT },
   '/messages':                { access: ACCESS.ACCOUNT },
   '/messages/:id':            { access: ACCESS.ACCOUNT },
   '/notifications':           { access: ACCESS.ACCOUNT },

@@ -31,6 +31,7 @@ import { buildSpotlight } from '../lib/spotlight';
 import PastEventsSearch, { filterPastEvents } from '../components/PastEventsSearch';
 import { PROFILE_TYPES, SCENE_ROLE_ORDER } from '../lib/profileTypes';
 import UnclaimedBadge from '../components/UnclaimedBadge';
+import PosterWallStrip from '../components/PosterWallStrip';
 
 let _discoverCache = [];
 
@@ -1774,6 +1775,12 @@ export default function MySceneScreen() {
                   );
                 })()}
               </div>
+
+              {/* POSTER WALL — the archive tense (memory project_poster_wall).
+                  A cropped slice of the user's real wall; visible from the
+                  start by owner decision, so everyone learns the wall exists.
+                  It passes rule 9: every poster is a relationship record. */}
+              <PosterWallStrip uid={uid} />
 
               {/* ⚠ THE FOR YOU DIVIDER AND YOUR SCENE STOOD HERE (removed
                   2026-08-24). FOR YOU headed the catalogue floor — AROUND YOU,

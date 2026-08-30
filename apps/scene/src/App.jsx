@@ -29,6 +29,7 @@ import { advance, rewind, hasNext as hasNextDemo, hasPrev as hasPrevDemo } from 
 import WhatsOnScreen from './screens/WhatsOnScreen';
 import DiscoverScreen from './screens/DiscoverScreen';
 import MySceneScreen from './screens/MySceneScreen';
+import PosterWallScreen from './screens/PosterWallScreen';
 import EventScreen from './screens/EventScreen';
 import SetTimesScreen from './screens/SetTimesScreen';
 import QrDestinationScreen from './screens/QrDestinationScreen';
@@ -344,6 +345,7 @@ function Shell({ session, onSignOut }) {
         <Route path="/"          element={<WhatsOnScreen />} />
         <Route path="/discover"  element={<DiscoverScreen />} />
         <Route path="/my-scene"  element={<MySceneScreen />} />
+        <Route path="/poster-wall" element={<PosterWallScreen />} />
         <Route path="/event/:id"              element={<EventScreen />} />
         {/* ⭐⭐ QR1 · the Set Times QR's destination. A separate printed object
             from the Event QR — see screens/SetTimesScreen for why this is a
