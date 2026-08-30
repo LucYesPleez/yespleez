@@ -63,7 +63,14 @@ export default function PreSendCheckSheet({
 
   return (
     <div
-      style={{ position: 'fixed', inset: 0, zIndex: 9500, background: 'rgba(0,0,0,.75)',
+      /* ⛔⛔ 10000, ABOVE THE SHEET THAT OPENS IT — ⛔ never below it.
+         At 9500 this rendered BEHIND ProfileScreen's enquiry sheet (9999),
+         which stays mounted underneath. The confirmation opened invisibly,
+         so SEND ENQUIRY appeared to do nothing and the enquiry could never
+         be sent — the write lives on THIS sheet's own button. It was hidden
+         from the owner's own account because they had suppressed the check.
+         ⚠ A confirmation is always stacked above its caller. */
+      style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(0,0,0,.75)',
                display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}
       onClick={() => !locked && onCancel?.()}
     >

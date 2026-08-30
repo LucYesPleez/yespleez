@@ -97,6 +97,23 @@ test('the dialog does not know who it is confirming for', () => {
     'the confirmation branches on who is calling it');
 });
 
+/**
+ * ⛔⛔ THE CONFIRMATION MUST STACK ABOVE THE SHEET THAT OPENS IT.
+ *
+ * At 9500 it rendered BEHIND ProfileScreen's enquiry sheet (9999), which stays
+ * mounted underneath it. Pressing SEND ENQUIRY opened the confirmation
+ * invisibly, so the screen did not change and the enquiry could never be sent —
+ * the write lives on the confirmation's own button. It was invisible to the
+ * owner's own account because they had suppressed the check, so the bug only
+ * ever reached people who had not.
+ */
+test('the pre-send check stacks above every layer of the screen that opens it', () => {
+  const sheetZ = Number(SHEET.match(/zIndex:\s*(\d+)/)[1]);
+  const callerZ = Math.max(...[...PROFILE.matchAll(/zIndex:\s*(\d+)/g)].map(m => Number(m[1])));
+  assert.ok(sheetZ > callerZ,
+    `the confirmation (z ${sheetZ}) renders below its caller (z ${callerZ}) — it would open invisibly`);
+});
+
 test('cancelling keeps the note and the chosen act', () => {
   // "Let me fix something" has to leave the something intact.
   assert.match(PROFILE, /onCancel=\{\(\) => setPreSendOpen\(false\)\}/);
