@@ -164,10 +164,22 @@ export default function EnquiryDossierSheet({ enq, viewerProfile, onClose, onRes
             <ProfileCard item={p.id ? p : { ...p, id: enq.applicant_profile_id }} />
           </div>
 
-          {/* THEIR MESSAGE — first, and the largest text on the sheet. */}
+          {/**
+            * THE ENQUIRY'S OWN NOTE — first, and the largest text on the sheet.
+            *
+            * ⛔⛔ `enq.note` IS ALWAYS THE APPLICANT'S, so the label depends on
+            * WHICH SIDE is reading. It said "THEIR MESSAGE" unconditionally,
+            * which told a promoter reading the enquiry they had just sent that
+            * their own words belonged to the venue — and offered to REPLY to
+            * them. ⚠ Same class as every other direction-blind string on this
+            * pair of surfaces: the row is one record and the two readers are
+            * not interchangeable.
+            */}
           {enq.note && (
             <div style={{ background: `rgba(${rgb},.07)`, border: `1px solid rgba(${rgb},.25)`, borderRadius: 14, padding: '14px 16px', marginBottom: 16 }}>
-              <div style={{ fontFamily: "'Bebas Neue'", fontSize: 11, letterSpacing: 1.5, color: 'var(--muted)', marginBottom: 8 }}>THEIR MESSAGE</div>
+              <div style={{ fontFamily: "'Bebas Neue'", fontSize: 11, letterSpacing: 1.5, color: 'var(--muted)', marginBottom: 8 }}>
+                {enqDir === 'outgoing' ? 'YOUR MESSAGE' : 'THEIR MESSAGE'}
+              </div>
               <p style={{ fontSize: 15, lineHeight: 1.6, color: 'var(--text)', margin: 0 }}>{enq.note}</p>
               <button type="button" onClick={reply} disabled={msgBusy || !viewerProfile?.id || !p.id}
                 style={{
@@ -175,7 +187,9 @@ export default function EnquiryDossierSheet({ enq, viewerProfile, onClose, onRes
                   color: '#0a0a14', fontFamily: "'Bebas Neue'", fontSize: 13, letterSpacing: 1.5,
                   padding: '9px 18px', border: 'none', borderRadius: 9,
                   cursor: msgBusy ? 'default' : 'pointer', opacity: msgBusy ? .6 : 1,
-                }}>{msgBusy ? 'OPENING…' : 'REPLY →'}</button>
+                /* ⛔ You do not REPLY to your own message. Both labels open the
+                   same thread in the messenger — only the word changes. */
+                }}>{msgBusy ? 'OPENING…' : enqDir === 'outgoing' ? 'MESSAGE →' : 'REPLY →'}</button>
             </div>
           )}
 
