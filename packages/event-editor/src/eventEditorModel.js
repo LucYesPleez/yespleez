@@ -185,7 +185,21 @@ export function emptyEventForm() {
     categoryBadge: '', openMicBadge: false, ticketLink: '', bio: '',
     slides: [], poster: '', posterThumb: '', posterFull: '',
     posterCropY: DEFAULT_CROP_Y,
-    setTimesNeeded: true,
+    /**
+     * ⭐ OFF FOR A NEW EVENT (owner, 2026-08-31). It opened ON, so the first
+     * thing a first-time organiser met under DAYS & TIME SLOTS was a QUICK
+     * GENERATOR for a running order they had not decided they wanted.
+     *
+     * ⚠ A DEFAULT, ⛔ not a rule. Turning it on is one tap and the blank Day 1
+     * below is still here waiting; `toConfig` writes `days: []` while it is
+     * off, which is exactly what "a gig with no running order" means.
+     *
+     * ⛔⛔ THIS IS THE EMPTY FORM ONLY. An EXISTING event derives the toggle
+     * from its stored days (`fromConfig`), and that must keep winning — a
+     * default applied to a saved event is how a running order gets silently
+     * cleared on the next save.
+     */
+    setTimesNeeded: false,
     days: [{ id: makeId(), name: '', slots: [] }],
     isPublic: true, appsOpen: true,
     artistsCanRemove: true, showRankedBackup: true, showGenrePickers: true,

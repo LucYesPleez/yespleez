@@ -1,10 +1,14 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { useSession } from "../App";
 import s from "@yespleez/event-editor/styles.module.css";
 import { getOwnerProfiles } from "../lib/actingProfile";
 import { track, EVENTS } from "../lib/analytics";
+/* ⭐ The SAME planner the enquiry card's picker uses — one definition of what
+   may join a bill, so arriving from a link cannot bypass a rule the button
+   enforces. */
+import { planAddArtistToShortlist, addArtistToShortlist } from "../lib/shortlistFromArtist";
 import { useEventEditorState, rowsToDays } from "@yespleez/event-editor";
 import { loadEventSlots, saveEventSlots } from "../lib/eventSlotWrites";
 import { withSetTimesEnabled } from "../lib/eventSetTimes";
@@ -63,6 +67,42 @@ export default function CreateEventScreen() {
       setOwnerId(list.length === 1 ? list[0].id : null);
     });
   }, [editId, session?.user?.id, searchParams]);
+
+  /**
+   * ── ⭐⭐ ARRIVING FROM AN ACCEPTED ENQUIRY ────────────────────────────
+   *
+   * The enquiry already settled the date, and often the room. Making the
+   * organiser retype them is friction at best; at worst the retyped date
+   * disagrees with the one both parties accepted, and nothing in the app
+   * would ever notice.
+   *
+   * ⛔ NEW EVENTS ONLY. An edit's values come from the stored row and must
+   * never be overwritten by a URL.
+   *
+   * ⚠ ONCE. A prefill is a starting point, not a binding: the moment it has
+   * been applied the organiser owns those fields, so a re-render must not
+   * drag an edited date back to what the link said.
+   */
+  const prefilled = useRef(false);
+  useEffect(() => {
+    if (editId || prefilled.current) return;
+    const date = searchParams.get('date');
+    const venueId = searchParams.get('venue');
+    if (!date && !venueId) return;
+    prefilled.current = true;
+
+    if (date) { ed.setStartDate(date); ed.setEndDate(date); }
+    if (venueId) {
+      /* ⚠ The NAME is read from the profile rather than carried in the URL: a
+         name in a link is a copy that goes stale, and the venue field is what
+         the public page prints. */
+      ed.setVenueProfileId(venueId);
+      supabase.from('profiles').select('name, location, suburb, state, postcode')
+        .eq('id', venueId).maybeSingle()
+        .then(({ data }) => { if (data?.name) ed.setVenue(data.name); });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editId, searchParams]);
 
   /**
    * Existing co-hosts, when editing.
@@ -330,6 +370,32 @@ export default function CreateEventScreen() {
      * been created — that path ends in duplicate events. Surfaced as an error
      * on the page they land on instead of thrown away.
      */
+    /**
+     * ⭐⭐ THE ACT THAT CAUSED THIS EVENT JOINS IT — the half of the lifecycle
+     * that was manual: ACCEPT → CREATE EVENT → (until now) go and find them
+     * again in a picker.
+     *
+     * ⭐ SHORTLIST, ⛔ not the bill. Adding to a bill is a separate, deliberate
+     * act that offers a slot and notifies a person; this only puts them where
+     * the funnel expects them, exactly as the picker on the enquiry card does.
+     *
+     * ⚠ AFTER THE INSERT AND NON-FATAL, like the co-hosts below it. The event
+     * exists and is saved — a failure here costs one row, and sending the
+     * organiser back to a form whose event already exists is the path that
+     * ends in duplicate events.
+     *
+     * ⛔ The PLANNER decides, not this screen: it refuses a profile that is not
+     * a bookable act, so a `?act=` naming a venue adds nothing rather than
+     * writing a nonsense member.
+     */
+    const actId = searchParams.get('act');
+    if (data?.id && actId) {
+      const { data: act } = await supabase.from('profiles')
+        .select('id, user_id, name, type').eq('id', actId).maybeSingle();
+      const plan = planAddArtistToShortlist(act || {}, data.id, []);
+      if (plan.ok) await addArtistToShortlist(supabase, plan);
+    }
+
     if (data?.id && coHosts.length) {
       const { error: chErr } = await supabase.from('event_hosts').insert(
         coHosts.map((p, i) => ({ event_id: data.id, profile_id: p.id, position: i })),

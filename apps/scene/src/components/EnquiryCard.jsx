@@ -620,8 +620,23 @@ export default function EnquiryCard({ enq, viewerProfile, viewerUserId, onRespon
                 /* ⭐ CREATE, then ADD — the two halves of the same lifecycle.
                    ⚠ Creating navigates away rather than opening a sheet: an
                    event is a whole editor, not a picker, and the enquiry is
-                   still here when they come back. */
-                if (eventAction === 'create-event') navigate('/create-event');
+                   still here when they come back.
+
+                   ⭐⭐ THE EDITOR ARRIVES KNOWING WHAT WAS AGREED. Everything
+                   here is already settled by the enquiry, so re-typing it is
+                   pure friction — and a re-typed date is a date that can
+                   disagree with the one both parties accepted.
+                   ⚠ `act` and `venue` are mutually exclusive BY TYPE: the other
+                   party is either the act being booked or the room it is in,
+                   and which one decides what the editor does with them. */
+                if (eventAction === 'create-event') {
+                  const q = new URLSearchParams();
+                  if (viewerProfile?.id) q.set('as', viewerProfile.id);
+                  if (enq.date_requested) q.set('date', enq.date_requested);
+                  if (profile?.type === 'venue') q.set('venue', profile.id);
+                  else if (profile?.id) q.set('act', profile.id);
+                  navigate(`/create-event?${q.toString()}`);
+                }
                 else setAddToEventOpen(true);
               }}
               className="yp-tap44"
