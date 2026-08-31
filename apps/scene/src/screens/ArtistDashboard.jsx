@@ -23,7 +23,7 @@ import BookingInvitation from '../components/BookingInvitation';
 import AvailabilitySection from '../components/AvailabilitySection';
 import OutgoingEnquiryRow from '../components/OutgoingEnquiryRow';
 import { APP_TAB_COLOR, applicantLabel, OUT_EMPTY, fetchOutgoingEnquiries, isFadedDecline, DECLINE_FADE_DAYS } from '../lib/outgoingPipeline';
-import { DIR_TABS, PERFORMER_DIR_TABS, EnquiryDirectionTabs, EnquiryStatusTabs, EnquirySearch } from '../components/EnquiryTabs';
+import { DIR_TABS, EnquiryDirectionTabs, EnquiryStatusTabs, EnquirySearch } from '../components/EnquiryTabs';
 import { normaliseStatus } from '../lib/enquiryUtils';
 import EnquiryCalendar from '../components/EnquiryCalendar';
 import { CalendarIconBtn } from '../components/DecisionButtons';
@@ -684,9 +684,6 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
             if (key === 'OUTGOING') setOutStatusTab('AWAITING');
           }}
           counts={dirCounts}
-          /* ⭐ The performer set — the three every surface has, plus HISTORY.
-             ⛔ Not a literal: the tab is defined once, in EnquiryTabs. */
-          tabs={PERFORMER_DIR_TABS}
         />
 
         <div>

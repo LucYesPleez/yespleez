@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, Fragment } from 'react';
 import EnquiryCard from './EnquiryCard';
-import { normaliseStatus, isFadedDecline, DECLINE_FADE_DAYS } from '../lib/enquiryUtils';
+import { normaliseStatus, isFadedDecline, DECLINE_FADE_DAYS, isUpcomingBooking, isPastBooking } from '../lib/enquiryUtils';
 import { DIR_TABS, EnquiryDirectionTabs, EnquiryStatusTabs, EnquirySearch } from './EnquiryTabs';
 
 /* ⚠ DIR_TABS AND THE THREE CONTROLS NOW LIVE IN components/EnquiryTabs.jsx,
@@ -25,6 +25,10 @@ const SORTS = [
   { key: 'requested', label: 'EVENT DATE',   hint: 'The date they want to play, soonest first' },
   { key: 'applied',   label: 'ENQUIRY DATE', hint: 'When the enquiry arrived, newest first' },
 ];
+
+/* ⚠ BOOKED / HISTORY LIVE IN lib/enquiryUtils — the same file normaliseStatus
+   comes from. They are enquiry VOCABULARY, not chrome, and a copy here would
+   be the local status vocabulary this panel already exists to have removed. */
 
 /**
  * ⚠ `viewerUserId` IS OPTIONAL AND ITS ABSENCE IS THE POINT. It exists so the
@@ -120,10 +124,8 @@ export default function EnquiryPanel({
 
     return visible
       .filter(e => {
-        if (dirTab === 'BOOKED') {
-          const st = (e.status || '').toLowerCase();
-          return st === 'booked' || st === 'accepted';
-        }
+        if (dirTab === 'BOOKED')  return isUpcomingBooking(e);
+        if (dirTab === 'HISTORY') return isPastBooking(e);
         const dir = (e.direction || 'incoming').toLowerCase();
         if (dir !== dirTab.toLowerCase()) return false;
         // Pinned rows stay visible in the tab they were opened in, even once
@@ -146,7 +148,10 @@ export default function EnquiryPanel({
     const out = {};
     for (const { key } of DIR_TABS) {
       out[key] = visible.filter(e => {
-        if (key === 'BOOKED') { const st = (e.status || '').toLowerCase(); return st === 'booked' || st === 'accepted'; }
+        /* ⚠ AHEAD OF THE LIST, and split the same way — a BOOKED badge still
+           counting past nights would promise rows that tab no longer shows. */
+        if (key === 'BOOKED')  return isUpcomingBooking(e);
+        if (key === 'HISTORY') return isPastBooking(e);
         return (e.direction || 'incoming').toLowerCase() === key.toLowerCase();
       }).length;
     }

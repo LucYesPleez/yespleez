@@ -1,3 +1,5 @@
+import { today, isPastDate } from './dates';
+
 export const STATUS_TAB_COLOR = {
   NEW:         '#FFD700',
   AWAITING:    '#FFD700',
@@ -197,4 +199,37 @@ export function isFadedDecline(row, now = Date.now()) {
   const at = row?.created_at ? new Date(row.created_at).getTime() : NaN;
   if (Number.isNaN(at)) return false;
   return (now - at) > DECLINE_FADE_DAYS * 24 * 60 * 60 * 1000;
+}
+
+/**
+ * ⭐⭐ BOOKED AND HISTORY ARE ONE SET SPLIT BY TODAY (owner, 2026-08-31).
+ *
+ * Every profile type has a HISTORY tab: BOOKED is what is coming up, HISTORY
+ * what already happened. Both read the SAME rows — a booked row is booked
+ * whichever direction it was asked in, which is why this asks about status and
+ * never about direction — so no row can be in both and none can fall between.
+ *
+ * ⛔⛔ ABSENT IS NOT PAST. An enquiry with no date has not been shown to have
+ * happened, so it stays in BOOKED rather than quietly ageing out of the list
+ * its owner is still acting on. `isPastDate` rules the same way, and today is
+ * never past: a gig tonight is a booking, not a memory.
+ *
+ * ⛔ The date comes from `isPastDate`, never a 10-char slice of a timestamp —
+ * that is UTC and reads as yesterday every Australian morning.
+ */
+export function isBookedRow(row) {
+  return ['booked', 'accepted'].includes((row?.status || '').toLowerCase());
+}
+
+/** The date an enquiry is ABOUT — the night, not the day it was sent. */
+export function enquiryEventDate(row) {
+  return row?.date_requested || row?.preferred_date || null;
+}
+
+export function isPastBooking(row, todayStr = today()) {
+  return isBookedRow(row) && isPastDate(enquiryEventDate(row), todayStr);
+}
+
+export function isUpcomingBooking(row, todayStr = today()) {
+  return isBookedRow(row) && !isPastDate(enquiryEventDate(row), todayStr);
 }

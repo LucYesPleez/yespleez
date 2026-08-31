@@ -36,7 +36,27 @@ import { STATUS_TAB_COLOR } from '../lib/enquiryUtils';
  * triage design (OpportunityCard → BookingInvitation) to make the code match.
  */
 
-/** The three directions, their colours, and the sub-tabs each one offers. */
+/**
+ * The four directions, their colours, and the sub-tabs each one offers.
+ *
+ * ⭐⭐ HISTORY IS CANONICAL — every profile type has one (owner, 2026-08-31).
+ *
+ * BOOKED is what is coming up; everything already done moves one tab across,
+ * ⛔ never one level down. It began as UPCOMING / PAST sub-tabs under the
+ * performer surfaces' BOOKED, which put twelve played gigs beneath one
+ * upcoming one, and it was briefly a performer-only opt-in on the theory that
+ * only a performer surface has a played/not-played axis. ⛔ THAT WAS WRONG: a
+ * booked NIGHT is as past-or-future as a booked GIG, and a venue looking at
+ * last month's confirmed bookings is asking the same question the act is.
+ *
+ * ⚠ WHAT "PAST" MEANS IS THE SURFACE'S ANSWER, not this file's — a performer
+ * reads it off the lineup-derived gig, a venue off the enquiry's date. This
+ * file renders chrome and reads no row, which is why it can afford to be the
+ * one place the tab is DECLARED.
+ *
+ * ⚠ `#888` is the same grey `STATUS_TAB_COLOR.HISTORY` already uses. Past is
+ * not a live state and must not compete with BOOKED's green for the eye.
+ */
 export const DIR_TABS = [
   { key: 'INCOMING', color: '#FFD700', rgb: '255,215,0',
     subTabs: ['NEW', 'SEEN', 'SHORTLISTED', 'ACCEPTED', 'DECLINED'] },
@@ -44,30 +64,9 @@ export const DIR_TABS = [
     subTabs: ['AWAITING', 'INTERESTED', 'ACCEPTED', 'DECLINED'] },
   { key: 'BOOKED',   color: '#00E5A0', rgb: '0,229,160',
     subTabs: [] },
+  { key: 'HISTORY',  color: '#888',    rgb: '136,136,136',
+    subTabs: [] },
 ];
-
-/**
- * ⭐ HISTORY — a FOURTH direction, offered only where a surface has one.
- *
- * Owner, 2026-08-31: BOOKED is for what is coming up; everything played goes
- * to its own tab. On a performer surface BOOKED lists real gigs derived from
- * the lineup, so "have I played it yet" is a hard fact about each row and
- * deserves the same rank as the others — it was a sub-tab, which put twelve
- * past bookings one level below one upcoming one.
- *
- * ⛔ NOT ADDED TO `DIR_TABS`. Venue and host BOOKED lists accepted ENQUIRIES,
- * which carry no played/not-played axis, so the tab would render there with
- * nothing behind it. A surface OPTS IN by passing its own list — which is
- * still one definition of the tab and one row component, not the fourth copy
- * this file exists to prevent.
- *
- * ⚠ `#888` is the same grey `STATUS_TAB_COLOR.HISTORY` already uses. Past is
- * not a live state and must not compete with BOOKED's green for the eye.
- */
-export const HISTORY_TAB = { key: 'HISTORY', color: '#888', rgb: '136,136,136', subTabs: [] };
-
-/** INCOMING / OUTGOING / BOOKED / HISTORY — the performer surfaces' set. */
-export const PERFORMER_DIR_TABS = [...DIR_TABS, HISTORY_TAB];
 
 /**
  * ⚠ WHITE INK, COLOUR ON THE EDGE — the rule the status sub-tabs already
@@ -97,17 +96,14 @@ function EnqTabBtn({ active, color, rgb, onClick, children }) {
 }
 
 /**
- * INCOMING / OUTGOING / BOOKED, plus whatever else the surface offers.
- * @param counts  { INCOMING: n, OUTGOING: n, BOOKED: n } — the caller counts,
- *                because only the caller knows what its rows are.
- * @param tabs    which tabs to render. Defaults to the three every surface
- *                has; a performer surface passes PERFORMER_DIR_TABS to add
- *                HISTORY. ⛔ Pass a list from THIS file, never a literal.
+ * INCOMING / OUTGOING / BOOKED / HISTORY.
+ * @param counts  { INCOMING: n, … } — the caller counts, because only the
+ *                caller knows what its rows are.
  */
-export function EnquiryDirectionTabs({ dirTab, onChange, counts = {}, tabs = DIR_TABS }) {
+export function EnquiryDirectionTabs({ dirTab, onChange, counts = {} }) {
   return (
     <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
-      {tabs.map(({ key, color, rgb, subTabs }) => {
+      {DIR_TABS.map(({ key, color, rgb, subTabs }) => {
         const cnt = counts[key] || 0;
         return (
           <EnqTabBtn key={key} active={dirTab === key} color={color} rgb={rgb}
