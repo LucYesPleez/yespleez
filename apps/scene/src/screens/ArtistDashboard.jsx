@@ -653,7 +653,14 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
            is not an application. */
         { label: 'OUTGOING', value: loading ? '—' : outgoingItems.length,                  accent: '#00E5FF', accentRgb: '0,229,255', onClick: () => { scrollToSection('section-enquiries'); setEnqDirTab('OUTGOING'); } },
         { label: 'OFFERS',       value: loading ? '—' : offersCount,                      accent: '#BF5FFF', accentRgb: '191,95,255', onClick: () => { scrollToSection('section-enquiries'); setEnqDirTab('INCOMING'); } },
-        { label: 'BOOKINGS',     value: loading ? '—' : upcomingGigs.length + pastGigs.length, accent: '#00E5A0', accentRgb: '0,229,160', onClick: () => { scrollToSection('section-enquiries'); setEnqDirTab('BOOKED'); } },
+        /* ⚠ UPCOMING ONLY, matching the tab it opens (owner, 2026-08-31). It
+           read upcoming+past and landed on BOOKED, which since HISTORY split
+           off shows only what is ahead — 13 above a list of 1. A stat tile
+           says WHAT IS COMING UP; the twelve already played are a tab away
+           and are not a thing to act on. ⛔ Never a total above a tab that
+           renders a subset: that quiet disagreement is what makes a whole
+           dashboard feel untrustworthy. */
+        { label: 'BOOKINGS',     value: loading ? '—' : upcomingGigs.length,               accent: '#00E5A0', accentRgb: '0,229,160', onClick: () => { scrollToSection('section-enquiries'); setEnqDirTab('BOOKED'); } },
       ]} />
 
       {/* ── AVAILABILITY ── */}
