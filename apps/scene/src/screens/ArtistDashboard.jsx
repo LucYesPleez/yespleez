@@ -23,7 +23,7 @@ import BookingInvitation from '../components/BookingInvitation';
 import AvailabilitySection from '../components/AvailabilitySection';
 import OutgoingEnquiryRow from '../components/OutgoingEnquiryRow';
 import { APP_TAB_COLOR, applicantLabel, OUT_EMPTY, fetchOutgoingEnquiries, isFadedDecline, DECLINE_FADE_DAYS } from '../lib/outgoingPipeline';
-import { DIR_TABS, EnquiryDirectionTabs, EnquiryStatusTabs, EnquirySearch } from '../components/EnquiryTabs';
+import { DIR_TABS, PERFORMER_DIR_TABS, EnquiryDirectionTabs, EnquiryStatusTabs, EnquirySearch } from '../components/EnquiryTabs';
 import { normaliseStatus } from '../lib/enquiryUtils';
 import EnquiryCalendar from '../components/EnquiryCalendar';
 import { CalendarIconBtn } from '../components/DecisionButtons';
@@ -66,7 +66,11 @@ const IN_EMPTY = {
 // HostDashboard needed the same four buckets: a promoter asking a venue about a
 // night is the same question as a DJ applying to an event, and two copies of a
 // status vocabulary agree today and drift tomorrow.
-const GIG_TABS  = ['UPCOMING', 'PAST'];
+/* ⛔ GIG_TABS (UPCOMING / PAST) IS GONE — owner, 2026-08-31. Those were sub-tabs
+   under BOOKED, which buried twelve played gigs a level below one upcoming
+   one. PAST is now the top-level HISTORY tab and BOOKED means what is coming
+   up. ⛔ Do not reintroduce the pair: two ways to reach the same list is how
+   one of them goes stale. */
 
 // One application row: the event card, an "applied on" caption so it's always
 // clear which event/date this application refers to, and — only for terminal
@@ -133,7 +137,6 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
   /* AWAITING, not SUBMITTED — the shared OUTGOING sub-tabs (see EnquiryTabs). */
   const [outStatusTab,  setOutStatusTab]  = useState('AWAITING');
   const [calendarOpen,  setCalendarOpen]  = useState(false);
-  const [gigTab,        setGigTab]        = useState('UPCOMING');
   const [enqSearch,     setEnqSearch]     = useState('');
   const [pastGigSearch, setPastGigSearch] = useState('');
   const [following,     setFollowing]     = useState([]);
@@ -512,11 +515,14 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
   /* Counts for the shared tabs. BOOKED counts real gigs, not accepted rows:
      this surface's BOOKED tab lists what the act is actually playing
      (lineup-derived), which is a better answer than "enquiries that ended in
-     yes" and is why its sub-tabs stay UPCOMING / PAST. */
+     yes".
+     ⚠ BOOKED IS NOW UPCOMING ONLY and HISTORY carries the rest — a badge that
+     counted both would promise a list BOOKED no longer renders. */
   const dirCounts = {
     INCOMING: offers.length,
     OUTGOING: outgoingItems.length,
-    BOOKED:   upcomingGigs.length + pastGigs.length,
+    BOOKED:   upcomingGigs.length,
+    HISTORY:  pastGigs.length,
   };
   const inCounts = Object.fromEntries(
     (DIR_TABS.find(d => d.key === 'INCOMING')?.subTabs || []).map(sub =>
@@ -576,7 +582,9 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
     setUndoItem(null);
   }
 
-  const gigList = gigTab === 'UPCOMING' ? upcomingGigs : filterPastEvents(pastGigs, pastGigSearch);
+  /* The search belongs to HISTORY alone — an upcoming list of one or two does
+     not need finding, and a played list of a hundred does. */
+  const historyList = filterPastEvents(pastGigs, pastGigSearch);
 
   const newAppsCount  = applications.filter(a => (a.status || 'pending') === 'pending').length;
   // Prefer the loaded rows once they belong to THIS profile; until then the
@@ -676,6 +684,9 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
             if (key === 'OUTGOING') setOutStatusTab('AWAITING');
           }}
           counts={dirCounts}
+          /* ⭐ The performer set — the three every surface has, plus HISTORY.
+             ⛔ Not a literal: the tab is defined once, in EnquiryTabs. */
+          tabs={PERFORMER_DIR_TABS}
         />
 
         <div>
@@ -774,34 +785,38 @@ export default function ArtistDashboard({ userId: userIdProp, config }) {
           </div>
         )}
 
-        {/* BOOKED — confirmed gigs */}
+        {/* BOOKED — what the act is playing NEXT. ⛔ No sub-tabs: everything
+            already played lives in HISTORY, one tab across, not one level
+            down. */}
         {enqDirTab === 'BOOKED' && (
           <div>
-            {/* ⚠ BOOKED KEEPS ITS OWN PAIR, and that is not drift. On the
-                venue and host surfaces BOOKED lists accepted ENQUIRIES and
-                needs no sub-tabs; here it lists the act's actual GIGS, derived
-                from the lineup, where "have I played it yet" is the only
-                division that matters. Same control, same styling, different
-                labels — which is what the shared component is for. */}
-            <EnquiryStatusTabs
-              subTabs={GIG_TABS}
-              statusTab={gigTab}
-              onChange={setGigTab}
-              dirColor="#00E5A0"
-              counts={{ UPCOMING: upcomingGigs.length, PAST: pastGigs.length }}
-            />
-            {gigTab === 'PAST' && !loading && pastGigs.length > 0 && (
+            {loading
+              ? <p className={s.empty}>Loading…</p>
+              : upcomingGigs.length === 0
+                ? <p className={s.empty}>No upcoming bookings.</p>
+                : <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {upcomingGigs.map(ev =>
+                      <EventCard key={ev.id} event={ev} badge="PLAYING" badgeColor="#00e676" />
+                    )}
+                  </div>
+            }
+          </div>
+        )}
+
+        {/* HISTORY — everything already played. Same rows, same card, same
+            derivation as BOOKED; only the side of today they fall on differs. */}
+        {enqDirTab === 'HISTORY' && (
+          <div>
+            {!loading && pastGigs.length > 0 && (
               <PastEventsSearch query={pastGigSearch} onChange={setPastGigSearch} />
             )}
             {loading
               ? <p className={s.empty}>Loading…</p>
-              : gigList.length === 0
-                ? <p className={s.empty}>{gigTab === 'PAST' && pastGigSearch.trim() ? 'No past bookings match your search.' : `No ${gigTab.toLowerCase()} bookings.`}</p>
+              : historyList.length === 0
+                ? <p className={s.empty}>{pastGigSearch.trim() ? 'No past bookings match your search.' : 'Nothing played yet.'}</p>
                 : <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    {gigList.map(ev =>
-                      <EventCard key={ev.id} event={ev}
-                        badge={gigTab === 'UPCOMING' ? 'PLAYING' : 'PLAYED'}
-                        badgeColor={gigTab === 'UPCOMING' ? '#00e676' : 'var(--muted)'} />
+                    {historyList.map(ev =>
+                      <EventCard key={ev.id} event={ev} badge="PLAYED" badgeColor="var(--muted)" />
                     )}
                   </div>
             }
