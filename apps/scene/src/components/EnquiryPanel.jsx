@@ -34,8 +34,12 @@ const SORTS = [
  * capability is absent rather than merely hidden — the same discipline the
  * availability calendar uses for its private `markers`.
  */
-export default function EnquiryPanel({ enquiries = [], viewerProfile, viewerUserId, onRespond, onPlayDemo, onClear }) {
-  const [dirTab,    setDirTab]    = useState('INCOMING');
+export default function EnquiryPanel({
+  enquiries = [], viewerProfile, viewerUserId, onRespond, onPlayDemo, onClear,
+  /** ⭐ Which direction to open on, for a caller arriving from a link. */
+  initialDirTab = 'INCOMING',
+}) {
+  const [dirTab,    setDirTab]    = useState(initialDirTab);
   const [statusTab, setStatusTab] = useState('NEW');
   const [search,    setSearch]    = useState('');
 

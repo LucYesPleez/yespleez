@@ -66,6 +66,11 @@ export const ROUTE_ACCESS = Object.freeze({
      is what authorises the change, and updateUser is checked by GoTrue. */
   '/reset-password':          { access: ACCESS.PUBLIC },
   '/access-required':         { access: ACCESS.PUBLIC },
+  /* ⛔ PUBLIC, and it must be. This is the catch-all that turns a link nothing
+     claims into a page that SAYS SO — before it existed, a wrong link rendered
+     blank. Gating it would send a signed-out reader from "there's nothing
+     here" to a sign-in wall, which answers a question they did not ask. */
+  '*':                        { access: ACCESS.PUBLIC },
   '/dev/event-layout':        { access: ACCESS.PUBLIC, devOnly: true },
   /* S3 · the public schedule projection, against real production rows. PUBLIC
      because it renders exactly what a signed-out punter may read — that is the

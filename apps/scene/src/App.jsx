@@ -89,6 +89,35 @@ function tabFromPath(pathname) {
   return 'whats-on';
 }
 
+/**
+ * The screen for a path no route claims. ⚠ Deliberately plain and deliberately
+ * VISIBLE: its whole job is to turn a broken link into something a person can
+ * report, instead of a blank page that reads as a broken app.
+ */
+function RouteNotFound() {
+  const navigate = useNavigate();
+  const { pathname } = useLocation();
+  return (
+    <div style={{ padding: '80px 20px', textAlign: 'center', maxWidth: 420, margin: '0 auto' }}>
+      <h1 style={{ fontFamily: "'Bebas Neue'", fontWeight: 400, fontSize: 30, letterSpacing: 2, color: 'var(--text)', margin: 0 }}>
+        THERE&rsquo;S NOTHING HERE
+      </h1>
+      <p style={{ fontSize: 13, color: 'var(--muted)', lineHeight: 1.6, marginTop: 10 }}>
+        That link points at a page this app doesn&rsquo;t have. Nothing is broken
+        on your side.
+      </p>
+      {/* ⭐ The path, because "which link did you press" is the whole question
+          when one of these is reported. */}
+      <code style={{ display: 'block', fontSize: 11, color: 'rgba(255,255,255,.35)', marginTop: 10, wordBreak: 'break-all' }}>{pathname}</code>
+      <button
+        type="button"
+        onClick={() => navigate('/')}
+        style={{ marginTop: 22, background: 'rgba(255,255,255,.06)', border: '1px solid rgba(255,255,255,.16)', borderRadius: 12, color: 'var(--text)', fontFamily: "'Bebas Neue'", fontSize: 15, letterSpacing: 2, padding: '12px 24px', cursor: 'pointer' }}
+      >GO TO WHAT&rsquo;S ON</button>
+    </div>
+  );
+}
+
 function Shell({ session, onSignOut }) {
   const location  = useLocation();
   const navigate  = useNavigate();
@@ -412,6 +441,19 @@ function Shell({ session, onSignOut }) {
         {/* The Messenger identity (avatar + display name). Reached from the
             name in My Scene and the avatar in Messages — both land here. */}
         <Route path="/me"                element={<MessengerIdentityScreen />} />
+        {/**
+          * ⛔⛔ NOTHING MATCHED — SAY SO, ⛔ never render nothing.
+          *
+          * ⚠⚠ There was no catch-all at all, so ANY wrong link produced a
+          * blank page: header, watermark, bottom nav, and no content. A real
+          * one shipped — InviteSheet's VIEW OUTGOING ENQUIRIES pointed at
+          * `/venue` instead of `/industry/venue` — and it looked like a broken
+          * screen rather than a broken link, which is why it went unreported.
+          *
+          * ⛔ NOT a silent redirect to What's On: that hides the next one
+          * exactly as well. A reader who sees this can say what they pressed.
+          */}
+        <Route path="*" element={<RouteNotFound />} />
       </Routes>
       </ErrorBoundary>
       <BottomNav

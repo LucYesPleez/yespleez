@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useDashboardLanding } from '../lib/useDashboardLanding';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { resolvePerformerProfileId } from '../lib/actingProfile';
@@ -341,6 +342,15 @@ export default function VenueDashboard({ userId: userIdProp }) {
     }
   }
 
+  /* ⭐ Arriving from a link — VIEW OUTGOING ENQUIRIES after sending an invite,
+     or a notification. Same reader as the other dashboards, so `?section=` and
+     `?tab=` mean one thing everywhere. ⚠ The direction seeds the panel's own
+     state, so it must be read BEFORE the panel mounts, not scrolled to after. */
+  const [searchParams] = useSearchParams();
+  const enqDirLanding = ['INCOMING', 'OUTGOING', 'BOOKED']
+    .includes(searchParams.get('tab')) ? searchParams.get('tab') : 'INCOMING';
+  useDashboardLanding(({ elementId }) => scrollToSection(elementId));
+
   function scrollToSection(id) {
     const el = document.getElementById(id);
     if (!el) return;
@@ -486,6 +496,7 @@ export default function VenueDashboard({ userId: userIdProp }) {
                  accepted enquiry. ⚠ The account id, because this dashboard's
                  own events are keyed on `events.host_id`. */
               viewerUserId={userId}
+              initialDirTab={enqDirLanding}
               onRespond={handleEnquiryRespond}
               onClear={handleClearEnquiry}
               onPlayDemo={setPlayer}

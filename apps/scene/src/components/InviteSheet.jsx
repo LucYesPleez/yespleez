@@ -390,7 +390,14 @@ export default function InviteSheet({ artist, events = [], venueUserId, venuePro
               <div style={{ fontSize: 14, color: 'rgba(255,255,255,.55)', marginBottom: 28 }}>{artist.name} has been notified.</div>
               <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
                 <button
-                  onClick={() => { onClose(); navigate('/venue?section=enquiries&dir=OUTGOING&status=NEW'); }}
+                  /* ⛔⛔ `/venue` IS NOT A ROUTE — the dashboard is
+                     `/industry/venue`. There is no catch-all, so this landed
+                     on a page that rendered literally nothing: the reader
+                     pressed VIEW OUTGOING ENQUIRIES and got a blank screen.
+                     ⚠ The params are the ones `useDashboardLanding` reads
+                     (`section`/`tab`), ⛔ not a private spelling — the old
+                     `dir=`/`status=` pair was read by nobody. */
+                  onClick={() => { onClose(); navigate('/industry/venue?section=enquiries&tab=OUTGOING'); }}
                   style={{ fontFamily: "'Bebas Neue'", fontSize: 14, letterSpacing: 1.5, padding: '10px 24px', borderRadius: 10, border: `1px solid ${accent}`, background: `rgba(${accentRgb},.12)`, color: accent, cursor: 'pointer' }}
                 >VIEW OUTGOING ENQUIRIES</button>
                 <button
