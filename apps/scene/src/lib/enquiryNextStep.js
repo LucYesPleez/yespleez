@@ -82,8 +82,13 @@ export function acceptedNextStep({ viewerType, otherType, hasEvent = false } = {
       ? {
         owner,
         chip:   'YOU NEED TO ACT',
-        copy:   'Next: add this act to the event.',
-        action: 'add-to-event',
+        /* ⭐ The night already exists — accepting made it (a draft), and the
+           act is already on its shortlist. What is left is the event itself:
+           name it, set the door time, decide whether it goes public. ⛔ Not
+           "add this act": that was done for them, and telling someone to do a
+           thing already done is how a workflow loses trust. */
+        copy:   'Next: finish setting up the event.',
+        action: 'edit-event',
       }
       : {
         owner,

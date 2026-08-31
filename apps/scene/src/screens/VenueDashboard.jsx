@@ -4,6 +4,8 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { resolvePerformerProfileId } from '../lib/actingProfile';
 import { writeNotification } from '../lib/writeNotification';
+import { planAcceptedEnquiry, draftEventForAcceptance } from '../lib/acceptedEnquiryEvent';
+import { planAddArtistToShortlist, addArtistToShortlist } from '../lib/shortlistFromArtist';
 import { useSession, usePlayer } from '../App';
 import { today } from '../lib/dates';
 import FollowingSection, { FOLLOW_FILTER_CONFIGS } from '../components/FollowingSection';
@@ -38,6 +40,8 @@ export default function VenueDashboard({ userId: userIdProp }) {
   const navigate = useNavigate();
   const userId = userIdProp || session?.user?.id;
   const [enquiries,      setEnquiries]      = useState([]);
+  // Bumped when accepting closes a night — see onAccepted.
+  const [availReload,    setAvailReload]    = useState(0);
   // ⛔ `localAvail` / `showAvailCal` are gone with VenueAvailCalendar —
   // AvailabilitySection owns availability state, its fetch and its modal now.
   // Keeping a copy here would have been the duplicate state the whole swap
@@ -199,6 +203,11 @@ export default function VenueDashboard({ userId: userIdProp }) {
     setEnquiries(allEnquiries.map(e => e.id === id ? { ...e, status } : e));
     const enq = allEnquiries.find(e => e.id === id);
     if (!enq) return;
+    /* ⭐ Accepting is the moment the night becomes real. Everything the
+       acceptance produces lives in one place so the order is legible, and it
+       runs BEFORE the notification so the artist's "You're booked!" cannot
+       arrive pointing at a night that does not exist yet. */
+    if (status === 'accepted') await onAccepted(enq);
     const artistId  = enq.applicant_user_id;
     const venueName = enq.venue_name || 'A venue';
     const eventName = enq.event_name || null;
@@ -248,6 +257,87 @@ export default function VenueDashboard({ userId: userIdProp }) {
           event_id: enq.event_id ?? null,
         },
       });
+    }
+  }
+
+  /**
+   * ── ⭐⭐ WHAT ACCEPTING PRODUCES ─────────────────────────────────────────
+   *
+   * Two things, both of which the organiser would otherwise have to do by
+   * hand and one of which they would forget:
+   *
+   *   1. THE NIGHT EXISTS. A draft event, or the act joining the one already
+   *      there — see `planAcceptedEnquiry` for why the second case is the
+   *      whole feature and not an edge case.
+   *   2. THE DATE CLOSES. An accepted night is spoken for, so it stops being
+   *      offered to everyone else.
+   *
+   * ⚠ NEITHER IS FATAL. The status is already saved; a failure here costs an
+   * automation, ⛔ not the decision the organiser just made. Errors are
+   * swallowed deliberately rather than sent back to a screen whose write has
+   * already landed.
+   */
+  async function onAccepted(enq) {
+    const date = enq.date_requested || null;
+    const actId = enq.applicant_profile_id || null;
+    try {
+      /* ⭐⭐ THE DATE STOPS BEING AVAILABLE — the rule that makes this safe.
+         Once somebody is accepted for a night, nobody else may enquire about
+         it, so the published date goes. ⛔ SHORTLISTING DOES NOT DO THIS: a
+         shortlist is interest, not a booking, and the night is still open.
+         ⚠ It is a DELETE of published data, so it does not come back on its
+         own if the booking later falls through — the organiser re-adds the
+         date, which is the same act as offering it in the first place. */
+      if (date && profile?.id) {
+        await supabase.from('venue_availability')
+          .delete().eq('profile_id', profile.id).eq('available_date', date);
+        setAvailReload(n => n + 1);
+      }
+
+      const plan = planAcceptedEnquiry({
+        viewerType: profile?.type,
+        otherType:  enq.profile?.type || enq.applicant_type,
+        date,
+        venueProfileId: profile?.id,
+        events,
+        hasEventAlready: !!enq.event_id,
+      });
+      if (plan.action === 'none' || !actId) return;
+
+      let eventId = plan.event?.id ?? null;
+      if (plan.action === 'create') {
+        const { data: created, error } = await supabase.from('events')
+          .insert(draftEventForAcceptance({
+            actName:   enq.profile?.name || enq.applicant_name || null,
+            venueName: profile?.name || null,
+            date,
+            venueProfileId:  profile.id,
+            ownerProfileId:  profile.id,
+            userId:          session.user.id,
+          }))
+          .select('id').single();
+        if (error || !created?.id) return;
+        eventId = created.id;
+      }
+
+      /* ⭐⭐ THE ENQUIRY NOW NAMES ITS EVENT. Without this the draft exists but
+         nothing points at it, so the card would keep saying CREATE EVENT and
+         a second press would make a SECOND event for the same night — the
+         duplicate the whole guard exists to prevent, reintroduced one step
+         later. It is also what turns the button into EDIT EVENT. */
+      await supabase.from('venue_enquiries').update({ event_id: eventId }).eq('id', enq.id);
+      setEnquiries(prev => prev.map(e => (e.id === enq.id ? { ...e, event_id: eventId } : e)));
+
+      /* ⭐ The act joins through the SAME planner every other surface uses, so
+         a night made by acceptance holds acts the identical way a night made
+         by hand does. ⛔ Shortlist, never the bill — being accepted for a date
+         is not the same as being offered a slot. */
+      const { data: members } = await supabase.from('lineup_members')
+        .select('id, event_id, artist_id, artist_profile_id, status').eq('event_id', eventId);
+      const memberPlan = planAddArtistToShortlist(enq.profile || { id: actId }, eventId, members || []);
+      if (memberPlan.ok) await addArtistToShortlist(supabase, memberPlan);
+    } catch {
+      /* ⛔ Swallowed on purpose — see the note above. */
     }
   }
 
@@ -364,6 +454,8 @@ export default function VenueDashboard({ userId: userIdProp }) {
           userId={userId}
           profileId={profile?.id}
           table="venue_availability"
+          /* Accepting an enquiry closes that night from outside this section. */
+          reloadKey={availReload}
           conflictTarget="user_id,available_date"
           accent="#00E5A0"
           accentRgb="0,229,160"

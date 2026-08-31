@@ -28,6 +28,8 @@ const TODAY = () => today();
 export default function AvailabilitySection({
   userId,
   profileId,
+  /** Bump to re-read the dates — see the load effect. */
+  reloadKey  = 0,
   table      = 'artist_availability',
   /**
    * ── ⚠ THE UPSERT'S CONFLICT TARGET, AND WHY IT IS A PROP ─────────────
@@ -116,7 +118,13 @@ export default function AvailabilitySection({
     supabase.from(table).select('available_date')
       .eq('profile_id', profileId).gte('available_date', TODAY()).order('available_date').limit(60)
       .then(({ data }) => setLocalAvail((data || []).map(r => r.available_date)));
-  }, [profileId, table]);
+    /* ⚠ `reloadKey` — the dates can change from OUTSIDE this component now.
+       Accepting an enquiry closes that night, and without this the organiser
+       who just accepted keeps seeing the date offered on their own screen
+       until they reload. ⛔ Not a refetch on every render: a bumped key means
+       somebody ASKED, which is the same distinction the dashboard's lineup
+       latch got wrong once already. */
+  }, [profileId, table, reloadKey]);
 
   async function toggleDate(dateStr) {
     if (!profileId) return;

@@ -4,6 +4,9 @@ import { supabase } from "../lib/supabase";
 import { useSession } from "../App";
 import s from "@yespleez/event-editor/styles.module.css";
 import { getOwnerProfiles } from "../lib/actingProfile";
+/* ⭐ ONE predicate for "can I manage this event", shared with the event page's
+   host controls — an ownership rule with two implementations has none. */
+import { isEventManager } from "../lib/eventOwnership";
 import { track, EVENTS } from "../lib/analytics";
 /* ⭐ The SAME planner the enquiry card's picker uses — one definition of what
    may join a bill, so arriving from a link cannot bypass a rule the button
@@ -41,6 +44,9 @@ export default function CreateEventScreen() {
   /* ⚠ An unreadable running order is stated, never guessed at — see the load
      effect. A form that silently shows the wrong schedule will save it. */
   const [slotLoadError, setSlotLoadError] = useState('');
+  /* ⛔ Somebody opened ?edit= for an event they do not manage — see the load
+     effect for why a silent RLS refusal is not enough on its own. */
+  const [notMine, setNotMine] = useState(false);
   const [stages, setStages] = useState([]);
 
   /**
@@ -144,8 +150,32 @@ export default function CreateEventScreen() {
    */
   useEffect(() => {
     if (!editId) return;
+    /* ⛔⛔ RESET FIRST. `notMine` is a verdict about ONE event, and the screen
+       stays mounted across `?edit=` changes — without this, refusing one
+       event refused every event opened afterwards, including the reader's
+       own. Caught by driving it: Bass Heavy, which the same account owns,
+       came back NOT YOUR EVENT purely because the previous id had. */
+    setNotMine(false);
     supabase.from('events').select('*').eq('id', editId).single().then(async ({ data }) => {
       if (!data) return;
+      /**
+       * ⛔⛔ ONLY THE OWNER MAY EDIT — THE SECOND LAYER (owner, 2026-08-31).
+       *
+       * RLS already refuses the write, but ⚠⚠ RLS FILTERS an UPDATE rather
+       * than erroring it: a non-owner got the whole form, filled it in, saved,
+       * and was told nothing while nothing changed. That is the exact
+       * two-layer failure this codebase has been bitten by twice — an
+       * ownership rule lives in the client AND in the policy, or it lives
+       * nowhere anybody can see.
+       *
+       * ⭐ `isEventManager` is the SAME predicate the event page gates its
+       * host controls on, so "can I manage this" has one answer.
+       */
+      const owned = (await getOwnerProfiles(session.user.id)).map(p => p.id);
+      if (!isEventManager(data, { userId: session.user.id, ownedProfileIds: owned })) {
+        setNotMine(true);
+        return;
+      }
       ed.hydrate(data);
       /**
        * ⭐ THE SCHEDULE COMES FROM `event_slots`, AFTER hydrate.
@@ -571,6 +601,24 @@ export default function CreateEventScreen() {
     }
     navigate(-1);
   }
+
+  /* ⛔⛔ SAID, NEVER SILENTLY BROKEN. The form would render perfectly and save
+     nothing — RLS filters the UPDATE rather than failing it — so the reader
+     would believe they had edited somebody else's event. */
+  if (notMine) return (
+    <div className={s.screen}>
+      <div className={s.content}>
+        <h1 className={s.pageTitle}>NOT YOUR EVENT</h1>
+        <p className={s.pageSubtitle}>
+          Only the venue or promoter who owns an event can edit it or add acts to it.
+        </p>
+        <button type="button" onClick={() => navigate(-1)}
+          style={{ marginTop: 18, background: 'rgba(255,255,255,.06)', border: '1px solid rgba(255,255,255,.16)', borderRadius: 12, color: 'var(--text)', fontFamily: "'Bebas Neue'", fontSize: 15, letterSpacing: 2, padding: '12px 22px', cursor: 'pointer' }}>
+          GO BACK
+        </button>
+      </div>
+    </div>
+  );
 
   return (
     <div className={s.screen}>

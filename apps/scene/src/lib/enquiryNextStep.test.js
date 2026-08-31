@@ -74,10 +74,13 @@ test('the waiting copy names the party who actually holds the move', () => {
  * ⭐ THE STATE THAT WAS MISSING. An event that already exists needs adding to,
  * not creating — and the same reader sees a different verb for it.
  */
-test('an enquiry that already names an event asks for the act to be ADDED', () => {
+test('an enquiry that already names an event asks for the EVENT to be finished', () => {
+  // Accepting created the draft and shortlisted the act, so what is left is
+  // the event itself — telling them to add an act already added is how a
+  // workflow loses trust.
   const owner = acceptedNextStep({ viewerType: 'venue', otherType: 'artist', hasEvent: true });
-  assert.equal(owner.action, 'add-to-event');
-  assert.equal(owner.copy, 'Next: add this act to the event.');
+  assert.equal(owner.action, 'edit-event');
+  assert.equal(owner.copy, 'Next: finish setting up the event.');
 
   const waiting = acceptedNextStep({ viewerType: 'artist', otherType: 'venue', hasEvent: true });
   assert.equal(waiting.action, null);

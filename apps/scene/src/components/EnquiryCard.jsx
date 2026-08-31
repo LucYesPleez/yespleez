@@ -629,7 +629,11 @@ export default function EnquiryCard({ enq, viewerProfile, viewerUserId, onRespon
                    ⚠ `act` and `venue` are mutually exclusive BY TYPE: the other
                    party is either the act being booked or the room it is in,
                    and which one decides what the editor does with them. */
-                if (eventAction === 'create-event') {
+                /* ⭐ The night already exists — go and finish it. ⛔ Not the
+                   picker: the act is already on its shortlist. */
+                if (eventAction === 'edit-event') {
+                  navigate(`/create-event?edit=${enq.event_id}`);
+                } else if (eventAction === 'create-event') {
                   const q = new URLSearchParams();
                   if (viewerProfile?.id) q.set('as', viewerProfile.id);
                   if (enq.date_requested) q.set('date', enq.date_requested);
@@ -646,7 +650,9 @@ export default function EnquiryCard({ enq, viewerProfile, viewerUserId, onRespon
                 fontFamily: "'Bebas Neue'", fontSize: 12, letterSpacing: 1.4,
                 padding: '6px 14px', cursor: 'pointer',
               }}
-            >{eventAction === 'create-event' ? 'CREATE EVENT' : 'ADD TO EVENT'}</button>
+            >{eventAction === 'edit-event' ? 'EDIT EVENT'
+              : eventAction === 'create-event' ? 'CREATE EVENT'
+                : 'ADD TO EVENT'}</button>
           )}
 
           {/* ⭐ MESSAGE IS ALWAYS THERE ON AN ACCEPTED ENQUIRY — the escape
