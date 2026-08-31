@@ -9,7 +9,13 @@
 }
 
 .header {
-  padding: 18px 16px 10px;
+  /* ⚠ CLEARS THE GLOBAL HEADER, and via the variable rather than a number.
+     GlobalHeader MEASURES itself into `--yp-header-height` (getBoundingClientRect,
+     so it includes the safe-area inset), which is why the event page and every
+     overlay reserve space from it too. ⛔ A hard-coded 56px would be wrong on
+     a notched phone and would drift the moment the header's contents change —
+     the title was sitting under the YESPLEEZ / BETA banner. */
+  padding: calc(var(--yp-header-height, 56px) + 14px) 16px 10px;
   display: flex;
   flex-direction: column;
   gap: 4px;
