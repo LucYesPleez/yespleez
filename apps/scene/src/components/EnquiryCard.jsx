@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { normaliseStatus, STATUS_TAB_COLOR } from '../lib/enquiryUtils';
 import { completionFor, COMPLETION_COLUMNS, requirementLabel } from '@yespleez/requirements';
@@ -31,6 +32,9 @@ import DateBox from './DateBox';
 import { DecisionBtn, DetailBtn, StarIcon, CheckIcon, XIcon } from './DecisionButtons';
 import EnquiryDossierSheet from './EnquiryDossierSheet';
 import ShortlistToEventSheet from './ShortlistToEventSheet';
+import { acceptedNextStep } from '../lib/enquiryNextStep';
+import { openDirectConversation } from '../lib/messaging';
+import { useConversationUi } from '../lib/conversationUi';
 import { PROFILE_TYPES } from '../lib/profileTypes';
 import { genreLabels } from '../lib/profileTaxonomy';
 
@@ -150,18 +154,11 @@ const NEXT_STEPS = {
   incoming: {
     new:         'Awaiting your review — shortlist or respond when ready.',
     shortlisted: "You've shortlisted this — accept or decline when ready.",
-    /**
-     * ⭐ ACCEPTED NOW HAS A NEXT STEP, and it is the venue's (owner, ratified
-     * 2026-08-31 — see the role-ownership rule below the map).
-     *
-     * ⚠ THIS REVERSES the 2026-08-15 "a settled incoming enquiry gets no
-     * footer", and the reasoning still holds for the part it covered: the
-     * strip must not restate the chip. It does not — acceptance is the moment
-     * a date becomes a commitment nobody has written down, and the answer to
-     * "what happens next" stops being nothing. The copy names the ACT, never
-     * the state.
-     */
-    accepted:    'Next: add this act to an event.',
+    /* ⛔ `accepted` IS NOT IN THIS MAP, in either direction. Its copy depends
+       on WHO OWNS EVENT CREATION and on whether an event exists yet, which a
+       static per-direction string cannot express — see `acceptedNextStep`.
+       An earlier version hard-coded "add this act to an event" here and told
+       a venue to do something impossible when no event existed. */
     declined:    'You declined this.',
   },
   /**
@@ -176,11 +173,7 @@ const NEXT_STEPS = {
   outgoing: {
     awaiting:    'Waiting for a response.',
     interested:  "They're interested — waiting on them to confirm.",
-    /* ⛔⛔ THE PERFORMER IS NOT RESPONSIBLE FOR THE EVENT. This says who holds
-       the next move and stops — ⛔ no CREATE EVENT, and nothing implying the
-       act should produce the night they were booked for. Messaging remains
-       their real action, and it is already on the card. */
-    accepted:    'Waiting for the host to add you to an event.',
+    /* ⛔ `accepted` is derived, not stored — see the incoming note above. */
     booked:      'Booked and confirmed.',
     declined:    'This was declined.',
   },
@@ -209,7 +202,10 @@ export default function EnquiryCard({ enq, viewerProfile, viewerUserId, onRespon
   const [sheetOpen, setSheetOpen] = useState(false);
   // The event picker for an accepted act — see canAddToEvent below.
   const [addToEventOpen, setAddToEventOpen] = useState(false);
+  const [msgBusy, setMsgBusy] = useState(false);
   const expandRef = useRef(null);
+  const navigate = useNavigate();
+  const { open: openConversation } = useConversationUi();
 
 
   useEffect(() => {
@@ -243,21 +239,59 @@ export default function EnquiryCard({ enq, viewerProfile, viewerUserId, onRespon
   // now carries the status and the label just says what it is.
   // `declined` keeps muted ink: it is the one status that should recede.
   const statusInk     = displayStatus === 'declined' ? 'var(--muted)' : '#fff';
-  const nextStepsCopy = NEXT_STEPS[enqDir]?.[displayStatus] || '';
+  /**
+   * ⭐⭐ THE ACCEPTED BLOCK IS DERIVED, ⛔ never a per-direction string.
+   *
+   * Acceptance is an AGREEMENT, and what happens next depends on who owns
+   * event creation and whether an event exists — neither of which the
+   * direction can tell you. A venue accepting a promoter waits; a venue
+   * accepting an act acts. See lib/enquiryNextStep.
+   */
+  const accepted = displayStatus === 'accepted'
+    ? acceptedNextStep({
+      viewerType: viewerProfile?.type,
+      otherType:  profile?.type || enq.applicant_type,
+      hasEvent:   !!enq.event_id,
+    })
+    : null;
 
-  /* ⭐ The action that matches the incoming copy. ⛔ Requires a resolved
-     profile: `ShortlistToEventSheet` adds a real reference, and an act with no
-     profile row has nothing to add. */
-  const canAddToEvent = enqDir === 'incoming'
-    && displayStatus === 'accepted'
-    && EVENT_OWNER_TYPES.has(viewerProfile?.type)
-    && !!profile?.id;
+  const nextStepsCopy = accepted ? accepted.copy : (NEXT_STEPS[enqDir]?.[displayStatus] || '');
+
+  /* ⛔ The action needs a resolved profile whichever verb it is: the picker
+     adds a real reference, and an act with no profile row has nothing to add.
+     ⚠ `EVENT_OWNER_TYPES` re-checked here even though `acceptedNextStep`
+     already decided — the model is the rule, this is the second lock on the
+     same door, exactly as the enquiry gate keeps one in its write path. */
+  const eventAction = (accepted?.action && !!profile?.id
+    && EVENT_OWNER_TYPES.has(viewerProfile?.type)) ? accepted.action : null;
 
   async function respond(status) {
     if (busy) return;
     setBusy(true);
     await onRespond?.(enq.id, status);
     setBusy(false);
+  }
+
+  /**
+   * ⭐ STRAIGHT INTO THE CONVERSATION, ⛔ not into the dossier that contains a
+   * MESSAGE button. Two presses to reach one chat is the shape this codebase
+   * keeps removing.
+   *
+   * ⛔⛔ `open: openConversation` — RENAMED. The context has no
+   * `openConversation` key, and destructuring it plain yields undefined, which
+   * closes the sheet and throws into an async void. That exact typo shipped in
+   * EnquiryDossierSheet and made replying impossible for every venue.
+   */
+  async function openChat() {
+    if (!viewerProfile?.id || !profile?.id || msgBusy) return;
+    setMsgBusy(true);
+    try {
+      const { conversationId, error } = await openDirectConversation(viewerProfile.id, profile.id);
+      if (error || !conversationId) return;
+      openConversation(conversationId, { profile: { id: profile.id, name, type: profile.type } });
+    } finally {
+      setMsgBusy(false);
+    }
   }
 
   const p            = profile || {};
@@ -554,16 +588,39 @@ export default function EnquiryCard({ enq, viewerProfile, viewerUserId, onRespon
           borderRadius: expanded ? 0 : '0 0 14px 14px',
           display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
         }}>
-          <span style={{ flex: 1, minWidth: 140 }}>{nextStepsCopy}</span>
+          <span style={{ flex: 1, minWidth: 140, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            {/* ⭐⭐ THE CHIP NAMES RESPONSIBILITY, ⛔ not the enquiry. ACCEPTED
+                is already on the card and in the tab; what was missing is
+                whether the reader has something to do. Green = your move,
+                muted = theirs, and the colour carries it before the words. */}
+            {accepted?.chip && (
+              <span style={{
+                flexShrink: 0, fontFamily: "'Bebas Neue'", fontSize: 9.5, letterSpacing: 1.3,
+                padding: '2px 7px', borderRadius: 4, whiteSpace: 'nowrap',
+                color: accepted.owner === 'you' ? '#00E5A0' : 'var(--muted)',
+                border: `1px solid ${accepted.owner === 'you' ? 'rgba(0,229,160,.5)' : 'rgba(255,255,255,.16)'}`,
+                background: accepted.owner === 'you' ? 'rgba(0,229,160,.1)' : 'transparent',
+              }}>{accepted.chip}</span>
+            )}
+            <span>{nextStepsCopy}</span>
+          </span>
+
           {/* ⛔⛔ ON THE FACE, ⛔ never inside the disclosure. The expander is
               for inspecting the ACT; this is the reader's own next move, and
               burying a decision in an expander is the defect that shipped
               twice already — ADD TO BILL lived inside one and the owner
               opened the tab, saw no button, and nothing happened. */}
-          {canAddToEvent && (
+          {eventAction && (
             <button
               type="button"
-              onClick={() => setAddToEventOpen(true)}
+              onClick={() => {
+                /* ⭐ CREATE, then ADD — the two halves of the same lifecycle.
+                   ⚠ Creating navigates away rather than opening a sheet: an
+                   event is a whole editor, not a picker, and the enquiry is
+                   still here when they come back. */
+                if (eventAction === 'create-event') navigate('/create-event');
+                else setAddToEventOpen(true);
+              }}
               className="yp-tap44"
               style={{
                 flexShrink: 0, background: `linear-gradient(135deg, ${accent}, ${accentPt?.accent2 || accent})`,
@@ -571,7 +628,26 @@ export default function EnquiryCard({ enq, viewerProfile, viewerUserId, onRespon
                 fontFamily: "'Bebas Neue'", fontSize: 12, letterSpacing: 1.4,
                 padding: '6px 14px', cursor: 'pointer',
               }}
-            >ADD TO EVENT</button>
+            >{eventAction === 'create-event' ? 'CREATE EVENT' : 'ADD TO EVENT'}</button>
+          )}
+
+          {/* ⭐ MESSAGE IS ALWAYS THERE ON AN ACCEPTED ENQUIRY — the escape
+              hatch, and the ONLY workflow action the waiting party gets. Load-
+              in, fee and the practical details are a conversation whichever
+              side you are on. */}
+          {accepted && (
+            <button
+              type="button"
+              onClick={openChat}
+              disabled={msgBusy || !viewerProfile?.id || !profile?.id}
+              className="yp-tap44"
+              style={{
+                flexShrink: 0, background: 'none', color: 'var(--text)',
+                border: '1px solid rgba(255,255,255,.2)', borderRadius: 8,
+                fontFamily: "'Bebas Neue'", fontSize: 12, letterSpacing: 1.4,
+                padding: '6px 14px', cursor: 'pointer',
+              }}
+            >{msgBusy ? 'OPENING…' : 'MESSAGE'}</button>
           )}
         </div>
       )}

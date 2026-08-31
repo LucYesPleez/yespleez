@@ -41,26 +41,51 @@ function nextSteps(direction) {
     .replace(/^\s*\/\/.*$/gm, '');
 }
 
-test('an accepted INCOMING enquiry names the venue\'s next move', () => {
-  const incoming = nextSteps('incoming');
-  assert.match(incoming, /accepted:\s*'Next: add this act to an event\.'/,
-    'the venue is no longer told what to do with an act it just accepted');
+/**
+ * ⭐⭐ SUPERSEDED 2026-08-31 (same day): the accepted copy is DERIVED, because
+ * it depends on who owns event creation and on whether an event exists — see
+ * lib/enquiryNextStep and its tests, which hold the ratified table.
+ *
+ * A hard-coded `accepted:` string is now a REGRESSION, not a fix: the first
+ * version told a venue to "add this act to an event" when no event existed,
+ * which is an instruction that cannot be followed. That is the confusion a
+ * real venue reported.
+ */
+test('⛔ neither direction hard-codes the accepted copy any more', () => {
+  for (const dir of ['incoming', 'outgoing']) {
+    assert.doesNotMatch(nextSteps(dir), /accepted:/,
+      `NEXT_STEPS.${dir} has re-grown a static accepted string — it cannot express who acts`);
+  }
+  assert.match(CARD, /acceptedNextStep\(\{/, 'the card no longer derives the accepted block');
 });
 
-test('⛔⛔ an accepted OUTGOING enquiry never asks the performer to make the event', () => {
-  const outgoing = nextSteps('outgoing');
-  assert.match(outgoing, /accepted:\s*'Waiting for the host to add you to an event\.'/);
-  assert.doesNotMatch(outgoing, /create/i,
-    'the performer is being pointed at event creation, which the role rule forbids');
+test('⛔⛔ the performer is never pointed at event creation', () => {
+  const model = read('lib/enquiryNextStep.js')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/^\s*\/\/.*$/gm, '');
+  assert.match(model, /EVENT_OWNER_PRIORITY\s*=\s*\['host',\s*'venue'\]/,
+    'the set of types that may own an event has changed');
+  for (const performer of ['artist', 'band', 'standup']) {
+    assert.doesNotMatch(model, new RegExp(`'${performer}'`),
+      `${performer} appears in the ownership model, which can only be to give it an event`);
+  }
 });
 
-test('⛔⛔ ADD TO EVENT is gated on the VIEWER being a venue or host, not on direction', () => {
+test('⛔⛔ the event action is gated on the VIEWER being a venue or host, not on direction', () => {
   // An artist can hold an INCOMING enquiry — a venue invite is incoming to the
   // act — so a direction-only gate would hand a DJ an event picker.
   assert.match(CARD, /EVENT_OWNER_TYPES\s*=\s*new Set\(\['venue',\s*'host'\]\)/);
-  assert.match(CARD, /canAddToEvent[\s\S]{0,220}EVENT_OWNER_TYPES\.has\(viewerProfile\?\.type\)/,
-    'the event picker is not gated on the viewer being an event owner');
-  assert.match(CARD, /canAddToEvent[\s\S]{0,220}displayStatus === 'accepted'/);
+  assert.match(CARD, /eventAction[\s\S]{0,260}EVENT_OWNER_TYPES\.has\(viewerProfile\?\.type\)/,
+    'the event action is not gated on the viewer being an event owner');
+});
+
+test('⭐ MESSAGE is offered on every accepted enquiry, to both sides', () => {
+  // The waiting party gets no workflow button, so this is their only action —
+  // and it must reach the chat directly, not a sheet containing another button.
+  assert.match(CARD, /accepted && \(\s*<button[\s\S]{0,400}openChat/,
+    'the accepted block no longer offers MESSAGE');
+  assert.match(CARD, /open:\s*openConversation/,
+    'the card must RENAME `open` — the context has no `openConversation` key');
 });
 
 test('the picker reuses the existing artist → event path rather than a second one', () => {
