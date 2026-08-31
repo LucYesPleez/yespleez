@@ -558,10 +558,29 @@ export default function ConversationView({ conversationId, compact = false, onMi
       const { mine: mineSet } = await actableProfileIds(participants.map(p => p.profile_id));
       if (cancelled.current) return;
 
-      // Both sides yours = note-keeping, so Personal is "you" and the other
-      // profile is the recipient. Deterministic, so the header cannot flip
-      // between loads. See InboxScreen for the same rule.
-      const mineRow = participants.find(p => mineSet.has(p.profile_id) && p.profiles?.type === 'punter')
+      /**
+       * WHICH OF MY PROFILES AM I SPEAKING AS?
+       *
+       * ⭐⭐ THE SURFACE THAT OPENED THE DRAWER GETS THE FIRST SAY. Pressing
+       * MESSAGE on a host dashboard is a statement: I am acting as that host.
+       * That hint was being thrown away, and with both participants owned by
+       * one account the fallback below seated the reader as whichever profile
+       * came back first — so a promoter opening their own enquiry found
+       * themselves speaking AS the venue, TO their own host profile.
+       *
+       * ⛔⛔ THE HINT IS NOT A GRANT. It is honoured only when it names a
+       * profile `actableProfileIds` already returned, so an opener cannot
+       * assert an identity the account does not hold (§A4 — ownership is
+       * asked, never computed in the client).
+       *
+       * ⚠ The fallbacks are UNCHANGED and still matter: opened from the inbox
+       * there is no hint at all, and then note-keeping between two of your own
+       * profiles puts Personal on your side, deterministically, so the header
+       * cannot flip between loads. See InboxScreen for the same rule.
+       */
+      const hinted = getState(conversationId).asProfileId;
+      const mineRow = (hinted && participants.find(p => p.profile_id === hinted && mineSet.has(p.profile_id)))
+                   ?? participants.find(p => mineSet.has(p.profile_id) && p.profiles?.type === 'punter')
                    ?? participants.find(p => mineSet.has(p.profile_id));
       setMine(mineSet);
       setSender(mineRow?.profile_id ?? null);

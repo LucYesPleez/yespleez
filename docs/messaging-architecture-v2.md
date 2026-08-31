@@ -82,6 +82,32 @@ acting as the same profile is a different human: their messages are unread to
 you, and they receive their own notifications. Anything counting or
 suppressing "your own" messages keys on `from_user_id`.
 
+### Which of MY profiles am I speaking as (§2.0a, added 2026-08-31)
+
+Client-side resolution, not a schema rule — the participant set is untouched.
+
+`ConversationView` must decide which participant is "you". When only one
+participant is actable the answer is forced. When **both** belong to one
+account it is not, and the drawer used to take the first actable profile it
+found: pressing MESSAGE on a host dashboard could seat the reader as their
+**venue**, talking to their own host.
+
+The surface that opens the drawer now states the identity it acted as, via
+`open(id, { asProfileId })` (`lib/conversationUi.jsx`). Resolution order:
+
+1. `asProfileId`, **only if `actableProfileIds` already returned it**;
+2. the account's `punter` profile — note-keeping puts Personal on your side;
+3. the first actable participant.
+
+The hint is a hint, never a grant: §A4 stands, ownership is asked and never
+computed in the client, so an opener cannot assert an identity the account
+does not hold. Openers that legitimately have no opinion — the inbox, a
+notification deep-link — pass nothing and get the unchanged fallbacks.
+
+⚠ Two different accounts can never reach this branch: the actable set only
+holds profiles the reader can act as. It is invisible unless one person owns
+both ends, which is why it went unnoticed.
+
 ### Participants are fixed at creation (§2.1)
 
 > *"the participant set and the subject are FIXED. A new set or subject means a

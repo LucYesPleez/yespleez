@@ -104,7 +104,12 @@ export default function EnquiryDossierSheet({ enq, viewerProfile, onClose, onRes
       const { conversationId, error } = await openDirectConversation(viewerProfile.id, p.id);
       if (error || !conversationId) return;
       onClose?.();
-      openConversation(conversationId, { profile: { id: p.id, name, type: p.type } });
+      /* ⭐ `asProfileId` — this sheet KNOWS which identity is reading, and the
+         drawer cannot work it out when both profiles belong to one account. */
+      openConversation(conversationId, {
+        profile: { id: p.id, name, type: p.type },
+        asProfileId: viewerProfile.id,
+      });
     } finally {
       setMsgBusy(false);
     }

@@ -288,7 +288,10 @@ export default function EnquiryCard({ enq, viewerProfile, viewerUserId, onRespon
     try {
       const { conversationId, error } = await openDirectConversation(viewerProfile.id, profile.id);
       if (error || !conversationId) return;
-      openConversation(conversationId, { profile: { id: profile.id, name, type: profile.type } });
+      openConversation(conversationId, {
+        profile: { id: profile.id, name, type: profile.type },
+        asProfileId: viewerProfile.id,     // the dashboard I am reading this on
+      });
     } finally {
       setMsgBusy(false);
     }

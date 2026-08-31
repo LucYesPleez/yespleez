@@ -52,6 +52,21 @@ function emptyUiState() {
     unread:       0,
     lastPreview:  null,   // {text, kind} for the pill
     profile:      null,   // {id, name, type, avatarUrl} for the pill
+    /**
+     * ⭐ WHICH OF MY PROFILES I OPENED THIS AS — a hint from the surface that
+     * opened the drawer, and null when it did not say.
+     *
+     * ⚠⚠ WHY IT IS NEEDED: when BOTH participants belong to one account, the
+     * conversation cannot tell which of them is "you". It fell back to the
+     * first profile the account can act as, so pressing MESSAGE on a host
+     * dashboard could seat you as your VENUE, talking to your own host —
+     * the identity flipped for no reason the reader could see.
+     *
+     * ⛔ A HINT, NEVER A GRANT. The view still resolves ownership through
+     * `actableProfileIds` and ignores this unless it names a profile that
+     * check already returned (§A4: ownership is asked, never computed).
+     */
+    asProfileId:  null,
   };
 }
 
@@ -73,6 +88,11 @@ export function ConversationUiProvider({ children }) {
     if (!id) return;
     const st = ensure(id);
     if (seed?.profile && !st.profile) st.profile = seed.profile;
+    /* ⚠ OVERWRITES, unlike `profile`. Opening the same thread from a
+       different surface is a NEW statement about who is speaking, and the
+       latest one is the true one — where the pill's profile is just a label
+       that should not churn. */
+    if (seed?.asProfileId) st.asProfileId = seed.asProfileId;
     st.unread = 0;                                  // opening clears the pill badge
     setMinimised(prev => prev.filter(x => x !== id));
     setOpenId(id);

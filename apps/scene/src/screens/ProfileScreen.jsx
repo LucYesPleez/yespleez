@@ -851,8 +851,14 @@ export default function ProfileScreen() {
     try {
       const { conversationId, error } = await openDirectConversation(fromProfileId, profile.id);
       if (error || !conversationId) return;
+      /* ⭐⭐ THE STRONGEST CASE FOR THE HINT: the function is called
+         `startConversationAs` because the person was ASKED which of their
+         profiles is speaking and answered. Dropping it here meant the drawer
+         could seat them as a different one of their own profiles than the one
+         they had just chosen. */
       openConversation(conversationId, {
         profile: { id: profile.id, name: profile.name, type: profile.type },
+        asProfileId: fromProfileId,
       });
     } finally {
       setMessageBusy(false);
